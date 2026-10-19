@@ -18,7 +18,9 @@ func TestRecoverIsOfferedExactlyWhereActorActionsOffersAnything(t *testing.T) {
 		// A live row's lifecycle actions come from the switcher; only the
 		// live orphan, whose lifecycle actions all refuse, is offered recover.
 		live := shape.row.State == couchcore.ThreadLive && shape.row.Orphan == nil
-		want := !live && len(actor) > 0
+		// Open parks offer their own confirmed action, never the generic
+		// unconfirmed recovery composition.
+		want := !shape.row.HasOpenPark && !live && len(actor) > 0
 		has := len(items) > 0 && items[0] == "recover"
 		if has != want {
 			t.Errorf("%s: items %v, actor actions %v", shape.name, items, actor)
@@ -57,11 +59,11 @@ func TestRecoverDispatchesWithoutAConfirmation(t *testing.T) {
 			!maps.Equal(effects[0].Args, couchcore.ActorOperationArgs(row, "recover")) {
 			t.Fatalf("%s: effects %+v, want recover %v", name, effects, couchcore.ActorOperationArgs(row, "recover"))
 		}
-		if next.CurrentFrame().Kind == MenuFrameConfirmation || next.InFlight.Operation != "recover" || !strings.Contains(next.Notice.Text, "recovering") {
-			t.Fatalf("%s: frame %+v, in flight %+v, notice %q", name, next.CurrentFrame(), next.InFlight, next.Notice.Text)
+		if next.CurrentFrame().Kind == MenuFrameConfirmation || next.operationForTest().Operation != "recover" || !strings.Contains(next.Notice.Text, "recovering") {
+			t.Fatalf("%s: frame %+v, in flight %+v, notice %q", name, next.CurrentFrame(), next.operationForTest(), next.Notice.Text)
 		}
-		if row.Target.Kind == couchcore.ThreadTargetSlot && next.InFlight.RowKey != menuRowKey(row) {
-			t.Fatalf("%s: a slot's recover is not keyed by row: %+v", name, next.InFlight)
+		if row.Target.Kind == couchcore.ThreadTargetSlot && next.operationForTest().RowKey != menuRowKey(row) {
+			t.Fatalf("%s: a slot's recover is not keyed by row: %+v", name, next.operationForTest())
 		}
 	}
 }
@@ -74,7 +76,7 @@ func TestRecoverRefusalIsAnErrorNotice(t *testing.T) {
 	refusal := &couchcore.RecoverRefusal{Code: couchcore.RecoverHeld, Detail: "conflict:claim-elsewhere: claimed in pair:3"}
 	next, more := ReduceMenu(state, MenuEvent{Kind: MenuEventOperationResult, Operation: "recover", Attempt: effects[0].Attempt,
 		Address: row.Address, Error: refusal.Error()})
-	if len(more) != 0 || next.InFlight.Operation != "" || next.Notice.Level != MenuNoticeError || !strings.Contains(next.Notice.Text, "claim-elsewhere") {
-		t.Fatalf("effects %+v, in flight %+v, notice %+v", more, next.InFlight, next.Notice)
+	if len(more) != 0 || next.operationForTest().Operation != "" || next.Notice.Level != MenuNoticeError || !strings.Contains(next.Notice.Text, "claim-elsewhere") {
+		t.Fatalf("effects %+v, in flight %+v, notice %+v", more, next.operationForTest(), next.Notice)
 	}
 }

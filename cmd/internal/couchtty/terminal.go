@@ -173,6 +173,8 @@ func (c *Console) selectActorContext(ctx context.Context, id string, force bool,
 	}
 	c.beforePublish("select")
 	c.mu.Lock()
+	c.menu.LandingAttempt = 0
+	c.navigationGeneration++
 	c.active, c.focus = id, FocusActor(id)
 	c.menu.ActiveAddress = pane.thread
 	c.tracker.Switch(pane.thread, how.viaNotification())

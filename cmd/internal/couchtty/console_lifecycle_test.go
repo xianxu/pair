@@ -24,7 +24,7 @@ func TestLifecycleCompletionRequiresFinalAdoption(t *testing.T) {
 				return nil, nil
 			})
 			address := menuAddress("new")
-			c.finishOperation(operationCompletion{origin: MenuOperationOrigin{Operation: "start", Attempt: 1}, value: couchcore.StartResult{
+			c.finishPreparedOperationForTest(operationCompletion{origin: MenuOperationOrigin{Operation: "start", Attempt: 1}, value: couchcore.StartResult{
 				Record: couchcore.ActorRecord{Thread: address, PID: 12, Identity: "one", Args: couchcore.StartArgs{Worktree: "/repo"}},
 			}})
 			if fail && len(events) != 0 {
@@ -63,7 +63,7 @@ func TestLifecycleRestartDrainsAfterLastCompletion(t *testing.T) {
 	if len(events) != 1 {
 		t.Fatalf("flushed running pass: %+v", events)
 	}
-	c.finishOperation(operationCompletion{origin: MenuOperationOrigin{Operation: "resume", Background: true, Attempt: 1, Address: menuAddress("worker")}, err: errors.New("reattach unavailable")})
+	c.finishPreparedOperationForTest(operationCompletion{origin: MenuOperationOrigin{Operation: "resume", Background: true, Attempt: 1, Address: menuAddress("worker")}, err: errors.New("reattach unavailable")})
 	c.observeLifecyclePass()
 	if len(events) != 2 || events[1].Kind != "restart-drained" {
 		t.Fatalf("drain once: %+v", events)
@@ -102,7 +102,7 @@ func TestLifecycleParkOnlyReportsFinalizedResult(t *testing.T) {
 			if tc.failed {
 				err = errors.New("finalization failed")
 			}
-			c.finishOperation(operationCompletion{origin: MenuOperationOrigin{Operation: "park", Attempt: 1}, value: couchcore.ParkResult{Thread: r, CleanupError: errors.New("cleanup warning")}, err: err})
+			c.finishPreparedOperationForTest(operationCompletion{origin: MenuOperationOrigin{Operation: "park", Attempt: 1}, value: couchcore.ParkResult{Thread: r, CleanupError: errors.New("cleanup warning")}, err: err})
 			if len(events) != tc.want {
 				t.Fatalf("park observations: %+v", events)
 			}
@@ -184,7 +184,7 @@ func TestLifecycleNewAdoptionResetsPreviousNeedsRelaunchEvidence(t *testing.T) {
 	c.SetLifecycleObserver(func(e LifecycleObservation) { events = append(events, e) })
 	c.observeLifecycleInventory([]couchcore.ActionableThreadSummary{row})
 	c.SetOperationDispatcher(func(couchcore.OperationCall) (any, error) { return nil, nil })
-	c.finishOperation(operationCompletion{origin: MenuOperationOrigin{Operation: "resume", Attempt: 1}, value: couchcore.StartResult{Record: couchcore.ActorRecord{Thread: row.Address, PID: 123, Identity: "new", Args: couchcore.StartArgs{Worktree: couchcore.Worktree(row.Target.Slot.WorktreeRoot)}}}})
+	c.finishPreparedOperationForTest(operationCompletion{origin: MenuOperationOrigin{Operation: "resume", Attempt: 1}, value: couchcore.StartResult{Record: couchcore.ActorRecord{Thread: row.Address, PID: 123, Identity: "new", Args: couchcore.StartArgs{Worktree: couchcore.Worktree(row.Target.Slot.WorktreeRoot)}}}})
 	// The replacement becomes unusable before a live inventory is accepted.
 	c.observeLifecycleInventory([]couchcore.ActionableThreadSummary{row})
 	if len(events) != 3 || events[0].Kind != "needs-relaunch" || events[1].Kind != "resumed" || events[2].Kind != "needs-relaunch" {
@@ -216,7 +216,7 @@ func TestLifecycleCompletionPrefersAdoptedAgent(t *testing.T) {
 				case "continue-thread":
 					result = couchcore.ContinuationResult{Record: started.Record, Handle: started.Handle}
 				}
-				c.finishOperation(operationCompletion{origin: MenuOperationOrigin{Operation: operation, Attempt: 1}, value: result})
+				c.finishPreparedOperationForTest(operationCompletion{origin: MenuOperationOrigin{Operation: operation, Attempt: 1}, value: result})
 				if len(events) != 1 || events[0].Agent != "codex" || events[0].Target != row.Target {
 					t.Fatalf("completion used stale/empty row agent: %+v", events)
 				}
@@ -237,7 +237,7 @@ func TestLifecycleRecoveryCompletionPreservesConfirmedMode(t *testing.T) {
 				var events []LifecycleObservation
 				c.SetLifecycleObserver(func(e LifecycleObservation) { events = append(events, e) })
 				c.SetOperationDispatcher(func(couchcore.OperationCall) (any, error) { return nil, nil })
-				c.finishOperation(operationCompletion{origin: MenuOperationOrigin{Operation: operation, Attempt: 1}, value: couchcore.RecoveryResumeResult{
+				c.finishPreparedOperationForTest(operationCompletion{origin: MenuOperationOrigin{Operation: operation, Attempt: 1}, value: couchcore.RecoveryResumeResult{
 					Mode: tc.mode, Notice: "deliberately unrelated presentation text",
 					Start: couchcore.StartResult{Record: couchcore.ActorRecord{Thread: menuAddress("slot"), PID: 123, Identity: "recovered", Args: couchcore.StartArgs{Worktree: "/repo", Stack: "codex"}}, Handle: stubHandle{id: "recovered"}},
 				}})

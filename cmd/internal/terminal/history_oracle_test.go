@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/internal/reporoot"
+	"github.com/xianxu/pair/internal/testoracle"
 )
 
 type historyOracleRow struct {
@@ -46,11 +47,7 @@ func runHistoryOracle(t *testing.T, cols, rows int, chunks ...string) []historyO
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "node", "driver.cjs")
 	cmd.Dir = dir
-	cmd.Stdin = bytes.NewReader(data)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("history oracle %v: %s", err, output)
-	}
+	output := testoracle.Run(t, cmd, data)
 	var screens []historyOracleScreen
 	if err := json.Unmarshal(output, &screens); err != nil {
 		t.Fatal(err)

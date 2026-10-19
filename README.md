@@ -110,8 +110,8 @@ unit of collaboration.
 From the draft, `Alt+c` restores the current `review/<slug>` branch's document
 and latest agent decorations, including in a fresh session. It checks the branch
 before reusing an open pane or cached target. With the same document active it
-toggles visibility; unsaved edits, pending replies, or an uncommitted agent round
-block switching to another document. Return to the original branch and finish
+toggles visibility; unsaved edits or pending replies block switching to another
+document. Return to the original branch and finish
 that work first. Missing or ambiguous review history prompts for a selection or
 reports why restoration cannot proceed.
 
@@ -175,7 +175,7 @@ adds context that a one-line description cannot carry.
 | **Alt+a** / **Alt+r** (or **Leader+a** / **Leader+r**) | review buffer (normal) | Accept / reject the 🤖 suggestion at the cursor. |
 | **Alt+Shift+A** / **Alt+Shift+R** | review buffer (normal) | Accept / reject paragraph suggestions through the cursor. |
 | **Alt+q** | review buffer | Insert a human comment marker in normal/insert mode; quote the selection in visual mode. |
-| **Alt+Return** | review buffer (normal/insert) | Finish the human turn; apply agent results when a round is pending. |
+| **Alt+Return** | review buffer (normal/insert) | Finish the human turn: save the document and send it to the agent. |
 | **Alt+n** / **Alt+Shift+N** (or **]m** / **[m**) | review buffer (normal) | Next / previous 🤖 marker, wrapping, including human comments. These local actions override restart behavior while reviewing, including under Couch. |
 | **gl** / **Ctrl+w d**, **]d** / **[d** | review buffer (normal) | Open the diagnostic explanation, or move to the next / previous diagnostic. |
 | **Shift+Alt+d** | review pane (visual) | Define the selected term inline. The pair agent answers through `pair review definition`, and the pane stores the result as a durable footnote. |
@@ -408,7 +408,8 @@ upgrading, since running ones keep their old zellij server.
 `pair review …`, `pair scrollback …`, `pair clip …`, …) live in one executable,
 with Neovim and Zellij config carried alongside it. There is no Python and no
 shell runtime; `zellij`, `nvim`, `fzf`, and the agent CLIs are the only external
-programs.
+programs. Bare groups such as `pair review` (or `pair review --help`) list their
+subcommands.
 
 `make build` publishes each of `pair`, `couch`, and `pair-launch-helper` by
 building privately beside its destination, then renaming the completed executable.
@@ -434,6 +435,15 @@ recovery journals. Attachments use bounded parallelism and one retry; a failure
 reads `Continue · pane failed: <reason> (retry)`. While its pane is loading,
 it reads `Continue · attaching…`; an attached pane reads `Continue`. One unavailable slot does not
 prevent Couch or other slots from opening.
+Switcher lifecycle actions run in the background per slot. Their forms return to
+the slot list immediately: a busy row shows its action, current step and elapsed
+time; a finished row keeps one result until its next action. A second action on
+a busy slot is refused with the running action's name. Other slots and the hub
+remain available. Select a busy row to wait for its new terminal; navigating
+elsewhere prevents its eventual completion from pulling focus back. On a failed
+row, `Ctrl+Y` copies its retained diagnostic; otherwise it copies the last notice.
+Recovery confirmations stay on their row until you select it to review them.
+
 Couch keeps agent-pane context titles and cmux activity heat titles current from
 its existing inventory and minute activity refreshes. Hosted Pair starts no
 separate title poller. Idle fading keeps using prompt and agent activity plus
@@ -525,6 +535,9 @@ couch --set-model repo:N --model MODEL [--effort LEVEL] [--scope session|default
 couch --operation-status ID [--json]   inspect an asynchronous operation receipt
 couch --reap repo:N --confirm [--json]     from a live slot: end an orphaned server's tree
 couch --recover repo:N [--json]               from a live slot: run the report's steps for it
+couch --recover-park repo:N --confirm [--json]
+                         authenticated owning hub: resolve an interrupted park without launching an agent;
+                         retain the conversation and follow the reported Continue, Resume from disk or Start fresh action
 couch --relaunch repo:N --confirm [--same-binary] [--force-unknown] [--json]
                          from a live slot: restart an idle slot on the current binary, same conversation (Alt+n);
                          refuses busy, dirty or an unchanged binary, naming the fix (under couch-dev too:
@@ -1902,6 +1915,17 @@ all tests finish. Private executable names use hard links (copies across
 filesystems). Standalone shell consumers use the same builder, which locates
 its checkout independently of the caller's working directory.
 
+Native diagnostic-log open-file conformance skips with a named reason when `lsof`
+cannot provide a complete observation. Require fresh native evidence with:
+
+```bash
+PAIR_REQUIRE_LSOF_CONFORMANCE=1 go test ./cmd/internal/diagnosticlog -count=1 \
+  -run 'Test(OpenFileInspectionConformance|UnregisteredChildOpenFileBlocksLegacyExpiry)$'
+```
+
+Required mode fails instead of skipping an unavailable/incomplete probe. A complete
+answer with a wrong holder or process identity fails in both modes.
+
 `make test` also runs ariadne's pinned Go lint catalog over tracked Go sources.
 For a focused check, run `go test ./internal/repolint -count=1 -v`. Use a full Git
 checkout with the configured main tracking ref available: the sleep-debt ratchet
@@ -2057,7 +2081,13 @@ and retains diagnostic counts only. The TL in the hub decides when to interrupt
 you with `couch --notify [--title T] MESSAGE`; its default title is `Couch`.
 Other slots are refused and should send their message to the hub instead.
 Titles accept at most 256 bytes and messages 4096 bytes, with terminal controls
-removed. Success means written to the terminal, not confirmation of OS display.
+removed. The command reports `Notification written; desktop delivery not confirmed.`
+A successful terminal write cannot confirm that the OS displayed the alert.
+For Ghostty, [`desktop-notifications = true`](https://ghostty.org/docs/config/reference#desktop-notifications)
+(the default) must be enabled. In macOS System Settings → Notifications → Ghostty,
+allow notifications and enable the desired alert style; Focus must allow the alert.
+If no alert appears, check those settings and compare focused and unfocused windows;
+Couch cannot inspect or confirm those policies through the terminal protocol.
 If a write or reply is uncertain, do not retry automatically.
 Couch also raises a desktop alert and tells the hub if its input guard
 unexpectedly stalls an otherwise idle slot for 30 seconds. Inspect the named
@@ -2090,6 +2120,16 @@ A working agent produces output continuously, so the floor does not fire on one;
 it is the quiet cases — a menu waiting for an answer, a turn that silently went
 nowhere — that reach it. Set `PAIR_WRAP_IDLE_S` to change the interval, or
 `PAIR_WRAP_IDLE_S=0` to switch the floor off entirely.
+
+**The orientation slug.** The same turn-end sink also refreshes the session's
+orientation slug — the `=== <branch> | <focus> ===` header the draft keeps on
+line 1 — with a background small-model call per turn-end (debounced). Under
+Couch this is off by default: the operator doesn't use the slug there, and the
+fleet was paying for ~70 `pair slug` spawns and ~36 model calls an hour. Both
+entries no-op — the wrapper's turn-end spawn and the `pair slug` command body
+itself, which is also what an external Claude Stop hook invokes — so a hosted
+session never spends a model call on the slug. Set `PAIR_SLUG=on` to turn it
+back on under Couch. Outside Couch it stays on.
 
 Under Couch, ordinary BEL attention still colors the source actor's status label.
 `Ctrl-Space` selects the newest unread actor; a successful switch acknowledges
@@ -2158,7 +2198,8 @@ profile is `pair-vt-256color` (`terminfo/`). Run the fork's tests from that modu
 as well as the root tests. The runtime build compiles `terminfo/pair-vt-256color.ti` with `tic`; copied binaries include that profile and need no runtime compiler. `sh tests/terminal-oracle/run.sh` installs the locked
 test-only xterm-headless dependency and checks actual renderer output against an
 independent terminal implementation. See [terminal ownership](atlas/terminal.md)
-for the current migration boundary.
+for the current migration boundary. For headless diagnostic controls, exact-request
+replay and Node report limits, see the [oracle guide](tests/terminal-oracle/README.md).
 
 The default Go suite includes short production-path soak tests for Couch and Pair
 term. A scheduled or pre-release sustained run can use disposable synthetic PTY
@@ -2211,7 +2252,12 @@ required tests. It needs Go, Python, Node with the pinned `tests/terminal-oracle
 dependencies, nvim and Zellij. The macOS `couch-zellij-conformance` workflow
 installs the dependencies, pins Zellij 0.45.1, and invokes the target on relevant
 pull requests, main changes, scheduled runs and manual dispatch. Scratch state
-is invocation-owned; native checks do not attach operator sessions.
+is invocation-owned; native checks do not attach operator sessions. Failed oracle
+requests, phase markers and available Node reports are published in the CI job
+log before scratch cleanup. For manual Go runs, add `-artifacts -outputdir
+<owned-dir>` to retain the complete oracle files; successful calls remove theirs.
+The [oracle guide](tests/terminal-oracle/README.md) covers replay, headless controls
+and report limitations; a diagnostic pass does not establish a crash fix.
 
 `tests/terminal-performance.py --help` describes isolated baseline/candidate
 measurements using real Pair terminal processes and independent screen receipts.

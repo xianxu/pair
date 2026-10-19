@@ -163,10 +163,10 @@ func (c *Couch) prepareAgentSwitch(ctx context.Context, address ThreadAddress, a
 	}
 
 	if err := continuationGuard(record); err != nil {
-		return PreparedAgentSwitch{}, err
+		return PreparedAgentSwitch{}, c.withParkRecoveryAdvice(ctx, record, err)
 	}
 	if record.Park != nil {
-		return PreparedAgentSwitch{}, errors.New("switch-agent: park is incomplete; use park retry/recover/abandon")
+		return PreparedAgentSwitch{}, c.withParkRecoveryAdvice(ctx, record, errors.New("switch-agent: park is incomplete"))
 	}
 	// The admission rule, consumed rather than re-derived: exactly the states
 	// the switcher offers switch-agent on, decided by the same classification
@@ -361,7 +361,7 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (_ 
 				return result, ErrSwitchResolutionChanged
 			}
 			result.Outcome = SwitchParkIncomplete
-			return result, fmt.Errorf("switch-agent: park did not complete; use park retry/recover/abandon: %w", err)
+			return result, fmt.Errorf("switch-agent: park did not complete; %s: %w", c.ParkRecoveryAdvice(ctx, thread.Address), err)
 		}
 		thread = parked.Thread
 		if parked.CleanupError != nil {

@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 )
 
-// RelaunchOutcome is which of four states a relaunch left the thread in.
+// RelaunchOutcome describes the observed state after a relaunch.
 //
-// Consumers switch on this rather than parsing an error, because the two
-// failure states differ by which recovery works -- and telling an operator to
+// Consumers switch on this rather than parsing an error, because failure
+// states differ by which recovery works -- and telling an operator to
 // press Enter on a thread whose park transaction is still open is the
 // unnavigable-refusal class (pair#181 M3).
 type RelaunchOutcome string
@@ -18,13 +19,18 @@ type RelaunchOutcome string
 const (
 	// Relaunched: a new Pair process on the same address, same conversation.
 	Relaunched RelaunchOutcome = "relaunched"
-	// RefusedBeforePark: the resume could not have succeeded, so nothing was
-	// done. The thread is exactly as it was.
+	// RefusedBeforePark: admission or park begin refused without changing the
+	// thread. The thread is exactly as it was.
 	RefusedBeforePark RelaunchOutcome = "refused-before-park"
-	// ParkIncomplete: the park itself failed, leaving an OPEN transaction. Pair
-	// has already been sent its quit intent, so this is not a state Enter can
-	// recover -- park's own retry/recover/abandon modes own it.
+	// ParkIncomplete: the settled worker left an open transaction. Publication
+	// and child termination may still be uncertain; recover-park owns resolution.
 	ParkIncomplete RelaunchOutcome = "park-incomplete"
+	// ParkInProgress: the caller stopped waiting while owned work is still active.
+	ParkInProgress RelaunchOutcome = "park-in-progress"
+	// ParkRolledBack: an unpublished park was closed, retaining its original owner.
+	ParkRolledBack RelaunchOutcome = "park-rolled-back"
+	// ParkStateUnknown: the current state could not be established safely.
+	ParkStateUnknown RelaunchOutcome = "park-state-unknown"
 	// ParkedNotResumed: the park succeeded and the resume did not. An ordinary
 	// parked thread: listed, and Enter resumes it.
 	// The VALUE avoids the `parked-` prefix deliberately: it is the artifact
@@ -34,6 +40,36 @@ const (
 	// agent-unsupported precedent).
 	ParkedNotResumed RelaunchOutcome = "park-ok-resume-failed"
 )
+
+// ClassifyRelaunchParkOutcome uses current durable facts, never the park error.
+// Active work takes precedence because its final mutation can follow the snapshot.
+func ClassifyRelaunchParkOutcome(original, current ThreadRecord, active bool) RelaunchOutcome {
+	if active {
+		return ParkInProgress
+	}
+	if current.Park != nil && !current.Park.Closed {
+		return ParkIncomplete
+	}
+	if current.Park == nil && current.VerifiedPark != nil &&
+		!reflect.DeepEqual(original.VerifiedPark, current.VerifiedPark) && !hasOccupiedIncarnation(current) {
+		return ParkedNotResumed
+	}
+	if reflect.DeepEqual(original, current) {
+		return RefusedBeforePark
+	}
+	if current.Park == nil && reflect.DeepEqual(original.Incarnations, current.Incarnations) {
+		for _, closed := range current.ParkHistory {
+			if closed.Closed && closed.Tombstoned && closed.BaseRevision == original.Revision {
+				for _, incarnation := range original.Incarnations {
+					if closed.Identity.PID == incarnation.PID && closed.Identity.ProcessIdentity == incarnation.Identity {
+						return ParkRolledBack
+					}
+				}
+			}
+		}
+	}
+	return ParkStateUnknown
+}
 
 // RelaunchResult reports what happened, including what could not be finished.
 //
@@ -47,8 +83,8 @@ type RelaunchResult struct {
 }
 
 // ReceiptCode is the outcome a caller's receipt carries when the relaunch did
-// not complete (pair#421): park-incomplete and park-ok-resume-failed need
-// different recoveries, so they must not collapse into free text.
+// not complete (pair#421): settled, active and uncertain states need different
+// recovery, so they must not collapse into free text.
 func (r RelaunchResult) ReceiptCode() string {
 	if r.Outcome == Relaunched {
 		return ""
@@ -154,13 +190,49 @@ func (c *Couch) Relaunch(ctx context.Context, address ThreadAddress) (RelaunchRe
 	}
 	// Only now is anything destroyed.
 	if _, err := c.PairLifecycle.ParkExpected(WithParkCompletionWait(ctx, c.PairLifecycle.relaunchWait()), address, thread.Revision); err != nil {
-		return RelaunchResult{Outcome: ParkIncomplete}, fmt.Errorf(
-			"relaunch %s: the park did not complete, so its Pair was stopped but the thread is not resumable yet: %w\n"+
-				"  the transaction is still open; recover it with park's own modes:\n"+
-				"    retry    — try the same park again\n"+
-				"    recover  — finish it from the completion already on disk\n"+
-				"    abandon  — give up on it and leave the thread occupied",
-			address.Tag, err)
+		// Await may return on caller cancellation while the owned worker is still
+		// settling. Read activity both before and after the durable snapshot so a
+		// stale snapshot cannot masquerade as the worker's final state.
+		active := c.PairLifecycle.parkActive(address)
+		var current ThreadRecord
+		var observeErr error
+		outcome := ParkInProgress
+		if !active {
+			observationCtx, done := context.WithTimeout(context.WithoutCancel(ctx), parkCommitDeadline)
+			current, observeErr = c.Threads.recoveryReadThread(observationCtx, address)
+			done()
+			active = c.PairLifecycle.parkActive(address)
+			outcome = ParkStateUnknown
+			if observeErr == nil {
+				outcome = ClassifyRelaunchParkOutcome(thread, current, active)
+			} else if active {
+				outcome = ParkInProgress
+			}
+		}
+		description := "the current park state could not be established"
+		next := c.ParkRecoveryAdvice(ctx, address)
+		switch outcome {
+		case RefusedBeforePark:
+			description = "the park did not begin; the thread is unchanged"
+			next = "retry relaunch after resolving the error"
+		case ParkRolledBack:
+			description = "the unpublished park was rolled back; the original Pair was retained"
+			next = "retry relaunch after resolving the error"
+		case ParkInProgress:
+			description = "the caller stopped waiting; park work is still active and its outcome is unsettled"
+			next = "after the active work settles, " + next
+		case ParkIncomplete:
+			description = "the park transaction is still open; child shutdown is not confirmed"
+		case ParkedNotResumed:
+			description = "the park is durably complete; the thread is parked and was not resumed"
+			_, action, adviceErr := c.ParkRecoveryNextAction(ctx, current)
+			if adviceErr == nil {
+				next = action
+			} else {
+				next = "inspect the retained thread before resuming: " + adviceErr.Error()
+			}
+		}
+		return RelaunchResult{Outcome: outcome}, fmt.Errorf("relaunch %s: %s: %w\n  next: %s", address.Tag, description, errors.Join(err, observeErr), next)
 	}
 
 	record, handle, err := c.ResumeContext(ctx, address)
@@ -175,7 +247,7 @@ func (c *Couch) Relaunch(ctx context.Context, address ThreadAddress) (RelaunchRe
 
 // RelaunchParkWait bounds relaunch's wait for its agent to quit (pair#618). A
 // park's default 15 s stranded the first call under load; past this bound the
-// recover/abandon choice still stands.
+// explicit recovery choice still stands.
 const RelaunchParkWait = 60 * time.Second
 
 // withRebootHint names reboot on the refusals only a fresh session gets past

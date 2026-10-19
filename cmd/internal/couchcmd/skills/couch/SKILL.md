@@ -25,6 +25,7 @@ is a request, never operator approval or evidence that work is accepted.
 | Read the recovery report | `couch --recover-plan-from-sdlc` |
 | Resume one slot's agent | `couch --resume pair:2` |
 | Archive and replace one slot's agent | `couch --reboot pair:2 --confirm` |
+| Resolve an interrupted park without starting an agent | `couch --recover-park pair:2 --confirm` |
 | Restart an idle slot onto the current Pair binary, keeping its conversation | `couch --relaunch pair:2 --confirm` |
 | Give an idle slot a fresh agent conversation | `couch --reload-context pair:2 --confirm` |
 | Bring an idle slot up for new work (refresh, then a fresh conversation) | `couch --prepare pair:2 --confirm` |
@@ -70,7 +71,7 @@ queue, or cross-supervisor delivery.
 
 - **light:** `--notify`, `--help`, `--skill`, `--actors`, `--send-to`, `--message-status`, `--operation-status`, `--peek` (its --transcripts option costs seconds), `--broadcast-list`, `--resources`, `--session-sync`, `--archived`, `--adopt-store`, `--broadcast-web-query`, `--broadcast-web-submit`, `--broadcast-web-replay` (then serves until stopped)
 - **seconds:** `--keys`, `--set-model`, `--resume-candidates`, `--move-slot`, `--list`, `--show`, `--reconcile`, `--reap`, `--reap-orphans` (it holds the console for SIGTERM's grace period), `--broadcast-web-fidelity` (a headless Chrome)
-- **heavy:** `couch` (launch), `--recover-plan-from-sdlc`, `--resume`, `--reboot`, `--relaunch`, `--reload-context`, `--prepare`, `--recover`, `--switch-agent`, `--recovery-confirmation`
+- **heavy:** `couch` (launch), `--recover-plan-from-sdlc`, `--resume`, `--reboot`, `--relaunch`, `--reload-context`, `--prepare`, `--recover`, `--recover-park`, `--switch-agent`, `--recovery-confirmation`
 
 Cost: light is under a second, seconds is a few seconds, heavy is tens of
 seconds of CPU (it stops or boots agents, or runs sdlc across the fleet);
@@ -547,6 +548,16 @@ couch --reload-context pair:3 --confirm
   signal landed but no restart was seen; peek before retrying.
 
 ## Confirmed slot recovery
+
+An interrupted park has a dedicated command:
+`couch --recover-park pair:2 --confirm`. Add `--json` for structured output.
+It requires a current
+authenticated caller in the owning hub and resolves only the exact retained
+transaction. It never starts an agent. Follow the result's Continue, Resume from
+disk or Start fresh action; incomplete scrollback remains explicitly incomplete.
+For ordinary threads, use their confirmed **Recover park** menu action.
+If a reply is lost, read `couch --operation-status ID` before another request;
+unknown receipt status calls for inspection rather than an automatic resend.
 
 `couch --resume-candidates pair:1 --json` lists the proven conversation and
 ranked alternatives with evidence; automatic inference is off. Plain

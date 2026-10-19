@@ -12,6 +12,45 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 
 ## What exists today
 
+### Per-slot switcher jobs (#576)
+
+`couchtty/menu_operations.go` owns pure target admission, exact attempt matching,
+current landing intent and one retained result per listed row. Busy selection
+waits on its existing job; newer navigation fences final focus and old forms
+never reappear. Missing targets keep their label/identity and diagnostic in the
+notice; selected row failures use the existing Ctrl+Y copy surface.
+
+The existing worker count is split in `operation_queue.go`: lifecycle workers
+own effects and adoption; the final worker owns currently hosted navigation.
+The shared16-position admission bound reserves15 lifecycle positions and1
+navigation position. If hosted endpoint proof disappears, the same pending
+request transfers once to lifecycle or reports overload; navigation never
+resumes or adopts. Remote calls, continuation and startup use lifecycle workers.
+
+Running start reservations keep their original identity while inventory materializes: pure aliases use the exact numbered checkout or the primary scope derived by launcher from the accepted worktree. Address-replacing ordinary actions reserve that primary scope too; other ordinary actions stay address-specific. Admission, busy selection and linear row projection use these aliases; final outcomes still bind to exact returned identity.
+
+`console_operation_adoption.go` prepares final outcomes off Run. Installation
+reserves identity under the console mutex, performs resize/registration outside
+it, and revalidates lifetime, endpoint and geometry before committing. Rejected
+registration is retired without closing the caller-owned child. Run performs
+final lifecycle observation, reduction, navigation and remote acknowledgement,
+with one completion owner and shutdown settlement. Existing core lifecycle and
+park nonce reservations remain authoritative; UI navigation never cancels them.
+
+### Load-independent lifecycle test evidence (#659)
+
+The recovery ownership fixtures use `SlotCatalogFake`; a separate catalog-timeout
+regression checks refusal without changing retained state. Park client-growth
+semantics inject queries into a test-only readiness helper while fake-CLI tests
+keep the native query contract. Clipboard key/fact tests exercise the unchanged
+product timeout and fallback. Activity byte-count invariants configure the existing
+probe-budget seam, with production deadline tests kept separately.
+
+Affected failures include best-effort `testwait.HostState()` load information.
+Native open-file conformance skips only unavailable/incomplete lsof observations;
+run `PAIR_REQUIRE_LSOF_CONFORMANCE=1 go test ./cmd/internal/diagnosticlog -count=1 -run 'Test(OpenFileInspectionConformance|UnregisteredChildOpenFileBlocksLegacyExpiry)$'`
+to require that native evidence. An answered wrong holder or identity always fails.
+
 ### Slot continuity and capture provenance (#528)
 
 The [slot-continuity target](../workshop/targets/slot-continuity.md) defines
@@ -164,6 +203,11 @@ one-second scheduling budget. A crash during cleanup or before final publication
 can lose that attempt's in-memory evidence; previously published history remains
 durable. Persistence never delays failed-helper cleanup. The typed error
 preserves errors.Is/As while its operator text names the attempt, diagnostic file, and one inspection action.
+Claude native resume validates an exact session through bounded UUID-leaf
+probes under the authorized project roots, preserving duplicate and root-role
+checks without walking unrelated history. Missing scrollback is separate from
+native transcript identity; see [exact Claude root lookup](session-identity.md#exact-claude-root-lookup).
+
 `couch --show` reads retained evidence by exact address or canonical starting
 path, including after rollback removed the thread, without creating lifecycle
 records. `couchcmd/launchfailure.go` sanitizes child text line by line.
@@ -377,6 +421,14 @@ service checks the live registered caller and its connected workspace against
 the supervisor's hub root, then calls Console.NotifyDesktop through the shared
 presenter writer. Other callers get advice to send to the hub instead. There is
 no notification queue, receipt store or automatic retry on an uncertain write.
+Supervisor notifications use ST-terminated OSC 777 directly on the console host
+writer (stdout), outside the child OSC suppression path. A successful CLI reply
+says `Notification written; desktop delivery not confirmed.` This confirms the
+write only; the terminal protocol supplies no desktop-display acknowledgement.
+For Ghostty the `desktop-notifications` setting must be true (default), macOS
+Notifications permission and an alert style must allow Ghostty, and Focus must
+permit the alert. Focused versus unfocused presentation needs operator observation;
+Couch neither changes those settings nor retries to infer them.
 Existing CLI messaging verbs omit notification-only fields for older supervisors.
 The CLI distinguishes an explicit unsupported-notify decode refusal from missing
 messaging registration and uncertain replies; only the latter leaves the effect
@@ -1825,7 +1877,12 @@ the one definition of that line format. `ApplySlugs` fills
 `Couch.Slug` seam (`OSSlugReader`: bounded, no-follow, display-only, so errors
 read as no slug). The existing inventory refresh supplies new descriptions and
 slugs, which is why a slug change redraws without ever becoming attention; no
-additional storage or polling is added.
+additional storage or polling is added. Under #650 pair's per-turn slug refresh
+is off by default when Couch hosts the thread (pair's wrapper gates the
+`pair-slug` spawn on `launcher.CouchHostedEnv`, and the `slugcmd.Run` body
+gates the external Claude Stop-hook entry the same way; `PAIR_SLUG=on`
+re-enables both), so a hosted row carries a slug only while that knob is on —
+the display path is unchanged.
 
 Both CLI resolution and in-memory menu filtering derive from
 `ClassifyThreadReferenceFields`/`MatchThreadReferenceFields`: exact opaque tags
@@ -4665,3 +4722,40 @@ approved quiet-load criterion. These figures are fixture results, not live
 server savings. TL-authorized landing precedes the next coordinated Couch
 restart; live server CPU/sample and console/peek/waiting acceptance remain
 pending until that check.
+
+### Interrupted park recovery (#651)
+
+`couch --recover-park repo:N --confirm [--json]` resolves the current interrupted
+park through the authenticated owning-hub operation queue and receipt protocol.
+The switcher offers the same confirmed **Recover park** action only while a
+thread has an open park. Both carry the exact repository scope, tag and park
+nonce; queued effects refuse a replacement transaction or changed ownership.
+A repeated request uses its original receipt; recovering an already settled park
+has no effect. Unknown receipt status calls for inspection, not an automatic resend.
+
+Recovery never starts a replacement agent. A verified completion finalizes the
+park; positively dead exact owners with positively absent terminals may retire
+interrupted bookkeeping while preserving incomplete-cleanup diagnostics. Missing
+or failed completion is never reported as verified cleanup, and uncertain or
+foreign ownership refuses. The result names the available Continue, Resume from
+disk or Start fresh action after normal recovery evidence is checked. Conversation
+identity survives; missing scrollback bytes cannot be reconstructed.
+
+Public declaration/admission lives in `couchcore/ops.go` and `slot_operation.go`;
+execution and receipt wiring in `couchcmd/console_slot_operations.go` and
+`slot_operations.go`; row authority and confirmation in `couchtty/menu_actions.go`
+and `menu.go`. The recovery decision/controller and journaled store mutation live
+in `couchcore/park_recovery.go` and `threadstore.go`.
+
+An open transaction's row shows the shared unfinished-transaction/Recover park
+advice, including on a still-live row; retained continuation status stays appended.
+With an absent terminal and live or unknown exact owner, explicit recovery
+refuses before entering cleanup reconciliation. A live-owner refusal says the
+transaction is still finishing and names the same recovery action to retry after inspection.
+
+Recovery carries its worker context through lifecycle lock admission, protocol
+observation/publication/cleanup, and checked threadstore mutations. Contended
+locks cannot retain an abandoned recovery worker; existing synchronous filesystem
+work and owned temporary cleanup finish before its reservation is released.
+Continuation, switch, detach, leave and direct recovery refusals reuse the same
+bounded exact-target advice without changing their ownership guards.

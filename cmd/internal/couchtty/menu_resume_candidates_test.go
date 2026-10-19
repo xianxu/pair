@@ -81,20 +81,20 @@ func TestRecoveryAlternativesOpenReadOnlyPreview(t *testing.T) {
 
 			}
 			frame := state.CurrentFrame()
-			if frame.Kind != MenuFrameRecovery || len(effects) != 1 || effects[0].Preview == nil || effects[0].Operation != "" || state.InFlight != (MenuOperationOrigin{}) {
-				t.Fatalf("primary bypassed read-only preview: frame=%+v effects=%+v inflight=%+v", frame, effects, state.InFlight)
+			if frame.Kind != MenuFrameRecovery || len(effects) != 1 || effects[0].Preview == nil || effects[0].Operation != "" || state.operationForTest() != (MenuOperationOrigin{}) {
+				t.Fatalf("primary bypassed read-only preview: frame=%+v effects=%+v inflight=%+v", frame, effects, state.operationForTest())
 			}
 			if target := effects[0].Preview.RecoveryTarget; target == nil || target.Path != row.Target.Slot.WorktreeRoot || target.Address != (couchcore.ThreadAddress{}) {
 				t.Fatalf("lost slot target: %+v", target)
 			}
 			preview := &couchcore.RecoveryPreview{Address: row.Address, Candidates: []couchcore.RecoveryChoice{{Key: "selected-key", Label: "resume (best candidate)"}}}
 			state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: frame.Generation, RecoveryPreview: preview})
-			if len(effects) != 0 || state.InFlight.Operation != "" {
+			if len(effects) != 0 || state.operationForTest().Operation != "" {
 				t.Fatal("preview completion launched automatically")
 			}
 			state, effects = reduceRecoveryKey(state, PanelKey{Kind: KeyEnter})
-			if len(effects) != 1 || effects[0].Operation != "resume" || effects[0].Args["candidate"] != "selected-key" || effects[0].Args["path"] != row.Target.Slot.WorktreeRoot || state.InFlight.RowKey != menuRowKey(row) {
-				t.Fatalf("explicit choice lost queue/target: %+v %+v", state.InFlight, effects)
+			if len(effects) != 1 || effects[0].Operation != "resume" || effects[0].Args["candidate"] != "selected-key" || effects[0].Args["path"] != row.Target.Slot.WorktreeRoot || state.operationForTest().RowKey != menuRowKey(row) {
+				t.Fatalf("explicit choice lost queue/target: %+v %+v", state.operationForTest(), effects)
 			}
 		})
 	}

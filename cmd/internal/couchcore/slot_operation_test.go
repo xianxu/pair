@@ -175,7 +175,7 @@ func TestPrepareSlotOperationDefersLostConversationProofToRecovery(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := local.FinalizePark(created.Address, begun.Revision, identity, 1, env.Now); err != nil {
+	if _, err := local.FinalizePark(context.Background(), created.Address, begun.Revision, identity, 1, env.Now); err != nil {
 		t.Fatal(err)
 	}
 	// No native binding: the parked conversation cannot be resolved.

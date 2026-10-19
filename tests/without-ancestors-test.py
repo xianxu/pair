@@ -42,12 +42,18 @@ class LifetimeTests(unittest.TestCase):
         # This fixture is single-threaded; establish the child's exec default
         # without a preexec_fn, then immediately restore the caller's handler.
         inherited = signal.signal(signal.SIGINT, signal.default_int_handler)
+        # Cancellation can also arrive before the helper's handler exists,
+        # when interpreter startup may swallow SIGINT's KeyboardInterrupt
+        # (pair#674). Start it with both signals blocked, which exec keeps:
+        # one sent then stays pending until the helper unblocks it.
+        mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT, signal.SIGTERM})
         try:
             process = subprocess.Popen(
                 [sys.executable, str(helper), "--timeout", timeout,
                  sys.executable, "-c", PARENT, CHILD, str(lease), mode],
                 stdout=output, stderr=subprocess.STDOUT, pass_fds=pass_fds)
         finally:
+            signal.pthread_sigmask(signal.SIG_SETMASK, mask)
             signal.signal(signal.SIGINT, inherited)
         self.outputs[process.pid] = output
         # Register cleanup after the directory, so process cleanup runs first.
@@ -69,6 +75,7 @@ class LifetimeTests(unittest.TestCase):
         return (f"phase={phase}; helper_pid={process.pid}; "
                 f"returncode={process.poll()}; descendant_group={group}; "
                 f"caller_SIGINT={signal.getsignal(signal.SIGINT)}; "
+                f"caller_blocked={sorted(int(n) for n in signal.pthread_sigmask(signal.SIG_BLOCK, []))}; "
                 f"output (first 64 KiB):\n{captured}")
 
     def wait_for_exit(self, process, lease, phase):
@@ -143,6 +150,17 @@ class LifetimeTests(unittest.TestCase):
                         self.assert_terminated(lease)
 
     def test_ignored_parent_sigint_cancels_before_helper_entry(self):
+        self.check_cancellation_before_helper_entry(signal.SIGINT, ignore_in_caller=True)
+
+    def test_startup_cancellation_is_never_lost(self):
+        # pair#674: a signal sent before the helper's handler exists must
+        # still cancel it. The gate holds the child there, with the signal
+        # pending, for as long as the test likes: no timing guess.
+        for cancellation in (signal.SIGINT, signal.SIGTERM):
+            with self.subTest(signal=cancellation):
+                self.check_cancellation_before_helper_entry(cancellation, ignore_in_caller=False)
+
+    def check_cancellation_before_helper_entry(self, cancellation, ignore_in_caller):
         directory = self.directory()
         ready_read, ready_write = os.pipe()
         release_read, release_write = os.pipe()
@@ -152,11 +170,11 @@ class LifetimeTests(unittest.TestCase):
         bootstrap.write_text(
             "import os, runpy, signal, sys\n"
             "print('pre-handler gate reached', file=sys.stderr, flush=True)\n"
-            f"os.write({ready_write}, str(signal.getsignal(signal.SIGINT)).encode())\n"
+            f"os.write({ready_write}, (str(signal.getsignal(signal.SIGINT)) + ' blocked=' + str(sorted(int(n) for n in signal.pthread_sigmask(signal.SIG_BLOCK, [])))).encode())\n"
             f"if os.read({release_read}, 1) != b'x': raise SystemExit(1)\n"
             f"sys.argv[0] = {str(HELPER.resolve())!r}\n"
             "runpy.run_path(sys.argv[0], run_name='__main__')\n")
-        inherited = signal.signal(signal.SIGINT, signal.SIG_IGN)
+        inherited = signal.signal(signal.SIGINT, signal.SIG_IGN if ignore_in_caller else signal.getsignal(signal.SIGINT))
         try:
             try:
                 process, lease = self.launch(
@@ -165,8 +183,9 @@ class LifetimeTests(unittest.TestCase):
             finally:
                 os.close(ready_write)
                 os.close(release_read)
-            self.assertEqual(signal.getsignal(signal.SIGINT), signal.SIG_IGN,
-                             "launch changed the caller's signal disposition")
+            if ignore_in_caller:
+                self.assertEqual(signal.getsignal(signal.SIGINT), signal.SIG_IGN,
+                                 "launch changed the caller's signal disposition")
             readable, _, _ = select.select([ready_read], [], [], 3)
             self.assertTrue(readable, "pre-handler bootstrap did not start")
             disposition = os.read(ready_read, 1024).decode()
@@ -174,11 +193,15 @@ class LifetimeTests(unittest.TestCase):
             self.assertIn("pre-handler gate reached", diagnostic)
             self.assertIn(f"helper_pid={process.pid}", diagnostic)
             self.assertIn("descendant_group=not published", diagnostic)
-            process.send_signal(signal.SIGINT)
+            self.assertIn("blocked=[2, 15]", disposition, "launched with cancellation unblocked")
+            process.send_signal(cancellation)
+            # Pending, not delivered: the child is still at the gate. Release
+            # it into the helper, whose handler must then receive the signal.
+            os.write(release_write, b"x")
             code = self.wait_for_exit(process, lease,
-                                     f"before helper entry; child_SIGINT={disposition}")
-            self.assertNotEqual(code, 0)
-            self.assertFalse(lease.exists(), "command started before gate release")
+                                     f"before helper entry; signal={cancellation}; child_SIGINT={disposition}")
+            self.assertEqual(code, 128 + cancellation, self.diagnostics(process, lease, "exit status"))
+            self.assertFalse(lease.exists(), "command started after a pre-handler cancellation")
         finally:
             signal.signal(signal.SIGINT, inherited)
 

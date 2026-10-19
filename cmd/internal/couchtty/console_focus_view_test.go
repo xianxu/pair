@@ -38,7 +38,7 @@ func TestConsoleFocusViewPersistsAcrossSwitchAndReopen(t *testing.T) {
 		// Switching moves focus before its asynchronous completion clears the
 		// in-flight operation. Reopening early can make a later Enter get
 		// rejected as a concurrent operation instead of testing the view.
-		return !f.con.focus.IsPanel() && f.con.menu.InFlight.Operation == ""
+		return !f.con.focus.IsPanel() && f.con.menu.operationForTest().Operation == ""
 	}
 	send("\x00")
 	waitFor(t, "normal switcher", func() bool { return panel() && len(VisibleMenuThreads(f.con.menuSnapshot())) == 2 })

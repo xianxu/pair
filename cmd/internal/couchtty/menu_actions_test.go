@@ -31,7 +31,7 @@ type menuRowShape struct {
 // kinds {:0, :1} x AllThreadStates() (minus archived) x AllThreadReasons() ∪ ""
 // (only the combinations the projection produces: a reason exactly when
 // unusable) x AllPhases() ∪ none, plus Recovery.Recover on unusable :0 rows,
-// plus an orphaned server on every live row (the live orphan, #399; an
+// x open-park presence, plus an orphaned server on every live row (the live orphan, #399; an
 // orphaned-server row always carries one). A new state, reason or phase lands
 // here without anyone listing it.
 func everyMenuRowShape(t *testing.T) []menuRowShape {
@@ -99,11 +99,22 @@ func everyMenuRowShape(t *testing.T) []menuRowShape {
 			}
 		}
 	}
+	// Park authority is independent of the projected state/continuation phase.
+	// Sweep both values over the same domain rather than adding one example.
+	for _, shape := range shapes {
+		shape.name += "/open-park"
+		shape.row.HasOpenPark = true
+		shape.row.ParkNonce = "sweep-park"
+		shapes = append(shapes, shape)
+	}
 	return shapes
 }
 
 // expectedRowActions is the Spec table, written out as its own statement.
 func expectedRowActions(s menuRowShape) []string {
+	if s.row.HasOpenPark {
+		return []string{"recover-park"}
+	}
 	unfinished := s.phase != "" && s.phase != checkpoint.Complete
 	switch s.state {
 	case couchcore.ThreadBusy:
@@ -212,6 +223,12 @@ func TestEnterUsesContinuityOutcome(t *testing.T) {
 	for _, s := range everyMenuRowShape(t) {
 		state := NewMenuState([]couchcore.ActionableThreadSummary{s.row}, s.row.Address)
 		next, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
+		if s.row.HasOpenPark && enterOperationFor(s.row) == "" {
+			if len(effects) != 0 || !strings.Contains(next.Notice.Text, "Tab → Recover park") {
+				t.Errorf("%s: unfinished park must name confirmed recovery: %+v %q", s.name, effects, next.Notice.Text)
+			}
+			continue
+		}
 		switch couchcore.ContinuityOutcome(s.row) {
 		case couchcore.Continue:
 			want := "resume"
@@ -252,8 +269,8 @@ func TestSlotRowResumeAndRebootSendThePath(t *testing.T) {
 			if len(effects) != 1 || effects[0].Args["path"] != slot.Target.Slot.WorktreeRoot || effects[0].Args["tag"] != "" {
 				t.Fatalf("effects %+v", effects)
 			}
-			if next.InFlight.RowKey != slot.RowKey {
-				t.Fatalf("in flight %+v not keyed by row", next.InFlight)
+			if next.operationForTest().RowKey != slot.RowKey {
+				t.Fatalf("in flight %+v not keyed by row", next.operationForTest())
 			}
 			if _, warm := effects[0].Args["warm-only"]; warm {
 				t.Fatalf("a slot resume must go through the route, not warm-only: %+v", effects[0].Args)
@@ -333,8 +350,8 @@ func TestRebootActionsDispatchForBackendPreparation(t *testing.T) {
 			row.Reason = couchcore.ReasonPathMissing
 		}
 		state := dispatchRebootFromActions(t, row)
-		if state.InFlight.Address != row.Address {
-			t.Fatalf("wrong target: %+v", state.InFlight)
+		if state.operationForTest().Address != row.Address {
+			t.Fatalf("wrong target: %+v", state.operationForTest())
 		}
 	}
 }
@@ -359,13 +376,13 @@ func TestRebootFrameSurvivesItsOwnStateChange(t *testing.T) {
 		fresh := couchcore.ActionableThreadSummary{Address: menuAddress("couch-new"), WorkingPath: "/w/p", State: couchcore.ThreadLive}
 		state, previous := replaceMenuInventory(state, []couchcore.ActionableThreadSummary{fresh})
 		state = reconcileMenuFrames(state, previous)
-		if frame := state.CurrentFrame(); frame.Kind == MenuFrameConfirmation || state.InFlight.Operation != "reboot" || state.Notice.Level == MenuNoticeError || strings.Contains(state.Notice.Text, "no longer") {
+		if frame := state.CurrentFrame(); frame.Kind == MenuFrameConfirmation || state.operationForTest().Operation != "reboot" || state.Notice.Level == MenuNoticeError || strings.Contains(state.Notice.Text, "no longer") {
 			t.Fatalf("frame %v/%q notice %q", frame.Kind, frame.Action, state.Notice.Text)
 		}
 		// Its result lands under the NEW tag and still completes the attempt.
-		next := reduceOperationResult(state, MenuEvent{Operation: "reboot", Attempt: state.InFlight.Attempt, Success: true, Address: fresh.Address})
-		if next.InFlight.Operation != "" || next.CurrentFrame().Kind != MenuFrameRoot || next.Frames[0].SelectedAddress != fresh.Address {
-			t.Fatalf("result not consumed: in flight %+v, frame %v, selected %+v", next.InFlight, next.CurrentFrame().Kind, next.Frames[0].SelectedAddress)
+		next := reduceOperationResult(state, MenuEvent{Operation: "reboot", Attempt: state.operationForTest().Attempt, Success: true, Address: fresh.Address})
+		if next.operationForTest().Operation != "" || next.CurrentFrame().Kind != MenuFrameRoot || next.Frames[0].SelectedAddress != fresh.Address {
+			t.Fatalf("result not consumed: in flight %+v, frame %v, selected %+v", next.operationForTest(), next.CurrentFrame().Kind, next.Frames[0].SelectedAddress)
 		}
 	})
 	t.Run("slot row turns live", func(t *testing.T) {
@@ -376,7 +393,7 @@ func TestRebootFrameSurvivesItsOwnStateChange(t *testing.T) {
 		live.State, live.Reason = couchcore.ThreadLive, ""
 		state, previous := replaceMenuInventory(state, []couchcore.ActionableThreadSummary{live})
 		state = reconcileMenuFrames(state, previous)
-		if frame := state.CurrentFrame(); frame.Kind == MenuFrameConfirmation || state.InFlight.Operation != "reboot" || strings.Contains(state.Notice.Text, "no longer") {
+		if frame := state.CurrentFrame(); frame.Kind == MenuFrameConfirmation || state.operationForTest().Operation != "reboot" || strings.Contains(state.Notice.Text, "no longer") {
 			t.Fatalf("frame %v/%q notice %q", frame.Kind, frame.Action, state.Notice.Text)
 		}
 	})
@@ -470,7 +487,7 @@ func TestRowAdviceNamesOnlyReachableActions(t *testing.T) {
 			vocabulary[action] = true
 		}
 		switch {
-		case s.slot || s.phase != "":
+		case s.slot || s.phase != "" || s.row.HasOpenPark:
 		case s.state == couchcore.ThreadLive, s.state == couchcore.ThreadParked, s.state == couchcore.ThreadDetached:
 			primaryOffers[s.state] = offered
 		}
@@ -488,7 +505,16 @@ func TestRowAdviceNamesOnlyReachableActions(t *testing.T) {
 	}
 	names := func(text, action string) bool {
 		for _, word := range []string{action, menuItemLabel(action)} {
-			if regexp.MustCompile(`(^|[^\pL\pN-])` + regexp.QuoteMeta(word) + `($|[^\pL\pN-])`).MatchString(text) {
+			candidate := text
+			// Labels can contain another action's name: "Recover park"
+			// names that complete action, not separate recover/park actions.
+			for other := range vocabulary {
+				label := menuItemLabel(other)
+				if other != action && len(label) > len(word) && strings.Contains(label, word) {
+					candidate = strings.ReplaceAll(candidate, label, "")
+				}
+			}
+			if regexp.MustCompile(`(^|[^\pL\pN-])` + regexp.QuoteMeta(word) + `($|[^\pL\pN-])`).MatchString(candidate) {
 				return true
 			}
 		}
@@ -595,9 +621,9 @@ func TestReapSuccessClosesItsConfirmation(t *testing.T) {
 	if len(effects) != 1 || effects[0].Operation != "reap" {
 		t.Fatalf("reap did not dispatch: %+v", effects)
 	}
-	next := reduceOperationResult(state, MenuEvent{Operation: "reap", Attempt: state.InFlight.Attempt, Success: true, Address: row.Address})
-	if next.InFlight.Operation != "" || next.CurrentFrame().Kind != MenuFrameRoot || next.Notice.Level == MenuNoticeError {
-		t.Fatalf("reap result not consumed: in flight %+v, frame %v, notice %q", next.InFlight, next.CurrentFrame().Kind, next.Notice.Text)
+	next := reduceOperationResult(state, MenuEvent{Operation: "reap", Attempt: state.operationForTest().Attempt, Success: true, Address: row.Address})
+	if next.operationForTest().Operation != "" || next.CurrentFrame().Kind != MenuFrameRoot || next.Notice.Level == MenuNoticeError {
+		t.Fatalf("reap result not consumed: in flight %+v, frame %v, notice %q", next.operationForTest(), next.CurrentFrame().Kind, next.Notice.Text)
 	}
 }
 
@@ -606,7 +632,7 @@ func TestReapSuccessClosesItsConfirmation(t *testing.T) {
 // notice, is left alone (#399).
 func TestOperationProgressUpdatesOnlyItsOwnNotice(t *testing.T) {
 	state := MenuState{Notice: MenuNotice{Level: MenuNoticeProgress, Text: "recovering pair:6…", Owner: MenuProgressOwner{OperationAttempt: 7}}}
-	state.InFlight = MenuOperationOrigin{Operation: "recover", Attempt: 7}
+	setTestMenuOperation(&state, MenuOperationOrigin{Operation: "recover", Attempt: 7})
 	next := updateOperationProgress(state, 7, "step 1/2: reaping orphaned server PID 9090")
 	if !strings.Contains(next.Notice.Text, "step 1/2: reaping orphaned server PID 9090") || next.Notice.Level != MenuNoticeProgress {
 		t.Fatalf("notice = %+v", next.Notice)

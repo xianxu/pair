@@ -160,7 +160,7 @@ func (c *Couch) RequestContinuation(ctx context.Context, address ThreadAddress, 
 			return ContinuationStatus{}, err
 		}
 		if len(effective.Incarnations) != 1 || incarnation.State != IncarnationLive || record.Park != nil || observeExactProcess(c.Proc, ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity}) != Live {
-			return ContinuationStatus{}, errors.New("source helper is not provably live")
+			return ContinuationStatus{}, c.withParkRecoveryAdvice(ctx, record, errors.New("source helper is not provably live"))
 		}
 		request := checkpoint.Request{Version: checkpoint.Version, ID: id, Checkpoint: cp, Source: checkpoint.Source{Agent: source.Agent, Session: source.Session, LaunchOrdinal: source.LaunchOrdinal, Helper: checkpoint.Process{PID: incarnation.PID, Identity: incarnation.Identity}}, CreatedAt: c.Clock.Now(), Phase: checkpoint.Pending}
 		published, err := c.Threads.PublishContinuation(address, record.Revision, request)
@@ -317,7 +317,7 @@ func (c *Couch) executeContinuation(ctx context.Context, record ThreadRecord) (C
 	if record.Park != nil {
 		recovered, err := c.PairLifecycle.Recover(ctx, record.Address)
 		if err != nil {
-			return c.failContinuation(record, err)
+			return c.failContinuation(record, c.withParkRecoveryAdvice(ctx, record, err))
 		}
 		record = recovered.Thread
 	}
@@ -367,7 +367,7 @@ func (c *Couch) executeContinuation(ctx context.Context, record ThreadRecord) (C
 		}
 		parked, err := c.PairLifecycle.ParkExpected(ctx, record.Address, record.Revision)
 		if err != nil {
-			return c.failContinuation(record, err)
+			return c.failContinuation(record, c.withParkRecoveryAdvice(ctx, parked.Thread, err))
 		}
 		record = parked.Thread
 	}

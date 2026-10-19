@@ -163,6 +163,11 @@ func Dispatch(args []string) Result {
 	case "launch":
 		return launchHandoffResult()
 	}
+	if len(args) == 1 || len(args) == 2 && (args[1] == "--help" || args[1] == "-h") {
+		if help := groupHelp(args[0]); help != "" {
+			return Result{Stdout: help}
+		}
+	}
 
 	family, rest, ok := Resolve(args)
 	if !ok {
@@ -298,6 +303,21 @@ func launchHandoffResult() Result {
 		Stderr:   "pair-go launch is a process handoff implemented by cmd/pair-go; call pair-go launch ... instead of dispatcher.Dispatch\n",
 		ExitCode: 2,
 	}
+}
+
+// groupHelp derives public group usage from the same registry as leaf routing.
+func groupHelp(group string) string {
+	var b strings.Builder
+	for _, family := range Families() {
+		if family.Status != "implemented" || family.Alias || !strings.HasPrefix(family.Name, group+" ") {
+			continue
+		}
+		if b.Len() == 0 {
+			fmt.Fprintf(&b, "Usage: pair %s <subcommand> [args]\n\nSubcommands:\n", group)
+		}
+		fmt.Fprintf(&b, "  %-27s %s\n", family.Name, family.Summary)
+	}
+	return b.String()
 }
 
 // Help renders the development-only dispatcher usage text.

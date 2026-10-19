@@ -623,9 +623,7 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/define.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/definition_seam.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/docflow.lua", Kind: GeneratedMirror},
-	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/gate.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/oplock.lua", Kind: GeneratedMirror},
-	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/handoff.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/init.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/markers.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/menu.lua", Kind: GeneratedMirror},
@@ -633,7 +631,6 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/poke_bodies.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/projection.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/readiness.lua", Kind: GeneratedMirror},
-	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/reconcile.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/round_watch.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/reconstruct.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/record.lua", Kind: GeneratedMirror, Families: []string{"review"}},
@@ -662,6 +659,7 @@ var SourceClassifications = []SourceClassification{
 // pair:m5-concept pure
 var NonArtifactSources = []string{
 	"internal/testbinary/cache.go",
+	"internal/testoracle/run.go",
 	// #649 wiring, contextual runtime delegation, and the pure title reducer
 	// introduce no artifact constructors or filename vocabulary.
 	"cmd/internal/couchcmd/titles_wiring.go",
@@ -755,6 +753,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/sessioninventory/native_selector.go",
 	"cmd/internal/sessioninventory/native_selector_collect.go",
 	"cmd/internal/sessioninventory/native_selector_io.go",
+	"cmd/internal/sessioninventory/native_selector_claude_os.go",
 	"cmd/internal/sessioninventory/native_selector_os.go",
 	"internal/reporoot/root.go",
 	"cmd/internal/couchcmd/resume_candidates.go",
@@ -1282,6 +1281,11 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/naming.go",
 	"cmd/internal/couchcore/parktransaction.go",
 	"cmd/internal/couchcore/parkworker.go",
+	// #651 routes existing thread/lifecycle authorities; it constructs no
+	// artifact filenames or new artifact family.
+	"cmd/internal/couchcore/park_recovery.go",
+	"cmd/internal/couchcore/park_recovery_advice.go",
+	"cmd/internal/couchcore/park_recovery_store.go",
 	"cmd/internal/couchcore/path.go",
 	"cmd/internal/couchcore/pathops.go",
 	"cmd/internal/couchcore/relaunch.go",
@@ -1402,6 +1406,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/mouse.go",
 	"cmd/internal/couchtty/mousetrace.go",
 	"cmd/internal/couchtty/menu.go",
+	"cmd/internal/couchtty/console_operation_adoption.go",
+	"cmd/internal/couchtty/menu_operations.go",
 	"cmd/internal/couchtty/menu_copy.go",
 	"cmd/internal/couchtty/copy_key.go",
 	"cmd/internal/couchtty/menu_slot.go",
@@ -1436,6 +1442,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/testpair/environment.go",
 	// pair#479 test wait helper: bounds a wait by the test deadline; names no file.
 	"cmd/internal/testwait/testwait.go",
+	// Test failure diagnostics inspect host load, not session artifacts.
+	"cmd/internal/testwait/host.go",
 	"cmd/internal/ctxmeter/ctxmeter.go",
 	"cmd/internal/dispatcher/dispatcher.go",
 	"cmd/internal/entrypoint/alias.go",
@@ -1678,11 +1686,9 @@ var NonArtifactSources = []string{
 	"nvim/review/define.lua",
 	"nvim/review/definition_seam.lua",
 	"nvim/review/docflow.lua",
-	"nvim/review/gate.lua",
 	// #661 M2: the operator lock beside the reviewed file and the round
 	// artifact path from $PAIR_REVIEW_ROUND_PATH; no artifact filenames.
 	"nvim/review/oplock.lua",
-	"nvim/review/handoff.lua",
 	"nvim/review/init.lua",
 	"nvim/review/markers.lua",
 	"nvim/review/menu.lua",
@@ -1690,7 +1696,6 @@ var NonArtifactSources = []string{
 	"nvim/review/poke_bodies.lua",
 	"nvim/review/projection.lua",
 	"nvim/review/readiness.lua",
-	"nvim/review/reconcile.lua",
 	"nvim/review/round_watch.lua",
 	"nvim/review/reconstruct.lua",
 	"nvim/review/resolve.lua",

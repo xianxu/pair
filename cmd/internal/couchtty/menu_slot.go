@@ -46,10 +46,8 @@ func dispatchMenuRow(state MenuState, operation string, row couchcore.Actionable
 		// resume or start fresh if the listing changed since projection.
 		effect := threadEffect("resume", row.Address)
 		effect.Args["warm-only"] = "true"
+		effect.RowKey = menuRowKey(row)
 		next, effects := dispatchMenuOperation(state, effect, row.Address)
-		if len(effects) > 0 && row.Target.Kind == couchcore.ThreadTargetSlot {
-			next.InFlight.RowKey = menuRowKey(row)
-		}
 		return next, effects
 	}
 	// Non-live relaunch and starting-row details first observe recovery evidence.
@@ -59,10 +57,7 @@ func dispatchMenuRow(state MenuState, operation string, row couchcore.Actionable
 	}
 
 	if row.Target.Kind == couchcore.ThreadTargetSlot && actorOperation(operation) {
-		next, effects := dispatchMenuOperation(state, MenuEffect{Operation: operation, Args: couchcore.ActorOperationArgs(row, operation)}, row.Address)
-		if len(effects) > 0 {
-			next.InFlight.RowKey = menuRowKey(row)
-		}
+		next, effects := dispatchMenuOperation(state, MenuEffect{Operation: operation, RowKey: menuRowKey(row), Args: couchcore.ActorOperationArgs(row, operation)}, row.Address)
 		return next, effects
 	}
 	return dispatchThreadOperation(state, operation, row.Address)
@@ -71,7 +66,7 @@ func dispatchMenuRow(state MenuState, operation string, row couchcore.Actionable
 // actorOperation names the operations whose arguments come from
 // couchcore.ActorOperationArgs.
 func actorOperation(operation string) bool {
-	return operation == "resume" || operation == "reboot" || operation == "reap" || operation == "recover"
+	return operation == couchcore.OpRecoverPark || operation == "resume" || operation == "reboot" || operation == "reap" || operation == "recover"
 }
 
 // menuOperationReplacesAddress names an in-flight operation whose success may
@@ -86,7 +81,7 @@ func menuOperationReplacesAddress(origin MenuOperationOrigin) bool {
 // operation was sent for: by row key when the operation is keyed by row, else
 // by exact address.
 func menuFrameTargetsInFlight(state MenuState, frame MenuFrame) bool {
-	in := state.InFlight
+	in := menuFrameRunningOrigin(state, frame)
 	if in.Operation == "" {
 		return false
 	}
@@ -97,11 +92,28 @@ func menuFrameTargetsInFlight(state MenuState, frame MenuFrame) bool {
 }
 
 // menuFrameOperationInFlight is the frame whose OWN operation is running:
-// same target and same action.
+// same target, action and original frame instance.
 func menuFrameOperationInFlight(state MenuState, frame MenuFrame) bool {
-	return state.InFlight.Operation == frame.Action && menuFrameTargetsInFlight(state, frame)
+	return menuFrameRunningOrigin(state, frame).Operation == frame.Action && menuFrameTargetsInFlight(state, frame)
 }
 
 func menuRowNeedsRecoveryPreview(row couchcore.ActionableThreadSummary, operation string) bool {
 	return operation == "relaunch" && !row.Live()
+}
+
+func menuFrameRunningOrigin(state MenuState, frame MenuFrame) MenuOperationOrigin {
+	for _, job := range state.Operations {
+		origin := job.Origin
+		if job.Phase != MenuOperationRunning || origin.FrameInstance != frame.Instance {
+			continue
+		}
+		if origin.RowKey.Kind == couchcore.ThreadTargetSlot {
+			if origin.RowKey == frame.RowKey {
+				return origin
+			}
+		} else if origin.Address == frame.Thread {
+			return origin
+		}
+	}
+	return MenuOperationOrigin{}
 }

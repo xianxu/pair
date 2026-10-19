@@ -94,6 +94,9 @@ func menuRowFactsOf(row couchcore.ActionableThreadSummary) menuRowFacts {
 // slot unless its checkout is missing (pair#402). A row the table offers
 // nothing on says why through menuRowNotice, which reads the same phase.
 func menuRowActions(f menuRowFacts) []string {
+	if f.Actor.HasOpenPark {
+		return couchcore.ActorActions(f.Actor)
+	}
 	switch f.Phase {
 	case menuPhaseBusy:
 		return nil
@@ -183,6 +186,9 @@ type menuRowAdvice struct {
 func menuRowAdviceOf(f menuRowFacts) menuRowAdvice {
 	var a menuRowAdvice
 	switch {
+	case f.Actor.HasOpenPark:
+		a.Notice.Text = "unfinished transaction; Recover park preserves the conversation"
+		a.Enter.Text = "Tab → Recover park"
 	case f.Phase == menuPhaseNeedsRelaunch:
 		a.Notice.Text = "terminal unavailable; previous conversation may be recoverable"
 	case f.Phase == menuPhaseBusy:

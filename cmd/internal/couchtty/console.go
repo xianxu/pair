@@ -53,6 +53,13 @@ type pane struct {
 	suppressedNotifications uint64
 }
 
+// pendingInstall reserves routing identity while terminal preparation runs
+// without the Console mutex. The child remains caller-owned until commit.
+type pendingInstall struct {
+	thread couchcore.ThreadAddress
+	child  *ptychild.Child
+}
+
 // Console routes the operator's terminal to one child at a time.
 //
 // It is the integration controller: reusable decisions live in pure functions
@@ -88,9 +95,10 @@ type Console struct {
 	drivePending     *driveOperation // guarded by mu; survives forgetDrive/cast replacement
 	// exitFailure is teardown's one classification of why the terminal failed
 	// (shutdown cancellations filtered out), read by TerminalFailure.
-	exitFailure   error
-	leaveReport   string
-	ownedChildren map[*ptychild.Child]struct{}
+	exitFailure     error
+	leaveReport     string
+	ownedChildren   map[*ptychild.Child]struct{}
+	pendingInstalls map[string]pendingInstall
 
 	mu     sync.Mutex
 	panes  map[string]*pane
@@ -271,11 +279,10 @@ type Console struct {
 	stop                 chan struct{}
 	once                 sync.Once
 	workers              sync.WaitGroup
-	// queueWorkers is how many goroutines drain operationQueue (pair#205):
-	// the reattach pass's limit plus one, so the pass alone can never occupy
-	// every worker. (Remote and continuation jobs share the spare, so an
-	// operator's gesture can still wait behind those.)
-	queueWorkers int
+	// queueWorkers retains the existing total. All but the final worker own
+	// lifecycle/adoption; the final worker owns hosted navigation only (#576).
+	queueWorkers         int
+	navigationGeneration uint64
 }
 
 // errw is where the console reports its own failures. Separate from the host
@@ -324,6 +331,8 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 		stop:                make(chan struct{}),
 		feed:                NewFeed(8, time.Now, NoticeLifetime),
 	}
+	c.operationQueue.prepare = c.prepareOperationCompletion
+	c.operationQueue.abandon = c.abandonOperationCompletion
 	if s, err := host.Size(); err == nil {
 		c.size = s
 	}
@@ -492,11 +501,11 @@ func (c *Console) attachObservedThreadActor(handleID string, actorID couchcore.A
 
 // installObservedThreadActor transfers terminal disposal ownership only on
 // success. A rejected typed start remains owned by its AbortStarted rollback.
-// It commits a complete pane or no pane. The worker
-// count is reserved under the same mutex as routing state, so teardown's mutex
-// barrier cannot begin its final Wait between a partial map insertion and the
-// exit watcher becoming owned.
-func (c *Console) installObservedThreadActor(ctx context.Context, handleID string, actorID couchcore.ActorID, thread couchcore.ThreadAddress, tree couchcore.Worktree, label string, child *ptychild.Child, process couchcore.ProcessIdentity, background bool) error {
+// It commits a complete pane or no pane. Preparation reserves identity and a
+// worker under the teardown mutex, then releases it across resize/registration.
+// Commit transfers that worker to the exit watcher; rejection retires only the
+// registration, leaving child disposal with the caller's typed rollback.
+func (c *Console) installObservedThreadActor(ctx context.Context, handleID string, actorID couchcore.ActorID, thread couchcore.ThreadAddress, tree couchcore.Worktree, label string, child *ptychild.Child, process couchcore.ProcessIdentity, background bool) (err error) {
 	if ctx == nil {
 		ctx = c.lifetime
 	}
@@ -533,28 +542,95 @@ func (c *Console) installObservedThreadActor(ctx context.Context, handleID strin
 		c.mu.Unlock()
 		return fmt.Errorf("terminal handle %q is already attached", handleID)
 	}
+	if _, exists := c.ownedChildren[child]; exists {
+		c.mu.Unlock()
+		return errors.New("terminal child is already attached")
+	}
+	for pendingHandle, pending := range c.pendingInstalls {
+		if pendingHandle == handleID || pending.thread == thread || pending.child == child {
+			c.mu.Unlock()
+			return fmt.Errorf("terminal installation for %s/%s is already pending", pending.thread.RepoScope, pending.thread.Tag)
+		}
+	}
 	for _, installed := range c.panes {
 		if installed.thread == thread && !installed.child.Endpoint().InputEnded() {
 			c.mu.Unlock()
 			return fmt.Errorf("thread %s/%s is already attached", thread.RepoScope, thread.Tag)
 		}
 	}
-	desired := ptychild.Size{Rows: bottomReservation(c.size.Rows).ChildRows(), Cols: c.size.Cols}
-	if child.Size() != desired {
-		if err := child.Resize(desired); err != nil {
-			c.mu.Unlock()
-			return err
-		}
+	if c.pendingInstalls == nil {
+		c.pendingInstalls = make(map[string]pendingInstall)
 	}
-	if err := c.presenter.Register(ctx, child.Endpoint()); err != nil {
+	c.pendingInstalls[handleID] = pendingInstall{thread: thread, child: child}
+	c.workers.Add(1)
+	desired := ptychild.Size{Rows: bottomReservation(c.size.Rows).ChildRows(), Cols: c.size.Cols}
+	c.mu.Unlock()
+	registered, committed := false, false
+	defer func() {
+		if committed {
+			return
+		}
+		if registered {
+			// Stop cancels the operation context before teardown joins us. A
+			// fresh cleanup budget lets the still-live presenter retire our
+			// uncommitted registration before it is released.
+			cleanup, cancel := context.WithTimeout(context.Background(), terminal.WriteTimeout)
+			err = errors.Join(err, c.presenter.Retire(cleanup, child.Endpoint()))
+			cancel()
+		}
+		c.mu.Lock()
+		delete(c.pendingInstalls, handleID)
 		c.mu.Unlock()
-		return err
+		c.workers.Done()
+	}()
+	for {
+		if child.Size() != desired {
+			if err := child.Resize(desired); err != nil {
+				return err
+			}
+		}
+		if !registered {
+			if err := c.presenter.Register(ctx, child.Endpoint()); err != nil {
+				return err
+			}
+			registered = true
+		}
+		c.mu.Lock()
+		select {
+		case <-ctx.Done():
+			c.mu.Unlock()
+			return ctx.Err()
+		case <-c.stop:
+			c.mu.Unlock()
+			return errors.New("console is stopped")
+		case <-child.Exited():
+			c.mu.Unlock()
+			return errors.New("attach terminal has already exited")
+		default:
+		}
+		if child.Endpoint().InputEnded() {
+			c.mu.Unlock()
+			return errors.New("attach terminal input has ended")
+		}
+		pending, reserved := c.pendingInstalls[handleID]
+		if !reserved || pending.child != child || pending.thread != thread {
+			c.mu.Unlock()
+			return errors.New("terminal installation reservation changed")
+		}
+		current := ptychild.Size{Rows: bottomReservation(c.size.Rows).ChildRows(), Cols: c.size.Cols}
+		if desired != current {
+			desired = current
+			c.mu.Unlock()
+			continue
+		}
+		break // The short routing commit below retains c.mu.
 	}
 	if c.ownedChildren == nil {
 		c.ownedChildren = make(map[*ptychild.Child]struct{})
 	}
 	c.ownedChildren[child] = struct{}{}
-	c.workers.Add(1)
+	delete(c.pendingInstalls, handleID)
+	committed = true
 	c.messagePaneGen++
 	c.panes[handleID] = &pane{
 		tree: tree, thread: thread, process: process, actorID: actorID,
@@ -625,6 +701,12 @@ func (c *Console) onSwitch(id string) { c.switchTo(id, false, arrivalOrdinary) }
 // case when returning from the panel, where the SCREEN changed but the active
 // actor did not.
 func (c *Console) forceSwitch(id string) { c.switchTo(id, true, arrivalOrdinary) }
+
+type menuOperationContextKey struct{}
+type menuOperationContext struct {
+	origin MenuOperationOrigin
+	hosted string
+}
 
 // arrival says HOW the operator landed on an actor. It is not decoration: the
 // switch rule keys off it (only a notification hop is non-pinning), while the
@@ -737,12 +819,13 @@ func (c *Console) Run() (code int) {
 	go func() { defer c.workers.Done(); c.watchContinuations() }()
 	go func() { defer c.workers.Done(); c.pumpStdin() }()
 	go func() { defer c.workers.Done(); c.watchResize() }()
-	// Several workers drain the operation queue (pair#205): operations on
-	// different threads run at once, bounded; the thread gate in couchcore
-	// keeps two off one thread, and results still reach this goroutine
-	// through q.results.
-	for i := 0; i < queueWorkers; i++ {
+	// Lifecycle/adoption workers and the reserved hosted-navigation worker
+	// share the bounded queue. Only Run reduces their final outcomes.
+	for i := 0; i < max(1, queueWorkers-1); i++ {
 		go func() { defer c.workers.Done(); c.operationQueue.Run(c.stop) }()
+	}
+	if queueWorkers > 1 {
+		go func() { defer c.workers.Done(); c.operationQueue.RunNavigation(c.stop) }()
 	}
 	slotGitTicker := time.NewTicker(c.slotGitInterval)
 	defer slotGitTicker.Stop()
@@ -839,6 +922,13 @@ func (c *Console) Run() (code int) {
 	syncSpinner := func() {
 		c.mu.Lock()
 		notice := c.menu.Notice
+		if notice.Level != MenuNoticeProgress {
+			for _, job := range c.menu.Operations {
+				if job.Phase == MenuOperationRunning && (notice.Level != MenuNoticeProgress || job.Origin.Attempt < notice.Owner.OperationAttempt) {
+					notice = MenuNotice{Level: MenuNoticeProgress, Owner: MenuProgressOwner{OperationAttempt: job.Origin.Attempt}}
+				}
+			}
+		}
 		focused := c.focus.IsPanel()
 		c.mu.Unlock()
 		active := focused && notice.Level == MenuNoticeProgress && notice.Owner != (MenuProgressOwner{})
@@ -1070,6 +1160,7 @@ func (c *Console) teardown(restore func() error) error {
 		cancelPass()
 	}
 	c.workers.Wait()
+	c.operationQueue.abandonPending()
 	releaseErr := c.release()
 	c.mu.Lock()
 	tracer, events, mouseTrace := c.trace, c.events, c.mouseTrace
@@ -1524,6 +1615,8 @@ func (c *Console) onHotkey() {
 	}
 
 	c.mu.Lock()
+	c.menu.LandingAttempt = 0
+	c.navigationGeneration++
 	c.focus = FocusPanel()
 	// Open focused on whoever paged. This used to run only when the ladder
 	// happened to land on the panel; now it is the point of the key, so it runs
@@ -1783,23 +1876,22 @@ func (c *Console) onParkHotkey() {
 func (c *Console) runMenuOperation(effect MenuEffect) {
 	// A background effect -- the reattach pass (pair#206) -- goes FIRST, before
 	// anything that addresses the operator's in-flight slot: the attention
-	// capture below reads InFlight, and the match further down would drop this
-	// effect, because the pass never holds InFlight.
+	// capture below addresses an operator attempt, which the pass never owns.
 	if effect.Background {
 		c.runBackgroundOperation(effect)
 		return
 	}
 	c.mu.Lock()
 	fn := c.ops
-	origin := c.menu.InFlight
+	origin := menuOriginForAttempt(c.menu, effect.Attempt)
 
 	if effect.Operation == "switch-agent" {
 		origin.PanelOrigin = c.focus.IsPanel()
-		c.menu.InFlight.PanelOrigin = origin.PanelOrigin
+		c.menu = replaceMenuOperationOrigin(c.menu, origin)
 	}
 	if origin.Operation == "switch" && origin.AttentionCapture == 0 && !origin.Manual {
 		origin.AttentionCapture = c.attention.Capture(origin.Address)
-		c.menu.InFlight.AttentionCapture = origin.AttentionCapture
+		c.menu = replaceMenuOperationOrigin(c.menu, origin)
 	}
 	c.mu.Unlock()
 	if fn == nil {
@@ -1813,12 +1905,13 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 	}
 	requestArgs := cloneOperationArgs(effect.Args)
 	key := fmt.Sprintf("menu\x00%d\x00%s", effect.Attempt, effect.Operation)
-	_, err := c.operationQueue.Enqueue(operationRequest{key: key, name: effect.Operation, origin: origin, run: func() (any, error) {
+	request := operationRequest{key: key, name: effect.Operation, origin: origin, run: func() (any, error) {
 		operationContext, cancelOperation := context.WithCancel(c.lifetime)
 		defer cancelOperation()
 		// A long operation reports its current step onto its own progress
 		// notice (#399); the reducer ignores a line that arrives after the
 		// notice became a result.
+		operationContext = context.WithValue(operationContext, menuOperationContextKey{}, menuOperationContext{origin: origin})
 		operationContext = couchcore.WithOperationProgress(operationContext, func(detail string) {
 			c.mu.Lock()
 			c.menu = updateOperationProgress(c.menu, origin.Attempt, detail)
@@ -1826,7 +1919,19 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 			c.repaint()
 		})
 		return fn(couchcore.OperationCall{Name: effect.Operation, Args: requestArgs, Implicit: true, Context: operationContext})
-	}})
+	}}
+	if effect.Operation == "switch" {
+		c.mu.Lock()
+		hosted := c.switchTargetForAddressLocked(origin.Address)
+		c.mu.Unlock()
+		if hosted != "" {
+			request.navigation = func() (any, error) {
+				ctx := context.WithValue(c.lifetime, menuOperationContextKey{}, menuOperationContext{origin: origin, hosted: hosted})
+				return fn(couchcore.OperationCall{Name: effect.Operation, Args: requestArgs, Implicit: true, Context: ctx})
+			}
+		}
+	}
+	_, err := c.operationQueue.Enqueue(request)
 	if err != nil {
 		c.finishOperation(operationCompletion{key: key, name: effect.Operation, origin: origin, err: err})
 	}
@@ -1975,6 +2080,9 @@ func (c *Console) pendingMouse() MouseHit {
 
 // finishOperation returns true when the completion requested Console exit.
 func (c *Console) finishOperation(completed operationCompletion) bool {
+	if completed.owner != nil && !completed.owner.CompareAndSwap(false, true) {
+		return false
+	}
 	err := completed.err
 	defer func() {
 		c.finishContinuationOperation(completed, err)
@@ -2003,26 +2111,6 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 			if started.Handle != nil {
 				startedHandleID = started.Handle.ID()
 			}
-			if err == nil {
-				c.mu.Lock()
-				fn := c.ops
-				c.mu.Unlock()
-				if fn == nil {
-					err = errors.New("no action dispatcher wired")
-				} else {
-					args := map[string]string{"repo-scope": address.RepoScope, "tag": string(address.Tag)}
-					if completed.origin.PreserveFocus || completed.origin.Background || completed.origin.Operation == "switch-agent" && completed.origin.PanelOrigin {
-						// The reattach pass's child is adopted without taking
-						// focus (pair#206); only the declared arg carries that
-						// across the operation table to the installer.
-						args["background"] = "true"
-					}
-					_, err = fn(couchcore.OperationCall{
-						Name: "attach", Context: c.lifetime, Implicit: true, TypedPayload: started,
-						Args: args,
-					})
-				}
-			}
 		}
 	}
 	c.observeLifecycleCompletion(completed, address, err)
@@ -2032,6 +2120,9 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 		Background: completed.origin.Background,
 	}
 	if err != nil {
+		var recoveryUnconfirmed *couchcore.RecoveryLaunchUnconfirmed
+		var reloadUnconfirmed *couchcore.ReloadUnconfirmed
+		event.Unconfirmed = errors.As(err, &recoveryUnconfirmed) || errors.As(err, &reloadUnconfirmed)
 		var required *couchcore.RecoveryConfirmationRequired
 		if errors.As(err, &required) {
 			event.RecoveryConfirmation = &required.Offer
@@ -2053,14 +2144,10 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 		}
 	}
 	if completed.origin.Operation == "switch" {
-		// Success is acknowledged by switchTo, which is the only place that
-		// knows a landing actually happened -- two authorities for one rule is
-		// how they drift. Failure still has to release the capture here,
-		// because no landing occurred to do it.
-		if !event.Success {
-			c.attention.Cancel(completed.origin.AttentionCapture)
-			c.syncAttentionLocked()
-		}
+		// Only the selection owner acknowledges. Finishing always releases this
+		// job's capture, including a successful switch superseded before landing.
+		c.attention.Cancel(completed.origin.AttentionCapture)
+		c.syncAttentionLocked()
 	}
 	if event.Success && operationNeedsProjectionRefresh(event.Operation) {
 		event.ProjectionAfterGeneration = c.refreshSchedule.Sequence
@@ -2068,8 +2155,8 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 	// A lifecycle operation's child exit is expected in EITHER event order.
 	// c.exited and c.operationQueue.results are separate select cases and Go
 	// picks uniformly among ready ones, so roughly half the time the completion
-	// wins the race, ReduceMenu clears InFlight, and the exit falls through to
-	// consumeExpectedParkExitLocked's InFlight arm with nothing to match. This
+	// wins the race, ReduceMenu completes the row job, and the exit falls through to
+	// consumeExpectedParkExitLocked's running-job arm with nothing to match. This
 	// bridge is the other half of that rule, and detach needs it as much as
 	// park does -- both end their child deliberately.
 	if err == nil && endsItsOwnChild(completed.origin.Operation) {
@@ -2090,6 +2177,8 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 		c.menu, menuEffects = ReduceMenu(c.menu, event)
 	}
 	panelFocused := c.focus.IsPanel()
+	land := completed.origin.Attempt != 0 && c.menu.LandingAttempt == completed.origin.Attempt && len(c.menu.Frames) == 1
+	continuationLand := completed.origin.ContinuationID != "" && !completed.origin.PreserveFocus && completed.origin.NavigationGeneration == c.navigationGeneration
 	cancelPass := c.completedReattachPassLocked()
 	c.mu.Unlock()
 	c.observeLifecyclePass()
@@ -2117,7 +2206,7 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 		c.reduceMenu(MenuEvent{Kind: MenuEventNotice, Error: warned.Warning()})
 		c.setNotice(warned.Warning())
 	}
-	if completed.origin.Operation == "resume" && err == nil && startedHandleID != "" && !completed.origin.Background && !completed.origin.PreserveFocus {
+	if err == nil && startedHandleID != "" && !completed.origin.Background && !completed.origin.PreserveFocus && (land || continuationLand) {
 		c.requestMenuRefresh()
 		c.forceSwitch(startedHandleID)
 		return false
@@ -2142,20 +2231,21 @@ func (c *Console) consumeExpectedParkExitLocked(id string, address couchcore.Thr
 	if c.expectedExits.consume(id) {
 		return true
 	}
-	origin := c.menu.InFlight
-	if origin.Attempt == 0 {
-		return false
-	}
-	if endsItsOwnChild(origin.Operation) {
-		return origin.Address == address
-	}
-	switch origin.Operation {
-	case "leave":
-		// Leave detaches every thread, so every child exit it causes is
-		// expected. Without this the operator gets a burst of exit notices on
-		// the way out -- exactly the noise the notification design exists to
-		// keep meaningful.
-		return true
+	for _, job := range c.menu.Operations {
+		if job.Phase != MenuOperationRunning {
+			continue
+		}
+		origin := job.Origin
+		if endsItsOwnChild(origin.Operation) && origin.Address == address {
+			return true
+		}
+		if origin.Operation == "leave" {
+			// Leave detaches every thread, so every child exit it causes is
+			// expected. Without this the operator gets a burst of exit notices on
+			// the way out -- exactly the noise the notification design exists to
+			// keep meaningful.
+			return true
+		}
 	}
 	return false
 }
@@ -2174,6 +2264,10 @@ func (c *Console) ExecuteConsoleOperation(call couchcore.OperationCall) (any, er
 	address := couchcore.ThreadAddress{RepoScope: call.Args["repo-scope"], Tag: couchcore.ThreadTag(call.Args["tag"])}
 	switch call.Name {
 	case "switch":
+		if call.Context == nil {
+			call.Context = c.lifetime
+		}
+		menuCall, _ := call.Context.Value(menuOperationContextKey{}).(menuOperationContext)
 		c.mu.Lock()
 		target := c.switchTargetForAddressLocked(address)
 		// A notification hop is a landing on an actor that HAD a pending
@@ -2183,11 +2277,14 @@ func (c *Console) ExecuteConsoleOperation(call couchcore.OperationCall) (any, er
 		// the operator chose it" -- the value that was true when they chose,
 		// not after.
 		how := arrivalOrdinary
-		if c.menu.InFlight.Operation == "switch" && c.menu.InFlight.Address == address &&
-			c.menu.InFlight.AttentionCapture != 0 {
+		if job, ok := menuRunningForAddress(c.menu, address); ok && job.Origin.Operation == "switch" &&
+			job.Origin.AttentionCapture != 0 {
 			how = arrivalNotification
 		}
 		c.mu.Unlock()
+		if menuCall.hosted != "" && target != menuCall.hosted {
+			return nil, errNavigationNeedsLifecycle
+		}
 		if target == "" {
 			// A restored registry entry does not restore its PTY handle. Route
 			// through resume's fresh terminal proof and let normal completion
@@ -2208,7 +2305,20 @@ func (c *Console) ExecuteConsoleOperation(call couchcore.OperationCall) (any, er
 			return fn(couchcore.OperationCall{Name: "resume", Context: call.Context, Implicit: true,
 				Args: map[string]string{"repo-scope": address.RepoScope, "tag": string(address.Tag), "warm-only": "true"}})
 		}
-		err := c.runTerminalCommand(call.Context, func() error { _, err := c.selectActorContext(call.Context, target, true, how); return err })
+		err := c.runTerminalCommand(call.Context, func() error {
+			c.mu.Lock()
+			current := c.switchTargetForAddressLocked(address)
+			allowed := menuCall.origin.Attempt == 0 || c.menu.LandingAttempt == menuCall.origin.Attempt
+			c.mu.Unlock()
+			if menuCall.hosted != "" && current != menuCall.hosted {
+				return errNavigationNeedsLifecycle
+			}
+			if !allowed {
+				return nil
+			}
+			_, err := c.selectActorContext(call.Context, target, true, how)
+			return err
+		})
 		return address, err
 	case "attach":
 		start, ok := call.TypedPayload.(couchcore.StartResult)

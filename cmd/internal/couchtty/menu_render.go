@@ -469,6 +469,9 @@ func threadStateText(thread couchcore.ActionableThreadSummary, now time.Time) st
 	if thread.State == couchcore.ThreadArchived {
 		return "archived"
 	}
+	if thread.HasOpenPark {
+		return menuRowAdviceOf(menuRowFactsOf(thread)).Notice.Text
+	}
 	switch couchcore.ContinuityOutcome(thread) {
 	case couchcore.Continue:
 		if thread.State == couchcore.ThreadDetached && hasRecordedActivity(thread.LastActiveAt) {
@@ -520,7 +523,7 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 	for _, entry := range presentations {
 		labels[menuRowKey(entry.Row)] = entry
 	}
-	lines := []string{"threads", clipMenuLine("Ctrl+Y copy last notice", width)}
+	lines := []string{"threads", clipMenuLine("Ctrl+Y copy last notice / selected error", width)}
 	rowBudget := height - len(lines)
 	if frame.Filter != "" {
 		rowBudget--
@@ -548,6 +551,7 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		thread     couchcore.ThreadAddress
 		key        couchcore.ThreadRowKey
 	}
+	jobs := menuOperationRows(state)
 	var rows []rootLine
 	selectedStart, selectedEnd := 0, 0
 	for _, thread := range visible {
@@ -567,6 +571,10 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		if pass := passSuffix(view, owned, width, passOutcome); pass != "" {
 			suffix = pass
 		}
+		job, hasJob := jobs[menuRowKey(thread)]
+		if hasJob {
+			suffix = "  " + menuOperationRowText(job, now)
+		}
 		entry := labels[menuRowKey(thread)]
 		if entry.OwnerHub != "" {
 			ownerLabel := hubLabels[entry.OwnerHub]
@@ -574,6 +582,10 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 				ownerLabel = entry.OwnerHub
 			}
 			suffix = clipMenuLine("  hub "+rowtext.Sanitize(ownerLabel)+suffix, width)
+		}
+		if hasJob {
+			// Diagnostics and hub labels must leave the job's row identifiable.
+			suffix = clipMenuLine(suffix, width-menuLabelFloor)
 		}
 		prefixWidth := width - textwidth.Width(suffix)
 		if prefixWidth < 0 {
@@ -584,6 +596,9 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		plain := clipMenuLine(head+entry.Glyph+"  "+detail, prefixWidth) + suffix
 		if frame.View == MenuViewFocus {
 			plain = clipMenuLine(head+" ◆ "+menuFocusSummary(thread)+menuFocusSlug(thread), width)
+			if hasJob {
+				plain = clipMenuLine(plain, prefixWidth) + suffix
+			}
 		}
 		if selectedRow {
 			plain = selectedMenuLine(plain, true, width)
@@ -879,7 +894,7 @@ func passStateText(view PassView) string {
 }
 
 // menuLabelFloor is the columns a switcher row keeps for its label and path
-// however long the pass's state text is.
+// however long a pass's or operation's state text is.
 const menuLabelFloor = 16
 
 // passSuffix is the state column of a row the pass owns, or "" for a row it

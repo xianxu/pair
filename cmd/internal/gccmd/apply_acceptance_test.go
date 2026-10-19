@@ -116,11 +116,11 @@ func TestPublicApplyPreservesProtectedOwnersAndCollectsIndependentBuckets(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err = store.AdvancePark(r.Address, r.Revision, couchcore.ParkEvent{Kind: couchcore.ParkRequestCommitted, Identity: identity, Attempt: 1})
+	r, err = store.AdvancePark(context.Background(), r.Address, r.Revision, couchcore.ParkEvent{Kind: couchcore.ParkRequestCommitted, Identity: identity, Attempt: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err = store.FinalizePark(r.Address, r.Revision, identity, 1, old)
+	r, err = store.FinalizePark(context.Background(), r.Address, r.Revision, identity, 1, old)
 	if err != nil {
 		t.Fatal(err)
 	}

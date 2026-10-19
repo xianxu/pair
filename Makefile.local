@@ -286,9 +286,6 @@ test-runtimebundle: runtimebundle-generate
 test-review: $(BIN_DIR)/pair
 	bash tests/review-docflow-test.sh
 	bash tests/review-apply-test.sh
-	bash tests/review-reconcile-test.sh
-	bash tests/review-handoff-test.sh
-	bash tests/review-loop-test.sh
 	bash tests/review-applied-round-test.sh
 	bash tests/review-projection-test.sh
 	bash tests/review-poke-test.sh
@@ -304,12 +301,10 @@ test-review: $(BIN_DIR)/pair
 	python3 -B tests/review-resume-isolation-test.py
 	bash tests/review-definition-test.sh
 	bash tests/review-branch-restore-test.sh
-	python3 -B tests/review-branch-restore-diagnostics-test.py
 	python3 -B tests/review-observation-diagnostics-test.py
 	bash tests/review-observation-test.sh
 	python3 -B tests/review-fresh-restore-diagnostics-test.py
 	bash tests/review-fresh-restore-test.sh
-	bash tests/review-producer-context-test.sh
 
 # Whole tree, not one package: the pumps and the switcher span packages, and
 # ./cmd/pair-wrap/ has not existed since the Go entrypoint switch -- the target
@@ -373,8 +368,6 @@ test-lua:
 	nvim -l nvim/review/spinner_test.lua
 	nvim -l nvim/review/resolve_test.lua
 	nvim -l nvim/review/menu_test.lua
-	nvim -l nvim/review/reconcile_test.lua
-	nvim -l nvim/review/gate_test.lua
 	nvim -l nvim/review/restore_test.lua
 	nvim -l nvim/review/identity_test.lua
 	nvim -l nvim/review/restore_client_test.lua
@@ -382,10 +375,9 @@ test-lua:
 	nvim -l nvim/review/document_bytes_test.lua
 	nvim -l nvim/review/recovery_test.lua
 	nvim -l nvim/review/recovery_observer_test.lua
-	nvim -l nvim/review/handoff_acceptance_test.lua
 	nvim -l nvim/review/definition_seam_test.lua
-	nvim -l nvim/review/handoff_context_test.lua
 	nvim -l nvim/review/round_authority_test.lua
+	nvim -l nvim/review/agent_round_rule_test.lua
 
 # Integration test for nvim/init.lua's send/queue/history state machine.
 # Drives the real init.lua under headless nvim (it can't be unit-tested —

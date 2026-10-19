@@ -639,3 +639,103 @@ func writeStoreAll(writer io.Writer, raw []byte) error {
 	}
 	return nil
 }
+
+// WithContext scopes synchronous protocol IO to one operation. Lock acquisition
+// must support cancellation; an unsupported runtime refuses instead of starting
+// an uncollectable goroutine around a blocking lock. Filesystem calls already
+// in progress finish synchronously before cancellation can settle the worker.
+func (s Store) WithContext(ctx context.Context) Store {
+	if s.Runtime == nil {
+		return s
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return Store{Runtime: contextStoreRuntime{StoreRuntime: s.Runtime, ctx: ctx}}
+}
+
+type contextStoreRuntime struct {
+	StoreRuntime
+	ctx context.Context
+}
+
+func (r contextStoreRuntime) Lock(path string) (Unlocker, error) {
+	if err := r.ctx.Err(); err != nil {
+		return nil, err
+	}
+	runtime, ok := r.StoreRuntime.(interface {
+		LockContext(context.Context, string) (Unlocker, error)
+	})
+	if !ok {
+		return nil, errors.New("lifecycle runtime does not support cancellable lock acquisition")
+	}
+	return runtime.LockContext(r.ctx, path)
+}
+func (r contextStoreRuntime) MkdirAll(path string, mode os.FileMode) error {
+	if err := r.ctx.Err(); err != nil {
+		return err
+	}
+	return r.StoreRuntime.MkdirAll(path, mode)
+}
+func (r contextStoreRuntime) ReadFile(path string) ([]byte, error) {
+	if err := r.ctx.Err(); err != nil {
+		return nil, err
+	}
+	if runtime, ok := r.StoreRuntime.(interface {
+		ReadFileContext(context.Context, string) ([]byte, error)
+	}); ok {
+		return runtime.ReadFileContext(r.ctx, path)
+	}
+	raw, err := r.StoreRuntime.ReadFile(path)
+	if ctxErr := r.ctx.Err(); ctxErr != nil {
+		return nil, ctxErr
+	}
+	return raw, err
+}
+func (r contextStoreRuntime) CreateTemp(dir, pattern string) (StoreFile, error) {
+	if err := r.ctx.Err(); err != nil {
+		return nil, err
+	}
+	file, err := r.StoreRuntime.CreateTemp(dir, pattern)
+	if err != nil {
+		return nil, err
+	}
+	return contextStoreFile{StoreFile: file, ctx: r.ctx}, nil
+}
+
+// Remove collects the store's own unpublished temporary files.
+// Complete that synchronous cleanup even after cancellation; callers removing
+// published request/completion evidence screen their operation context first.
+func (r contextStoreRuntime) Remove(path string) error {
+	return r.StoreRuntime.Remove(path)
+}
+func (r contextStoreRuntime) Rename(oldPath, newPath string) error {
+	if err := r.ctx.Err(); err != nil {
+		return err
+	}
+	return r.StoreRuntime.Rename(oldPath, newPath)
+}
+func (r contextStoreRuntime) SyncDirectory(path string) error {
+	if err := r.ctx.Err(); err != nil {
+		return err
+	}
+	return r.StoreRuntime.SyncDirectory(path)
+}
+
+type contextStoreFile struct {
+	StoreFile
+	ctx context.Context
+}
+
+func (f contextStoreFile) Write(raw []byte) (int, error) {
+	if err := f.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return f.StoreFile.Write(raw)
+}
+func (f contextStoreFile) Sync() error {
+	if err := f.ctx.Err(); err != nil {
+		return err
+	}
+	return f.StoreFile.Sync()
+}

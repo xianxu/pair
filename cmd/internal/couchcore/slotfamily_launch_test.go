@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"context"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"os"
@@ -81,7 +82,7 @@ func TestRepositoryFamilyConflictingDirectoryRefusedAfterParkAndRestart(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = env.Couch.Threads.FinalizePark(actor.Thread, begun.Revision, park, 1, env.Now); err != nil {
+	if _, err = env.Couch.Threads.FinalizePark(context.Background(), actor.Thread, begun.Revision, park, 1, env.Now); err != nil {
 		t.Fatal(err)
 	}
 	env.Proc.Kill(actor.PID)
@@ -222,7 +223,7 @@ func parkFamilyActor(t *testing.T, env *testEnv, actor ActorRecord) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = env.Couch.Threads.FinalizePark(actor.Thread, begun.Revision, park, 1, env.Now); err != nil {
+	if _, err = env.Couch.Threads.FinalizePark(context.Background(), actor.Thread, begun.Revision, park, 1, env.Now); err != nil {
 		t.Fatal(err)
 	}
 	env.Proc.Kill(actor.PID)

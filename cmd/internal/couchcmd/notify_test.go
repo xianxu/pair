@@ -51,7 +51,7 @@ func TestNotifyCLIExchangeNeverWritesOSCOrRetries(t *testing.T) {
 			if strings.ContainsAny(out.String()+stderr.String(), "\x1b\a") {
 				t.Fatal("CLI wrote a terminal effect")
 			}
-			if outcome == "ok" && !strings.Contains(out.String(), "written") {
+			if outcome == "ok" && out.String() != "Notification written; desktop delivery not confirmed.\n" {
 				t.Fatalf("success %q", &out)
 			}
 			if (outcome == "uncertain" || outcome == "lost-reply") && !strings.Contains(stderr.String(), "do not retry automatically") {
