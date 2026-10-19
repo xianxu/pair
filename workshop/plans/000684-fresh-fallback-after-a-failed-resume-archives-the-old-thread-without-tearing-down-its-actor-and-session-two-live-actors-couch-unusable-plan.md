@@ -10,9 +10,9 @@ collaboration-mode: discussion
 one mechanism (`Converge`) built from three primitives: proven teardown, binding by the transcript ID stored on
 the record, and a persisted failure record.
 
-**Architecture:** A per-slot *lifetime lease* (a file every process of the slot's tree holds open with a shared
-`flock`) turns "everything except the transcript is gone" into a one-step check: an exclusive non-blocking
-`flock` succeeds. `Converge(slot, target)` is a pure planner over observed evidence plus a thin executor. Every
+**Architecture:** Teardown is proven by three witnesses, one per kind of process: a per-slot *lifetime lease*
+(a file pair's own processes hold with a shared `flock`; free when an exclusive non-blocking `flock` succeeds),
+the agent's pty (no process left on its controlling tty), and the zellij session (absent twice). `Converge(slot, target)` is a pure planner over observed evidence plus a thin executor. Every
 path in the audit becomes one `Converge` call, and the operation dispatcher persists every failure.
 
 **Tech Stack:** Go (`cmd/internal/couchcore`, `launcher`, `wrapcmd`, `sessioninventory`), zellij, `flock(2)`,
@@ -53,11 +53,13 @@ Actions: attach, Resume, Start fresh, Park (Alt+x), Archive, Relaunch (Alt+n: pa
 | tree gone, binding stored, transcript file present | Resume from disk | Resume | the live terminal state only |
 | tree gone, binding stored, transcript file missing | Start fresh (detail: "transcript `<id>` missing at `<path>`") | Start fresh | the conversation (target: accepted) |
 | tree gone, no binding on record (legacy) | Resume if the ledger resolves it once (then stored), else Start fresh | Resume / Start fresh | as above |
-| orphans hold the lease (title, session-watch, attach client) | Resume / Start fresh | the action's teardown kills them by identity | none |
+| pair orphans hold the lease (title, session-watch, attach client) | Resume / Start fresh | the action's teardown kills them by identity | none |
+| processes left on the agent's tty (its in-flight tool commands) | Resume / Start fresh | the action's teardown kills them with the agent (the operator confirmed stopping the agent) | that command's in-flight work |
+| agent-spawned process that left the agent's session (a setsid'd runner, a daemon) | unaffected: named in the proof, never killed, never required gone | none needed | none |
 | two live actors or sessions | Resume / Start fresh, detail names both | the action tears both down | live terminal state |
 | park awaiting_completion, success completion present (#683) | Resume from disk | Resume (teardown folds the completion first) | none |
 | park awaiting_completion, cleanup never ran | Resume from disk | Resume (teardown re-runs cleanup, needs proof) | scrollback tail if the capture never ran |
-| teardown unproven (holder survives SIGKILL, lsof fails, zellij unanswering) | unchanged, annotated with the failure | same action (retry) after the operator removes the named holder | nothing is touched: no archive, no launch |
+| teardown unproven (a lease holder or tty process survives SIGKILL, lsof or ps fails, zellij unanswering) | unchanged, annotated with the failure | same action (retry) after the operator removes the named holder | nothing is touched: no archive, no launch |
 | launch fails after proven teardown | unchanged, annotated | same action; the partial launch is itself torn down with proof before the failure is recorded | none beyond the failed attempt |
 | Couch dies mid-Converge | re-observed on restart: whatever the evidence says | the row's action | none: every step is idempotent and gated on fresh evidence |
 
@@ -69,60 +71,89 @@ wanted); Inferred tail-match recovery stays only as the legacy fallback for reco
 
 ### P1 — `Teardown(slot) (TeardownProof, error)`: proven teardown of everything but the transcript
 
-**The single resource (tl-worker PLANNING rule).** The invariant "no live process of the old tree when the new
-one starts" is a one-step check on a lease held for the tree's lifetime, instead of an observation sweep:
+A slot's processes are of three kinds, and each gets the witness that fits it. No single witness covers all
+three without either missing processes or holding the slot hostage to them.
+
+| Kind | Members | Witness: gone when | Killed by teardown |
+|---|---|---|---|
+| **pair's own** | the pane's `pair wrap`, the attach client Couch runs as the actor, session-watch, `pair title` | the slot's lifetime lease is free | yes, by exact identity |
+| **the agent** | the agent process and everything still in its pty session (its in-flight tool commands) | no process has the agent's pty as its controlling tty | yes, by exact identity |
+| **the terminal** | the zellij server and what it hosts (nvim) | both session names absent twice (session_quiescence.go:63-95); nvim reaped by its sidecar pid (the existing `reapNvimSidecars`) | yes (existing paths) |
+| *agent-spawned, left the session* | a setsid'd runner, a daemon, a language server that detached | not required | **no**: named in the proof only |
+
+**The lease (pair's own processes).** The invariant "no pair process of the old tree survives" is a one-step
+check on a resource held for each process's lifetime (tl-worker PLANNING rule), not an observation sweep:
 
 - Couch creates `<slot store dir>/lifetime.lease` (one file per slot) and passes its path to the launch as
-  `PAIR_LIFETIME_LEASE`. Couch itself never holds it open past a probe.
-- Every `pair` process started for the tree (the pane's `pair wrap`, the attach client Couch runs as its actor,
-  `pair title`, the nvim launcher) opens the path and takes `LOCK_SH` (blocking, 2s bound) at start, without
-  `O_CLOEXEC`, and passes the fd in `ExtraFiles` to what it spawns: the agent pty child (wrap.go:2918),
-  session-watch (wrap.go:2574), the title process and nvim. One helper, `lease.Inherit(cmd)`, at each site.
-- The tree is gone iff `flock(LOCK_EX|LOCK_NB)` on a fresh open succeeds (then released at once).
-- **Layering:** pair only learns "hold this path for your lifetime"; it has no slot concept and works without
-  Couch (no env, no lease). Couch owns the slot meaning (memory: layer dependency direction).
+  `PAIR_LIFETIME_LEASE`. Couch never holds it open past a probe.
+- Each pair process started for the tree opens the path with `O_CLOEXEC` and takes `LOCK_SH` (blocking, 2s
+  bound). A pair process passes the fd only to children that are **pair processes** (session-watch, wrap.go:2574;
+  the title process), through one helper `lease.Inherit(cmd)` that refuses a non-pair `argv[0]`. The agent, nvim
+  and everything they start never see the fd. So nothing an agent runs can hold the slot (hub review,
+  2026-10-18: a lease inherited through the agent's pty would reach tests, a background `sdlc merge`, language
+  servers and daemons. The sweep would kill them, and one that setsid'd and never exits would wedge teardown).
+- The lease is free iff `flock(LOCK_EX|LOCK_NB)` on a fresh open succeeds (released at once). `lsof <lease>`
+  names the holders when it isn't: exactly the survivors the audit found outside the parent tree (D1, D2, the
+  Oct 14 title pid 17468, session-watch after `Setsid` + `Release`).
+- **Layering:** pair only learns "hold this path for your lifetime". It has no slot concept and works without
+  Couch (no env, no lease). Couch owns the slot meaning.
 
-**Why observation alone can't be the proof:** the audit's survivors (D1, D2, #684's title pid 17468 from Oct 14,
-session-watch after `Setsid` + `Release`) are processes that left the parent tree, so no PID-tree or record walk
-finds them. Anything that inherited the lease is found by `lsof <lease>`, wherever it was reparented.
+**The pty (the agent).** The wrapper starts the agent with `pty.Start` (wrap.go:2925), which makes it a session
+leader with the pty slave as its controlling tty. The wrapper records the agent's pid, start identity and tty
+name (`ttysNNN`) in the tag's agent sidecar, beside the agent pid it already publishes for session-watch. The
+agent is gone iff no process has that controlling tty (`ps -t <tty>` through the process-table seam). That set
+is the agent plus its in-flight tool commands. Stopping those with the agent is what tearing down an agent
+means, and the operator confirmed it by choosing the action. A command that setsid'd leaves both the session
+and the tty. It is outside the set, and so it is neither killed nor waited on.
 
-**The zellij server** is third-party and may close inherited fds, so the lease doesn't cover it; its existing
-proof stays: two consecutive absence observations of both session names (launcher/session_quiescence.go:63-95).
+**Named, not killed.** Before the kill, teardown snapshots the agent's descendants (ppid chain from the agent
+pid). Those that aren't on the agent's tty go into `TeardownProof.LeftRunning` and the success notice ("left
+running: pid 812 `sdlc merge`"). They never block the proof.
 
 **Contract:**
 
 ```go
 // couchcore/teardown.go
 type TeardownProof struct {
-    Slot       SlotIdentity
-    LeaseFree  time.Time      // the EX|NB acquire that succeeded
-    Sessions   []string       // names proven absent twice
-    Observed   SlotSessionObservation // ObserveSlotSessions after the kill: Absent == true
+    Slot        SlotIdentity
+    LeaseFree   time.Time              // the EX|NB acquire that succeeded
+    AgentTTY    string                 // proven empty; "" when no agent was recorded
+    Sessions    []string               // names proven absent twice
+    Observed    SlotSessionObservation // ObserveSlotSessions after the kill: Absent == true
+    LeftRunning []ProcessIdentityLine  // agent-spawned, outside its session: named only
 }
-// Teardown is idempotent: on an already-down slot it costs one flock, one
-// ObserveSlotSessions and one list-sessions, and returns a proof.
+// Teardown is idempotent: on an already-down slot it costs one flock, one ps,
+// one ObserveSlotSessions and one list-sessions, and returns a proof.
 func (c *Couch) Teardown(ctx context.Context, slot SlotIdentity, op OperationRef) (TeardownProof, error)
 ```
 
 Steps, bounded at 10s total (ARCH-CONSTRAINTS):
 
 1. **Preserve** (only if a session is live): run the park capture (scrollback) and copy the ledger's current
-   native ID onto the record (P2's write point). An open park transaction is folded first: a matching success
-   completion with the owner proven dead finalizes it (park_recovery.go:201, #683); otherwise its cleanup runs.
+   native ID onto the record (P2's write point). Snapshot the agent's descendants for `LeftRunning`. An open park
+   transaction is folded first: a matching success completion with the owner proven dead finalizes it
+   (park_recovery.go:201, #683). Otherwise its cleanup runs.
 2. **Stop:** quit the zellij session (existing `TriggerBoundQuit`), kill the recorded server and its descendants
    (`PrepareConfirmedTerminal`, recovery_retirement_os.go:22), SIGTERM the slot's actors from the registry.
-3. **Sweep:** while the lease is held, `holders := LeaseHolders(path)` (lsof seam); SIGTERM each by exact
-   identity, 3s, then SIGKILL, 2s (`awaitExactProcessExit`, detach.go:213). At most 3 rounds.
-4. **Prove:** lease free, both session names absent twice, `ObserveSlotSessions(slot).Absent` (slotsessions.go:149
-   — kept as the second witness for trees started before the lease existed, and for the registry and zellij).
+3. **Sweep**, at most 3 rounds, each SIGTERM by exact identity, then 3s, then SIGKILL, then 2s
+   (`awaitExactProcessExit`, detach.go:213), applied to two sets:
+   - the lease holders (`LeaseHolders`, the lsof seam);
+   - the processes on the agent's tty.
+4. **Prove:** all four must hold:
+   - the lease is free;
+   - the agent's tty is empty;
+   - both session names are absent twice;
+   - `ObserveSlotSessions(slot).Absent` (slotsessions.go:149). It stays as a second witness for the registry, and
+     for trees started before the lease and tty records existed (they're proven as today, by pid and session).
 5. **Clean debris** only after proof: sidecars, the wrapper and notify sockets of the now-dead wrapper pids (D1's
    sockets), stale layouts. Debris errors are recorded in the proof, not ignored (lifecycle.go:387-420).
 
 Any step that can't reach its proof returns `ErrTeardownUnproven{Phase, Holders, Cause}` and nothing else runs.
+`Holders` lists only pair processes and processes on the agent's tty. An agent's daemon can never appear there.
 
 **Structural enforcement (ARCH-ORDER):** `ArchiveThread`, `archiveThread`, `ReplaceThreadExpected` and
-`replaceSlotCurrent` take a `TeardownProof` argument whose `Slot` must match; the Fresh exemption
-(threadstore_replace.go:11-16) is deleted (D5). A proof is consumed within the same slot-operation admission
+`replaceSlotCurrent` take a `TeardownProof` argument whose `Slot` must match. The Fresh exemption
+(threadstore_replace.go:11-16) is deleted (D5). A proof is used within the same slot-operation admission
 (the existing per-slot serialization in `prepareSlotOperation`), so it can't go stale between proof and use.
 
 ### P2 — `Bind(record) (TranscriptBinding, error)`: bind by the exact ID stored on the record
@@ -152,11 +183,11 @@ type TranscriptBinding struct {
   the agent's transcript root, and its basename must contain `NativeID`; otherwise the binding is invalid and the
   row says so (Start fresh, reason "invalid stored binding").
 - **Compatibility:** adding the field is forward-compatible only (strictjson rejects unknown fields;
-  thread.go:86-91 precedent). A binary older than M2 refuses records M2 writes. Accepted, as for #198.
+  thread.go:86-91 precedent). A binary older than M1 refuses records M1 writes. Accepted, as for #198.
 - **Open question for the drill:** whether Claude's or Codex's native ID changes across a resume. Teardown
   re-copies the ledger's root ID every time, so a change is picked up; the drill asserts the ID it observes.
 
-### P3 — `RecordFailure`: every lifecycle failure persists its reason
+### P3 — `RecordFailure`: every lifecycle failure persists its reason (implemented by #683, before #684's code)
 
 - **One choke point:** `DispatchOperation` (operationdispatch.go:44) is the single entry for CLI, switcher and
   reattach operations (run.go:616, 632, 982; recover_action.go:176). A wrapper there persists any returned error.
@@ -228,129 +259,161 @@ a failed probe read as absence** — every probe returns live/absent/unknown, an
 
 ## 5. Operating envelope (ARCH-CONSTRAINTS)
 
-- **Teardown:** an operator action, budget 10s; one `lsof` per sweep round (≤3), measured ~0.1–0.5s each
-  (to confirm in M3). Exceeded → unproven, recorded, stop.
+- **Teardown:** an operator action with a 10s budget. Each sweep round (at most 3) runs one `lsof` on the lease
+  and one `ps -t` on the agent's tty. lsof is estimated at 0.1–0.5s, to be measured in M2. Exceeding the budget
+  means unproven: recorded, then stop.
 - **Resume bind:** one `stat`. Counted test: with 8 and 16 transcripts in a fake root, `Bind` does 1 stat and 0
   listings (rejects any scan).
-- **Classification refresh:** unchanged plus one mtime check of the failure store per refresh. No flock or lsof on
-  the refresh path.
-- **Lease probe:** acquire+release of a local `flock`, microseconds; never blocking (`LOCK_NB`).
+- **Classification refresh:** unchanged, plus one mtime check of the failure store per refresh. No flock, lsof
+  or ps on the refresh path.
+- **Lease probe:** acquire and release of a local `flock`, microseconds, never blocking (`LOCK_NB`).
 
 ## 6. Fakes and conformance (ARCH-MOCK)
 
-- `LeaseHolders` (wraps `lsof -F p <path>`): a stateful fake keyed by path, with holders that exit on SIGTERM,
-  on SIGKILL only, or never. Real `flock` on a temp file in tests, held by real `sleep` children via
-  `ExtraFiles` (cheap, exact).
-- zellij, process table, agent transcript roots, the failure store: the existing fakes
-  (`FakeLaunchFailureStore`, artifact and session fakes) extended, not duplicated.
-- Live conformance: the nightly drill (M6) runs the real zellij, Claude and Codex.
+- `LeaseHolders` (wraps `lsof -F p <path>`) and `TTYProcesses` (wraps `ps -t <tty>`, on the existing
+  process-table seam): stateful fakes keyed by path and tty. Their holders exit on SIGTERM, on SIGKILL only, or
+  never. Tests use real `flock` on a temp file, held by real `sleep` children via `ExtraFiles` (cheap, exact).
+- zellij, the process table, agent transcript roots and the failure store reuse the existing fakes
+  (`FakeLaunchFailureStore`, artifact and session fakes), extended rather than duplicated.
+- Live conformance: the drill (M5) runs the real zellij, Claude and Codex, plus one real-pty test in M2 (a shell
+  on a pty that starts a setsid'd child: the tty empties while the child survives and is named).
 
 ## 7. Lifetimes (ARCH-FUNERAL)
 
 - `lifetime.lease`: one empty file per slot, created by the first launch, removed with the slot's store dir.
-- `ThreadRecord.Transcript`: one per record; archived with it.
-- Failure ring: 64 entries, one file.
-- Drill results: one JSON per night under the pair data dir, pruned at 30 days by the drill itself.
+- Agent tty in the agent sidecar: one field, removed with the sidecar at debris cleanup.
+- `ThreadRecord.Transcript`: one per record, archived with it.
+- Failure ring: 64 entries, one file (#683).
+- Drill results: one JSON per run under the pair data dir, pruned at 30 days by the drill itself.
 
 ## 8. Milestones
 
-Each `Mx` is a review boundary (`sdlc milestone-close`). M1 and M2 are cheap and unblock diagnosis; M3 builds
-the proof; M4 fixes the incident paths; M5 finishes the rest; M6 proves it nightly.
+**Prerequisite, landing separately as #683 (hub decision, 2026-10-18):** P3, failure persistence. #684 starts
+its code from main after #683 lands. No stacked branches (#272). #683's task outline (offered to that issue,
+not a #684 milestone):
 
-- [ ] M1 — Persist every lifecycle failure (P3). Covers D14–D16 and #683's diagnostics half.
-- [ ] M2 — Store the transcript binding on the record; Resume binds by one stat (P2). Covers D9, D10, D12.
-- [ ] M3 — Lifetime lease and `Teardown` with `TeardownProof`; archive and replace require a proof (P1). Covers
-  D1–D8 and #683's finalization half.
-- [ ] M4 — `Converge`, and paths 1, 2, 3, 5, 6, 7, 8, 9, 10 onto it. Fixes #684.
-- [ ] M5 — Paths 4, 11, 12, 14, 15, 16; classification collapsed to three outcomes with the two-actor anomaly.
-- [ ] M6 — Nightly drill on a disposable slot, with aged state; 7 green nights closes the project's done-when.
+- `TestDispatchPersistsEveryOperationFailure`: a table over every declared operation. An executor fake returns
+  an error, and the test asserts one `LifecycleFailure` with the operation, slot, phase and message.
+  `TestFailureRingKeeps64NewestAndSlotLevelEntries`.
+- Widen `LaunchFailure` to `LifecycleFailure` (`Phase`, `Holders`, `Outcome`; an empty `Tag` is allowed when
+  `RepoScope` is set; the limit becomes 64).
+- Wrap `DispatchOperation`. A save error joins the returned error. `failureFromCall` is pure and unit-tested.
+- `PhaseError{Phase, Err}` on the park's early returns (park.go:762-833, 878, 942).
+- `TestReattachFailurePersists` (menu_reattach.go:300-313).
+- The row and `couch --show` read the latest failure per slot; a success supersedes it.
+  `TestRowShowsLastFailureUntilSuccess`, `TestShowListsFailureAfterReceiptExpiry`.
+
+**#684's milestones.** Each `Mx` is a review boundary (`sdlc milestone-close`). M1 is cheap and unblocks
+diagnosis. M2 builds the proof. M3 fixes the incident paths. M4 finishes the rest. M5 proves it with the drill.
+
+- [ ] M1 — Store the transcript binding on the record; Resume binds by one stat (P2). Covers D9, D10, D12.
+- [ ] M2 — The lifetime lease, the agent tty witness, and `Teardown` with `TeardownProof`; archive and replace
+  require a proof (P1). Covers D1–D8 and #683's finalization half.
+- [ ] M3 — `Converge`, with paths 1, 2, 3, 5, 6, 7, 8, 9 and 10 moved onto it. Fixes #684.
+- [ ] M4 — Paths 4, 11, 12, 14, 15 and 16; classification collapsed to three outcomes, with the two-actor
+  anomaly.
+- [ ] M5 — The lifecycle drill on a disposable slot, with aged state, triggered from the hub. Seven consecutive
+  green nights close the project's done-when.
 
 ### M1 tasks
 
-**Files:** modify `couchcore/launchfailure.go`, `launchfailure_store.go`, `launchfailure_capture.go`,
-`launchfailure_show.go`, `operationdispatch.go`; `couchtty/menu_operations.go`, `menu_reattach.go`,
-`console_presentation.go`; tests beside each.
+**Files:**
+- Create `threadrecord/transcript.go` and its test.
+- Modify `couchcore/thread.go`, `threadrecord/record.go` (validation), `launcher/createflow.go` (minted IDs
+  reported back), `couchcore/resume.go`, `couchcore/recovery_prepared.go` and `couchcore/relaunch.go`.
+- `sessioninventory/native_selector*.go`: Resume stops calling them.
 
-- [ ] **Test (red):** `TestDispatchPersistsEveryOperationFailure` — table over every declared operation name;
-  an executor fake returns an error; assert one `LifecycleFailure` with the operation, slot, phase and message
-  lands in `FakeLaunchFailureStore`. Fails today for all but launch-stage errors.
-- [ ] **Test (red):** `TestFailureRingKeeps64NewestAndSlotLevelEntries`.
-- [ ] Rename `LaunchFailure` → `LifecycleFailure` (type alias for one release is not needed: one package); add
-  `Phase`, `Holders`, `Outcome`; allow empty `Tag` with `RepoScope` set; limit 64.
-- [ ] Wrap `DispatchOperation`: on `err != nil`, `c.saveLifecycleFailure(failureFromCall(call, err))`; a save
-  error joins the returned error (never swallowed). `failureFromCall` is pure, with its own unit test.
-- [ ] Phase-carrying errors: a small `PhaseError{Phase, Err}` the park and resume steps wrap their returns in, so
-  §3's early returns record which step failed (park.go:762-833, 878, 942).
-- [ ] **Test (red→green):** `TestReattachFailurePersists` — the reattach pass's warm-attach failure reaches the
-  store (menu_reattach.go:300-313).
-- [ ] Row detail and `couch --show` read the latest failure per slot (mtime-cached); success supersedes.
-  **Test:** `TestRowShowsLastFailureUntilSuccess`; `TestShowListsFailureAfterReceiptExpiry`.
-- [ ] Targeted runs: `go test ./cmd/internal/couchcore/ -run 'Failure|Dispatch'`, `./cmd/internal/couchtty/ -run
-  'Reattach|Row'`. Commit `#684 M1: …`.
+Steps:
 
-### M2 tasks
+- [ ] **Test (red):** `TestTranscriptBindingValidate`. A binding is accepted only when its path is absolute,
+  clean and under the agent's root, and its basename contains the ID. A relative path, a `..` path, a foreign
+  root and a mismatched ID are all rejected. Pure.
+- [ ] **Test (red):** `TestResumeBindsByOneStat`. Use a fake root with 8, then 16, Codex and Claude
+  transcripts. `Bind` performs exactly 1 stat and 0 listings. A missing file yields
+  `ErrNoTranscript{Reason: missing}`.
+- [ ] **Test (red):** `TestLegacyRecordBindsFromLedgerOnceThenStores`. The first Resume resolves through the
+  ledger and writes `Source: legacy-ledger`. The second performs no ledger query.
+- [ ] Add the field, its validation and its clone. Write it at a minted launch. Resume, relaunch and recovery
+  Resume read only the record; relaunch's pre-park derivation is deleted.
+- [ ] Until M2's Teardown exists, the park path copies the ledger ID onto the record at `FinalizePark`. That is
+  one call, which moves into Teardown's preserve step in M2.
+- [ ] Commit `#684 M1: …`.
 
-**Files:** create `threadrecord/transcript.go` (+ test); modify `couchcore/thread.go`, `threadrecord/record.go`
-(validation), `launcher/createflow.go` (minted IDs reported back), `couchcore/resume.go`,
-`couchcore/recovery_prepared.go`, `couchcore/relaunch.go`, `sessioninventory/native_selector*.go` (resume no
-longer calls them).
+### M2 tasks (detailed when M2 starts; a `## Revisions` entry records the detail)
 
-- [ ] **Test (red):** `TestTranscriptBindingValidate` — absolute, clean, under root, basename contains ID;
-  relative, `..`, foreign root, mismatched ID all rejected (pure).
-- [ ] **Test (red):** `TestResumeBindsByOneStat` — fake root with 8 then 16 Codex and Claude transcripts;
-  `Bind` performs exactly 1 stat and 0 listings; a missing file yields `ErrNoTranscript{Reason: missing}`.
-- [ ] **Test (red):** `TestLegacyRecordBindsFromLedgerOnceThenStores` — first Resume resolves via the ledger and
-  writes `Source: legacy-ledger`; the second performs no ledger query.
-- [ ] Add the field, its validation and clone; write at minted launch; Resume, relaunch and recovery Resume read
-  only the record (relaunch's pre-park derivation deleted).
-- [ ] Teardown's preserve write point lands in M3; until then the park path copies the ledger ID onto the record
-  at `FinalizePark` (one call, moved into Teardown in M3).
-- [ ] Commit `#684 M2: …`.
+- `launcher/lease` package: pure path validation, plus thin `Hold`, `Inherit(cmd)` and `ProbeFree`. Tests use
+  real `flock` and `sleep` children:
+  - a pair-child that holds the fd after its parent exits leaves the lease not free;
+  - once all exit, the lease is free;
+  - `Inherit` refuses a non-pair `argv[0]`.
+- Every pair process started for a Couch tree holds the lease, and none passes it to the agent or nvim. A test
+  enumerates the spawn sites in `wrapcmd` and fails when one passes the fd to a non-pair binary. The rule goes
+  into `pkg/golint` if it generalizes.
+- The wrapper records the agent's tty in the agent sidecar. A real-pty test checks two things: a shell's
+  foreground child on the pty is in the tty set, and a setsid'd grandchild is outside it and named in
+  `LeftRunning`.
+- `couchcore/teardown.go`, with the `LeaseHolders` and `TTYProcesses` seams and their fakes.
+  `TestTeardownSweepsReparentedHolders` uses two holders: one survives SIGTERM, and one survives the round limit,
+  which gives `ErrTeardownUnproven` naming it. `TestTeardownNeverKillsDetachedAgentChildren`.
+- Archive and replace signatures take `TeardownProof`. `TestArchiveRefusesWithoutProof`,
+  `TestFreshReplaceRequiresProof`.
+- `TestTeardownFoldsCompletedPark` uses #683's retained shape: a success completion, the owner dead, the session
+  absent.
 
-### M3 tasks (detailed when M3 starts; a `## Revisions` entry records the detail)
+### M3 tasks (detailed when M3 starts)
 
-- `launcher/lease` package (pure path validation + thin `Hold`, `Inherit(cmd)`, `ProbeFree`): tests with real
-  `flock` and `sleep` children: held by a grandchild after the parent exits → not free; all exit → free.
-- Every pair process started for a Couch tree holds the lease; a test enumerates the spawn sites in `wrapcmd`
-  and fails when an `exec.Command` there lacks `lease.Inherit` (added to `pkg/golint` if it generalizes).
-- `couchcore/teardown.go` with `LeaseHolders` seam and fake; `TestTeardownSweepsReparentedHolders` (a holder
-  that survives SIGTERM, one that survives the round limit → `ErrTeardownUnproven` naming it).
-- Archive/replace signatures take `TeardownProof`; `TestArchiveRefusesWithoutProof`, `TestFreshReplaceRequiresProof`.
-- `TestTeardownFoldsCompletedPark` (#683's retained shape: success completion, owner dead, session absent).
+- `couchcore/converge.go`: the pure `PlanConverge`, table-tested over every target and evidence class, including
+  two-actor and orphan evidence. Its executor goes in `converge_exec.go`.
+- **#684 regression:** `TestFreshAfterFailedResumeTearsDownOrRefuses`. The record is parked, the resume fails, and
+  an actor and the old session are still alive. Today that ends with two actors. After the fix there are two
+  passing outcomes:
+  - Teardown proves them gone and Fresh starts;
+  - the fake's holder can't be killed, so Fresh refuses with the holder named and nothing archived.
+- Paths 1, 2, 3, 5, 6, 7, 8, 9 and 10 rewired, with their old gates deleted. The per-path tests already in the
+  tree either keep passing or, where they restate it, are replaced by the Converge table.
 
 ### M4 tasks (detailed when M4 starts)
 
-- `couchcore/converge.go` (pure `PlanConverge`, table-tested over every target × evidence class, including
-  two-actor and orphan evidence) and `converge_exec.go`.
-- **#684 regression:** `TestFreshAfterFailedResumeTearsDownOrRefuses` — record parked, resume fails, an actor
-  and the old session still alive: before, two actors; after, Teardown proves them gone and Fresh starts, or
-  (holder unkillable in the fake) Fresh refuses with the holder named and nothing archived.
-- Paths 1, 2, 3, 5, 6, 7, 8, 9, 10 rewired; their old gates deleted; the per-path tests already in the tree keep
-  passing or are replaced by the Converge table where they restate it.
+- Paths 4, 11, 12, 14 and 15 rewired or deleted.
+- `ClassifyThread` returns one of three outcomes plus an anomaly count.
+- The tab bar shows "2 actors" instead of raw names (D20). `TestTwoLiveActorsNeverContinue`.
 
-### M5 tasks (detailed when M5 starts)
+### M5 — lifecycle drill (detailed when M5 starts)
 
-- Paths 4, 11, 12, 14, 15 rewired or deleted; `ClassifyThread` returns one of three outcomes plus an anomaly
-  count; tab bar shows "2 actors" instead of raw names (D20). `TestTwoLiveActorsNeverContinue`.
+- `scripts/lifecycle-drill` drives a running Couch through its CLI on a disposable slot. The default is
+  `pair:9`, set by an env var, with no hardcoded paths.
+- For Claude and for Codex, the sequence is:
+  1. start;
+  2. one trivial turn, to create the transcript;
+  3. Alt+n relaunch, asserting the agent was relaunched with the same native ID;
+  4. park;
+  5. Resume, asserting the same ID;
+  6. Start fresh, asserting a new ID and the old thread archived;
+  7. archive.
 
-### M6 — nightly drill (detailed when M6 starts)
-
-- `scripts/lifecycle-drill` drives a running Couch through its CLI on a disposable slot (default `pair:9`, a
-  configurable env var, no hardcoded paths): for Claude and for Codex, start → one trivial turn → Alt+n
-  relaunch (assert Continue, same native ID) → park → Resume (same ID) → Start fresh (new ID, old archived) →
-  archive. After each step it asserts: one live actor at most, the lease state, and that every failure has a
-  store entry.
-- **Aged state** seeded before the run: a record without a transcript binding (legacy), a tree started without
-  the lease (pre-M3), an orphan lease holder aged by an old start time, and a Codex root with more than 10,000
-  session files (via a drill `CODEX_HOME` whose `auth.json` symlinks to the real one — **operator decision**).
-- Results as one JSON per night; a summary sent to the hub. Scheduled by a launchd agent (a machine change —
-  **hub/operator approval** before installing). Seven consecutive green nights close the project.
-- The daily read-only resume check (#680) stays its own issue; the drill reuses its resolver.
+  Resume is verified from the launch argv and the agent staying up, with no second turn.
+- After each step the drill asserts four things:
+  - at most one live actor;
+  - the lease and the tty are free after each teardown;
+  - every failure has a store entry;
+  - `LeftRunning` named a seeded setsid'd child that survived.
+- **Aged state** seeded before the run:
+  - a record without a transcript binding (legacy);
+  - a tree started without the lease (pre-M2);
+  - a stray pair process holding the lease, aged by an old start time;
+  - a Codex root with more than 10,000 session files, in a drill `CODEX_HOME` whose `auth.json` symlinks to the
+    real one.
+- **Cost per run:** one minimal turn per agent, two in all. Each turn's input is the agent's own base context
+  (system prompt and tools, on the order of tens of thousands of input tokens, largely cached after the first
+  night), and the output is a few tokens. The prompt is fixed ("reply ok").
+- **Trigger:** the hub runs it nightly until a Couch schedule exists, then the schedule runs it. No launchd. The
+  drill writes one JSON per run and sends a summary to the hub. Seven consecutive green nights close the project.
+- The daily read-only resume check (#680) stays its own issue. The drill reuses its resolver.
 
 ## 9. Relationship to other issues
 
-- **#683:** M1 is its diagnostics half and M3's park fold its finalization half. Proposal: fold #683 into this
-  vehicle (close it by reference at M3), or run M1 under #683; the hub decides.
+- **#683:** it lands P3 first, as its own issue. M2's park fold delivers its finalization half; the M2 close
+  notes that for #683's record.
 - **#681** (admission before inventory) is landing separately and unchanged by this plan.
-- **#686** (session-watch busy loop) is separate; M3's lease makes a spinning watcher at least killable by
+- **#686** (session-watch busy loop) is separate. M2's lease at least makes a spinning watcher killable by
   teardown.

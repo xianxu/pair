@@ -40,19 +40,22 @@ A thread is archived only after its actor and terminal session are proven gone (
 
 Durable plan: [workshop/plans/000684-…-plan.md](../plans/000684-fresh-fallback-after-a-failed-resume-archives-the-old-thread-without-tearing-down-its-actor-and-session-two-live-actors-couch-unusable-plan.md). This issue is the vehicle for the ops project `slot-lifecycle` (operator direction 2026-10-18): one mechanism (`Converge`) over three primitives (proven teardown via a per-slot lifetime lease; bind by the transcript ID stored on the record; a persisted failure record at the dispatcher).
 
-- [ ] M1 — Persist every lifecycle failure (P3)
-- [ ] M2 — Transcript binding on the record; Resume binds by one stat (P2)
-- [ ] M3 — Lifetime lease, `Teardown` + `TeardownProof`; archive/replace require proof (P1)
-- [ ] M4 — `Converge`; paths 1, 2, 3, 5, 6, 7, 8, 9, 10 onto it (fixes this issue's incident)
-- [ ] M5 — Paths 4, 11, 12, 14, 15, 16; three-outcome classification with the two-actor anomaly
-- [ ] M6 — Nightly drill on a disposable slot with aged state; 7 green nights
+Prerequisite: #683 lands P3 (failure persistence) first; #684's code starts from main after it (no stacking).
+
+- [ ] M1 — Transcript binding on the record; Resume binds by one stat (P2)
+- [ ] M2 — Lifetime lease (pair processes only), agent tty witness, `Teardown` + `TeardownProof`; archive/replace require proof (P1)
+- [ ] M3 — `Converge`; paths 1, 2, 3, 5, 6, 7, 8, 9, 10 onto it (fixes this issue's incident)
+- [ ] M4 — Paths 4, 11, 12, 14, 15, 16; three-outcome classification with the two-actor anomaly
+- [ ] M5 — Lifecycle drill on a disposable slot with aged state, hub-triggered; 7 green nights
 
 ## Log
 
 ### 2026-10-18
 
 - Claimed as the slot-lifecycle design vehicle (hub delivery 011ca7a4). Read the project file, audit.md (16 paths, D1–D20), targets slot-continuity and slot-recovery, #683. Spot-checked the seams the design rests on: `DispatchOperation` is the single op entry (run.go:616/632/982, recover_action.go:176); `ObserveSlotSessions` is the slot-wide witness; the LaunchFailure ring is 16 entries; strictjson makes a new record field forward-compatible only; the wrapper spawns the agent and session-watch via `exec.Command` (ExtraFiles available). Key decision: a per-slot lifetime lease (shared flock held by every pair process of the tree, inherited by the agent and helpers) as the single resource proving teardown (tl-worker PLANNING rule), with lsof naming survivors. Plan written; awaiting operator approval via the hub before any code.
+- Hub review (delivery 13cead0d): the lease must not reach the agent's pty child, since everything the agent runs would inherit it. The sweep could then kill an in-flight landing or a daemon, and a setsid'd holder would wedge teardown. Revised P1 into three witnesses: the lease for pair's own processes (O_CLOEXEC, passed only to pair children); the agent's controlling tty for the agent and its in-flight tool commands; zellij absence for the terminal. Agent children that left the session are named in the proof, never killed or required gone. Hub leanings folded in: M1 runs as #683 first; no launchd, the drill is hub-triggered; the drill CODEX_HOME symlinks auth.json.
 
 ## Revisions
 
 - 2026-10-18 20:30 — scope widened from the Fresh-fallback fix to the slot-lifecycle mechanism, on the hub's dispatch (operator direction). The original Done-when items stay and are delivered by M3 (archive refuses while alive) and M4 (the regression; the switcher through a failed relaunch). Added: every audit path composed of the three primitives (M1–M5), and the nightly drill (M6).
+- 2026-10-18 21:00 — P1 revised on the hub's review (lease limited to pair processes; agent proven by its pty; detached agent children named, not killed). Failure persistence moved out to #683 as a prerequisite; milestones renumbered M1–M5; drill trigger is the hub, not launchd.
