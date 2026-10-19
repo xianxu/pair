@@ -880,7 +880,14 @@ closes a startup cohort; no debounce or additional native discovery is used.
 transitions. It keeps at most 128 current facts, coalesces unsent changes, freezes
 immutable numbered parts within the existing body limit and retires each part
 from its receipt. `couchcmd/lifecycle_notices.go` routes through existing hub
-ownership and the message broker/#648 batching. Its callbacks only reduce bounded
+ownership and the message broker/#648 batching. A fact whose slot identity isn't
+cached yet (ordinary target or none) waits in a bounded `unresolved` set: 128 paths,
+newest per path, oldest evicted at the cap, cleared at restart drain and on ownership
+change. It resolves on the next refresh once the wrapper's verified workspace is
+cached. This matters because a launch is reported before the wrapper connects
+(#693). An ordinary fact expires after `lifecycleOrdinaryWait` (2 min), since its row
+may not be a slot at all. Restart drain reports only the untargeted facts still
+waiting, as lacking verified slot metadata. Its callbacks only reduce bounded
 memory; owned admission workers and bounded receipt-memory checks stop/join with
 the service. Busy/absent hubs retain current facts; input uncertainty never permits
 replay. This is a Slots projection, not an audit log. `COUCH_LIFECYCLE_NOTICES`
