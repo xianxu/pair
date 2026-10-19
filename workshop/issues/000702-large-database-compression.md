@@ -1,13 +1,21 @@
 ---
 id: 000702
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-19
 updated: 2026-10-19
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '3157613c5727b30c39e868385277ec25303d0a76' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '41cbaac50cc540f7b6e3dfbd0522dff884c841ee' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-19T04:24:04-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:7
+    worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Compress large database snapshots faster with measured levels and threads
@@ -28,8 +36,14 @@ Measure size, wall time and CPU for large database snapshot compression at level
 
 ## Plan
 
-- [ ]
+- [ ] Measure retained history snapshot at -3/-9/-19 with -T0, plus a representative tracked-text tar, under both machine-test tokens and one 20-minute outer bound. Record wall/user/sys CPU, bytes, zstd version, load and decompression hash agreement; remove private compressed outputs immediately.
+- [ ] Send measured policy and compatibility choice to the hub before code; add failing policy/codec/reader tests, then implement through the shared codec seam with truthful compression metadata.
+- [ ] Qualify native round trips and cancellation, document storage/time tradeoffs, run recorded suite, close and land on SHIP.
 
 ## Log
 
 - Filed unclaimed at hub request e253ca94-31a2-4866-b377-f8f2aa5c48c5. Independent follow-up; it must not block #688. That item publishes its already validated stage at low priority under an approved longer bound, without another native source read/pin.
+
+## Revisions
+
+- 2026-10-19, hub 69176f28-7984-488e-a48d-754e02e0e524: both machine-test tokens approved for measurement only, capped at 20 minutes including cleanup and released immediately. Measure before proposing the policy. Compression level is an existing value, not a schema-shape change: if a lower level wins, readers should accept supported zstd levels while writers label the actual level honestly; no speculative codec/schema expansion.
