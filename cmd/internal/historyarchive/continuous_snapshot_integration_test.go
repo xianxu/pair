@@ -204,7 +204,7 @@ func TestContinuousSnapshotCountedNAnd2NAndFreshness(t *testing.T) {
 				t.Fatalf("cold pass: %+v fake=%+v err=%v", first, fake, err)
 			}
 			for _, row := range first.Databases {
-				if row.Status != DatabaseArchived || !row.LastVerified.Equal(now) || row.CheckedAt.IsZero() {
+				if row.Status != DatabaseArchived || !row.LastVerified.Equal(now) || row.CheckedAt.IsZero() || row.Source.Host != pass.Host || row.Source.Repository != src || row.NeedsAttention(now, DefaultDatabaseMaxAge) {
 					t.Fatalf("unverified archive projected: %+v", row)
 				}
 			}
@@ -216,7 +216,7 @@ func TestContinuousSnapshotCountedNAnd2NAndFreshness(t *testing.T) {
 				t.Fatalf("warm pass: %+v fake=%+v err=%v", second, fake, err)
 			}
 			for _, row := range second.Databases {
-				if row.Status != DatabaseUnchanged || !row.LastVerified.Equal(verified) || !row.CheckedAt.Equal(now) {
+				if row.Status != DatabaseUnchanged || !row.LastVerified.Equal(verified) || !row.CheckedAt.Equal(now) || row.NeedsAttention(now, DefaultDatabaseMaxAge) {
 					t.Fatalf("unchanged confused with stale: %+v", row)
 				}
 			}
@@ -227,7 +227,7 @@ func TestContinuousSnapshotCountedNAnd2NAndFreshness(t *testing.T) {
 				t.Fatalf("deferred pass retried or archived staging: %+v fake=%+v err=%v", deferred, fake, err)
 			}
 			for _, row := range deferred.Databases {
-				if row.Status != DatabaseDeferred || !row.LastVerified.Equal(verified) || !row.CheckedAt.IsZero() {
+				if row.Status != DatabaseDeferred || !row.LastVerified.Equal(verified) || !row.CheckedAt.IsZero() || !row.NeedsAttention(now, DefaultDatabaseMaxAge) {
 					t.Fatalf("unobserved source claimed fresh: %+v", row)
 				}
 			}

@@ -175,7 +175,7 @@ func (p ContinuousPass) archiveRoot(ctx context.Context, root SourceRoot, index 
 		snapshotIdentity := SourceIdentity{Host: identity.Host, Root: staging, Repository: identity.Root}
 		var taken []string
 		for _, c := range found {
-			row := DatabaseBackupSummary{Kind: root.Kind, Path: c.Path, Status: DatabaseFailed, LastVerified: index.LatestVerified(snapshotIdentity, c.Path)}
+			row := DatabaseBackupSummary{Source: snapshotIdentity, Kind: root.Kind, Path: c.Path, Status: DatabaseFailed, LastVerified: index.LatestVerified(snapshotIdentity, c.Path)}
 			result, err := p.Snapshotter.Snapshot(ctx, identity.Root, c.Path, staging)
 			row.Detail = result.Detail
 			if err != nil {

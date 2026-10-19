@@ -85,3 +85,6 @@ total: 2.21
 ```
 
 Design subtotal 0.76 × 1.15 = 0.874; implementation subtotal 1.34 × 1.0 = 1.34; total 2.214, rounded 2.21 hours. Single repo, existing API seams, no cross-repo surcharge.
+
+- 2026-10-19, implementation checkpoint after change-code CLEAN: pure catalog freshness, exact-source UTC-day reservations, the versioned bounded command report, CLI JSON mode, scheduler subprocess integration and primary-hub notification seam are implemented. Targeted historyarchive/archivecmd/couchcmd/artifactpath checks pass, including failed partial reports, owner-unavailable delivery, daily suppression and counted N/2N work. No real notifications or native database reads were used.
+- Stateful subprocess qualification caught a real capture-limit bypass: embedding bytes.Buffer promoted ReadFrom, allowing io.Copy to skip the bounded Write. The oversize regression failed, then passed after using a named buffer field. Cancellation/inherited-descriptor tests pass with explicit fixture handshakes. Remaining work: full package qualification, documentation, recorded suite and close review; natural live acceptance remains owed to the hub.
