@@ -59,6 +59,8 @@ Operator request via hub receipt 277127be-5775-4a0e-93e4-8d24a00600a5. #700 was 
 
 - ARCH-DRY/ORDER: extracted the existing reserve/output/log body once; both warning classes share it, and reservations remain consumed before effects. Root FolderID is provenance only. ARCH-EVOLVE: additive runtime report only; all persisted formats stay untouched. No real Drive, desktop or pair:0 action. Final documentation will be pushed before entering the merge line, avoiding #700's unpublished-evidence refusal.
 
+- 2026-10-19, PR #461 published at implementation head c7ef77b09f5a0ed0b9a24f0316a7c7f2bea278ea (Git-verified). Recorded suite 36f285479243f5d40c5a1525236c2e5e is queued normally, with no failure or result yet. Run the binary-owned close review concurrently as tl-worker explicitly permits. The only unchecked issue Plan row is the closing/landing workflow itself; leave it unchecked until its evidence exists, acknowledge --no-plan-check for this overlap only. No implementation requirement is waived; recorded final-head pass remains mandatory before landing. --no-project preserves TL ownership.
+
 ## Revisions
 
 - 2026-10-19, hub 3ca340ad: #700 is verified/ticked/rebuilt; dispatch #705 now. Keep #706 folder migration separate and waiting for #689.
