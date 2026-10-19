@@ -7,6 +7,10 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- Diagnostics must not become lifecycle admission authority. Preserve the original action result when optional target enrichment, nonce allocation or logging fails; test unreadable-record recovery through the public dispatcher before adding diagnostic prerequisites. (#683 BR-1)
+- A terminal failure collector stays evidence-only until its enclosing operation finishes; test exact publication counts for standalone and borrowed callers, including final enrichment. (#683 BR-3)
+- Run the full artifactpath package before a boundary. A regex selecting source/artifact names can omit Symbol guards and miss orphan exports introduced by the same change. (#683 BR-4)
+
 - A design refinement that moves state or file ownership also updates the current Core concepts map, with the prior mapping preserved in Revisions. A later correct paragraph does not repair a contradictory table; distinguish pure value state from its IO methods explicitly. (#686 BR-1)
 
 - Count every IO lane used by a performance claim, including publication guards outside the main reader runtime. Cache hits before a writer lock do not eliminate the guard's own full reread: reuse exact identity-fenced evidence under that same lock and prove append/replacement invalidation before effects. (#686)
