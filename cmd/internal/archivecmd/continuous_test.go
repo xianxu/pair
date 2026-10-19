@@ -32,7 +32,7 @@ func TestContinuousCLIUnconfiguredBadArgsAndRunning(t *testing.T) {
 	var got historyarchive.ContinuousPass
 	ContinuousPassFunc = func(_ context.Context, p historyarchive.ContinuousPass) (historyarchive.ContinuousReport, error) {
 		got = p
-		return historyarchive.ContinuousReport{Archived: map[string]int{"claude-transcripts": 2}, Drive: &historyarchive.DriveReport{Verified: 1, Pending: 2, DownloadedChecksums: 1, Notes: []string{"fixture: bundle=backend-md5 label=downloaded-sha256"}}}, nil
+		return historyarchive.ContinuousReport{Archived: map[string]int{"claude-transcripts": 2}, Databases: []historyarchive.DatabaseBackupSummary{{Kind: "codex-database", Path: "state_5.sqlite", Status: historyarchive.DatabaseDeferred, Detail: "deadline"}}, Drive: &historyarchive.DriveReport{Verified: 1, Pending: 2, DownloadedChecksums: 1, Notes: []string{"fixture: bundle=backend-md5 label=downloaded-sha256"}}}, nil
 	}
 	out.Reset()
 	if code := RunContext(context.Background(), []string{"continuous", "--kind", "claude-transcripts"}, &out, &errOut, nil); code != 0 || !strings.Contains(out.String(), "claude-transcripts: 2 file(s) archived") {
@@ -40,6 +40,9 @@ func TestContinuousCLIUnconfiguredBadArgsAndRunning(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "Drive: 1 verified") || !strings.Contains(out.String(), "2 pending") || !strings.Contains(out.String(), "downloaded-sha256") {
 		t.Fatalf("Drive result omitted: %s", out.String())
+	}
+	if !strings.Contains(out.String(), "state_5.sqlite: deferred; last verified=never; deadline") {
+		t.Fatalf("database freshness omitted: %s", out.String())
 	}
 	if got.Drive == nil || got.Store != store || got.SnapshotRoot != filepath.Join(data, "archive-snapshots") || len(got.Kinds) != 1 {
 		t.Fatalf("pass wiring %+v", got)

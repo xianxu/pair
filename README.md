@@ -2189,6 +2189,14 @@ Preserve or remove specific saved sessions to free their reservations. See the
 [live-capture runbook](atlas/couch-live-capture.md) for limits, legacy recordings,
 private-file handling, stop behavior and streaming extraction.
 
+### SQLite backup qualification
+
+Ordinary tests use disposable writers. Native backup acceptance is opt-in and
+writes encrypted bundles to the normal configured local sink/catalog; coordinate
+it with the operator or hub first. See [SQLite conformance and native
+acceptance](atlas/history-backup.md#sqlite-conformance-and-native-acceptance) for
+the guarded live pass, source-read limits and publication-only check.
+
 ### Terminal backend qualification
 
 From the repository root, run `go run ./cmd/probes/terminalqualify > /tmp/terminal-qualification.json`

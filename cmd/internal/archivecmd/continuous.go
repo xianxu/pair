@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/historyarchive"
 )
@@ -86,6 +87,14 @@ func runContinuous(ctx context.Context, args []string, stdout io.Writer, fail fu
 	}
 	for _, note := range report.Skipped {
 		fmt.Fprintf(stdout, "skipped: %s\n", note)
+	}
+	sort.Slice(report.Databases, func(i, j int) bool {
+		a, b := report.Databases[i], report.Databases[j]
+		return a.Kind < b.Kind || a.Kind == b.Kind && a.Path < b.Path
+	})
+	now := time.Now()
+	for _, database := range report.Databases {
+		fmt.Fprintln(stdout, database.Line(now))
 	}
 	if report.Drive != nil {
 		remote := report.Drive
