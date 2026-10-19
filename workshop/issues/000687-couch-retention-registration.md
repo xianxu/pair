@@ -30,11 +30,15 @@ Couch already calls storagegc.Coordinator.RegisterRuntime in couchcore/couch.go,
 
 Make the supervisor's retention protocol participation recognizable through the existing lifecycle/identity-fenced registration boundary, as its clients' participation is. Do not broadly exempt processes by executable name or weaken unknown/open-holder protection. Decide whether to consume the exact registered runtime lease or publish a protocol capability through the existing launch boundary. Preserve birth identity and cancellation fences.
 
+Proposed for hub approval: publish explicit diagnostic protocol version1 on the existing coordinator runtime registration before Couch admits its coordinated store. The selected-root inspection adapter consumes only a matching Couch-role PID/birth and supported capability; it shares the same bounded sweep observation used by rooted writer maintenance and GC. Old/missing/future capabilities grant no recognition. Actual open holders, uncertain identity/metadata and cancellation retain their existing protection. Runtime-registry reads accept and surviving-record writes preserve unknown envelope, registration and nested process members (ARCH-EVOLVE), without relaxing unrelated retention schemas or changing comparable ProcessIdentity.
+
 ## Done when
 
 - A stateful regression in the real supervisor shape (no per-thread tag or PAIR_DATA_DIR, valid runtime registration) is recognized as protocol-aware without a global current-log block.
 - A missing/replaced/unreadable registration stays blocked; a supervisor actually holding a diagnostic payload still protects it.
 - The next operator-coordinated Couch restart verifies the supervisor is registered; no process is stopped or relaunched as part of filing this follow-up.
+- Unknown JSON members at the registry, registration and nested process levels survive a capability upgrade, new registration and positively-dead pruning; malformed known fields, ambiguous JSON and unsafe metadata remain blocked.
+- Counted N=8/16 sweeps retain one runtime-registry read and one native snapshot pair; each later sweep refreshes lease evidence.
 
 ## Plan
 
@@ -56,3 +60,9 @@ Verified fresh hub assignment c1eb775b-6d04-44d9-93e5-013b5940f0bd, claimed #687
 Couch constructor already registers the exact current PID/birth as couch-runtime before its coordinated thread store. The lease producer originated in #239, predating the diagnostic protocol, so treating every existing lease as that later capability is unsafe. Proposed explicit versioned capability on that same record, consumed from already-selected roots rather than environment/HOME guessing. Current runtime reads reject additive fields, and RegisterRuntime rewrites through a lossy typed projection; a private wire codec preserves unknown envelope/record/process members without making shared ProcessIdentity non-comparable or relaxing every retention schema. A bounded read-only helper confirmed the existing strictjson duplicate-key primitive and these three preservation depths.
 
 The durable plan names all writer/GC consumers, unchanged open-holder protection, PID reuse and cancellation, one-read/one-native-snapshot N/2N budgets, alternatives, and a proposed owned/live arrangement. Plan approval and the change-code gate are still outstanding; no implementation tests or builds beyond the tool's required substrate refresh have run.
+
+## Revisions
+
+### 2026-10-18 — dispatched capability and record-evolution design
+
+The fresh hub assignment chooses consumption of the existing coordinator lease and requires ARCH-EVOLVE. The proposed explicit capability avoids retrospectively trusting #239-era producers. Added corresponding Spec/Done-when detail, unknown-member round-trip checks and the counted shared-observation acceptance. Awaiting the hub's plan/live-arrangement approval.
