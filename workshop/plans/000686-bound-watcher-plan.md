@@ -63,10 +63,6 @@ No UI state/menu/policy expansion. The cursor/cache are in-memory, bounded and d
 Growth drivers: unrelated tree files N, owned transcript suffix B, one partial record R<=32MiB, new lifecycle events E, owner ledger L, cold admitted history H. Separate cold O(N+H+L) admission from steady follow. Steady follow: zero listings/foreign reads/catalog IO, fixed named metadata/owner checks, payload<=256KiB plus fixed boundary windows, new decode bounded by new complete records (including R), event work O(E), zero historical-event visits. Existing durable event append/dedup remains the existing writer contract, performed only for new events; no idle append.
 
 - **Red root-cause regression:** Run a fresh correlation through binding, then K idle passes with N=4,000 and8,000 unrelated metadata-only files. Count post-binding ListFiles, foreign ReadAt/ReadFile, catalog reads/writes, ledger bytes read/decoded, own stat/body/decode work and lifecycle projections. Expected: zero tree/catalog/foreign/history IO, constant own/owner metadata work independent of N. Keep cold discovery counters separately visible. Existing code must fail.
-- **Bounded append:** Append more than256KiB, including a record crossing passes; count four payload chunks maximum per poll and monotone progress. Append again during every ReadAt to prove no EOF chase. Eventually pause and prove the exact final turn completion once, with correct absolute offset and durable watermark.
-- **History negative control:** Seed small and2x large prior lifecycle histories; unchanged polls visit/project zero old events and read zero old transcript/ledger bytes. No replay after already-published batches.
-- **Guard permutations:** stable token and APFS-style empty token; replace/truncate/same-size mutation at each boundary/read/stat/commit seam; malformed/oversized/partial records; changed launch/root PID and uncertain journal append. No unauthorized event or rediscovery fallback. Use the same shared-reader cases for title consumers.
-- **Cadence pure tests:** progress resets; repeated idle doubles/caps; fake-clock Run verifies the sleeps and process-exit stop, with no raised timeout or timing assertion.
 - **Consumer sweeps:** sessionwatch package, sessioninventory/title projection/native fixture suites, focused race repetitions, source inventory/comment guards. Full recorded suite on pushed head before close; SHIP lands through sdlc merge with main integration.
 
 ## Execution
@@ -110,7 +106,7 @@ The authoritative bound-follow production component is pure reduceBoundFollow(st
 
 An already committed prefix is never rolled back because a later append fails. A failed append which existing journal reconciliation proves committed is an acknowledgment; an uncertain result stops the watcher. Relaunch uses the existing bootstrap/watermark policy, not a persisted retry queue or history replay: a telemetry gap is possible, native work and durable records are preserved. Use the existing current-confirmation fence for the accepted generation around publication, so a changed owner cannot authorize another batch; this reuses the ledger's existing guard, not a new lock. The IO publisher reports one typed result per expected record; pure reduction decides advancement. Add controlled success-prefix/failure/uncertain/reconciled-commit traces through this actual reducer, not a parallel model used only by tests.
 
-The earlier procedural case list is an integration inventory. This table is the authoritative named-function strategy required by PQ-2; functions touching IO are explicitly tested with stateful runtimes, not called pure:
+This table replaces the procedural case inventory and is the authoritative named-function strategy required by PQ-2; functions touching IO are explicitly tested with stateful runtimes, not called pure:
 
 | Production function | Adversarial input / mechanical guard |
 |---|---|
@@ -124,3 +120,7 @@ The earlier procedural case list is an integration inventory. This table is the 
 | TitleProjection.tail / PollContext (IO integration) | Complete recorded/native fixtures and existing title/Agy mutation/cancellation permutations through the shared reader; preserve current admission, database and display behavior. |
 
 These refinements specify the already approved owner/cursor commit guarantees and failure behavior. They add no new user action, retry, data format or scope beyond the approved bound follow. Re-run the full plan gate before implementation.
+
+### 2026-10-18 — PQ-2 duplicate inventory removed
+
+Round2 accepted the publication transition contract, but retained PQ-2 because the old procedural test list duplicated the named-function strategies. Removed that duplicate inventory; the counted Run regression, consumer sweep and live acceptance remain. Hub approved the publication contract in ae598ecd-9080-4d36-a3a3-6c9736304c0f. No behavior or scope change.

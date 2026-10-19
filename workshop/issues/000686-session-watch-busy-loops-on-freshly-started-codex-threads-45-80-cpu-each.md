@@ -83,7 +83,7 @@ The authoritative bound-follow production component is pure reduceBoundFollow(st
 
 An already committed prefix is never rolled back because a later append fails. A failed append which existing journal reconciliation proves committed is an acknowledgment; an uncertain result stops the watcher. Relaunch uses the existing bootstrap/watermark policy, not a persisted retry queue or history replay: a telemetry gap is possible, native work and durable records are preserved. Use the existing current-confirmation fence for the accepted generation around publication, so a changed owner cannot authorize another batch; this reuses the ledger's existing guard, not a new lock. The IO publisher reports one typed result per expected record; pure reduction decides advancement. Add controlled success-prefix/failure/uncertain/reconciled-commit traces through this actual reducer, not a parallel model used only by tests.
 
-The earlier procedural case list is an integration inventory. This table is the authoritative named-function strategy required by PQ-2; functions touching IO are explicitly tested with stateful runtimes, not called pure:
+This table is the authoritative named-function strategy required by PQ-2; functions touching IO are explicitly tested with stateful runtimes, not called pure:
 
 | Production function | Adversarial input / mechanical guard |
 |---|---|
@@ -97,3 +97,7 @@ The earlier procedural case list is an integration inventory. This table is the 
 | TitleProjection.tail / PollContext (IO integration) | Complete recorded/native fixtures and existing title/Agy mutation/cancellation permutations through the shared reader; preserve current admission, database and display behavior. |
 
 These refinements specify the already approved owner/cursor commit guarantees and failure behavior. They add no new user action, retry, data format or scope beyond the approved bound follow. Re-run the full plan gate before implementation.
+
+### 2026-10-18 — hub approved publication contract; plan round2
+
+Hub approved the Reading/Publishing/Stopped contract (ae598ecd-9080-4d36-a3a3-6c9736304c0f): staged cursor, acknowledged-prefix watermark, cursor commit only after the whole batch, unresolved publication stops without retry. Plan round2 disposed PQ-1; PQ-2 remained solely because the old procedural inventory duplicated the named-function table. Removed that duplicate from the plan; counted Run, consumer sweeps and live acceptance remain. No implementation yet.
