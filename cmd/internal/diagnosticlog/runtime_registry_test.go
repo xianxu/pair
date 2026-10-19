@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -271,10 +272,32 @@ func TestRuntimeRegistryCapabilityFuturePreservedWithoutAuthority(t *testing.T) 
 }
 
 func TestRuntimeRegistryOrdinaryWriterMaintenance(t *testing.T) {
-	c, native, _ := supervisorFixture(t)
-	path, clock, opts := fixture(t)
-	opts.Root = c.Root
-	opts.Proof = InspectionProof(WithRuntimeRegistry(c, native))
+	c, err := storagegc.NewCoordinator(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	child := exec.Command("sleep", "30")
+	if err := child.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = child.Process.Kill(); _ = child.Wait() })
+	identity, err := storagegc.CurrentProcessIdentity(child.Process.Pid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.RegisterRuntime(context.Background(), identity, storagegc.CouchRuntimeRole, storagegc.RuntimeRegistrationOptions{DiagnosticProtocol: storagegc.DiagnosticProtocolVersion}); err != nil {
+		t.Fatal(err)
+	}
+	native := &fakeInspection{runtimes: []Runtime{{Process: Registration{PID: identity.PID, Birth: identity.Birth}}}}
+	path, clock, defaults := fixture(t)
+	opts := environmentOptions(func(key string) string {
+		if key == "PAIR_DATA_DIR" {
+			return c.Root
+		}
+		return ""
+	}, native)
+	opts.Now = defaults.Now
+	opts.SynchronousMaintenance = true
 	writer, err := Open(path, opts)
 	if err != nil {
 		t.Fatal(err)

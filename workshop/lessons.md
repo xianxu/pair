@@ -2325,3 +2325,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #576: A new row suffix must preserve the existing label-width floor after all suffix composition, including owner labels. Geometry-only render checks can pass while the slot identity and selection marker disappear; assert those visible fields with oversized running and failed details through the real renderer. Keep full retained diagnostics separate from clipped display text.
 
 - #576: Inserting a declaration above another declaration must not steal its preceding godoc. Keep each comment adjacent to its named declaration and run the existing termcmd declaration-comment guard alongside the source-inventory guards before an expensive suite; that guard covers production files across packages.
+
+- #687 close review: a composition regression must enter the production options/constructor path with its stateful inspection seam. Replacing its Proof in the test only verifies the adapter, not the wiring; confirm a controlled wiring removal fails the production-path regression. Freeze prepared issue/plan artifacts while close reviews run, even for verification-only log updates.

@@ -182,7 +182,11 @@ func validateRegistryEntry(entry RegistryEntry) error {
 // standalone traces never fall back to real HOME. Root registration runs under the stable
 // log lock and takes no root lock; collection may hold root then log.
 func EnvironmentOptions(getenv func(string) string) Options {
-	o := Options{Proof: DefaultProof}
+	return environmentOptions(getenv, OSInspection{})
+}
+
+func environmentOptions(getenv func(string) string, inspection Inspection) Options {
+	o := Options{Proof: InspectionProof(inspection)}
 	selected := getenv("PAIR_DATA_DIR")
 	if selected == "" {
 		return o
@@ -203,7 +207,7 @@ func EnvironmentOptions(getenv func(string) string) Options {
 		o.Proof = func(context.Context, string, []Registration) error { return inspectionFailure(e) }
 		return o
 	}
-	o.Proof = InspectionProof(WithRuntimeRegistry(coordinator, OSInspection{}))
+	o.Proof = InspectionProof(WithRuntimeRegistry(coordinator, inspection))
 	o.Root = p
 	o.Registry = func(ctx context.Context, entry RegistryEntry) error { return register(ctx, p, entry) }
 	o.Retire = func(ctx context.Context, entry RegistryEntry) error { return unregister(ctx, p, entry) }

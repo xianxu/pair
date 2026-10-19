@@ -92,7 +92,7 @@ Files: create cmd/internal/diagnosticlog/runtime_registry.go/runtime_registry_te
 - [x] matchesRuntimeRegistration: table-driven exact-identity/capability mutations; only a supported Couch lease for the observed incarnation qualifies.
 - [x] runtimeInspection.Runtimes/Snapshot/OpenFiles: stateful portable lease files plus controllable native inventory and process probe; adversarial lease/identity changes and cancellation must fail closed while exact holders remain authoritative.
 - [x] runtimeInspection.Snapshot: counted N=8/16 sweeps assert one registry read and native snapshot pair, bounded matching identity checks, and refreshed evidence next sweep.
-- [x] EnvironmentOptions and gcruntime.NewWithInspection: run ordinary maintenance and explicit/scheduled collection against the same stateful supervisor-shaped fixture; assert only eligible unheld diagnostics change, with no metadata writes during preview.
+- [x] EnvironmentOptions/environmentOptions and gcruntime.NewWithInspection: inject the stateful inspection through the shared production options builder and run ordinary maintenance and explicit/scheduled collection against the same stateful supervisor-shaped fixture; assert only eligible unheld diagnostics change, with no metadata writes during preview.
 - [x] Run targeted diagnosticlog/gcruntime tests and commit only after GREEN.
 
 ### Task 3: Publish from Couch and qualify the boundary
@@ -120,3 +120,7 @@ Confirmed the existing atlas owner is atlas/storage-retention.md. Pin the full f
 ### 2026-10-18 — PQ-1 function-level test contract
 
 Compressed prose case inventories into named codec, registry, predicate, adapter and composition functions with adversarial strategies and mechanical guards. Retained integration acceptance and N/2N budgets. No behavior, trust boundary or live arrangement changed.
+
+### 2026-10-18 — production-composition regression coverage
+
+Close review identified that the maintenance test installed its own Proof and would miss removal of production lease consumption. Extracted a private environmentOptions inspection seam shared with EnvironmentOptions, and made the maintenance regression use it with a separately owned live child incarnation. A controlled removal of the production adapter now fails the positive lease assertion; restoring it passes. This changes no capability, policy or live arrangement. Freeze issue/plan artifacts while the next close review runs; modifying them invalidates its prepared state.

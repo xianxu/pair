@@ -110,8 +110,22 @@ Opened early PR447 through sdlc pr, then converted it to draft for CI overlap (s
 
 The full couchcore package finished GREEN, exit0,414.013s. Together with the earlier storagegc/diagnosticlog/gcruntime/artifactpath passes and Godoc guard, all affected-package checks are complete. No code changed after the pushed suite head. The mandatory close review is running on d736bb9373a8ed76553983c31a8e5d5144e90958; this update only records the completed verification and ticks its durable-plan row.
 
+### 2026-10-18 — first close review correction
+
+The first close review returned FIX-THEN-SHIP for production-composition-regression-coverage: ordinary maintenance manually installed its Proof, so deleting EnvironmentOptions wiring would not fail that test. The close did not finalize because I updated the issue while it reviewed; no verdict/card completion was published. Extracted the private environmentOptions inspection seam used by the production EnvironmentOptions wrapper and the stateful maintenance regression. The fixture uses a separately owned child PID/birth so it cannot qualify through the log's own writer registration. Controlled adapter removal failed at the positive registered-supervisor assertion (exit1); restored wiring passed0.459s. This sweeps the composition consumers: ordinary maintenance now enters the real builder; explicit/scheduled GC and Couch publication already exercise their production constructors. Full diagnosticlog/gcruntime checks are running on the correction.
+
+Canceled this checkout's obsolete queued suite a4b9bb7cbcb08c0e833fc1a05cfa062f using sdlc local-check cancel; no other checkout's run was touched. The replacement recorded suite will use the corrected pushed head.
+
+### 2026-10-18 — composition correction verified
+
+Full diagnosticlog127.393s and gcruntime34.116s pass on the corrected composition; Godoc guard0.511s passes. The controlled wiring-removal failure specifically names the registered supervisor as legacy; restored wiring qualifies it. Commit/push the correction, queue its recorded suite, and rerun the unfinalized full close with issue/plan inputs frozen.
+
 ## Revisions
 
 ### 2026-10-18 — dispatched capability and record-evolution design
 
 The fresh hub assignment chooses consumption of the existing coordinator lease and requires ARCH-EVOLVE. The proposed explicit capability avoids retrospectively trusting #239-era producers. Added corresponding Spec/Done-when detail, unknown-member round-trip checks and the counted shared-observation acceptance. Awaiting the hub's plan/live-arrangement approval.
+
+### 2026-10-18 — production composition verification
+
+The close finding refines Task2's verification seam only: the ordinary maintenance regression must consume EnvironmentOptions' shared builder and fail when its lease wiring is removed. No product scope or operator arrangement changed.
