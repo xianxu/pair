@@ -25,11 +25,15 @@ type hubMoveService struct {
 	files   hubClaimFiles
 }
 
-func (s *messageService) installHubMoves(console *couchtty.Console) {
+func (s *messageService) installHubMoves(console *couchtty.Console, couches ...*couchcore.Couch) {
 	if s.authority.hubs == nil {
 		return
 	}
-	s.hubMoves.Store(&hubMoveService{enqueue: console.EnqueueRemoteOperation, publish: console.SetHubOwnership})
+	enqueue := console.EnqueueRemoteOperation
+	if len(couches) > 0 && couches[0] != nil {
+		enqueue = newLifecycleRemoteQueue(console, couches[0]).Queue
+	}
+	s.hubMoves.Store(&hubMoveService{enqueue: enqueue, publish: console.SetHubOwnership})
 	console.SetHubOwnership(s.authority.hubs.snapshot())
 	for _, warning := range hubConflictWarnings(s.authority.hubs.snapshot()) {
 		console.Notify(couchtty.Notice{Kind: "status", Body: warning})
@@ -90,13 +94,14 @@ func (s *messageService) handleHubMove(ctx context.Context, r couchmessage.Reque
 	payload := hubMoveCall{service: s, caller: caller, move: move, persist: r.Persist}
 	return s.slotOps.admit(ctx, caller, r, func(key string, started func(), finished func(any, error)) error {
 		return service.enqueue(key, "move-slot", func(ctx context.Context) (couchcore.OperationCall, error) {
+			call := couchcore.OperationCall{Name: "move-slot", TypedPayload: payload, FailureTarget: &couchcore.LifecycleFailureTarget{Target: r.Target}}
 			if _, err := s.authority.current(ctx, caller); err != nil {
-				return couchcore.OperationCall{}, err
+				return call, err
 			}
 			if !s.isConnected(caller) {
-				return couchcore.OperationCall{}, errors.New("hub disconnected; retry from its current session")
+				return call, errors.New("hub disconnected; retry from its current session")
 			}
-			return couchcore.OperationCall{Name: "move-slot", TypedPayload: payload}, nil
+			return call, nil
 		}, started, finished)
 	}, "hub-move")
 }

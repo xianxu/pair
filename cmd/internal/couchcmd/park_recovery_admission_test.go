@@ -54,6 +54,8 @@ func (f *parkAdmissionCatalog) Discover(ctx context.Context, path string) (couch
 }
 
 type parkAdmissionRig struct {
+	input           io.Writer
+	child           *ptychild.Child
 	done            <-chan struct{}
 	service         *serviceRig
 	caller          couchmessage.Binding
@@ -69,6 +71,9 @@ type parkAdmissionRig struct {
 }
 
 func newParkAdmissionRig(t *testing.T, holdDispatch bool, rowCounts ...int) *parkAdmissionRig {
+	return newParkAdmissionRigConfigured(t, holdDispatch, nil, rowCounts...)
+}
+func newParkAdmissionRigConfigured(t *testing.T, holdDispatch bool, configure func(*couchcore.Couch), rowCounts ...int) *parkAdmissionRig {
 	t.Helper()
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
@@ -82,6 +87,9 @@ func newParkAdmissionRig(t *testing.T, holdDispatch bool, rowCounts ...int) *par
 	c, err := rt.NewCouch()
 	if err != nil {
 		t.Fatal(err)
+	}
+	if configure != nil {
+		configure(c)
 	}
 	scope, err := launcher.ResolveRepoScope(primary)
 	if err != nil {
@@ -136,7 +144,7 @@ func newParkAdmissionRig(t *testing.T, holdDispatch bool, rowCounts ...int) *par
 	console.SetActionableProvider(func(context.Context, []couchcore.LiveTTYObservation) ([]couchcore.ActionableThreadSummary, error) {
 		return rows, nil
 	})
-	rig := &parkAdmissionRig{console: console, couch: c, before: record, catalog: catalog, dispatched: make(chan struct{}), dispatchRelease: make(chan struct{})}
+	rig := &parkAdmissionRig{input: input, child: initial, console: console, couch: c, before: record, catalog: catalog, dispatched: make(chan struct{}), dispatchRelease: make(chan struct{})}
 	actual := console.Ops()
 	console.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
 		if call.Name == couchcore.OpRecoverPark {

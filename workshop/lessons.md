@@ -7,6 +7,16 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A display decorator must preserve its input collection's empty-versus-unavailable contract. Cloning by append to nil collapses an owned empty slice; run existing inventory tests as well as the new diagnostic-name subset when adding row fields. (#683 suite qualification)
+
+- Optional terminal publication belongs after adoption on an existing joined worker, never the console reducer. Test blocked storage through actual input and Stop, and verify the publication context is canceled by console lifetime; a responsive callback mock alone misses a missing lifetime wire. (#683 BR-6)
+
+- A shared diagnostic projection must be tested through every public reference for the same slot: slot name, canonical primary-root reference, path and exact tag. Centralize matching before latest-selection and visibility filtering so row/show parity survives missing-cache reference-only evidence. (#683 BR-5)
+
+- Diagnostics must not become lifecycle admission authority. Preserve the original action result when optional target enrichment, nonce allocation or logging fails; test unreadable-record recovery through the public dispatcher before adding diagnostic prerequisites. (#683 BR-1)
+- A terminal failure collector stays evidence-only until its enclosing operation finishes; test exact publication counts for standalone and borrowed callers, including final enrichment. (#683 BR-3)
+- Run the full artifactpath package before a boundary. A regex selecting source/artifact names can omit Symbol guards and miss orphan exports introduced by the same change. (#683 BR-4)
+
 - A design refinement that moves state or file ownership also updates the current Core concepts map, with the prior mapping preserved in Revisions. A later correct paragraph does not repair a contradictory table; distinguish pure value state from its IO methods explicitly. (#686 BR-1)
 
 - Count every IO lane used by a performance claim, including publication guards outside the main reader runtime. Cache hits before a writer lock do not eliminate the guard's own full reread: reuse exact identity-fenced evidence under that same lock and prove append/replacement invalidation before effects. (#686)
@@ -2344,6 +2354,8 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #687 BR-1: pure predicates use literal value fixtures, even when a convenient integration fixture exists. Audit setup as well as assertions: a test for a PURE entity must not create/read metadata or inject a process probe; keep those effects in separate integration tests.
 
+- #683 PQ-1/PQ-2: A terminal recorder must account for failures after effect completion and successes that wrote no durable row. Define admission ordering and the lifetime of supersession evidence, then sweep existing capture writers so nested helpers collect evidence while one terminal owner publishes. Test reverse completion with identical clock values.
+- #683 PQ-3/PQ-4: Length bounds do not keep argv secrets out of diagnostics; persist catalog-only process kinds. Plans name each risky parsing/normalization/projection function and its adversarial guard rather than repeating a case inventory.
 - #688: An alarm may expire after child readiness but before the observer runs. Do not assert a live lease inside that timing window; hold the native fixture explicitly while checking ownership, then release it and require alarm evidence plus EOF. Readiness/lease checks must survive multiple timer intervals, not just a quiet machine.
 
 - #688 BR-1: Partial-failure isolation must include publication, not just acquisition. Test a first-file publication error followed by a later success and require both accurate final summaries and the aggregate error.

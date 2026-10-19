@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/xianxu/pair/cmd/internal/strictjson"
 	"golang.org/x/sys/unix"
 )
 
@@ -57,30 +56,22 @@ func (s *LaunchFailureStore) Read() ([]LaunchFailure, error) {
 	if len(raw) > launchFailureEncodedLimit {
 		return nil, fmt.Errorf("launch diagnostics exceeds size limit")
 	}
-	var history LaunchFailureHistory
-	if err := strictjson.Decode(raw, &history); err != nil {
+	history, err := decodeLifecycleFailureHistory(raw)
+	if err != nil {
 		return nil, fmt.Errorf("invalid launch diagnostics: %w", err)
 	}
-	if len(history) > launchFailureHistoryLimit {
-		return nil, fmt.Errorf("launch diagnostics exceeds attempt limit")
-	}
-	var validated LaunchFailureHistory
-	for _, f := range history {
-		var err error
-		validated, err = validated.Upsert(f)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if len(validated) != len(history) {
-		return nil, fmt.Errorf("duplicate launch diagnostic identity")
-	}
-	return validated, nil
+	return history, nil
 }
 func (s *LaunchFailureStore) Save(ctx context.Context, f LaunchFailure) error {
 	if _, err := normalizeLaunchFailure(f); err != nil {
 		return err
 	}
+	return s.update(ctx, func(old LaunchFailureHistory) (LaunchFailureHistory, bool, error) {
+		next, err := old.Upsert(f)
+		return next, true, err
+	})
+}
+func (s *LaunchFailureStore) update(ctx context.Context, change func(LaunchFailureHistory) (LaunchFailureHistory, bool, error)) error {
 	dir := filepath.Dir(s.path)
 	if err := provisionMkdirAll(dir); err != nil {
 		return err
@@ -123,9 +114,12 @@ func (s *LaunchFailureStore) Save(ctx context.Context, f LaunchFailure) error {
 	if err != nil {
 		return err
 	}
-	next, err := LaunchFailureHistory(old).Upsert(f)
+	next, changed, err := change(LaunchFailureHistory(old))
 	if err != nil {
 		return err
+	}
+	if !changed {
+		return nil
 	}
 	raw, err := encodeLaunchFailureHistory(next)
 	if err != nil {

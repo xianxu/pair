@@ -499,7 +499,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	probe.service.Store(service)
 	service.installAgentSwitchService(console, c, switchGuard)
 	service.installAgentDriveService(console)
-	service.installHubMoves(console)
+	service.installHubMoves(console, c)
 	service.SetDesktopNotify(console.NotifyDesktop)
 	console.SetMessageBroker(service.broker)
 	console.SetCopyObserver(facts.clipboardCopy)
