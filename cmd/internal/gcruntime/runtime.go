@@ -59,6 +59,7 @@ func NewWithInspection(root string, inspection diagnosticlog.Inspection) (*Servi
 	})
 	opts.RetentionPeriod = diagnosticlog.RetentionPeriod
 	opts.Proof = diagnosticlog.InspectionProof(inspection)
+	opts.ReaderProof = diagnosticlog.InspectionReaderProof(inspection)
 	return &Service{Collector: collector, DiagnosticOptions: opts}, nil
 }
 

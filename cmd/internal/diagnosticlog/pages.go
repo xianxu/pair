@@ -315,8 +315,15 @@ func previewPageLocked(path string, o Options, cursor string, limit int, cleanup
 		if e = matches(st, g); e != nil {
 			return e
 		}
-		eligible := reason == "" && DecideGeneration(o.Now(), g.LastWrite, g.Size, limits.MaxBytes, o.RetentionPeriod)
-		why := reason
+		rowReason := reason
+		if g.Name != "" && o.ReaderProof != nil {
+			rowReason = ""
+			if err := o.ReaderProof(o.context(), p); err != nil {
+				rowReason = err.Error()
+			}
+		}
+		eligible := rowReason == "" && DecideGeneration(o.Now(), g.LastWrite, g.Size, limits.MaxBytes, o.RetentionPeriod)
+		why := rowReason
 		if g.LastWrite.IsZero() || g.LastWrite.After(o.Now()) {
 			eligible = false
 			if why == "" {

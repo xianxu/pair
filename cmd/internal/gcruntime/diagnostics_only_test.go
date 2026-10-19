@@ -154,3 +154,75 @@ func TestDiagnosticPreviewReportsMissingDeclarationAndContinues(t *testing.T) {
 		t.Fatal("preview recreated missing parent", err)
 	}
 }
+
+type payloadInspection struct {
+	holders map[string][]diagnosticlog.Registration
+}
+
+func (p *payloadInspection) OpenFiles(_ context.Context, path string) ([]diagnosticlog.Registration, error) {
+	return p.holders[path], nil
+}
+func (*payloadInspection) Runtimes(context.Context) ([]diagnosticlog.Runtime, error) {
+	return []diagnosticlog.Runtime{{Process: diagnosticlog.Registration{PID: 123, Birth: "ownerless"}}}, nil
+}
+func TestOwnerlessRuntimeBlocksCurrentButNotUnheldExpiredSegments(t *testing.T) {
+	probe := &payloadInspection{holders: map[string][]diagnosticlog.Registration{}}
+	s, err := NewWithInspection(t.TempDir(), probe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(s.Collector.Coordinator.Root, "wrap-events-owned.jsonl")
+	now := time.Now().Add(-8 * 24 * time.Hour)
+	seed := s.DiagnosticOptions
+	seed.Now = func() time.Time { return now }
+	seed.SynchronousMaintenance = true
+	seed.Proof = func(context.Context, string, []diagnosticlog.Registration) error { return nil }
+	w, err := diagnosticlog.Open(path, seed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write([]byte("expired")); err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(2 * 24 * time.Hour)
+	if _, err := w.Write([]byte("current")); err != nil {
+		t.Fatal(err)
+	}
+	w.Close()
+	s.DiagnosticOptions.Now = time.Now
+	preview, err := s.PreviewDiagnostics(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	segment := ""
+	for _, row := range preview.Diagnostics {
+		if row.Path != path && row.Eligible {
+			segment = row.Path
+		}
+		if row.Path == path && row.Eligible {
+			t.Fatal("ownerless runtime did not block current")
+		}
+	}
+	if segment == "" {
+		t.Fatalf("ownerless runtime blocked unheld expired segment: %+v", preview)
+	}
+	probe.holders[segment] = []diagnosticlog.Registration{{PID: 456, Birth: "reader"}}
+	blocked, err := s.ApplyDiagnostics(context.Background(), 100)
+	if err != nil || blocked.DiagnosticCollectedBytes != 0 {
+		t.Fatal(blocked, err)
+	}
+	if b, err := os.ReadFile(segment); err != nil || string(b) != "expired" {
+		t.Fatal("held segment changed", err)
+	}
+	delete(probe.holders, segment)
+	applied, err := s.ApplyDiagnostics(context.Background(), 100)
+	if err != nil || applied.DiagnosticCollectedBytes != 7 {
+		t.Fatal(applied, err)
+	}
+	if _, err := os.Stat(segment); !os.IsNotExist(err) {
+		t.Fatal("unheld expired segment remains", err)
+	}
+	if b, err := os.ReadFile(path); err != nil || string(b) != "current" {
+		t.Fatal("active current changed", err)
+	}
+}

@@ -109,15 +109,23 @@ func collectManagedPage(path string, options Options, cursor string, limit int) 
 		if options.Proof == nil {
 			return ErrUnknownWriters
 		}
-		if e = options.prove(p, s.Writers); e != nil {
-			return e
+		if options.ReaderProof == nil {
+			if e = options.prove(p, s.Writers); e != nil {
+				return e
+			}
 		}
 		if s.Deleting != nil {
+			if e = options.proveGeneration(p, *s.Deleting, s.Writers); e != nil {
+				return e
+			}
 			if e = recoverDeletion(p, &s, options); e != nil {
 				return e
 			}
 		}
 		if s.Pending != nil {
+			if e = options.prove(p, s.Writers); e != nil {
+				return e
+			}
 			if e = recoverRotation(p, &s, options); e != nil {
 				return e
 			}
@@ -140,6 +148,11 @@ func collectManagedPage(path string, options Options, cursor string, limit int) 
 			g := s.Current
 			if r.Path != p {
 				if e = readJSON(r.Path+".json", &g); e != nil {
+					return e
+				}
+			}
+			if options.ReaderProof != nil {
+				if e = options.proveGeneration(p, g, s.Writers); e != nil {
 					return e
 				}
 			}
@@ -363,4 +376,11 @@ func deletionBase(path string, g generation) string {
 		return filepath.Dir(path)
 	}
 	return directory(path)
+}
+
+func (o Options) proveGeneration(path string, g generation, writers []Registration) error {
+	if g.Name != "" && o.ReaderProof != nil {
+		return o.ReaderProof(o.context(), segmentPath(path, g.Name))
+	}
+	return o.prove(path, writers)
 }

@@ -34,19 +34,47 @@ type sweepObservation struct {
 func SweepContext(ctx context.Context, paths []string) context.Context {
 	return context.WithValue(ctx, sweepKey{}, &sweepObservation{paths: append([]string(nil), paths...)})
 }
+func sweepInspection(ctx context.Context, inspector Inspection) (Inspection, error) {
+	if sweep, ok := ctx.Value(sweepKey{}).(*sweepObservation); ok {
+		if provider, ok := inspector.(SweepSnapshot); ok {
+			sweep.once.Do(func() { sweep.inspection, sweep.err = provider.Snapshot(ctx, sweep.paths) })
+			return sweep.inspection, sweep.err
+		}
+	}
+	return inspector, nil
+}
 func InspectionProof(inspector Inspection) Proof {
 	return func(ctx context.Context, path string, registered []Registration) error {
-		effective := inspector
-		if sweep, ok := ctx.Value(sweepKey{}).(*sweepObservation); ok {
-			if provider, ok := inspector.(SweepSnapshot); ok {
-				sweep.once.Do(func() { sweep.inspection, sweep.err = provider.Snapshot(ctx, sweep.paths) })
-				if sweep.err != nil {
-					return sweep.err
-				}
-				effective = sweep.inspection
-			}
+		effective, err := sweepInspection(ctx, inspector)
+		if err != nil {
+			return err
 		}
 		return VerifyWriters(ctx, path, registered, effective)
+	}
+}
+
+// Immutable generations cannot be appended by transient writers. Their proof
+// needs complete exact open-reader evidence, not current-writer ownership.
+func InspectionReaderProof(inspector Inspection) func(context.Context, string) error {
+	return func(ctx context.Context, path string) error {
+		effective, err := sweepInspection(ctx, inspector)
+		if err != nil {
+			return err
+		}
+		if effective == nil {
+			return ErrUnknownWriters
+		}
+		holders, err := effective.OpenFiles(ctx, path)
+		if err != nil {
+			return fmt.Errorf("diagnostic open-file inspection: %w", err)
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if len(holders) > 0 {
+			return fmt.Errorf("%w: diagnostic payload has live open holder pid %d", ErrUnknownWriters, holders[0].PID)
+		}
+		return nil
 	}
 }
 
@@ -65,6 +93,14 @@ func (s *observedInspection) OpenFiles(ctx context.Context, path string) ([]Regi
 	}
 	holders, ok := s.holders[path]
 	if !ok {
+		index := strings.Index(path, ".pair-diagnostics/segments/")
+		if index >= 0 {
+			owner := path[:index]
+			name := filepath.Base(path)
+			if _, observed := s.holders[owner]; observed && validSegment(name) && segmentPath(owner, name) == path {
+				return nil, nil
+			}
+		}
 		return nil, ErrUnknownWriters
 	}
 	return holders, nil
@@ -184,7 +220,7 @@ func parseOpenFileSnapshot(ctx context.Context, data []byte, wanted map[string]b
 				births[pid] = birth
 			}
 			pending = false
-			holders[owner] = append(holders[owner], Registration{PID: pid, Birth: birth})
+			holders[line[1:]] = append(holders[line[1:]], Registration{PID: pid, Birth: birth})
 		default:
 			return nil, ErrUnknownWriters
 		}

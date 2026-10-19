@@ -114,9 +114,9 @@ func TestSweepNativeOpenFileConformance(t *testing.T) {
 	holders, err := snapshot.OpenFiles(context.Background(), path)
 	requireLsofObservation(t, err)
 	assertLsofHolder(t, holders, os.Getpid(), procutil.StrictIdentity(fmt.Sprint(os.Getpid())))
-	if len(holders) < 2 {
-		t.Fatal("immutable segment reader missing", holders)
-	}
+	segmentHolders, err := snapshot.OpenFiles(context.Background(), segment)
+	requireLsofObservation(t, err)
+	assertLsofHolder(t, segmentHolders, os.Getpid(), procutil.StrictIdentity(fmt.Sprint(os.Getpid())))
 	if err := fd.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +139,7 @@ func TestSweepGlobalSnapshotMatchesCurrentAndClosedReadersOnly(t *testing.T) {
 	segment := fmt.Sprintf("%s.pair-diagnostics/segments/0/0/0/0/segment-%032x.log", owner, 1)
 	data := fmt.Sprintf("p999999999\nf1\nn/unrelated/file\np%d\nf3\nn%s\nf4\nn%s\n", os.Getpid(), owner, segment)
 	holders, err := parseOpenFileSnapshot(context.Background(), []byte(data), map[string]bool{owner: true})
-	if err != nil || len(holders[owner]) != 2 {
+	if err != nil || len(holders[owner]) != 1 || len(holders[segment]) != 1 {
 		t.Fatalf("current/closed holder inventory %+v %v", holders, err)
 	}
 }

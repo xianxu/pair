@@ -65,6 +65,7 @@ type Options struct {
 	MaxBytes        int64
 	MaxGenerations  int
 	Proof           Proof
+	ReaderProof     func(context.Context, string) error
 	Root            string
 	Registry        func(context.Context, RegistryEntry) error
 	Retire          func(context.Context, RegistryEntry) error
