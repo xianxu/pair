@@ -210,8 +210,7 @@ type TranscriptBinding struct {
 - **Untrusted input (ARCH-SECURE):** the record is decoded with strictjson; `Path` must be absolute, clean, under
   the agent's transcript root, and its basename must contain `NativeID`; otherwise the binding is invalid and the
   row says so (Start fresh, reason "invalid stored binding").
-- **Compatibility:** adding the field is forward-compatible only (strictjson rejects unknown fields;
-  thread.go:86-91 precedent). A binary older than M1 refuses records M1 writes. Accepted, as for #198.
+- **Compatibility:** additive, per §2a (operator, 2026-10-18). An older binary ignores the field and keeps it.
 - **After pair's own context reset (settled by the hub, 2026-10-18).** Shift+Alt+N changes the agent's
   conversation without Couch. So `Bind` makes **one exact read of the tag's own ledger file** (its known path,
   no listing). If that file names a newer root than the record's `BoundAt`, Bind adopts it and stores it
@@ -220,6 +219,46 @@ type TranscriptBinding struct {
   stored binding"). It never scans. The counted test stays: 1 ledger read, 1 transcript stat, 0 listings.
 - **Open question for the drill:** whether Claude's or Codex's native ID changes across a resume. Teardown
   re-copies the ledger's root ID every time, so a change is picked up; the drill asserts the ID it observes.
+
+### 2a. Record compatibility: additive, not refusal (operator, 2026-10-18)
+
+Persisted records evolve additively. A binary that doesn't know a field ignores it and keeps working. This
+replaces the earlier "an older binary refuses M1's records" (decision b).
+
+- **Tolerant and preserving.** Tolerating unknown fields isn't enough. The direct-store operations
+  (`publish-description`, `alias`, `reconcile`, `request-continuation`, `provision-workspace`, ops.go:160-300)
+  run in whichever `couch` CLI build a slot invokes, and they read, modify and rewrite the thread record. An
+  older writer that drops what it doesn't know would silently erase the binding. So each decoder below accepts
+  unknown members and **carries them through a rewrite** (an `Unknown map[string]json.RawMessage` captured on
+  decode and re-emitted on encode). Types, required fields and duplicate keys stay strict. Only unknown members
+  are tolerated.
+- **Records in scope:**
+
+  | Record | Today | Change | Lands in |
+  |---|---|---|---|
+  | `ThreadRecord` (`threadrecord/record.go`, `couchcore/thread.go`) | strictjson | tolerant + preserving | M1, before the new field |
+  | agent sidecar (`launcher/markers.go`) | strictjson | tolerant + preserving (a plain pair build reads a Couch-written sidecar with the tty field) | M2, before the tty field |
+  | orphan registry (`orphans.json`) | new | tolerant + preserving from birth | M2 |
+  | failure store (`launchfailure_store.go`) | strictjson | tolerant + preserving, in #683 (which widens it first) | #683 |
+  | lease path | an env var, not a record | none | — |
+
+- **Rollout limit, stated plainly:** tolerance helps only builds that have it. A build from before M1 still
+  refuses a record carrying the new field, and fails closed, as today. The first tolerant build ships with the
+  usual `:0` rebuild, so on this one machine the window is the rebuild itself.
+- **No version bump is needed: no new field is a guard an old reader must honour.** Each field, ignored by an
+  old reader, degrades to today's behavior:
+  - an ignored binding means the old reader derives the ID from the ledger, as it does now;
+  - an ignored tty means the old reader's teardown doesn't sweep the tty, as now;
+  - an ignored failure or orphan entry is display only.
+
+  The operator's unsafe example (an old reader archiving a slot that the new binary is mid-teardown on) can't
+  arise from a field. Teardown has no persisted in-progress state; it runs inside the singleton Couch's
+  per-slot admission. Archive and every lifecycle mutation are live-owner operations that run in that same
+  process (ops.go `ExecuteLiveOwner`), never in a CLI build. If a later milestone ever persists a teardown phase
+  that other readers must respect, that record gets a version bump then, with the reason written here.
+- **Tests (pure):** `TestThreadRecordPreservesUnknownFieldsThroughRewrite` decodes a record with an unknown member,
+  changes `PublishedSummary`, re-encodes, and expects the member byte-equal. It also checks that a type mismatch
+  and a duplicate key are still refused. The same shape applies to the sidecar and the orphan registry.
 
 ### P3 — `RecordFailure`: every lifecycle failure persists its reason (implemented by #683, before #684's code)
 
@@ -361,6 +400,8 @@ diagnosis. M2 builds the proof. M3 fixes the incident paths. M4 finishes the res
 
 Steps:
 
+- [ ] **Test (red):** `TestThreadRecordPreservesUnknownFieldsThroughRewrite` (§2a). Then make the
+  `ThreadRecord` decoder tolerant and preserving, before the new field lands.
 - [ ] **Test (red):** `TestTranscriptBindingValidate`. A binding is accepted only when its path is absolute,
   clean and under the agent's root, and its basename contains the ID. A relative path, a `..` path, a foreign
   root and a mismatched ID are all rejected. Pure.
@@ -395,6 +436,8 @@ Steps:
 - `couchcore/orphan_registry.go` (pure merge, prune and bound, plus a thin store).
   `TestTeardownRegistersLeftRunning`, `TestResourcesNamesOrphansByOriginSlot`,
   `TestReapOrphanRefusesReusedPid`, `TestOrphanRegistryBound256`.
+- The agent sidecar decoder becomes tolerant and preserving (§2a) before the tty field;
+  `TestAgentSidecarPreservesUnknownFields`.
 - Under Couch, the wrapper records the agent's tty in the agent sidecar. A real-pty test checks two things: a shell's
   foreground child on the pty is in the tty set, and a setsid'd grandchild is outside it and named in
   `LeftRunning`.
@@ -479,3 +522,8 @@ Steps:
 
   Code starts after #683 lands.
 - 2026-10-18 21:55 — hub settled the reset corner: Bind reads the tag's own ledger file once (exact path) and adopts a newer root; a missing or unreadable file falls back to the stored binding with a row note, never a scan. Added `TestBindAdoptsNewerLedgerRootAfterReset`; the counted test is now 1 read, 1 stat, 0 listings.
+- 2026-10-18 22:10 — operator: compatibility, not refusal (replaces decision b). Added §2a. The decoders for the
+  thread record, the agent sidecar and the orphan registry become tolerant of unknown fields **and preserve
+  them through a rewrite**, because older CLI builds run the direct-store writers and would otherwise erase the
+  binding. #683 does the same for the failure store. No version bump: no new field is a guard, and teardown has
+  no persisted phase. The first tolerant build can't help builds from before it.
