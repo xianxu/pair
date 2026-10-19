@@ -201,6 +201,11 @@ finishes the rest. M3 proves it with the drill.
   passing outcomes:
   - Teardown proves them gone and Fresh starts;
   - the fake's holder can't be killed, so Fresh refuses with the holder named and nothing archived.
+- **D21 regression (hub live evidence, 2026-10-19):** `TestIdleLiveSlotWithStaleRecordIsContinueWithNote`. The
+  record has no live incarnation, and the slot has a connected wrapper session and a live agent (the lease is held
+  once #695 lands). Observe counts actors from the slot evidence, so it classifies Continue, not Resume. The row
+  carries a record/slot disagreement note, and relaunch admits it as live. Attach rewrites the record's incarnation
+  from the live evidence. No fourth state, no refusal.
 - Paths 1, 2, 3, 5, 6, 7, 8, 9 and 10 rewired, with their old gates deleted. The per-path tests already in the
   tree either keep passing or, where they restate it, are replaced by the Converge table.
 
@@ -287,3 +292,11 @@ finishes the rest. M3 proves it with the drill.
   its prerequisite. §2 and the address type moved to #695's plan unchanged, and this plan points there. #684 depends on
   #695 and continues from main after it lands. Milestones renumbered: old M3 (Converge, paths 1–3, 5–10) → M1,
   old M4 → M2, old M5 (drill) → M3. Revision entries above keep the old numbers.
+- 2026-10-19 — audit D21 (hub live evidence, parley.nvim:4 at 03:41; ops b7fb513, 50f3f08): relaunch refused a live
+  idle slot as "nothing is running" because its verdict reads the record's incarnations, while resume warm-attached
+  to the running agent. Hub guard (delivery 3117e254): a record/slot disagreement is an internal observation only.
+  It maps onto the three user states: a live agent is Continue, whatever the record says. The row gets a note,
+  never a fourth state or a refusal. Delta to §3's Continue row: "exactly one live actor" is counted from the
+  slot's evidence (actor registry, wrapper session, #695 lease), never the record. When the record disagrees,
+  Attach also repairs the record's incarnation from that evidence (a revision-checked write, like
+  `RepairDeadClientHelper`), instead of refusing. Two live actors still never Continue (M2). The test is added to M1.
