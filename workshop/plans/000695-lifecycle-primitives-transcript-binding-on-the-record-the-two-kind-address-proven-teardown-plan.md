@@ -386,3 +386,13 @@ Steps:
   absent.
 
 ## Revisions
+
+- 2026-10-19 — Zellij listing omission is unknown, not absent (pair:2, #692, delivery 0e4c213f). zellij 0.45.1
+  drops a session from its listing when the ConnStatus reply is misdelivered (upstream issue 5270). So "both session
+  names absent" (§2, the terminal row) is not proof by itself. When the listing omits a session whose exact server
+  is independently live (the OS process scan via `SessionServers`, with no native query), the terminal witness is
+  **unknown**. #692 classifies this as `launcher.ErrListingOmittedLiveServer`, with `OSRuntime.liveSessionServers`
+  as the shared evidence (also used by `SessionBlocksReuse`). Teardown reuses that classification, with no second
+  one, and maps it to `ErrTeardownUnproven` with the server named. It refuses and never retries, and the
+  listing's absence counts only when the process scan agrees. Test (M2): `TestTeardownUnprovenWhenListingOmitsLiveServer`.
+  This depends on #692 landing first. If #695's M2 starts before then, that test waits for #692.
