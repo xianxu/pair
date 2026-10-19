@@ -13,6 +13,9 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchidentity"
 )
 
+// Real watchdogs only unwind a broken kernel wait; behavior uses virtual time.
+const sessionCleanupReturnBudget = 5*time.Second + recoveryObservationTimeout + launchDiagnosticsAdmissionTimeout
+
 type refusingCleanupArtifacts struct {
 	*FakeThreadArtifactCollisionChecker
 	release   <-chan struct{}
@@ -210,7 +213,7 @@ func TestSessionCleanupMetadataReadHonorsContextWhileStoreHeld(t *testing.T) {
 		if !errors.Is(err, context.DeadlineExceeded) {
 			t.Fatalf("metadata read lost cancellation: %v", err)
 		}
-	case <-time.After(2 * time.Second):
+	case <-time.After(sessionCleanupReturnBudget):
 		release()
 		released = true
 		<-done
@@ -241,7 +244,7 @@ func TestPostAckSessionCleanupDoesNotRereadExpiredMetadata(t *testing.T) {
 		case release := <-held:
 			select {
 			case <-finished:
-			case <-time.After(2 * time.Second):
+			case <-time.After(sessionCleanupReturnBudget):
 				forced.Store(true)
 			}
 			release()
@@ -294,7 +297,7 @@ func TestSessionCleanupDispositionContentionPreservesOriginalClaim(t *testing.T)
 				case release := <-held:
 					select {
 					case <-finished:
-					case <-time.After(2 * time.Second):
+					case <-time.After(sessionCleanupReturnBudget):
 						forced.Store(true)
 					}
 					release()
@@ -343,7 +346,7 @@ func TestSessionCleanupDispositionContentionPreservesOriginalClaim(t *testing.T)
 				if forced.Load() || !errors.As(err, &uncertain) || !errors.Is(err, ErrCleanupPersistenceUnconfirmed) || h == nil || h.Alive() {
 					t.Fatalf("disposition waited for release or lost both uncertainties: forced=%v err=%v", forced.Load(), err)
 				}
-				if elapsed := time.Since(began); elapsed > 5*time.Second+recoveryObservationTimeout+launchDiagnosticsAdmissionTimeout {
+				if elapsed := time.Since(began); elapsed > sessionCleanupReturnBudget {
 					t.Fatalf("cleanup/disposition/diagnostics exceeded total budget: %s", elapsed)
 				}
 				release()
@@ -360,6 +363,57 @@ func TestSessionCleanupDispositionContentionPreservesOriginalClaim(t *testing.T)
 				}
 				if readErr != nil || len(history) != 1 || !strings.Contains(history[0].CleanupError, "unknown state persistence unconfirmed") || !strings.Contains(OperatorError(err), "persistence unconfirmed") {
 					t.Fatalf("both uncertainties not exposed: history=%+v read=%v line=%s", history, readErr, OperatorError(err))
+				}
+			})
+		})
+	}
+}
+
+func TestSessionCleanupLiveRecordRetainsExactIncarnation(t *testing.T) {
+	for _, mode := range []string{"live", "unknown", "replaced"} {
+		t.Run(mode, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				env := newTestEnv(t, "/repo")
+				h, err := env.Runner.Start("/repo", []string{"pair"}, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				record := validThreadRecord(t)
+				record.SessionBinding = &couchidentity.SessionBinding{C: 9, M: 4, Name: "📁9-4", ScopeKey: record.Address.RepoScope, Tag: string(record.Address.Tag), StartNonce: "original"}
+				inc := ThreadIncarnation{PID: h.PID(), Identity: h.Identity(), State: IncarnationLive, StartedAt: record.CreatedAt, RepoIdentity: "/repo/.git"}
+				if mode == "unknown" {
+					inc.State = IncarnationUnknown
+				}
+				if mode == "replaced" {
+					inc.Identity = "replacement-birth"
+				}
+				record.Incarnations = []ThreadIncarnation{inc}
+				original, err := env.Couch.Threads.CreateThread(record)
+				if err != nil {
+					t.Fatal(err)
+				}
+				release := make(chan struct{})
+				env.Couch.Artifacts = &refusingCleanupArtifacts{FakeThreadArtifactCollisionChecker: env.Artifacts, release: release}
+				watchdog := time.AfterFunc(7*time.Second, func() { close(release) })
+				defer watchdog.Stop()
+				err = env.Couch.failPostAckStart(record.Address, h, StartSpawn, errors.New("console attach refused"))
+				var uncertain *SessionCleanupUnconfirmed
+				if !errors.As(err, &uncertain) || h.Alive() {
+					t.Fatalf("lost bounded cleanup: %v", err)
+				}
+				current, getErr := env.Couch.Threads.GetThread(record.Address)
+				if getErr != nil || len(current.Incarnations) != 1 || current.Incarnations[0].Identity != inc.Identity || current.SessionBinding.Name != record.SessionBinding.Name {
+					t.Fatalf("lost exact ownership: %+v %v", current, getErr)
+				}
+				if mode == "replaced" {
+					if !errors.Is(err, ErrCleanupPersistenceUnconfirmed) || current.Revision != original.Revision || current.Incarnations[0].State != IncarnationLive {
+						t.Fatalf("replacement changed: %+v %v", current, err)
+					}
+				} else if errors.Is(err, ErrCleanupPersistenceUnconfirmed) || current.Incarnations[0].State != IncarnationUnknown {
+					t.Fatalf("exact incarnation not unknown: %+v %v", current, err)
+				}
+				if mode == "unknown" && current.Revision != original.Revision {
+					t.Fatal("already unknown incarnation was rewritten")
 				}
 			})
 		})
