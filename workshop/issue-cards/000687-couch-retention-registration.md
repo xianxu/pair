@@ -1,8 +1,8 @@
 ---
 id: 000687
-status: codecomplete
+status: done
 created: 2026-10-18
-updated: 2026-10-18
+updated: 2026-10-19
 estimate_hours: 2.015
 github_issue:
 started: 2026-10-18T21:13:11-07:00
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: f479a6e80c2849d687539c6c4377d31b0fdc12c5
         evidence_commit: 89223c24154d6a03bafa7b9d539bbbc67458f745
+        landed_commit: f0ca5cce8c017ad051a2b72f22260b0b043c68f5
 ---
 
 # Recognize Couch supervisor retention registration
