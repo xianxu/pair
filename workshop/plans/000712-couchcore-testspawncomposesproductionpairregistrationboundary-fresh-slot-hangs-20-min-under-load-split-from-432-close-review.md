@@ -103,3 +103,114 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-19T15:16:22-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 712 — couchcore: TestSpawnComposesProductionPairRegistrationBoundary/fresh-slot hangs 20 min under load (split from #432) |
+| repo | pair |
+| issue file | workshop/issues/000712-couchcore-testspawncomposesproductionpairregistrationboundary-fresh-slot-hangs-20-min-under-load-split-from-432.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | a040b13bab7015c399ff6c9a81c1b4c02d7d7b24..328f187bc9ca6e3aad6a2b6b6e0465e0c0b5debd |
+| command | sdlc close --issue 712 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-19T15:16:22-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+Both prior findings are addressed. The cleanup deadline now reaches metadata reads and native deletion, expiry avoids rereading storage, and bounded disposition failure preserves the occupied claim. Composed tests reach their target under review confinement and pass 20/20 under owned load. No blocking findings remain; one minor consolidation opportunity remains.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Contextual metadata reads, cached expiry identity, legacy-index propagation, and bounded disposition persistence are covered by contention regressions. Removing PreviewThreadContext through a temporary Go overlay makes TestSessionCleanupMetadataReadHonorsContextWhileStoreHeld fail after waiting for lock release; the pinned implementation passes.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The original focused command passes within checkout-nested TMPDIR. The pinned-head composed family passes 20/20 with 20 owned CPU workers in 106.456 seconds; all workers were killed and reaped. Removing the explicit Git ceiling makes the nested-checkout regression fail with repository-scope changes.
+findings:
+  - id: new
+    severity: Minor
+    kind: defect
+    family: single-incarnation-transition-authority
+    title: |
+      Exact live-to-unknown transition logic is duplicated
+    detail: |
+      ARCH-DRY: cmd/internal/couchcore/couch.go:960-995 repeats the identity matching, live-to-unknown mutation and revision-conflict loop in threadstore.go:1034. Extract a shared transition helper or contextual store operation while preserving the callers’ different already-unknown behavior.
+```
+
+1. **Strengths**
+
+   - Cleanup knowledge defaults to unconfirmed; the pure decision table retains ownership across shapes and phases.
+   - Disposition persistence uses one bounded context and preserves the original claim when storage refuses (`couch.go:948`).
+   - Public regression coverage checks exact ownership, persisted failure history, diagnostic identity and actual show dispatch.
+   - Fixture listing derives from persisted server identity, process generation and endpoint lifetime.
+
+2. **Critical findings**
+
+   None.
+
+3. **Important findings**
+
+   None.
+
+4. **Minor findings**
+
+   Consolidate the duplicated incarnation transition described above.
+
+5. **Test coverage notes**
+
+   - Original focused cleanup/composition/receipt command passed.
+   - Focused race tests passed.
+   - Composed ordinary/fresh-slot family passed 20/20 under 20-worker CPU load.
+   - Metadata-read and Git-isolation mutation checks both failed as expected.
+   - Existing helper ownership, cleanup and switch-agent regressions passed.
+   - Artifact-path, terminal-command and repository lint checks passed; `git diff --check` passed.
+   - Temporary overlays were removed; tracked files remain unchanged. The full recorded suite remains a separate landing requirement.
+
+6. **Architectural notes**
+
+   | Principle | Result |
+   |---|---|
+   | ARCH-DRY | Flag: minor duplicated incarnation transition. |
+   | ARCH-PURE | Pass: cleanup decisions remain pure; storage/native effects stay in integration code. |
+   | ARCH-PURPOSE | Pass: persistent refusal returns boundedly while retaining ownership. |
+   | ARCH-MOCK | Pass: stateful fixture exercises production composition; existing native conformance workflow remains available. |
+   | ARCH-CONSTRAINTS | Pass: shared session deadline, separate persistence deadline and diagnostic cap have contention coverage. |
+   | ARCH-SECURE | Pass: exact identities guard mutation; uncertainty grants no destructive authority. |
+   | ARCH-ORDER | Pass: explicit cleanup knowledge controls disposition; tests cover live, unknown and replaced identities. |
+   | ARCH-FUNERAL | Pass: fixture state is removed and owned processes/accept loops are joined. |
+   | ARCH-EVOLVE | Pass: existing persisted fields and accepted `launch`/`unproven` values are reused. |
+
+   Planned core entities exist at their stated paths; pure tests require no IO. Atlas documents the new envelope. No new command, flag or configuration surface requires a README addition.
+
+7. **Plan revision recommendations**
+
+   None required. Existing R4 entries accurately describe the implemented deadline and persistence behavior.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"a3e2ab98-5f8f-4cce-a744-351173dd134d","repository":"github.com/xianxu/pair","issue_id":"000712","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/2965270817b1d2d8","reviewed_head":"328f187bc9ca6e3aad6a2b6b6e0465e0c0b5debd","slot":"pair:3","requested_at":"2026-10-19T22:13:06.041356Z"},"phase":"finished","pid":50639,"started_at":"2026-10-19T22:13:06.238772Z","finished_at":"2026-10-19T22:16:21.529288Z","session_id":"01a15639-bc18-7de2-987d-d0fa17a9335b","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.756941s
+head: "328f187bc9ca6e3aad6a2b6b6e0465e0c0b5debd"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000409
