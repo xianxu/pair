@@ -90,3 +90,98 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-18T18:51:02-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 681 — Recover park inventory exceeds CLI admission deadline |
+| repo | pair |
+| issue file | workshop/issues/000681-park-recovery-admission.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 455737dcd073ae5a8610f9b9e7483203c7708f07..bd39d8c6b9760ae977e866c3c26eb8604fce30b6 |
+| command | sdlc close --issue 681 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-18T18:51:02-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-1 is addressed, and the focused tests pass. However, the production hub admission path still performs workspace discovery before allocating a receipt. Enabling that wiring in the new fixture reproduces the two-second timeout; the unblocked control succeeds. This blocks SHIP.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The pinned correction changes plan line 45 from an extended slot_operations_acceptance_test.go fixture to newParkAdmissionRig in the new park_recovery_admission_test.go, where the fixture exists at line 70. The Revisions entry at line 139 records that implementation choice. This is a prose-only correction.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: receipt-admission-before-workspace-io
+    title: |
+      Production hub authorization still performs expensive target discovery before receipt admission
+    detail: |
+      cmd/internal/couchcmd/park_recovery_admission_test.go:175 initializes the service without authority.hubs or the production hubTargetResolver, bypassing the pre-admission target authorization path. Production handleHubSlotOperation calls guard before slotOps.handle (hub_guards.go:130-133); that guard invokes WorkspaceReferencePath, repository Discover, and ResolveWorkspace through hubTargetResolver (lines 45-66). A temporary Go overlay enabling guardHubState(t) and hubTargetResolver(r.couch) on the existing fixture passes with its catalog barrier released, but fails with the barrier held: socket recover-park: context deadline exceeded after 2.16s. ARCH-PURPOSE: the documented zero-workspace-probe admission contract is therefore not delivered for configured hubs. The family includes new recover-park admissions and retained duplicate/conflicting-ID requests, all of which traverse this guard before receipt lookup; its workspace IO sites are caller workspace resolution and target resolution/discovery. Preserve caller authentication, derive admission target ownership from the bound cached identity, and retain full queued/dispatch authorization. Extend the transport regression with service-side hub authority enabled and cover retained requests before fresh target lookup.
+```
+
+1. **Strengths**
+
+   - Cached selection reuses `SelectSlotRow` and `ActorOperationArgs`.
+   - Replacement tests exercise both preparation and dispatch boundaries.
+   - Cancellation tests verify joined work and no late mutation.
+   - The corrected Core concepts table matches the implementation.
+
+2. **Critical findings**
+
+   - **Production admission still blocks on workspace IO.** See the finding above. The fixture enables dispatch-side hub wiring at line 127, but omits service-side hub authority at line 175, masking this path.
+
+3. **Important findings**
+
+   None.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Passed core selection/recovery tests, command recovery/slot-operation tests, focused race tests, and pinned-range `git diff --check`. Command tests required `TMPDIR=/tmp` for Unix socket path length.
+
+   The additional production-wiring overlay passed its unblocked control and failed its blocked case. Temporary overlay files were removed; the checkout remains clean. The recorded full suite was not independently run.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY: pass.** Existing selectors, argument mapping, receipts, and queue ownership are reused.
+   - **ARCH-PURE: pass.** Selection remains deterministic; IO stays in adapters.
+   - **ARCH-PURPOSE: flag.** Configured-hub admission retains the blocking IO path described above.
+
+   Atlas documents the intended flow. No new command syntax, flag, or configuration key requires a README entry.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry covering cached admission ownership checks versus queued current-world authorization. Update the production-transport checklist to require service-side hub authority and its real target resolver, then record the regression evidence after correction.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"7a225fee-5546-491f-998a-0a249cf5343e","repository":"github.com/xianxu/pair","issue_id":"000681","recipe":"small-diff-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/c5e9c6c4ede0f8b2","reviewed_head":"bd39d8c6b9760ae977e866c3c26eb8604fce30b6","slot":"pair:5","requested_at":"2026-10-19T01:48:33.040226Z"},"phase":"finished","pid":1158,"started_at":"2026-10-19T01:48:33.231446Z","finished_at":"2026-10-19T01:51:01.34778Z","session_id":"01a151d8-a003-7713-b927-89475596e5b0","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.924799875s
+head: "bd39d8c6b9760ae977e866c3c26eb8604fce30b6"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

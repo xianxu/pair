@@ -137,3 +137,23 @@ Pending hub approval. Important product delta: cached unknown/missing/ambiguous 
 2026-10-18 — Implementation and private proof checklist completed. Existing guard-table/core coverage supplies settled-original, stale address and cached-empty/new-nonce checks; real transport covers nonce replacement at both queue boundaries. Suite and boundary review may overlap under tl-worker; final landing and operator-server live acceptance remain pending as explicitly recorded above.
 
 2026-10-18 — BR-1 (core-concept-location-status): production-transport coverage was implemented as newParkAdmissionRig in the new park_recovery_admission_test.go, rather than extending slot_operations_acceptance_test.go. Corrected that Core concepts location/status row and swept the other rows against the branch diff; all other new/modified/reused locations match. No executable change.
+
+2026-10-18 — BR-2 design revision approved in hub delivery 01a8e4a8-15c7-440f-b122-11b088d1b6ac. Service-side handleHubSlotOperation invokes its full current-world guard before slotOps.handle, including external caller workspace resolution and hubTargetResolver's external target probes; this masked path still exhausts the admission budget. The private fixture omitted authority.hubs/hubTarget on the service. Fix that production boundary, not the timeout.
+
+Additional integration concepts:
+
+| Name | Lives in | Status | Wraps |
+|------|----------|--------|-------|
+| handleHubSlotOperation recovery admission | cmd/internal/couchcmd/hub_guards.go | modified | exact caller authentication, cached ownership at admission, existing full queued/dispatch guard |
+| authorizeParkAdmission | cmd/internal/couchcmd/hub_guards.go | new | existing connectedWorkspace cache and current hub snapshot, immutable canonical HubSlot |
+| slotOperations.authorizePark | cmd/internal/couchcmd/slot_operations.go | new callback on existing admission owner | canonical repository/slot ownership before cached thread binding |
+| newMessageService recovery authorization wiring | cmd/internal/couchcmd/message_service.go | modified | install cached ownership callback before exposing the server |
+| newParkAdmissionRig production hub authority | cmd/internal/couchcmd/park_recovery_admission_test.go | modified | actual service hub authority, real hubTargetResolver, stateful blocked caller/target workspace resolver |
+
+Order: authenticated exact caller/process/live-record proof stays before retained duplicate/conflict lookup. New recovery admission resolves canonical repository/slot once, applies authorizeParkAdmission using connectedWorkspace (admission-verified exact binding and current thread-root check), then binds cached row address/nonce and allocates receipt. Missing caller cache refuses with refresh-and-retry advice, with no fallback to workspace discovery. Existing full current-world guard remains in queued preparation and dispatch, including current caller/hub ownership checks; existing address/nonce comparisons and lifecycle CAS remain. Retained same-caller IDs never require fresh target lookup or cache binding. Other verbs keep existing admission policy.
+
+Actions/visible outcomes remain the prior table: unknown caller cache is a pre-admission refresh/retry refusal; cross-hub ownership refuses without receipt/effect; moved ownership or replaced caller after admission refuses through the receipt. No new durable state, worker, timeout or user verb. Growth remains O(N) cached selection and a constant number of full queued guards/scans at8/16 rows; count all service-side caller/target workspace probes as well as existing catalog passes.
+
+- [ ] Reproduce the >2s failure with actual service-side hub authority and production target resolver, caller and target external resolver barrier; retain red.
+- [ ] Implement cached ownership admission plus unchanged full queued/dispatch authorization. Cover unknown caller cache, cross-hub refusal, ownership move/caller replacement before effect, and retained duplicate/conflicts while external resolvers are unavailable.
+- [ ] Repeat counted8/16 checks, focused/race tests, build and required recorded suite on final pushed source; review and land through normal gates. Earlier queued suite was canceled as obsolete, not a failed or flaky attempt.

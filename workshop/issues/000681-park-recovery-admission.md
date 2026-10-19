@@ -41,7 +41,7 @@ Allocate and publish the operation receipt before building the inventory. Queue 
 
 - [x] Bind exact address/nonce from known cached console rows, then admit receipt before full inventory; refuse unavailable/ambiguous cache with refresh advice.
 - [x] Keep queued revalidation, dispatch authorization and lifecycle nonce checks; prove transport beyond2s, duplicates, replacement, cancellation and bounded growth.
-- [x] Prepare the candidate for the required recorded suite and close/landing gates; record the hub-coordinated conformance disposition.
+- [ ] Fix BR-2 service-side admission with cached hub ownership; verify production-wired transport, ownership/caller changes and final required suite/review.
 
 Durable design: workshop/plans/000681-park-recovery-admission-plan.md. Pending hub approval; no code changed.
 
@@ -72,3 +72,5 @@ Hub-approved next items remain #683 part2 (durable lifecycle error messages, kee
 2026-10-18 — Verification scheduling clarification: the implementation Plan checklist now records delivery to the suite/review/landing gates rather than claiming those future gates already passed. The final Done-when remains unchecked until its evidence returns. Per tl-worker, start close review while recorded suite de830da7014ac37467ee7cf0626f8953 is queued; a recorded pass remains mandatory before landing. No verification or review gate is bypassed.
 
 2026-10-18 — Close round1 returned REWORK solely for BR-1: the plan table claimed the new private fixture was an extension in an unchanged acceptance-test file. Corrected its location/status to newParkAdmissionRig in park_recovery_admission_test.go, recorded the implementation revision and swept every other Core concepts row against the diff. Reviewer independently passed focused core, command and race tests; no executable defect was found. Required suite still queued; no pass claimed.
+
+2026-10-18 — Close round2 addressed BR-1 but found BR-2: production service-side hub authorization performs caller/target workspace discovery before slotOps receipt lookup. The private fixture enabled dispatch guards but omitted service authority.hubs/hubTarget. Canceled only own obsolete queued suite via sdlc local-check cancel; no pass/result claimed. Hub approved the cached-ownership admission revision in delivery01a8e4a8-15c7-440f-b122-11b088d1b6ac; preserve exact caller authentication and existing full queued/dispatch checks. Durable plan now names this seam and production-wired red/green coverage.

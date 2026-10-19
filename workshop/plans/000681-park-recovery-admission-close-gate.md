@@ -121,6 +121,133 @@ rounds:
       recipe: small-diff-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 7a225fee-5546-491f-998a-0a249cf5343e
+            repository: github.com/xianxu/pair
+            issue_id: "000681"
+            recipe: small-diff-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/c5e9c6c4ede0f8b2
+            reviewed_head: bd39d8c6b9760ae977e866c3c26eb8604fce30b6
+            slot: pair:5
+            requested_at: "2026-10-19T01:48:33.040226Z"
+          phase: finished
+          pid: 1158
+          started_at: "2026-10-19T01:48:33.231446Z"
+          finished_at: "2026-10-19T01:51:01.34778Z"
+          session_id: 01a151d8-a003-7713-b927-89475596e5b0
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: bd39d8c6b9760ae977e866c3c26eb8604fce30b6
+        tracker_head: 17b78795f549a3e1979282e864d18ac5fee5a5bc
+        branch_point: 455737dcd073ae5a8610f9b9e7483203c7708f07
+        since: "2026-10-18T18:19:31-07:00"
+        until: "2026-10-18T18:48:01-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-18T18:19:31-07:00"
+              end: "2026-10-18T18:48:01-07:00"
+              began: "2026-10-18T18:19:31-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot5/pair
+        sources:
+            - harness: codex
+              id: 01a13d86-9ceb-7a10-b665-c109fdb6aa6b
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              digest: a2245b37e74ffc8ed73fb9fd069c00cfe157ad3117a9ad94cba6e5ff0590d5ec
+              started: "2026-10-15T03:06:35.036Z"
+              spawned: false
+              bytes: 62824544
+              windows:
+                - start: "2026-10-18T18:19:31-07:00"
+                  end: "2026-10-18T18:48:01-07:00"
+            - harness: codex
+              id: 01a151be-a821-7e51-b212-944a82991c3a
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              parent_id: 01a13d86-9ceb-7a10-b665-c109fdb6aa6b
+              digest: a614537587a3e9c10dd3cb19fcc2cd9d6d653e839916cb9de6905cee56c3e03f
+              started: "2026-10-19T01:20:11.898Z"
+              spawned: true
+              bytes: 795117
+              windows:
+                - start: "2026-10-19T01:20:11.898Z"
+                  end: "2026-10-18T18:48:01-07:00"
+            - harness: codex
+              id: 01a151c3-e9a9-7f51-ba7a-7a7087d9ff5d
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              parent_id: 01a13d86-9ceb-7a10-b665-c109fdb6aa6b
+              digest: 67debc4e70139a501e79cf9ce7fa39078901070b63da208bb26902fe9570b6c8
+              started: "2026-10-19T01:25:56.356Z"
+              spawned: true
+              bytes: 461920
+              windows:
+                - start: "2026-10-19T01:25:56.356Z"
+                  end: "2026-10-18T18:48:01-07:00"
+            - harness: codex
+              id: 01a151c6-dbc0-7c31-a7aa-19ec3aefb593
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              parent_id: 01a13d86-9ceb-7a10-b665-c109fdb6aa6b
+              digest: 3d5a0a2d385b0f5279d0bbf889e6dd99468d44b59ee8ebe8e9495a11e61e0022
+              started: "2026-10-19T01:29:09.491Z"
+              spawned: true
+              bytes: 959220
+              windows:
+                - start: "2026-10-19T01:29:09.491Z"
+                  end: "2026-10-18T18:48:01-07:00"
+            - harness: codex
+              id: 01a151c9-96d6-7961-ac90-592b88e5d301
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              parent_id: 01a13d86-9ceb-7a10-b665-c109fdb6aa6b
+              digest: 1cddc9c93b44ab42f084cf8d697eba0ae2c8fd2962f3c8046c1e89b1451898d3
+              started: "2026-10-19T01:32:08.432Z"
+              spawned: true
+              bytes: 554954
+              windows:
+                - start: "2026-10-19T01:32:08.432Z"
+                  end: "2026-10-18T18:48:01-07:00"
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 0.11616666666666667
+        cuts:
+            - dispatched: "2026-10-18T18:45:07-07:00"
+              finalized: "2026-10-18T18:47:16-07:00"
+              finalizing: false
+      "n": 2
+      timestamp: "2026-10-18T18:51:02-07:00"
+      dispatched: "2026-10-18T18:48:30-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: The pinned correction changes plan line 45 from an extended slot_operations_acceptance_test.go fixture to newParkAdmissionRig in the new park_recovery_admission_test.go, where the fixture exists at line 70. The Revisions entry at line 139 records that implementation choice. This is a prose-only correction.
+          round: 2
+      findings:
+        - kind: defect
+          id: BR-2
+          severity: Critical
+          title: Production hub authorization still performs expensive target discovery before receipt admission
+          detail: 'cmd/internal/couchcmd/park_recovery_admission_test.go:175 initializes the service without authority.hubs or the production hubTargetResolver, bypassing the pre-admission target authorization path. Production handleHubSlotOperation calls guard before slotOps.handle (hub_guards.go:130-133); that guard invokes WorkspaceReferencePath, repository Discover, and ResolveWorkspace through hubTargetResolver (lines 45-66). A temporary Go overlay enabling guardHubState(t) and hubTargetResolver(r.couch) on the existing fixture passes with its catalog barrier released, but fails with the barrier held: socket recover-park: context deadline exceeded after 2.16s. ARCH-PURPOSE: the documented zero-workspace-probe admission contract is therefore not delivered for configured hubs. The family includes new recover-park admissions and retained duplicate/conflicting-ID requests, all of which traverse this guard before receipt lookup; its workspace IO sites are caller workspace resolution and target resolution/discovery. Preserve caller authentication, derive admission target ownership from the bound cached identity, and retain full queued/dispatch authorization. Extend the transport regression with service-side hub authority enabled and cover retained requests before fresh target lookup.'
+          family: receipt-admission-before-workspace-io
+          round: 2
+      recipe: small-diff-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#681 (boundary-review)
@@ -135,6 +262,17 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-1** [Critical] `core-concept-location-status` (kind: defect) Core concepts table claims an extension in an unchanged file
   workshop/plans/000681-park-recovery-admission-plan.md:45 lists the stateful service/console fixture in cmd/internal/couchcmd/slot_operations_acceptance_test.go as extended, but that file is unchanged in the pinned range. The new fixture is newParkAdmissionRig in cmd/internal/couchcmd/park_recovery_admission_test.go:70. This is the sole location/status contradiction found across the table rows. Correct the row to identify the new fixture and add a Revisions entry recording the implementation location.
 
+## Round 2 — 2026-10-18T18:51:02-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — The pinned correction changes plan line 45 from an extended slot_operations_acceptance_test.go fixture to newParkAdmissionRig in the new park_recovery_admission_test.go, where the fixture exists at line 70. The Revisions entry at line 139 records that implementation choice. This is a prose-only correction.
+
+### Raised
+
+- **BR-2** [Critical] `receipt-admission-before-workspace-io` (kind: defect) Production hub authorization still performs expensive target discovery before receipt admission
+  cmd/internal/couchcmd/park_recovery_admission_test.go:175 initializes the service without authority.hubs or the production hubTargetResolver, bypassing the pre-admission target authorization path. Production handleHubSlotOperation calls guard before slotOps.handle (hub_guards.go:130-133); that guard invokes WorkspaceReferencePath, repository Discover, and ResolveWorkspace through hubTargetResolver (lines 45-66). A temporary Go overlay enabling guardHubState(t) and hubTargetResolver(r.couch) on the existing fixture passes with its catalog barrier released, but fails with the barrier held: socket recover-park: context deadline exceeded after 2.16s. ARCH-PURPOSE: the documented zero-workspace-probe admission contract is therefore not delivered for configured hubs. The family includes new recover-park admissions and retained duplicate/conflicting-ID requests, all of which traverse this guard before receipt lookup; its workspace IO sites are caller workspace resolution and target resolution/discovery. Preserve caller authentication, derive admission target ownership from the bound cached identity, and retain full queued/dispatch authorization. Extend the transport regression with service-side hub authority enabled and cover retained requests before fresh target lookup.
+
 ## Open findings
 
-- **BR-1** [Critical] `core-concept-location-status` (kind: defect) Core concepts table claims an extension in an unchanged file
+- **BR-2** [Critical] `receipt-admission-before-workspace-io` (kind: defect) Production hub authorization still performs expensive target discovery before receipt admission
