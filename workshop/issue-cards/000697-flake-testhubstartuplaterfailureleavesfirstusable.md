@@ -1,6 +1,6 @@
 ---
 id: 000697
-status: codecomplete
+status: done
 created: 2026-10-19
 updated: 2026-10-19
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: f6c15b64cd32332e81f197a16300fdabde99fbd3
         evidence_commit: 520bebcfcf65be6c8efc601882b0c3a5f5e01925
+        landed_commit: 2fb18674a847a2a1c685be474e288e05ca658671
 ---
 
 # flake: TestHubStartupLaterFailureLeavesFirstUsable
