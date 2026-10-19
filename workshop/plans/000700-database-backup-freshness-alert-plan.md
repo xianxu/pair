@@ -132,3 +132,5 @@ PQ-2: Function-level test strategies (tests before implementation):
 | messageService.notifyArchiveWarning / archiveWarningOwner | no hub, multiple hubs, primary replacement/disconnect, uncertain desktop write | Existing live service fixture with fake attention/presenter outputs; exact primary/latest binding only, fallback emits no phantom item, reservation never rearmed |
 
 Counted N/2N integration checks assert one projection/admission attempt per row, no extra catalog read or snapshot, and at most one output attempt per eligible source. These strategies replace adding independent test lists without identifying the responsible function.
+
+- 2026-10-19, hub 053b4ee5: primary-hub resolution and unavailable-owner fallback approved. Keep `messageService.archiveWarningOwner` as one small owner-resolution function so pair#694 can redirect machine-wide backup stewardship without changing freshness/admission/delivery logic. All output attempts consume the daily reservation as above; no broadcast, inferred owner or reconnect retry.

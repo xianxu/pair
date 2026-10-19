@@ -58,3 +58,5 @@ Warn the operator when a configured database's last verified backup bundle excee
 - 2026-10-19, hub e2825ba7: written plan approved, including environment threshold, bounded versioned JSON, scheduler-owned per-source daily reservations, no uncertain-write retry and headless acceptance. The first naturally stale real database is the live check, owned by the hub; no synthetic desktop alert or pair:0 staging. Proceed to change-code on the single-pass full flow.
 
 - 2026-10-19, plan-quality round 1: PQ-1 requires an explicit global-primary-hub notification owner and unavailable/replaced-owner behavior; PQ-2 requires named function-level adversarial strategies. Durable plan now records both dispositions. No code changed. Primary-hub/fallback attention semantics are sent to hub for confirmation before rerunning the gate.
+
+- 2026-10-19, hub 053b4ee5 confirmed PQ-1 owner/fallback contract and requested a single small archiveWarningOwner seam for pair#694's future steward-team routing. Rerun change-code; no implementation until admitted.
