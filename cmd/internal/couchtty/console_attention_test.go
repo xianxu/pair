@@ -154,9 +154,8 @@ func TestAttentionMouseAndDismiss(t *testing.T) {
 	f.clickStatus(span.Start + 1)
 	waitFor(t, "the panel from a click", f.attentionOpen)
 	// A second click on the badge closes it, and the click does not go on to
-	// reopen it (BR-5).
-	// 	// The decoder hands a mouse event on once later input arrives; a motion
-	// report at the top-left corner flushes each click.
+	// reopen it (BR-5). The decoder hands a mouse event on once later input
+	// arrives; a motion report at the top-left corner flushes each click.
 	flush := func() { _, _ = f.stdin.Write([]byte("\x1b[<35;1;1M")) }
 	f.clickStatus(span.Start + 1)
 	flush()
@@ -342,5 +341,25 @@ func TestAttentionObserveNeverWaitsOnTheStore(t *testing.T) {
 	store.mu.Unlock()
 	if saves > 2 {
 		t.Fatalf("the saver did not coalesce: %d saves for 5 facts", saves)
+	}
+}
+
+// #673 BR-7: the saver is a tracked worker, so the Console's shutdown join
+// waits for an in-flight save and the last change before quit is not lost.
+func TestAttentionShutdownWaitsForTheLastSave(t *testing.T) {
+	f, threads := pagingFixture(t)
+	store := &gatedAttentionStore{gate: make(chan struct{})}
+	f.con.SetAttentionStore(store)
+	f.con.ObserveAttention(hubNotify(threads[2], "the last word"))
+	f.con.Stop()
+	select {
+	case <-f.done:
+		t.Fatal("Run returned with a save still in flight")
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(store.gate)
+	<-f.done
+	if saved := store.saved(); len(saved) != 1 || saved[0].Body != "the last word" {
+		t.Fatalf("the last change was lost: %+v", saved)
 	}
 }

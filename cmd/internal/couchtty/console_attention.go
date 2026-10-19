@@ -82,16 +82,18 @@ func (c *Console) ObserveAttention(f couchcore.AttentionFact) {
 }
 
 // saveAttention marks the list changed and starts the saver if none runs.
+// The saver is a tracked worker, so shutdown waits for the last save; it is
+// started after c.attn.mu is released, since GoTracked takes c.mu.
 func (c *Console) saveAttention() {
 	c.attn.mu.Lock()
-	defer c.attn.mu.Unlock()
-	if c.attn.store == nil {
-		return
+	start := c.attn.store != nil && !c.attn.saving
+	if c.attn.store != nil {
+		c.attn.dirty = true
+		c.attn.saving = c.attn.saving || start
 	}
-	c.attn.dirty = true
-	if !c.attn.saving {
-		c.attn.saving = true
-		go c.runAttentionSaves()
+	c.attn.mu.Unlock()
+	if start {
+		c.GoTracked(c.runAttentionSaves)
 	}
 }
 
