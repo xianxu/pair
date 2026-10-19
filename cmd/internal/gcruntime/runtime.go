@@ -27,15 +27,21 @@ type Report struct {
 	DiagnosticCollectedBytes int64                      `json:"diagnostic_collected_bytes"`
 }
 
-func New(root string) (*Service, error) { return NewWithInspection(root, diagnosticlog.OSInspection{}) }
-
-// NewWithInspection composes the same process/open-file observation boundary
-// into both legacy runtime and diagnostic writer proofs.
-func NewWithInspection(root string, inspection diagnosticlog.Inspection) (*Service, error) {
+func New(root string) (*Service, error) {
 	period, err := diagnosticlog.ParseRetentionDays(os.Getenv("PAIR_DIAGNOSTIC_DAYS"))
 	if err != nil {
 		return nil, err
 	}
+	service, err := NewWithInspection(root, diagnosticlog.OSInspection{})
+	if err == nil {
+		service.DiagnosticOptions.RetentionPeriod = period
+	}
+	return service, err
+}
+
+// NewWithInspection composes the same process/open-file observation boundary
+// into both legacy runtime and diagnostic writer proofs.
+func NewWithInspection(root string, inspection diagnosticlog.Inspection) (*Service, error) {
 	if inspection == nil {
 		return nil, errors.New("process inspection is required")
 	}
@@ -51,7 +57,7 @@ func NewWithInspection(root string, inspection diagnosticlog.Inspection) (*Servi
 		}
 		return ""
 	})
-	opts.RetentionPeriod = period
+	opts.RetentionPeriod = diagnosticlog.RetentionPeriod
 	opts.Proof = func(ctx context.Context, path string, writers []diagnosticlog.Registration) error {
 		return diagnosticlog.VerifyWriters(ctx, path, writers, inspection)
 	}
@@ -190,6 +196,7 @@ func (s *Service) Preview(ctx context.Context) (r Report, err error) {
 		}
 		rows, e := s.diagnosticPages(ctx, path, false)
 		if e != nil {
+			r.Diagnostics = append(r.Diagnostics, rows...)
 			r.Diagnostics = append(r.Diagnostics, diagnosticlog.Segment{Path: path, Reason: e.Error()})
 			continue
 		}
@@ -222,7 +229,6 @@ func (s *Service) Apply(ctx context.Context, limit int) (r Report, err error) {
 		rows, e := s.diagnosticPages(ctx, path, true)
 		if e != nil {
 			r.Diagnostics = append(r.Diagnostics, diagnosticlog.Segment{Path: path, Reason: e.Error()})
-			continue
 		}
 		for _, row := range rows {
 			if row.Eligible {
@@ -358,7 +364,6 @@ func (s *Service) diagnosticsOnly(ctx context.Context, apply bool, limit int) (r
 		rows, e := s.diagnosticPages(ctx, path, apply)
 		if e != nil {
 			r.Diagnostics = append(r.Diagnostics, diagnosticlog.Segment{Path: path, Reason: e.Error()})
-			continue
 		}
 		for _, row := range rows {
 			if apply && row.Eligible {

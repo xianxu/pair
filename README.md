@@ -1171,10 +1171,13 @@ Wrapper diagnostics batch at64KiB or every five seconds while dirty; raw capture
 and its offset sidecar flush every250ms. Orderly shutdown drains both. A process
 crash can lose pending buffers; optional diagnostics have no power-loss durability
 guarantee. See [storage retention and IO](atlas/storage-retention-io.md) for exact
-bounds and the synchronization kept for receipts, park and recovery. New diagnostic
+bounds and the synchronization kept for receipts, park and recovery. 🤖~New diagnostic
 segments are capped at64MiB. Every diagnostic generation is retained behind
-the KeepDiagnosticsUntilBackup fence until ops history-backup can archive it;
-there is no total disk cap. Pre-existing oversized evidence is preserved. Unknown writer
+the KeepDiagnosticsUntilBackup fence until ops history-backup can archive it;~{New diagnostic
+segments are capped at64MiB. Managed debug generations expire after seven days
+by default, independently of backup; whole oversized legacy generations may be
+evicted sooner. Unknown writers and live open holders remain blocked.}
+🤖~there is no total disk cap. Pre-existing oversized evidence is preserved.~{There is no global byte ceiling on retained seven-day diagnostics.} Unknown writer
 evidence refuses further growth at the limit. Parked recovery
 captures use their separate age policy and exact reader protections.
 
@@ -1965,8 +1968,12 @@ From a non-agent Pair pane, detach with `Alt+d`. For Couch-managed work, use the
 reasons for keeping or collecting each group. Use `pair gc --json` for exact
 paths. Preview does not change your files or initialize retention clocks.
 
-- Debug logs and old parked captures expire after one year. Captures keep
-  their raw output and offset sidecars together; active readers postpone removal.
+🤖~- Debug logs and old parked captures expire after one year. Captures keep
+  their raw output and offset sidecars together; active readers postpone removal.~{- Managed debug logs expire after seven days; PAIR_DIAGNOSTIC_DAYS accepts1..365
+  (empty=7, invalid values refuse collection). Proven oversized legacy debug
+  generations can be removed whole even when young. Live or unknown holders
+  postpone removal. Old parked captures retain their one-year policy and keep
+  raw output and offset sidecars together.}
 - Standalone session data expires after one year without meaningful use.
   Threads visible in Couch's switcher stay protected, including parked threads.
   Archiving a thread starts a fresh one-year grace; old archives without tracking
@@ -1975,7 +1982,13 @@ paths. Preview does not change your files or initialize retention clocks.
   Unknown ownership or liveness keeps data. Agent-native conversations and
   repository files are outside this collector.
 
-Before enabling collection, register every Couch store with
+🤖{Use `pair gc --diagnostics-only` for a read-only debug-log preview and add
+`--apply` to collect eligible managed logs. No backup or session migration
+acknowledgment is required for this scope; it leaves session/history data and
+clocks alone. It cannot be mixed with store-registration or migration flags.
+`PAIR_WRAP_EVENTS=0` disables optional wrapper trace detail.}
+
+Before enabling session collection, register every Couch store with
 `pair gc --register-store PATH`, then acknowledge the complete list using
 `pair gc --complete-migration --store PATH` (repeat `--store` for every store).
 Use an empty list only when no Couch stores exist. This explicit migration

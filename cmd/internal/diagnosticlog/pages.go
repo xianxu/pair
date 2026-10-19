@@ -317,6 +317,12 @@ func previewPageLocked(path string, o Options, cursor string, limit int, cleanup
 		}
 		eligible := reason == "" && DecideGeneration(o.Now(), g.LastWrite, g.Size, limits.MaxBytes, o.RetentionPeriod)
 		why := reason
+		if g.LastWrite.IsZero() || g.LastWrite.After(o.Now()) {
+			eligible = false
+			if why == "" {
+				why = "diagnostic last-write clock unknown or in the future"
+			}
+		}
 		oversized := g.Size > limits.MaxBytes
 		if why == "" && eligible && oversized {
 			why = "pre-existing diagnostic generation exceeds byte limit"
@@ -428,8 +434,12 @@ func CollectLegacyPage(path string, options Options, cursor string, limit int) (
 		return nil, cursor, false, e
 	}
 	adopted, e := adoptLegacy(p, options)
-	if e != nil || !adopted {
+	if e != nil {
 		return nil, "", true, e
+	}
+	if !adopted {
+		rows, err := previewLegacyCurrent(p, options)
+		return rows, "", true, err
 	}
 	return collectManagedPage(p, options, cursor, limit)
 }

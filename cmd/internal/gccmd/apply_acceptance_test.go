@@ -173,9 +173,9 @@ func TestPublicApplyPreservesProtectedOwnersAndCollectsIndependentBuckets(t *tes
 			t.Fatal(err)
 		}
 	}
-	// No destructive collection until the public migration acknowledgement.
+	// Session collection stays fenced; diagnostics are independent.
 	before := report("--apply")
-	if before.Storage.MigrationComplete || before.Storage.Collected != 0 || before.DiagnosticCollectedBytes != 0 {
+	if before.Storage.MigrationComplete || before.Storage.Collected != 0 || before.DiagnosticCollectedBytes != int64(len("old diagnostic")) {
 		t.Fatalf("collected before migration: %+v", before)
 	}
 	for _, path := range payloads {
@@ -216,20 +216,13 @@ func TestPublicApplyPreservesProtectedOwnersAndCollectsIndependentBuckets(t *tes
 			t.Errorf("expected collected %s: %v", path, err)
 		}
 	}
-	if body, err := os.ReadFile(debug); err != nil || string(body) != "old diagnostic" {
-		t.Fatalf("backup-fenced diagnostic changed: %q %v", body, err)
+	if _, err := os.Stat(debug); !os.IsNotExist(err) {
+		t.Fatal("expired diagnostic remains", err)
 	}
-	foundDebug := false
 	for _, row := range report().Diagnostics {
 		if row.Path == debug {
-			foundDebug = true
-			if row.Eligible || row.Reason != diagnosticlog.BackupFenceReason {
-				t.Fatalf("diagnostic backup fence not reported: %+v", row)
-			}
+			t.Fatal("removed diagnostic still reported", row)
 		}
-	}
-	if !foundDebug {
-		t.Fatal("retained diagnostic absent from preview report")
 	}
 	for _, label := range []string{"visible", "new-archive", "live"} {
 		b, err := os.ReadFile(payloads[label])

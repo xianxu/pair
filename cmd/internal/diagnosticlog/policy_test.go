@@ -324,7 +324,7 @@ func TestDiagnosticV2RefusesLegacyStrictReader(t *testing.T) {
 	}
 }
 
-func TestDiagnosticOversizedLegacyGenerationPreservedUntilBackup(t *testing.T) {
+func TestDiagnosticOversizedLegacyGenerationEvictedWithoutPayloadCopy(t *testing.T) {
 	path, now, opts := fixture(t)
 	opts.MaxBytes = 4
 	w, err := Open(path, opts)
@@ -375,7 +375,7 @@ func TestDiagnosticOversizedLegacyGenerationPreservedUntilBackup(t *testing.T) {
 	for _, row := range rows {
 		if row.Path == p {
 			found = true
-			if row.Bytes != 4<<30 || !row.Oversized || row.Eligible || row.Reason != "pre-existing diagnostic generation exceeds byte limit" {
+			if row.Bytes != 4<<30 || !row.Oversized || !row.Eligible || row.Reason != "pre-existing diagnostic generation exceeds byte limit" {
 				t.Fatalf("legacy excess hidden: %+v", row)
 			}
 		}
@@ -383,22 +383,20 @@ func TestDiagnosticOversizedLegacyGenerationPreservedUntilBackup(t *testing.T) {
 	if !found {
 		t.Fatal("missing legacy generation")
 	}
-	for _, record := range []string{"0000", "1111", "2222"} {
-		*now = now.Add(time.Second)
-		if _, err = w.Write([]byte(record)); err != nil {
-			t.Fatal(err)
-		}
+	if rows, err := Collect(path, opts, 100); err != nil || len(rows) != 1 || rows[0].Bytes != 4<<30 {
+		t.Fatal(rows, err)
 	}
-	if _, err = os.Stat(p); err != nil {
-		t.Fatal("legacy data removed before ordinary count eviction", err)
+	if _, err := os.Stat(p); !os.IsNotExist(err) {
+		t.Fatal("oversized segment remains", err)
 	}
-	*now = now.Add(time.Second)
-	if _, err = w.Write([]byte("3333")); err != nil {
-		t.Fatal(err)
+	if _, err := w.Write([]byte("new!")); err != nil {
+		t.Fatal("fresh generation unusable", err)
 	}
-	if _, err = os.Stat(p); err != nil {
-		t.Fatal("legacy segment evicted before backup", err)
+	if b, err := os.ReadFile(path); err != nil || string(b) != "new!" {
+		t.Fatal(string(b), err)
 	}
+	_ = now
+
 }
 
 func TestDiagnosticCountDebtDormantUntilBackup(t *testing.T) {

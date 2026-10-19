@@ -33,6 +33,9 @@ func previewLegacyCurrent(path string, options Options) ([]Segment, error) {
 		return nil, err
 	}
 	eligible := reason == "" && DecideGeneration(options.Now(), st.ModTime(), st.Size(), options.MaxBytes, options.RetentionPeriod)
+	if reason == "" && (st.ModTime().IsZero() || st.ModTime().After(options.Now())) {
+		reason = "diagnostic last-write clock unknown or in the future"
+	}
 	if reason == "" && !eligible {
 		reason = RetentionReason(options.RetentionPeriod)
 	}

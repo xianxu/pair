@@ -214,7 +214,7 @@ func TestRejectSubstitution(t *testing.T) {
 	}
 }
 
-func TestFencedCollectionDoesNotStartDeleteBeforeNextAppend(t *testing.T) {
+func TestInterruptedCollectionRecoversBeforeNextAppend(t *testing.T) {
 	for _, point := range []string{"delete-intent", "delete-payload"} {
 		t.Run(point, func(t *testing.T) {
 			path, now, opts := fixture(t)
@@ -234,8 +234,8 @@ func TestFencedCollectionDoesNotStartDeleteBeforeNextAppend(t *testing.T) {
 				return nil
 			}
 			rows, err := Collect(path, opts, 100)
-			if err != nil || len(rows) != 0 || hit {
-				t.Fatal("collection began eviction", rows, hit, err)
+			if err == nil || len(rows) != 0 || !hit {
+				t.Fatal("collection did not reach injected interruption", rows, hit, err)
 			}
 			opts.Fault = nil
 			w, err = Open(path, opts)
@@ -247,13 +247,13 @@ func TestFencedCollectionDoesNotStartDeleteBeforeNextAppend(t *testing.T) {
 				t.Fatal(err)
 			}
 			names, _, done, err := generationPage(path, "", 100, false, opts)
-			if err != nil || !done || len(names) != 1 {
+			if err != nil || !done || len(names) != 0 {
 				t.Fatal(names, done, err)
 			}
-			body, err := os.ReadFile(segmentPath(path, names[0]))
-			if err != nil || string(body) != "expired\n" {
+			if body, err := os.ReadFile(path); err != nil || string(body) != "new\n" {
 				t.Fatal(string(body), err)
 			}
+
 		})
 	}
 }
@@ -403,8 +403,8 @@ func TestAbandonedMetadataTempHasBoundedLifetime(t *testing.T) {
 	if _, e = os.Stat(abandoned); !os.IsNotExist(e) {
 		t.Fatal("old abandoned metadata retained")
 	}
-	if body, err := os.ReadFile(path); err != nil || string(body) != "old" {
-		t.Fatal("payload not retained while derived temp cleaned", string(body), err)
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatal("expired payload remains", err)
 	}
 }
 

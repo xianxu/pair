@@ -50,7 +50,7 @@ func VerifyWriters(ctx context.Context, path string, registered []Registration, 
 		return err
 	}
 	if len(holders) != 0 {
-		return errors.New("diagnostic payload has live open holders")
+		return fmt.Errorf("%w: diagnostic payload has live open holders", ErrUnknownWriters)
 	}
 	runtimes, e := probe.Runtimes(ctx)
 	if e != nil {

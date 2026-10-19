@@ -205,3 +205,27 @@ func TestDiagnosticRegisteredOpenHolderBlocksCollection(t *testing.T) {
 		t.Fatalf("released expired payload remains: %v", err)
 	}
 }
+
+func FuzzDiagnosticRetentionPolicy(f *testing.F) {
+	for _, value := range []string{"", "1", "7", "365", "366", "-1", "0", "bad", "99999999999999999999999"} {
+		f.Add(value, int64(0), int64(64))
+	}
+	f.Fuzz(func(t *testing.T, value string, age, size int64) {
+		period, err := ParseRetentionDays(value)
+		if err != nil {
+			return
+		}
+		if period < 24*time.Hour || period > 365*24*time.Hour || period%(24*time.Hour) != 0 {
+			t.Fatal("parser escaped allowed day domain", period)
+		}
+		now := time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)
+		// Keep arithmetic within independently representable clocks; fuzz both sides
+		// of the age boundary and both sides of the size cap without duration wrap.
+		age = age % (400 * 24 * int64(time.Hour))
+		stamp := now.Add(-time.Duration(age))
+		want := age >= 0 && size >= 0 && (time.Duration(age) >= period || size > 64)
+		if got := DecideGeneration(now, stamp, size, 64, period); got != want {
+			t.Fatalf("age=%d size=%d period=%s got=%t want=%t", age, size, period, got, want)
+		}
+	})
+}

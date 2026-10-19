@@ -385,6 +385,9 @@ func definitelyDead(r Registration) bool {
 func directory(path string) string { return path + ".pair-diagnostics" }
 func lockPath(path string) string  { return path + ".pair-diagnostics.lock" }
 func (o Options) checkContext() error {
+	if o.RetentionPeriod != 0 && (o.RetentionPeriod < 24*time.Hour || o.RetentionPeriod > 365*24*time.Hour || o.RetentionPeriod%(24*time.Hour) != 0) {
+		return errors.New("invalid diagnostic retention period")
+	}
 	if o.Context != nil {
 		return o.Context.Err()
 	}

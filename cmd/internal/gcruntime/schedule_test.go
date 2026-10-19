@@ -33,7 +33,7 @@ func scheduleFixture(t *testing.T) (*Service, artifactpath.StorageOwner) {
 	}
 	return s, o
 }
-func TestScheduledBatchBeforeMigrationOnlyInitializesGrace(t *testing.T) {
+func TestScheduledBatchBeforeMigrationInitializesGraceThenDiagnostics(t *testing.T) {
 	s, o := scheduleFixture(t)
 	scheduler := storagegc.Scheduler{Coordinator: s.Collector.Coordinator, Batch: s.Batch, Limit: 1}
 	ran, err := scheduler.RunOnce(context.Background())
@@ -45,6 +45,9 @@ func TestScheduledBatchBeforeMigrationOnlyInitializesGrace(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(o.Directory(), "draft-tag.md")); err != nil {
 		t.Fatal("deleted before migration", err)
+	}
+	if ran, err := scheduler.RunOnce(context.Background()); err != nil || !ran {
+		t.Fatalf("diagnostic phase did not run: %v %v", ran, err)
 	}
 	if ran, err := scheduler.RunOnce(context.Background()); err != nil || ran {
 		t.Fatalf("completed run did not rate limit: %v %v", ran, err)
@@ -112,7 +115,7 @@ func TestStartAfterReadyWorkerIsContextBoundAndJoined(t *testing.T) {
 	}
 }
 
-func TestScheduledDiagnosticsAdvanceAcrossBackupFencedPaths(t *testing.T) {
+func TestScheduledDiagnosticsCollectExpiredAcrossPaths(t *testing.T) {
 	s, _ := scheduleFixture(t)
 	ctx := context.Background()
 	c := s.Collector.Coordinator
@@ -150,8 +153,8 @@ func TestScheduledDiagnosticsAdvanceAcrossBackupFencedPaths(t *testing.T) {
 		t.Fatal("diagnostic pass did not complete")
 	}
 	for _, path := range paths {
-		if body, err := os.ReadFile(path); err != nil || string(body) != "old diagnostic" {
-			t.Fatalf("backup-fenced diagnostic changed %s: %q %v", path, body, err)
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("expired diagnostic remains %s: %v", path, err)
 		}
 	}
 }

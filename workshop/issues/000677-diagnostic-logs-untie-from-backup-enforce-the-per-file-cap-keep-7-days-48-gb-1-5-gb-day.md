@@ -118,3 +118,11 @@ Core targeted GREEN: diagnostic default/expired/oversized/registered-holder test
 Owned synthetic production-proxy measurement (64x128 output bytes per explicitly delimited turn):8turns440982diagnostic bytes(55122.8/turn),8169metadata bytes,2058records;16turns883456bytes(55216.0/turn),15475metadata,4114records; zero drops/pending. N/2N counted envelope passes, raw output8192bytes/turn. This is not a measured mean human turn. Keep existing hashed per-chunk detail and PAIR_WRAP_EVENTS=0 opt-out as approved.
 
 GC/CLI RED: diagnostics-only flag absent, pre-migration Batch ended before diagnostics, invalid policy reached root resolution. Those four targeted configuration/scope tests now GREEN after factoring diagnostic-only methods, removing diagnostic migration checks, preserving session gates, and carrying the effective duration into reports. Broader package verification remains running; no live preview or apply yet.
+
+### Scope and integration verification checkpoint
+
+Broader gcruntime/gccmd/workbenchshortcut tests passed17.850s/3.931s/1.337s after updating old backup-fence assertions. New stateful diagnostic-only test initially exposed that a blocked unadopted legacy path disappeared from apply output; CollectLegacyPage now returns its retained/blocked preview row. This is reporting only, not deletion authority. That integration now passes for8/16owners, with zero session probes/persists, no migration file, authored survivors unchanged. Late holder appearance blocks; release allows exact18-byte collection.
+
+The broad diagnosticlog run completed138.848s, red on nine obsolete backup-preservation expectations and one live-holder error identity assertion. Updated those assertions to age-based expiry while preserving creation/deletion recovery and fresh append controls; live-holder refusal wraps ErrUnknownWriters. The focused failures then passed2.963s. Current broad reruns are pending; no successful-suite claim yet. Constructor tests use NewWithInspection without ambient settings; public New parses the environment before root IO. Added hostile-policy fuzz seeds and effective retention text/JSON.
+
+Early draft PR is authorized by the hub's standing CI-overlap approval; opening before final suite/close, with all ordinary gates still required. No live preview/apply has occurred.

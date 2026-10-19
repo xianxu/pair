@@ -277,7 +277,7 @@ func TestPartialQuarantineRegistersRecovererBeforeProof(t *testing.T) {
 		t.Fatal(err)
 	}
 	calls := 0
-	probe := &fakeInspection{holders: []Registration{live}}
+	probe := &fakeInspection{runtimes: []Runtime{{Process: live, Protocol: true}}}
 	opts.Proof = func(ctx context.Context, p string, registered []Registration) error {
 		calls++
 		persisted, err := load(path)
@@ -310,7 +310,7 @@ func TestPartialQuarantineRegistersRecovererBeforeProof(t *testing.T) {
 	assertPreservedQuarantine(t, path, opts)
 }
 
-func TestQuarantinedGenerationPreservedUntilBackup(t *testing.T) {
+func TestQuarantinedGenerationExpiresByCertifiedAge(t *testing.T) {
 	path, opts := killedPartialForQuarantine(t)
 	w, err := Open(path, opts)
 	if err != nil {
@@ -327,7 +327,7 @@ func TestQuarantinedGenerationPreservedUntilBackup(t *testing.T) {
 	if _, err := Collect(path, opts, 100); err != nil {
 		t.Fatal(err)
 	}
-	if body, err := os.ReadFile(preserved); err != nil || string(body) != "baseta" {
-		t.Fatalf("quarantine evicted before backup: %q %v", body, err)
+	if _, err := os.Stat(preserved); !os.IsNotExist(err) {
+		t.Fatal("expired quarantine remains", err)
 	}
 }
