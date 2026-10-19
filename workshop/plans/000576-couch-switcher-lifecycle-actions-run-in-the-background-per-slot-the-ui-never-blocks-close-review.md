@@ -93,3 +93,90 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-18T17:57:04-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 576 — Couch switcher: lifecycle actions run in the background per slot; the UI never blocks |
+| repo | pair |
+| issue file | workshop/issues/000576-couch-switcher-lifecycle-actions-run-in-the-background-per-slot-the-ui-never-blocks.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 1065d70ca3796af3bb97892eaa99f5c1bcc38e87..9f58ddf535ce1cd4c3ad09a97a30bf1c527adef9 |
+| command | sdlc close --issue 576 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-18T17:57:04-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation satisfies the per-slot background-job contract. BR-1 is addressed with regression tests that fail without the correction. Review found no remaining blocking defects; README and atlas updates cover the new behavior.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Original reservations survive identity materialization through derived aliases shared by admission, row lookup, busy selection and address lookup. Both materialization regressions pass at head; replacing only menu_operations.go with its pre-fix version through a temporary Go overlay makes both fail, including the real Console.Run held-adoption case.
+```
+
+1. **Strengths**
+
+   - Ownership spans execution and adoption without changing the original reservation or attempt. Symmetric overlap and negative identity controls cover the broader rule ([menu_operations.go:81](cmd/internal/couchtty/menu_operations.go:81)).
+   - Navigation reserves both queue admission and worker capacity. Lost hosted proof transfers the same request to lifecycle execution or reports overload ([operation_queue.go:136](cmd/internal/couchtty/operation_queue.go:136)).
+   - Adoption preparation runs outside the input loop; installation releases the Console mutex across registration and revalidates before committing ([console.go:501](cmd/internal/couchtty/console.go:501)).
+   - Real Console tests hold lifecycle and adoption separately, deliver input to another slot and the hub, and verify late completion preserves focus.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Independently passed:
+
+   - Complete `couchtty` package: 61.998s.
+   - Focused operation, identity and navigation tests.
+   - Focused race cohort, repeated three times.
+   - Complete `artifactpath` and `termcmd` packages.
+   - Pinned-range whitespace check.
+
+   The BR-1 overlay negative control failed as expected. Temporary artifacts were removed; repository files remain unchanged. The repository-wide suite and live acceptance were not rerun during this review.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Reuses existing workers, lifecycle gates, scope derivation and publication seams.
+   - **ARCH-PURE — pass:** Admission, identity resolution, result reduction and projection remain deterministic; Console owns IO.
+   - **ARCH-PURPOSE — pass:** Background execution includes adoption, independent navigation, busy refusal and row outcomes.
+   - **ARCH-MOCK — pass:** Controlled dispatchers, stateful FakeRunner and terminal fixtures share production boundaries; existing native conformance coverage remains.
+   - **ARCH-CONSTRAINTS — pass:** Bounded lanes enforce the declared 15+1 admission envelope; saturation and linear projection have deterministic checks.
+   - **ARCH-SECURE — pass:** Aliases derive from accepted identities rather than display names or cwd guesses; diagnostics are bounded and sanitized for rendering.
+   - **ARCH-ORDER — pass:** Attempt matching, tagged phases, landing intent and completion ownership are exercised with controlled interleavings.
+   - **ARCH-FUNERAL — pass:** Missing inactive outcomes are pruned; pending installation reservations and registrations have cleanup paths; shutdown joins workers and settles pending callbacks.
+
+7. **Plan revision recommendations:** None. The recorded revisions match the implementation; live acceptance remains explicitly deferred to the approved restart window.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"4fd4dc87-33e7-497c-8cc7-a2b9742f31bb","repository":"github.com/xianxu/pair","issue_id":"000576","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/c5371658d78435ad","reviewed_head":"9f58ddf535ce1cd4c3ad09a97a30bf1c527adef9","slot":"pair:7","requested_at":"2026-10-19T00:54:39.599527Z"},"phase":"finished","pid":5496,"started_at":"2026-10-19T00:54:39.890404Z","finished_at":"2026-10-19T00:57:03.164571Z","session_id":"01a151a7-4a68-7e63-95f4-712cba8fd13f","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.349403083s
+head: "9f58ddf535ce1cd4c3ad09a97a30bf1c527adef9"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
