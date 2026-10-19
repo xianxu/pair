@@ -17,6 +17,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "6e340b9c", done: "9d5fcc5c"}
 ---
 
 # TestParkLifecycleLive fails locally on main: quit intent does not match observed session owner
