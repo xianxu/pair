@@ -1177,6 +1177,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/diagnosticcmd/run.go",
 	"cmd/internal/sessioninventory/catalog_gc.go",
 	"cmd/internal/storagegc/runtimes.go",
+	"cmd/internal/storagegc/runtime_codec.go",
 	"cmd/internal/storagegc/schedule.go",
 	"cmd/internal/diagnosticlog/append.go",
 	"cmd/internal/diagnosticlog/append_reservation.go",
@@ -1193,6 +1194,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/diagnosticlog/environment_other.go",
 	"cmd/internal/diagnosticlog/legacy.go",
 	"cmd/internal/diagnosticlog/sweep.go",
+	"cmd/internal/diagnosticlog/runtime_registry.go",
 	"cmd/internal/diagnosticlog/registry.go",
 	"cmd/internal/diagnosticlog/writer.go",
 	// #397 couch crash files live in the Couch store, not the Pair artifact namespace.

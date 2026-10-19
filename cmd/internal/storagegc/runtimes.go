@@ -10,9 +10,16 @@ import (
 	"strings"
 )
 
-type runtimeRegistry struct {
-	Version   int                   `json:"version"`
-	Processes []ProcessRegistration `json:"processes"`
+// CouchRuntimeRole identifies a root Couch supervisor lease.
+const CouchRuntimeRole = "couch-runtime"
+
+// DiagnosticProtocolVersion is the supported coordinated diagnostic protocol.
+const DiagnosticProtocolVersion = 1
+
+// RuntimeRegistrationOptions declares protocols implemented by this runtime.
+// Zero preserves any capability already published by the same incarnation.
+type RuntimeRegistrationOptions struct {
+	DiagnosticProtocol int
 }
 
 func (c *Coordinator) runtimesPath() string {
@@ -22,58 +29,55 @@ func (c *Coordinator) runtimesPath() string {
 // ReadRuntimes is a metadata-only snapshot of upgraded root runtimes. Missing
 // metadata is reported as such; reading never creates a registry or reaps it.
 func (c *Coordinator) ReadRuntimes() ([]ProcessRegistration, error) {
-	if err := checkDirectory(filepath.Join(c.Root, ".retention"), false); err != nil {
-		return nil, err
-	}
+	registry, err := c.readRuntimeRegistry()
+	return registry.Processes, err
+}
+
+func (c *Coordinator) readRuntimeRegistry() (runtimeRegistry, error) {
 	var registry runtimeRegistry
-	if err := readStateJSON(c.runtimesPath(), &registry); err != nil {
-		return nil, err
+	if err := checkDirectory(filepath.Join(c.Root, ".retention"), false); err != nil {
+		return registry, err
 	}
-	if registry.Version != 1 || registry.Processes == nil || len(registry.Processes) > 256 {
-		return nil, errors.New("invalid runtime registry schema")
-	}
-	ids := map[string]bool{}
-	identities := map[string]bool{}
-	for _, entry := range registry.Processes {
-		if entry.ID == "" || ids[entry.ID] || entry.Role == "" || len(entry.Role) > 128 || entry.Target != "" || entry.Process.PID <= 0 || !validRuntimeBirth(entry.Process.Birth) {
-			return nil, errors.New("invalid runtime registration")
-		}
-		key := strconv.Itoa(entry.Process.PID) + "/" + entry.Process.Birth + "/" + entry.Role
-		if identities[key] {
-			return nil, errors.New("duplicate runtime registration")
-		}
-		identities[key] = true
-		ids[entry.ID] = true
-	}
-	return registry.Processes, nil
+	err := readStateJSON(c.runtimesPath(), &registry)
+	return registry, err
 }
 
 // RegisterRuntime publishes the actual process incarnation without touching
 // owner activity. Repeated registration reuses the record; only positively dead
 // incarnations are reaped. Unknown entries count toward the fixed bound.
-func (c *Coordinator) RegisterRuntime(ctx context.Context, process ProcessIdentity, role string) error {
+func (c *Coordinator) RegisterRuntime(ctx context.Context, process ProcessIdentity, role string, options ...RuntimeRegistrationOptions) error {
 	if process.PID <= 0 || !validRuntimeBirth(process.Birth) || role == "" || len(role) > 128 {
 		return errors.New("runtime registration needs a strict process identity and role")
+	}
+	diagnosticProtocol := 0
+	for _, option := range options {
+		if option.DiagnosticProtocol != 0 {
+			diagnosticProtocol = option.DiagnosticProtocol
+		}
 	}
 	return c.WithLock(ctx, func(l *Locked) error {
 		if c.Probe == nil || c.Probe.Inspect(process) != ProcessAlive {
 			return errors.New("cannot verify registering runtime")
 		}
-		entries, err := c.ReadRuntimes()
+		registry, err := c.readRuntimeRegistry()
 		if errors.Is(err, os.ErrNotExist) {
-			entries = []ProcessRegistration{}
+			registry = runtimeRegistry{Version: 1, Processes: []ProcessRegistration{}}
 		} else if err != nil {
 			return err
 		}
-		kept := make([]ProcessRegistration, 0, len(entries)+1)
+		kept := make([]ProcessRegistration, 0, len(registry.Processes)+1)
 		found, changed := false, false
-		for _, entry := range entries {
+		for _, entry := range registry.Processes {
 			if c.Probe.Inspect(entry.Process) == ProcessDead {
 				changed = true
 				continue
 			}
 			if entry.Process == process && entry.Role == role {
 				found = true
+				if diagnosticProtocol != 0 && diagnosticProtocol != entry.DiagnosticProtocol {
+					entry.DiagnosticProtocol = diagnosticProtocol
+					changed = true
+				}
 			}
 			kept = append(kept, entry)
 		}
@@ -85,13 +89,14 @@ func (c *Coordinator) RegisterRuntime(ctx context.Context, process ProcessIdenti
 			if err != nil {
 				return err
 			}
-			kept = append(kept, ProcessRegistration{ID: id, Process: process, Role: role})
+			kept = append(kept, ProcessRegistration{ID: id, Process: process, Role: role, DiagnosticProtocol: diagnosticProtocol})
 			changed = true
 		}
 		if !changed {
 			return nil
 		}
-		return l.atomicJSON(c.runtimesPath(), runtimeRegistry{Version: 1, Processes: kept})
+		registry.Processes = kept
+		return l.atomicJSON(c.runtimesPath(), registry)
 	})
 }
 
