@@ -1,13 +1,21 @@
 ---
 id: 000686
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'cefe35e6e4d94e94259eb5563944d81fb78c85fa' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'c37fc5136d00c10e98d5637ea375219f4a0e5b4d' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-18T18:47:56-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:7
+    worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
+    repository: github.com/xianxu/pair
 ---
 
 # session-watch busy-loops on freshly started Codex threads (45-80% CPU each)
@@ -34,3 +42,10 @@ session-watch must idle at about 0% CPU while it waits for a fresh thread's tran
 ## Log
 
 ### 2026-10-18
+
+
+### 2026-10-18 — read-only live diagnosis
+
+Claimed/start-plan from pair:7. start-plan refreshed the checkout's older ariadne through its own weave catch-up, then required a repeated start-plan; no installer or machine-setting change was chosen. Both live watcher identities matched the dispatched PIDs/commands and remained untouched. Three-second samples at10ms are retained locally at /tmp/pair686-watch-70442.sample.txt and /tmp/pair686-watch-84747.sample.txt. Both show Run -> incrementalWatcherInventorySnapshot -> ValidateTargetWork -> ValidateCodexDelta -> JSON decoding, with metadata enumeration/catalog reconciliation and lifecycle-history sorting also sampled. CPU snapshots: pair watcher84.1% then72.3%, parley watcher63.9% then81.1%; cumulative CPU grew from14:09.98 to15:51.82 and13:58.08 to15:37.65 over135seconds. Their Pair ledgers already contain correlation bindings for launch ordinal2, so the initial unbound-wait hypothesis is false for these processes.
+
+Metadata-only native-tree census:3,549 JSONL files,103 directories,6,467,935,788 bytes. The two scope catalogs are26,583/68,270 bytes. No native transcript body or credential file was read by this diagnosis. The hot production path is bound lifecycle-follow: RunCLI enables FollowLifecycle, default Poll=100ms, and the bound branch still recreates incremental inventory, walks the whole store, selects all post-launch candidates, validates/advances tracked candidates and republishes catalog before sleeping Poll. It should instead follow only its bound authorized transcript. Adjacent work limits must account for ObserveStableArtifact chasing append growth and lifecycle projection copying/sorting retained old events. Existing ObserveNamedArtifacts, fake operation counters and guarded title-transcript projection are reuse candidates; no production changes or final design yet.
