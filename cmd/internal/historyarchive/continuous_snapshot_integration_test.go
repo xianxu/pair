@@ -131,7 +131,7 @@ func TestContinuousSnapshotPublicationFailuresDoNotStarveLaterDatabases(t *testi
 					t.Fatal(err)
 				}
 			}
-			now := time.Date(2026, 10, 19, 0, 0, 0, 0, time.UTC)
+			now := time.Date(2026, 10, 19, 0, 0, 0, 0, time.FixedZone("fixture-west", -7*60*60))
 			cfg := ContinuousConfig{Version: Version, Recipients: []string{strings.Repeat("A", 40)}, Sink: filepath.Join(base, "sink"), Catalog: filepath.Join(base, "catalog", "catalog.jsonl")}
 			first, second := errors.New("first publication failed"), errors.New("second publication failed")
 			sink := &snapshotPublicationSink{Sink: LocalSink{Root: cfg.Sink}, failures: []error{first, second}}
@@ -158,6 +158,21 @@ func TestContinuousSnapshotPublicationFailuresDoNotStarveLaterDatabases(t *testi
 			}
 			if len(report.Databases) != 3 {
 				t.Fatalf("missing database summaries: %+v", report.Databases)
+			}
+			// Actual mixed pass evidence must survive the command boundary on
+			// non-UTC hosts: healthy rows must not hide never-verified failures.
+			raw, err := EncodeContinuousReport(ContinuousCommandReport{Version: ContinuousReportVersion, Outcome: ContinuousFailed, MaxDatabaseAge: DefaultDatabaseMaxAge, Report: report})
+			if err != nil {
+				t.Fatalf("non-UTC mixed pass cannot be reported: %v", err)
+			}
+			decoded, err := DecodeContinuousReport(raw)
+			if err != nil || len(decoded.Report.Databases) != 3 {
+				t.Fatalf("mixed report lost: %+v %v", decoded, err)
+			}
+			for i, row := range decoded.Report.Databases {
+				if row.NeedsAttention(now, DefaultDatabaseMaxAge) != (i < 2) {
+					t.Fatalf("mixed pass warning changed: %+v", row)
+				}
 			}
 			for i, row := range report.Databases {
 				if row.CheckedAt.IsZero() {
@@ -195,7 +210,22 @@ func TestContinuousSnapshotCountedNAnd2NAndFreshness(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			now := time.Date(2026, 10, 19, 0, 0, 0, 0, time.UTC)
+			offset := -7 * 60 * 60
+			if n == 6 {
+				offset = 5*60*60 + 30*60
+			}
+			now := time.Date(2026, 10, 19, 0, 0, 0, 0, time.FixedZone("fixture-offset", offset))
+			qualify := func(report ContinuousReport) {
+				t.Helper()
+				raw, err := EncodeContinuousReport(ContinuousCommandReport{Version: ContinuousReportVersion, Outcome: ContinuousComplete, MaxDatabaseAge: DefaultDatabaseMaxAge, Report: report})
+				if err != nil {
+					t.Fatalf("actual pass evidence cannot be encoded: %v", err)
+				}
+				decoded, err := DecodeContinuousReport(raw)
+				if err != nil || len(decoded.Report.Databases) != n {
+					t.Fatalf("actual pass evidence lost: %+v %v", decoded, err)
+				}
+			}
 			cfg := ContinuousConfig{Version: Version, Recipients: []string{strings.Repeat("A", 40)}, Sink: filepath.Join(base, "sink"), Catalog: filepath.Join(base, "catalog", "catalog.jsonl")}
 			fake := &fakeSQLiteRunner{}
 			pass := ContinuousPass{Archiver: Archiver{Codec: &archiveTestCodec{}, Now: func() time.Time { return now }}, Config: cfg, Store: filepath.Join(base, "store"), SnapshotRoot: filepath.Join(base, "staging"), Home: home, Host: "fixture", Env: map[string]string{}, Kinds: []string{"codex-database"}, Now: func() time.Time { return now }, Snapshotter: SQLiteSnapshotter{Scratch: filepath.Join(base, "scratch"), Runner: fake}}
@@ -208,6 +238,7 @@ func TestContinuousSnapshotCountedNAnd2NAndFreshness(t *testing.T) {
 					t.Fatalf("unverified archive projected: %+v", row)
 				}
 			}
+			qualify(first)
 			verified := now
 			now = now.Add(72 * time.Hour)
 			fake.generation, fake.reads, fake.validations = 0, 0, 0
@@ -220,12 +251,14 @@ func TestContinuousSnapshotCountedNAnd2NAndFreshness(t *testing.T) {
 					t.Fatalf("unchanged confused with stale: %+v", row)
 				}
 			}
+			qualify(second)
 			fake.fail = ErrSQLiteDeadline
 			fake.reads, fake.validations = 0, 0
 			deferred, err := pass.Run(context.Background())
 			if err != nil || deferred.Archived["codex-database"] != 0 || fake.reads != n || fake.validations != 0 {
 				t.Fatalf("deferred pass retried or archived staging: %+v fake=%+v err=%v", deferred, fake, err)
 			}
+			qualify(deferred)
 			for _, row := range deferred.Databases {
 				if row.Status != DatabaseDeferred || !row.LastVerified.Equal(verified) || !row.CheckedAt.IsZero() || !row.NeedsAttention(now, DefaultDatabaseMaxAge) {
 					t.Fatalf("unobserved source claimed fresh: %+v", row)

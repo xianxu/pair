@@ -308,7 +308,7 @@ func (p ContinuousPass) wants(kind string) bool {
 
 func (p ContinuousPass) now() time.Time {
 	if p.Now != nil {
-		return p.Now()
+		return p.Now().UTC()
 	}
-	return time.Now()
+	return time.Now().UTC()
 }

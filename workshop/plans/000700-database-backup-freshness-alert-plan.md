@@ -136,3 +136,5 @@ Counted N/2N integration checks assert one projection/admission attempt per row,
 - 2026-10-19, hub 053b4ee5: primary-hub resolution and unavailable-owner fallback approved. Keep `messageService.archiveWarningOwner` as one small owner-resolution function so pair#694 can redirect machine-wide backup stewardship without changing freshness/admission/delivery logic. All output attempts consume the daily reservation as above; no broadcast, inferred owner or reconnect retry.
 
 - 2026-10-19, plan-quality round 2: PQ-1 addressed. PQ-2 accepted the named strategies but required removal of the duplicated active case inventories. Tasks 1–3 now reference the function-level strategy table instead; this is a presentation correction, not another mechanism/design change.
+
+- 2026-10-19, close BR-1: normalize runtime observation timestamps at ContinuousPass.now and require producer-to-codec qualification with non-UTC clocks for mixed healthy/stale and counted archived/unchanged/deferred passes. The original UTC-only fixtures missed this production path; approved policy and wire validation remain unchanged.
