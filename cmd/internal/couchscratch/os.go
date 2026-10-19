@@ -67,3 +67,36 @@ func mkdirDir(fd int, name string) (int, error) {
 	}
 	return n, err
 }
+
+// sharedTmpAllowed accepts an owner-controlled shared container without changing
+// its existing read/execute permissions. Only its owner may write to it.
+func sharedTmpAllowed(st unix.Stat_t) bool {
+	return st.Mode&unix.S_IFMT == unix.S_IFDIR && int(st.Uid) == os.Getuid() && st.Mode&0700 == 0700 && st.Mode&0022 == 0 && st.Mode&07000 == 0
+}
+
+// openSharedTmp opens the shared tmp container, optionally creating it privately.
+// Existing containers retain their inode and permissions; symlinks are refused.
+func openSharedTmp(fd int, create bool, inspections *int) (int, error) {
+	if create {
+		if err := unix.Mkdirat(fd, "tmp", 0700); err != nil && err != unix.EEXIST {
+			return -1, err
+		}
+	}
+	n, err := openDir(fd, "tmp")
+	if err != nil {
+		return -1, err
+	}
+	var st unix.Stat_t
+	if inspections != nil {
+		*inspections++
+	}
+	err = unix.Fstat(n, &st)
+	if err == nil && !sharedTmpAllowed(st) {
+		err = fmt.Errorf("unsafe shared scratch tmp container")
+	}
+	if err != nil {
+		unix.Close(n)
+		return -1, err
+	}
+	return n, nil
+}

@@ -62,8 +62,18 @@ func TestPrepareRejectsSymlinkInteriors(t *testing.T) {
 	if env := m.PrepareSlot(Slot{Repo: "pair", Identity: "x", Number: 0}); env != nil {
 		t.Fatal(env)
 	}
+	if _, err := m.Sweep(context.Background()); err == nil {
+		t.Fatal("sweep accepted symlink shared tmp")
+	}
 	entries, _ := os.ReadDir(outside)
 	if len(entries) != 0 {
 		t.Fatal("escaped root")
+	}
+}
+
+func TestSharedTmpRejectsForeignOwner(t *testing.T) {
+	st := unix.Stat_t{Mode: unix.S_IFDIR | 0755, Uid: uint32(os.Getuid() + 1)}
+	if sharedTmpAllowed(st) {
+		t.Fatal("foreign-owned container accepted")
 	}
 }

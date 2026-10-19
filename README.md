@@ -426,6 +426,15 @@ is separate from `pair` on purpose: pair is what you sit inside, so a supervisor
 bug must not break your ability to fix it, and launching pair directly always
 still works. See [atlas/couch.md](atlas/couch.md).
 
+When `/Volumes/TestScratch` is mounted with at least 2 GiB free, new Couch slots
+use private RAM directories for TMPDIR, GOTMPDIR and CLAUDE_CODE_TMPDIR. Existing
+panes need relaunch; unavailable scratch keeps inherited temp settings. Ordinary
+temp entries untouched for 24 hours may be removed at startup/hourly; special
+files and trees containing them are kept. Native socket discovery stays fixed.
+Zellij metadata routing waits until no native server is running, normally the
+next machine reboot, and retains the original directory as `session_info.disk`.
+See [Couch scratch](atlas/couch-scratch.md) for the lifecycle and fallback rules.
+
 Opening Couch launches or attaches each requested hub, including the cwd hub
 when no directory is given. A hub listed live uses Continue; otherwise its
 normal startup resumes a proven conversation or starts fresh. Other slots are

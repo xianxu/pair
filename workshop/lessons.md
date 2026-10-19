@@ -2370,3 +2370,6 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - A capped subprocess writer must not embed an io.ReaderFrom implementation that bypasses Write: io.Copy uses promoted ReadFrom. Test the actual exec boundary with oversized output, including a valid JSON prefix plus padding; overflow must refuse the whole report, not grant authority to the retained prefix. (#700)
 
 - Qualify runtime evidence through its real encoder using non-UTC clocks, including a mixed healthy/stale pass. A strict UTC codec plus UTC-only fixtures can hide a production local-time mismatch that discards every database result. Normalize at the observation clock owner. (#700 BR-1)
+
+- #708: A current ancestry/FD/environment snapshot cannot prove that a detached job will never reuse a temp path. Use an explicit lifetime owner or a documented conventional age-cleaner contract; do not turn observation into deletion authority.
+- #708: Separate a shared volume/container's permissions from private child permissions. Qualify the real parent with a read-only stat, then fixture its observed mode (TestScratch/tmp is 0755); requiring private 0700 on an existing shared parent silently defeats admission. Keep the parent unchanged and enforce 0700 on owned slot/bookkeeping directories.

@@ -369,3 +369,13 @@ mutation is guarded best-effort: discovered fresh/special/replaced nodes stop
 removal, but earlier old siblings can already be gone, and a final unlink cannot
 be atomically conditioned on an inode using portable filesystem primitives.
 No lifetime or atomic whole-tree retention guarantee is claimed.
+
+#### Shared-container qualification
+
+The read-only mounted fixture is Root0775/tmp0755. Preserve existing owner-controlled
+shared tmp mode/inode; only the slot and manager bookkeeping directories are private
+0700. `openSharedTmp` accepts that shared container with owner-only write authority,
+refusing symlink, foreign-owner or group/world-writable substitutions in preparation
+and sweep. Owner-index locking is nonblocking so optional admission falls back on
+contention. Regression fixtures use the observed mode and a held lock; no live path
+is modified for qualification.

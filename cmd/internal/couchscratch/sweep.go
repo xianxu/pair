@@ -189,7 +189,7 @@ func (m *Manager) Sweep(ctx context.Context) (result Result, sweepErr error) {
 	if err != nil {
 		return result, err
 	}
-	tmp, err := openDir(fd, "tmp")
+	tmp, err := openSharedTmp(fd, false, &result.Inspections)
 	if err != nil {
 		return result, err
 	}

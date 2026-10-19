@@ -122,7 +122,7 @@ func prepare(root string, s Slot) ([]string, error) {
 	if lockStat.Mode&unix.S_IFMT != unix.S_IFREG || lockStat.Mode&07777 != 0600 || int(lockStat.Uid) != os.Getuid() {
 		return nil, fmt.Errorf("unsafe owner lock")
 	}
-	if err = unix.Flock(lock, unix.LOCK_EX); err != nil {
+	if err = unix.Flock(lock, unix.LOCK_EX|unix.LOCK_NB); err != nil {
 		return nil, err
 	}
 	defer unix.Flock(lock, unix.LOCK_UN)
@@ -151,7 +151,7 @@ func prepare(root string, s Slot) ([]string, error) {
 	} else {
 		return nil, err
 	}
-	tmp, err := mkdirDir(fd, "tmp")
+	tmp, err := openSharedTmp(fd, true, nil)
 	if err != nil {
 		return nil, err
 	}
