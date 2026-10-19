@@ -37,7 +37,15 @@ session-watch must idle at about 0% CPU while it waits for a fresh thread's tran
 
 ## Plan
 
-- [ ]
+- [ ] Follow [the measured bound-watcher plan](../plans/000686-bound-watcher-plan.md): add counted red controls, reuse guarded transcript following, isolate bound work and back off idle polls.
+- [ ] Verify shared title/watcher consumers and obtain the hub-coordinated live CPU check.
+- [ ] Run recorded suite, close review and gated landing; report the merge.
+
+## Revisions
+
+### 2026-10-18 — measured bound-follow cause; design awaiting approval
+
+Both live PIDs already have correlation bindings. The defect is bound lifecycle follow continuing discovery/validation every100ms, not an unbound wait. Proposed scope isolates that follow path, including ledger/cache/history work; unbound cold discovery remains unchanged and explicitly O(N), not falsely bounded. Reuse the title projection’s guarded tail with256KiB payload budget per pass and up-to5s idle backoff. Cold bootstrap cost,32MiB maximum complete-record decode, event latency and the shared-reader test surface are explicit in the durable plan. The hub must approve these boundaries before code.
 
 ## Log
 
