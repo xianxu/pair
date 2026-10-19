@@ -38,11 +38,12 @@ A hub is a second kind of Couch address, `team` (e.g. `devinfra`, `echo`), backe
 Durable plan: `workshop/plans/000694-couch-teams-hubs-as-team-folders-a-second-address-kind-beside-slots-through-the-shared-lifecycle-plan.md`.
 
 - [ ] M1 — The team model (pure): TeamIdentity, hubs keyed by name, `.hub` directive lines preserved, one namespace for teams and families
-- [ ] M2 — Teams run: startup with team folders, team registration and addressing, switcher sections, session-sync owner, actors JSON (parley attention scope filed)
-- [ ] M3 — Team lifecycle on #684 M1–M2: lease, transcript binding and failure records for team agents; restart resumes both teams (live check)
+- [ ] M2 — Teams run: startup with team folders, team registration and addressing, switcher sections and the bar's team display (capitals, team/repo merge), session-sync owner, actors JSON (parley attention scope filed)
+- [ ] M3 — Team lifecycle on #695 (split from #684): lease, transcript binding and failure records for team agents; restart resumes both teams (live check)
 
 ## Log
 
 ### 2026-10-18
 
 - Claimed and planned on the hub's dispatch (delivery 8d0bb794), from the introduce-team umbrella design §1–3. Measured: no `.hub` exists on this machine; `sdlc workspace --json` from `ops/teams/devinfra` reports `ops:0`, so without `COUCH_TEAM` every team agent in a checkout would register as the same slot (guarded by `TestTeamWrapperNeverRegistersAsCheckoutSlot`). Today's multi-hub startup (`start-hub`) and ownership rules are reused, keyed by name instead of root (ARCH-DRY). Open to the hub: #684 landing at its M2 close so M3 can start; the `.hub` directive-line reading of design §2.
+- Operator display input (hub delivery d7c631c0) folded in as plan Revision 1: teams in capitals with no `:N`, a pure bar-merge rule for an adjacent same-named team and repo, and teams allowed to share a repo's name (bare name addresses the team). #684's M1–M2 split into #695 (delivery 51ef8069); M3 now depends on #695.
