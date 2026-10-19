@@ -1,6 +1,6 @@
 ---
 id: 000693
-status: codecomplete
+status: done
 created: 2026-10-18
 updated: 2026-10-19
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: fd144e163760f1f054610c91108cb4f6d60c6ea3
         evidence_commit: 9035148720df1821115fceebc36c113be781bb46
+        landed_commit: e0c010cf42d8d25b506f347e1183102e5999fa3d
 ---
 
 # flake: lifecycle primary-slot notice can race verified workspace publication
