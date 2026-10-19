@@ -214,6 +214,10 @@ finishes the rest. M3 proves it with the drill.
 - Paths 4, 11, 14 and 15 rewired or deleted.
 - `ClassifyThread` returns one of three outcomes plus an anomaly count.
 - The tab bar shows "2 actors" instead of raw names (D20). `TestTwoLiveActorsNeverContinue`.
+- Row notes taken over from pair#695 M1 (its BR-4 deferral): a resume that used the stored transcript binding
+  because the tag's ledger was unreadable or missing says so on the row; a binding stored as `legacy-ledger`
+  shows that source in the row detail. Both derive at projection time from the record and one ledger stat.
+  `TestRowNotesStoredBindingWhenLedgerUnreadable`, `TestRowDetailShowsLegacyLedgerSource`.
 
 ### M3 — lifecycle drill (detailed when M3 starts)
 
@@ -307,3 +311,5 @@ finishes the rest. M3 proves it with the drill.
   (Teardown, under #695) refuses on it and never retries. Under the D21 guard, a live agent is still Continue, so an
   omitted-but-live session with a live agent attaches as Continue with a note. Test (M1):
   `TestObserveListingOmissionIsUnknownNotAbsent`.
+- 2026-10-19 — received from pair#695 M1 review (BR-4): the transcript-binding row note and the `legacy-ledger` row
+  detail are #684 M2 items (row notes are this issue's surface, beside D21's disagreement note). Added to M2's tasks.
