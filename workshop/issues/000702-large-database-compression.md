@@ -44,6 +44,10 @@ Measure size, wall time and CPU for large database snapshot compression at level
 
 - Filed unclaimed at hub request e253ca94-31a2-4866-b377-f8f2aa5c48c5. Independent follow-up; it must not block #688. That item publishes its already validated stage at low priority under an approved longer bound, without another native source read/pin.
 
+- First exclusive measurement, zstd 1.5.7 on 12 CPUs, warmed staged 1,999,003,648-byte stream: -3 -T0 wall 1.074790s, user 3.90s/sys 0.60s, 286,271,640 bytes, peak RSS 149,291,008; -9 -T0 wall 2.206355s, user 16.16s/sys 0.94s, 205,249,063 bytes, peak RSS 413,925,376. Both decompression SHA256 results matched the stage. Load1 around 7.4, both machine-test tokens held, nice 10. Evidence: /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair702-bench.jy01Ph/results.json and measure.py. The outer bound interrupted -19 before a valid result; its partial compressed output was removed, not measured, and the process group/tokens released. No native database was opened or acquired.
+
 ## Revisions
+
+- 2026-10-19, hub 6c554939-71f7-4028-a1f0-6f5cc948a40d: the first conservative 20-minute clock included 18m55s queue time, so it stopped during -19 after approximately 65s held-token work. Resume only -19 -T0 and the small-text comparisons, with an 18-minute bound starting at acquisition; queue waiting holds no resources and does not count. Keep completed -3/-9 measurements, verify the same staged-input hash, and release immediately after cleanup.
 
 - 2026-10-19, hub 69176f28-7984-488e-a48d-754e02e0e524: both machine-test tokens approved for measurement only, capped at 20 minutes including cleanup and released immediately. Measure before proposing the policy. Compression level is an existing value, not a schema-shape change: if a lower level wins, readers should accept supported zstd levels while writers label the actual level honestly; no speculative codec/schema expansion.
