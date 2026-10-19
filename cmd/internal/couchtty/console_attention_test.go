@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/textwidth"
 )
 
 const ctrlAltA = "\x1b[97;7u"
@@ -188,4 +189,32 @@ func (f *consoleFixture) statusModel() StatusModel {
 	f.con.mu.Lock()
 	defer f.con.mu.Unlock()
 	return f.con.statusModelLocked()
+}
+
+// #673 TL decision 5: the badge sits at the right end of the status row, so
+// it never covers slot content; the rest of the row clips short of it; it
+// takes the blocked color while a prompt item is open; and it is absent with
+// an empty list or a row too narrow to hold it.
+func TestAttentionBadgeRendersAtTheStatusRowRightEnd(t *testing.T) {
+	notice := strings.Repeat("n", 100)
+	row := RenderStatusRow(40, StatusModel{Notice: notice, Attention: 3})
+	plain := rowPlain(row)
+	if textwidth.Width(plain) != 40 || !strings.HasSuffix(plain, " "+AttentionGlyph+"3") {
+		t.Fatalf("badge not at the right end of a full row: %q", plain)
+	}
+	if row.Attention.End != 40 || row.Attention.Start != 40-textwidth.Width(AttentionGlyph+"3") {
+		t.Fatalf("badge span = %+v", row.Attention)
+	}
+	if !strings.Contains(row.Body, attentionSGR+AttentionGlyph+"3") {
+		t.Fatalf("badge without a prompt item is not the attention color: %q", row.Body)
+	}
+	if blocked := RenderStatusRow(40, StatusModel{Attention: 3, AttentionPrompt: true}); !strings.Contains(blocked.Body, blockedSGR+AttentionGlyph+"3") {
+		t.Fatalf("badge with a prompt item is not the blocked color: %q", blocked.Body)
+	}
+	if empty := RenderStatusRow(40, StatusModel{Notice: "x"}); strings.Contains(empty.Body, AttentionGlyph) || empty.Attention != (ColumnSpan{}) {
+		t.Fatalf("an empty list drew a badge: %q", empty.Body)
+	}
+	if narrow := RenderStatusRow(3, StatusModel{Attention: 12}); strings.Contains(narrow.Body, AttentionGlyph) {
+		t.Fatalf("a row too narrow for the badge drew it: %q", narrow.Body)
+	}
 }

@@ -45,11 +45,11 @@ Couch keeps an attention list of things waiting on the operator, shown as a pane
 
 Durable plan: [workshop/plans/000673-couch-attention-list-a-top-right-panel-of-what-s-waiting-on-the-operator-each-item-jumps-to-its-slot-plan.md](../plans/000673-couch-attention-list-a-top-right-panel-of-what-s-waiting-on-the-operator-each-item-jumps-to-its-slot-plan.md), with the state table and five decisions for the TL. Single pass, one close.
 
-- [ ] Reducer and state-table tests
-- [ ] Store
-- [ ] Sources (notify, blocked-set diff, wait episode start/end)
-- [ ] Console panel, badge, key, mouse, jump
-- [ ] Atlas, help, inventory, suite, close
+- [x] Reducer and state-table tests
+- [x] Store
+- [x] Sources (notify, blocked-set diff, wait episode start/end)
+- [x] Console panel, badge, key, mouse, jump
+- [x] Atlas, help, inventory, suite, close
 - [ ] Operator live check at the next restart
 
 ## Log
@@ -62,3 +62,4 @@ Durable plan: [workshop/plans/000673-couch-attention-list-a-top-right-panel-of-w
   - README.
 
   Passing: `TestAttention*` in couchcore and couchtty (count=3) and couchcmd (with the README fix). Remaining: a wait-watcher question-set unit test; a status-row badge render test; atlas (`couch.md`, `architecture.md:813` durability, #352 superseded); the full couchtty package run (an earlier pattern run idled about 6 minutes, to be rechecked); the recorded suite; close.
+- 2026-10-18, resumed after #674 and #664 (merged origin/main, clean). Added `TestWaitNoticeQuestionSetStartsAndEndsWithTheEpisode` (a question episode publishes the slot, a quiet tick republishes nothing, a turn ends it; red when the empty set is suppressed) and `TestAttentionBadgeRendersAtTheStatusRowRightEnd` (right end of a full row with the rest clipped, span, attention vs blocked color, absent when empty or too narrow). The artifact-reference guard required the four attention sources in the inventory (classified with the #587 namespace files). Atlas: `couch.md` attention list, `architecture.md` durability note (the bell ledger stays ephemeral), index. Full `go test ./cmd/internal/couchtty` green in 60s; the earlier idle/crash run predates the lock-order fix.
