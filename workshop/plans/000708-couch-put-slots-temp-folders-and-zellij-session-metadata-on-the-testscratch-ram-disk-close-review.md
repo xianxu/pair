@@ -275,3 +275,90 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-19T12:32:39-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 708 — couch: put slots' temp folders and Zellij session metadata on the TestScratch RAM disk |
+| repo | pair |
+| issue file | workshop/issues/000708-couch-put-slots-temp-folders-and-zellij-session-metadata-on-the-testscratch-ram-disk.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 8a0cf2d5c605c8f5fad5abd169f04a835749a42c..d7593dc70df0e65f516ef7baa1b45e4b1c632514 |
+| command | sdlc close --issue 708 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-19T12:32:39-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+BR-3 is addressed: the real socket/FIFO retention test now passes with a deliberately long `TMPDIR`. Restoring inherited-temp allocation in a disposable copy makes that regression fail at socket binding with `invalid argument`. The interdiff introduces no blocking defects, scope changes, or new documentation surface.
+
+```findings
+dispose:
+  - id: BR-3
+    disposition: addressed
+    note: |
+      os_test.go:26-32 sets a long TMPDIR and allocates an owned short root with a justified lint exception. The complete scratch race suite passes. Replacing the short root with inherited-temp allocation makes TestSpecialTopLevelNodesRetained fail at socket binding; the disposable copy was removed.
+  - id: BR-1
+    disposition: addressed
+    note: |
+      PrepareResolvedSlot retains TryLock before probing or resolving identity. The paused-sweep and unavailable-probe regressions pass in the complete scratch race suite.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Production startup and maintenance callsites remain intact. Constructor RAM/fallback, startup-before-failure, and maintenance cancellation/join regressions pass.
+```
+
+1. **Strengths**
+
+   - The fixture exercises real native special files and reaches its retention assertions under long `TMPDIR` (`cmd/internal/couchscratch/os_test.go:26-61`).
+   - Slot naming delegates to `couchcore.EnvName`, preserving the exact existing basename contract (`cmd/internal/couchscratch/policy.go:35`).
+   - Both the slot-state coverage audit and repository lint catalog pass.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Complete `couchscratch` race suite passed.
+   - Targeted production composition, startup, maintenance, slot-state audit, and lint tests passed.
+   - The inherited-root mutation failed as expected; its disposable copy was removed.
+   - `git diff --check` passed. No full-repository suite success is claimed.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Reuses the existing slot basename authority and removes the redundant formatter.
+   - **ARCH-PURE — pass:** Naming remains deterministic; native filesystem operations remain in integration tests.
+   - **ARCH-PURPOSE — pass:** The correction restores the special-file retention test under the environmental condition that previously prevented it from running.
+   - **ARCH-EVOLVE — pass:** No persisted format or basename meaning changes.
+
+   No new user-facing or architectural surface requires README or atlas changes.
+
+7. **Plan revision recommendations:** None. Spec, Done-when, and the implementation plan remain unchanged.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"10cdbc8a-ec15-4385-9b0c-2357c0d9a543","repository":"github.com/xianxu/pair","issue_id":"000708","recipe":"fix-review","round":4,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/bc708be701c3ee3b","reviewed_head":"d7593dc70df0e65f516ef7baa1b45e4b1c632514","slot":"pair:3","requested_at":"2026-10-19T19:31:30.632406Z"},"phase":"finished","pid":19531,"started_at":"2026-10-19T19:31:30.929207Z","finished_at":"2026-10-19T19:32:38.515889Z","session_id":"01a155a5-cbcd-7e90-b86a-fb55fd5875fc","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.322937625s
+head: "d7593dc70df0e65f516ef7baa1b45e4b1c632514"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

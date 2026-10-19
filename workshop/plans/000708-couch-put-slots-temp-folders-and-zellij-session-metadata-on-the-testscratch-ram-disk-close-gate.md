@@ -590,6 +590,214 @@ rounds:
       recipe: fix-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 10cdbc8a-ec15-4385-9b0c-2357c0d9a543
+            repository: github.com/xianxu/pair
+            issue_id: "000708"
+            recipe: fix-review
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/bc708be701c3ee3b
+            reviewed_head: d7593dc70df0e65f516ef7baa1b45e4b1c632514
+            slot: pair:3
+            requested_at: "2026-10-19T19:31:30.632406Z"
+          phase: finished
+          pid: 19531
+          started_at: "2026-10-19T19:31:30.929207Z"
+          finished_at: "2026-10-19T19:32:38.515889Z"
+          session_id: 01a155a5-cbcd-7e90-b86a-fb55fd5875fc
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: d7593dc70df0e65f516ef7baa1b45e4b1c632514
+        tracker_head: 4bdb1754ff58d58a8af3b6a484c2883f81c1623f
+        branch_point: bcf871e37dc37071b4fe7ad102de486dd88eab4a
+        since: "2026-10-19T10:47:24-07:00"
+        until: "2026-10-19T12:30:21-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-19T10:47:24-07:00"
+              end: "2026-10-19T12:30:21-07:00"
+              began: "2026-10-19T10:47:24-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot3/pair
+        sources:
+            - harness: codex
+              id: 01a146bc-fcee-7450-93c9-096b6d3071a3
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: 1e3ed5ca16eecfe07fc38a245565c113b0442cee8800113d21318a93580a7862
+              started: "2026-10-16T22:02:33.467Z"
+              spawned: false
+              bytes: 108746499
+              windows:
+                - start: "2026-10-19T10:47:24-07:00"
+                  end: "2026-10-19T12:30:21-07:00"
+            - harness: codex
+              id: 01a15546-f013-7722-a7b6-8dce0fd029f2
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a146bc-fcee-7450-93c9-096b6d3071a3
+              digest: 831185f149fb5c56c025f1699a5e629d8a039d5089270d37abf3291ff9430fe6
+              started: "2026-10-19T17:47:54.856Z"
+              spawned: true
+              bytes: 998626
+              windows:
+                - start: "2026-10-19T17:47:54.856Z"
+                  end: "2026-10-19T12:30:21-07:00"
+            - harness: codex
+              id: 01a15547-119d-7d32-838f-defa1c647dea
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a146bc-fcee-7450-93c9-096b6d3071a3
+              digest: 3040b05bcbdcff69739cb933eedb9e021c2dccff6d7d3234ff61f365ed0c8fa7
+              started: "2026-10-19T17:48:03.441Z"
+              spawned: true
+              bytes: 931489
+              windows:
+                - start: "2026-10-19T17:48:03.441Z"
+                  end: "2026-10-19T12:30:21-07:00"
+            - harness: codex
+              id: 01a15550-a959-73f1-bee6-53bae1611707
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: 5e8edd93416c1c97df31393711397b2ac9f49665465f19d27446d88a9694a127
+              started: "2026-10-19T17:58:32.779Z"
+              spawned: false
+              bytes: 750000
+              windows:
+                - start: "2026-10-19T17:58:32.779Z"
+                  end: "2026-10-19T12:30:21-07:00"
+            - harness: codex
+              id: 01a15553-ef35-7412-8cd8-123b550f5afb
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: 8579299622c3ccdc9793ed2ecc4ba63df5fff95c3d0b12923716025748fa2e1f
+              started: "2026-10-19T18:02:07.323Z"
+              spawned: false
+              bytes: 534632
+              windows:
+                - start: "2026-10-19T18:02:07.323Z"
+                  end: "2026-10-19T12:30:21-07:00"
+            - harness: codex
+              id: 01a15559-1793-7521-9f6e-9e1592a40eaa
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: d249b9b30c221684b869a75e6e16eb0defa553224c6bd420330eccc37c8824ec
+              started: "2026-10-19T18:07:45.5Z"
+              spawned: false
+              bytes: 517964
+              windows:
+                - start: "2026-10-19T18:07:45.5Z"
+                  end: "2026-10-19T12:30:21-07:00"
+            - harness: codex
+              id: 01a1555a-8937-7231-8114-6a5511cfc9b7
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: 5b68c1d5729e3a2f0d79e150ef1d001451f13fbb014741026ce84c6996781c15
+              started: "2026-10-19T18:09:20.114Z"
+              spawned: false
+              bytes: 511410
+              windows:
+                - start: "2026-10-19T18:09:20.114Z"
+                  end: "2026-10-19T12:30:21-07:00"
+            - harness: codex
+              id: 01a1555b-13b9-70a2-9c05-aa645d06b603
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: e5fbf738f8e321c19c497fde6fc455a3f4fca58433069019bb1f5e16358b77f0
+              started: "2026-10-19T18:09:56.15Z"
+              spawned: false
+              bytes: 465344
+              windows:
+                - start: "2026-10-19T18:09:56.15Z"
+                  end: "2026-10-19T12:30:21-07:00"
+            - harness: codex
+              id: 01a1555b-f570-7df2-964b-eaa9bd31b12a
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a146bc-fcee-7450-93c9-096b6d3071a3
+              digest: 5e16e47985dc95bf024e0b04cc26434d95fa27291cc7b1a209c166ba0bf46d58
+              started: "2026-10-19T18:10:52.612Z"
+              spawned: true
+              bytes: 794810
+              windows:
+                - start: "2026-10-19T18:10:52.612Z"
+                  end: "2026-10-19T12:30:21-07:00"
+            - harness: codex
+              id: 01a1555c-274a-7093-a7e5-20eab39be2b3
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a146bc-fcee-7450-93c9-096b6d3071a3
+              digest: e920d681e87794e6a2ee9569ab15b1eb13dc476525bab27956273f7c73ad3d3f
+              started: "2026-10-19T18:11:05.384Z"
+              spawned: true
+              bytes: 984434
+              windows:
+                - start: "2026-10-19T18:11:05.384Z"
+                  end: "2026-10-19T12:30:21-07:00"
+            - harness: codex
+              id: 01a15560-7b9b-7933-8854-5382c68380ff
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a146bc-fcee-7450-93c9-096b6d3071a3
+              digest: f8d301d67b9dc06903434653cfba773c62ac4516d26498a36be4bc262478c2e3
+              started: "2026-10-19T18:15:48.999Z"
+              spawned: true
+              bytes: 1106020
+              windows:
+                - start: "2026-10-19T18:15:48.999Z"
+                  end: "2026-10-19T12:30:21-07:00"
+        queue_waits:
+            - attempt_id: 003733a04266285b135f734f5c2554bd
+              slot: pair:3
+              record_digest: 3f201f6e448b2494a9503f3f5626a00b57d6d98e302a867f0d39d67bc9415014
+              start: "2026-10-19T18:53:01.286193Z"
+              end: "2026-10-19T19:10:17.525803Z"
+              queue_seconds: 1036.23961
+              raw_seconds: 1036.23961
+              exact: true
+        cuts:
+            - dispatched: "2026-10-19T11:35:23-07:00"
+              finalized: "2026-10-19T11:39:44-07:00"
+              finalizing: false
+            - dispatched: "2026-10-19T11:53:25-07:00"
+              finalized: "2026-10-19T11:58:08-07:00"
+              finalizing: true
+            - dispatched: "2026-10-19T12:27:35-07:00"
+              finalized: "2026-10-19T12:29:38-07:00"
+              finalizing: false
+      "n": 4
+      timestamp: "2026-10-19T12:32:39-07:00"
+      dispatched: "2026-10-19T12:31:27-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-3
+          disposition: addressed
+          note: os_test.go:26-32 sets a long TMPDIR and allocates an owned short root with a justified lint exception. The complete scratch race suite passes. Replacing the short root with inherited-temp allocation makes TestSpecialTopLevelNodesRetained fail at socket binding; the disposable copy was removed.
+          round: 4
+        - id: BR-1
+          disposition: addressed
+          note: PrepareResolvedSlot retains TryLock before probing or resolving identity. The paused-sweep and unavailable-probe regressions pass in the complete scratch race suite.
+          round: 4
+        - id: BR-2
+          disposition: addressed
+          note: Production startup and maintenance callsites remain intact. Constructor RAM/fallback, startup-before-failure, and maintenance cancellation/join regressions pass.
+          round: 4
+      recipe: fix-review
+      isolation: fenced
+      reviewed: d7593dc70df0e65f516ef7baa1b45e4b1c632514
+      blocked: false
 ---
 
 # Gate ledger — pair#708 (boundary-review)
@@ -625,6 +833,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Important] `native-fixture-address-budget` (kind: defect) Socket fixture now fails with long inherited TMPDIR
   cmd/internal/couchscratch/os_test.go:26 changes the socket fixture to inherit TMPDIR without budgeting its derived address. Under this review's 84-byte TMPDIR, the socket path is approximately 117 bytes; TestSpecialTopLevelNodesRetained fails at line 47 with "invalid argument", including under -race. The same test passes with TMPDIR=/tmp. Use an owned short socket fixture with a justified lint exception, following cmd/internal/couchmessage/transport_test.go:20, and cover long TMPDIR so the test reaches its retention assertions.
 
+## Round 4 — 2026-10-19T12:32:39-07:00 (codex) — passed
+
+### Disposed
+
+- BR-3 — addressed — os_test.go:26-32 sets a long TMPDIR and allocates an owned short root with a justified lint exception. The complete scratch race suite passes. Replacing the short root with inherited-temp allocation makes TestSpecialTopLevelNodesRetained fail at socket binding; the disposable copy was removed.
+- BR-1 — addressed — PrepareResolvedSlot retains TryLock before probing or resolving identity. The paused-sweep and unavailable-probe regressions pass in the complete scratch race suite.
+- BR-2 — addressed — Production startup and maintenance callsites remain intact. Constructor RAM/fallback, startup-before-failure, and maintenance cancellation/join regressions pass.
+
 ## Open findings
 
-- **BR-3** [Important] `native-fixture-address-budget` (kind: defect) Socket fixture now fails with long inherited TMPDIR
+(none — every finding has been disposed)
