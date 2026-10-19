@@ -724,6 +724,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/historyarchive/sqlite_snapshot_model.go",
 	"cmd/internal/historyarchive/continuous_snapshot_model.go",
 	"cmd/internal/historyarchive/continuous_report.go",
+	"cmd/internal/historyarchive/drive_count_model.go",
 	"cmd/internal/execalarm/execalarm.go",
 	"cmd/internal/execalarm/run_unix.go",
 	"cmd/internal/execalarm/run_other.go",

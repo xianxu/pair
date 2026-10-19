@@ -41,7 +41,7 @@ When the observed destination file count is strictly greater than 20,000 by defa
 
 ## Plan
 
-- [ ] Implement and qualify the count/report/admission extension in [the durable plan](../plans/000705-drive-file-count-warning-plan.md), using existing remote listings and daily output.
+- [x] Implement and qualify the count/report/admission extension in [the durable plan](../plans/000705-drive-file-count-warning-plan.md), using existing remote listings and daily output.
 - [ ] Document, submit the recorded suite, close and land on SHIP; hand the project/live observation to the hub.
 
 ## Log
@@ -53,6 +53,11 @@ Operator request via hub receipt 277127be-5775-4a0e-93e4-8d24a00600a5. #700 was 
 - 2026-10-19, plan-quality round 1: PQ-1 requested test-strategy presentation refinement only. Replaced case inventories with named risky-function adversarial classes and mechanical/property guards; no implementation, estimate or policy change. Rerun change-code.
 
 - 2026-10-19, plan-quality round 2 CLEAN: PQ-1 addressed, no new findings. Derived the estimate only after this acceptance. Calibration source reports stale; numbers remain provisional. No production or test code changed before admission.
+
+
+- 2026-10-19, implementation checkpoint: pure count/threshold/display model and stateful FakeRclone regressions went behavioral red before implementation. Mirror regression then passed (51.726 s), retaining two listings and exact resolve/copy counts at N=8/16 and on receipt-only reruns; directories still consume the existing capacity bound. Codec/CLI behavioral red then green, including legacy unknown versus observed zero, malformed observation refusal and early invalid env refusal. Scheduler red (zero outputs) then green; a 240-event root/day reference model covers physical-ID changes, threshold/health changes, rollback and uncertain output. Shared database clock-count checks remain green. Root artifact inventory/reference/dead-symbol/docs guards passed. Broader targeted historyarchive/archivecmd/couchcmd qualification passed (117.821 s / 1.125 s / 6.825 s); subsequent mixed database/Drive real fake-subprocess protocol tests passed, retaining raw additive JSON and partial results. CLI configured-invalid side-effect-counter check passed. No full-suite or live acceptance claimed yet.
+
+- ARCH-DRY/ORDER: extracted the existing reserve/output/log body once; both warning classes share it, and reservations remain consumed before effects. Root FolderID is provenance only. ARCH-EVOLVE: additive runtime report only; all persisted formats stay untouched. No real Drive, desktop or pair:0 action. Final documentation will be pushed before entering the merge line, avoiding #700's unpublished-evidence refusal.
 
 ## Revisions
 

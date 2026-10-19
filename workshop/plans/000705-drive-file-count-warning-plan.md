@@ -73,9 +73,9 @@ Before/after observations survive later remote verification/cleanup errors. Canc
 
 ## Implementation tasks (one close)
 
-- [ ] Add failing pure observation/threshold/codec tests using the strategies below; implement the small model and optional report shape; run green and commit.
-- [ ] Add failing stateful Drive fixture qualification, then observe before/after counts at the existing seams, preserving capacity and call counts; run green and commit.
-- [ ] Add failing CLI/scheduler qualification, wire shared delivery and destination admission, document behavior and run targeted/source inventory guards; commit and open PR.
+- [x] Add failing pure observation/threshold/codec tests using the strategies below; implement the small model and optional report shape; run green and commit.
+- [x] Add failing stateful Drive fixture qualification, then observe before/after counts at the existing seams, preserving capacity and call counts; run green and commit.
+- [x] Add failing CLI/scheduler qualification, wire shared delivery and destination admission, document behavior and run targeted/source inventory guards; commit and open PR.
 - [ ] Run the pushed recorded full suite; close through SDLC's one fresh review, publish final evidence before entering merge, and land on SHIP. Hub owns project tick and natural live observation.
 
 ### Function-level test strategies
