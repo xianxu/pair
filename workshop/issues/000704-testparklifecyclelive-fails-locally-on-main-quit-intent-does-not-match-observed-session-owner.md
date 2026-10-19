@@ -65,13 +65,24 @@ Production already handles redelivery. `park.go` triggers only when the observed
 
 ### Fix
 
-- [ ] Fake fidelity (deterministic red). `Fake.DeliverTrigger` quiesces the session, as the production trigger does. Under today's drivers the fake conformance scenario then fails on every run at delivery 2 (session absent), reproducing the live failure without timing.
-- [ ] Drivers follow production's delivery rule: observe the session and trigger only when it is present; a delivery that finds it absent does nothing, as park.go does. The live driver observes through `NamedPairSessionContext` and triggers with `TriggerBoundQuit` on that binding. The intent-only variant keeps its write-only trigger behind the same gate.
-- [ ] Production diagnostic. `TriggerBoundQuit` given an absent binding says the session is absent and there is nothing to trigger, instead of "quit intent does not match observed session owner". Production never calls it on an absent binding, so this changes no behavior.
-- [ ] The fake unit test that expected two raw trigger effects now expects the second to be refused as absent. Verify with pairlifecycletest and couchcore tests, the live park tests locally (TestParkLifecycleLive should pass here now), and the full suite.
+- [x] Fake fidelity (deterministic red). `Fake.DeliverTrigger` quiesces the session, as the production trigger does. Under today's drivers the fake conformance scenario then fails on every run at delivery 2 (session absent), reproducing the live failure without timing.
+- [x] Drivers follow production's delivery rule: observe the session and trigger only when it is present; a delivery that finds it absent does nothing, as park.go does. The live driver observes through `NamedPairSessionContext` and triggers with `TriggerBoundQuit` on that binding. The intent-only variant keeps its write-only trigger behind the same gate.
+- [x] Production diagnostic. `TriggerBoundQuit` given an absent binding says the session is absent and there is nothing to trigger, instead of "quit intent does not match observed session owner". Production never calls it on an absent binding, so this changes no behavior.
+- [x] The fake unit test that expected two raw trigger effects now expects the second to be refused as absent. Verify with pairlifecycletest and couchcore tests, the live park tests locally (TestParkLifecycleLive should pass here now), and the full suite.
 
 This is not slot ownership, so pair:1 is not affected.
 
 ## Log
 
 2026-10-19 — Filed by pair:2 at the hub's request while landing #692; observed during #692's live verification.
+
+2026-10-19 (pair:2) — Built. Moving the quiescence into the shared `Fake.DeliverTrigger` broke TestParkInterruptionBoundaryMatrix/after-trigger: Couch's session view there comes from the separate `Artifacts` fake, so the two views diverged. The quiescence therefore lives in `fakeConformanceDriver.DeliverTrigger`, the adapter that models production's trigger, and the shared Fake and its unit test are unchanged (see Revisions).
+- Red: without the presence gate, TestQuitLifecycleConformanceScenarioFake fails on every run with `exact session "pair-work" is absent` at delivery 2, the live symptom.
+- The live driver observes through `NamedPairSessionContext` and triggers only a present binding with `TriggerBoundQuit`.
+- `TriggerBoundQuit` names an absent binding (TestTriggerBoundQuitNamesAnAbsentSession).
+- Live, on the operator's machine: TestParkLifecycleLive 5/5 and TestParkLifecycleLiveIntentOnlyMutation 5/5 (`-count=5`). TestParkLifecycleLive was 0/8 before.
+- pairlifecycletest and couchcore park/session-owner tests are green.
+
+## Revisions
+
+2026-10-19 — Fix bullet 1 narrowed: the trigger's session quiescence is modeled in the conformance driver, not the shared Fake, so the unit-test harnesses that pair the Fake with a separate Artifacts view keep one consistent session view. Bullet 4 (fake unit test change) was not needed.
