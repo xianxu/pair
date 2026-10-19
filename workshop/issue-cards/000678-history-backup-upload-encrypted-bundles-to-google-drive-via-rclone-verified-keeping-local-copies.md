@@ -1,6 +1,6 @@
 ---
 id: 000678
-status: codecomplete
+status: done
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours: 2.48
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 7674d3a24c36cac0ff8109b22499c15382d25fe4
         evidence_commit: a9ca942133cd65ce01923e9c4824e7d15607b29e
+        landed_commit: 58039477fdfea4c25e6974c2520025eab1425dc3
 ---
 
 # history backup: upload encrypted bundles to Google Drive via rclone (verified), keeping local copies
