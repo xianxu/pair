@@ -47,3 +47,5 @@ Cause (2026-10-19, pair:2). Failed attempt 4fed2c45: `hubs_startup_test.go:202: 
 ### 2026-10-19
 
 Built. Instrumented once (temporary, reverted): in the held-order run the warm worker (`ordinary-slot1`) consumed the failure and the warm pass then started it again; the second hub (`bench`) started cleanly. In the passing order `bench` consumed it. TestHubStartupLaterFailureAfterWarmWorkerLeavesFirstUsable failed 3/3 with the exact CI message before the fix; with `FailNextStartIn(paths[1])` both orders pass. `-run TestHubStartup -count=50` passed (454s) with one `yes` burner per CPU. Other FailNextStart callers keep their single-starter semantics.
+
+Class sweep (ARCH-PURPOSE): the 14 other FailNextStart callers each arm it before one synchronous start on a Couch env (13 in couchcore, couchcmd TestLaunchFailurePresentationKeepsFullErrorForShow via c.Spawn); none runs a second, concurrent starter, so the order dependence is confined to the hub startup rig.
