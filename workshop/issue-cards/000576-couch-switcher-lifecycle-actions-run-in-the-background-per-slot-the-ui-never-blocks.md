@@ -1,6 +1,6 @@
 ---
 id: 000576
-status: codecomplete
+status: done
 created: 2026-10-15
 updated: 2026-10-18
 estimate_hours: 2.34
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 9f58ddf535ce1cd4c3ad09a97a30bf1c527adef9
         evidence_commit: 0bdc9bb3cd88d443ff5fe2fb85bee2667f0c7e98
+        landed_commit: 08a2a82c38848471dd74c33e3864f427001f5de7
 ---
 
 # Couch switcher: lifecycle actions run in the background per slot; the UI never blocks
