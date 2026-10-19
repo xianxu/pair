@@ -82,8 +82,14 @@ Read-only native cache sizing counted 73 session directories, 72 metadata files,
 
 Hub receipt a7a22cfc-b15d-478f-bac2-c9a1089f683f was verified submitted with exact body/sender/current recipient. It approved temp setup and directed R1: defer metadata switch until no Zellij server is running, keep a single permanent .disk backup, no live migration/exchange/layout links/cache pruning, and fixture-only metadata acceptance before the operator's next reboot. Appended the revised executable design and retained the original proposal as history. No production code has been written.
 
+Plan-quality round 1 accepted the simplified metadata design and raised one Important PQ-1: current ancestry/open-file snapshots do not prove a detached job's lifetime. Appended R2 with ObserveScratchUsers using one complete native table and PID/birth-fenced initial-environment reads (existing NativeResourceReader), exact temp-root/thread attribution independent of ancestry, and explicit conservative retention of empty/unavailable/changed evidence. The stateful regression controls parent exit, reparenting, closed FDs, delayed scratch use and exact child exit; unknown evidence keeps the folder. Busy/opaque hosts may retain all candidates until a later complete sweep or RAM reboot; no process is stopped to improve collection.
+
 ## Revisions
 
 ### 2026-10-19 10:56 PDT — R1, hub-approved simplification
 
 Replace the initial live metadata migration/pruning contract with no-server startup setup and permanent session_info.disk retention. Scope now excludes atomic exchange, layout linking and cache pruning. Done when uses three isolated-HOME fixture branches and the operator's next reboot for real metadata routing. Temp environment, ownership and cleanup remain approved. Detailed final execution contract is Revision R1 of the durable plan.
+
+### 2026-10-19 11:04 PDT — R2, plan-quality cleanup clarification
+
+Name the existing native environment API and detached-job evidence lifetime; retain on incomplete attribution instead of inferring no holder from ancestry or closed files. Add the delayed-use sequence/mutation test and linear observation budget. This specifies the approved no-holder rule without expanding scope or changing R1 metadata behavior.
