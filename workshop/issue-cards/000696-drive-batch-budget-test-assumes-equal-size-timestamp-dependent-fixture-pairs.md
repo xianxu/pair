@@ -1,6 +1,6 @@
 ---
 id: 000696
-status: codecomplete
+status: done
 created: 2026-10-18
 updated: 2026-10-19
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 29094fc81c281481a9be87fdeb44acda4a0a75ad
         evidence_commit: acd9d4ba3f40d12221cecc0282a57453ca36186f
+        landed_commit: 9ff834e4340e478b7d6d3c8ab2e4e789bd0e8c9f
 ---
 
 # Drive batch budget test assumes equal-size timestamp-dependent fixture pairs
