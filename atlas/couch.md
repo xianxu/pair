@@ -198,7 +198,8 @@ Retention trims to 64 entries, then evicts oldest whole entries until at most
 `lifecyclefailure_codec.go` preserves unknown raw values, including nested address
 and holder/process members, through enrichment and rewrite. Known types, required
 identity/time fields and recursive duplicate keys remain strict; legacy rows need
-no new fields. No format version or global strictjson policy changes.
+no new fields. No format version or global strictjson policy changes. Since #695
+the codec sits on the shared `strictjson` object helpers (below).
 
 `operationattempt_record.go` owns `OperationAttempt.Finish`, the sole terminal
 recorder. Synchronous dispatch finishes its attempt directly. Queued actions keep
@@ -244,6 +245,52 @@ postponed for diagnostic IO. A crash before terminal publication can lose that
 attempt's in-memory evidence; older published history remains durable. Private
 service conformance and a disposable-slot display check after an operator Couch
 restart provide separate acceptance; this feature does not stage :0.
+
+### Lifecycle primitives (#695 M1)
+
+**Additive records.** `strictjson/object.go` is the one strict-known,
+preserve-unknown codec: `SplitObject`, `EncodeObject`, `AppendMembers`, `CloneRaw`
+and `MergeRaw`. It refuses duplicate keys at any depth, and it writes preserved
+values verbatim. The failure log and the thread record use it. The thread record
+(`threadrecord.Record.Unknown`) carries top-level members it does not own through
+every rewrite. `encodeThreadRecord` is the only writer; a source test keeps others
+out. So an older couch CLI running a direct-store operation cannot erase a newer
+field. Nested objects stay strict, and there is no schema bump.
+
+**Transcript binding.** `ThreadRecord.Transcript` (`threadrecord/transcript.go`)
+stores the agent's exact conversation. It keeps the native ID plus the root name
+and relative path that the ledger binding's authorization proof names. A native ID
+alone does not locate the file: Claude munges the cwd, and Codex adds a dated
+folder. Resume, relaunch, recovery, startup and preview all go through
+`Couch.bindTranscript` (`couchcore/transcript_bind.go`):
+
+- It reads the tag's ledger by its known name with `ReadCurrentLaunchAt`, never a
+  listing. A newer established root adopts, which covers pair's own context reset.
+- It stats the bound file once. A missing file refuses with
+  `resume-transcript-missing` and is never searched for.
+- An unreadable or missing ledger keeps a located stored binding, and the row
+  carries a note.
+- Only when no file is known does the old listing resolver answer, once:
+  `bindByResolver` handles a session before its first turn, a legacy record, or a
+  proofless binding row.
+
+The resume start claim stores the result (`StartEvent.Transcript`) in its own
+revision-checked write. `sessioninventory.RootTranscriptID` and `NativeRootNames`
+are the pure path parsers and root names it validates with. The counted tests run
+the production binder over `sessioninventorytest.FakeRuntime`: 1 ledger read,
+1 stat, 0 listings.
+
+**Lifecycle address.** `couchcore/lifecycleaddress.go`'s `LifecycleAddress` has two
+kinds, built by constructors.
+
+- `NewSlotAddress` takes a slot's physical root. A `:0` primary passes a zero
+  `SlotIdentity`.
+- `NewTeamAddress` takes a checkout and a team folder holding a `.hub`, and
+  resolves the scope.
+- `Validate` and `Key` are pure. `Key` is `slot:<root>`, the same function as #683's
+  failure slot key, or `team:<scope>/<TeamDir>`.
+- The lease, the store, failure records and orphan origins key on it as M2 and
+  pair#694 wire them.
 
 Claude native resume validates an exact session through bounded UUID-leaf
 probes under the authorized project roots, preserving duplicate and root-role
