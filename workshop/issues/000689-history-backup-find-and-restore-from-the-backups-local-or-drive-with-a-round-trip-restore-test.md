@@ -133,3 +133,5 @@ total: 4.93
 - Hub d9acf9a3-51ac-4eda-9dc9-1a70065e04ac approved the full plan as written and instructed change-code. They will arrange the operator real-day Drive restore when M2 is ready; that acceptance remains mandatory before landing.
 
 - 2026-10-18 PQ-1 (function-level-test-contract): consolidated the class of repeated unit-case inventories into named-function adversarial strategies and mechanical guards. Kept catalog-loss and real-key/operator acceptance drills and all approved invariants; no implementation begun.
+
+- 2026-10-19 BR-1 / complete-observation-precedence: M1 review REWORK (Critical), not finalized. Confirmed code loses complete empty destination observations and can re-project an unseen historical receipt as available. Proposed additive bounded destination observation markers and uniform receipt precedence in the durable plan; awaiting hub approval before production changes. Cancelled only this checkout's obsolete queued suite on 12d4787e; other checkout runs were retained. No full suite ran or pass was recorded. M2 remains unstarted.
