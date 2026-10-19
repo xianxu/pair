@@ -58,8 +58,12 @@ func runContinuous(ctx context.Context, args []string, stdout io.Writer, fail fu
 	if err != nil {
 		return fail("PAIR_ARCHIVE_DATABASE_MAX_AGE", err)
 	}
+	maxDriveFiles, err := historyarchive.ParseDriveMaxFiles(os.Getenv("PAIR_ARCHIVE_DRIVE_MAX_FILES"))
+	if err != nil {
+		return fail("PAIR_ARCHIVE_DRIVE_MAX_FILES", err)
+	}
 	emit := func(outcome string, report historyarchive.ContinuousReport) error {
-		raw, err := historyarchive.EncodeContinuousReport(historyarchive.ContinuousCommandReport{Version: historyarchive.ContinuousReportVersion, Outcome: outcome, MaxDatabaseAge: maxAge, Report: report})
+		raw, err := historyarchive.EncodeContinuousReport(historyarchive.ContinuousCommandReport{Version: historyarchive.ContinuousReportVersion, Outcome: outcome, MaxDatabaseAge: maxAge, MaxDriveFiles: maxDriveFiles, Report: report})
 		if err != nil {
 			return err
 		}
@@ -149,12 +153,18 @@ func runContinuous(ctx context.Context, args []string, stdout io.Writer, fail fu
 			fmt.Fprintln(stdout, warning)
 		}
 	}
+	var inventory *historyarchive.DriveInventoryObservation
 	if report.Drive != nil {
 		remote := report.Drive
+		inventory = remote.Inventory
 		fmt.Fprintf(stdout, "Drive: %d verified, %d already recorded, %d pending (%d deferred); %d downloaded checksum(s)\n", remote.Verified, remote.AlreadyRecorded, remote.Pending, remote.Deferred, remote.DownloadedChecksums)
 		for _, note := range remote.Notes {
 			fmt.Fprintf(stdout, "Drive: %s\n", note)
 		}
+	}
+	fmt.Fprintln(stdout, inventory.Line())
+	if warning := inventory.Warning(maxDriveFiles); warning != "" {
+		fmt.Fprintln(stdout, warning)
 	}
 	if err != nil {
 		return fail("continuous pass", err)

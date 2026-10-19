@@ -623,6 +623,11 @@ func (c ScopedThreadArtifactCollisionChecker) TriggerQuit(session string, intent
 }
 
 func (c ScopedThreadArtifactCollisionChecker) TriggerBoundQuit(ctx context.Context, binding PairSessionBinding, intent launcher.QuitIntent) error {
+	// An absent session is not an owner mismatch: there is nothing to trigger.
+	// Callers trigger only a present binding (park.go); this names the case.
+	if binding.Owner != nil && binding.Owner.State == launcher.SessionOwnerAbsent {
+		return fmt.Errorf("trigger Pair quit: session %q is absent", binding.Name)
+	}
 	if intent.Request == nil || binding.Owner == nil || intent.Request.DataDir != c.GlobalDataDir || binding.Owner.Owner.DataDir != intent.Request.DataDir || binding.Owner.Owner.RepoScope != intent.Request.RepoScope || binding.Owner.Owner.Tag != intent.Request.Tag {
 		return errors.New("quit intent does not match observed session owner")
 	}

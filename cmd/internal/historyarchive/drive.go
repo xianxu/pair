@@ -23,6 +23,7 @@ const maxDriveBatchBytes int64 = 4 << 30
 
 // DriveReport describes independent remote evidence; it grants no local authority.
 type DriveReport struct {
+	Inventory           *DriveInventoryObservation
 	Verified            int
 	AlreadyRecorded     int
 	DownloadedChecksums int
@@ -134,16 +135,12 @@ func (d DriveMirror) Run(ctx context.Context, cfg ContinuousConfig, store string
 	if err != nil {
 		return report, err
 	}
+	observedBefore, destinationEntries := observeDriveInventory(dest, pin.FolderID, "before", before)
+	report.Inventory = &observedBefore
 	receipts := LocalSink{Root: cfg.Catalog + ".uploads"}
 	receiptCount, err := countUploadReceipts(ctx, receipts.Root, dest.Namespace())
 	if err != nil {
 		return report, err
-	}
-	// Count entries, not distinct names: unrelated objects and duplicate names
-	// still consume the same bounded reader capacity as our own objects.
-	destinationEntries := 0
-	for _, entries := range before {
-		destinationEntries += len(entries)
 	}
 	destinationDeferred := 0
 	source := LocalSink{Root: cfg.Sink}
@@ -303,6 +300,8 @@ func (d DriveMirror) Run(ctx context.Context, cfg ContinuousConfig, store string
 	if err != nil {
 		return report, errors.Join(append(failures, err)...)
 	}
+	observedAfter, _ := observeDriveInventory(dest, pin.FolderID, "after", after)
+	report.Inventory = &observedAfter
 	fallback := map[string]string{}
 	for i := range ready {
 		candidate := &ready[i]
