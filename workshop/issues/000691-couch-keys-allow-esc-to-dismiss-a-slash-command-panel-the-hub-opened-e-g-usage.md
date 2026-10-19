@@ -16,6 +16,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "95149e21", done: "335291cf"}
 ---
 
 # couch --keys: allow Esc to dismiss a slash-command panel the hub opened (e.g. /usage)
