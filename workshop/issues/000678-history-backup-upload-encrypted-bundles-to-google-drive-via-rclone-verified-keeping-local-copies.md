@@ -127,3 +127,11 @@ total: 2.48
 ```
 
 - 2026-10-18 revision: clarified feature-acceptance checklist versus process-owned suite/review/landing, retaining pending workflow in the Log. Scope/Done when remain unchanged; operator already accepted the live pass/rerun.
+
+
+### Close review round 1 — 2026-10-18
+
+- Binary-owned review returned REWORK, BR-1 Critical (writer-reader-capacity-consistency): the per-batch entry cap ignored the already populated destination and could exceed the reader bound permanently. Implement destination-wide missing-member reservation, complete-pair deferral and near-capacity retry/adoption regressions before reclose. Actuals were measured/adopted automatically at 1.75h at that boundary; later attribution remains gate-owned.
+- Cancelled only this checkout's queued suite on e513ccbe with sdlc local-check cancel --name suite; three other checkout runs were left running. That unrun candidate is superseded by the correction and will receive a new pushed-head suite.
+- Recovery check: couch --peek pair:6 --previous --all returned source none, previous recovery screen unavailable. Continued from Git, sdlc state, issue/plan, canonical live receipts and the retained close ledger; no previous terminal bytes are claimed available.
+- Plan revision clarifies artifactpath's tag-bearing vocabulary versus content-addressed historyarchive artifacts and the external 64 MiB wire observation limit. Separate #688 remains unclaimed; no database snapshot algorithm changes are included.

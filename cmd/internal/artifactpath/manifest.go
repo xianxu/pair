@@ -703,6 +703,9 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/agent_drive_service.go",
 	"cmd/internal/launcher/native_inventory_os.go",
 	"cmd/internal/sessioninventory/codex_home.go",
+	// History backup artifacts use content-addressed keys under a configured sink,
+	// rather than this registry's tag-bearing session filename vocabulary. Their
+	// staging/receipt lifetimes are owned by historyarchive (atlas/history-backup.md).
 	"cmd/internal/historyarchive/archivetest/fakes.go",
 	"cmd/internal/historyarchive/archivetest/rclone.go",
 	"cmd/internal/historyarchive/drive_model.go",

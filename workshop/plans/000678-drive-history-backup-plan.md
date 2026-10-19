@@ -180,3 +180,10 @@ Full flow approved by hub f7e7fe62-5f41-4133-ba43-4296e82fd885; simplified flat-
 - [x] Integrated fake N/2N actual command counts, complete-pair budget deferral, hard-link and verified-copy paths, partial-batch receipts, and cleanup on success/failure/cancel.
 - [x] Installed-local batch conformance and race/guard checks on the revised code.
 - [ ] Final pushed-head recorded suite and binary-owned close review, then landing.
+
+
+### 2026-10-18 close BR-1 — destination capacity
+
+The initial per-batch entry cap did not reserve capacity against objects already in the destination. Reserve the actual before-inventory entry count once, including unrelated entries and duplicate members, and charge only absent members of admitted complete pairs. Defer pairs before copying would exceed the 100,000-entry reader bound; existing-only verification and receipt recovery remain possible at the boundary. Test near-full inventory, one missing member, full-inventory adoption and repeated passes. This corrects ARCH-CONSTRAINTS / ARCH-FUNERAL within the existing admission mechanism. The 64 MiB external wire limit remains a fail-closed metadata observation bound: backend-added fields and formatting are external, so it is not a guaranteed remote-storage capacity allowance.
+
+Artifactpath clarification: its Families vocabulary is explicitly tag-bearing session artifacts, while the history backup uses content-addressed bundles under a configured sink. Upload receipts and pass staging therefore follow the existing historyarchive NonArtifactSources classification; their owners, bounds, consumers and retention are registered in this plan and atlas/history-backup.md. Register every new production source there, without inventing tag-bearing family tokens for backup metadata. This supersedes the earlier sentence promising both families in artifactpath itself; artifactpath package guards validate the source classification.
