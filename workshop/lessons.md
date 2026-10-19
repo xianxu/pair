@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- Derive a multi-item fixture's byte budget from every item it must admit. Equal source lengths do not imply equal archive or metadata lengths: fractional timestamps can change both. Use deliberately unequal fixtures and assert that each fits alone while their sum does not. (#696)
+
 - Put exact-target authorization inside the shared journal replay operation, not only its original caller: reopen, append and maintenance can all replay a deletion. Test a held rotated payload through every replay entry point. Preserve completed effects separately from errors, and report retained blockers without labeling unattempted candidates as removed. (#677 close review)
 - Classify scheduler errors at the actual collection boundary: stale declarations, changed certificates, malformed per-log state and blocked recovery are path-local blockers. Preserve them for preview and advance the bounded cursor; test the whole class before a later eligible path. Native acquisition, global inventory, cancellation and coordination failures remain distinct. A missing-parent-only exception does not satisfy this rule. (#677 close review)
 - An asynchronous reservation must cover identities that become visible before its effect returns. Keep the original attempt and reservation, derive launch-authoritative aliases for admission and projection alike, and test inventory publication during held adoption. A primary slot is an ordinary scoped conversation; numbered-slot-only fixtures miss it. (#576 BR-1)
