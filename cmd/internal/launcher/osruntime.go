@@ -139,12 +139,18 @@ func (r OSRuntime) SessionBlocksReuse(session string) bool {
 	}
 	// Native discovery may silently omit a still-live exact server. Listing
 	// absence cannot release its name without independent process evidence.
+	servers, err := r.liveSessionServers(ctx, session)
+	return err != nil || ctx.Err() != nil || len(servers) != 0
+}
+
+// liveSessionServers is the independent process evidence that a listing's
+// omission of session is not absence: an OS process scan, no native query.
+func (r OSRuntime) liveSessionServers(ctx context.Context, session string) ([]SessionServerIdentity, error) {
 	ops := r.sessionQuiescence
 	if ops == nil {
 		ops = newOSSessionQuiescenceOps(r.Processes)
 	}
-	servers, err := ops.SessionServers(ctx, session)
-	return err != nil || ctx.Err() != nil || len(servers) != 0
+	return ops.SessionServers(ctx, session)
 }
 
 // ProbeSessionName asks zellij whether it accepts session's length, at the cost

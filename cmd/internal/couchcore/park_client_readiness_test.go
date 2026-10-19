@@ -162,7 +162,7 @@ func TestParkHelperAttachmentRequiresClientGrowth(t *testing.T) {
 				}
 				drained := make(chan struct{})
 				close(drained)
-				waitParkHelperAttachmentWithQuery(t, ctx, "pair-readiness", count, nil, drained, new(parkHelperCapture), query)
+				waitParkHelperAttachmentWithQuery(t, ctx, "pair-readiness", count, nil, drained, new(parkHelperCapture), func() bool { return true }, query)
 			}()
 			t.Cleanup(func() { cancel(); <-done })
 			select {
@@ -187,5 +187,34 @@ func TestParkHelperAttachmentRequiresClientGrowth(t *testing.T) {
 				t.Fatalf("readiness query count=%d; want baseline, unchanged, unknown, growth; %s", calls, testwait.HostState())
 			}
 		})
+	}
+}
+
+// The readiness loop opens no session connection until OS evidence shows the
+// helper's client started (pair#692): before that the helper is inside its
+// one list-sessions fence, which a concurrent connection can make miss a live
+// session. Once started, the existing growth query decides as before.
+func TestParkReadinessQueriesOnlyAfterTheHelperClientStarts(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	checks, started := 0, false
+	queriedBeforeStart := false
+	queries := 0
+	query := func(context.Context, string) (int, error) {
+		if !started {
+			queriedBeforeStart = true
+		}
+		queries++
+		return 2, nil
+	}
+	drained := make(chan struct{})
+	close(drained)
+	waitParkHelperAttachmentWithQuery(t, ctx, "pair-readiness", 1, nil, drained, new(parkHelperCapture), func() bool {
+		checks++
+		started = checks > 3
+		return started
+	}, query)
+	if queriedBeforeStart || queries != 1 || checks != 4 {
+		t.Fatalf("queried before the client started=%v queries=%d checks=%d", queriedBeforeStart, queries, checks)
 	}
 }
