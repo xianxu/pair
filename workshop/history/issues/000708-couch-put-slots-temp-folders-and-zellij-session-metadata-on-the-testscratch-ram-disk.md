@@ -94,7 +94,7 @@ Rows respectively cover temp manager/ownership, age sweep/worker, socket resolve
 - Durable design: [Couch RAM scratch plan](../plans/000708-couch-ram-scratch-plan.md).
 - [x] Implement shared scratch policy, pinned socket environment and R3 startup/hourly age cleanup.
 - [x] Implement R1 startup-only metadata routing and the three isolated-HOME fixture branches.
-- [ ] Complete counted budgets, documentation, recorded suite, close review and priority landing.
+- [x] Complete counted budgets, documentation, recorded suite, close review and priority landing.
 
 ## Log
 
@@ -147,6 +147,10 @@ Boundary round 2 returned SHIP (medium confidence), disposed BR-1 and BR-2 as ad
 Attempt 003733a04266285b135f734f5c2554bd ran the complete suite on 613439241486df66548977b33c25e9d2d6b4f0c9 and failed in 13m16s, retained log SHA256 prefix fd083a03a869. Its only failures were deterministic branch defects: TestEverySlotStateSiteIsAResource rejected the duplicated slot basename spelling in couchscratch/policy.go, and TestTrackedGoFilesPassCatalog rejected a literal /tmp socket fixture root. All other package and preceding integration results passed. This is a corrected-code run, not a flake retry. Scratch naming now delegates to the existing couchcore.EnvName authority (ARCH-DRY); the socket fixture uses os.MkdirTemp with the inherited temp root. Removed the now-unused production number-format wrapper. Both failed checks and the special-node regression pass directly; the scratch package race check passes. A new recorded suite and close review are required on this correction before landing. Hub receipt 72640f1e-8ea3-4fdc-b6fa-35072b27ebd0 verified submitted: #705 landed and the issue-publication hold is lifted.
 
 Fix-review round 3 returned REWORK with BR-3: inherited long TMPDIR makes the native socket fixture exceed its address limit. Added that exact long-root condition to TestSpecialTopLevelNodesRetained and observed RED (invalid argument), then used the existing transport fixture's explicitly justified tmp-literal exception for an owned short root. The test still binds real socket/FIFO nodes and checks their retention. The queued corrected-code attempt 6b90c9f971421e7ec695e05707851430 on 19fb9c730fe0a2a760350df2f2c84ab371860a5c was canceled through sdlc before running because this test correction supersedes it; no retry result was recorded. Noon freshness required a clean main integration before round 3; no conflict was resolved. BR-1 and BR-2 remain disposed as addressed.
+
+### Verified landing
+
+2026-10-19: PR 463 merged as 537d37028aaae4a6a839d08acb10234e52af63b0, confirmed reachable from freshly fetched origin/main. The corrected branch suite f9ccb6d8b702a2ea104e5384dbd6c667 passed on d7593dc70df0e65f516ef7baa1b45e4b1c632514 in 16m40s (log SHA256 prefix 913f421a01c1). The authoritative integrated suite 8e041ed891c4b2dcee614123fff17698 passed on c98dd14495236bfd54e3ea8f21bb0b74a75a9e7f in 16m03s (log SHA256 prefix c76c60546e36); all five merge checks were green. No flake retry was used. Fix-review round 4 was SHIP, all three findings addressed, no new findings. SDLC marked the card done, archived the issue/plan/reviews, removed the issue branch and returned this checkout to main-slot3. The operator-owned next-reboot/relaunch smoke remains the approved live arrangement above; no live metadata route, slot environment or pair:0 build was changed here. The final Plan row is now ticked on actual evidence rather than anticipation.
 
 ## Revisions
 
