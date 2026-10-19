@@ -8,7 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -44,12 +44,9 @@ func newTerminalOSAttempt(rt OSRuntime, name, config, layout string, create bool
 	if name == "" || filepath.Base(name) != name || name == "." || name == ".." {
 		return nil, errors.New("invalid terminal session name")
 	}
-	root := os.Getenv("ZELLIJ_SOCKET_DIR")
-	if root == "" {
-		root = filepath.Join(os.TempDir(), "zellij-"+strconv.Itoa(os.Getuid()))
-	}
-	if !filepath.IsAbs(root) {
-		return nil, errors.New("Zellij socket directory must be absolute")
+	root, err := ResolveZellijSocketRoot(os.Getenv("ZELLIJ_SOCKET_DIR"), os.TempDir(), os.Getenv("XDG_RUNTIME_DIR"), runtime.GOOS, os.Getuid())
+	if err != nil {
+		return nil, err
 	}
 	if err := os.MkdirAll(filepath.Join(root, "contract_version_1"), 0700); err != nil {
 		return nil, err
@@ -58,7 +55,7 @@ func newTerminalOSAttempt(rt OSRuntime, name, config, layout string, create bool
 	// can exceed the platform's socket limit even when its existing server's
 	// original path fits. Only the lease identity needs canonicalization.
 	transportRoot := root
-	root, err := filepath.EvalSymlinks(root)
+	root, err = filepath.EvalSymlinks(root)
 	if err != nil {
 		return nil, err
 	}

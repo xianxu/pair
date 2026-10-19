@@ -282,6 +282,7 @@ func runtimePairDataDir(rt Runtime) string {
 type configuredRunner struct {
 	underlying  couchcore.Runner
 	environment []string
+	scratchRoot string
 }
 
 func (r configuredRunner) Start(dir string, argv, env []string) (couchcore.Handle, error) {
@@ -301,7 +302,8 @@ func (r configuredRunner) childEnv(env []string) []string {
 		}
 	}
 	clean = append(clean, env...)
-	return append(clean, r.environment...)
+	clean = append(clean, r.environment...)
+	return append(clean, isolatedScratchOverlay(r.scratchRoot, env)...)
 }
 func (r OSRuntime) runtimeRunner(runner couchcore.Runner) couchcore.Runner {
 	if r.selection == nil {
@@ -312,8 +314,19 @@ func (r OSRuntime) runtimeRunner(runner couchcore.Runner) couchcore.Runner {
 	// actor destination and pass the selected global root separately so the
 	// launcher computes this actor's scope once, from its own checkout.
 	env := []string{"COUCH_CAPTURE_DIR=", "COUCH_CAPTURE_MAX_MIB=", "PAIR_DATA_DIR=", "COUCH_PAIR_DATA_DIR=" + roots.PairDataDir, "COUCH_STORE_DIR=" + roots.StoreDir, "COUCH_IDENTITY_DIR=" + roots.IdentityDir, "COUCH_ISOLATED_ROOT=" + r.isolatedRoot}
-	if r.isolatedRoot != "" {
-		env = append(env, "HOME="+r.isolatedPaths.home, "XDG_DATA_HOME="+r.isolatedPaths.data, "TMPDIR="+r.isolatedPaths.temporary)
+	// The executable captures this before any temp overlay. Keep the same
+	// namespace authoritative even when an actor supplies a different value.
+	if socketRoot := r.Getenv("ZELLIJ_SOCKET_DIR"); socketRoot != "" {
+		env = append(env, "ZELLIJ_SOCKET_DIR="+socketRoot)
 	}
-	return configuredRunner{underlying: runner, environment: env}
+	if r.isolatedRoot != "" {
+		env = append(env, "HOME="+r.isolatedPaths.home, "XDG_DATA_HOME="+r.isolatedPaths.data, "TMPDIR="+r.isolatedPaths.temporary, "GOTMPDIR="+r.isolatedPaths.temporary, "CLAUDE_CODE_TMPDIR="+r.isolatedPaths.temporary)
+	}
+	var scratchRoot string
+	if r.isolatedRoot != "" && r.scratchProbeFn != nil {
+		if p := r.scratchProbe(); p.Err == nil {
+			scratchRoot = p.Root
+		}
+	}
+	return configuredRunner{underlying: runner, environment: env, scratchRoot: scratchRoot}
 }
