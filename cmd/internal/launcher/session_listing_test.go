@@ -6,6 +6,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/zellijtest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -38,7 +39,7 @@ func TestListedTerminalObservationIsBoundedAndPositive(t *testing.T) {
 				}
 				return []byte(row), err
 			}
-			err := requireListedLiveTerminal(context.Background(), "chosen", query)
+			err := requireListedLiveTerminal(context.Background(), "chosen", query, noLiveServers)
 			if (err == nil) != tc.want || calls != tc.calls {
 				t.Fatalf("err=%v calls=%d wantSuccess=%v calls=%d", err, calls, tc.want, tc.calls)
 			}
@@ -47,7 +48,7 @@ func TestListedTerminalObservationIsBoundedAndPositive(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	calls := 0
-	if err := requireListedLiveTerminal(ctx, "chosen", func(context.Context) ([]byte, error) { calls++; return nil, nil }); !errors.Is(err, context.Canceled) || calls != 0 {
+	if err := requireListedLiveTerminal(ctx, "chosen", func(context.Context) ([]byte, error) { calls++; return nil, nil }, noLiveServers); !errors.Is(err, context.Canceled) || calls != 0 {
 		t.Fatalf("cancelled observation err=%v calls=%d", err, calls)
 	}
 }
@@ -116,8 +117,62 @@ func TestWarmAttachUsesOnlyPositiveListingAndNeverReplaysClient(t *testing.T) {
 func TestListedTerminalCancelledObservationCannotAuthorizeAttach(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	err := requireListedLiveTerminal(ctx, "chosen", func(context.Context) ([]byte, error) { cancel(); return []byte("chosen [Created 1s ago]"), nil })
+	err := requireListedLiveTerminal(ctx, "chosen", func(context.Context) ([]byte, error) { cancel(); return []byte("chosen [Created 1s ago]"), nil }, noLiveServers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancelled listing authorized attach: %v", err)
+	}
+}
+
+func noLiveServers(context.Context, string) ([]SessionServerIdentity, error) { return nil, nil }
+
+// A listing can leave out a session whose server is live: Zellij 0.45.1 drops
+// it when the ConnStatus probe loses its reply to a concurrent connection
+// (pair#692, zellij-org/zellij#5270). Process evidence of the exact server
+// makes that omission unknown, a refusal of its own class, never "not listed
+// live". Only a listing naming the session live admits; nothing retries.
+func TestListedTerminalOmissionOfALiveServerIsUnknown(t *testing.T) {
+	live := func(context.Context, string) ([]SessionServerIdentity, error) {
+		return []SessionServerIdentity{{PID: 42}}, nil
+	}
+	scanFailed := func(context.Context, string) ([]SessionServerIdentity, error) {
+		return nil, errors.New("process table unreadable")
+	}
+	for _, tc := range []struct {
+		name, listing string
+		servers       func(context.Context, string) ([]SessionServerIdentity, error)
+		omitted       bool
+		absent        bool
+	}{
+		{"empty listing, live server", "", live, true, false},
+		{"other sessions only, live server", "other [Created 1s ago]\n", live, true, false},
+		{"empty listing, no server", "", noLiveServers, false, true},
+		{"empty listing, scan failed", "", scanFailed, false, false},
+		{"exited, live server", "chosen [Created 1s ago] (EXITED - attach to resurrect)\n", live, false, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			listings, scans := 0, 0
+			err := requireListedLiveTerminal(t.Context(), "chosen",
+				func(context.Context) ([]byte, error) { listings++; return []byte(tc.listing), nil },
+				func(ctx context.Context, name string) ([]SessionServerIdentity, error) {
+					scans++
+					return tc.servers(ctx, name)
+				})
+			if err == nil || listings != 1 {
+				t.Fatalf("err=%v listings=%d", err, listings)
+			}
+			if errors.Is(err, ErrListingOmittedLiveServer) != tc.omitted {
+				t.Fatalf("omitted class=%v want %v: %v", errors.Is(err, ErrListingOmittedLiveServer), tc.omitted, err)
+			}
+			if absent := strings.Contains(err.Error(), "is not listed live"); absent != tc.absent {
+				t.Fatalf("absent class=%v want %v: %v", absent, tc.absent, err)
+			}
+		})
+	}
+	scans := 0
+	err := requireListedLiveTerminal(t.Context(), "chosen",
+		func(context.Context) ([]byte, error) { return []byte("chosen [Created 1s ago]\n"), nil },
+		func(context.Context, string) ([]SessionServerIdentity, error) { scans++; return nil, nil })
+	if err != nil || scans != 0 {
+		t.Fatalf("a listed live session: err=%v scans=%d", err, scans)
 	}
 }
