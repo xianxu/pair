@@ -1,6 +1,6 @@
 ---
 id: 000673
-status: working
+status: codecomplete
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours:
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+actual_hours: 4.17
+tracker:
+    version: 1
+    completion:
+        token: close-833c2cca86c9
+        repository: github.com/xianxu/pair
+        reviewed_head: 6d00d20b44696671955e7d550d02c143c8de1e27
+        evidence_commit: baa13bcdda422199338ec6b5c25fe0da6e749e8a
 ---
 
 # Couch attention list: a top-right panel of what's waiting on the operator, each item jumps to its slot
