@@ -1,6 +1,6 @@
 ---
 id: 000683
-status: codecomplete
+status: done
 created: 2026-10-18
 updated: 2026-10-19
 estimate_hours: 3.851
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: bda9b0a4e8d157f5763920eecb477dfd2cf3bbf0
         evidence_commit: c77d705d229f3b398b28d01da75ce76aceefe007
+        landed_commit: d964bbc1151bb0091e3dc3e41870788ea8edf7ed
 ---
 
 # Persist every lifecycle failure reason
