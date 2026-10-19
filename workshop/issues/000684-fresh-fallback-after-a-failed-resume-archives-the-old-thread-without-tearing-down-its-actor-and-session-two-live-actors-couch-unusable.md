@@ -1,13 +1,21 @@
 ---
 id: 000684
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '12257f718bf90adabacea35a6a4ba3e9cfe8427f' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '991e2d200aedeebccdbec3e2a6a038388bd64160' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-18T19:49:44-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # fresh fallback after a failed resume archives the old thread without tearing down its actor and session: two live actors, Couch unusable
@@ -30,8 +38,21 @@ A thread is archived only after its actor and terminal session are proven gone (
 
 ## Plan
 
-- [ ]
+Durable plan: [workshop/plans/000684-…-plan.md](../plans/000684-fresh-fallback-after-a-failed-resume-archives-the-old-thread-without-tearing-down-its-actor-and-session-two-live-actors-couch-unusable-plan.md). This issue is the vehicle for the ops project `slot-lifecycle` (operator direction 2026-10-18): one mechanism (`Converge`) over three primitives (proven teardown via a per-slot lifetime lease; bind by the transcript ID stored on the record; a persisted failure record at the dispatcher).
+
+- [ ] M1 — Persist every lifecycle failure (P3)
+- [ ] M2 — Transcript binding on the record; Resume binds by one stat (P2)
+- [ ] M3 — Lifetime lease, `Teardown` + `TeardownProof`; archive/replace require proof (P1)
+- [ ] M4 — `Converge`; paths 1, 2, 3, 5, 6, 7, 8, 9, 10 onto it (fixes this issue's incident)
+- [ ] M5 — Paths 4, 11, 12, 14, 15, 16; three-outcome classification with the two-actor anomaly
+- [ ] M6 — Nightly drill on a disposable slot with aged state; 7 green nights
 
 ## Log
 
 ### 2026-10-18
+
+- Claimed as the slot-lifecycle design vehicle (hub delivery 011ca7a4). Read the project file, audit.md (16 paths, D1–D20), targets slot-continuity and slot-recovery, #683. Spot-checked the seams the design rests on: `DispatchOperation` is the single op entry (run.go:616/632/982, recover_action.go:176); `ObserveSlotSessions` is the slot-wide witness; the LaunchFailure ring is 16 entries; strictjson makes a new record field forward-compatible only; the wrapper spawns the agent and session-watch via `exec.Command` (ExtraFiles available). Key decision: a per-slot lifetime lease (shared flock held by every pair process of the tree, inherited by the agent and helpers) as the single resource proving teardown (tl-worker PLANNING rule), with lsof naming survivors. Plan written; awaiting operator approval via the hub before any code.
+
+## Revisions
+
+- 2026-10-18 20:30 — scope widened from the Fresh-fallback fix to the slot-lifecycle mechanism, on the hub's dispatch (operator direction). The original Done-when items stay and are delivered by M3 (archive refuses while alive) and M4 (the regression; the switcher through a failed relaunch). Added: every audit path composed of the three primitives (M1–M5), and the nightly drill (M6).
