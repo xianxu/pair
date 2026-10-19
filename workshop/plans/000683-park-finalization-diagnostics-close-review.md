@@ -229,3 +229,123 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000411
+
+---
+
+## Re-review — 2026-10-19T03:57:52-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 683 — Persist every lifecycle failure reason |
+| repo | pair |
+| issue file | workshop/issues/000683-park-finalization-diagnostics.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 5afc269d3add99de21b5f894d8436ac6da15c796..ba4820caa5a8270bcbea67bb4767121a9748188b |
+| command | sdlc close --issue 683 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-19T03:57:52-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+BR-5 is addressed: row and show now share resolved-slot target selection, and removing the fix makes its regression tests fail. The implementation follows the approved completion-log design, preserves recovery behavior and updates README/atlas. One Important responsiveness issue remains: diagnostic publication can block the console event loop.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Diagnostic binding is absent; both unreadable-record recovery regressions pass at the pinned head.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Missing-cache preparation/adoption/readiness and hub-move tests pass; attempts retain dispatched evidence independently of cache hits.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Standalone switches retain one enclosing attempt; launch-capture tests asserting single publication pass.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      The full artifactpath package passes, including source and symbol guards.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Resolved-target selection uses lifecycleFailureRowTargets. Both target-only regression tests pass at head and fail when launchfailure_show.go is restored from 6fcefcb82 in a disposable checkout.
+findings:
+  - id: new
+    severity: Important
+    kind: defect
+    family: optional-io-off-console-event-loop
+    title: |
+      Terminal diagnostic publication blocks console input and rendering
+    detail: |
+      cmd/internal/couchtty/console_lifecycle_failure.go:41 calls Finish synchronously from finishOperation, invoked by the console event loop at console.go:1088. Finish performs Save, including up to ten seconds waiting for the diagnostic lock and filesystem IO afterward; a controlled blocked-store probe kept finishOperation blocked throughout a 100ms interval. Remote completions without a readiness wait also reach synchronous publication through couchcmd/lifecyclefailure_queue.go:49. ARCH-CONSTRAINTS: perform terminal publication after adoption on bounded, joined worker paths, then deliver the finalized outcome to the event loop; cover menu, reattach and remote failures with a stalled-store responsiveness regression.
+```
+
+1. **Strengths**
+
+   - Shared display target enumeration and visibility resolve BR-5 across slot names, primary-root references, paths, tags and empty slots (`launchfailure_show.go:36`, `lifecyclefailure_projection.go:142`).
+   - Real-store tests verify byte-preserving unknown members through rewrites and enrichment (`lifecyclefailure_codec_test.go:14`).
+   - Success performs no diagnostic IO; typed failures and receipt correlation survive terminal recording.
+   - README and atlas document the new surface, retention limits and record-derived visibility.
+
+2. **Critical findings**
+
+   None.
+
+3. **Important findings**
+
+   The console-blocking publication above needs correction. Keep once-only terminal ownership, but finish storage work outside the event loop. The regression should prove input and stop events remain processable while publication is stalled.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - Focused lifecycle, launch, attempt, recovery and receipt tests passed.
+   - Focused race tests passed for core, command and console packages.
+   - Full artifactpath, testpair and termcmd guards passed.
+   - Private-service coverage passed with `TMPDIR=/tmp`; the default temporary path exceeded the Unix socket path limit.
+   - BR-5 mutation failed as expected. The new responsiveness probe also failed as expected. Disposable checkouts were removed; the reviewed checkout remains unchanged.
+   - The broad unfiltered package run was interrupted; no full-suite pass is claimed.
+
+6. **Architectural notes**
+
+   | Principle | Assessment |
+   |---|---|
+   | ARCH-DRY | Pass: shared target enumeration, recency and visibility helpers. |
+   | ARCH-PURE | Pass: deterministic codec/history/projection functions remain separate from IO adapters. |
+   | ARCH-PURPOSE | Pass: approved persistence scope covers failures before and after dispatch; BR-5 is corrected. |
+   | ARCH-MOCK | Pass: stateful storage fakes and portable real-service coverage share production seams. |
+   | ARCH-CONSTRAINTS | **Flag:** optional publication blocks the console event loop. |
+   | ARCH-SECURE | Pass: strict decoding, safe file handling and holder-kind allowlisting. |
+   | ARCH-ORDER | Pass: action-local once-only completion ownership retains adoption/readiness outcomes. |
+   | ARCH-FUNERAL | Pass: writer-enforced count/byte bounds and existing staging cleanup. |
+   | ARCH-EVOLVE | Pass: additive decoding preserves nested unknown bytes through persisted rewrites. |
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry specifying that diagnostic publication runs outside the console event loop, names the bounded worker owner for each completion path, and requires stalled-store responsiveness coverage. Retain the approved separation from #695 park finalization.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"9653df2e-c9a6-42c0-8d45-b037b3fc4261","repository":"github.com/xianxu/pair","issue_id":"000683","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/ac26d412ace7f42e","reviewed_head":"ba4820caa5a8270bcbea67bb4767121a9748188b","slot":"pair:5","requested_at":"2026-10-19T10:53:02.846002Z"},"phase":"finished","pid":46516,"started_at":"2026-10-19T10:53:02.956433Z","finished_at":"2026-10-19T10:57:51.506438Z","session_id":"01a153cb-1f6d-7ca0-9fec-a43db6b0ff53","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.644756541s
+head: "ba4820caa5a8270bcbea67bb4767121a9748188b"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
