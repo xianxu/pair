@@ -50,7 +50,7 @@ background, so a single slot's action needn't block the UI.
 
 - [x] Implement the per-target reducer, row progress/results and navigation intent in [the durable plan](../plans/000576-slot-jobs-plan.md), with failing ordering regressions first.
 - [x] Integrate the bounded Console execution/adoption path after #651 lands; preserve synchronous CLI callbacks and #574's final-outcome observer seam.
-- [x] Verify all action routes, targeted/race tests and recorded full suite; obtain hub's acceptance decision, close and land on SHIP.
+- [ ] Verify all action routes, targeted/race tests and recorded full suite; obtain hub's acceptance decision, close and land on SHIP.
 
 ## Log
 
@@ -131,3 +131,20 @@ total: 2.34
 ### 2026-10-18 — implementation checkpoint (not acceptance)
 
 Full-flow change-code passed after clean plan review; estimate-quality retained an INFO about optimistic integration effort. Hub confirmed lifecycle/nav ownership and the existing worker count with shared capacity16 (6499d26c-bc34-452d-b31e-435b228803bb). Queue lane regressions passed20 repetitions and race20. Installer regressions first reproduced mutex retention and post-stop adoption, then passed repeated race checks. Worker-side adoption regressions now pass, including remote final outcome, duplicate completion and shutdown settlement (race10). Legacy menu migration ran264 tests; four remaining production defects concern leave/pass overlap, captured error labels/paths and replacement-frame selection. Broader console verification is not passing: final navigation integration remains in progress. This commit checkpoints partial implementation, not a completion claim.
+
+
+### 2026-10-18 — BR-1: ownership across identity materialization (approval pending)
+
+Close round1 returned REWORK with Critical BR-1, target-ownership-survives-identity-materialization. Fresh starts reserve StartPath while inventory later lists an address/row key; exact-key admission and projection do not recognize the same owned work. A new red regression, TestMenuStartReservationSurvivesSlotMaterialization, reproduces all four failures for both a numbered-slot row and an ordinary primary row: progress disappears, detach attempt2 is admitted, busy selection misses attempt1, and automatic address lookup misses the owner. No production fix yet. The prior suite pass remains valid evidence for the old implementation, not acceptance of BR-1.
+
+Use one original reservation through final adoption, with derived aliases rather than a second registry or identity-changing event (ARCH-DRY, ARCH-ORDER). Retain its map key, immutable Origin and attempt. For an untyped start, the accepted absolute Worktree supplies both an exact cleaned slot path and the primary RepoScope derived by the existing pure launcher.ResolveRepoScope; spawnResolved uses exactly that derivation. Primary :0 rows are ordinary, not numbered slots. Never infer ownership from cwd, display name, path prefix or arbitrary inventory order. A running ordinary address-replacing action (the existing reboot/recover/recovery-confirmation vocabulary) similarly holds its original exact primary scope through replacement; other ordinary actions remain address-specific. A primary-scope alias matches only ordinary rows; numbered-slot rows match exact SlotPath only.
+
+Apply one alias policy to symmetric admission overlap, row lookup/busy selection, automatic address lookup and rendering. Running ownership takes precedence over an older final result. Build indexes for running exact targets, slot paths and primary scopes once, then project rows once: O(jobs + rows), with the existing N/2N counted controls extended to materialization. If more than one ordinary row is visible in the owned primary scope, each visibly stays busy under that one reservation; never select an arbitrary one as the result. Pruning keeps the original running reservation; final outcomes still bind only to the exact returned address/stable row, otherwise the existing retained global diagnostic. No scope-wide guessed final outcome and no additional early StartedChild binding are needed: aliases cover inventory publication even before the start function returns.
+
+| Internal state / event | Visible state | Recovery action | Possible loss |
+|---|---|---|---|
+| Start queued/running; row not yet listed | Existing start progress | Work elsewhere | None; same reservation remains |
+| Primary/slot row appears, or ordinary replacement changes tag, during work/adoption | Same start/action and elapsed time; second action says busy | Select the busy row to wait on its original attempt | None; no second job |
+| Matching completion | Existing exact result/failure projection | Existing declared row action | Existing lifecycle uncertainty only |
+
+Acceptance adds a real Console.Run fixture with a start-result row arriving during held adoption, visible progress and busy:start, exactly one lifecycle/adoption call, and explicit busy-row selection landing only when released. Cover inventory arrival before effect return in reducers, symmetric row/start admission, original Origin unchanged, replacement-address cases, and negatives for matching cwd in a different scope, path-prefix collisions, another numbered checkout, scope versus numbered-slot identity, and independent ordinary operations. Preserve final-result pruning, counted linear scans and stale-completion/focus fences. Add the identity-transition lesson. Then rerun relevant package/race guards, a recorded full suite on the fixed pushed head, and the complete close review. No production code until hub approval of this revision; no stage or live acceptance claimed.
