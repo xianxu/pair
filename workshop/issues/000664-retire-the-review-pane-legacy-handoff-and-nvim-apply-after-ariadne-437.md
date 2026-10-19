@@ -16,6 +16,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "28a471c7", done: "051474e2"}
 ---
 
 # Retire the review pane legacy handoff and nvim apply after ariadne#437
