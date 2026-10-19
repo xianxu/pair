@@ -45,7 +45,7 @@ Distinguish verified park recovery, retained unresolved evidence and explicit Fr
 
 Inspect retained lifecycle/archived records and the operation-diagnostic seam first. Design failure retention and recovery ordering with explicit partial outcomes before implementation. #681 separately owns the confirmed two-second CLI admission timeout; do not duplicate that fix here.
 
-Proposed implementation plan: [Lifecycle failure persistence](../plans/000683-lifecycle-failure-persistence-plan.md). The scope disposition and replacement close criteria below await hub approval; implementation has not started.
+Approved implementation plan: [Lifecycle failure persistence](../plans/000683-lifecycle-failure-persistence-plan.md). The scope disposition and replacement close criteria below were approved in c35c61ae; implementation is gated by change-code.
 
 ## Log
 
@@ -74,18 +74,20 @@ Read-only audits found two design hazards: Read currently normalizes through clo
 
 ## Revisions
 
-### 2026-10-19 — Proposed scope disposition for the lifecycle project
+### 2026-10-19 — Approved scope disposition for the lifecycle project
 
-Reason: the hub explicitly assigned the error-persistence part first, while #695 now owns shared teardown and #684 owns convergence. Preserve the original Spec/Done when above as incident history; the following close contract supersedes them only upon hub approval.
+Reason: the hub explicitly assigned the error-persistence part first, while #695 now owns shared teardown and #684 owns convergence. Preserve the original Spec/Done when above as incident history; the following close contract supersedes them on hub approval c35c61ae.
 
 - Original cleanup-success/finalization acceptance transfers to #695's TestTeardownFoldsCompletedPark and its teardown work; it remains open there and is not claimed fixed by this issue.
 - Original Recovery/Fresh ordering acceptance transfers to #695/#684. Archival is not treated as verified park recovery.
 - The diagnosis acceptance is satisfied only to the retained evidence's limit: helper success and unresolved bookkeeping are confirmed; the initiating error and operator menu choice remain unknown. Failure persistence enables a later recurrence to supply the missing text.
 
-Proposed replacement Done when for #683's implementation:
+Approved replacement Done when for #683's implementation:
 
 - [ ] Admitted menu, reattach and CLI lifecycle failures from preparation through final completion retain their original bounded message, frozen target/transaction and operation nonce in the same diagnostics file; typed failure details are preserved without inventing a generic phase.
 - [ ] Known types/required fields/duplicate keys stay strict, while unknown entry and nested members survive real read/modify/write and enrichment byte-equal. Legacy launch records remain compatible; the ring is bounded at 64 entries and 1 MiB.
 - [ ] Switcher and show share a metadata-cached latest unresolved failure projection, including empty slots, and later terminal success supersedes older failures for that slot without deleting evidence or writing on ordinary success with no failure to supersede.
 - [ ] CLI terminal receipts retain FailureNonce; cancellation, partial outcomes, save errors and late/duplicate completions cannot masquerade as successful lifecycle effects or clear newer failures.
 - [ ] Pure/stateful/real-private-service proof, the required recorded suite and mandatory close review pass before normal landing; any operator live acceptance is explicitly scheduled with the hub and recorded as owed if deferred.
+
+2026-10-19 — Scope disposition and replacement close contract approved by hub in verified c35c61ae; original clauses above are retained incident history, with park finalization/teardown owned by #695 and Fresh ordering by #684. Pair:1 approved P3/2a fit after correcting byte-budget retention. Hub b00ff428 approved oldest-whole-entry eviction to retain the newest within 64 entries/1 MiB, plus OperationAttempt.Finish as sole recorder instead of dispatcher completion re-entry. No implementation before change-code; private-service proof before landing and disposable-slot display acceptance owed after next operator restart, no :0 staging.

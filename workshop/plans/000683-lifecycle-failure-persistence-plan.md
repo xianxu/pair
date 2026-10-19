@@ -8,11 +8,11 @@ collaboration-mode: discussion
 
 **Goal:** retain the reason and exact attempted target of lifecycle failures from CLI, switcher and reattach, including failures before a new launch, and show the latest unresolved failure after transient receipts disappear.
 
-**Architecture:** extend the existing launch diagnostic ring, preserving legacy records and unknown JSON members. One recorder at `DispatchOperation` owns failure publication and successful supersession. Queue-owned attempts finish there only after preparation, execution, adoption and any readiness check have produced their terminal outcome.
+**Architecture:** extend the existing launch diagnostic ring, preserving legacy records and unknown JSON members. One recorder at `OperationAttempt.Finish` owns failure publication and successful supersession; synchronous DispatchOperation and the queued terminal adapter are its two boundary callers. Queue-owned attempts finish there only after preparation, execution, adoption and any readiness check have produced their terminal outcome.
 
 **Tech stack:** Go; existing Couch dispatcher, stateful failure-store fake, namespace-backed atomic JSON store, console queue and receipt reducer.
 
-**Approval:** proposed; hub approval and pair:1 contract check precede change-code. This is one atomic close boundary, with plain tasks rather than milestone tags.
+**Approval:** hub approved initial plan/scope/live schedule in c35c61ae; pair:1 reviewed P3/2a in f2442a59; hub approved the byte-cap and Finish refinements in b00ff428. change-code remains the implementation gate. This is one atomic close boundary, with plain tasks rather than milestone tags.
 
 ## 1. Scope and retained evidence
 
@@ -31,7 +31,7 @@ Paths in the tables are relative to `cmd/internal/` unless otherwise stated.
 | `LifecycleFailure`, `LifecycleFailureHistory` (legacy LaunchFailure aliases) | `couchcore/launchfailure.go` | modified |
 | `ProcessIdentityLine`, `LifecycleFailureDetails` | `couchcore/lifecyclefailure.go` | new |
 | `LifecycleFailureTarget`, centralized slot-key derivation | `couchcore/lifecyclefailure.go` | new |
-| `OperationAttempt`, terminal completion envelope | `couchcore/operationattempt.go` | new |
+| `OperationAttempt`, terminal outcome | `couchcore/operationattempt.go` | new |
 | preserving failure codec | `couchcore/lifecyclefailure_codec.go` | new |
 | `ApplyLifecycleFailureEvent`, latest unresolved projection | `couchcore/lifecyclefailure.go` | new |
 | `OperationReceipt`, `ReceiptOutcome`, `ApplyReceiptEvent` | `couchmessage/operation.go` | modified |
@@ -77,19 +77,19 @@ Capture `Unknown map[string]json.RawMessage` per entry and diagnostics-private o
 
 **Byte preservation:** do not send opaque values through a container json.Marshal that compacts RawMessage. A deterministic object/array encoder marshals owned field names/values and appends validated unknown RawMessage values verbatim. Tests compare each unknown raw value, including whitespace, escaped strings and precise large integers, after real rewrite/reopen. Preserve current structural numeric validation unless separately approved; no arbitrary float conversion of opaque values.
 
-Keep current 1 MiB encoded ceiling, 16 KiB raw launch-output tail, 4 KiB per error and existing identity/metadata bounds. Raise count 16→64 with oldest-first eviction. Proposed holder bound: 32, each command line at most 512 UTF-8 bytes, identities at existing identity limits; trim display command text, never fabricate an identity. Normalize a supplied oversized holder list to its bounded evidence tail with an explicit truncation count. Unknown fields are never truncated to fit: an oversized encoded update refuses atomically, preserving prior bytes. The count cap is not a promise that 64 maximum-sized entries fit the byte cap.
+Keep current 1 MiB encoded ceiling, 16 KiB raw launch-output tail, 4 KiB per error and existing identity/metadata bounds. Raise count 16→64 with oldest-first eviction. Proposed holder bound: 32, each command line at most 512 UTF-8 bytes, identities at existing identity limits; trim display command text, never fabricate an identity. Normalize a supplied oversized holder list to its bounded evidence tail with an explicit truncation count. Unknown fields are never truncated to fit. Trim to 64, then evict oldest whole entries until encoding fits 1 MiB, always retaining the newest failure. Refuse atomically only when that newest entry alone cannot fit. Late enrichment preserves original failure time and cannot promote an old entry past newer failures; it may be evicted whole under the same policy. The count cap is not a promise that 64 maximum-sized entries fit the byte cap.
 
 ## 4. One recorder and the full terminal boundary
 
-Add an optional recorder capability to OperationExecutors. Wire production constructors once from Couch, both direct CLI and the singleton console dispatcher; individual lifecycle implementations do not save diagnostic records. Operation declarations select lifecycle mutations using their existing effect/owner metadata plus one central lifecycle predicate; read-only show/list/peek/status and schema/authentication probes neither clear nor manufacture failures. Add an exhaustive declaration coverage test so new lifecycle verbs cannot silently bypass the recorder.
+Add an optional attempt factory capability to OperationExecutors; OperationAttempt.Finish is the sole recorder. Wire production constructors once from Couch, both direct CLI and the singleton console dispatcher; individual lifecycle implementations do not save diagnostic records. Operation declarations select lifecycle mutations using their existing effect/owner metadata plus one central lifecycle predicate; read-only show/list/peek/status and schema/authentication probes neither clear nor manufacture failures. Add an exhaustive declaration coverage test so new lifecycle verbs cannot silently bypass the recorder.
 
 **Necessary refinement to P3:** DispatchOperation is the effect entry, but today it does not encompass every terminal outcome. PrepareSlotOperation/guard errors can return before it; console adoption and asynchronous readiness can fail afterward; attached-pane reuse can skip it. Merely wrapping its current return would miss the incident class and clear failures too soon.
 
-For queue-owned actions, create OperationAttempt before preparation from the already verified menu row or canonical socket target/cache. Carry it through the queue using typed owner-local context/payload. Dispatch performs the effect while recording is deferred. The shared terminal callback then re-enters DispatchOperation with a typed completed-outcome envelope; that branch validates attempt ownership, records the final value/error, and performs **no executor, queue, signal or launch**. This is not a wire argument or arbitrary alternate executor. A closed attempt cannot execute or publish twice. Nested switch/resume/attach calls inherit the attempt and cannot supersede independently.
+For queue-owned actions, create OperationAttempt before preparation from the already verified menu row or canonical socket target/cache. Carry it through the queue using typed owner-local context/payload. Dispatch performs the effect while recording is deferred. The shared terminal callback invokes OperationAttempt.Finish with the final typed outcome. Finish validates terminal ownership, records the final value/error, and performs **no executor, queue, signal or launch**. DispatchOperation retains its ordinary effect-entry contract, with no completed-outcome mode. A closed attempt cannot publish twice. Nested switch/resume/attach calls inherit the attempt and cannot supersede independently.
 
 Attach the terminal adapter at shared queue completion paths, including pre-prepare cancellation, hub guard refusal, hosted resume reuse and adoption failure; remote readiness retains terminal ownership until its existing asynchronous check ends. Do not move readiness onto the lifecycle worker or add another goroutine. Preserve its bounded wait and close/cancellation behavior. A completed dispatch alone is not terminal success when adoption/readiness is owed.
 
-For synchronous calls, the same DispatchOperation wrapper owns terminal recording directly. Reuse an existing captured launch failure nonce and enrich that row rather than duplicating launch-stage evidence; retain its output/exit observations. Otherwise allocate one operation nonce and retain the separate park transaction nonce. Diagnostic-save failure wraps the original error with explicit save status and inspect advice, never changes failed/unproven to success. A lifecycle effect that succeeded but whose supersession write fails remains successful with a visible diagnostic-store warning, not an invitation to repeat the effect.
+For synchronous calls, DispatchOperation finishes its owned attempt directly. Both paths reach the same Finish recorder; no operation implementation saves a record. Reuse an existing captured launch failure nonce and enrich that row rather than duplicating launch-stage evidence; retain its output/exit observations. Otherwise allocate one operation nonce and retain the separate park transaction nonce. Diagnostic-save failure wraps the original error with explicit save status and inspect advice, never changes failed/unproven to success. A lifecycle effect that succeeded but whose supersession write fails remains successful with a visible diagnostic-store warning, not an invitation to repeat the effect.
 
 ReceiptOutcome and OperationReceipt gain optional FailureNonce, copied by ApplyReceiptEvent. Extract it once after typed outcome classification so all refusal/error branches preserve it. The operation error keeps its original errors.Is/As behavior and reports nonce/store path. Show includes the nonce in full output; the operator can correlate it after the five-minute receipt expires, until bounded ring eviction. Keep the existing ShowResult LaunchFailures JSON field and launch-stage fields compatible through the type aliases; no parallel duplicate history array is introduced.
 
@@ -131,7 +131,7 @@ Each task uses red → minimal implementation → green → commit. One close re
 |---|---|---|
 | preserving decoder/encoder, normalize/clone | generate additive entry/nested values, missing/wrong/null known fields, escaped-equivalent duplicate keys, malformed tails | real Read→Save unrelated/enrich→reopen raw-byte equality; invalid writes preserve old bytes |
 | ApplyLifecycleFailureEvent / key | sequence duplicate, unrelated slot, replacement tag, same-time attempts, reversed completion, eviction | literal pure transition tests; superseded evidence cannot reappear |
-| DispatchOperation recorder / attempt ownership | prepare/guard/effect/adoption/readiness/cancel failures and nested calls | production-wired stateful fixture; exactly one nonce/publication, no executor on completion replay |
+| DispatchOperation recorder / attempt ownership | prepare/guard/effect/adoption/readiness/cancel failures and nested calls | production-wired stateful fixture; exactly one nonce/publication, no effect or publication on Finish replay |
 | slotOperationOutcome / ApplyReceiptEvent | every typed refusal and generic/partial outcome | table over actual classifications, FailureNonce retained after finish and visible in JSON |
 | cached projection / inventory | concurrent refresh, same-time replacement, corrupt/absent file, 8/16 rows and histories | counted payload reads ≤1 per refresh, unchanged metadata zero payload rereads, O(H+R) visits |
 | row/show rendering | unknown phase, oversized/control text, empty slot, store error, superseded record | production renderer assertions preserve selected slot identity and original state/actions |
@@ -140,7 +140,7 @@ Each task uses red → minimal implementation → green → commit. One close re
 
 - [ ] Add failing `TestLifecycleFailurePreservesUnknownFieldsThroughRewrite` in `couchcore/lifecyclefailure_codec_test.go`, including nested objects, whitespace and large integer bytes; exercise unrelated insertion and matching enrichment through the real store. Add strict wrong-type/duplicate/required/null cases.
 - [ ] Run `go test ./cmd/internal/couchcore -run 'LifecycleFailure|LaunchFailure' -count=1`; retain the red result before implementation.
-- [ ] Implement the additive codec, aliases, target/key and pure transition; extend the existing fake. Cover 64/65 retention, byte-overflow refusal, deep-copy isolation, legacy launch enrichment, slot-only records and late superseded enrichment.
+- [ ] Implement the additive codec, aliases, target/key and pure transition; extend the existing fake. Cover 64 maximum-size entries followed by a 65th (65th retained, oldest evicted and encoded size bounded), ordinary 64/65 retention, single-entry byte-overflow refusal, deep-copy isolation, legacy launch enrichment, slot-only records and late superseded enrichment.
 - [ ] Re-run the targeted command to green and commit `#683: preserve and widen lifecycle diagnostics`.
 
 ### Task 2: Terminal dispatch and receipts
@@ -174,4 +174,6 @@ Each task uses red → minimal implementation → green → commit. One close re
 
 ## Revisions
 
-2026-10-19 — Initial plan incorporates pair:1's P3/2a contract and its empty-phase/superseded_at refinement. Read-only audits identified terminal outcomes outside the current dispatcher return; the proposed deferred terminal envelope closes that coverage gap without moving readiness into the lifecycle worker. Hub approval is requested before implementation.
+2026-10-19 — Initial plan incorporates pair:1's P3/2a contract and its empty-phase/superseded_at refinement. Read-only audits identified terminal outcomes outside the current dispatcher return; deferred terminal ownership closes that coverage gap without moving readiness into the lifecycle worker. Hub approval is requested before implementation.
+
+2026-10-19 — Hub approved scope/live schedule (c35c61ae). Pair:1 found aggregate byte-cap refusal would discard the newest failure at maximum occupancy; hub approved count trim then oldest-whole-entry byte eviction, keeping the newest, with a 64-maximum-size-plus-65th regression (b00ff428). Adopted pair:1's simpler OperationAttempt.Finish choke point in place of dispatcher completed-outcome re-entry. Both boundary adapters finish an owned attempt; no per-site writes. Retained one close boundary: dedicated codec/history tests precede integration, and the complete observable feature gets one fresh boundary review.
