@@ -80,15 +80,15 @@ Before/after observations survive later remote verification/cleanup errors. Canc
 
 ### Function-level test strategies
 
-| Function / seam | Adversarial strategy and concrete regression |
-| --- | --- |
-| ParseDriveMaxFiles | Table/fuzz: default and positive boundary; reject zero/negative/noninteger/overflow before CLI work. |
-| DriveInventoryObservation.Line / Warning | Below/equal/above default and override; before/after labels; zero vs absence; bounded Unicode destination with one recovery instruction. |
-| Count from decoded inventory | Pure map with duplicate non-directory names and directories; exact entry count, not map key count; never mutate input or change capacity semantics. |
-| Encode/DecodeContinuousReport | New observation roundtrip; legacy absent observation; required fields including zero-count presence; negative/overbound counts, bad phase/identity, invalid threshold and no-pass combination; existing malformed/duplicate/alias/oversize and unknown-field raw-log guarantees remain. |
-| DriveMirror.Run | Extend TestDriveMirrorCountedBacklogAndRerun at N=8/16; zero added list/resolve/copy/hash invocations. TestDriveMirrorFinalListingRejectsLateDuplicate proves final observation replaces before. Early/final listing failure, partial copy failure, cancellation and no candidates preserve exact known/unknown evidence. Fake directory entries exercise production DecodeFlatInventory. |
-| runContinuous CLI | Fake pass/report callback records no work on invalid env; configured limit reaches typed report and human warning; partial/unavailable Drive keeps database report useful. No real source/network opens. |
-| archiveScheduler.tick / shared warning helper | Fake clock and stateful fake pair report with DB + Drive warnings. Exact configured-root dedup across changed folder IDs, different configured roots, below/above repeat and day/restart, unavailable primary and uncertain output share existing admission/output semantics; no duplicate retry or second log writer. Keep #700 counted row regression. |
+| Risky function / transition | Adversarial input class | Mechanical guard |
+| --- | --- | --- |
+| ParseDriveMaxFiles(raw) | Arbitrary bounded environment strings | Table-derived numeric partitions plus fuzzing: accepted values are positive representable integers, empty maps to the shared default, and rejection precedes a fake CLI work counter. |
+| DriveInventoryObservation.Line / Warning(limit) | Arbitrary optional observations, roots and threshold relationships | Generated observations assert the warning equivalence law (known count greater than a positive threshold), monotonicity in threshold, bounded/control-safe text and one recovery instruction; absence cannot render an observed zero. |
+| observeDriveInventory(destination, folderID, phase, inventory) | Entry maps with repeated names and heterogeneous entry kinds | Pure property test compares Files with an independent flat-entry reduction, verifies the input is unchanged and preserves unrelated capacity accounting. |
+| EncodeContinuousReport / DecodeContinuousReport | Structurally malformed or additive runtime JSON | Generate mutations of valid envelopes; strict-refusal and round-trip/legacy-compatibility invariants distinguish evidence from missing data. Qualify the unchanged raw-byte logging path through the real fake subprocess seam. |
+| DriveMirror.Run | Controlled remote-object evolution and injected failure at each existing listing/effect boundary | Existing stateful FakeRclone invocation ledger proves the call sequence is unchanged at N and 2N. Returned observation must equal the last completely decoded remote snapshot, independent of upload result or receipt count. |
+| runContinuous | Arbitrary env options combined with typed fake pass outcomes | CLI side-effect counter rejects invalid configuration before work; the same accepted threshold and observation must appear in both human and decoded JSON projections, without losing database evidence. |
+| archiveScheduler.tick / shared warning helper | Reproducible clock/report/output event sequences across configured roots | Reference admission oracle asserts reservation-before-effect and at-most-once attempt per root/day/lifetime, independent of later folder identity or output result. Existing database counted-row regression rejects extra work; fake callback and retained log qualify the one shared effect path. |
 
 Targeted commands: go test ./cmd/internal/historyarchive ./cmd/internal/archivecmd ./cmd/internal/couchcmd -run 'Test(Drive|Continuous|Archive|RunArchivePass)|Fuzz' -count=1; then the exact artifact source/reference/dead-symbol/documentation guards. Behavioral red must identify missing count/warning or incorrect listing/capacity rather than relying only on undefined symbols. Full suite: sdlc local-check run --name suite on pushed head, with normal machine queue. No pair:0 staging or real alert requested; propose fake-backed acceptance and next natural daily count as live confirmation to the hub.
 
@@ -97,3 +97,5 @@ Targeted commands: go test ./cmd/internal/historyarchive ./cmd/internal/archivec
 - 2026-10-19: dispatched after #700 landed. No-candidate passes currently do not list Drive; preserving that unknown observation is required by the no-extra-call contract. Successful before evidence survives failed final listing, clearly labeled. Keep #706 year/month migration out of this item; it waits for #689.
 
 - 2026-10-19, hub 2ea831d5: plan and fake-backed acceptance approved; next natural pass confirms real count. Clarification replaces the original destination+FolderID admission key with the configured destination root alone. Keep root FolderID as observation provenance, never a month-child key, so #706 can aggregate child folders under the same root contract. Active key/test map updated; no code yet.
+
+- 2026-10-19, plan-quality round 1 PQ-1: replaced the remaining case inventories with function-level adversarial classes and mechanical/property guards, and named observeDriveInventory as the pure count projection. Acceptance boundaries remain in Done when/decisions; no behavior or mechanism changed.

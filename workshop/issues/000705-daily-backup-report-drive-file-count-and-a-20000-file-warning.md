@@ -49,6 +49,8 @@ Operator request via hub receipt 277127be-5775-4a0e-93e4-8d24a00600a5. #700 was 
 
 - 2026-10-19, exploration: claimed and start-plan from fresh main; no code changed. FakeRclone already models before/final/partial-copy behavior and exact call counters. It needs only directory representation for non-file counting. Pure/adapter source seams and named adversarial test strategies are in the durable plan; hub approval requested before change-code. No live Drive/desktop calls or pair:0 work.
 
+- 2026-10-19, plan-quality round 1: PQ-1 requested test-strategy presentation refinement only. Replaced case inventories with named risky-function adversarial classes and mechanical/property guards; no implementation, estimate or policy change. Rerun change-code.
+
 ## Revisions
 
 - 2026-10-19, hub 3ca340ad: #700 is verified/ticked/rebuilt; dispatch #705 now. Keep #706 folder migration separate and waiting for #689.
