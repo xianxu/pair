@@ -38,7 +38,7 @@ Measure size, wall time and CPU for large database snapshot compression at level
 ## Plan
 
 - [x] Measure retained history snapshot at -3/-9/-19 with -T0, plus a representative tracked-text tar, under both machine-test tokens and one 20-minute outer bound. Record wall/user/sys CPU, bytes, zstd version, load and decompression hash agreement; remove private compressed outputs immediately.
-- [ ] Send measured policy and compatibility choice to the hub before code; add failing policy/codec/reader tests, then implement through the shared codec seam with truthful compression metadata.
+- [x] Send measured policy and compatibility choice to the hub before code; add failing policy/codec/reader tests, then implement through the shared codec seam with truthful compression metadata.
 - [ ] Qualify native round trips and cancellation, document storage/time tradeoffs, run recorded suite, close and land on SHIP.
 
 ## Log
@@ -74,3 +74,6 @@ Hub receipt 20cd5be1 approved codex-database -9 -T0 and all other kinds -19 -T0;
 
 ### Implementation checkpoint
 Behavioral red run: TestCompressionPolicyAndReaderCompatibility failed on database -19 and non-19 readers; TestCodecUsesAllThreads observed --single-thread. Implemented one kind-based selection and one shared descriptor parser, with actual manifest descriptor passed through Codec.Encode; no format fields changed. Fake subprocess tests inspect -T0/ultra arguments and verify unsupported values spawn neither tool. Real-codec qualification uses disposable keys only.
+
+### Qualification checkpoint
+Targeted policy, codec subprocess, archive descriptor agreement and mixed legacy/new/future-level catalog tests passed (2.501s). Isolated real GPG/zstd round trips passed for levels 9, 19, 20 and 22; production archive round trip, corruption rejection and unchanged source hashes passed (2.227s total). Existing cancellation/failing child tests passed in the targeted Codec group. Full historyarchive package run and recorded full suite are running; no full-suite success claimed yet. PR https://github.com/xianxu/pair/pull/455.

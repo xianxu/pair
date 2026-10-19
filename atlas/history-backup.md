@@ -12,7 +12,11 @@ other kind. The manifest and label record the actual level; readers accept
 canonical positive zstd levels independently of this writer policy. Encoding
 rejects levels above 22 before spawning and uses `--ultra` for levels 20–22.
 Existing level-19 bundle IDs remain readable, and unchanged source content is
-skipped rather than recompressed. `PAIR_ARCHIVE_LIVE=1` enables the isolated-key
+skipped rather than recompressed. On the measured 2 GB history snapshot, level 9
+produced 205 MB in 2.2 s versus level 19’s 147 MB in 56.3 s (both `-T0`),
+saving about 454 CPU-seconds for 58 MB more per changed daily bundle. This
+trades roughly 21 GB/year of storage for much less daily compression work.
+`PAIR_ARCHIVE_LIVE=1` enables the isolated-key
 codec round-trip conformance test for levels 9, 19, 20 and 22.
 
 ## Commands and request
