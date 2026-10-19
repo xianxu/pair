@@ -91,3 +91,88 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-19T06:55:38-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 700 — Warn when a database backup is older than its freshness threshold |
+| repo | pair |
+| issue file | workshop/issues/000700-database-backup-freshness-alert.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 8b7e155fd77906abd9823491ff9b510a798cfab8..47fd390f227e85d08c6caa0008ef50f263e8d484 |
+| command | sdlc close --issue 700 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-19T06:55:38-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range delivers the documented freshness policy, bounded report transport, daily warning admission, and operator delivery. BR-1 is verified addressed with a failing negative control. No new blocking findings were found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      ContinuousPass.now normalizes injected and production clocks to UTC. The mixed-result and N/2N pass regressions exercise actual producer evidence through encoding and decoding with non-UTC clocks. Removing only normalization in a disposable pinned-head checkout made these tests fail with invalid UTC evidence time; pinned-head historyarchive tests pass. The disposable checkout was removed.
+```
+
+1. **Strengths**
+
+   - Freshness policy is shared by CLI and Couch, preserves catalog timestamps, and exempts validated unchanged content (`cmd/internal/historyarchive/continuous_snapshot_model.go:50`).
+   - Subprocess handling preserves valid partial reports independently of process failure and rejects overflow entirely (`cmd/internal/couchcmd/archive_schedule.go:86`).
+   - Admission occurs before notification effects, with exact source keys, UTC rollover, rollback protection, and a bounded reservation set (`cmd/internal/couchcmd/archive_alert_model.go:29`).
+   - README and atlas updates document the threshold, quiet-database exception, delivery ownership, and reservation lifetime.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Passed package tests for `historyarchive`, `archivecmd`, and `artifactpath`.
+   - Passed the complete `couchcmd` package with `TMPDIR=/tmp`. The initial run encountered host temporary-path lengths exceeding the Unix socket limit; the short-root rerun passed.
+   - BR-1’s negative control failed in the mixed-result regression and both counted-pass cases when normalization was removed.
+   - `git diff --check` passed. The repository-wide recorded suite and natural desktop acceptance were not independently rerun during this review.
+
+6. **Architectural notes**
+
+   | Principle | Result |
+   | --- | --- |
+   | ARCH-DRY | Pass — one freshness predicate serves both consumers. |
+   | ARCH-PURE | Pass — policy, codec, and admission tests run without IO; effects remain at integration seams. |
+   | ARCH-PURPOSE | Pass — stale and never-verified rows reach warnings, including partial failed passes. |
+   | ARCH-MOCK | Pass — stateful subprocess fixtures and injected notification outputs exercise production boundaries. |
+   | ARCH-CONSTRAINTS | Pass — report capture and admission are bounded; N/2N checks cover work scaling. |
+   | ARCH-SECURE | Pass — external reports receive structural and semantic validation; notification text is sanitized. |
+   | ARCH-ORDER | Pass — reservation transitions are centralized and tested across duplicates, rollback, rollover, restart, and uncertain delivery. |
+   | ARCH-FUNERAL | Pass — reservations expire on rollover or process exit; the existing latest-pass log is overwritten. |
+   | ARCH-EVOLVE | Pass — persisted formats remain unchanged; additive runtime fields are accepted and original report bytes retained in logs. |
+
+7. **Plan revision recommendations:** None. The existing BR-1 revision matches the correction and regression evidence.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"0cad523e-bc90-4ae0-84c4-f3c4288422e2","repository":"github.com/xianxu/pair","issue_id":"000700","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/49f729cc0d309bee","reviewed_head":"47fd390f227e85d08c6caa0008ef50f263e8d484","slot":"pair:7","requested_at":"2026-10-19T13:52:01.251488Z"},"phase":"finished","pid":68414,"started_at":"2026-10-19T13:52:01.390913Z","finished_at":"2026-10-19T13:55:30.716818Z","session_id":"01a1546e-fb0a-71d2-a15c-c0966d3b8061","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.643824042s
+head: "47fd390f227e85d08c6caa0008ef50f263e8d484"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

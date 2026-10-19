@@ -42,6 +42,8 @@ Warn the operator when a configured database's last verified backup bundle excee
 
 ## Log
 
+
+- 2026-10-19: closed — BR-1 reproduced by an actual mixed failed/archived non-UTC pass through the codec, then fixed by UTC normalization at ContinuousPass.now. Corrected targeted historyarchive/archivecmd/couchcmd checks passed, including west/east clock offsets and actual archived/unchanged/deferred producer-to-codec evidence. Prior headless checks cover threshold, quiet content, partial failed reports, exact daily admission, unavailable primary hub, uncertainty, bounded subprocess output and inherited descriptors; source/dead-symbol/docs guards passed. Corrected recorded suite is running on 47fd390f227e in parallel with review under tl-worker; final code pass required before landing. Natural live acceptance remains with hub; no staging. --no-project because TL owns project records.; review verdict: SHIP
 - Follow-up requested by hub in approval f477a6cb-0f84-4d98-9557-481147bd3338; filed unclaimed, independent of #688's bounded acquisition and report delivery.
 
 ## Revisions
