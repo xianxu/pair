@@ -92,3 +92,35 @@ Hub approved scope and cadence in7f664349-b72a-4c11-a1b2-91baf70f21ba. Cold disc
 Use transactional cursor advancement: NewTranscriptCursor(runtime, validated TargetValidation) seeds only pinned byte/frame/boundary state; cursor.Next(ctx,runtime,maxBytes) returns a candidate next cursor and TranscriptBatch {Entry, Records, BytesRead, Backlog}. The caller owns compact scanner state, validates the returned records with the existing scanner and rechecks owner/process before committing candidate cursor/state or publishing lifecycle facts. A rejected scanner/owner observation leaves the prior cursor intact. TitleProjection delegates to the same internal advance helper with its existing checkArtifacts callback, preserving Agy/other-artifact guards and its outer PollContext transaction. It uses its existing initial snapshot extent, while lifecycle passes256KiB. No scanner/events/history in the cursor.
 
 Cached owner checking must also avoid a Pair-root listing: factor the existing metadata-fenced owner-cache core so the bound watcher can supply its exact validated ledger artifact; ordinary inventory lookup still finds the ledger through its existing route. Do not add a new cache or mtime-only authority. Count both Pair-root and native-root listings in the zero-follow regression. Runtime fakes must present the same authoritative Pair ledger to this adapter, rather than weakening the production guard for tests.
+
+
+### 2026-10-18 — PQ-1/PQ-2: enforced transition and function strategies
+
+The authoritative bound-follow production component is pure reduceBoundFollow(state,event), with phases Reading, Publishing and Stopped. It owns the committed cursor/scanner snapshot, acknowledged watermark, at most one prepared batch/candidate cursor and its next publication index. These are internal phases, not extra operator UI states. The IO loop only executes the reducer's next read/publish/stop effect; it cannot independently advance cursor or watermark (ARCH-ORDER).
+
+| Phase / event | Transition and commit |
+|---|---|
+| Reading + valid batch, owner/process fences passed | Stage candidate cursor/scanner and the bounded new-record batch; enter Publishing. No cursor or watermark advance yet. |
+| Reading + valid batch with no lifecycle output | Commit candidate cursor/scanner after the owner/process fence; remain Reading, update cadence from bytes/backlog. |
+| Publishing + exact acknowledged append at expected index | Advance acknowledged watermark/index only. Existing journal reconciliation/dedup owns append certainty. |
+| Publishing + final acknowledged append | Commit candidate cursor/scanner; discard staged records, return Reading. |
+| Publishing + confirmed failure or unconfirmed outcome | Enter Stopped, retain the acknowledged prefix watermark and original committed cursor; do not claim the failed/unconfirmed record committed and do not retry automatically. Already durable journal records remain. |
+| Any active phase + changed process/launch/binding, invalid transcript or canceled observation | Discard uncommitted cursor/state/batch, enter Stopped; preserve acknowledged journal progress. |
+| Stopped + any late/duplicate result | No effects. Exact mismatched/stale publication identities never advance the watermark. |
+
+An already committed prefix is never rolled back because a later append fails. A failed append which existing journal reconciliation proves committed is an acknowledgment; an uncertain result stops the watcher. Relaunch uses the existing bootstrap/watermark policy, not a persisted retry queue or history replay: a telemetry gap is possible, native work and durable records are preserved. Use the existing current-confirmation fence for the accepted generation around publication, so a changed owner cannot authorize another batch; this reuses the ledger's existing guard, not a new lock. The IO publisher reports one typed result per expected record; pure reduction decides advancement. Add controlled success-prefix/failure/uncertain/reconciled-commit traces through this actual reducer, not a parallel model used only by tests.
+
+The earlier procedural case list is an integration inventory. This table is the authoritative named-function strategy required by PQ-2; functions touching IO are explicitly tested with stateful runtimes, not called pure:
+
+| Production function | Adversarial input / mechanical guard |
+|---|---|
+| reduceBoundFollow (pure) | Generated phase/event traces, permuted/stale acks, acknowledged prefix then error/uncertainty and cancellation; only expected acknowledgments advance watermark, only complete acknowledged batches commit the cursor, Stopped emits no effects. |
+| nextLifecycleDelay (pure) | Boundary/property tests over base/previous duration and progress/backlog booleans; monotone idle doubling capped at5s, progress resets, no negative/overflow delay. |
+| LifecycleRecordsFromEvents (pure existing projection) | Bounded fresh batches with old/foreign/unkeyed/malformed events and reordered positions; exact offset/turn filtering, watermark monotonicity and no dependence on retained old history. |
+| NewTranscriptCursor and TranscriptCursor.Next (IO integration) | FakeRuntime append/replace/truncate/mutate/cancel at every guard; maximum four64KiB payload chunks, fixed snapshot under continuous append, partial framing and retry from discarded candidate, no foreign read or unsafe commit. |
+| Exact cached owner reader / factored readOwnerLaunchFromLedger (IO integration) | Large ledger cold/warm/mutated/replaced/conflicting inputs plus mid-read drift; unchanged bytes read/decoded=0, exact artifact stats without listing, strict latest-launch authority unchanged. |
+| publishLifecycleBatch (IO integration) | Stateful existing journal writer/reconciler acknowledges a prefix then fails/returns uncertain/proves committed; reducer receives exact results once, no automatic retry, retained durable prefix and no duplicate record after reconciliation. |
+| followBoundCodex / Run (IO integration) | Fresh correlation into bound follow with4k/8k unrelated trees, explicit fake sleeps and post-binding counts; zero native/Pair listings, foreign/catalog reads and history decode; exact suffix progress and launch/PID shutdown. |
+| TitleProjection.tail / PollContext (IO integration) | Complete recorded/native fixtures and existing title/Agy mutation/cancellation permutations through the shared reader; preserve current admission, database and display behavior. |
+
+These refinements specify the already approved owner/cursor commit guarantees and failure behavior. They add no new user action, retry, data format or scope beyond the approved bound follow. Re-run the full plan gate before implementation.
