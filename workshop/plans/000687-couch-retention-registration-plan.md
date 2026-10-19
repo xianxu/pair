@@ -80,30 +80,30 @@ ARCH-FUNERAL: reuse runtimes.json, its 256-entry bound and positively-dead pruni
 
 Files: modify runtimes.go/coordinator.go and runtimes_test.go; create runtime_codec.go/runtime_codec_test.go in cmd/internal/storagegc.
 
-- [ ] runtimeRegistry.UnmarshalJSON/MarshalJSON: seed and fuzz additive and ambiguous JSON across all three object depths; reject malformed known structure and preserve surviving opaque members through semantic round trips.
-- [ ] Coordinator.ReadRuntimes/RegisterRuntime: stateful real-file rewrites with controlled liveness and capability upgrades; assert stable IDs, bounded validated reads, unknown-member retention, and no authority or writes on rejected metadata. Replace the old additive-member refusal.
-- [ ] Implement private runtime wire preservation and full-registry update, then the optional typed diagnostic capability request. Keep old caller behavior and no-op registration writes unchanged.
-- [ ] Run go test ./cmd/internal/storagegc -run 'Test.*Runtime|TestRuntimeRegistry' -count=1; capture RED/GREEN and commit.
+- [x] runtimeRegistry.UnmarshalJSON/MarshalJSON: seed and fuzz additive and ambiguous JSON across all three object depths; reject malformed known structure and preserve surviving opaque members through semantic round trips.
+- [x] Coordinator.ReadRuntimes/RegisterRuntime: stateful real-file rewrites with controlled liveness and capability upgrades; assert stable IDs, bounded validated reads, unknown-member retention, and no authority or writes on rejected metadata. Replace the old additive-member refusal.
+- [x] Implement private runtime wire preservation and full-registry update, then the optional typed diagnostic capability request. Keep old caller behavior and no-op registration writes unchanged.
+- [x] Run go test ./cmd/internal/storagegc -run 'Test.*Runtime|TestRuntimeRegistry' -count=1; capture RED/GREEN and commit.
 
 ### Task 2: Consume the exact lease through existing proof
 
 Files: create cmd/internal/diagnosticlog/runtime_registry.go/runtime_registry_test.go; modify registry.go and cmd/internal/gcruntime/runtime.go; extend process_inventory_test.go/sweep_test.go and add cmd/internal/gcruntime/runtime_registration_test.go.
 
-- [ ] matchesRuntimeRegistration: table-driven exact-identity/capability mutations; only a supported Couch lease for the observed incarnation qualifies.
-- [ ] runtimeInspection.Runtimes/Snapshot/OpenFiles: stateful portable lease files plus controllable native inventory and process probe; adversarial lease/identity changes and cancellation must fail closed while exact holders remain authoritative.
-- [ ] runtimeInspection.Snapshot: counted N=8/16 sweeps assert one registry read and native snapshot pair, bounded matching identity checks, and refreshed evidence next sweep.
-- [ ] EnvironmentOptions and gcruntime.NewWithInspection: run ordinary maintenance and explicit/scheduled collection against the same stateful supervisor-shaped fixture; assert only eligible unheld diagnostics change, with no metadata writes during preview.
-- [ ] Run targeted diagnosticlog/gcruntime tests and commit only after GREEN.
+- [x] matchesRuntimeRegistration: table-driven exact-identity/capability mutations; only a supported Couch lease for the observed incarnation qualifies.
+- [x] runtimeInspection.Runtimes/Snapshot/OpenFiles: stateful portable lease files plus controllable native inventory and process probe; adversarial lease/identity changes and cancellation must fail closed while exact holders remain authoritative.
+- [x] runtimeInspection.Snapshot: counted N=8/16 sweeps assert one registry read and native snapshot pair, bounded matching identity checks, and refreshed evidence next sweep.
+- [x] EnvironmentOptions and gcruntime.NewWithInspection: run ordinary maintenance and explicit/scheduled collection against the same stateful supervisor-shaped fixture; assert only eligible unheld diagnostics change, with no metadata writes during preview.
+- [x] Run targeted diagnosticlog/gcruntime tests and commit only after GREEN.
 
 ### Task 3: Publish from Couch and qualify the boundary
 
 Files: modify cmd/internal/couchcore/couch.go/runtime_retention_test.go and cmd/internal/artifactpath/manifest.go; update atlas/storage-retention.md and atlas/index.md only if needed.
 
-- [ ] Extend TestCoordinatedCouchRegistersActualRootRuntime to require the supported diagnostic capability and retained ID/idempotency. Reuse the constructor's owned temp roots and verify no owner activity is initialized.
-- [ ] Have Couch request the capability through the existing RegisterRuntime transaction before admitting the coordinated store. Add both new production files to artifactpath's exhaustive source classification.
+- [x] Extend TestCoordinatedCouchRegistersActualRootRuntime to require the supported diagnostic capability and retained ID/idempotency. Reuse the constructor's owned temp roots and verify no owner activity is initialized.
+- [x] Have Couch request the capability through the existing RegisterRuntime transaction before admitting the coordinated store. Add both new production files to artifactpath's exhaustive source classification.
 - [ ] Run affected full packages plus go test ./cmd/internal/termcmd -run '^TestNoDeclarationCarriesTwoStackedGodocs$' -count=1 and the artifact ownership guard before a recorded suite.
-- [ ] Use an owned child/isolated root to verify real PID/birth lease recognition, reuse/replacement rejection and held-FD protection; bound and join every owned child. No foreground/native lane interaction.
-- [ ] Record a read-only real diagnostic preview against the existing running supervisor. Before restart, its old capability may correctly remain blocked; report that as rollout state, not manufactured success.
+- [x] Use an owned child/isolated root to verify real PID/birth lease recognition, reuse/replacement rejection and held-FD protection; bound and join every owned child. No foreground/native lane interaction.
+- [x] Record a read-only real diagnostic preview against the existing running supervisor. Before restart, its old capability may correctly remain blocked; report that as rollout state, not manufactured success.
 
 ### Final gates and live arrangement
 

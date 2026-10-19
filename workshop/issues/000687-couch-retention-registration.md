@@ -45,9 +45,9 @@ Proposed for hub approval: publish explicit diagnostic protocol version1 on the 
 
 See [implementation plan](../plans/000687-couch-retention-registration-plan.md). Hub approved the plan; enter implementation through change-code.
 
-- [ ] Preserve unknown runtime-registry members through bounded validated reads and surviving-record rewrites; add the explicit diagnostic capability to the existing lease.
-- [ ] Consume exact identity-fenced participation from the selected root through shared writer/GC inspection, with stateful sequence and counted sweep regressions.
-- [ ] Publish from Couch, qualify owned/native boundaries and document the operator restart check.
+- [x] Preserve unknown runtime-registry members through bounded validated reads and surviving-record rewrites; add the explicit diagnostic capability to the existing lease.
+- [x] Consume exact identity-fenced participation from the selected root through shared writer/GC inspection, with stateful sequence and counted sweep regressions.
+- [x] Publish from Couch, qualify owned/native boundaries and document the operator restart check.
 
 ## Estimate
 
@@ -101,6 +101,10 @@ Affected full packages storagegc (38.863s), diagnosticlog (89.050s) and gcruntim
 Read-only real preview completed4.463s, exit0, no stderr:519 rows /33,335,609,869bytes, zero eligible. Existing supervisor45023 has its original couch-runtime lease with no diagnostic_protocol and correctly blocks253 current rows /23,917,067,119bytes. No live apply or staging. runtimes.json remained byte-identical, SHA256 ac43fa7db16e4f5e22e59fcb7bf4a209953fdfab89d91cc642ba692d482ff426. Retained evidence: /Users/xianxu/workspace/pair/.git/pair-687-evidence (before/after registry, preview JSON/stderr and SHA256SUMS); manifest SHA25669932b22f2bb863b9208b87ac90f1489ca324393238af17988ec07e96ec564e0. Hub report197c66ca-bd69-41c4-84a1-026271ac5a46 was submitted. Real supervisor participation remains the approved next-restart check.
 
 Restart check for hub/operator: after restarting onto this landing, read the selected root's .retention/runtimes.json and match the new supervisor PID/birth, couch-runtime role and diagnostic_protocol1. Run pair gc --diagnostics-only --json against that root; its current-log rows must no longer name the supervisor as an unrecognized runtime. Actual open holders, old clients, changed generations and other blockers remain protected. A new preview and separate apply approval precede any deletion.
+
+### 2026-10-18 — draft PR and recorded suite
+
+Opened early PR447 through sdlc pr, then converted it to draft for CI overlap (sdlc pr has no draft option). All four server checks passed on a508b7ef803197b892f0d28f6ae4333165b07a0f: macOS conformance2m12s, merge-check1m11s and both local-gates checks. Recorded suite attempt a4b9bb7cbcb08c0e833fc1a05cfa062f is queued from this slot on that head; its retained inflight log is .git/sdlc/test-stats/inflight/a4b9bb7cbcb08c0e833fc1a05cfa062f/run.log. Full couchcore package run remains active. Implementation checkboxes are complete; suite completion remains a landing gate. Starting the binary-owned close review while the recorded suite waits, per tl-worker's approved overlap.
 
 ## Revisions
 
