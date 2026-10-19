@@ -32,7 +32,7 @@ type LifecycleFailureTarget struct {
 // LifecycleFailureSlotKey derives identity from a previously verified physical path.
 func LifecycleFailureSlotKey(t LifecycleFailureTarget) string {
 	if filepath.IsAbs(t.StartingPath) {
-		return "slot:" + t.StartingPath
+		return slotLifecycleKey(t.StartingPath)
 	}
 	return ""
 }

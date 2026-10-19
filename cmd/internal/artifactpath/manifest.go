@@ -842,6 +842,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/launchfailure_show.go",
 	"cmd/internal/couchcore/launchfailure_store.go",
 	"cmd/internal/couchcore/launchfailure_store_fake.go",
+	"cmd/internal/couchcore/lifecycleaddress.go",
 	"cmd/internal/couchcore/lifecyclefailure.go",
 	"cmd/internal/couchcore/lifecyclefailure_codec.go",
 	"cmd/internal/couchcore/lifecyclefailure_record.go",
