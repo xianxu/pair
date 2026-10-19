@@ -1,11 +1,19 @@
 # History backup
 
 `pair archive` is an explicit batch backup path. It archives selected stable
-regular files as tar → zstd `-19` → GPG public-key encryption, reads the published
+regular files as tar → zstd → GPG public-key encryption, reads the published
 ciphertext back to verify its SHA256 and size, and records verified bundles in a
 private local catalog. It preserves every source file. The entrypoint is
 [`archivecmd`](../cmd/internal/archivecmd/run.go); the implementation is
 [`historyarchive`](../cmd/internal/historyarchive/archive.go).
+
+Compression uses `-9 -T0` for `codex-database` and `-19 -T0` for every
+other kind. The manifest and label record the actual level; readers accept
+canonical positive zstd levels independently of this writer policy. Encoding
+rejects levels above 22 before spawning and uses `--ultra` for levels 20–22.
+Existing level-19 bundle IDs remain readable, and unchanged source content is
+skipped rather than recompressed. `PAIR_ARCHIVE_LIVE=1` enables the isolated-key
+codec round-trip conformance test for levels 9, 19, 20 and 22.
 
 ## Commands and request
 

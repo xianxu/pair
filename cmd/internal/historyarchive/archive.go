@@ -239,7 +239,7 @@ func (a Archiver) writeBundle(ctx context.Context, req ArchiveRequest, m Manifes
 	done := make(chan error, 1)
 	go func() { e := files.WriteTar(ctx, pw, m); pw.CloseWithError(e); done <- e }()
 	bounded := &boundedCipherWriter{writer: f, remaining: maxCiphertext}
-	encodeErr := a.Codec.Encode(ctx, pr, bounded, m.Recipients)
+	encodeErr := a.Codec.Encode(ctx, pr, bounded, m.Recipients, m.Compression)
 	pr.CloseWithError(encodeErr)
 	tarErr := <-done
 	// The codec may not wrap the writer's error; the writer remembers.

@@ -11,8 +11,9 @@ import (
 )
 
 type archiveTestCodec struct {
-	calls  int
-	refuse bool
+	compression string
+	calls       int
+	refuse      bool
 }
 
 func (c *archiveTestCodec) CheckRecipients(context.Context, []string) error {
@@ -21,7 +22,8 @@ func (c *archiveTestCodec) CheckRecipients(context.Context, []string) error {
 	}
 	return nil
 }
-func (c *archiveTestCodec) Encode(ctx context.Context, r io.Reader, w io.Writer, _ []string) error {
+func (c *archiveTestCodec) Encode(ctx context.Context, r io.Reader, w io.Writer, _ []string, compression string) error {
+	c.compression = compression
 	c.calls++
 	_, e := io.Copy(w, r)
 	return e
@@ -134,5 +136,33 @@ func TestArchiveDestinationNamespacesDoNotOverlap(t *testing.T) {
 	}
 	if _, statErr := os.Stat(req.Catalog); !os.IsNotExist(statErr) {
 		t.Fatalf("overlap must refuse before writes: %v", statErr)
+	}
+}
+
+func TestArchivePublishesActualCompression(t *testing.T) {
+	for _, kind := range []string{"ops-documents", "codex-database"} {
+		t.Run(kind, func(t *testing.T) {
+			req, codec := archiveFixture(t)
+			req.Kind = kind
+			a := Archiver{Codec: codec}
+			records, err := a.create(context.Background(), req, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := "zstd -19"
+			if kind == "codex-database" {
+				want = "zstd -9"
+			}
+			if codec.calls != 1 || codec.compression != want || records[0].Manifest.Compression != want || records[0].Label.Compression != want {
+				t.Fatalf("codec=%+v records=%+v", codec, records)
+			}
+			if err := ValidateRecord(records[0]); err != nil {
+				t.Fatal(err)
+			}
+			records[0].Label.Compression = "zstd -1"
+			if ValidateRecord(records[0]) == nil {
+				t.Fatal("mismatched descriptor accepted")
+			}
+		})
 	}
 }
