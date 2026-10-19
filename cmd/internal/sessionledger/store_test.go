@@ -401,3 +401,57 @@ func (f *failingAppendFile) Sync() error {
 func launchRecord(scope, tag string, offset uint64) Record {
 	return Record{Version: 1, Kind: RecordLaunch, ScopeKey: scope, Tag: tag, Agent: "claude", PairLogOffset: offset}
 }
+
+type confirmationWitnessRuntime struct {
+	OSRuntime
+	held bool
+}
+type confirmationWitnessUnlock struct {
+	Unlocker
+	owner *confirmationWitnessRuntime
+}
+
+func (r *confirmationWitnessRuntime) Lock(path string) (Unlocker, error) {
+	lock, err := r.OSRuntime.Lock(path)
+	if err != nil {
+		return nil, err
+	}
+	r.held = true
+	return confirmationWitnessUnlock{lock, r}, nil
+}
+func (u confirmationWitnessUnlock) Close() error { u.owner.held = false; return u.Unlocker.Close() }
+func TestCurrentConfirmationReaderRunsInsideWriterLock(t *testing.T) {
+	for _, state := range []string{"confirmed", "conflict", "missing", "read-error"} {
+		t.Run(state, func(t *testing.T) {
+			rt := &confirmationWitnessRuntime{}
+			store := LedgerStore{Runtime: rt}
+			effects, reads := 0, 0
+			err := store.WithCurrentConfirmationReader(filepath.Join(t.TempDir(), "ledger.jsonl"), Owner{ScopeKey: "scope", Tag: "work", Agent: "codex"}, 1, "ours", func() (Current, bool, error) {
+				if !rt.held {
+					t.Fatal("authority read happened outside writer lock")
+				}
+				reads++
+				if state == "read-error" {
+					return Current{}, false, errors.New("read failed")
+				}
+				return Current{Launch: Record{Ordinal: 1}, Binding: &Record{RootNativeID: "ours"}, Conflict: state == "conflict"}, state != "missing", nil
+			}, func() error {
+				if !rt.held {
+					t.Fatal("effect outside writer lock")
+				}
+				effects++
+				return nil
+			})
+			if reads != 1 || rt.held {
+				t.Fatalf("reads%d held%v", reads, rt.held)
+			}
+			if state == "confirmed" {
+				if err != nil || effects != 1 {
+					t.Fatalf("effect%d err%v", effects, err)
+				}
+			} else if err == nil || effects != 0 {
+				t.Fatalf("stale read authorized: effects%d err%v", effects, err)
+			}
+		})
+	}
+}
