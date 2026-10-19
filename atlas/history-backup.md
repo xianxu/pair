@@ -209,8 +209,7 @@ does nothing.
   `journal_mode=DELETE` and passes `PRAGMA integrity_check` before publishing
   it under `$PAIR_DATA_DIR/archive-snapshots/` (outside the catalog directory).
   A skipped database is retried on the next pass.
-- **Never deletes;** writes only the archive store, the snapshot root, the sink
-  and the catalog. One pass at a time (`continuous.lock`); a completed full pass
+- **Never deletes sources or retained copies;** writes the archive store, snapshot root, local sink/catalog, and the configured remote after local success. One pass at a time (`continuous.lock`); a completed full pass
   writes `continuous.last`.
 - **Schedule:** Couch checks hourly and runs the command at `nice 10` when
   configured and the last pass is over 24 hours old (`couchcmd/archive_schedule.go`),
@@ -218,3 +217,23 @@ does nothing.
   lock.
 - Files over their kind's raw bound are skipped with a note. Database snapshots use the snapshot bound (`rawBundleLimit`, 8 GiB): they compress well (Codex `thread_history_1.sqlite` 1.60 GB to 115 MB), so the 2 GiB ciphertext bound is their real limit, and a snapshot whose compressed bundle exceeds it is skipped with a note (`ErrCiphertextLimit`), not a failed pass (#616). Each snapshot is its own request, so a skip never drops another database. Cost: a database that changes daily is a new version every pass, and the sink never deletes; at the measured 115 MB per `thread_history_1.sqlite` bundle that is roughly 40 GB a year for that one database. Pruning old snapshot versions is a separate, not-yet-made retention decision.
 
+
+## Drive copies (#678)
+
+`pair archive continuous` completes local backup and writes its local success marker before optional Drive replication. Install/configure rclone independently: Pair never reads or creates its credentials. Add `drive_remote` and `drive_folder` string fields to continuous.json to override `pair-backup` and `backups/pair-history`. Omitted/empty fields use those defaults; invalid remote names or nonrelative/unsafe folders produce a visible Drive-unavailable note after local success. The remote must be a configured named rclone remote and the folder must already exist.
+
+[DriveMirror](../cmd/internal/historyarchive/drive.go) projects every record for the configured local sink, including earlier bundles when no new sources were archived. It releases the local catalog lock before network work. The resolved destination folder ID is pinned, then two flat hash listings bracket uploads. Remote filenames are `<bundle-ID>.tar.zst.gpg` and `<bundle-ID>.json`; the public label is uploaded, the private catalog/Manifest is not. Duplicate names and checksum/size conflicts get no new receipt and are reported; they are never repaired or deleted automatically.
+
+Each source object is staged privately and checked against local SHA256/size before rclone reads it. Upload uses `copyto --immutable --ignore-existing --checksum`: `--ignore-existing` is required because the installed rclone v1.75.2 local-backend conformance showed that `--immutable` alone replaced a conflicting file. Final listing/checksum verification handles a skipped conflict honestly. Prefer returned SHA256, then MD5 computed alongside the verified local stream; when neither usable hash is returned, [hashsum --download](https://rclone.org/commands/rclone_hashsum/) reads the remote object and computes SHA256. Output names each bundle's `backend-sha256`, `backend-md5`, or `downloaded-sha256` path and the total downloaded checksums.
+
+The separate upload catalog is `<catalog>.uploads/<destination-SHA256>/<bundle-ID>.json`. Receipts contain identities/hashes/sizes and verification time, never local manifest paths, and never grant local archive authority. Each receipt is at most 8 KiB and there are at most 100,000 per destination; evidence is retained with the copies until an explicit retention policy is introduced. A changed destination uses a fresh receipt namespace. An interrupted upload may leave matching remote objects without a receipt; rerun adopts them after fresh listing/checksum verification. A corrupt/conflicting receipt requires inspection, not overwrite. A receipt records verification at its timestamp; ongoing remote audits are outside this command.
+
+The optional remote phase runs serially for at most 30 minutes, with a 60-second metadata-command cap. Compact candidate and flat listing projections are each bounded to 100,000 entries / 64 MiB; local files retain their existing ciphertext/metadata limits. Exceeding a bound leaves remote work pending while preserving local success. One private encrypted staging file is held at a time under the archive store's `.drive-staging/`; normal exit removes it and the next continuous-lock owner sweeps interrupted staging. No recursive inventory or catalog spool is created. A pass reports local counts separately from Drive verified/already-recorded/pending counts; rerun after correcting missing rclone/remote or interruption. Inspect duplicate/mismatch notes before changing remote files.
+
+Deterministic tests use stateful `archivetest.FakeRclone` behind the production runner. Installed-rclone local-backend conformance is opt-in and uses a private HOME/config:
+
+```sh
+PAIR_RCLONE_LOCAL_CONFORMANCE=1 go test ./cmd/internal/historyarchive ./cmd/internal/historyarchive/archivetest -run 'TestRclone|TestExecRclone|TestFakeRclone' -count=1
+```
+
+For the one operator-run real Drive check, the hub supplies the qualified candidate binary after fake/local conformance passes. Keep the existing continuous.json and run that binary's `archive continuous`, retain its local/Drive summary and per-bundle verification paths, then run the same command again: it must report already-recorded pairs with zero new uploads. Confirm bundle and label filenames in Google Drive and retain before/after local bundle counts/bytes. A lock-busy result means no pass ran; wait for the owning pass. Do not print rclone configuration or credentials into evidence. This live check remains outstanding until its actual results are recorded in #678.

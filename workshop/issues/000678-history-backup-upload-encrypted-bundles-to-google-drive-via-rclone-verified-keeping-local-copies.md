@@ -39,9 +39,9 @@ Add a Drive sink to historyarchive that shells out to rclone (remote and folder 
 
 Durable design: [000678-drive-history-backup-plan.md](../plans/000678-drive-history-backup-plan.md). Full flow; hub approved before change-code (delivery f7e7fe62-5f41-4133-ba43-4296e82fd885).
 
-- [ ] Define destination/receipt identities and pure upload transitions; test configuration defaults and remote-only failures.
-- [ ] Implement the bounded rclone seam with a stateful fake and disposable installed-rclone local conformance.
-- [ ] Integrate verified backlog replication after local completion, immutable upload receipts, private staging and counted N/2N recovery tests.
+- [x] Define destination/receipt identities and pure upload transitions; test configuration defaults and remote-only failures.
+- [x] Implement the bounded rclone seam with a stateful fake and disposable installed-rclone local conformance.
+- [x] Integrate verified backlog replication after local completion, immutable upload receipts, private staging and counted N/2N recovery tests.
 - [ ] Document configuration/recovery, obtain operator-run Drive conformance, and land through recorded suite and fresh close review.
 
 ## Log
@@ -64,6 +64,19 @@ Durable design: [000678-drive-history-backup-plan.md](../plans/000678-drive-hist
 
 - 2026-10-18 hub direction 892e9607-9074-46ed-9d53-a2e5de49637d: simplified PQ-1 disposition to flat content-addressed remote names, one resolved/pinned folder ID and two flat hash listings. No recursive inventories, spooling or depth limits. Receipts require unique names with matching size/hash; duplicates/mismatches are reported and never repaired. Backend SHA256/MD5 verification paths are logged; only absent backend hashes cause downloaded SHA256. Existing requirements are met; proceeding with change-code rerun.
 
+
+
+### Implementation checkpoint — 2026-10-18
+
+- change-code passed full flow: plan-quality CLEAN, PQ-1/PQ-2 addressed; estimate-quality INFO (optimistic integration/conformance allowances). Derived card estimate 2.48h using the named calibration, not a guessed total.
+- Implemented pure destination/receipt/state contracts, strict JSON decoder, bounded rclone runner and stateful fake, flat before/after inventories, verified encrypted staging, immutable separate receipts, and post-local continuous replication/CLI reporting. New production sources are registered in artifactpath. No operator environment/config or Google remote has been touched.
+- RED evidence: configuration rejected unknown drive_remote before its implementation; mirror/continuous wiring symbols absent; CLI omitted Drive output; receipt adoption returned found=true with verify=0. GREEN evidence: task model/adapter tests; mirror 8/16 counted cycles and zero-copy rerun; partial/uncertain upload recovery, final duplicate refusal, independent local success/marker, and receipt durability re-verification. Candidate projection test counts exactly one Catalog.Each scan at both 8 and 16.
+- Installed rclone v1.75.2 local-backend conformance found --immutable alone overwrote conflicting bytes. Added --ignore-existing to the same operation; isolated conformance proves preserved bytes and correct flat listing/downloaded checksum. Per-bundle verification method and aggregate downloaded-checksum counts are reported. This corrects the existing no-overwrite contract without a new mechanism/query.
+- Latest complete targeted command with PAIR_RCLONE_LOCAL_CONFORMANCE=1 passed historyarchive (82.049s), archivetest (0.225s), archivecmd (0.907s). Subsequent new projection/adoption checksum tests passed (25.873s). Guard packages passed internal/repolint (37.658s), artifactpath (21.534s), testpair (16.762s); these will be rechecked with newly tracked files. The first broad invocation had an incorrect cmd/internal/repolint path; reran the actual internal/repolint package, no bypass.
+- Race qualification is still running; stronger in-flight child cancellation handshake is being added. README/atlas describe configuration, honest status, verification paths and operator live steps. Live Drive pass, recorded full suite and close review remain outstanding; hub arranges live check once candidate ready.
+
+- Additional qualification: race tests passed historyarchive (47.417s), archivetest (1.182s), archivecmd (1.181s). Tracked-file guard rerun passed internal/repolint (20.563s), artifactpath (19.536s), testpair (26.256s). In-flight exec cancellation uses authenticated readiness and owned-process collection (race test 1.221s). Semantic JSON/hash alias regressions were RED then GREEN; latest focused race check passed historyarchive (2.471s) and archivecmd (1.186s).
+- Estimate advisory acknowledged: adapter allowance includes its fake and local conformance; integration allowance includes projection/staging/receipt/CLI wiring and tests. Active verification and landing are included in the review/integration work; idle machine queue time is excluded. The calibration is provisional and may underpredict this integration-heavy scope; actuals will remain measured.
 
 ## Estimate
 

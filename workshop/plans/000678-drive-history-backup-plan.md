@@ -54,7 +54,7 @@ Runner accepts argv arrays and context, returns bounded structured output/exit i
 3. Resolve defaults and validate remote settings; locate rclone. Report unavailable and return local success when tool/settings/remote cannot be used. Resolve the configured destination folder once per pass, checking the matching directory entries at the configured parent and refusing multiple matches; pin its stable ID using the adapter's internally generated `--drive-root-folder-id <ID>`. Do not recursively walk ancestors or introduce depth limits. A missing configured folder/remote remains unavailable; never create credentials or repair remote structure. ResolveDestination is a one-time metadata operation, separate from the two folder-content listings.
 4. Read one flat `lsjson` of the pinned folder, with hashes, into a bounded index of name to entries. Preserve duplicates in this index. Drive entries require stable object IDs. DecodeFlatInventory rejects malformed/overflowing metadata; duplicates are represented as ambiguous, not collapsed. Local-backend conformance uses native path identity instead of Drive IDs. Each listing has at most 100,000 entries / 64 MiB, and metadata deadline 60 seconds. No recursive listing, per-object directory enumeration, inventory spool or namespace fencing framework.
 5. For each candidate read the bounded public label, validate it against the local CatalogRecord and hash its actual bytes. An exact durable receipt skips the object work. Missing receipt is pending; corrupt/conflicting receipt is visible refusal. Pending ciphertext/label is read through LocalSink into one private regular staging file at a time; SHA256 and size must match local authority before it can reach rclone. Compute MD5 alongside SHA256 on this same stream, for backends returning only MD5. Only encrypted payload and its public label reach the remote.
-6. Use flat content-addressed names `<bundle-ID>.tar.zst.gpg` and `<bundle-ID>.json`. Before-list entries with a unique matching size/hash permit adoption. A missing name permits `rclone copyto <private-file> <pinned-remote:name> --immutable --checksum --no-update-modtime --retries 1 --low-level-retries 1`; duplicate/mismatching names receive no copy and a visible report. Check backend SHA256 when returned, otherwise MD5 against the staged digest. If neither usable hash is returned, defer verification to downloaded SHA256. No delete, overwrite, dedupe, sync or move.
+6. Use flat content-addressed names `<bundle-ID>.tar.zst.gpg` and `<bundle-ID>.json`. Before-list entries with a unique matching size/hash permit adoption. A missing name permits `rclone copyto <private-file> <pinned-remote:name> --immutable --ignore-existing --checksum --no-update-modtime --retries 1 --low-level-retries 1`; duplicate/mismatching names receive no copy and a visible report. Check backend SHA256 when returned, otherwise MD5 against the staged digest. If neither usable hash is returned, defer verification to downloaded SHA256. No delete, overwrite, dedupe, sync or move.
 7. After upload effects, obtain one more flat `lsjson` of that same pinned folder. Publish a receipt only when each of its two names has exactly one entry and that entry's size and checksum match the expected local bytes. Prefer backend SHA256, otherwise backend MD5. Only if neither hash is available run `rclone hashsum SHA256 <pinned-remote:name> --download`; require its exact expected SHA256 and size from the unique final listing. Report per-bundle paths `backend-sha256`, `backend-md5`, or `downloaded-sha256` (including mixed pairs), plus aggregate fallback counts. No child stderr or credentials enter logs.
 8. Keep compact candidate verification facts in memory, not a receipt spool. Publish and verify immutable UploadReceipt through LocalSink only after final unique-name/checksum checks. Duplicate or mismatching names get no receipt and are reported without automatic repair; unaffected pairs can still receive receipts. A command failure/timeout leaves uncertain objects pending; reconcile by listings on the next pass. A listing/probe failure stops this optional phase without receipts based on incomplete evidence. Cancellation cancels and joins an owned subprocess before return.
 9. Report local counts separately from Drive verified/already-recorded/pending/unavailable state. Remote failure alone does not change local success exit status or marker. Later daily/manual passes retry; no in-pass retry storm. Flat folder and serialized pass ownership are the hub's operating assumption under its configured drive.file client; arbitrary concurrent external writers are outside the admitted model. Receipts are observations at verification time, not an ongoing remote lease.
@@ -114,34 +114,34 @@ ARCH-PURE separates typed decisions/parsers from IO; ARCH-DRY reuses LocalSink a
 
 Files: create drive_model.go and drive_model_test.go under cmd/internal/historyarchive; modify continuous_config.go and continuous_config_test.go.
 
-- [ ] Write failing unit tests for Destination parsing/defaults and receipt validation/identity; config with absent remote fields preserves existing local config, invalid remote settings remain remote-only failure.
-- [ ] Run `go test ./cmd/internal/historyarchive -run 'TestDriveDestination|TestUploadReceipt|TestContinuousConfig' -count=1`; retain meaningful RED.
-- [ ] Implement typed contracts, strict decoding and pure NextUpload transitions; add sequence tests that vary duplicate, cancellation, missing and uncertain observations.
-- [ ] Run that command GREEN and commit with issue reference and session Agent trailer.
+- [x] Write failing unit tests for Destination parsing/defaults and receipt validation/identity; config with absent remote fields preserves existing local config, invalid remote settings remain remote-only failure.
+- [x] Run `go test ./cmd/internal/historyarchive -run 'TestDriveDestination|TestUploadReceipt|TestContinuousConfig' -count=1`; retain meaningful RED.
+- [x] Implement typed contracts, strict decoding and pure NextUpload transitions; add sequence tests that vary duplicate, cancellation, missing and uncertain observations.
+- [x] Run that command GREEN and commit with issue reference and session Agent trailer.
 
 ### Task 2: Stateful rclone boundary and conformance
 
 Files: create historyarchive/rclone.go, rclone_test.go and archivetest/rclone.go.
 
-- [ ] Write TestRcloneObservation and TestRcloneCopyRecovery against the stateful runner; use the adversarial strategy/guard table below.
-- [ ] Run `go test ./cmd/internal/historyarchive/... -run 'TestRclone|TestFakeRclone' -count=1` RED; implement minimum adapter and stateful fake, then GREEN.
-- [ ] Add an opt-in installed-rclone local-backend conformance test using isolated config/private roots; run it once against installed rclone, retaining version and command results. It never contacts Drive.
-- [ ] Commit the independently verified boundary.
+- [x] Write TestRcloneObservation and TestRcloneCopyRecovery against the stateful runner; use the adversarial strategy/guard table below.
+- [x] Run `go test ./cmd/internal/historyarchive/... -run 'TestRclone|TestFakeRclone' -count=1` RED; implement minimum adapter and stateful fake, then GREEN.
+- [x] Add an opt-in installed-rclone local-backend conformance test using isolated config/private roots; run it once against installed rclone, retaining version and command results. It never contacts Drive.
+- [x] Commit the independently verified boundary.
 
 ### Task 3: Safe mirror and continuous integration
 
 Files: create historyarchive/drive.go, drive_test.go; modify historyarchive/continuous.go and continuous_external_test.go; archivecmd/continuous.go and its tests; artifactpath/manifest.go plus applicable artifact-family declarations/tests.
 
-- [ ] Write TestDriveMirrorRecovery and TestContinuousDriveIsolation using the DriveMirror.Run strategy and independent guards below.
-- [ ] Run `go test ./cmd/internal/historyarchive/... ./cmd/internal/archivecmd -run 'TestDrive|TestContinuous' -count=1` RED; implement bounded catalog projection, flat listings, verified staging, receipt publication and optional post-local phase; rerun GREEN.
-- [ ] Add counted 8/16 bundle cycle tests and second-pass zero-copy assertions using actual production catalog and fake retained remote state.
-- [ ] Run targeted packages with race detector where appropriate, and `go test ./cmd/internal/artifactpath ./cmd/internal/testpair ./cmd/internal/repolint -count=1` (verify package paths before execution); commit.
+- [x] Write TestDriveMirrorRecovery and TestContinuousDriveIsolation using the DriveMirror.Run strategy and independent guards below.
+- [x] Run `go test ./cmd/internal/historyarchive/... ./cmd/internal/archivecmd -run 'TestDrive|TestContinuous' -count=1` RED; implement bounded catalog projection, flat listings, verified staging, receipt publication and optional post-local phase; rerun GREEN.
+- [x] Add counted 8/16 bundle cycle tests and second-pass zero-copy assertions using actual production catalog and fake retained remote state.
+- [x] Run targeted packages with race detector where appropriate, and `go test ./cmd/internal/artifactpath ./cmd/internal/testpair ./internal/repolint -count=1` (verify package paths before execution); commit.
 
 ### Task 4: Docs, operator conformance and normal landing
 
 Files: README.md; atlas/history-backup.md (already indexed); issue Log and this plan.
 
-- [ ] Document config defaults/validation, independent local/Drive status, receipt location/lifetime, checksum fallback and pending/conflict recovery. Include an exact operator live command and prerequisites without secrets.
+- [x] Document config defaults/validation, independent local/Drive status, receipt location/lifetime, checksum fallback and pending/conflict recovery. Include an exact operator live command and prerequisites without secrets.
 - [ ] After fake-backed qualification, ask hub to arrange the one operator-run real Drive pass. It uses production continuous configuration, uploads historical encrypted pairs, verifies checksums and receipt counts, then reruns to prove zero new copies and unchanged local files. Operator checks visible Drive bundle/label names. Retain counts/bytes, adapter version, command exit/status and receipt evidence; never include credentials. Do not stage :0, restart or relaunch without hub coordination.
 - [ ] Push with sdlc pr, run recorded `sdlc local-check run --name suite`, close with verified evidence and binary-owned fresh review. Actuals measured by sdlc, no typed estimate before plan-quality gate.
 - [ ] Push final Log updates before `sdlc merge --yes`. Let landing turn integrate main and validate; report PR/landed hash from returned Git output to hub.
@@ -168,3 +168,5 @@ Full flow approved by hub f7e7fe62-5f41-4133-ba43-4296e82fd885; simplified flat-
 - 2026-10-18 plan-quality PQ-1/PQ-2: specified bounded before/after namespace inventories, pinned Drive folder identity and deferred receipt publication, with checksum observations fenced to exact IDs. Compressed duplicated prose case inventories into named function strategies. This identity mechanism delta is submitted to the hub before rerunning change-code.
 
 - 2026-10-18: hub 892e9607-9074-46ed-9d53-a2e5de49637d rejected the heavier identity machinery. Superseded it with one pinned flat destination, ID-addressed bundle filenames, two flat hash listings and multiplicity-one receipt admission. Removed all spooling, recursive inventories and depth limits. Added backend MD5 verification on the same verified source stream; downloaded SHA256 remains the fallback only when no usable backend hash is returned. This meets the existing backlog/checksum/local-authority requirements without another mechanism.
+
+- 2026-10-18 implementation conformance: installed rclone v1.75.2 local backend replaced conflicts with --immutable alone. Added --ignore-existing to the same copy operation; installed-local conformance proves preserved bytes and final hash verification still refuses conflicting objects. No new query, state or mechanism. Corrected the repository lint package path to internal/repolint.
