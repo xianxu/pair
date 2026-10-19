@@ -16,7 +16,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const usage = "Usage: pair archive inventory\n       pair archive create --request FILE\n       pair archive continuous [--kind KIND]\n\nCreate a verified encrypted backup from an explicit JSON request, or run one continuous pass over the agent transcripts, Codex databases, ops documents and sdlc data (configured in $PAIR_DATA_DIR/archive/continuous.json). Sources are preserved.\n"
+const usage = "Usage: pair archive inventory\n       pair archive create --request FILE\n       pair archive continuous [--kind KIND] [--json]\n\nCreate a verified encrypted backup from an explicit JSON request, or run one continuous pass over the agent transcripts, Codex databases, ops documents and sdlc data (configured in $PAIR_DATA_DIR/archive/continuous.json). Sources are preserved.\n"
 
 type CreateFunc func(context.Context, historyarchive.ArchiveRequest) ([]historyarchive.CatalogRecord, error)
 

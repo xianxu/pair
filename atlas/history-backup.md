@@ -199,7 +199,7 @@ source directories. The test cleans its temporary keyring and isolated agent.
 
 ## Continuous mode (#592)
 
-`pair archive continuous [--kind KIND]` is one pass over the continuous kinds
+`pair archive continuous [--kind KIND] [--json]` is one pass over the continuous kinds
 (`historyarchive.ContinuousKinds`): Claude, Codex and Qoder transcripts, Codex
 databases, ops documents (`teams/*/qa`, `teams/*/assets`,
 `teams/*/tl-status-*.side`) and each repository's git-common `sdlc/`. It is
@@ -246,7 +246,28 @@ does nothing.
   a skipped source has no successful check timestamp. Acquisition success
   alone is not a verified backup. These are runtime reports, with no catalog
   or manifest format changes. `continuous.last` still means pass completion,
-  not that every database has a fresh bundle. Freshness alerts are #700.
+  not that every database has a fresh bundle.
+- **Freshness warnings (#700):** `PAIR_ARCHIVE_DATABASE_MAX_AGE` is a positive
+  Go duration (default `48h`); malformed or nonpositive settings fail before
+  work. Only failed/deferred checks warn when the catalog's last verified
+  bundle is strictly older than the threshold, or immediately when never
+  verified. Successful unchanged validation is healthy, retaining the old
+  verified timestamp without recompression. Each warning names the database
+  and asks the hub to repair its backup.
+  Couch reserves one attempt per exact source/kind/path per UTC day, in memory
+  for its lifetime. Restart permits a fresh warning; a failed or uncertain
+  delivery consumes the reservation, without retry. Reservations are bounded
+  to 10,000 sources/day with one overflow warning. Warnings use status, desktop
+  output and attention on the connected primary hub's exact thread, never
+  inferred source ownership or broadcast. Without that hub, status and desktop
+  output explicitly say it is unavailable; no attention item is raised. The
+  report and attempted warning remain in `continuous.log`. The small
+  `archiveWarningOwner` seam owns future machine-wide steward routing.
+  The scheduler requests `--json`: stdout is one version-1 report, bounded to
+  4 MiB, including partial database results on a failed pass; stderr remains
+  diagnostic. Readers tolerate additive fields, refuse ambiguous/invalid
+  known data, and retain original JSON bytes in the existing latest-pass log.
+  No catalog, manifest, config or completion-marker format changes.
 - Snapshot admission rejects canonical overlap of every native source with scratch or any snapshot staging destination across source kinds and regardless of the pass filter before cleanup or directory creation, including symlink aliases and output directories not yet created. A configuration error names the overlapping roots. Ordinary database publication failures are accumulated while later validated databases continue; cancellation still stops the pass.
 - **Never deletes sources or retained copies;** writes the archive store, snapshot root, local sink/catalog, and the configured remote after local success. One pass at a time (`continuous.lock`); a completed full pass
   writes `continuous.last`.

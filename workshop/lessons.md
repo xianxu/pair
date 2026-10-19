@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A native signal fixture must control delivery as well as readiness. Python can swallow KeyboardInterrupt in an ignored-exception callback after a ready banner; mask through that phase, prove the signal is pending, and release it at top level. Check an independent expected exit as well as baseline parity, with a callback self-signal regression and no competing parent signal. Preserve wait-error text explicitly: formatting an unexported struct field can hide it behind a pointer. (#703)
+
 - A display decorator must preserve its input collection's empty-versus-unavailable contract. Cloning by append to nil collapses an owned empty slice; run existing inventory tests as well as the new diagnostic-name subset when adding row fields. (#683 suite qualification)
 
 - Optional terminal publication belongs after adoption on an existing joined worker, never the console reducer. Test blocked storage through actual input and Stop, and verify the publication context is canceled by console lifetime; a responsive callback mock alone misses a missing lifetime wire. (#683 BR-6)
@@ -2368,3 +2370,6 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #695 M1 BR-3: A source-text guard such as "no one marshals this type directly" is dodged by the next writer that spells the call differently. Put the invariant on the type: a preserving encoding belongs in the type's own MarshalJSON, so every encoding keeps it, and pin it with a behavior test that fails when the method is removed.
 - #695 M1 BR-5: Tolerant decoding means type-level strictness only. Semantic checks tied to this build's catalogs (root names, path parsers, agent lists) run where the value is used and refuse that use. At decode they refuse the whole record, and they refuse a newer build's values, which defeats additive evolution.
 - #695 M1 BR-4: A field computed for an operator surface that nothing reads is a promise with no consumer. Wire it to the surface and test it there, or remove it and name the issue that owns that surface.
+- A capped subprocess writer must not embed an io.ReaderFrom implementation that bypasses Write: io.Copy uses promoted ReadFrom. Test the actual exec boundary with oversized output, including a valid JSON prefix plus padding; overflow must refuse the whole report, not grant authority to the retained prefix. (#700)
+
+- Qualify runtime evidence through its real encoder using non-UTC clocks, including a mixed healthy/stale pass. A strict UTC codec plus UTC-only fixtures can hide a production local-time mismatch that discards every database result. Normalize at the observation clock owner. (#700 BR-1)
