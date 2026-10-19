@@ -123,3 +123,7 @@ Commands after approval and change-code:
 ## Approval
 
 Pending hub approval. Important product delta: cached unknown/missing/ambiguous selection refuses with refresh-and-retry advice; it never defers the first identity selection to queued execution. No implementation begun.
+
+## Revisions
+
+2026-10-18 — Hub approved the cached-selection design and tests in delivery53e81e0b-ada3-4d7b-b830-7f30238b7ef2. Exact address/nonce binding must precede admission; unknown/missing/ambiguous cache refuses with refresh advice. Live disposable slot is pair:8, idle Qoder with no in-flight work; ask hub before staging on pair:0 to avoid operator trial collision. No live action has run.
