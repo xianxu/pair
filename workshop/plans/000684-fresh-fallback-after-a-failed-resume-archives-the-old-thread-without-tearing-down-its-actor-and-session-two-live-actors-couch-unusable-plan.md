@@ -294,16 +294,16 @@ func (c *Couch) Converge(ctx context.Context, addr LifecycleAddress, in Converge
 
 ```go
 // couchcore/lifecycleaddress.go (pure)
-type AddressKind string // "slot" | "hub"
-type HubIdentity struct {
-    OpsRoot string // absolute root of the operations checkout
+type AddressKind string // "slot" | "team"
+type TeamIdentity struct {
+    CheckoutRoot string // physical worktree root of the operations checkout
     TeamDir string // clean relative path to the team folder, e.g. teams/devinfra (holds the committed .hub)
-    Name    string // the team's name, which is the hub's name
+    Name    string // derived: filepath.Base(TeamDir); the hub's name
 }
 type LifecycleAddress struct {
     Kind AddressKind
     Slot SlotIdentity // Kind == slot: a worker, repo:N
-    Hub  HubIdentity  // Kind == hub: a team hub; several may share one OpsRoot
+    Team TeamIdentity // Kind == team: a team hub; several may share one CheckoutRoot
 }
 func (a LifecycleAddress) Validate() error // exactly one arm set, matching Kind
 func (a LifecycleAddress) Key() string     // stable key: store dir, lease path, orphan origin, failure records
@@ -311,7 +311,7 @@ func (a LifecycleAddress) Key() string     // stable key: store dir, lease path,
 
 Both kinds go through the same three outcomes and the same three primitives. The lease and the transcript
 binding apply to a hub's agent exactly as to a worker's. Only the guards differ: a slot validates its worktree
-layout and may carry sdlc claims, and a hub validates `TeamDir` (a folder under `OpsRoot` with a committed
+layout and may carry sdlc claims, and a team validates `TeamDir` (a folder under `CheckoutRoot` with a committed
 `.hub`) and never carries an sdlc claim. Exhaustive switches on `Kind` live in `Validate` and `Key`
 only; `PlanConverge` never sees the kind. #684 builds and tests the type with both arms
 (`TestLifecycleAddressValidate`, `TestLifecycleAddressKeyDistinctPerTeam`: two teams in one ops checkout get
@@ -579,3 +579,6 @@ Steps:
   change only: no milestone grows, and hub addressing, startup and the switcher stay in pair#694. The existing
   `HubSlot`/`HubDefinition` (report routing) is untouched here; pair#694 decides whether team identity replaces
   it.
+- 2026-10-18 23:40 — naming aligned with the introduce-team design and pair#694's plan: the address kind is `team`,
+  the arm is `TeamIdentity{CheckoutRoot, TeamDir, Name}` (Name derived from the folder), and `Key()` for a team is
+  `team/<scope(CheckoutRoot)>/<TeamDir>`. Rename only; no behaviour change.
