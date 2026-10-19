@@ -12,7 +12,7 @@ collaboration-mode: discussion
 
 **Tech stack:** Go, portable directory fixtures, injected clock and stateful process inspection; existing Pair GC CLI/scheduler.
 
-**Status:** Proposed to the hub; no implementation until approval and change-code. Full flow is expected because the policy, CLI scope and collector integration exceed the quick shell's code limit.
+**Status:** Hub-approved2026-10-18 via receipt5ebfef41-eb7d-4f3e-92f4-fff05f5b0a37; implementation still requires change-code. The hub explicitly pins full flow.
 
 ## Evidence and approaches
 
@@ -22,7 +22,7 @@ The issue Log records the read-only inventory, oversized legacy provenance and p
 2. **Fence off, keep old count policy:** smaller patch, but three generations can erase most of a busy day's diagnostics. Rejected because it does not mean approximately seven days.
 3. **Tail-compaction of oversized generations:** preserves their newest bytes, but copies payload and requires a new crash-recoverable replacement/metadata protocol. Avoid this machinery unless the hub requires preserving young oversized tails.
 
-No automatic deletion of unknown or live legacy-writer files is authorized. The first sweep reports those blockers explicitly. Newly admitted data always remains capped; a blocked legacy file is not silently described as compliant.
+No automatic deletion of files with unknown or live open holders is authorized. Registered modern writers without an open holder remain coordinated by the existing lock; a live holder is not silently treated as safe just because its registration is known. The first sweep reports those blockers explicitly. Newly admitted data always remains capped; a blocked legacy file is not silently described as compliant.
 
 ## Core concepts
 
@@ -102,7 +102,7 @@ The log lock is held across validation, policy admission and durable deletion ef
 - [ ] Proposed detail decision: retain current hashed per-chunk evidence within bounded lifetime unless the owned-turn measurement demonstrates it overwhelms the envelope. Record the measured decision and PAIR_WRAP_EVENTS=0 opt-out. Any new default summary/drop policy is a scope revision returned to the hub before code, not silently folded in.
 - [ ] Document default/range/invalid-value behavior, diagnostic-only preview/apply, reasons, deliberate loss of oversized legacy generations and retained unknown/live-writer blockers in root README and atlas.
 - [ ] Owned conformance: create aged and young logs with a running modern writer and a held legacy FD. Candidate CLI must collect only eligible/proven files, leave legacy-held files blocked, then collect after explicit release; no operator UI or native lane.
-- [ ] After hub approval of this live arrangement, build this slot's candidate and run diagnostic-only metadata preview against the real Pair root, then diagnostic-only apply bounded by an owned process deadline. No pair:0 staging or migration acknowledgment. The operator has authorized debug trimming without backup; no authored/history payloads are selected.
+- [ ] Build this slot's candidate and run diagnostic-only metadata preview against the real Pair root. Send the hub file and byte counts per eligible/retained/blocked category and the exact blocked reasons BEFORE any live apply. Then run the approved diagnostic-only apply bounded by an owned process deadline. No pair:0 staging or migration acknowledgment. The operator has authorized debug trimming without backup; no authored/history payloads are selected.
 - [ ] Record before/after diagnostic device+inode/size inventory and exact collected-row bytes, plus partial-progress/blocked reasons if the bound expires. Do not equate mtime estimates with certified eligibility or net concurrent growth with reclaimed bytes. No backup is created and no multi-GiB payload is copied.
 
 ## Task 4 — verification and landing
@@ -124,3 +124,9 @@ The log lock is held across validation, policy admission and durable deletion ef
 - **ARCH-FUNERAL:** generation creators are unchanged; last consumer is short-term debugging; age/oversize sweeps remove payload/metadata and retire registry records while permanent lock inodes stay stable. No backup fence or dormant count cliff remains.
 
 This is a policy change to a previously deliberate backup/legacy-preservation contract, not evidence of a new cap-bypass syntax class. Existing hard-cap regressions remain; no unrelated cross-repo lint rule is invented before a mechanical cause is demonstrated.
+
+## Revisions
+
+### 2026-10-18 — hub approval and live preview gate
+
+The hub approved the full-flow design, default/range/fail-closed configuration, whole eviction of young oversized legacy generations, bytes-per-turn measurement and proposed detail decision. Its explicit live gate requires sending real preview files/bytes by category and blocked reasons before live apply. Preserve live/unknown open-holder blocking even when the process is registered; no slot restart, focus change or :0 staging is authorized or needed here.

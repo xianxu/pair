@@ -30,13 +30,13 @@ Untie diagnostic retention from history backup: diagnostics are not history. Enf
 
 ## Done when
 
-- No diagnostic file exceeds the cap; a test grows one past it and sees rotation.
-- Generations older than the window are deleted without a backup; a counted test covers the sweep.
-- The first live sweep's reclaimed bytes are recorded.
+- Every newly admitted generation stays at or below64MiB; deterministic tests cross the boundary and observe bounded rotation. The first sweep evicts proven oversized legacy generations, including young ones; unknown/live holders stay blocked and reported.
+- Diagnostic age/size eviction needs no backup or session-migration acknowledgment. Default7days, PAIR_DIAGNOSTIC_DAYS1..365; invalid configuration fails closed. Counted N/2N tests cover independent diagnostic-only/scheduled sweeps and preserve session/history data.
+- Send the hub real preview file/byte categories and blocked reasons before live apply. Record the first approved diagnostic-only sweep's actual reclaimed bytes and remaining blockers; record owned-turn bytes and the detail-level decision.
 
 ## Plan
 
-See [durable implementation plan](../plans/000677-diagnostic-log-retention-plan.md). Await hub approval before change-code; the live arrangement includes diagnostic-only preview/apply using this slot's owned candidate, with no :0 staging.
+See [durable implementation plan](../plans/000677-diagnostic-log-retention-plan.md). Hub approved full flow; change-code is next. The approved live arrangement requires sending the real diagnostic-only preview categories and blocked reasons to the hub before apply, with no :0 staging.
 
 - [ ] Replace the backup/count fence with one configurable age/oversize policy and deterministic regressions; preserve hard append bounds and deletion recovery.
 - [ ] Separate diagnostic collection from session migration, including scheduled pages and a diagnostic-only CLI scope; count discovery/sweep work at N/2N.
@@ -60,3 +60,9 @@ KeepDiagnosticsUntilBackup=true disables all deletion and count debt; setting it
 Bounded8MiB tail sample of repo990458a6956a804b's current wrap-events:8,388,489bytes,39,163valid records,1,577,454 raw output bytes. master-chunk/stdout-queue/scrollback-write total30,762 records; stdout-batch-flush adds8,386. Those4labels contribute8,385,438bytes (>99.9% of the sample), about5.32 diagnostic bytes per raw-output byte. It spans2026-10-16T20:58:49 through2026-10-17T10:54:58 and contains no turn IDs. Six stdin reads are not six proven turns; no bytes-per-turn claim is inferred from them. The plan measures explicitly delimited owned turns through the production proxy before deciding whether detail must change.
 
 Recommended tradeoff for hub review: expire proven diagnostic generations at7days by default; evict entire inherited oversized diagnostic generations through the existing deletion intent, even when young. This intentionally loses those legacy debug generations and avoids copying/re-writing tens of GiB or adding a compaction journal. Unknown/live legacy holders, identity changes, malformed metadata and cancellation retain data with explicit reasons. Newly admitted generations stay64MiB maximum; remaining unproven oversized legacy files are reported rather than silently claimed fixed. Alternatives and visible states are in the plan. This follows the operator's permission to trim debugging logs without backup; history/session data remains under its existing guards.
+
+## Revisions
+
+### 2026-10-18 — approved diagnostic-only policy and live gate
+
+Verified hub receipt5ebfef41-eb7d-4f3e-92f4-fff05f5b0a37 approves the committed plan and full flow, including whole eviction of young oversized legacy diagnostics and retaining/reporting unknown or live holders. Clarified Done-when to distinguish bounded newly admitted data from blocked inherited files; the absolute legacy-cap claim cannot override live-writer safety. Added the explicit pre-apply gate: run real diagnostic-only preview and send file/byte categories plus blocked reasons to the hub first. This is a reporting gate in an already-approved live arrangement, not a request to touch :0 or acknowledge session migration.
