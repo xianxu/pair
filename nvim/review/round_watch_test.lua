@@ -40,6 +40,7 @@ eq(W.key({ file = file, round = { spans = {} } }), nil, 'no hash, no key')
 eq(W.is_empty({ base_hash = 'h', result_hash = 'h', spans = {} }), true, 'result is base, no spans: empty')
 eq(W.is_empty({ base_hash = 'g', result_hash = 'h', spans = {} }), false, 'a moved result is not empty')
 eq(W.is_empty({ base_hash = 'h', result_hash = 'h', spans = { {} } }), false, 'spans are not empty')
+eq(W.is_empty({ base_hash = 'h', result_hash = 'h', spans = vim.NIL }), true, 'null spans are none')
 
 -- decorations: a highlight per changed span (none for a deletion or a marker
 -- proposal), and the reason, or "changed by the agent", as the diagnostic.

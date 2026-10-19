@@ -101,7 +101,7 @@ Integration seams (headless shell tests, `make test-review`):
   statusline while the pane is awaiting the agent.
 - `init.lua` — the orchestrator: `start` a review (`undofile` + round watch +
   reconstruct-on-open); on each applied round `on_applied_round` reloads the file
-  (`:edit!`), decorates via `apply.apply_snapshot`, records the projection and calls
+  (`:edit!`; an empty round only ends the turn), decorates via `apply.apply_snapshot`, records the projection and calls
   `after_applied_round` (the pane clears the awaiting spinner and redraws the active
   diagnostic); `human_round` saves only. It calls no `docflow` writer and never
   writes the file for an agent round.

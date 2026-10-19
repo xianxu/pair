@@ -37,7 +37,6 @@ Today `pair review apply` with zero records (or records that change nothing) ret
 - The pane, on an empty round: no reload, no decoration, the awaiting spinner and the restore pending block clear. A window-test case fails without the change.
 - The rule test still holds: an empty round writes nothing from nvim.
 - workshop/targets/review-protocol.md seam 2 names the empty round contract (the producer always applies, records [] when it has no edits; an empty reply commits nothing); ariadne#453 is linked.
-- Live no-edits pane check, after this and ariadne#453 have both landed: a review the agent answers with no edits clears the spinner and the pending block in a live pane.
 
 ## Plan
 
@@ -53,7 +52,7 @@ Design (quick flow). A round is identified by (result_hash, at), not result_hash
   - The rule test keeps the empty round case: nvim writes nothing.
 - [x] Target: review-protocol.md seam 2 and the applying state name the empty round (the producer always applies, records [] when it has no edits; an empty Body commits nothing); link ariadne#453; add a Revisions entry.
 - [x] Atlas review page, if it describes the round artifact.
-- [ ] Live no-edits pane check: the TL holds it for the next Couch restart.
+- Live no-edits pane check (after landing, not a close condition): the TL holds it for the next Couch restart.
 
 ARCH-FUNERAL: no new artifact; the one round file is replaced on every apply, as before. ARCH-SECURE: the pane already decodes the artifact defensively (`decide` type checks); `at` is read as an opaque string.
 
@@ -66,3 +65,9 @@ ARCH-FUNERAL: no new artifact; the one round file is replaced on every apply, as
 Hand-off: the hub split the empty-round work. ariadne#453 (landed as ariadne PR 316) is the producer side only: shared xx-fix always calls pair review apply, with records [] when it has no edits, and an empty reply never makes the agent commit. Two pieces moved here from ariadne:3: the empty-round contract wording in workshop/targets/review-protocol.md, and the live no-edits pane check once both issues have landed. ariadne:3 records the same hand-off in ariadne#453.
 
 Built. Engine: ApplyFile handles an empty list before BuildEdit and writes the empty round for any zero-change apply; the Couch session-sync path still refuses an empty list. Pane: round_watch.key (result_hash@at) drives decide, watch and the declined-round warning; is_empty is base_hash == result_hash with no spans, so the window test's older span-less fixture (no base_hash) still reloads. Mutation: is_empty forced false turns review-window-test red (NO-empty-round-ends-the-turn, pending still set). The couch SKILL.md line for the review workbench now says an empty reply commits nothing. Runs: go test sessionsync, reviewapply, couchcmd, artifactpath, runtimebundle; make test-lua test-review; all green.
+
+Close round 1 (FIX-THEN-SHIP). BR-1: the live no-edits check can only run after this lands and the live Couch restarts, so it moved out of Done-when into a post-landing Plan note (see Revisions); the TL holds it, like the #664 and #673 live checks. Minors fixed: the atlas and target lines that said every applied round reloads now name the empty round; is_empty treats non-table spans (JSON null) as none; a test covers the empty-round Warning branch.
+
+## Revisions
+
+2026-10-19 — the live no-edits pane check moved from Done-when to a post-landing note held by the TL: it needs this branch landed and a Couch restart, so it cannot gate the close (close review BR-1).

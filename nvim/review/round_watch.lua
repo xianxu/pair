@@ -24,7 +24,7 @@ end
 -- reload or decorate, only a turn to end (pair#690).
 function M.is_empty(round)
   return type(round) == 'table' and round.base_hash == round.result_hash
-    and (round.spans == nil or #round.spans == 0)
+    and (type(round.spans) ~= 'table' or #round.spans == 0)
 end
 
 -- A round is the pane's to act on when it names the pane's file, is one not

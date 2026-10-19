@@ -195,3 +195,21 @@ func TestApplyFileRefusesAnEmptyApplyAlike(t *testing.T) {
 		t.Fatal("a refused empty apply wrote a round")
 	}
 }
+
+// An empty round that can't be recorded warns, with no Body, and says to
+// commit nothing; the document is untouched.
+func TestApplyFileEmptyRoundWriteFailureWarns(t *testing.T) {
+	r := newFileRig(t, "one two\n")
+	if _, err := r.apply(Hash(r.read(r.doc))); err != nil { // creates the flock
+		t.Fatal(err)
+	}
+	os.Remove(r.path)
+	if err := os.Chmod(filepath.Dir(r.path), 0o500); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(filepath.Dir(r.path), 0o755)
+	res, err := r.apply(Hash(r.read(r.doc)))
+	if err != nil || res.Body != "" || !strings.Contains(res.Warning, "commit nothing") || r.read(r.doc) != "one two\n" {
+		t.Fatalf("res=%+v err=%v doc=%q", res, err, r.read(r.doc))
+	}
+}

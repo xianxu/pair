@@ -260,7 +260,7 @@ round lands (`after_applied_round`). Braille spinner + compact elapsed: `⠹ 45s
 ## Invariants to defend from drift
 
 1. **The review pane nvim writes no git.** — **BUILT (pair side, M4a).** `nvim/review/init.lua`
-   calls `docflow` nowhere: `on_applied_round` only reloads and decorates;
+   calls `docflow` nowhere: `on_applied_round` only reloads and decorates (an empty round only ends the turn);
    `human_round` only saves; `review.start` no longer runs `docflow.start`. Draft nvim may
    perform deterministic start-up git (`pair-review-readiness --prepare`: track/start/resume),
    but round commits and ship remain outside the pane. Verified headlessly by
