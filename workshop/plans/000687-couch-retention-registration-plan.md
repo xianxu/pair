@@ -80,8 +80,8 @@ ARCH-FUNERAL: reuse runtimes.json, its 256-entry bound and positively-dead pruni
 
 Files: modify runtimes.go/coordinator.go and runtimes_test.go; create runtime_codec.go/runtime_codec_test.go in cmd/internal/storagegc.
 
-- [ ] Add RED codec and real rewrite tests: unknown envelope/row/process objects survive idempotent reads, a new registration, capability upgrade and dead-entry pruning. Preserve another live/unknown record and its extensions.
-- [ ] Add negative controls for malformed/truncated/duplicate-key/trailing data, wrong known types, missing required fields, unsupported envelope version and existing count/identity restrictions. Replace only the old assertion that an additive extra member is malformed.
+- [ ] runtimeRegistry.UnmarshalJSON/MarshalJSON: seed and fuzz additive and ambiguous JSON across all three object depths; reject malformed known structure and preserve surviving opaque members through semantic round trips.
+- [ ] Coordinator.ReadRuntimes/RegisterRuntime: stateful real-file rewrites with controlled liveness and capability upgrades; assert stable IDs, bounded validated reads, unknown-member retention, and no authority or writes on rejected metadata. Replace the old additive-member refusal.
 - [ ] Implement private runtime wire preservation and full-registry update, then the optional typed diagnostic capability request. Keep old caller behavior and no-op registration writes unchanged.
 - [ ] Run go test ./cmd/internal/storagegc -run 'Test.*Runtime|TestRuntimeRegistry' -count=1; capture RED/GREEN and commit.
 
@@ -89,10 +89,10 @@ Files: modify runtimes.go/coordinator.go and runtimes_test.go; create runtime_co
 
 Files: create cmd/internal/diagnosticlog/runtime_registry.go/runtime_registry_test.go; modify registry.go and cmd/internal/gcruntime/runtime.go; extend process_inventory_test.go/sweep_test.go and add cmd/internal/gcruntime/runtime_registration_test.go.
 
-- [ ] Reproduce tagless/no-PAIR_DATA_DIR supervisor blocking an otherwise expired current generation using portable actual registry files and a controllable process/native inspection world.
-- [ ] Implement pure matching and the selected-root inspection adapter; compose rooted writer and service proofs through it. Test ordinary maintenance plus explicit and scheduled collection so this is not a GC-only exception.
-- [ ] Sequence tests: publish -> recognized; remove/replace lease -> blocked on next sweep; PID reuse during lease read -> blocked; missing/zero/future capability and wrong root/role -> blocked; unreadable/unsafe metadata -> fail closed; cancel -> no effect; registered supervisor with an actual open payload -> still blocked; release -> only eligible data removed, recent/history/authored data retained.
-- [ ] Count N=8/16: one registry read, one native snapshot pair, bounded matching identity checks; second sweep refreshes all evidence. Assert preview does no registration, owner-clock or metadata writes.
+- [ ] matchesRuntimeRegistration: table-driven exact-identity/capability mutations; only a supported Couch lease for the observed incarnation qualifies.
+- [ ] runtimeInspection.Runtimes/Snapshot/OpenFiles: stateful portable lease files plus controllable native inventory and process probe; adversarial lease/identity changes and cancellation must fail closed while exact holders remain authoritative.
+- [ ] runtimeInspection.Snapshot: counted N=8/16 sweeps assert one registry read and native snapshot pair, bounded matching identity checks, and refreshed evidence next sweep.
+- [ ] EnvironmentOptions and gcruntime.NewWithInspection: run ordinary maintenance and explicit/scheduled collection against the same stateful supervisor-shaped fixture; assert only eligible unheld diagnostics change, with no metadata writes during preview.
 - [ ] Run targeted diagnosticlog/gcruntime tests and commit only after GREEN.
 
 ### Task 3: Publish from Couch and qualify the boundary
@@ -116,3 +116,7 @@ The recorded suite/CI/merge are workflow gates, not unchecked implementation Pla
 ### 2026-10-18 — pre-approval path and flow qualification
 
 Confirmed the existing atlas owner is atlas/storage-retention.md. Pin the full flow because preserving the private wire format and consuming its identity-fenced observation together exceed the quick shell; this keeps the architectural plan review explicit. No behavior or scope change.
+
+### 2026-10-18 — PQ-1 function-level test contract
+
+Compressed prose case inventories into named codec, registry, predicate, adapter and composition functions with adversarial strategies and mechanical guards. Retained integration acceptance and N/2N budgets. No behavior, trust boundary or live arrangement changed.

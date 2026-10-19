@@ -65,6 +65,10 @@ The durable plan names all writer/GC consumers, unchanged open-holder protection
 
 Hub receipt34b6b719-dab8-4751-aeff-2a87883e7d88 approves the explicit diagnostic_protocol v1 capability, one selected-root adapter, unchanged exact-holder protection, and unknown-member preservation with strict known checks. The owned child conformance/read-only preview arrangement is approved; the existing supervisor remains blocked until the operator restart publishes its capability. No pair:0 staging or live apply. Proceeding to the full-flow change-code gate.
 
+### 2026-10-18 — plan-quality round 1
+
+PQ-1 requested named function-level test strategies instead of prose inventories. Compressed the durable plan's codec, registry, predicate, adapter and composition test rows accordingly; no architecture/scope change. Re-running the remembered plan gate before implementation.
+
 ## Revisions
 
 ### 2026-10-18 — dispatched capability and record-evolution design
