@@ -185,3 +185,97 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-18T18:58:40-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 681 — Recover park inventory exceeds CLI admission deadline |
+| repo | pair |
+| issue file | workshop/issues/000681-park-recovery-admission.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 455737dcd073ae5a8610f9b9e7483203c7708f07..13bab42b594631c392438fcb89aac5837d3dece8 |
+| command | sdlc close --issue 681 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-18T18:58:40-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation fixes receipt admission for configured hubs while preserving exact transaction binding and queued authorization. BR-2 is independently verified by a regression that fails with the old guard restored. No new findings. Required recorded-suite success and the documented deferred live acceptance remain separate obligations.
+
+Done-when: current — it still covers prompt receipts, duplicate handling, replacement refusal, inspectable preparation failures, cancellation ownership, and final verification gates.
+
+```findings
+dispose:
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Production-wired transport enables service hub authority and hubTargetResolver. Restoring the pre-admission full guard through a temporary Go overlay makes TestRecoverParkAdmissionPrecedesSlowQueuedPreparation fail with context deadline exceeded after 2.27s; pinned code passes. Retained duplicate/conflict tests also verify no fresh caller/target workspace probes. Queued and dispatch authorization remain enforced.
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The Core concepts row at workshop/plans/000681-park-recovery-admission-plan.md:45 correctly identifies newParkAdmissionRig in the newly added park_recovery_admission_test.go. The pinned diff and fixture definition support the corrected location/status.
+```
+
+1. **Strengths**
+
+   - Cached selection reuses `SelectSlotRow` and captures immutable recovery arguments (`cmd/internal/couchcore/slot_operation.go:77`).
+   - Admission ownership uses the verified binding cache while retaining live caller authentication (`cmd/internal/couchcmd/hub_guards.go:72`).
+   - Transport tests cover nonce replacement, caller replacement, and ownership movement at preparation and dispatch boundaries.
+   - Retained requests bypass unavailable target discovery (`cmd/internal/couchcmd/park_recovery_hub_admission_test.go:145`).
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed:
+
+   - Focused core selection/recovery tests: 3.489s.
+   - Focused command recovery/hub/slot-operation tests: 6.024s.
+   - Focused command race tests: 9.338s.
+   - `git diff --check`.
+
+   Restoring the old admission guard produced the expected deadline failure. Temporary overlay files were removed; the repository remains unchanged. Transport tests required `TMPDIR=/tmp` because the default macOS temporary path exceeded the Unix socket length limit. The full required suite was not run in this review.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared selection, confirmation, receipt transitions, and authorization policies are reused.
+   - **ARCH-PURE — pass:** selection and identity comparison remain deterministic; IO stays in adapters.
+   - **ARCH-PURPOSE — pass:** fresh and retained recovery admissions avoid workspace discovery before receipt lookup/allocation.
+   - **ARCH-MOCK — pass:** production transport and queue share stateful external seams with private fixture storage.
+   - **ARCH-CONSTRAINTS — pass:** the two-second timeout remains unchanged; controlled barriers and 8/16-row tests exercise admission and scan growth.
+   - **ARCH-SECURE — pass:** cached observations select identity; live checks and nonce validation authorize effects.
+   - **ARCH-ORDER — pass:** existing receipt transitions and queue ownership remain authoritative; reproducible barriers exercise intervening changes and cancellation.
+   - **ARCH-FUNERAL — pass:** no new durable artifact family; existing receipt caps, retention, and queue shutdown remain applicable.
+
+   Atlas documents the changed flow. README already documents the command; no new command, flag, configuration key, or installation step is introduced.
+
+7. **Plan revision recommendations:** None required.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"7f7abc49-1682-472d-97fd-37e2964ce29a","repository":"github.com/xianxu/pair","issue_id":"000681","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/7204542613547955","reviewed_head":"13bab42b594631c392438fcb89aac5837d3dece8","slot":"pair:5","requested_at":"2026-10-19T01:56:48.941623Z"},"phase":"finished","pid":33243,"started_at":"2026-10-19T01:56:49.062601Z","finished_at":"2026-10-19T01:58:39.260355Z","session_id":"01a151e0-3069-7052-a3f2-c7fd01c226c1","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.697567875s
+head: "13bab42b594631c392438fcb89aac5837d3dece8"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

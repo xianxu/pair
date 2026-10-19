@@ -17,7 +17,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "4d9fd992", done: "ca89c6bc"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # Recover park inventory exceeds CLI admission deadline
@@ -47,6 +47,10 @@ Durable design: workshop/plans/000681-park-recovery-admission-plan.md. Pending h
 
 ## Log
 
+
+
+- 2026-10-18: closed — BR-2 real service authority reproduces 2.17s socket timeout before fix; production-wired >2s admission, cached caller/canonical target ownership, exact queue/dispatch identity, owner/caller change refusals, missing-cache refresh advice and retained duplicate/conflict tests pass. Focused race passed6.846s; own-slot build completed separately. Final recorded suite queued, must pass before landing under allowed review overlap. Hub-approved live pair:8 acceptance owed after next operator Couch restart, no :0 staging; TL owns project. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
+- 2026-10-18: flow upgraded quick → full — 156 added lines in code files (limit 100)
 2026-10-18 — Read-only urgent investigation after operator UI relaunch left pair:0 and ariadne:0 with open awaiting_completion parks. Both helpers published matching success completions and preserved raw/events/capture bundles; original helper processes and terminal sessions are absent. No metadata repair, relaunch, resume or test was performed by the investigating worker. Original UI finalization cause remains a separate investigation.
 
 Evidence: recover-park request IDs c8715942-f76f-4175-a2f7-fdbb85a54d86 and 56e33c49-e58f-4402-814f-99cd313dc886 each timed out at the client; hub caller verified both receipts unknown. Adjacent resume receipts measured preparation at 3.055s and 5.233s. Hub message 55a5b467-e030-4b23-b0c6-b81f15b47320 confirmed unknown receipts and requested this separate filing.
