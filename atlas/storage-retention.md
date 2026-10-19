@@ -132,7 +132,11 @@ The implementation map:
   JSON reports the effective diagnostic days and separate collected bytes.
   Diagnostic path discovery
   bypasses session clock and liveness evaluation; collection supplies its own
-  exact writer and generation proof. The maintenance context propagates into
+  exact writer and generation proof. Each explicit sweep or scheduled batch takes
+  one bounded machine-wide lsof listing and process inventory, filtering exact
+  current and immutable-segment readers in memory. Snapshots never survive into
+  a later sweep/apply; warnings, partial output or the2s bound retain data.
+  The maintenance context propagates into
   process inspections, their subprocess deadlines and recovery tree walks.
   Protocol-aware runtime rows skip irrelevant data-root canonicalization while
   retaining both process-generation fences; legacy missing roots still refuse.

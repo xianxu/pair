@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 
@@ -186,5 +187,39 @@ func TestRuntimeInventoryPreservesUnknownAndPermissionFailures(t *testing.T) {
 		if _, err := (OSInspection{processes: w}).Runtimes(context.Background()); !errors.Is(err, ErrUnknownWriters) || w.envCalls != before {
 			t.Fatalf("stale generation read environment: %v", err)
 		}
+	}
+}
+
+func TestCouchClientWithoutPairDataDirBlocksOnlyItsOwner(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	scope := "e40c2099f5fe78d6"
+	own := filepath.Join(root, "repos", scope, "wrap-events-1-brain-41.jsonl")
+	other := filepath.Join(root, "repos", scope, "wrap-events-other.jsonl")
+	world := &processWorld{rows: []procutil.Observation{{Process: procutil.Process{PID: 123, Name: "pair", Identity: "old"}, CommandInfo: procutil.CommandInfo{Executable: "/bin/pair", Args: []string{"pair", "--couch-session-v1", "resume", "1-brain-41"}}}}, generation: "old", strict: "birth", env: map[string]string{"COUCH_PAIR_DATA_DIR": root, "COUCH_THREAD_SCOPE": scope, "COUCH_THREAD_TAG": "1-brain-41", "COUCH_TREE": "/work/brain"}}
+	inspector := OSInspection{processes: world, openFileCommand: func(context.Context, ...string) ([]byte, []byte, error) { return nil, nil, nil }}
+	proof := InspectionProof(inspector)
+	ctx := SweepContext(context.Background(), []string{own, other})
+	// Canonicalization requires a real parent, not actual payload files.
+	if err := os.MkdirAll(filepath.Dir(own), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := proof(ctx, other, nil); err != nil {
+		t.Fatalf("Couch client blocked unrelated diagnostics: %v", err)
+	}
+	if err := proof(ctx, own, nil); !errors.Is(err, ErrUnknownWriters) || !strings.Contains(err.Error(), "brain slot") || !strings.Contains(err.Error(), "relaunch to register") {
+		t.Fatalf("own diagnostic lacks actionable blocker: %v", err)
+	}
+	// Conflicting ownership does not turn into an empty/irrelevant inventory.
+	world.env["PAIR_TAG"] = "different"
+	if err := proof(SweepContext(context.Background(), []string{own, other}), other, nil); !errors.Is(err, ErrUnknownWriters) {
+		t.Fatalf("conflicting owner accepted: %v", err)
+	}
+	delete(world.env, "PAIR_TAG")
+	delete(world.env, "COUCH_THREAD_TAG")
+	if err := proof(SweepContext(context.Background(), []string{own, other}), other, nil); !errors.Is(err, ErrUnknownWriters) {
+		t.Fatalf("incomplete owner accepted: %v", err)
 	}
 }

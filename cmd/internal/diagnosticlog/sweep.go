@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -17,6 +18,8 @@ import (
 
 // SweepSnapshot observes all candidate open files and runtimes once. Its result
 // belongs to one sweep only; a later apply must capture a fresh observation.
+var errLsofUnavailable = errors.New("lsof unavailable or incomplete")
+
 type SweepSnapshot interface {
 	Snapshot(context.Context, []string) (Inspection, error)
 }
@@ -77,8 +80,7 @@ func (o OSInspection) Snapshot(ctx context.Context, paths []string) (Inspection,
 	result := &observedInspection{holders: map[string][]Registration{}}
 	wanted := map[string]bool{}
 	aliases := map[string]string{}
-	args := []string{"-nP", "-F", "pn", "--"}
-	size := 0
+	args := []string{"-nP", "-F", "pn"}
 	for _, original := range paths {
 		path, resolveErr := canonical(original)
 		if resolveErr != nil {
@@ -94,19 +96,9 @@ func (o OSInspection) Snapshot(ctx context.Context, paths []string) (Inspection,
 		if wanted[path] {
 			continue
 		}
-		if _, err := os.Lstat(path); os.IsNotExist(err) {
-			continue
-		} else if err != nil {
-			result.fileErr = err
-			continue
-		}
 		wanted[path] = true
 		result.holders[path] = nil
-		size += len(path) + 1
-		if size > 128<<10 {
-			return nil, errors.New("diagnostic open-file inventory exceeds argument budget")
-		}
-		args = append(args, path)
+
 	}
 	if len(wanted) > 0 {
 		run := o.openFileCommand
@@ -118,7 +110,7 @@ func (o OSInspection) Snapshot(ctx context.Context, paths []string) (Inspection,
 		// and stderr. Partial output or any warning is uncertainty for the whole sweep.
 		if err != nil && !(isNoOpenFiles(err) && len(out) == 0 && len(stderr) == 0) || len(stderr) > 0 {
 			if err != nil {
-				result.fileErr = fmt.Errorf("lsof unavailable or incomplete: %w", err)
+				result.fileErr = fmt.Errorf("%w: %w", errLsofUnavailable, err)
 			} else {
 				result.fileErr = errors.New("lsof reported incomplete inspection")
 			}
@@ -166,8 +158,22 @@ func parseOpenFileSnapshot(ctx context.Context, data []byte, wanted map[string]b
 				return nil, ErrUnknownWriters
 			}
 		case 'n':
-			if pid == 0 || !wanted[line[1:]] {
+			if pid == 0 {
 				return nil, ErrUnknownWriters
+			}
+			pending = false
+			owner := line[1:]
+			if !wanted[owner] {
+				index := strings.Index(owner, ".pair-diagnostics/segments/")
+				if index < 0 {
+					continue
+				}
+				logPath := owner[:index]
+				name := filepath.Base(owner)
+				if !wanted[logPath] || !validSegment(name) || segmentPath(logPath, name) != owner {
+					continue
+				}
+				owner = logPath
 			}
 			birth := births[pid]
 			if birth == "" {
@@ -178,7 +184,7 @@ func parseOpenFileSnapshot(ctx context.Context, data []byte, wanted map[string]b
 				births[pid] = birth
 			}
 			pending = false
-			holders[line[1:]] = append(holders[line[1:]], Registration{PID: pid, Birth: birth})
+			holders[owner] = append(holders[owner], Registration{PID: pid, Birth: birth})
 		default:
 			return nil, ErrUnknownWriters
 		}
