@@ -15,8 +15,9 @@ import (
 )
 
 type FakeRemoteObject struct {
-	ID   string
-	Data []byte
+	ID    string
+	Data  []byte
+	IsDir bool
 }
 
 // FakeRclone models retained remote bytes, duplicate names, and ambiguous late
@@ -86,8 +87,11 @@ func (f *FakeRclone) Run(ctx context.Context, args []string, limit int) ([]byte,
 			sort.Strings(names)
 			for _, name := range names {
 				for _, obj := range f.Objects[name] {
-					entry := archive.RemoteEntry{Name: name, ID: obj.ID, Size: int64(len(obj.Data))}
-					if !f.MissingHashes {
+					entry := archive.RemoteEntry{Name: name, ID: obj.ID, Size: int64(len(obj.Data)), IsDir: obj.IsDir}
+					if obj.IsDir {
+						entry.Size = -1
+					}
+					if !f.MissingHashes && !obj.IsDir {
 						sum := sha256.Sum256(obj.Data)
 						entry.Hashes = map[string]string{"SHA-256": hex.EncodeToString(sum[:])}
 					}

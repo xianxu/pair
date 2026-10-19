@@ -136,26 +136,12 @@ func (s *archiveScheduler) tick(ctx context.Context) {
 			if !row.NeedsAttention(now, report.MaxDatabaseAge) {
 				continue
 			}
-			admit, overflow := s.warnings.Reserve(now, archiveWarningKey{Source: row.Source, Kind: row.Kind, Path: row.Path})
-			if !admit && !overflow {
-				continue
-			}
-			text := row.Warning(now, report.MaxDatabaseAge)
-			if overflow {
-				text = "History backup alert admission is incomplete: daily source limit exceeded. Ask the hub to repair the backup check."
-			}
-			text += " Details: " + filepath.Join(s.store, "continuous.log")
-			text, warningErr := s.warn(ctx, text)
-			if warningErr != nil {
-				text += "; notification outcome uncertain: " + warningErr.Error()
-			}
-			file, logErr := os.OpenFile(filepath.Join(s.store, "continuous.log"), os.O_WRONLY|os.O_APPEND, 0600)
-			if logErr == nil {
-				_, logErr = file.WriteString("\n" + text + "\n")
-				logErr = errors.Join(logErr, file.Close())
-			}
-			if logErr != nil {
-				s.notify("history backup warning could not be retained: " + logErr.Error())
+			s.warnOnce(ctx, now, archiveWarningKey{Source: row.Source, Kind: row.Kind, Path: row.Path}, row.Warning(now, report.MaxDatabaseAge))
+		}
+		if report.Report.Drive != nil && ctx.Err() == nil {
+			observation := report.Report.Drive.Inventory
+			if text := observation.Warning(report.MaxDriveFiles); text != "" {
+				s.warnOnce(ctx, s.now(), archiveWarningKey{Destination: observation.Destination}, text)
 			}
 		}
 	}
@@ -167,6 +153,30 @@ func (s *archiveScheduler) tick(ctx context.Context) {
 	}
 	if err == nil && report.Outcome == historyarchive.ContinuousComplete {
 		s.failed = false
+	}
+}
+
+// warnOnce reserves before output; uncertain delivery never rearms a daily key.
+func (s *archiveScheduler) warnOnce(ctx context.Context, now time.Time, key archiveWarningKey, text string) {
+	admit, overflow := s.warnings.Reserve(now, key)
+	if !admit && !overflow {
+		return
+	}
+	if overflow {
+		text = "History backup alert admission is incomplete: daily source limit exceeded. Ask the hub to repair the backup check."
+	}
+	text += " Details: " + filepath.Join(s.store, "continuous.log")
+	text, warningErr := s.warn(ctx, text)
+	if warningErr != nil {
+		text += "; notification outcome uncertain: " + warningErr.Error()
+	}
+	file, logErr := os.OpenFile(filepath.Join(s.store, "continuous.log"), os.O_WRONLY|os.O_APPEND, 0600)
+	if logErr == nil {
+		_, logErr = file.WriteString("\n" + text + "\n")
+		logErr = errors.Join(logErr, file.Close())
+	}
+	if logErr != nil {
+		s.notify("history backup warning could not be retained: " + logErr.Error())
 	}
 }
 
