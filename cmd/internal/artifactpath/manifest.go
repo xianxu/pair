@@ -740,6 +740,12 @@ var NonArtifactSources = []string{
 	"cmd/internal/historyarchive/safefs.go",
 	"cmd/internal/historyarchive/sink.go",
 
+	// #673 the attention list is one versioned file under the Couch namespace, not a Pair tag artifact.
+	"cmd/internal/couchcmd/attention.go",
+	"cmd/internal/couchcore/attention_list.go",
+	"cmd/internal/couchcore/attention_store.go",
+	"cmd/internal/couchtty/console_attention.go",
+
 	// #587 resource accounting and bounded namespace snapshots are not Pair tag artifacts.
 	"cmd/internal/couchcmd/resources.go",
 	"cmd/internal/couchcmd/resources_persist.go",

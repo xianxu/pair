@@ -2,7 +2,11 @@ package couchcmd
 
 import (
 	"context"
+	"errors"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchtty"
+	"github.com/xianxu/pair/cmd/internal/hostty"
+	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"strings"
 	"testing"
 )
@@ -63,7 +67,7 @@ func TestRecoverParkDuplicateReceiptDoesNotBindAgain(t *testing.T) {
 	r, runner, _ := slotRig(t)
 	caller := r.connect(0)
 	bindings := 0
-	r.slotOps.preparePark = func(ctx context.Context, target string, guard func(context.Context) error) (slotOperationRunner, error) {
+	r.slotOps.preparePark = func(ctx context.Context, target string, _ couchcore.RepositoryName, guard func(context.Context) error) (slotOperationRunner, error) {
 		bindings++
 		return runner.run, nil
 	}
@@ -102,5 +106,60 @@ func TestRecoverParkCurrentTargetGuardRejectsReplacement(t *testing.T) {
 		if err := validateParkRecoveryTarget(bound, current); (err != nil) != tc.wantErr {
 			t.Errorf("current %+v: %v", current.Args, err)
 		}
+	}
+}
+
+func TestRecoverParkUnconfirmedDoesNotBind(t *testing.T) {
+	r, runner, _ := slotRig(t)
+	caller := r.connect(0)
+	bindings := 0
+	r.slotOps.preparePark = func(context.Context, string, couchcore.RepositoryName, func(context.Context) error) (slotOperationRunner, error) {
+		bindings++
+		return runner.run, nil
+	}
+	request := slotRequest(caller, "recover-park", "no-confirm", "pair:2")
+	got := r.slotOps.handle(context.Background(), caller, request)
+	if got.Code != "confirmation-required" || bindings != 0 || runner.count() != 0 {
+		t.Fatalf("unconfirmed binding: response=%+v bindings=%d jobs=%d", got, bindings, runner.count())
+	}
+}
+
+func TestRecoverParkUnknownCacheRefusesWithRefreshAdvice(t *testing.T) {
+	console := couchtty.New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), strings.NewReader(""))
+	t.Cleanup(console.Stop)
+	ops := consoleSlotOperations(console, &couchcore.Couch{}, nil)
+	_, err := ops.preparePark(context.Background(), "pair:2", couchcore.RepositoryName{Key: "/src/pair"}, nil)
+	if err == nil || !strings.Contains(err.Error(), "refresh") || !strings.Contains(err.Error(), "retry") {
+		t.Fatalf("unknown cached selection needs refresh/retry advice: %v", err)
+	}
+}
+
+func TestRecoverParkRetainedReceiptPrecedesRepositoryLookup(t *testing.T) {
+	r, runner, _ := slotRig(t)
+	caller := r.connect(0)
+	bindings := 0
+	r.slotOps.preparePark = func(context.Context, string, couchcore.RepositoryName, func(context.Context) error) (slotOperationRunner, error) {
+		bindings++
+		return runner.run, nil
+	}
+	request := slotRequest(caller, "recover-park", "retained-before-lookup", "pa:2")
+	request.Confirmed = true
+	first := r.slotOps.handle(context.Background(), caller, request)
+	if first.Code != "accepted" {
+		t.Fatalf("initial: %+v", first)
+	}
+	lookups := 0
+	r.slotOps.names = func(context.Context) ([]couchcore.RepositoryName, error) {
+		lookups++
+		return nil, errors.New("repository catalog unavailable")
+	}
+	duplicate := r.slotOps.handle(context.Background(), caller, request)
+	if duplicate.Code != "accepted" || duplicate.Operation.ID != first.Operation.ID || lookups != 0 || bindings != 1 || runner.count() != 1 {
+		t.Fatalf("retained duplicate: %+v lookups=%d bindings=%d jobs=%d", duplicate, lookups, bindings, runner.count())
+	}
+	request.Target = "removed-alias:2"
+	conflict := r.slotOps.handle(context.Background(), caller, request)
+	if conflict.Code != "id-conflict" || lookups != 0 || bindings != 1 || runner.count() != 1 {
+		t.Fatalf("retained conflict: %+v lookups=%d bindings=%d jobs=%d", conflict, lookups, bindings, runner.count())
 	}
 }

@@ -1289,6 +1289,19 @@ you were working. Pressed again, it goes to the next page. With nothing paging i
 stays put and says so on the status row. Inside the switcher it is not claimed
 and acts as the switcher's own `Enter`.
 
+`Ctrl+Alt+a` opens the **attention list** (pair#673): what is waiting on you,
+newest first. It holds three kinds of item: the hub's `couch --notify` messages,
+slots blocked on a permission prompt or picker, and slots whose turn ended with
+a question to you. While the list has items, the right end of the status row
+shows `🔔N`, red if a slot is blocked on a prompt; click it to open the list too.
+The list opens at the top right. `Up`/`Down` (or `k`/`j`) move, `Enter` or a
+click jumps to the item's slot, `d` dismisses, and `Escape` closes. Picking a
+notification reads it, so it goes. A prompt or question stays until the slot
+stops waiting, whoever answered it. The list survives a Couch restart: messages
+come back as they were, and prompts and questions come back once the slot is
+seen still waiting. The list is never broadcast. The desktop notification still
+fires, and helps when the terminal is in the background.
+
 `Ctrl+Alt+b` **broadcasts** this screen, view-only, to anyone with the link
 (#395). The link is copied to your clipboard (it is never drawn on screen);
 send it through another channel. Viewers open it in a browser and see the

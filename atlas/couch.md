@@ -440,6 +440,25 @@ counts enter the existing COUCH_TRACE diagnostics as `notify-suppressed`, and
 ordinary BEL is unchanged. Each aggregate names the pane endpoint and cumulative
 count; a fresh attachment starts a new counter. No notification text is logged.
 
+**Attention list (pair#673, supersedes pair#352).** Couch keeps a durable list
+of what waits on the operator, and Ctrl+Alt+a (or a click on the status row's
+🔔N badge) opens it as a top-right panel; Enter jumps to the item's slot, `d`
+dismisses it. Three sources feed it through the message service:
+`couch --notify` (a notify item that stays until visited or dismissed), the
+blocked-prompt set `publishBlocked` already computes (prompt items), and the
+wait watcher's question episodes (question items; a turn moves the activity and
+ends the episode). The pure reducer `couchcore.AttentionList` diffs each
+condition set per kind, so a prompt or question item leaves when its condition
+clears, whoever answered; it caps the list at 50, dropping the oldest notify
+first. `couchcore.AttentionStore` persists it as versioned JSON at
+`NAMESPACE/attention/list.json` (`durablefile.WriteAtomicStaged`, O_NOFOLLOW,
+size cap, strict decode). After a restart, condition items stay hidden for a
+two-minute grace until their source raises them again, keeping `Since` and
+`Visited`. The badge sits at the status row's right end so it never covers slot
+content, in the blocked color while a prompt item is open. See
+`couchcore/attention_list.go`, `attention_store.go`, `couchcmd/attention.go`
+and `couchtty/console_attention.go`.
+
 `couch --actors`, `--send-to repo[:N]|hub [--agent NAME] --message TEXT|--message-file PATH` and `--message-status ID`
 use bounded Unix stream RPC, without constructing another mutable supervisor.
 The send's `AdmissionTimeout` starts before sender authority checks and is
@@ -4732,6 +4751,16 @@ thread has an open park. Both carry the exact repository scope, tag and park
 nonce; queued effects refuse a replacement transaction or changed ownership.
 A repeated request uses its original receipt; recovering an already settled park
 has no effect. Unknown receipt status calls for inspection, not an automatic resend.
+
+CLI recovery selects its exact address and park nonce from the console's last
+successful cached inventory before receipt admission (#681). The authenticated caller's admission-verified workspace cache and canonical target slot supply the initial hub ownership check, without external caller/target workspace resolution. A missing caller cache refuses with refresh-and-retry advice. Current-world caller, ownership and target checks remain on the owned queue and at dispatch. Unknown, missing
+or ambiguous cached selection refuses with advice to refresh the switcher
+inventory, inspect the row and retry. Full workspace/fleet inspection runs only
+on the existing operation queue after the receipt is allocated; slow preparation
+therefore remains inspectable instead of exhausting the two-second admission
+exchange. Queued preparation and dispatch compare against the captured identity;
+a replacement park is refused rather than selected later. Repository aliases
+share one canonical pending key and one bounded name lookup on new admission.
 
 Recovery never starts a replacement agent. A verified completion finalizes the
 park; positively dead exact owners with positively absent terminals may retire

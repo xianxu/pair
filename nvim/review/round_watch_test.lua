@@ -21,7 +21,7 @@ local function live(tag) vim.fn.writefile({ tag }, file); return art(file, W.has
 
 -- decide: the pane's file, a result not seen yet; nothing else.
 eq(W.decide(art(file, 'h1'), file, nil), true, 'new round of this file')
-eq(W.decide(art(file, 'h1'), file, 'h1'), false, 'a seen round is not replayed')
+eq(W.decide(art(file, 'h1'), file, W.key(art(file, 'h1'))), false, 'a seen round is not replayed')
 eq(W.decide(art(dir .. '/other.md', 'h2'), file, nil), false, 'another file')
 eq(W.decide({ file = file }, file, nil), false, 'no round')
 eq(W.decide(nil, file, nil), false, 'no artifact')
@@ -29,6 +29,18 @@ eq(W.decide(art(dir .. '/./doc.md', 'h3'), file, nil), true, 'paths compare cano
 eq(W.decide(art(file, 'h4'), file, nil, 'h4'), true, 'the file still is the round result')
 eq(W.decide(art(file, 'h4'), file, nil, 'other'), false, 'a file that moved on makes the round stale')
 eq(W.hash(file), vim.fn.sha256('x\n'):sub(1, 16), 'the engine whole-file hash')
+
+-- key and is_empty (pair#690): a no-edit reply keeps the hash of the round
+-- before it, so a round is the hash and its time; an empty round is one whose
+-- result is its base, with no spans.
+local function at(hash, t) local a = art(file, hash); a.round.at = t; return a end
+eq(W.decide(at('h5', 't2'), file, W.key(at('h5', 't1'))), true, 'the same hash at a new time is a new round')
+eq(W.decide(at('h5', 't1'), file, W.key(at('h5', 't1'))), false, 'the same hash and time is the seen round')
+eq(W.key({ file = file, round = { spans = {} } }), nil, 'no hash, no key')
+eq(W.is_empty({ base_hash = 'h', result_hash = 'h', spans = {} }), true, 'result is base, no spans: empty')
+eq(W.is_empty({ base_hash = 'g', result_hash = 'h', spans = {} }), false, 'a moved result is not empty')
+eq(W.is_empty({ base_hash = 'h', result_hash = 'h', spans = { {} } }), false, 'spans are not empty')
+eq(W.is_empty({ base_hash = 'h', result_hash = 'h', spans = vim.NIL }), true, 'null spans are none')
 
 -- decorations: a highlight per changed span (none for a deletion or a marker
 -- proposal), and the reason, or "changed by the agent", as the diagnostic.

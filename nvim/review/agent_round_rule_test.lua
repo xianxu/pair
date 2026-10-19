@@ -86,6 +86,20 @@ ok(line_changes == typed and writes == 1 and file_writes == 0, 'a declined round
 ok(vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1] == 'operator typing', 'a declined round keeps the operator buffer')
 ok(read_bytes(file) == 'alpha\nBETA\ngamma\n', 'a declined round leaves the engine file alone')
 
+-- An empty round (no edits, pair#690) over the operator's unsaved text: the turn
+-- ends, and nvim writes nothing and reloads nothing.
+local ended, reloads_before = 0, reloads
+R.after_applied_round = function() ended = ended + 1 end
+local eh = round_watch.hash(file)
+local ef = io_open(round_path, 'wb')
+ef:write(vim.json.encode({ file = file, round = { base_hash = eh, result_hash = eh, at = '2026-10-19T09:00:00Z', spans = {} }, body = '' }))
+ef:close()
+vim.wait(3000, function() return ended > 0 end, 10)
+ok(ended == 1, 'an empty round ends the turn (after_applied_round=' .. ended .. ')')
+ok(line_changes == typed and writes == 1 and file_writes == 0 and reloads == reloads_before, 'an empty round writes and reloads nothing')
+ok(vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1] == 'operator typing' and vim.bo[buf].modified, 'an empty round keeps the operator buffer')
+R.after_applied_round = nil
+
 R.stop(buf)
 vim.fn.writefile, io.open, os.rename = writefile, io_open, rename
 vim.fn.delete(dir, 'rf')

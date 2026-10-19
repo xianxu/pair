@@ -13,6 +13,8 @@ func (c *Console) statusModelLocked() StatusModel {
 		model.CapabilityNotice = capabilityNotice(caps)
 	}
 
+	c.attentionStatusLocked(&model)
+
 	driver, asking := c.webDriveLabels()
 	model.WebDrive = asking
 	if model.WebDrivingOn {
