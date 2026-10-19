@@ -90,7 +90,7 @@ func TestCodecStateAndReversibleMarker(t *testing.T) {
 	}
 	input := []byte{0, 1, 2, 255}
 	var out bytes.Buffer
-	if err := c.Encode(ctx, bytes.NewReader(input), &out, []string{fp}); err != nil {
+	if err := c.Encode(ctx, bytes.NewReader(input), &out, []string{fp}, "zstd -19"); err != nil {
 		t.Fatal(err)
 	}
 	decoded, err := DecodeTestOutput(out.Bytes())
@@ -102,7 +102,7 @@ func TestCodecStateAndReversibleMarker(t *testing.T) {
 	}
 	out.Reset()
 	c.AfterEncodeError = errors.New("late failure")
-	if c.Encode(ctx, bytes.NewReader(input), &out, []string{fp}) == nil {
+	if c.Encode(ctx, bytes.NewReader(input), &out, []string{fp}, "zstd -19") == nil {
 		t.Fatal("late failure ignored")
 	}
 	if c.Attempts != 2 || len(c.Outputs) != 2 || out.Len() == 0 {
@@ -114,7 +114,7 @@ func TestCodecBarrierCancellation(t *testing.T) {
 	fp := strings.Repeat("A", 40)
 	c := &TestCodec{KnownRecipients: map[string]bool{fp: true}, Barrier: func(ctx context.Context, stage string) error { cancel(); return nil }}
 	var out bytes.Buffer
-	if err := c.Encode(ctx, strings.NewReader("x"), &out, []string{fp}); !errors.Is(err, context.Canceled) {
+	if err := c.Encode(ctx, strings.NewReader("x"), &out, []string{fp}, "zstd -19"); !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancellation %v", err)
 	}
 	if out.Len() != 0 || len(c.Outputs) != 0 {
@@ -136,7 +136,7 @@ func TestCodecBlockedInputCancellationJoins(t *testing.T) {
 		return nil
 	}}
 	done := make(chan error, 1)
-	go func() { done <- c.Encode(ctx, r, io.Discard, []string{fp}) }()
+	go func() { done <- c.Encode(ctx, r, io.Discard, []string{fp}, "zstd -19") }()
 	<-started
 	cancel()
 	select {

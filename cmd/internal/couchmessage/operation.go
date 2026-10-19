@@ -46,6 +46,8 @@ const ReceiptRetention = 5 * time.Minute
 
 // OperationReceipt is the typed outcome of one resume or reboot request.
 type OperationReceipt struct {
+	// FailureNonce correlates a terminal receipt with retained lifecycle evidence.
+	FailureNonce         string                               `json:",omitempty"`
 	IntentDigest         string                               `json:",omitempty"`
 	Drive                *agentdrive.Result                   `json:",omitempty"`
 	RecoveryConfirmation string                               `json:",omitempty"`
@@ -96,6 +98,7 @@ const (
 
 // ReceiptOutcome is a finish event's terminal result.
 type ReceiptOutcome struct {
+	FailureNonce                                           string `json:",omitempty"`
 	Drive                                                  *agentdrive.Result
 	Confirmation                                           *couchcore.RecoveryConfirmationOffer
 	Status                                                 ReceiptStatus
@@ -159,6 +162,7 @@ func ApplyReceiptEvent(r OperationReceipt, e ReceiptEvent) (OperationReceipt, er
 			o.Detail = r.Drive.Detail
 		}
 		r.Confirmation = o.Confirmation
+		r.FailureNonce = o.FailureNonce
 		r.Status, r.Code, r.Detail, r.Diagnostic, r.Tag, r.Archived, r.Warning, r.Path, r.Finished = o.Status, o.Code, o.Detail, o.Diagnostic, o.Tag, o.Archived, o.Warning, o.Path, e.At
 		return r, nil
 	case ReceiptExpire:

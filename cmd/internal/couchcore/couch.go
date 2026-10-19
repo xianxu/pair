@@ -25,6 +25,8 @@ import (
 // method on it. The terminal UI and (later) the advisor's tools are both
 // clients of these methods -- never of two separate implementations.
 type Couch struct {
+	failureRecorderMu     sync.Mutex
+	failureRecorder       *LifecycleFailureRecorder
 	recoveryMu            sync.Mutex
 	recoveryConfirmations map[string]recoveryConfirmationState
 	RecoveryEvidence      RecoveryEvidenceReader
@@ -165,7 +167,7 @@ func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOp
 		if err != nil {
 			return nil, err
 		}
-		if err := coordinator.RegisterRuntime(context.Background(), process, "couch-runtime"); err != nil {
+		if err := coordinator.RegisterRuntime(context.Background(), process, storagegc.CouchRuntimeRole, storagegc.RuntimeRegistrationOptions{DiagnosticProtocol: storagegc.DiagnosticProtocolVersion}); err != nil {
 			return nil, err
 		}
 		threads, err = NewCoordinatedThreadStore(namespace, coordinator)

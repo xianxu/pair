@@ -587,7 +587,11 @@ func codeTip(text string, at, cols, rows int) NotesMenu {
 	return NotesMenu{X: x, Y: rows - 2, W: w, H: 1, lines: []notesMenuLine{{text: line, tip: true}}}
 }
 
-// installCodesLayer puts the codes on the operator's screen only.
+// installCodesLayer puts the codes, and the attention list over them
+// (pair#673), on the operator's screen only: the presenter has one
+// operator-only layer.
 func (c *Console) installCodesLayer() error {
-	return c.presenter.SetOperatorLayer(context.Background(), c.codesLayer)
+	return c.presenter.SetOperatorLayer(context.Background(), func(f terminal.Frame, class terminal.FrameClass) terminal.Frame {
+		return c.attentionLayer(c.codesLayer(f, class))
+	})
 }

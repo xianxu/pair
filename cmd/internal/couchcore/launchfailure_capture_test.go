@@ -145,28 +145,63 @@ func TestLaunchFailureCaptureExitedAndPersistenceFailure(t *testing.T) {
 }
 
 func TestLaunchFailureCaptureSwitchFinalError(t *testing.T) {
+	for _, nested := range []bool{false, true} {
+		t.Run(fmt.Sprintf("nested=%t", nested), func(t *testing.T) {
+			env := newTestEnv(t, "/repo")
+			store := &captureFailureStore{}
+			env.Couch.LaunchFailures = store
+			env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) {
+				return false, errors.New("observer stopped")
+			}
+			source := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
+			args := []string{"--sandbox", "danger-full-access"}
+			p, err := env.Couch.PrepareAgentSwitch(context.Background(), source.Address, "codex", &args)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx := context.Background()
+			var parent *OperationAttempt
+			if nested {
+				parent, err = env.Couch.BeginOperationAttempt("switch-agent", LifecycleFailureTarget{Address: source.Address, StartingPath: source.StartingPath})
+				if err != nil {
+					t.Fatal(err)
+				}
+				ctx = WithOperationAttempt(ctx, parent)
+			}
+			_, err = env.Couch.SwitchAgent(ctx, SwitchAgentRequest{Address: source.Address, Agent: "codex", Argv: args, AcceptedFingerprint: p.Fingerprint})
+			if nested {
+				if len(store.records) != 0 {
+					t.Fatalf("nested capture published before parent: %+v", store.records)
+				}
+				_, err = parent.Finish(nil, err)
+			}
+			if err == nil || len(store.records) != 1 {
+				t.Fatalf("err=%v records=%v", err, store.records)
+			}
+			last := store.records[0]
+			if !strings.Contains(last.FinalError, "target launch failed") || last.LaunchError == "" || last.Agent != "codex" || last.Operation != "switch-agent" {
+				t.Fatalf("%+v", last)
+			}
+			if strings.Contains(OperatorError(err), "\n") || !strings.Contains(err.Error(), "couch --show") {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestLaunchFailureCaptureSwitchPreparationPublishesOnce(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	store := &captureFailureStore{}
 	env.Couch.LaunchFailures = store
-	env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) {
-		return false, errors.New("observer stopped")
+	cause := errors.New("switch preparation refused")
+	in := trackedThreadLaunch{Thread: ThreadRecord{Address: ThreadAddress{RepoScope: "scope", Tag: "tag"}, StartingPath: "/repo"}, Nonce: "switch-attempt"}
+	got := env.Couch.finishSwitchFailure(in, cause)
+	if !errors.Is(got, cause) || len(store.records) != 1 {
+		t.Fatalf("err=%v publications=%d", got, len(store.records))
 	}
-	source := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
-	args := []string{"--sandbox", "danger-full-access"}
-	p, err := env.Couch.PrepareAgentSwitch(context.Background(), source.Address, "codex", &args)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{Address: source.Address, Agent: "codex", Argv: args, AcceptedFingerprint: p.Fingerprint})
-	if err == nil || len(store.records) == 0 {
-		t.Fatalf("err=%v records=%v", err, store.records)
-	}
-	last := store.records[len(store.records)-1]
-	if !strings.Contains(last.FinalError, "target launch failed") || last.LaunchError == "" || last.Agent != "codex" {
-		t.Fatalf("%+v", last)
-	}
-	if strings.Contains(OperatorError(err), "\n") || !strings.Contains(err.Error(), "couch --show") {
-		t.Fatal(err)
+	f := store.records[0]
+	if f.Operation != "switch-agent" || !strings.Contains(f.FinalError, cause.Error()) {
+		t.Fatalf("published before final switch evidence: %+v", f)
 	}
 }
 

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"sync"
 	"sync/atomic"
+
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 )
 
 var errNavigationNeedsLifecycle = errors.New("hosted navigation needs lifecycle")
@@ -12,10 +14,11 @@ var errNavigationNeedsLifecycle = errors.New("hosted navigation needs lifecycle"
 var ErrOperationQueueOverloaded = errors.New("operation queue is full")
 
 type operationRequest struct {
-	key    string
-	name   string
-	origin MenuOperationOrigin
-	run    func() (any, error)
+	attempt *couchcore.OperationAttempt
+	key     string
+	name    string
+	origin  MenuOperationOrigin
+	run     func() (any, error)
 	// navigation is present only for a currently hosted selection; run remains
 	// its lifecycle fallback when the hosted endpoint proof disappears.
 	navigation func() (any, error)
@@ -25,19 +28,21 @@ type operationRequest struct {
 }
 
 type operationCompletion struct {
-	key      string
-	name     string
-	origin   MenuOperationOrigin
-	value    any
-	err      error
-	remote   *remoteOperation
-	owner    *atomic.Bool
-	prepared bool
+	attempt   *couchcore.OperationAttempt
+	key       string
+	name      string
+	origin    MenuOperationOrigin
+	value     any
+	err       error
+	remote    *remoteOperation
+	owner     *atomic.Bool
+	published *atomic.Bool
+	prepared  bool
 }
 
 // complete is the request's completion carrying its outcome.
 func (r operationRequest) complete(value any, err error) operationCompletion {
-	return operationCompletion{key: r.key, name: r.name, origin: r.origin, value: value, err: err, remote: r.remote, owner: new(atomic.Bool)}
+	return operationCompletion{attempt: r.attempt, key: r.key, name: r.name, origin: r.origin, value: value, err: err, remote: r.remote, owner: new(atomic.Bool), published: new(atomic.Bool)}
 }
 
 type operationQueue struct {
@@ -49,6 +54,8 @@ type operationQueue struct {
 	pending            map[string]bool
 	// prepare remains on lifecycle workers; navigation never runs adoption.
 	prepare func(operationCompletion) operationCompletion
+	// publish settles diagnostics and remote callers on an existing joined worker.
+	publish func(operationCompletion) operationCompletion
 	abandon func(operationCompletion)
 }
 
@@ -111,6 +118,9 @@ func (q *operationQueue) Run(stop <-chan struct{}) {
 			if q.prepare != nil {
 				completed = q.prepare(completed)
 			}
+			if q.publish != nil {
+				completed = q.publish(completed)
+			}
 			if !q.finish(stop, completed) {
 				return
 			}
@@ -120,7 +130,8 @@ func (q *operationQueue) Run(stop <-chan struct{}) {
 	}
 }
 
-// RunNavigation never invokes lifecycle work. A vanished hosted endpoint hands
+// RunNavigation never executes adoption or a lifecycle effect. Its joined worker
+// publishes terminal diagnostics. A vanished hosted endpoint hands
 // the same pending owner to the lifecycle lane once, or completes as overloaded.
 func (q *operationQueue) RunNavigation(stop <-chan struct{}) {
 	for {
@@ -136,7 +147,11 @@ func (q *operationQueue) RunNavigation(stop <-chan struct{}) {
 				}
 				value = nil
 			}
-			if !q.finish(stop, request.complete(value, err)) {
+			completed := request.complete(value, err)
+			if q.publish != nil {
+				completed = q.publish(completed)
+			}
+			if !q.finish(stop, completed) {
 				return
 			}
 		case <-stop:

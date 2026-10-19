@@ -1,0 +1,106 @@
+---
+id: 000702
+status: done
+deps: []
+github_issue:
+created: 2026-10-19
+updated: 2026-10-19
+estimate_hours:
+collaboration-mode: collaboration
+card_mirror: '063ccb57406b5d036eb8b57b7f2021e4da7032fd' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-19T04:24:04-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:7
+    worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
+    repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "bdfc13f6", done: "6c2079e1"}
+actual_hours: 0.86
+---
+
+# Compress large database snapshots faster with measured levels and threads
+
+## Problem
+
+#688's coherent 1,999,003,648-byte history snapshot acquired in 7.31s, but the following existing zstd -19 --single-thread plus gpg pipeline exhausted the acceptance pass's five-minute outer budget. Large daily database compression, rather than snapshot acquisition, now dominates latency. The snapshot reader had already exited and its WAL did not grow.
+
+## Spec
+
+Measure size, wall time and CPU for large database snapshot compression at levels -3, -9 and -19, with multithreading (-T0) compared with the present single-thread path. Choose a bounded kind/size-specific policy that makes daily database backups practical without weakening verified encryption, content hashes, manifests, source preservation or interruption/retry semantics. Keep -19 for small text bundles if the size benefit justifies it. Format/manifest compression-description compatibility and unknown fields must be considered if the format actually changes. Coordinate heavy benchmarking with the hub; do not run an unrestricted multithread benchmark alongside fleet suites.
+
+## Done when
+
+- A retained validated large database snapshot and representative small text bundle have reproducible size/time/CPU measurements for the proposed choices.
+- The chosen database policy is enforced through the existing codec seam, with a stateful fake and real CLI qualification, bounded concurrency/cancellation and no orphaned compression children.
+- Backup round-trip and retry/integrity tests pass, and operator-facing storage/time tradeoffs are documented.
+
+## Plan
+
+- [x] Measure retained history snapshot at -3/-9/-19 with -T0, plus a representative tracked-text tar, under both machine-test tokens and one 20-minute outer bound. Record wall/user/sys CPU, bytes, zstd version, load and decompression hash agreement; remove private compressed outputs immediately.
+- [x] Send measured policy and compatibility choice to the hub before code; add failing policy/codec/reader tests, then implement through the shared codec seam with truthful compression metadata.
+- [x] Qualify native round trips and cancellation, document storage/time tradeoffs, and submit the recorded full suite for the close and landing gates.
+
+## Log
+
+
+- 2026-10-19: closed — Round-1 dispositions recorded: BR-1 approved T0-level cohort confirmed sufficient by hub e02a0aba; prior 378.75s single-thread pipeline stays separate evidence. BR-2 all three stale policy/threading restatements corrected. BR-3 unchanged codec tests rerun with TMPDIR=/tmp passed 7.519s at levels 9/19/20/22 and full archive corruption/source-preservation checks; full output and SHA256 embedded in issue. Targeted tests 2.501s and historyarchive/... 96.483s passed. Recorded suite queued, pass still required before landing. Review fixes are documentation only. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
+- Filed unclaimed at hub request e253ca94-31a2-4866-b377-f8f2aa5c48c5. Independent follow-up; it must not block #688. That item publishes its already validated stage at low priority under an approved longer bound, without another native source read/pin.
+
+- First exclusive measurement, zstd 1.5.7 on 12 CPUs, warmed staged 1,999,003,648-byte stream: -3 -T0 wall 1.074790s, user 3.90s/sys 0.60s, 286,271,640 bytes, peak RSS 149,291,008; -9 -T0 wall 2.206355s, user 16.16s/sys 0.94s, 205,249,063 bytes, peak RSS 413,925,376. Both decompression SHA256 results matched the stage. Load1 around 7.4, both machine-test tokens held, nice 10. Evidence: /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair702-bench.jy01Ph/results.json and measure.py. The outer bound interrupted -19 before a valid result; its partial compressed output was removed, not measured, and the process group/tokens released. No native database was opened or acquired.
+
+- Resumed measurement completed, with source hash and metadata unchanged and every decompression hash matching. All compressed outputs and the small-text tar were removed; tokens released on runner exit. Resumed elapsed 741.763s includes 681s queue wait, approximately 61s held-token work. Together both attempts used about 126s of token-held work, below the approved total. The second cohort reused the identical history hash; only the missing cases ran. 12-CPU host, zstd 1.5.7, nice 10, sequential variants under both tokens; warmed streaming input, not a timed file-copy or encrypted publication. Initial load1 about 7.4 for -3/-9 and 5.0 for resumed -19; -19 itself raised load1 to 31.5. Small tar: 1,198,080 bytes from 1,173,392 bytes tracked README/atlas text. CPU timer resolution is 0.01s (zero entries mean below resolution, not zero work).
+
+| Corpus | Level / threads | Wall s | CPU user / sys s | Output bytes |
+|---|---|---:|---:|---:|
+| history-db-stream | -3 -T0 | 1.074790 | 3.90 / 0.60 | 286,271,640 |
+| history-db-stream | -9 -T0 | 2.206355 | 16.16 / 0.94 | 205,249,063 |
+| history-db-stream | -19 -T0 | 56.276363 | 466.24 / 4.72 | 147,070,686 |
+| tracked-text-tar | -3 -T0 | 0.013298 | 0.00 / 0.00 | 435,113 |
+| tracked-text-tar | -9 -T0 | 0.028944 | 0.02 / 0.00 | 399,887 |
+| tracked-text-tar | -19 -T0 | 0.274556 | 0.26 / 0.00 | 367,948 |
+| tracked-text-tar | -19 --single-thread | 0.269694 | 0.25 / 0.00 | 367,948 |
+
+- Proposed policy, pending hub approval: codex-database uses -9; every other bundle keeps -19; both use -T0 through the existing serial encoder. Prefer the simple kind rule over an unmeasured size threshold. On this history input, -9 saves 54.07s wall and 453.86s aggregate CPU against -19 -T0, at 58,178,377 extra bytes per changed bundle (about 21.24GB/year if changed and archived daily). Against -3 it saves 81,022,577 bytes for 1.13s additional wall time. Small-text -19 saves 31,939 bytes versus -9 for about 0.25s additional wall time; -19 T0 and single-thread output sizes match. These are one-cohort observations, not timing assertions for tests.
+
+## Revisions
+
+- 2026-10-19, hub 6c554939-71f7-4028-a1f0-6f5cc948a40d: the first conservative 20-minute clock included 18m55s queue time, so it stopped during -19 after approximately 65s held-token work. Resume only -19 -T0 and the small-text comparisons, with an 18-minute bound starting at acquisition; queue waiting holds no resources and does not count. Keep completed -3/-9 measurements, verify the same staged-input hash, and release immediately after cleanup.
+
+- 2026-10-19, hub 69176f28-7984-488e-a48d-754e02e0e524: both machine-test tokens approved for measurement only, capped at 20 minutes including cleanup and released immediately. Measure before proposing the policy. Compression level is an existing value, not a schema-shape change: if a lower level wins, readers should accept supported zstd levels while writers label the actual level honestly; no speculative codec/schema expansion.
+
+- 2026-10-19, measured policy proposal: keep compression selection pure and kind-based, pass the manifest descriptor into the existing Codec.Encode seam, and derive native argv from it. Manifest and label retain the true level; legacy -19 remains readable and unchanged catalog content is not recompressed. Readers recognize canonical positive zstd level descriptors independently of the writer policy; the encoder rejects levels unsupported by the installed CLI contract (currently 1–22, --ultra above 19) before spawning tools, avoiding silent clamping. No JSON fields, version changes, configuration knobs, source acquisition or new concurrency lanes. Tests cover old/new/future positive-level reads, malformed values, encoder refusals, actual argv/metadata agreement, streaming/cancellation and independent real decrypt/decompress.
+
+### 2026-10-19 — policy approved
+Hub receipt 20cd5be1 approved codex-database -9 -T0 and all other kinds -19 -T0; true descriptor through Codec.Encode, shared canonical descriptor parsing, encoder refuses levels above 22 before spawn, ultra for 20–22, legacy IDs readable and unchanged content deduplicated. Reader compatibility is independent of writer policy (ARCH-EVOLVE).
+
+### Implementation checkpoint
+Behavioral red run: TestCompressionPolicyAndReaderCompatibility failed on database -19 and non-19 readers; TestCodecUsesAllThreads observed --single-thread. Implemented one kind-based selection and one shared descriptor parser, with actual manifest descriptor passed through Codec.Encode; no format fields changed. Fake subprocess tests inspect -T0/ultra arguments and verify unsupported values spawn neither tool. Real-codec qualification uses disposable keys only.
+
+### Qualification checkpoint
+Targeted policy, codec subprocess, archive descriptor agreement and mixed legacy/new/future-level catalog tests passed (2.501s). Isolated real GPG/zstd round trips passed for levels 9, 19, 20 and 22; production archive round trip, corruption rejection and unchanged source hashes passed (2.227s total). Existing cancellation/failing child tests passed in the targeted Codec group. Full historyarchive package run and recorded full suite are running; no full-suite success claimed yet. PR https://github.com/xianxu/pair/pull/455.
+
+### Close preparation
+Full historyarchive/... package run passed (96.483s; archivetest 0.174s). Recorded suite attempt 8301d79f1936588236459ed4c09a1f7c is queued on production/test head 27ec68149; subsequent f5d6b7a66 only documents evidence/tradeoffs. Per tl-worker, the close review may overlap this queue; landing still requires a recorded pass, and any code change requires a fresh final-head run. Plan's last checkbox describes completed preparation; suite outcome, close verdict and landing are gate-owned results recorded in this Log. No suite pass or landing is claimed yet.
+
+### 2026-10-19 — close disposition scope clarification (hub e02a0aba)
+BR-1: The approved new measurements compare database levels at the same -T0 setting. The 378.75s zstd -19 single-thread result from #688 is retained only as prior production tar/GPG pipeline evidence; it is not a matched zstd-only baseline. Hub explicitly confirms this is sufficient and requests no new heavy benchmark. This narrows the original Spec's comparison clause to the approved cohort, preserving its evidence limits rather than implying a direct thread-scaling comparison.
+BR-2: Updated all three stale restatements: README policy and both atlas resource/threading paragraphs. Bundles remain serial while each zstd process uses -T0; memory is not claimed low or constant. Existing pending README agent marker is preserved, not resolved as human approval.
+BR-3: The review host's long GPG socket path failed before encoding. The same pinned production/test code already passed real isolated-key conformance here; a second run with TMPDIR=/tmp retains complete stdout/stderr in /tmp/pair702-native-short-path.log. No credentials or native source files are used.
+
+Short-path rerun completed with exit 0. Command: `TMPDIR=/tmp PAIR_ARCHIVE_LIVE=1 go test ./cmd/internal/historyarchive -run '^TestCodecLiveRoundTrip$' -count=1 -v`. Production and test sources are unchanged from 27ec68149; later commits are documentation/evidence only. Retained log SHA256: 94605c9eb9f6d6fdc6f70d44c04546012cc0aa17e4e7e94d95d52ae705ee07d1.
+
+```text
+=== RUN   TestCodecLiveRoundTrip
+    codec_live_test.go:93: round trip: tar=4608 ciphertext=528 elapsed=508.560792ms (zstd -9 -T0; no strict RSS claim)
+    codec_live_test.go:93: round trip: tar=4608 ciphertext=518 elapsed=100.526166ms (zstd -19 -T0; no strict RSS claim)
+    codec_live_test.go:93: round trip: tar=4608 ciphertext=518 elapsed=117.328ms (zstd -20 -T0; no strict RSS claim)
+    codec_live_test.go:93: round trip: tar=4608 ciphertext=509 elapsed=355.513209ms (zstd -22 -T0; no strict RSS claim)
+    codec_live_test.go:270: full archive round trip: files=3 tar=6144 ciphertext=1022 pipeline=472.30025ms total-with-key-generation=4.635330292s; corrupted sink rejected, source hashes unchanged
+--- PASS: TestCodecLiveRoundTrip (7.35s)
+PASS
+ok  	github.com/xianxu/pair/cmd/internal/historyarchive	7.519s
+```
+
+The short temporary root is a per-command test environment choice, not a machine setting or a change to native acquisition. BR-3's passing measured host evidence is embedded above so the reviewer need not depend on a temporary host file being available.

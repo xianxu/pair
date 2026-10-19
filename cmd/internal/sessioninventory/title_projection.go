@@ -1,7 +1,6 @@
 package sessioninventory
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"errors"
@@ -37,16 +36,11 @@ type TitleProjection struct {
 	ownerSeen    bool
 	nativeID     string
 	state        ScannerState
-	transcript   FileEntry
-	other        []FileEntry
-	since        []FileEntry
-	rawOffset    int64
-	observedSize int64
-	frame        JSONLFrameState
-	boundary     []byte
-	boundaryHash [32]byte
-	result       TitleProjectionResult
-	err          error
+	TranscriptCursor
+	other  []FileEntry
+	since  []FileEntry
+	result TitleProjectionResult
+	err    error
 }
 type titleOwnerRuntime struct {
 	Runtime
@@ -331,7 +325,7 @@ func (p *TitleProjection) admit(ctx context.Context, binding sessionledger.Recor
 	if !sameTitleIdentity(p.transcript, current) || current.Size != p.rawOffset || !equalFingerprint(fingerprintFromEntry(p.transcript), fingerprintFromEntry(current)) {
 		return ErrArtifactChanged
 	}
-	window, err := p.readBoundary()
+	window, err := p.readBoundary(p.runtime)
 	if err != nil {
 		return err
 	}
@@ -358,20 +352,6 @@ func titleValidationRoot(v TargetValidation, agent Agent, id string) bool {
 }
 func sameTitleIdentity(a, b FileEntry) bool {
 	return a.StableFileID != "" && a.StableFileID == b.StableFileID && a.GenerationToken == b.GenerationToken && equalOptionalTime(a.BirthTime, b.BirthTime)
-}
-func (p *TitleProjection) readBoundary() ([]byte, error) {
-	n := min(titleBoundaryBytes, p.rawOffset)
-	if n == 0 {
-		return nil, nil
-	}
-	b, _, err := p.runtime.ReadAt(p.transcript.Artifact, p.rawOffset-n, n)
-	if err != nil {
-		return nil, err
-	}
-	if int64(len(b)) != n {
-		return nil, ErrArtifactChanged
-	}
-	return b, nil
 }
 func (p *TitleProjection) checkArtifacts(before *FileEntry) (FileEntry, error) {
 	var observed []FileEntry
@@ -407,7 +387,7 @@ func (p *TitleProjection) checkArtifacts(before *FileEntry) (FileEntry, error) {
 			return FileEntry{}, ErrArtifactChanged
 		}
 		if p.admitted {
-			window, err := p.readBoundary()
+			window, err := p.readBoundary(p.runtime)
 			if err != nil {
 				return FileEntry{}, err
 			}
@@ -429,114 +409,13 @@ func (p *TitleProjection) checkArtifacts(before *FileEntry) (FileEntry, error) {
 	return now, nil
 }
 func (p *TitleProjection) tail(ctx context.Context) error {
-	if err := ctx.Err(); err != nil {
-		return err
+	_, _, _, err := p.TranscriptCursor.advance(ctx, p.runtime, 0, p.checkArtifacts, p.apply)
+	if err == nil && p.transcript.ModTime != nil {
+		p.result.Activity = *p.transcript.ModTime
 	}
-	current, err := p.checkArtifacts(nil)
-	if err != nil {
-		return err
-	}
-	if current.Size == p.rawOffset {
-		if !equalFingerprint(fingerprintFromEntry(p.transcript), fingerprintFromEntry(current)) {
-			return ErrArtifactChanged
-		}
-		return nil
-	}
-	target := current.Size
-	for p.rawOffset < target {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		before, err := p.checkArtifacts(nil)
-		if err != nil {
-			return err
-		}
-		boundary, err := p.readBoundary()
-		if err != nil || sha256.Sum256(boundary) != p.boundaryHash {
-			return ErrArtifactChanged
-		}
-		readStart, err := p.checkArtifacts(&before)
-		if err != nil {
-			return err
-		}
-		limit := min(readChunkSize, target-p.rawOffset)
-		raw, _, err := p.runtime.ReadAt(p.transcript.Artifact, p.rawOffset, limit)
-		if err != nil {
-			return err
-		}
-		if int64(len(raw)) != limit {
-			return ErrArtifactChanged
-		}
-		_, err = p.checkArtifacts(&readStart)
-		if err != nil {
-			return err
-		}
-		records, next, err := frameTitleSuffix(p.frame, raw)
-		if err != nil {
-			return err
-		}
-		if err = p.apply(ctx, current, records); err != nil {
-			return err
-		}
-		p.frame = next
-		p.rawOffset += int64(len(raw))
-		p.boundary = append(p.boundary, raw...)
-		if int64(len(p.boundary)) > titleBoundaryBytes {
-			p.boundary = append([]byte(nil), p.boundary[len(p.boundary)-int(titleBoundaryBytes):]...)
-		}
-		p.boundaryHash = sha256.Sum256(p.boundary)
-	}
-	after, err := p.checkArtifacts(nil)
-	if err != nil {
-		return err
-	}
-	// Growth after this bounded snapshot belongs to the next poll.
-	p.transcript = after
-	p.transcript.Size = p.rawOffset
-	if after.ModTime != nil {
-		p.result.Activity = *after.ModTime
-	}
-	return nil
+	return err
 }
 
-// Buffer an incomplete record with bounded geometric growth. Reusing the full
-// framer only when a newline arrives avoids recopying a growing partial record
-// on every 64KiB range, while preserving its framing/CRLF rules.
-func frameTitleSuffix(frame JSONLFrameState, raw []byte) ([]FramedJSONLRecord, JSONLFrameState, error) {
-	if len(frame.IncompleteTail) == 0 {
-		return FrameJSONLSuffix(frame, raw, titlePartialLimit)
-	}
-	newline := bytes.IndexByte(raw, '\n')
-	part := raw
-	if newline >= 0 {
-		part = raw[:newline+1]
-	}
-	needed := len(frame.IncompleteTail) + len(part)
-	// A terminating newline is not part of the record's size ceiling.
-	allowance := int(titlePartialLimit)
-	if newline >= 0 {
-		allowance++
-	}
-	if needed > allowance {
-		return nil, frame, ErrReadLimit
-	}
-	if cap(frame.IncompleteTail) < needed {
-		next := min(allowance, max(needed, 2*cap(frame.IncompleteTail)))
-		grown := make([]byte, len(frame.IncompleteTail), next)
-		copy(grown, frame.IncompleteTail)
-		frame.IncompleteTail = grown
-	}
-	frame.IncompleteTail = append(frame.IncompleteTail, part...)
-	if newline < 0 {
-		return nil, frame, nil
-	}
-	records, next, err := FrameJSONLSuffix(JSONLFrameState{ParserCompleteOffset: frame.ParserCompleteOffset}, frame.IncompleteTail, titlePartialLimit)
-	if err != nil {
-		return nil, frame, err
-	}
-	more, last, err := FrameJSONLSuffix(next, raw[newline+1:], titlePartialLimit)
-	return append(records, more...), last, err
-}
 func (p *TitleProjection) usage(line []byte) {
 	if u, ok := ParseTokenUsage(p.agent, line); ok {
 		p.result.Usage, p.result.HasUsage = u, true

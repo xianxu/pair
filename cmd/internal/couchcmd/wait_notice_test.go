@@ -589,3 +589,48 @@ func (w *waitRig) waitObserved(at time.Time) {
 		time.Sleep(5 * time.Millisecond)
 	}
 }
+
+// #673: a question episode puts the slot in the attention list's question
+// set, a quiet tick republishes nothing, and the next turn (the activity
+// moves) takes it out: the explicit end a condition item needs.
+func TestWaitNoticeQuestionSetStartsAndEndsWithTheEpisode(t *testing.T) {
+	q := newWaitRig(t, true, true, claudeQuestionTail)
+	var mu sync.Mutex
+	var facts []couchcore.AttentionFact
+	q.s.SetAttention(func(f couchcore.AttentionFact) {
+		mu.Lock()
+		defer mu.Unlock()
+		facts = append(facts, f)
+	})
+	last := func() (int, couchcore.AttentionFact) {
+		mu.Lock()
+		defer mu.Unlock()
+		if len(facts) == 0 {
+			return 0, couchcore.AttentionFact{}
+		}
+		return len(facts), facts[len(facts)-1]
+	}
+	q.tickAt(11 * time.Minute)
+	q.tickAt(12 * time.Minute)
+	n, f := last()
+	want := couchcore.AttentionCondition{Label: "pair:2", Title: "Should I merge it now?"}
+	if f.Kind != couchcore.AttentionQuestion || len(f.Live) != 1 || f.Live[bindingThread(q.worker)] != want {
+		t.Fatalf("question set after the episode = %+v", f)
+	}
+	q.tickAt(13 * time.Minute)
+	if again, _ := last(); again != n {
+		t.Fatalf("an unchanged question set was republished (%d facts, was %d)", again, n)
+	}
+	q.client.Update(couchmessage.Observation{LastActivity: time.Now().Add(time.Second), Sequence: 2})
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		q.tickAt(time.Second)
+		if _, f := last(); f.Kind == couchcore.AttentionQuestion && len(f.Live) == 0 {
+			return
+		}
+		if time.Now().After(deadline) {
+			_, f := last()
+			t.Fatalf("a turn did not end the question: %+v", f)
+		}
+	}
+}

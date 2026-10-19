@@ -170,7 +170,7 @@ func TestNativeExitReachesTheHubAsOneLifecycleNotice(t *testing.T) {
 	if err := couchmessage.Call(context.Background(), r.brokerSock, nativeExitRequest(worker, 5, "500:child", 3), &response); err != nil || response.Code != "ok" {
 		t.Fatalf("report: %+v %v", response, err)
 	}
-	m := lifecycleNextMessage(t, ep)
+	m := lifecycleNextMessage(t, ep, publisher)
 	if m.Origin != couchmessage.OriginSystem || !strings.Contains(m.Body, worker.Slot+": exited (code 3)") {
 		t.Fatalf("hub notice: %+v", m)
 	}

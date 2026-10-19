@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/historyarchive"
 )
@@ -68,6 +69,7 @@ func runContinuous(ctx context.Context, args []string, stdout io.Writer, fail fu
 		Home:         home,
 		Env:          env,
 		Kinds:        kinds,
+		Drive:        &historyarchive.DriveMirror{Rclone: historyarchive.Rclone{Runner: historyarchive.ExecRcloneRunner{}}},
 		Snapshotter:  historyarchive.SQLiteSnapshotter{SQLite: "sqlite3", Scratch: filepath.Join(snapshots, ".scratch")},
 	}
 	report, err := ContinuousPassFunc(ctx, pass)
@@ -85,6 +87,21 @@ func runContinuous(ctx context.Context, args []string, stdout io.Writer, fail fu
 	}
 	for _, note := range report.Skipped {
 		fmt.Fprintf(stdout, "skipped: %s\n", note)
+	}
+	sort.Slice(report.Databases, func(i, j int) bool {
+		a, b := report.Databases[i], report.Databases[j]
+		return a.Kind < b.Kind || a.Kind == b.Kind && a.Path < b.Path
+	})
+	now := time.Now()
+	for _, database := range report.Databases {
+		fmt.Fprintln(stdout, database.Line(now))
+	}
+	if report.Drive != nil {
+		remote := report.Drive
+		fmt.Fprintf(stdout, "Drive: %d verified, %d already recorded, %d pending (%d deferred); %d downloaded checksum(s)\n", remote.Verified, remote.AlreadyRecorded, remote.Pending, remote.Deferred, remote.DownloadedChecksums)
+		for _, note := range remote.Notes {
+			fmt.Fprintf(stdout, "Drive: %s\n", note)
+		}
 	}
 	if err != nil {
 		return fail("continuous pass", err)

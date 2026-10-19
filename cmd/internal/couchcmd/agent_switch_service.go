@@ -145,13 +145,14 @@ func (s *messageService) handleAgentSwitch(ctx context.Context, r couchmessage.R
 	}
 	return s.slotOps.admit(ctx, caller, r, func(key string, started func(), finished func(any, error)) error {
 		return service.enqueue(key, func(ctx context.Context) (couchcore.OperationCall, error) {
-			if err := guard(ctx); err != nil {
-				return couchcore.OperationCall{}, err
-			}
 			call := couchcore.OperationCall{Name: "switch-agent", Args: map[string]string{
 				"repo-scope": address.RepoScope, "tag": string(address.Tag), "agent": r.Agent,
 				"known-config": "true", "fingerprint": prepared.Fingerprint, "source": token,
 			}}
+			call.FailureTarget = &couchcore.LifecycleFailureTarget{Address: address, Target: r.Target}
+			if err := guard(ctx); err != nil {
+				return call, err
+			}
 			if s.authority.hubs != nil {
 				call.TypedPayload = hubMutationPayload{original: call.TypedPayload, guard: guard}
 			}
@@ -176,9 +177,10 @@ func (s *slotOperations) existingSwitch(caller couchmessage.Binding, r couchmess
 
 func (s *messageService) installAgentSwitchService(console *couchtty.Console, c *couchcore.Couch, guard *switchServiceGuard) {
 	guard.service.Store(s)
+	lifecycleQueue := newLifecycleRemoteQueue(console, c)
 	s.switches.Store(&agentSwitchService{guard: guard, prepare: c.PrepareKnownAgentSwitch,
 		enqueue: func(key string, prepare func(context.Context) (couchcore.OperationCall, error), started func(), finished func(any, error)) error {
-			return console.EnqueueRemoteOperation(key, "switch-agent", prepare, started, finished)
+			return lifecycleQueue.Enqueue(key, "switch-agent", prepare, started, finished)
 		},
 	})
 }

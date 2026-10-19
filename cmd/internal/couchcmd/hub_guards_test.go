@@ -79,6 +79,14 @@ func TestHubSlotMutationGuardsEveryOperationAndQueuedMove(t *testing.T) {
 				caller = r.connect(3)
 			}
 			r.world.set(caller, func(s *worldSlot) { n := 3; s.workspace.PrimaryRoot = "/repo"; s.workspace.Slot = &n })
+			// The cached admission identity must carry the same canonical slot
+			// facts as the fixture's current-world workspace resolver.
+			r.s.mu.Lock()
+			r.s.workspaces[caller] = r.world.slots[caller.Thread()].workspace
+			r.s.mu.Unlock()
+			r.slotOps.names = func(context.Context) ([]couchcore.RepositoryName, error) {
+				return []couchcore.RepositoryName{{Key: "/repo", Dir: "pair"}}, nil
+			}
 			r.s.authority.hubs = guardHubState(t)
 			r.s.authority.hubTarget = func(context.Context, string) (couchcore.HubSlot, error) {
 				return couchcore.HubSlot{Repository: "/repo", Number: 2}, nil

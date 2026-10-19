@@ -1,11 +1,23 @@
 # History backup
 
 `pair archive` is an explicit batch backup path. It archives selected stable
-regular files as tar → zstd `-19` → GPG public-key encryption, reads the published
+regular files as tar → zstd → GPG public-key encryption, reads the published
 ciphertext back to verify its SHA256 and size, and records verified bundles in a
 private local catalog. It preserves every source file. The entrypoint is
 [`archivecmd`](../cmd/internal/archivecmd/run.go); the implementation is
 [`historyarchive`](../cmd/internal/historyarchive/archive.go).
+
+Compression uses `-9 -T0` for `codex-database` and `-19 -T0` for every
+other kind. The manifest and label record the actual level; readers accept
+canonical positive zstd levels independently of this writer policy. Encoding
+rejects levels above 22 before spawning and uses `--ultra` for levels 20–22.
+Existing level-19 bundle IDs remain readable, and unchanged source content is
+skipped rather than recompressed. On the measured 2 GB history snapshot, level 9
+produced 205 MB in 2.2 s versus level 19’s 147 MB in 56.3 s (both `-T0`),
+saving about 454 CPU-seconds for 58 MB more per changed daily bundle. This
+trades roughly 21 GB/year of storage for much less daily compression work.
+`PAIR_ARCHIVE_LIVE=1` enables the isolated-key
+codec round-trip conformance test for levels 9, 19, 20 and 22.
 
 ## Commands and request
 
@@ -132,10 +144,11 @@ Durability is reconfirmed for existing records as well as newly written records.
 
 A file larger than the target may occupy its own bundle up to the hard limit.
 Tar headers and compression overhead are additional to raw payload accounting.
-Metadata is bounded and file bytes stream; one zstd process uses one compression
-thread per invocation. zstd `-19` has its own working memory, so these limits do
-not imply a strict low total RSS. There are no host-wide scans or parallel
-compressions within an invocation. The operation is cancellable without a fixed
+Metadata is bounded and file bytes stream. Each bundle uses one zstd process
+with `-T0` (all available CPU threads); bundles are compressed serially within
+an invocation. Compression working memory depends on level and thread count,
+so these limits do not imply a strict low total RSS. There are no host-wide
+scans or concurrent bundle compressions within an invocation. The operation is cancellable without a fixed
 success deadline; cancellation joins the transform children and tar writer.
 
 The invocation owns its temporary ciphertext and removes it on ordinary return.
@@ -203,14 +216,39 @@ does nothing.
   is a new version. Worktree slots share their repository's git common dir, so
   sdlc data is archived once per repository.
 - **Databases:** snapshotted daily regardless of quiet. `SQLiteSnapshotter`
-  never opens the live file: it copies the `-wal` and then the database into a
-  private directory, refuses the copy if either changed meanwhile (a checkpoint
-  mid-copy), runs SQLite's `.backup` on the private copy, switches it to
-  `journal_mode=DELETE` and passes `PRAGMA integrity_check` before publishing
-  it under `$PAIR_DATA_DIR/archive-snapshots/` (outside the catalog directory).
-  A skipped database is retried on the next pass.
-- **Never deletes;** writes only the archive store, the snapshot root, the sink
-  and the catalog. One pass at a time (`continuous.lock`); a completed full pass
+  opens the live database through SQLite's read-only WAL-reader protocol,
+  pins a read transaction and runs `.backup` into a private directory. DB/WAL
+  content is never written by the reader; SQLite may create/update SHM read
+  marks. The source reader has a size-scaled 5–30 second budget and a 250ms busy timeout,
+  with no retry inside the pass. The pair binary's internal `exec-alarm`
+  launcher arms a kernel timer before execing SQLite, so collector death
+  cannot leave an unbounded read pin. Its periodic interval also protects a
+  launcher whose first alarm expired before exec. A scratch flock inherited
+  by the child prevents cleanup while an orphaned reader is still alive.
+  Source replacement refuses publication. After the source reader exits,
+  only the private candidate is switched to `journal_mode=DELETE` and checked
+  with `PRAGMA integrity_check` (separate 10-minute ceiling), then published
+  under `$PAIR_DATA_DIR/archive-snapshots/`. Opaque backup preserves unknown
+  SQL schema/values and implicit rowids. Invalid/truncated tool output never
+  counts as integrity evidence. Cancellation discards the candidate and keeps
+  the previous stage and verified bundles. A deferred database waits for the
+  next scheduled pass or an explicit operator rerun; generic CLI failures are
+  unknown failures, never guessed to be busy from their text.
+  The read budget is twice the estimated DB+WAL copy time at 190 decimal MB/s,
+  rounded up and clamped to 5–30 seconds. The measured approximately 2GB
+  history database gets 21 seconds; the context and kernel alarm use the same
+  value, never renewed. macOS system SQLite 3.54 may fail a closed WAL-mode
+  database lacking WAL/SHM sidecars; that diagnosed compatibility limitation
+  is tracked in #701, separately from the active-history backup fix.
+- **Database freshness:** each pass prints archived, unchanged, deferred or
+  failed per database, plus its last verified catalog timestamp/age (or never).
+  A checked-unchanged source is current even when its stored bundle is old;
+  a skipped source has no successful check timestamp. Acquisition success
+  alone is not a verified backup. These are runtime reports, with no catalog
+  or manifest format changes. `continuous.last` still means pass completion,
+  not that every database has a fresh bundle. Freshness alerts are #700.
+- Snapshot admission rejects canonical overlap of every native source with scratch or any snapshot staging destination across source kinds and regardless of the pass filter before cleanup or directory creation, including symlink aliases and output directories not yet created. A configuration error names the overlapping roots. Ordinary database publication failures are accumulated while later validated databases continue; cancellation still stops the pass.
+- **Never deletes sources or retained copies;** writes the archive store, snapshot root, local sink/catalog, and the configured remote after local success. One pass at a time (`continuous.lock`); a completed full pass
   writes `continuous.last`.
 - **Schedule:** Couch checks hourly and runs the command at `nice 10` when
   configured and the last pass is over 24 hours old (`couchcmd/archive_schedule.go`),
@@ -218,3 +256,56 @@ does nothing.
   lock.
 - Files over their kind's raw bound are skipped with a note. Database snapshots use the snapshot bound (`rawBundleLimit`, 8 GiB): they compress well (Codex `thread_history_1.sqlite` 1.60 GB to 115 MB), so the 2 GiB ciphertext bound is their real limit, and a snapshot whose compressed bundle exceeds it is skipped with a note (`ErrCiphertextLimit`), not a failed pass (#616). Each snapshot is its own request, so a skip never drops another database. Cost: a database that changes daily is a new version every pass, and the sink never deletes; at the measured 115 MB per `thread_history_1.sqlite` bundle that is roughly 40 GB a year for that one database. Pruning old snapshot versions is a separate, not-yet-made retention decision.
 
+The raw bound is checked before acquisition and on the private output; it is
+not a filesystem quota. One candidate runs at a time. Temporary candidate growth
+and native WAL growth behind a pinned reader are limited by reader lifetime,
+not an exact transient byte cap. Disk-full fails without replacing prior data.
+Scratch `sqlite-*` directories are removed on completion or swept under the
+continuous lock once their work lease is free; unreadable leases are left intact
+with an error for inspection. Staging keeps the latest validated file per path;
+unchanged bytes retain its mtime for dedup. Encrypted versions retain the existing
+storage policy above.
+
+### SQLite conformance and native acceptance
+
+The ordinary historyarchive suite uses disposable SQLite writers and kernel-alarm
+owner-death fixtures; it never opens native databases. The opt-in
+`TestSQLiteSnapshotLiveContinuous` requires `PAIR_SQLITE_LIVE_ACCEPTANCE=1` and
+`PAIR_SQLITE_LIVE_LAUNCHER` pointing at the tested pair-go binary. Coordinate it
+with the hub/operator first: it writes normal encrypted bundles to the configured
+local sink/catalog, uses only the codex-database kind, omits Drive, and has a
+five-minute outer budget. Select the normal configured `PAIR_DATA_DIR` explicitly
+when a Couch slot injects a repository-scoped data root. It reports per-source
+read budget, acquisition duration, snapshot bytes and WAL size changes.
+
+If only publication exceeded that outer budget, a separately approved
+`TestSQLiteSnapshotPublishStagedHistory` run (`PAIR_SQLITE_PUBLISH_STAGED=1`)
+publishes the retained validated history staging file under the existing
+continuous lock. It never opens a native database or takes another snapshot.
+Its transform has a 30-minute bound; run it at low priority and give the Go test
+runner a longer timeout (for example `-timeout=31m`). Optional
+`PAIR_STAGE_ZSTD`/`PAIR_STAGE_GPG` paths permit content-free tool timing wrappers;
+an external owner must bound and clean up the complete process group when using
+such wrappers. Normal suites skip both native acceptance helpers. Large snapshot
+compression policy is tracked separately in #702.
+
+
+## Drive copies (#678)
+
+`pair archive continuous` completes local backup and writes its local success marker before optional Drive replication. Install/configure rclone independently: Pair never reads or creates its credentials. Add `drive_remote` and `drive_folder` string fields to continuous.json to override `pair-backup` and `backups/pair-history`. Omitted/empty fields use those defaults; invalid remote names or nonrelative/unsafe folders produce a visible Drive-unavailable note after local success. The remote must be a configured named rclone remote and the folder must already exist.
+
+[DriveMirror](../cmd/internal/historyarchive/drive.go) projects every record for the configured local sink, including earlier bundles when no new sources were archived. It releases the local catalog lock before network work. The resolved destination folder ID is pinned, then two flat hash listings bracket uploads. Remote filenames are `<bundle-ID>.tar.zst.gpg` and `<bundle-ID>.json`; the public label is uploaded, the private catalog/Manifest is not. Duplicate names and checksum/size conflicts get no new receipt and are reported; they are never repaired or deleted automatically.
+
+Each source object is staged privately and checked against local SHA256/size before rclone reads it. Upload uses one `copy --transfers 8 --immutable --ignore-existing --checksum` batch: `--ignore-existing` is required because the installed rclone v1.75.2 local-backend conformance showed that `--immutable` alone replaced a conflicting file. Final listing/checksum verification handles a skipped conflict honestly. Prefer returned SHA256, then MD5 computed alongside the verified local stream; when neither usable hash is returned, [hashsum --download](https://rclone.org/commands/rclone_hashsum/) reads the missing-hash objects in one filtered `hashsum --download --files-from-raw` batch and computes SHA256. Each pass uses one resolution, two flat listings, at most one copy batch and at most one downloaded-hash batch, independent of object count. A failed copy batch can still yield receipts for its independently verified complete pairs; incomplete/mismatching pairs stay pending. Output names each bundle's `backend-sha256`, `backend-md5`, or `downloaded-sha256` path and the total downloaded checksums.
+
+The separate upload catalog is `<catalog>.uploads/<destination-SHA256>/<bundle-ID>.json`. Receipts contain identities/hashes/sizes and verification time, never local manifest paths, and never grant local archive authority. Each receipt is at most 8 KiB and there are at most 100,000 per destination; evidence is retained with the copies until an explicit retention policy is introduced. A changed destination uses a fresh receipt namespace. An interrupted upload may leave matching remote objects without a receipt; rerun adopts them after fresh listing/checksum verification. A corrupt/conflicting receipt requires inspection, not overwrite. A receipt records verification at its timestamp; ongoing remote audits are outside this command.
+
+The optional remote phase runs for at most 30 minutes with one subprocess at a time and at most eight internal transfers/checkers, with a 60-second metadata-command cap. Compact candidate and flat listing projections are each bounded to 100,000 entries / 64 MiB; local files retain their existing ciphertext/metadata limits. Exceeding a bound leaves remote work pending while preserving local success. The flat private staging view under the archive store's `.drive-staging/objects/` uses verified hard links to immutable source files on the same filesystem; EXDEV falls back to a verified copy. This removes the local kind/year/month path components without rewriting the whole backlog. Complete pairs are admitted up to a 4 GiB logical-byte cap per pass. Admission also reserves against the complete before-inventory count, charging only missing members so uploads cannot cross the 100,000-entry reader bound. Overflow stays visibly deferred; existing-only verification and receipt recovery still work at that boundary. The 64 MiB wire limit is a fail-closed observation limit for externally supplied metadata, not a remote storage allowance. Every exit sweeps the owned view and checksum list, including errors/cancellation, and the next continuous-lock owner also removes interrupted staging. Cleanup unlinks the view and never removes the original backup path. No recursive inventory or catalog spool is created. A pass reports local counts separately from Drive verified/already-recorded/pending counts; rerun after correcting missing rclone/remote or interruption. Inspect duplicate/mismatch notes before changing remote files.
+
+Deterministic tests use stateful `archivetest.FakeRclone` behind the production runner. Installed-rclone local-backend conformance is opt-in and uses a private HOME/config:
+
+```sh
+PAIR_RCLONE_LOCAL_CONFORMANCE=1 go test ./cmd/internal/historyarchive ./cmd/internal/historyarchive/archivetest -run 'TestRclone|TestExecRclone|TestFakeRclone' -count=1
+```
+
+For the one operator-run real Drive check, the hub supplies the qualified candidate binary after fake/local conformance passes. Keep the existing continuous.json and run `PAIR_DATA_DIR="$HOME/.local/share/pair" /path/to/candidate/pair archive continuous` (the explicit data root matters when the terminal is itself a Pair slot), retain its local/Drive summary and per-bundle verification paths, then run the same command again: it must report already-recorded pairs with zero new uploads. Confirm bundle and label filenames in Google Drive and retain before/after local bundle counts/bytes. A lock-busy result means no pass ran; wait for the owning pass. Do not print rclone configuration or credentials into evidence. The operator's initial serial-transport candidate passed live acceptance in #678: pass 1 verified 56 pairs with 2 pending; pass 2 verified 7 (2 retries plus 5 new pairs), skipped the 56 existing receipts, and left 0 pending, with 0 downloaded checksums in both passes. Batch transport is separately qualified against the stateful fake and installed-rclone local backend; do not describe the earlier live result as a measured batch throughput result.

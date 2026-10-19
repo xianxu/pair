@@ -127,11 +127,12 @@ type Console struct {
 	// Ops dispatches an operator action. Injected so the console never learns
 	// what an operation IS -- it names one and couchcore runs it, which is
 	// what keeps the panel from growing a private verb (#148's design test).
-	ops       func(couchcore.OperationCall) (any, error)
-	forget    func(couchcore.Worktree, couchcore.ActorID) error
-	feed      *Feed
-	attention AttentionLedger
-	size      ptychild.Size
+	ops          func(couchcore.OperationCall) (any, error)
+	beginAttempt func(couchcore.OperationCall) (*couchcore.OperationAttempt, error)
+	forget       func(couchcore.Worktree, couchcore.ActorID) error
+	feed         *Feed
+	attention    AttentionLedger
+	size         ptychild.Size
 	// expectedExits are exact child handles whose successful Park already
 	// authorized shutdown. They bridge the race between the child-exit channel
 	// and the asynchronous operation-completion channel. Marks are counted per
@@ -183,6 +184,9 @@ type Console struct {
 	statusWebcast ColumnSpan
 	// statusWebNotes is the web cast's 💭N span (#470).
 	statusWebNotes ColumnSpan
+	// statusAttention is the 🔔N span (pair#673); attn owns the list.
+	statusAttention ColumnSpan
+	attn            attentionState
 	// statusWebFocus, statusWebPointerLink and statusWebDriveLink are the
 	// Chrome group's ↗ 👆 👽 spans (#501).
 	statusWebFocus, statusWebPointerLink, statusWebDriveLink ColumnSpan
@@ -329,6 +333,7 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 		feed:                NewFeed(8, time.Now, NoticeLifetime),
 	}
 	c.operationQueue.prepare = c.prepareOperationCompletion
+	c.operationQueue.publish = c.publishOperationCompletion
 	c.operationQueue.abandon = c.abandonOperationCompletion
 	if s, err := host.Size(); err == nil {
 		c.size = s
@@ -1902,9 +1907,17 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 	}
 	requestArgs := cloneOperationArgs(effect.Args)
 	key := fmt.Sprintf("menu\x00%d\x00%s", effect.Attempt, effect.Operation)
-	request := operationRequest{key: key, name: effect.Operation, origin: origin, run: func() (any, error) {
+	attempt, attemptErr := c.beginLifecycleAttempt(effect.Operation, requestArgs, origin.Address, origin.RowKey)
+	if attemptErr != nil {
+		c.finishOperation(operationCompletion{name: effect.Operation, origin: origin, err: attemptErr})
+		return
+	}
+	request := operationRequest{attempt: attempt, key: key, name: effect.Operation, origin: origin, run: func() (any, error) {
 		operationContext, cancelOperation := context.WithCancel(c.lifetime)
 		defer cancelOperation()
+		if attempt != nil {
+			operationContext = couchcore.WithOperationAttempt(operationContext, attempt)
+		}
 		// A long operation reports its current step onto its own progress
 		// notice (#399); the reducer ignores a line that arrives after the
 		// notice became a result.
@@ -1924,6 +1937,9 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 		if hosted != "" {
 			request.navigation = func() (any, error) {
 				ctx := context.WithValue(c.lifetime, menuOperationContextKey{}, menuOperationContext{origin: origin, hosted: hosted})
+				if attempt != nil {
+					ctx = couchcore.WithOperationAttempt(ctx, attempt)
+				}
 				return fn(couchcore.OperationCall{Name: effect.Operation, Args: requestArgs, Implicit: true, Context: ctx})
 			}
 		}
@@ -2057,6 +2073,7 @@ func (c *Console) hitHandlers() map[InterceptorHit]func() {
 		HitRelaunch:   c.onRelaunchHotkey,
 		HitBroadcast:  c.toggleBroadcast,
 		HitWebcast:    c.toggleWebcast,
+		HitAttention:  c.toggleAttention,
 		// HitMouse carries coordinates, which func() cannot, so it is dispatched
 		// from processInput with the payload rather than through this table. The
 		// entry is the CONSOLE's handler for it -- a real call, not a placeholder
@@ -2082,11 +2099,6 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 	err := completed.err
 	defer func() {
 		c.finishContinuationOperation(completed, err)
-		// A remote job's caller hears the outcome once, after adoption, so an
-		// attach failure is its failure too (pair#367 M2).
-		if completed.remote != nil && completed.remote.finished != nil {
-			completed.remote.finished(completed.value, err)
-		}
 	}()
 	address := completed.origin.Address
 	if parked, ok := completed.value.(couchcore.ParkResult); ok && parked.Thread.Address != (couchcore.ThreadAddress{}) {

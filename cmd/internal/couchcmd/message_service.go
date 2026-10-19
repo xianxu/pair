@@ -200,6 +200,8 @@ type messageService struct {
 	switches      atomic.Pointer[agentSwitchService]
 	drives        atomic.Pointer[agentDriveService]
 	desktopNotify atomic.Pointer[func(context.Context, string, string) error]
+	// attention reports facts to the Console's attention list (pair#673).
+	attention atomic.Pointer[func(couchcore.AttentionFact)]
 	// Retained across disconnects; only a verified replacement supersedes a slot.
 	stalls struct {
 		sync.Mutex
@@ -497,7 +499,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	probe.service.Store(service)
 	service.installAgentSwitchService(console, c, switchGuard)
 	service.installAgentDriveService(console)
-	service.installHubMoves(console)
+	service.installHubMoves(console, c)
 	service.SetDesktopNotify(console.NotifyDesktop)
 	console.SetMessageBroker(service.broker)
 	console.SetCopyObserver(facts.clipboardCopy)
@@ -505,6 +507,8 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	service.SetBroadcastStatus(console.BroadcastStatus)
 	service.SetShares(console.Shares)
 	service.SetBlockedView(console.SetBlockedThreads)
+	console.SetAttentionStore(couchcore.AttentionStore{Dir: filepath.Join(namespace, "attention")})
+	service.SetAttention(console.ObserveAttention)
 	console.SetWrapperActivity(service.WrapperActivity)
 	service.showHub(console)
 	service.SetReplay(console.ReplayShare, console.SharedReplays)
@@ -589,6 +593,9 @@ func newMessageService(parent context.Context, brokerSocket, registrySocket stri
 		s.facts.Store(factLogs[0])
 	}
 	s.connected.Store(&map[couchmessage.Binding]bool{})
+	if slotOps != nil {
+		slotOps.authorizePark = s.authorizeParkAdmission
+	}
 	// Family admission's resting check is on the request path (one git status
 	// per candidate per send); listings read the Console's slot-git cache.
 	now := authority.now
@@ -1156,9 +1163,12 @@ func (s *messageService) SetBlockedView(view func(map[couchcore.ThreadAddress]bo
 // hands the view the set when it changed.
 func (s *messageService) publishBlocked(liveness map[string]couchmessage.SlotLiveness) {
 	set := map[couchcore.ThreadAddress]bool{}
+	prompts := map[couchcore.ThreadAddress]couchcore.AttentionCondition{}
 	for _, l := range liveness {
 		if l.Picker != nil && *l.Picker {
-			set[couchcore.ThreadAddress{RepoScope: l.Binding.Scope, Tag: couchcore.ThreadTag(l.Binding.Tag)}] = true
+			thread := bindingThread(l.Binding)
+			set[thread] = true
+			prompts[thread] = couchcore.AttentionCondition{Label: l.Binding.Slot, Title: attentionPromptTitle}
 		}
 	}
 	s.blocked.Lock()
@@ -1170,6 +1180,7 @@ func (s *messageService) publishBlocked(liveness map[string]couchmessage.SlotLiv
 	if s.blocked.view != nil {
 		s.blocked.view(set)
 	}
+	s.observeAttention(couchcore.AttentionFact{Kind: couchcore.AttentionPrompt, Live: prompts})
 }
 
 // SetReplay installs the console's replay shares: the requests, and the

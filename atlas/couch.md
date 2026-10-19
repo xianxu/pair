@@ -180,37 +180,75 @@ record, separate preferences, and retained history. Each backend uses the existi
 lock, revision checks and recoverable journal. The supervisor lease still belongs
 to the selected global namespace beneath the account lease.
 
-### Failed-launch evidence (#531)
+### Lifecycle failure evidence (#531, #683)
 
-`launchfailure.go` owns bounded attempt evidence and retention independently of
-ThreadRecord. `launchfailure_store.go` atomically stores the newest 16 failures
-in `<namespace>/launch-diagnostics/failures.json` (0600), under a private
-context-bounded file lock. Records carry scope/tag/nonce, target, starting path and failure stage,
-16 KiB raw output tail, 4 KiB per error, and separate observed pre/post-cleanup
-exit codes. The entire encoded history is capped at 1 MiB. Failed persistence is
-reported beside the original error; later success does not clear evidence.
+`launchfailure.go` owns `LifecycleFailure` and the legacy `LaunchFailure` aliases,
+independently of ThreadRecord. `lifecyclefailure.go` centralizes display matching
+of exact dispatched addresses/references and optional canonical slot paths; these
+are diagnostic evidence, never lifecycle binding authority. Records retain the operation
+nonce, dispatched target, optional thread address, slot path, park/launch nonce, phase, outcome and
+bounded exact process identities with executable kinds. Holders never collect argv.
+Generic failures have no inferred phase. Launch fields retain their existing
+16 KiB raw output tail, 4 KiB per error and separate pre/post-cleanup exit codes.
 
-Runner setup refusals that occur after spawning carry a `blockedStartError` with
-immutable output and pre/post-cleanup observations, even when no handle can be
-returned. The shared `launchTrackedThread` failure path consumes that evidence,
-snapshots immutable evidence before cleanup, enriches afterward and publishes
-once cleanup completes (#590); `SwitchAgent` adds its final error by attempt identity.
-Storage admission follows the caller's context, with cancellable nonblocking
-flock attempts and no background waiter. Couch supplies a separate ten-second
-diagnostic admission context, including for canceled launches. This bounds
-waiting for a lease, not filesystem IO after admission. There is no store-owned
-one-second scheduling budget. A crash during cleanup or before final publication
-can lose that attempt's in-memory evidence; previously published history remains
-durable. Persistence never delays failed-helper cleanup. The typed error
-preserves errors.Is/As while its operator text names the attempt, diagnostic file, and one inspection action.
+`launchfailure_store.go` atomically publishes one JSON array at
+`<namespace>/launch-diagnostics/failures.json` (0600), under its private file lock.
+Retention trims to 64 entries, then evicts oldest whole entries until at most
+1 MiB remains; it refuses a newest entry that cannot fit alone. The local
+`lifecyclefailure_codec.go` preserves unknown raw values, including nested address
+and holder/process members, through enrichment and rewrite. Known types, required
+identity/time fields and recursive duplicate keys remain strict; legacy rows need
+no new fields. No format version or global strictjson policy changes.
+
+`operationattempt_record.go` owns `OperationAttempt.Finish`, the sole terminal
+recorder. Synchronous dispatch finishes its attempt directly. Queued actions keep
+one owned attempt through preparation, guards, effect, adoption and readiness,
+then the shared terminal adapter finishes it. Adoption, readiness, optional storage
+and remote callbacks run on the existing bounded, joined workers. Run only reduces
+the completed result; Stop cancels the worker publication context. Pre-enqueue
+refusals stay immediate messages and are not logged. Nested calls borrow that attempt.
+Launch-capture helpers return evidence without publishing separately. Typed error
+chains retain errors.Is/As and a receipt carries `FailureNonce`, matching the
+stored operation nonce after the receipt expires. #695 supplies teardown details
+through `LifecycleFailureDetails`; this evidence does not authorize teardown or
+finalize a park.
+
+The recorder appends failure evidence once and performs no diagnostics IO on
+success. It owns no coordinator, admission order, target-binding requirement or
+write-time supersession. Missing cached paths still retain exact dispatched
+references; preparation can add the actual dispatched thread address without
+resolving or authorizing it for diagnostics. Unreadable records remain recoverable.
+Optional nonce/publication failures preserve the original action result with a
+warning rather than inviting another external effect.
+
+Pure `LastLifecycleSuccessAt(record)` is the sole success-time definition: verified
+park time and a committed live incarnation's start time. LastActiveAt is excluded
+because retirement may represent death. Row and show hide a historical failure
+only when this existing record evidence is strictly later than its completion.
+Missing/equal timestamps retain it, including a late failure after an earlier
+success. #695 extends this pure seam with its persisted proven-teardown event.
+
+`lifecyclefailure_projection.go` caches one bounded store snapshot by file identity,
+size and mtime. Each inventory refresh projects the latest matching historical failure in
+O(history + rows), without altering row state or action guards. A malformed or
+unreadable store stays visibly unavailable. `couch --show` uses the same evidence,
+including failures for an empty slot and legacy exact-address records. The existing
+`LaunchFailures` result field is retained; `couchcmd/launchfailure.go` sanitizes
+child text line by line.
+
+Storage admission uses cancellable nonblocking flock attempts, with no background
+waiter. Couch supplies an independent ten-second diagnostic admission context,
+including after cancellation. The limit bounds waiting for a lease, not filesystem
+IO after admission. Once admitted, atomic publication completes. Cleanup is not
+postponed for diagnostic IO. A crash before terminal publication can lose that
+attempt's in-memory evidence; older published history remains durable. Private
+service conformance and a disposable-slot display check after an operator Couch
+restart provide separate acceptance; this feature does not stage :0.
+
 Claude native resume validates an exact session through bounded UUID-leaf
 probes under the authorized project roots, preserving duplicate and root-role
 checks without walking unrelated history. Missing scrollback is separate from
 native transcript identity; see [exact Claude root lookup](session-identity.md#exact-claude-root-lookup).
-
-`couch --show` reads retained evidence by exact address or canonical starting
-path, including after rollback removed the thread, without creating lifecycle
-records. `couchcmd/launchfailure.go` sanitizes child text line by line.
 
 `LaunchOutputHandle` reuses the PTY child's existing ring (combined stdout/stderr).
 ExecRunner forwards stderr through a bounded tee; stdin/stdout retain their
@@ -439,6 +477,25 @@ Child OSC9/777/99 notifications are swallowed from all panes; only per-pane
 counts enter the existing COUCH_TRACE diagnostics as `notify-suppressed`, and
 ordinary BEL is unchanged. Each aggregate names the pane endpoint and cumulative
 count; a fresh attachment starts a new counter. No notification text is logged.
+
+**Attention list (pair#673, supersedes pair#352).** Couch keeps a durable list
+of what waits on the operator, and Ctrl+Alt+a (or a click on the status row's
+🔔N badge) opens it as a top-right panel; Enter jumps to the item's slot, `d`
+dismisses it. Three sources feed it through the message service:
+`couch --notify` (a notify item that stays until visited or dismissed), the
+blocked-prompt set `publishBlocked` already computes (prompt items), and the
+wait watcher's question episodes (question items; a turn moves the activity and
+ends the episode). The pure reducer `couchcore.AttentionList` diffs each
+condition set per kind, so a prompt or question item leaves when its condition
+clears, whoever answered; it caps the list at 50, dropping the oldest notify
+first. `couchcore.AttentionStore` persists it as versioned JSON at
+`NAMESPACE/attention/list.json` (`durablefile.WriteAtomicStaged`, O_NOFOLLOW,
+size cap, strict decode). After a restart, condition items stay hidden for a
+two-minute grace until their source raises them again, keeping `Since` and
+`Visited`. The badge sits at the status row's right end so it never covers slot
+content, in the blocked color while a prompt item is open. See
+`couchcore/attention_list.go`, `attention_store.go`, `couchcmd/attention.go`
+and `couchtty/console_attention.go`.
 
 `couch --actors`, `--send-to repo[:N]|hub [--agent NAME] --message TEXT|--message-file PATH` and `--message-status ID`
 use bounded Unix stream RPC, without constructing another mutable supervisor.
@@ -861,7 +918,14 @@ closes a startup cohort; no debounce or additional native discovery is used.
 transitions. It keeps at most 128 current facts, coalesces unsent changes, freezes
 immutable numbered parts within the existing body limit and retires each part
 from its receipt. `couchcmd/lifecycle_notices.go` routes through existing hub
-ownership and the message broker/#648 batching. Its callbacks only reduce bounded
+ownership and the message broker/#648 batching. A fact whose slot identity isn't
+cached yet (ordinary target or none) waits in a bounded `unresolved` set: 128 paths,
+newest per path, oldest evicted at the cap, cleared at restart drain and on ownership
+change. It resolves on the next refresh once the wrapper's verified workspace is
+cached. This matters because a launch is reported before the wrapper connects
+(#693). An ordinary fact expires after `lifecycleOrdinaryWait` (2 min), since its row
+may not be a slot at all. Restart drain reports only the untargeted facts still
+waiting, as lacking verified slot metadata. Its callbacks only reduce bounded
 memory; owned admission workers and bounded receipt-memory checks stop/join with
 the service. Busy/absent hubs retain current facts; input uncertainty never permits
 replay. This is a Slots projection, not an audit log. `COUCH_LIFECYCLE_NOTICES`
@@ -4732,6 +4796,16 @@ thread has an open park. Both carry the exact repository scope, tag and park
 nonce; queued effects refuse a replacement transaction or changed ownership.
 A repeated request uses its original receipt; recovering an already settled park
 has no effect. Unknown receipt status calls for inspection, not an automatic resend.
+
+CLI recovery selects its exact address and park nonce from the console's last
+successful cached inventory before receipt admission (#681). The authenticated caller's admission-verified workspace cache and canonical target slot supply the initial hub ownership check, without external caller/target workspace resolution. A missing caller cache refuses with refresh-and-retry advice. Current-world caller, ownership and target checks remain on the owned queue and at dispatch. Unknown, missing
+or ambiguous cached selection refuses with advice to refresh the switcher
+inventory, inspect the row and retry. Full workspace/fleet inspection runs only
+on the existing operation queue after the receipt is allocated; slow preparation
+therefore remains inspectable instead of exhausting the two-second admission
+exchange. Queued preparation and dispatch compare against the captured identity;
+a replacement park is refused rather than selected later. Repository aliases
+share one canonical pending key and one bounded name lookup on new admission.
 
 Recovery never starts a replacement agent. A verified completion finalizes the
 park; positively dead exact owners with positively absent terminals may retire

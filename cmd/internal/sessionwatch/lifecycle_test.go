@@ -245,29 +245,40 @@ type fakeLifecycleStore struct {
 	bindingErr   error
 	reconcileErr error
 	reconciles   int
+	onRecord     func(string, sessionledger.Record)
+	nextOrdinal  func(string) uint64
 }
 
-func (f *fakeLifecycleStore) Append(_ string, record sessionledger.Record) (sessionledger.Record, error) {
-	record.Ordinal = uint64(len(f.records) + 1)
+func (f *fakeLifecycleStore) Append(path string, record sessionledger.Record) (sessionledger.Record, error) {
+	record.Ordinal = f.ordinal(path)
 	f.records = append(f.records, record)
+	if f.onRecord != nil {
+		f.onRecord(path, record)
+	}
 	return record, f.appendErr
 }
 
-func (f *fakeLifecycleStore) AppendBindingIfCurrent(_ string, owner sessionledger.Owner, launchOrdinal uint64, rootNativeID string) (sessionledger.Record, error) {
+func (f *fakeLifecycleStore) AppendBindingIfCurrent(path string, owner sessionledger.Owner, launchOrdinal uint64, rootNativeID string) (sessionledger.Record, error) {
 	if f.stale {
 		return sessionledger.Record{}, sessionledger.ErrStaleLaunch
 	}
-	record := sessionledger.Record{Version: 1, Kind: sessionledger.RecordBinding, ScopeKey: owner.ScopeKey, Tag: owner.Tag, Agent: owner.Agent, LaunchOrdinal: launchOrdinal, RootNativeID: rootNativeID, Ordinal: uint64(len(f.records) + 1)}
+	record := sessionledger.Record{Version: 1, Kind: sessionledger.RecordBinding, ScopeKey: owner.ScopeKey, Tag: owner.Tag, Agent: owner.Agent, LaunchOrdinal: launchOrdinal, RootNativeID: rootNativeID, Ordinal: f.ordinal(path)}
 	f.records = append(f.records, record)
+	if f.onRecord != nil {
+		f.onRecord(path, record)
+	}
 	return record, f.bindingErr
 }
 
-func (f *fakeLifecycleStore) AppendBindingProofIfCurrent(_ string, owner sessionledger.Owner, launchOrdinal uint64, proof sessionledger.AuthorizationProof) (sessionledger.Record, error) {
+func (f *fakeLifecycleStore) AppendBindingProofIfCurrent(path string, owner sessionledger.Owner, launchOrdinal uint64, proof sessionledger.AuthorizationProof) (sessionledger.Record, error) {
 	if f.stale {
 		return sessionledger.Record{}, sessionledger.ErrStaleLaunch
 	}
-	record := sessionledger.Record{Version: 2, Kind: sessionledger.RecordBinding, ScopeKey: owner.ScopeKey, Tag: owner.Tag, Agent: owner.Agent, LaunchOrdinal: launchOrdinal, RootNativeID: proof.RootNativeID, AuthorizationProof: &proof, Ordinal: uint64(len(f.records) + 1)}
+	record := sessionledger.Record{Version: 2, Kind: sessionledger.RecordBinding, ScopeKey: owner.ScopeKey, Tag: owner.Tag, Agent: owner.Agent, LaunchOrdinal: launchOrdinal, RootNativeID: proof.RootNativeID, AuthorizationProof: &proof, Ordinal: f.ordinal(path)}
 	f.records = append(f.records, record)
+	if f.onRecord != nil {
+		f.onRecord(path, record)
+	}
 	return record, f.bindingErr
 }
 
@@ -308,8 +319,11 @@ func (f *fakeLifecycleStore) ConfirmIfCurrent(path string, owner sessionledger.O
 			return sessionledger.Record{}, errors.New("competing root")
 		}
 	}
-	r := sessionledger.Record{Version: 3, Kind: sessionledger.RecordBinding, ScopeKey: owner.ScopeKey, Tag: owner.Tag, Agent: owner.Agent, LaunchOrdinal: ordinal, RootNativeID: id, ConfirmationReason: reason, AuthorizationProof: proof, Ordinal: uint64(len(f.records) + 1)}
+	r := sessionledger.Record{Version: 3, Kind: sessionledger.RecordBinding, ScopeKey: owner.ScopeKey, Tag: owner.Tag, Agent: owner.Agent, LaunchOrdinal: ordinal, RootNativeID: id, ConfirmationReason: reason, AuthorizationProof: proof, Ordinal: f.ordinal(path)}
 	f.records = append(f.records, r)
+	if f.onRecord != nil {
+		f.onRecord(path, r)
+	}
 	return r, f.bindingErr
 }
 func (f *fakeLifecycleStore) WithCurrentConfirmation(_ string, _ sessionledger.Owner, _ uint64, _ string, effect func() error) error {
@@ -317,4 +331,24 @@ func (f *fakeLifecycleStore) WithCurrentConfirmation(_ string, _ sessionledger.O
 		return sessionledger.ErrStaleLaunch
 	}
 	return effect()
+}
+
+func (f *fakeLifecycleStore) ordinal(path string) uint64 {
+	if f.nextOrdinal != nil {
+		return f.nextOrdinal(path)
+	}
+	return uint64(len(f.records) + 1)
+}
+
+func (f *fakeLifecycleStore) WithCurrentConfirmationReader(path string, owner sessionledger.Owner, ordinal uint64, id string, read func() (sessionledger.Current, bool, error), effect func() error) error {
+	return f.WithCurrentConfirmation(path, owner, ordinal, id, func() error {
+		c, ok, err := read()
+		if err != nil {
+			return err
+		}
+		if !ok || c.Conflict || c.Launch.Ordinal != ordinal || c.Binding == nil || c.Binding.RootNativeID != id {
+			return sessionledger.ErrStaleLaunch
+		}
+		return effect()
+	})
 }

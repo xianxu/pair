@@ -66,6 +66,35 @@ func hubTargetResolver(c *couchcore.Couch) func(context.Context, string) (couchc
 		return slot, nil
 	}
 }
+
+// Admission uses the exact binding's verified workspace and canonical target;
+// current-world workspace inspection remains on the owned operation queue.
+func (s *messageService) authorizeParkAdmission(ctx context.Context, caller couchmessage.Binding, target couchcore.HubSlot) error {
+	if s.authority.hubs == nil {
+		return nil
+	}
+	origin, err := s.connectedWorkspace(ctx, caller)
+	if err != nil {
+		return fmt.Errorf("recovery caller inventory is unavailable; refresh the switcher inventory, inspect the row and retry: %w", err)
+	}
+	return authorizeHubMutation(origin, target, s.authority.hubs.snapshot())
+}
+
+func (s *messageService) authenticateRecoveryCaller(ctx context.Context, caller couchmessage.Binding, r couchmessage.Request) error {
+	current, err := s.switchCaller(ctx, r)
+	if err != nil {
+		return err
+	}
+	if err := s.authority.process(current); err != nil {
+		return err
+	}
+	if current != caller {
+		return fmt.Errorf("recovery confirmer binding generation changed")
+	}
+	_, err = s.liveCaller(ctx, r)
+	return err
+}
+
 func (s *messageService) handleHubSlotOperation(ctx context.Context, caller couchmessage.Binding, r couchmessage.Request) couchmessage.Response {
 	if r.Op == "recovery-confirmation" {
 		if s.slotOps.reference == nil {
@@ -93,18 +122,10 @@ func (s *messageService) handleHubSlotOperation(ctx context.Context, caller couc
 	}
 	guard := func(ctx context.Context) error {
 		if r.Op == "recovery-confirmation" || r.Op == couchcore.OpRecoverPark {
-			current, err := s.switchCaller(ctx, r)
-			if err != nil {
+			if err := s.authenticateRecoveryCaller(ctx, caller, r); err != nil {
 				return err
 			}
-			if err := s.authority.process(current); err != nil {
-				return err
-			}
-			if current != caller {
-				return fmt.Errorf("recovery confirmer binding generation changed")
-			}
-		}
-		if _, err := s.liveCaller(ctx, r); err != nil {
+		} else if _, err := s.liveCaller(ctx, r); err != nil {
 			return err
 		}
 		if s.authority.hubs == nil {
@@ -127,7 +148,11 @@ func (s *messageService) handleHubSlotOperation(ctx context.Context, caller couc
 		}
 		return authorizeHubMutation(origin, target, s.authority.hubs.snapshot())
 	}
-	if err := guard(ctx); err != nil {
+	admission := guard
+	if r.Op == couchcore.OpRecoverPark {
+		admission = func(ctx context.Context) error { return s.authenticateRecoveryCaller(ctx, caller, r) }
+	}
+	if err := admission(ctx); err != nil {
 		return couchmessage.Response{Code: "refused", Error: err.Error()}
 	}
 	return s.slotOps.handle(ctx, caller, r, guard)

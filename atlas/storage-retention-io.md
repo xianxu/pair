@@ -151,7 +151,9 @@ These artifacts remain until an explicit retention decision; no background
 schedule or automatic deletion is introduced. Disk usage is encrypted payloads
 plus labels, private catalog shards and in-flight staging. A bundle targets
 256 MiB raw payload, admits at most 1 GiB raw payload and 2 GiB ciphertext, and
-uses one zstd compression thread; compression working memory is additional.
+uses one zstd process per bundle with `-T0` (all available CPU threads). Bundles
+are compressed serially; compression working memory is additional and depends
+on the chosen level and thread count.
 
 [History backup](history-backup.md) maps the complete request, bounds, privacy
 and recovery contract. Behavioral coverage is in `historyarchive/archive_test.go`,
