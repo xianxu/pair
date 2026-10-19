@@ -78,29 +78,29 @@ Warnings are bounded/sanitized and point to continuous.log for detail. They do n
 
 Files: continuous_snapshot_model.go and tests; archive_alert_model.go and tests; new files registered in artifactpath/manifest.go.
 
-- [ ] Implement the ParseDatabaseMaxAge and DatabaseBackupSummary.NeedsAttention/Warning test strategies in the function-level table below.
-- [ ] Implement the archiveWarningGate.Reserve event-sequence strategy in the function-level table below.
-- [ ] Run targeted tests and retain behavioral red evidence before implementing the predicate/gate.
-- [ ] Implement pure rules with one freshness owner and reservation-before-effect semantics; run tests green and commit.
+- [x] Implement the ParseDatabaseMaxAge and DatabaseBackupSummary.NeedsAttention/Warning test strategies in the function-level table below.
+- [x] Implement the archiveWarningGate.Reserve event-sequence strategy in the function-level table below.
+- [x] Run targeted tests and retain behavioral red evidence before implementing the predicate/gate.
+- [x] Implement pure rules with one freshness owner and reservation-before-effect semantics; run tests green and commit.
 
 ### 2. Typed report through the existing command — red before green
 
 Files: continuous.go, continuous_report.go, archivecmd/continuous.go, run.go and corresponding tests.
 
-- [ ] Implement the EncodeContinuousReport/DecodeContinuousReport strategies below against real pass evidence and the command boundary.
-- [ ] Implement the ParseDatabaseMaxAge and report-decoder adversarial/fuzz strategies below through the CLI boundary.
-- [ ] Implement bounded versioned encoding/decoding using existing strictjson structural validation; avoid shared decoder rewrites or persisted codecs.
-- [ ] Keep stderr diagnostic output separate from typed stdout. Preserve CLI nonzero exit for failed passes and existing lock behavior; run targeted tests green and commit.
+- [x] Implement the EncodeContinuousReport/DecodeContinuousReport strategies below against real pass evidence and the command boundary.
+- [x] Implement the ParseDatabaseMaxAge and report-decoder adversarial/fuzz strategies below through the CLI boundary.
+- [x] Implement bounded versioned encoding/decoding using existing strictjson structural validation; avoid shared decoder rewrites or persisted codecs.
+- [x] Keep stderr diagnostic output separate from typed stdout. Preserve CLI nonzero exit for failed passes and existing lock behavior; run targeted tests green and commit.
 
 ### 3. Scheduler delivery and qualification
 
 Files: archive_schedule.go/tests, message_service.go, new notification integration tests as needed, atlas/history-backup.md and README.
 
-- [ ] Build a stateful fake pair executable behind the actual launch seam. It emits scripted report/exit/diagnostic combinations and records starts, without SQLite, personal data or real desktop output.
-- [ ] Implement the archiveScheduler.tick and messageService.notifyArchiveWarning/archiveWarningOwner production-seam strategies below, retaining behavioral red evidence.
-- [ ] Wire the typed launch result to pure admission and existing attention/desktop delivery, preserving generic failed-pass backoff and cancellation. Inject fake output in tests; do not issue real operator notifications during development.
-- [ ] Count N/2N rows and existing snapshot/catalog calls; run targeted archivecmd/historyarchive/couchcmd tests and the source inventory guard.
-- [ ] Update operator docs for threshold env, healthy quiet databases, per-lifetime UTC-day suppression, restart duplicate and recovery action. Capture any review lesson.
+- [x] Build a stateful fake pair executable behind the actual launch seam. It emits scripted report/exit/diagnostic combinations and records starts, without SQLite, personal data or real desktop output.
+- [x] Implement the archiveScheduler.tick and messageService.notifyArchiveWarning/archiveWarningOwner production-seam strategies below, retaining behavioral red evidence.
+- [x] Wire the typed launch result to pure admission and existing attention/desktop delivery, preserving generic failed-pass backoff and cancellation. Inject fake output in tests; do not issue real operator notifications during development.
+- [x] Count N/2N rows and existing snapshot/catalog calls; run targeted archivecmd/historyarchive/couchcmd tests and the source inventory guard.
+- [x] Update operator docs for threshold env, healthy quiet databases, per-lifetime UTC-day suppression, restart duplicate and recovery action. Capture any review lesson.
 - [ ] Submit PR and recorded full suite on the pushed code. Close via the binary's review, then enter sdlc merge --yes; the landing turn integrates main and qualifies changed integrated code.
 - [ ] Report Git-printed merge hash/PR and gate evidence to the hub; leave project updates to the TL and stop.
 

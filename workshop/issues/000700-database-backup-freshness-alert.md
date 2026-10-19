@@ -37,7 +37,7 @@ Warn the operator when a configured database's last verified backup bundle excee
 
 ## Plan
 
-- [ ] Implement and qualify the single-pass design in [the durable plan](../plans/000700-database-backup-freshness-alert-plan.md): pure freshness and daily admission, typed bounded command report, scheduler/operator delivery, deterministic and fake-backed tests.
+- [x] Implement and qualify the single-pass design in [the durable plan](../plans/000700-database-backup-freshness-alert-plan.md): pure freshness and daily admission, typed bounded command report, scheduler/operator delivery, deterministic and fake-backed tests.
 - [ ] Document the threshold, quiet-database exception, once/day lifetime and recovery; submit the recorded full suite, close, and land on SHIP.
 
 ## Log
@@ -88,3 +88,5 @@ Design subtotal 0.76 × 1.15 = 0.874; implementation subtotal 1.34 × 1.0 = 1.34
 
 - 2026-10-19, implementation checkpoint after change-code CLEAN: pure catalog freshness, exact-source UTC-day reservations, the versioned bounded command report, CLI JSON mode, scheduler subprocess integration and primary-hub notification seam are implemented. Targeted historyarchive/archivecmd/couchcmd/artifactpath checks pass, including failed partial reports, owner-unavailable delivery, daily suppression and counted N/2N work. No real notifications or native database reads were used.
 - Stateful subprocess qualification caught a real capture-limit bypass: embedding bytes.Buffer promoted ReadFrom, allowing io.Copy to skip the bounded Write. The oversize regression failed, then passed after using a named buffer field. Cancellation/inherited-descriptor tests pass with explicit fixture handshakes. Remaining work: full package qualification, documentation, recorded suite and close review; natural live acceptance remains owed to the hub.
+
+- 2026-10-19, follow-up root review: added a valid-JSON-prefix plus oversized-padding negative control; it exposed partial-prefix authority after capture overflow. Overflow now refuses the entire report. Connected and disconnected notification bodies are bounded by the existing sanitizer; an extra connected Unicode-bound test passes. Targeted freshness/continuous/CLI/scheduler/protocol/notification tests passed across historyarchive, archivecmd, couchcmd and artifactpath. Documentation now states the threshold, quiet-data exception, exact owner, UTC/lifetime reservation and unavailable-hub behavior. Full suite and close review remain pending.

@@ -2352,3 +2352,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #688 BR-2: Isolation between sets is a cross-product invariant: compare every output with every source, not paired labels. Canonicalizing a common output parent does not resolve a destination leaf symlink; exercise a different source kind behind that alias, including when its kind is filtered out.
 
 - When changing an encoder’s level or threading policy, search README and all atlas resource descriptions for both the old level and one-thread promises; update the shared resource contract as well as the feature introduction. (#702 BR-2)
+
+- A capped subprocess writer must not embed an io.ReaderFrom implementation that bypasses Write: io.Copy uses promoted ReadFrom. Test the actual exec boundary with oversized output, including a valid JSON prefix plus padding; overflow must refuse the whole report, not grant authority to the retained prefix. (#700)

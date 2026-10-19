@@ -50,7 +50,10 @@ func newArchiveScheduler(pairData string, notify func(string)) *archiveScheduler
 
 // archiveReportCapture bounds the protocol independently of the existing log.
 // A write error closes exec's stdout copier rather than retaining unbounded data.
-type archiveReportCapture struct{ buffer bytes.Buffer }
+type archiveReportCapture struct {
+	buffer   bytes.Buffer
+	overflow bool
+}
 
 func (b *archiveReportCapture) Len() int      { return b.buffer.Len() }
 func (b *archiveReportCapture) Bytes() []byte { return b.buffer.Bytes() }
@@ -58,6 +61,7 @@ func (b *archiveReportCapture) Bytes() []byte { return b.buffer.Bytes() }
 func (b *archiveReportCapture) Write(p []byte) (int, error) {
 	left := historyarchive.MaxContinuousReportBytes - b.Len()
 	if len(p) > left {
+		b.overflow = true
 		n, _ := b.buffer.Write(p[:left])
 		return n, io.ErrShortBuffer
 	}
@@ -81,6 +85,9 @@ func runArchivePass(ctx context.Context, pairData, store string) (historyarchive
 	cmd.WaitDelay = time.Second
 	processErr := cmd.Run()
 	_, logErr := logFile.Write(raw.Bytes()) // retain original protocol bytes, even on failure
+	if raw.overflow {
+		return report, errors.Join(processErr, logErr, errors.New("continuous report exceeds byte limit"))
+	}
 	report, decodeErr := historyarchive.DecodeContinuousReport(raw.Bytes())
 	if decodeErr != nil {
 		decodeErr = fmt.Errorf("continuous report: %w", decodeErr)

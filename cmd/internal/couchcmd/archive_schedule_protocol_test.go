@@ -174,7 +174,8 @@ func TestRunArchivePassProtocol(t *testing.T) {
 
 func TestRunArchivePassRefusesInvalidProtocol(t *testing.T) {
 	_, valid := archiveProtocolReport(t, historyarchive.ContinuousComplete)
-	for name, raw := range map[string][]byte{"empty": nil, "malformed": []byte("{broken"), "trailing": append(append([]byte(nil), valid...), []byte("{}")...), "oversize": []byte(strings.Repeat("x", historyarchive.MaxContinuousReportBytes+1))} {
+	padded := append(append([]byte(nil), valid...), bytes.Repeat([]byte(" "), historyarchive.MaxContinuousReportBytes+1-len(valid))...)
+	for name, raw := range map[string][]byte{"empty": nil, "malformed": []byte("{broken"), "trailing": append(append([]byte(nil), valid...), []byte("{}")...), "oversize": []byte(strings.Repeat("x", historyarchive.MaxContinuousReportBytes+1)), "oversize-valid-prefix": padded} {
 		t.Run(name, func(t *testing.T) {
 			fixture, data := archiveProtocolFixture(t, raw, "normal", 0)
 			got, err := runArchivePass(context.Background(), data, fixture)
@@ -191,10 +192,10 @@ func TestRunArchivePassRefusesInvalidProtocol(t *testing.T) {
 			if !bytes.HasPrefix(log, []byte("fixture diagnostic: not JSON\n")) {
 				t.Fatal("diagnostic missing")
 			}
-			if name != "oversize" && !bytes.HasSuffix(log, raw) {
+			if !strings.HasPrefix(name, "oversize") && !bytes.HasSuffix(log, raw) {
 				t.Fatal("original stdout missing")
 			}
-			if name == "oversize" && len(log) > historyarchive.MaxContinuousReportBytes+len("fixture diagnostic: not JSON\n") {
+			if strings.HasPrefix(name, "oversize") && len(log) > historyarchive.MaxContinuousReportBytes+len("fixture diagnostic: not JSON\n") {
 				t.Fatalf("oversize capture was unbounded: log bytes=%d, capture cap=%d", len(log), historyarchive.MaxContinuousReportBytes)
 			}
 		})
