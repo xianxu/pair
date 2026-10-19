@@ -349,3 +349,105 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-19T04:20:54-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 683 — Persist every lifecycle failure reason |
+| repo | pair |
+| issue file | workshop/issues/000683-park-finalization-diagnostics.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 5afc269d3add99de21b5f894d8436ac6da15c796..d8e7494ec7ac22f5d34a4f41ca9b4639c0d2e3d5 |
+| command | sdlc close --issue 683 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-19T04:20:54-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation satisfies the approved replacement scope. BR-6 is addressed: diagnostic publication runs after adoption on existing joined workers, while console input remains responsive. Targeted tests, race checks, and source guards pass. No new blocking findings. Park finalization and Fresh ordering remain assigned to #695/#684.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Diagnostic target binding remains removed; both named unreadable-record recovery regressions pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Missing-cache preparation, adoption/readiness, and hub-move tests pass; terminal ownership no longer depends on cached target resolution.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Standalone switch capture retains one attempt; preparation and final-error capture tests verify single publication.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      The complete artifactpath package passes, including production-symbol guards.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Resolved-slot tests pass for reference-only failures across slot names, primary-root references, paths, tags, and empty slots.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      operation_queue.go publishes on existing workers before result delivery. Menu, reattach, navigation, and private-service stalled-store regressions pass, including race checks. Replacing console lifetime publication contexts with background contexts in a disposable pinned-head checkout makes all four shutdown-cancellation cases fail; the checkout was removed.
+```
+
+1. **Strengths**
+
+   - One terminal publisher preserves original typed errors and prevents duplicate writes (`operationattempt_record.go:94`).
+   - Codec tests verify nested unknown-value preservation, strict known fields, and atomic refusal.
+   - Visibility derives from recorded lifecycle success without rewriting diagnostic history.
+   - README and atlas describe the new diagnostics surface and retention policy.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Focused lifecycle, launch, attempt, recovery, receipt, and projection tests passed. Responsiveness and cache/attempt race checks passed. The full artifactpath package passed. Private-service tests required `TMPDIR=/tmp` because the default temporary path exceeded the Unix socket limit. Mutation testing confirmed meaningful BR-6 regression detection. This review did not rerun the entire repository suite; native display acceptance remains explicitly deferred until operator restart.
+
+6. **Architectural notes**
+
+   | Principle | Result |
+   |---|---|
+   | ARCH-DRY | Pass — shared terminal recorder and display matching helpers. |
+   | ARCH-PURE | Pass — codec/history/projection logic is directly testable; IO remains in adapters. |
+   | ARCH-PURPOSE | Pass — admitted failures cover preparation through final completion. |
+   | ARCH-MOCK | Pass — stateful storage fakes and portable private-service tests exercise production seams. |
+   | ARCH-CONSTRAINTS | Pass — bounded history, cached reads, and publication outside the event loop. |
+   | ARCH-SECURE | Pass — strict persisted-input validation, safe file handling, allowlisted holder kinds. |
+   | ARCH-ORDER | Pass — once-only completion ownership spans adoption/readiness; shutdown cancels and joins. |
+   | ARCH-FUNERAL | Pass — existing bounded file retention and instance-scoped cache; no detached writer. |
+   | ARCH-EVOLVE | Pass — additive fields and nested opaque values survive tested rewrites. |
+
+7. **Plan revision recommendations:** None. The replacement design and BR-6 revision describe the implemented behavior.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"83c90bf5-05e7-4b77-bce8-4e0861d7a863","repository":"github.com/xianxu/pair","issue_id":"000683","recipe":"milestone-review","round":4,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/e35dcca04322ca67","reviewed_head":"d8e7494ec7ac22f5d34a4f41ca9b4639c0d2e3d5","slot":"pair:5","requested_at":"2026-10-19T11:15:47.547006Z"},"phase":"finished","pid":7579,"started_at":"2026-10-19T11:15:47.885131Z","finished_at":"2026-10-19T11:20:25.099701Z","session_id":"01a153df-f54e-72d3-bbbe-cf6e97d8857e","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.81070725s
+head: "d8e7494ec7ac22f5d34a4f41ca9b4639c0d2e3d5"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000411
