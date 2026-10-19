@@ -92,3 +92,90 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-18T19:34:52-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 686 — session-watch busy-loops on freshly started Codex threads (45-80% CPU each) |
+| repo | pair |
+| issue file | workshop/issues/000686-session-watch-busy-loops-on-freshly-started-codex-threads-45-80-cpu-each.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 5e899a871e27dd8126c512da08e069e6c3a99708..9d790e70afb8034a1de572fff2cf1d3c5093facf |
+| command | sdlc close --issue 686 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-18T19:34:52-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation matches the revised bound-follow contract. BR-1 is addressed, and I found no new blocking defects. All four affected packages and the focused race checks pass. Live CPU acceptance remains owed after landing under the documented revision.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The pinned before/after diff corrects Core concepts at workshop/plans/000686-bound-watcher-plan.md:23–34 and adds the Revisions explanation at line 138. Cadence matches nextLifecycleDelay in cmd/internal/sessionwatch/bound_state.go:84; scanner ownership matches boundCheckpoint at line 16; TranscriptCursor explicitly excludes scanner state at cmd/internal/sessioninventory/transcript_cursor.go:9. This is a prose-only correction; no runtime regression test is required.
+```
+
+1. **Strengths**
+
+   - Bound follow permanently leaves discovery and follows only the authorized transcript (`bound_follow.go:28`).
+   - The shared cursor freezes each pass’s endpoint, limits payload reads, and preserves partial framing (`transcript_cursor.go:134`).
+   - Publication preserves acknowledged progress and commits the candidate checkpoint only after the whole batch (`bound_state.go:68`).
+   - Exact-owner cache checks remain inside the publication lock; tests exercise append and replacement invalidation.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed independently:
+
+   - `go test ./cmd/internal/sessionwatch ./cmd/internal/sessionledger ./cmd/internal/sessioninventory ./cmd/internal/artifactpath`
+   - Focused watcher race checks covering transitions, cadence, publication outcomes, owner guards, and later completion.
+   - `git diff --check` across the pinned range.
+
+   Coverage includes counted 4k/8k workloads, mutation/cancellation, partial framing, stale acknowledgments, and uncertain publication. I did not independently run the repository-wide recorded suite or live CPU acceptance.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared cursor and owner reducer avoid parallel implementations.
+   - **ARCH-PURE — pass:** pure transition/projection logic is separated from runtime IO; the corrected entity map agrees.
+   - **ARCH-PURPOSE — pass:** addresses measured bound-follow work within approved scope.
+   - **ARCH-MOCK — pass:** production and tests share runtime seams, stateful fakes, and existing conformance coverage.
+   - **ARCH-CONSTRAINTS — pass:** payload bounds and idle backoff have direct tests and counted workload checks.
+   - **ARCH-SECURE — pass:** identity, mutation, owner, and publication-lock guards remain intact.
+   - **ARCH-ORDER — pass:** production uses staged checkpoints and acknowledged-prefix transitions.
+   - **ARCH-FUNERAL — pass:** new state is memory-only and dies with its owner; durable artifact growth is unchanged.
+
+   Atlas documents the flow and latency. No new command, flag, or configuration key requires a README update.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"0c1e6f0e-62f1-4ebf-9e61-88bba4b6c05f","repository":"github.com/xianxu/pair","issue_id":"000686","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/79c1c01492286998","reviewed_head":"9d790e70afb8034a1de572fff2cf1d3c5093facf","slot":"pair:7","requested_at":"2026-10-19T02:33:17.037773Z"},"phase":"finished","pid":50193,"started_at":"2026-10-19T02:33:17.269119Z","finished_at":"2026-10-19T02:34:51.482508Z","session_id":"01a15201-941b-7291-959d-b010f715e778","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.45975s
+head: "9d790e70afb8034a1de572fff2cf1d3c5093facf"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000408

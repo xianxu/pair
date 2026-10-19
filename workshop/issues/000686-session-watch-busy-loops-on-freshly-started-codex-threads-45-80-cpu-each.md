@@ -53,6 +53,7 @@ Both live PIDs already have correlation bindings. The defect is bound lifecycle 
 ## Log
 
 ### 2026-10-18
+- 2026-10-18: closed — Affected packages and counted regressions pass; BR-1 corrected current concept locations and scanner/cursor ownership, with prior mapping preserved in Revisions; documentation only. Recorded suite on c0f766ffc193084da608b9a973ac2b07d039db37 remains queued, unchanged code, review overlap allowed by tl-worker and landing held until pass. --no-plan-check acknowledges that pending suite and hub-deferred live CPU acceptance, explicitly owed after landing per 6593f812; no staging or live success claimed. Clean build and focused race repeats passed.; review verdict: SHIP
 
 
 ### 2026-10-18 — read-only live diagnosis
