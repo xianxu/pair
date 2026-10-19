@@ -1,6 +1,6 @@
 ---
 id: 000664
-status: working
+status: codecomplete
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours:
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.57
+tracker:
+    version: 1
+    completion:
+        token: close-b09f7b69522b
+        repository: github.com/xianxu/pair
+        reviewed_head: dc7e372b55cbf3daddb108a5c4f621972d8632c6
+        evidence_commit: 4807dba934bf3c7062f954e6cfbc1b9b3ebcec85
 ---
 
 # Retire the review pane legacy handoff and nvim apply after ariadne#437
