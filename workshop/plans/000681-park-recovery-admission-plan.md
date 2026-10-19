@@ -127,3 +127,5 @@ Pending hub approval. Important product delta: cached unknown/missing/ambiguous 
 ## Revisions
 
 2026-10-18 — Hub approved the cached-selection design and tests in delivery53e81e0b-ada3-4d7b-b830-7f30238b7ef2. Exact address/nonce binding must precede admission; unknown/missing/ambiguous cache refuses with refresh advice. Live disposable slot is pair:8, idle Qoder with no in-flight work; ask hub before staging on pair:0 to avoid operator trial collision. No live action has run.
+
+2026-10-18 — Execution clarified existing shutdown semantics: Console.Stop cancels and joins queued work while the server lifetime ends; it does not invent a retained terminal receipt after shutdown. The transport regression will prove joined workers/no late effects on shutdown and separately prove preparation errors retain a failed receipt/key release. This preserves the table's lost-reply/restart unknown-outcome rule rather than widening #681 into receipt persistence or console shutdown redesign (#683 owns diagnostics).

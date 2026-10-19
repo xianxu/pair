@@ -4708,6 +4708,16 @@ nonce; queued effects refuse a replacement transaction or changed ownership.
 A repeated request uses its original receipt; recovering an already settled park
 has no effect. Unknown receipt status calls for inspection, not an automatic resend.
 
+CLI recovery selects its exact address and park nonce from the console's last
+successful cached inventory before receipt admission (#681). Unknown, missing
+or ambiguous cached selection refuses with advice to refresh the switcher
+inventory, inspect the row and retry. Full workspace/fleet inspection runs only
+on the existing operation queue after the receipt is allocated; slow preparation
+therefore remains inspectable instead of exhausting the two-second admission
+exchange. Queued preparation and dispatch compare against the captured identity;
+a replacement park is refused rather than selected later. Repository aliases
+share one canonical pending key and one bounded name lookup on new admission.
+
 Recovery never starts a replacement agent. A verified completion finalizes the
 park; positively dead exact owners with positively absent terminals may retire
 interrupted bookkeeping while preserving incomplete-cleanup diagnostics. Missing
