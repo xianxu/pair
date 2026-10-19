@@ -81,10 +81,6 @@ func (p TeardownProof) Thread() ThreadAddress { return p.thread }
 // Revision is the record's revision as teardown left it.
 func (p TeardownProof) Revision() uint64 { return p.revision }
 
-// ProvenAt is the lifecycle success time a later failure display compares
-// against.
-func (p TeardownProof) ProvenAt() time.Time { return p.provenAt }
-
 // TestOnlyTeardownProof mints a proof for a record a test arranged through
 // the store directly, whose tree was never up. Production never calls it
 // (TestOnlyTeardownProofHasNoProductionCaller).

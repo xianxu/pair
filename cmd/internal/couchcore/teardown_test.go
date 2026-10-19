@@ -101,7 +101,7 @@ func TestTeardownProvesALiveTreeGoneAndNamesWhatLeft(t *testing.T) {
 	if got := f.env.Proc.Signals[502]; len(got) != 0 {
 		t.Fatalf("teardown signalled the detached runner: %v", got)
 	}
-	if proof.AgentTTY != teardownTTY || proof.ProvenAt().IsZero() || proof.Address().Key() != "slot:/w/pair-slot3/pair" {
+	if proof.AgentTTY != teardownTTY || proof.provenAt.IsZero() || proof.Address().Key() != "slot:/w/pair-slot3/pair" {
 		t.Fatalf("proof = %+v", proof)
 	}
 }

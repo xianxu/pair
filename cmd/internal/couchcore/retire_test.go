@@ -266,7 +266,7 @@ func TestProvenTeardownHidesEarlierUnprovenFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	archived, err := local.ArchivedThreads()
-	if err != nil || len(archived) != 1 || archived[0].ProvenDownAt == nil || !archived[0].ProvenDownAt.Equal(proof.ProvenAt()) {
+	if err != nil || len(archived) != 1 || archived[0].ProvenDownAt == nil || !archived[0].ProvenDownAt.Equal(proof.provenAt) {
 		t.Fatalf("archived %+v err %v, want the proof time stamped", archived, err)
 	}
 	if got, detail := env.Couch.launchFailuresForShow(t.Context(), "scope", slot.WorktreeRoot, nil, slot); len(got) != 0 || detail != "" {
