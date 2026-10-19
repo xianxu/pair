@@ -17,7 +17,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "d2f76ff4", done: "9beb35bc"}
+flow: {kind: quick, provenance: inferred, spec: "4d9fd992", done: "ca89c6bc"}
 ---
 
 # Recover park inventory exceeds CLI admission deadline
