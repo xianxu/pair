@@ -45,7 +45,7 @@ The recorded timeout discarded stderr/status, so its exact delivery site is unpr
 
 ## Plan
 
-- [ ] Implement the controlled SIGINT fixture and deterministic callback regression, with retained diagnostics, after hub approval and change-code.
+- [x] Implement the controlled SIGINT fixture and deterministic callback regression, with retained diagnostics, after hub approval and change-code.
 - [ ] Verify focused/mutation and full couchtty coverage, recorded full suite, close review and landing.
 
 ## Log
@@ -55,6 +55,10 @@ The recorded timeout discarded stderr/status, so its exact delivery site is unpr
 Claimed following verified hub dispatch3d5e75a8. start-plan created the canonical branch from fresh main; sibling catch-up completed. No implementation edits before the plan. #674 commit902e3b20a proved a startup KeyboardInterrupt swallowed by Python ignored-exception contexts; this is prior art, not proof of #703's missing original stderr. A read-only peer audit independently distinguished default delivery, ignored disposition and callback swallowing.
 
 100 ordinary ready→SIGINT→EOF probes all exited by SIGINT; these passing samples do not diagnose the timeout. Deterministic scratch proof using the unchanged nativeAgentExitDiagnostics constant: unmasked callback self-SIGINT yielded exit0 for both baseline/instrumented, with ignored KeyboardInterrupt stderr and the expected instrumented signal receipt. Masking before readiness left SIGINT pending through the callback; top-level unblock yielded SIGINT termination for both specimens. No sleep or timeout oracle. Retained four-case evidence: /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair703-ordering.drZpu9/results.json. Actual original suite failure log is now /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/a57d6744a65388be7e757875ca3aa520.log (the creation text's inflight path was temporary).
+
+Implementation: eight baseline/instrumented cases now share the controlled runner; SIGINT is masked before hooks/readiness, EOF releases the child, pending state is required, and top-level unblock delivers it. The callback case alone owns its synchronous self-signal; the parent only releases EOF. Independent expected-termination checks reject shared wrong parity across all original case kinds. Missing-signal baseline/instrumented controls exit1 at the pending assertion. Hooks and the production native fixture are unchanged; no timeout increase, retry or sleep.
+
+RED before the mask: int_callback failed in0.05s with both statuses0, ignored KeyboardInterrupt stderr and a seemingly correct instrumented receipt. GREEN focused coverage passed1.169s. A Go overlay removing only mask establishment then failed in0.12s from the pending assertion/incorrect exit1, retaining ignored-callback stderr, never a deadline; tracked source was unchanged. Overlay/log evidence: /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair703-mutation.sZBjUX. That proof exposed waitErr formatted as an address; a pure diagnostic sentinel test failed before an explicit String renderer, then passed. Final focused cases, missing-signal controls, literal outcome oracle and diagnostic renderer passed1.256s. Full couchtty passed50.300s before that rendering-only addition; full artifactpath/testpair/termcmd passed11.106s/10.470s/5.460s. Required final-head recorded suite and SDLC close review remain outstanding.
 
 ## Revisions
 

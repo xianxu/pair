@@ -26,8 +26,10 @@ collaboration-mode: discussion
 
 | Name | Lives in | Status |
 | --- | --- | --- |
-| Exit fixture case / expected termination | cmd/internal/couchtty/native_agent_exit_diagnostics_test.go | modified |
-| Fixture outcome (wait status, error, stderr, receipt) | cmd/internal/couchtty/native_agent_exit_diagnostics_test.go | new |
+| nativeExitCase / nativeSignalSource | cmd/internal/couchtty/native_agent_exit_diagnostics_test.go | modified case model, now named |
+| nativeExitMatches | cmd/internal/couchtty/native_agent_exit_diagnostics_test.go | new |
+| nativeExitOutcome and String | cmd/internal/couchtty/native_agent_exit_diagnostics_test.go | new |
+| nativeExitScript | cmd/internal/couchtty/native_agent_exit_diagnostics_test.go | new pure script construction |
 
 One case describes the requested exit, signal source and receipt. One outcome retains evidence from one owned child. Expected termination is independent of baseline/instrumented parity: EOF0, exceptions1, SystemExit7, native HUP/TERM, and SIGINT-derived termination (SIGINT or exit130 where Python reports that form). This is a small private test predicate, with literal value checks if extracted.
 
@@ -35,7 +37,7 @@ One case describes the requested exit, signal source and receipt. One outcome re
 
 | Name | Lives in | Status | Wraps |
 | --- | --- | --- | --- |
-| Shared exit fixture runner / Python script builder | cmd/internal/couchtty/native_agent_exit_diagnostics_test.go | modified | real Python, signal delivery, stdin/stdout/stderr, owned process cleanup |
+| runNativeExitSpecimen | cmd/internal/couchtty/native_agent_exit_diagnostics_test.go | modified, extracted from the existing local runner | real Python, signal delivery, stdin/stdout/stderr, owned process cleanup |
 
 This is direct native conformance, not a production dependency or a new service needing a fake. The controlled Python callback is a stateful adversarial specimen through the same runner. The existing instrumentation and nativeAgentFixture consumers remain unchanged (ARCH-DRY). No generic fixture framework.
 
@@ -58,14 +60,14 @@ The mask is owned by the disposable child until it exits, not shared Go/global s
 
 Only modify native_agent_exit_diagnostics_test.go, this issue/plan, and lessons.md for the learned rule. No production hook edits.
 
-- [ ] Extract the current local runner only as needed so existing cases and the callback specimen use the same script/transport/cleanup. Keep helpers private in the same test file.
-- [ ] Add the independent expected-termination oracle for all seven existing case kinds. Add an int_callback specimen that self-signals inside a weakref callback after EOF; its parent must not send a competing signal.
-- [ ] Run the adversarial case before the mask fix. It must fail from wrong termination/pending evidence with ignored KeyboardInterrupt stderr, before any cleanup deadline.
-- [ ] Block SIGINT before hook installation/ready; after EOF and optional callback delivery, assert SIGINT is pending, then unblock at top level. Keep default handlers and the unchanged instrumentation's previous-handler chaining.
-- [ ] Retain cmd.Wait's error, native ProcessState/status, captured stderr and receipt in every helper failure. Check inherited disposition explicitly so ignored input cannot masquerade as successful delivery.
-- [ ] Add a missing-signal negative control proving immediate pending-assertion failure. Use the same real runner; do not inject a fake signal function or a clock.
-- [ ] Run go test ./cmd/internal/couchtty -run '^TestNativeAgentExitDiagnostics' -count=1 -v. All baseline expectations and bounded receipts must pass.
-- [ ] Temporarily remove only mask establishment via a Go overlay, rerun int_callback, and require deterministic semantic failure; restore and rerun the target. No timeout increase or sleep.
+- [x] Extract the current local runner only as needed so existing cases and the callback specimen use the same script/transport/cleanup. Keep helpers private in the same test file.
+- [x] Add the independent expected-termination oracle for all seven existing case kinds. Add an int_callback specimen that self-signals inside a weakref callback after EOF; its parent must not send a competing signal.
+- [x] Run the adversarial case before the mask fix. It must fail from wrong termination/pending evidence with ignored KeyboardInterrupt stderr, before any cleanup deadline.
+- [x] Block SIGINT before hook installation/ready; after EOF and optional callback delivery, assert SIGINT is pending, then unblock at top level. Keep default handlers and the unchanged instrumentation's previous-handler chaining.
+- [x] Retain cmd.Wait's error, native ProcessState/status, captured stderr and receipt in every helper failure. Check inherited disposition explicitly so ignored input cannot masquerade as successful delivery.
+- [x] Add a missing-signal negative control proving immediate pending-assertion failure. Use the same real runner; do not inject a fake signal function or a clock.
+- [x] Run go test ./cmd/internal/couchtty -run '^TestNativeAgentExitDiagnostics' -count=1 -v. All baseline expectations and bounded receipts must pass.
+- [x] Temporarily remove only mask establishment via a Go overlay, rerun int_callback, and require deterministic semantic failure; restore and rerun the target. No timeout increase or sleep.
 - [ ] Run full go test ./cmd/internal/couchtty -count=1 plus full artifactpath/testpair/termcmd guards. Record evidence, push and run the required recorded suite; close with SDLC's fresh review and land on SHIP. No atlas surface changed; any precise no-atlas acknowledgement explains test-only scope. Hub owns project ticks.
 
 ## Alternatives and boundaries
@@ -86,3 +88,5 @@ Pending hub review. No implementation changes before approval and change-code.
 ## Revisions
 
 2026-10-19 — Approval supersedes the initial pending status above. Verified hub delivery519e7955 approved the complete test-only plan, including the controlled gate, callback self-signal, independent outcomes, missing-signal control and retained diagnostics. Hub explicitly agreed this is Python delivery-context semantics: executable adversarial guard, not a Go lint. Proceed through change-code; no scope change.
+
+2026-10-19 — Implementation mapping now names the private case/source enum, pure expected-exit predicate, pure outcome renderer and pure script builder separately from the extracted IO runner. This corrects the original combined runner/builder integration label; the builder constructs a value and does no IO. The mask-removal overlay reproduced a semantic failure in0.12s without changing tracked source. A pure diagnostic sentinel regression additionally catches Go formatting an unexported error field as a pointer; explicit outcome rendering preserves the required wait text. No delivery, production or scope delta. Final focused coverage passed1.256s; recorded suite and close are next.
