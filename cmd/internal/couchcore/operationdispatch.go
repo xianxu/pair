@@ -13,12 +13,13 @@ import (
 // client. TypedPayload is reserved for owner-local capabilities (currently a
 // terminal-bearing StartResult); it is never inferred from argv.
 type OperationCall struct {
-	Name         string
-	Args         map[string]string
-	Implicit     bool
-	TypedPayload any
-	Context      context.Context
-	Operation    Operation
+	Name          string
+	Args          map[string]string
+	Implicit      bool
+	TypedPayload  any
+	Context       context.Context
+	Operation     Operation
+	FailureTarget *LifecycleFailureTarget // owner-local frozen facts, never argv
 }
 
 type OperationExecutor func(OperationCall) (any, error)
@@ -27,8 +28,10 @@ type OperationExecutor func(OperationCall) (any, error)
 // A store-only client intentionally leaves LiveOwner nil until #147 can route
 // to the singleton process that owns the actors and terminal.
 type OperationExecutors struct {
-	DirectStore OperationExecutor
-	LiveOwner   OperationExecutor
+	DirectStore       OperationExecutor
+	LiveOwner         OperationExecutor
+	Attempt           func(OperationCall) (*OperationAttempt, error)
+	DiagnosticWarning func(string)
 }
 
 // OwnerRoutingRequiredError is the typed refusal for an owner-required call
@@ -41,7 +44,7 @@ func (e *OwnerRoutingRequiredError) Error() string {
 
 // DispatchOperation resolves one declaration, validates its schema, and calls
 // exactly the executor named by that declaration.
-func DispatchOperation(executors OperationExecutors, call OperationCall) (any, error) {
+func DispatchOperation(executors OperationExecutors, call OperationCall) (value any, retErr error) {
 	op, ok := operationByName(call.Name)
 	if !ok {
 		return nil, fmt.Errorf("unknown operation %q", call.Name)
@@ -63,10 +66,31 @@ func DispatchOperation(executors OperationExecutors, call OperationCall) (any, e
 	}
 	call.Operation = op
 	call.Args = cloneStringMap(call.Args)
+	if executors.Attempt != nil && OperationRecordsLifecycleFailure(op) && OperationAttemptFromContext(call.Context) == nil {
+		attempt, err := executors.Attempt(call)
+		if err != nil {
+			return nil, err
+		}
+		if attempt != nil {
+			call.Context = WithOperationAttempt(call.Context, attempt)
+			defer func() {
+				value, retErr = attempt.Finish(value, retErr)
+				if warning := attempt.DiagnosticWarning(); warning != "" && executors.DiagnosticWarning != nil {
+					executors.DiagnosticWarning(warning)
+				}
+			}()
+		}
+	}
 	if op.Execution == ExecuteDirectStore {
 		return executors.DirectStore(call)
 	}
 	return executors.LiveOwner(call)
+}
+
+// OperationRecordsLifecycleFailure derives capture membership from the operation
+// declaration. Reads cannot clear an earlier lifecycle failure.
+func OperationRecordsLifecycleFailure(op Operation) bool {
+	return op.Name == "prepare-start" || op.Execution == ExecuteLiveOwner && (op.Effect == EffectProcess || op.Effect == EffectAuthority || op.Effect == EffectConsole)
 }
 
 // OperationConfirms reports whether a named operation DECLARES that it needs an

@@ -101,6 +101,11 @@ func (c *Console) runBackgroundOperation(effect MenuEffect) {
 	}
 	requestArgs := cloneOperationArgs(effect.Args)
 	key := fmt.Sprintf("reattach\x00%d", effect.Attempt)
+	attempt, attemptErr := c.beginLifecycleAttempt(effect.Operation, requestArgs, origin.Address)
+	if attemptErr != nil {
+		c.finishOperation(operationCompletion{name: effect.Operation, origin: origin, err: attemptErr})
+		return
+	}
 	// Every attempt must complete, or the pass waits on its in-flight set forever.
 	// Enqueue refuses an exact request that is already pending, returning
 	// accepted=false with no error, and then nothing completes this attempt.
@@ -108,9 +113,12 @@ func (c *Console) runBackgroundOperation(effect MenuEffect) {
 	// attempt number, so a pass key is never pending twice. If keys ever stop
 	// being unique, finish a refused attempt here, as the error path below
 	// does (#206 close review).
-	_, err := c.operationQueue.Enqueue(operationRequest{key: key, name: effect.Operation, origin: origin, run: func() (any, error) {
+	_, err := c.operationQueue.Enqueue(operationRequest{attempt: attempt, key: key, name: effect.Operation, origin: origin, run: func() (any, error) {
 		operationContext, cancelOperation := context.WithCancel(parent)
 		defer cancelOperation()
+		if attempt != nil {
+			operationContext = couchcore.WithOperationAttempt(operationContext, attempt)
+		}
 		// Stop or pass release can cancel an enqueued attempt before dispatch.
 		if err := operationContext.Err(); err != nil {
 			return nil, err
@@ -118,7 +126,7 @@ func (c *Console) runBackgroundOperation(effect MenuEffect) {
 		return fn(couchcore.OperationCall{Name: effect.Operation, Args: requestArgs, Implicit: true, Context: operationContext})
 	}})
 	if err != nil {
-		c.finishOperation(operationCompletion{key: key, name: effect.Operation, origin: origin, err: err})
+		c.finishOperation(operationCompletion{attempt: attempt, key: key, name: effect.Operation, origin: origin, err: err})
 	}
 }
 

@@ -25,11 +25,15 @@ type hubMoveService struct {
 	files   hubClaimFiles
 }
 
-func (s *messageService) installHubMoves(console *couchtty.Console) {
+func (s *messageService) installHubMoves(console *couchtty.Console, couches ...*couchcore.Couch) {
 	if s.authority.hubs == nil {
 		return
 	}
-	s.hubMoves.Store(&hubMoveService{enqueue: console.EnqueueRemoteOperation, publish: console.SetHubOwnership})
+	enqueue := console.EnqueueRemoteOperation
+	if len(couches) > 0 && couches[0] != nil {
+		enqueue = newLifecycleRemoteQueue(console, couches[0]).Queue
+	}
+	s.hubMoves.Store(&hubMoveService{enqueue: enqueue, publish: console.SetHubOwnership})
 	console.SetHubOwnership(s.authority.hubs.snapshot())
 	for _, warning := range hubConflictWarnings(s.authority.hubs.snapshot()) {
 		console.Notify(couchtty.Notice{Kind: "status", Body: warning})

@@ -25,6 +25,8 @@ import (
 // method on it. The terminal UI and (later) the advisor's tools are both
 // clients of these methods -- never of two separate implementations.
 type Couch struct {
+	failureRecorderMu     sync.Mutex
+	failureRecorder       *LifecycleFailureRecorder
 	recoveryMu            sync.Mutex
 	recoveryConfirmations map[string]recoveryConfirmationState
 	RecoveryEvidence      RecoveryEvidenceReader

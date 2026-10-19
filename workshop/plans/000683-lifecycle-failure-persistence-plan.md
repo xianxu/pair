@@ -33,9 +33,10 @@ Paths in the tables are relative to `cmd/internal/` unless otherwise stated.
 | `LifecycleFailureTarget`, centralized slot-key derivation | `couchcore/lifecyclefailure.go` | new |
 | `OperationAttemptState`, ordered attempt events | `couchcore/operationattempt.go` | new |
 | preserving failure codec | `couchcore/lifecyclefailure_codec.go` | new |
-| `ApplyLifecycleFailureEvent`, latest unresolved projection | `couchcore/lifecyclefailure.go` | new |
+| `LifecycleFailureHistory.Upsert/Supersede` | `couchcore/launchfailure.go`, `couchcore/lifecyclefailure.go` | modified |
+| `lifecycleRecordedOutcome` | `couchcmd/lifecyclefailure_queue.go` | new |
 | `OperationReceipt`, `ReceiptOutcome`, `ApplyReceiptEvent` | `couchmessage/operation.go` | modified |
-| `ActionableThreadSummary`, `ShowResult` | `couchcore/actionableinventory.go`, `couchcore/slotreport.go` | modified |
+| `ActionableThreadSummary` | `couchcore/actionableinventory.go` | modified |
 
 The history owns up to 64 failures; a slot has many retained failures but at most one latest visible failure. An attempt owns one immutable nonce and target, with nested operations borrowing that attempt. Identity/merge/projection/codec tests use literal values and bytes, with no filesystem or process mocks. ProcessIdentityLine owns an exact ProcessIdentity plus an allowlisted executable kind; it is evidence only, never a signal target. #695 implements LifecycleFailureDetails on its teardown errors rather than adding capture sites.
 
@@ -44,9 +45,11 @@ The history owns up to 64 failures; a slot has many retained failures but at mos
 | `LifecycleFailureStorage` / real store, legacy aliases | `couchcore/launchfailure_store.go` | modified | hardened JSON read, flock and atomic replacement |
 | stateful failure-store fake | `couchcore/launchfailure_store_fake.go` | modified | reopen, enrichment, supersession, injected publication failures |
 | `OperationAttempt.Finish`, per-slot attempt coordinator | `couchcore/operationattempt_record.go` | new | terminal ownership, bounded active-attempt state and publication |
-| `LifecycleFailureRecorder` | `couchcore/lifecyclefailure_record.go` | new | clock, nonce generation and bounded storage publication |
+| `LifecycleFailureRecorder` | `couchcore/operationattempt_record.go` | new | clock, nonce generation and bounded storage publication |
+| `Couch.OperationAttemptForCall` | `couchcore/lifecyclefailure_record.go` | new | composition, prepared target facts and nonce source |
 | dispatcher recorder capability | `couchcore/operationdispatch.go`, `couchcmd/run.go` | modified | operation execution and final typed error |
-| queue terminal-outcome adapters | `couchtty/console_remote.go`, `couchtty/console_operation_adoption.go`, `couchtty/console.go`, `couchcmd/console_slot_operations.go`, `couchcmd/live_restart_probe.go` | modified | preparation, guard, adoption, readiness and cancellation completion |
+| `lifecycleRemoteQueue` | `couchcmd/lifecyclefailure_queue.go` | new | preparation, guard, adoption and readiness terminal ownership |
+| console lifecycle completion adapter | `couchtty/console_lifecycle_failure.go`, `couchtty/operation_queue.go`, `couchtty/console_operation_adoption.go`, `couchtty/console.go`, `couchtty/console_reattach.go` | new / modified | selected row identity, adoption and cancellation completion |
 | cached diagnostic projection / views | `couchcore/lifecyclefailure_projection.go`, `couchcore/launchfailure_show.go`, `couchtty/menu_render.go`, `couchcmd/launchfailure.go` | new / modified | metadata-checked store snapshot, switcher and show rendering |
 
 Reuse the existing storage fake and portable namespace folder. No new native service or process observer is needed. Register every new production source in artifactpath's exhaustive classifications before the full suite; keep actual concept locations synchronized with the diff.
@@ -110,7 +113,7 @@ Actions: inspect `couch --show SLOT`; refresh after a diagnostic read error; tak
 | success but supersession save failed | success plus store warning; older failure may remain | inspect show; no repeat of successful effect merely to clear text | stale visible diagnostic |
 | malformed/unreadable store | diagnostic-unavailable annotation, lifecycle state unchanged | refresh/show after correcting the reported store problem | unknown evidence; no overwrite |
 
-Pure `ApplyLifecycleFailureEvent(history,event)` owns failure enrichment and supersession. Events are RecordFailure and SupersedeSlot through admitted publication. Unrelated-slot success changes nothing. Supersede only existing earlier failures for the exact bound slot, retaining unknown fields and immutable original failure time. Late enrichment cannot remove superseded_at or make an old failure visible. New later failure becomes visible. No success rows or success side file.
+Pure `LifecycleFailureHistory.Upsert` and `LifecycleFailureHistory.Supersede` own failure enrichment and supersession, reusing the existing history boundary. Events are RecordFailure and SupersedeSlot through admitted publication. Unrelated-slot success changes nothing. Supersede only existing earlier failures for the exact bound slot, retaining unknown fields and immutable original failure time. Late enrichment cannot remove superseded_at or make an old failure visible. New later failure becomes visible. No success rows or success side file.
 
 **Attempt order and late completion (PQ-1):** one coordinator per Couch assigns a monotonically increasing uint64 order at admission, independent of wall-clock resolution. Its per-slot state holds active attempt orders and the highest successful order plus its completion time. Finish is serialized for that slot, advances the success watermark even when there is no disk write, and checks the watermark before recording a failure. An older A failing after newer B succeeded is saved with superseded_at already set to B's successful completion time. A newer failure is not cleared by an older success. Duplicate Finish returns its retained result without publication. Inject a clock returning identical times while permuting Finish events to prove ordering comes from admission, not timestamps.
 
@@ -135,12 +138,12 @@ Each task uses red → minimal implementation → green → commit. One close re
 | Risky function / seam | Adversarial strategy | Mechanical guard |
 |---|---|---|
 | `decodeLifecycleFailureHistory`, `encodeLifecycleFailureHistory` | fuzz additive arbitrary JSON members, malformed known members and recursive duplicates | round-trip opaque byte equality plus unchanged prior store on invalid rewrite |
-| `normalizeLifecycleFailure`, `cloneLifecycleFailure`, `safeFailureProcessKind` | mutate aliased values and inject secret-bearing arbitrary kind strings | independent retained bytes and allowlist-only summaries |
-| `ApplyLifecycleFailureEvent`, `lifecycleFailureSlotKey` | generate ordered attempt events over distinct literal identities and size boundaries | invariant: newest failure fits, old superseded evidence cannot reappear |
+| `normalizeLaunchFailure`, `cloneLaunchFailure`, `safeFailureProcessKind` | mutate aliased values and inject secret-bearing arbitrary kind strings | independent retained bytes and allowlist-only summaries |
+| `LifecycleFailureHistory.Upsert/Supersede`, `LifecycleFailureSlotKey` | generate ordered attempt events over distinct literal identities and size boundaries | invariant: newest failure fits, old superseded evidence cannot reappear |
 | `AdvanceOperationAttempt`, `OperationAttempt.Finish` | permute admission/terminal events with identical clocks, cancellation and replay | exactly one publication per attempt; higher success order suppresses lower failures even without a success write |
 | `DispatchOperation`, `captureLaunchFailure`, `finishSwitchFailure` | inject failures across the production boundary and nested capture scopes | capture is evidence-only under ownership; exactly one Finish; same operation nonce in receipt/store |
 | `slotOperationOutcome`, `ApplyReceiptEvent` | generate classified outcomes through actual mapping | FailureNonce retained by every terminal receipt branch and JSON output |
-| `LifecycleFailureSnapshot`, `ProjectLifecycleFailures` | concurrent snapshot replacement and scaled literal row/history input | metadata invalidates cache, payload reads ≤1 per refresh, O(H+R) visits at N/2N |
+| `LifecycleFailureRecorder.Snapshot`, `ProjectLifecycleFailures` | concurrent snapshot replacement and scaled literal row/history input | metadata invalidates cache, payload reads ≤1 per refresh, O(H+R) visits at N/2N |
 | `rootStateText`, `renderLaunchFailures` | arbitrary bounded diagnostics/control text and unavailable projection | selected slot identity/state/actions preserved by real renderers |
 
 ### Task 1: Compatibility and pure history
@@ -186,3 +189,5 @@ Each task uses red → minimal implementation → green → commit. One close re
 2026-10-19 — Hub approved scope/live schedule (c35c61ae). Pair:1 found aggregate byte-cap refusal would discard the newest failure at maximum occupancy; hub approved count trim then oldest-whole-entry byte eviction, keeping the newest, with a 64-maximum-size-plus-65th regression (b00ff428). Adopted pair:1's simpler OperationAttempt.Finish choke point in place of dispatcher completed-outcome re-entry. Both boundary adapters finish an owned attempt; no per-site writes. Retained one close boundary: dedicated codec/history tests precede integration, and the complete observable feature gets one fresh boundary review.
 
 2026-10-19 — PQ-1..PQ-4: defined admission-order coordinator/watermark and reverse completion, evidence-only launch capture with separate launch_nonce and sole Finish publication, catalog-only holder kinds enforced at normalization, and named-function adversarial strategies. Hub approved these as the last recorder refinement (bfb77f25); another coordinator hole requires stopping and reporting, with read-time last-success filtering as the simpler fallback.
+
+2026-10-19 — Implementation locations reconciled with the diff: reused Upsert/Supersede and legacy normalization names rather than adding duplicate transition facades; LifecycleFailureRecorder lives with terminal ownership in operationattempt_record.go, while lifecyclefailure_record.go wires Couch. Added shared lifecycleRemoteQueue and receipt-only lifecycleRecordedOutcome; ShowResult retains its existing shape unchanged. The queue adapter also wraps switch-agent, explicit hub startup and hub move producers. Private production-service restart proof passed and rejects a removed-attempt-factory mutation. Byte-fitting is one row-encoding pass (counted8/16), including supersession annotations; identical-clock retained history uses admission order as a total-key tie break. These are implementation refinements of the approved boundaries, with no additional coordinator state.

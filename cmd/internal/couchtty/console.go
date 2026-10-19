@@ -127,11 +127,12 @@ type Console struct {
 	// Ops dispatches an operator action. Injected so the console never learns
 	// what an operation IS -- it names one and couchcore runs it, which is
 	// what keeps the panel from growing a private verb (#148's design test).
-	ops       func(couchcore.OperationCall) (any, error)
-	forget    func(couchcore.Worktree, couchcore.ActorID) error
-	feed      *Feed
-	attention AttentionLedger
-	size      ptychild.Size
+	ops          func(couchcore.OperationCall) (any, error)
+	beginAttempt func(couchcore.OperationCall) (*couchcore.OperationAttempt, error)
+	forget       func(couchcore.Worktree, couchcore.ActorID) error
+	feed         *Feed
+	attention    AttentionLedger
+	size         ptychild.Size
 	// expectedExits are exact child handles whose successful Park already
 	// authorized shutdown. They bridge the race between the child-exit channel
 	// and the asynchronous operation-completion channel. Marks are counted per
@@ -1902,9 +1903,17 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 	}
 	requestArgs := cloneOperationArgs(effect.Args)
 	key := fmt.Sprintf("menu\x00%d\x00%s", effect.Attempt, effect.Operation)
-	request := operationRequest{key: key, name: effect.Operation, origin: origin, run: func() (any, error) {
+	attempt, attemptErr := c.beginLifecycleAttempt(effect.Operation, requestArgs, origin.Address, origin.RowKey)
+	if attemptErr != nil {
+		c.finishOperation(operationCompletion{name: effect.Operation, origin: origin, err: attemptErr})
+		return
+	}
+	request := operationRequest{attempt: attempt, key: key, name: effect.Operation, origin: origin, run: func() (any, error) {
 		operationContext, cancelOperation := context.WithCancel(c.lifetime)
 		defer cancelOperation()
+		if attempt != nil {
+			operationContext = couchcore.WithOperationAttempt(operationContext, attempt)
+		}
 		// A long operation reports its current step onto its own progress
 		// notice (#399); the reducer ignores a line that arrives after the
 		// notice became a result.
@@ -1924,13 +1933,16 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 		if hosted != "" {
 			request.navigation = func() (any, error) {
 				ctx := context.WithValue(c.lifetime, menuOperationContextKey{}, menuOperationContext{origin: origin, hosted: hosted})
+				if attempt != nil {
+					ctx = couchcore.WithOperationAttempt(ctx, attempt)
+				}
 				return fn(couchcore.OperationCall{Name: effect.Operation, Args: requestArgs, Implicit: true, Context: ctx})
 			}
 		}
 	}
 	_, err := c.operationQueue.Enqueue(request)
 	if err != nil {
-		c.finishOperation(operationCompletion{key: key, name: effect.Operation, origin: origin, err: err})
+		c.finishOperation(operationCompletion{attempt: attempt, key: key, name: effect.Operation, origin: origin, err: err})
 	}
 }
 
@@ -2079,6 +2091,7 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 	if completed.owner != nil && !completed.owner.CompareAndSwap(false, true) {
 		return false
 	}
+	completed = c.finishLifecycleAttempt(completed)
 	err := completed.err
 	defer func() {
 		c.finishContinuationOperation(completed, err)

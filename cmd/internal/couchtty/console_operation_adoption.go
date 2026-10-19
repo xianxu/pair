@@ -42,8 +42,16 @@ func (c *Console) prepareOperationCompletion(completed operationCompletion) oper
 	}
 	// Installation owns routing, never navigation. Run decides whether the
 	// operator's current intent still authorizes selecting the adopted child.
+	ctx := c.lifetime
+	if completed.attempt != nil {
+		ctx = couchcore.WithOperationAttempt(ctx, completed.attempt)
+	} else if completed.remote != nil && completed.remote.call.Context != nil {
+		if attempt := couchcore.OperationAttemptFromContext(completed.remote.call.Context); attempt != nil {
+			ctx = couchcore.WithOperationAttempt(ctx, attempt)
+		}
+	}
 	_, completed.err = fn(couchcore.OperationCall{
-		Name: "attach", Context: c.lifetime, Implicit: true, TypedPayload: started,
+		Name: "attach", Context: ctx, Implicit: true, TypedPayload: started,
 		Args: map[string]string{"repo-scope": address.RepoScope, "tag": string(address.Tag), "background": "true"},
 	})
 	return completed
@@ -60,6 +68,9 @@ func (c *Console) abandonOperationCompletion(completed operationCompletion) {
 	if err == nil {
 		err = context.Canceled
 	}
+	completed.err = err
+	completed = c.finishLifecycleAttempt(completed)
+	err = completed.err
 	if completed.remote != nil && completed.remote.finished != nil {
 		completed.remote.finished(completed.value, err)
 	}

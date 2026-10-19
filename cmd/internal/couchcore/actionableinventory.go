@@ -171,10 +171,13 @@ type ThreadEvidence struct {
 }
 
 // ActionableThreadSummary contains only fields the ordinary switcher needs.
-// It deliberately excludes diagnostic lifecycle state.
+// Diagnostic annotations are evidence only; state and actions remain independent.
 type ActionableThreadSummary struct {
-	HasOpenPark bool   `json:"has_open_park,omitempty"`
-	ParkNonce   string `json:"park_nonce,omitempty"`
+	// Failure and DiagnosticError are display evidence, never action authority.
+	Failure         *LifecycleFailure `json:"failure,omitempty"`
+	DiagnosticError string            `json:"diagnostic_error,omitempty"`
+	HasOpenPark     bool              `json:"has_open_park,omitempty"`
+	ParkNonce       string            `json:"park_nonce,omitempty"`
 	// TitleTarget is private, observation-scoped display authority.
 	TitleTarget  *TitleTarget        `json:"-"`
 	Target       ThreadTarget        `json:"target"`
@@ -766,7 +769,7 @@ func (c *Couch) ActionableThreadInventoryContext(ctx context.Context, observatio
 	if names, err := c.repositoryNames(); err == nil {
 		rows = ApplyRepositoryAliases(rows, names)
 	}
-	return ApplySlugs(ctx, rows, c.Slug), nil
+	return c.applyLifecycleFailures(ApplySlugs(ctx, rows, c.Slug)), nil
 }
 
 // ApplySlugs gives each live row its orientation slug (pair#372). Only live

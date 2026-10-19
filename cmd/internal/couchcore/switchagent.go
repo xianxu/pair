@@ -332,7 +332,7 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (_ 
 	}
 	defer func() {
 		if returnedErr != nil {
-			returnedErr = c.finishSwitchFailure(trackedThreadLaunch{Thread: prepared.record, Nonce: nonce, Args: StartArgs{Stack: request.Agent}, Fresh: true}, returnedErr)
+			returnedErr = c.finishSwitchFailure(trackedThreadLaunch{Context: ctx, Thread: prepared.record, Nonce: nonce, Args: StartArgs{Stack: request.Agent}, Fresh: true}, returnedErr)
 		}
 	}()
 	profileRaw, err := launcher.BuildCouchFreshLaunchProfile(string(request.Address.Tag), request.Agent, prepared.Profile.Argv, string(AgentSourceExplicit), string(ArgvSourceExplicit))

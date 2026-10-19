@@ -180,37 +180,65 @@ record, separate preferences, and retained history. Each backend uses the existi
 lock, revision checks and recoverable journal. The supervisor lease still belongs
 to the selected global namespace beneath the account lease.
 
-### Failed-launch evidence (#531)
+### Lifecycle failure evidence (#531, #683)
 
-`launchfailure.go` owns bounded attempt evidence and retention independently of
-ThreadRecord. `launchfailure_store.go` atomically stores the newest 16 failures
-in `<namespace>/launch-diagnostics/failures.json` (0600), under a private
-context-bounded file lock. Records carry scope/tag/nonce, target, starting path and failure stage,
-16 KiB raw output tail, 4 KiB per error, and separate observed pre/post-cleanup
-exit codes. The entire encoded history is capped at 1 MiB. Failed persistence is
-reported beside the original error; later success does not clear evidence.
+`launchfailure.go` owns `LifecycleFailure` and the legacy `LaunchFailure` aliases,
+independently of ThreadRecord. `lifecyclefailure.go` freezes the target and derives
+one slot key from its already verified physical path. Records retain the operation
+nonce, optional thread address, slot path, park/launch nonce, phase, outcome and
+bounded exact process identities with executable kinds. Holders never collect argv.
+Generic failures have no inferred phase. Launch fields retain their existing
+16 KiB raw output tail, 4 KiB per error and separate pre/post-cleanup exit codes.
 
-Runner setup refusals that occur after spawning carry a `blockedStartError` with
-immutable output and pre/post-cleanup observations, even when no handle can be
-returned. The shared `launchTrackedThread` failure path consumes that evidence,
-snapshots immutable evidence before cleanup, enriches afterward and publishes
-once cleanup completes (#590); `SwitchAgent` adds its final error by attempt identity.
-Storage admission follows the caller's context, with cancellable nonblocking
-flock attempts and no background waiter. Couch supplies a separate ten-second
-diagnostic admission context, including for canceled launches. This bounds
-waiting for a lease, not filesystem IO after admission. There is no store-owned
-one-second scheduling budget. A crash during cleanup or before final publication
-can lose that attempt's in-memory evidence; previously published history remains
-durable. Persistence never delays failed-helper cleanup. The typed error
-preserves errors.Is/As while its operator text names the attempt, diagnostic file, and one inspection action.
+`launchfailure_store.go` atomically publishes one JSON array at
+`<namespace>/launch-diagnostics/failures.json` (0600), under its private file lock.
+Retention trims to 64 entries, then evicts oldest whole entries until at most
+1 MiB remains; it refuses a newest entry that cannot fit alone. The local
+`lifecyclefailure_codec.go` preserves unknown raw values, including nested address
+and holder/process members, through enrichment and rewrite. Known types, required
+identity/time fields and recursive duplicate keys remain strict; legacy rows need
+no new fields. No format version or global strictjson policy changes.
+
+`operationattempt.go` owns pure admission-order transitions;
+`operationattempt_record.go` owns `OperationAttempt.Finish`, the sole terminal
+recorder. Synchronous dispatch finishes its attempt directly. Queued actions keep
+one owned attempt through preparation, guards, effect, adoption and readiness,
+then the shared terminal adapter finishes it. Nested calls borrow that attempt.
+Launch-capture helpers return evidence without publishing separately. Typed error
+chains retain errors.Is/As and a receipt carries `FailureNonce`, matching the
+stored operation nonce after the receipt expires. #695 supplies teardown details
+through `LifecycleFailureDetails`; this evidence does not authorize teardown or
+finalize a park.
+
+A later successful lifecycle operation sets optional `superseded_at` on earlier same-slot
+failures, keeping raw evidence until ring eviction. Ordinary success performs no
+store rewrite when nothing needs superseding. Overlapping attempts use admission
+order, so an older late failure is already superseded when saved. The coordinator
+retains state only while admitted attempts overlap; it writes no success rows or
+second file. A success whose diagnostic update fails remains successful with a
+warning rather than inviting a repeated external effect.
+
+`lifecyclefailure_projection.go` caches one bounded store snapshot by file identity,
+size and mtime. Each inventory refresh projects the latest unsuperseded failure in
+O(history + rows), without altering row state or action guards. A malformed or
+unreadable store stays visibly unavailable. `couch --show` uses the same evidence,
+including failures for an empty slot and legacy exact-address records. The existing
+`LaunchFailures` result field is retained; `couchcmd/launchfailure.go` sanitizes
+child text line by line.
+
+Storage admission uses cancellable nonblocking flock attempts, with no background
+waiter. Couch supplies an independent ten-second diagnostic admission context,
+including after cancellation. The limit bounds waiting for a lease, not filesystem
+IO after admission. Once admitted, atomic publication completes. Cleanup is not
+postponed for diagnostic IO. A crash before terminal publication can lose that
+attempt's in-memory evidence; older published history remains durable. Private
+service conformance and a disposable-slot display check after an operator Couch
+restart provide separate acceptance; this feature does not stage :0.
+
 Claude native resume validates an exact session through bounded UUID-leaf
 probes under the authorized project roots, preserving duplicate and root-role
 checks without walking unrelated history. Missing scrollback is separate from
 native transcript identity; see [exact Claude root lookup](session-identity.md#exact-claude-root-lookup).
-
-`couch --show` reads retained evidence by exact address or canonical starting
-path, including after rollback removed the thread, without creating lifecycle
-records. `couchcmd/launchfailure.go` sanitizes child text line by line.
 
 `LaunchOutputHandle` reuses the PTY child's existing ring (combined stdout/stderr).
 ExecRunner forwards stderr through a bounded tee; stdin/stdout retain their

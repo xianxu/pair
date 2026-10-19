@@ -5,6 +5,8 @@ import (
 	"errors"
 	"sync"
 	"sync/atomic"
+
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 )
 
 var errNavigationNeedsLifecycle = errors.New("hosted navigation needs lifecycle")
@@ -12,10 +14,11 @@ var errNavigationNeedsLifecycle = errors.New("hosted navigation needs lifecycle"
 var ErrOperationQueueOverloaded = errors.New("operation queue is full")
 
 type operationRequest struct {
-	key    string
-	name   string
-	origin MenuOperationOrigin
-	run    func() (any, error)
+	attempt *couchcore.OperationAttempt
+	key     string
+	name    string
+	origin  MenuOperationOrigin
+	run     func() (any, error)
 	// navigation is present only for a currently hosted selection; run remains
 	// its lifecycle fallback when the hosted endpoint proof disappears.
 	navigation func() (any, error)
@@ -25,6 +28,7 @@ type operationRequest struct {
 }
 
 type operationCompletion struct {
+	attempt  *couchcore.OperationAttempt
 	key      string
 	name     string
 	origin   MenuOperationOrigin
@@ -37,7 +41,7 @@ type operationCompletion struct {
 
 // complete is the request's completion carrying its outcome.
 func (r operationRequest) complete(value any, err error) operationCompletion {
-	return operationCompletion{key: r.key, name: r.name, origin: r.origin, value: value, err: err, remote: r.remote, owner: new(atomic.Bool)}
+	return operationCompletion{attempt: r.attempt, key: r.key, name: r.name, origin: r.origin, value: value, err: err, remote: r.remote, owner: new(atomic.Bool)}
 }
 
 type operationQueue struct {

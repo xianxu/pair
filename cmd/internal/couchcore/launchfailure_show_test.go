@@ -97,3 +97,28 @@ func TestShowLaunchFailureSlotAfterRollback(t *testing.T) {
 		t.Fatalf("show = %+v", got)
 	}
 }
+
+func TestShowLifecycleFailureLatestUnresolvedAndEmptySlot(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	store := NewFakeLaunchFailureStore()
+	env.Couch.LaunchFailures = store
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := time.Unix(100, 0)
+	for i, nonce := range []string{"old", "latest", "superseded"} {
+		f := LaunchFailure{StartingPath: root, Slot: "pair:8", Operation: "recover-park", Nonce: nonce, FailedAt: at.Add(time.Duration(i) * time.Second)}
+		if i == 2 {
+			v := at.Add(3 * time.Second)
+			f.SupersededAt = &v
+		}
+		if err := store.Save(t.Context(), f); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, detail := env.Couch.launchFailuresForShow(t.Context(), "scope", root, nil, SlotIdentity{})
+	if detail != "" || len(got) != 1 || got[0].Nonce != "latest" {
+		t.Fatalf("show=%+v detail=%s", got, detail)
+	}
+}

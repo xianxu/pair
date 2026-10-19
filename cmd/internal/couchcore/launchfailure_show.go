@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"sort"
 )
 
 // launchFailuresForShow reads independent evidence without manufacturing a
@@ -13,9 +14,9 @@ func (c *Couch) launchFailuresForShow(ctx context.Context, scope, ref string, ma
 	if c.LaunchFailures == nil {
 		return nil, ""
 	}
-	history, err := c.LaunchFailures.Read()
+	history, err := c.lifecycleFailureRecorder().Snapshot()
 	if err != nil {
-		return nil, fmt.Sprintf("read launch diagnostics %s: %v", c.LaunchFailures.Path(), err)
+		return nil, fmt.Sprintf("read lifecycle diagnostics %s: %v", c.LaunchFailures.Path(), err)
 	}
 	paths := []string{}
 	if slot.WorktreeRoot != "" {
@@ -37,7 +38,7 @@ func (c *Couch) launchFailuresForShow(ctx context.Context, scope, ref string, ma
 		}
 	}
 	var out []LaunchFailure
-	for _, f := range history {
+	for _, f := range latestLifecycleFailures(history) {
 		matched := wanted[f.Address]
 		if !matched && f.StartingPath != "" {
 			if physical, e := retainedPhysicalPath(f.StartingPath); e == nil {
@@ -48,5 +49,11 @@ func (c *Couch) launchFailuresForShow(ctx context.Context, scope, ref string, ma
 			out = append(out, cloneLaunchFailure(f))
 		}
 	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].FailedAt.Equal(out[j].FailedAt) {
+			return out[i].Nonce > out[j].Nonce
+		}
+		return out[i].FailedAt.After(out[j].FailedAt)
+	})
 	return out, ""
 }

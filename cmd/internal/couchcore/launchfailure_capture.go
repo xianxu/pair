@@ -126,21 +126,28 @@ func (c *Couch) captureLaunchFailure(in trackedThreadLaunch, stage string, h Han
 		}
 		f.CleanupError += cleanupErr.Error()
 	}
-	saved := c.saveLaunchFailure(f)
-	return &launchFailureError{failure: f, cause: errors.Join(cause, cleanupErr), saveError: saved, recordPath: c.launchFailurePath()}
+	return c.finishLaunchFailureCapture(in, f, errors.Join(cause, cleanupErr))
 }
-func (c *Couch) saveLaunchFailure(f LaunchFailure) error {
-	if c.LaunchFailures == nil {
-		return errors.New("launch diagnostic store unavailable")
+
+func (c *Couch) finishLaunchFailureCapture(in trackedThreadLaunch, f LaunchFailure, cause error) error {
+	captured := &launchFailureError{failure: f, cause: cause, recordPath: c.launchFailurePath()}
+	if OperationAttemptFromContext(in.Context) != nil {
+		return captured // The admitted operation still owns adoption/readiness.
 	}
-	// Launch cancellation must not discard its evidence. Cleanup already ran;
-	// this independent bound limits admission, not admitted filesystem IO.
-	ctx, cancel := context.WithTimeout(context.Background(), launchDiagnosticsAdmissionTimeout)
-	defer cancel()
-	if err := c.LaunchFailures.Save(ctx, f); err != nil {
-		return fmt.Errorf("write launch diagnostics %s: %w", c.LaunchFailures.Path(), err)
+	// Standalone launch APIs retain their exact existing launch identity, while
+	// sharing the same terminal recorder rather than writing at capture sites.
+	attempt, err := c.BeginOperationAttempt(f.Operation, failureTarget(f))
+	if err != nil {
+		captured.saveError = err
+		return captured
 	}
-	return nil
+	attempt.nonce = f.Nonce
+	_, result := attempt.Finish(nil, captured)
+	var recorded *lifecycleFailureError
+	if errors.As(result, &recorded) {
+		captured.saveError = recorded.saveError
+	}
+	return result
 }
 
 const launchDiagnosticsAdmissionTimeout = 10 * time.Second
@@ -154,7 +161,7 @@ func (c *Couch) finishSwitchFailure(in trackedThreadLaunch, err error) error {
 	f := failed.failure
 	f.Operation = "switch-agent"
 	f.FinalError = err.Error()
-	return &launchFailureError{failure: f, cause: err, saveError: errors.Join(failed.saveError, c.saveLaunchFailure(f)), recordPath: c.launchFailurePath()}
+	return c.finishLaunchFailureCapture(in, f, err)
 }
 
 func (c *Couch) launchFailurePath() string {

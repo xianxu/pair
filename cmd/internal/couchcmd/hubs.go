@@ -102,9 +102,13 @@ func (h *hubRuntime) target(name string) (string, error) {
 
 // Extra hubs join the existing operation queue and background adoption
 // path, preserving the first hub's focus and the single reattach pass.
-func startExplicitHubs(console *couchtty.Console, hubs *hubRuntime) {
+func startExplicitHubs(console *couchtty.Console, hubs *hubRuntime, couches ...*couchcore.Couch) {
 	console.SetHubOwnership(hubs.snapshot())
-	queueExplicitHubs(hubs.snapshot().Hubs()[1:], console.EnqueueRemoteOperation, func(root string, err error) {
+	enqueue := console.EnqueueRemoteOperation
+	if len(couches) > 0 && couches[0] != nil {
+		enqueue = newLifecycleRemoteQueue(console, couches[0]).Queue
+	}
+	queueExplicitHubs(hubs.snapshot().Hubs()[1:], enqueue, func(root string, err error) {
 		console.Notify(couchtty.Notice{Kind: "status", Body: fmt.Sprintf("hub failed; open it in the switcher to retry: %s: %v", root, err)})
 	})
 }

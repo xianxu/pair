@@ -30,13 +30,34 @@ func launchFailureExit(code *int) string {
 }
 func renderLaunchFailures(w io.Writer, failures []couchcore.LaunchFailure, readError string) {
 	if readError != "" {
-		renderLaunchFailureText(w, "launch diagnostics unavailable", readError)
+		renderLaunchFailureText(w, "lifecycle diagnostics unavailable", readError)
 	}
 	for _, f := range failures {
-		fmt.Fprintf(w, "launch failure %s/%s (%s, %s) at %s; attempt %s\n", rowtext.Sanitize(f.Address.RepoScope), rowtext.Sanitize(string(f.Address.Tag)), rowtext.Sanitize(f.Agent), rowtext.Sanitize(f.Stage), f.FailedAt.Format(time.RFC3339Nano), rowtext.Sanitize(f.Nonce))
+		if f.SupersededAt != nil {
+			continue
+		}
+		if f.Operation != "" || f.Phase != "" || f.Slot != "" {
+			phase := f.Phase
+			if phase == "" {
+				phase = f.Operation
+			}
+			outcome := f.Outcome
+			if outcome == "" {
+				outcome = "failed"
+			}
+			fmt.Fprintf(w, "lifecycle failure %s (%s, %s) at %s; attempt %s\n", rowtext.Sanitize(f.Slot), rowtext.Sanitize(phase), rowtext.Sanitize(outcome), f.FailedAt.Format(time.RFC3339Nano), rowtext.Sanitize(f.Nonce))
+		} else {
+			fmt.Fprintf(w, "launch failure %s/%s (%s, %s) at %s; attempt %s\n", rowtext.Sanitize(f.Address.RepoScope), rowtext.Sanitize(string(f.Address.Tag)), rowtext.Sanitize(f.Agent), rowtext.Sanitize(f.Stage), f.FailedAt.Format(time.RFC3339Nano), rowtext.Sanitize(f.Nonce))
+		}
+		for _, holder := range f.Holders {
+			fmt.Fprintf(w, "  holder: %s pid %d identity %s\n", rowtext.Sanitize(holder.Kind), holder.Process.PID, rowtext.Sanitize(holder.Process.Identity))
+		}
 		fmt.Fprintf(w, "  helper started: %t\n", f.HelperStarted)
 		fmt.Fprintf(w, "  exit before cleanup: %s; exit after cleanup: %s\n", launchFailureExit(f.BeforeExit), launchFailureExit(f.AfterExit))
 		renderLaunchFailureText(w, "operation", f.Operation)
+		renderLaunchFailureText(w, "agent", f.Agent)
+		renderLaunchFailureText(w, "launch stage", f.Stage)
+		renderLaunchFailureText(w, "thread", f.Address.RepoScope+"/"+string(f.Address.Tag))
 		renderLaunchFailureText(w, "starting path", f.StartingPath)
 		renderLaunchFailureText(w, "launch error", f.LaunchError)
 		renderLaunchFailureText(w, "final operation error", f.FinalError)

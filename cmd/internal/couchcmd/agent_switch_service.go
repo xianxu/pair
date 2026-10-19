@@ -176,9 +176,10 @@ func (s *slotOperations) existingSwitch(caller couchmessage.Binding, r couchmess
 
 func (s *messageService) installAgentSwitchService(console *couchtty.Console, c *couchcore.Couch, guard *switchServiceGuard) {
 	guard.service.Store(s)
+	lifecycleQueue := newLifecycleRemoteQueue(console, c)
 	s.switches.Store(&agentSwitchService{guard: guard, prepare: c.PrepareKnownAgentSwitch,
 		enqueue: func(key string, prepare func(context.Context) (couchcore.OperationCall, error), started func(), finished func(any, error)) error {
-			return console.EnqueueRemoteOperation(key, "switch-agent", prepare, started, finished)
+			return lifecycleQueue.Enqueue(key, "switch-agent", prepare, started, finished)
 		},
 	})
 }

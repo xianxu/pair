@@ -72,8 +72,8 @@ Inspect retained lifecycle/archived records and the operation-diagnostic seam fi
 
 Approved implementation plan: [Lifecycle failure persistence](../plans/000683-lifecycle-failure-persistence-plan.md). The scope disposition and replacement close criteria below were approved in c35c61ae; implementation is gated by change-code.
 
-- [ ] Implement and verify the preserving lifecycle-failure codec and bounded pure history (durable plan Task 1).
-- [ ] Integrate one terminal recorder with queued and synchronous operations and retain receipt nonces (Task 2).
+- [x] Implement and verify the preserving lifecycle-failure codec and bounded pure history (durable plan Task 1).
+- [x] Integrate one terminal recorder with queued and synchronous operations and retain receipt nonces (Task 2).
 - [ ] Share the cached row/show projection; complete private-service proof, recorded suite, close review and landing (Task 3). Disposable-slot live display acceptance follows the next operator restart.
 
 ## Log
@@ -122,3 +122,19 @@ Approved replacement Done when for #683's implementation:
 2026-10-19 — Scope disposition and replacement close contract approved by hub in verified c35c61ae; original clauses above are retained incident history, with park finalization/teardown owned by #695 and Fresh ordering by #684. Pair:1 approved P3/2a fit after correcting byte-budget retention. Hub b00ff428 approved oldest-whole-entry eviction to retain the newest within 64 entries/1 MiB, plus OperationAttempt.Finish as sole recorder instead of dispatcher completion re-entry. No implementation before change-code; private-service proof before landing and disposable-slot display acceptance owed after next operator restart, no :0 staging.
 
 2026-10-19 — Plan-quality round1 blocked on PQ-1..PQ-4: late failure after newer success, existing capture writers, holder-secret boundary and unnamed test strategies. Revised the full class: ordered active-attempt coordinator with ephemeral success watermark; evidence-only captures and one Finish publication; catalog-only executable kind, never argv; named-function strategies. Hub bfb77f25 approved this final design refinement and requires stopping if another coordinator hole appears. No implementation or tests yet.
+
+### 2026-10-19 — Implementation checkpoint before recorded suite
+
+Implemented the approved failure-persistence scope, with no additional coordinator state. The store remains the namespace's launch-diagnostics/failures.json, now 64 entries and at most1MiB with oldest-whole-entry eviction. Unknown entry/address/holder/process members survive byte-equal rewrites, enrichment and supersession. Byte selection encodes each row once: the counted regression first failed at35/135 calls for8/16 rows, then passed at exactly8/16. A near-capacity success annotation regression failed on both real/fake stores, then passed with the same whole-entry budget enforcement.
+
+The sole Finish recorder covers synchronous dispatch and queued preparation, guards, effect execution, adoption and readiness. Existing launch helpers defer evidence publication under an owner. Slot identity is frozen from the selected row/cache, including empty rows selected by RowKey. Receipt mapping retains one FailureNonce through all eight existing typed classifications. Unconfirmed errors remain unproven, refusals remain refused, and generic Phase stays empty. Relative/unresolved paths do not change admission merely to obtain optional diagnostics. Success/cleanup warnings preserve the original typed lifecycle result and do not request repetition of a completed effect.
+
+Verification completed on this implementation worktree:
+
+- Targeted four-package coverage (LifecycleFailure, LaunchFailure, OperationAttempt, Receipt, Readiness, RemoteOperation, SlotOperation, Reattach, OperationAdoption, AgentSwitchService, HubMove, HubStartup) passed; most recent completed run before final pure-order/budget assertions was core22.431s, cmd22.973s, tty0.541s, message1.513s. Follow-up final assertions are run again before the pushed suite.
+- Focused race coverage passed on core/cmd/tty (7.448s/2.151s/1.484s); one earlier in-flight invocation compiled the store task's intentional RED counted-test version and failed35/135 calls. This is retained TDD evidence, not a flake or a passing retry over an unexplained defect.
+- Artifact/source, test-isolation and declaration guards passed (artifactpath7.353s, testpair1.904s, termcmd0.336s). No local-gates configuration was changed.
+- TestLifecycleFailurePrivateServiceSurvivesReceiptLossAndSupersedes passed using the real private Unix service, queue, production hub authority and real temporary diagnostics file. A pre-dispatch failure retained its reason/nonce/park identity; fresh service receipts became unknown after restart; show still printed the reason/nonce; successful recovery hid the failure while a reopened store retained superseded evidence. No operator socket or slot was touched.
+- A controlled wiring-removal mutation (skip the queue attempt factory) made that same private-service regression fail exactly at its pre-dispatch retained-failure/nonce assertion. The source was restored in a finally block and normal coverage passes.
+
+The required recorded full suite and mandatory close review are next. No landing or live acceptance is claimed. Hub c35c61ae explicitly accepts private-service proof before landing and owes the disposable-slot row/show check after the operator's next Couch restart, with no :0 staging. #681's pair:8 live acceptance also remains owed to that restart; the hub tracks it separately.
