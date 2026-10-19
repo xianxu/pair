@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: 5d16d4ff-cce9-4d51-8fdb-53e78b334667
+        repository: github.com/xianxu/pair
+        issue_id: "000712"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot3/pair
+        reviewed_head: e4137a65f1a6ed327cbae565f84a56268fe76fb4
+        slot: pair:3
+        requested_at: "2026-10-19T21:19:28.264884Z"
+      phase: finished
+      pid: 62411
+      started_at: "2026-10-19T21:19:28.369916Z"
+      finished_at: "2026-10-19T21:19:53.403568Z"
+      session_id: 01a15608-a15d-7c61-ae43-a9bf7ccf8f1a
+      outcome: returned
 gate: plan-quality
 issue: 712
 id_prefix: PQ
@@ -66,7 +86,32 @@ rounds:
           note: R2 requires accepted launch/unproven values, leaves validators and schema unchanged, and names validator/codec plus public persistence/readback/projection tests through the shared recorder.
           round: 2
       blocked: false
-content_hash: d39696f9bdf80c30843fa4d0807140477a2d2a9670e2a2f9f810590db1342d90
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: bcc164eb-0c74-4de5-84cd-1673f45a0e4c
+            repository: github.com/xianxu/pair
+            issue_id: "000712"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot3/pair
+            reviewed_head: e4137a65f1a6ed327cbae565f84a56268fe76fb4
+            slot: pair:3
+            requested_at: "2026-10-19T21:19:07.525707Z"
+          phase: finished
+          pid: 57148
+          started_at: "2026-10-19T21:19:07.630361Z"
+          finished_at: "2026-10-19T21:19:26.485336Z"
+          session_id: 01a15608-506a-71c2-b037-42686d90bdf5
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-19T14:19:26-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      blocked: false
+content_hash: 9331765dc5e9566587a70702a71f83f8dce77d587ab0b3d5a64345ef93935f93
 ---
 
 # Gate ledger — pair#712 (plan-quality)
@@ -86,6 +131,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - PQ-1 — addressed — R2 requires accepted launch/unproven values, leaves validators and schema unchanged, and names validator/codec plus public persistence/readback/projection tests through the shared recorder.
+
+## Round 3 — 2026-10-19T14:19:26-07:00 (codex) — passed
 
 ## Open findings
 
