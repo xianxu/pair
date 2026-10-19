@@ -21,6 +21,14 @@ import (
 	"github.com/xianxu/pair/cmd/internal/procutil"
 )
 
+func TestInternalExecAlarmDoesNotLaunchOrResolveRuntime(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	// nil would panic on any runtime setup: internal execution must precede it.
+	if code := runWithLegacyRuntime([]string{"internal", "exec-alarm", "0", "--", "sqlite3"}, &stdout, &stderr, nil); code != 2 || !strings.Contains(stderr.String(), "seconds") {
+		t.Fatalf("internal alarm: code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+}
+
 func TestRunStreamingSubcommandRoutesChangelogToInjectedStderr(t *testing.T) {
 	// changelog with no flags → usage error to the *injected* stderr (proves the
 	// seam passes real stderr through, unlike the buffered Dispatch path).
