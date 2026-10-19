@@ -1,13 +1,21 @@
 ---
 id: 000695
-status: open
+status: working
 deps: [pair#683]
 github_issue:
 created: 2026-10-18
 updated: 2026-10-18
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '381e903e43e68acc38aa3fb63232bcb118067f35' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '585cb33f5fef979dc7bcdb0ed95b4e80d2591c6b' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-18T22:57:15-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Lifecycle primitives: transcript binding on the record, the two-kind address, proven teardown
@@ -37,8 +45,13 @@ Prerequisite: pair#683 (failure persistence) lands first.
 
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000695-lifecycle-primitives-transcript-binding-on-the-record-the-two-kind-address-proven-teardown-plan.md` (moved from pair#684's plan §2, §3 address type, M1–M2).
+
+- [ ] M1 — Transcript binding on the record; Resume binds by one stat (P2); the two-kind `LifecycleAddress`
+- [ ] M2 — Lifetime lease, agent tty witness, `Teardown` with `TeardownProof`; archive and replace require a proof (P1); orphan registry
 
 ## Log
 
 ### 2026-10-18
+
+- 2026-10-18: split from pair#684 on the hub's decision (delivery 51ef8069): #684's M1–M2 become this issue so pair#694's team lifecycle and #684's Converge both build from main. The design (already operator-approved under #684) moved here unchanged; #684's Revisions keep its history.
