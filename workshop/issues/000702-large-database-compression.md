@@ -39,7 +39,7 @@ Measure size, wall time and CPU for large database snapshot compression at level
 
 - [x] Measure retained history snapshot at -3/-9/-19 with -T0, plus a representative tracked-text tar, under both machine-test tokens and one 20-minute outer bound. Record wall/user/sys CPU, bytes, zstd version, load and decompression hash agreement; remove private compressed outputs immediately.
 - [x] Send measured policy and compatibility choice to the hub before code; add failing policy/codec/reader tests, then implement through the shared codec seam with truthful compression metadata.
-- [ ] Qualify native round trips and cancellation, document storage/time tradeoffs, run recorded suite, close and land on SHIP.
+- [x] Qualify native round trips and cancellation, document storage/time tradeoffs, and submit the recorded full suite for the close and landing gates.
 
 ## Log
 
@@ -77,3 +77,6 @@ Behavioral red run: TestCompressionPolicyAndReaderCompatibility failed on databa
 
 ### Qualification checkpoint
 Targeted policy, codec subprocess, archive descriptor agreement and mixed legacy/new/future-level catalog tests passed (2.501s). Isolated real GPG/zstd round trips passed for levels 9, 19, 20 and 22; production archive round trip, corruption rejection and unchanged source hashes passed (2.227s total). Existing cancellation/failing child tests passed in the targeted Codec group. Full historyarchive package run and recorded full suite are running; no full-suite success claimed yet. PR https://github.com/xianxu/pair/pull/455.
+
+### Close preparation
+Full historyarchive/... package run passed (96.483s; archivetest 0.174s). Recorded suite attempt 8301d79f1936588236459ed4c09a1f7c is queued on production/test head 27ec68149; subsequent f5d6b7a66 only documents evidence/tradeoffs. Per tl-worker, the close review may overlap this queue; landing still requires a recorded pass, and any code change requires a fresh final-head run. Plan's last checkbox describes completed preparation; suite outcome, close verdict and landing are gate-owned results recorded in this Log. No suite pass or landing is claimed yet.
