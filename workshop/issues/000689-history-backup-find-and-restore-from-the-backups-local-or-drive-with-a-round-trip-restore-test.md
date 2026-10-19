@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-18
 updated: 2026-10-18
-estimate_hours:
+estimate_hours: 4.93
 collaboration-mode: collaboration
-card_mirror: 'f03d43448f7e1c0f9910ab253ce0a066159a0c1f' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'ab8c526eefb220e8dbf1e618cd0980751889f545' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-18T23:32:01-07:00
 claimant:
     operator: Xian Xu
@@ -47,6 +47,53 @@ Durable plan: [find, restore and label/location index](../plans/000689-find-rest
 
 - [ ] M1 — Preserve additive label/index fields; implement local-only find and atomic local/Drive index synchronization, including catalog-loss rebuild.
 - [ ] M2 — Implement verified fresh-destination restore, throwaway-key full round trip, and operator-owned real Claude-day Drive drill; qualify and land before retention.
+
+
+## Estimate
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.* Calibration is stale, so this is provisional. The approved detailed plan earns the 0.2 design multiplier and 15% design buffer. Familiarity is 1.0: #678's Drive, filesystem and fake seams are already familiar.
+
+Library check: encoding/json, archive/tar, existing safe filesystem/commitoutcome helpers and x/sys exclusive-rename bindings cover the novel modules' mechanics; use half the greenfield design midpoint (1.25/2), then the 0.2 spec discount = 0.125 per concern. Smaller extensions use 0.15*0.2=0.03. Drive integration uses design midpoint 2*0.2=0.4. Implementation values are already 40% of the v2 table (0.4 for smaller modules, 0.7–0.8 for greenfield modules, 1.0 for API integration, 0.4 per review). No second scale is applied. Total design 1.26 h, scaled implementation 3.48 h, yielding 1.26*1.15+3.48=4.929 h (rounded 4.93 h). Operator scheduling/idle time is excluded.
+
+- compatible label codec/shared keys: smaller-go-module.
+- index entities, merge and find: greenfield-go-module.
+- atomic store and owned staging: greenfield-go-module.
+- read-only catalog and local discovery: smaller-go-module.
+- batched Drive label synchronization/stateful fake: api-integration.
+- isolated streaming decoder: greenfield-go-module.
+- bounded tar verifier/extractor: greenfield-go-module.
+- restore orchestration/exclusive publication: greenfield-go-module.
+- find CLI: smaller-go-module.
+- sync-index CLI: smaller-go-module.
+- restore CLI: smaller-go-module.
+- docs and drill: atlas-docs.
+- M1 review: milestone-review.
+- M2 review: milestone-review.
+- final close review: milestone-review.
+- installed rclone conformance and operator drill preparation: real-api-discovery.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module design=0.03 impl=0.16
+item: greenfield-go-module design=0.125 impl=0.28
+item: greenfield-go-module design=0.125 impl=0.28
+item: smaller-go-module design=0.03 impl=0.16
+item: api-integration design=0.4 impl=0.4
+item: greenfield-go-module design=0.125 impl=0.28
+item: greenfield-go-module design=0.125 impl=0.32
+item: greenfield-go-module design=0.125 impl=0.32
+item: smaller-go-module design=0.03 impl=0.16
+item: smaller-go-module design=0.03 impl=0.16
+item: smaller-go-module design=0.03 impl=0.16
+item: atlas-docs design=0.025 impl=0.08
+item: milestone-review design=0.02 impl=0.16
+item: milestone-review design=0.02 impl=0.16
+item: milestone-review design=0.02 impl=0.16
+item: real-api-discovery design=0 impl=0.24
+design-buffer: 0.15
+total: 4.93
+```
 
 ## Log
 
