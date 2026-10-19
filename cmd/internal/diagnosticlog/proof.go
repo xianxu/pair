@@ -81,7 +81,10 @@ func VerifyWriters(ctx context.Context, path string, registered []Registration, 
 
 // OSInspection deliberately retains data when lsof/native process inspection is unavailable or denies
 // inspection. It reads process metadata only; no trace contents are inspected.
-type OSInspection struct{ processes processInspection }
+type OSInspection struct {
+	processes       processInspection
+	openFileCommand func(context.Context, ...string) ([]byte, []byte, error)
+}
 
 type processInspection interface {
 	Snapshot(context.Context) ([]procutil.Observation, error)

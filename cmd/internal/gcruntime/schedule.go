@@ -77,6 +77,7 @@ func (s *Service) Batch(ctx context.Context, cursor string, limit int) (string, 
 		return "", true, nil
 	}
 	path := paths[index]
+	ctx = diagnosticlog.SweepContext(ctx, []string{path})
 	segment := ""
 	if path == state.Path && !state.After {
 		segment = state.Segment

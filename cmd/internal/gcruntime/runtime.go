@@ -58,9 +58,7 @@ func NewWithInspection(root string, inspection diagnosticlog.Inspection) (*Servi
 		return ""
 	})
 	opts.RetentionPeriod = diagnosticlog.RetentionPeriod
-	opts.Proof = func(ctx context.Context, path string, writers []diagnosticlog.Registration) error {
-		return diagnosticlog.VerifyWriters(ctx, path, writers, inspection)
-	}
+	opts.Proof = diagnosticlog.InspectionProof(inspection)
 	return &Service{Collector: collector, DiagnosticOptions: opts}, nil
 }
 
@@ -190,7 +188,9 @@ func (s *Service) Preview(ctx context.Context) (r Report, err error) {
 	if err != nil {
 		return r, err
 	}
-	for _, path := range diagnosticPaths(&r.Storage, entries) {
+	paths := diagnosticPaths(&r.Storage, entries)
+	ctx = diagnosticlog.SweepContext(ctx, paths)
+	for _, path := range paths {
 		if ctx.Err() != nil {
 			return r, ctx.Err()
 		}
@@ -219,6 +219,7 @@ func (s *Service) Apply(ctx context.Context, limit int) (r Report, err error) {
 		return r, err
 	}
 	paths := diagnosticPaths(&r.Storage, entries)
+	ctx = diagnosticlog.SweepContext(ctx, paths)
 	for i, path := range paths {
 		if i >= limit {
 			break
@@ -356,6 +357,7 @@ func (s *Service) diagnosticsOnly(ctx context.Context, apply bool, limit int) (r
 		return r, err
 	}
 	paths := diagnosticPaths(&inventory, entries)
+	ctx = diagnosticlog.SweepContext(ctx, paths)
 	// Do not return session rows or unknown authored paths from a diagnostic scope.
 	for i, path := range paths {
 		if apply && i >= limit {

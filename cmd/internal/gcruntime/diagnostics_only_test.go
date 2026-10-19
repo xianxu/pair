@@ -13,7 +13,15 @@ import (
 	"github.com/xianxu/pair/cmd/internal/storagegc"
 )
 
-type heldDiagnostic struct{ holders []diagnosticlog.Registration }
+type heldDiagnostic struct {
+	holders   []diagnosticlog.Registration
+	snapshots int
+}
+
+func (p *heldDiagnostic) Snapshot(context.Context, []string) (diagnosticlog.Inspection, error) {
+	p.snapshots++
+	return &heldDiagnostic{holders: append([]diagnosticlog.Registration(nil), p.holders...)}, nil
+}
 
 func (p *heldDiagnostic) OpenFiles(context.Context, string) ([]diagnosticlog.Registration, error) {
 	return p.holders, nil
@@ -36,12 +44,15 @@ func TestDiagnosticsOnlyRevalidatesHoldersAndNeverTouchesSessionClocks(t *testin
 				}
 			}
 			path := filepath.Join(c.Root, "wrap-events-owner0.jsonl")
-			if err := os.WriteFile(path, []byte("expired diagnostic"), 0600); err != nil {
-				t.Fatal(err)
-			}
-			at := time.Now().Add(-8 * 24 * time.Hour)
-			if err := os.Chtimes(path, at, at); err != nil {
-				t.Fatal(err)
+			for n := range owners {
+				candidate := filepath.Join(c.Root, fmt.Sprintf("wrap-events-owner%d.jsonl", n))
+				if err := os.WriteFile(candidate, []byte("expired diagnostic"), 0600); err != nil {
+					t.Fatal(err)
+				}
+				at := time.Now().Add(-8 * 24 * time.Hour)
+				if err := os.Chtimes(candidate, at, at); err != nil {
+					t.Fatal(err)
+				}
 			}
 			probes, persists := 0, 0
 			s.Collector.Legacy = func(context.Context, artifactpath.StorageOwner) (storagegc.Liveness, error) {
@@ -54,7 +65,7 @@ func TestDiagnosticsOnlyRevalidatesHoldersAndNeverTouchesSessionClocks(t *testin
 				t.Fatal(err)
 			}
 			preview, err := s.PreviewDiagnostics(context.Background())
-			if err != nil || len(preview.Diagnostics) != 1 || !preview.Diagnostics[0].Eligible {
+			if err != nil || len(preview.Diagnostics) != owners || !preview.Diagnostics[0].Eligible {
 				t.Fatal(preview, err)
 			}
 			after, err := os.ReadDir(c.Root)
@@ -64,7 +75,7 @@ func TestDiagnosticsOnlyRevalidatesHoldersAndNeverTouchesSessionClocks(t *testin
 			// An open holder appearing after preview defeats that advisory decision.
 			probe.holders = []diagnosticlog.Registration{{PID: 123, Birth: "live"}}
 			blocked, err := s.ApplyDiagnostics(context.Background(), 100)
-			if err != nil || blocked.DiagnosticCollectedBytes != 0 || len(blocked.Diagnostics) != 1 || blocked.Diagnostics[0].Eligible {
+			if err != nil || blocked.DiagnosticCollectedBytes != 0 || len(blocked.Diagnostics) != owners || blocked.Diagnostics[0].Eligible {
 				t.Fatal(blocked, err)
 			}
 			if _, err := os.Stat(path); err != nil {
@@ -72,11 +83,14 @@ func TestDiagnosticsOnlyRevalidatesHoldersAndNeverTouchesSessionClocks(t *testin
 			}
 			probe.holders = nil
 			collected, err := s.ApplyDiagnostics(context.Background(), 100)
-			if err != nil || collected.DiagnosticCollectedBytes != int64(len("expired diagnostic")) {
+			if err != nil || collected.DiagnosticCollectedBytes != int64(owners*len("expired diagnostic")) {
 				t.Fatal(collected, err)
 			}
 			if _, err := os.Stat(path); !os.IsNotExist(err) {
 				t.Fatal("expired payload remains", err)
+			}
+			if probe.snapshots != 3 {
+				t.Fatalf("N=%d inspections=%d want one for each preview/apply sweep", owners, probe.snapshots)
 			}
 			if probes != 0 || persists != 0 {
 				t.Fatalf("diagnostic scope evaluated sessions: probes=%d persists=%d", probes, persists)
