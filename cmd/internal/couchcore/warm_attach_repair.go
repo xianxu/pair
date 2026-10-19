@@ -2,7 +2,6 @@ package couchcore
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -90,7 +89,7 @@ func (s *ThreadStore) RepairDeadClientHelper(ctx context.Context, before ThreadR
 				return err
 			}
 		}
-		encoded, err := json.MarshalIndent(toPersistedThreadRecord(next), "", "  ")
+		encoded, err := encodeThreadRecord(next)
 		if err != nil {
 			return err
 		}

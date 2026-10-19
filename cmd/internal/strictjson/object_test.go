@@ -176,3 +176,30 @@ func rawStrings(m map[string]json.RawMessage) map[string]string {
 	}
 	return out
 }
+
+func TestAppendMembersKeepsFormattingAndBytes(t *testing.T) {
+	known := map[string]bool{"name": true}
+	indented := []byte("{\n  \"name\": \"a\"\n}")
+	out, err := AppendMembers(indented, map[string]json.RawMessage{
+		"z": json.RawMessage(`{ "k" : 1 }`), "name": json.RawMessage(`"shadow"`),
+	}, known)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "{\n  \"name\": \"a\",\n  \"z\": { \"k\" : 1 }\n}"
+	if string(out) != want {
+		t.Fatalf("AppendMembers = %q, want %q", out, want)
+	}
+	if out, err := AppendMembers([]byte("{}"), map[string]json.RawMessage{"x": json.RawMessage(`1`)}, known); err != nil || string(out) != "{\n  \"x\": 1\n}" {
+		t.Fatalf("empty object: %q, %v", out, err)
+	}
+	if same, err := AppendMembers(indented, nil, known); err != nil || string(same) != string(indented) {
+		t.Fatalf("no members must return the input unchanged: %q, %v", same, err)
+	}
+	if _, err := AppendMembers([]byte("[1]"), map[string]json.RawMessage{"x": json.RawMessage(`1`)}, known); err == nil {
+		t.Fatal("AppendMembers accepted a non-object")
+	}
+	if _, err := AppendMembers(indented, map[string]json.RawMessage{"x": json.RawMessage(`{"a":1,"a":2}`)}, known); err == nil {
+		t.Fatal("AppendMembers accepted a duplicate-key value")
+	}
+}

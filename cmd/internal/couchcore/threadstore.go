@@ -278,7 +278,7 @@ func (s *ThreadStore) CreateThread(record ThreadRecord) (ThreadRecord, error) {
 // record file appears. The manifest entry stays with the caller, because a
 // replace edits the manifest once for both of its halves.
 func (s *ThreadStore) createJournalEntries(record ThreadRecord) ([]storeJournalEntry, error) {
-	recordRaw, err := json.MarshalIndent(toPersistedThreadRecord(record), "", "  ")
+	recordRaw, err := encodeThreadRecord(record)
 	if err != nil {
 		return nil, err
 	}
@@ -481,7 +481,7 @@ func (s *ThreadStore) updateExistingThreadOnBackend(ctx context.Context, address
 				return err
 			}
 		}
-		raw, err := json.MarshalIndent(toPersistedThreadRecord(next), "", "  ")
+		raw, err := encodeThreadRecord(next)
 		if err != nil {
 			return err
 		}
@@ -943,7 +943,7 @@ func (s *ThreadStore) advanceSuccessfulStart(address ThreadAddress, expectedRevi
 		if err := ValidateThreadRecord(next); err != nil {
 			return err
 		}
-		nextThreadRaw, err := json.MarshalIndent(toPersistedThreadRecord(next), "", "  ")
+		nextThreadRaw, err := encodeThreadRecord(next)
 		if err != nil {
 			return err
 		}

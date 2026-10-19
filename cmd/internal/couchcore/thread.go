@@ -3,12 +3,13 @@ package couchcore
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/xianxu/pair/cmd/internal/couchidentity"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
+	"github.com/xianxu/pair/cmd/internal/couchidentity"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
+	"github.com/xianxu/pair/cmd/internal/strictjson"
 	"github.com/xianxu/pair/cmd/internal/threadrecord"
 )
 
@@ -93,6 +94,9 @@ type ThreadRecord struct {
 	Park         *ParkTransaction  `json:"park,omitempty"`
 	VerifiedPark *VerifiedPark     `json:"verified_park,omitempty"`
 	ParkHistory  []ParkTransaction `json:"park_history,omitempty"`
+	// Unknown carries persisted members this build does not own through every
+	// rewrite (pair#695 §2a); see threadrecord.Record.Unknown.
+	Unknown map[string]json.RawMessage `json:"-"`
 }
 
 var threadRecordValidators = threadrecord.Validators{
@@ -135,6 +139,7 @@ func toPersistedThreadRecord(record ThreadRecord) threadrecord.Record {
 		out.LatestLaunchProfile = &threadrecord.LaunchProfile{Agent: profile.Agent, Argv: profile.Argv}
 	}
 	out.LastActiveAt = record.LastActiveAt
+	out.Unknown = strictjson.CloneRaw(record.Unknown)
 	if record.Park != nil {
 		park := toPersistedParkTransaction(*record.Park)
 		out.Park = &park
@@ -209,6 +214,7 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 		out.LatestLaunchProfile = &profile
 	}
 	out.LastActiveAt = record.LastActiveAt
+	out.Unknown = strictjson.CloneRaw(record.Unknown)
 	if record.Park != nil {
 		park := fromPersistedParkTransaction(*record.Park)
 		out.Park = &park
@@ -261,6 +267,12 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 	return out
 }
 
+// encodeThreadRecord is the one way a thread record reaches disk, so every
+// writer keeps the members it does not own.
+func encodeThreadRecord(record ThreadRecord) ([]byte, error) {
+	return threadrecord.EncodePersisted(toPersistedThreadRecord(record))
+}
+
 func cloneThreadRecord(record ThreadRecord) ThreadRecord {
 	copy := record
 	copy.RecoveryIntent = threadrecord.CloneRecoveryIntent(record.RecoveryIntent)
@@ -272,6 +284,7 @@ func cloneThreadRecord(record ThreadRecord) ThreadRecord {
 		copy.Continuation = &request
 	}
 	copy.ContinuationMissed = cloneMiss(record.ContinuationMissed)
+	copy.Unknown = strictjson.CloneRaw(record.Unknown)
 	copy.Incarnations = append([]ThreadIncarnation{}, record.Incarnations...)
 	for i := range copy.Incarnations {
 		if record.Incarnations[i].Start != nil {

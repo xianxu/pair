@@ -128,3 +128,43 @@ func MergeRaw(a, b map[string]json.RawMessage) map[string]json.RawMessage {
 	}
 	return n
 }
+
+// AppendMembers adds preserved unknown members to an already encoded object,
+// keeping its formatting (for example json.MarshalIndent output) and writing
+// each value verbatim, sorted by name. Members named like owned ones are
+// dropped; a value that is not one clean JSON value refuses.
+func AppendMembers(encoded []byte, unknown map[string]json.RawMessage, known map[string]bool) ([]byte, error) {
+	keys := make([]string, 0, len(unknown))
+	for k, v := range unknown {
+		if known[k] {
+			continue
+		}
+		if err := rejectDuplicateKeys(v); err != nil {
+			return nil, fmt.Errorf("preserved JSON member %s: %w", k, err)
+		}
+		keys = append(keys, k)
+	}
+	if len(keys) == 0 {
+		return encoded, nil
+	}
+	body := bytes.TrimRight(encoded, " \t\r\n")
+	if len(body) == 0 || body[len(body)-1] != '}' {
+		return nil, errors.New("encoded value is not a JSON object")
+	}
+	body = bytes.TrimRight(body[:len(body)-1], " \t\r\n")
+	empty := len(body) > 0 && body[len(body)-1] == '{'
+	sort.Strings(keys)
+	out := append([]byte(nil), body...)
+	for i, k := range keys {
+		if i > 0 || !empty {
+			out = append(out, ',')
+		}
+		name, _ := json.Marshal(k)
+		out = append(out, "\n  "...)
+		out = append(out, name...)
+		out = append(out, ": "...)
+		out = append(out, unknown[k]...)
+	}
+	out = append(out, "\n}"...)
+	return out, nil
+}
