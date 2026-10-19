@@ -1,6 +1,6 @@
 ---
 id: 000681
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-18
@@ -8,7 +8,15 @@ updated: 2026-10-18
 estimate_hours:
 severity: high
 collaboration-mode: collaboration
-card_mirror: 'cb98c32bc2bda667d18c1e99a8097de88edef9cb' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '0be6f0c22706ae465bee9eda50e845d2f38b6279' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-18T18:19:31-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:5
+    worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Recover park inventory exceeds CLI admission deadline
@@ -30,7 +38,11 @@ Allocate and publish the operation receipt before building the inventory. Queue 
 
 ## Plan
 
-Move expensive inventory preparation behind receipt allocation while retaining the captured selection identity and existing operation queue. Design the precise selection/confirmation ordering before implementation; this filing does not approve weakened identity checks.
+- [ ] Bind exact address/nonce from known cached console rows, then admit receipt before full inventory; refuse unavailable/ambiguous cache with refresh advice.
+- [ ] Keep queued revalidation, dispatch authorization and lifecycle nonce checks; prove transport beyond2s, duplicates, replacement, cancellation and bounded growth.
+- [ ] Required suite, close review, hub-coordinated conformance and normal landing.
+
+Durable design: workshop/plans/000681-park-recovery-admission-plan.md. Pending hub approval; no code changed.
 
 ## Log
 
@@ -39,3 +51,9 @@ Move expensive inventory preparation behind receipt allocation while retaining t
 Evidence: recover-park request IDs c8715942-f76f-4175-a2f7-fdbb85a54d86 and 56e33c49-e58f-4402-814f-99cd313dc886 each timed out at the client; hub caller verified both receipts unknown. Adjacent resume receipts measured preparation at 3.055s and 5.233s. Hub message 55a5b467-e030-4b23-b0c6-b81f15b47320 confirmed unknown receipts and requested this separate filing.
 
 Code: couchcmd/slot_operations.go handle calls preparePark before admit; console_slot_operations.go preparePark calls PrepareSlotOperation; couchcore/slot_operation.go builds ActionableThreadInventoryContext; couchcmd/messages.go gives the entire admission exchange couchmessage.AdmissionTimeout (2s). The normal queued resume performs its preparation after receipt allocation. ARCH-ORDER: receipt admission precedes bounded queued preparation; retain exact transaction authority.
+
+## Revisions
+
+2026-10-18 — Planning after hub dispatch. Full-inventory-first violates the admission budget; moving the first binding to execution would weaken exact selection. Use an existing cached console snapshot for immutable selection before receipt, then queue expensive revalidation. Unknown/ambiguous cache refuses explicitly. Preserve original Done-when and exact-identity contract; #683 diagnostics stays separate.
+
+2026-10-18 — Start-plan refreshed the environment dependency and asked for a rerun; rerun created canonical issue branch from fresh main. Design is awaiting hub approval; no implementation/test/build was initiated except the gate-owned dependency tool refresh.
