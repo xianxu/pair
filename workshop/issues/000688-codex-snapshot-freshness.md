@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-18
 updated: 2026-10-19
-estimate_hours:
+estimate_hours: 4.27
 collaboration-mode: collaboration
-card_mirror: '979ecc1c7c2f5a67b440f0b77ac4725c0cda1dfb' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '8bf6d412a07a76e9ae3a15076d6062135a9fc3c2' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-19T01:53:02-07:00
 claimant:
     operator: Xian Xu
@@ -16,7 +16,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "ddb4876c", done: "16f91cb5"}
+flow: {kind: full, provenance: operator}
 ---
 
 # Codex database snapshots can starve under continuous writes
@@ -64,3 +64,22 @@ Single-pass full flow: [durable implementation plan](../plans/000688-codex-snaps
 
 - 2026-10-19, hub-approved reader contract and scope: replace copy-then-compare acquisition with a bounded SQLite read-only transaction and pinned online backup. DB/WAL content is never written by the reader; normal SHM coordination is allowed. Preserve unknown SQLite schema and implicit rowids through opaque backup. Keep catalog, manifest, label and configuration formats unchanged; no codec expansion or dependency on unlanded #689.
 - 2026-10-19, plan-quality PQ-1/PQ-2/PQ-3 before implementation: the Go parent-owned deadline alone cannot bound an orphaned SQLite reader after collector death. Proposed revision is a kernel alarm armed by a tiny Perl exec launcher, plus an inherited flock on each private work directory so Sweep cannot remove a surviving reader's scratch. A private actual-sqlite3 probe killed its collector, proved the inherited lease remained held, then proved the alarm independently ended the SQLite reader and released the lease. Probe retained at /tmp/pair688-owner-death-probe.py. Perl is present here; this would add a runtime prerequisite, not an installation, and is awaiting hub approval. Simpler parent-only cancellation is insufficient; a new SQLite library or platform-specific Go timer launcher is a larger alternative. Ambiguous generic SQLite exit failures must be Failed/unknown, never inferred busy from stderr; only context/alarm evidence supports a timeout classification. Compress duplicate prose test inventories into the existing function/strategy table. No implementation started.
+- 2026-10-19, hub c6bca0a7-27cc-4445-a53a-a28b509b2102 rejected the extra Perl prerequisite and directed an internal same-binary Go alarm/exec route. Revised durable plan uses Darwin SYS_SETITIMER (measured working) and Linux unix.Setitimer, retains the inherited work lease, and leaves generic CLI errors unknown. Plan-quality round 2 addressed PQ-1/PQ-2/PQ-3 with no new findings. Filed requested freshness warning as unclaimed dependent #700. Estimate derived only after plan-quality passed.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md, Method A. Calibration is marked stale by estimate-source, so provisional. Issue/spec includes the mechanism investigation; subsequent module design uses the detailed-plan ×0.2 discount. Existing SQLite online backup and x/sys/syscall avoid a new library: the helper's 1.5h raw design is halved for available primitives then discounted to 0.15h. Implementation values are 40% of v2 values; 1.5 familiarity reflects bounded but unfamiliar WAL/alarm integration. One external SQLite API discovery, one close boundary; no cross-repo propagation.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.5
+item: issue-spec design=1.0 impl=0.08
+item: api-integration design=0.4 impl=0.6
+item: greenfield-go-module design=0.15 impl=0.24
+item: smaller-go-module design=0.06 impl=0.2
+item: atlas-docs design=0.02 impl=0.06
+item: milestone-review design=0.02 impl=0.16
+item: real-api-discovery design=0 impl=0.24
+design-buffer: 0.15
+total: 4.27
+```
