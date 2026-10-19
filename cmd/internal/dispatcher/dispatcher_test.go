@@ -374,3 +374,40 @@ func TestDispatchKeysReturnsKeybindings(t *testing.T) {
 		t.Error("routed to the CLI synopsis instead of the keybindings")
 	}
 }
+
+func TestReviewGroupHelp(t *testing.T) {
+	for _, args := range [][]string{{"review"}, {"review", "--help"}, {"review", "-h"}} {
+		res := Dispatch(args)
+		if res.ExitCode != 0 || res.Stderr != "" {
+			t.Errorf("Dispatch(%v) = %+v, want successful help", args, res)
+		}
+		for _, leaf := range []string{"target", "open", "readiness", "definition", "apply", "round"} {
+			if !strings.Contains(res.Stdout, "review "+leaf) {
+				t.Errorf("Dispatch(%v) help missing review %s: %q", args, leaf, res.Stdout)
+			}
+		}
+		if strings.Contains(res.Stdout, "clip ") {
+			t.Errorf("review help contains another group: %q", res.Stdout)
+		}
+	}
+}
+
+func TestGroupHelpPreservesUnknownCommands(t *testing.T) {
+	for _, args := range [][]string{{"review", "missing"}, {"review", "--help", "extra"}, {"missing", "--help"}} {
+		if res := Dispatch(args); res.ExitCode != 2 || res.Stdout != "" {
+			t.Errorf("Dispatch(%v) = %+v, want unknown-command refusal", args, res)
+		}
+	}
+}
+
+func TestImplementedSiblingGroupHelp(t *testing.T) {
+	for _, group := range []string{"agent", "layout", "scrollback", "changelog", "clip", "session-log"} {
+		for _, suffix := range [][]string{nil, {"--help"}, {"-h"}} {
+			args := append([]string{group}, suffix...)
+			res := Dispatch(args)
+			if res.ExitCode != 0 || res.Stderr != "" || !strings.Contains(res.Stdout, "Usage:") || !strings.Contains(res.Stdout, group+" ") {
+				t.Errorf("Dispatch(%v) = %+v, want group help", args, res)
+			}
+		}
+	}
+}

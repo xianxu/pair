@@ -396,6 +396,14 @@ service checks the live registered caller and its connected workspace against
 the supervisor's hub root, then calls Console.NotifyDesktop through the shared
 presenter writer. Other callers get advice to send to the hub instead. There is
 no notification queue, receipt store or automatic retry on an uncertain write.
+Supervisor notifications use ST-terminated OSC 777 directly on the console host
+writer (stdout), outside the child OSC suppression path. A successful CLI reply
+says `Notification written; desktop delivery not confirmed.` This confirms the
+write only; the terminal protocol supplies no desktop-display acknowledgement.
+For Ghostty the `desktop-notifications` setting must be true (default), macOS
+Notifications permission and an alert style must allow Ghostty, and Focus must
+permit the alert. Focused versus unfocused presentation needs operator observation;
+Couch neither changes those settings nor retries to infer them.
 Existing CLI messaging verbs omit notification-only fields for older supervisors.
 The CLI distinguishes an explicit unsupported-notify decode refusal from missing
 messaging registration and uncertain replies; only the latter leaves the effect
