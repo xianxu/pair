@@ -194,8 +194,34 @@ func TestHubStartupTwoHubsPreserveFirstFocus(t *testing.T) {
 }
 
 func TestHubStartupLaterFailureLeavesFirstUsable(t *testing.T) {
+	testHubStartupLaterFailure(t, false)
+}
+
+// The explicit hub queue and the warm-only pass start children independently,
+// in no defined order (pair#697). Holding the second hub's start until the warm
+// worker has started forces the order the failed run took.
+func TestHubStartupLaterFailureAfterWarmWorkerLeavesFirstUsable(t *testing.T) {
+	testHubStartupLaterFailure(t, true)
+}
+
+func testHubStartupLaterFailure(t *testing.T, warmFirst bool) {
 	r := newHubStartupRig(t, false)
-	r.rt.runner.FailNextStart(errors.New("isolated second hub launch refusal"))
+	r.rt.runner.FailNextStartIn(r.paths[1], errors.New("isolated second hub launch refusal"))
+	if warmFirst {
+		actual := r.console.Ops()
+		r.console.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
+			if call.Name == "start-hub" {
+				testwait.Until(t, "warm worker starts before the second hub", func() bool {
+					r.mu.Lock()
+					defer r.mu.Unlock()
+					return len(r.children) >= 2
+				})
+			}
+			v, e := actual(call)
+			r.calls <- dispatchedCall{call, e}
+			return v, e
+		})
+	}
 	startExplicitHubs(r.console, r.hubs)
 	r.run(t)
 	if call := r.await(t, "start-hub"); call.err == nil || !strings.Contains(call.err.Error(), "isolated second hub launch refusal") {
