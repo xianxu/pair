@@ -10,6 +10,7 @@ representative evidence, not an exhaustive index.
 - A design refinement that moves state or file ownership also updates the current Core concepts map, with the prior mapping preserved in Revisions. A later correct paragraph does not repair a contradictory table; distinguish pure value state from its IO methods explicitly. (#686 BR-1)
 
 - Count every IO lane used by a performance claim, including publication guards outside the main reader runtime. Cache hits before a writer lock do not eliminate the guard's own full reread: reuse exact identity-fenced evidence under that same lock and prove append/replacement invalidation before effects. (#686)
+- Derive a multi-item fixture's byte budget from every item it must admit. Equal source lengths do not imply equal archive or metadata lengths: fractional timestamps can change both. Use deliberately unequal fixtures and assert that each fits alone while their sum does not. (#696)
 
 - Put exact-target authorization inside the shared journal replay operation, not only its original caller: reopen, append and maintenance can all replay a deletion. Test a held rotated payload through every replay entry point. Preserve completed effects separately from errors, and report retained blockers without labeling unattempted candidates as removed. (#677 close review)
 - Classify scheduler errors at the actual collection boundary: stale declarations, changed certificates, malformed per-log state and blocked recovery are path-local blockers. Preserve them for preview and advance the bounded cursor; test the whole class before a later eligible path. Native acquisition, global inventory, cancellation and coordination failures remain distinct. A missing-parent-only exception does not satisfy this rule. (#677 close review)
@@ -1654,7 +1655,7 @@ proof; record the surprising case so the next change starts from evidence.
   delayed-before-ingress payloads as well as already-queued writes. Audit sibling
   mutation routes (request, release and input) for the same temporal gap.
 - For animation settlement, border-box intersection is not a painted-influence proof even on leaves (shadows/filters/outline). Prefer bounded conservative document-wide observation to accumulating incomplete paint exclusions; label uncertainty explicitly.
-- **A plan names verification functions and strategies, not a prose copy of test cases (#526 plan-quality).** For each risky function, name the adversarial input class and mechanical guard. Retention claims must distinguish actual operator deletion and capacity refusal from staging cleanup; a staging remover is not an automatic retained-evidence sweeper.
+- **A plan names verification functions and strategies, not a prose copy of test cases (#526 and #687 plan-quality).** For each risky function, name the adversarial input class and mechanical guard. Retention claims must distinguish actual operator deletion and capacity refusal from staging cleanup; a staging remover is not an automatic retained-evidence sweeper.
 
 - **A new production Go file must enter the exhaustive source inventory (#526).** Register its artifact ownership in `cmd/internal/artifactpath/manifest.go` alongside the package's existing sources, then run `TestProductionArtifactReferencesAreExactlyClassified`; targeted package tests alone do not exercise this repository-wide invariant.
 
@@ -1680,7 +1681,7 @@ proof; record the surprising case so the next change starts from evidence.
   projection before clicking, never combine a new screen with old coordinates.
   Bound fixture waits independently of the package deadline so one missed menu
   does not consume the entire suite's time budget.
-- Fresh review checkouts must run make runtimebundle-generate before direct Go tests that import embedded runtime assets; make build/test already supply that prerequisite. Distinguish Chrome startup failure from a failed capture assertion and rerun the unchanged live check before changing product code.
+- Fresh review checkouts and reused issue slots must run make runtimebundle-generate before direct Go tests that import embedded runtime assets; make build/test already supply that prerequisite. Distinguish Chrome startup failure from a failed capture assertion and rerun the unchanged live check before changing product code.
 
 - A macOS Seatbelt-fenced reviewer can prevent Chrome GPU startup even with an allow-default profile. Before treating this as failed product conformance, compare the identical test under the fence and in the authorized parent environment, retaining real assertion evidence and the review fence.
 
@@ -2333,3 +2334,7 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #576: A new row suffix must preserve the existing label-width floor after all suffix composition, including owner labels. Geometry-only render checks can pass while the slot identity and selection marker disappear; assert those visible fields with oversized running and failed details through the real renderer. Keep full retained diagnostics separate from clipped display text.
 
 - #576: Inserting a declaration above another declaration must not steal its preceding godoc. Keep each comment adjacent to its named declaration and run the existing termcmd declaration-comment guard alongside the source-inventory guards before an expensive suite; that guard covers production files across packages.
+
+- #687 close review: a composition regression must enter the production options/constructor path with its stateful inspection seam. Replacing its Proof in the test only verifies the adapter, not the wiring; confirm a controlled wiring removal fails the production-path regression. Freeze prepared issue/plan artifacts while close reviews run, even for verification-only log updates.
+
+- #687 BR-1: pure predicates use literal value fixtures, even when a convenient integration fixture exists. Audit setup as well as assertions: a test for a PURE entity must not create/read metadata or inject a process probe; keep those effects in separate integration tests.
