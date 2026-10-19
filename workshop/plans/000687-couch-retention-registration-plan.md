@@ -97,7 +97,7 @@ Files: create cmd/internal/diagnosticlog/runtime_registry.go/runtime_registry_te
 
 ### Task 3: Publish from Couch and qualify the boundary
 
-Files: modify cmd/internal/couchcore/couch.go/runtime_retention_test.go and cmd/internal/artifactpath/manifest.go; update atlas/data/storage-retention.md (or its actual existing retention owner after inspection) and atlas/index.md only if needed.
+Files: modify cmd/internal/couchcore/couch.go/runtime_retention_test.go and cmd/internal/artifactpath/manifest.go; update atlas/storage-retention.md and atlas/index.md only if needed.
 
 - [ ] Extend TestCoordinatedCouchRegistersActualRootRuntime to require the supported diagnostic capability and retained ID/idempotency. Reuse the constructor's owned temp roots and verify no owner activity is initialized.
 - [ ] Have Couch request the capability through the existing RegisterRuntime transaction before admitting the coordinated store. Add both new production files to artifactpath's exhaustive source classification.
@@ -107,6 +107,12 @@ Files: modify cmd/internal/couchcore/couch.go/runtime_retention_test.go and cmd/
 
 ### Final gates and live arrangement
 
-After approval, run change-code before implementation; use the full flow if the final diff exceeds the quick shell. Open an early draft PR for CI overlap, run the recorded suite on pushed code, close review, then promptly enter sdlc merge --yes. No live apply, process intervention or pair:0 staging is proposed. Ask the hub to accept the owned conformance/read-only preview now and verify the real supervisor's version-1 lease and updated preview after its next operator-coordinated restart. Any further real deletion requires a separate preview and explicit apply approval.
+After approval, run sdlc change-code --issue 687 --flow full before implementation; the wire codec and shared observation adapter are expected to exceed 100 added production lines. Open an early draft PR for CI overlap, run the recorded suite on pushed code, close review, then promptly enter sdlc merge --yes. No live apply, process intervention or pair:0 staging is proposed. Ask the hub to accept the owned conformance/read-only preview now and verify the real supervisor's version-1 lease and updated preview after its next operator-coordinated restart. Any further real deletion requires a separate preview and explicit apply approval.
 
 The recorded suite/CI/merge are workflow gates, not unchecked implementation Plan rows to waive at close. Report the verified landing and restart steps to the hub; the hub owns the project file.
+
+## Revisions
+
+### 2026-10-18 — pre-approval path and flow qualification
+
+Confirmed the existing atlas owner is atlas/storage-retention.md. Pin the full flow because preserving the private wire format and consuming its identity-fenced observation together exceed the quick shell; this keeps the architectural plan review explicit. No behavior or scope change.
