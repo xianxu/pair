@@ -3,7 +3,7 @@ id: 000712
 status: working
 created: 2026-10-19
 updated: 2026-10-19
-estimate_hours:
+estimate_hours: 1.9
 github_issue:
 flake_tests: [github.com/xianxu/pair/cmd/internal/couchcore.TestSpawnComposesProductionPairRegistrationBoundary]
 started: 2026-10-19T14:08:10-07:00
