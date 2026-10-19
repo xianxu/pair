@@ -465,3 +465,46 @@ func waitFor(t *testing.T, ok func() bool) {
 	}
 	t.Fatal("condition never held")
 }
+
+// The registry's left-running rows ride the same verb (pair#695): named and
+// refused without --confirm, ended by exact identity with it, and a recycled
+// pid is skipped, never signalled.
+func TestReapOrphansCLIEndsLeftRunningByExactIdentity(t *testing.T) {
+	entry := func(pid int, identity string) couchcore.LeftRunningOrphan {
+		return couchcore.LeftRunningOrphan{Origin: "slot:/w/pair", Thread: couchcore.ThreadAddress{RepoScope: "s", Tag: "couch-1"}, Process: couchcore.ProcessIdentity{PID: pid, Identity: identity}, Command: "sdlc", LeftAt: time.Unix(1760100000, 0)}
+	}
+	view := couchcore.ResourceView{SampledAt: time.Unix(1760100000, 0), LeftRunning: []couchcore.LeftRunningOrphan{entry(5100, "gen-1"), entry(5200, "gen-2")}}
+	newTable := func() *fakeOrphanTable {
+		return &fakeOrphanTable{
+			rows:   []launcher.ProcessRow{{PID: 5100, PPID: 1, Identity: "gen-1", Name: "sdlc"}, {PID: 5200, PPID: 1, Identity: "gen-9", Name: "sdlc"}},
+			ids:    map[int]string{5100: "gen-1", 5200: "gen-9"},
+			diesOn: map[int]syscall.Signal{5100: syscall.SIGTERM},
+		}
+	}
+
+	table := newTable()
+	var sent []couchmessage.Request
+	var out, errw bytes.Buffer
+	if code := runReapOrphansCLI(cliInvocation{messageOp: orphanReapOp}, testRT{dir: t.TempDir()}, &out, &errw, reapCLIStub(t, view, &sent), fastOrphanReaper(table)); code == 0 || len(table.signals) != 0 {
+		t.Fatalf("unconfirmed: exit %d, signals %v", code, table.signals)
+	}
+	if text := out.String(); !strings.Contains(text, leftRunningSection) || !strings.Contains(text, "pid=5100 sdlc thread=s/couch-1") {
+		t.Fatalf("unconfirmed report:\n%s", text)
+	}
+
+	table = newTable()
+	sent, out, errw = nil, bytes.Buffer{}, bytes.Buffer{}
+	code := runReapOrphansCLI(cliInvocation{messageOp: orphanReapOp, confirmed: true}, testRT{dir: t.TempDir()}, &out, &errw, reapCLIStub(t, view, &sent), fastOrphanReaper(table))
+	if len(table.signals[5100]) != 1 || len(table.signals[5200]) != 0 {
+		t.Fatalf("signals %v, want only the exact identity ended", table.signals)
+	}
+	text := out.String()
+	for _, want := range []string{"reaped left-running pid=5100", "skipped left-running pid=5200"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("missing %q in:\n%s", want, text)
+		}
+	}
+	if code != 0 {
+		t.Fatalf("exit %d: %s", code, text)
+	}
+}

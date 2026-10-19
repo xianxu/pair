@@ -854,6 +854,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/lifetime_lease.go",
 	"cmd/internal/couchcore/teardown.go",
 	"cmd/internal/couchcore/retire.go",
+	"cmd/internal/couchcore/orphan_registry.go",
 	"cmd/internal/couchcore/lifecyclefailure.go",
 	"cmd/internal/couchcore/lifecyclefailure_codec.go",
 	"cmd/internal/couchcore/lifecyclefailure_record.go",

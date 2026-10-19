@@ -737,3 +737,19 @@ Steps:
   `AddressKind`, `TeamIdentity`, `NewTeamAddress` and its dead-symbol allowlist entry, plus the team tests. The hub
   approved both step-5 deviations, `FreshLeavesRemnants` and the per-thread lease with the tty trusted only while
   the tree is up. The atlas records them at step 8.
+- 2026-10-19 — **M2 step 6, as built.**
+  - **The registry.** `LeftRunningRegistry` (couchcore/orphan_registry.go) is `<namespace>/orphans.json`. It is
+    tolerant and preserving at every level (file, entry, process), with its own JSON methods on strictjson.
+    Entries are one per exact identity, bounded at 256 with the oldest evicted. Writes run under `orphans.lock`
+    and use the launch-diagnostics store's safe flock and atomic write. The process on disk is lowercase
+    `{pid, identity}`.
+  - **Teardown registers `LeftRunning`.** A failed registration is a note on the proof, never a failed teardown.
+  - **The resource sampler** prunes the registry against each pass's table (an unread table prunes nothing) and
+    publishes the rest as `ResourceView.LeftRunning`. That keeps the request path a memory read.
+  - **`couch --resources`** renders "Left running by teardown" beside the orphan nvim section, and the wire
+    projection bounds it like every other section.
+  - **`--reap-orphans`** names the entries without `--confirm`. With it, each tree is ended by exact identity
+    through the same `launcher.Reaper` fence (one shared `reapExact`), and a recycled pid is skipped.
+  - **Tests:** `TestMergeLeftRunningDedupesAndEvictsOldest`, `TestLeftRunningRegistryAddCapAndPrune`,
+    `TestLeftRunningRegistryPreservesUnknownMembers`, `TestTeardownRegistersWhatItLeftRunning`,
+    `TestResourceSamplerPrunesAndReportsLeftRunning` and `TestReapOrphansCLIEndsLeftRunningByExactIdentity`.

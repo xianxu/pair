@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -48,6 +49,10 @@ type LeftRunningOrphan struct {
 	Command   string          `json:"command"`
 	LeftAt    time.Time       `json:"left_at"`
 	Operation string          `json:"operation,omitempty"`
+	// Unknown and processUnknown keep a newer build's members through a
+	// rewrite of the orphan registry.
+	Unknown        map[string]json.RawMessage `json:"-"`
+	processUnknown map[string]json.RawMessage
 }
 
 // TeardownProof says the thread's tree is gone: the lease is free, nothing
@@ -192,6 +197,13 @@ func (c *Couch) teardown(ctx context.Context, thread ThreadRecord, operation str
 	}
 	proof.Thread, proof.Revision = target.thread.Address, target.thread.Revision
 	proof.LeftRunning = left
+	if len(left) > 0 {
+		// Registered so they stay attributable once the thread is gone;
+		// the proof stands either way, the note says what was not kept.
+		if err := NewLeftRunningRegistry(c.Namespace).Add(ctx, left); err != nil {
+			notes = append(notes, "left-running processes not registered: "+err.Error())
+		}
+	}
 	proof.Notes = append(notes, proof.Notes...)
 	if stop {
 		if err := os.Remove(target.lease); err != nil && !errors.Is(err, os.ErrNotExist) {
