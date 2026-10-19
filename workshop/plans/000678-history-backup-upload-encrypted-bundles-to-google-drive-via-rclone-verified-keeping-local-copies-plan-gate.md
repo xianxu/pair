@@ -19,6 +19,25 @@ reviewer_runs:
       finished_at: "2026-10-19T01:30:20.625045Z"
       session_id: 01a151c7-8c06-7ff0-aee7-ae9a657cfe85
       outcome: returned
+    - version: 1
+      intent:
+        id: ed07594d-6934-4855-816d-6241a6756a71
+        repository: github.com/xianxu/pair
+        issue_id: "000678"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot6/pair
+        reviewed_head: 0d0911474691b0951520e80187a474b019efcc02
+        slot: pair:6
+        requested_at: "2026-10-19T02:00:35.003644Z"
+      phase: finished
+      pid: 86553
+      started_at: "2026-10-19T02:00:35.209503Z"
+      finished_at: "2026-10-19T02:01:03.088563Z"
+      session_id: 01a151e3-a41b-7c33-976f-e256007ccfcb
+      outcome: returned
 gate: plan-quality
 issue: 678
 id_prefix: PQ
@@ -129,7 +148,41 @@ rounds:
           note: The strategy table names risky functions, adversarial input classes and independent mechanical guards without duplicating a prose test inventory.
           round: 3
       blocked: false
-content_hash: 9932f04a93ccf3869fe250b69912ec9ab8781197d65957b6abb597f3f9db8a34
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 7d51366d-7ae1-4020-b14e-74a0a9410df0
+            repository: github.com/xianxu/pair
+            issue_id: "000678"
+            recipe: plan-quality
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot6/pair
+            reviewed_head: 0d0911474691b0951520e80187a474b019efcc02
+            slot: pair:6
+            requested_at: "2026-10-19T02:00:10.730457Z"
+          phase: finished
+          pid: 83008
+          started_at: "2026-10-19T02:00:10.863184Z"
+          finished_at: "2026-10-19T02:00:33.105307Z"
+          session_id: 01a151e3-4494-7af1-a2cd-3011f472c95e
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-18T19:00:33-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Pinned destination identity and multiplicity-preserving flat listings require unique matching objects before receipt publication.
+          round: 4
+        - id: PQ-2
+          disposition: addressed
+          note: Named risky functions have concise adversarial strategies and independent mechanical guards.
+          round: 4
+      blocked: false
+content_hash: 5461fd50d876046a61fe7bebc7ec7a789db3324b141403b33f38dff11086a84f
 ---
 
 # Gate ledger — pair#678 (plan-quality)
@@ -159,6 +212,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - PQ-1 — addressed — Pinned destination identity and duplicate-preserving before/after listings require unique matching objects before receipts, within the declared writer model.
 - PQ-2 — addressed — The strategy table names risky functions, adversarial input classes and independent mechanical guards without duplicating a prose test inventory.
+
+## Round 4 — 2026-10-18T19:00:33-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Pinned destination identity and multiplicity-preserving flat listings require unique matching objects before receipt publication.
+- PQ-2 — addressed — Named risky functions have concise adversarial strategies and independent mechanical guards.
 
 ## Open findings
 
