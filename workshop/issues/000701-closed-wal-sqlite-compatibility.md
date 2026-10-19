@@ -93,6 +93,10 @@ Detailed design: [closed WAL compatibility plan](../plans/000701-closed-wal-comp
 - Supported local-check cancel stopped only this checkout's queued b0e8c755 run (7855ff58f427e11d5d4dbdb8cbeebef9); it never acquired capacity or ran tests. Other checkout runs were explicitly left running. This is a superseded-code cancellation, not a flake retry. A new exact-head recorded suite and ordinary close review are due; first close did not reach codecomplete.
 - Corrected-head qualification passed: broad SQLite/cold/continuous/historyarchive subset 11.669s and artifactpath guards 4.114s. No existing expectation was changed except the three deliberately wrong failure categories identified by BR-1.
 
+### 2026-10-19 13:06 PDT — SHIP; preserve the pending runner
+
+Second close completed exit 0: SHIP, BR-1 addressed, zero new findings; evidence commit 1e32e42faa8d1066ccd1b475c49c400fa3ef2dce, published codecomplete, auto-measured actual 0.67h. Current recorded branch-suite attempt is 11b3d21450978b748de1e5049293eb39 on corrected code 3375a20570c743da2cf33165e0ef26fc468b73c1, exec session 65045, private checkout sdlc-local-1423522359. It is still queued (position 4 after about 30 minutes), no tests executed and no retry/failure. Inflight log: /Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/11b3d21450978b748de1e5049293eb39/run.log. Preserve this runner; do not start a second suite or merge before its result. The old 7855ff58 attempt was explicitly cancelled before acquisition and is superseded. Server CI on the close's pushed head was independently green. After the recorded suite passes, complete the qualification checkboxes, commit/push only those final docs, enter sdlc merge --yes, verify merged PR #464 and the real Git merge hash on main, report to the hub and stop. Hub alias issue #711: retry once on a receipt-free refusal, then use exact ops:0; never restart Couch for it. #710 is queued after this item, not part of its branch.
+
 ## Revisions
 
 ### 2026-10-19 12:14 PDT — proposed compatibility route, pending approval
