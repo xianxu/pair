@@ -1,6 +1,6 @@
 ---
 id: 000704
-status: codecomplete
+status: done
 created: 2026-10-19
 updated: 2026-10-19
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 647a52a5211b08d8e33e2bb2b25cb00b46321b20
         evidence_commit: 12c6595e01abec1551d38995ce2a0dadc30d2cc1
+        landed_commit: b73124ac723201fd1ea9968fb574bc0093e6203a
 ---
 
 # TestParkLifecycleLive fails locally on main: quit intent does not match observed session owner
