@@ -51,6 +51,7 @@ The recorded timeout discarded stderr/status, so its exact delivery site is unpr
 ## Log
 
 ### 2026-10-19
+- 2026-10-19: closed — Test-only controlled SIGINT delivery: callback regression failed semantically in 0.05s before the mask; mask-only Go overlay failed in 0.12s with ignored KeyboardInterrupt and wrong exit, never deadline. Final focused eight exit cases, missing-signal controls, independent oracle and retained-error rendering passed 1.256s. Full couchtty passed 50.300s before rendering-only addition; artifactpath/testpair/termcmd passed 11.106s/10.470s/5.460s. Required recorded suite started on e2dec2854 and final-head pass precedes landing. no-atlas: no production or public surface changed; no-project: hub owns ticks; no-plan-check: only combined recorded-suite/review/landing workflow remains. Hub approved private Python proof with no :0 staging.; review verdict: SHIP
 
 Claimed following verified hub dispatch3d5e75a8. start-plan created the canonical branch from fresh main; sibling catch-up completed. No implementation edits before the plan. #674 commit902e3b20a proved a startup KeyboardInterrupt swallowed by Python ignored-exception contexts; this is prior art, not proof of #703's missing original stderr. A read-only peer audit independently distinguished default delivery, ignored disposition and callback swallowing.
 
