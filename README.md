@@ -435,6 +435,15 @@ recovery journals. Attachments use bounded parallelism and one retry; a failure
 reads `Continue · pane failed: <reason> (retry)`. While its pane is loading,
 it reads `Continue · attaching…`; an attached pane reads `Continue`. One unavailable slot does not
 prevent Couch or other slots from opening.
+Switcher lifecycle actions run in the background per slot. Their forms return to
+the slot list immediately: a busy row shows its action, current step and elapsed
+time; a finished row keeps one result until its next action. A second action on
+a busy slot is refused with the running action's name. Other slots and the hub
+remain available. Select a busy row to wait for its new terminal; navigating
+elsewhere prevents its eventual completion from pulling focus back. On a failed
+row, `Ctrl+Y` copies its retained diagnostic; otherwise it copies the last notice.
+Recovery confirmations stay on their row until you select it to review them.
+
 Couch keeps agent-pane context titles and cmux activity heat titles current from
 its existing inventory and minute activity refreshes. Hosted Pair starts no
 separate title poller. Idle fading keeps using prompt and agent activity plus

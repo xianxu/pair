@@ -191,7 +191,11 @@ func (c *Console) finishMenuRefresh(result menuRefreshResult) {
 // takes another immutable snapshot so neither terminal IO nor operations hold
 // the Console lock.
 func (c *Console) reduceMenu(event MenuEvent) {
+	event.At = c.now()
 	c.mu.Lock()
+	if event.Kind == MenuEventKey || event.Kind == MenuEventMouseSwitch || event.Kind == MenuEventParkHotkey {
+		c.navigationGeneration++
+	}
 	c.ensureMenuLocked(couchcore.ThreadAddress{})
 	var effects []MenuEffect
 	c.menu, effects = ReduceMenu(c.menu, event)
@@ -279,7 +283,7 @@ func (c *Console) showMenuPublishing() {
 
 // dispatchMenuEffects is the thin stateful shell around the pure menu. Preview
 // requests enter the bounded preview scheduler; declared operations reuse the
-// Console's one sequential operation queue.
+// Console's bounded lifecycle and hosted-navigation lanes.
 func (c *Console) dispatchMenuEffects(effects []MenuEffect) {
 	for _, effect := range effects {
 		if effect.CancelPreview != 0 {
@@ -462,6 +466,12 @@ func (c *Console) copyLastNotice() {
 	c.mu.Lock()
 	feedback := c.menu.CopyFeedback
 	text, found := feedback.payload, feedback.held()
+	if !found {
+		text, found = selectedMenuOperationDetail(c.menu)
+	}
+	if !found && c.menu.Notice.Level == MenuNoticeError && c.menu.Notice.Text != "" {
+		text, found = c.menu.Notice.Text, true
+	}
 	if !found {
 		messages := c.feed.Messages()
 		if len(messages) > 0 {

@@ -155,14 +155,14 @@ func TestReduceMenuStartPreviewArmsOneGenerationBoundSubmit(t *testing.T) {
 	if len(effects) != 0 || state.CurrentFrame().SubmitGeneration != generation || state.Notice.Text != "resolving" {
 		t.Fatalf("pending submit = state %+v effects %+v", state, effects)
 	}
-	stale := couchcore.PreparedStart{Resolution: couchcore.StartResolution{Fingerprint: "stale", CanonicalPath: "/stale"}}
+	stale := couchcore.PreparedStart{Resolution: couchcore.StartResolution{Fingerprint: "stale", CanonicalPath: "/stale", Worktree: "/stale"}}
 	state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: generation - 1, Prepared: &stale})
 	if len(effects) != 0 || state.CurrentFrame().SubmitGeneration != generation {
 		t.Fatalf("stale preview consumed armed submit: state=%+v effects=%+v", state, effects)
 	}
 
 	prepared := couchcore.PreparedStart{Resolution: couchcore.StartResolution{Fingerprint: "accepted",
-		CanonicalPath: "/repo", Profile: couchcore.LaunchProfile{Agent: "claude"},
+		CanonicalPath: "/repo", Worktree: "/repo", Profile: couchcore.LaunchProfile{Agent: "claude"},
 	}}
 	state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: generation, Prepared: &prepared})
 	want := []MenuEffect{{Operation: "start", Attempt: 1, Args: prepared.Resolution.CommitArgs()}}
@@ -212,7 +212,7 @@ func TestReduceMenuStartPreviewPreservesOptionalAgentAndAcceptedProvenance(t *te
 	}
 	generation := state.CurrentFrame().Generation
 	prepared := couchcore.PreparedStart{Resolution: couchcore.StartResolution{Fingerprint: "accepted",
-		CanonicalPath: "/repo", Profile: couchcore.LaunchProfile{Agent: "codex", Argv: []string{"--search"}},
+		CanonicalPath: "/repo", Worktree: "/repo", Profile: couchcore.LaunchProfile{Agent: "codex", Argv: []string{"--search"}},
 		AgentSource: couchcore.AgentSourcePath, ArgvSource: couchcore.ArgvSourcePath,
 		ReuseNotices: []couchcore.StartReuseNotice{
 			{Kind: couchcore.StartReuseNoticeLost, Label: "repo:1", Slot: 1},
@@ -257,7 +257,7 @@ func TestReduceMenuStartPreviewReusesAcceptedGeneration(t *testing.T) {
 	}
 	generation := state.CurrentFrame().Generation
 	prepared := couchcore.PreparedStart{Resolution: couchcore.StartResolution{Fingerprint: "accepted",
-		CanonicalPath: "/repo", Profile: couchcore.LaunchProfile{Agent: "claude", Argv: []string{}},
+		CanonicalPath: "/repo", Worktree: "/repo", Profile: couchcore.LaunchProfile{Agent: "claude", Argv: []string{}},
 		AgentSource: couchcore.AgentSourceRoot, ArgvSource: couchcore.ArgvSourceRepoDefault,
 	}}
 	state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: generation, Prepared: &prepared})
@@ -298,7 +298,7 @@ func TestReduceMenuPreviewIdentitySurvivesEscapeAndReopen(t *testing.T) {
 
 	state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
 	old := couchcore.PreparedStart{Resolution: couchcore.StartResolution{Fingerprint: "old-token",
-		CanonicalPath: "/old", Profile: couchcore.LaunchProfile{Agent: "claude"},
+		CanonicalPath: "/old", Worktree: "/old", Profile: couchcore.LaunchProfile{Agent: "claude"},
 	}}
 	state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: first.Generation, Prepared: &old})
 	frame := state.CurrentFrame()

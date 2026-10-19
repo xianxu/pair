@@ -200,7 +200,7 @@ func TestMenuRecoveryNeedsAnExactNativeAddressOrValidatedSlot(t *testing.T) {
 				// Exercise the routing boundary itself as well as ingestion above.
 				next, effects := dispatchMenuRow(state, operation, row)
 				if tc.refused {
-					if len(effects) != 0 || next.InFlight.Operation != "" || next.Notice.Level != MenuNoticeError {
+					if len(effects) != 0 || next.operationForTest().Operation != "" || next.Notice.Level != MenuNoticeError {
 						t.Fatalf("%s guessed a target: %+v", operation, effects)
 					}
 					continue

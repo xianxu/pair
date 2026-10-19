@@ -21,7 +21,7 @@ func TestConsoleSwitchAgentUsesNormalQueueAndPreservesEditedArgv(t *testing.T) {
 	f.con.menu = NewMenuState(menuThreads(), address)
 	f.con.menuReady = true
 	f.con.focus = FocusPanel()
-	f.con.menu.InFlight = MenuOperationOrigin{Operation: "switch-agent", Attempt: 1, Address: address}
+	setTestMenuOperation(&f.con.menu, MenuOperationOrigin{Operation: "switch-agent", Attempt: 1, Address: address})
 	f.con.mu.Unlock()
 	args := map[string]string{"agent": "codex", "argv": `["--model","a b"]`, "fingerprint": "reviewed"}
 	f.con.runMenuOperation(MenuEffect{Operation: "switch-agent", Attempt: 1, Args: args})
@@ -33,7 +33,7 @@ func TestConsoleSwitchAgentUsesNormalQueueAndPreservesEditedArgv(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("switch form did not use normal dispatcher")
 	}
-	waitFor(t, "switch completion", func() bool { return f.con.menuSnapshot().InFlight.Operation == "" })
+	waitFor(t, "switch completion", func() bool { return f.con.menuSnapshot().operationForTest().Operation == "" })
 	select {
 	case call := <-called:
 		t.Fatalf("unexpected follow-up operation: %s", call.Name)
@@ -55,7 +55,7 @@ func TestConsoleSwitchAgentRefusalUsesNormalNotice(t *testing.T) {
 			f.con.mu.Lock()
 			f.con.menu = NewMenuState(menuThreads(), address)
 			f.con.menuReady = true
-			f.con.menu.InFlight = MenuOperationOrigin{Operation: "switch-agent", Attempt: 1, Address: address}
+			setTestMenuOperation(&f.con.menu, MenuOperationOrigin{Operation: "switch-agent", Attempt: 1, Address: address})
 			f.con.mu.Unlock()
 			f.con.runMenuOperation(MenuEffect{Operation: "switch-agent", Attempt: 1, Args: map[string]string{"agent": "codex", "argv": "[]", "fingerprint": "fp"}})
 			waitFor(t, "switch refused", func() bool { return strings.Contains(f.con.menuSnapshot().Notice.Text, reason) })

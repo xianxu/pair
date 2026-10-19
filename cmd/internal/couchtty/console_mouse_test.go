@@ -46,7 +46,7 @@ func newMouseFixtureWithDone(t *testing.T, setup ...func(*Console)) (*Console, *
 	calls := make(chan dispatched, 8)
 	con.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
 		con.mu.Lock()
-		origin := con.menu.InFlight
+		origin := con.menu.operationForTest()
 		con.mu.Unlock()
 		calls <- dispatched{call: call, capture: origin.AttentionCapture, manual: origin.Manual}
 		return nil, nil
@@ -232,7 +232,7 @@ func TestClickIsAManualSwitch(t *testing.T) {
 	waitFor(t, "the switch to be recorded", func() bool {
 		con.mu.Lock()
 		defer con.mu.Unlock()
-		return con.menu.InFlight.Operation == "" || con.menu.InFlight.Manual
+		return con.menu.operationForTest().Operation == "" || con.menu.operationForTest().Manual
 	})
 }
 

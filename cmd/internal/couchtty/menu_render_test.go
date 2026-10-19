@@ -54,7 +54,7 @@ func TestRenderMenuUsesSingleSurfaceBreadcrumbs(t *testing.T) {
 	reboot, _ = reduceKey(reboot, PanelKey{Kind: KeyTab})
 	reboot.Frames[len(reboot.Frames)-1].SelectedItem = "reboot"
 	reboot, rebootEffects := reduceKey(reboot, PanelKey{Kind: KeyEnter})
-	if len(rebootEffects) != 1 || rebootEffects[0].Operation != "reboot" || reboot.InFlight.Operation != "reboot" {
+	if len(rebootEffects) != 1 || rebootEffects[0].Operation != "reboot" || reboot.operationForTest().Operation != "reboot" {
 		t.Fatalf("Fresh did not request shared preparation: %+v", rebootEffects)
 	}
 	leave, _ := ReduceMenu(root, MenuEvent{Kind: MenuEventParkHotkey, Operation: "leave", Mode: string(couchcore.LeavePark)})
@@ -69,7 +69,7 @@ func TestRenderMenuUsesSingleSurfaceBreadcrumbs(t *testing.T) {
 		{name: "root", state: root, breadcrumb: "threads"},
 		{name: "actions", state: actions, breadcrumb: "threads › compiler › actions", absent: []string{"/repo/compiler", "review"}},
 		{name: "park", state: park, breadcrumb: "threads › compiler › park", absent: []string{"/repo/compiler", "relaunch"}},
-		{name: "Fresh preparation", state: reboot, breadcrumb: "threads › review › actions", absent: []string{"/repo/review", "compiler"}},
+		{name: "Fresh preparation", state: reboot, breadcrumb: "threads"},
 		// Leave is a GLOBAL frame since #170: it names couch, not a thread, so
 		// its breadcrumb no longer borrows an actor's label -- and "compiler"
 		// is now asserted ABSENT, because borrowing one is the bug.

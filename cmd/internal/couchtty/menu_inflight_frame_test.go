@@ -11,7 +11,7 @@ import (
 // confirmation by that reading reported "thread action is no longer applicable"
 // over a relaunch that went on to succeed, and the operator watched their thread
 // vanish from the status bar and come back under an error.
-func TestInFlightOperationKeepsItsConfirmationWhileItsThreadIsNotLive(t *testing.T) {
+func TestInFlightOperationKeepsRootWhileItsThreadIsNotLive(t *testing.T) {
 	address := menuAddress("brain")
 	live := []couchcore.ActionableThreadSummary{{
 		Address: address, WorkingPath: "/w/brain", Name: "brain", State: couchcore.ThreadLive,
@@ -28,18 +28,18 @@ func TestInFlightOperationKeepsItsConfirmationWhileItsThreadIsNotLive(t *testing
 		})
 		state, _ = reduceConfirmationKey(state, PanelKey{Kind: KeyDown})
 		state, _ = reduceConfirmationKey(state, PanelKey{Kind: KeyEnter})
-		if state.InFlight.Operation != "relaunch" {
-			t.Fatalf("relaunch did not go in flight: %+v", state.InFlight)
+		if state.operationForTest().Operation != "relaunch" {
+			t.Fatalf("relaunch did not go in flight: %+v", state.operationForTest())
 		}
 		return state
 	}
 
-	t.Run("in flight, the confirmation survives", func(t *testing.T) {
+	t.Run("in flight, root and operation progress survive", func(t *testing.T) {
 		state := openConfirmation()
 		state.Inventory = parked
 		state = reconcileMenuFrames(state, live)
-		if frame := state.CurrentFrame(); frame.Kind != MenuFrameConfirmation || frame.Action != "relaunch" {
-			t.Fatalf("mid-relaunch refresh discarded the confirmation: frame = %v/%q notice = %q",
+		if frame := state.CurrentFrame(); frame.Kind != MenuFrameRoot || state.operationForTest().Operation != "relaunch" || state.Notice.Level == MenuNoticeError {
+			t.Fatalf("mid-relaunch refresh changed root or operation progress: frame = %v/%q notice = %q",
 				frame.Kind, frame.Action, state.Notice.Text)
 		}
 	})
@@ -48,7 +48,8 @@ func TestInFlightOperationKeepsItsConfirmationWhileItsThreadIsNotLive(t *testing
 	// for a thread that stopped being live IS stale.
 	t.Run("not in flight, a dead thread's confirmation is discarded", func(t *testing.T) {
 		state := openConfirmation()
-		state.InFlight = MenuOperationOrigin{}
+		setTestMenuOperation(&state, MenuOperationOrigin{})
+		appendMenuFrame(&state, MenuFrame{Kind: MenuFrameConfirmation, Action: "relaunch", Thread: address, SelectedItem: "cancel"})
 		state.Inventory = parked
 		state = reconcileMenuFrames(state, live)
 		if frame := state.CurrentFrame(); frame.Kind == MenuFrameConfirmation {
@@ -78,8 +79,8 @@ func TestTheInFlightExemptionDoesNotCoverAnotherActionsConfirmation(t *testing.T
 	})
 	state, _ = reduceConfirmationKey(state, PanelKey{Kind: KeyDown})
 	state, _ = reduceConfirmationKey(state, PanelKey{Kind: KeyEnter})
-	if state.InFlight.Operation != "relaunch" {
-		t.Fatalf("relaunch did not go in flight: %+v", state.InFlight)
+	if state.operationForTest().Operation != "relaunch" {
+		t.Fatalf("relaunch did not go in flight: %+v", state.operationForTest())
 	}
 	// A park confirmation on the SAME thread, while relaunch is the operation
 	// actually running.

@@ -48,7 +48,7 @@ func TestAddSlotPrefillsExactRepositoryAndUsesCreatePreview(t *testing.T) {
 			if len(effects) != 1 || effects[0].Preview == nil || effects[0].Preview.Path != wantPath || effects[0].Preview.Action != couchcore.StartCreate || effects[0].Preview.Agent != "" {
 				t.Fatalf("preview %+v", effects)
 			}
-			prepared := couchcore.PreparedStart{Resolution: couchcore.StartResolution{OriginalInput: wantPath, CanonicalPath: root + "-slot", Action: couchcore.StartCreate, Profile: couchcore.LaunchProfile{Agent: "codex", Argv: []string{}}, Fingerprint: "reviewed"}}
+			prepared := couchcore.PreparedStart{Resolution: couchcore.StartResolution{OriginalInput: wantPath, CanonicalPath: root + "-slot", Worktree: couchcore.Worktree(root + "-slot"), Action: couchcore.StartCreate, Profile: couchcore.LaunchProfile{Agent: "codex", Argv: []string{}}, Fingerprint: "reviewed"}}
 			state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: effects[0].Preview.Generation, Prepared: &prepared})
 			if len(effects) != 0 {
 				t.Fatal("preview launched without Enter")

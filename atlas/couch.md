@@ -12,6 +12,31 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 
 ## What exists today
 
+### Per-slot switcher jobs (#576)
+
+`couchtty/menu_operations.go` owns pure target admission, exact attempt matching,
+current landing intent and one retained result per listed row. Busy selection
+waits on its existing job; newer navigation fences final focus and old forms
+never reappear. Missing targets keep their label/identity and diagnostic in the
+notice; selected row failures use the existing Ctrl+Y copy surface.
+
+The existing worker count is split in `operation_queue.go`: lifecycle workers
+own effects and adoption; the final worker owns currently hosted navigation.
+The shared16-position admission bound reserves15 lifecycle positions and1
+navigation position. If hosted endpoint proof disappears, the same pending
+request transfers once to lifecycle or reports overload; navigation never
+resumes or adopts. Remote calls, continuation and startup use lifecycle workers.
+
+Running start reservations keep their original identity while inventory materializes: pure aliases use the exact numbered checkout or the primary scope derived by launcher from the accepted worktree. Address-replacing ordinary actions reserve that primary scope too; other ordinary actions stay address-specific. Admission, busy selection and linear row projection use these aliases; final outcomes still bind to exact returned identity.
+
+`console_operation_adoption.go` prepares final outcomes off Run. Installation
+reserves identity under the console mutex, performs resize/registration outside
+it, and revalidates lifetime, endpoint and geometry before committing. Rejected
+registration is retired without closing the caller-owned child. Run performs
+final lifecycle observation, reduction, navigation and remote acknowledgement,
+with one completion owner and shutdown settlement. Existing core lifecycle and
+park nonce reservations remain authoritative; UI navigation never cancels them.
+
 ### Load-independent lifecycle test evidence (#659)
 
 The recovery ownership fixtures use `SlotCatalogFake`; a separate catalog-timeout
