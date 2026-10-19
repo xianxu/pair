@@ -61,6 +61,11 @@ Bounded8MiB tail sample of repo990458a6956a804b's current wrap-events:8,388,489b
 
 Recommended tradeoff for hub review: expire proven diagnostic generations at7days by default; evict entire inherited oversized diagnostic generations through the existing deletion intent, even when young. This intentionally loses those legacy debug generations and avoids copying/re-writing tens of GiB or adding a compaction journal. Unknown/live legacy holders, identity changes, malformed metadata and cancellation retain data with explicit reasons. Newly admitted generations stay64MiB maximum; remaining unproven oversized legacy files are reported rather than silently claimed fixed. Alternatives and visible states are in the plan. This follows the operator's permission to trim debugging logs without backup; history/session data remains under its existing guards.
 
+### 2026-10-18 — plan gate PQ-1
+
+Full-flow change-code round1 accepted the diagnosis, scope and all architectural lenses but blocked on function-level-test-contract: compress procedural case inventories and name the selection/service entry points. Replaced those lists with strategy/guard tables covering ParseRetentionDays, DecideGeneration, limits/admission, proof/preview/replay, service constructors, PreviewDiagnostics/ApplyDiagnostics, diagnosticPages, Batch and runWithService. Counted N/2N acceptance remains. No product code edited; no live apply or estimate derived before plan-quality acceptance.
+
+
 ## Revisions
 
 ### 2026-10-18 — approved diagnostic-only policy and live gate

@@ -74,23 +74,44 @@ The log lock is held across validation, policy admission and durable deletion ef
 
 **Files:** diagnosticlog/policy.go, writer.go, collect.go, pages.go, legacy.go; policy_test.go, hard_limit_test.go, legacy_test.go, backup_fence_test.go, deletion_replay_test.go, pages_test.go.
 
-- [ ] Add failing pure parser/selection tests for defaults/ranges/overflow, exact seven-day boundary, custom window, young oversized data and invalid/future evidence. Run targeted tests and retain the expected red against today's backup fence.
+- [ ] Add the parser/selection regressions using the named-function strategies below; run targeted tests and retain the expected red against today's backup fence.
 - [ ] Replace the sparse 4 GiB preservation expectation with explicit oversized eviction through the real journal; no GiB payload allocation. Keep a fresh bounded generation and unrelated file as survival controls.
 - [ ] Update policy to the rule above and remove active count policy. Keep legacy persisted limits readable and keep new-write whole-record cap tests for synchronous/asynchronous maintenance, multiple handles and absent proof.
 - [ ] Exercise current, closed, quarantined and legacy paths through one policy; preserve uncertainty rather than granting deletion authority to incomplete metadata.
-- [ ] Replay deletion at intent/payload/metadata/parent/state boundaries, including cancellation and identity replacement. Resume twice; ensure exact-once removal/reporting and no neighbor deletion. Run diagnosticlog tests, then commit.
+- [ ] Apply the deletion replay strategy below through the existing fault seam; run diagnosticlog tests and commit the verified policy change.
 
-**Function-level adversarial strategy:** ParseRetentionDays fuzzes hostile scalar input into typed duration/error. The age/oversize decision is tested from independently stated predicates across boundary clocks and sizes. previewPageLocked/previewLegacyCurrent consume replaced identities and ambiguous proof at their real file seam. recoverDeletion uses existing fault checkpoints and changed metadata/inodes, not mocked unlink calls.
+**Named-function test contract:**
+
+| Risky function | Adversarial strategy and mechanical guard |
+|---|---|
+| ParseRetentionDays(string) | Fuzz hostile scalar grammar against the allowed integer-domain predicate; invalid input returns an error before IO, empty input derives the named default. |
+| DecideGeneration(now,lastWrite,size,cap,period) | Generate chronological/size tuples against the independently stated age-or-size predicate; invalid or future evidence never grants eligibility. This is the named pure selector reused by all diagnostic paths. |
+| ResolveDiagnosticLimits | Compose conflicting writer requests across persisted versions; effective byte authority only tightens, and dormant count fields never authorize eviction. |
+| Open / Writer.Write / maintain | Drive stateful multi-handle writes across cap/maintenance admission; actual file sizes never exceed admitted authority and failed proof produces no over-cap append. |
+| previewPageLocked / previewLegacyCurrent | Mutate certified metadata/inodes or holder state through the real file/Inspection seam between observations; changed or unknown evidence stays visibly blocked. |
+| VerifyWriters | Vary open-holder identity and protocol knowledge in the stateful inventory; any live open holder or unknown writer blocks destructive collection, including registered holders. |
+| collectManagedPage / recoverDeletion | Inject death/cancellation at the existing durable effect seam, then replay with replaced/unchanged identities; only the exact authorized generation can disappear and repeated recovery cannot claim its bytes twice. |
 
 ## Task 2 — independent diagnostic traversal and CLI scope
 
 **Files:** gcruntime/runtime.go, schedule.go, runtime_test.go, schedule_test.go, maintenance_budget_test.go; gccmd/run.go, run_test.go/apply_acceptance_test.go; artifactpath manifest if a new source is warranted.
 
-- [ ] Add a failing portable-root integration with migration_complete=false, expired/oversized diagnostics, old authored session/history files, unknown neighbors and a stateful inspection inventory. Diagnostic-only preview creates nothing; apply removes only eligible diagnostics and does not initialize or update session clocks/store acknowledgments.
+- [ ] Add failing portable-root integrations from the entry-point strategies below. Diagnostic-only preview creates nothing; apply affects only certified diagnostics and leaves session clocks/store acknowledgments unchanged.
 - [ ] Factor diagnostic preview/apply ownership from the existing Service paths. Reuse DiagnosticInventory and registry discovery; remove only diagnostics' migration gates in explicit pages and scheduled batches. Preserve session collection/migration guards and root-before-log locking.
 - [ ] Add --diagnostics-only for preview/apply; refuse combinations with migration/register/forget-store operations. No new operator command is required for history/session retention. Include effective diagnostic days and separate collected/blocked bytes in JSON/text metadata reports.
 - [ ] A pre-migration scheduled session phase must yield to diagnostics rather than terminate the maintenance cycle. Preserve cancellation, nonblocking busy handling and cursor progress.
 - [ ] Run gcruntime/gccmd targeted tests and retention integration, then commit.
+
+**Named-entry-point test contract:**
+
+| Risky function | Adversarial strategy and mechanical guard |
+|---|---|
+| gcruntime.New / NewWithInspection | Inject malformed environment policy or portable root configuration; invalid policy fails before collection and test construction never reads ambient production settings. |
+| Service.PreviewDiagnostics | Feed exact-family discovery with unrelated/unknown entries and unacknowledged session migration; before/after filesystem inventories are identical. |
+| Service.ApplyDiagnostics | Change holder/identity evidence after preview through stateful Inspection; only freshly certified eligible diagnostics disappear, with no session/history clock or payload mutation. |
+| Service.diagnosticPages | Generate bounded page sequences with partial progress and cancellation; cursors advance or report an explicit blocker, and removed-row accounting excludes prior replay. |
+| Service.Batch | Drive durable cursor replay through pre-migration session work and diagnostic phases; diagnostic progress remains reachable without evaluating/persisting session owners on a diagnostic page. |
+| gccmd.runWithService | Generate incompatible flag families and service outcomes; reject mixed diagnostic/migration operations before side effects, and successful output reports the effective policy and independent categories. |
 
 **Mechanical bounds:** At N=80 and 2N=160 real small generations, sweep bounded pages and assert exact removed counts/logical bytes, zero payload-copy writes, metadata write bytes/operations proportional to removed generations through ObserveIO, and writer proof calls proportional to pages (not records). Seed more than64 young generations to prove the retired count inventory no longer blocks rotation or prematurely evicts recent data. Existing directory traversal remains capped at128*(limit+1) names per page. At8/16 unrelated session owners, diagnostic-only pages must evaluate/persist zero session clocks, using existing owner probe/persist counters. No full host census is added.
 
@@ -130,3 +151,7 @@ This is a policy change to a previously deliberate backup/legacy-preservation co
 ### 2026-10-18 — hub approval and live preview gate
 
 The hub approved the full-flow design, default/range/fail-closed configuration, whole eviction of young oversized legacy generations, bytes-per-turn measurement and proposed detail decision. Its explicit live gate requires sending real preview files/bytes by category and blocked reasons before live apply. Preserve live/unknown open-holder blocking even when the process is registered; no slot restart, focus change or :0 staging is authorized or needed here.
+
+### 2026-10-18 — PQ-1 test-contract refinement
+
+Replace parser/recovery case inventories with named-function adversarial strategies. The class sweep covers pure selection, writer admission/proof, file preview/deletion and each diagnostic service/scheduler/CLI entry point; the N/2N counted acceptance envelope remains. This is a test-contract clarification with no policy or live-arrangement change.
