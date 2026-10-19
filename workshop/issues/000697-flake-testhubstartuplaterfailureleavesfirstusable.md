@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/couchcmd.TestHubStartupLaterFailureLeavesFirstUsable]
+flow: {kind: quick, provenance: inferred, spec: "6e340b9c", done: "a0bbe98b"}
 ---
 
 # flake: TestHubStartupLaterFailureLeavesFirstUsable
