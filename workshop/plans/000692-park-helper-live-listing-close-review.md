@@ -97,3 +97,88 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-19T06:00:36-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 692 — Native park helper refuses a live session before attachment |
+| repo | pair |
+| issue file | workshop/issues/000692-park-helper-live-listing.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | bc220897b1e430382d56168078569d3841dd3425..0b9fd8bffa0a546943f8d4a6d525f9ca701cf7ad |
+| command | sdlc close --issue 692 |
+| reviewer | claude (anthropic; author anthropic) |
+| isolation | fenced |
+| timestamp | 2026-10-19T06:00:36-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Still on the fix review. The BR-1 wiring test goes red when I swap in a stub; now I'm checking for other process-evidence sources and how BR-3 is used.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+All three prior findings are addressed. None of them was blocking; all were Minor. The changes add no new defect and don't change scope. The only issue-file edits are the status change to `codecomplete`, the `actual_hours` field, the card-mirror hash and a Log entry. No main-side conflicts needed resolving.
+
+- **BR-1 (Check wiring untested):** `TestTerminalAttachCheckUsesTheRuntimeServerEvidence` (`cmd/internal/launcher/session_listing_test.go:183`) passes at head. I swapped the Check attach call site for a stub that always reports no servers, and the test failed with `terminal "chosen" is not listed live`, as expected. Then I restored the file.
+- **BR-2 (two process-evidence sources):** `session_handoff_os.go:89` now uses `a.rt.liveSessionServers` on the create branch too. I checked for other copies of the same pattern: no production code outside tests calls `osSessionOwnerIO{}` any more, so the whole class is fixed, not just this one place.
+- **BR-3 (timeout message unclear):** the `everStarted` flag in `waitParkHelperAttachmentWithQuery` now makes the timeout say when the helper never started its client. couchcore vets clean, and the `TestParkReadiness*` tests pass.
+
+1. **Strengths**
+   - The BR-1 test exercises the real `terminalOSAttempt` through the runtime's own seam (`OSRuntime.sessionQuiescence`), not a hand-built stand-in for it.
+   - The BR-2 fix leaves `liveSessionServers` as the only source of process evidence in `Check`.
+
+2. **Critical:** none.
+
+3. **Important:** none.
+
+4. **Minor:** the test comment says "Check and Admit", but only Check is pinned. The Admit call at `session_handoff_os.go:160` passes the same expression and is not covered on its own. It still refuses either way, as BR-1's own detail noted, so this does not reopen BR-1.
+
+5. **Test coverage**
+   - Run at head, the full launcher package fails one test, `TestWorkbenchPerformanceOwnerPassCountsEveryNativeFence`, and fails it with BR-2 reverted too. The error is `bind: invalid argument`, most likely because the Unix socket path under the review checkout is too long. It has nothing to do with this window.
+   - Reverting BR-2 turned no other test red. That fits a consistency refactor, since with the default runtime both expressions do the same process scan.
+
+6. **Architecture**
+   - **ARCH-DRY:** pass. The BR-2 fix leaves one evidence source.
+   - **ARCH-PURE:** pass.
+   - **ARCH-PURPOSE:** pass. BR-2's class was checked across the tree.
+   - **ARCH-EVOLVE:** n/a. No persisted format changes.
+
+7. **Plan revisions:** none.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      TestTerminalAttachCheckUsesTheRuntimeServerEvidence goes red when the Check call site gets a stub that reports no servers; Admit passes the same expression.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Create branch now uses a.rt.liveSessionServers; no production osSessionOwnerIO{} call sites remain.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      The everStarted flag makes the ctx.Done branch say when the helper never started its zellij client.
+```
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"c51b93dd-ee0c-4dd9-b48c-52fd4748fdae","repository":"github.com/xianxu/pair","issue_id":"000692","recipe":"fix-review","round":2,"attempt":1,"agent":"claude","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/4973d1089cc88bb3","reviewed_head":"0b9fd8bffa0a546943f8d4a6d525f9ca701cf7ad","slot":"pair:2","requested_at":"2026-10-19T12:57:26.786875Z"},"phase":"finished","pid":85648,"started_at":"2026-10-19T12:57:26.965263Z","finished_at":"2026-10-19T13:00:36.138429Z","session_id":"16cb733b-2426-4fde-bb86-990ce48a0770","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.045718791s
+head: "0b9fd8bffa0a546943f8d4a6d525f9ca701cf7ad"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

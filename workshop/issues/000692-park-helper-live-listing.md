@@ -67,6 +67,8 @@ What this does not do: no retry, no timeout change, no native build. The remaini
 ## Log
 
 
+
+- 2026-10-19: closed — Delta since the SHIP close answers its three advisories: TestTerminalAttachCheckUsesTheRuntimeServerEvidence (red with a stub server source), create-branch Check uses a.rt.liveSessionServers (same process scan), readiness timeout names the never-started phase. Full launcher package (87s) and couchcore readiness tests green. (fixed-then-ship); review verdict: SHIP
 - 2026-10-19: closed — sdlc-local/suite green on 3e204bec (11m45s). TestListedTerminalOmissionOfALiveServerIsUnknown (red with the classification disabled) and TestParkReadinessQueriesOnlyAfterTheHelperClientStarts (red with the gate removed). Live local: TestParkLifecycleLiveIntentOnlyMutation 5/5 with real zellij 0.45.1. TestParkLifecycleLive fails locally 5/5 on "quit intent does not match observed session owner" and identically on origin/main in a clean worktree (3/3): environmental, unrelated, passes in CI conformance. Attribution from the retained capture plus upstream zellij#5270; a 30 s native probe under load saw no omission (low synthetic rate). No retry, no timeout change.; review verdict: SHIP
 Filed unclaimed independently from #687; no lifecycle/session behavior fix is folded into supervisor retention registration. The issue backs one unchanged failed-job rerun under the worker flake rule. A second unrelated failure on this head stops and goes to the hub; no bypass or blind retry.
 
