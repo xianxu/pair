@@ -144,10 +144,11 @@ Durability is reconfirmed for existing records as well as newly written records.
 
 A file larger than the target may occupy its own bundle up to the hard limit.
 Tar headers and compression overhead are additional to raw payload accounting.
-Metadata is bounded and file bytes stream; one zstd process uses one compression
-thread per invocation. zstd `-19` has its own working memory, so these limits do
-not imply a strict low total RSS. There are no host-wide scans or parallel
-compressions within an invocation. The operation is cancellable without a fixed
+Metadata is bounded and file bytes stream. Each bundle uses one zstd process
+with `-T0` (all available CPU threads); bundles are compressed serially within
+an invocation. Compression working memory depends on level and thread count,
+so these limits do not imply a strict low total RSS. There are no host-wide
+scans or concurrent bundle compressions within an invocation. The operation is cancellable without a fixed
 success deadline; cancellation joins the transform children and tar writer.
 
 The invocation owns its temporary ciphertext and removes it on ordinary return.

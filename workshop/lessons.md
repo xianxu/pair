@@ -2350,3 +2350,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #688: A read-only collector must reject canonical overlap of source and work/output roots before cleanup or creation, including missing descendants behind symlinks. A final rename can otherwise overwrite the very source whose reads were carefully protected; test unchanged source bytes and zero external calls on refusal.
 
 - #688 BR-2: Isolation between sets is a cross-product invariant: compare every output with every source, not paired labels. Canonicalizing a common output parent does not resolve a destination leaf symlink; exercise a different source kind behind that alias, including when its kind is filtered out.
+
+- When changing an encoder’s level or threading policy, search README and all atlas resource descriptions for both the old level and one-thread promises; update the shared resource contract as well as the feature introduction. (#702 BR-2)

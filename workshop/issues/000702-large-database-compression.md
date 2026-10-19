@@ -80,3 +80,24 @@ Targeted policy, codec subprocess, archive descriptor agreement and mixed legacy
 
 ### Close preparation
 Full historyarchive/... package run passed (96.483s; archivetest 0.174s). Recorded suite attempt 8301d79f1936588236459ed4c09a1f7c is queued on production/test head 27ec68149; subsequent f5d6b7a66 only documents evidence/tradeoffs. Per tl-worker, the close review may overlap this queue; landing still requires a recorded pass, and any code change requires a fresh final-head run. Plan's last checkbox describes completed preparation; suite outcome, close verdict and landing are gate-owned results recorded in this Log. No suite pass or landing is claimed yet.
+
+### 2026-10-19 — close disposition scope clarification (hub e02a0aba)
+BR-1: The approved new measurements compare database levels at the same -T0 setting. The 378.75s zstd -19 single-thread result from #688 is retained only as prior production tar/GPG pipeline evidence; it is not a matched zstd-only baseline. Hub explicitly confirms this is sufficient and requests no new heavy benchmark. This narrows the original Spec's comparison clause to the approved cohort, preserving its evidence limits rather than implying a direct thread-scaling comparison.
+BR-2: Updated all three stale restatements: README policy and both atlas resource/threading paragraphs. Bundles remain serial while each zstd process uses -T0; memory is not claimed low or constant. Existing pending README agent marker is preserved, not resolved as human approval.
+BR-3: The review host's long GPG socket path failed before encoding. The same pinned production/test code already passed real isolated-key conformance here; a second run with TMPDIR=/tmp retains complete stdout/stderr in /tmp/pair702-native-short-path.log. No credentials or native source files are used.
+
+Short-path rerun completed with exit 0. Command: `TMPDIR=/tmp PAIR_ARCHIVE_LIVE=1 go test ./cmd/internal/historyarchive -run '^TestCodecLiveRoundTrip$' -count=1 -v`. Production and test sources are unchanged from 27ec68149; later commits are documentation/evidence only. Retained log SHA256: 94605c9eb9f6d6fdc6f70d44c04546012cc0aa17e4e7e94d95d52ae705ee07d1.
+
+```text
+=== RUN   TestCodecLiveRoundTrip
+    codec_live_test.go:93: round trip: tar=4608 ciphertext=528 elapsed=508.560792ms (zstd -9 -T0; no strict RSS claim)
+    codec_live_test.go:93: round trip: tar=4608 ciphertext=518 elapsed=100.526166ms (zstd -19 -T0; no strict RSS claim)
+    codec_live_test.go:93: round trip: tar=4608 ciphertext=518 elapsed=117.328ms (zstd -20 -T0; no strict RSS claim)
+    codec_live_test.go:93: round trip: tar=4608 ciphertext=509 elapsed=355.513209ms (zstd -22 -T0; no strict RSS claim)
+    codec_live_test.go:270: full archive round trip: files=3 tar=6144 ciphertext=1022 pipeline=472.30025ms total-with-key-generation=4.635330292s; corrupted sink rejected, source hashes unchanged
+--- PASS: TestCodecLiveRoundTrip (7.35s)
+PASS
+ok  	github.com/xianxu/pair/cmd/internal/historyarchive	7.519s
+```
+
+The short temporary root is a per-command test environment choice, not a machine setting or a change to native acquisition. BR-3's passing measured host evidence is embedded above so the reviewer need not depend on a temporary host file being available.
