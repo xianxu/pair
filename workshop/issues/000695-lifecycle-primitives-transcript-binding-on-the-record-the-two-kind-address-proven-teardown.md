@@ -5,9 +5,9 @@ deps: [pair#683]
 github_issue:
 created: 2026-10-18
 updated: 2026-10-18
-estimate_hours:
+estimate_hours: 3.79
 collaboration-mode: collaboration
-card_mirror: '585cb33f5fef979dc7bcdb0ed95b4e80d2591c6b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '145d269e05352bcb419f59ad1b589179371d16e9' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-18T22:57:15-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
 ---
 
 # Lifecycle primitives: transcript binding on the record, the two-kind address, proven teardown
@@ -42,6 +43,39 @@ Prerequisite: pair#683 (failure persistence) lands first.
 - `LifecycleAddress` validates both kinds, and two teams in one checkout get distinct keys.
 - `TestPlainPairUnchangedWithoutCouch` passes, and older-build rewrites preserve the new fields.
 - The tests named in the plan's M1 and M2 pass, and the full suite is green.
+
+## Estimate
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.* The plan is thorough, so the design buffer is 15%. Impl values are 40% of the v2 table.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module      design=0.1  impl=0.2
+item: greenfield-go-module   design=0.3  impl=0.32
+item: smaller-go-module      design=0.05 impl=0.16
+item: milestone-review       design=0.0  impl=0.2
+item: greenfield-go-module   design=0.5  impl=0.32
+item: greenfield-go-module   design=0.2  impl=0.24
+item: cross-cutting-refactor design=0.2  impl=0.2
+item: smaller-go-module      design=0.05 impl=0.2
+item: milestone-review       design=0.0  impl=0.2
+item: atlas-docs             design=0.05 impl=0.08
+design-buffer: 0.15
+total: 3.79
+```
+
+The items, in order:
+1. M1: the shared preserving codec in strictjson, with #683's codec migrated onto it.
+2. M1: the ThreadRecord binding and Bind.
+3. M1: `LifecycleAddress`.
+4. M1: the milestone review.
+5. M2: Teardown (lease, tty and zellij witnesses, sweep, proof).
+6. M2: the orphan registry, `--resources` and `--reap-orphans`.
+7. M2: the archive and replace proof funnel and the sidecar codec.
+8. M2: the real-pty conformance test.
+9. M2: the close review.
+10. The atlas.
 
 ## Plan
 
