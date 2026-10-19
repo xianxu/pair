@@ -4,6 +4,8 @@ collaboration-mode: discussion
 
 # Couch RAM scratch implementation plan
 
+> **Current contract:** the approved Revision R1 at the end of this document supersedes the original metadata proposal, metadata concepts/tests/tasks and live arrangement below. The original proposal is retained as design history, not an execution checklist. Slot-temp policy remains approved as stated, with the R1 cleanup clarification.
+
 > **For agentic workers:** Consult AGENTS.md Section 3 for execution strategy. Use the SDLC plan and boundary gates; this is one atomic change, with one close review.
 
 **Goal:** Move newly launched slots' temporary files and Zellij's repeating session metadata writes to usable TestScratch without disrupting surviving sessions.
@@ -152,3 +154,90 @@ Actions: launch/relaunch a slot, retry Couch start, restore RAM mount, inspect t
 ## Approval questions
 
 Approve the retained-original layout links and conservative foreign-row pruning boundary, plus the isolated-now/operator-restart live arrangement. No implementation begins until the hub approves the plan.
+
+## Revisions
+
+### 2026-10-19 10:56 PDT — R1: approved reboot-only metadata setup
+
+**Authority:** canonical submitted hub receipt a7a22cfc-b15d-478f-bac2-c9a1089f683f. The hub approved the slot-temp half and directed a simpler metadata mechanism. No further design approval is outstanding for this revision. Run change-code's full-flow plan-quality gate before implementation.
+
+**Reason:** live cache migration, layout indirection and global pruning cost more machinery than this small cache warrants. The real metadata route switch can wait until the operator's next reboot, when no Zellij server is running.
+
+**Delta:** remove atomic exchange, live copy/stability checks, layout links, cache pruning and the fixed exchange counterpart from the executable design. Keep session_info.disk permanently. No metadata file content is parsed, copied, rewritten or deleted. Existing layout bytes remain untouched. Retain the temp-folder manager/policy/cleanup design and all three environment overrides.
+
+### Current core concepts and seams
+
+| Pure name | Lives in | Status |
+|---|---|---|
+| ScratchProbe / ChooseScratch | cmd/internal/couchscratch/policy.go | new |
+| SlotScratchKey / SlotEnvironment / CollectionDecision | cmd/internal/couchscratch/policy.go | new |
+| MetadataState / DecideMetadata | cmd/internal/couchscratch/metadata_policy.go | new |
+
+MetadataState is an observed tagged route (missing, real, exact-owned RAM link, unexpected), server presence (absent, present, unknown) and disk availability. DecideMetadata returns keep, keep-until-reboot, enable, restore or refuse. It holds no desired routing across events; each startup observes current filesystem facts. Pure fixtures contain literal values only.
+
+| Integration name | Lives in | Status | Wraps |
+|---|---|---|---|
+| Manager / Backend / OSScratchBackend | cmd/internal/couchscratch/manager.go, os.go | new | injected mount facts, nofollow filesystem effects, process/session inventory and slot leases |
+| PrepareSlot / Collect | cmd/internal/couchscratch/temp.go | new | approved per-slot temp setup and liveness-gated cleanup |
+| ConfigureMetadata | cmd/internal/couchscratch/metadata.go | new | startup-only directory rename and symlink setup |
+| Couch scratch adapter | cmd/internal/couchcore/scratch.go | new | canonical slot/thread catalog and lifecycle evidence |
+| launchTrackedThread / attachListedTerminalOnce | cmd/internal/couchcore/launch_existing.go, warm_attach.go | modified | shared preparation at both production StartBlocked sites |
+| OSRuntime.NewCouchWith | cmd/internal/couchcmd/run.go | modified | composition and one pre-launch metadata setup under supervisor authority |
+| PairLifecycleController.applyCompletion / Couch.ArchiveThread / Couch.Reap | cmd/internal/couchcore/park.go, detach.go, reap.go | modified | shared collection trigger after confirmed terminal retirement |
+
+The stateful fake Backend and portable fixture roots remain as above, narrowed to these operations. There are no exchange platform adapters, metadata-copy buffers or cache sweeps. Native server observation reuses procutil's complete named snapshot and exact server-argv classification; Pair-filtered listing is not absence evidence. Unknown native observation keeps routing unchanged. Tests inject an isolated HOME and a private simulated volume; no fixture can select the account cache or /Volumes/TestScratch by ambient inheritance.
+
+### Current metadata algorithm
+
+Run once when the supervisor owns startup, before any new Zellij launch. A cache-parent lock serializes Couch's own setup, while the singleton serializes its admission. Zellij does not hold that lock: the deliberate operating precondition is a reboot/quiescent native-server inventory, not a live migration guarantee. A standalone concurrent foreign launch is outside that maintenance precondition; keep the window minimal and never claim the lock controls native launches.
+
+1. Resolve the exact native cache path from selected HOME/platform. Validate parents, ownership and route type without traversing an unexpected link.
+2. Take one complete native Zellij server observation across namespaces. If any server is live, make **no filesystem changes** and emit once: `Zellij metadata stays on disk until the next reboot`. This rule wins even if RAM is absent. An unavailable/partial observation also makes no changes, with an uncertainty diagnostic.
+3. With no server and usable RAM, create the private RAM destination. If session_info is a real directory and session_info.disk does not exist, rename it to session_info.disk, then create session_info as the exact RAM symlink. If the route is missing, create only the symlink. An already-correct link is a no-op after ensuring its expected destination. Never delete or overwrite session_info.disk.
+4. With no server and absent/unusable RAM, replace only our exact symlink with a real empty directory. Do not restore the backup, and do not unlink unexpected links. Pair's session_serialization false makes native resurrection restoration unnecessary for the approved use case.
+5. Retry after an interrupted rename by recognizing missing route plus retained backup. Retry after link removal by creating the missing real directory. A pre-existing backup plus another nonempty real route is conservatively retained with a diagnostic rather than overwritten or pruned. An empty real route may be removed only after proving it remains empty and no server is present; its backup stays unchanged. No second backup generation is created.
+
+| State/event | Effect | Retry / loss |
+|---|---|---|
+| any live server | leave all paths/inodes alone; one reboot note | operator reboot; no loss |
+| unknown server inventory or route | leave all paths alone; reason | inspect/retry; no guessed absence |
+| no server, RAM available, ordinary real route | rename once to .disk, create RAM link | reconcile from objects after interruption; original retained |
+| no server, expected RAM link already active | ensure expected destination, no backup changes | idempotent |
+| no server, RAM absent, our link | unlink link, mkdir real route | repeat completes a missing route; backup never restored/deleted |
+| conflicting nonempty route and backup | preserve both; visible fallback | inspect later; no overwrite |
+
+The old atomic-route invariant does not apply: no live server may be present when the non-atomic rename/link or unlink/mkdir sequence runs. A failed effect preserves objects already created, returns a typed diagnostic and does not start a repair worker. There is no periodic routing check and no hot-path metadata observation.
+
+### Current temp cleanup clarification
+
+Keep the approved stable repository/slot ownership and directory leases. Cleanup is only after a complete no-holder proof: active slot/launch, native server, wrapper/agent, detached job, exact open holder or unknown observation retains the folder. The lease serializes Couch preparation/removal; it is not alleged to be held by arbitrary native/background processes. Reuse existing process/slot evidence; do not add a second host census service or scatter direct recursive removals across UI callbacks. Failed/uncertain cleanup is a retained row, not a launch failure.
+
+### Current budgets and lifecycle
+
+- O(1) volume probe/slot preparation; one native inventory and O(P+S+F) work per temp sweep. N=8/16 counters reject per-candidate native acquisition and superlinear entry work.
+- Metadata startup: one native server observation, O(1) path operations, **zero metadata content bytes copied or read and zero session-directory enumeration** at N=8/16. No file-count/copy-size migration cap is needed because there is no copy/sweep.
+- session_info.disk is explicitly retained forever by operator direction; first creation costs the existing small cache (read-only sample ~0.3 MiB). It is never refreshed into growing generations or deleted. No cache-pruning promise remains.
+- The mounted RAM disk remains disposable at reboot. Durable data/transcripts/GOCACHE remain unchanged. Existing panes retain their old environment until relaunched.
+- ARCH-ORDER uses the small startup decision above, not the superseded live-migration state machine. ARCH-SECURE fails closed on incomplete server inventory or unknown link. ARCH-EVOLVE makes no native/thread format change; immutable temp-owner declarations retain unknown bytes. ARCH-FUNERAL's retained backup exception is the operator's explicit choice, with bounded single-generation cost.
+
+### Current named-function tests and guards
+
+Keep the original ChooseScratch, SlotEnvironment, PrepareSlot, Collect and production launch-composition strategies. Replace all metadata strategies with:
+
+| Function | Strategy | Independent guard |
+|---|---|---|
+| DecideMetadata | literal full product of route/server/RAM facts and interrupted prefixes | live or unknown server state never emits a mutating action |
+| ConfigureMetadata | stateful fixture HOME: no-server enable, any-server keep, absent-RAM restore, rename/link failures, rerun, unexpected links and existing .disk | original backup bytes/inodes untouched; no content reads, copies or session pruning; zero writes in held-server case |
+| native server adapter | exact server/client argv, foreign socket namespaces, unknown birth/argv and unavailable census | no Pair-name filter and no missing/failed observation treated as absent |
+| startup composition | real OSRuntime construction with a private backend/isolated HOME | feature-removal mutation fails; sentinel live-account path never touched |
+
+### Current execution checklist (supersedes original tasks)
+
+- [ ] Write RED pure policy/decision and stateful backend tests for the approved temp behavior and three metadata branches; implement the minimal shared manager and platform root probe.
+- [ ] Write RED constructor-path launch tests for primary/numbered slots and all three agent environments; implement the shared preparation helper at both StartBlocked sites. Cover fallback, 0700 ownership, conflicting roots, detach/reuse and held background jobs.
+- [ ] Write RED no-holder cleanup tests with one shared complete inventory; implement startup and confirmed-retirement collection, retain unknown owners and instrument N/2N work.
+- [ ] Implement startup-only metadata configure from the fixture regressions. Rename into one retained .disk, link only at no-server startup, leave live servers unchanged, restore an empty real directory only from our link. No atomic exchange, layout linking or pruning.
+- [ ] Qualify environments with owned child shells; qualify the startup/metadata composition with isolated Couch/HOME/Zellij facts only. Three branch fixture tests are the required metadata acceptance; do not launch or modify the live fleet to exercise them.
+- [ ] Register all new source files, run package and source-inventory/comment guards, document README/atlas/index and the exact live note/fallback/reboot behavior. Open draft PR for CI overlap.
+- [ ] Run the pushed-head recorded suite, close through the mandatory review and measured actuals, request promised landing priority, merge normally and report the verified landing.
+- [ ] The operator's next **reboot**, not a Couch-only restart, performs the real metadata switch. Existing slots require relaunch for temp environment changes. The operator runs the 30 s write-only sample afterward. No pair:0 staging or live cache mutation by this slot.
