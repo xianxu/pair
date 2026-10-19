@@ -2,6 +2,7 @@ package couchcmd
 
 import (
 	"context"
+	"errors"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/hostty"
@@ -130,5 +131,35 @@ func TestRecoverParkUnknownCacheRefusesWithRefreshAdvice(t *testing.T) {
 	_, err := ops.preparePark(context.Background(), "pair:2", couchcore.RepositoryName{Key: "/src/pair"}, nil)
 	if err == nil || !strings.Contains(err.Error(), "refresh") || !strings.Contains(err.Error(), "retry") {
 		t.Fatalf("unknown cached selection needs refresh/retry advice: %v", err)
+	}
+}
+
+func TestRecoverParkRetainedReceiptPrecedesRepositoryLookup(t *testing.T) {
+	r, runner, _ := slotRig(t)
+	caller := r.connect(0)
+	bindings := 0
+	r.slotOps.preparePark = func(context.Context, string, couchcore.RepositoryName, func(context.Context) error) (slotOperationRunner, error) {
+		bindings++
+		return runner.run, nil
+	}
+	request := slotRequest(caller, "recover-park", "retained-before-lookup", "pa:2")
+	request.Confirmed = true
+	first := r.slotOps.handle(context.Background(), caller, request)
+	if first.Code != "accepted" {
+		t.Fatalf("initial: %+v", first)
+	}
+	lookups := 0
+	r.slotOps.names = func(context.Context) ([]couchcore.RepositoryName, error) {
+		lookups++
+		return nil, errors.New("repository catalog unavailable")
+	}
+	duplicate := r.slotOps.handle(context.Background(), caller, request)
+	if duplicate.Code != "accepted" || duplicate.Operation.ID != first.Operation.ID || lookups != 0 || bindings != 1 || runner.count() != 1 {
+		t.Fatalf("retained duplicate: %+v lookups=%d bindings=%d jobs=%d", duplicate, lookups, bindings, runner.count())
+	}
+	request.Target = "removed-alias:2"
+	conflict := r.slotOps.handle(context.Background(), caller, request)
+	if conflict.Code != "id-conflict" || lookups != 0 || bindings != 1 || runner.count() != 1 {
+		t.Fatalf("retained conflict: %+v lookups=%d bindings=%d jobs=%d", conflict, lookups, bindings, runner.count())
 	}
 }

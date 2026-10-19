@@ -160,6 +160,16 @@ func (s *slotOperations) admit(ctx context.Context, caller couchmessage.Binding,
 	if err := slotOperationConfirmation(r); err != nil {
 		return couchmessage.Response{Code: "confirmation-required", Error: err.Error()}
 	}
+	event := couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptAdmit, IntentDigest: driveIntentDigest(r), CandidateKey: r.CandidateKey, RecoveryConfirmation: r.RecoveryConfirmation, ID: r.ID, Op: r.Op, Target: r.Target, Agent: r.Agent, ToHub: r.ToHub, Persist: r.Persist, At: s.now()}
+	s.mu.Lock()
+	s.sweepLocked()
+	existing, held := s.receipts[key]
+	if held {
+		receipt, err := couchmessage.ApplyReceiptEvent(existing, event)
+		s.mu.Unlock()
+		return receiptAdmissionResponse(receipt, err)
+	}
+	s.mu.Unlock()
 	var queueKey string
 	var err error
 	if len(queueKeys) > 0 {
@@ -174,17 +184,11 @@ func (s *slotOperations) admit(ctx context.Context, caller couchmessage.Binding,
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.sweepLocked()
-	existing, held := s.receipts[key]
-	receipt, err := couchmessage.ApplyReceiptEvent(existing, couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptAdmit, IntentDigest: driveIntentDigest(r), CandidateKey: r.CandidateKey, RecoveryConfirmation: r.RecoveryConfirmation, ID: r.ID, Op: r.Op, Target: r.Target, Agent: r.Agent, ToHub: r.ToHub, Persist: r.Persist, At: s.now()})
+	existing, held = s.receipts[key]
+	receipt, err := couchmessage.ApplyReceiptEvent(existing, event)
 	switch {
-	case errors.Is(err, couchmessage.ErrReceiptIDConflict):
-		return couchmessage.Response{Code: "id-conflict", Error: err.Error()}
-	case err != nil:
-		return couchmessage.Response{Code: "invalid-request", Error: err.Error()}
-	case held:
-		// A duplicate admission returns the receipt as it stands and never
-		// enqueues a second job.
-		return couchmessage.Response{Code: "accepted", Operation: &receipt}
+	case err != nil || held:
+		return receiptAdmissionResponse(receipt, err)
 	case len(s.receipts) >= maxSlotOperationReceipts:
 		return couchmessage.Response{Code: "overloaded", Error: "too many slot operations held; read the report and retry later"}
 	}
@@ -204,6 +208,17 @@ func (s *slotOperations) admit(ctx context.Context, caller couchmessage.Binding,
 			code = "busy"
 		case errors.Is(err, couchtty.ErrOperationQueueOverloaded):
 			code = "overloaded"
+		}
+		return couchmessage.Response{Code: code, Error: err.Error()}
+	}
+	return couchmessage.Response{Code: "accepted", Operation: &receipt}
+}
+
+func receiptAdmissionResponse(receipt couchmessage.OperationReceipt, err error) couchmessage.Response {
+	if err != nil {
+		code := "invalid-request"
+		if errors.Is(err, couchmessage.ErrReceiptIDConflict) {
+			code = "id-conflict"
 		}
 		return couchmessage.Response{Code: code, Error: err.Error()}
 	}
