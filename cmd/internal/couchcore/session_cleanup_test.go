@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -185,6 +186,84 @@ func TestSessionCleanupCarriesDeadlineThroughNativeDelete(t *testing.T) {
 		err := checker.QuiesceNamed(ctx, address, name)
 		if !errors.Is(err, context.DeadlineExceeded) || deleter.legacyCalls != 0 || !deleter.deadline.Equal(deadline) {
 			t.Fatalf("delete lost budget: err=%v legacy=%d deadline=%v want=%v", err, deleter.legacyCalls, deleter.deadline, deadline)
+		}
+	})
+}
+
+func TestSessionCleanupMetadataReadHonorsContextWhileStoreHeld(t *testing.T) {
+	env := storeReadLockFixture(t)
+	record := validThreadRecord(t)
+	release := holdStoreLock(t, env.Couch.Threads)
+	released := false
+	defer func() {
+		if !released {
+			release()
+		}
+	}()
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- env.Couch.quiesceThreadSession(ctx, record.Address) }()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("metadata read lost cancellation: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		release()
+		released = true
+		<-done
+		t.Fatal("session metadata read waited for store release after its deadline")
+	}
+}
+
+type lockOnCleanupArtifacts struct {
+	*FakeThreadArtifactCollisionChecker
+	lock func()
+}
+
+func (a *lockOnCleanupArtifacts) QuiesceNamed(ctx context.Context, _ ThreadAddress, _ string) error {
+	a.lock()
+	<-ctx.Done()
+	return ctx.Err()
+}
+func TestPostAckSessionCleanupDoesNotRereadExpiredMetadata(t *testing.T) {
+	// The real watchdog sits outside the virtual-time bubble so it can release
+	// even a broken implementation blocked in a kernel flock after expiry.
+	held := make(chan func(), 1)
+	finished := make(chan struct{})
+	joined := make(chan struct{})
+	var forced atomic.Bool
+	go func() {
+		defer close(joined)
+		select {
+		case release := <-held:
+			select {
+			case <-finished:
+			case <-time.After(2 * time.Second):
+				forced.Store(true)
+			}
+			release()
+		case <-finished:
+		}
+	}()
+	defer func() { close(finished); <-joined }()
+	synctest.Test(t, func(t *testing.T) {
+		env := newTestEnv(t, "/repo")
+		record := validThreadRecord(t)
+		record.SessionBinding = &couchidentity.SessionBinding{C: 9, M: 4, Name: "📁9-4", ScopeKey: record.Address.RepoScope, Tag: string(record.Address.Tag), StartNonce: "original"}
+		if _, err := env.Couch.Threads.CreateThread(record); err != nil {
+			t.Fatal(err)
+		}
+		h, err := env.Runner.Start("/repo", []string{"pair"}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		env.Couch.Artifacts = &lockOnCleanupArtifacts{FakeThreadArtifactCollisionChecker: env.Artifacts, lock: func() { held <- holdStoreLock(t, env.Couch.Threads) }}
+		err = env.Couch.quiescePostAckStart(record.Address, h, StartSpawn)
+		var unconfirmed *SessionCleanupUnconfirmed
+		if forced.Load() || !errors.As(err, &unconfirmed) || unconfirmed.Session != recordSessionName(record) {
+			t.Fatalf("expiry reread waited for store or lost exact identity: forced=%v err=%v", forced.Load(), err)
 		}
 	})
 }

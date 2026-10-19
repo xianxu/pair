@@ -83,19 +83,26 @@ func observeAddressSession(ctx context.Context, artifacts any, address ThreadAdd
 }
 
 func (c *Couch) quiesceThreadSession(ctx context.Context, address ThreadAddress) error {
-	record, err := c.Threads.GetThread(address)
+	_, err := c.quiesceThreadSessionNamed(ctx, address)
+	return err
+}
+
+// Preserve observed identity for deadline reporting without another store read.
+func (c *Couch) quiesceThreadSessionNamed(ctx context.Context, address ThreadAddress) (string, error) {
+	record, err := c.Threads.PreviewThreadContext(ctx, address)
 	if err != nil {
-		return err
+		return "", err
 	}
+	name := recordSessionName(record)
 	if binding := recordSessionBinding(record); binding != nil {
 		if named, ok := c.Artifacts.(interface {
 			QuiesceNamed(context.Context, ThreadAddress, string) error
 		}); ok {
-			return named.QuiesceNamed(ctx, address, binding.Name)
+			return name, named.QuiesceNamed(ctx, address, binding.Name)
 		}
-		return errors.New("exact terminal-incarnation quiescence unavailable")
+		return name, errors.New("exact terminal-incarnation quiescence unavailable")
 	}
-	return c.Artifacts.Quiesce(address)
+	return name, c.Artifacts.Quiesce(address)
 }
 
 // observeRecovery is read-only. Session presence and detached ownership are

@@ -996,12 +996,16 @@ func (c *Couch) quiescePostAckStart(address ThreadAddress, h Handle, shape Start
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	var lastErr error
+	var session string
 	for {
 		if ctx.Err() != nil {
-			record, _ := c.Threads.GetThread(address)
-			return errors.Join(firstErr, &SessionCleanupUnconfirmed{Address: address, Session: recordSessionName(record), Cause: errors.Join(ctx.Err(), lastErr)})
+			return errors.Join(firstErr, &SessionCleanupUnconfirmed{Address: address, Session: session, Cause: errors.Join(ctx.Err(), lastErr)})
 		}
-		lastErr = c.quiesceThreadSession(ctx, address)
+		name, err := c.quiesceThreadSessionNamed(ctx, address)
+		if name != "" {
+			session = name
+		}
+		lastErr = err
 		if lastErr == nil && ctx.Err() == nil {
 			return firstErr
 		}
