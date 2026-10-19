@@ -139,3 +139,25 @@ func TestPairReviewRoundRecoversALostReply(t *testing.T) {
 		t.Fatalf("round without --json: exit %d", code)
 	}
 }
+
+// A reply with no edits (pair#690, the shape ariadne#453's xx-fix sends):
+// both wire forms exit 0 with an empty Round and no Body, leave the document
+// alone, and record a round the pane can see.
+func TestPairReviewApplyWithNoRecordsIsAnEmptyRound(t *testing.T) {
+	for _, edits := range []string{`[]`, `{"records":[]}`} {
+		c := newCLI(t, "The quick fox.\n")
+		h := c.hash()
+		exit, reply, _ := c.run(edits, "--if-hash", h, "--json")
+		var round sessionsync.Round
+		json.Unmarshal(reply["Round"], &round)
+		if exit != 0 || code(reply) != "ok" || reply["Body"] != nil || round.ResultHash != h || len(round.Spans) != 0 {
+			t.Fatalf("%s: exit %d reply %v", edits, exit, reply)
+		}
+		if c.hash() != h {
+			t.Fatalf("%s: an empty round changed the document", edits)
+		}
+		if a, err := sessionsync.ReadRoundArtifact(c.round); err != nil || a == nil || a.Body != "" || a.Round.ResultHash != h {
+			t.Fatalf("%s: artifact %+v err %v", edits, a, err)
+		}
+	}
+}

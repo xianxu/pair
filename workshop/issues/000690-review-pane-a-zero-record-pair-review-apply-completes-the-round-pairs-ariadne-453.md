@@ -43,16 +43,16 @@ Today `pair review apply` with zero records (or records that change nothing) ret
 
 Design (quick flow). A round is identified by (result_hash, at), not result_hash alone: `at` already exists and differs for every apply, so the empty round needs no new field (ARCH-EVOLVE: the artifact format does not change). An older pane dedups on result_hash and ignores an empty round, which is today's behavior. An empty round is a Round with no spans whose base_hash equals result_hash.
 
-- [ ] Engine, `sessionsync.ApplyFile`: an empty records list skips BuildEdit (which refuses empty input for the Couch path, unchanged). A zero-change apply, from an empty list or from records that change nothing, writes the empty-round artifact `{file, round: {base_hash = result_hash = H, at, presentation, spans: []}, body: ""}` after the same flock, operator lock and hash checks. The previous artifact is removed first, the file is not written, and the reply carries the Round with no Body. The previous `!edit.Changed` early return goes away.
-- [ ] Pane, `round_watch`: `M.key(artifact)` returns result_hash plus at; decide, watch and the declined-round warning all key on it (ARCH-ORDER: one identity for dedup and redelivery).
-- [ ] Pane, `init.lua on_applied_round`: for an empty round, skip the modified check and the reload/decorate (there is nothing to reload, so unsaved operator text is safe), and still run `after_applied_round`, which clears `awaiting_since`, the spinner and the restore pending block.
-- [ ] Tests:
+- [x] Engine, `sessionsync.ApplyFile`: an empty records list skips BuildEdit (which refuses empty input for the Couch path, unchanged). A zero-change apply, from an empty list or from records that change nothing, writes the empty-round artifact `{file, round: {base_hash = result_hash = H, at, presentation, spans: []}, body: ""}` after the same flock, operator lock and hash checks. The previous artifact is removed first, the file is not written, and the reply carries the Round with no Body. The previous `!edit.Changed` early return goes away.
+- [x] Pane, `round_watch`: `M.key(artifact)` returns result_hash plus at; decide, watch and the declined-round warning all key on it (ARCH-ORDER: one identity for dedup and redelivery).
+- [x] Pane, `init.lua on_applied_round`: for an empty round, skip the modified check and the reload/decorate (there is nothing to reload, so unsaved operator text is safe), and still run `after_applied_round`, which clears `awaiting_since`, the spinner and the restore pending block.
+- [x] Tests:
   - Go: empty `[]` and `{"records":[]}` plus a no-op record each write the artifact and leave the file bytes unchanged; operator lock (exit 3) and stale (exit 6) still refuse an empty apply; the CLI JSON reply has a Round and no Body.
   - Lua: round_watch decide accepts the same hash with a new `at`, and rejects the same key.
   - Window test: an empty round clears the spinner without reloading, and fails without the change.
   - The rule test keeps the empty round case: nvim writes nothing.
-- [ ] Target: review-protocol.md seam 2 and the applying state name the empty round (the producer always applies, records [] when it has no edits; an empty Body commits nothing); link ariadne#453; add a Revisions entry.
-- [ ] Atlas review page, if it describes the round artifact.
+- [x] Target: review-protocol.md seam 2 and the applying state name the empty round (the producer always applies, records [] when it has no edits; an empty Body commits nothing); link ariadne#453; add a Revisions entry.
+- [x] Atlas review page, if it describes the round artifact.
 - [ ] Live no-edits pane check: the TL holds it for the next Couch restart.
 
 ARCH-FUNERAL: no new artifact; the one round file is replaced on every apply, as before. ARCH-SECURE: the pane already decodes the artifact defensively (`decide` type checks); `at` is read as an opaque string.
@@ -64,3 +64,5 @@ ARCH-FUNERAL: no new artifact; the one round file is replaced on every apply, as
 ### 2026-10-19
 
 Hand-off: the hub split the empty-round work. ariadne#453 (landed as ariadne PR 316) is the producer side only: shared xx-fix always calls pair review apply, with records [] when it has no edits, and an empty reply never makes the agent commit. Two pieces moved here from ariadne:3: the empty-round contract wording in workshop/targets/review-protocol.md, and the live no-edits pane check once both issues have landed. ariadne:3 records the same hand-off in ariadne#453.
+
+Built. Engine: ApplyFile handles an empty list before BuildEdit and writes the empty round for any zero-change apply; the Couch session-sync path still refuses an empty list. Pane: round_watch.key (result_hash@at) drives decide, watch and the declined-round warning; is_empty is base_hash == result_hash with no spans, so the window test's older span-less fixture (no base_hash) still reloads. Mutation: is_empty forced false turns review-window-test red (NO-empty-round-ends-the-turn, pending still set). The couch SKILL.md line for the review workbench now says an empty reply commits nothing. Runs: go test sessionsync, reviewapply, couchcmd, artifactpath, runtimebundle; make test-lua test-review; all green.

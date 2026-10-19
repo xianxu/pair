@@ -11,15 +11,30 @@ function M.path() return vim.env.PAIR_REVIEW_ROUND_PATH end
 
 local function canonical(p) return vim.fn.resolve(vim.fn.fnamemodify(p, ':p')) end
 
+-- A round's identity is its result hash and its time (pair#690): an empty
+-- round leaves the hash where the round before it did, and only its time
+-- tells the two apart. nil for an artifact that is not a round.
+function M.key(artifact)
+  local round = type(artifact) == 'table' and artifact.round
+  if type(round) ~= 'table' or type(round.result_hash) ~= 'string' or round.result_hash == '' then return nil end
+  return round.result_hash .. '@' .. (type(round.at) == 'string' and round.at or '')
+end
+
+-- The empty round: the agent replied with no edits, so there is nothing to
+-- reload or decorate, only a turn to end (pair#690).
+function M.is_empty(round)
+  return type(round) == 'table' and round.base_hash == round.result_hash
+    and (round.spans == nil or #round.spans == 0)
+end
+
 -- A round is the pane's to act on when it names the pane's file, is one not
 -- seen yet, and the file on disk still is its result (current_hash); a file
 -- that moved on since makes the round stale, and the pane leaves it.
 function M.decide(artifact, file, seen, current_hash)
-  if type(artifact) ~= 'table' or type(artifact.round) ~= 'table' then return false end
-  local hash = artifact.round.result_hash
-  if type(hash) ~= 'string' or hash == '' or hash == seen then return false end
+  local key = M.key(artifact)
+  if not key or key == seen then return false end
   if type(artifact.file) ~= 'string' or canonical(artifact.file) ~= canonical(file) then return false end
-  return current_hash == nil or current_hash == hash
+  return current_hash == nil or current_hash == artifact.round.result_hash
 end
 
 -- hash is the engine's whole-file hash: the first 16 hex of sha256 of the bytes.
@@ -61,7 +76,7 @@ function M.watch(file, cb, opts)
   local path = opts.path or M.path()
   if not path or path == '' then return function() end end
   local current = M.read(path)
-  local seen = current and type(current.round) == 'table' and current.round.result_hash or nil
+  local seen = M.key(current)
   local timer = vim.uv.new_timer()
   timer:start(opts.interval or 100, opts.interval or 100, vim.schedule_wrap(function()
     local artifact = M.read(path)
@@ -70,7 +85,7 @@ function M.watch(file, cb, opts)
     -- Hash the file only for a round that is otherwise the pane's.
     if M.decide(artifact, file, seen) and M.hash(file) == artifact.round.result_hash
         and cb(artifact) ~= false then
-      seen = artifact.round.result_hash
+      seen = M.key(artifact)
     end
   end))
   return function() if not timer:is_closing() then timer:stop(); timer:close() end end

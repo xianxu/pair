@@ -388,6 +388,25 @@ local function check()
   end, 20)
   OUT4:write((was_spinning and reloaded and not spinning() and 'applied-round-clears-spinner\n')
     or ('NO-applied-round-clears-spinner was=' .. tostring(was_spinning) .. ' reloaded=' .. tostring(reloaded) .. ' ' .. vim.o.statusline .. '\n'))
+  -- An empty round (the agent replied with no edits, pair#690) keeps the hash
+  -- of the round before it and ends the turn all the same: the spinner and the
+  -- restore pending block clear, and nothing reloads, so the operator's unsaved
+  -- line stays in the buffer and off the disk.
+  pcall(_G.PairReviewPane.finish_human_turn, buf, 'doc.md')
+  local pending = _G.PairReviewPane.controller.opts.pending
+  local was_pending = spinning() and pending() ~= nil
+  vim.api.nvim_buf_set_lines(buf, -1, -1, false, { 'operator line mid-turn' })
+  local h = round_watch.hash(name)
+  rf = io.open(os.getenv('PAIR_REVIEW_ROUND_PATH'), 'w')
+  rf:write(vim.json.encode({ file = name, round = { base_hash = h, result_hash = h,
+    at = '2026-10-19T09:00:00.000000001Z', presentation = 'direct', spans = {} }, body = '' })); rf:close()
+  local ended = vim.wait(3000, function() return not spinning() end, 20)
+  local kept = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), '\n'):find('operator line mid-turn', 1, true) ~= nil
+  local ef = io.open(name, 'r'); local edisk = ef:read('*a'); ef:close()
+  OUT4:write((was_pending and ended and pending() == nil and kept and vim.bo[buf].modified
+      and not edisk:find('operator line mid-turn', 1, true) and 'empty-round-ends-the-turn\n')
+    or ('NO-empty-round-ends-the-turn was=' .. tostring(was_pending) .. ' ended=' .. tostring(ended)
+      .. ' pending=' .. tostring(pending()) .. ' kept=' .. tostring(kept) .. '\n'))
   -- save-on-VimLeave (§8): an unsent edit is persisted when the pane closes.
   -- Append, then fire the registered VimLeave teardown; assert the file on disk.
   vim.api.nvim_buf_set_lines(buf, -1, -1, false, { 'unsent edit survives' })
@@ -465,6 +484,7 @@ grep -q '^proofread-mode-persisted$' "$RT/r3" && pass "menu send persists select
 grep -q 'menu submit edit' "$REPO/doc.md" && pass "send menu submit saves the reviewed document buffer" || fail "send menu submit did not save reviewed document"
 grep -q 'Review workbench open on' "$RT/zlog" && fail "review pane still sends redundant open handshake" || pass "review pane does not send redundant open handshake"
 grep -q '^applied-round-clears-spinner$' "$RT/r3" && pass "an applied round reloads and clears the awaiting spinner" || fail "applied round spinner: $(grep applied-round "$RT/r3")"
+grep -q '^empty-round-ends-the-turn$' "$RT/r3" && pass "an empty round ends the turn without reloading" || fail "empty round: $(grep empty-round "$RT/r3")"
 grep -q '^vimleave-saves$' "$RT/r3" && pass "VimLeave saves a modified buffer (unsent edit durability)" || fail "VimLeave save-on-exit"
 
 [ "$fails" -eq 0 ] || { printf 'review-window-test FAILED (%d)\n' "$fails"; exit 1; }
