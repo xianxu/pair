@@ -15,7 +15,7 @@ import (
 // Codec transforms a tar stream into encrypted compressed bytes.
 type Codec interface {
 	CheckRecipients(context.Context, []string) error
-	Encode(context.Context, io.Reader, io.Writer, []string) error
+	Encode(context.Context, io.Reader, io.Writer, []string, string) error
 }
 
 // CommandCodec uses public keys only. Home optionally isolates GNUPGHOME.
@@ -148,7 +148,11 @@ func (c CommandCodec) CheckRecipients(ctx context.Context, recipients []string) 
 	return nil
 }
 
-func (c CommandCodec) Encode(ctx context.Context, in io.Reader, out io.Writer, recipients []string) error {
+func (c CommandCodec) Encode(ctx context.Context, in io.Reader, out io.Writer, recipients []string, compression string) error {
+	level, err := compressionLevel(compression)
+	if err != nil || level > 22 {
+		return fmt.Errorf("unsupported encoder compression %q", compression)
+	}
 	if err := codecFingerprints(recipients); err != nil {
 		return err
 	}
@@ -184,7 +188,11 @@ func (c CommandCodec) Encode(ctx context.Context, in io.Reader, out io.Writer, r
 	if binary == "" {
 		binary = "zstd"
 	}
-	zstd := exec.CommandContext(ctx, binary, "-19", "--single-thread", "--stdout", "--quiet")
+	zstdArgs := []string{fmt.Sprintf("-%d", level), "-T0", "--stdout", "--quiet"}
+	if level > 19 {
+		zstdArgs = append(zstdArgs, "--ultra")
+	}
+	zstd := exec.CommandContext(ctx, binary, zstdArgs...)
 	zstd.WaitDelay = time.Second
 	inputRead, inputWrite, err := os.Pipe()
 	if err != nil {

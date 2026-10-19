@@ -235,3 +235,35 @@ func TestPlanBoundaryAdmission(t *testing.T) {
 		t.Fatal("non UTC accepted")
 	}
 }
+
+func TestCompressionPolicyAndReaderCompatibility(t *testing.T) {
+	for _, kind := range []string{"codex-database", "ops-documents", "claude-transcripts"} {
+		r := pureRequest()
+		r.Kind = kind
+		bundles, err := planBundles(r, pureManifest().Files, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := "zstd -19"
+		if kind == "codex-database" {
+			want = "zstd -9"
+		}
+		if bundles[0].Compression != want {
+			t.Errorf("%s: got %s want %s", kind, bundles[0].Compression, want)
+		}
+	}
+	for _, descriptor := range []string{"zstd -1", "zstd -9", "zstd -19", "zstd -22", "zstd -23", "zstd -100"} {
+		m := pureManifest()
+		m.Compression = descriptor
+		if err := ValidateManifest(m); err != nil {
+			t.Errorf("reader refused %q: %v", descriptor, err)
+		}
+	}
+	for _, descriptor := range []string{"", "zstd -0", "zstd -09", "zstd -+9", "zstd -9 ", "zstd -9 --foo", "gzip -9"} {
+		m := pureManifest()
+		m.Compression = descriptor
+		if ValidateManifest(m) == nil {
+			t.Errorf("reader accepted %q", descriptor)
+		}
+	}
+}
