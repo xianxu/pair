@@ -247,7 +247,7 @@ func TestArchiveRetiresAnUnprovenIncarnationItProvedDead(t *testing.T) {
 	artifacts.SetPairSession(unproven.Address, "pair-"+string(unproven.Address.Tag), true)
 	artifacts.SetDetachedSession(unproven.Address, "pair-"+string(unproven.Address.Tag))
 	// pid 42 is absent from the table, so the probe answers Dead -- not unknown.
-	couch := &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)}
+	couch := teardownReady(t, &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)})
 
 	if _, err := couch.ArchiveThread(context.Background(), unproven.Address); err != nil {
 		t.Fatalf("a row whose helper is provably gone could not be archived: %v", err)
@@ -287,7 +287,7 @@ func TestArchiveKeepsAnUnprovenIncarnationItCouldNotProveDead(t *testing.T) {
 	artifacts.SetDetachedSession(unproven.Address, "pair-"+string(unproven.Address.Tag))
 	proc := NewFakeProcOps()
 	proc.SetUnknown(42)
-	couch := &Couch{Threads: store, Artifacts: artifacts, Proc: proc, Path: NewFakePathOps(nil)}
+	couch := teardownReady(t, &Couch{Threads: store, Artifacts: artifacts, Proc: proc, Path: NewFakePathOps(nil)})
 
 	_, err = couch.ArchiveThread(context.Background(), unproven.Address)
 	if err == nil {
@@ -390,7 +390,7 @@ func TestArchiveEvidenceCostIsBoundedByItsMaximisingShape(t *testing.T) {
 				artifacts := NewFakeThreadArtifactCollisionChecker()
 				artifacts.SetPairSession(thread.Address, "pair-"+string(thread.Address.Tag), true)
 				artifacts.SetDetachedSession(thread.Address, "pair-"+string(thread.Address.Tag))
-				couch := &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)}
+				couch := teardownReady(t, &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)})
 				return couch, artifacts, thread.Address
 			},
 			// No ledger read: a present session is the warm proof, so the

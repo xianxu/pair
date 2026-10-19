@@ -182,7 +182,7 @@ func TestManagedCreateReuseRefusesProfileDriftDuringSetup(t *testing.T) {
 	args := StartArgs{Cwd: f.Primary, Action: StartCreate}
 	created, _ := env.spawn(t, args)
 	env.Proc.Kill(created.PID)
-	if err := env.Couch.Threads.ArchiveThread(created.Thread); err != nil {
+	if err := env.Couch.Threads.ArchiveThread(created.Thread, retireAuthorityForTest(t, env.Couch.Threads, created.Thread)); err != nil {
 		t.Fatal(err)
 	}
 	prepared, err := env.Couch.PrepareStart(context.Background(), args)
@@ -213,7 +213,7 @@ func TestManagedCreateReuseLaunchesAcceptedTransientProfile(t *testing.T) {
 	}
 	created, _ := env.spawn(t, args)
 	env.Proc.Kill(created.PID)
-	if err := env.Couch.Threads.ArchiveThread(created.Thread); err != nil {
+	if err := env.Couch.Threads.ArchiveThread(created.Thread, retireAuthorityForTest(t, env.Couch.Threads, created.Thread)); err != nil {
 		t.Fatal(err)
 	}
 	args.Stack = "codex"
@@ -498,7 +498,7 @@ func TestManagedCreateReturnsToPrimaryOnceItsThreadIsArchived(t *testing.T) {
 	if slot.Thread == primary.Thread {
 		t.Fatal("second create reused the occupied primary")
 	}
-	if err := env.Couch.Threads.ArchiveThread(primary.Thread); err != nil {
+	if err := env.Couch.Threads.ArchiveThread(primary.Thread, retireAuthorityForTest(t, env.Couch.Threads, primary.Thread)); err != nil {
 		t.Fatal(err)
 	}
 	prepared, err := env.Couch.PrepareStart(context.Background(), args)
@@ -531,7 +531,7 @@ func TestManagedCreateReusesArchivedSlotBeforeAllocating(t *testing.T) {
 	first, _ := env.spawn(t, args)
 	env.spawn(t, args)
 	env.Proc.Kill(first.PID) // archive follows the agent's exit
-	if err := env.Couch.Threads.ArchiveThread(first.Thread); err != nil {
+	if err := env.Couch.Threads.ArchiveThread(first.Thread, retireAuthorityForTest(t, env.Couch.Threads, first.Thread)); err != nil {
 		t.Fatal(err)
 	}
 	leftover := filepath.Join(f.host(1), "leftover.txt")
@@ -570,7 +570,7 @@ func TestManagedCreateReusesHoleWithParkedSiblingNotice(t *testing.T) {
 	first, _ := env.spawn(t, args)
 	second, _ := env.spawn(t, args)
 	env.Proc.Kill(first.PID)
-	if err := env.Couch.Threads.ArchiveThread(first.Thread); err != nil {
+	if err := env.Couch.Threads.ArchiveThread(first.Thread, retireAuthorityForTest(t, env.Couch.Threads, first.Thread)); err != nil {
 		t.Fatal(err)
 	}
 	repository, err := env.Couch.Slots.Discover(context.Background(), f.Primary)
@@ -611,7 +611,7 @@ func TestManagedCreateRefusesUnreadableSiblingSlot(t *testing.T) {
 	first, _ := env.spawn(t, args)
 	env.spawn(t, args)
 	env.Proc.Kill(first.PID)
-	if err := env.Couch.Threads.ArchiveThread(first.Thread); err != nil {
+	if err := env.Couch.Threads.ArchiveThread(first.Thread, retireAuthorityForTest(t, env.Couch.Threads, first.Thread)); err != nil {
 		t.Fatal(err)
 	}
 	currentPath := filepath.Join(filepath.Dir(f.host(2)), ".couch", "thread.json")

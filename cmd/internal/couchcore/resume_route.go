@@ -273,6 +273,7 @@ func (c *Couch) resumeListedSlotSurvivor(ctx context.Context, path string) (Star
 		return StartResult{}, refuseResume(ResumeSurvivorsAmbiguous, "several terminal owners survive; inspect them before resuming")
 	}
 	next, name := survivors[0], names[0]
+	var others []ProcessIdentity
 	for _, candidate := range sessions.Candidates {
 		if candidate.Address == next.Address {
 			continue
@@ -280,16 +281,16 @@ func (c *Couch) resumeListedSlotSurvivor(ctx context.Context, path string) (Star
 		if candidate.Presence == SessionPresent {
 			return StartResult{}, refuseResume(ResumeSurvivorsAmbiguous, "another terminal owner survives")
 		}
-		for _, process := range candidate.Processes {
-			if observeExactProcess(c.Proc, process) != Dead {
-				return StartResult{}, refuseResume(ResumeUnknown, "another slot owner is not proved stopped")
-			}
-		}
+		others = append(others, candidate.Processes...)
+	}
+	adoption, err := c.NewAdoptionAuthority(next.Address, others)
+	if err != nil {
+		return StartResult{}, refuseResume(ResumeUnknown, "another slot owner is not proved stopped")
 	}
 	if err := c.confirmListedTerminal(ctx, next, name); err != nil {
 		return StartResult{}, err
 	}
-	if err := local.replaceSlotCurrent(observed, next); err != nil {
+	if err := local.replaceSlotCurrent(observed, next, adoption); err != nil {
 		return StartResult{}, err
 	}
 	actor, handle, err := c.attachListedTerminal(ctx, next, name, ResumeOptions{})

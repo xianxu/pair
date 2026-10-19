@@ -21,7 +21,7 @@ func TestArchivedListingRecoversLocalJournalThroughGlobalFacade(t *testing.T) {
 	}
 	interrupted := errors.New("archive interrupted after journal")
 	local.hooks.AfterJournal = func() error { return interrupted }
-	if err := local.ArchiveThread(record.Address); !errors.Is(err, interrupted) {
+	if err := local.ArchiveThread(record.Address, retireAuthorityForTest(t, local, record.Address)); !errors.Is(err, interrupted) {
 		t.Fatalf("archive interruption: %v", err)
 	}
 	records, err := store.ArchivedThreads()

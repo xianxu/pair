@@ -11,9 +11,13 @@ func threadLifecycleAddress(thread ThreadRecord) (LifecycleAddress, error) {
 	return NewSlotAddress(SlotIdentity{}, thread.StartingPath)
 }
 
-// lifetimeLease is the lease file for an address in this Couch's namespace.
-func (c *Couch) lifetimeLease(address LifecycleAddress) (string, error) {
-	return lifetimelease.Path(c.Namespace.Dir(), address.Key())
+// lifetimeLease is the lease file of one thread's tree under its lifecycle
+// address, in this Couch's namespace. It is per thread, not per address: a
+// store from before one-thread-per-repository (pair#363) can hold sibling
+// threads at one path, and teardown kills the lease's holders, so a shared
+// lease would let retiring one thread kill its live sibling's pair.
+func (c *Couch) lifetimeLease(address LifecycleAddress, thread ThreadAddress) (string, error) {
+	return lifetimelease.Path(c.Namespace.Dir(), address.Key()+" "+thread.RepoScope+"/"+string(thread.Tag))
 }
 
 // lifetimeLeaseEnv prepares the thread's lifetime lease and names it for the
@@ -23,7 +27,7 @@ func (c *Couch) lifetimeLeaseEnv(thread ThreadRecord) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	path, err := c.lifetimeLease(address)
+	path, err := c.lifetimeLease(address, thread.Address)
 	if err != nil {
 		return "", err
 	}

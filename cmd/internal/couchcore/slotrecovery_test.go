@@ -32,13 +32,13 @@ func TestSlotFreshTransactionPreservesHistoryAndRefusesConcurrentChange(t *testi
 	next.Address.Tag = "couch-1111111111111111"
 	next.Incarnations = nil
 	next.Revision = 1
-	if err := s.replaceSlotCurrent(observed, next); err != nil {
+	if err := s.replaceSlotCurrent(observed, next, slotAuthorityForTest(t, observed)); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(s.archivePath(old.Address)); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.replaceSlotCurrent(observed, next); err == nil {
+	if err := s.replaceSlotCurrent(observed, next, slotAuthorityForTest(t, observed)); err == nil {
 		t.Fatal("stale observation overwrote current")
 	}
 }
@@ -76,7 +76,7 @@ func TestSlotFreshTransactionPreservesCorruptBytesAndRejectsFuture(t *testing.T)
 				t.Fatal(err)
 			}
 			next := recordAtCheckout(t, s.slot.WorktreeRoot, s.slot.WorktreeRoot, "couch-0123456789abcdef")
-			err = s.replaceSlotCurrent(observed, next)
+			err = s.replaceSlotCurrent(observed, next, slotAuthorityForTest(t, observed))
 			if raw == `{"schema_version":999}` {
 				if err == nil {
 					t.Fatal("overwrote unsupported version")
@@ -346,7 +346,7 @@ func TestSlotFreshBackupCapAndJournalRecovery(t *testing.T) {
 			t.Fatal(err)
 		}
 		next := recordAtCheckout(t, s.slot.WorktreeRoot, s.slot.WorktreeRoot, "couch-0123456789abcdef")
-		if err := s.replaceSlotCurrent(old, next); err == nil {
+		if err := s.replaceSlotCurrent(old, next, slotAuthorityForTest(t, old)); err == nil {
 			t.Fatal("recovery exceeded bound")
 		}
 		got, _ := os.ReadFile(filepath.Join(s.root, "thread.json"))
@@ -368,7 +368,7 @@ func TestSlotFreshBackupCapAndJournalRecovery(t *testing.T) {
 		next := old
 		next.Address.Tag = "couch-1111111111111111"
 		s.hooks.AfterJournal = func() error { return errors.New("interrupted") }
-		if err := s.replaceSlotCurrent(observed, next); err == nil {
+		if err := s.replaceSlotCurrent(observed, next, slotAuthorityForTest(t, observed)); err == nil {
 			t.Fatal("fault not reached")
 		}
 		s.hooks = threadStoreHooks{}
@@ -437,7 +437,7 @@ func TestSlotFreshRefusesReplacedHost(t *testing.T) {
 		t.Fatal(err)
 	}
 	next := recordAtCheckout(t, s.slot.WorktreeRoot, s.slot.WorktreeRoot, "couch-0123456789abcdef")
-	if err := s.replaceSlotCurrent(old, next); err == nil {
+	if err := s.replaceSlotCurrent(old, next, slotAuthorityForTest(t, old)); err == nil {
 		t.Fatal("fresh accepted replaced physical host")
 	}
 }
@@ -505,7 +505,7 @@ func TestSlotFreshPreservesExistingArchiveWhenRecoveredCurrentRetires(t *testing
 	}
 	next := old
 	next.Address.Tag = "couch-1111111111111111"
-	if err := s.replaceSlotCurrent(observed, next); err != nil {
+	if err := s.replaceSlotCurrent(observed, next, slotAuthorityForTest(t, observed)); err != nil {
 		t.Fatal(err)
 	}
 	files, err := os.ReadDir(filepath.Join(s.root, "recovery"))

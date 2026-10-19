@@ -22,7 +22,7 @@ func archiveDebrisCouch(t *testing.T, store *ThreadStore, proc *FakeProcOps, add
 	t.Helper()
 	artifacts := NewFakeThreadArtifactCollisionChecker()
 	artifacts.SetPairSession(address, "pair-"+string(address.Tag), false)
-	return &Couch{Threads: store, Artifacts: artifacts, Proc: proc, Path: NewFakePathOps(nil)}
+	return teardownReady(t, &Couch{Threads: store, Artifacts: artifacts, Proc: proc, Path: NewFakePathOps(nil)})
 }
 
 // TestArchiveClearsAnOrphanedPark is #271's record, archived.
@@ -241,7 +241,7 @@ func TestSpawnedButNeverBoundThreadIsArchivable(t *testing.T) {
 
 	// No SetPairSession call at all: the index has no row for this address.
 	artifacts := NewFakeThreadArtifactCollisionChecker()
-	couch := &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)}
+	couch := teardownReady(t, &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)})
 
 	if _, err := couch.ArchiveThread(context.Background(), created.Address); err != nil {
 		t.Fatalf("a thread with a dead helper and no binding is unarchivable: %v", err)

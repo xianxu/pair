@@ -109,13 +109,13 @@ func TestLocalThreadStoreArchiveRejectsOtherCurrentTag(t *testing.T) {
 	}
 	other := r.Address
 	other.Tag = "couch-1111111111111111"
-	if err := s.ArchiveThread(other); err == nil {
+	if err := s.ArchiveThread(other, retireAuthorityForTest(t, s, other)); err == nil {
 		t.Fatal("archived another current tag")
 	}
 	if _, err := s.GetThread(r.Address); err != nil {
 		t.Fatalf("current lost: %v", err)
 	}
-	if err := s.ArchiveThread(r.Address); err != nil {
+	if err := s.ArchiveThread(r.Address, retireAuthorityForTest(t, s, r.Address)); err != nil {
 		t.Fatal(err)
 	}
 	snap, err := s.Snapshot()

@@ -144,7 +144,7 @@ func TestSlotRecoveryRewritePreservesUnknownMembers(t *testing.T) {
 	next := cloneThreadRecord(*observed.Record)
 	next.Name = "recovered"
 	next.Revision++
-	if err := s.replaceSlotCurrent(observed, next); err != nil {
+	if err := s.replaceSlotCurrent(observed, next, slotAuthorityForTest(t, observed)); err != nil {
 		t.Fatal(err)
 	}
 	after, err := os.ReadFile(path)

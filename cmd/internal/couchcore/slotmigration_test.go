@@ -159,7 +159,7 @@ func TestSlotMigrationZeroCurrentPreservesPreferencesAndHistory(t *testing.T) {
 	t.Parallel()
 
 	s, repository, r := migrationFixture(t)
-	if err := s.ArchiveThread(r.Address); err != nil {
+	if err := s.ArchiveThread(r.Address, retireAuthorityForTest(t, s, r.Address)); err != nil {
 		t.Fatal(err)
 	}
 	preference := PathLaunchPreference{SchemaVersion: PathLaunchPreferenceSchemaVersion, RepoIdentity: repository.Identity.RepoIdentity, PhysicalPath: r.StartingPath, LastAgent: "codex", ArgvByAgent: map[string][]string{"codex": {}}, Revision: 2}
@@ -199,7 +199,7 @@ func TestSlotMigrationLeavesPrimaryArchiveRoutable(t *testing.T) {
 	if _, err := s.CreateThread(primary); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.ArchiveThread(primary.Address); err != nil {
+	if err := s.ArchiveThread(primary.Address, retireAuthorityForTest(t, s, primary.Address)); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.EnrollSlotRepository(context.Background(), repository); err != nil {
@@ -288,7 +288,7 @@ func TestSlotMigrationRefusesUnmatchedLocalCurrent(t *testing.T) {
 	t.Parallel()
 
 	s, repository, r := migrationFixture(t)
-	if err := s.ArchiveThread(r.Address); err != nil {
+	if err := s.ArchiveThread(r.Address, retireAuthorityForTest(t, s, r.Address)); err != nil {
 		t.Fatal(err)
 	}
 	local := newSlotThreadStore(s.namespace, repository.Slots[0].Identity)

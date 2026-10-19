@@ -192,7 +192,7 @@ func TestArchiveObservedBytesRefusesChangedUnreadableRecord(t *testing.T) {
 	if err := os.WriteFile(path, after, 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := env.Couch.Threads.ArchiveThreadExpectedBytes(record.Address, before); err == nil {
+	if err := env.Couch.Threads.ArchiveThreadExpectedBytes(record.Address, before, UnreadableRecordEscape{raw: before}); err == nil {
 		t.Fatal("stale unreadable snapshot archived replacement bytes")
 	}
 	current, err := os.ReadFile(path)

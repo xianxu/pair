@@ -690,3 +690,44 @@ Steps:
     8. The atlas; `TestTeardownProvesARealPtyTree`, unsandboxed.
   - Debris beyond the lease file (D1's sockets) stays with the next server start's existing sweep. Revisit only if
     the drill shows stale sockets.
+- 2026-10-19 — **M2 step 5, as built** (measured while wiring the callers; these govern over the M2 detail).
+  - **Retire authorities.** `RetireAuthority` (retire.go) is sealed. `archiveThread`, `ReplaceThreadExpected` and
+    `replaceSlotCurrent` refuse without one ("needs a reason"), and each checks it under the store lock:
+    - `TeardownProof` is a readable record, the same thread and lifecycle key, at the proof's `Revision`. The proof
+      now carries `Thread` and `Revision`.
+    - `AdoptionAuthority` (`Couch.NewAdoptionAuthority` checks that every other owner is Dead) publishes only its
+      survivor. It is used by both survivor adoptions (slotrecovery, resume_route).
+    - `UnreadableRecordEscape` (`ThreadStore.UnreadableRecordEscape`) refuses a record that decodes, and covers
+      exactly the bytes it was granted for. It is used by archive and by reboot of an undecodable record.
+  - **A fourth authority, `FreshLeavesRemnants` (deviation, reported to the hub).** Fresh recovery's contract is
+    "stop only what the operator confirmed in the offer, then start under a new identity beside what is left"
+    (`TestRebootLeavesSessionSharedWithAnotherLiveSlot`: a session that another live slot names is never
+    quiesced). A forced Teardown would stop processes the operator never confirmed. So Fresh proves its source
+    down without stopping anything (`proveDownAndFold`), and folds the park or claim that the dead owners left. If
+    the proof holds, the proof is the authority. If it does not, the authority is `FreshLeavesRemnants`, which a
+    source with a retained Fresh selection alone can mint. It is the only authority under which a replacement
+    skips the archivable-record guard. The old untyped exemption is gone; this is that exemption typed and
+    named.
+  - **The lease is per thread within its lifecycle address (deviation, reported).** Its key is
+    `Key() + " " + scope/tag`. A store from before one-thread-per-repository (pair#363) holds sibling threads at
+    one path, and Teardown kills lease holders. A shared lease would let archiving one sibling kill the other's
+    live pair. `TestLifetimeLeaseIsPerThread` covers it.
+  - **The tty witness is trusted only while the tree is up.** That means the published agent is still listed or
+    the lease is held. Otherwise the device may already belong to an unrelated terminal, so it is not swept, and
+    a note says so.
+  - **The preserve step runs after the proof** (every owner proven gone), through `clearLifecycleDebris`, so it
+    uses the same rules as resume and archive. Teardown folds; ProveDown never mutates.
+  - **Callers:**
+    - Archive: Teardown after the existing quiesce, or the escape when the record is unreadable.
+    - Reboot archive-only: the escape when unreadable. When the record is readable but its folder is gone,
+      `ProveDown`: the escape still stops nothing, and the outstanding-claim guard holds.
+    - Fresh recovery: see above.
+    - `startFreshSlotWithPrompt`: `ProveDown` of the current record, or the escape.
+    - Adoptions: `AdoptionAuthority`.
+  - **Tests:** `TestEveryRetirementTakesAnAuthority`, `TestUnreadableEscapeRefusesADecodableRecord`,
+    `TestArchiveRefusesProofForMovedRevision`, `TestArchiveRefusesOpenPark`, `TestTeardownFoldsCompletedPark`
+    (mutation-checked) and `TestFreshLeavesRemnantsNeedsTheRetainedSelection`. Store-level tests in other packages
+    get their reason from `couchcoretest.RetireProof`.
+  - **Team arm.** The operator chose one team per repo (hub, 2026-10-19), so pair#694 is parked and Couch gets no
+    team address kind. `NewTeamAddress` stays allowlisted until the hub decides its fate. Removing it is a
+    candidate cleanup at M2 close.

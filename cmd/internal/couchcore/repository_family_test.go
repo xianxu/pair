@@ -182,7 +182,7 @@ func TestFamilyReservationJournalRecoversAndSurvivesArchive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = s.ArchiveThread(r.Address); err != nil {
+	if err = s.ArchiveThread(r.Address, retireAuthorityForTest(t, s, r.Address)); err != nil {
 		t.Fatal(err)
 	}
 	families, err := savedRepositoryFamiliesForTest(NewThreadStore(s.namespace))
@@ -295,7 +295,7 @@ func TestFamilyInferenceIncludesArchivedStartingPaths(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = s.ArchiveThread(r.Address); err != nil {
+	if err = s.ArchiveThread(r.Address, retireAuthorityForTest(t, s, r.Address)); err != nil {
 		t.Fatal(err)
 	}
 	got, err := s.PreviewRepositoryFamily(context.Background(), repo, RepositoryFamily{})

@@ -100,7 +100,7 @@ func TestSlotRetentionSnapshotBlocksUncertainMembership(t *testing.T) {
 func slotRetentionArchive(t *testing.T) (*ThreadStore, *ThreadStore, *storagegc.Coordinator, ArchiveDetachRequest) {
 	t.Helper()
 	global, local, c, r := slotRetentionFixture(t)
-	if err := local.ArchiveThread(r.Address); err != nil {
+	if err := local.ArchiveThread(r.Address, retireAuthorityForTest(t, local, r.Address)); err != nil {
 		t.Fatal(err)
 	}
 	grace, err := readTestArchiveGrace(local, r.Address)

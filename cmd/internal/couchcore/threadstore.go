@@ -1386,26 +1386,29 @@ func (s *ThreadStore) archivePath(address ThreadAddress) string {
 // can carry no incarnation at all, so the record cannot. Everything else goes:
 // parked, detached and every unusable reason but `unknown`, because the operator
 // is the one who decides a thread is finished.
-func (s *ThreadStore) ArchiveThread(address ThreadAddress) error {
-	return s.archiveThread(address, nil, nil)
+//
+// The authority says why the record may go (pair#695): a teardown proof at
+// its revision, or the unreadable-record escape for exactly its bytes.
+func (s *ThreadStore) ArchiveThread(address ThreadAddress, authority RetireAuthority) error {
+	return s.archiveThread(address, nil, nil, authority)
 }
 
 // ArchiveThreadExpected preserves the exact record inspected before external
 // session effects. A concurrently published request must not be archived by an
 // older action merely because the newer record is also unoccupied. Revision
 // zero represents an unreadable observation and refuses a newly readable record.
-func (s *ThreadStore) ArchiveThreadExpected(address ThreadAddress, revision uint64) error {
-	return s.archiveThread(address, &revision, nil)
+func (s *ThreadStore) ArchiveThreadExpected(address ThreadAddress, revision uint64, authority RetireAuthority) error {
+	return s.archiveThread(address, &revision, nil, authority)
 }
 
 // ArchiveThreadExpectedBytes files only the exact observed snapshot, including
 // undecodable bytes. The existing record guards and archive journal still own it.
-func (s *ThreadStore) ArchiveThreadExpectedBytes(address ThreadAddress, raw []byte) error {
+func (s *ThreadStore) ArchiveThreadExpectedBytes(address ThreadAddress, raw []byte, authority RetireAuthority) error {
 	expected := append([]byte(nil), raw...)
-	return s.archiveThread(address, nil, &expected)
+	return s.archiveThread(address, nil, &expected, authority)
 }
 
-func (s *ThreadStore) archiveThread(address ThreadAddress, expectedRevision *uint64, expectedRaw *[]byte) error {
+func (s *ThreadStore) archiveThread(address ThreadAddress, expectedRevision *uint64, expectedRaw *[]byte, authority RetireAuthority) error {
 	if err := validateThreadAddress(address); err != nil {
 		return err
 	}
@@ -1414,7 +1417,7 @@ func (s *ThreadStore) archiveThread(address ThreadAddress, expectedRevision *uin
 		return routeErr
 	}
 	if backend != s {
-		return backend.archiveThread(address, expectedRevision, expectedRaw)
+		return backend.archiveThread(address, expectedRevision, expectedRaw, authority)
 	}
 	return s.withLock(func() error {
 		manifest, manifestRaw, _, err := s.loadManifestLocked()
@@ -1457,6 +1460,11 @@ func (s *ThreadStore) archiveThread(address ThreadAddress, expectedRevision *uin
 			if err := archivableRecord(record); err != nil {
 				return err
 			}
+			if err := authorizeRetire(authority, address, &record, raw, nil); err != nil {
+				return err
+			}
+		} else if err := authorizeRetire(authority, address, nil, raw, nil); err != nil {
+			return err
 		}
 		nextManifest := manifest
 		nextManifest.Generation++

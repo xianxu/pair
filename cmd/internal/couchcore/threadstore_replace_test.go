@@ -66,7 +66,7 @@ func TestReplaceThreadExpectedArchivesAndCreatesInOneJournal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.ReplaceThreadExpected(old.Address, old.Revision, next); err != nil {
+	if err := store.ReplaceThreadExpected(old.Address, old.Revision, next, retireAuthorityForTest(t, store, old.Address)); err != nil {
 		t.Fatalf("ReplaceThreadExpected: %v", err)
 	}
 	assertReplaced(t, store, old, oldRaw, next)
@@ -84,7 +84,7 @@ func TestReplaceThreadExpectedSurvivesACrashAfterTheJournal(t *testing.T) {
 		t.Fatal(err)
 	}
 	store.hooks.AfterJournal = func() error { return errors.New("interrupted") }
-	if err := store.ReplaceThreadExpected(old.Address, old.Revision, next); err == nil {
+	if err := store.ReplaceThreadExpected(old.Address, old.Revision, next, retireAuthorityForTest(t, store, old.Address)); err == nil {
 		t.Fatal("the interrupted replace reported success")
 	}
 	store.hooks = threadStoreHooks{}
@@ -116,7 +116,7 @@ func TestReplaceThreadExpectedRefusesAStaleRevision(t *testing.T) {
 		t.Fatal(err)
 	}
 	var revision *ThreadRevisionError
-	if err := store.ReplaceThreadExpected(old.Address, old.Revision, next); !errors.As(err, &revision) {
+	if err := store.ReplaceThreadExpected(old.Address, old.Revision, next, retireAuthorityForTest(t, store, old.Address)); !errors.As(err, &revision) {
 		t.Fatalf("stale revision err = %v, want *ThreadRevisionError", err)
 	}
 	assertNothingReplaced(t, store, old, next)
@@ -137,7 +137,7 @@ func TestReplaceThreadExpectedRefusesAnOpenParkOrStartClaim(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.ReplaceThreadExpected(claimed.Address, claimed.Revision, next); err == nil {
+	if err := store.ReplaceThreadExpected(claimed.Address, claimed.Revision, next, retireAuthorityForTest(t, store, claimed.Address)); err == nil {
 		t.Fatal("replaced through an outstanding start claim")
 	}
 	assertNothingReplaced(t, store, old, next)
@@ -154,7 +154,7 @@ func TestReplaceThreadExpectedRefusesLocalLayout(t *testing.T) {
 	}
 	next := r
 	next.Address.Tag = "couch-1111111111111111"
-	if err := local.ReplaceThreadExpected(created.Address, created.Revision, next); err == nil {
+	if err := local.ReplaceThreadExpected(created.Address, created.Revision, next, retireAuthorityForTest(t, local, created.Address)); err == nil {
 		t.Fatal("a slot store accepted the main store's replace; slots replace through replaceSlotCurrent")
 	}
 	if _, err := local.GetThread(created.Address); err != nil {
@@ -174,7 +174,7 @@ func TestReplaceThreadExpectedRoutesNextLikeCreateThread(t *testing.T) {
 	}
 	old := archivableThread(t, s, "couch-0000000000000001")
 	next := recordAtCheckout(t, repository.Slots[0].Identity.WorktreeRoot, repository.Slots[0].Identity.WorktreeRoot, "couch-0000000000000002")
-	if err := s.ReplaceThreadExpected(old.Address, old.Revision, next); err == nil {
+	if err := s.ReplaceThreadExpected(old.Address, old.Revision, next, retireAuthorityForTest(t, s, old.Address)); err == nil {
 		t.Fatal("replace published a fresh record into a slot store")
 	}
 	assertNothingReplaced(t, s, old, next)

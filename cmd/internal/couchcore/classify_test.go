@@ -683,7 +683,7 @@ func couchWithOneRecordOfEveryShape(t *testing.T) (*Couch, []ThreadAddress) {
 	// the shape it was built for. The fake's table is empty, so pid 4242 is
 	// proved Dead, which is what "a record claiming an incarnation that no
 	// console hosts" was always meant to model.
-	couch := &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)}
+	couch := teardownReady(t, &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)})
 	return couch, addresses
 }
 

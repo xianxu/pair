@@ -44,7 +44,7 @@ func TestNestedRepositoryStorageRemainsIndependentOfOuterSlot(t *testing.T) {
 		if _, err := s.CreateThread(archived); err != nil {
 			t.Fatal(err)
 		}
-		if err := s.ArchiveThread(archived.Address); err != nil {
+		if err := s.ArchiveThread(archived.Address, retireAuthorityForTest(t, s, archived.Address)); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := s.CreateThread(r); err != nil {

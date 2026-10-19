@@ -12,6 +12,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchcoretest"
 	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
 	"github.com/xianxu/pair/cmd/internal/gcruntime"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
@@ -98,7 +99,7 @@ func TestPublicApplyPreservesProtectedOwnersAndCollectsIndependentBuckets(t *tes
 		} else {
 			c.Now = func() time.Time { return old }
 		}
-		if err := store.ArchiveThread(r.Address); err != nil {
+		if err := store.ArchiveThread(r.Address, couchcoretest.RetireProof(t, store, r.Address)); err != nil {
 			t.Fatal(err)
 		}
 	}

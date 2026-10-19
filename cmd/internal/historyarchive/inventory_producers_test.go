@@ -11,6 +11,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchcoretest"
 	archive "github.com/xianxu/pair/cmd/internal/historyarchive"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
@@ -122,7 +123,7 @@ func TestInventoryCouchProducedGlobalAndSlotHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	requireInventoryPath(t, "couch-threads", storeRoot, globalPath)
-	if err := store.ArchiveThread(global.Address); err != nil {
+	if err := store.ArchiveThread(global.Address, couchcoretest.RetireProof(t, store, global.Address)); err != nil {
 		t.Fatal(err)
 	}
 	zero := 0
@@ -141,7 +142,7 @@ func TestInventoryCouchProducedGlobalAndSlotHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	requireInventoryPath(t, "couch-slot-threads", layout.Store(), localPath)
-	if err := store.ArchiveThread(local.Address); err != nil {
+	if err := store.ArchiveThread(local.Address, couchcoretest.RetireProof(t, store, local.Address)); err != nil {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct{ kind, root, walk string }{{"couch-threads", storeRoot, filepath.Join(storeRoot, "threadstore")}, {"couch-slot-threads", layout.Store(), layout.Store()}} {

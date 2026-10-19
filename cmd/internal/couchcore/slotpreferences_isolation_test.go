@@ -81,6 +81,7 @@ func TestSlotPreferencesIndependentAcrossRestartResumeAndFresh(t *testing.T) {
 		t.Fatal(err)
 	}
 	reopened.Identities = env.Couch.Identities
+	reopened.ProcessTable = env.Couch.ProcessTable
 	env.Couch = reopened
 	env.Couch.Slots, env.Couch.Workspaces = NewOSSlotCatalog(f), NewWorkspaceProvisioner(f)
 	env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return true, nil }

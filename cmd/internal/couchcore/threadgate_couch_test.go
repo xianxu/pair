@@ -222,7 +222,7 @@ func TestLeaveDecidesFromTheRecordAfterWaiting(t *testing.T) {
 		done <- err
 	}()
 	time.Sleep(20 * time.Millisecond) // Leave has taken its snapshot and is waiting
-	if err := c.Threads.ArchiveThread(thread.Address); err != nil {
+	if err := c.Threads.ArchiveThread(thread.Address, retireAuthorityForTest(t, c.Threads, thread.Address)); err != nil {
 		t.Fatal(err)
 	}
 	release()

@@ -196,7 +196,7 @@ func TestContinuationArchivePreservesSnapshotRemovesDerivedCopy(t *testing.T) {
 	if _, err := c.Threads.updateExistingThread(record.Address, record.Revision, func(next *ThreadRecord) error { next.Incarnations = nil; return nil }); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.Threads.ArchiveThread(record.Address); err != nil {
+	if err := c.Threads.ArchiveThread(record.Address, retireAuthorityForTest(t, c.Threads, record.Address)); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(mustContinuationPath(t, c, record.Address)); !os.IsNotExist(err) {
