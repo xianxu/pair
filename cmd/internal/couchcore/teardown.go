@@ -242,8 +242,10 @@ func (c *Couch) teardown(ctx context.Context, thread ThreadRecord, operation str
 	proof.Notes = append(notes, proof.Notes...)
 	// The lease is proven free, and every caller retires the record on this
 	// proof, so its file goes now, in every mode; a launch recreates it.
-	if err := os.Remove(target.lease); err != nil && !errors.Is(err, os.ErrNotExist) {
+	if removed, err := lifetimelease.RemoveFree(target.lease); err != nil {
 		proof.Notes = append(proof.Notes, "lifetime lease not removed: "+err.Error())
+	} else if !removed {
+		proof.Notes = append(proof.Notes, "lifetime lease held again before its removal; left in place")
 	}
 	return proof, nil
 }

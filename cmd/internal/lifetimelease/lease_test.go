@@ -223,3 +223,29 @@ func TestSweepFreeRemovesOnlyFreeLeases(t *testing.T) {
 		t.Fatal("a Hold after the sweep does not hold the file its path names")
 	}
 }
+
+// RemoveFree never unlinks a held lease; a free one goes, and a missing one
+// counts as removed.
+func TestRemoveFreeLeavesAHeldLease(t *testing.T) {
+	path, err := Path(t.TempDir(), "slot:/w/a t/1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lock, err := Hold(context.Background(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if removed, err := RemoveFree(path); err != nil || removed {
+		t.Fatalf("RemoveFree of a held lease = %v, %v", removed, err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("a held lease was unlinked: %v", err)
+	}
+	_ = lock.Close()
+	if removed, err := RemoveFree(path); err != nil || !removed {
+		t.Fatalf("RemoveFree of a free lease = %v, %v", removed, err)
+	}
+	if removed, err := RemoveFree(path); err != nil || !removed {
+		t.Fatalf("RemoveFree of a missing lease = %v, %v", removed, err)
+	}
+}

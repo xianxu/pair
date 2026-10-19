@@ -131,19 +131,42 @@ func SweepFree(dir string) (int, error) {
 		if !entry.Type().IsRegular() || filepath.Ext(entry.Name()) != ".lease" {
 			continue
 		}
-		path := filepath.Join(dir, entry.Name())
-		f, err := os.Open(path)
-		if err != nil {
-			continue
+		if ok, _ := RemoveFree(filepath.Join(dir, entry.Name())); ok {
+			removed++
 		}
-		if syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB) == nil && current(f, path) {
-			if os.Remove(path) == nil {
-				removed++
-			}
-		}
-		_ = f.Close()
 	}
 	return removed, nil
+}
+
+// RemoveFree unlinks the lease file at path only while holding its exclusive
+// lock, so a holder that got there first keeps it, and a holder that comes
+// after reopens a fresh file (Hold). A missing file counts as removed.
+func RemoveFree(path string) (bool, error) {
+	if err := validPath(path); err != nil {
+		return false, err
+	}
+	f, err := os.Open(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+	err = syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+	if errors.Is(err, syscall.EWOULDBLOCK) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if !current(f, path) {
+		return true, nil // already replaced: the file it named is gone
+	}
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return false, err
+	}
+	return true, nil
 }
 
 // Free reports whether no process holds the lease: an exclusive, non-blocking

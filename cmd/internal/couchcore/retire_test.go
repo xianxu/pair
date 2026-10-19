@@ -302,23 +302,31 @@ func assertRetiredBytes(t testing.TB, archived, raw []byte) {
 }
 
 // A minted proof is what lets the store retire a record, so the test-only
-// minting path never appears in production source (couchcoretest is a
-// fixture package that only tests import).
+// minting path never appears in production source anywhere in the module.
+// couchcoretest may call it because only tests may import couchcoretest,
+// which this checks too.
 func TestOnlyTeardownProofHasNoProductionCaller(t *testing.T) {
-	root := ".."
+	root := filepath.Join("..", "..", "..") // the module root
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil || entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+		if err != nil {
 			return err
 		}
-		if strings.Contains(filepath.ToSlash(path), "couchcoretest/") || filepath.Base(path) == "teardown.go" {
+		if entry.IsDir() && (entry.Name() == ".git" || entry.Name() == "node_modules") {
+			return filepath.SkipDir
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
 		raw, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
-		if bytes.Contains(raw, []byte("TestOnlyTeardownProof(")) {
+		fixture := strings.Contains(filepath.ToSlash(path), "/couchcoretest/")
+		if bytes.Contains(raw, []byte("TestOnlyTeardownProof(")) && !fixture && filepath.Base(path) != "teardown.go" {
 			t.Errorf("%s mints a teardown proof outside a test", path)
+		}
+		if bytes.Contains(raw, []byte(`"github.com/xianxu/pair/cmd/internal/couchcoretest"`)) && !fixture {
+			t.Errorf("%s imports the couchcoretest fixtures from production code", path)
 		}
 		return nil
 	})
