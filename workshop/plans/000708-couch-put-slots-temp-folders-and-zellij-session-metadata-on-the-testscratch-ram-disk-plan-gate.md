@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: a06c8194-56d5-49bf-9d96-b569e0fa6c5d
+        repository: github.com/xianxu/pair
+        issue_id: "000708"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot3/pair
+        reviewed_head: 826c8d0287951fddbcad9ff4163360433136ee10
+        slot: pair:3
+        requested_at: "2026-10-19T18:09:53.612818Z"
+      phase: finished
+      pid: 41507
+      started_at: "2026-10-19T18:09:54.027577Z"
+      finished_at: "2026-10-19T18:10:18.518676Z"
+      session_id: 01a1555b-13b9-70a2-9c05-aa645d06b603
+      outcome: returned
 gate: plan-quality
 issue: 708
 id_prefix: PQ
@@ -95,7 +115,37 @@ rounds:
           note: Approved R3 removes lifetime-proof collection entirely and specifies age-based cleanup, accepted regular-file loss risk, conservative exclusions and controlled sequence tests.
           round: 3
       blocked: false
-content_hash: 63324bf00a6f98ed387090ba503c3ac37362ea3cbf6332583d7333b69480aaed
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 80b4b3d8-0977-4777-8b46-90923b9eef14
+            repository: github.com/xianxu/pair
+            issue_id: "000708"
+            recipe: plan-quality
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot3/pair
+            reviewed_head: 826c8d0287951fddbcad9ff4163360433136ee10
+            slot: pair:3
+            requested_at: "2026-10-19T18:09:18.404119Z"
+          phase: finished
+          pid: 23214
+          started_at: "2026-10-19T18:09:18.714058Z"
+          finished_at: "2026-10-19T18:09:47.033355Z"
+          session_id: 01a1555a-8937-7231-8114-6a5511cfc9b7
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-19T11:09:47-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: R3 replaces lifetime-dependent collection with the explicitly approved age-cleanup contract and its documented loss risk.
+          round: 4
+      blocked: false
+content_hash: d4527da76a4593d6388f7a411e42bf35802ba613e7b54b7b0a281389ccc3c99d
 ---
 
 # Gate ledger — pair#708 (plan-quality)
@@ -121,6 +171,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - PQ-1 — addressed — Approved R3 removes lifetime-proof collection entirely and specifies age-based cleanup, accepted regular-file loss risk, conservative exclusions and controlled sequence tests.
+
+## Round 4 — 2026-10-19T11:09:47-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — R3 replaces lifetime-dependent collection with the explicitly approved age-cleanup contract and its documented loss risk.
 
 ## Open findings
 
