@@ -98,3 +98,91 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000411
+
+---
+
+## Re-review — 2026-10-19T09:35:45-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 689 — history backup: find and restore from the backups (local or Drive), with a round-trip restore test |
+| repo | pair |
+| issue file | workshop/issues/000689-history-backup-find-and-restore-from-the-backups-local-or-drive-with-a-round-trip-restore-test.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 2be1cbf32ae63759733a76a75587db3b28e02320..39ff9f9a6fd0283b6be10486f0aed3c890f4a3ba |
+| command | sdlc milestone-close --issue 689 --milestone M2 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-19T09:35:45-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The M2 restore implementation satisfies the reviewed contracts. BR-2 has a regression that fails with the old implementation; BR-3’s qualification dispute is supported by an independently successful real-key run. No new blocking findings. The broader package run encountered an unchanged fixture defect, reproduced on both pinned base and head.
+
+```findings
+dispose:
+  - id: BR-2
+    disposition: addressed
+    note: |
+      restore_extract.go:147 now budgets label.RawBytes + MaxRestoreTarOverhead. TestExtractBundleRejectsDecompressedPaddingOverflow covers exact-bound success and one-byte overflow refusal for normal and snapshot kinds. A temporary compiler overlay restoring the old expression made both overflow cases fail.
+  - id: BR-3
+    disposition: withdrawn
+    note: |
+      Independently reran both specified opt-in tests on pinned head with a canonical private short TMPDIR. Both passed, including full and filtered production restore after catalog loss. Post-test root entries and matching GPG agents were zero; temporary-root removal was confirmed. This supports the disputed environment explanation.
+```
+
+1. **Strengths**
+
+   - All ciphertext is staged and verified before decoding; remote evidence cannot substitute for hashing ([restore_input.go:109](cmd/internal/historyarchive/restore_input.go)).
+   - Extraction verifies excluded members and joins decoder completion before publication ([restore.go:167](cmd/internal/historyarchive/restore.go)).
+   - Exclusive publication preserves concurrent targets, and parent-sync failure reports uncertainty ([restore.go:202](cmd/internal/historyarchive/restore.go)).
+   - README and atlas document the command, resource limits, ownership, and recovery behavior.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed focused race tests, real GPG/zstd round trips, installed-rclone bound conformance, archive CLI tests, fake tests, artifact inventory, and repository lint.
+
+   The broader historyarchive run failed `TestDriveMirrorBatchBudgetDefersCompletePairs`. Controlled fractional-mtime fixtures reproduced the same failure on base and head: the test budgets the first pair but assumes the second fits. This supports the tracker’s pre-existing-defect account; no full-package green result is claimed.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared filesystem, hashing, staging, and rclone seams reused.
+   - **ARCH-PURE — pass:** admission and transitions are pure; IO remains in integration components.
+   - **ARCH-PURPOSE — pass:** verified restore and catalog-loss round trip deliver M2’s purpose; operator acceptance is recorded.
+   - **ARCH-MOCK — pass:** stateful remote tests share production boundaries; native conformance passed.
+   - **ARCH-CONSTRAINTS — pass:** admitted payload bounds govern extraction and download limits.
+   - **ARCH-SECURE — pass:** strict manifest/member validation, private output, and safe diagnostics.
+   - **ARCH-ORDER — pass:** explicit transitions, controlled failure ordering, joined children, and publication uncertainty.
+   - **ARCH-FUNERAL — pass:** owned staging is collected; published scratch output has explicit operator ownership.
+   - **ARCH-EVOLVE — pass:** restore preserves manifest bytes and does not rewrite discovery metadata.
+
+   Core-concept locations and PURE/INTEGRATION classifications match the implementation. Native publication was exercised on Darwin; Linux execution remains a qualification limitation.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"68953888-e5f0-4388-b5d1-4030542f4feb","repository":"github.com/xianxu/pair","issue_id":"000689","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/5f905c98784de45e","reviewed_head":"39ff9f9a6fd0283b6be10486f0aed3c890f4a3ba","slot":"pair:6","requested_at":"2026-10-19T16:33:21.490199Z"},"phase":"finished","pid":12963,"started_at":"2026-10-19T16:33:21.59519Z","finished_at":"2026-10-19T16:35:45.241461Z","session_id":"01a15502-afc2-79b3-a3c9-3e42e0eea028","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.736923458s
+head: "39ff9f9a6fd0283b6be10486f0aed3c890f4a3ba"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

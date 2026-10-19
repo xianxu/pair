@@ -47,7 +47,7 @@ lost its local catalog can reconstruct it from Drive alone, then restore selecti
 Durable plan: [find, restore and label/location index](../plans/000689-find-restore-index-plan.md).
 
 - [x] M1 — Preserve additive label/index fields; implement local-only find and atomic local/Drive index synchronization, including catalog-loss rebuild.
-- [ ] M2 — Implement verified fresh-destination restore, throwaway-key full round trip, and operator-owned real Claude-day Drive drill; qualify and land before retention.
+- [x] M2 — Implement verified fresh-destination restore, throwaway-key full round trip, and operator-owned real Claude-day Drive drill; qualify and land before retention.
 
 
 ## Estimate
@@ -110,6 +110,7 @@ total: 4.93
 - Read-only component mapping reused existing safe paths, catalog/receipt/hash helpers, rclone runner/fake and isolated GPG fixture. Full design and initial batch limits are awaiting hub approval before change-code.
 
 ### 2026-10-19 — implementation admitted
+- 2026-10-19: closed M2 — BR2 fixed: label raw payload plus32MiB complete-stream bound; exact and one-byte-over normal/snapshot tests RED then GREEN. Resource class sweep ties existing remote transfer caps to selected sum/largest object, post-listing growth RED/GREEN and native exact-bound conformance pass. Member diagnostics quoted and CLI shared rowtext sanitizer regressed. Corrected-head27019abd real GPG/zstd full/filtered remote-only round trip plus native rclone controls passed2.371s with entries0/agents0/root removed; Drive acquisition race12.653s, broad restore/CLI races and guards pass. BR3 disputed with measured pinned-host qualification, not a fixture change. Operator real Drive drill accepted:63 labels,2 bundles/2127158 ciphertext bytes,339 files/101518369 raw bytes, SHA256 agrees, stage absent and decrypted scratch removed. Prior recorded suite16m21s passed; fresh corrected-code suite active and must pass before landing.; review verdict: SHIP
 - 2026-10-19: closed M1 — BR-1 approved refinement: complete destination markers retain empty inventory and folder/time precedence; old receipts remain unavailable, newer same-binding receipt promotes only its own location. Four public sequence tests confirmed RED then GREEN; strict optional schema/legacy older-envelope/count bounds pass; focused M1 run59.389s and races23.248s pass, staged repolint8.229s and codec fuzz599 executions pass. New recorded suite queued on pushed 247f8fee6; no suite pass/landing claimed. M2/operator drill remain outstanding. Another index evidence hole requires hub simplification before patch.; review verdict: SHIP
 
 - Plan quality CLEAN after PQ-1 disposition; change-code passed with derived estimate 4.93 h. Estimate review INFO: cross-component fixture/race/Linux/full-suite work and active operator qualification are tracked explicitly in this Log; idle operator scheduling is excluded. The library discount covers existing mechanics; remaining ownership/evidence/publication contracts stay custom work.
