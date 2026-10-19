@@ -649,7 +649,7 @@ func (p *proxy) publishAgentReady(pid int) error {
 	// Under Couch the agent's controlling terminal is published too: Couch's
 	// teardown proves the agent gone when nothing holds it, which it can no
 	// longer read off the agent once the agent is dead (pair#695 P1).
-	if p.readyProcessTTY == "" && os.Getenv(lifetimelease.Env) != "" {
+	if p.readyProcessTTY == "" && lifetimelease.Active(os.Getenv) {
 		p.readyProcessTTY = agentTerminal(pid, p.readyProcessIdentity)
 	}
 	raw, err := readiness.Encode(readiness.ReadyRecord{

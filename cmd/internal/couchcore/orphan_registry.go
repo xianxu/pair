@@ -22,6 +22,8 @@ const leftRunningCap = 256
 
 const leftRunningEncodedLimit = 1 << 20
 
+const leftRunningSchemaVersion = 1
+
 // LeftRunningRegistry is <namespace>/orphans.json: the processes teardown
 // named in LeftRunning, kept so they stay attributable after their thread is
 // gone (pair#695 M2). Teardown never kills them; `couch --reap-orphans
@@ -78,16 +80,9 @@ type leftRunningProcessWire struct {
 var leftRunningProcessFields = strictjson.KnownFields(reflect.TypeOf(leftRunningProcessWire{}))
 
 func (p *leftRunningProcess) UnmarshalJSON(raw []byte) error {
-	owned, unknown, err := strictjson.SplitObject(raw, leftRunningProcessFields, leftRunningProcessFields)
-	if err != nil {
-		return err
-	}
-	ownedRaw, err := strictjson.EncodeObject(owned, nil, leftRunningProcessFields)
-	if err != nil {
-		return err
-	}
 	var wire leftRunningProcessWire
-	if err := strictjson.Decode(ownedRaw, &wire); err != nil {
+	unknown, err := strictjson.DecodeKnown(raw, leftRunningProcessFields, &wire)
+	if err != nil {
 		return err
 	}
 	*p = leftRunningProcess{PID: wire.PID, Identity: wire.Identity}
@@ -111,17 +106,15 @@ var (
 )
 
 func (f *leftRunningFile) UnmarshalJSON(raw []byte) error {
-	owned, unknown, err := strictjson.SplitObject(raw, leftRunningFileFields, leftRunningFileFields)
-	if err != nil {
-		return err
-	}
-	ownedRaw, err := strictjson.EncodeObject(owned, nil, leftRunningFileFields)
-	if err != nil {
-		return err
-	}
 	var wire leftRunningFileWire
-	if err := strictjson.Decode(ownedRaw, &wire); err != nil {
+	unknown, err := strictjson.DecodeKnown(raw, leftRunningFileFields, &wire)
+	if err != nil {
 		return err
+	}
+	// A newer registry version is refused, never rewritten as this one: a
+	// rewrite must not change a value it read (ARCH-EVOLVE).
+	if wire.SchemaVersion != leftRunningSchemaVersion {
+		return fmt.Errorf("unsupported orphan registry version %d; use a compatible Couch binary", wire.SchemaVersion)
 	}
 	*f = leftRunningFile{SchemaVersion: wire.SchemaVersion, Orphans: wire.Orphans}
 	if len(unknown) > 0 {
@@ -139,17 +132,13 @@ func (f leftRunningFile) MarshalJSON() ([]byte, error) {
 }
 
 func (o *LeftRunningOrphan) UnmarshalJSON(raw []byte) error {
-	owned, unknown, err := strictjson.SplitObject(raw, leftRunningOrphanFields, leftRunningOrphanFields)
-	if err != nil {
-		return err
-	}
-	ownedRaw, err := strictjson.EncodeObject(owned, nil, leftRunningOrphanFields)
-	if err != nil {
-		return err
-	}
 	var wire leftRunningOrphanWire
-	if err := strictjson.Decode(ownedRaw, &wire); err != nil {
+	unknown, err := strictjson.DecodeKnown(raw, leftRunningOrphanFields, &wire)
+	if err != nil {
 		return err
+	}
+	if wire.Process.PID <= 0 || wire.Process.Identity == "" {
+		return fmt.Errorf("orphan registry entry has no exact process identity (pid %d)", wire.Process.PID)
 	}
 	*o = LeftRunningOrphan{Origin: wire.Origin, Thread: wire.Thread, Process: ProcessIdentity{PID: wire.Process.PID, Identity: wire.Process.Identity}, processUnknown: wire.Process.Unknown, Command: wire.Command, LeftAt: wire.LeftAt, Operation: wire.Operation}
 	if len(unknown) > 0 {
@@ -178,7 +167,7 @@ func (r *LeftRunningRegistry) read() (leftRunningFile, error) {
 	}
 	fd, err := unix.Open(r.path, unix.O_RDONLY|unix.O_NOFOLLOW|unix.O_NONBLOCK|unix.O_CLOEXEC, 0)
 	if errors.Is(err, os.ErrNotExist) {
-		return leftRunningFile{SchemaVersion: 1}, nil
+		return leftRunningFile{SchemaVersion: leftRunningSchemaVersion}, nil
 	}
 	if err != nil {
 		return leftRunningFile{}, err
@@ -218,6 +207,19 @@ func (r *LeftRunningRegistry) Add(ctx context.Context, entries []LeftRunningOrph
 // Prune drops the entries whose exact identity is gone; gone reports that
 // for one identity.
 func (r *LeftRunningRegistry) Prune(ctx context.Context, gone func(ProcessIdentity) bool) error {
+	// The sampler prunes every pass; a registry with nothing gone (most
+	// often an empty or missing one) costs one read and no lock or write.
+	entries, err := r.Read()
+	if err != nil {
+		return err
+	}
+	stale := false
+	for _, entry := range entries {
+		stale = stale || gone(entry.Process)
+	}
+	if !stale {
+		return nil
+	}
 	return r.update(ctx, func(old []LeftRunningOrphan) ([]LeftRunningOrphan, bool) {
 		kept := old[:0:0]
 		for _, entry := range old {
@@ -279,7 +281,7 @@ func (r *LeftRunningRegistry) update(ctx context.Context, change func([]LeftRunn
 	if !changed {
 		return nil
 	}
-	file.SchemaVersion, file.Orphans = 1, next
+	file.Orphans = next
 	raw, err := json.MarshalIndent(file, "", "  ")
 	if err != nil {
 		return err

@@ -55,18 +55,18 @@ func (p TeardownProof) authorizeRetire(address ThreadAddress, old *ThreadRecord,
 	if old == nil {
 		return fmt.Errorf("retiring %s: a teardown proof covers a readable record only", address.Tag)
 	}
-	if p.ProvenAt.IsZero() || p.Thread != address {
+	if p.provenAt.IsZero() || p.thread != address {
 		return fmt.Errorf("retiring %s: the teardown proof is for another thread", address.Tag)
 	}
 	want, err := threadLifecycleAddress(*old)
 	if err != nil {
 		return err
 	}
-	if p.Address.Key() != want.Key() {
-		return fmt.Errorf("retiring %s: the teardown proof is for %s, not %s", address.Tag, p.Address.Key(), want.Key())
+	if p.address.Key() != want.Key() {
+		return fmt.Errorf("retiring %s: the teardown proof is for %s, not %s", address.Tag, p.address.Key(), want.Key())
 	}
-	if p.Revision != old.Revision {
-		return fmt.Errorf("retiring %s: the teardown proof is for revision %d and the record is at %d; tear down again", address.Tag, p.Revision, old.Revision)
+	if p.revision != old.Revision {
+		return fmt.Errorf("retiring %s: the teardown proof is for revision %d and the record is at %d; tear down again", address.Tag, p.revision, old.Revision)
 	}
 	return nil
 }
@@ -190,7 +190,7 @@ func retiredBytes(authority RetireAuthority, old *ThreadRecord, raw []byte) ([]b
 		return raw, nil
 	}
 	stamped := cloneThreadRecord(*old)
-	at := proof.ProvenAt
+	at := proof.provenAt
 	stamped.ProvenDownAt = &at
 	return encodeThreadRecord(stamped)
 }

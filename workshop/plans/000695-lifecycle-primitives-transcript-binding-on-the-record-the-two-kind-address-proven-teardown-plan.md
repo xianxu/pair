@@ -767,3 +767,43 @@ Steps:
     pty with a foreground tool, and a setsid'd runner are torn down through `procutil.Table`, `lsof` and real
     signals. The holder, the agent and the tty are all gone; the runner is in LeftRunning and still alive. It
     passed 6 out of 6 runs unsandboxed and skips in the sandbox.
+- 2026-10-19 — **M2 boundary review, round 4 (REWORK, BR-11 to BR-17).** Fixed by class:
+  - **BR-11 (Critical): the agent is a witness by its exact identity.** Before this, the agent was witnessed only
+    through its tty, so a wrapper that published no tty let a live agent be "proven" down. Now `teardownHolders`
+    adds the published agent (holder kind `agent`) whenever its exact pid and identity are listed, whatever its tty.
+    This restores the plan's agent witness: the four witnesses are the lease, the tty, the agent and the session.
+    `ObserveSlotSessions` is not used. The exact published agent is the stronger witness, and the session witness
+    is `PairSessionContext`. Test: `TestTeardownWitnessesAnAgentWithoutATerminal`, mutation-checked.
+  - **BR-12: the tty-trust guard has a test.** `TestTeardownNeverSweepsAReusedTerminal` covers an unrelated
+    process on the dead agent's reused device: it is never signalled, and a note says why. It is mutation-checked
+    (`if true ||` fails it).
+  - **BR-13: the lease file's lifetime.** It is created by the launch (`Prepare`, or `Hold` with `O_CREATE`) and
+    removed after any proof, in every mode, since every caller retires the record on that proof. Retirements with no
+    proof (the unreadable escape, an adopted survivor's predecessor) leave theirs to `lifetimelease.SweepFree`,
+    which runs at Couch start. It unlinks only free files, under their exclusive lock. `Hold` keeps a lock only on
+    the file its path still names, and reopens otherwise, so a sweep never strands a holder. Tests:
+    `TestTeardownRemovesTheProvenLease` (all three modes) and `TestSweepFreeRemovesOnlyFreeLeases`.
+  - **BR-14: an unforgeable proof.** `TeardownProof`'s authority fields (address, thread, revision, provenAt) are
+    unexported, behind accessors. Only teardown mints a proof. Fixtures use `TestOnlyTeardownProof`, and
+    `TestOnlyTeardownProofHasNoProductionCaller` scans the tree for non-test callers.
+  - **BR-15: README.** The `--reap-orphans` and `--resources` text now names the left-running processes it ends.
+  - **BR-16: plan versus code, settled.**
+    - Activation needs only `COUCH_LIFETIME_LEASE`, which only Couch sets. The "both env vars" rule is dropped as
+      redundant, and `lifetimelease.Active` is the one predicate for both holding and publishing the tty.
+    - `TestPlainPairUnchangedWithoutCouch` now also checks `Active` is false and that no descriptor is opened.
+    - `TestTeardownSweepsReparentedHolders` is added.
+    - `TestTeardownUnprovenRecordsPhaseAndHolders` now also goes through the real completion recorder
+      (`BeginOperationAttempt` then `Finish`).
+    - `ReadyRecord` is tolerant but deliberately not preserving: the wrapper is its only writer, and nothing
+      rewrites it.
+    - The holder kinds as built are `pair` (any lease holder: launcher, wrap or session-watch, which are not told
+      apart), `agent` and `process` (on the agent's tty).
+  - **BR-17: registry values.** `orphans.json` refuses a schema version other than 1. A refused registry is never
+    rewritten, and a rewrite never changes a value it read. An entry without a positive pid and a non-empty
+    identity refuses. Test: `TestLeftRunningRegistryRefusesUnsupportedValues`.
+  - **Minors:**
+    - `strictjson.DecodeKnown` replaces the five copies of the split, encode and strict-decode sequence.
+    - `teardownMode` replaces `(stop, fold bool)`.
+    - The `ReadyRecord.TTY` comment now says it is a decimal device number.
+    - Comments explain why archive uses the admitted revision and why `stopExact` uses the wall clock.
+    - `Prune` reads without the lock and writes only when an entry is gone.

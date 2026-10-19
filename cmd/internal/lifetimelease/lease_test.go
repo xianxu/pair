@@ -2,6 +2,7 @@ package lifetimelease
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -97,9 +98,17 @@ func TestHoldWaitsOutABriefProbe(t *testing.T) {
 // unchanged).
 func TestPlainPairUnchangedWithoutCouch(t *testing.T) {
 	ns := t.TempDir()
-	closer, err := HoldFromEnv(context.Background(), func(string) string { return "" })
+	plain := func(string) string { return "" }
+	if Active(plain) {
+		t.Fatal("plain pair reads as under Couch, so its wrapper would publish a terminal")
+	}
+	before, _ := os.ReadDir("/dev/fd")
+	closer, err := HoldFromEnv(context.Background(), plain)
 	if err != nil || closer != nil {
 		t.Fatalf("HoldFromEnv without Couch = %v, %v; want nothing", closer, err)
+	}
+	if after, _ := os.ReadDir("/dev/fd"); len(after) != len(before) {
+		t.Fatalf("plain pair opened a descriptor: %d -> %d", len(before), len(after))
 	}
 	if entries, _ := os.ReadDir(ns); len(entries) != 0 {
 		t.Fatalf("plain pair created %v", entries)
@@ -170,5 +179,47 @@ func TestHoldersNamesTheHoldingProcess(t *testing.T) {
 	_ = held.Close()
 	if pids, err := Holders(context.Background(), path); err != nil || len(pids) != 0 {
 		t.Fatalf("holders after release = %v, %v", pids, err)
+	}
+}
+
+// The sweep removes only free lease files; a held one stays, and a Hold
+// after the sweep holds the file the path names.
+func TestSweepFreeRemovesOnlyFreeLeases(t *testing.T) {
+	ns := t.TempDir()
+	held, err := Path(ns, "slot:/w/a t/1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	free, err := Path(ns, "slot:/w/b t/2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{held, free} {
+		if err := Prepare(p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	lock, err := Hold(context.Background(), held)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lock.Close()
+	removed, err := SweepFree(Dir(ns))
+	if err != nil || removed != 1 {
+		t.Fatalf("SweepFree = %d, %v; want the one free lease", removed, err)
+	}
+	if _, err := os.Stat(held); err != nil {
+		t.Fatalf("a held lease was swept: %v", err)
+	}
+	if _, err := os.Stat(free); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("a free lease survived: %v", err)
+	}
+	again, err := Hold(context.Background(), free)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer again.Close()
+	if ok, _ := Free(free); ok {
+		t.Fatal("a Hold after the sweep does not hold the file its path names")
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -100,7 +101,7 @@ func TestTeardownProvesALiveTreeGoneAndNamesWhatLeft(t *testing.T) {
 	if got := f.env.Proc.Signals[502]; len(got) != 0 {
 		t.Fatalf("teardown signalled the detached runner: %v", got)
 	}
-	if proof.AgentTTY != teardownTTY || proof.ProvenAt.IsZero() || proof.Address.Key() != "slot:/w/pair-slot3/pair" {
+	if proof.AgentTTY != teardownTTY || proof.ProvenAt().IsZero() || proof.Address().Key() != "slot:/w/pair-slot3/pair" {
 		t.Fatalf("proof = %+v", proof)
 	}
 }
@@ -140,6 +141,22 @@ func TestTeardownUnprovenRecordsPhaseAndHolders(t *testing.T) {
 	if len(got) != 2 || got[0] != TermSignal || got[1] != syscall.SIGKILL {
 		t.Fatalf("signals to the holder = %v, want SIGTERM then SIGKILL", got)
 	}
+	// Through #683's real completion recorder: the failure persists with the
+	// phase, the outcome and the named holder, with no capture site in
+	// teardown itself.
+	f.env.Couch.LaunchFailures = NewFakeLaunchFailureStore()
+	attempt, beginErr := f.env.Couch.BeginOperationAttempt("archive", LifecycleFailureTarget{Address: f.thread.Address, StartingPath: f.thread.StartingPath})
+	if beginErr != nil {
+		t.Fatal(beginErr)
+	}
+	_, _ = attempt.Finish(nil, err)
+	history, snapErr := f.env.Couch.lifecycleFailureRecorder().Snapshot()
+	if snapErr != nil || len(history) != 1 {
+		t.Fatalf("recorded %+v, %v", history, snapErr)
+	}
+	if r := history[0]; r.Phase != "sweep" || r.Outcome != "unproven" || len(r.Holders) != 1 || r.Holders[0].Process.PID != 501 || r.Holders[0].Kind != "process" {
+		t.Fatalf("recorded failure phase %q outcome %q holders %+v", r.Phase, r.Outcome, r.Holders)
+	}
 }
 
 // A listing that omits a live server is unknown, never absence (#692): the
@@ -172,19 +189,82 @@ func TestProveDownNeverStops(t *testing.T) {
 	}
 }
 
-// The proof removes the lease file it proved free; the next launch
-// recreates it.
+// The proof removes the lease file it proved free, in every mode, since every
+// caller retires the record on it; the next launch recreates it.
 func TestTeardownRemovesTheProvenLease(t *testing.T) {
+	for name, prove := range map[string]func(*Couch, ThreadRecord) (TeardownProof, error){
+		"teardown":   func(c *Couch, r ThreadRecord) (TeardownProof, error) { return c.Teardown(context.Background(), r, "") },
+		"prove down": func(c *Couch, r ThreadRecord) (TeardownProof, error) { return c.ProveDown(context.Background(), r) },
+		"prove and fold": func(c *Couch, r ThreadRecord) (TeardownProof, error) {
+			return c.proveDownAndFold(context.Background(), r, "")
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newTeardownFixture(t)
+			entry, err := f.env.Couch.lifetimeLeaseEnv(f.thread)
+			if err != nil {
+				t.Fatal(err)
+			}
+			path := entry[len(lifetimelease.Env)+1:]
+			if _, err := prove(f.env.Couch, f.thread); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("lease after a proof: %v", err)
+			}
+		})
+	}
+}
+
+// The published agent is a witness by exact identity even with no terminal
+// published (a pre-tty wrapper): teardown stops it, and ProveDown names it
+// instead of proving a live agent's slot down.
+func TestTeardownWitnessesAnAgentWithoutATerminal(t *testing.T) {
 	f := newTeardownFixture(t)
-	entry, err := f.env.Couch.lifetimeLeaseEnv(f.thread)
-	if err != nil {
-		t.Fatal(err)
+	f.process(500, 1, "", "claude", true)
+	f.env.Artifacts.SetAgentTerminal(f.thread.Address, AgentTerminal{Process: ProcessIdentity{PID: 500, Identity: "id-claude"}})
+	_, err := f.env.Couch.ProveDown(context.Background(), f.thread)
+	var unprovenErr *ErrTeardownUnproven
+	if !errors.As(err, &unprovenErr) || len(unprovenErr.Holders) != 1 || unprovenErr.Holders[0].Kind != "agent" {
+		t.Fatalf("ProveDown with a live agent and no tty = %v", err)
 	}
-	path := entry[len(lifetimelease.Env)+1:]
 	if _, err := f.env.Couch.Teardown(context.Background(), f.thread, ""); err != nil {
-		t.Fatal(err)
+		t.Fatalf("Teardown: %v", err)
 	}
-	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("lease after a proof: %v", err)
+	if f.env.Proc.Exists(500) != Dead {
+		t.Fatal("teardown proved the slot down with its agent alive")
+	}
+}
+
+// A dead agent's terminal device may already belong to another terminal:
+// with the tree down (agent gone, lease free) teardown never sweeps it, and
+// says so.
+func TestTeardownNeverSweepsAReusedTerminal(t *testing.T) {
+	f := newTeardownFixture(t)
+	f.process(900, 1, teardownTTY, "vim", true) // someone else's editor on the reused device
+	f.env.Artifacts.SetAgentTerminal(f.thread.Address, AgentTerminal{Process: ProcessIdentity{PID: 500, Identity: "id-claude"}, TTY: teardownTTY})
+	proof, err := f.env.Couch.Teardown(context.Background(), f.thread, "")
+	if err != nil {
+		t.Fatalf("Teardown: %v", err)
+	}
+	if len(f.env.Proc.Signals[900]) != 0 || f.env.Proc.Exists(900) != Live {
+		t.Fatalf("teardown signalled a process on a reused terminal: %v", f.env.Proc.Signals)
+	}
+	if len(proof.Notes) == 0 || !strings.Contains(proof.Notes[0], "not checked") {
+		t.Fatalf("notes = %q, want the unchecked-terminal note", proof.Notes)
+	}
+}
+
+// A tool reparented to init after its agent died is still on the agent's
+// terminal while the tree is up, so the sweep reaches it by tty, not lineage.
+func TestTeardownSweepsReparentedHolders(t *testing.T) {
+	f := newTeardownFixture(t)
+	f.liveTree()
+	f.process(503, 1, teardownTTY, "make", true) // orphaned to init, still on the pty
+	if _, err := f.env.Couch.Teardown(context.Background(), f.thread, ""); err != nil {
+		t.Fatalf("Teardown: %v", err)
+	}
+	if f.env.Proc.Exists(503) != Dead {
+		t.Fatal("a reparented process on the agent's terminal survived")
 	}
 }

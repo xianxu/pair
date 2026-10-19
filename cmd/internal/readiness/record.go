@@ -27,9 +27,10 @@ type ReadyRecord struct {
 	Session               string          `json:"session"`
 	Nonce                 string          `json:"nonce"`
 	PID                   int             `json:"pid"`
-	// TTY is the agent's controlling terminal (ttys183, pts/3), published only
-	// for a Couch-launched wrapper: Couch's teardown proves the agent gone when
-	// no process holds it (pair#695 P1).
+	// TTY is the agent's controlling terminal as the kernel's device number in
+	// decimal (procutil.Process.TTY: Darwin e_tdev, Linux tty_nr), published
+	// only for a Couch-launched wrapper: Couch's teardown proves the agent gone
+	// when no process holds it (pair#695 P1).
 	TTY string `json:"tty,omitempty"`
 }
 
@@ -58,16 +59,8 @@ func Encode(record ReadyRecord) (string, error) {
 // (pair#695 §2a). It keeps no unknown members: the wrapper is the record's
 // only writer and always writes it whole, so no reader ever rewrites it.
 func Decode(raw string) (ReadyRecord, error) {
-	owned, _, err := strictjson.SplitObject([]byte(raw), readyKnownFields, readyKnownFields)
-	if err != nil {
-		return ReadyRecord{}, err
-	}
-	ownedRaw, err := strictjson.EncodeObject(owned, nil, readyKnownFields)
-	if err != nil {
-		return ReadyRecord{}, err
-	}
 	var record ReadyRecord
-	if err := strictjson.Decode(ownedRaw, &record); err != nil {
+	if _, err := strictjson.DecodeKnown([]byte(raw), readyKnownFields, &record); err != nil {
 		return ReadyRecord{}, err
 	}
 	if err := Validate(record); err != nil {

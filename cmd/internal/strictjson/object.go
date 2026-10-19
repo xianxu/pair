@@ -168,3 +168,24 @@ func AppendMembers(encoded []byte, unknown map[string]json.RawMessage, known map
 	out = append(out, "\n}"...)
 	return out, nil
 }
+
+// DecodeKnown is every preserving decoder's one sequence: split raw, decode
+// the known members strictly into target (known members may not be null),
+// and return the members it does not own, nil when there are none.
+func DecodeKnown(raw []byte, known map[string]bool, target any) (map[string]json.RawMessage, error) {
+	owned, unknown, err := SplitObject(raw, known, known)
+	if err != nil {
+		return nil, err
+	}
+	ownedRaw, err := EncodeObject(owned, nil, known)
+	if err != nil {
+		return nil, err
+	}
+	if err := Decode(ownedRaw, target); err != nil {
+		return nil, err
+	}
+	if len(unknown) == 0 {
+		return nil, nil
+	}
+	return unknown, nil
+}

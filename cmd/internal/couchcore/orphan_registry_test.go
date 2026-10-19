@@ -111,3 +111,33 @@ func TestTeardownRegistersWhatItLeftRunning(t *testing.T) {
 		t.Fatalf("registry = %+v, want the setsid'd runner", got)
 	}
 }
+
+// Decode checks values, not only types: a newer registry version is refused
+// and left exactly as it was, and an entry without an exact identity refuses.
+func TestLeftRunningRegistryRefusesUnsupportedValues(t *testing.T) {
+	for name, raw := range map[string]string{
+		"newer version":  `{"schema_version":2,"orphans":[]}`,
+		"no version":     `{"orphans":[]}`,
+		"pid zero":       `{"schema_version":1,"orphans":[{"origin":"o","thread":{"repo_scope":"s","tag":"t"},"process":{"pid":0,"identity":"x"},"command":"c","left_at":"2026-10-19T00:00:00Z"}]}`,
+		"empty identity": `{"schema_version":1,"orphans":[{"origin":"o","thread":{"repo_scope":"s","tag":"t"},"process":{"pid":7,"identity":""},"command":"c","left_at":"2026-10-19T00:00:00Z"}]}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := testRegistry(t)
+			if err := os.MkdirAll(r.dir(), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(r.Path(), []byte(raw), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := r.Read(); err == nil {
+				t.Fatal("decoded")
+			}
+			if err := r.Add(context.Background(), []LeftRunningOrphan{leftRunningEntry(8, time.Now())}); err == nil {
+				t.Fatal("rewrote a registry it refused to read")
+			}
+			if after, _ := os.ReadFile(r.Path()); string(after) != raw {
+				t.Fatalf("refused registry changed: %s", after)
+			}
+		})
+	}
+}

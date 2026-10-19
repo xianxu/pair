@@ -346,6 +346,10 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	switchGuard := &switchServiceGuard{}
 	c.SwitchGuard = switchGuard
 	namespace := c.Namespace.Dir()
+	// Lifetime leases left by retirements that had no proof to remove them
+	// (pair#695): only the free ones go, so a live tree keeps its lease, and
+	// Hold reopens if one goes under it. Debris only; a failure keeps it.
+	_, _ = lifetimelease.SweepFree(lifetimelease.Dir(namespace))
 	brokerSocket, err := couchmessage.SocketPath(namespace, "broker")
 	if err != nil {
 		return nil, err

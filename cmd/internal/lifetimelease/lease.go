@@ -36,8 +36,11 @@ func Path(namespace, key string) (string, error) {
 		return "", fmt.Errorf("lifetime lease needs an absolute namespace and a key")
 	}
 	sum := sha256.Sum256([]byte(key))
-	return filepath.Join(namespace, "leases", hex.EncodeToString(sum[:])[:16]+".lease"), nil
+	return filepath.Join(Dir(namespace), hex.EncodeToString(sum[:])[:16]+".lease"), nil
 }
+
+// Dir is the folder that holds a namespace's lease files.
+func Dir(namespace string) string { return filepath.Join(namespace, "leases") }
 
 // Prepare creates the lease file (and its directory) before Couch launches
 // the tree. It holds nothing.
@@ -58,36 +61,89 @@ func Prepare(path string) error {
 // HoldFromEnv holds the lease named by Env for the caller's lifetime. Without
 // Env (plain pair) it returns nil, nil and touches nothing.
 func HoldFromEnv(ctx context.Context, getenv func(string) string) (io.Closer, error) {
-	path := getenv(Env)
-	if path == "" {
+	if !Active(getenv) {
 		return nil, nil
 	}
-	return Hold(ctx, path)
+	return Hold(ctx, getenv(Env))
 }
+
+// Active reports whether this pair role runs under Couch's lifetime lease:
+// Env is set only by Couch, so plain pair (no Env) holds nothing and
+// publishes no terminal.
+func Active(getenv func(string) string) bool { return getenv(Env) != "" }
 
 // Hold takes a shared lock, waiting up to holdBound for a probe to finish.
 // The descriptor is close-on-exec, so no child inherits it; each pair role
-// takes its own.
+// takes its own. A lock taken on a file SweepFree unlinked in the meantime
+// would be invisible to every witness, so Hold keeps only a lock on the file
+// the path still names, and otherwise reopens.
 func Hold(ctx context.Context, path string) (io.Closer, error) {
 	if err := validPath(path); err != nil {
 		return nil, err
 	}
-	f, err := os.OpenFile(path, os.O_RDONLY|os.O_CREATE, 0o600)
-	if err != nil {
-		return nil, err
-	}
 	deadline := time.Now().Add(holdBound)
 	for {
-		err := syscall.Flock(int(f.Fd()), syscall.LOCK_SH|syscall.LOCK_NB)
-		if err == nil {
-			return f, nil
+		f, err := os.OpenFile(path, os.O_RDONLY|os.O_CREATE, 0o600)
+		if err != nil {
+			return nil, err
 		}
-		if !errors.Is(err, syscall.EWOULDBLOCK) || time.Now().After(deadline) || ctx.Err() != nil {
+		err = syscall.Flock(int(f.Fd()), syscall.LOCK_SH|syscall.LOCK_NB)
+		if err == nil {
+			if current(f, path) {
+				return f, nil
+			}
 			_ = f.Close()
+			continue
+		}
+		_ = f.Close()
+		if !errors.Is(err, syscall.EWOULDBLOCK) || time.Now().After(deadline) || ctx.Err() != nil {
 			return nil, fmt.Errorf("hold lifetime lease: %w", err)
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
+}
+
+// current reports whether f is still the file at path.
+func current(f *os.File, path string) bool {
+	held, err := f.Stat()
+	if err != nil {
+		return false
+	}
+	named, err := os.Stat(path)
+	return err == nil && os.SameFile(held, named)
+}
+
+// SweepFree removes the lease files under dir that no process holds: the
+// leftovers of retirements that had no proof to remove them (an unreadable
+// record, an adopted survivor's predecessor). Each is unlinked while its
+// exclusive lock is held, so a holder either got there first (and the file
+// stays) or reopens a fresh one (Hold). It returns how many it removed.
+func SweepFree(dir string) (int, error) {
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	removed := 0
+	for _, entry := range entries {
+		if !entry.Type().IsRegular() || filepath.Ext(entry.Name()) != ".lease" {
+			continue
+		}
+		path := filepath.Join(dir, entry.Name())
+		f, err := os.Open(path)
+		if err != nil {
+			continue
+		}
+		if syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB) == nil && current(f, path) {
+			if os.Remove(path) == nil {
+				removed++
+			}
+		}
+		_ = f.Close()
+	}
+	return removed, nil
 }
 
 // Free reports whether no process holds the lease: an exclusive, non-blocking

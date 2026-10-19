@@ -465,7 +465,7 @@ func (c *Couch) launchRecoveryFreshAddress(ctx context.Context, old ThreadRecord
 	proof, err := c.proveDownAndFold(ctx, old, "recover-fresh")
 	if err == nil {
 		authority = proof
-		if proof.Revision != old.Revision {
+		if proof.Revision() != old.Revision {
 			if old, err = c.Threads.GetThread(old.Address); err != nil {
 				return RecoveryResumeResult{}, err
 			}

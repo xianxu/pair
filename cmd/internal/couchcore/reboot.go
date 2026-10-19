@@ -133,7 +133,7 @@ func (c *Couch) Reboot(ctx context.Context, t RebootTarget) (RebootResult, error
 		if err != nil {
 			return RebootResult{}, fmt.Errorf("reboot %s: %w", address.Tag, err)
 		}
-		if err := c.Threads.ArchiveThreadExpected(address, proof.Revision, proof); err != nil {
+		if err := c.Threads.ArchiveThreadExpected(address, proof.Revision(), proof); err != nil {
 			return RebootResult{}, err
 		}
 		return RebootResult{Archived: address, ArchiveOnly: true, Reason: reason, SessionNotStopped: true}, nil

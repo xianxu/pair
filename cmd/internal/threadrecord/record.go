@@ -321,16 +321,9 @@ var recordKnownFields = strictjson.KnownFields(reflect.TypeOf(Record{}))
 // decodeCurrent decodes the owned members strictly and keeps the rest.
 // Owned members may be null exactly as strictjson.Decode allows.
 func decodeCurrent(raw []byte) (Record, error) {
-	owned, unknown, err := strictjson.SplitObject(raw, recordKnownFields, recordKnownFields)
-	if err != nil {
-		return Record{}, err
-	}
-	ownedRaw, err := strictjson.EncodeObject(owned, nil, recordKnownFields)
-	if err != nil {
-		return Record{}, err
-	}
 	var record Record
-	if err := strictjson.Decode(ownedRaw, &record); err != nil {
+	unknown, err := strictjson.DecodeKnown(raw, recordKnownFields, &record)
+	if err != nil {
 		return Record{}, err
 	}
 	if len(unknown) > 0 {

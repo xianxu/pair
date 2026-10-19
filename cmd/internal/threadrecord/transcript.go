@@ -44,16 +44,9 @@ var transcriptKnownFields = strictjson.KnownFields(reflect.TypeOf(transcriptWire
 
 // UnmarshalJSON decodes the owned members strictly and keeps the rest.
 func (b *TranscriptBinding) UnmarshalJSON(raw []byte) error {
-	owned, unknown, err := strictjson.SplitObject(raw, transcriptKnownFields, transcriptKnownFields)
-	if err != nil {
-		return err
-	}
-	ownedRaw, err := strictjson.EncodeObject(owned, nil, transcriptKnownFields)
-	if err != nil {
-		return err
-	}
 	var wire transcriptWire
-	if err := strictjson.Decode(ownedRaw, &wire); err != nil {
+	unknown, err := strictjson.DecodeKnown(raw, transcriptKnownFields, &wire)
+	if err != nil {
 		return err
 	}
 	*b = TranscriptBinding(wire)

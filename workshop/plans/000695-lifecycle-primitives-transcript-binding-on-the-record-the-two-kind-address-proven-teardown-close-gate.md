@@ -518,6 +518,222 @@ rounds:
       isolation: fenced
       reviewed: 0f1c1bed112bd36f3f7d7936886fed3887d46d4c
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: e4a1a249-8385-41a6-bf6d-88bc57f994b0
+            repository: github.com/xianxu/pair
+            issue_id: "000695"
+            recipe: milestone-review
+            round: 3
+            attempt: 1
+            agent: claude
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/f5e1d9ddb9d3bb4a
+            reviewed_head: 60c4f86e3a0f2ebeda728b969707661c3150af4d
+            slot: pair:1
+            requested_at: "2026-10-19T19:16:58.088808Z"
+          phase: finished
+          pid: 74503
+          started_at: "2026-10-19T19:16:58.236453Z"
+          finished_at: "2026-10-19T19:31:52.234804Z"
+          session_id: 080e2bd5-8f0a-4e26-b94d-e2fe09deb11b
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 60c4f86e3a0f2ebeda728b969707661c3150af4d
+        tracker_head: e38e5541b790e4577b04580ea64b9d14dd9e525f
+        branch_point: fffbf9c0d921bfc1df6ffb1fc0fe18628e53d812
+        since: "2026-10-18T22:57:15-07:00"
+        until: "2026-10-19T12:10:42-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-18T22:57:15-07:00"
+              end: "2026-10-19T12:10:42-07:00"
+              began: "2026-10-18T22:57:15-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot1/pair
+        sources:
+            - harness: claude
+              id: 0f8622e1-c463-4612-8427-0339d0387f2b
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: ca3da0965e8961d1c61c665731c4cd42b4e97772c869410aef3541505e4f55ce
+              started: "2026-10-19T13:36:29.283Z"
+              spawned: false
+              bytes: 393181
+              windows:
+                - start: "2026-10-19T13:36:29.283Z"
+                  end: "2026-10-19T12:10:42-07:00"
+            - harness: claude
+              id: 507d0585-c54a-4834-8abd-9a52d7f9da76
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 6c51048f44a15cd8557f959f3afcdc73296b5573ed275dbc7a0448e31dc28ee8
+              started: "2026-10-19T02:49:17.103Z"
+              spawned: false
+              bytes: 15022758
+              windows:
+                - start: "2026-10-18T22:57:15-07:00"
+                  end: "2026-10-19T12:10:42-07:00"
+            - harness: claude
+              id: 6fa6fea2-8902-4f5c-9b2a-6548cf879f30
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: faaf9c38d70a8a84ae00d705b1eef74c2570dd281bc35df426c3f6a837398123
+              started: "2026-10-19T13:30:41.221Z"
+              spawned: false
+              bytes: 614766
+              windows:
+                - start: "2026-10-19T13:30:41.221Z"
+                  end: "2026-10-19T12:10:42-07:00"
+            - harness: claude
+              id: 84fed9bb-2c33-495b-a2ac-b1c365c8f242
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 45246414c4d539667e82f0898e93805a8f3c200e359a018f9d53d1c10c45e757
+              started: "2026-10-19T13:36:13.159Z"
+              spawned: false
+              bytes: 572779
+              windows:
+                - start: "2026-10-19T13:36:13.159Z"
+                  end: "2026-10-19T12:10:42-07:00"
+            - harness: claude
+              id: 98afc721-0259-4ecb-a3aa-286966a8fa6b
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 0a6426bb7d4eda2cbe641637263404af0ffc0e861b43796863689e58ebf3b5ab
+              started: "2026-10-19T13:35:01.399Z"
+              spawned: false
+              bytes: 418152
+              windows:
+                - start: "2026-10-19T13:35:01.399Z"
+                  end: "2026-10-19T12:10:42-07:00"
+            - harness: claude
+              id: b5833248-4bc3-4582-a4e6-6c13f3737a1f
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 00e83c9ffe05ea6321734652c9f1f96a46f491047bfc59de33ed5ac5eff504d4
+              started: "2026-10-19T13:32:47.197Z"
+              spawned: false
+              bytes: 604367
+              windows:
+                - start: "2026-10-19T13:32:47.197Z"
+                  end: "2026-10-19T12:10:42-07:00"
+            - harness: claude
+              id: ccfc2441-0f65-4249-8017-65b2eb08cc24
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 5b9b248858b400579af6244ff35f2baa03f8f0e3b41b50d9804fd87bf8a87314
+              started: "2026-10-19T13:34:27.337Z"
+              spawned: false
+              bytes: 574614
+              windows:
+                - start: "2026-10-19T13:34:27.337Z"
+                  end: "2026-10-19T12:10:42-07:00"
+        cuts:
+            - boundary: M1
+              dispatched: "2026-10-19T07:20:37-07:00"
+              finalized: "2026-10-19T07:40:57-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-19T07:55:34-07:00"
+              finalized: "2026-10-19T08:17:38-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-19T08:27:51-07:00"
+              finalized: "2026-10-19T08:44:32-07:00"
+              finalizing: true
+      "n": 5
+      timestamp: "2026-10-19T12:31:56-07:00"
+      dispatched: "2026-10-19T12:16:55-07:00"
+      agent: claude
+      reviewer: claude (anthropic; author anthropic)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: 'Overtaken: the team arm and TeamIdentity were removed in M2 (009030459); Validate/Key now have one slot kind.'
+          round: 5
+      findings:
+        - kind: defect
+          id: BR-11
+          severity: Critical
+          title: Teardown proves a tree down while the published agent is still alive when agent-ready carries no tty
+          detail: 'teardown.go teardownHolders and proveDown witness the agent only through TTYProcesses(table, tty), and TTYProcesses with "" matches nothing. So for any pre-M2 wrapper, or a wrapper whose agentTerminal table read failed, the proof has no agent witness. The plan''s fallback (proven as today by pid and session, ObserveSlotSessions) was dropped. A reviewer probe (agent published with no tty that ignores SIGTERM) returned err=nil with the agent Live and LeftRunning empty, and ArchiveThread would archive with that proof. Fix: when the published agent is listed, sweep and require its exact identity Dead whatever the tty (holder kind agent), and add a regression test.'
+          family: proof-witness-per-process-kind
+          round: 5
+        - kind: defect
+          id: BR-12
+          severity: Important
+          title: The tty-trusted-only-while-the-tree-is-up guard has no test; a mutation that always trusts the tty passes the suite
+          detail: 'Changing teardown.go:161 to `if true || agentListed(...) || !free` passed every couchcore Teardown, Retire, Archive, Fresh, Reboot and Recover test (183s). This guard is what stops teardown from SIGKILLing an unrelated terminal''s processes on a reused device. Add a test: agent dead, lease free, an unrelated live process on the same tty number; expect no signal and the note.'
+          family: kill-guard-regression-test
+          round: 5
+        - kind: defect
+          id: BR-13
+          severity: Important
+          title: Per-thread lifetime lease files are removed only by Teardown(stop); every other retirement leaks one file forever
+          detail: Lease keys include scope/tag (lifetime_lease.go:20), and only teardown with stop removes the file (teardown.go:208). Retirements through ProveDown (startFreshSlotWithPrompt, reboot archive-only), proveDownAndFold (Fresh recovery), AdoptionAuthority and UnreadableRecordEscape leave <namespace>/leases/<digest>.lease with no sweep, so the directory grows with every Fresh, reboot or adoption (ARCH-FUNERAL). Remove the retired thread's lease once its proof stands, or sweep leases whose thread is gone, and state the lifetime in the atlas.
+          family: artifact-removal-path
+          round: 5
+        - kind: defect
+          id: BR-14
+          severity: Important
+          title: TeardownProof is forgeable (all fields exported), unlike the three other constructor-only retire authorities
+          detail: RetireAuthority is sealed at the interface, but any package can build couchcore.TeardownProof{Address, Thread, Revision, ProvenAt}, and couchcoretest/retire.go:25 (a non-test package) does. That undercuts ARCH-ORDER's structural enforcement that the archive and replace funnels cannot be reached without a real proof. Unexport the authority-bearing fields (with accessors), so only proveDown mints one, and give fixtures an explicitly test-only minting path.
+          family: authority-unforgeable
+          round: 5
+        - kind: defect
+          id: BR-15
+          severity: Important
+          title: 'README update missing: couch --reap-orphans --confirm now also ends teardown''s left-running processes'
+          detail: reap_orphans.go adds reapLeftRunning to the destructive verb, and --resources gains the "Left running by teardown" section. README.md:477-478 and :822-828 still describe only unattributed embedded nvim, so an operator who uses --confirm for nvim cleanup will now also kill setsid'd runners and background merges without the docs saying so.
+          family: readme-surface-gate
+          round: 5
+        - kind: defect
+          id: BR-16
+          severity: Important
+          title: M2 plan contracts and named tests not delivered as specified (plain-pair test cases, both-env activation, sweep test, recorder path, holder kinds, witnesses)
+          detail: 'This is the 3rd finding in family plan-code-drift. Rule: at milestone close, every test name and contract in the plan''s governing revision is checked mechanically against the tree (grep the func names; diff each contract against the code), and each mismatch gets either code or a Revisions line in the same round. Measured prevalence in M2 is 7 instances. (1) TestPlainPairUnchangedWithoutCouch checks only HoldFromEnv with an empty env, not two sessions, a sidecar without a tty, no extra fd, or the lease-without-tag case. (2) Activation needs only COUCH_LIFETIME_LEASE (lease.go:60, wrap.go:652), not both env vars. (3) TestTeardownSweepsReparentedHolders is absent. (4) TestTeardownUnprovenRecordsPhaseAndHolders does not go through the real recorder. (5) ReadyRecord is tolerant but not preserving, unrecorded. (6) The agent and session-watch holder kinds were not added (pair/process used). (7) The plan''s four witnesses became three (ObserveSlotSessions dropped).'
+          family: plan-code-drift
+          round: 5
+        - kind: defect
+          id: BR-17
+          severity: Important
+          title: orphans.json accepts any schema_version and rewrites it as 1; entries with pid <= 0 or an empty identity decode
+          detail: 'This is the 2nd finding in family decode-strictness-beyond-types. Rule: every persisted envelope validates its known-field values (supported schema_version, positive pid, non-empty identity) at decode, not only their JSON types, and a rewrite never changes an existing field''s value. orphan_registry.go:201 decodes with no value checks, and :282 sets SchemaVersion=1 over whatever was read, which changes a newer writer''s field (ARCH-EVOLVE). Refuse an unsupported version, validate entries, and add round-trip and refusal tests.'
+          family: decode-strictness-beyond-types
+          round: 5
+        - kind: defect
+          id: BR-18
+          severity: Minor
+          title: The split, encode, strict-decode, keep-unknown sequence is copy-pasted at five decode sites
+          detail: transcript.go:47, record.go:324, readiness/record.go:61 and orphan_registry.go:81/114/142 repeat the same four steps. A strictjson helper (decode the known members into a wire struct, return the unknown map) would make each type's UnmarshalJSON a single call (ARCH-DRY).
+          family: preserving-codec-boilerplate
+          round: 5
+        - kind: defect
+          id: BR-19
+          severity: Minor
+          title: teardown(stop, fold bool) encodes three legal modes as two booleans; stop without fold is representable but unused
+          detail: Replace the two booleans with a mode enum (teardown, prove-down, prove-and-fold) so the legal set can be read off the type (ARCH-ORDER).
+          family: mode-as-bool-flags
+          round: 5
+        - kind: defect
+          id: BR-20
+          severity: Minor
+          title: ReadyRecord.TTY comment says names like ttys183 or pts/3, but the value is a decimal device number
+          detail: procutil.Process.TTY stores e_tdev or tty_nr in decimal, and the wrapper publishes that same value. Fix the comment at readiness/record.go:30.
+          family: comment-code-drift
+          round: 5
+      boundary: M2
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#695 (boundary-review)
@@ -581,7 +797,46 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-10** [Minor] `nested-unknown-preservation` (kind: defect) Record.Unknown comment still says nested objects stay strict after BR-7 made transcript tolerant
   This is the 2nd finding in family nested-unknown-preservation. The rule is already in the round-2 Revision: a persisted type born in this issue is tolerant and preserving from birth; older nested types stay strict. record.go:110-114 still states the old policy. Reword it to that rule, so the code no longer contradicts the plan.
 
+## Round 5 — 2026-10-19T12:31:56-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Overtaken: the team arm and TeamIdentity were removed in M2 (009030459); Validate/Key now have one slot kind.
+
+### Raised
+
+- **BR-11** [Critical] `proof-witness-per-process-kind` (kind: defect) Teardown proves a tree down while the published agent is still alive when agent-ready carries no tty
+  teardown.go teardownHolders and proveDown witness the agent only through TTYProcesses(table, tty), and TTYProcesses with "" matches nothing. So for any pre-M2 wrapper, or a wrapper whose agentTerminal table read failed, the proof has no agent witness. The plan's fallback (proven as today by pid and session, ObserveSlotSessions) was dropped. A reviewer probe (agent published with no tty that ignores SIGTERM) returned err=nil with the agent Live and LeftRunning empty, and ArchiveThread would archive with that proof. Fix: when the published agent is listed, sweep and require its exact identity Dead whatever the tty (holder kind agent), and add a regression test.
+- **BR-12** [Important] `kill-guard-regression-test` (kind: defect) The tty-trusted-only-while-the-tree-is-up guard has no test; a mutation that always trusts the tty passes the suite
+  Changing teardown.go:161 to `if true || agentListed(...) || !free` passed every couchcore Teardown, Retire, Archive, Fresh, Reboot and Recover test (183s). This guard is what stops teardown from SIGKILLing an unrelated terminal's processes on a reused device. Add a test: agent dead, lease free, an unrelated live process on the same tty number; expect no signal and the note.
+- **BR-13** [Important] `artifact-removal-path` (kind: defect) Per-thread lifetime lease files are removed only by Teardown(stop); every other retirement leaks one file forever
+  Lease keys include scope/tag (lifetime_lease.go:20), and only teardown with stop removes the file (teardown.go:208). Retirements through ProveDown (startFreshSlotWithPrompt, reboot archive-only), proveDownAndFold (Fresh recovery), AdoptionAuthority and UnreadableRecordEscape leave <namespace>/leases/<digest>.lease with no sweep, so the directory grows with every Fresh, reboot or adoption (ARCH-FUNERAL). Remove the retired thread's lease once its proof stands, or sweep leases whose thread is gone, and state the lifetime in the atlas.
+- **BR-14** [Important] `authority-unforgeable` (kind: defect) TeardownProof is forgeable (all fields exported), unlike the three other constructor-only retire authorities
+  RetireAuthority is sealed at the interface, but any package can build couchcore.TeardownProof{Address, Thread, Revision, ProvenAt}, and couchcoretest/retire.go:25 (a non-test package) does. That undercuts ARCH-ORDER's structural enforcement that the archive and replace funnels cannot be reached without a real proof. Unexport the authority-bearing fields (with accessors), so only proveDown mints one, and give fixtures an explicitly test-only minting path.
+- **BR-15** [Important] `readme-surface-gate` (kind: defect) README update missing: couch --reap-orphans --confirm now also ends teardown's left-running processes
+  reap_orphans.go adds reapLeftRunning to the destructive verb, and --resources gains the "Left running by teardown" section. README.md:477-478 and :822-828 still describe only unattributed embedded nvim, so an operator who uses --confirm for nvim cleanup will now also kill setsid'd runners and background merges without the docs saying so.
+- **BR-16** [Important] `plan-code-drift` (kind: defect) M2 plan contracts and named tests not delivered as specified (plain-pair test cases, both-env activation, sweep test, recorder path, holder kinds, witnesses)
+  This is the 3rd finding in family plan-code-drift. Rule: at milestone close, every test name and contract in the plan's governing revision is checked mechanically against the tree (grep the func names; diff each contract against the code), and each mismatch gets either code or a Revisions line in the same round. Measured prevalence in M2 is 7 instances. (1) TestPlainPairUnchangedWithoutCouch checks only HoldFromEnv with an empty env, not two sessions, a sidecar without a tty, no extra fd, or the lease-without-tag case. (2) Activation needs only COUCH_LIFETIME_LEASE (lease.go:60, wrap.go:652), not both env vars. (3) TestTeardownSweepsReparentedHolders is absent. (4) TestTeardownUnprovenRecordsPhaseAndHolders does not go through the real recorder. (5) ReadyRecord is tolerant but not preserving, unrecorded. (6) The agent and session-watch holder kinds were not added (pair/process used). (7) The plan's four witnesses became three (ObserveSlotSessions dropped).
+- **BR-17** [Important] `decode-strictness-beyond-types` (kind: defect) orphans.json accepts any schema_version and rewrites it as 1; entries with pid <= 0 or an empty identity decode
+  This is the 2nd finding in family decode-strictness-beyond-types. Rule: every persisted envelope validates its known-field values (supported schema_version, positive pid, non-empty identity) at decode, not only their JSON types, and a rewrite never changes an existing field's value. orphan_registry.go:201 decodes with no value checks, and :282 sets SchemaVersion=1 over whatever was read, which changes a newer writer's field (ARCH-EVOLVE). Refuse an unsupported version, validate entries, and add round-trip and refusal tests.
+- **BR-18** [Minor] `preserving-codec-boilerplate` (kind: defect) The split, encode, strict-decode, keep-unknown sequence is copy-pasted at five decode sites
+  transcript.go:47, record.go:324, readiness/record.go:61 and orphan_registry.go:81/114/142 repeat the same four steps. A strictjson helper (decode the known members into a wire struct, return the unknown map) would make each type's UnmarshalJSON a single call (ARCH-DRY).
+- **BR-19** [Minor] `mode-as-bool-flags` (kind: defect) teardown(stop, fold bool) encodes three legal modes as two booleans; stop without fold is representable but unused
+  Replace the two booleans with a mode enum (teardown, prove-down, prove-and-fold) so the legal set can be read off the type (ARCH-ORDER).
+- **BR-20** [Minor] `comment-code-drift` (kind: defect) ReadyRecord.TTY comment says names like ttys183 or pts/3, but the value is a decimal device number
+  procutil.Process.TTY stores e_tdev or tty_nr in decimal, and the wrapper publishes that same value. Fix the comment at readiness/record.go:30.
+
 ## Open findings
 
 - **BR-9** [Minor] `deferral-recorded-at-receiver` (kind: defect) BR-4's row note and legacy-ledger row detail are deferred to #684 M2 only in #695's plan; #684's tracker does not mention them
 - **BR-10** [Minor] `nested-unknown-preservation` (kind: defect) Record.Unknown comment still says nested objects stay strict after BR-7 made transcript tolerant
+- **BR-11** [Critical] `proof-witness-per-process-kind` (kind: defect) Teardown proves a tree down while the published agent is still alive when agent-ready carries no tty
+- **BR-12** [Important] `kill-guard-regression-test` (kind: defect) The tty-trusted-only-while-the-tree-is-up guard has no test; a mutation that always trusts the tty passes the suite
+- **BR-13** [Important] `artifact-removal-path` (kind: defect) Per-thread lifetime lease files are removed only by Teardown(stop); every other retirement leaks one file forever
+- **BR-14** [Important] `authority-unforgeable` (kind: defect) TeardownProof is forgeable (all fields exported), unlike the three other constructor-only retire authorities
+- **BR-15** [Important] `readme-surface-gate` (kind: defect) README update missing: couch --reap-orphans --confirm now also ends teardown's left-running processes
+- **BR-16** [Important] `plan-code-drift` (kind: defect) M2 plan contracts and named tests not delivered as specified (plain-pair test cases, both-env activation, sweep test, recorder path, holder kinds, witnesses)
+- **BR-17** [Important] `decode-strictness-beyond-types` (kind: defect) orphans.json accepts any schema_version and rewrites it as 1; entries with pid <= 0 or an empty identity decode
+- **BR-18** [Minor] `preserving-codec-boilerplate` (kind: defect) The split, encode, strict-decode, keep-unknown sequence is copy-pasted at five decode sites
+- **BR-19** [Minor] `mode-as-bool-flags` (kind: defect) teardown(stop, fold bool) encodes three legal modes as two booleans; stop without fold is representable but unused
+- **BR-20** [Minor] `comment-code-drift` (kind: defect) ReadyRecord.TTY comment says names like ttys183 or pts/3, but the value is a decimal device number

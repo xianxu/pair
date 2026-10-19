@@ -56,20 +56,59 @@ type LeftRunningOrphan struct {
 }
 
 // TeardownProof says the thread's tree is gone: the lease is free, nothing
-// holds the agent's terminal, and the session is absent. ProvenAt is the
-// lifecycle success time a later failure display compares against. Thread and
-// Revision are the record it covers, as teardown left it; it is the
-// RetireAuthority for exactly that record (retire.go).
+// holds the agent's terminal, the published agent is dead, and the session is
+// absent. It is the RetireAuthority for exactly the record teardown left
+// (retire.go), so the fields that make it one are unexported: only teardown
+// mints a proof, and a fixture uses TestOnlyTeardownProof.
 type TeardownProof struct {
-	Address     LifecycleAddress
-	Thread      ThreadAddress
-	Revision    uint64
-	ProvenAt    time.Time
+	address  LifecycleAddress
+	thread   ThreadAddress
+	revision uint64
+	provenAt time.Time
+
 	AgentTTY    string
 	Sessions    []string
 	LeftRunning []LeftRunningOrphan
 	Notes       []string
 }
+
+// Address is the lifecycle address the proof covers.
+func (p TeardownProof) Address() LifecycleAddress { return p.address }
+
+// Thread is the record the proof covers.
+func (p TeardownProof) Thread() ThreadAddress { return p.thread }
+
+// Revision is the record's revision as teardown left it.
+func (p TeardownProof) Revision() uint64 { return p.revision }
+
+// ProvenAt is the lifecycle success time a later failure display compares
+// against.
+func (p TeardownProof) ProvenAt() time.Time { return p.provenAt }
+
+// TestOnlyTeardownProof mints a proof for a record a test arranged through
+// the store directly, whose tree was never up. Production never calls it
+// (TestOnlyTeardownProofHasNoProductionCaller).
+func TestOnlyTeardownProof(record ThreadRecord, at time.Time) (TeardownProof, error) {
+	address, err := threadLifecycleAddress(record)
+	if err != nil {
+		return TeardownProof{}, err
+	}
+	return TeardownProof{address: address, thread: record.Address, revision: record.Revision, provenAt: at}, nil
+}
+
+// teardownMode is what one teardown does: stop and fold (Teardown), prove
+// only (ProveDown), or prove and fold without stopping (Fresh recovery,
+// whose stops the operator already confirmed).
+type teardownMode uint8
+
+const (
+	teardownStopAndFold teardownMode = iota
+	teardownProveOnly
+	teardownProveAndFold
+)
+
+func (m teardownMode) stops() bool { return m == teardownStopAndFold }
+func (m teardownMode) folds() bool { return m != teardownProveOnly }
 
 // ErrTeardownUnproven: a step could not reach its proof. Nothing after it
 // ran. Holders are pair processes and processes on the agent's terminal only;
@@ -115,24 +154,24 @@ type teardownTarget struct {
 // it only proves. Agent-started processes that left the agent's terminal are
 // named in LeftRunning, never killed or waited on.
 func (c *Couch) Teardown(ctx context.Context, thread ThreadRecord, operation string) (TeardownProof, error) {
-	return c.teardown(ctx, thread, operation, true, true)
+	return c.teardown(ctx, thread, operation, teardownStopAndFold)
 }
 
 // ProveDown proves the slot tree gone without stopping anything: a caller
 // whose contract is "start only on a down slot" names a survivor instead of
 // killing it.
 func (c *Couch) ProveDown(ctx context.Context, thread ThreadRecord) (TeardownProof, error) {
-	return c.teardown(ctx, thread, "", false, false)
+	return c.teardown(ctx, thread, "", teardownProveOnly)
 }
 
 // proveDownAndFold proves the tree gone without stopping anything and then
 // folds the bookkeeping its proven-dead owners left: what a caller whose
 // stops were already confirmed (Fresh recovery) retires with.
 func (c *Couch) proveDownAndFold(ctx context.Context, thread ThreadRecord, operation string) (TeardownProof, error) {
-	return c.teardown(ctx, thread, operation, false, true)
+	return c.teardown(ctx, thread, operation, teardownProveAndFold)
 }
 
-func (c *Couch) teardown(ctx context.Context, thread ThreadRecord, operation string, stop, fold bool) (TeardownProof, error) {
+func (c *Couch) teardown(ctx context.Context, thread ThreadRecord, operation string, mode teardownMode) (TeardownProof, error) {
 	if c.Proc == nil || c.Clock == nil {
 		return TeardownProof{}, unproven("observe", errors.New("teardown requires process and clock seams"))
 	}
@@ -165,7 +204,7 @@ func (c *Couch) teardown(ctx context.Context, thread ThreadRecord, operation str
 			notes = append(notes, "the agent's terminal was not checked: the tree was already down and the device may be reused")
 		}
 	}
-	if stop {
+	if mode.stops() {
 		if err := c.teardownStop(ctx, target); err != nil {
 			return TeardownProof{}, err
 		}
@@ -188,14 +227,14 @@ func (c *Couch) teardown(ctx context.Context, thread ThreadRecord, operation str
 	if err != nil {
 		return TeardownProof{}, err
 	}
-	if fold {
+	if mode.folds() {
 		// Every owner is proven gone, which is what makes the record's
 		// unfinished bookkeeping foldable.
 		if target.thread, err = c.teardownPreserve(target.thread); err != nil {
 			return TeardownProof{}, unproven("preserve", err)
 		}
 	}
-	proof.Thread, proof.Revision = target.thread.Address, target.thread.Revision
+	proof.thread, proof.revision = target.thread.Address, target.thread.Revision
 	proof.LeftRunning = left
 	if len(left) > 0 {
 		// Registered so they stay attributable once the thread is gone;
@@ -205,10 +244,10 @@ func (c *Couch) teardown(ctx context.Context, thread ThreadRecord, operation str
 		}
 	}
 	proof.Notes = append(notes, proof.Notes...)
-	if stop {
-		if err := os.Remove(target.lease); err != nil && !errors.Is(err, os.ErrNotExist) {
-			proof.Notes = append(proof.Notes, "lifetime lease not removed: "+err.Error())
-		}
+	// The lease is proven free, and every caller retires the record on this
+	// proof, so its file goes now, in every mode; a launch recreates it.
+	if err := os.Remove(target.lease); err != nil && !errors.Is(err, os.ErrNotExist) {
+		proof.Notes = append(proof.Notes, "lifetime lease not removed: "+err.Error())
 	}
 	return proof, nil
 }
@@ -324,6 +363,14 @@ func (c *Couch) teardownHolders(ctx context.Context, target teardownTarget, tty 
 			add(row, "pair")
 		}
 	}
+	// The published agent is a witness by its exact identity, whatever its
+	// terminal: a wrapper from before the tty field, or one whose table read
+	// failed, published none, and the tty sweep alone would never see it.
+	if target.agent != nil {
+		if row, ok := rows[target.agent.Process.PID]; ok && row.Identity == target.agent.Process.Identity {
+			add(row, "agent")
+		}
+	}
 	for _, row := range procutil.TTYProcesses(table, tty) {
 		if row.Identity == "" {
 			return nil, fmt.Errorf("pid %d on the agent's terminal has no readable identity", row.PID)
@@ -361,6 +408,8 @@ func (c *Couch) stopExact(ctx context.Context, process ProcessIdentity) error {
 		if err := c.Proc.Signal(process.PID, step.signal); err != nil && observeExactProcess(c.Proc, process) == Live {
 			return fmt.Errorf("signal pid %d: %w", process.PID, err)
 		}
+		// Real waits on real signals: the wall clock, not c.Clock, which a
+		// test may freeze.
 		deadline := time.Now().Add(step.wait)
 		for time.Now().Before(deadline) {
 			if observeExactProcess(c.Proc, process) == Dead {
@@ -398,14 +447,14 @@ func (c *Couch) proveDown(ctx context.Context, target teardownTarget, tty string
 		}
 		return TeardownProof{}, unproven("prove", cause, holders...)
 	}
-	proof := TeardownProof{Address: target.address, AgentTTY: tty}
+	proof := TeardownProof{address: target.address, AgentTTY: tty}
 	if target.session != "" {
 		if err := c.sessionAbsent(ctx, target); err != nil {
 			return TeardownProof{}, unproven("prove", err)
 		}
 		proof.Sessions = []string{target.session}
 	}
-	proof.ProvenAt = c.Clock.Now()
+	proof.provenAt = c.Clock.Now()
 	return proof, nil
 }
 

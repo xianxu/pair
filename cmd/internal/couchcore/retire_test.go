@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -31,11 +33,11 @@ func retireAuthorityForTest(t testing.TB, s *ThreadStore, address ThreadAddress)
 
 func proofForTest(t testing.TB, record ThreadRecord) TeardownProof {
 	t.Helper()
-	lifecycle, err := threadLifecycleAddress(record)
+	proof, err := TestOnlyTeardownProof(record, time.Now())
 	if err != nil {
 		t.Fatalf("proof for %s: %v", record.Address.Tag, err)
 	}
-	return TeardownProof{Address: lifecycle, Thread: record.Address, Revision: record.Revision, ProvenAt: time.Now()}
+	return proof
 }
 
 // slotAuthorityForTest is the reason for replacing an observed slot current.
@@ -197,8 +199,8 @@ func TestArchiveRefusesOpenPark(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if proof.Revision != record.Revision {
-		t.Fatalf("ProveDown changed the record: revision %d -> %d", record.Revision, proof.Revision)
+	if proof.Revision() != record.Revision {
+		t.Fatalf("ProveDown changed the record: revision %d -> %d", record.Revision, proof.Revision())
 	}
 	if err := store.ArchiveThread(record.Address, proof); err == nil || !strings.Contains(err.Error(), "park in flight") {
 		t.Fatalf("archive of an open park: %v", err)
@@ -220,10 +222,10 @@ func TestTeardownFoldsCompletedPark(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if folded.Park != nil || proof.Revision != folded.Revision || folded.Revision == record.Revision {
-		t.Fatalf("park after teardown %+v, proof revision %d, record %d -> %d", folded.Park, proof.Revision, record.Revision, folded.Revision)
+	if folded.Park != nil || proof.Revision() != folded.Revision || folded.Revision == record.Revision {
+		t.Fatalf("park after teardown %+v, proof revision %d, record %d -> %d", folded.Park, proof.Revision(), record.Revision, folded.Revision)
 	}
-	if err := store.ArchiveThreadExpected(record.Address, proof.Revision, proof); err != nil {
+	if err := store.ArchiveThreadExpected(record.Address, proof.Revision(), proof); err != nil {
 		t.Fatalf("archive with the folded proof: %v", err)
 	}
 }
@@ -259,12 +261,12 @@ func TestProvenTeardownHidesEarlierUnprovenFailure(t *testing.T) {
 		t.Fatalf("before the proof: %+v", got)
 	}
 	proof := proofForTest(t, record)
-	proof.ProvenAt = failedAt.Add(time.Minute)
+	proof.provenAt = failedAt.Add(time.Minute)
 	if err := local.ArchiveThread(record.Address, proof); err != nil {
 		t.Fatal(err)
 	}
 	archived, err := local.ArchivedThreads()
-	if err != nil || len(archived) != 1 || archived[0].ProvenDownAt == nil || !archived[0].ProvenDownAt.Equal(proof.ProvenAt) {
+	if err != nil || len(archived) != 1 || archived[0].ProvenDownAt == nil || !archived[0].ProvenDownAt.Equal(proof.ProvenAt()) {
 		t.Fatalf("archived %+v err %v, want the proof time stamped", archived, err)
 	}
 	if got, detail := env.Couch.launchFailuresForShow(t.Context(), "scope", slot.WorktreeRoot, nil, slot); len(got) != 0 || detail != "" {
@@ -296,5 +298,31 @@ func assertRetiredBytes(t testing.TB, archived, raw []byte) {
 		if json.Compact(&a, got[key]) != nil || json.Compact(&b, value) != nil || !bytes.Equal(a.Bytes(), b.Bytes()) {
 			t.Fatalf("archive changed member %q: %s -> %s", key, value, got[key])
 		}
+	}
+}
+
+// A minted proof is what lets the store retire a record, so the test-only
+// minting path never appears in production source (couchcoretest is a
+// fixture package that only tests import).
+func TestOnlyTeardownProofHasNoProductionCaller(t *testing.T) {
+	root := ".."
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil || entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return err
+		}
+		if strings.Contains(filepath.ToSlash(path), "couchcoretest/") || filepath.Base(path) == "teardown.go" {
+			return nil
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if bytes.Contains(raw, []byte("TestOnlyTeardownProof(")) {
+			t.Errorf("%s mints a teardown proof outside a test", path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }

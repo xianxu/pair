@@ -18,9 +18,9 @@ func RetireProof(t testing.TB, store *couchcore.ThreadStore, address couchcore.T
 	if err != nil {
 		t.Fatalf("retire proof: %v", err)
 	}
-	lifecycle, err := couchcore.NewSlotAddress(couchcore.SlotIdentity{}, record.StartingPath)
+	proof, err := couchcore.TestOnlyTeardownProof(record, time.Now())
 	if err != nil {
 		t.Fatalf("retire proof: %v", err)
 	}
-	return couchcore.TeardownProof{Address: lifecycle, Thread: address, Revision: record.Revision, ProvenAt: time.Now()}
+	return proof
 }

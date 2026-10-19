@@ -299,13 +299,17 @@ one-thread-per-repository (pair#363) can hold sibling threads at one path.
 - Plain pair without Couch opens nothing.
 - The wrapper also publishes the agent's controlling tty in `agent-ready`, read
   from the kernel process table (`procutil.Process.TTY`).
+- The lease file is created by the launch and removed after any proof.
+  Retirements with no proof leave theirs to `lifetimelease.SweepFree` at Couch
+  start, which unlinks only free files. `Hold` re-checks that it locked the file
+  its path names.
 
 **Teardown (M2).** `couchcore/teardown.go`.
 - `Teardown(thread)` quiesces the session and stops the registered wrapper. It
   then sweeps the lease holders and the processes on the agent's tty, by exact
   identity, with SIGTERM then SIGKILL, at most 3 rounds, within a 10s budget.
-- It proves the tree down: the lease is free, nothing is on the tty, and the
-  session is absent twice. #692's listing omission is unproven, never absence.
+- It proves the tree down: the lease is free, the published agent (by exact
+  identity) is dead, nothing is on the tty, and the session is absent twice. #692's listing omission is unproven, never absence.
 - It then folds the park or start claim the dead owners left
   (`clearLifecycleDebris`).
 - The tty is trusted only while the tree is up (the agent is listed or the lease

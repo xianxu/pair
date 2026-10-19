@@ -278,6 +278,9 @@ func (c *Couch) ArchiveThread(ctx context.Context, address ThreadAddress) (Archi
 	if err != nil {
 		return ArchiveResult{}, fmt.Errorf("archive %s: %w", address.Tag, err)
 	}
+	// The revision admission checked, not the proof's: the record is
+	// archivable and its quiesce done, so teardown folds nothing, and a record
+	// that moved anyway must not be archived on an older admission.
 	if err := c.Threads.ArchiveThreadExpected(address, r.Revision, proof); err != nil {
 		return ArchiveResult{}, err
 	}
