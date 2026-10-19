@@ -591,3 +591,70 @@ Steps:
   - **The BR-4 deferral is recorded at its receiver.** The row note (ledger unreadable or missing, so the stored
     binding was resumed) and the `legacy-ledger` row detail are added to pair#684's plan as M2 items.
   - The refusal text no longer says "stored" when the invalid binding came from the ledger.
+- 2026-10-19 — **M2 detailed** (measured: an Explore map of spawn sites, sidecars, teardown pieces, and the archive
+  and replace callers, plus a pty probe on this machine). Where it differs from §2 P1, this governs.
+  - **The tty, measured.** A pty child killed by SIGKILL took its foreground-group command with it (SIGHUP). A
+    `setsid` child survived, reparented to launchd. `ps` shows the tty (`ttys183`) but no session id on macOS.
+    - So the witness is the controlling tty. Once the agent is dead the tty can no longer be read off it, so the
+      wrapper publishes it while the agent is alive.
+    - The seam: `procutil.Process` gains `TTY` (the Darwin `kinfo_proc` `e_tdev` through `devname`, and Linux
+      `/proc/<pid>/stat` `tty_nr`). `TTYProcesses(tty)` filters the one table read. There is no `ps` exec.
+  - **Where the tty is published.** The agent pid sidecar is a bare decimal (wrap.go:3000). The JSON record that
+    carries the pid is `readiness.ReadyRecord` (`agent-ready`, strictjson). M2 first makes `ReadyRecord`
+    tolerant and preserving, on its own JSON methods (the BR-7 rule). It then adds `tty`, which the wrapper writes
+    only when `COUCH_LIFETIME_LEASE` is set. An older Couch never sets that, so it never meets the field.
+  - **Where the lease lives.** `<couch namespace>/leases/<sha256(Key())[:16]>.lease`, one empty file per lifecycle
+    address.
+    - Reasons: slot `:0` has no per-slot store folder, and slot migration refuses unknown files in a slot's
+      `.couch` folder (slotmigration.go:313). The namespace exists for slots, `:0` and teams alike.
+    - Teardown deletes the file after its proof; the next launch recreates it.
+  - **Who holds the lease.** No fd is inherited. Each long-lived pair role under Couch opens the path from its
+    env and takes `LOCK_SH` itself, with a 2s bound. The roles are: the actor's `pair` (create/resume), the pane's
+    `pair wrap`, and session-watch. `pair title` does not run under Couch (title_process.go:31). Short pair
+    subcommands (slug, context) never lock.
+    - The wrapper strips `COUCH_LIFETIME_LEASE` from the agent's env, so nothing the agent runs, including a
+      `pair` subcommand, can hold the slot. `lease.Inherit` is dropped.
+    - Shift+Alt+N re-execs the wrapper in place. The CLOEXEC lock drops and is retaken by the new image under the
+      same pid. In that gap the session witness still holds, which is why there are four witnesses.
+  - **Teardown composes existing pieces.**
+    - `withSlotTree` (recovery_slot_tree.go:23) stops the wrapper tree and quiesces the named sessions.
+    - Then the lease sweep (holders through the `diagnosticlog` open-files seam, `lsof`) and the tty sweep run,
+      each through one `stopExact` (SIGTERM, then 3s, then SIGKILL, then 2s; `awaitExactProcessExit`), at most 3
+      rounds.
+    - Then the four witnesses, with #692's `ErrListingOmittedLiveServer` mapped to unproven.
+    - Then debris after the proof.
+  - **What archive and replace require.** The funnel takes one `RetireAuthority`, not only a `TeardownProof`.
+    Measurement found two callers for which a slot-wide proof is wrong:
+    - `TeardownProof`: the slot is down. Fresh recovery (`ReplaceThreadExpected`, local and global) and
+      `startFreshSlotWithPrompt` use it, so the Fresh exemption (threadstore_replace.go:67) is deleted. A slot
+      already down costs the idempotent minimum. `startFreshSlotWithPrompt` uses `ProveDown`, the witnesses
+      without the stop. A stray holder is named and refused, not killed, which keeps today's "park first" contract.
+    - `AdoptionAuthority`: every other owner of the slot is proven dead, the existing exact-identity check
+      (resume_route.go:271-279, slotrecovery.go:576-592). Adopting a live survivor can never prove its slot down,
+      because the survivor holds the slot's lease. This packages today's check as a type, so the funnel can't be
+      called without it.
+    - `UnreadableRecordEscape`: archive-only reboot of an undecodable record (reboot.go:115). It has no session
+      binding to tear down, and #683's hub-approved recovery keeps it working. Its constructor re-decodes the raw
+      bytes and refuses a record that decodes. The result still says `SessionNotStopped`.
+
+    A readable record whose folder is missing (the other archive-only case) gets a `TeardownProof`.
+    `TestEveryArchiveVariantRequiresProof` becomes `TestEveryRetirementTakesAnAuthority`. It is a table over every
+    production caller, and the escape refuses a decodable record.
+  - **The orphan registry.** `<namespace>/orphans.json` holds `LeftRunningOrphan` entries. It is tolerant and
+    preserving from birth (its own JSON methods on strictjson), bounded at 256 with oldest evicted, and written
+    under its own flock. `couch --resources` renders them beside `OrphanNvim` (resources_render.go:29).
+    `--reap-orphans --confirm` reaps them by exact identity through `refuseOrphanReap` and the existing
+    `launcher.Reaper`. An entry is dropped when a sample or reap sees its identity gone.
+  - **Proof as a success.** The proof's `ProvenAt` is stored on the archived record (or the parked one).
+    `LastLifecycleSuccessAt` reads it.
+  - **M2 steps, one commit each, red first:**
+    1. `ReadyRecord` tolerant and preserving, then `tty`.
+    2. `procutil.Process.TTY` and `TTYProcesses`.
+    3. The `launcher/lease` package and role wiring. `TestPlainPairUnchangedWithoutCouch` covers it, with its env
+       cases, and so does `TestAgentNeverSeesTheLease`.
+    4. `couchcore/teardown.go`: `Teardown`, `ProveDown`, `TeardownProof`, `ErrTeardownUnproven` implementing
+       `LifecycleFailureDetails`.
+    5. `RetireAuthority` through archive and replace, with the callers wired.
+    6. The orphan registry with `--resources` and `--reap-orphans`.
+    7. `ProvenAt` in `LastLifecycleSuccessAt`.
+    8. The atlas. One real-pty conformance test (`TestTeardownProvesARealPtyTree`) runs unsandboxed.
