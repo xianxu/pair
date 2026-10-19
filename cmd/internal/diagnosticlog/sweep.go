@@ -16,10 +16,10 @@ import (
 	"github.com/xianxu/pair/cmd/internal/procutil"
 )
 
-// SweepSnapshot observes all candidate open files and runtimes once. Its result
-// belongs to one sweep only; a later apply must capture a fresh observation.
 var errLsofUnavailable = errors.New("lsof unavailable or incomplete")
 
+// SweepSnapshot observes all candidate open files and runtimes once. Its result
+// belongs to one sweep only; a later apply must capture a fresh observation.
 type SweepSnapshot interface {
 	Snapshot(context.Context, []string) (Inspection, error)
 }

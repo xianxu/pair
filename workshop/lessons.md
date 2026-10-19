@@ -437,7 +437,9 @@ representative evidence, not an exhaustive index.
   line, insert above that function's doc comment, not between the comment and the
   `func`. Godoc then attributes the comment to the new declaration. #387 did this
   twice (renderThreads, recoverReason); `TestNoDeclarationCarriesTwoStackedGodocs`
-  catches it, but only in the full suite.
+  catches it. After inserting any declaration, run that guard explicitly in
+  cmd/internal/termcmd before queueing a suite; a diagnosticlog package run
+  does not own the whole-tree comment guard. (#677 recorded-suite correction)
 
 - In Lua, `\0` is an empty-position pattern, not a NUL byte; run `luac -p` before
   the suite. In Go, `strings.ToLower` can change byte length, and `gofmt -w`
