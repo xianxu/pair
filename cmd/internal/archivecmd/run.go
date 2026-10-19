@@ -16,7 +16,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const usage = "Usage: pair archive inventory\n       pair archive create --request FILE\n       pair archive continuous [--kind KIND]\n       pair archive find [--kind KIND] [--since UTC] [--until UTC]\n       pair archive sync-index [--from drive|local]\n\nCreate verified encrypted backups, find local labels, or synchronize the label/location index (configured in $PAIR_DATA_DIR/archive/continuous.json). Sources are preserved. Drive index synchronization downloads labels only.\n"
+const usage = "Usage: pair archive inventory\n       pair archive create --request FILE\n       pair archive continuous [--kind KIND]\n       pair archive find [--kind KIND] [--since UTC] [--until UTC]\n       pair archive sync-index [--from drive|local]\n       pair archive restore --id ID [--id ID ...] --to DIR [--from auto|local|drive] [--path REL ...]\n\nCreate verified encrypted backups, find local labels, synchronize the label/location index, or restore into a fresh scratch directory (configured in $PAIR_DATA_DIR/archive/continuous.json). Sources are preserved. Drive index synchronization downloads labels only.\n"
 
 type CreateFunc func(context.Context, historyarchive.ArchiveRequest) ([]historyarchive.CatalogRecord, error)
 
@@ -58,6 +58,9 @@ func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer, cr
 	}
 	if len(args) >= 1 && args[0] == "find" {
 		return runFind(ctx, args[1:], stdout, fail)
+	}
+	if len(args) >= 1 && args[0] == "restore" {
+		return runRestore(ctx, args[1:], stdout, fail)
 	}
 	if len(args) >= 1 && args[0] == "sync-index" {
 		return runSyncIndex(ctx, args[1:], stdout, fail)

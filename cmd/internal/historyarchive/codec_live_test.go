@@ -15,6 +15,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/archivetestenv"
 )
 
 func TestCodecLiveRoundTrip(t *testing.T) {
@@ -27,33 +29,19 @@ func TestCodecLiveRoundTrip(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	home, err := os.MkdirTemp("", "pgc-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { os.RemoveAll(home) })
-	os.Chmod(home, 0700)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	c := CommandCodec{Home: home}
-	gen := exec.CommandContext(ctx, "gpg", "--no-options", "--homedir", home, "--batch", "--pinentry-mode", "loopback", "--passphrase", "", "--quick-generate-key", "Pair codec test <codec@example.invalid>", "rsa2048", "encr", "1d")
-	if b, err := gen.CombinedOutput(); err != nil {
-		t.Fatalf("generate: %v %s", err, b)
-	}
-	// Stop the isolated home's agent before removing its private files.
-	defer func() { exec.Command("gpgconf", "--homedir", home, "--kill", "gpg-agent").Run() }()
-	listing, err := c.gpg(ctx, "--with-colons", "--list-keys").Output()
+	key, err := archivetestenv.NewGPGHome(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	fp := ""
-	for _, line := range strings.Split(string(listing), "\n") {
-		f := strings.Split(line, ":")
-		if f[0] == "fpr" && len(f) > 9 {
-			fp = f[9]
-			break
+	t.Cleanup(func() {
+		if err := key.Close(); err != nil {
+			t.Errorf("disposable key cleanup: %v", err)
 		}
-	}
+	})
+	home, fp := key.Home, key.Fingerprint
+	c := CommandCodec{Home: home}
 	if err := c.CheckRecipients(ctx, []string{fp}); err != nil {
 		t.Fatal(err)
 	}

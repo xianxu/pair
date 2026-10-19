@@ -167,8 +167,9 @@ The operator owns decryption-key recovery. Before depending on backups:
    fixture and compare recovered file hashes. Keep the private catalog protected
    and recoverable along with the bundles.
 
-This foundation provides no deletion, Drive transport or restore command; the
-schedule and the SQLite snapshot collector are continuous mode's (below). A future archive-before-eviction consumer
+There is no deletion command; verified Drive copies and explicit scratch restores
+are described below. The schedule and SQLite snapshot collector belong to
+continuous mode (below). A future archive-before-eviction consumer
 must require successful verified catalog evidence; mere object existence is
 insufficient. It does not change current source retention policies or lift the
 diagnostic deletion fence.
@@ -259,3 +260,67 @@ The index also retains up to 1,024 complete destination observations, including 
 One `<catalog>.index.lock` owns the entire synchronization. Catalog reads finish before network work. [LabelIndexStore](../cmd/internal/historyarchive/label_index_store.go) publishes one complete snapshot by synced atomic replacement; after-rename durability failures explicitly report an uncertain outcome rather than claiming that the old index survived. Readers see a complete old or new snapshot. Owned staging has a durable namespace/parent-identity stamp, bounded no-follow cleanup and refusal on unrecognized existing contents; another lock owner collects recognized interrupted staging.
 
 The index is bounded to 100,000 records, 16 locations per record, 4 MiB per label/record and 64 MiB per snapshot or downloaded label batch. Remote work keeps the 30-minute phase/60-second query budgets and eight transfers. Download filters contain exact canonical archive names; installed rclone rejects files-from combined with max-size, so this path uses rooted filter rules with both max-size and a hard max-transfer cutoff. No background service or retention is introduced. Verified restore and the operator's real-day drill are the following M2 boundary.
+
+
+## Restore into a fresh scratch directory (#689)
+
+```sh
+PAIR_DATA_DIR="$HOME/.local/share/pair" pair archive find --kind claude-transcripts --since 2026-10-01 --until 2026-10-02
+PAIR_DATA_DIR="$HOME/.local/share/pair" pair archive sync-index --from drive
+PAIR_DATA_DIR="$HOME/.local/share/pair" pair archive restore --id FULL_64_HEX_ID --to /absolute/private-scratch/new-child --from drive
+```
+
+Use the kind returned by inventory/find and an actual full bundle ID; the values
+above are examples. `find` stays local. A Drive sync downloads labels only and
+never recreates the private manifest catalog or upload receipts. The index
+preserves unfamiliar JSON fields at every level. Location availability and
+historical verification are discovery evidence, not permission to skip restore
+verification.
+
+Create the scratch parent with mode 0700, outside archive storage and every
+archived source root, using canonical absolute paths (on macOS, `/private/tmp`
+rather than its symlink). The output child must not exist. Repeat `--id ID` to
+recover multiple bundles and `--path REL` to select exact relative files; paths
+are literal, without glob expansion. Unselected members are still checked.
+Each bundle is published below `new-child/ID/`, containing `MANIFEST.json` and
+`files/<relative-path>`; no archived modes, ownership or links are restored.
+Directories use 0700 and payload files 0600.
+
+The default `--from auto` uses a configured local bundle and contacts configured
+Drive only when that copy is absent. A corrupt local copy refuses; select
+`--from drive` explicitly to attempt remote recovery. Every input is copied or
+downloaded into private owned staging, fully SHA-256 checked against its label,
+then streamed through GPG and zstd. The decoder must exit successfully and the
+entire manifest/member set must validate before an exclusive directory rename
+publishes the complete batch. A bad or cancelled batch publishes nothing. A
+parent-sync failure after rename reports that complete output may exist: inspect
+that target before retrying. Existing targets and unfamiliar staging contents
+are preserved and refused.
+
+GPG uses the operator's installed private key and normal gpg-agent/pinentry;
+restore does not export keys, configure keyrings or import recovered data into
+live agent roots. Keep the scratch directory private and remove only that owned
+tree after comparing recovered hashes/bytes against the originals. Do not copy
+recovered transcripts into a running agent's source directory as part of the
+drill. From a Pair terminal, the explicit shared PAIR_DATA_DIR is essential.
+
+A request admits at most 64 bundles, 4 GiB ciphertext, 16 GiB declared raw
+payload, and 100,000 created entries/processed files. Each ciphertext is at most
+2 GiB. Tar framing, PAX data and padding are bounded by the kind's raw limit plus
+32 MiB per bundle. The whole operation has a 30-minute budget; choose a smaller
+batch if it exceeds these limits. Drive uses one folder resolution, one flat
+listing and one batch download with up to eight transfers. The lifetime scratch
+parent lock serializes restoration and its ownership-stamped stage recovery.
+
+The real-key automated drill uses only an isolated throwaway GPG key, the
+stateful fake Drive and private fixtures; it removes all local archive metadata
+and copies before rebuilding the index and restoring:
+
+```sh
+PAIR_ARCHIVE_LIVE=1 go test ./cmd/internal/historyarchive -run '^(TestCodecLiveRoundTrip|TestRestoreLiveRemoteOnlyRoundTrip)$' -count=1 -v
+```
+
+The operator's real Claude-day Drive drill is a separate acceptance gate before
+landing. It must compare restored file bytes/SHA-256 with retained originals,
+confirm a fresh target and stage cleanup, and leave live source directories
+unchanged.
