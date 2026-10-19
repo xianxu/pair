@@ -1,13 +1,13 @@
 ---
 id: 000703
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-19
 updated: 2026-10-19
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '7eab06d44a725b1e012ec96dcde4373fde6c297b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '1fad46cbbf875ac86cbbd7c40be144c6c52b92b4' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-19T06:30:51-07:00
 claimant:
     operator: Xian Xu
@@ -18,6 +18,7 @@ claimant:
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/couchtty.TestNativeAgentExitDiagnostics]
 flow: {kind: quick, provenance: inferred, spec: "ce5713e2", done: "a9e3afb2"}
+actual_hours: 0.33
 ---
 
 # flake: TestNativeAgentExitDiagnostics
