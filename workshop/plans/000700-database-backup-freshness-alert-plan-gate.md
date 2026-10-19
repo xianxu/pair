@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: a0f0aecc-8b9b-4cb6-a5ca-b78a8ad4f81f
+        repository: github.com/xianxu/pair
+        issue_id: "000700"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot7/pair
+        reviewed_head: 5377b34d1fa507072332986bcfcab249577c72c4
+        slot: pair:7
+        requested_at: "2026-10-19T13:26:36.584899Z"
+      phase: finished
+      pid: 91045
+      started_at: "2026-10-19T13:26:36.679714Z"
+      finished_at: "2026-10-19T13:27:00.43791Z"
+      session_id: 01a15457-b677-7440-994c-476460987e92
+      outcome: returned
 gate: plan-quality
 issue: 700
 id_prefix: PQ
@@ -105,7 +125,41 @@ rounds:
           note: Active tasks reference named function-level adversarial strategies, including reproducible admission sequences, decoder fuzzing and production-seam integration.
           round: 3
       blocked: false
-content_hash: 9d66f21007da31efad6e8331b5188a8870c10ebd1bc8e66bb6779a7529284f42
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 1302ee7a-e534-4611-8add-b0953ac95a7a
+            repository: github.com/xianxu/pair
+            issue_id: "000700"
+            recipe: plan-quality
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot7/pair
+            reviewed_head: 5377b34d1fa507072332986bcfcab249577c72c4
+            slot: pair:7
+            requested_at: "2026-10-19T13:26:04.891174Z"
+          phase: finished
+          pid: 87743
+          started_at: "2026-10-19T13:26:05.010654Z"
+          finished_at: "2026-10-19T13:26:35.027678Z"
+          session_id: 01a15457-3ac2-7aa1-9062-223fb3decfdc
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-19T06:26:35-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Primary-hub ownership, replacement races and unavailable-owner fallback are explicit and approved.
+          round: 4
+        - id: PQ-2
+          disposition: addressed
+          note: Named function-level adversarial strategies replace duplicated active test inventories.
+          round: 4
+      blocked: false
+content_hash: bf8af6daa77b7ae1e8f4b2e954d619a759ae3d81eda471a205b0a41080a73236
 ---
 
 # Gate ledger — pair#700 (plan-quality)
@@ -134,6 +188,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - PQ-2 — addressed — Active tasks reference named function-level adversarial strategies, including reproducible admission sequences, decoder fuzzing and production-seam integration.
+
+## Round 4 — 2026-10-19T06:26:35-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Primary-hub ownership, replacement races and unavailable-owner fallback are explicit and approved.
+- PQ-2 — addressed — Named function-level adversarial strategies replace duplicated active test inventories.
 
 ## Open findings
 
