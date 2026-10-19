@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-18
 updated: 2026-10-18
-estimate_hours:
+estimate_hours: 2.48
 collaboration-mode: collaboration
-card_mirror: 'b2421882cf988bca4fa54bbc9f5eaba68e694999' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '719194db68a1d69ba90ec2b87e2458bca01d15e8' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-18T17:51:28-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # history backup: upload encrypted bundles to Google Drive via rclone (verified), keeping local copies
@@ -62,3 +63,23 @@ Durable design: [000678-drive-history-backup-plan.md](../plans/000678-drive-hist
 - Plan-quality round 1 blocked on PQ-1 (stat cannot prove unique Drive name identity) and PQ-2 (duplicated prose test inventories). Verified against official rclone lsjson/Drive contracts. Revised plan names bounded initial/final inventories, pinned destination ID, deferred receipt publication and identity-fenced downloaded hashes; compressed test prose. This is a new observation mechanism, so hub approval is requested before another change-code attempt. No code was edited.
 
 - 2026-10-18 hub direction 892e9607-9074-46ed-9d53-a2e5de49637d: simplified PQ-1 disposition to flat content-addressed remote names, one resolved/pinned folder ID and two flat hash listings. No recursive inventories, spooling or depth limits. Receipts require unique names with matching size/hash; duplicates/mismatches are reported and never repaired. Backend SHA256/MD5 verification paths are logged; only absent backend hashes cause downloaded SHA256. Existing requirements are met; proceeding with change-code rerun.
+
+
+## Estimate
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. Calibration is marked stale by estimate-source, so values remain provisional.*
+
+One greenfield pure model/receipt module: base design 1.5h, halved for existing encoding/crypto/path libraries then multiplied by 0.2 for the accepted concrete design = 0.15h; base implementation 0.6h × 0.4 = 0.24h. One batch external API adapter plus stateful fake: base design 2h × 0.2 = 0.4h, base implementation 1h × 0.4 = 0.4h. One smaller integration/receipt module: design 0.15h × 0.2 = 0.03h, implementation 0.4h × 0.4 = 0.16h. Docs: design 0.1h × 0.2 = 0.02h, implementation 0.15h × 0.4 = 0.06h. Real API discovery 0.45h × 0.4 = 0.18h implementation. One close review: design 0.1h × 0.2 = 0.02h, implementation 0.35h × 0.4 = 0.14h. Library availability: Go standard JSON/crypto/exec plus existing Catalog/LocalSink remove any need for a new Drive client library; rclone owns Google APIs and credentials. Familiarity 1.5 for novel but bounded rclone semantics; thorough approved plan design buffer 15%. Design subtotal 0.62h, implementation subtotal 1.18h; 0.62 × 1.15 + 1.18 × 1.5 = 2.483h, rounded 2.48h. This includes conformance and one review, excludes idle suite/landing queue time.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.5
+item: greenfield-go-module design=0.15 impl=0.24
+item: api-integration design=0.4 impl=0.4
+item: smaller-go-module design=0.03 impl=0.16
+item: atlas-docs design=0.02 impl=0.06
+item: real-api-discovery design=0 impl=0.18
+item: milestone-review design=0.02 impl=0.14
+design-buffer: 0.15
+total: 2.48
+```
