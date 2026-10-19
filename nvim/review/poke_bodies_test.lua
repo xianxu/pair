@@ -11,18 +11,6 @@ local function eq(got, want, msg)
   end
 end
 
-eq(M.agent_applied(2, 1, '/a/doc.md'),
-  'applied 2 edit(s) (1 dropped) to /a/doc.md — commit the agent round',
-  'agent_applied includes the dropped segment when dropped>0')
-eq(M.agent_applied(2, 0, '/a/doc.md'),
-  'applied 2 edit(s) to /a/doc.md — commit the agent round',
-  'agent_applied omits the dropped segment when dropped==0')
-eq(M.agent_applied(1, 0, '/a/doc.md', 2),
-  'applied 1 edit(s) (2 to reconcile) to /a/doc.md — commit the agent round',
-  'agent_applied includes the reconcile segment when conflicts>0 (#89)')
-eq(M.agent_applied(0, 1, '/a/doc.md', 1),
-  'applied 0 edit(s) (1 dropped) (1 to reconcile) to /a/doc.md — commit the agent round',
-  'agent_applied composes dropped + reconcile segments')
 eq(M.human_finished('/a/doc.md'),
   'finished my edits to /a/doc.md — please review in Edit posture',
   'human_finished')
@@ -49,16 +37,13 @@ do -- definition_requested: the body names the result command and request artifa
   has('pair review definition --term "ASIN" req-1 <definition>', 'names the response command')
 end
 
-do -- review_opened: the review-START announce poke names the file + the workbench protocol
-  local s = M.review_opened('/a/doc.md')
+do -- with_context: names the context hand-off, not the retired handoff file (pair#664)
+  local s = M.with_context('body', { activation = 'a1' })
   local function has(sub, msg) if not s:find(sub, 1, true) then
-    io.stderr:write('FAIL review_opened ' .. msg .. ': ' .. s .. '\n'); fails = fails + 1 end end
-  has('/a/doc.md', 'names the file')
-  has('Pair review workbench', 'names the workbench protocol')
-  has('records', 'says propose records')
-  has('do NOT edit the file', 'forbids file-write')
-  has('Edit', 'names the default posture')
-  has('resolve 🤖[] comments', 'names fulfill/punt marker handling')
+    io.stderr:write('FAIL with_context ' .. msg .. ': ' .. s .. '\n'); fails = fails + 1 end end
+  has('Review context: {"activation":"a1"}', 'embeds the context')
+  has('--context', 'names the --context flag')
+  if s:find('handoff', 1, true) then io.stderr:write('FAIL with_context names the retired handoff\n'); fails = fails + 1 end
 end
 
 if fails > 0 then os.exit(1) end

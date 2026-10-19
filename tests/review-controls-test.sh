@@ -8,7 +8,7 @@ export PAIR_TEST_ZELLIJ_REPLIES="$ROOT/tests/lib/zellij_fixture_replies.py"
 RT="$(mktemp -d "${TMPDIR:-/tmp}/pair-review-controls.XXXXXX")"
 trap 'rm -rf "$RT"' EXIT
 export REVIEW_TEST_ROOT="$RT" PAIR_HOME="$ROOT" PAIR_TAG=test
-for seam in OPEN MODE TARGET CONTEXT HANDOFF LANDED DEFINITION_REQUEST DEFINITION_RESULT; do
+for seam in OPEN MODE TARGET CONTEXT ROUND DEFINITION_REQUEST DEFINITION_RESULT; do
   export "PAIR_REVIEW_${seam}_PATH=$RT/$seam"
 done
 export ZELLIJ_PANE_ID=9 ZELLIJ_SESSION_NAME=fixture-review

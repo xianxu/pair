@@ -4,8 +4,8 @@ function M.same(a, b)
   return type(a) == 'table' and type(b) == 'table'
     and a.repo == b.repo and a.branch == b.branch and a.file == b.file
 end
-function M.validate_context(got, expected, legacy)
-  if got == nil then return legacy == true end
+function M.validate_context(got, expected)
+  if got == nil then return false end
   if type(got) ~= 'table' or type(expected) ~= 'table' then return false end
   for _, k in ipairs({ 'repo', 'branch', 'file', 'activation' }) do
     if type(got[k]) ~= 'string' or got[k] == '' or got[k] ~= expected[k] then return false end

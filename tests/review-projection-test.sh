@@ -31,11 +31,34 @@ local function newbuf(lines)
   projection.reset(b) -- fresh projection state per buffer (no double-attached watcher)
   return b
 end
--- a round, mirroring the orchestrator's projection sequence
+-- a round, mirroring on_applied_round's projection sequence: the engine's
+-- result replaces the buffer as one undo step (as the pane's reload does), then
+-- the round's spans are decorated with apply_snapshot.
 local function round(b, records)
   local base = content(b)
+  local final = base
+  for _, r in ipairs(records) do
+    local s, e = final:find(r.old, 1, true)
+    final = final:sub(1, s - 1) .. r.new .. final:sub(e + 1)
+  end
+  local snap = { hl = {}, diags = {} }
+  for _, r in ipairs(records) do
+    local s = final:find(r.new, 1, true)
+    local before = final:sub(1, s - 1)
+    local line = select(2, before:gsub('\n', ''))
+    local col = #before:match('[^\n]*$')
+    local inserted = vim.split(r.new, '\n', { plain = true })
+    local end_line = line + #inserted - 1
+    local end_col = (#inserted == 1 and col or 0) + #inserted[#inserted]
+    snap.hl[#snap.hl + 1] = { line = line, col = col, end_line = end_line, end_col = end_col }
+    snap.diags[#snap.diags + 1] = { lnum = line, col = col, end_lnum = end_line, end_col = end_col, message = r.explain }
+  end
   projection.set_applying(b, true)
-  apply.apply(b, records)
+  vim.api.nvim_buf_call(b, function()
+    vim.cmd('silent! let &undolevels = &undolevels')
+    vim.api.nvim_buf_set_lines(b, 0, -1, false, vim.split(final, '\n', { plain = true }))
+  end)
+  apply.apply_snapshot(b, snap)
   projection.record_empty_for(b, base)
   projection.record(b)
   projection.ensure_watch(b)

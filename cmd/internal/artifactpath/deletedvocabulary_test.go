@@ -45,6 +45,13 @@ var deletedVocabulary = []struct {
 	{term: "DeleteUnstartedThread", why: "the legacy unstarted rollback was deleted by pair#170 M4"},
 	{term: "rollbackUnforkedStart", why: "replaced by rollbackPristineStart in pair#170 M4"},
 	{term: "CouchNavigationBinding", why: "superseded by the couchkeys chord table in pair#282"},
+	{term: "PAIR_REVIEW_HANDOFF_PATH", why: "the review handoff file was retired by pair#664"},
+	{term: "PAIR_REVIEW_LANDED_PATH", why: "the landed artifact was retired by pair#664"},
+	{term: "ReviewHandoff", why: "the review handoff path was retired by pair#664"},
+	{term: "agent_applied", why: "the applied-records poke was retired by pair#664"},
+	{term: "decide_apply", why: "the apply gate was retired by pair#664"},
+	{term: "reconcile_round", why: "the concurrent-edit reconcile was retired by pair#664"},
+	{term: "pending_records", why: "the deferred-round slot was retired by pair#664"},
 }
 
 // Prose may still NAME a deleted thing in order to say it was deleted. What
@@ -52,6 +59,7 @@ var deletedVocabulary = []struct {
 var retiredMarkers = []string{
 	"pair#170", "Pair #170", "#170", "deleted", "went with", "used to", "no longer",
 	"removed", "deletion", "gone", "gained", "gets its", "before pair", "gitignore",
+	"pair#664", "retired",
 }
 
 func TestDeletedVocabularyIsNotDescribedAsLive(t *testing.T) {
