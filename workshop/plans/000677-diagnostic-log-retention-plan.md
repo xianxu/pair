@@ -12,7 +12,7 @@ collaboration-mode: discussion
 
 **Tech stack:** Go, portable directory fixtures, injected clock and stateful process inspection; existing Pair GC CLI/scheduler.
 
-**Status:** Hub-approved2026-10-18 via receipt5ebfef41-eb7d-4f3e-92f4-fff05f5b0a37; implementation still requires change-code. The hub explicitly pins full flow.
+**Status:** Full-flow change-code admitted implementation at a21488b4effef56ede5357236754a4111812f807. Implementation and the first approved live sweep are complete; final recorded suite, close and landing remain. Later hub-approved proof refinements are recorded under Revisions.
 
 ## Evidence and approaches
 
@@ -74,11 +74,11 @@ The log lock is held across validation, policy admission and durable deletion ef
 
 **Files:** diagnosticlog/policy.go, writer.go, collect.go, pages.go, legacy.go; policy_test.go, hard_limit_test.go, legacy_test.go, backup_fence_test.go, deletion_replay_test.go, pages_test.go.
 
-- [ ] Add the parser/selection regressions using the named-function strategies below; run targeted tests and retain the expected red against today's backup fence.
-- [ ] Replace the sparse 4 GiB preservation expectation with explicit oversized eviction through the real journal; no GiB payload allocation. Keep a fresh bounded generation and unrelated file as survival controls.
-- [ ] Update policy to the rule above and remove active count policy. Keep legacy persisted limits readable and keep new-write whole-record cap tests for synchronous/asynchronous maintenance, multiple handles and absent proof.
-- [ ] Exercise current, closed, quarantined and legacy paths through one policy; preserve uncertainty rather than granting deletion authority to incomplete metadata.
-- [ ] Apply the deletion replay strategy below through the existing fault seam; run diagnosticlog tests and commit the verified policy change.
+- [x] Add the parser/selection regressions using the named-function strategies below; run targeted tests and retain the expected red against today's backup fence.
+- [x] Replace the sparse 4 GiB preservation expectation with explicit oversized eviction through the real journal; no GiB payload allocation. Keep a fresh bounded generation and unrelated file as survival controls.
+- [x] Update policy to the rule above and remove active count policy. Keep legacy persisted limits readable and keep new-write whole-record cap tests for synchronous/asynchronous maintenance, multiple handles and absent proof.
+- [x] Exercise current, closed, quarantined and legacy paths through one policy; preserve uncertainty rather than granting deletion authority to incomplete metadata.
+- [x] Apply the deletion replay strategy below through the existing fault seam; run diagnosticlog tests and commit the verified policy change.
 
 **Named-function test contract:**
 
@@ -96,11 +96,11 @@ The log lock is held across validation, policy admission and durable deletion ef
 
 **Files:** gcruntime/runtime.go, schedule.go, runtime_test.go, schedule_test.go, maintenance_budget_test.go; gccmd/run.go, run_test.go/apply_acceptance_test.go; artifactpath manifest if a new source is warranted.
 
-- [ ] Add failing portable-root integrations from the entry-point strategies below. Diagnostic-only preview creates nothing; apply affects only certified diagnostics and leaves session clocks/store acknowledgments unchanged.
-- [ ] Factor diagnostic preview/apply ownership from the existing Service paths. Reuse DiagnosticInventory and registry discovery; remove only diagnostics' migration gates in explicit pages and scheduled batches. Preserve session collection/migration guards and root-before-log locking.
-- [ ] Add --diagnostics-only for preview/apply; refuse combinations with migration/register/forget-store operations. No new operator command is required for history/session retention. Include effective diagnostic days and separate collected/blocked bytes in JSON/text metadata reports.
-- [ ] A pre-migration scheduled session phase must yield to diagnostics rather than terminate the maintenance cycle. Preserve cancellation, nonblocking busy handling and cursor progress.
-- [ ] Run gcruntime/gccmd targeted tests and retention integration, then commit.
+- [x] Add failing portable-root integrations from the entry-point strategies below. Diagnostic-only preview creates nothing; apply affects only certified diagnostics and leaves session clocks/store acknowledgments unchanged.
+- [x] Factor diagnostic preview/apply ownership from the existing Service paths. Reuse DiagnosticInventory and registry discovery; remove only diagnostics' migration gates in explicit pages and scheduled batches. Preserve session collection/migration guards and root-before-log locking.
+- [x] Add --diagnostics-only for preview/apply; refuse combinations with migration/register/forget-store operations. No new operator command is required for history/session retention. Include effective diagnostic days and separate collected/blocked bytes in JSON/text metadata reports.
+- [x] A pre-migration scheduled session phase must yield to diagnostics rather than terminate the maintenance cycle. Preserve cancellation, nonblocking busy handling and cursor progress.
+- [x] Run gcruntime/gccmd targeted tests and retention integration, then commit.
 
 **Named-entry-point test contract:**
 
@@ -119,12 +119,12 @@ The log lock is held across validation, policy admission and durable deletion ef
 
 **Files:** wrapcmd/wrap_events_test.go, diagnostic_buffer_test.go; README.md; atlas/storage-retention.md, storage-retention-io.md; issue Log. Update help from the same effective policy.
 
-- [ ] Replay explicitly delimited owned turns through the production proxy with fixed output chunks, controlled flush barriers and a real diagnostic sink. Measure baseline bytes per turn at N/2N turns, per-chunk event counts, payload/metadata bytes and drop counters. Do not infer turns from stdin reads or idle alerts in the real sample.
-- [ ] Proposed detail decision: retain current hashed per-chunk evidence within bounded lifetime unless the owned-turn measurement demonstrates it overwhelms the envelope. Record the measured decision and PAIR_WRAP_EVENTS=0 opt-out. Any new default summary/drop policy is a scope revision returned to the hub before code, not silently folded in.
-- [ ] Document default/range/invalid-value behavior, diagnostic-only preview/apply, reasons, deliberate loss of oversized legacy generations and retained unknown/live-writer blockers in root README and atlas.
-- [ ] Owned conformance: create aged and young logs with a running modern writer and a held legacy FD. Candidate CLI must collect only eligible/proven files, leave legacy-held files blocked, then collect after explicit release; no operator UI or native lane.
-- [ ] Build this slot's candidate and run diagnostic-only metadata preview against the real Pair root. Send the hub file and byte counts per eligible/retained/blocked category and the exact blocked reasons BEFORE any live apply. Then run the approved diagnostic-only apply bounded by an owned process deadline. No pair:0 staging or migration acknowledgment. The operator has authorized debug trimming without backup; no authored/history payloads are selected.
-- [ ] Record before/after diagnostic device+inode/size inventory and exact collected-row bytes, plus partial-progress/blocked reasons if the bound expires. Do not equate mtime estimates with certified eligibility or net concurrent growth with reclaimed bytes. No backup is created and no multi-GiB payload is copied.
+- [x] Replay explicitly delimited owned turns through the production proxy with fixed output chunks, controlled flush barriers and a real diagnostic sink. Measure baseline bytes per turn at N/2N turns, per-chunk event counts, payload/metadata bytes and drop counters. Do not infer turns from stdin reads or idle alerts in the real sample.
+- [x] Proposed detail decision: retain current hashed per-chunk evidence within bounded lifetime unless the owned-turn measurement demonstrates it overwhelms the envelope. Record the measured decision and PAIR_WRAP_EVENTS=0 opt-out. Any new default summary/drop policy is a scope revision returned to the hub before code, not silently folded in.
+- [x] Document default/range/invalid-value behavior, diagnostic-only preview/apply, reasons, deliberate loss of oversized legacy generations and retained unknown/live-writer blockers in root README and atlas.
+- [x] Owned conformance: create aged and young logs with a running modern writer and a held legacy FD. Candidate CLI must collect only eligible/proven files, leave legacy-held files blocked, then collect after explicit release; no operator UI or native lane.
+- [x] Build this slot's candidate and run diagnostic-only metadata preview against the real Pair root. Send the hub file and byte counts per eligible/retained/blocked category and the exact blocked reasons BEFORE any live apply. Then run the approved diagnostic-only apply bounded by an owned process deadline. No pair:0 staging or migration acknowledgment. The operator has authorized debug trimming without backup; no authored/history payloads are selected.
+- [x] Record before/after diagnostic device+inode/size inventory and exact collected-row bytes, plus partial-progress/blocked reasons if the bound expires. Do not equate mtime estimates with certified eligibility or net concurrent growth with reclaimed bytes. No backup is created and no multi-GiB payload is copied.
 
 ## Task 4 — verification and landing
 
@@ -175,3 +175,9 @@ Hub receipts7bdae765-38b7-41cd-acc4-66dd39e1bd16 and a473cb31-2893-4985-9112-355
 ### 2026-10-18 — immutable readers separate from plausible current writers
 
 Hub direction33f17a20-36e5-4cdc-8369-014af0decbc4 replaces the all-log fallback for ownerless transient runtimes. Writers append only the current path; closed generation payloads are not reopened for append. A complete native open-file observation therefore protects each immutable payload independently. Add a reader-only proof for closed generation preview/deletion/replay, retaining full writer ownership proof for current paths and pending rotation. Keep per-file identity/mtime and durable intent checks unchanged; actual closed readers still block. The per-sweep listing records current and segment holders separately (not one aggregate that would block old segments because the current file has a reader). The exact ownerless-current/unheld-expired-segment integration failed before the change, then passed0.510s; it also tests a late segment holder blocking apply, and release allowing only the expired segment's7bytes while the current file survives.
+
+### Final consolidated proof model and verification note
+
+The third proof refinement is recorded as a consolidated design rather than a new timeout/probe workaround. One stable per-log lock protects certificate validation and durable deletion; it cannot retrospectively cover readers or pre-protocol writers that never acquired it, so bounded native observation remains necessary at that boundary. One sweep observes open files/processes; each later sweep/apply recaptures. Current generations use writer ownership plus exact holders. Closed immutable payloads use exact holders only. Unknown native output blocks; known Couch owner fields scope transient current writers; genuinely ambiguous current ownership stays blocked. No lifetime absence proof is inferred from an idle timestamp.
+
+Task3 owned conformance exposed intentional current-file blocking behind the live supervisor after a legacy FD release. Portable stateful controls cover eligible-current release; native current/closed FD controls cover real reader appearance/removal; the real approved18-generation sweep supplies positive native closed collection. No current-file proof was bypassed to manufacture a positive result. The first sweep's exact12,734,567,104bytes, before/after inodes and volume df deltas are in the issue Log. #687 owns supervisor recognition separately. Task4 gates remain outstanding.

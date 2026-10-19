@@ -134,7 +134,11 @@ The implementation map:
   bypasses session clock and liveness evaluation; collection supplies its own
   exact writer and generation proof. Each explicit sweep or scheduled batch takes
   one bounded machine-wide lsof listing and process inventory, filtering exact
-  current and immutable-segment readers in memory. Snapshots never survive into
+  current and immutable-segment readers in memory. Ownerless transient runtimes
+  protect plausible current files; immutable closed generations need exact reader
+  proof, so an unheld expired segment can be collected independently. Known Couch
+  client scope/tag fields narrow the current-file block; conflicts remain unknown.
+  Snapshots never survive into
   a later sweep/apply; warnings, partial output or the2s bound retain data.
   The maintenance context propagates into
   process inspections, their subprocess deadlines and recovery tree walks.

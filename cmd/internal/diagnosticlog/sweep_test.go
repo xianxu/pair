@@ -50,6 +50,14 @@ func TestSweepNativeInspectionCountIsConstant(t *testing.T) {
 						}
 					}
 				}
+				readerProof := InspectionReaderProof(inspector)
+				for _, p := range paths {
+					segment := segmentPath(p, fmt.Sprintf("segment-%032x.log", 1))
+					err := readerProof(ctx, segment)
+					if (err != nil) != broken {
+						t.Fatalf("broken=%t immutable reader proof=%v", broken, err)
+					}
+				}
 				if commands != 1 || processes.calls != 1 {
 					t.Fatalf("N=%d native-files=%d native-processes=%d", n, commands, processes.calls)
 				}
