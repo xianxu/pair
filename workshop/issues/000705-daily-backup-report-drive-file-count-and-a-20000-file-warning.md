@@ -43,7 +43,9 @@ When the observed destination file count is strictly greater than 20,000 by defa
 ## Plan
 
 - [x] Implement and qualify the count/report/admission extension in [the durable plan](../plans/000705-drive-file-count-warning-plan.md), using existing remote listings and daily output.
-- [ ] Document, submit the recorded suite, close and land on SHIP; hand the project/live observation to the hub.
+- [x] Document, submit the recorded suite and close on SHIP; prepare final publication and the hub handoff.
+
+Delivery: land through SDLC, then report its verified merge and the natural-pass observation handoff to the hub.
 
 ## Log
 
@@ -64,12 +66,17 @@ Operator request via hub receipt 277127be-5775-4a0e-93e4-8d24a00600a5. #700 was 
 
 - 2026-10-19, PR #461 published at implementation head c7ef77b09f5a0ed0b9a24f0316a7c7f2bea278ea (Git-verified). Recorded suite 36f285479243f5d40c5a1525236c2e5e is queued normally, with no failure or result yet. Run the binary-owned close review concurrently as tl-worker explicitly permits. The only unchecked issue Plan row is the closing/landing workflow itself; leave it unchecked until its evidence exists, acknowledge --no-plan-check for this overlap only. No implementation requirement is waived; recorded final-head pass remains mandatory before landing. --no-project preserves TL ownership.
 
+
+- 2026-10-19, final branch evidence: recorded suite 36f285479243f5d40c5a1525236c2e5e passed exit 0 in 16m33s after 1506 s of normal queue wait, without failures, flakes or reruns. Status sdlc-local/suite is recorded on implementation c7ef77b09f5a0ed0b9a24f0316a7c7f2bea278ea; saved log is the git common directory's sdlc/local-checks/c7ef77b09f5a0ed0b9a24f0316a7c7f2bea278ea/suite.log, SHA-256 prefix b637e1866300. Subsequent branch changes are documentation only. The one SDLC boundary review returned SHIP/high confidence, zero findings, and qualified installed-rclone local-backend conformance. No new lesson from a review defect was needed. Fake-backed acceptance is complete; the next natural pass confirms the real destination count. TL owns project tick. Push this final documentation before entering the landing line; SDLC still owns integration verification and server CI.
+
 ## Revisions
 
 - 2026-10-19, hub 3ca340ad: #700 is verified/ticked/rebuilt; dispatch #705 now. Keep #706 folder migration separate and waiting for #689.
 - 2026-10-19, design: threshold env PAIR_ARCHIVE_DRIVE_MAX_FILES, default 20000, positive integer. Optional exact destination/folder/count/phase observation grows only the runtime report; existing before evidence survives a final listing failure, and absent/failed/empty-candidate listing remains unknown without extra calls. Shared #700 gate/output, one atomic full-flow close because explicit protocol validation and common delivery may exceed the 100-line production shell.
 
 - 2026-10-19, hub 2ea831d5 approved the plan, environment default and fake-backed acceptance. Daily count/admission is keyed by configured destination root; root FolderID is evidence only, not a month-child key. #706 can sum month folders into this same observation later. No staging or real Drive/desktop calls; run change-code.
+
+- 2026-10-19, closing checklist clarification only: the original final Plan row combined document/suite/close with the future landing and report. Keep the completed qualification as the checkbox and record delivery as the separate instruction above; this removes the self-referential closing checkbox without claiming a merge before it occurs. No behavior, acceptance or scope change.
 
 ## Estimate
 

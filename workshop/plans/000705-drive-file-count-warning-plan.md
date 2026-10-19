@@ -76,7 +76,9 @@ Before/after observations survive later remote verification/cleanup errors. Canc
 - [x] Add failing pure observation/threshold/codec tests using the strategies below; implement the small model and optional report shape; run green and commit.
 - [x] Add failing stateful Drive fixture qualification, then observe before/after counts at the existing seams, preserving capacity and call counts; run green and commit.
 - [x] Add failing CLI/scheduler qualification, wire shared delivery and destination admission, document behavior and run targeted/source inventory guards; commit and open PR.
-- [ ] Run the pushed recorded full suite; close through SDLC's one fresh review, publish final evidence before entering merge, and land on SHIP. Hub owns project tick and natural live observation.
+- [x] Run the pushed recorded full suite, close through SDLC's one fresh review, and prepare final evidence for publication before entering the landing line.
+
+Delivery: land on SHIP through SDLC after final evidence publication; report the verified merge. Hub owns project tick and natural live observation.
 
 ### Function-level test strategies
 
@@ -99,3 +101,5 @@ Targeted commands: go test ./cmd/internal/historyarchive ./cmd/internal/archivec
 - 2026-10-19, hub 2ea831d5: plan and fake-backed acceptance approved; next natural pass confirms real count. Clarification replaces the original destination+FolderID admission key with the configured destination root alone. Keep root FolderID as observation provenance, never a month-child key, so #706 can aggregate child folders under the same root contract. Active key/test map updated; no code yet.
 
 - 2026-10-19, plan-quality round 1 PQ-1: replaced the remaining case inventories with function-level adversarial classes and mechanical/property guards, and named observeDriveInventory as the pure count projection. Acceptance boundaries remain in Done when/decisions; no behavior or mechanism changed.
+
+- 2026-10-19, final qualification: suite passed 16m33s without flakes and boundary review SHIP, zero findings. The original final task combined completed qualification with future landing; retain delivery as a separate instruction so the completed checkbox does not claim an unobserved merge. No design or acceptance change.
