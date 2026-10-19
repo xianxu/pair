@@ -17,6 +17,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "6e340b9c", done: "fa34bba1"}
 ---
 
 # Native park helper refuses a live session before attachment
