@@ -68,7 +68,7 @@ See [durable plan](../plans/000725-affected-tests-plan.md), one atomic close bou
 
 - [x] Add declaration, selective command and production entrypoint regressions; qualify upstream strict parser/planner fixtures.
 - [x] Audit current non-Go recipe ownership; document the Lua/runtimebundle exception and full fallbacks.
-- [ ] Record fixtures and native selected-command timing against full suite; note hub-owned post-landing recorded affected/docs-vouch follow-up in the Done when Revision.
+- [x] Record fixtures and native selected-command timing against full suite; note hub-owned post-landing recorded affected/docs-vouch follow-up in the Done when Revision.
 - [ ] Run full suite, close review, request operator local-gates label through hub, then merge and verify outcome.
 
 ## Log
@@ -114,6 +114,8 @@ See [durable plan](../plans/000725-affected-tests-plan.md), one atomic close bou
 - 2026-10-20: Final corrected native selection PASS87.553s wall, scanner preflight19.542s included, no queue. Scanner argv unchanged by adding the newly detected helper-only internal/repolint/repository_test.go to inventory (same existing preflight package/catalog tests). Independent ls-files fixture initially exposed the helper-only detection omission; detection and helper-package registration now enforced. Full suite/review requeue follows final focused checks.
 
 - 2026-10-20: Final focused verification: all8 reader-inventory/native-regression tests PASS58.207s; all11 runner tests PASS16.511s. Source-walker cases cover Walk, WalkDir, direct parent ReadDir/ReadFile and git ls-files under an intentionally incorrect local disposition. The native regression requires both independent scanner failures.
+
+- 2026-10-20: Recorded full suite PASS on bc1e83cdce3bfa8c368f5de116bfe932650f8a19, attempt488fd46fb54e5c917f576b83ac50a91f: execution560.511449334s (9m21s), queue3116.433279s reported separately, log SHA2563b991bdaa4148aec1b58d08d1339cdf1ee7a800e8fa23df7ac4ff8e2ef747d1b. Source-reader8 native checks and runner11 pass within suite; automatic upstream fixture explicitly skips because source is absent in disposable checkout, qualified separately against113e7767. Representative selected command87.553s versus full560.511s on the same code revision:15.62% of suite execution,84.38% less (6.40x faster), separate wall runs with no queue in the selected sample. This includes fixed source preflight19.542s. No sdlc-local/affected/train vouch is claimed before main config; hub owns postlanding proof. Earlier close retry was refused before review by missing slot provenance on unrelated train174 attempt; hub restored pair:7 provenance (original preserved), filed ariadne#492, and sdlc actual now measures successfully.
 
 ## Revisions
 
