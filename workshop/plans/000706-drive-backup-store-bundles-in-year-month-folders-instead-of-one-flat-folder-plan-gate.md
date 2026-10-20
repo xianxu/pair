@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: c596faa6-5d67-4747-a8d1-833ce37af860
+        repository: github.com/xianxu/pair
+        issue_id: "000706"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot6/pair
+        reviewed_head: 3043f0eba1391ae43e7374b1156f74c6bcefa143
+        slot: pair:6
+        requested_at: "2026-10-20T03:55:28.509479Z"
+      phase: finished
+      pid: 7174
+      started_at: "2026-10-20T03:55:28.755904Z"
+      finished_at: "2026-10-20T03:55:56.152986Z"
+      session_id: 01a15773-30ba-7fd1-a14d-117b4947d2b0
+      outcome: returned
 gate: plan-quality
 issue: 706
 id_prefix: PQ
@@ -65,7 +85,37 @@ rounds:
           note: Named risky functions now have fuzz, generated-sequence, round-trip, bounds and atomicity strategies with independent invariants across both milestones.
           round: 2
       blocked: false
-content_hash: fbfe185c29e21ebe3cfa38e73c905e7f6ac4cdacd99d927fa47edf12a23e6397
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 0891b06f-6a92-44d2-b0fb-2540203401d2
+            repository: github.com/xianxu/pair
+            issue_id: "000706"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot6/pair
+            reviewed_head: 3043f0eba1391ae43e7374b1156f74c6bcefa143
+            slot: pair:6
+            requested_at: "2026-10-20T03:54:53.636316Z"
+          phase: finished
+          pid: 78832
+          started_at: "2026-10-20T03:54:53.861709Z"
+          finished_at: "2026-10-20T03:55:24.005518Z"
+          session_id: 01a15772-a7f0-7a71-8179-40bb6f026d64
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-19T20:55:24-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Named risky functions now have adversarial strategies and independent mechanical guards rather than test-case inventories.
+          round: 3
+      blocked: false
+content_hash: 239a2272b30ade08c0f9f69451cf32a876e2d1d1e2bed5e53f2c9b331f6ebbea
 ---
 
 # Gate ledger — pair#706 (plan-quality)
@@ -85,6 +135,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - PQ-1 — addressed — Named risky functions now have fuzz, generated-sequence, round-trip, bounds and atomicity strategies with independent invariants across both milestones.
+
+## Round 3 — 2026-10-19T20:55:24-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Named risky functions now have adversarial strategies and independent mechanical guards rather than test-case inventories.
 
 ## Open findings
 
