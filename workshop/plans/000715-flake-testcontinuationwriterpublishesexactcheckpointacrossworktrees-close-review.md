@@ -84,3 +84,80 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-19T18:25:35-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 715 — flake: TestContinuationWriterPublishesExactCheckpointAcrossWorktrees |
+| repo | pair |
+| issue file | workshop/issues/000715-flake-testcontinuationwriterpublishesexactcheckpointacrossworktrees.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | efffa07be8d629ae4ef4894454ef312a508fc430..52013e0a58725d63f5dbf3a2496711ada415008b |
+| command | sdlc close --issue 715 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-19T18:25:35-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The ownership change matches the Spec, and BR-1’s documentation correction is complete. Focused tests pass, and independently omitting the join makes the regression fail by observing retention acquisition after wrapper return. No new blocking findings.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      atlas/go-lint-catalog.md now covers local composition in its opening adoption passage, documents wrapper-child-release's scope and owner plus shared checking/suppression behavior, and distinguishes local from upstream rule maintenance in its closing passage. This matches local_catalog_test.go, catalog_test.go:304, and sleepSites' continued use of golint.Catalog. The correction is prose-only.
+```
+
+Done-when: current — the clauses cover watcher ownership, detach survival, shutdown edge cases, measurements, and lint verification; the revision changes documentation without changing acceptance scope.
+
+1. **Strengths**
+
+   - `wrap.go:2574` preserves session isolation while retaining direct child ownership.
+   - `wrap.go:3028` immediately registers shutdown through the existing `ownedGroup`.
+   - `watcher_lifetime_test.go` exercises normal shutdown, TERM refusal, refusing descendants, an already-exited watcher, and startup failure.
+   - The local lint extension copies the upstream catalog and tests through the repository scanner.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None. Atlas coverage is complete; no new user-facing command, flag, or configuration requires README changes.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed focused lifecycle, detach, process-group, restart, race, full repolint, and original continuation-family tests. A temporary Go overlay omitting only `watcherGroup.Wait()` produced the expected regression failure. Full-suite and loaded-run claims were not independently reproduced.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** reuses `ownedGroup` and the shared lint checker.
+   - **ARCH-PURE — pass:** process IO remains at the existing boundary; matching operates on AST input.
+   - **ARCH-PURPOSE — pass:** the production caller and spawn mocks are updated; tests exercise startup through joined shutdown.
+   - **ARCH-EVOLVE — pass:** persisted formats and rewrite paths are unchanged.
+
+7. **Plan revision recommendations:** None; the existing `## Revisions` entry accurately records BR-1’s correction.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"ed67effd-9a38-48f1-95e6-c74fe6d2c71b","repository":"github.com/xianxu/pair","issue_id":"000715","recipe":"small-diff-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/9580aa4adf8e394c","reviewed_head":"52013e0a58725d63f5dbf3a2496711ada415008b","slot":"pair:3","requested_at":"2026-10-20T01:24:36.761177Z"},"phase":"finished","pid":39325,"started_at":"2026-10-20T01:24:36.847132Z","finished_at":"2026-10-20T01:25:35.218345Z","session_id":"01a156e9-104e-7d81-9edb-e8e1425b4781","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.383923958s
+head: "52013e0a58725d63f5dbf3a2496711ada415008b"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
