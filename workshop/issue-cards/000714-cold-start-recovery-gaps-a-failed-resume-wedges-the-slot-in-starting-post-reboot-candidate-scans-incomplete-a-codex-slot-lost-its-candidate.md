@@ -13,14 +13,14 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
-actual_hours: 0.60
+actual_hours: 2.02
 tracker:
     version: 1
     completion:
-        token: close-2376eee412c8
+        token: close-23357dd4d935
         repository: github.com/xianxu/pair
-        reviewed_head: a8e72fd6bacd5ee8156f1459ed2f461103c946d9
-        evidence_commit: 41da3888b6646385d974b2c612699f4f9f192389
+        reviewed_head: 4ef81b8631480327f2659235b9804e9b4cc1d0d1
+        evidence_commit: 0fac411dd13a885487952bb0abceea42dce6628a
 ---
 
 # Cold-start recovery gaps: a failed resume wedges the slot in starting; post-reboot candidate scans incomplete; a codex slot lost its candidate
