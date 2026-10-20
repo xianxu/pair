@@ -1,6 +1,7 @@
 package vmcmd
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -111,7 +112,7 @@ func TestSnapshotCheckoutBoundsFallbackAndCountsLinearWork(t *testing.T) {
 			snapshotGitFixture(t, source, "commit", "-m", "files")
 			calls := 0
 			clone := func(_, _ *os.File, _ string) error { calls++; return syscall.EXDEV }
-			report, err := snapshotCheckout(context.Background(), source, dst, clone, SnapshotBudget{MaxFiles: 100, MaxBytes: 1024})
+			report, err := snapshotCheckout(context.Background(), source, dst, clone, SnapshotBudget{MaxFiles: 100, MaxBytes: 1 << 20})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -122,7 +123,7 @@ func TestSnapshotCheckoutBoundsFallbackAndCountsLinearWork(t *testing.T) {
 	}
 	source, dst := snapshotFixture(t)
 	for _, injected := range []error{syscall.EPERM, errors.New("native clone failed")} {
-		if _, err := snapshotCheckout(context.Background(), source, dst, func(_, _ *os.File, _ string) error { return injected }, SnapshotBudget{MaxFiles: 100, MaxBytes: 1024}); err == nil {
+		if _, err := snapshotCheckout(context.Background(), source, dst, func(_, _ *os.File, _ string) error { return injected }, SnapshotBudget{MaxFiles: 100, MaxBytes: 1 << 20}); err == nil {
 			t.Fatal("non-filesystem clone error silently fell back")
 		}
 		if err := os.RemoveAll(dst); err != nil {
@@ -131,6 +132,107 @@ func TestSnapshotCheckoutBoundsFallbackAndCountsLinearWork(t *testing.T) {
 	}
 	if _, err := snapshotCheckout(context.Background(), source, dst, func(_, _ *os.File, _ string) error { t.Fatal("copy started before budget check"); return nil }, SnapshotBudget{MaxFiles: 1, MaxBytes: 1}); err == nil {
 		t.Fatal("oversized snapshot admitted")
+	}
+}
+
+func TestSnapshotCheckoutBudgetsDeletedAndTruncatedHeadBlobs(t *testing.T) {
+	for _, deleted := range []bool{true, false} {
+		t.Run(fmt.Sprint(deleted), func(t *testing.T) {
+			source, dst := snapshotFixture(t)
+			path := filepath.Join(source, "large")
+			writeSnapshotFixture(t, path, strings.Repeat("x", 2<<20))
+			snapshotGitFixture(t, source, "add", "large")
+			snapshotGitFixture(t, source, "commit", "-m", "large HEAD blob")
+			if deleted {
+				if err := os.Remove(path); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				writeSnapshotFixture(t, path, "tiny")
+			}
+			_, err := snapshotCheckout(context.Background(), source, dst, nativeCloneFile, SnapshotBudget{MaxFiles: 100, MaxBytes: 1 << 20})
+			if err == nil {
+				t.Fatal("HEAD metadata bypassed snapshot byte budget")
+			}
+			if _, err := os.Lstat(dst); !os.IsNotExist(err) {
+				t.Fatal("metadata budget refusal mutated destination", err)
+			}
+		})
+	}
+}
+
+func TestSnapshotCheckoutReportsIndependentPinnedMetadata(t *testing.T) {
+	source, dst := snapshotFixture(t)
+	parent := strings.TrimSpace(snapshotGitFixture(t, source, "rev-parse", "HEAD"))
+	writeSnapshotFixture(t, filepath.Join(source, "tracked"), "new commit")
+	snapshotGitFixture(t, source, "add", "tracked")
+	snapshotGitFixture(t, source, "commit", "-m", "selected")
+	report, err := SnapshotCheckout(context.Background(), source, dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var metadata int64
+	err = filepath.WalkDir(filepath.Join(dst, ".git"), func(_ string, e os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !e.IsDir() {
+			info, err := e.Info()
+			if err != nil {
+				return err
+			}
+			metadata += info.Size()
+		}
+		return nil
+	})
+	if err != nil || metadata == 0 || metadata != report.MetadataBytes {
+		t.Fatalf("metadata report=%d actual=%d error=%v", report.MetadataBytes, metadata, err)
+	}
+	if _, err := snapshotGit(context.Background(), dst, "cat-file", "-e", parent); err == nil {
+		t.Fatal("snapshot exported unselected history")
+	}
+	if got := strings.TrimSpace(snapshotGitFixture(t, dst, "rev-list", "--count", "HEAD")); got != "1" {
+		t.Fatalf("snapshot not shallow: %s", got)
+	}
+	if err := os.Rename(source, source+"-removed"); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(snapshotGitFixture(t, dst, "show", "HEAD:tracked")); got != "new commit" {
+		t.Fatalf("snapshot depends on live source: %s", got)
+	}
+}
+
+func TestSnapshotCheckoutIgnoresReplacementRefs(t *testing.T) {
+	source, dst := snapshotFixture(t)
+	previous := strings.TrimSpace(snapshotGitFixture(t, source, "rev-parse", "HEAD"))
+	writeSnapshotFixture(t, filepath.Join(source, "tracked"), "selected original tree")
+	snapshotGitFixture(t, source, "add", "tracked")
+	snapshotGitFixture(t, source, "commit", "-m", "selected")
+	head := strings.TrimSpace(snapshotGitFixture(t, source, "rev-parse", "HEAD"))
+	snapshotGitFixture(t, source, "replace", head, previous)
+	report, err := SnapshotCheckout(context.Background(), source, dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Head != head {
+		t.Fatalf("changed pinned identity: %s", report.Head)
+	}
+	if got := strings.TrimSpace(snapshotGitFixture(t, dst, "show", "HEAD:tracked")); got != "selected original tree" {
+		t.Fatalf("replacement changed snapshot objects: %s", got)
+	}
+}
+
+func TestSnapshotPackTransferEnforcesReservedBytes(t *testing.T) {
+	var out bytes.Buffer
+	writer := snapshotLimitedWriter{writer: &out, remaining: 4}
+	if n, err := writer.Write([]byte("pack")); n != 4 || err != nil {
+		t.Fatalf("exact reservation: %d %v", n, err)
+	}
+	if n, err := writer.Write([]byte("x")); n != 0 || err == nil {
+		t.Fatalf("overflow admitted: %d %v", n, err)
+	}
+	if out.String() != "pack" {
+		t.Fatalf("overflow mutated output: %q", out.String())
 	}
 }
 

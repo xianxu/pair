@@ -670,6 +670,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/vmcmd/request.go",
 	"cmd/internal/vmcmd/image.go",
 	"cmd/internal/vmcmd/state.go",
+	"cmd/internal/vmcmd/runtime.go",
 	"cmd/internal/vmcmd/claim.go",
 	"cmd/internal/vmcmd/positions_unix.go",
 	"cmd/internal/vmcmd/positions_unsupported.go",

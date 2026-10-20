@@ -215,3 +215,7 @@ Hub receipt 95d237ca-495c-4366-8822-ce855fc1433d additionally holds Pair issue f
 ### 2026-10-20 14:56 — Main publication hold lifted
 
 Authenticated hub receipt 40831bf5-2c90-4de8-bd36-19f9ba4437ee confirms train 197 landed and Pair main filings/publishes are open again. The image hold is unchanged.
+
+### 2026-10-20 16:51 — Execution timeout and bounded cleanup
+
+Authenticated hub receipt d13df378-0a0a-4040-98a3-c20e29d43dbc approves the explicit envelope **timeout N + cleanup up to 10 s**. The requested timeout includes acquisition, preparation, startup/readiness and execution. Collection, stop/join and release share one separate cancellation-independent ten-second budget. This supersedes the earlier total-run wording; no cleanup reservation is subtracted from execution. Help text and retained results expose the envelope. Expired or unconfirmed cleanup retains the durable occupied launch claim and VM/snapshot inputs, reports the managed VM and inspection recovery, and makes the next run refuse reuse.

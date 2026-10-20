@@ -6,10 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -24,6 +24,7 @@ type SnapshotReport struct {
 	Head                     string
 	Files, Enumerations      int
 	ClonedBytes, CopiedBytes int64
+	MetadataBytes            int64
 }
 
 // PlanSnapshot admits relative tracked paths in one pass. The IO adapter must
@@ -144,19 +145,89 @@ func snapshotCheckout(ctx context.Context, source, destination string, clone clo
 		bytesTotal += info.Size()
 		infos[path] = info
 	}
-	// --no-local prevents hardlinks/alternates to the live Git common directory.
-	fileURL := (&url.URL{Scheme: "file", Path: source}).String()
-	if _, err := snapshotGit(ctx, filepath.Dir(destination), "clone", "--no-local", "--no-checkout", "--depth=1", "--single-branch", "--no-tags", "--", fileURL, destination); err != nil {
+	// Enumerate only the pinned commit and its reachable trees/blobs, never
+	// its history or a subsequently changed source default branch.
+	objects, err := snapshotGit(ctx, source, "rev-list", "--objects", "--no-object-names", "--no-walk", report.Head)
+	if err != nil {
 		return report, err
 	}
-	clonedHead, err := snapshotGit(ctx, destination, "rev-parse", "HEAD")
-	if err != nil || strings.TrimSpace(string(clonedHead)) != report.Head {
-		return report, fmt.Errorf("checkout HEAD changed during snapshot")
+	sizes, err := snapshotGitInput(ctx, source, bytes.NewReader(objects), nil, "cat-file", "--batch-check=%(objectname) %(objecttype) %(objectsize)")
+	if err != nil {
+		return report, err
 	}
-	if _, err := snapshotGit(ctx, destination, "remote", "remove", "origin"); err != nil {
+	// Reserve pack framing, index entries, checkout index paths and fixed Git
+	// scaffolding before creating anything. A streaming pack cap enforces the
+	// reservation even if the source changes or Git emits unexpected data.
+	metadataReserve := int64(65536 + 2*len(listed))
+	count := 0
+	for _, row := range strings.Split(strings.TrimSpace(string(sizes)), "\n") {
+		fields := strings.Fields(row)
+		if len(fields) != 3 {
+			return report, fmt.Errorf("invalid Git object size report")
+		}
+		size, err := strconv.ParseInt(fields[2], 10, 64)
+		if err != nil || size < 0 || size > budget.MaxBytes {
+			return report, fmt.Errorf("snapshot exceeds Git metadata budget")
+		}
+		charge := size + size/100 + 256
+		if charge > budget.MaxBytes-metadataReserve {
+			return report, fmt.Errorf("snapshot exceeds Git metadata budget")
+		}
+		metadataReserve += charge
+		count++
+	}
+	if count != bytes.Count(objects, []byte{'\n'}) || metadataReserve > budget.MaxBytes-bytesTotal {
+		return report, fmt.Errorf("snapshot exceeds combined byte budget")
+	}
+	format := "sha1"
+	if len(report.Head) == 64 {
+		format = "sha256"
+	}
+	if _, err := snapshotGit(ctx, filepath.Dir(destination), "init", "--quiet", "--template=", "--object-format="+format, "--", destination); err != nil {
+		return report, err
+	}
+	packPath := filepath.Join(destination, ".git", "objects", "pack", "snapshot.pack")
+	pack, err := os.OpenFile(packPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		return report, err
+	}
+	_, packErr := snapshotGitInput(ctx, source, bytes.NewReader(objects), &snapshotLimitedWriter{writer: pack, remaining: metadataReserve}, "pack-objects", "--stdout", "--no-reuse-object", "--no-reuse-delta", "--window=0", "--compression=0")
+	closeErr := pack.Close()
+	if err := errors.Join(packErr, closeErr); err != nil {
+		return report, err
+	}
+	if _, err := snapshotGit(ctx, destination, "index-pack", "--index-version=2", packPath); err != nil {
+		return report, err
+	}
+	if err := os.WriteFile(filepath.Join(destination, ".git", "shallow"), []byte(report.Head+"\n"), 0600); err != nil {
+		return report, err
+	}
+	if _, err := snapshotGit(ctx, destination, "update-ref", "HEAD", report.Head); err != nil {
 		return report, err
 	}
 	if _, err := snapshotGit(ctx, destination, "reset", "--mixed", report.Head); err != nil {
+		return report, err
+	}
+	err = filepath.WalkDir(filepath.Join(destination, ".git"), func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if !entry.IsDir() {
+			info, err := entry.Info()
+			if err != nil {
+				return err
+			}
+			report.MetadataBytes += info.Size()
+			if report.MetadataBytes > metadataReserve {
+				return fmt.Errorf("Git metadata exceeded reserved capacity")
+			}
+		}
+		return nil
+	})
+	if err != nil {
 		return report, err
 	}
 	dst, err := os.OpenRoot(destination)
@@ -287,18 +358,29 @@ func canonicalFuturePath(path string) (string, error) {
 }
 
 func snapshotGit(ctx context.Context, root string, args ...string) ([]byte, error) {
+	return snapshotGitInput(ctx, root, nil, nil, args...)
+}
+
+func snapshotGitInput(ctx context.Context, root string, input io.Reader, output io.Writer, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	argv := []string{"-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-C", root}
 	cmd := exec.CommandContext(ctx, "git", append(argv, args...)...)
-	cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "LANG=C", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null", "GIT_TERMINAL_PROMPT=0", "GIT_OPTIONAL_LOCKS=0"}
-	configureSnapshotCommand(cmd)
+	cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "LANG=C", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null", "GIT_TERMINAL_PROMPT=0", "GIT_OPTIONAL_LOCKS=0", "GIT_NO_REPLACE_OBJECTS=1", "GIT_NO_LAZY_FETCH=1"}
+	collect := configureSnapshotCommand(cmd)
 	cmd.WaitDelay = 5 * time.Second
 	out := &snapshotOutput{remaining: 16 << 20, cancel: cancel}
+	cmd.Stdin = input
 	cmd.Stdout, cmd.Stderr = out, out
+	if output != nil {
+		cmd.Stdout = output
+	}
 	err := cmd.Run()
+	if cleanupErr := collect(); cleanupErr != nil {
+		err = errors.Join(err, fmt.Errorf("collect Git process group: %w", cleanupErr))
+	}
 	if out.overflow {
-		return nil, fmt.Errorf("Git snapshot output exceeded 16 MiB")
+		return nil, errors.Join(fmt.Errorf("Git snapshot output exceeded 16 MiB"), err)
 	}
 	if err != nil {
 		return out.buffer.Bytes(), fmt.Errorf("Git snapshot operation: %w", err)
@@ -324,4 +406,19 @@ func (w *snapshotOutput) Write(p []byte) (int, error) {
 	}
 	w.remaining -= len(p)
 	return w.buffer.Write(p)
+}
+
+// snapshotLimitedWriter bounds binary pack transfer independently of diagnostics.
+type snapshotLimitedWriter struct {
+	writer    io.Writer
+	remaining int64
+}
+
+func (w *snapshotLimitedWriter) Write(p []byte) (int, error) {
+	if int64(len(p)) > w.remaining {
+		return 0, fmt.Errorf("Git pack exceeded metadata budget")
+	}
+	n, err := w.writer.Write(p)
+	w.remaining -= int64(n)
+	return n, err
 }

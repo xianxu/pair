@@ -8,5 +8,5 @@ import (
 	"syscall"
 )
 
-func configureSnapshotCommand(_ *exec.Cmd) {}
-func cloneFallbackAllowed(err error) bool  { return errors.Is(err, syscall.ENOTSUP) }
+func configureSnapshotCommand(_ *exec.Cmd) func() error { return func() error { return nil } }
+func cloneFallbackAllowed(err error) bool               { return errors.Is(err, syscall.ENOTSUP) }

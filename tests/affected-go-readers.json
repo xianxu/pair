@@ -156,7 +156,7 @@
     "local_or_literal_fixture": {
       "cmd/internal/vmcmd/guest_test.go": "43602d96646f35e8949e5dba352d04d080e4543d40e922452250b75a9b310d9c",
       "cmd/internal/vmcmd/positions_test.go": "6934e31a9ed104ec272a29a62ef509521b28c10681a2167fb35c38adba83f4b5",
-      "cmd/internal/vmcmd/snapshot_test.go": "5ea7465e16a1dea87746a7d31627006a7aff55e1d7aa14f91b7c039f37339933",
+      "cmd/internal/vmcmd/snapshot_test.go": "f093e9d5e174ba042c1e8eafeee6e859f3f16b229359b9377c90ff8891fc4fb5",
       "cmd/couch/binary_test.go": "43767cf88cd38b404edd7df16cc7a646359171649eaf63adfbe4952f68fc4aa6",
       "cmd/couch/main_test.go": "c5f817944268088fc3cfef3dfa12c1bd95bf62e7dd8bd20168cdb3a026827497",
       "cmd/couch/socket_pin_test.go": "6aafee134d2432809cd511fd21d8064c90bc9274251f9bf15fb9b339f3dd37c9",
