@@ -1,13 +1,23 @@
 ---
 id: 000717
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-19
-updated: 2026-10-19
-estimate_hours:
+updated: 2026-10-20
+estimate_hours: 1.24
 collaboration-mode: collaboration
-card_mirror: 'ec2569fb29141a8b6c65dba2ca0dfc0665592799' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'be8453aeb1e16056843f9f7a2400f361a9b47c01' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-20T01:12:01-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
+actual_hours: 0.97
 ---
 
 # couch --keys: support special keys (tab, shift-tab, arrows, backspace, function keys, ctrl/alt chords)
@@ -40,10 +50,39 @@ operator pressed Esc on a `/usage` panel for the TL).
 
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000717-couch-keys-support-special-keys-tab-shift-tab-arrows-backspace-function-keys-ctrl-alt-chords-plan.md` (two milestones; state design table there).
+
+- [x] M1 — named keys in the one step table (bytes, parser, help, skill)
+- [ ] M2 — `couch --interrupt repo:N --confirm`: one Ctrl+C, only on an active turn
+
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module      design=0.1 impl=0.16
+item: greenfield-go-module   design=0.3 impl=0.24
+item: milestone-review       design=0.0 impl=0.14
+item: milestone-review       design=0.0 impl=0.14
+item: atlas-docs             design=0.05 impl=0.04
+design-buffer: 0.15
+total: 1.24
+```
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.* M1 extends #716's table (smaller module, mirror). M2 is a new request shape through the reducer, wrapper, service and CLI (greenfield, single concern). Impl values are 40% of the v2 midpoints (0.4, 0.6, 0.35, 0.1). Design is low because the plan is settled and reviewed (thorough plan doc, so a 15% buffer). The calibration doc is flagged stale (#127), so the numbers are provisional.
 
 ## Log
 
+
+- 2026-10-20: closed — Full suite green on 60203319 (sdlc-local/suite). BR-6 fixed by the rule: NotificationLifecycle.Working() is the one working predicate (activity seen, no stop grace), mirrored as turnWorking; the interrupt also needs the agent own esc-to-interrupt hint in the bottom viewport rows (AdvertisesInterrupt, pinned by the three Claude 2.1.304 working captures and a Codex status line) and a recognized composer. Refusals: stop grace, missed turn end, usage panel with flags set, flag without work, idle, picker, peer, typing, needs-operator. Three new mutations red. --no-plan-check: the open item is the hub post-merge live check in throwaway slots.; review verdict: SHIP
+- 2026-10-20 (pair:2): close review round 3, BR-6 Critical, correct, second in the family "admission proof from an overloaded signal". A stop report keeps Active and ActivitySeen during the 250 ms grace, so the mirrored flag admitted Ctrl+C over an idle composer. The rule, not the site: "working" is one reducer-owned predicate, `NotificationLifecycle.Working()` (open, not completed, activity seen, no stop grace), and `turnWorking` mirrors only that. The same class also covers a turn end the lifecycle misses (flags held until the 60 s watchdog). So the proof also requires the agent's own "esc to interrupt" hint in the bottom viewport rows (`agentdrive.AdvertisesInterrupt`); all three Claude 2.1.304 working captures and the Codex status line carry it, and the panels and idle screens do not. Tests: stop grace and missed turn end refuse; the predicate is stepped through submission, work, stop, resumed work and completion; the hint is read only in the bottom rows. Mutations: Working ignoring the grace, no hint requirement, and the hint read anywhere each turn red.
+
+- 2026-10-20 (pair:2): close review REWORK, BR-4 Critical, correct: `Interruptible` came from the turn flag, which an open /usage panel also sets (#691). The reviewer's probe wrote Ctrl+C into a panel and confirmed. The same class covers a bare submission that leaves the flag set over an idle composer, where a second interrupt could double-press and exit the agent. Fix: the proof needs positive evidence of work. That is a new atomic `turnWorking` (lifecycle Active and ActivitySeen, mirrored as `turnActive` is) plus a recognized composer on screen. Tests: the tall usage panel with both flags set refuses, the flag with no work seen refuses, and `TestTurnWorkingNeedsReportedActivity`. Mutations: dropping the composer requirement, dropping `turnWorking`, and mirroring `turnWorking` as plain Active each turn red. Minor (DRY): `agentdrive.StepGroups` is now the one group-collapse, used by `StepSyntax`, keys help and its test.
+
+- 2026-10-20 (pair:2): M2 implemented. Mutations, each red: interrupt not exclusive in Admits (agentdrive); Interruptible ignoring the turn (wrapcmd); any fresh frame confirming (agentdrive, wrapcmd); the service keeping the settled check (couchcmd); the residual lease refused (wrapcmd); the interrupt not turn tolerant (agentdrive, wrapcmd). "Turn ended before the write" is caught by the writer's start recheck: admission and the write share one dispatch and one screen, so `WriteAdmits` for the interrupt is a second line, as with #691's dismissal. M1 advisories folded in: the skill quick table gains shift-tab and interrupt rows, and `couch --interrupt` now exists. The string-literal Steps kinds stay as they are (cosmetic; the table is the source).
+
+
+- 2026-10-20: closed M1 — agentdrive TestStepBytes (every named key bytes), TestRefusedStepsStateTheirReason, TestUnknownStepListsTheNames, TestRecipeDirectionsAreCallerArrows, TestStepsTableIsTheParsersAcceptedSet; couchcmd TestKeysHelpIsTheVerbsOwnHelp (families once, refused chords with reasons), TestSkillKeyStepsMatchTheTable; wrapcmd TestAgentDriveSpecialKeysReachTheAgentAsTableBytes (every new key through the real writer and Pair input translation; a writer-path mutation goes red). Targeted packages green.; review verdict: SHIP
 - Edges: `~ pair#716` (keys help; one shared table) and `~ pair#691` (esc on an open panel). Land after #691 or
   account for its admissibility function.
 - If "special characters" meant arbitrary text in `text:` steps (quotes, `$`, backticks, newlines) rather than named

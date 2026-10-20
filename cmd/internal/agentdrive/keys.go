@@ -12,14 +12,19 @@ import (
 type KeyKind string
 
 const (
-	KeyText           KeyKind = "text"
-	KeyEnter          KeyKind = "enter"
-	KeySubmit         KeyKind = "submit"
-	KeyUp             KeyKind = "up"
-	KeyDown           KeyKind = "down"
-	KeyEsc            KeyKind = "esc"
-	KeyClearLine      KeyKind = "clear-line"
-	KeyWait           KeyKind = "wait"
+	KeyText      KeyKind = "text"
+	KeyEnter     KeyKind = "enter"
+	KeySubmit    KeyKind = "submit"
+	KeyUp        KeyKind = "up"
+	KeyDown      KeyKind = "down"
+	KeyEsc       KeyKind = "esc"
+	KeyClearLine KeyKind = "clear-line"
+	KeyWait      KeyKind = "wait"
+	KeyLeft      KeyKind = "left"
+	KeyRight     KeyKind = "right"
+	// KeyInterrupt is the interrupt shape's internal Ctrl+C. It is not a
+	// Steps row, so Validate refuses it inside any caller sequence.
+	KeyInterrupt      KeyKind = "interrupt"
 	MaxKeySteps               = 64
 	MaxKeyTextBytes           = 8 * 1024
 	MaxKeyWaitMS              = 1000
@@ -34,40 +39,110 @@ type KeyStep struct {
 
 type KeySequence []KeyStep
 
-// StepDoc is one caller step. Steps is the single table the parser accepts and
-// `couch --keys --help` and the couch skill describe (pair#716).
+// StepDoc is one caller step. Steps is the single table the parser accepts,
+// InputBytes encodes, and `couch --keys --help` and the couch skill describe
+// (pair#716, pair#717). Bytes are the classic xterm encodings, the family the
+// drive already sends to Claude and Codex; text and wait carry none. A family
+// row (ctrl-LETTER, alt-LETTER, f1-f12) is generated per member and shares a
+// Group, which help and StepSyntax print once.
 type StepDoc struct {
 	Kind            KeyKind
 	Syntax, Meaning string
+	Bytes           string
+	Group           string
 }
 
-var Steps = []StepDoc{
-	{KeyText, "text:LITERAL", "type printable text; quote a step containing spaces"},
-	{KeyEnter, "enter", "Return: newline in the composer, select in a picker"},
-	{KeySubmit, "submit", "Alt+Return: submit the composer"},
-	{KeyUp, "up", "arrow up"},
-	{KeyDown, "down", "arrow down"},
-	{KeyEsc, "esc", "Escape, always its own step"},
-	{KeyClearLine, "clear-line", "Ctrl+U: clear the composer's current line"},
-	{KeyWait, "wait:MS", fmt.Sprintf("pause 0–%d ms, at most %d ms in total", MaxKeyWaitMS, MaxKeyTotalWaitMS)},
+var Steps = buildSteps()
+
+// RefusedSteps are names that look like keys but are never a plain step, each
+// with the reason the refusal states (pair#717).
+var RefusedSteps = map[KeyKind]string{
+	"ctrl-c": "an interrupt kills the turn; use couch --interrupt SLOT --confirm",
+	"ctrl-d": "EOF; a second one exits the agent",
+	"ctrl-z": "suspends the agent process under the wrapper",
+	"ctrl-i": "the same byte as tab; use tab",
+	"ctrl-m": "the same byte as enter; use enter",
+	"ctrl-u": "the same byte as clear-line; use clear-line",
+	"ctrl-s": "XON/XOFF flow control can freeze the agent's output",
+	"ctrl-q": "XON/XOFF flow control can freeze the agent's output",
 }
 
-// StepSyntax lists every step's syntax, space-separated, in table order.
+func buildSteps() []StepDoc {
+	steps := []StepDoc{
+		{Kind: KeyText, Syntax: "text:LITERAL", Meaning: "type printable text; quote a step containing spaces"},
+		{Kind: KeyEnter, Syntax: "enter", Meaning: "Return: newline in the composer, select in a picker", Bytes: "\r"},
+		{Kind: KeySubmit, Syntax: "submit", Meaning: "Alt+Return: submit the composer", Bytes: "\x1b\r"},
+		{Kind: KeyUp, Syntax: "up", Meaning: "arrow up", Bytes: "\x1b[A"},
+		{Kind: KeyDown, Syntax: "down", Meaning: "arrow down", Bytes: "\x1b[B"},
+		{Kind: KeyLeft, Syntax: "left", Meaning: "arrow left", Bytes: "\x1b[D"},
+		{Kind: KeyRight, Syntax: "right", Meaning: "arrow right", Bytes: "\x1b[C"},
+		{Kind: "tab", Syntax: "tab", Meaning: "Tab: completion, focus", Bytes: "\t"},
+		{Kind: "shift-tab", Syntax: "shift-tab", Meaning: "Shift+Tab: cycle Claude's mode", Bytes: "\x1b[Z"},
+		{Kind: "backspace", Syntax: "backspace", Meaning: "delete the character before the cursor", Bytes: "\x7f"},
+		{Kind: "delete", Syntax: "delete", Meaning: "delete the character under the cursor", Bytes: "\x1b[3~"},
+		{Kind: "home", Syntax: "home", Meaning: "Home", Bytes: "\x1b[H"},
+		{Kind: "end", Syntax: "end", Meaning: "End", Bytes: "\x1b[F"},
+		{Kind: "pageup", Syntax: "pageup", Meaning: "Page Up", Bytes: "\x1b[5~"},
+		{Kind: "pagedown", Syntax: "pagedown", Meaning: "Page Down", Bytes: "\x1b[6~"},
+		{Kind: KeyEsc, Syntax: "esc", Meaning: "Escape, always its own step", Bytes: "\x1b"},
+		{Kind: KeyClearLine, Syntax: "clear-line", Meaning: "Ctrl+U: clear the composer's current line", Bytes: "\x15"},
+		{Kind: KeyWait, Syntax: "wait:MS", Meaning: fmt.Sprintf("pause 0–%d ms, at most %d ms in total", MaxKeyWaitMS, MaxKeyTotalWaitMS)},
+	}
+	functionKeys := []string{"\x1bOP", "\x1bOQ", "\x1bOR", "\x1bOS", "\x1b[15~", "\x1b[17~", "\x1b[18~", "\x1b[19~", "\x1b[20~", "\x1b[21~", "\x1b[23~", "\x1b[24~"}
+	for i, bytes := range functionKeys {
+		name := fmt.Sprintf("f%d", i+1)
+		steps = append(steps, StepDoc{Kind: KeyKind(name), Syntax: name, Meaning: "function keys F1 to F12", Bytes: bytes, Group: "f1-f12"})
+	}
+	for c := 'a'; c <= 'z'; c++ {
+		if _, refused := RefusedSteps[KeyKind("ctrl-"+string(c))]; !refused {
+			steps = append(steps, StepDoc{Kind: KeyKind("ctrl-" + string(c)), Syntax: "ctrl-" + string(c), Meaning: "Ctrl+letter chord, except the refused ones below", Bytes: string(rune(c - 'a' + 1)), Group: "ctrl-LETTER"})
+		}
+	}
+	for c := 'a'; c <= 'z'; c++ {
+		steps = append(steps, StepDoc{Kind: KeyKind("alt-" + string(c)), Syntax: "alt-" + string(c), Meaning: "Alt+letter chord", Bytes: "\x1b" + string(c), Group: "alt-LETTER"})
+	}
+	return steps
+}
+
+// StepGroups lists Steps with each family collapsed to one entry whose Syntax
+// is the family's group, in table order. StepSyntax, `couch --keys --help` and
+// its test all read it.
+func StepGroups() []StepDoc {
+	var groups []StepDoc
+	seen := map[string]bool{}
+	for _, step := range Steps {
+		if step.Group != "" {
+			step.Syntax = step.Group
+		}
+		if !seen[step.Syntax] {
+			seen[step.Syntax] = true
+			groups = append(groups, step)
+		}
+	}
+	return groups
+}
+
+// StepSyntax lists every step's syntax, a family once by its group.
 func StepSyntax() string {
-	syntax := make([]string, len(Steps))
-	for i, step := range Steps {
-		syntax[i] = step.Syntax
+	var syntax []string
+	for _, step := range StepGroups() {
+		syntax = append(syntax, step.Syntax)
 	}
 	return strings.Join(syntax, " ")
 }
 
-func isStep(kind KeyKind) bool {
+func stepDoc(kind KeyKind) (StepDoc, bool) {
 	for _, step := range Steps {
 		if step.Kind == kind {
-			return true
+			return step, true
 		}
 	}
-	return false
+	return StepDoc{}, false
+}
+
+func isStep(kind KeyKind) bool {
+	_, ok := stepDoc(kind)
+	return ok
 }
 
 // ParseKeySequence accepts exact named inputs, text:literal and wait:milliseconds.
@@ -134,6 +209,9 @@ func (s KeySequence) Validate() error {
 			}
 			waitMS += step.WaitMS
 		default:
+			if reason, refused := RefusedSteps[step.Kind]; refused {
+				return fmt.Errorf("step %d: %s is not a step: %s", i+1, step.Kind, reason)
+			}
 			if !isStep(step.Kind) {
 				return fmt.Errorf("step %d: unknown key %q; steps are %s", i+1, step.Kind, StepSyntax())
 			}
@@ -152,23 +230,11 @@ func (k KeyStep) InputBytes() []byte {
 	switch k.Kind {
 	case KeyText:
 		return []byte(k.Text)
-	case KeyEnter:
-		return []byte{'\r'}
-	case KeySubmit:
-		return []byte{'\x1b', '\r'}
-	case KeyUp:
-		return []byte("\x1b[A")
-	case KeyDown:
-		return []byte("\x1b[B")
-	case KeyLeft:
-		return []byte("\x1b[D")
-	case KeyRight:
-		return []byte("\x1b[C")
-	case KeyEsc:
-		return []byte{'\x1b'}
-	case KeyClearLine:
-		return []byte{'\x15'}
-	default:
-		return nil
+	case KeyInterrupt:
+		return []byte{'\x03'}
 	}
+	if step, ok := stepDoc(k.Kind); ok && step.Bytes != "" {
+		return []byte(step.Bytes)
+	}
+	return nil
 }
