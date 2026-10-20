@@ -193,6 +193,11 @@ func (c ScopedThreadArtifactCollisionChecker) QuiesceNamed(ctx context.Context, 
 	if c.Sessions == nil {
 		return errors.New("quiesce Pair session: nil session deleter")
 	}
+	if contextual, ok := c.Sessions.(interface {
+		DeleteSessionContext(context.Context, string) error
+	}); ok {
+		return contextual.DeleteSessionContext(ctx, name)
+	}
 	return c.Sessions.DeleteSession(name)
 }
 

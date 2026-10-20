@@ -583,7 +583,11 @@ requests containing solely `clear-line` and/or `esc` may start on a positively
 recognized occupied composer, with no turn, picker, buffered input or competing
 automatic input. After inspecting an uncertain result and the slot, use
 `couch --keys pair:7 clear-line` to clear that composer's current line. Mixed
-requests and model selection still require an empty composer.
+requests and model selection still require an empty composer. A
+slash-command panel the hub opened, such as Claude's `/usage`, admits exactly
+`couch --keys pair:7 esc` when its Esc footer is recognized on the current
+screen. Every other key refuses while it shows, and success means an empty
+composer came back.
 
 ```sh
 couch --keys pair:7 clear-line text:/model submit wait:200 down enter

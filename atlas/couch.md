@@ -186,6 +186,30 @@ record, separate preferences, and retained history. Each backend uses the existi
 lock, revision checks and recoverable journal. The supervisor lease still belongs
 to the selected global namespace beneath the account lease.
 
+### Failed-start session cleanup (#712)
+
+After an acknowledged helper dies, owned-session cleanup shares one five-second
+budget across owner observation, revalidation, retries and native deletion.
+Persistent refusal returns SessionCleanupUnconfirmed. Marking its exact binding,
+start nonce and incarnation unknown has a separate five-second persistence
+context covering metadata reads, revision retries and the journal write. If even
+that cannot commit, the original occupied claim stays unchanged, and history and
+the receipt report both cleanup and unknown-state persistence uncertainty. No
+destructive rollback or replacement launch follows unproved absence.
+
+For unconfirmed session cleanup, the maximum deadline budget after helper death
+is **20 seconds**: five for
+session cleanup + five for disposition persistence + the existing ten-second
+diagnostic-publication cap. Ordinary operating-system syscall/scheduling latency
+is outside cooperative context guarantees. Exact helper termination keeps its
+handle until reaped and precedes this envelope; an unreapable helper is never
+abandoned to make the deadline. There is no post-expiry session metadata reread.
+
+History uses the existing phase launch and outcome unproven; the receipt and
+operator line name cleanup uncertainty and retain the diagnostic nonce. Inspect
+with couch --show, then use the existing continue, resume from disk or start fresh
+recovery outcome when fresh evidence permits it. No new recovery state is added.
+
 ### Lifecycle failure evidence (#531, #683)
 
 `launchfailure.go` owns `LifecycleFailure` and the legacy `LaunchFailure` aliases,
@@ -2203,6 +2227,21 @@ The exception is a validated recovery-only key sequence: one or more `esc` or
 retaining the same caller, owner, incarnation and input-exclusion guards. It
 may acquire a leftover awaiting-empty lease, never an active peer/drive lease.
 Generic keys and model selection retain the settled empty-composer requirement.
+A second exception (pair#691) is exactly one `esc` on a slash-command panel the
+hub opened, such as Claude's `/usage`. The panel replaces the composer, so the
+wrapper's `Dismissable` projection needs positive evidence of its own: the
+current viewport (never scrollback) ends in the panel's Esc footer, with no
+composer prompt and no numbered choice (`agentdrive/panel.go`). Pickers and
+permission prompts number their choices, so Esc there stays refused. Every
+other key, `clear-line` included, refuses while a panel shows. The dismissal is
+confirmed only when an empty composer returns. A panel still showing at the
+drive deadline reports unconfirmed with its tail, and nothing retries. A panel
+frame repainted after the write proves nothing, because a usage panel repaints
+when its data loads. One rule, `agentdrive.Request.Admits`, decides admission
+for the service, its pre-input guard, the wrapper and the reducer. The panel
+is the rows below the viewport's last full-width rule, since earlier prompt
+rows stay visible above it; the footer wording comes from the Claude 2.1.304
+capture in `wrapcmd/testdata/drive/claude/2.1.304/`.
 
 `couchmessage/drive_endpoint.go` provides `drive-observe`, `drive-start`,
 `drive-status` and idempotent `drive-cancel` over the existing authenticated
@@ -3587,9 +3626,11 @@ the incarnation live. Any post-ack error before `Spawn` successfully transfers
 the handle—including an acknowledgement error after the byte may already have
 been delivered, registration read failure, promotion conflict, or legacy-
 registry save failure—treats exec as possible. Both stdio and PTY runners make
-the Pair client the leader of one actor-owned process group; Couch-launched
-session-watcher and title-poller sidecars inherit that group rather than
-detaching. Couch sends TERM and then unconditional KILL to the group, reaps the
+the Pair client the leader of one actor-owned process group. Its launch
+auxiliaries inherit that group. The surviving native wrapper separately owns
+its session-watcher and title-poller children: their own sessions survive client
+detach, and wrapper shutdown stops and joins them (#715). Couch sends TERM and
+then unconditional KILL to the client group, reaps the
 client, and proves the group empty. On Darwin, a group signal probe returning
 EPERM is ambiguous even after the client is reaped: Couch confirms membership
 with `kern.proc.pgrp`. An empty successful snapshot proves absence; any member

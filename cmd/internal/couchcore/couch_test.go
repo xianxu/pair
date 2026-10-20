@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -20,6 +21,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/testpair"
 	"github.com/xianxu/pair/cmd/internal/testwait"
 )
@@ -389,7 +391,68 @@ func TestSpawnComposesProductionPairRegistrationBoundary(t *testing.T) {
 	}
 }
 
+func TestSpawnComposedRegistrationFailureCleansExactSession(t *testing.T) {
+	for _, freshSlot := range []bool{false, true} {
+		name := "ordinary"
+		if freshSlot {
+			name = "fresh-slot"
+		}
+		t.Run(name, func(t *testing.T) { testComposedPairRegistrationBoundaryFailure(t, freshSlot, true) })
+	}
+}
+
+func TestSpawnComposedRegistrationIsolatesOuterGit(t *testing.T) {
+	outer := t.TempDir()
+	// Model a review checkout hosted in an outer Couch slot, including the
+	// conventional path segment that must not choose the inner fake's workspace.
+	checkout := filepath.Join(outer, "worktree", "pair-slot3", "pair")
+	if err := os.MkdirAll(checkout, 0700); err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command("git", "init", "--quiet", checkout)
+	command.Env = testpair.Environment(t, outer)
+	if out, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("owned outer Git checkout: %v: %s", err, out)
+	}
+	nested := filepath.Join(checkout, "nested-tmp")
+	if err := os.Mkdir(nested, 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TMPDIR", nested)
+	// Each subtest gets its own TempDir base beneath the owned outer checkout.
+	// The real launch must keep the fixture's selected repository scope.
+	for _, freshSlot := range []bool{false, true} {
+		name := "ordinary"
+		if freshSlot {
+			name = "fresh-slot"
+		}
+		t.Run(name, func(t *testing.T) { testComposedPairRegistrationBoundary(t, freshSlot) })
+	}
+}
+
 func testComposedPairRegistrationBoundary(t *testing.T, freshSlot bool) {
+	t.Helper()
+	testComposedPairRegistrationBoundaryFailure(t, freshSlot, false)
+}
+
+// Refusals happen only after Pair has completed its real owned launch. Every
+// other probe, including the final absence proof, uses production owner reads.
+type registrationCleanupRefusalProbe struct {
+	SessionOwnerProber
+	armed    bool
+	refusals []error
+	failure  error
+}
+
+func (p *registrationCleanupRefusalProbe) Probe(ctx context.Context, name, data, scope, tag string) (launcher.SessionOwnerObservation, error) {
+	if p.armed && len(p.refusals) < 2 {
+		p.refusals = append(p.refusals, p.failure)
+		return launcher.SessionOwnerObservation{}, p.failure
+	}
+	return p.SessionOwnerProber.Probe(ctx, name, data, scope, tag)
+}
+
+func testComposedPairRegistrationBoundaryFailure(t *testing.T, freshSlot, failed bool) {
 	t.Helper()
 	testPackageDir, err := os.Getwd()
 	if err != nil {
@@ -447,7 +510,11 @@ func testComposedPairRegistrationBoundary(t *testing.T, freshSlot bool) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(socketRoot) })
+	// The disposable repository has no .git. Stop discovery at its parent
+	// so a TMPDIR nested inside the reviewer checkout cannot supply that repo's
+	// scope to the real LaunchNative path or workspace discovery.
 	fixtureEnv := testpair.Environment(t, home,
+		"GIT_CEILING_DIRECTORIES="+filepath.Dir(repo),
 		"ZELLIJ_SOCKET_DIR="+socketRoot,
 		"PAIR_TEST_COUCH_TERMINAL_FIXTURE=1",
 		"PAIR_TEST_ZELLIJ_PANES="+filepath.Join(t.TempDir(), "panes.json"),
@@ -470,6 +537,12 @@ func testComposedPairRegistrationBoundary(t *testing.T, freshSlot bool) {
 	}
 	var address ThreadAddress
 	checker := NewScopedThreadArtifactCollisionChecker(pairData)
+	cleanupRefusal := errors.New("fixture cleanup observation refused")
+	launchRefusal := errors.New("fixture acknowledgement refused after native launch")
+	ownerProbe := &registrationCleanupRefusalProbe{SessionOwnerProber: launcher.SessionOwnerProbe{}, failure: cleanupRefusal}
+	if failed {
+		checker.OwnerProbe = ownerProbe
+	}
 	commonDir := ".git"
 	if freshSlot {
 		commonDir = slot.RepoIdentity
@@ -500,9 +573,16 @@ func testComposedPairRegistrationBoundary(t *testing.T, freshSlot bool) {
 			PrimaryRoot: slot.PrimaryRoot, FleetRoot: filepath.Dir(slot.PrimaryRoot),
 			EnvironmentRoot: filepath.Dir(slot.PrimaryRoot), WorktreeRoot: slot.PrimaryRoot,
 			Kind: "primary", Address: &primaryAddress, Slot: &zero, RestingBranch: &resting}
+		// Resolve the selected fake workspace explicitly. A path nested beneath
+		// an outer review slot must not fall back to parsing that outer slot.
+		current := primary
+		current.Kind, current.EnvironmentRoot, current.WorktreeRoot = "slot", slot.EnvironmentRoot, slot.WorktreeRoot
+		number, slotAddress, slotResting, head := slot.Number, "pair:1", RestingBranch(slot.Number), strings.Repeat("a", 40)
+		current.Slot, current.Address, current.RestingBranch, current.Head = &number, &slotAddress, &slotResting, &head
+		current.EnvironmentHost = &EnvironmentHost{Repo: slot.Repo, Slot: slot.Number, RepoIdentity: slot.RepoIdentity, PrimaryRoot: slot.PrimaryRoot, WorktreeRoot: slot.WorktreeRoot}
 		couch.Slots = &SlotCatalogFake{Repositories: map[string]SlotRepository{
 			slot.PrimaryRoot: {Identity: primary, Slots: []SlotCandidate{{Identity: slot, Verified: true}}},
-		}}
+		}, Workspaces: map[string]WorkspaceIdentity{slot.WorktreeRoot: current}}
 		local := newSlotThreadStore(ns, slot)
 		couch.Workspaces = slotReadinessFunc(func(context.Context, ProvisionRequest) (ProvisionResult, error) {
 			return slotReadyResult(local), nil
@@ -566,6 +646,10 @@ func testComposedPairRegistrationBoundary(t *testing.T, freshSlot bool) {
 		pairReport <- report
 		if report.err != nil || code != 0 {
 			return fmt.Errorf("LaunchNative = %d, %v; stderr=%s", code, report.err, report.stderr)
+		}
+		if failed {
+			ownerProbe.armed = true
+			return launchRefusal
 		}
 		return nil
 	}
@@ -664,6 +748,14 @@ func testComposedPairRegistrationBoundary(t *testing.T, freshSlot bool) {
 	// lock to be released before ending its client; no policy file is involved.
 	waitFixtureHandoffLease(t, waitCtx, filepath.Join(socketRoot, "contract_version_1", preAck.Incarnations[0].Start.SessionBinding.Name))
 
+	var fixtureServer registrationFixtureServer
+	serverRaw, err := os.ReadFile(ready + ".server")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(serverRaw, &fixtureServer); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(release, []byte("release"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -676,6 +768,11 @@ func testComposedPairRegistrationBoundary(t *testing.T, freshSlot bool) {
 	if report.err != nil || report.code != 0 {
 		t.Fatalf("LaunchNative report = %+v", report)
 	}
+	// LaunchNative joins its server; the server and wrapper each join their own
+	// child before returning. Its exact server generation must now be gone.
+	if procutil.Alive(strconv.Itoa(fixtureServer.PID)) && procutil.Identity(strconv.Itoa(fixtureServer.PID)) == fixtureServer.Identity {
+		t.Fatalf("owned fixture server survived joined launch: %+v", fixtureServer)
+	}
 	if !reflect.DeepEqual(report.beforeNamespace, report.afterNamespace) {
 		t.Fatalf("Pair mutated Couch namespace\nbefore: %#v\nafter:  %#v", report.beforeNamespace, report.afterNamespace)
 	}
@@ -684,6 +781,28 @@ func testComposedPairRegistrationBoundary(t *testing.T, freshSlot bool) {
 	case result = <-spawned:
 	case <-waitCtx.Done():
 		t.Fatalf("wait for Couch spawn result: %v", waitCtx.Err())
+	}
+	if failed {
+		if !errors.Is(result.err, launchRefusal) || !errors.Is(result.err, cleanupRefusal) {
+			t.Fatalf("failed composed launch did not retain original and cleanup errors: %v", result.err)
+		}
+		if len(ownerProbe.refusals) != 2 || ownerProbe.refusals[0] != cleanupRefusal || ownerProbe.refusals[1] != cleanupRefusal {
+			t.Fatalf("exact repeated cleanup refusal = %v", ownerProbe.refusals)
+		}
+		if result.handle == nil || result.handle.Alive() {
+			t.Fatalf("failed helper not reaped: %v", result.handle)
+		}
+		retained, err := couch.Threads.GetThread(address)
+		if err != nil || len(retained.Incarnations) != 1 || retained.Incarnations[0].State != IncarnationUnknown || retained.Incarnations[0].PID != preAck.Incarnations[0].PID || retained.Incarnations[0].Identity != preAck.Incarnations[0].Identity {
+			t.Fatalf("failed spawn lost exact established ownership: %+v, %v", retained, err)
+		}
+		if _, err := os.Stat(ready + ".server"); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("server state outlived reaped fixture: %v", err)
+		}
+		if afterEnv := processEnvironmentForTest(); !reflect.DeepEqual(expectedProcessEnv, afterEnv) {
+			t.Fatalf("failed LaunchNative leaked environment")
+		}
+		return
 	}
 	if result.err != nil {
 		t.Fatalf("Spawn: %v", result.err)

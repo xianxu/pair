@@ -60,6 +60,9 @@ func (p *proxy) agentDriveScreen() agentdrive.Screen {
 	s.Idle = wrapperSettled(peerComposerState(p.agentBasename, evidence.Snapshot), s.TurnActive, picker)
 	text, known := qualifiedComposerText(p.agentBasename, evidence.Snapshot)
 	s.Recoverable = known && s.Complete && !s.TurnActive && !picker
+	// A panel replaces the composer, so it is the unknown-composer case that
+	// still carries positive evidence: its own Esc footer (pair#691).
+	s.Dismissable = !known && s.Complete && !s.TurnActive && !picker && agentdrive.DismissablePanel(p.agentBasename, s.Lines)
 	// Cleanup proof is intentionally one acknowledged native command line. A
 	// multiline composer has no captured clearing contract and grants no cleanup.
 	if s.Recoverable && text == "/model" {
@@ -73,13 +76,15 @@ func (p *proxy) agentDriveScreen() agentdrive.Screen {
 func (p *proxy) agentDriveScreenLocked() agentdrive.Screen {
 	s := p.agentDriveScreen()
 	if d := p.peer; d != nil {
-		s.Recoverable = s.Recoverable && !d.exited && !d.image && !d.inputBuffered && d.replies.inFlight == 0 && len(d.replies.input) == 0 && d.reservation == "" && (d.current.Message.ID == "" || d.current.Status.Terminal())
+		owned := !d.exited && !d.image && !d.inputBuffered && d.replies.inFlight == 0 && len(d.replies.input) == 0 && d.reservation == "" && (d.current.Message.ID == "" || d.current.Status.Terminal())
 		if p.automaticInput.phase == automaticInputPeer {
-			s.Recoverable = false
+			owned = false
 		}
 		if p.automaticInput.phase == automaticInputDrive && (d.drive == nil || d.drive.active == nil || !d.drive.active.state.Started()) {
-			s.Recoverable = false
+			owned = false
 		}
+		s.Recoverable = s.Recoverable && owned
+		s.Dismissable = s.Dismissable && owned
 	}
 	if !s.Recoverable {
 		s.ComposerText = ""
@@ -113,6 +118,7 @@ func (d *peerDelivery) agentDriveObservation() couchmessage.DriveObservation {
 		s := d.driveProbe()
 		o.Idle = d.driveIdleLocked() && s.Idle && s.Complete
 		o.Recoverable = d.driveAvailableLocked() && s.Recoverable && s.Complete
+		o.Dismissable = d.driveAvailableLocked() && s.Dismissable && s.Complete
 	}
 	return o
 }
@@ -142,7 +148,8 @@ func (d *peerDelivery) startAgentDrive(id string, start couchmessage.DriveStart)
 		return refuse("eight recent drive outcomes are held; wait up to five minutes and try again")
 	}
 	screen := d.driveProbe()
-	admissible := d.driveIdleLocked() && screen.Idle || start.Request.RecoveryOnly() && d.driveAvailableLocked() && screen.Recoverable
+	available := d.driveAvailableLocked()
+	admissible := start.Request.Admits(agentdrive.Admission{Idle: d.driveIdleLocked() && screen.Idle, Recoverable: available && screen.Recoverable, Dismissable: available && screen.Dismissable})
 	if !admissible || !screen.Complete {
 		return refuse("agent composer must be empty with no turn or picker; wait until it is idle")
 	}
@@ -252,7 +259,8 @@ func (p *proxy) dispatchAgentDrive(out io.Writer) {
 		common := !d.exited && !d.image && d.sequence == r.start.Sequence && !d.inputBuffered && d.replies.inFlight == 0 && len(d.replies.input) == 0 && d.reservation == "" && (d.current.Message.ID == "" || d.current.Status.Terminal()) && lease
 		screen.Idle = screen.Idle && d.settled && common
 		screen.Recoverable = screen.Recoverable && recovery && common
-		if screen.Idle || screen.Recoverable {
+		screen.Dismissable = screen.Dismissable && recovery && common
+		if screen.Idle || screen.Recoverable || screen.Dismissable {
 			p.automaticInput, _ = advanceAutomaticInput(p.automaticInput, automaticInputEvent{kind: automaticBegin, owner: automaticInputDrive, eligible: recovery})
 		}
 		r.state, r.effects = agentdrive.ReduceDrive(r.state, agentdrive.DriveEvent{Kind: agentdrive.EventStart, At: d.now(), Screen: screen})
@@ -302,7 +310,7 @@ func (p *proxy) dispatchAgentDrive(out io.Writer) {
 		p.inputAdmission.Unlock()
 		return
 	}
-	if effect.Kind == agentdrive.EffectWrite && r.start.Request.RecoveryOnly() && !screen.Recoverable {
+	if effect.Kind == agentdrive.EffectWrite && r.start.Request.RecoveryOnly() && !r.start.Request.Admits(agentdrive.Admission{Recoverable: screen.Recoverable, Dismissable: screen.Dismissable}) {
 		d.cancelDriveLocked("recovery composer proof changed before input")
 		p.finishAgentDriveLocked(r, screen)
 		d.mu.Unlock()

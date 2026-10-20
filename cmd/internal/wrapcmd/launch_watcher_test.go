@@ -24,12 +24,13 @@ var realStartWatcherProcess = startWatcherProcess
 func TestMain(m *testing.M) {
 	titleProcessTestCommand()
 	detachWatcherHelper()
+	watcherLifetimeHelper()
 	if os.Getenv("PAIR_617_TITLE_HELPER") != "1" {
 		startTitleProcess = func(string, string, io.Writer) (*wrapperTitleProcess, error) { return nil, nil }
 	}
 	os.Unsetenv("COUCH_THREAD_SCOPE")
 	os.Unsetenv("COUCH_THREAD_TAG")
-	startWatcherProcess = func(_ []string, _ []string, _ ...*os.File) error { return nil }
+	startWatcherProcess = func(_ []string, _ []string, _ ...*os.File) (*ownedGroup, error) { return nil, nil }
 	os.Exit(m.Run())
 }
 
@@ -90,14 +91,14 @@ func TestWrapSpawnsOneWatcherForItsLaunch(t *testing.T) {
 	spawns := make(chan spawn, 4)
 	oldStartWatcher := startWatcherProcess
 	defer func() { startWatcherProcess = oldStartWatcher }()
-	startWatcherProcess = func(argv, _ []string, _ ...*os.File) error {
+	startWatcherProcess = func(argv, _ []string, _ ...*os.File) (*ownedGroup, error) {
 		info, err := os.Stat(pidPath)
 		s := spawn{argv: append([]string(nil), argv...), pidErr: err}
 		if err == nil {
 			s.pidMod = info.ModTime()
 		}
 		spawns <- s
-		return nil
+		return nil, nil
 	}
 
 	before := time.Now()
@@ -142,9 +143,11 @@ func TestWrapSpawnsOneWatcherForItsLaunch(t *testing.T) {
 func TestStartWatcherProcessEscapesTheSpawnersProcessGroup(t *testing.T) {
 	pidFile := filepath.Join(t.TempDir(), "pid")
 	script := `echo $$ > "$0"; exec sleep 5`
-	if err := realStartWatcherProcess([]string{"/bin/sh", "-c", script, pidFile}, os.Environ()); err != nil {
+	watcher, err := realStartWatcherProcess([]string{"/bin/sh", "-c", script, pidFile}, os.Environ())
+	if err != nil {
 		t.Fatal(err)
 	}
+	defer watcher.Wait()
 	var pid int
 	deadline := time.Now().Add(3 * time.Second)
 	for pid == 0 {
@@ -156,7 +159,6 @@ func TestStartWatcherProcessEscapesTheSpawnersProcessGroup(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	defer syscall.Kill(pid, syscall.SIGKILL)
 	childGroup, err := syscall.Getpgid(pid)
 	if err != nil {
 		t.Fatal(err)
