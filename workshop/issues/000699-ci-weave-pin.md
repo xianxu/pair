@@ -53,12 +53,27 @@ on pin acquisition/build failure. Preserve bootstrap, setup and check ordering.
 
 ## Plan
 
-Leave unclaimed for the hub to dispatch to a repository slot after ariadne#459
-lands. Read its approved guard/template and verified consumer inventory before
-planning the bounded migration. No downstream workflow edits or PR are made by
-this filing operation.
+The payload is the weave refresh output and one authored pin, with no hand-written workflow:
+
+- [x] `weave refresh --substrate` on this issue branch, with the slot's ariadne at 0956e5e1 (it contains #459's
+  merge 401e1ebc0 and the approved 63d6bfd8). It regenerates `.github/workflows/merge-check.yml`, byte-identical to
+  ariadne's template, and `.github/workflows/local-gates-guard.yml`, which adds `scripts/ci/*` to the guarded paths.
+- [x] Author `.sdlc/weave-compiler-ref` = `63d6bfd86509d97649e10d7a5dd1e9a06db17d21` plus a newline. This is
+  ariadne's sole supported compiler (`.sdlc/weave-compiler-refs`).
+- [x] Prove the pin is consumer-owned: `weave compile` leaves its bytes unchanged, and
+  `construct/generated/weave/ownership.json` does not list it.
+- [ ] Recorded suite, close, then the PR. It is a local-gates PR, so the hub gets the operator's
+  `local-gates-verified` label. Real CI acceptance, the compiler identity line from the build step, goes to the hub.
+
+The tests that reject malformed pins, fetch or build failure, and an older weave earlier in PATH are upstream's
+(ariadne `scripts/test/weave-compatibility.test.sh`, `portable-ci.test.sh`), run on ariadne's CI. This repository's
+acceptance is its own merge-check run on the PR, building and reporting the pinned compiler.
 
 ## Log
+
+- 2026-10-19: refresh and pin. The workflow's own pin validator accepts the committed bytes and refuses uppercase, a short SHA,
+  a missing newline, a branch name and a trailing extra line. The pin's sha1 is unchanged across `weave compile`, and
+  ownership.json does not name it.
 
 Filed under explicit hub authorization from this repository's primary :0
 checkout, unclaimed, depending on ariadne#459. Source class C; inventory:
