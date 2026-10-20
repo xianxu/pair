@@ -1286,6 +1286,268 @@ rounds:
       isolation: fenced
       reviewed: 6bb343364a02a37e1a7a343ab0b1a4491b3c5dc9
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: fb9ed2a0-430f-4053-b894-f6af8c04757f
+            repository: github.com/xianxu/pair
+            issue_id: "000689"
+            recipe: fix-review
+            round: 7
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/d81422f8f961faaf
+            reviewed_head: ca6ecbc6eec6bf94b8bfc7d7426bd7461bde27c0
+            slot: pair:6
+            requested_at: "2026-10-20T00:43:47.203792Z"
+          phase: finished
+          pid: 47652
+          started_at: "2026-10-20T00:43:47.289582Z"
+          finished_at: "2026-10-20T00:44:29.554024Z"
+          session_id: 01a156c3-afb4-7e73-b35e-c23b49db981f
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: ca6ecbc6eec6bf94b8bfc7d7426bd7461bde27c0
+        tracker_head: 190a9873e48e99daf6dbc63a9a18be82215a834a
+        branch_point: 5bd1e121662ad9d836d2ba571f0bd3c51cbdffb7
+        since: "2026-10-18T23:32:01-07:00"
+        until: "2026-10-19T16:59:58-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-18T23:32:01-07:00"
+              end: "2026-10-19T16:59:58-07:00"
+              began: "2026-10-18T23:32:01-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot6/pair
+        sources:
+            - harness: codex
+              id: 01a14b2c-9890-74f3-a738-58879659bef5
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: ba2f52f7bfee40e5500809a06118f067a0ea1961160dcfe960a381fb035433bf
+              started: "2026-10-17T18:42:56.865Z"
+              spawned: false
+              bytes: 52241588
+              windows:
+                - start: "2026-10-18T23:32:01-07:00"
+                  end: "2026-10-19T16:59:58-07:00"
+            - harness: codex
+              id: 01a152dc-c5f0-79b1-a449-d076eb30ff1e
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: 6900585abb1039927c6ff8ce193e6bedb379041c80015a5b87dbb76679f466a8
+              started: "2026-10-19T06:32:42.841Z"
+              spawned: true
+              bytes: 634320
+              windows:
+                - start: "2026-10-19T06:32:42.841Z"
+                  end: "2026-10-19T16:59:58-07:00"
+            - harness: codex
+              id: 01a152dc-e429-7411-9715-2e8436511482
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: 59cd3f3af9aca97711d5c8ed462d960ac245c07828083104e5a1804bbe062a1c
+              started: "2026-10-19T06:32:50.616Z"
+              spawned: true
+              bytes: 535730
+              windows:
+                - start: "2026-10-19T06:32:50.616Z"
+                  end: "2026-10-19T16:59:58-07:00"
+            - harness: codex
+              id: 01a152e5-fc93-7983-b20c-ee128f55bd99
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: 0f674b5166b857f8c6e8be7f6e92576d6b696172b469b7fd0d93e8b304e526f2
+              started: "2026-10-19T06:42:46.737Z"
+              spawned: true
+              bytes: 546899
+              windows:
+                - start: "2026-10-19T06:42:46.737Z"
+                  end: "2026-10-19T16:59:58-07:00"
+            - harness: codex
+              id: 01a152e9-811d-7713-9482-af15df8beeb8
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: fc6e69535647fb2349aa808de76f3d78cfc1d13d464c25ac418c00c40523309e
+              started: "2026-10-19T06:46:37.866Z"
+              spawned: false
+              bytes: 714630
+              windows:
+                - start: "2026-10-19T06:46:37.866Z"
+                  end: "2026-10-19T16:59:58-07:00"
+            - harness: codex
+              id: 01a152ed-1e3a-7842-ae95-6fbd512d51c7
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: c533501df7d9fc0f5fae18a8e0e56ff71b8bf83e9649cb2a98d4a663485fd9ef
+              started: "2026-10-19T06:50:34.535Z"
+              spawned: false
+              bytes: 434265
+              windows:
+                - start: "2026-10-19T06:50:34.535Z"
+                  end: "2026-10-19T16:59:58-07:00"
+            - harness: codex
+              id: 01a152ef-063b-7ea0-a3eb-455bcd2d3813
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: 90cdeb293609916e8780725150ad732bd5bf1d9f4721ae12a24a34da3ac8ee27
+              started: "2026-10-19T06:52:39.442Z"
+              spawned: false
+              bytes: 440695
+              windows:
+                - start: "2026-10-19T06:52:39.442Z"
+                  end: "2026-10-19T16:59:58-07:00"
+            - harness: codex
+              id: 01a152ef-727c-7f10-a693-d8cf5995024b
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: 46e1cf349d53e24a5f4dc70316347f4b78f444ddc90c485bd8c9b8166fdca1e7
+              started: "2026-10-19T06:53:07.094Z"
+              spawned: false
+              bytes: 420098
+              windows:
+                - start: "2026-10-19T06:53:07.094Z"
+                  end: "2026-10-19T16:59:58-07:00"
+            - harness: codex
+              id: 01a152f0-d75e-71f0-b9fe-4b2743f42b15
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: d1bb9c82bdd42fe963b052b89539ff0c282d2e5ca431a86e1f102fe5e171956f
+              started: "2026-10-19T06:54:38.095Z"
+              spawned: true
+              bytes: 1596943
+              windows:
+                - start: "2026-10-19T06:54:38.095Z"
+                  end: "2026-10-19T16:59:58-07:00"
+            - harness: codex
+              id: 01a152f0-fb6f-7e93-b5a5-281732e02067
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: fc2b4c80656851da1b470511236e3e7e6854ca0af5b55d9cca2e1cecc36d1588
+              started: "2026-10-19T06:54:47.348Z"
+              spawned: true
+              bytes: 2005315
+              windows:
+                - start: "2026-10-19T06:54:47.348Z"
+                  end: "2026-10-19T16:59:58-07:00"
+            - harness: codex
+              id: 01a152f3-9768-7931-84ae-8bee02770b33
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: 9003c48ac30d121898a2c901074aea232d382f218f58f40acfd329b965dd62c1
+              started: "2026-10-19T06:57:38.285Z"
+              spawned: true
+              bytes: 1371265
+              windows:
+                - start: "2026-10-19T06:57:38.285Z"
+                  end: "2026-10-19T16:59:58-07:00"
+        queue_waits:
+            - attempt_id: 738172d262add15b8c7d3683c9f7deea
+              slot: pair:6
+              record_digest: 8280f3f84504f45abf017bb8ec0a8513227f69086a6096b752ab1db6fe55ba02
+              start: "2026-10-19T07:54:50.26352Z"
+              end: "2026-10-19T07:59:24.596512Z"
+              queue_seconds: 274.332992
+              raw_seconds: 274.332992
+              exact: true
+            - attempt_id: aa8fba55ca19ee5947649e00c90b25d0
+              slot: pair:6
+              record_digest: f6d31d3e75d8d6d2b2d43941b8d12d170a55c9fd0a545c49fc9a94990ff707de
+              start: "2026-10-19T08:14:23.51923Z"
+              end: "2026-10-19T08:25:49.684987Z"
+              queue_seconds: 686.165757
+              raw_seconds: 686.165757
+              exact: true
+            - attempt_id: 429890b0fa5edf870059aab33e54dade
+              slot: pair:6
+              record_digest: 794472d3d5801af642f3ba33c6f8ab53ec414fc9760b752142e7ec606c1bf648
+              start: "2026-10-19T16:32:55.77234Z"
+              end: "2026-10-19T17:11:05.181483Z"
+              queue_seconds: 2289.409143
+              raw_seconds: 2289.409143
+              exact: true
+            - attempt_id: d963805085758c53cfbbab3363ad6432
+              slot: pair:6
+              record_digest: 0266516459b7e9173aa7b3ec0542847c74dc67f014c500fd1ba835ce2576759b
+              start: "2026-10-19T19:09:53.895242Z"
+              end: "2026-10-19T19:36:43.261825Z"
+              queue_seconds: 1609.366583
+              raw_seconds: 1609.366583
+              exact: true
+            - attempt_id: de4cedafdeb5bff358280f93fa6c6523
+              slot: pair:6
+              record_digest: 4b71080e9d3d3dfcb7ae59290e7eddc22b289f486f98706da450c8b8ced2d86f
+              start: "2026-10-19T21:08:40.982865Z"
+              end: "2026-10-19T21:45:33.50422Z"
+              queue_seconds: 2212.521355
+              raw_seconds: 2212.521355
+              exact: true
+            - attempt_id: 59eb432d34424418318829a75999abfe
+              slot: pair:6
+              record_digest: ccc6eb00f6e4df703dd14a3cc7a6db74791cde5a052bb41294b4c41f59506a6a
+              start: "2026-10-19T23:23:04.767666Z"
+              end: "2026-10-19T23:46:58.724517Z"
+              queue_seconds: 1433.956851
+              raw_seconds: 1433.956851
+              exact: true
+        cuts:
+            - boundary: M1
+              dispatched: "2026-10-19T00:14:43-07:00"
+              finalized: "2026-10-19T00:19:55-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-19T00:31:08-07:00"
+              finalized: "2026-10-19T00:34:41-07:00"
+              finalizing: true
+            - boundary: M2
+              dispatched: "2026-10-19T09:18:07-07:00"
+              finalized: "2026-10-19T09:22:03-07:00"
+              finalizing: false
+            - boundary: M2
+              dispatched: "2026-10-19T09:33:19-07:00"
+              finalized: "2026-10-19T09:35:45-07:00"
+              finalizing: true
+            - dispatched: "2026-10-19T09:37:52-07:00"
+              finalized: "2026-10-19T09:44:31-07:00"
+              finalizing: true
+            - dispatched: "2026-10-19T16:57:19-07:00"
+              finalized: "2026-10-19T16:58:10-07:00"
+              finalizing: true
+      "n": 7
+      timestamp: "2026-10-19T17:44:30-07:00"
+      dispatched: "2026-10-19T17:43:45-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Fix unchanged in this window; all four complete-observation and receipt-precedence sequence regressions passed.
+          round: 7
+        - id: BR-2
+          disposition: addressed
+          note: Payload-relative stream bound unchanged; exact-bound and one-byte-over regressions passed.
+          round: 7
+        - id: BR-3
+          disposition: withdrawn
+          note: Prior measured short-TMPDIR qualification remains applicable; this window changes neither fixtures nor restore behavior.
+          round: 7
+      recipe: fix-review
+      isolation: fenced
+      reviewed: ca6ecbc6eec6bf94b8bfc7d7426bd7461bde27c0
+      blocked: false
 disputes:
     - id: BR-3
       rationale: 'The reviewer correctly hit the native gpg-agent Unix-socket path limit under its long TMPDIR. This is an execution-environment qualification gap, not a restore defect: the finding explicitly accepts a measured run on the same pinned code with an isolated short temporary root. That run now passes, including key/home/agent cleanup. No product, fixture, keyring, deadline or assertion change was needed.'
@@ -1344,6 +1606,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-1 — addressed — The fix and regression tests are unchanged by this window. Empty-observation, folder-rebinding, newer-receipt and partial-refresh tests passed.
 - BR-2 — addressed — The payload-relative stream bound is unchanged. Exact-bound and one-byte-over regressions passed for ordinary and snapshot kinds.
 - BR-3 — withdrawn — This window changes neither real-tool fixtures nor restore behavior; the prior withdrawal remains applicable. Real-tool qualification was not repeated.
+
+## Round 7 — 2026-10-19T17:44:30-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Fix unchanged in this window; all four complete-observation and receipt-precedence sequence regressions passed.
+- BR-2 — addressed — Payload-relative stream bound unchanged; exact-bound and one-byte-over regressions passed.
+- BR-3 — withdrawn — Prior measured short-TMPDIR qualification remains applicable; this window changes neither fixtures nor restore behavior.
 
 ## Disputes
 

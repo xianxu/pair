@@ -168,3 +168,83 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-19T17:44:30-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 689 — history backup: find and restore from the backups (local or Drive), with a round-trip restore test |
+| repo | pair |
+| issue file | workshop/issues/000689-history-backup-find-and-restore-from-the-backups-local-or-drive-with-a-round-trip-restore-test.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 48380d339bc1d9215c1873734b1a29a6b66943e5..ca6ecbc6eec6bf94b8bfc7d7426bd7461bde27c0 |
+| command | sdlc close --issue 689 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-19T17:44:30-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The narrow interdiff preserves both sides of the README conflict: cold-WAL snapshot guidance and find/sync-index/restore instructions. Remaining changes append review records. Spec, Done-when obligations, and the durable plan are unchanged; no new defects found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Fix unchanged in this window; all four complete-observation and receipt-precedence sequence regressions passed.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Payload-relative stream bound unchanged; exact-bound and one-byte-over regressions passed.
+  - id: BR-3
+    disposition: withdrawn
+    note: |
+      Prior measured short-TMPDIR qualification remains applicable; this window changes neither fixtures nor restore behavior.
+```
+
+1. **Strengths**
+
+   - `README.md:2005` preserves cold-WAL descriptor-copy guidance, matching `sqlite_cold.go` and `atlas/history-backup.md:243`.
+   - Recovery command syntax agrees with `cmd/internal/archivecmd/run.go:20`.
+   - The added revision records integration and qualification without expanding scope or weakening acceptance requirements.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes:** Complete archivecmd tests, four receipt-precedence regressions, focused cold-WAL tests, label-view tests, and extraction overflow regressions passed. `git diff --check` passed. Full-suite and real-tool qualification were not repeated for this documentation-only window.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** no duplicated implementation introduced.
+   - **ARCH-PURE — pass:** no business logic or IO changes.
+   - **ARCH-PURPOSE — pass:** conflict resolution retains both backup and recovery guidance.
+   - **ARCH-EVOLVE — pass:** no persisted-format changes; tracker records are appended.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"fb9ed2a0-430f-4053-b894-f6af8c04757f","repository":"github.com/xianxu/pair","issue_id":"000689","recipe":"fix-review","round":7,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/d81422f8f961faaf","reviewed_head":"ca6ecbc6eec6bf94b8bfc7d7426bd7461bde27c0","slot":"pair:6","requested_at":"2026-10-20T00:43:47.203792Z"},"phase":"finished","pid":47652,"started_at":"2026-10-20T00:43:47.289582Z","finished_at":"2026-10-20T00:44:29.554024Z","session_id":"01a156c3-afb4-7e73-b35e-c23b49db981f","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.359515125s
+head: "ca6ecbc6eec6bf94b8bfc7d7426bd7461bde27c0"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
