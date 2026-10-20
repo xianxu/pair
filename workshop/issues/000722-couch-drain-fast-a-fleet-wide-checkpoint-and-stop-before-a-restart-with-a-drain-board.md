@@ -31,6 +31,8 @@ ops `teams/devinfra/tl-status-xian-xu.side/2026-10-19-15-fleet-drain.md`.
 
 ## Spec
 
+**Governing re-plan proposal:** the 2026-10-20 failed-live-acceptance Revision below and the matching durable-plan Revision supersede the early message hold, all-wrapper cancellation prerequisite and recovery hold. They await TL approval before code. The original contract below is retained as provenance, with prior approved fast-mode corrections still governing suite-only interruption.
+
 `couch --drain [--reason TEXT] [--fast]` and `couch --drain --cancel` (steward hub or operator only):
 - **Graceful (default):** every live slot gets one system notice ("checkpoint and stop: finish the current atomic
   step, commit, push, write where you stopped in the issue Log, start nothing new, reply drained"). Couch stops
@@ -47,6 +49,12 @@ ops `teams/devinfra/tl-status-xian-xu.side/2026-10-19-15-fleet-drain.md`.
 The [durable implementation plan](../plans/000722-fleet-drain-plan.md) defines the draft transition model, state/recovery table, exact v1 notice text and shared SDLC argv/JSON/fake contract. TL-approved refinements below supersede the original operator-entry/free-text-report wording; remaining design proposals await TL approval before code.
 
 ## Done when
+
+- The installed-binary disposable-Couch harness (one steward, two throwaway workers, private state and queue roots) passes graceful, fast, stuck-queue refusal, cancellation and reboot-during-drain through actual registration, delivery, CLI acknowledgements and wrapper endpoints. Component fakes alone do not satisfy acceptance.
+- Starting against unknown/incomplete/stuck or already-paused queue evidence refuses before intent, pause, notice, interrupt or delivery suppression. Ordinary coordination remains available until the exact current checkpoints and final quiet barrier are confirmed.
+- Cancel releases local control/delivery authority without old-wrapper observation; only its own SDLC pause is reconciled. Unknown release remains visible and retryable while ordinary messages, quit and detach remain usable, including after supervisor/fleet restart.
+- The tab bar has one bounded global drain indicator, selectable ordinary chips and no repeated reason or per-chip drain suffix. Full reasons remain in status.
+- A renewed full-flow review, recorded suite and successful TL/operator-watched live acceptance follow the disposable matrix before merge. The failed morning run is retained as failure evidence; no former SHIP or interruption result substitutes for these gates.
 
 - A fake fleet of 3 slots (one idle, one mid-turn, one with a running suite) reaches all-drained under graceful and
   under `--fast`, with the board showing each transition (tests on the stateful fake).
@@ -330,3 +338,14 @@ The final recorded suite remains running on31899be8ee9f96a6869ded680014c974b38fb
 The required recorded sdlc-local/suite completed exit0 in8m29s on31899be8ee9f96a6869ded680014c974b38fb64f, first pass without a flake rerun, after1508s queue wait. Saved log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/31899be8ee9f96a6869ded680014c974b38fb64f/suite.log has SHA256b2a403d3103941e6d15ca68e0ff978e94d405e63b1b8faa859e0eb7d4dac0e7a. Full package results include couchcore124.094s, couchmessage27.175s, couchtty44.854s, couchcmd65.114s and wrapcmd53.463s; all preceding shell/Lua/Python integration checks passed. This standard declared suite keeps native physical-write enforcement intact and confirms the same code as selected staged f3c597f8; intervening branch commits contain only review/tracker/checkpoint records.
 
 Filed independent unclaimed ariadne#497 for the blocked-card close preflight/premature-success diagnostic gap, with observed failure and supported recovery; hub notification receipt9618e814 was submitted. The obsolete stage binary was already preserved by the TL, and the repeated stage succeeded; no workaround or gate bypass was used. Pair:0 remains clean at f3c597f8dab1955b8b81c304e0cf2e99b935071b. Preserve that stage for the operator sitting. No further test rerun or main integration is needed absent a code change or failed gate. Remain claimed/codecomplete, with live and landing Plan items open, until the TL schedules/verifies the operator-present graceful drain/cancel check. Merge remains held for that evidence; #622 remains parked pending its separate SDLC branch/close gap.
+
+
+### 2026-10-20 11:07 PDT — failed live acceptance; recovery-first re-plan proposal
+
+Authenticated TL dispatch31d0d041 requires clearing the stage and re-planning before code. Read both failure sections of the operator's retained ops reboot record. Acks refused, messages were held before checkpoint confirmation, cancellation could not settle across reboot, quit/detach were blocked and repeated chip states/reasons overwhelmed the bar. Preserve the operator's drain.json.wedged-1020 unchanged; no failed live check is relabeled successful. The saved record's zero NoticeStarted flags do not explain the TL-attested ariadne:4 checkpoint request: exact notice origin/generation and failed ack predicate remain unproven until public-path reproduction or receipt evidence.
+
+Cleared pair:0 with sdlc stage --clear: clean main at Git-verified e712d8335f3e77a0694d6bd8869f5e3bf69b033f; couch, pair, pair-launch-helper and pair-slug all report that revision and modified=false. Stage report008bd648 submitted to the hub. Another authorized item, #622, has re-entered landing in the original checkout. This documentation-only re-plan uses the same canonical #722 branch in an isolated temporary worktree; it does not move ownership or stack issue code.
+
+The matching durable-plan Revision proposes queue/member preflight before effects; checkpoint collection with messages open; a generation-scoped local dispatch lease only at the confirmed final barrier; cancellation/local escapes independent of old wrappers; diagnostic-only recovered intent; and one concise bar indicator. Keep exact identities/epoch fencing, pure reducer authority, owner-isolated queue seam and bounded persistence. Cancellation cannot undo a handed notice or Esc; uncertain effects remain warnings/recovery evidence, not grounds to suppress ordinary coordination forever.
+
+The new acceptance oracle is a disposable installed-Couch fleet with real Pair wrappers, admitted callers, public CLI ack, private state/queue roots, controlled checkpoint markers and rendered PTY evidence. It drives normal, fast, stuck queue, cancel and restart, plus quit/detach and cross-fixture isolation, before any further live run. Read-only exploration verified the early HoldDrain, all-wrapper revoke dependency, restored recovery hold, broad lifecycle guard and per-chip renderer causes. No product code, queue contract or real-fleet drain action changed in this re-plan. Await TL approval, then supported reopen/change-code, new tests/fixes, recorded suite and close; only then schedule a new watched live check before merge.
