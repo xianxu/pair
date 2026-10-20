@@ -16,6 +16,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # couch --drain [--fast]: a fleet-wide checkpoint-and-stop before a restart, with a drain board
