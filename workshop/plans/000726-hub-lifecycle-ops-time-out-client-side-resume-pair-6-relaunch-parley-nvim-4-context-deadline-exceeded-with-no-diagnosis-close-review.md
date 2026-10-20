@@ -690,3 +690,73 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T12:26:27-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 726 — Hub lifecycle ops time out client-side (resume pair:6, relaunch parley.nvim:4: 'context deadline exceeded') with no diagnosis |
+| repo | pair |
+| issue file | workshop/issues/000726-hub-lifecycle-ops-time-out-client-side-resume-pair-6-relaunch-parley-nvim-4-context-deadline-exceeded-with-no-diagnosis.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | ef60473186e47d986ec487a742718c7371ecdb76..5f7896c98dfe7ec731fe2b9770a4b84af2757560 |
+| command | sdlc close --issue 726 |
+| reviewer | codex (openai; author anthropic,openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T12:26:27-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff correctly registers an existing test as `local_or_literal_fixture` and records the completed review. The classification matches the test’s owned temporary filesystem setup. No production behavior, Spec, Done-when, or Plan scope changes occur in this window. No prior findings remain open.
+
+```findings
+{}
+```
+
+1. **Strengths**
+   - The inventory entry’s SHA-256 matches the complete test file.
+   - Filesystem setup uses `t.TempDir()/bin/sdlc`; inspection found no repository-source reads requiring scanner registration.
+   - Existing inventory validation remains intact.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+   - `ReaderInventoryTest.test_repository_inventory_and_fixed_preflight` passed.
+   - Running the real audit with the base inventory reproduced precisely the unmapped-reader failure; the head inventory passed.
+   - Range whitespace checks passed. Unchanged Go behavior was outside this narrow review.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** Reuses the existing inventory and audit.
+   - **ARCH-PURE — pass:** No business logic or IO boundaries change.
+   - **ARCH-PURPOSE — pass:** The registration resolves the audit failure without weakening validation.
+   - **ARCH-EVOLVE — pass:** Adds an entry within the existing format; no reader or rewrite semantics change.
+   - No new architectural or user-facing surface requires atlas or README updates.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"63535977-524a-486d-a60f-1ba94452c311","repository":"github.com/xianxu/pair","issue_id":"000726","recipe":"fix-review","round":11,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/2e99e77304fa00fb","reviewed_head":"5f7896c98dfe7ec731fe2b9770a4b84af2757560","slot":"pair:2","requested_at":"2026-10-20T19:25:45.116895Z"},"phase":"finished","pid":98211,"started_at":"2026-10-20T19:25:45.208021Z","finished_at":"2026-10-20T19:26:26.9698Z","session_id":"01a15ac6-e071-72f3-8ad3-80e8ac7205e6","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.59676775s
+head: "5f7896c98dfe7ec731fe2b9770a4b84af2757560"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000411
