@@ -280,3 +280,83 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T10:15:50-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 727 — term wrapper: one unsafe cell kills the presenter ('unsafe cell 12'), and a 0x0 launch geometry exits: the operator's right pane died |
+| repo | pair |
+| issue file | workshop/issues/000727-term-wrapper-one-unsafe-cell-kills-the-presenter-unsafe-cell-12-and-a-0x0-launch-geometry-exits-the-operator-s-right-pane-died.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | cf7a473df1a2a5441eb065d5f3940f90c79cdd82..7bda7379dddfada81f0dd81cd502fecec5c74201 |
+| command | sdlc close --issue 727 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T10:15:50-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff correctly updates the exhaustive effect inventory without weakening admission checks or startup exemptions. Production behavior, Spec, Done-when, and implementation Plan remain unchanged. No new defects found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Previously accepted correction is unchanged; TestRecoveryOwnsInputPumpEnding passes.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The --no-focus correction is unchanged; TestNewTerminalRecreatesConfirmedAbsentPane passes.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Previously accepted native coverage remains unchanged and required by the scheduled runner; all eight runner proof tests pass. Native conformance was not rerun in this narrow review.
+```
+
+1. **Strengths**
+   - `effect_coverage_test.go:23` requires the existing `ctx` admission token for terminal creation.
+   - Renamed startup entries retain their exact exemptions.
+   - The tracker accurately records the outstanding full-suite requirement.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes:** The zellijreply package, focused recovery/focus regressions, eight native-runner proof tests, and whitespace checks passed. A temporary Go overlay restoring the base manifest reproduced all five expected classification failures. Checkout remains clean. Full suite not rerun.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** Updates the existing authoritative inventory.
+   - **ARCH-PURE — pass:** No business logic or IO boundary changes.
+   - **ARCH-PURPOSE — pass:** Repairs every stale or missing entry reported by the exhaustive check.
+   - **ARCH-EVOLVE — pass:** No persisted-format contract changes.
+
+   No new user-facing or architectural surface requires README or atlas updates.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"b5601226-9169-4860-8db0-285e81ee4121","repository":"github.com/xianxu/pair","issue_id":"000727","recipe":"fix-review","round":4,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/2b96cac31e037de8","reviewed_head":"7bda7379dddfada81f0dd81cd502fecec5c74201","slot":"pair:7","requested_at":"2026-10-20T17:14:49.873072Z"},"phase":"finished","pid":35561,"started_at":"2026-10-20T17:14:50.051299Z","finished_at":"2026-10-20T17:15:49.49033Z","session_id":"01a15a4f-04ba-7080-830e-e11d056f8ef5","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.153221458s
+head: "7bda7379dddfada81f0dd81cd502fecec5c74201"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
