@@ -16,6 +16,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "6d428b55", done: "a39fa4db"}
 ---
 
 # landing: pilot landing trains in pair (60-minute interval)
