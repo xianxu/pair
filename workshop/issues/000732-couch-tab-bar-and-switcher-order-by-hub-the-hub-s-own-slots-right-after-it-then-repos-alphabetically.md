@@ -7,7 +7,7 @@ created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '89a7ec7662ef662bec7ae305287f1f96685733b7' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '58977aa7ff58aaafea2d4591a692aa30d938a51b' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T10:15:12-07:00
 claimant:
     operator: Xian Xu
@@ -17,7 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "0dd72e62", done: "fe5614c4"}
-actual_hours: 0.49
+actual_hours: 1.84
 ---
 
 # couch: tab bar and switcher order: by hub, the hub's own slots right after it, then repos alphabetically
