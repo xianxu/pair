@@ -199,7 +199,7 @@ func TestResumeCandidatesCLIIncompleteScanSparesTheConfirmedChoice(t *testing.T)
 		*response.(*couchmessage.Response) = couchmessage.Response{Code: "ok", RecoveryPreview: &couchcore.RecoveryPreview{Incomplete: true, Proven: &couchcore.RecoveryChoice{Label: "Resume from disk (confirmed)", Agent: "codex", NativeID: "proven-native"}}}
 		return nil
 	})
-	if code != 0 || !strings.Contains(out.String(), "affects only the inferred choices") {
+	if code != 0 || !strings.Contains(out.String(), "comes from the established binding, not from this scan") {
 		t.Fatalf("code=%d output=%s diagnostic=%s", code, &out, &diagnostic)
 	}
 }

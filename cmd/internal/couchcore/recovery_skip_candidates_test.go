@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -121,4 +122,60 @@ func TestPreparedRecoveryScansCandidatesOnlyForAnInferredChoice(t *testing.T) {
 			t.Fatalf("inferred observations %v", *asked)
 		}
 	})
+}
+
+// TestRecoverySkipCandidatesOnAnOversizedNativeStore is the plan's acceptance
+// fixture (pair#726 M2): a native store over the metadata entry cap with a
+// matching transcript whose one record exceeds the record limit, the shape of
+// pair:6's "session inventory read exceeds limit". The full read pays for the
+// transcript and reports the scan incomplete; the skip reads no native byte,
+// counted through the reader's own BytesRead.
+func TestRecoverySkipCandidatesOnAnOversizedNativeStore(t *testing.T) {
+	reader, record := recoveryEvidenceFixture(t, true)
+	record.WorkingPath, _ = filepath.EvalSymlinks(record.WorkingPath)
+	native := filepath.Join(reader.HomeDir, ".codex", "sessions", "2026", "10", "15")
+	if err := os.MkdirAll(native, 0700); err != nil {
+		t.Fatal(err)
+	}
+	filler := filepath.Join(reader.HomeDir, ".codex", "sessions", "2026", "10", "14")
+	if err := os.MkdirAll(filler, 0700); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i <= sessioninventory.RecoveryMetadataLimit; i++ {
+		if err := os.WriteFile(filepath.Join(filler, fmt.Sprintf("note-%05d", i)), nil, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	const id = "019d3333-3333-7333-8333-333333333333"
+	stamp := time.Now().UTC().Add(-time.Minute).Format(time.RFC3339Nano)
+	huge := strings.Repeat("x", sessioninventory.RecoveryRecordLimit+1)
+	raw := fmt.Sprintf("{\"timestamp\":%q,\"type\":\"session_meta\",\"payload\":{\"id\":%q,\"source\":\"cli\",\"cwd\":%q}}\n{\"timestamp\":%q,\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":%q}]}}\n", stamp, id, record.WorkingPath, stamp, huge)
+	if err := os.WriteFile(filepath.Join(native, "rollout-2026-10-15T00-00-00-"+id+".jsonl"), []byte(raw), 0600); err != nil {
+		t.Fatal(err)
+	}
+	observedAt := time.Now().UTC()
+	full, err := reader.ReadRequest(context.Background(), record, RecoveryObservationRequest{ObservedAt: observedAt})
+	if err != nil {
+		t.Fatal(err)
+	}
+	skip, err := reader.ReadRequest(context.Background(), record, RecoveryObservationRequest{ObservedAt: observedAt, SkipCandidates: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !full.Incomplete {
+		t.Fatalf("control: the full read did not hit the limits (reasons %v)", full.Reasons)
+	}
+	if skip.Incomplete || len(skip.Ranked) != 0 {
+		t.Fatalf("skip touched the native store: incomplete=%v ranked=%d reasons=%v", skip.Incomplete, len(skip.Ranked), skip.Reasons)
+	}
+	screenOnly, err := reader.readScreen(context.Background(), record, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if skip.BytesRead != screenOnly.BytesRead {
+		t.Fatalf("skip read %d bytes, the screen alone is %d: native bytes were read", skip.BytesRead, screenOnly.BytesRead)
+	}
+	if full.BytesRead <= skip.BytesRead {
+		t.Fatalf("control: the full read counted %d bytes, no more than the skip's %d", full.BytesRead, skip.BytesRead)
+	}
 }

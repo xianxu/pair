@@ -196,20 +196,28 @@ func (r OSRecoveryEvidenceReader) ReadRequest(ctx context.Context, record Thread
 			out.Reasons = append(out.Reasons, "Previous screen expired")
 		}
 	}
-	if q.SkipCandidates {
-		if out.Source == nil {
-			if err := validateRecoveryCaptureSnapshot(ctx, out.Capture); err != nil {
-				out.Incomplete = true
-				out.Reasons = append(out.Reasons, err.Error())
-			}
-		}
+	if !q.SkipCandidates && !r.collectCandidates(ctx, record, &out) {
 		return out, nil
 	}
+	if out.Source == nil {
+		if err := validateRecoveryCaptureSnapshot(ctx, out.Capture); err != nil {
+			out.Ranked = nil
+			out.Incomplete = true
+			out.Reasons = append(out.Reasons, err.Error())
+		}
+	}
+	return out, nil
+}
+
+// collectCandidates runs the native transcript scan that ranks recovery
+// candidates. A direct Proven or Fresh selection skips it (pair#726). It
+// reports false when the native home is unavailable, which ends the read.
+func (r OSRecoveryEvidenceReader) collectCandidates(ctx context.Context, record ThreadRecord, out *RecoveryObservation) bool {
 	runtime, err := sessioninventory.NewNativeTranscriptRuntime(r.HomeDir, r.DataDir, sessioninventory.Agent(out.Agent), "", os.Getenv)
 	if err != nil {
 		out.Incomplete = true
 		out.Reasons = append(out.Reasons, "native transcript home unavailable; candidate scan incomplete")
-		return out, nil
+		return false
 	}
 	request := sessioninventory.RecoveryCollectRequest{Agent: sessioninventory.Agent(out.Agent), TargetCWD: record.WorkingPath, ProducingLaunch: out.producingLaunch, CapturedAt: &out.Capture.LastActivity, RenderedTail: out.renderedTail, TTYActivity: &out.Capture.LastActivity, BytesAlreadyRead: out.BytesRead}
 	if out.Source != nil {
@@ -221,14 +229,7 @@ func (r OSRecoveryEvidenceReader) ReadRequest(ctx context.Context, record Thread
 	evidence := sessioninventory.CollectRecoveryEvidence(ctx, runtime, request)
 	out.Ranked, out.Incomplete, out.BytesRead = evidence.Ranked, evidence.Incomplete, evidence.BytesRead
 	out.Reasons = append(out.Reasons, evidence.Reasons...)
-	if out.Source == nil {
-		if err := validateRecoveryCaptureSnapshot(ctx, out.Capture); err != nil {
-			out.Ranked = nil
-			out.Incomplete = true
-			out.Reasons = append(out.Reasons, err.Error())
-		}
-	}
-	return out, nil
+	return true
 }
 
 func (r OSRecoveryEvidenceReader) readScreen(ctx context.Context, record ThreadRecord, consumed int64) (RecoveryObservation, error) {
