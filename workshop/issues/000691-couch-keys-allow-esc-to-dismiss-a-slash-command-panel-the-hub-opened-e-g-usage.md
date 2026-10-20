@@ -16,7 +16,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "95149e21", done: "335291cf"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # couch --keys: allow Esc to dismiss a slash-command panel the hub opened (e.g. /usage)
@@ -80,6 +80,8 @@ ARCH-SECURE: the recognizer reads only the current viewport, so scrollback text 
 ## Log
 
 ### 2026-10-19
+- 2026-10-19: closed — Full suite green on 28bd9ba86 (sdlc-local/suite); 4675381be adds only a clarity edit and a comment, targeted agentdrive and wrapcmd drive tests green. Recognizer, wrapper and service tests run over the hub live Claude 2.1.304 /usage capture at 94x39; six mutations each turn red. --no-plan-check: the open Plan item is the hub post-merge live check (Revision BR-1). (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
+- 2026-10-19: flow upgraded quick → full — 133 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 - The hub's capture arrived (Claude 2.1.304, ariadne:5, 94x39). Footer `Esc to cancel`. It replaced the provisional fixture and exposed a recognizer bug: at 39 rows the earlier `❯ /usage` prompt row is visible above the panel, and the first recognizer rejected any `❯` row. Fix: the panel is the rows below the last full-width rule. Mutations: whole-viewport scan (red on the capture, agentdrive and wrapcmd) and no rule required (red on the no-rule negative).
 - The hub reported that the installed couch had admitted a bare `esc` while the panel showed. Replaying the wrapper recording `scrollback-1-ariadne-46-claude.raw` (94x39, build a040b13ba, drive code identical to main) disproved it. On the panel frame the composer is unknown, so the screen is neither idle nor recoverable. The minute-debounced time events (16:57:33, then 16:58:57) put the dismissal redraw before 16:58:33. The only output at 16:58:57 is a small later frame, Claude's response to Esc on an empty composer, which is what the hub's `--keys esc` confirmed. The hub agreed (the operator likely pressed Esc). Scope unchanged.
