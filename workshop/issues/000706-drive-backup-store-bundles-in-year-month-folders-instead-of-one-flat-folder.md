@@ -104,6 +104,11 @@ total: 4.73
 
 - Parent review also found conformance-only empty root IDs were not normalized before recorded-location restore. A focused runner strips only resolution IDs; regression RED was a false binding-change refusal. Normalization now matches upload/index fallback identity, only in LocalConformance with no ID. Focused restore regressions pass (2.019s); production Drive identity requirements remain unchanged.
 
+- Candidate PR #490 opened. Built clean in :6 at 301bd9c14d3845c1540e93de2f80febbf8c18677; bin/pair embedded vcs.revision matches and vcs.modified=false. No :0 or operator runtime changes. Final artifactpath/repolint pass; pure layout fuzz passed 10926 executions and folder-event fuzz passed 87231 executions (3s each, parallel 2).
+- Started recorded suite attempt 9ec35740f7e8bf2624140cf43048b1ab on pushed candidate; it waits in normal FIFO (initial position 7), with its original runner retained. No competing suite or priority request. PR local-gates checks pass; no gate files changed.
+- Operator readiness/checklist report submitted to hub (receipt 04aaef1a-01bd-4242-85d2-40f82bd83029). Hub confirms real-Drive upload/retry + root/month restore is queued in an operator side doc and will relay results. M2/whole close and landing wait for that required acceptance and the recorded suite.
+- Hub cefa70f8-7f47-4e03-98dc-b04d217b0e3c confirmed #699 landed and authorized removing the obsolete workflow stash. Inspected its complete names/patch: only .github/workflows/local-gates-guard.yml and merge-check.yml. Verified timestamp-qualified reflog identity and dropped exactly cf709527564ea17b03504c0fb767c56a76d70504; no unrelated stash touched or workflow applied.
+
 ## Revisions
 
 ### 2026-10-19 — Make dual-layout execution and scope explicit
