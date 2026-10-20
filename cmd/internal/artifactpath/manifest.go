@@ -823,6 +823,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/recovery_prepared.go",
 	"cmd/internal/couchcore/recovery_start_fence.go",
 	"cmd/internal/couchcore/recovery_key.go",
+	"cmd/internal/couchcore/recovery_choice_json.go",
 	"cmd/internal/couchcore/recovery_preview.go",
 	"cmd/internal/couchcore/recovery_conversation_in_use.go",
 	"cmd/internal/couchcore/recovery_slot_tree.go",
@@ -837,6 +838,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/sessioninventory/recovery_filemeta_linux.go",
 	"cmd/internal/sessioninventory/recovery_filemeta_other.go",
 	"cmd/internal/sessioninventory/recovery_match.go",
+	"cmd/internal/threadrecord/recovery_source_json.go",
 	"cmd/internal/sessioninventory/recovery_os.go",
 
 	"cmd/internal/osfs/metadata_read.go",
@@ -898,6 +900,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/terminalcapture/recorder.go",
 	// #708 optional scratch storage and native namespace policy, outside Pair artifacts.
 	"cmd/internal/couchscratch/policy.go",
+	"cmd/internal/couchscratch/optin.go",
 	"cmd/internal/couchscratch/age.go",
 	"cmd/internal/couchscratch/manager.go",
 	"cmd/internal/couchscratch/os.go",
@@ -1358,6 +1361,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/git_fake.go",
 	"cmd/internal/couchcore/launchhelper.go",
 	"cmd/internal/couchcore/launch_existing.go",
+	"cmd/internal/couchcore/recovery_launch_disposition.go",
+	"cmd/internal/couchcore/lifecyclefailure_address.go",
 	"cmd/internal/couchcore/launchprofile.go",
 	"cmd/internal/couchcore/layout.go",
 	"cmd/internal/couchcore/lifecycledebris.go",

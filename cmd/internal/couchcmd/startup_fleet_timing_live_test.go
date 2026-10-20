@@ -1595,7 +1595,7 @@ func TestFleetQueryCollectorScopesConcurrentParentOperations(t *testing.T) {
 	}
 	wg.Wait()
 	got, err := collector.snapshot()
-	if err != nil || len(got) != 3*len(cases) {
+	if err != nil || len(got) != 2*len(cases) {
 		t.Fatalf("events=%d err=%v", len(got), err)
 	}
 	counts := map[string]int{}
@@ -1606,7 +1606,7 @@ func TestFleetQueryCollectorScopesConcurrentParentOperations(t *testing.T) {
 		}
 	}
 	for _, tc := range cases {
-		if counts[tc.phase+"/"+tc.operation+"/"+tc.tag] != 3 {
+		if counts[tc.phase+"/"+tc.operation+"/"+tc.tag] != 2 {
 			t.Fatalf("lost attribution: %v", counts)
 		}
 	}

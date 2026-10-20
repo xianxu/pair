@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"slices"
 	"strings"
 	"testing"
@@ -116,5 +117,34 @@ func TestHealthyRelaunchKeepsExistingConfirmation(t *testing.T) {
 		if state.CurrentFrame().Kind != MenuFrameConfirmation || state.CurrentFrame().Action != "relaunch" || len(effects) != 0 {
 			t.Fatalf("healthy relaunch changed: %+v %+v", state.CurrentFrame(), effects)
 		}
+	}
+}
+
+func TestRecoveryMenuNativeOnlyUnconfirmedEvidence(t *testing.T) {
+	activity := time.Date(2026, 10, 19, 10, 12, 0, 0, time.UTC)
+	for _, key := range []string{"v2.exact", ""} {
+		t.Run(key, func(t *testing.T) {
+			frame := MenuFrame{RecoveryPreview: &couchcore.RecoveryPreview{Candidates: []couchcore.RecoveryChoice{{SourceKind: sessioninventory.RecoverySourceNative, Key: key, Label: "Resume native transcript", Agent: "codex", NativeID: "native-id", CWD: "/physical/repo\x1b]0;hostile\x07", LastActivity: activity}}, Reasons: []string{"Screen unavailable: capture missing"}, Fresh: &couchcore.RecoveryChoice{Label: "Start fresh"}}}
+			rendered := strings.Join(renderRecoveryMenu(frame, 240, 30), "\n")
+			for _, want := range []string{"unconfirmed", "physical cwd /physical/repo", "native activity " + activity.Local().Format("2006-01-02 15:04 MST"), "native-id", "Screen unavailable: capture missing"} {
+				if !strings.Contains(rendered, want) {
+					t.Fatalf("missing %q: %s", want, rendered)
+				}
+			}
+			for _, unwanted := range []string{"best ·", "tail ", "matched ", "0%", "\x1b", "\x07"} {
+				if strings.Contains(rendered, unwanted) {
+					t.Fatalf("misleading/unsafe %q: %s", unwanted, rendered)
+				}
+			}
+		})
+	}
+}
+
+func TestRecoveryMenuRetainsPartialScreenActivity(t *testing.T) {
+	activity := time.Date(2026, 10, 19, 11, 12, 0, 0, time.UTC)
+	frame := MenuFrame{RecoveryPreview: &couchcore.RecoveryPreview{Screen: couchcore.ScreenObservation{Availability: couchcore.ScreenUnavailable, Reason: "Capture missing", LastActivity: activity, ActivitySource: "capture-file activity\x1b]0;unsafe\x07"}, Reasons: []string{"Capture missing"}}}
+	text := strings.Join(renderRecoveryMenu(frame, 240, 30), "\n")
+	if !strings.Contains(text, "capture-file activity") || !strings.Contains(text, activity.Local().Format("2006-01-02 15:04 MST")) || strings.Count(text, "Capture missing") != 1 || strings.ContainsAny(text, "\x1b\x07") {
+		t.Fatalf("partial screen fact lost or unsafe: %s", text)
 	}
 }

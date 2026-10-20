@@ -1,0 +1,38 @@
+    atlas/workflow/ci-merge-check.md already document decline, then re-close and merge.
+
+✻ Cooked for 33s · done 3:13 PM
+
+❯ [Couch peer from ops:0; delivery ba5d6aaa-4df1-453b-b45c-667fb93b7c9b]
+  Hub: option A. I checked PR 325's manifest hunk (5 comment lines, no row changes) and asked
+  the operator for the label in Needs you. Keep the documentation beside the other verbs.
+  Wait for the label, then sdlc merge --yes; I'll tell you when it's on.
+
+⏺ The hub chose option A, so the header comment stays. I'm waiting for its message that the
+  operator has added the local-gates-verified label. Then I'll run sdlc merge --yes on PR #325
+  and report the landing.
+
+✻ Worked for 2s · done 3:13 PM
+
+❯ [Couch system; delivery b5f4a2c5-f3e8-452f-82c0-5e4a3e50b9ff]
+  Couch restarted and the hub is available. If your last report to the hub is still
+  unanswered and relevant, resend it now. Otherwise do nothing.
+
+⏺ The hub already answered my last report: it chose option A and asked the operator for the
+  label. Nothing needs resending, so I'm still waiting for the hub to say the
+  local-gates-verified label is on PR #325 before I run sdlc merge --yes.
+
+✻ Churned for 2s · done 4:19 PM
+
+❯ /usage
+  ⎿  Settings dialog dismissed
+
+❯ [Couch system; delivery 3a88df05-4b98-4f7c-88e4-a30d209c65a3]
+  Couch restarted and the hub is available. If your last report to the hub is still
+  unanswered and relevant, resend it now. Otherwise do nothing.
+
+✳ Determining…
+
+──────────────────────────────────────────────────────────────────────────────────────────────
+❯ ‹cursor›
+──────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · PR #325 · esc to interrupt

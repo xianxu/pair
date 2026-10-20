@@ -213,8 +213,9 @@ func TestRecoveryReadRejectsWrongWitnessFileAndForeignEvents(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if _, err := reader.Read(context.Background(), record); err == nil {
-			t.Fatal("accepted mismatched source authority")
+		got, err := reader.Read(context.Background(), record)
+		if err != nil || got.Screen.Availability != ScreenUnavailable || got.Source == nil || got.Source.LaunchHint != nil || len(got.Ranked) != 0 {
+			t.Fatalf("mismatched screen gained source authority or hid native scan: %+v %v", got, err)
 		}
 	}
 }

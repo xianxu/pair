@@ -10,6 +10,31 @@ from `/Volumes`, with at least 2 GiB available. `Manager.PrepareSlot` creates a
 CLAUDE_CODE_TMPDIR. Missing/full/unwritable scratch preserves inherited temp
 settings. Durable Pair state and Go caches keep their existing destinations.
 
+Before preparing a slot, `couchscratch.ChooseSlotScratch` requires the operator's
+persistent setup declaration (#720). Create a regular file at
+`$XDG_CONFIG_HOME/pair/sandbox-allowed`, or
+`$HOME/.config/pair/sandbox-allowed` when XDG_CONFIG_HOME is unset, only
+after configuring the agents' sandbox allowances for TestScratch. Its contents
+are ignored. The marker survives RAM-disk recreation. Remove it to stop future
+optional exports; running children retain their environment until relaunched.
+
+Couch checks the marker with a read-only stat and keeps the existing mount,
+space, ownership and write checks. It does not interpret Claude or Codex
+settings. A successful host write alone cannot authorize the export. A missing,
+unobservable or non-regular declaration keeps normal temp and emits one note
+naming the marker. The declaration is an operator promise, not proof: creating
+it without configuring allowances can still cause sandboxed builds to fail.
+Correct the setup and relaunch in that case.
+
+`couch --show` includes `scratch: RAM disk` or a normal-temp reason, explicitly
+labelled **current launch selection**. This read-only view shares admission;
+it does not inspect an existing child's environment or create scratch. The
+check runs on launch or explicit show, with no settings reads, cache or worker.
+Isolated Couch rejects declaration paths outside its private root. Fixture
+acceptance covers a writable host without a marker, marker lifecycle, XDG
+routing, launch overlays and effect-free show. Live follow-up rides a natural
+relaunch after the operator creates the marker.
+
 Admission checks availability before identity lookup and falls back immediately
 if maintenance holds the manager. Owner-index locking is also nonblocking. The
 launch context bounds retained lookup and the first-workspace fallback together.

@@ -2,7 +2,6 @@ package launcher
 
 import (
 	"fmt"
-	"github.com/xianxu/pair/cmd/internal/zellijsession"
 	"io"
 
 	"github.com/xianxu/pair/cmd/internal/textwidth"
@@ -60,7 +59,7 @@ func runList(rt Runtime, stdout, stderr io.Writer) int {
 	return 0
 }
 
-func buildListRowsForScope(names []string, raw string, index SessionNameIndex, scopeKey string, inferAgent func(string) string, clientCount func(string) int) []ListRow {
+func buildListRowsForScope(names []string, exitedByName map[string]bool, index SessionNameIndex, scopeKey string, inferAgent func(string) string, clientCount func(string) int) []ListRow {
 	rows := make([]ListRow, 0, len(names))
 	for _, name := range names {
 		tag := ""
@@ -75,7 +74,7 @@ func buildListRowsForScope(names []string, raw string, index SessionNameIndex, s
 			tag, _ = TagForSessionName(index, name)
 		}
 		row := ListRow{Session: name, Agent: inferAgent(tag), State: SessionDetached}
-		if _, exited := zellijsession.RowState(raw, name); exited {
+		if exitedByName[name] {
 			row.State = SessionExited
 		} else if row.Clients = clientCount(name); row.Clients > 0 {
 			row.State = SessionAttached

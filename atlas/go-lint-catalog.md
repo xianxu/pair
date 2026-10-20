@@ -60,6 +60,18 @@ This rule uses the shared `golint.Check` finding and suppression behavior above.
 the exact existing sleep debt. `TestWrapperChildReleaseRule` exercises both
 positive and negative examples through the actual repository scanner.
 
+## Diagnostic address composition (#714)
+
+The local single-file rule `lifecycle-failure-address`, owned by
+`internal/repolint/lifecycle_failure_address_rule_test.go`, protects the three
+diagnostic composition owners in `couchcore`: `lifecycleFailureTargetForCall`,
+`OperationAttempt.ObserveCall` and `lifecycleFailureForAttempt`. Address writes
+there use `completeFailureAddress`; whole-address overwrites, direct zero erasure
+and fieldwise scope/tag changes can discard or mix the exact launch identity.
+The rule uses the same composed catalog, shared checker and reasoned suppression
+contract as `wrapper-child-release`. Ordinary validated record copies elsewhere
+stay outside its scope; the upstream catalog and sleep matcher are unchanged.
+
 ## Pair native fixture roots (#666)
 
 The same repository lint test also runs the Pair-local cross-file rule

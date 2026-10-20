@@ -27,6 +27,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 	"github.com/xianxu/pair/cmd/internal/testwait"
+	"github.com/xianxu/pair/cmd/internal/threadrecord"
 )
 
 // Only the original helper uses an OS PID. Replacement terminals remain the
@@ -607,4 +608,126 @@ func runInteractiveRecoveryConsole(t *testing.T, console *couchtty.Console, c *c
 		}
 	}
 	fmt.Fprintln(os.Stderr, "Disposable recovery UI closed; fixture resources will be removed.")
+}
+
+// This deliberately keeps the evidence callbacks installed by run.go. Only
+// terminal/process effects use the existing portable acceptance fakes.
+func TestRecoveryNativeOnlyProductionComposition(t *testing.T) {
+	base := isolatedCouchTestEnvironment(t)
+	t.Setenv("CODEX_HOME", "")
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(base, "unused-claude"))
+	t.Setenv("GEMINI_CLI_HOME", filepath.Join(base, "unused-gemini"))
+	t.Setenv("COUCH_LIFECYCLE_NOTICES", "off")
+	repo := filepath.Join(base, "repo")
+	for _, args := range [][]string{{"init", "-q", "-b", "main", repo}, {"-C", repo, "-c", "user.name=Recovery Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--allow-empty", "-qm", "source"}} {
+		cmd := exec.Command("git", args...)
+		cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git fixture: %v %s", err, out)
+		}
+	}
+	rt, lease, err := (OSRuntime{}).prepareSingleton(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lease.Close()
+	ns, err := rt.ResolveNamespace()
+	if err != nil {
+		t.Fatal(err)
+	}
+	runner := couchcore.NewFakeRunner()
+	c, err := rt.NewCouchWith(runner, ns)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A distinct clock proves production passes the request's observation time
+	// through to the reader, rather than silently replacing it with wall time.
+	now := time.Now().UTC().Add(time.Hour)
+	c.Clock = couchcore.FixedClock{T: now}
+	fake := newRT(t, repo)
+	c.Proc = fake.proc
+	c.Artifacts = fake.artifacts
+	c.RecoveryTerminal = nil
+	c.RecoveryRetirement = nil
+	c.Workspaces = provisionFunc(func(context.Context, couchcore.ProvisionRequest) (couchcore.ProvisionResult, error) {
+		return couchcore.ProvisionResult{SchemaVersion: 1, Address: "fixture:0", Path: repo, Disposition: "reused"}, nil
+	})
+	scope, err := launcher.ResolveRepoScope(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile := couchcore.LaunchProfile{Agent: "codex", Argv: []string{"--model", "saved-model"}}
+	record, err := c.Threads.CreateThread(couchcore.ThreadRecord{SchemaVersion: couchcore.ThreadSchemaVersion, Address: couchcore.ThreadAddress{RepoScope: scope.Key, Tag: "couch-7210721072107210"}, StartingPath: repo, WorkingPath: repo, CreatedAt: now.Add(-time.Hour), Revision: 1, LatestLaunchProfile: &profile, Incarnations: []couchcore.ThreadIncarnation{{PID: 42, Identity: "dead-original", State: couchcore.IncarnationLive, LaunchProfile: &profile}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fake.artifacts.SetSessionPresence(record.Address, couchcore.SessionObservation{State: couchcore.SessionAbsent})
+	fake.artifacts.SetPairSession(record.Address, "old-session", false)
+	native := filepath.Join(rt.Getenv("HOME"), ".codex", "sessions", "2026", "10", "15")
+	if err := os.MkdirAll(native, 0700); err != nil {
+		t.Fatal(err)
+	}
+	const id = "019d1111-1111-7111-8111-111111111111"
+	stamp := now.Add(-time.Minute).Format(time.RFC3339Nano)
+	raw := fmt.Sprintf("{\"timestamp\":%q,\"type\":\"session_meta\",\"payload\":{\"id\":%q,\"source\":\"cli\",\"cwd\":%q}}\n", stamp, id, repo)
+	raw += fmt.Sprintf("{\"timestamp\":%q,\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"native context\"}]}}\n", stamp)
+	if err := os.WriteFile(filepath.Join(native, "rollout-2026-10-15T00-00-00-"+id+".jsonl"), []byte(raw), 0600); err != nil {
+		t.Fatal(err)
+	}
+	target := couchcore.ResumeTarget{Address: record.Address}
+	preview, err := c.ResumeCandidates(context.Background(), target)
+	if err != nil || preview.Incomplete || preview.Automatic || preview.Proven != nil || len(preview.Candidates) != 1 || preview.Snapshot == nil || preview.Snapshot.Source == nil || !preview.Snapshot.Source.Cutoff.Equal(now) || preview.Snapshot.Source.Kind != sessioninventory.RecoverySourceNative {
+		t.Fatalf("production native preview=%+v err=%v", preview, err)
+	}
+	listed, err := c.Threads.GetThread(record.Address)
+	if err != nil || listed.Revision != record.Revision || len(runner.Ops) != 0 {
+		t.Fatalf("listing changed lifecycle: record=%+v runner=%v err=%v", listed, runner.Ops, err)
+	}
+	runner.AfterAcknowledge = func(child string) error {
+		current, err := c.Threads.GetThread(record.Address)
+		if err != nil {
+			return err
+		}
+		fake.artifacts.SetPaneSidecar(record.Address, "codex")
+		fake.artifacts.SetPairSession(record.Address, managedChildSession(t, runner, child), true)
+		fake.artifacts.SetSessionPresence(record.Address, couchcore.SessionObservation{State: couchcore.SessionPresent})
+		if len(current.Incarnations) != 1 || current.Incarnations[0].Start == nil {
+			return fmt.Errorf("missing durable start")
+		}
+		var launch launcher.TrustedLaunchProfile
+		for _, entry := range runner.Child(child).Env {
+			if strings.HasPrefix(entry, launcher.CouchLaunchProfileEnv+"=") {
+				if err := json.Unmarshal([]byte(strings.TrimPrefix(entry, launcher.CouchLaunchProfileEnv+"=")), &launch); err != nil {
+					return err
+				}
+			}
+		}
+		if err := launcher.ValidateTrustedLaunchProfile(launch); err != nil {
+			return err
+		}
+		if launch.Recovery == nil || !launch.ResumeRequired || launch.FreshRequired || launch.RequiredSessionID != id || launch.Prompt != "" || !reflect.DeepEqual(launch.Argv, profile.Argv) || launch.Recovery.Intent.Context.SourceKind() != sessioninventory.RecoverySourceNative {
+			return fmt.Errorf("native choice changed at launch: %+v", launch)
+		}
+		return nil
+	}
+	c.FreshRegistration = func(context.Context, couchcore.ThreadAddress, string, string) (bool, error) { return true, nil }
+	result, err := c.ResumeCandidate(context.Background(), target, preview.Candidates[0].Key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	start, ok := result.Started()
+	if !ok {
+		t.Fatal("native recovery did not start")
+	}
+	t.Cleanup(func() { runner.SetExited(start.Handle.ID(), 0) })
+	current, err := c.Threads.GetThread(record.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.Transcript != nil {
+		t.Fatal("unconfirmed choice manufactured transcript binding")
+	}
+	if current.RecoveryContext != nil && current.RecoveryContext.Capture != (threadrecord.RecoveryCapture{}) {
+		t.Fatal("native recovery manufactured screen")
+	}
 }

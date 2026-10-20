@@ -23,6 +23,7 @@ type SlotReport struct {
 // ShowResult is couch --show's answer: the matching threads, and the slot's
 // report when the reference names a :1+ slot (with or without a thread).
 type ShowResult struct {
+	Scratch            []string `json:",omitempty"`
 	LaunchFailures     []LaunchFailure
 	LaunchFailureError string
 	Threads            []ThreadSummary

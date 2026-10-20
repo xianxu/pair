@@ -136,7 +136,7 @@ func TestFreshProjectionSurvivesIncompleteOrMissingScreen(t *testing.T) {
 func TestResumeCandidatesReadFailureStillProjectsFresh(t *testing.T) {
 	f := newRecoveryExecutionFixture(t)
 	calls := 0
-	f.Couch.RecoveryEvidence = func(context.Context, ThreadRecord) (RecoveryObservation, error) {
+	f.Couch.RecoveryEvidence = func(context.Context, ThreadRecord, RecoveryObservationRequest) (RecoveryObservation, error) {
 		calls++
 		return RecoveryObservation{}, errors.New("unreadable capture")
 	}

@@ -956,7 +956,7 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 		return s.handleAgentSwitch(ctx, request)
 	case couchmessage.IsSubmissionOp(request.Op):
 		return s.handleSubmission(ctx, request)
-	case request.Op == "keys" || request.Op == "set-model":
+	case couchmessage.IsDriveOp(request.Op):
 		return s.handleAgentDrive(ctx, request)
 	case request.Op == "recovery-confirmation" || couchcore.IsSlotOperation(request.Op) || request.Op == "operation-status":
 		return s.handleSlotOperation(ctx, request)
@@ -969,13 +969,15 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 	}
 	if request.Binding == nil && couchmessage.ValidateRequest(request) == nil {
 		binding, err := s.broker.Caller(request.Scope, request.Tag, request.Session, request.Nonce)
+		phase := "caller lookup"
 		// A send acts as this caller, so it proves the caller current; the
 		// cheap check spawns nothing.
 		if err == nil && request.Op == "send" {
+			phase = "caller " + binding.Slot + " current"
 			_, err = s.authority.current(ctx, binding)
 		}
 		if err != nil {
-			return couchmessage.Response{Code: "unavailable", Error: err.Error()}
+			return couchmessage.Response{Code: "unavailable", Error: phase + ": " + err.Error()}
 		}
 		if request.Op == "send" {
 			if c := s.supervision.Load(); c != nil {
@@ -1025,7 +1027,7 @@ func (s *messageService) hubRecipient(from couchmessage.Binding) (string, *couch
 				detail = "the hub isn't connected: no live wrapper in " + s.authority.owner(identity)
 			}
 		}
-		return "", &couchmessage.Response{Code: "unavailable", Error: detail}
+		return "", &couchmessage.Response{Code: "unavailable", Error: "recipient hub lookup: " + detail}
 	}
 	if hub.Slot == from.Slot {
 		return "", &couchmessage.Response{Code: "refused", Error: "you are the hub (" + hub.Slot + "): a message to hub would reach your own slot"}
