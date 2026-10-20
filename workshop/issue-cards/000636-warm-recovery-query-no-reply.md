@@ -25,6 +25,7 @@ tracker:
             repository: github.com/xianxu/pair
         branch: 000636-warm-recovery-query-no-reply
         head: d07b94ebdbebb83dc9ac004be899efe9ed4579a1
+flake_tests: [github.com/xianxu/pair/cmd/internal/couchcore.TestRecoveryRealHelperAndSessionConformanceLive/warm]
 ---
 
 # Warm recovery live conformance intermittently receives no Zellij query reply
