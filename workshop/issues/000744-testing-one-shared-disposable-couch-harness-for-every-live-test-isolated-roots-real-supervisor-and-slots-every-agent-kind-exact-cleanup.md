@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
-estimate_hours:
+estimate_hours: 8.337
 collaboration-mode: collaboration
-card_mirror: '0b0fbb168e6a61e651b7fbfb402464e2c3223a43' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'a6df4fea1bea2d49afe5ef94de0bb53eca2a832d' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T14:46:17-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # testing: one shared disposable-Couch harness for every live test (isolated roots, real supervisor and slots, every agent kind, exact cleanup)
@@ -50,6 +51,34 @@ Normal tests qualify pure confinement/ownership/agent reducers with stateful pro
 - [ ] Implement confinement and owned lifecycle plus deterministic agent/CLI protocol with focused adversarial tests.
 - [ ] Compose real provisioning/native runtime, then qualify the first shared-helper consumer and audit source-reader/artifact ownership.
 - [ ] Document and run required checks, close and land. Resume #722 only after this issue is on main.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. The calibration source is marked stale by estimate-source; values are provisional ship wall-clock, not a deadline.
+
+Decomposition: issue/spec shaping; root guard/environment; ownership reducer; Claude/Codex fixture paint/transcripts; correlated control protocol; candidate build/provisioning adapter; native fleet/actor adapter; exact cleanup adapter; qualification consumer; isolated transport seam; atlas/inventory work; one close review; three external API discovery units (Zellij, SDLC/Weave provisioning, native transcript/resume). Existing testpair, procutil, terminal, captures and provisioning contracts avoid greenfield library work. Design uses the thorough-plan ×0.2 discount on implementation components, plus a 15% buffer. Impl values are already v3.1's 40% scale. Familiarity 1.5 reflects native but bounded integration; do not apply another implementation scale.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.5
+item: issue-spec design=0.5 impl=0.08
+item: smaller-go-module design=0.06 impl=0.2
+item: greenfield-go-module design=0.2 impl=0.32
+item: tui-screen design=0.2 impl=0.4
+item: smaller-go-module design=0.06 impl=0.2
+item: api-integration design=0.2 impl=0.6
+item: api-integration design=0.3 impl=0.6
+item: api-integration design=0.3 impl=0.6
+item: smaller-go-module design=0.06 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0 impl=0.2
+item: real-api-discovery design=0 impl=0.36
+design-buffer: 0.15
+total: 8.337
+```
+
+Design 1.98 ×1.15 + impl 4.04 ×1.5 = 8.337 hours. Setup/runtime/cleanup budgets in the plan are separate resource limits, not estimates.
 
 ## Log
 
