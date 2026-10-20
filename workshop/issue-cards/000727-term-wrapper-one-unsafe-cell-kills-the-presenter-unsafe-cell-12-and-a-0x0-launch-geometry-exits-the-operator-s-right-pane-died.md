@@ -1,6 +1,6 @@
 ---
 id: 000727
-status: codecomplete
+status: done
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours: 1.98
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 0bb089faf0a0ecff33e26ab5868dd1d0817f7406
         evidence_commit: 1848aa06ee45c86f47d3d3ddd894882e383b5360
+        landed_commit: e7727b341be4bcc53acfdf85a572266b02d95f13
 ---
 
 # term wrapper: one unsafe cell kills the presenter ('unsafe cell 12'), and a 0x0 launch geometry exits: the operator's right pane died
