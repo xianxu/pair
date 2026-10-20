@@ -63,6 +63,19 @@ type RecoveryCandidate struct {
 	Eligible             bool                       `json:"eligible"`
 }
 
+// InventoryEntry restores the exact persisted fingerprint for bounded native
+// revalidation. It does not resolve or authorize the artifact's storage root.
+func (c RecoveryCandidate) InventoryEntry() sessioninventory.FileEntry {
+	return sessioninventory.FileEntry{
+		Artifact:        sessioninventory.Artifact{StorageRoot: c.ArtifactRoot, RelativePath: c.ArtifactRelativePath},
+		StableFileID:    sessioninventory.StableFileID(c.StableFileID),
+		GenerationToken: sessioninventory.GenerationToken(c.GenerationToken),
+		MutationToken:   sessioninventory.MutationToken(c.MutationToken),
+		Size:            c.Size,
+		ModTime:         &c.ModTime,
+	}
+}
+
 type RecoveryContext struct {
 	Source           *NativeRecoverySource      `json:"source,omitempty"`
 	Unknown          map[string]json.RawMessage `json:"-"`

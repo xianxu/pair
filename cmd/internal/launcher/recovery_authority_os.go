@@ -172,7 +172,7 @@ func (r OSRuntime) ValidateRecoveryAuthority(ctx context.Context, a RecoveryAuth
 			if selected == nil || selected.Agent != agent {
 				return errors.New("recovery native selection changed")
 			}
-			entry := sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: selected.ArtifactRoot, RelativePath: selected.ArtifactRelativePath}, StableFileID: sessioninventory.StableFileID(selected.StableFileID), GenerationToken: sessioninventory.GenerationToken(selected.GenerationToken), MutationToken: sessioninventory.MutationToken(selected.MutationToken), Size: selected.Size, ModTime: &selected.ModTime}
+			entry := selected.InventoryEntry()
 			c := a.Intent.Context
 			var cutoff time.Time
 			if c.SourceKind() == sessioninventory.RecoverySourceNative {

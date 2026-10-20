@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -131,6 +132,7 @@ func TestRecoveryNativeOnlySelectionCarriesCutoffAndPreservesNoScreen(t *testing
 	source := &threadrecord.NativeRecoverySource{Kind: sessioninventory.RecoverySourceNative, Cutoff: f.Now, Revision: f.record.Revision}
 	f.observation.Source = source
 	f.observation.Ranked[0].Score = sessioninventory.RecoveryTailScore{}
+	installNativeRecoveryVerifier(f)
 	key := f.preview(t).Candidates[0].Key
 	f.Runner.BeforeAcknowledge = func(string) error {
 		current, err := f.Couch.Threads.observeSlotCurrent()
@@ -192,6 +194,7 @@ func TestRecoveryNativeOnlyInterruptedRetirementKeepsSnapshot(t *testing.T) {
 	f.observation.Generation = ""
 	f.observation.Source = &threadrecord.NativeRecoverySource{Kind: sessioninventory.RecoverySourceNative, Cutoff: f.Now, Revision: f.record.Revision}
 	f.observation.Ranked[0].Score = sessioninventory.RecoveryTailScore{}
+	installNativeRecoveryVerifier(f)
 	key := f.preview(t).Candidates[0].Key
 	interrupted := errors.New("retirement interrupted")
 	retired := 0
@@ -226,6 +229,7 @@ func TestRecoveryNativeOnlyStaleChoiceHasNoEffects(t *testing.T) {
 			f.observation.Generation = ""
 			f.observation.Source = &threadrecord.NativeRecoverySource{Kind: sessioninventory.RecoverySourceNative, Cutoff: f.Now, Revision: f.record.Revision}
 			f.observation.Ranked[0].Score = sessioninventory.RecoveryTailScore{}
+			installNativeRecoveryVerifier(f)
 			key := f.preview(t).Candidates[0].Key
 			switch kind {
 			case "expired":
@@ -297,5 +301,104 @@ func TestRecoveryNativeOnlyArchiveMetadataSharesReadBudget(t *testing.T) {
 	got, err := reader.ReadRequest(context.Background(), record, RecoveryObservationRequest{ObservedAt: time.Now().UTC(), BytesAlreadyRead: sessioninventory.RecoveryTotalReadLimit - 1})
 	if err != nil || !strings.Contains(got.Screen.Reason, "read budget") || got.BytesRead != sessioninventory.RecoveryTotalReadLimit-1 {
 		t.Fatalf("archive metadata bypassed scan budget: %+v %v", got, err)
+	}
+}
+
+func installNativeRecoveryVerifier(f *recoveryExecutionFixture) {
+	f.Couch.RecoveryVerifySelection = func(_ context.Context, record ThreadRecord, snapshot threadrecord.RecoveryContext, key, native string) error {
+		source := record
+		source.Revision = snapshot.Source.Revision
+		preview, err := DecideSlotRecovery(source, f.observation, f.Couch.Clock.Now())
+		if err != nil {
+			return err
+		}
+		choice, err := selectRecoveryChoice(preview, key)
+		if err != nil {
+			return err
+		}
+		if choice.NativeID != native {
+			return errors.New("native selection changed")
+		}
+		return nil
+	}
+}
+
+type nativeRecoveryMutationEntropy struct {
+	inner  io.Reader
+	mutate func()
+}
+
+func (r nativeRecoveryMutationEntropy) Read(p []byte) (int, error) {
+	r.mutate()
+	return r.inner.Read(p)
+}
+
+func TestRecoveryNativeOnlyRevalidatesBeforeEffects(t *testing.T) {
+	for _, boundary := range []string{"before persistence", "before retirement", "before claim", "at claim admission", "expiry during verification", "missing verifier"} {
+		t.Run(boundary, func(t *testing.T) {
+			f := newRecoveryExecutionFixture(t)
+			f.observation.Capture = threadrecord.RecoveryCapture{}
+			f.observation.Generation = ""
+			f.observation.Source = &threadrecord.NativeRecoverySource{Kind: sessioninventory.RecoverySourceNative, Cutoff: f.Now, Revision: f.record.Revision}
+			f.observation.Ranked[0].Score = sessioninventory.RecoveryTailScore{}
+			installNativeRecoveryVerifier(f)
+			key := f.preview(t).Candidates[0].Key
+			retired, checks := 0, 0
+			f.Couch.RecoveryRetirement = func(context.Context, ThreadRecord) (RecoveryRetirement, error) {
+				return RecoveryRetirement{Digest: "controlled inactive terminal", Check: func(context.Context) error {
+					checks++
+					if boundary == "before persistence" && checks == 1 || boundary == "before retirement" && checks == 2 {
+						f.observation.Ranked[0].Candidate.Entry.MutationToken = "changed"
+					}
+					return nil
+				}, Retire: func(context.Context) error {
+					retired++
+					if boundary == "before claim" {
+						f.observation.Ranked[0].Candidate.Entry.MutationToken = "changed"
+					}
+					return nil
+				}}, nil
+			}
+			if boundary == "at claim admission" {
+				f.Couch.Entropy = nativeRecoveryMutationEntropy{inner: newIncrementingEntropy(), mutate: func() { f.observation.Ranked[0].Candidate.Entry.MutationToken = "changed" }}
+			}
+			if boundary == "expiry during verification" {
+				verify := f.Couch.RecoveryVerifySelection
+				f.Couch.RecoveryVerifySelection = func(ctx context.Context, record ThreadRecord, snapshot threadrecord.RecoveryContext, key, native string) error {
+					err := verify(ctx, record, snapshot, key, native)
+					f.Couch.Clock = FixedClock{T: f.Now.Add(threadrecord.NativeRecoverySelectionLifetime)}
+					return err
+				}
+			}
+			if boundary == "missing verifier" {
+				f.Couch.RecoveryVerifySelection = nil
+			}
+			before, err := f.Couch.Threads.GetThread(f.record.Address)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = f.Couch.ResumeCandidate(context.Background(), ResumeTarget{Address: f.record.Address}, key)
+			after, readErr := f.Couch.Threads.GetThread(f.record.Address)
+			if err == nil || readErr != nil || len(f.Runner.Ops) != 0 || f.prepared != 0 {
+				t.Fatalf("changed source acted: err=%v read=%v ops=%v prepared=%d", err, readErr, f.Runner.Ops, f.prepared)
+			}
+			for _, inc := range after.Incarnations {
+				if inc.Start != nil {
+					t.Fatal("changed native selection admitted start claim")
+				}
+			}
+			wantRetired := 0
+			if boundary == "before claim" || boundary == "at claim admission" {
+				wantRetired = 1
+			}
+			if retired != wantRetired {
+				t.Fatalf("retired=%d want=%d", retired, wantRetired)
+			}
+			if boundary == "before persistence" || boundary == "missing verifier" || boundary == "expiry during verification" {
+				if !reflect.DeepEqual(before, after) {
+					t.Fatal("invalid selection was persisted before refusal")
+				}
+			}
+		})
 	}
 }

@@ -156,6 +156,7 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 	}
 	keyedSelection := selection.Kind == RecoveryInferred
 	var observed RecoveryObservation
+	var selectedSnapshot *threadrecord.RecoveryContext
 	var choice RecoveryChoice
 	if keyedSelection {
 		observed = observe()
@@ -169,6 +170,8 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 		}
 		if choice.NativeID == "" {
 			selection.Kind = RecoveryFresh
+		} else if preview.Snapshot != nil && preview.Snapshot.Source != nil {
+			selectedSnapshot = threadrecord.CloneRecoveryContext(preview.Snapshot)
 		}
 	}
 	profile, err := c.recoveryLaunchProfileForSelection(ctx, record, selection)
@@ -304,7 +307,9 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 		orient.Unavailable = "Previous screen unavailable or expired; use branch and issue evidence. Working context may be lost."
 	}
 	intent := threadrecord.RecoveryIntent{Mode: selection.Kind, Address: toPersistedThreadAddress(record.Address), SourceRevision: record.Revision, CreatedAt: c.Clock.Now(), Agent: profile.Agent, Orientation: orient, SelectedKey: fmt.Sprintf("%s:%s:%d", selection.Kind, record.Address.Tag, record.Revision), NativeID: choice.NativeID}
-	if selection.Kind == RecoveryInferred {
+	if selection.Kind == RecoveryInferred && selectedSnapshot != nil {
+		intent = threadrecord.RecoveryIntent{Context: *selectedSnapshot, SelectedKey: choice.Key, NativeID: choice.NativeID, SourceRevision: selectedSnapshot.Source.Revision}
+	} else if selection.Kind == RecoveryInferred {
 		preview, err := DecideSlotRecovery(record, observed, c.Clock.Now())
 		if err != nil {
 			return result, err
@@ -331,6 +336,9 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 	if err := ctx.Err(); err != nil {
 		return result, err
 	}
+	if err := c.verifyNativeRecoverySelection(ctx, record, intent); err != nil {
+		return result, err
+	}
 	phase := recoveryPrepared
 	record, err = c.Threads.PreserveRecoveryBeforeRetirement(record.Address, record.Revision, intent)
 	if err != nil {
@@ -347,6 +355,9 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 	}
 	if retirement.Retire != nil {
 		if err := ctx.Err(); err != nil {
+			return result, err
+		}
+		if err := c.verifyNativeRecoverySelection(ctx, record, intent); err != nil {
 			return result, err
 		}
 		record, err = c.parkPreparedRecovery(ctx, record, parkHelper)
@@ -367,6 +378,9 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 	if err := c.confirmRecoveryAbsent(ctx, record); err != nil {
 		return result, fmt.Errorf("source cannot yet be proved stopped; Start fresh can leave it untouched: %w", err)
 	}
+	if err := c.verifyNativeRecoverySelection(ctx, record, intent); err != nil {
+		return result, err
+	}
 	record, err = c.fenceRecoveryStart(ctx, record, intent)
 	if err != nil {
 		return result, err
@@ -380,6 +394,39 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 		return result, err
 	}
 	return c.launchPreparedSelection(ctx, record, selection, profile, intent, choice, phase, repo, notes)
+}
+
+// Native authority always names the original selected snapshot. Record revisions
+// can advance while preserving and retiring it; the source revision cannot.
+func (c *Couch) verifyNativeRecoverySelection(ctx context.Context, record ThreadRecord, intent threadrecord.RecoveryIntent) error {
+	if intent.Kind() != threadrecord.RecoveryInferred || intent.Context.Source == nil {
+		return nil
+	}
+	if err := threadrecord.ValidateRecoveryIntent(intent, toPersistedThreadAddress(record.Address)); err != nil {
+		return err
+	}
+	if intent.SourceRevision > record.Revision {
+		return errors.New("native recovery source revision changed")
+	}
+	admit := func() error {
+		return threadrecord.ValidateNativeRecoverySourceAt(intent.Context.Source, c.Clock.Now(), intent.SourceRevision)
+	}
+	if err := admit(); err != nil {
+		return err
+	}
+	if c.RecoveryVerifySelection == nil {
+		return errors.New("native recovery selection verification unavailable; source was not admitted")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := c.RecoveryVerifySelection(ctx, record, intent.Context, intent.SelectedKey, intent.NativeID); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return admit()
 }
 
 func (c *Couch) launchPreparedSelection(ctx context.Context, record ThreadRecord, selection RecoverySelection, profile LaunchProfile, intent threadrecord.RecoveryIntent, choice RecoveryChoice, phase recoveryExecutionPhase, preparedRepo string, notes []string) (RecoveryResumeResult, error) {
@@ -408,6 +455,9 @@ func (c *Couch) launchPreparedSelection(ctx context.Context, record ThreadRecord
 	shape := StartColdResume
 	if selection.Kind == RecoveryFresh {
 		shape = StartFreshExisting
+	}
+	if err := c.verifyNativeRecoverySelection(ctx, record, intent); err != nil {
+		return result, err
 	}
 	record, err = c.Threads.CommitStartClaim(record.Address, record.Revision, repo, c.Clock.Now(), StartEvent{Kind: StartClaimed, Shape: shape, Nonce: nonce, Owner: SupervisorOwner{PID: owner.PID, Identity: owner.Identity}, Profile: &profile, RecoveryIntent: &intent})
 	if err != nil {

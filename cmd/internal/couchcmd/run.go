@@ -190,6 +190,7 @@ func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.Cou
 	c.ContinuationSource = (couchcore.OSContinuationSourceReader{DataDir: dataDir}).Read
 	recoveryReader := couchcore.OSRecoveryEvidenceReader{DataDir: dataDir, HomeDir: r.Getenv("HOME")}
 	c.RecoveryEvidence = recoveryReader.ReadRequest
+	c.RecoveryVerifySelection = recoveryReader.VerifySelection
 	c.RecoveryPreserve = recoveryReader.Preserve
 	c.RecoveryTerminal = recoveryReader.PrepareTerminal
 	c.RecoveryRetirement = recoveryReader.PrepareConfirmedTerminal

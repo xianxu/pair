@@ -36,6 +36,43 @@ type OSRecoveryEvidenceReader struct {
 
 const recoveryCaptureMetadataLimit = 8192
 
+// VerifySelection reopens only the selected native artifact. It is an exact
+// pre-effect check, independent of the earlier inventory and screen observation.
+func (r OSRecoveryEvidenceReader) VerifySelection(ctx context.Context, record ThreadRecord, snapshot threadrecord.RecoveryContext, key, nativeID string) error {
+	if ctx == nil {
+		return errors.New("native recovery verification requires context")
+	}
+	ctx, cancel := context.WithTimeout(ctx, sessioninventory.RecoveryScanTimeout)
+	defer cancel()
+	if err := threadrecord.ValidateRecoveryContext(snapshot, toPersistedThreadAddress(record.Address)); err != nil {
+		return err
+	}
+	if snapshot.SourceKind() != sessioninventory.RecoverySourceNative || snapshot.Source.Revision > record.Revision || nativeID == "" {
+		return errors.New("native recovery source changed")
+	}
+	for _, candidate := range snapshot.Candidates {
+		if candidate.Key != key {
+			continue
+		}
+		if !candidate.Eligible || candidate.NativeID != nativeID || candidate.Agent != RecordAgent(record) {
+			return errors.New("native recovery selection changed")
+		}
+		runtime, err := sessioninventory.NewNativeTranscriptRuntime(r.HomeDir, r.DataDir, sessioninventory.Agent(candidate.Agent), "", os.Getenv)
+		if err != nil {
+			return err
+		}
+		physical, err := runtime.ResolveRecoveryCWD(ctx, record.WorkingPath)
+		if err != nil {
+			return err
+		}
+		if physical != candidate.CWD {
+			return errors.New("native recovery physical cwd changed")
+		}
+		return sessioninventory.RevalidateRecoveryCandidate(ctx, runtime, candidate.InventoryEntry(), sessioninventory.Agent(candidate.Agent), nativeID, physical, snapshot.Source.Cutoff)
+	}
+	return errors.New("native recovery selection is absent from snapshot")
+}
+
 func recoveryCaptureSource(record ThreadRecord, paths artifactpath.Paths, agent string) (threadrecord.RecoveryCapture, error) {
 	if intent := retainedRecoveryIntent(record); intent != nil {
 		if intent.Kind() == threadrecord.RecoveryInferred && intent.Context.Source == nil {
@@ -204,6 +241,7 @@ func (r OSRecoveryEvidenceReader) readScreen(ctx context.Context, record ThreadR
 	if err != nil {
 		return out, err
 	}
+	out.Screen = recoveryRawFileActivity(ctx, paths, capture, out.Agent)
 	lease, err := recoveryLease(ctx, paths, capture, out.Agent)
 	if err != nil {
 		return out, err
@@ -213,19 +251,7 @@ func (r OSRecoveryEvidenceReader) readScreen(ctx context.Context, record ThreadR
 	}
 	defer lease.Close()
 	original := capture
-	current, err := paths.ScrollbackArtifacts(out.Agent)
-	if err != nil {
-		return out, err
-	}
-	if capture.Raw != current.Raw {
-		// Reserve bounded archive metadata before reading it, including failed
-		// reads. Falling back to native discovery must not reset that charge.
-		if out.BytesRead > sessioninventory.RecoveryTotalReadLimit-recoveryCaptureMetadataLimit {
-			return out, errors.New("previous screen metadata exceeds recovery read budget")
-		}
-		out.BytesRead += recoveryCaptureMetadataLimit
-	}
-	archivedMetadata, err := recoveryCaptureMetadata(ctx, paths, &capture, out.Agent)
+	archivedMetadata, err := recoveryCaptureMetadata(ctx, paths, &capture, out.Agent, &out.BytesRead)
 	if err != nil {
 		return out, err
 	}
@@ -250,15 +276,17 @@ func (r OSRecoveryEvidenceReader) readScreen(ctx context.Context, record ThreadR
 		capture.CapturedAt = capture.RawIdentity.ModifiedAt
 	}
 	out.Capture = capture
-	out.Screen = ScreenObservation{Availability: ScreenAvailable, LastActivity: capture.LastActivity, ActivitySource: "capture-file activity"}
+	out.Screen.Availability = ScreenAvailable
+	if capture.RawIdentity.Size > scrollbackcmd.MaxReplayRawBytes || capture.EventsIdentity.Size > scrollbackcmd.MaxReplayEventsBytes {
+		return out, errors.New("previous screen exceeds bounded replay size limit")
+	}
 	remaining := sessioninventory.RecoveryTotalReadLimit - out.BytesRead
-	if consumed < 0 || consumed > sessioninventory.RecoveryTotalReadLimit || capture.RawIdentity.Size < 0 || capture.EventsIdentity.Size < 0 || capture.RawIdentity.Size > remaining || capture.EventsIdentity.Size > (remaining-capture.RawIdentity.Size)/2 {
+	if consumed < 0 || consumed > sessioninventory.RecoveryTotalReadLimit || capture.RawIdentity.Size < 0 || capture.EventsIdentity.Size < 0 || capture.EventsIdentity.Size > remaining {
 		return out, errors.New("previous screen exceeds recovery read budget")
 	}
-	reserved := capture.RawIdentity.Size + 2*capture.EventsIdentity.Size
-	// Reserve the complete replay bound before opening either member. A failed
-	// partial read cannot grant a fresh native budget in the same request.
-	out.BytesRead += reserved
+	// Charge each attempted read at its own boundary. A rejected witness never
+	// spends raw replay bytes that cannot be read.
+	out.BytesRead += capture.EventsIdentity.Size
 	events, err := osfs.ReadRegularMetadata(ctx, capture.Events, artifactpath.MaxCaptureWitnessEventsBytes)
 	if err != nil {
 		return out, err
@@ -288,6 +316,11 @@ func (r OSRecoveryEvidenceReader) readScreen(ctx context.Context, record ThreadR
 		out.Generation = recoveryLegacyGeneration(capture)
 	}
 	out.Capture = capture
+	remaining = sessioninventory.RecoveryTotalReadLimit - out.BytesRead
+	if capture.RawIdentity.Size > remaining || capture.EventsIdentity.Size > remaining-capture.RawIdentity.Size {
+		return out, errors.New("previous screen exceeds recovery read budget")
+	}
+	out.BytesRead += capture.RawIdentity.Size + capture.EventsIdentity.Size
 	lines, err := scrollbackcmd.RenderBoundedLinesContext(ctx, capture.Raw, capture.Events, 100)
 	if err != nil {
 		return out, err
@@ -309,6 +342,38 @@ func (r OSRecoveryEvidenceReader) readScreen(ctx context.Context, record ThreadR
 	out.producingLaunch = &witness.OpenedAt
 	out.renderedTail = lines
 	return out, validateRecoveryCaptureSnapshot(ctx, capture)
+}
+
+// recoveryRawFileActivity observes only descriptive metadata for an owned raw
+// pathname. Capture witnesses, events and archive metadata remain separate
+// authority checks, so their refusal cannot erase this readable fact.
+func recoveryRawFileActivity(ctx context.Context, paths artifactpath.Paths, capture threadrecord.RecoveryCapture, agent string) ScreenObservation {
+	if ctx.Err() != nil {
+		return ScreenObservation{}
+	}
+	current, err := paths.ScrollbackArtifacts(agent)
+	if err != nil {
+		return ScreenObservation{}
+	}
+	if capture.Raw != current.Raw {
+		owner, err := storagegc.SelectedOwner(paths.ScopeDir(), "", paths.Tag())
+		if err != nil {
+			return ScreenObservation{}
+		}
+		member, err := artifactpath.MatchArtifact(capture.Raw, []artifactpath.StorageOwner{owner}, nil)
+		if err != nil {
+			return ScreenObservation{}
+		}
+		archived, err := artifactpath.ParseParkedCapture(member, time.UTC)
+		if err != nil || archived.Raw != capture.Raw {
+			return ScreenObservation{}
+		}
+	}
+	identity, err := storagegc.CaptureIdentity(capture.Raw)
+	if err != nil {
+		return ScreenObservation{}
+	}
+	return ScreenObservation{Availability: ScreenUnavailable, LastActivity: identity.ModifiedAt, ActivitySource: "capture-file activity"}
 }
 
 // Preserve copies a settled source before park; the executor has confirmed it
@@ -336,7 +401,7 @@ func (r OSRecoveryEvidenceReader) Preserve(ctx context.Context, record ThreadRec
 		return in, errors.New("recovery capture lease unavailable")
 	}
 	defer lease.Close()
-	metadataBefore, err := recoveryCaptureMetadata(ctx, paths, &in.Capture, in.Agent)
+	metadataBefore, err := recoveryCaptureMetadata(ctx, paths, &in.Capture, in.Agent, nil)
 	if err != nil {
 		return in, err
 	}
@@ -433,7 +498,7 @@ func recoveryCaptureHashes(ctx context.Context, c threadrecord.RecoveryCapture) 
 
 // Current captures have no archive metadata. Retained captures must belong to
 // this exact owner and match their publisher's immutable identities and clock.
-func recoveryCaptureMetadata(ctx context.Context, paths artifactpath.Paths, c *threadrecord.RecoveryCapture, agent string) (*artifactpath.CaptureMetadata, error) {
+func recoveryCaptureMetadata(ctx context.Context, paths artifactpath.Paths, c *threadrecord.RecoveryCapture, agent string, charged *int64) (*artifactpath.CaptureMetadata, error) {
 	current, err := paths.ScrollbackArtifacts(agent)
 	if err != nil {
 		return nil, err
@@ -455,6 +520,14 @@ func recoveryCaptureMetadata(ctx context.Context, paths artifactpath.Paths, c *t
 	archived, err := artifactpath.ParseParkedCapture(member, time.UTC)
 	if err != nil || archived.Events != c.Events || (c.Token != "" && c.Token != archived.Token) {
 		return nil, errors.New("recovery source is not exact owner archive")
+	}
+	if charged != nil {
+		// Authorization above can refuse without IO. Reserve only when the
+		// bounded metadata read itself is about to be attempted.
+		if *charged > sessioninventory.RecoveryTotalReadLimit-recoveryCaptureMetadataLimit {
+			return nil, errors.New("previous screen metadata exceeds recovery read budget")
+		}
+		*charged += recoveryCaptureMetadataLimit
 	}
 	raw, err := osfs.ReadRegularMetadata(ctx, archived.Metadata, recoveryCaptureMetadataLimit)
 	if err != nil {
