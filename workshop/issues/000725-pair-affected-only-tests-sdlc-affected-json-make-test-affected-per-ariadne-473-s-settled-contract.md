@@ -76,8 +76,30 @@ See [durable plan](../plans/000725-affected-tests-plan.md), one atomic close bou
 
 - 2026-10-20: PQ-1 addressed by explicit pure validation/argv functions and named IO dispatch functions with adversarial strategies, rather than feature-level case inventories. Hub confirmed main-only-config acceptance ordering (36f3d275-8e19-4e86-a4b4-10d175c5c020); revised Done when explicitly preserves post-landing test-economy follow-up ownership.
 
+- 2026-10-20: Plan-quality round 2 CLEAN with PQ-1 addressed. Derived estimate only after acceptance, using v3.1 primitive method (2.205h →2.21h), with stale-calibration caveat. No implementation started.
+
 ## Revisions
 
 - 2026-10-20: Added executable plan and explicit source-Lua/runtimebundle test exception approved by hub. No upstream schema or environment contract changes. Real recorded affected/train acceptance is pending upstream M2 availability rather than being waived.
 
 - 2026-10-20: Acceptance ordering revision approved by hub: prelanding fixture/native timing + full suite; hub-owned actual affected/status and docs-only train proof after config reaches main. Clarified pure runner boundary for PQ-1 without changing behavior or upstream contract.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. The calibration is marked stale against its newer ledger, so the units remain provisional.
+
+Map schema/group ownership to a smaller-module extension: 0.3h design ×0.2 settled-spec discount =0.06h, 0.5h implementation ×0.4 v3.1 scale =0.20h. The new Python execution runner maps to a single-concern greenfield module: existing subprocess/Make/private-binary libraries halve 2.0h design, then ×0.2 =0.20h; 0.8h implementation ×0.4 =0.32h. The upstream Go consumer fixture uses the same greenfield primitive and available parser/graph library: 0.20h design/0.32h implementation. Make recipe integration is another smaller-module extension at 0.06h/0.20h. Docs: 0.2h ×0.2 =0.04h design, 0.2h ×0.4 =0.08h implementation. One close review: 0.2h ×0.2 =0.04h design, 0.5h ×0.4 =0.20h implementation. Issue shaping: 0.5h ×0.2 =0.10h design, 0.2h ×0.4 =0.08h implementation. Familiarity is 1.0 throughout; no novel stack/API discovery or vendor propagation. Design subtotal 0.70h ×1.15 thorough-plan buffer + implementation 1.40h =2.205h, rounded to 2.21h. Suite execution and queue delays are measured separately rather than padded into primitives.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module design=0.06 impl=0.20
+item: greenfield-go-module design=0.20 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: smaller-go-module design=0.06 impl=0.20
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.04 impl=0.20
+item: issue-spec design=0.10 impl=0.08
+design-buffer: 0.15
+total: 2.21
+```

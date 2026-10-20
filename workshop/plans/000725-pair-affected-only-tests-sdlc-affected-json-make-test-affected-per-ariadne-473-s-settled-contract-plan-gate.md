@@ -35,6 +35,37 @@ rounds:
           family: function-level-test-strategy
           round: 1
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 7468ce1f-04ac-4973-bdd0-cc349c432aee
+            repository: github.com/xianxu/pair
+            issue_id: "000725"
+            recipe: plan-quality
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot3/pair
+            reviewed_head: 3c6869003c02a18c898cb90a04192e9cb3911cde
+            slot: pair:3
+            requested_at: "2026-10-20T09:28:52.850245Z"
+          phase: finished
+          pid: 86677
+          started_at: "2026-10-20T09:28:52.971416Z"
+          finished_at: "2026-10-20T09:29:07.729558Z"
+          session_id: 01a158a4-6d29-7801-b850-eab4f006c584
+          outcome: returned
+      "n": 2
+      timestamp: "2026-10-20T02:29:07-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Named validation, argv-construction and dispatch functions separate pure logic from IO; function-level strategies specify adversarial inputs and mechanical guards.
+          round: 2
+      blocked: false
+content_hash: ef14be5bb2d369752fd68c9a7d497590d7432392e3f9c6c07f8e3a62dd4db1e9
 ---
 
 # Gate ledger — pair#725 (plan-quality)
@@ -49,6 +80,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **PQ-1** [Important] `function-level-test-strategy` Name the risky functions and compress the test-case inventories into strategies
   The verification table names “Selected test runner validation/dispatch” rather than actual function names, then enumerates cases such as “groups-only, Go-only, combined”; the declaration row repeats this pattern (workshop/plans/000725-affected-tests-plan.md:63–64). Name the planned validation, argv-construction and dispatch functions, distinguish pure logic from the IO shell (ARCH-PURE), and give each risky function one adversarial-input class plus its mechanical guard. Replace the prose case inventories with those strategy lines.
 
+## Round 2 — 2026-10-20T02:29:07-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Named validation, argv-construction and dispatch functions separate pure logic from IO; function-level strategies specify adversarial inputs and mechanical guards.
+
 ## Open findings
 
-- **PQ-1** [Important] `function-level-test-strategy` Name the risky functions and compress the test-case inventories into strategies
+(none — every finding has been disposed)
