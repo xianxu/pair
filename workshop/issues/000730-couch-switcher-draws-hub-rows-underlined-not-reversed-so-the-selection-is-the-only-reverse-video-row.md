@@ -39,7 +39,7 @@ which one is selected (operator, 10-20, screenshot in ops's session file).
 
 - A render test pins: a hub row carries underline and no reverse; a selected non-hub row carries reverse; a selected
   hub row carries both; the other-hub dim treatment is unchanged.
-- Live check by the operator: the switcher with two hubs shows one reverse-video row, the selection.
+- Operator live look is deferred until after landing, at the next Couch restart: the switcher with two hubs shows one reverse-video row, the selection. Per TL direction, cell-level render tests qualify this cosmetic change for landing without staging.
 
 ## Plan
 
@@ -53,3 +53,12 @@ which one is selected (operator, 10-20, screenshot in ops's session file).
 - Quick-flow design: reuse the existing reset-restoring decorator, underline all hub rows and add reverse only for selection. Tab-chip inversion is separate and stays unchanged. No new state, IO, persistence or growth driver.
 - Automatic start-plan weave refresh produced unrelated CI workflow edits; preserved in stash named pair730 automatic weave workflow refresh preserved.
 - Red/green: terminal-cell regression failed on an unselected reversed hub, then TestHub/TestRenderMenu passed after the decorator fix. Existing multi-hub render test still pins foreign-hub dimming. Atlas now distinguishes tab inversion and switcher underline.
+
+## Revisions
+
+### 2026-10-20 10:12 PDT — TL defers live look
+
+- Reason: pair:0 remains leased to #722 for a live drain check waiting on ariadne#501; replacing its stage costs more than this cosmetic check warrants.
+- Delta: skip staging and allow landing after the cell-level tests, recorded suite and close review. The operator checks the switcher after landing at the next Couch restart. Original acceptance required the two-hub live look before completion.
+
+- Stage attempt refused the existing #722 lease; no stage was replaced. TL explicitly directed finish suite, close, and merge, deferring the live look as above.
