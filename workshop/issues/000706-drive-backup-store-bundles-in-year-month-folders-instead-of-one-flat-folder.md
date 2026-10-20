@@ -39,7 +39,7 @@ New uploads go to `backups/pair-history/<YYYY>/<MM>/` (from the bundle's time ra
 Durable plan: [Drive month folders](../plans/000706-drive-month-folders-plan.md).
 
 - [x] M1 — Shared layout/folder state model, compatible receipt codecs, stateful folder fake and bounded month-aware uploads with legacy checks.
-- [ ] M2 — Multi-folder label discovery and recorded-location restore, per-folder reporting, counted/native qualification and operator Drive check; close and land.
+- [x] M2 — Multi-folder label discovery and recorded-location restore, per-folder reporting, counted/native qualification and operator Drive check; close and land.
 
 ## Estimate
 
@@ -84,6 +84,7 @@ total: 4.73
 - NEXT: extract existing per-folder upload verification from DriveMirror.Run and add the outer coordinator: project all catalog candidates once, root-namespace receipts recording actual physical destinations, legacy pair adoption/conflict refusal, only current/pending months visited, pinned cached parent inventories, one shared 4 GiB budget across serial folder batches. Preserve exact final-list verification, unknown fields and local-backup independence. Then targeted package/artifactpath checks and M1 review; M2 sync-index/restore/reporting and operator Drive drill remain outstanding. No PR/full suite or real remote mutation yet. CI migration stash cf709527564ea17b03504c0fb767c56a76d70504 remains parked per hub.
 
 ### 2026-10-20 — resumed after #726
+- 2026-10-20: closed M2 — Operator real Drive upload/retry and mixed root/month restore PASS at 14:18 on 8fc0f2af (2 bundles, 12 files, stage absent, scratch removed); installed streaming size/root/month/mixed regressions, affected packages, race and repo guards PASS. Noon main integrated cleanly; fresh combined-head recorded suite started and required pass precedes landing.; review verdict: SHIP
 - 2026-10-20: closed M1 — BR-1 coordinator regressions RED before fix and GREEN after for successive confirmed/uncertain years and uncertain months at 99999 entries; upload/folder regression set PASS 16.533s; repolint/artifactpath PASS; prior complete archive packages PASS. BR-2 README documents M1 month layout, legacy refusal and shared per-pass budget. M2 recovery/reporting/live drill remains open.; review verdict: SHIP
 
 - Re-read the Log, approved durable plan and TL-owned ops history-backup project; verified clean checkpoint branch and current ownership. Reported plan state to hub (submitted receipt 30bec209-1b71-4eac-b867-f389a347aafe). No new scope or design delta; #710 boundary and CI migration stash stay unchanged.
