@@ -402,7 +402,7 @@ func Handle(ctx context.Context, b *Broker, r Request) Response {
 	}
 	caller, err := b.Caller(r.Scope, r.Tag, r.Session, r.Nonce)
 	if err != nil {
-		return protocolError(err, false)
+		return protocolError(fmt.Errorf("caller lookup: %w", err), false)
 	}
 	switch r.Op {
 	case "actors":

@@ -2154,8 +2154,10 @@ Couch also raises a desktop alert and tells the hub if its input guard
 unexpectedly stalls an otherwise idle slot for 30 seconds. Inspect the named
 slot; the alert says whether delivery recovered or remains blocked.
 After rebuilding, restart Couch to use a newly added command. Existing messaging
-commands remain compatible; if running slots report missing messaging
-registrations, restart Couch to reconnect them.
+commands remain compatible. A refused send names the failing caller/recipient
+phase; inspect `couch --actors` and tell the hub if it persists. A generic
+unavailable reply alone is not evidence that Couch needs restarting. Accepted
+queued messages keep their receipts; inspect uncertain sends before resending.
 
 Agent hooks can send the same signal explicitly with `pair notify "message"`
 or the compatibility name `pair-notify "message"`. Legacy `--osc 9` and

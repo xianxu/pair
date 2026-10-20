@@ -816,11 +816,27 @@ remaining uncertainty is stated, never papered over:
   is `SendTransportTimeout` (admission plus a second), so the verdict arrives.
 - **Liveness behind the authority (#618).** The use-time ownership check runs
   at every admission and every queued-message retry (`PromoteRetry`, 1 s). Its
-  terminal listing reads `launcher.ListingPoller`: one supervisor loop runs both
-  `zellij list-sessions` forms every second, and a snapshot older than 5 s
+  terminal listing reads `launcher.ListingPoller`: one supervisor loop reads one
+  validated full `zellij list-sessions --no-formatting` reply every second (#711),
+  deriving names and exited state from that same observation. A snapshot older than 5 s
   refuses as "zellij liveness is stale". The thread record, PID file, ready
   file and session index are still read per check. Recovery and relaunch
   decisions keep their direct zellij reads.
+  Malformed refreshes preserve the last good timestamp instead of renewing authority.
+  An unrelated session starting between two native calls cannot create a disagreement:
+  there is no paired short listing. Direct inventory readers use the same full parser.
+- **Input during admission (#711).** A recipient whose broker actor and both live
+  registrations are unchanged can become busy after its wrapper accepts a reservation.
+  Admission captures the sender's original broker actor under lock and retains it through
+  routing, reservation and queue fallback; same-binding reconnect is a new lifetime.
+  Operator input invalidating that observation uses the existing exact-target queue;
+  disconnect or replacement still refuses stale work. Refusals identify caller lookup /
+  current validation or recipient lookup / observe / reserve, and the CLI never infers
+  that restarting Couch is appropriate from a generic unavailable reply. Unknown or
+  malformed evidence grants no new authority, and uncertain sends retain receipt-first
+  recovery. The three causal regressions and 8/16-session query budgets live in
+  `broker_input_invalidation_test.go`, `zellij_listing_churn_test.go`, and
+  `message_phase_test.go`.
 - **Receive state in `--list` (#618).** `couch --list` asks the running
   supervisor once (the unauthenticated `refusals` op, 250 ms, best effort) for
   each slot's latest unsuperseded refusal and prints it under the row as

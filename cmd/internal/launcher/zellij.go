@@ -35,7 +35,7 @@ type ZellijSource struct {
 	Path string
 	// queryRun is the synchronous process-ownership boundary. Nil uses the OS collector.
 	queryRun func(*exec.Cmd) error
-	// Listings, when set, answers both list-sessions forms from a poller's
+	// Listings, when set, answers the full list-sessions reply from a poller's
 	// latest snapshot instead of running zellij (pair#618). Nil lists on every
 	// read. Per-session queries (list-clients) always run.
 	Listings *ListingPoller
@@ -48,7 +48,7 @@ func (s ZellijSource) Snapshot() ([]Session, error) {
 // SnapshotContext is Snapshot with the caller's cancellation: every pair
 // session, each classified attached / detached / exited.
 //
-// Cost, stated because it is the expensive form: two `list-sessions` runs plus
+// Cost, stated because it is the expensive form: one `list-sessions` run plus
 // one `action list-clients` per non-exited pair session ON THE HOST, and
 // list-clients costs about 250 ms against a real detached session (pair#228).
 // A caller asking about particular sessions wants SnapshotSessionsContext; one
@@ -70,7 +70,7 @@ func (s ZellijSource) SnapshotSessionsContext(ctx context.Context, names []strin
 }
 
 // LivenessContext lists every pair session without asking any of them for
-// clients: non-exited sessions are SessionLive. Two list-sessions runs, and
+// clients: non-exited sessions are SessionLive. One list-sessions run, and
 // nothing that scales with the host's session count.
 func (s ZellijSource) LivenessContext(ctx context.Context) ([]Session, error) {
 	return s.snapshot(ctx, func(string) bool { return false }, func(string) bool { return true })
@@ -82,7 +82,7 @@ func (s ZellijSource) LivenessContext(ctx context.Context) ([]Session, error) {
 // is SessionLive, because an attach state that was not asked must not be
 // guessed.
 func (s ZellijSource) snapshot(ctx context.Context, ask, keep func(name string) bool) ([]Session, error) {
-	short, raw, err := s.listings(ctx)
+	raw, err := s.listings(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -90,11 +90,15 @@ func (s ZellijSource) snapshot(ctx context.Context, ask, keep func(name string) 
 	if err != nil {
 		return nil, err
 	}
-	var out []Session
-	for _, name := range shortSessionNames(short) {
-		if !isPairSessionName(name) || !keep(name) {
-			continue
+	var names []string
+	for name := range states {
+		if isPairSessionName(name) && keep(name) {
+			names = append(names, name)
 		}
+	}
+	sort.Strings(names)
+	var out []Session
+	for _, name := range names {
 		var state SessionState
 		switch {
 		case states[name]:
@@ -113,35 +117,30 @@ func (s ZellijSource) snapshot(ctx context.Context, ask, keep func(name string) 
 		}
 		out = append(out, Session{Name: name, State: state})
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out, nil
 }
 
-// listings is the one source of both list-sessions outputs for snapshot.
-func (s ZellijSource) listings(ctx context.Context) (short, raw []byte, err error) {
+// listings is one coherent observation; independent short/full replies cannot
+// prove agreement while unrelated sessions start or end between subprocesses.
+func (s ZellijSource) listings(ctx context.Context) ([]byte, error) {
 	if s.Listings != nil {
-		short, raw, err = s.Listings.Listings()
-		if err != nil {
-			return nil, nil, err
+		if err := ctx.Err(); err != nil {
+			return nil, err
 		}
-		if err = validateSessionListingAgreement(short, raw); err != nil {
-			return nil, nil, err
-		}
-		return short, raw, nil
+		return s.Listings.Listings()
 	}
-	if short, err = s.runContext(ctx, "list-sessions", "--short"); err != nil {
-		return nil, nil, err
+	return s.fullListing(ctx)
+}
+
+func (s ZellijSource) fullListing(ctx context.Context) ([]byte, error) {
+	raw, err := s.runContext(ctx, "list-sessions", "--no-formatting")
+	if err != nil {
+		return nil, err
 	}
-	if err = validateSessionListing(short, true); err != nil {
-		return nil, nil, err
+	if err := validateSessionListing(raw, false); err != nil {
+		return nil, err
 	}
-	if raw, err = s.runContext(ctx, "list-sessions", "--no-formatting"); err != nil {
-		return nil, nil, err
-	}
-	if err = validateSessionListingAgreement(short, raw); err != nil {
-		return nil, nil, err
-	}
-	return short, raw, nil
+	return raw, nil
 }
 
 // ClientCountContext observes the attached client count for one exact session.

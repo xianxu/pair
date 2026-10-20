@@ -53,7 +53,7 @@ func TestEmptyNameProbeCannotBecomeMonotoneAcceptance(t *testing.T) {
 	}
 }
 func TestListSessionsCannotDisplayEmptyReplyAsDetached(t *testing.T) {
-	for _, stage := range []string{"list-sessions --short", "list-sessions --no-formatting", "--session pair-work action list-clients"} {
+	for _, stage := range []string{"list-sessions --no-formatting", "--session pair-work action list-clients"} {
 		t.Run(stage, func(t *testing.T) {
 			installEmptyReplyLegacyCLI(t, stage)
 			rt := NewOSRuntime(t.TempDir(), t.TempDir())
