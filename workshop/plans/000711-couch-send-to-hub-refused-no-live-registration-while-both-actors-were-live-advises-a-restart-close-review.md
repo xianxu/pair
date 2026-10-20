@@ -97,3 +97,88 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T06:29:27-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 711 — couch --send-to hub refused 'no live registration' while both actors were live; advises a restart |
+| repo | pair |
+| issue file | workshop/issues/000711-couch-send-to-hub-refused-no-live-registration-while-both-actors-were-live-advises-a-restart.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 7d4e0c3aba6b39fb12d5125ee967dcde9e5be4be..a85138a58b338cdba337fbb4b2e504ebfc5efffe |
+| command | sdlc close --issue 711 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T06:29:27-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The implementation satisfies the revised contract, and all three prior findings are addressed with meaningful regression tests. Independent mutation checks reproduced each defect when its fix was removed. No new findings remain. The recorded full-suite and ordinary merge gates remain required; this review does not substitute for them.
+
+Done-when: current — it covers single-observation listing, registration fencing, input queueing, diagnostics, parity, and query budgets.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      broker.go captures the sender actor under lock and checks its identity through routing, reservation, and queue fallback. Removing the identity comparison makes TestBrokerSenderReconnectCannotAuthorizeOldAdmission fail in all three phases.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      OSRuntime.ListSessions passes validated states into buildListRowsForScope. Restoring RowState interpretation makes TestRuntimeListSessionsUsesValidatedOpaqueNameState fail for all three opaque-name cases.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Admission refusals identify caller or recipient and phase while preserving errors.Is classification. Removing the contextual wrappers makes TestBrokerAdmissionLossNamesSideAndPhase fail in all four cases.
+```
+
+1. **Strengths**
+
+   - Sender lifetime validation uses one shared predicate at every admission boundary.
+   - Direct, cached, and runtime inventory consumers derive identity and state from the validated full reply.
+   - The input regression verifies queue promotion and exactly one delivery.
+   - README and atlas explain the changed diagnostics and recovery guidance.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   `go test ./cmd/internal/couchmessage ./cmd/internal/launcher ./cmd/internal/couchcmd` passed. Disposable Go overlays independently demonstrated failures without each prior fix and were removed afterward. Coverage includes disconnect/reconnect controls, opaque names, malformed-refresh freshness, query budgets, hub/exact addressing, body lengths, and legacy CLI responses. The reviewed checkout remains unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY: pass** — shared listing interpretation and caller predicate.
+   - **ARCH-PURE: pass** — parsing remains separate from native IO; integration tests use existing seams.
+   - **ARCH-PURPOSE: pass** — corrections sweep the enumerated admission and inventory consumers.
+   - **ARCH-EVOLVE: pass** — no persisted format changes.
+
+7. **Plan revision recommendations:** None. The existing revisions describe the delivered corrections accurately.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"e3336ff8-d20a-4362-bf88-d4d6f13ed6b7","repository":"github.com/xianxu/pair","issue_id":"000711","recipe":"small-diff-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/e2c7214096953d25","reviewed_head":"a85138a58b338cdba337fbb4b2e504ebfc5efffe","slot":"pair:7","requested_at":"2026-10-20T13:27:26.995158Z"},"phase":"finished","pid":65126,"started_at":"2026-10-20T13:27:27.088372Z","finished_at":"2026-10-20T13:29:25.974424Z","session_id":"01a1597e-d765-75f2-a946-077c9d9910c3","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.423615292s
+head: "a85138a58b338cdba337fbb4b2e504ebfc5efffe"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
