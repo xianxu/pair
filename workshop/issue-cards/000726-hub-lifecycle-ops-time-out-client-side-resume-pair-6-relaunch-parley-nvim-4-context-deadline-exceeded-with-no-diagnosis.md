@@ -1,6 +1,6 @@
 ---
 id: 000726
-status: codecomplete
+status: done
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours: 1.77
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 5f7896c98dfe7ec731fe2b9770a4b84af2757560
         evidence_commit: 39493e6e22663326eb4f8d4ba3870428fafa0c0e
+        landed_commit: 2607e2c512915edc115e14997a3677329af58a3d
 ---
 
 # Hub lifecycle ops time out client-side (resume pair:6, relaunch parley.nvim:4: 'context deadline exceeded') with no diagnosis
