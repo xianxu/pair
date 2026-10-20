@@ -151,7 +151,7 @@ func (d *peerDelivery) startAgentDrive(id string, start couchmessage.DriveStart)
 	available := d.driveAvailableLocked()
 	admission := agentdrive.Admission{Idle: d.driveIdleLocked() && screen.Idle, Recoverable: available && screen.Recoverable, Dismissable: available && screen.Dismissable}
 	if !start.Request.Admits(admission) || !screen.Complete {
-		return refuse(admission.Refusal("agent composer must be empty with no turn or picker; wait until it is idle"))
+		return refuse(start.Request.Refusal(admission, "agent composer must be empty with no turn or picker; wait until it is idle"))
 	}
 	state, err := agentdrive.NewDrive(start.Request, d.binding.Agent, start.Deadline)
 	if err != nil {

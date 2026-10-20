@@ -196,4 +196,10 @@ func TestPanelRefusalNamesEsc(t *testing.T) {
 	if r := s.Result(); r.Detail == PanelRefusal {
 		t.Fatalf("panel hint without a panel %#v", r)
 	}
+	// A lone esc refused on a panel (an incomplete frame) must not be told to send esc.
+	s, _ = NewDrive(Request{Keys: KeySequence{{Kind: KeyEsc}}}, "claude", now.Add(time.Minute))
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventStart, At: now, Screen: Screen{Epoch: 1, Dismissable: true}})
+	if r := s.Result(); r.Outcome != OutcomeRefused || r.Detail == PanelRefusal {
+		t.Fatalf("lone esc told to send esc %#v", r)
+	}
 }

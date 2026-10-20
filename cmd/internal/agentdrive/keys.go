@@ -49,7 +49,7 @@ var Steps = []StepDoc{
 	{KeyDown, "down", "arrow down"},
 	{KeyEsc, "esc", "Escape, always its own step"},
 	{KeyClearLine, "clear-line", "Ctrl+U: clear the composer's current line"},
-	{KeyWait, "wait:MS", "pause 0–1000 ms, at most 5 seconds in total"},
+	{KeyWait, "wait:MS", fmt.Sprintf("pause 0–%d ms, at most %d ms in total", MaxKeyWaitMS, MaxKeyTotalWaitMS)},
 }
 
 // StepSyntax lists every step's syntax, space-separated, in table order.

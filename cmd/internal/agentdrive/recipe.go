@@ -90,10 +90,10 @@ func (r Request) Admits(a Admission) bool {
 // shows: it names the one key that is admitted.
 const PanelRefusal = "a slash-command panel is open; only a lone esc is admitted (couch --keys SLOT esc), then retry"
 
-// Refusal explains a refused request: the panel hint when a panel shows,
-// otherwise the caller's own wording.
-func (a Admission) Refusal(otherwise string) string {
-	if a.Dismissable && !a.Idle && !a.Recoverable {
+// Refusal explains why r was refused: the panel hint when a panel shows and r
+// is not already the lone esc, otherwise the caller's own wording.
+func (r Request) Refusal(a Admission, otherwise string) string {
+	if a.Dismissable && !a.Idle && !a.Recoverable && !r.DismissOnly() {
 		return PanelRefusal
 	}
 	return otherwise

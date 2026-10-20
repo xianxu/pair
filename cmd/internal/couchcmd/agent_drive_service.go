@@ -94,7 +94,7 @@ func (s *messageService) handleAgentDrive(ctx context.Context, r couchmessage.Re
 		// open panel name the key that would be admitted (pair#716).
 		detail := notIdle
 		if observation, err := endpoint.ObserveDrive(ctx); err == nil {
-			detail = observation.Admission().Refusal(notIdle)
+			detail = r.Drive.Refusal(observation.Admission(), notIdle)
 		}
 		return refuse(errors.New(detail))
 	}
@@ -107,7 +107,7 @@ func (s *messageService) handleAgentDrive(ctx context.Context, r couchmessage.Re
 		return r.Drive.Admits(observation.Admission())
 	}
 	if !admissible(observation) || observation.Instance == "" {
-		return refuse(errors.New(observation.Admission().Refusal(notIdle)))
+		return refuse(errors.New(r.Drive.Refusal(observation.Admission(), notIdle)))
 	}
 	callerCurrent := func(ctx context.Context) error {
 		if err := ctx.Err(); err != nil {
