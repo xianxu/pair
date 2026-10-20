@@ -75,7 +75,41 @@ rounds:
           note: RecoveryTransition owns lifecycle decisions; termination suppresses recovery through handoff, with post-close signal draining, closed-channel distinction and controlled-order verification.
           round: 2
       blocked: false
-content_hash: 7a27edf80f2b1ececfaa88bfee6ac61d4e3c881899a8c81463c339afdb811981
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 7317ea3e-5947-4bf8-a7a5-70c831548cfd
+            repository: github.com/xianxu/pair
+            issue_id: "000727"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot7/pair
+            reviewed_head: 1af36e1514de58399502a9a9f681908d7b968071
+            slot: pair:7
+            requested_at: "2026-10-20T15:59:12.987002Z"
+          phase: finished
+          pid: 82329
+          started_at: "2026-10-20T15:59:13.079483Z"
+          finished_at: "2026-10-20T15:59:42.645802Z"
+          session_id: 01a15a09-c99f-7271-8bbd-cb205f1cd2b7
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-20T08:59:42-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Named-function adversarial strategies replace test inventories and are referenced by execution tasks.
+          round: 3
+        - id: PQ-2
+          disposition: addressed
+          note: RecoveryTransition defines termination precedence through cleanup, signal-channel closure and shell handoff.
+          round: 3
+      blocked: false
+content_hash: 9e5447459fa9bbf01baa88a2066fb0d2932691b34b6d9266d50e012e50c5eb4e
 ---
 
 # Gate ledger — pair#727 (plan-quality)
@@ -98,6 +132,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - PQ-1 — addressed — Named-function strategies specify generated malformed rows, bounded evidence, controlled geometry/recovery events and integration guards without duplicating case inventories.
 - PQ-2 — addressed — RecoveryTransition owns lifecycle decisions; termination suppresses recovery through handoff, with post-close signal draining, closed-channel distinction and controlled-order verification.
+
+## Round 3 — 2026-10-20T08:59:42-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Named-function adversarial strategies replace test inventories and are referenced by execution tasks.
+- PQ-2 — addressed — RecoveryTransition defines termination precedence through cleanup, signal-channel closure and shell handoff.
 
 ## Open findings
 

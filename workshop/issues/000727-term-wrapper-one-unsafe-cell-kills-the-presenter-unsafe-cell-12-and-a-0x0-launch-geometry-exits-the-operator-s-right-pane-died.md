@@ -136,8 +136,8 @@ design buffer. Tests are included in each implementation item, not costed twice.
 | One close boundary | milestone-review | 0.1 x0.2=0.02; 0.5 x0.4=0.20 |
 
 No new external API or native library discovery: reuse VT, hostty/PTY, diagnosticlog
-and current Zellij admission. No cross-repo implementation. Design subtotal 0.585h,
-implementation 1.42h; 0.585 x1.15 +1.42 =2.09275h, rounded 2.09h. Queue wait excluded.
+and current Zellij admission. No cross-repo implementation. Design subtotal 0.485h,
+implementation 1.42h; 0.485 x1.15 +1.42 =1.97775h, rounded 1.98h. Queue wait excluded.
 
 ```estimate
 model: estimate-logic-v3.1
@@ -150,5 +150,11 @@ item: smaller-go-module design=0.03 impl=0.16
 item: atlas-docs design=0.02 impl=0.06
 item: milestone-review design=0.02 impl=0.20
 design-buffer: 0.15
-total: 2.09
+total: 1.98
 ```
+
+### 2026-10-20 — estimate arithmetic correction
+
+The deterministic reconciliation gate caught a summed-design typo: the unchanged
+itemized design values total 0.485, not 0.585. Recomputed the total as 1.97775h
+(1.98 rounded), with no item back-fitting or gate bypass. Plan-quality remained clean.
