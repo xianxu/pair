@@ -1,7 +1,7 @@
 ---
 id: 000722
 status: codecomplete
-deps: []
+deps: [pair#734]
 github_issue:
 created: 2026-10-19
 updated: 2026-10-20
@@ -356,3 +356,7 @@ The new acceptance oracle is a disposable installed-Couch fleet with real Pair w
 Canonical submitted TL receipt71ddbf62 approves Revision11:07, supported reopen and renewed change-code. Keep pure/endpoint regressions in the ordinary suite; the disposable matrix becomes the named opt-in recorded local check drain-acceptance (make test-drain-acceptance), required in close evidence and immediately before staging. Seven90s installed-fleet cases must not burden every ordinary suite. The ariadne:4 delivered-request/zero-started-flags discrepancy is an explicit acceptance item: reproduce or explicitly report non-reproduction and retained uncertainty in the close, never close around it. Live acceptance remains watched/scheduled through TL.
 
 The documentation-only auxiliary worktree was refused by sdlc issue set-status working --issue722 because its parent pair-slot5-plan is not a valid numbered environment. No card transition occurred. Do not evade workspace identity or bypass the gate. Resume #722's setter/change-code from its canonical pair:5 checkout once the concurrently authorized #622 landing releases that checkout. No product code has changed.
+
+### 2026-10-20 11:23 PDT — recording dependency and interim evidence
+
+Canonical submitted TL receipt5c8b8b29 directs a separate operator-verified local-gates declaration issue and permits manual exact-head matrix evidence in this Log until that declaration lands. Filed unclaimed #734, Declare opt-in drain acceptance local check, published card/details on origin. The frontmatter dependency is specifically for named-check recording, not a prohibition on building and manually qualifying the #722 harness beforehand. #734 owns only the optional protected declaration; #722 owns the make target, actual installed-fleet tests and close/pre-stage evidence requirement. Retain exact argv/head/result/duration/log/hash manually until the recorder can discover the main declaration. No .sdlc file was edited and no operator label was applied. The same TL message confirms reopening from canonical pair:5 after #622 releases it.
