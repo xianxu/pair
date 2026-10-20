@@ -145,3 +145,7 @@ Native settings readers, projections, tests, selected-profile plumbing and the T
 ### 2026-10-19 — BR-3 diagnostic target coverage
 
 Close round 2 disposed BR-1/BR-2 as addressed, but did not finalize because BR-3 identified missing scratch selection on a valid slot with no thread. Current-selection diagnostics apply to both thread targets and slot-only targets. Admission is machine-wide and does not require a ThreadRecord; retain the existing callback and invoke it with an empty record for the slot-only case. Extend the real slot-only show regression rather than inventing a thread or preparing scratch. Cancelled queued V2 suite through SDLC; final corrected code gets a new recorded run. No sandbox admission or setup contract changes.
+
+### 2026-10-19 — qualification and landing wait
+
+Final V2 code's recorded suite passed 9m11s (attempt 7bce1522a81e7446418a37922c0954f9; suite.log under 5e2686d4bb1354880671ae468a280c9b9383db6c). Close round 3 SHIP disposed all three findings, and CI is green. The existing merge runner owns the remaining train admission and authoritative integrated qualification. No code changed after the tested head; later changes are review/evidence prose only. Final landing/report task remains open until Git-verified merge.
