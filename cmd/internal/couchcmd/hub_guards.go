@@ -247,7 +247,9 @@ func (s *messageService) hubReceiptFilter(ctx context.Context, identity couchcor
 		if s.authority.hubs == nil {
 			return true
 		}
-		target, err := s.warmHubTarget(ctx, receipt.Target)
+		budget, cancel := context.WithTimeout(ctx, slotAdmissionBudget)
+		defer cancel()
+		target, err := s.warmHubTarget(budget, receipt.Target)
 		return err == nil && authorizeHubMutation(identity, target, s.authority.hubs.snapshot()) == nil
 	}
 }

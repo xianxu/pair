@@ -21,6 +21,10 @@ const hubTargetFailureAge = 30 * time.Second
 // hubTargetMaxFlights caps concurrent background resolutions.
 const hubTargetMaxFlights = 8
 
+// hubTargetMaxEntries caps remembered references; each write first sweeps
+// entries too old to answer, then drops the oldest beyond the cap.
+const hubTargetMaxEntries = 256
+
 // errSlotCatalogWarming is admission's refusal when a target's first fresh
 // resolution has not finished inside the admission budget.
 var errSlotCatalogWarming = errors.New("slot catalog is warming; nothing was queued; retry in a few seconds")
@@ -75,9 +79,10 @@ func newHubTargetMemo(lifetime context.Context, resolve func(context.Context, st
 // Fresh resolves now, on the caller's context, and remembers the outcome. A
 // cancelled resolution proves nothing about the target, so it is not kept.
 func (m *hubTargetMemo) Fresh(ctx context.Context, ref string) (couchcore.HubSlot, error) {
+	started := m.now()
 	slot, err := m.resolve(ctx, ref)
 	if err == nil || ctx.Err() == nil {
-		m.remember(ref, slot, err)
+		m.remember(ref, slot, err, started)
 	}
 	return slot, err
 }
@@ -126,10 +131,31 @@ func (m *hubTargetMemo) Warm(ctx context.Context, ref string) (couchcore.HubSlot
 	}
 }
 
-func (m *hubTargetMemo) remember(ref string, slot couchcore.HubSlot, err error) {
+// remember keeps a resolution stamped with the time it started, so an older
+// resolution finishing late never replaces a newer one.
+func (m *hubTargetMemo) remember(ref string, slot couchcore.HubSlot, err error, started time.Time) {
+	key := hubTargetKey(ref)
 	m.mu.Lock()
-	m.entries[hubTargetKey(ref)] = hubTargetEntry{slot: slot, err: err, at: m.now()}
-	m.mu.Unlock()
+	defer m.mu.Unlock()
+	if old, ok := m.entries[key]; ok && old.at.After(started) {
+		return
+	}
+	now := m.now()
+	for k, e := range m.entries {
+		if (e.err == nil && now.Sub(e.at) >= m.maxAge) || (e.err != nil && now.Sub(e.at) >= hubTargetFailureAge) {
+			delete(m.entries, k)
+		}
+	}
+	for len(m.entries) >= hubTargetMaxEntries {
+		oldest := ""
+		for k, e := range m.entries {
+			if oldest == "" || e.at.Before(m.entries[oldest].at) {
+				oldest = k
+			}
+		}
+		delete(m.entries, oldest)
+	}
+	m.entries[key] = hubTargetEntry{slot: slot, err: err, at: started}
 }
 
 // wait joins outstanding resolutions; the lifetime's end cancels them.

@@ -99,6 +99,18 @@ State design (M1). Actions: run a lifecycle op, `--operation-status ID`, retry.
 
 ARCH notes: ARCH-ORDER (fresh authority before the effect; admission is a cheap gate); ARCH-CONSTRAINTS (Discover cost is linear in slots and now concurrent; admission does zero probes when warm); ARCH-MOCK (stateful catalog fake with a clock); ARCH-FUNERAL (the snapshot has a bounded age and is replaced, never accumulated).
 
+## Revisions
+
+- 2026-10-20 (pair:2): M1 review rounds 1 and 2 changed behavior, so the plan design is amended here:
+  - A failed resolution answers admission with its own error for 30 s (`hubTargetFailureAge`), then retries.
+  - Move-slot admission names its slots from the memo within the budget. The queued move re-resolves each one fresh and refuses on any difference, because those slots are the move's payload.
+  - The receipt filter reads the memo within the admission budget.
+  - Resolutions are stamped with their start time, so an older one never replaces a newer one.
+  - Entries are swept when expired and capped at 256.
+  - At most 8 background flights and 8 concurrent Discover rows.
+  - The concurrency test proves overlap with a rendezvous of in-flight slot probes, never with elapsed time (the hub's flake rule: deterministic, no timeouts).
+  - State table additions: "Cold resolution failed after the budget" shows as refused with that error for 30 s, recovered by fixing the cause and retrying, with no loss. "Move admitted on a stale slot" shows as the queued move refusing ("resolved differently since admission; nothing was moved"), recovered by retrying, with no loss.
+
 ## Estimate
 
 ```estimate
@@ -118,6 +130,8 @@ total: 1.77
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.* Rows: M1's admission memo, warm sources and budget (greenfield, single concern); M1's concurrent Discover (smaller, mirroring the existing code); M2's proven-resume scan skip (smaller, but a subtle boundary, so more design); the recover-plan working-directory fix (smaller); two milestone reviews; atlas. Impl values are 40% of the v2 midpoints. The plan doc is thorough, so the design buffer is 15%. The calibration doc is flagged stale (#127), so the numbers are provisional.
 
 ## Log
+
+- 2026-10-20 (pair:2): M1 review round 2: BR-7 (a timing assertion) is fixed by a rendezvous of slot probes held at once. Mutation: serial Discover fails it after the bounded safety, about 20 s, with "all slots in flight together: false". My first rendezvous draft passed under serial twice: it counted the primary's own probe, then cumulative arrivals. Minors fixed: the receipt filter has a budget, start-time ordering, sweep and cap, and the plan's Revisions. Mutations: late result overwrites, no sweep, each red.
 
 - 2026-10-20 (pair:2): M1 review FIX-THEN-SHIP; both blocking findings fixed by their class. BR-1: a failed resolution is remembered for 30 s (`hubTargetFailureAge`), so admission answers with the real error, not "warming" forever (`TestHubTargetMemoRemembersALateFailure`). BR-2: move-slot admission was the same class (fresh Discover per slot at admission). It now names slots from the memo within the budget, and the queued move re-resolves each fresh and refuses on a difference, because those slots are its payload (`TestHubMoveAdmissionUsesWarmSlotsAndRechecksFresh`: zero fresh resolutions at admission, then refusal when a slot shifted). Minors: Discover fan-out capped at 8 (`slotVerifyConcurrency`, with a 10-slot peak check), background flights capped at 8, canonical `repo:N` keys, and one `checkHubSlotOperation` with fresh or warm sources (DRY). Mutations, each red: failures not remembered, no flight cap, move admission resolving fresh, move prepare skipping the fresh check, and the Discover cap raised to 128.
 

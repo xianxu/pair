@@ -165,3 +165,52 @@ func TestHubTargetMemoKeysCanonicallyAndCapsFlights(t *testing.T) {
 		t.Fatal("key canonicalization")
 	}
 }
+
+// TestHubTargetMemoOrdersByStartAndSweeps: an older resolution that finishes
+// after a newer one never replaces it, and remembered entries are swept and
+// capped (pair#726 review).
+func TestHubTargetMemoOrdersByStartAndSweeps(t *testing.T) {
+	now := time.Unix(1000, 0)
+	var clock sync.Mutex
+	tick := func() time.Time { clock.Lock(); defer clock.Unlock(); now = now.Add(time.Millisecond); return now }
+	oldRelease, oldStarted := make(chan struct{}), make(chan struct{})
+	var first atomic.Bool
+	m := newHubTargetMemo(t.Context(), func(ctx context.Context, ref string) (couchcore.HubSlot, error) {
+		if ref == "pair:6" && first.CompareAndSwap(false, true) {
+			close(oldStarted)
+			<-oldRelease
+			return couchcore.HubSlot{Repository: "/old", Number: 6}, nil
+		}
+		return couchcore.HubSlot{Repository: "/new", Number: 6}, nil
+	}, tick)
+	done := make(chan struct{})
+	go func() { defer close(done); _, _ = m.Fresh(t.Context(), "pair:6") }()
+	<-oldStarted
+	if _, err := m.Fresh(t.Context(), "pair:6"); err != nil {
+		t.Fatal(err)
+	}
+	close(oldRelease)
+	<-done
+	if got, err := m.Warm(t.Context(), "pair:6"); err != nil || got.Repository != "/new" {
+		t.Fatalf("an older resolution replaced a newer one: %v %v", got, err)
+	}
+	for i := 0; i < hubTargetMaxEntries+10; i++ {
+		_, _ = m.Fresh(t.Context(), fmt.Sprintf("pair:%d", 100+i))
+	}
+	m.mu.Lock()
+	n := len(m.entries)
+	m.mu.Unlock()
+	if n > hubTargetMaxEntries {
+		t.Fatalf("entries = %d over the cap %d", n, hubTargetMaxEntries)
+	}
+	clock.Lock()
+	now = now.Add(hubTargetMemoAge)
+	clock.Unlock()
+	_, _ = m.Fresh(t.Context(), "pair:1")
+	m.mu.Lock()
+	n = len(m.entries)
+	m.mu.Unlock()
+	if n != 1 {
+		t.Fatalf("expired entries kept: %d", n)
+	}
+}
