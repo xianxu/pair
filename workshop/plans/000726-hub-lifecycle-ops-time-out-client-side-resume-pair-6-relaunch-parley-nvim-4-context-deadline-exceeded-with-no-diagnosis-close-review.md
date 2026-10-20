@@ -534,3 +534,159 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T12:18:49-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 726 — Hub lifecycle ops time out client-side (resume pair:6, relaunch parley.nvim:4: 'context deadline exceeded') with no diagnosis |
+| repo | pair |
+| issue file | workshop/issues/000726-hub-lifecycle-ops-time-out-client-side-resume-pair-6-relaunch-parley-nvim-4-context-deadline-exceeded-with-no-diagnosis.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 0a9a7cf9135a3be4cff673bd61eb2e2e77f2a66b..a9afd1079e958431e4efec7c485ec645e7ac9b3f |
+| command | sdlc close --issue 726 |
+| reviewer | codex (openai; author anthropic,openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T12:18:49-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range satisfies the revised admission and recovery contracts. BR-18 is addressed: one deadline spans authentication through enqueue, and admission no longer enters synchronous native resolver fallbacks. Regression tests pass, and removing either protection reproduced lost socket replies. No new blocking findings remain.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      TestHubTargetMemoRemembersALateFailure verifies that late failures retain their diagnosis and retry after expiry.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Move admission uses Warm; TestHubMoveAdmissionUsesWarmSlotsAndRechecksFresh verifies fresh queued validation and refusal on changed resolution.
+  - id: BR-3
+    disposition: withdrawn
+    note: |
+      Concurrent Discover and replaced-host regressions both ran successfully here, including under race.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Memo flights and Discover verification each have an eight-worker cap; cap and concurrency regressions pass.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      hubTargetKey canonicalizes parsed references; TestHubTargetMemoKeysCanonicallyAndCapsFlights exercises that path.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Admission and queued guards share checkHubSlotOperation, with separate injected workspace and target sources.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      TestDiscoverVerifiesSlotsConcurrently proves simultaneous probe overlap through a rendezvous rather than elapsed-time assertions.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      Receipt filtering uses bounded Warm reads; cancellation and receipt-mutex regressions pass.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      The issue's Revisions and state tables document bounded filtering, move revalidation, failure retention, ordering, expiry and caps; these match the implementations.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      Entries order observations by resolution start; both late individual and late repository completion regressions protect newer fresh results.
+  - id: BR-11
+    disposition: addressed
+    note: |
+      remember sweeps expired entries and enforces the 256-entry writer cap; TestHubTargetMemoOrdersByStartAndSweeps covers both.
+  - id: BR-12
+    disposition: addressed
+    note: |
+      Failure expiry uses completion time separately from observation ordering; TestHubTargetMemoAgesFailuresFromTheirEnd covers a slow failure.
+  - id: BR-13
+    disposition: addressed
+    note: |
+      TestRecoverySkipCandidatesOnAnOversizedNativeStore constructs an over-cap inventory and oversized transcript, with full-read control and screen-only byte accounting.
+  - id: BR-14
+    disposition: addressed
+    note: |
+      recovery_evidence_os.go:202 has one Source-nil capture fence after optional candidate collection; recovery preservation and selection tests pass.
+  - id: BR-15
+    disposition: addressed
+    note: |
+      The CLI now says the confirmed choice comes from the established binding rather than the scan; its incomplete-scan regression passes.
+  - id: BR-16
+    disposition: addressed
+    note: |
+      The plan M2 bullet and atlas/couch.md:78 describe established-binding provenance without claiming every incomplete scan affects only inferred choices.
+  - id: BR-17
+    disposition: addressed
+    note: |
+      This review inspected the full pinned range, including repository batching, startup prewarm, constructor wiring and Tier A socket acceptance.
+  - id: BR-18
+    disposition: addressed
+    note: |
+      Slot/status and move entry points establish the shared deadline; enqueue checks expiry and admission has no synchronous native fallback. Split-stage, missing-proof, cancellation and retry regressions pass. Disposable mutations reproduced both socket drops at 2 seconds and native-teardown reply loss at 3.51 seconds.
+  - id: BR-19
+    disposition: addressed
+    note: |
+      Memo and queue selection reuse RepositorySiblingPrimary; cold/prewarmed sibling precedence and constructor fleet-context regressions pass.
+```
+
+1. **Strengths**
+
+   - Admission and execution share authorization logic while retaining fresh authority checks before effects ([hub_guards.go](/Volumes/TestScratch/review-checkouts/4960c00bcd60ce0e/cmd/internal/couchcmd/hub_guards.go:148)).
+   - Warming retries preserve request identity, reject malformed retry hints, and never resend uncertain admission ([messages.go](/Volumes/TestScratch/review-checkouts/4960c00bcd60ce0e/cmd/internal/couchcmd/messages.go:294)).
+   - Recovery skips candidate scanning after preserving source, screen and capture validation ([recovery_evidence_os.go](/Volumes/TestScratch/review-checkouts/4960c00bcd60ce0e/cmd/internal/couchcore/recovery_evidence_os.go:199)).
+   - Tier A acceptance exercises actual CLI/socket/console flow and verifies persisted live incarnations.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Full `couchcmd`, `couchcore`, `couchmessage` and `artifactpath` suites passed.
+   - Focused admission, memo, CLI retry, batch acceptance, concurrent discovery and recovery tests passed under race.
+   - Vet passed for all four packages; range whitespace checks passed.
+   - Both BR-18 mutations failed for the expected behavior. Disposable copies were removed; the reviewed checkout remains unchanged.
+   - Live Tier B conformance remains outside this boundary under the documented split.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Shared guard and sibling-precedence helpers consolidate behavior.
+   - **ARCH-PURE — pass:** Authorization decisions remain separate from injected discovery and workspace IO.
+   - **ARCH-PURPOSE — pass:** Slot, move, status and enqueue paths follow the revised admission rule.
+   - **ARCH-MOCK — pass:** Stateful fakes exercise production seams; the native cancellation regression covers the real runner.
+   - **ARCH-CONSTRAINTS — pass:** Request deadlines, retry bounds, flight limits and discovery limits are enforced.
+   - **ARCH-SECURE — pass:** Missing authority refuses visibly; memo results do not replace fresh effect authorization.
+   - **ARCH-ORDER — pass:** Receipt transitions, observation ordering, cancellation and stale-result rejection have sequence coverage.
+   - **ARCH-FUNERAL — pass:** Flights terminate with service lifetime; memo writes enforce expiry and capacity.
+   - **ARCH-EVOLVE — pass:** No persisted format changes; the retry hint is an additive transient response field.
+
+7. **Plan revision recommendations:** None. The existing revisions describe the delivered behavior, and both README and atlas cover the new surface.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"25013998-8f02-470b-8d33-d2d102fe86f2","repository":"github.com/xianxu/pair","issue_id":"000726","recipe":"milestone-review","round":10,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/4960c00bcd60ce0e","reviewed_head":"a9afd1079e958431e4efec7c485ec645e7ac9b3f","slot":"pair:2","requested_at":"2026-10-20T19:12:31.361549Z"},"phase":"finished","pid":5888,"started_at":"2026-10-20T19:12:31.523831Z","finished_at":"2026-10-20T19:18:48.644712Z","session_id":"01a15aba-c4d4-7332-9e36-963c7fd6ffc1","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.666387625s
+head: "a9afd1079e958431e4efec7c485ec645e7ac9b3f"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
