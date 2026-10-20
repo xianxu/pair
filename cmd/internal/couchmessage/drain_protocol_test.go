@@ -12,14 +12,14 @@ import (
 
 func TestDrainRequestClosedShape(t *testing.T) {
 	id := "00000000-0000-4000-8000-000000000001"
-	r := Request{Op: "drain", ID: id, Scope: "scope", Tag: "tag", Session: "session", Nonce: "nonce", Drain: &DrainRequest{Action: "start", TimeoutMillis: 600000}}
+	r := Request{Op: "drain", ID: id, Scope: "scope", Tag: "tag", Session: "session", Nonce: "nonce", Drain: &DrainRequest{Action: "start"}}
 	if err := ValidateRequest(r); err != nil {
 		t.Fatal(err)
 	}
 	for _, bad := range []Request{
-		{Op: "drain", Drain: &DrainRequest{Action: "start", TimeoutMillis: 600000}},
+		{Op: "drain", Drain: &DrainRequest{Action: "start"}},
 		{Op: "drain", Drain: &DrainRequest{Action: "status", Fast: true}},
-		{Op: "drain", Drain: &DrainRequest{Action: "ack", ID: id}},
+		{Op: "drain", Drain: &DrainRequest{Action: "ack"}},
 		{Op: "actors", Drain: &DrainRequest{Action: "status"}},
 	} {
 		if ValidateRequest(bad) == nil {
@@ -93,7 +93,7 @@ func FuzzValidateDrainRequest(f *testing.F) {
 				}
 				for key := range nested {
 					switch strings.ToLower(key) {
-					case "action", "id", "reason", "fast", "timeout_millis":
+					case "action", "message", "fast":
 					default:
 						t.Fatalf("unknown drain authority %q admitted", key)
 					}
@@ -115,22 +115,19 @@ func FuzzValidateDrainRequest(f *testing.F) {
 		}
 		switch d.Action {
 		case "start":
-			if d.ID != "" || d.TimeoutMillis < 1000 || d.TimeoutMillis > 86400000 {
-				t.Fatal("invalid start bounds accepted")
+			if d.Message != "" {
+				t.Fatal("start accepted continuation")
 			}
-			if !drainFuzzUUID(r.ID) || !utf8.ValidString(d.Reason) || len(d.Reason) > 1024 || strings.IndexFunc(d.Reason, unicode.IsControl) >= 0 {
-				t.Fatal("unsafe notice data accepted")
+		case "undrain":
+			if d.Fast || !utf8.ValidString(d.Message) || len(d.Message) > 1024 || strings.IndexFunc(d.Message, unicode.IsControl) >= 0 {
+				t.Fatal("unsafe continuation admitted")
 			}
-		case "ack":
-			if !drainFuzzUUID(d.ID) || r.ID != "" || d.Reason != "" || d.Fast || d.TimeoutMillis != 0 {
-				t.Fatal("ack accepted another action's authority")
-			}
-		case "status", "cancel":
-			if r.ID != "" || d.ID != "" || d.Reason != "" || d.Fast || d.TimeoutMillis != 0 {
-				t.Fatal("read/cancel accepted start or ack payload")
+		case "status":
+			if r.ID != "" || d.Fast || d.Message != "" {
+				t.Fatal("status accepted mutation options")
 			}
 		default:
-			t.Fatal("unknown drain action accepted")
+			t.Fatal("unknown drain action")
 		}
 		// An otherwise valid request must never turn a destructive-operation flag
 		// into drain authority, even when all its ordinary fields are admissible.

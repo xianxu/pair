@@ -204,7 +204,6 @@ type proxy struct {
 	dim                    atomic.Bool
 	dimmer                 sgrDimmer
 	inputAdmission         sync.Mutex
-	drainTurn              uint64 // inputAdmission owns the logical turn fence
 	automaticInput         automaticInputTransaction
 	driveControl           atomic.Bool
 	childIO                *ttyio.File

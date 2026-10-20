@@ -22,8 +22,6 @@ import (
 
 // StatusActor is one chip on the row.
 type StatusActor struct {
-	Workspace string
-	Drain     couchcore.DrainVisibleState
 	// GroupKey identifies the primary checkout; SlotNumber is zero for ordinary
 	// tabs. The renderer shortens only after drawing this group's first member.
 	GroupKey   string
@@ -358,13 +356,7 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		if used > 0 {
 			appendText(" ", "")
 		}
-		budget := width - used
-		// Keep the state first on narrow terminals, and retain room for actor
-		// selection and picker cues when the row is wide enough to show both.
-		if budget >= 32 && len(m.Actors) > 0 {
-			budget /= 2
-		}
-		appendText(rowtext.Fit(summary, budget), "")
+		appendText(summary, "")
 	}
 	var chips []ChipSpan
 	lead := 0
@@ -554,9 +546,6 @@ type chipCell struct {
 // the active chip's closing bracket.
 func chipTail(a StatusActor, spinner uint8) string {
 	tail := ""
-	if state := drainStateText(a.Drain); state != "" {
-		tail = "{" + state + "}"
-	}
 	if a.Placeholder && a.Loading {
 		tail += " " + spinnerGlyph(spinner)
 	}

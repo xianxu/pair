@@ -71,7 +71,7 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 	switch inv.messageOp {
 	case "drain":
 		r.Drain = inv.drain
-		if inv.drain.Action == "start" {
+		if inv.drain.Action != "status" {
 			r.ID, err = newRequestID()
 			if err != nil {
 				fmt.Fprintln(stderr, "couch:", err)
@@ -108,9 +108,6 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 	if err := call(ctx, socket, r, &result); err != nil {
 		if r.Op == "drain" && inv.drain.Action != "status" {
 			id := r.ID
-			if inv.drain.Action == "ack" {
-				id = inv.drain.ID
-			}
 			fmt.Fprintf(stderr, "couch: drain %s outcome uncertain: %s; inspect couch --drain --status; do not retry automatically\n", id, notifyosc.Sanitize([]byte(err.Error())))
 		} else if r.Op == "send" {
 			printUncertainMessage(stderr, r.ID, err.Error())
@@ -144,9 +141,21 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 	} else if result.Code == "not-dispatched" {
 		fmt.Fprintf(stdout, "not-dispatched: %s\n", result.Error)
 	} else if r.Op == "drain" && result.Drain != nil {
-		fmt.Fprintf(stdout, "drain %s: %s — %s\n", result.Drain.ID, result.Drain.State, notifyosc.Sanitize([]byte(result.Drain.Detail)))
+		fmt.Fprintf(stdout, "drain flags: %d slots (requested posture; not checkpoint confirmation)\n", len(result.Drain.Rows))
 		for _, row := range result.Drain.Rows {
-			fmt.Fprintf(stdout, "%s: %s — %s\n", notifyosc.Sanitize([]byte(row.Workspace)), row.State, notifyosc.Sanitize([]byte(row.Reason)))
+			idle := "idle unavailable"
+			if row.IdleMillis != nil {
+				idle = "observed idle " + (time.Duration(*row.IdleMillis) * time.Millisecond).String()
+			}
+			fmt.Fprintf(stdout, "%s: %s\n", notifyosc.Sanitize([]byte(row.Workspace)), idle)
+		}
+		for _, d := range result.DrainDeliveries {
+			if d.Error != "" {
+				fmt.Fprintf(stdout, "%s: notice refused: %s\n", notifyosc.Sanitize([]byte(d.Workspace)), notifyosc.Sanitize([]byte(d.Error)))
+			}
+			if d.Receipt != nil {
+				fmt.Fprintf(stdout, "%s: %s %s\n", notifyosc.Sanitize([]byte(d.Workspace)), d.Receipt.Message.ID, d.Receipt.Status)
+			}
 		}
 	} else if r.Op == "actors" {
 		if len(result.Actors) == 0 {

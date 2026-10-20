@@ -21,9 +21,6 @@ func (b *Broker) freezeBatch(ctx context.Context, a *SlotActor, head Message, jo
 		}
 	}
 	queue := a.state.QueuedMessages()
-	if b.drainGeneration != "" {
-		queue = nil
-	}
 	for i := range queue {
 		queue[i].Deadline = now.Add(PasteTimeout)
 	}

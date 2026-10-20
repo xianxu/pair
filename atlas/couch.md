@@ -16,85 +16,49 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 
 The operator asks the TL to drain the fleet before a restart. The steward is
 `HubOwnership.Main()`, the first command-line hub (#456); only its verified live
-TL may start or cancel. Read-only status is available to anyone. There is no
-console start action in this issue.
+TL may issue drain or undrain. Read-only status is available to anyone.
 
 ```
-couch --drain [--reason TEXT] [--fast] [--timeout DURATION] [--json]
+couch --drain [--fast] [--json]
 couch --drain --status [--json]
-couch --drain --ack ID [--json]
-couch --drain --cancel [--json]
+couch --undrain [--message TEXT] [--json]
 ```
 
-Start is asynchronous: it returns the generation ID and initial board. Its
-persisted owner intent closes Couch admission before the SDLC pause attempt;
-notices become eligible only after that owner is confirmed paused. The queue
-seam is shared with ariadne#481: `sdlc queue pause --reason TEXT --owner TOKEN`
-(fast adds `--cancel-running`), `resume --owner TOKEN`, and `status --json`.
-The retained [isolated real queue conformance runner](../cmd/internal/couchcmd/testdata/drainqueue/README.md) runs before enablement and whenever the adapter contract or deployed queue implementation changes.
+Drain flags the other currently live slots, including other hubs, and excludes
+the issuing steward. The flags are transient workspace-scoped intent in the
+running Couch service; restarting Couch clears them. Repeating drain updates the
+flagged cohort and sends another ordinary request to the selected slots. A flag
+does not hold messages, launches or SDLC work. Ordinary messages keep delivering.
 
-Fast pause interrupts suites and preserves their interrupted outcomes for explicit
-rerun. Admitted merges and landings finish or retire at safe boundaries, including
-a merge's next suite admission boundary. They remain named active work and keep
-the board draining until retired; fast does not kill integration or push.
+`couchcore/drain_notice.go` owns the exact `DrainNotice` and `UndrainNotice` text.
+Graceful requests ask workers to finish the current atomic step and wait for
+current background work to finish. Fast requests ask workers to stop now without
+finishing the step, promptly stop their own background work via supported
+controls, and preserve unfinished working-tree edits. Both ask workers to record
+the stopping point and next step in the issue Log, commit and push the checkpoint,
+end the turn and stay idle. While idle, workers keep receiving messages; for new
+work they reply once, “acknowledge message received, will resume processing after
+drain is lifted”, without courtesy acknowledgement loops. These are ordinary
+messages through the existing delivery path, rather than wrapper input controls.
 
-The owner is `couch-drain:{ID}`. Enablement requires real #481 conformance;
-unsupported commands or incomplete/unknown observations stay stuck, never
-silently count as a pause or quiescence. Status reads the published board.
+`couch --drain --status` returns a detached snapshot of flagged workspaces and
+current observations: connection, settled state, picker, background work and idle
+milliseconds. Unknown facts remain unknown. Idle age requires a connected slot,
+known settled state, no picker or background work, and a known nonfuture output
+clock. Status is observational; the operator decides whether a restart is safe.
+The console renders one compact `drain N` badge and preserves actor selection and
+picker cues.
 
-The v1 notice formatter in `couchcore/drain_notice.go` owns the exact text.
-Graceful requests finish the current atomic step, commit and push the checkpoint,
-and record the stopping point in the issue Log. Fast requests stop now without
-finishing the current step, record the stopping point, and commit and push the
-checkpoint without discarding unfinished working-tree edits. Both require
-starting nothing new, then `couch --drain --ack ID` after the checkpoint is
-durable, ending the turn and staying idle. The ack is the sole worker protocol
-action; no separate drained report is needed. It attests the checkpoint rather
-than scanning git or proving remote durability. An optional reason is quoted
-data, not an instruction.
+`couch --undrain` clears the flags and sends the ordinary message “drain lifted;
+continue your current work” to flagged live slots. An optional `--message` is
+quoted data, valid UTF-8 with no control characters and at most 1024 bytes.
+Repeated undrain after flags are cleared sends nothing. Undrain continues the
+worker's current work rather than invoking recovery or restart automation.
 
-| Board state | Meaning and recovery |
-|---|---|
-| draining | Pause, checkpoint turn, idle proof, owned work, or cancellation is still pending; wait, or retry an unconfirmed cancel. |
-| stuck | Read the exact reason and inspect status. A quiet member without an ack immediately shows `stuck: no ack`; checkpoint and ack. Unknown identity, input, queue or storage evidence does not authorize restart. |
-| drained | Every current incarnation has its ack and positive idle evidence; complete queue evidence confirms the own pause and no active suite, merge or landing work. Keep waiting until the intended restart or cancellation. |
-| cancelled | Own queue pause is confirmed absent and old control effects are reconciled. Other owners may still pause SDLC; inspect status. Interrupted work must be resumed explicitly later. |
-
-The default deadline is 10 minutes, bounded to 1 second–24 hours. Timeout lists
-remaining reasons and retains both holds; later valid evidence can still complete
-the same generation. Duplicate start returns its current generation; changing
-reason/mode requires cancel then start. Acknowledgement samples current registry
-submissions and identity-fenced wrapper input; only a subsequent observation can
-seal idle, and pre-ack in-flight observations cannot invalidate that baseline.
-Later activity invalidates an old ack,
-and a replacement incarnation needs fresh notice/ack evidence. A recovered active
-record retains dispatch holds and requires cancellation before a new drain.
-
-`drainCoordinator` owns the one generation; `ReduceDrain` and
-`ProjectDrainBoard` project authenticated acknowledgements plus current wrapper,
-registry and queue facts. Drain control bypasses held peer FIFO without batching
-with peers. Fast mode freezes the original wrapper/turn/input identity, completes
-or reconciles at most one fenced Esc, then allows the checkpoint notice. Idle
-means no Esc; unsupported/picker/unknown input remains stuck. An uncertain
-interrupt holds the notice. No restart or agent relaunch is performed by drain.
-
-Cancellation revokes uncommitted control handoffs under the input lease, joins
-known effects, releases only its own queue owner and keeps admission held until
-release is confirmed. Already handed input cannot be undone. A lost reply calls
-for `--drain --status` and retained-result reconciliation, never automatic
-re-paste or another Esc. Unknown cancellation stays held; retry cancel to
-reconcile it. Cancelling never restarts interrupted work. The generation record
-is one bounded `drain.json` in the existing namespace, with strict known fields
-and preserved additive extensions.
-
-The schema-2 intent retains one monotonic epoch and namespace identity; the
-public drain UUID stays unchanged. Protocol-2 wrapper controls and outcomes carry
-that identity, epoch, incarnation and control kind. The wrapper input lease owns
-the epoch watermark and two fixed control slots, retaining only current outcomes.
-A newer epoch requires confirmed revocation of the previous controls; stale
-callbacks cannot send input or alter the current outcome. Status reads never
-advance the watermark. Unsupported wrappers or invalid/older intents remain
-held for explicit recovery rather than silently weakening the fence.
+The service owns the synchronized flags and ordinary notice admission;
+`AddDrainFlags`, `ClearDrainFlags` and `ProjectDrainBoard` are pure helpers in
+`couchcore`. There is no drain acknowledgement command, readiness state machine,
+queue pause, durable drain file or automatic queue operation.
 
 ### Slot scratch (#708)
 

@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
-	"sync/atomic"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
@@ -17,7 +16,6 @@ import (
 // Explicit launches populate ownership; implicit launches use only the effect
 // gate and retain legacy cwd authority separately.
 type hubRuntime struct {
-	drainGuard atomic.Pointer[func(couchcore.OperationCall) error]
 	effectOnce sync.Once
 	effects    chan struct{}
 	mu         sync.RWMutex
@@ -205,11 +203,6 @@ func dispatchHubOperation(h *hubRuntime, call couchcore.OperationCall, dispatch 
 		return nil, err
 	}
 	defer release()
-	if guard := h.drainGuard.Load(); guard != nil {
-		if err := (*guard)(call); err != nil {
-			return nil, err
-		}
-	}
 	payload, err := unwrapHubMutation(ctx, call.TypedPayload)
 	if err != nil {
 		return nil, err

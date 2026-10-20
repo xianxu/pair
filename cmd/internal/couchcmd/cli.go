@@ -118,7 +118,7 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 	// scanning layout flags, which could otherwise consume a literal body.
 	if len(args) > 0 {
 		switch args[0] {
-		case "--drain":
+		case "--drain", "--undrain":
 			return parseDrainCLI(args)
 		case "--keys", "--set-model", "--interrupt":
 			return parseAgentDriveCLI(args)

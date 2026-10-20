@@ -84,20 +84,6 @@ func (d *peerDelivery) handleEndpoint(_ context.Context, raw []byte) ([]byte, er
 	}
 	var err error
 	switch request.Op {
-	case "drain-observe":
-		o := d.observeDrain()
-		response.DrainObservation = &o
-	case "drain-interrupt":
-		var r couchmessage.DrainInterruptResult
-		r, err = d.startDrainInterrupt(request.ID, *request.DrainFence, *request.DrainObserved)
-		response.DrainInterrupt = &r
-	case "drain-interrupt-status":
-		var r couchmessage.DrainInterruptResult
-		r, err = d.drainInterruptStatus(request.ID, *request.DrainFence)
-		response.DrainInterrupt = &r
-	case "drain-revoke":
-		r := d.revokeDrain(request.ID, *request.DrainFence)
-		response.DrainRevoke = &r
 	case "drive-observe":
 		o := d.agentDriveObservation()
 		response.DriveObservation = &o
@@ -134,17 +120,6 @@ func (d *peerDelivery) handleEndpoint(_ context.Context, raw []byte) ([]byte, er
 		d.mu.Lock()
 		response.Observation = d.observationLocked()
 		d.mu.Unlock()
-	case "drain-reserve":
-		response.DrainFence = request.DrainFence
-		err = d.reserveDrain(request.ID, request.Sequence, *request.DrainFence)
-		var committed *couchmessage.AlreadyCommittedError
-		if errors.As(err, &committed) {
-			response.Receipt = &committed.Receipt
-			err = couchmessage.ErrAlreadyCommitted
-		}
-	case "drain-release":
-		response.DrainFence = request.DrainFence
-		d.releaseDrain(request.ID, *request.DrainFence)
 	case "reserve":
 		err = d.reserve(request.ID, request.Sequence)
 		var committed *couchmessage.AlreadyCommittedError
@@ -185,7 +160,7 @@ func (d *peerDelivery) handleEndpoint(_ context.Context, raw []byte) ([]byte, er
 		}
 	case "release":
 		d.mu.Lock()
-		if d.reservation == request.ID && d.reservationFence.IsZero() {
+		if d.reservation == request.ID {
 			d.reservation = ""
 			if d.current.Message.ID == request.ID && !d.current.Status.Terminal() {
 				d.released = true
@@ -246,12 +221,6 @@ func (p *proxy) startPeerRuntime(executable string) (*peerRuntime, error) {
 	}
 	lifetime, stop := context.WithCancel(context.Background())
 	d := newPeerDelivery(binding, time.Now)
-	d.drainProxy = p
-	d.drainNamespace, err = couchmessage.DrainNamespaceKey(namespace)
-	if err != nil {
-		stop()
-		return nil, err
-	}
 	r := &peerRuntime{cancel: stop, delivery: d, binding: binding, namespace: namespace}
 	server, err := couchmessage.StartServer(lifetime, socket, d.handleEndpoint)
 	if err != nil {

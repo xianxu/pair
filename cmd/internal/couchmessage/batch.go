@@ -81,7 +81,7 @@ func ValidateBatch(messages []Message, to Binding, id string) error {
 	}
 	seen := make(map[string]bool, len(messages))
 	for _, m := range messages {
-		if !m.Origin.Valid() || ValidateDrainInstance(m) != nil || !validMessageID(m.ID) || seen[m.ID] || m.To != to || m.From.Validate() != nil || m.Deadline.IsZero() {
+		if !m.Origin.Valid() || !validMessageID(m.ID) || seen[m.ID] || m.To != to || m.From.Validate() != nil || m.Deadline.IsZero() {
 			return errors.New("batch member identity mismatch")
 		}
 		if err := ValidateBody(m.Body); err != nil {

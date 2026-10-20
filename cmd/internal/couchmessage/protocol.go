@@ -46,8 +46,9 @@ type Request struct {
 }
 
 type Response struct {
-	Drain     *couchcore.DrainBoard   `json:",omitempty"`
-	Resources *couchcore.ResourceView `json:",omitempty"`
+	DrainDeliveries []DrainDelivery         `json:",omitempty"`
+	Drain           *couchcore.DrainBoard   `json:",omitempty"`
+	Resources       *couchcore.ResourceView `json:",omitempty"`
 	// Refusals answers refusals: each canonical slot's newest unsuperseded
 	// reason and recovery class. No caller credentials: this is unauthenticated.
 	Refusals        map[string]RefusalInfo `json:",omitempty"`

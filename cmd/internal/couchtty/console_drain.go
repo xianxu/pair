@@ -4,7 +4,6 @@ import (
 	"strconv"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
-	"github.com/xianxu/pair/cmd/internal/rowtext"
 )
 
 // SetDrainBoard publishes an immutable snapshot to the Console event loop.
@@ -25,55 +24,31 @@ func (c *Console) SetDrainBoard(board couchcore.DrainBoard) {
 }
 func copyDrainBoard(b couchcore.DrainBoard) couchcore.DrainBoard {
 	b.Rows = append([]couchcore.DrainRow(nil), b.Rows...)
-	b.Queue.Owners = append([]string(nil), b.Queue.Owners...)
-	b.Queue.Active = append([]couchcore.DrainActivity(nil), b.Queue.Active...)
+	for i := range b.Rows {
+		r := &b.Rows[i]
+		if r.IdleMillis != nil {
+			value := *r.IdleMillis
+			r.IdleMillis = &value
+		}
+		r.Settled = copyDrainFact(r.Settled)
+		r.Picker = copyDrainFact(r.Picker)
+		r.Background = copyDrainFact(r.Background)
+	}
 	return b
 }
-func drainStatusText(b couchcore.DrainBoard) string {
-	if b.ID == "" {
-		return ""
+func copyDrainFact(value *bool) *bool {
+	if value == nil {
+		return nil
 	}
-	state := drainStateText(b.State)
-	if state == "" {
-		return ""
-	}
-	if detail := rowtext.Sanitize(b.Detail); detail != "" {
-		return state + ": " + detail
-	}
-	return state
+	copy := *value
+	return &copy
 }
-func drainStateText(s couchcore.DrainVisibleState) string {
-	switch s {
-	case couchcore.DrainDraining, couchcore.DrainStuck, couchcore.DrainDrained, couchcore.DrainCancelled:
-		return string(s)
+func drainStatusText(b couchcore.DrainBoard) string {
+	if len(b.Rows) == 0 {
+		return ""
 	}
-	return ""
+	return "drain " + strconv.Itoa(len(b.Rows))
 }
 func applyDrainStatus(m *StatusModel, b couchcore.DrainBoard) {
 	m.Drain = drainStatusText(b)
-	if m.Drain == "" {
-		return
-	}
-	byWorkspace := make(map[string]couchcore.DrainVisibleState, len(b.Rows))
-	for _, r := range b.Rows {
-		byWorkspace[r.Workspace] = r.State
-	}
-	for i := range m.Actors {
-		a := &m.Actors[i]
-		workspace := a.Workspace
-		if workspace == "" {
-			workspace = a.Label
-		}
-		state, found := byWorkspace[workspace]
-		if !found {
-			state = byWorkspace[workspace+":0"]
-		}
-		a.Drain = state
-	}
-}
-func drainSlotWorkspace(s couchcore.SlotIdentity) string {
-	if s.Repo == "" {
-		return ""
-	}
-	return s.Repo + ":" + strconv.Itoa(s.Number)
 }

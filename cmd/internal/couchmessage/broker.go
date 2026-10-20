@@ -91,10 +91,6 @@ type Broker struct {
 	admissions         map[string]*admission
 	jobs               map[string]*deliveryJob
 	workers            sync.WaitGroup
-	drainGeneration    string
-	drainCancelling    bool
-	drainControls      map[string]string
-	drainRevoked       map[string]bool
 }
 
 // SetFamilyEligibility installs the supervisor's trusted ownership projection.
@@ -403,7 +399,7 @@ func (b *Broker) sweep() {
 	now := b.now()
 	b.sweepRefusalsLocked(now)
 	for id, r := range b.receipts {
-		if b.drainControls[id] == "" && r.Status.Terminal() && !r.RetainUntil.IsZero() && !now.Before(r.RetainUntil) {
+		if r.Status.Terminal() && !r.RetainUntil.IsZero() && !now.Before(r.RetainUntil) {
 			delete(b.receipts, id)
 			delete(b.destinations, id)
 		}
@@ -578,10 +574,6 @@ func (b *Broker) send(parent context.Context, from Binding, id string, route Rou
 	}
 	b.mu.Lock()
 	b.sweep()
-	if b.drainGeneration != "" {
-		b.mu.Unlock()
-		return Receipt{}, ErrDraining
-	}
 	if !b.caller(from) {
 		b.mu.Unlock()
 		return Receipt{}, ErrUnavailable
@@ -639,10 +631,6 @@ func (b *Broker) admit(ctx context.Context, from Binding, id string, route Route
 			return Receipt{}, families, err
 		}
 		b.mu.Lock()
-		if b.drainGeneration != "" {
-			b.mu.Unlock()
-			return Receipt{}, families, ErrDraining
-		}
 		if !b.caller(from) {
 			b.mu.Unlock()
 			return Receipt{}, families, ErrUnavailable
@@ -741,9 +729,6 @@ func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, fro
 	if b.actors[to] != a || a.reservation != id || !b.caller(to) || a.sequence != seq || !b.caller(from) {
 		return Receipt{}, ErrUnavailable
 	}
-	if b.drainGeneration != "" {
-		return Receipt{}, ErrDraining
-	}
 	if family && !b.eligible(from, to) {
 		return Receipt{}, ErrNoRecipient
 	}
@@ -810,10 +795,10 @@ const PromoteRetry = time.Second
 func (b *Broker) promote(ctx context.Context, a *SlotActor) bool {
 	b.mu.Lock()
 	_ = b.apply(a, Event{Kind: Tick, At: b.now()})
-	head, ok := b.eligibleDrainHead(a)
+	head, ok := a.state.QueueHead()
 	for ok && !b.caller(head.From) {
 		_ = b.apply(a, Event{Kind: Cancel, Binding: a.binding, Message: Message{ID: head.ID}, Detail: "sender disconnected before delivery", At: b.now()})
-		head, ok = b.eligibleDrainHead(a)
+		head, ok = a.state.QueueHead()
 	}
 	_, pending := a.state.Pending()
 	if ok && a.reservation != "" {
@@ -828,7 +813,7 @@ func (b *Broker) promote(ctx context.Context, a *SlotActor) bool {
 	b.mu.Unlock()
 	obs, err := a.endpoint.Observe(ctx)
 	if err == nil {
-		err = reserveDrainMessage(ctx, a.endpoint, head, obs.Sequence)
+		err = a.endpoint.Reserve(ctx, head.ID, obs.Sequence)
 	}
 	b.mu.Lock()
 	// The worker frees its own attempt without a wake: it schedules its own
@@ -844,7 +829,7 @@ func (b *Broker) promote(ctx context.Context, a *SlotActor) bool {
 	if errors.As(err, &committed) {
 		// Network IO cannot restore authority after cancellation, replacement,
 		// or removal of the exact admitted queue head.
-		current, queued := b.eligibleDrainHead(a)
+		current, queued := a.state.QueueHead()
 		if !queued || current != head || ctx.Err() != nil || a.sequence != seq ||
 			b.actors[a.binding] != a || !b.caller(a.binding) || !b.caller(head.From) {
 			return false
@@ -855,7 +840,7 @@ func (b *Broker) promote(ctx context.Context, a *SlotActor) bool {
 		// Peer recovery remains compatible with legacy wrapper deadlines.
 		match := retained.Message.Origin.Valid() && retained.Message.Origin == head.Origin &&
 			retained.Message.ID == head.ID && retained.Message.From == head.From &&
-			retained.Message.To == head.To && retained.Message.Body == head.Body && retained.Message.DrainFence == head.DrainFence
+			retained.Message.To == head.To && retained.Message.Body == head.Body
 		if head.Origin == OriginSystem {
 			match = match && retained.Message.Deadline.Equal(head.Deadline) &&
 				(retained.Message.AcceptedAt.IsZero() || retained.Message.AcceptedAt.Equal(head.AcceptedAt))
@@ -877,8 +862,8 @@ func (b *Broker) promote(ctx context.Context, a *SlotActor) bool {
 	if err == nil && (ctx.Err() != nil || a.sequence != seq || b.actors[a.binding] != a) {
 		err = ErrUnavailable
 	}
-	if current, allowed := b.eligibleDrainHead(a); err == nil && (!allowed || current.ID != head.ID) {
-		err = ErrDraining
+	if current, allowed := a.state.QueueHead(); err == nil && (!allowed || current != head) {
+		err = ErrUnavailable
 	}
 	if err == nil {
 		err = b.reconcileObservation(a, obs)
@@ -889,7 +874,7 @@ func (b *Broker) promote(ctx context.Context, a *SlotActor) bool {
 	if err != nil {
 		b.mu.Unlock()
 		releaseCtx, cancel := context.WithTimeout(context.Background(), AdmissionTimeout)
-		_ = releaseDrainMessage(releaseCtx, a.endpoint, head)
+		_ = a.endpoint.Release(releaseCtx, head.ID)
 		cancel()
 		b.mu.Lock()
 		return ctx.Err() == nil
@@ -1048,7 +1033,7 @@ func (b *Broker) runActor(ctx context.Context, a *SlotActor) {
 			select {
 			case m := <-a.inbox:
 				ctx, cancel := context.WithTimeout(context.Background(), AdmissionTimeout)
-				_ = releaseDrainMessage(ctx, a.endpoint, m)
+				_ = a.endpoint.Release(ctx, m.ID)
 				cancel()
 			default:
 				return
@@ -1095,7 +1080,7 @@ func (b *Broker) deliver(ctx context.Context, a *SlotActor, m Message) {
 		_ = b.apply(a, Event{Kind: DeliveryProgress, Binding: m.To, Message: m, Status: r.Status, Detail: r.Detail, At: b.now()})
 	}
 	if valid {
-		if endpoint, ok := a.endpoint.(BatchDeliveryEndpoint); ok && a.batchMaxChars > 0 && !b.isDrainControl(m.ID) {
+		if endpoint, ok := a.endpoint.(BatchDeliveryEndpoint); ok && a.batchMaxChars > 0 {
 			result, err = endpoint.DeliverBatch(deliveryCtx, m, func() ([]Message, error) {
 				return b.freezeBatch(deliveryCtx, a, m, job)
 			}, progress)
@@ -1117,7 +1102,7 @@ func (b *Broker) deliver(ctx context.Context, a *SlotActor, m Message) {
 		detail = "receiver returned no terminal delivery outcome"
 	}
 	releaseCtx, releaseCancel := context.WithTimeout(context.Background(), AdmissionTimeout)
-	_ = releaseDrainMessage(releaseCtx, a.endpoint, m)
+	_ = a.endpoint.Release(releaseCtx, m.ID)
 	releaseCancel()
 	b.mu.Lock()
 	for id, active := range b.jobs {
@@ -1146,6 +1131,25 @@ func (b *Broker) SetSubmissionObserver(observe func(Binding, uint64)) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.submissionObserver = observe
+}
+
+// ActivitySnapshot returns cached activity for connected actors without endpoint
+// probes or family-store IO. Each caller owns the returned map.
+func (b *Broker) ActivitySnapshot() map[Binding]time.Time {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	activity := make(map[Binding]time.Time, len(b.actors))
+	for binding, a := range b.actors {
+		if !a.state.Connected() {
+			continue
+		}
+		at := a.state.LastActivity()
+		if a.observed.LastActivity.After(at) {
+			at = a.observed.LastActivity
+		}
+		activity[binding] = at
+	}
+	return activity
 }
 
 // ResourceIdle returns pending-work evidence without observation or alias IO.

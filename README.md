@@ -482,11 +482,11 @@ couch --peek repo:N --all [--transcripts]
                                            complete current recording projection [heavy]; bounded, plain text
 couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
-couch --drain [--reason TEXT] [--fast] [--timeout DURATION] [--json]
-                         steward TL: request a fleet checkpoint and stop; returns its ID and board immediately
-couch --drain --status [--json]   anyone: read the current drain board
-couch --drain --ack ID [--json]   worker: attest its durable checkpoint, then end the turn and stay idle
-couch --drain --cancel [--json]   steward TL: cancel this drain and release only its queue pause owner
+couch --drain [--fast] [--json]
+                         steward TL: flag the other live slots and request a checkpoint and stop
+couch --drain --status [--json]   anyone: inspect flagged slots and current activity observations
+couch --undrain [--message TEXT] [--json]
+                         steward TL: clear flags and tell workers to continue their current work
 couch --resources [--json] cached process sample plus fresh hosted-ingest totals
 couch --reap-orphans [--confirm] [--json]
                          the unattributed embedded nvim --resources named, and the processes a teardown left
@@ -580,29 +580,26 @@ couch --adopt-store /absolute/store     preview adoption of an existing store
 ```
 
 Before a Couch restart, ask the TL to drain the fleet. The steward is the first
-hub on Couch's command line; its verified live TL starts or cancels the drain.
-Start returns an ID and board immediately. Graceful drain lets workers finish
-the current atomic step, commit and push a checkpoint, and record where they
-stopped in the issue Log. Fast drain tells them to stop now, preserve unfinished
-edits, and make that checkpoint without finishing the current step. Each worker
-runs `couch --drain --ack ID` after its checkpoint is durable, then ends its turn
-and stays idle. No separate drained report is required. Fast mode also interrupts
-running suites, recording them for an explicit rerun later. Admitted merges and
-landings finish or retire at their safe boundaries; the board waits for them.
+hub on Couch's command line; its verified live TL issues `couch --drain` and
+`couch --undrain`. Drain flags the other live slots, including other hubs, and
+excludes the issuing steward. Flags live in Couch's memory and disappear when
+Couch restarts. The console shows one compact `drain N` badge.
 
-The board reports **draining**, **stuck** with a reason, **drained**, or
-**cancelled**. An otherwise quiet worker without its ack is `stuck: no ack`.
-An ack alone cannot establish drained: the same worker incarnation must be
-positively idle, and SDLC suite, merge and landing work must be quiescent under
-the confirmed queue pause. Timeout defaults to 10 minutes (accepted range
-1 second–24 hours); reaching it reports what remains stuck and keeps the pause.
-Ordinary sends and worker launches stay held until cancellation is confirmed.
-Cancel releases only this drain's queue owner and never restarts interrupted
-work; other pause owners may keep SDLC paused. Drain requires ariadne#481's
-owner-scoped queue seam: unsupported or uncertain queue state stays stuck.
-Read `couch --drain --status` after a lost reply; uncertain notice or Esc delivery
-is inspected through retained outcomes, never automatically repeated. See
-[the drain contract](atlas/couch.md#fleet-checkpoint-and-stop-722).
+Graceful drain asks workers to finish their current atomic step and wait for
+current background work to finish. Fast drain asks them to stop now and promptly
+stop their own background work through supported controls, preserving unfinished
+edits. Both ask workers to write the stopping point and next step in the issue
+Log, commit and push the checkpoint, end the turn and stay idle. Workers keep
+receiving messages; for new work they reply once, “acknowledge message received,
+will resume processing after drain is lifted”, avoiding courtesy acknowledgement
+loops. Ordinary messages continue delivering throughout.
+
+`couch --drain --status` lists flagged slots with connection, settled, picker,
+background-work and idle-age observations; unknown facts stay unknown. These
+observations help the operator assess activity. Drain does not certify restart
+readiness or pause SDLC queues. `couch --undrain` clears flags and sends “drain
+lifted; continue your current work”, with an optional quoted `--message` note.
+See [the drain contract](atlas/couch.md#fleet-checkpoint-and-stop-722).
 
 `couch --keys` and `couch --set-model` require a verified owning hub and one
 other exact live slot with an idle, empty agent composer. The separate Neovim

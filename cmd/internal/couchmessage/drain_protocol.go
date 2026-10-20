@@ -3,17 +3,19 @@ package couchmessage
 import (
 	"errors"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
-	"time"
 )
 
-// DrainRequest is a closed intent; worker acknowledgements carry no invented
-// idle, checkpoint, queue or operator-authority fields.
+// DrainRequest changes transient requested posture, never checkpoint authority.
 type DrainRequest struct {
-	Action        string `json:"action"`
-	ID            string `json:"id,omitempty"`
-	Reason        string `json:"reason,omitempty"`
-	Fast          bool   `json:"fast,omitempty"`
-	TimeoutMillis int64  `json:"timeout_millis,omitempty"`
+	Action  string `json:"action"`
+	Fast    bool   `json:"fast,omitempty"`
+	Message string `json:"message,omitempty"`
+}
+
+type DrainDelivery struct {
+	Workspace string
+	Receipt   *Receipt `json:",omitempty"`
+	Error     string   `json:",omitempty"`
 }
 
 func ValidateDrainRequest(r Request) error {
@@ -30,28 +32,26 @@ func ValidateDrainRequest(r Request) error {
 			return errors.New("drain identity exceeds limit")
 		}
 	}
-	if d.Action != "status" && (r.Scope == "" || r.Tag == "" || r.Session == "" || r.Nonce == "") {
-		return errors.New("drain mutation requires live caller identity")
+	if d.Action != "status" && (r.Scope == "" || r.Tag == "" || r.Session == "" || r.Nonce == "" || r.ID == "") {
+		return errors.New("drain mutation requires live caller identity and request ID")
 	}
 	switch d.Action {
 	case "start":
-		if d.ID != "" || d.TimeoutMillis < 1000 || d.TimeoutMillis > int64((24*time.Hour)/time.Millisecond) {
-			return errors.New("drain timeout must be 1s through 24h")
+		if d.Message != "" {
+			return errors.New("drain start carries no continuation message")
 		}
-		_, err := couchcore.DrainNotice(r.ID, d.Reason, d.Fast)
+	case "undrain":
+		if d.Fast {
+			return errors.New("undrain carries no fast option")
+		}
+		_, err := couchcore.UndrainNotice(d.Message)
 		return err
-	case "ack":
-		if r.ID != "" || d.Reason != "" || d.Fast || d.TimeoutMillis != 0 {
-			return errors.New("drain ack carries only ID and caller")
+	case "status":
+		if r.ID != "" || d.Fast || d.Message != "" {
+			return errors.New("drain status carries no mutation options")
 		}
-		_, err := couchcore.DrainNotice(d.ID, "", false)
-		return err
-	case "status", "cancel":
-		if r.ID != "" || d.ID != "" || d.Reason != "" || d.Fast || d.TimeoutMillis != 0 {
-			return errors.New("drain status/cancel carries no start options")
-		}
-		return nil
 	default:
-		return errors.New("unknown drain action")
+		return errors.New("unsupported drain action; see couch --help")
 	}
+	return nil
 }

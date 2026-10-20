@@ -1,6 +1,7 @@
 package couchtty
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -14,20 +15,22 @@ import (
 
 func TestConsoleSetDrainBoardCopiesAndCoalesces(t *testing.T) {
 	c := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
-	b := couchcore.DrainBoard{ID: "id", State: couchcore.DrainStuck, Detail: "queue unknown", Rows: []couchcore.DrainRow{{Workspace: "pair:1", State: couchcore.DrainStuck}}, Queue: couchcore.DrainQueueObservation{Owners: []string{"owner"}, Active: []couchcore.DrainActivity{{ID: "a"}}}}
+	yes := true
+	millis := int64(1200)
+	b := couchcore.DrainBoard{Rows: []couchcore.DrainRow{{Workspace: "pair:1", Connected: true, IdleMillis: &millis, Settled: &yes, Picker: &yes, Background: &yes}}}
 	c.SetDrainBoard(b)
-	b.Rows[0].State = couchcore.DrainDrained
-	b.Queue.Owners[0] = "other"
-	b.Queue.Active[0].ID = "other"
+	b.Rows[0].Workspace = "changed"
+	yes = false
+	millis = 99
 	got := <-c.drainUpdates
-	if got.Rows[0].State != couchcore.DrainStuck || got.Queue.Owners[0] != "owner" || got.Queue.Active[0].ID != "a" {
+	if got.Rows[0].Workspace != "pair:1" || !*got.Rows[0].Settled || !*got.Rows[0].Picker || !*got.Rows[0].Background || *got.Rows[0].IdleMillis != 1200 {
 		t.Fatal("mutable publication", got)
 	}
 	for i := 0; i < 100; i++ {
-		b.Detail = "latest"
+		b.Rows[0].Workspace = fmt.Sprint(i)
 		c.SetDrainBoard(b)
 	}
-	if len(c.drainUpdates) != 1 || (<-c.drainUpdates).Detail != "latest" {
+	if len(c.drainUpdates) != 1 || (<-c.drainUpdates).Rows[0].Workspace != "99" {
 		t.Fatal("publication not coalesced")
 	}
 }
@@ -35,15 +38,14 @@ func TestConsoleSetDrainBoardCopiesAndCoalesces(t *testing.T) {
 func TestConsoleDrainEventPreservesPaneAndPicker(t *testing.T) {
 	f := newFixture(t, 24, 100)
 	f.con.mu.Lock()
-	active := f.con.active
-	focus := f.con.focus
+	active, focus := f.con.active, f.con.focus
 	f.con.menu.Blocked = map[couchcore.ThreadAddress]bool{{RepoScope: "scope"}: true}
 	f.con.mu.Unlock()
-	f.con.SetDrainBoard(couchcore.DrainBoard{ID: "id", State: couchcore.DrainStuck, Detail: "queue unknown"})
+	f.con.SetDrainBoard(couchcore.DrainBoard{Rows: []couchcore.DrainRow{{Workspace: "pair:1"}}})
 	deadline := time.Now().Add(time.Second)
 	for {
 		f.con.mu.Lock()
-		seen := f.con.drainBoard.ID == "id"
+		seen := len(f.con.drainBoard.Rows) == 1
 		same := f.con.active == active && f.con.focus == focus && len(f.con.menu.Blocked) == 1
 		f.con.mu.Unlock()
 		if seen {
@@ -59,36 +61,36 @@ func TestConsoleDrainEventPreservesPaneAndPicker(t *testing.T) {
 	}
 }
 
-func TestDrainStatusStateReasonAndBounds(t *testing.T) {
-	m := StatusModel{Drain: "stuck: queue unknown", Actors: []StatusActor{{Label: "pair:1", Active: true, Blocked: true, Drain: couchcore.DrainStuck}, {Label: "pair:2", Drain: couchcore.DrainDrained}}}
-	for width := 1; width < 140; width++ {
-		r := RenderStatusRow(width, m)
-		plain := string(ansi.Strip([]byte(r.Body)))
-		if textwidth.Width(plain) > width {
-			t.Fatalf("width %d: %q", width, plain)
+func TestDrainStatusCompactCountBoundsAndSelection(t *testing.T) {
+	for _, count := range []int{8, 16} {
+		board := couchcore.DrainBoard{Rows: make([]couchcore.DrainRow, count)}
+		m := StatusModel{Actors: []StatusActor{{Label: "pair:1", Active: true, Blocked: true, Thread: couchcore.ThreadAddress{RepoScope: "one"}}, {Label: "pair:2", Thread: couchcore.ThreadAddress{RepoScope: "two"}}}}
+		applyDrainStatus(&m, board)
+		want := fmt.Sprintf("drain %d", count)
+		if m.Drain != want {
+			t.Fatalf("badge %q", m.Drain)
 		}
-		if width >= 10 && !strings.Contains(plain, "stuck") {
-			t.Fatalf("state hidden width %d: %q", width, plain)
+		for width := 1; width < 140; width++ {
+			row := RenderStatusRow(width, m)
+			plain := string(ansi.Strip([]byte(row.Body)))
+			if textwidth.Width(plain) > width {
+				t.Fatalf("width %d: %q", width, plain)
+			}
 		}
-	}
-	r := RenderStatusRow(120, m)
-	plain := string(ansi.Strip([]byte(r.Body)))
-	for _, want := range []string{"stuck: queue unknown", "[pair:1{stuck}]", "pair:2{drained}"} {
-		if !strings.Contains(plain, want) {
-			t.Fatalf("missing %q in %q", want, plain)
+		row := RenderStatusRow(100, m)
+		plain := string(ansi.Strip([]byte(row.Body)))
+		if strings.Count(plain, "drain") != 1 || !strings.Contains(plain, want) || strings.ContainsAny(plain, "{}") || !strings.Contains(plain, "[pair:1]") {
+			t.Fatal(plain)
 		}
-	}
-	if !strings.Contains(r.Body, blockedSGR) {
-		t.Fatal("picker indicator styling lost")
-	}
-}
-
-func TestDrainStatusSanitizesReason(t *testing.T) {
-	s := drainStatusText(couchcore.DrainBoard{ID: "id", State: couchcore.DrainStuck, Detail: "queue\x1b[2J unknown\nreason"})
-	if strings.ContainsAny(s, "\x1b\n") {
-		t.Fatalf("unsafe reason %q", s)
-	}
-	if drainStatusText(couchcore.DrainBoard{}) != "" {
-		t.Fatal("inactive drain rendered")
+		if !strings.Contains(row.Body, blockedSGR) {
+			t.Fatal("picker cue lost")
+		}
+		if len(row.Chips) != 2 {
+			t.Fatalf("selection spans lost: %+v", row)
+		}
+		applyDrainStatus(&m, couchcore.DrainBoard{})
+		if m.Drain != "" {
+			t.Fatal("cleared flags retain badge")
+		}
 	}
 }

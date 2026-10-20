@@ -2,404 +2,131 @@ package couchcore
 
 import (
 	"fmt"
-	"math/rand"
 	"reflect"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
 )
 
-func TestDrainNoticeLiteral(t *testing.T) {
-	got, err := DrainNotice("00000000-0000-4000-8000-000000000001", "quoted \"data\"", false)
-	want := "Couch drain v1 00000000-0000-4000-8000-000000000001: checkpoint and stop. Finish the current atomic step; commit and push the checkpoint; write where you stopped in the issue Log. Start nothing new. Run couch --drain --ack 00000000-0000-4000-8000-000000000001 after the checkpoint is durable, then end your turn and stay idle. Do not send a separate drained report.\nReason: \"quoted \\\"data\\\"\""
-	if err != nil || got != want {
-		t.Fatalf("notice = %q, %v", got, err)
-	}
-	if _, err := DrainNotice("bad", "", false); err == nil {
-		t.Fatal("accepted invalid ID")
-	}
-	if _, err := DrainNotice("00000000-0000-4000-8000-000000000001", "\x1b[31m", false); err == nil {
-		t.Fatal("accepted control")
-	}
-	fast, err := DrainNotice("00000000-0000-4000-8000-000000000001", "", true)
-	if err != nil || !strings.Contains(fast, "(fast): stop now and checkpoint. Do not finish the current step.") {
-		t.Fatal(fast, err)
-	}
-}
-
-func drainFixture(t *testing.T) DrainState {
-	t.Helper()
-	s, fx, err := StartDrain(DrainStart{ID: "00000000-0000-4000-8000-000000000001", Deadline: time.Unix(1000, 0), Members: []DrainMember{{Workspace: "pair:1", Identity: "binding-session"}}})
-	if err != nil || len(fx) != 1 || fx[0].Kind != DrainPause {
-		t.Fatalf("start %v %v", fx, err)
-	}
-	return s
-}
-func stepDrain(s DrainState, e DrainEvent) (DrainState, []DrainEffect) {
-	e.ID = s.ID
-	return ReduceDrain(s, e)
-}
-func drainPaused(s DrainState) DrainState {
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainQueueObserved, Queue: DrainQueueObservation{Known: true, Complete: true, Paused: true, Owners: []string{s.Owner}}})
-	return s
-}
-func TestDrainAckRequiresSubsequentIdleAndInvalidates(t *testing.T) {
-	s := drainPaused(drainFixture(t))
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainNoticeResult, Workspace: "pair:1", Identity: "binding-session", Outcome: DrainDone})
-	obs := DrainObservation{Known: true, Connected: true, Idle: true}
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainMemberObserved, Workspace: "pair:1", Identity: "binding-session", Observation: obs})
-	if b := ProjectDrainBoard(s, time.Unix(1, 0)); b.State != DrainStuck || b.Rows[0].Reason != "no ack" {
-		t.Fatalf("quiet without ack: %+v", b)
-	}
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainAcknowledged, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Submission: s.Members["pair:1"].Observation.Submission}})
-	if ProjectDrainBoard(s, time.Unix(1, 0)).State == DrainDrained {
-		t.Fatal("ack reused pre-ack idle")
-	}
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainMemberObserved, Workspace: "pair:1", Identity: "binding-session", Observation: obs})
-	if b := ProjectDrainBoard(s, time.Unix(1, 0)); b.State != DrainDrained {
-		t.Fatalf("not drained %+v", b)
-	}
-	old := s
-	obs.Idle = false
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainMemberObserved, Workspace: "pair:1", Identity: "binding-session", Observation: obs})
-	if ProjectDrainBoard(s, time.Unix(1, 0)).State == DrainDrained {
-		t.Fatal("busy reused ack")
-	}
-	if !old.Members["pair:1"].AckSealed {
-		t.Fatal("mutated input")
-	}
-}
-func TestDrainAuthorityMutations(t *testing.T) {
-	for _, mutate := range []func(*DrainState){
-		func(s *DrainState) { s.Queue.Known = false }, func(s *DrainState) { s.Queue.Complete = false }, func(s *DrainState) { s.Queue.Paused = false }, func(s *DrainState) { s.Queue.Owners = []string{"other"} }, func(s *DrainState) { s.Queue.Active = []DrainActivity{{ID: "a", Workspace: "", Kind: "suite"}} },
-		func(s *DrainState) { m := s.Members["pair:1"]; m.Observation.Known = false; s.Members["pair:1"] = m }, func(s *DrainState) { m := s.Members["pair:1"]; m.AckSealed = false; s.Members["pair:1"] = m },
-	} {
-		s := drainPaused(drainFixture(t))
-		s, _ = stepDrain(s, DrainEvent{Kind: DrainNoticeResult, Workspace: "pair:1", Identity: "binding-session", Outcome: DrainDone})
-		s, _ = stepDrain(s, DrainEvent{Kind: DrainAcknowledged, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Submission: s.Members["pair:1"].Observation.Submission}})
-		s, _ = stepDrain(s, DrainEvent{Kind: DrainMemberObserved, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Idle: true}})
-		mutate(&s)
-		if ProjectDrainBoard(s, time.Unix(1, 0)).State == DrainDrained {
-			t.Fatal("missing authority allowed drain")
-		}
-	}
-}
-func TestDrainStaleAndCancelIsolation(t *testing.T) {
-	s := drainPaused(drainFixture(t))
-	old := s
-	s, fx := ReduceDrain(s, DrainEvent{Kind: DrainAcknowledged, ID: "old", Workspace: "pair:1", Identity: "binding-session"})
-	if len(fx) != 0 || s.Members["pair:1"].Ack {
-		t.Fatal("stale event")
-	}
-	s, fx = stepDrain(s, DrainEvent{Kind: DrainCancel})
-	if len(fx) != 1 || fx[0].Kind != DrainRevoke {
-		t.Fatalf("cancel %v", fx)
-	}
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainQueueObserved, Queue: DrainQueueObservation{Known: true, Complete: true, Paused: true, Owners: []string{"other"}}})
-	if ProjectDrainBoard(s, time.Unix(1, 0)).State == DrainCancelled {
-		t.Fatal("cancel released before revoke")
-	}
-	s, fx = stepDrain(s, DrainEvent{Kind: DrainRevoked, Workspace: "pair:1", Identity: "binding-session", Outcome: DrainDone})
-	if len(fx) != 1 || fx[0].Kind != DrainResume || fx[0].Owner != old.Owner {
-		t.Fatal(fx)
-	}
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainQueueObserved, Queue: DrainQueueObservation{Known: true, Complete: true, Paused: true, Owners: []string{"other"}}})
-	if ProjectDrainBoard(s, time.Unix(1, 0)).State != DrainCancelled {
-		t.Fatal("not cancelled")
-	}
-}
-
-func TestDrainFastUnknownReconcilesWithoutDuplicateEffect(t *testing.T) {
-	s := drainFixture(t)
-	s.Fast = true
-	s, fx := stepDrain(s, DrainEvent{Kind: DrainQueueObserved, Queue: DrainQueueObservation{Known: true, Complete: true, Paused: true, Owners: []string{s.Owner}}})
-	if len(fx) != 1 || fx[0].Kind != DrainInterrupt {
-		t.Fatalf("fast ordering %v", fx)
-	}
-	s, fx = stepDrain(s, DrainEvent{Kind: DrainInterruptResult, Workspace: "pair:1", Identity: "binding-session", Outcome: DrainUnknown})
-	if len(fx) != 0 {
-		t.Fatal("unknown interrupt retried", fx)
-	}
-	s, fx = stepDrain(s, DrainEvent{Kind: DrainInterruptResult, Workspace: "pair:1", Identity: "binding-session", Outcome: DrainDone})
-	if len(fx) != 1 || fx[0].Kind != DrainSendNotice {
-		t.Fatalf("reconciled interrupt did not release notice %v", fx)
-	}
-	_, fx = stepDrain(s, DrainEvent{Kind: DrainQueueObserved, Queue: s.Queue})
-	if len(fx) != 0 {
-		t.Fatal("duplicate control", fx)
-	}
-}
-
-func TestDrainReorderedEvidenceAndReplacement(t *testing.T) {
-	s := drainPaused(drainFixture(t))
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainNoticeResult, Workspace: "pair:1", Identity: "binding-session", Outcome: DrainDone})
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainMemberObserved, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Sequence: 2, Submission: 1}})
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainAcknowledged, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Submission: s.Members["pair:1"].Observation.Submission}})
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainMemberObserved, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Idle: true, Sequence: 1}})
-	if ProjectDrainBoard(s, time.Unix(1, 0)).State == DrainDrained {
-		t.Fatal("stale idle sealed ack")
-	}
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainMemberObserved, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Idle: true, Sequence: 3, Submission: 1}})
-	if ProjectDrainBoard(s, time.Unix(1, 0)).State != DrainDrained {
-		t.Fatal("fresh idle failed")
-	}
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainMemberJoined, Workspace: "pair:1", Identity: "replacement"})
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainAcknowledged, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Submission: s.Members["pair:1"].Observation.Submission}})
-	if s.Members["pair:1"].Ack || ProjectDrainBoard(s, time.Unix(1, 0)).State == DrainDrained {
-		t.Fatal("replacement inherited old ack")
-	}
-}
-
-func TestDrainCountedFanoutAndIndependentSequenceOracle(t *testing.T) {
+func TestDrainFlagsAddClearAndStewardExclusion(t *testing.T) {
 	for _, n := range []int{8, 16} {
-		s := drainFixture(t)
-		s.Members = make(map[string]DrainMember)
-		for i := 0; i < n; i++ {
-			key := fmt.Sprintf("pair:%d", i)
-			s.Members[key] = DrainMember{Workspace: key, Identity: "identity"}
+		selected := []string{"pair:0", "", "pair:1"}
+		for i := 1; i <= n; i++ {
+			selected = append(selected, fmt.Sprintf("pair:%d", i))
 		}
-		s, fx := stepDrain(s, DrainEvent{Kind: DrainQueueObserved, Queue: DrainQueueObservation{Known: true, Complete: true, Paused: true, Owners: []string{s.Owner}}})
-		if len(fx) != n {
-			t.Fatalf("%d members: %d effects", n, len(fx))
+		old := DrainFlags{"other:1": true, "pair:0": true}
+		flags := AddDrainFlags(old, selected, "pair:0")
+		if len(flags) != n+1 || flags["pair:0"] || !flags["other:1"] {
+			t.Fatalf("flags: %#v", flags)
 		}
-		total := len(fx)
-		noticed := map[string]bool{}
-		acked := map[string]bool{}
-		idleAfter := map[string]bool{}
-		// Seeded event permutation is independent of the reducer's state fields.
-		rng := rand.New(rand.NewSource(int64(n)))
-		for i := 0; i < 1000; i++ {
-			key := fmt.Sprintf("pair:%d", rng.Intn(n))
-			kind := rng.Intn(3)
-			e := DrainEvent{Workspace: key, Identity: "identity"}
-			switch kind {
-			case 0:
-				e.Kind = DrainNoticeResult
-				e.Outcome = DrainDone
-				noticed[key] = true
-			case 1:
-				e.Kind = DrainAcknowledged
-				e.Observation = DrainObservation{Known: true, Connected: true}
-				if noticed[key] {
-					if !acked[key] {
-						idleAfter[key] = false
-					}
-					acked[key] = true
-				}
-			case 2:
-				e.Kind = DrainMemberObserved
-				idle := rng.Intn(2) == 0
-				e.Observation = DrainObservation{Known: true, Connected: true, Idle: idle}
-				if !idle && idleAfter[key] {
-					acked[key] = false
-					idleAfter[key] = false
-				}
-				if idle && acked[key] {
-					idleAfter[key] = true
-				}
+		flags["other:1"] = false
+		if !old["other:1"] {
+			t.Fatal("add mutated source")
+		}
+		flags = AddDrainFlags(flags, selected, "pair:0")
+		cleared := ClearDrainFlags(flags, []string{"pair:1"})
+		if cleared["pair:1"] || !flags["pair:1"] {
+			t.Fatal("clear mutated source or left selected flag")
+		}
+		if len(ClearDrainFlags(flags, nil)) != 0 {
+			t.Fatal("clear all retained flags")
+		}
+	}
+}
+
+func TestDrainBoardUnknownClockAndIsolation(t *testing.T) {
+	now := time.Unix(100, 0)
+	yes, no := true, false
+	flags := DrainFlags{"pair:3": true, "pair:1": true, "pair:2": true, "pair:4": true, "pair:5": false}
+	obs := map[string]DrainObservation{
+		"pair:1": {Connected: true, LastOutputAt: now.Add(-1500 * time.Millisecond), Settled: &yes, Picker: &no, Background: &no},
+		"pair:2": {Connected: true, LastOutputAt: now.Add(time.Second), Settled: &yes, Picker: &no, Background: &no},
+		"pair:3": {Connected: false, LastOutputAt: now.Add(-time.Minute), Settled: &yes, Picker: &no, Background: &no},
+		"pair:4": {Connected: true, Settled: &yes, Picker: &no, Background: &no},
+	}
+	board := ProjectDrainBoard(flags, obs, now)
+	if len(board.Rows) != 4 {
+		t.Fatal(board)
+	}
+	row := board.Rows[0]
+	if row.Workspace != "pair:1" || row.IdleMillis == nil || *row.IdleMillis != 1500 || row.Settled == nil || !*row.Settled {
+		t.Fatal(row)
+	}
+	for _, r := range board.Rows[1:] {
+		if r.IdleMillis != nil {
+			t.Fatalf("invented idle: %+v", r)
+		}
+	}
+	*row.Settled = false
+	*row.Picker = true
+	*row.Background = false
+	if !yes || no {
+		t.Fatal("observation pointer leaked")
+	}
+	*row.IdleMillis = 0
+	if got := ProjectDrainBoard(flags, obs, now); *got.Rows[0].IdleMillis != 1500 {
+		t.Fatal("board aliased")
+	}
+	if !reflect.DeepEqual(flags, DrainFlags{"pair:3": true, "pair:1": true, "pair:2": true, "pair:4": true, "pair:5": false}) {
+		t.Fatal("projection mutated flags")
+	}
+}
+
+func TestDrainNoticesAndUndrainValidation(t *testing.T) {
+	for _, fast := range []bool{false, true} {
+		notice := DrainNotice(fast)
+		for _, phrase := range []string{"issue Log", "next step", "commit and push", "stay idle", "keep receiving messages", "acknowledge message received, will resume processing after drain is lifted", "courtesy acknowledgements"} {
+			if !strings.Contains(notice, phrase) {
+				t.Fatalf("missing %q in %q", phrase, notice)
 			}
-			s, fx = stepDrain(s, e)
-			total += len(fx)
-			if ProjectDrainBoard(s, time.Unix(1, 0)).State == DrainDrained {
-				for key := range s.Members {
-					if !acked[key] || !idleAfter[key] {
-						t.Fatalf("false drained at event %d member %s", i, key)
-					}
-				}
+		}
+		if strings.Contains(notice, "--ack") {
+			t.Fatal("retained ack command")
+		}
+	}
+	if !strings.Contains(DrainNotice(false), "wait for current background work") {
+		t.Fatal("graceful background guidance missing")
+	}
+	for _, phrase := range []string{"stop your own background work", "supported controls", "unfinished"} {
+		if !strings.Contains(DrainNotice(true), phrase) {
+			t.Fatal("fast missing " + phrase)
+		}
+	}
+	if got, err := UndrainNotice(""); err != nil || got != "drain lifted; continue your current work" {
+		t.Fatal(got, err)
+	}
+	if got, err := UndrainNotice("next task"); err != nil || !strings.HasSuffix(got, "\nNote: \"next task\"") {
+		t.Fatal(got, err)
+	}
+	for _, s := range []string{"\x1b[2J", "a\nb", string([]byte{0xff}), strings.Repeat("é", 513), "\u0085"} {
+		if _, err := UndrainNotice(s); err == nil {
+			t.Fatalf("accepted %q", s)
+		}
+	}
+	if _, err := UndrainNotice(strings.Repeat("é", 512)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDrainBoardIdleRequiresKnownQuiescentFacts(t *testing.T) {
+	now := time.Unix(100, 0)
+	yes, no := true, false
+	for _, facts := range []struct {
+		name                        string
+		settled, picker, background *bool
+	}{
+		{"active", &no, &no, &no},
+		{"picker", &yes, &yes, &no},
+		{"background", &yes, &no, &yes},
+		{"unknown settled", nil, &no, &no},
+		{"unknown picker", &yes, nil, &no},
+		{"unknown background", &yes, &no, nil},
+	} {
+		t.Run(facts.name, func(t *testing.T) {
+			board := ProjectDrainBoard(DrainFlags{"pair:1": true}, map[string]DrainObservation{"pair:1": {Connected: true, LastOutputAt: now.Add(-time.Minute), Settled: facts.settled, Picker: facts.picker, Background: facts.background}}, now)
+			if board.Rows[0].IdleMillis != nil {
+				t.Fatalf("active or unknown facts fabricated idle: %+v", board.Rows[0])
 			}
-		}
-		if total != n {
-			t.Fatalf("%d members generated %d control calls", n, total)
-		}
-	}
-}
-
-func TestDrainRecoveryAndDeadlineNeverRelease(t *testing.T) {
-	s := drainPaused(drainFixture(t))
-	if b := ProjectDrainBoard(s, time.Unix(1001, 0)); b.State != DrainStuck {
-		t.Fatal(b)
-	}
-	s, fx := stepDrain(s, DrainEvent{Kind: DrainRecover})
-	if len(fx) != 0 || ProjectDrainBoard(s, time.Unix(1, 0)).State != DrainStuck {
-		t.Fatal("recovery claimed proof")
-	}
-	if s.Phase == DrainFinished {
-		t.Fatal("recovery released owner")
-	}
-}
-
-func TestDrainSubmissionInvalidatesProvisionalAndSealedAck(t *testing.T) {
-	for _, sealed := range []bool{false, true} {
-		s := drainPaused(drainFixture(t))
-		s, _ = stepDrain(s, DrainEvent{Kind: DrainNoticeResult, Workspace: "pair:1", Identity: "binding-session", Outcome: DrainDone})
-		s, _ = stepDrain(s, DrainEvent{Kind: DrainAcknowledged, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Submission: s.Members["pair:1"].Observation.Submission}})
-		if sealed {
-			s, _ = stepDrain(s, DrainEvent{Kind: DrainMemberObserved, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Idle: true}})
-		}
-		s, _ = stepDrain(s, DrainEvent{Kind: DrainMemberObserved, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Idle: true, Submission: 1}})
-		if s.Members["pair:1"].Ack || ProjectDrainBoard(s, time.Unix(1, 0)).State == DrainDrained {
-			t.Fatal("submission inherited checkpoint", sealed)
-		}
-	}
-}
-
-func TestDrainBoundsAndBoardIsolation(t *testing.T) {
-	s := drainPaused(drainFixture(t))
-	b := ProjectDrainBoard(s, time.Unix(1, 0))
-	b.Queue.Owners[0] = "other"
-	b.Rows[0].Identity = "other"
-	if s.Queue.Owners[0] != s.Owner || s.Members["pair:1"].Identity != "binding-session" {
-		t.Fatal("mutable board alias")
-	}
-	members := make([]DrainMember, MaxDrainMembers+1)
-	for i := range members {
-		members[i] = DrainMember{Workspace: fmt.Sprint(i), Identity: "id"}
-	}
-	_, _, err := StartDrain(DrainStart{ID: s.ID, Deadline: s.Deadline, Members: members})
-	if err == nil {
-		t.Fatal("unbounded census")
-	}
-}
-
-func FuzzDrainNoticeReason(f *testing.F) {
-	f.Add("literal data")
-	f.Add("\x1b[31m")
-	f.Add("\"; rm -rf /; \"")
-	f.Fuzz(func(t *testing.T, reason string) {
-		id := "00000000-0000-4000-8000-000000000001"
-		notice, err := DrainNotice(id, reason, false)
-		if err != nil {
-			return
-		}
-		if !strings.HasPrefix(notice, "Couch drain v1 "+id+": checkpoint and stop.") {
-			t.Fatal("changed protocol")
-		}
-		if reason != "" && !strings.HasSuffix(notice, "\nReason: "+strconv.Quote(reason)) {
-			t.Fatal("reason escaped data boundary")
-		}
-	})
-}
-
-func TestDrainUnknownEvidenceInvalidatesProvisionalAck(t *testing.T) {
-	s := drainPaused(drainFixture(t))
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainNoticeResult, Workspace: "pair:1", Identity: "binding-session", Outcome: DrainDone})
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainAcknowledged, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Submission: s.Members["pair:1"].Observation.Submission}})
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainMemberObserved, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{}})
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainMemberObserved, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Idle: true}})
-	if s.Members["pair:1"].Ack || ProjectDrainBoard(s, time.Unix(1, 0)).State == DrainDrained {
-		t.Fatal("observation gap reused ack")
-	}
-}
-
-func TestDrainRetryCancelReleasesOnlySameOwner(t *testing.T) {
-	s := drainPaused(drainFixture(t))
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainCancel})
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainRevoked, Workspace: "pair:1", Identity: "binding-session", Outcome: DrainDone})
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainQueueObserved, Queue: DrainQueueObservation{Known: true, Complete: true, Paused: true, Owners: []string{s.Owner, "other"}}})
-	_, fx := stepDrain(s, DrainEvent{Kind: DrainCancel})
-	if len(fx) != 1 || fx[0].Kind != DrainResume || fx[0].Owner != s.Owner {
-		t.Fatalf("retry cancel missing owner-scoped resume: %v", fx)
-	}
-}
-
-func TestDrainPreparingDeadlineIsBounded(t *testing.T) {
-	s := drainFixture(t)
-	b := ProjectDrainBoard(s, time.Unix(1001, 0))
-	if b.State != DrainStuck || !strings.Contains(b.Detail, "deadline") {
-		t.Fatalf("unconfirmed pause never timed out: %+v", b)
-	}
-}
-
-func TestDrainGlobalStuckRecoveryUsesInspectionAndKeepsRowRecovery(t *testing.T) {
-	s := drainPaused(drainFixture(t))
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainNoticeResult, Workspace: "pair:1", Identity: "binding-session", Outcome: DrainDone})
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainMemberObserved, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Idle: true}})
-	b := ProjectDrainBoard(s, time.Unix(1, 0))
-	if b.State != DrainStuck || b.Recovery != "inspect status" || b.Rows[0].Recovery != "checkpoint and ack" {
-		t.Fatalf("stuck recovery did not distinguish global inspection from row action: %+v", b)
-	}
-}
-
-func TestDrainAcknowledgementUsesCurrentActivityBaseline(t *testing.T) {
-	s := drainPaused(drainFixture(t))
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainNoticeResult, Workspace: "pair:1", Identity: "binding-session", Outcome: DrainDone})
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainMemberObserved, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Submission: 10}})
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainAcknowledged, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Submission: 11}})
-	if m := s.Members["pair:1"]; !m.Ack || m.AckSealed || m.AckSubmission != 11 {
-		t.Fatalf("ack baseline: %+v", m)
-	}
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainMemberObserved, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Idle: true, Submission: 11}})
-	if !s.Members["pair:1"].AckSealed {
-		t.Fatal("preceding activity discarded ack")
-	}
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainMemberObserved, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Idle: true, Submission: 12}})
-	if s.Members["pair:1"].Ack {
-		t.Fatal("post-ack activity retained ack")
-	}
-}
-
-func TestDrainAckUnknownEvidenceAndDuplicateBaseline(t *testing.T) {
-	s := drainPaused(drainFixture(t))
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainNoticeResult, Workspace: "pair:1", Identity: "binding-session", Outcome: DrainDone})
-	for _, obs := range []DrainObservation{{}, {Known: true}, {Connected: true}} {
-		next, _ := stepDrain(s, DrainEvent{Kind: DrainAcknowledged, Workspace: "pair:1", Identity: "binding-session", Observation: obs})
-		if next.Members["pair:1"].Ack {
-			t.Fatal("missing ack-time authority accepted")
-		}
-	}
-	ack := DrainEvent{Kind: DrainAcknowledged, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Submission: 11}}
-	s, _ = stepDrain(s, ack)
-	ack.Observation.Submission = 12
-	s, _ = stepDrain(s, ack)
-	if s.Members["pair:1"].AckSubmission != 11 {
-		t.Fatal("duplicate ack silently renewed baseline")
-	}
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainMemberObserved, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Idle: true, Submission: 12}})
-	if s.Members["pair:1"].Ack {
-		t.Fatal("duplicate ack hid later activity")
-	}
-}
-
-func TestDrainBrokerReleaseFailureRetryAndStaleOutcomes(t *testing.T) {
-	s := drainPaused(drainFixture(t))
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainCancel})
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainRevoked, Workspace: "pair:1", Identity: "binding-session", Outcome: DrainDone})
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainQueueObserved, Queue: DrainQueueObservation{Known: true, Complete: true}})
-	if s.Phase != DrainFinished {
-		t.Fatal("queue release not finished")
-	}
-	result := DrainEvent{Kind: DrainBrokerReleaseResult, Outcome: DrainUnknown, Detail: "cancellation unconfirmed: broker unavailable"}
-	failed, _ := stepDrain(s, result)
-	if failed.Phase != DrainCancelling || failed.Error != result.Detail {
-		t.Fatalf("release failure outside model: %+v", failed)
-	}
-	stale := result
-	stale.ID = "old"
-	if next, fx := ReduceDrain(s, stale); !reflect.DeepEqual(next, s) || len(fx) != 0 {
-		t.Fatal("stale release outcome applied")
-	}
-	active := drainPaused(drainFixture(t))
-	if next, fx := stepDrain(active, result); !reflect.DeepEqual(next, active) || len(fx) != 0 {
-		t.Fatal("unrelated active phase accepted release outcome")
-	}
-	retried, fx := stepDrain(failed, DrainEvent{Kind: DrainCancel})
-	if len(fx) != 1 || fx[0].Kind != DrainResume {
-		t.Fatal("retry did not request owner release")
-	}
-	retried, _ = stepDrain(retried, DrainEvent{Kind: DrainQueueObserved, Queue: DrainQueueObservation{Known: true, Complete: true}})
-	done, _ := stepDrain(retried, DrainEvent{Kind: DrainBrokerReleaseResult, Outcome: DrainDone})
-	if done.Phase != DrainFinished || done.Error != "" {
-		t.Fatalf("retry did not complete: %+v", done)
-	}
-}
-func TestDrainStorageFailureAfterQueueReleaseIsModelled(t *testing.T) {
-	s := drainPaused(drainFixture(t))
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainCancel})
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainRevoked, Workspace: "pair:1", Identity: "binding-session", Outcome: DrainDone})
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainQueueObserved, Queue: DrainQueueObservation{Known: true, Complete: true}})
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainFailed, Detail: "drain storage unknown"})
-	if s.Error != "drain storage unknown" || ProjectDrainBoard(s, time.Now()).State != DrainStuck {
-		t.Fatal("finished intent discarded storage error")
+		})
 	}
 }

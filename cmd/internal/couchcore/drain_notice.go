@@ -2,36 +2,33 @@ package couchcore
 
 import (
 	"errors"
-	"fmt"
-	"regexp"
 	"strconv"
 	"unicode"
 	"unicode/utf8"
 )
 
-var drainUUID = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+// DrainNotice is ordinary guidance to the worker, not a control protocol.
+func DrainNotice(fast bool) string {
+	text := "Drain: finish your current atomic step and wait for current background work to finish."
+	if fast {
+		text = "Drain (fast): stop now; do not finish the current step. Promptly stop your own background work via supported controls; preserve unfinished working-tree edits in your checkpoint."
+	}
+	return text + " Write where you stopped and the next step in the issue Log; commit and push the checkpoint, then end your turn and stay idle. Start no new work. While idle, keep receiving messages. For new work, reply once: 'acknowledge message received, will resume processing after drain is lifted'. Do not create courtesy acknowledgements or acknowledgement loops."
+}
 
-// DrainNotice is the single owner of the shared v1 worker protocol text.
-func DrainNotice(id, reason string, fast bool) (string, error) {
-	if !drainUUID.MatchString(id) {
-		return "", errors.New("drain ID must be a canonical UUID")
+// UndrainNotice treats the optional operator note as quoted data.
+func UndrainNotice(message string) (string, error) {
+	if !utf8.ValidString(message) || len(message) > 1024 {
+		return "", errors.New("undrain message must be valid UTF-8 of at most 1024 bytes")
 	}
-	if !utf8.ValidString(reason) || len(reason) > 1024 {
-		return "", errors.New("drain reason must be valid UTF-8 of at most 1024 bytes")
-	}
-	for _, r := range reason {
+	for _, r := range message {
 		if unicode.IsControl(r) {
-			return "", errors.New("drain reason contains terminal controls")
+			return "", errors.New("undrain message contains terminal controls")
 		}
 	}
-	var text string
-	if fast {
-		text = fmt.Sprintf("Couch drain v1 %s (fast): stop now and checkpoint. Do not finish the current step. Write where you stopped in the issue Log; commit and push the checkpoint without discarding unfinished working-tree edits. Start nothing new. Run couch --drain --ack %s after the checkpoint is durable, then end your turn and stay idle. Do not send a separate drained report.", id, id)
-	} else {
-		text = fmt.Sprintf("Couch drain v1 %s: checkpoint and stop. Finish the current atomic step; commit and push the checkpoint; write where you stopped in the issue Log. Start nothing new. Run couch --drain --ack %s after the checkpoint is durable, then end your turn and stay idle. Do not send a separate drained report.", id, id)
-	}
-	if reason != "" {
-		text += "\nReason: " + strconv.Quote(reason)
+	text := "drain lifted; continue your current work"
+	if message != "" {
+		text += "\nNote: " + strconv.Quote(message)
 	}
 	return text, nil
 }

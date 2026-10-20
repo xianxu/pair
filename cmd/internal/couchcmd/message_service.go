@@ -31,11 +31,7 @@ import (
 // messageAuthority separates live evidence from registry mutation. All probes
 // are read-only; none call mutable Couch domain operations from request workers.
 type messageAuthority struct {
-	drainNamespace string
-	drainPublish   func(couchcore.DrainBoard)
-	drainCensus    func() []couchcore.DrainRow
-	drainGate      *hubRuntime
-	drainWrap      func(*hubRuntime)
+	drainPublish func(couchcore.DrainBoard)
 	// now is the broker clock; nil uses wall time.
 	now        func() time.Time
 	thread     func(context.Context, couchmessage.Binding) (string, error)
@@ -168,23 +164,23 @@ const (
 // timers in arrival order. Request goroutines read
 // only the published snapshot of connected bindings.
 type messageService struct {
-	drains         atomic.Pointer[drainCoordinator]
-	drainInventory atomic.Pointer[resourceInventory]
-	lifecycle      atomic.Pointer[lifecyclePublisher]
-	resources      atomic.Pointer[resourceSampler]
-	hubMoves       atomic.Pointer[hubMoveService]
-	facts          atomic.Pointer[supervisionFactLog]
-	server         *couchmessage.Server
-	sessions       *couchmessage.SessionServer
-	broker         *couchmessage.Broker
-	cancel         context.CancelFunc
-	lifetime       context.Context
-	workers        sync.WaitGroup
-	authority      messageAuthority
-	panes          *couchmessage.PaneMailbox
-	inbox          chan messageInput
-	admitting      chan struct{}
-	connected      atomic.Pointer[map[couchmessage.Binding]bool]
+	drainMu    sync.Mutex
+	drainFlags couchcore.DrainFlags
+	lifecycle  atomic.Pointer[lifecyclePublisher]
+	resources  atomic.Pointer[resourceSampler]
+	hubMoves   atomic.Pointer[hubMoveService]
+	facts      atomic.Pointer[supervisionFactLog]
+	server     *couchmessage.Server
+	sessions   *couchmessage.SessionServer
+	broker     *couchmessage.Broker
+	cancel     context.CancelFunc
+	lifetime   context.Context
+	workers    sync.WaitGroup
+	authority  messageAuthority
+	panes      *couchmessage.PaneMailbox
+	inbox      chan messageInput
+	admitting  chan struct{}
+	connected  atomic.Pointer[map[couchmessage.Binding]bool]
 
 	// hostedIngest is installed once the Console is ready; requests take a fresh snapshot.
 	hostedIngest atomic.Pointer[func() couchcore.HostedIngestSnapshot]
@@ -269,9 +265,6 @@ type preparedAdmission struct {
 
 func (s *messageService) Close() {
 	s.cancel()
-	if drain := s.drains.Load(); drain != nil {
-		drain.close()
-	}
 	_ = s.server.Close()
 	_ = s.sessions.Close()
 	_ = s.broker.Close()
@@ -507,28 +500,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	c.ProcessTable = procutil.Table
 	c.LeaseHolders = lifetimelease.Holders
 	facts := openSupervisionFacts(artifacts.PairLifecycleDataDir(), namespace)
-	authority.drainNamespace = namespace
 	authority.drainPublish = console.SetDrainBoard
-	authority.drainCensus = func() []couchcore.DrainRow {
-		service := probe.service.Load()
-		if service != nil {
-			if source := service.drainInventory.Load(); source != nil {
-				source.mu.Lock()
-				snapshot := couchtty.ResourceInventorySnapshot{InventoryKnown: source.complete, Rows: append([]couchcore.ActionableThreadSummary(nil), source.sourceRows...), Hosted: append([]couchcore.LiveTTYObservation(nil), source.hosted...)}
-				source.mu.Unlock()
-				return drainCensusRows(snapshot, service)
-			}
-		}
-		return drainCensusRows(console.ResourceInventory(), service)
-	}
-	authority.drainGate = authority.hubs
-	if authority.drainGate == nil {
-		authority.drainGate = &hubRuntime{}
-		authority.drainWrap = func(gate *hubRuntime) {
-			previous := console.Ops()
-			console.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) { return dispatchHubOperation(gate, call, previous) })
-		}
-	}
 	service, err := newMessageService(context.Background(), brokerSocket, registrySocket, authority, panes, console.MessageSlotGit, consoleSlotOperations(console, c, probe), facts)
 	if err != nil {
 		facts.Close()
@@ -584,7 +556,6 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	service.workers.Add(1)
 	go func() { defer service.workers.Done(); rn.run(service.lifetime, reniceEvery) }()
 	inventory := newResourceInventory(console, c, service)
-	service.drainInventory.Store(inventory)
 	persistence := newResourceHistoryPersistence(namespace)
 	alerts := newResourceAlertDispatcher(service)
 	sampler := &resourceSampler{reader: procutil.NativeResourceReader{}, slots: inventory.snapshot, policy: resourcePolicy, alerts: alerts.dispatch, persist: persistence.persist, history: persistence.historySummary, sweeps: make(chan chan resourceSweep), leftRunning: couchcore.NewLeftRunningRegistry(c.Namespace)}
@@ -656,13 +627,6 @@ func newMessageService(parent context.Context, brokerSocket, registrySocket stri
 		status, err := authority.branch(ctx, identity.WorktreeRoot)
 		return err == nil && !status.Detached && status.Branch == *identity.RestingBranch, err
 	})
-	if authority.drainNamespace != "" {
-		if err := s.installDrainService(); err != nil {
-			cancel()
-			_ = s.broker.Close()
-			return nil, err
-		}
-	}
 	s.broker.SetSubmissionObserver(func(b couchmessage.Binding, n uint64) {
 		if log := s.facts.Load(); log != nil {
 			log.submitted(b, n)

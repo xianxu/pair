@@ -18,11 +18,6 @@ var pairCatalog = append(append([]golint.Rule(nil), golint.Catalog...), golint.R
 	Incident: "pair#714",
 	Message:  "compose diagnostic addresses atomically with completeFailureAddress; partial target evidence must not replace an exact captured address",
 	Match:    lifecycleFailureAddressOverrides,
-}, golint.Rule{
-	Name:     "drain-state-reducer",
-	Incident: "pair#722",
-	Message:  "change drain phase and error through couchcore.ReduceDrain; direct coordinator state writes bypass reducer authority",
-	Match:    drainStateOverrides,
 })
 
 func wrapperChildReleases(file *ast.File) []ast.Node {

@@ -252,9 +252,6 @@ func (p *proxy) publishLifecycleObservation(observation TurnObservation) {
 func (p *proxy) processLifecycleObservation(observation TurnObservation) {
 	p.inputAdmission.Lock()
 	state, decision := Reduce(p.notificationLifecycle, observation)
-	if state.Generation != p.notificationLifecycle.Generation || state.Active != p.notificationLifecycle.Active {
-		p.drainTurn++
-	}
 	p.notificationLifecycle = state
 	// The settle check reads turnActive off this goroutine (#421), and a turn
 	// can open or close here with no output to re-arm it.

@@ -80,9 +80,6 @@ func (c *Console) statusModelLocked() StatusModel {
 		}
 		actor.Label, actor.GroupKey, actor.SlotNumber, actor.Glyph, actor.Hub = entry.Label, entry.GroupKey, entry.SlotNumber, entry.Glyph, entry.Hub
 		actor.OwnerHub = entry.OwnerHub
-		if entry.Row.Target.Kind == couchcore.ThreadTargetSlot {
-			actor.Workspace = drainSlotWorkspace(entry.Row.Target.Slot)
-		}
 		model.Actors = append(model.Actors, actor)
 	}
 	activeHub := ""

@@ -666,26 +666,14 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
-	// #722 drain control, queue observations, and board projection introduce no
-	// tag-bearing artifact vocabulary. drainStore owns one private drain.json
-	// intent under the existing Couch namespace, like the attention/resource
-	// stores; its atomic temporary file is not a Pair session artifact family.
+	// #722 transient flags, ordinary notices and cached status create no files.
 	"cmd/internal/couchcmd/drain_cli.go",
-	"cmd/internal/couchcmd/drain_queue.go",
-	"cmd/internal/couchcmd/drain_queue_model.go",
-	"cmd/internal/couchcmd/drain_service.go",
-	"cmd/internal/couchcmd/drain_service_record.go",
-	"cmd/internal/couchcmd/drain_store.go",
 	"cmd/internal/couchcmd/drain_wiring.go",
 	"cmd/internal/couchcore/drain.go",
 	"cmd/internal/couchcore/drain_board.go",
 	"cmd/internal/couchcore/drain_notice.go",
-	"cmd/internal/couchmessage/drain_broker.go",
-	"cmd/internal/couchmessage/drain_endpoint.go",
-	"cmd/internal/couchmessage/drain_generation.go",
 	"cmd/internal/couchmessage/drain_protocol.go",
 	"cmd/internal/couchtty/console_drain.go",
-	"cmd/internal/wrapcmd/drain_interrupt.go",
 	"internal/testbinary/cache.go",
 	"internal/testoracle/run.go",
 	// #649 wiring, contextual runtime delegation, and the pure title reducer

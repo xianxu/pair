@@ -16,27 +16,21 @@ import (
 )
 
 type EndpointRequest struct {
-	DrainFence    *DrainFence       `json:",omitempty"`
-	DrainObserved *DrainObservation `json:",omitempty"`
-	Drive         *DriveStart       `json:",omitempty"`
-	Op            string
-	Binding       Binding
-	ID            string
-	Sequence      uint64
-	Message       *Message
-	Messages      []Message `json:",omitempty"`
+	Drive    *DriveStart `json:",omitempty"`
+	Op       string
+	Binding  Binding
+	ID       string
+	Sequence uint64
+	Message  *Message
+	Messages []Message `json:",omitempty"`
 	// Lines is a tail request's line count (pair#425); tail only.
 	Lines int `json:",omitempty"`
 }
 
 type EndpointResponse struct {
-	DrainFence       *DrainFence           `json:",omitempty"`
-	DrainObservation *DrainObservation     `json:",omitempty"`
-	DrainInterrupt   *DrainInterruptResult `json:",omitempty"`
-	DrainRevoke      *DrainRevokeResult    `json:",omitempty"`
-	DriveObservation *DriveObservation     `json:",omitempty"`
-	DriveResult      *agentdrive.Result    `json:",omitempty"`
-	BatchReady       bool                  `json:",omitempty"`
+	DriveObservation *DriveObservation  `json:",omitempty"`
+	DriveResult      *agentdrive.Result `json:",omitempty"`
+	BatchReady       bool               `json:",omitempty"`
 	Error            string
 	Observation      Observation
 	Receipt          *Receipt
@@ -56,49 +50,7 @@ func ValidateEndpointRequest(r EndpointRequest) error {
 	if r.Messages != nil && r.Op != "commit-batch" {
 		return errors.New("batch members apply only to commit-batch")
 	}
-	if r.DrainObserved != nil && r.Op != "drain-interrupt" {
-		return errors.New("drain evidence applies only to drain-interrupt")
-	}
-	if r.DrainFence != nil {
-		switch r.Op {
-		case "drain-interrupt", "drain-interrupt-status", "drain-revoke", "drain-reserve", "drain-release":
-		default:
-			return errors.New("drain fence applies only to typed drain controls")
-		}
-		if err := r.DrainFence.Validate(); err != nil {
-			return err
-		}
-	}
-
 	switch r.Op {
-	case "drain-observe":
-		if r.ID != "" || r.Sequence != 0 || r.Message != nil || r.Drive != nil || r.Lines != 0 {
-			return errors.New("drain-observe requires only binding")
-		}
-	case "drain-interrupt", "drain-interrupt-status", "drain-revoke":
-		if !validMessageID(r.ID) || r.Sequence != 0 || r.Message != nil || r.Drive != nil || r.Lines != 0 || r.DrainFence == nil {
-			return errors.New("drain operation requires binding, ID and fence")
-		}
-		if r.Op != "drain-revoke" && r.DrainFence.Kind != DrainInterruptControl {
-			return errors.New("interrupt operation requires interrupt fence")
-		}
-		if r.Op == "drain-interrupt" {
-			if r.DrainObserved == nil {
-				return errors.New("drain-interrupt requires observed turn")
-			}
-			if err := r.DrainObserved.Validate(); err != nil {
-				return err
-			}
-			if r.DrainObserved.Namespace != r.DrainFence.Namespace || r.DrainObserved.Instance != r.DrainFence.Instance {
-				return errors.New("drain interrupt observation owner mismatch")
-			}
-			return nil
-		}
-
-	case "drain-reserve", "drain-release":
-		if !validMessageID(r.ID) || r.Message != nil || r.Drive != nil || r.Lines != 0 || r.DrainFence == nil || r.DrainFence.Kind != DrainNoticeControl || r.Op == "drain-release" && r.Sequence != 0 {
-			return errors.New("drain reservation requires ID and exact notice fence")
-		}
 	case "drive-observe":
 		if r.ID != "" || r.Sequence != 0 || r.Message != nil || r.Lines != 0 || r.Drive != nil {
 			return errors.New("drive-observe requires only a binding")
@@ -135,7 +87,7 @@ func ValidateEndpointRequest(r EndpointRequest) error {
 			return errors.New("commit requires binding, ID and message")
 		}
 		m := r.Message
-		if !m.Origin.Valid() || ValidateDrainInstance(*m) != nil || m.ID != r.ID || m.To != r.Binding || m.From.Validate() != nil || m.Deadline.IsZero() {
+		if !m.Origin.Valid() || m.ID != r.ID || m.To != r.Binding || m.From.Validate() != nil || m.Deadline.IsZero() {
 			return errors.New("commit message identity mismatch")
 		}
 		return ValidateBody(m.Body)
@@ -211,14 +163,6 @@ func (e RemoteEndpoint) call(ctx context.Context, r EndpointRequest) (EndpointRe
 		return EndpointResponse{}, err
 	}
 
-	if r.Op == "drain-reserve" || r.Op == "drain-release" {
-		if response.DrainFence == nil || r.DrainFence == nil || *response.DrainFence != *r.DrainFence {
-			return EndpointResponse{}, errors.New("drain reservation response fence mismatch")
-		}
-		if response.Receipt != nil && response.Receipt.Message.DrainFence != *r.DrainFence {
-			return EndpointResponse{}, errors.New("drain reservation retained fence mismatch")
-		}
-	}
 	switch {
 	case response.Error == ErrAlreadyCommitted.Error() && response.Receipt != nil:
 		return EndpointResponse{}, &AlreadyCommittedError{Receipt: *response.Receipt}
@@ -282,7 +226,7 @@ func (e RemoteEndpoint) Release(ctx context.Context, id string) error {
 }
 
 func matchingReceipt(r Receipt, m Message) bool {
-	return m.Origin.Valid() && r.Message.Origin == m.Origin && r.Message.DrainFence == m.DrainFence && r.Message.ID == m.ID && r.Message.From == m.From && r.Message.To == m.To && r.Message.Body == m.Body && r.Message.Deadline.Equal(m.Deadline)
+	return m.Origin.Valid() && r.Message.Origin == m.Origin && r.Message.ID == m.ID && r.Message.From == m.From && r.Message.To == m.To && r.Message.Body == m.Body && r.Message.Deadline.Equal(m.Deadline)
 }
 
 // peerHeldPoll paces status polling while the recipient holds a delivery.

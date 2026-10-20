@@ -19,28 +19,20 @@ import (
 // drives its reducer or writes to the PTY. The admission mutex fences reader
 // observations against automatic writes, including observations not rendered yet.
 type peerDelivery struct {
-	drainProxy       *proxy
-	drainNamespace   string
-	drainGeneration  couchmessage.DrainGeneration
-	reservationFence couchmessage.DrainFence
-	drainInput       uint64
-	drainInterrupt   *wrapperDrainInterrupt
-	drainInterrupts  map[string]*wrapperDrainInterrupt
-	drainRevokes     map[string]couchmessage.DrainRevokeResult
-	drive            *driveMailbox
-	recordBatch      func([]couchmessage.Message)
-	batch            *peerDeliveryBatch
-	recordTurn       func(couchmessage.Message) // submitted turns into the Pair log (pair#618); nil without a log path
-	driveProbe       func() agentdrive.Screen
-	mu               sync.Mutex
-	binding          couchmessage.Binding
-	now              func() time.Time
-	lastActivity     time.Time
-	sequence         uint64
-	lastInput        time.Time
-	inputBuffered    bool
-	submissions      uint64
-	pasteSequence    uint64
+	drive         *driveMailbox
+	recordBatch   func([]couchmessage.Message)
+	batch         *peerDeliveryBatch
+	recordTurn    func(couchmessage.Message) // submitted turns into the Pair log (pair#618); nil without a log path
+	driveProbe    func() agentdrive.Screen
+	mu            sync.Mutex
+	binding       couchmessage.Binding
+	now           func() time.Time
+	lastActivity  time.Time
+	sequence      uint64
+	lastInput     time.Time
+	inputBuffered bool
+	submissions   uint64
+	pasteSequence uint64
 	// The post-paste half of a delivery (pair#427). deliverBy is the paste
 	// time plus DeliveryTimeout; Message.Deadline bounds the initial commit.
 	pastedAt                time.Time
@@ -283,7 +275,6 @@ func (d *peerDelivery) admitReleased(data []byte) bool {
 
 // operatorInputLocked records a keystroke (d.mu held).
 func (d *peerDelivery) operatorInputLocked() (couchmessage.Observation, peerSessionSink, bool) {
-	d.drainInput++
 	d.cancelDriveLocked("operator input")
 	d.lastInput = d.now()
 	d.sequence++
@@ -369,21 +360,11 @@ func (d *peerDelivery) retainedLocked(id string) (couchmessage.Receipt, bool) {
 }
 
 func (d *peerDelivery) reserve(id string, sequence uint64) error {
-	unlock := d.lockDrainInput()
-	defer unlock()
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	for _, control := range d.drainGeneration.View().Controls {
-		if control.ID == id && id != "" {
-			return errors.New("drain reservation requires typed fence")
-		}
-	}
 	return d.reserveLocked(id, sequence)
 }
 func (d *peerDelivery) reserveLocked(id string, sequence uint64) error {
-	if _, revoked := d.drainRevokes[id]; revoked {
-		return errors.New("drain control revoked")
-	}
 	if r, ok := d.retainedLocked(id); ok {
 		return &couchmessage.AlreadyCommittedError{Receipt: r}
 	}
@@ -394,30 +375,15 @@ func (d *peerDelivery) reserveLocked(id string, sequence uint64) error {
 		return couchmessage.ErrRecipientBusy
 	}
 	d.reservation = id
-	d.reservationFence = couchmessage.DrainFence{}
 	d.reservationUntil = d.now().Add(couchmessage.AdmissionTimeout)
 	return nil
 }
 func (d *peerDelivery) enqueue(m couchmessage.Message) error {
-	unlock := d.lockDrainInput()
-	defer unlock()
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.enqueueLocked(m)
 }
 func (d *peerDelivery) enqueueLocked(m couchmessage.Message) error {
-	if err := d.validateDrainMessageLocked(m); err != nil {
-		return err
-	}
-	if _, revoked := d.drainRevokes[m.ID]; revoked {
-		return errors.New("drain control revoked")
-	}
-	if m.DrainFence != d.reservationFence {
-		return errors.New("peer reservation drain fence changed")
-	}
-	if !m.DrainFence.IsZero() && !d.drainGeneration.Allows(m.DrainFence, m.ID) {
-		return errors.New("drain notice revoked")
-	}
 	if m.To != d.binding || m.ID != d.reservation || !d.now().Before(d.reservationUntil) || !d.now().Before(m.Deadline) {
 		return errors.New("peer reservation expired or identity changed")
 	}
@@ -462,7 +428,6 @@ func (p *proxy) peerComposerSubmission() bool {
 // receiver may wait before paste; input effects after paste share one bounded
 // submit/confirmation window.
 func (p *proxy) dispatchPeer(out io.Writer) {
-	p.executeDrainInterrupt(out)
 	p.dispatchAgentDrive(out)
 	d := p.peer
 	if d == nil {
@@ -473,9 +438,6 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.current.Message.ID == "" {
-		return
-	}
-	if p.rejectStaleDrainLocked() {
 		return
 	}
 	// Normal render wakes reconcile terminal quarantine without idle polling.
@@ -628,9 +590,6 @@ func (p *proxy) advancePeer(event couchmessage.PeerDeliveryEvent, out io.Writer)
 		p.advancePeer(couchmessage.PeerDeliveryEvent{Kind: couchmessage.PeerDeadlineElapsed}, out)
 		return
 	}
-	if (effect == couchmessage.PeerPaste || effect == couchmessage.PeerSubmit) && (!p.authorizeDrainWriteLocked(effect) || p.rejectStaleDrainLocked()) {
-		return
-	}
 	switch effect {
 	case couchmessage.PeerPaste:
 		p.beginAutomaticInput(automaticInputPeer)
@@ -663,7 +622,6 @@ func (p *proxy) advancePeer(event couchmessage.PeerDeliveryEvent, out io.Writer)
 			p.finishAutomaticInput(automaticInputPeer, state.Outcome() == couchmessage.Submitted && event.EmptyConfirmed)
 		}
 		d.current.Status = state.Outcome()
-		d.settleDrainNoticeLocked()
 		if d.current.Status == couchmessage.Submitted && (d.recordTurn != nil || d.recordBatch != nil) && !d.exited {
 			if d.batch != nil && d.recordBatch != nil {
 				d.recordBatch(d.membersLocked())

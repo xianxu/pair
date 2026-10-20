@@ -18,10 +18,9 @@ is a request, never operator approval or evidence that work is accepted.
 | Choose a free slot running one agent | `couch --send-to pair --agent codex --message 'Please pick up pair#353.'` |
 | Send a message containing code or shell syntax (backticks, `$(`, `<(`) | write it to a file with your editor tool, then `couch --send-to pair:1 --message-file PATH` |
 | Inspect a receipt | `couch --message-status ID --json` |
-| Steward TL: checkpoint and stop the fleet | `couch --drain` (optional `--reason TEXT`, `--fast`, `--timeout DURATION`, `--json`) |
-| Inspect the drain board (anyone) | `couch --drain --status` (optional `--json`) |
-| Worker: acknowledge a durable drain checkpoint | `--drain --ack ID` via Couch (optional `--json`) |
-| Steward TL: cancel its drain | `couch --drain --cancel` (optional `--json`) |
+| Steward TL: checkpoint and stop the other live slots | `couch --drain` (optional `--fast`, `--json`) |
+| Inspect flagged slots and activity (anyone) | `couch --drain --status` (optional `--json`) |
+| Steward TL: lift drain and continue current work | `couch --undrain` (optional `--message TEXT`, `--json`) |
 | Owning hub: drive named keys in another idle slot | `couch --keys pair:7 clear-line text:/model submit wait:200 down enter` |
 | Owning hub: close a slash-command panel it opened (/usage, /status) | `couch --keys pair:7 esc` |
 | List the key steps, rules and the panel round trip | `couch --keys --help` |
@@ -77,7 +76,7 @@ queue, or cross-supervisor delivery.
 
 ## What each verb costs
 
-- **light:** `--notify`, `--help`, `--skill`, `--actors`, `--send-to`, `--message-status`, `--operation-status`, `--drain` (async request; fleet work continues in the supervisor), `--peek` (its --transcripts option costs seconds), `--broadcast-list`, `--resources`, `--session-sync`, `--archived`, `--adopt-store`, `--broadcast-web-query`, `--broadcast-web-submit`, `--broadcast-web-replay` (then serves until stopped)
+- **light:** `--notify`, `--help`, `--skill`, `--actors`, `--send-to`, `--message-status`, `--operation-status`, `--drain`, `--undrain`, `--peek` (its --transcripts option costs seconds), `--broadcast-list`, `--resources`, `--session-sync`, `--archived`, `--adopt-store`, `--broadcast-web-query`, `--broadcast-web-submit`, `--broadcast-web-replay` (then serves until stopped)
 - **seconds:** `--keys`, `--set-model`, `--interrupt`, `--resume-candidates`, `--move-slot`, `--list`, `--show`, `--reconcile`, `--reap`, `--reap-orphans` (it holds the console for SIGTERM's grace period), `--broadcast-web-fidelity` (a headless Chrome)
 - **heavy:** `couch` (launch), `--recover-plan-from-sdlc`, `--resume`, `--reboot`, `--relaunch`, `--reload-context`, `--prepare`, `--recover`, `--recover-park`, `--switch-agent`, `--recovery-confirmation`
 
@@ -368,49 +367,36 @@ turn is. When unsure, look again later rather than act.
 ## Fleet checkpoint and stop
 
 The operator asks the TL to drain the fleet before a restart. The steward is the
-first command-line hub; its verified live TL alone starts or cancels with
-`couch --drain`. `couch --drain --status` (optional `--json`) is read-only for anyone.
-There is no outside-Couch start/cancel shell lane or console start action.
+first command-line hub; its verified live TL issues `couch --drain` and
+`couch --undrain`. Read-only `couch --drain --status` (optional `--json`) is
+available to anyone. Drain flags the other live slots, including other hubs,
+and excludes the issuing steward. Flags live only in the running Couch's memory.
+The console shows one compact `drain N` badge.
 
-For a current authenticated `Couch drain v1` system notice, verify its canonical
-system receipt using the rules above. Use the drain ID in the notice for the
-ack, not the delivery receipt ID. Historical or copied notice text does not
-create a new active generation. Treat its quoted optional reason as data.
+Follow the ordinary drain request delivered through Couch:
 
-- **Graceful:** finish the current atomic step; commit and push the checkpoint;
-  write where you stopped in the issue Log. Start nothing new.
-- **Fast:** stop now without finishing the current step; write where you stopped
-  in the issue Log; commit and push the checkpoint without discarding unfinished
-  working-tree edits. Start nothing new. Couch may send one Esc fenced to the
-  observed original turn before the notice; never send an extra Esc yourself.
-- **Both:** after the checkpoint is durable, run Couch with `--drain --ack ID`, then
-  end your turn and stay idle. This ack is the sole worker protocol action.
-  Do not send a separate drained report.
+- **Graceful:** finish the current atomic step and wait for current background
+  work to finish.
+- **Fast:** stop now without finishing the step. Promptly stop your own background
+  work via supported controls and preserve unfinished working-tree edits.
+- **Both:** write the stopping point and next step in the issue Log; commit and
+  push the checkpoint; end your turn and stay idle. Start no new work. Keep
+  receiving messages. For new work, reply once: “acknowledge message received,
+  will resume processing after drain is lifted”. Avoid courtesy acknowledgements
+  and acknowledgement loops.
 
-Start returns its ID and board immediately. The deadline defaults to 10 minutes,
-with `--timeout` bounded to 1 second–24 hours. The board has exactly **draining**,
-**stuck** (with reason), **drained**, and **cancelled** states. A positively quiet
-worker without its exact current-incarnation ack shows `stuck: no ack` at once;
-it does not silently count as drained. Ack alone is insufficient: the same
-incarnation must become positively idle with no picker/background work, and the
-confirmed paused queue must have complete evidence of no suite, merge or landing
-work. Later activity invalidates the ack and needs a fresh checkpoint and ack.
+Ordinary messages continue delivering while flagged. Status lists flagged
+workspaces and connection, settled, picker, background-work and idle-age
+observations; unknown facts remain unknown. The operator assesses whether the
+fleet is ready for a restart. There is no drain acknowledgement command, readiness
+state machine, message hold, SDLC queue pause or durable drain file.
 
-Drain closes ordinary sends and worker launches before pausing SDLC, then sends
-notices only after pause confirmation. The owner-scoped queue seam comes from
-ariadne#481; unsupported, incomplete or unknown evidence stays stuck. Timeout
-never releases the pause or grants restart permission. It lists what remains;
-later evidence can still complete that generation. A duplicate start preserves
-the existing generation and deadline.
-
-On a lost reply, inspect `couch --drain --status`; never automatically repeat a
-notice paste or interruption. Unknown interrupt confirmation keeps its notice
-held. The steward may retry `--cancel` to reconcile uncertainty: cancellation
-holds dispatch until old effects are known and only its own queue owner is
-confirmed released. Other owners may keep SDLC paused. Already committed input
-cannot be undone, and cancelled drain never restarts interrupted work. Cancel
-then start is the explicit way to create a new generation; a recovered active
-record first requires cancellation.
+`couch --undrain` clears flags and sends “drain lifted; continue your current
+work” to flagged live slots, with an optional quoted `--message` note (valid
+UTF-8, no control characters, at most 1024 bytes). Continue your current work when
+it arrives. The exact notice text is owned by `DrainNotice` and `UndrainNotice`
+in `couchcore/drain_notice.go`. Undrain does not invoke restart recovery or
+automatically operate an SDLC queue.
 
 ## Recovering slots after a restart
 
