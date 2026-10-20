@@ -1,6 +1,6 @@
 ---
 id: 000695
-status: codecomplete
+status: done
 created: 2026-10-18
 updated: 2026-10-19
 estimate_hours: 4.91
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 2ac8c028e16bae89de44f0749effb18805650f1a
         evidence_commit: c356fa3ca1e33d9fb71ea3fe3409c523d396c1f6
+        landed_commit: 6fd9244ce7acb14cd9336a5110f9a31038d615b9
 ---
 
 # Lifecycle primitives: transcript binding on the record, the two-kind address, proven teardown
