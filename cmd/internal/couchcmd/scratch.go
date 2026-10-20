@@ -83,6 +83,10 @@ func workspaceScratchOwner(id couchcore.WorkspaceIdentity) (couchscratch.Slot, b
 // configureScratch composes startup effects only for the singleton owner. CLI
 // readers cannot change native metadata or start a maintenance worker.
 func (r OSRuntime) configureScratch(c *couchcore.Couch) {
+	c.ScratchDiagnostic = func(_ context.Context, record couchcore.ThreadRecord) string {
+		_, status := r.scratchAdmission(record)
+		return status
+	}
 	if !r.ownership.held() {
 		return
 	}
@@ -118,7 +122,15 @@ func (r OSRuntime) configureScratch(c *couchcore.Couch) {
 		}
 		return owner, err
 	}
-	c.SlotEnvironment = scratchSlotEnvironment(manager, lookup)
+	prepare := scratchSlotEnvironment(manager, lookup)
+	c.SlotEnvironment = func(ctx context.Context, record couchcore.ThreadRecord) []string {
+		allowed, status := r.scratchAdmission(record)
+		if !allowed {
+			note(status)
+			return nil
+		}
+		return prepare(ctx, record)
+	}
 	c.ScratchStartup = func(ctx context.Context, warn func(string)) {
 		if warn != nil {
 			notify = warn
@@ -148,6 +160,31 @@ func (r OSRuntime) configureScratch(c *couchcore.Couch) {
 		_, _ = manager.Sweep(ctx) // Manager reports one bounded aggregate itself.
 	}
 	c.ScratchMaintenance = manager.Maintain
+}
+
+// scratchAdmission shares optional-root policy with launch and read-only show.
+func (r OSRuntime) scratchAdmission(record couchcore.ThreadRecord) (bool, string) {
+	probe := r.scratchProbe()
+	if !couchscratch.ChooseScratch(probe) {
+		return false, "scratch: normal temp (RAM disk unavailable)"
+	}
+	if record.LatestLaunchProfile == nil {
+		return false, "scratch: normal temp (sandbox policy unknown)"
+	}
+	profile := record.LatestLaunchProfile
+	in := couchscratch.SandboxSettings{Agent: profile.Agent, Argv: profile.Argv, Project: record.StartingPath, Home: r.Getenv("HOME"), ClaudeHome: r.Getenv("CLAUDE_CONFIG_DIR"), CodexHome: r.Getenv("CODEX_HOME")}
+	if r.isolatedRoot != "" {
+		in.ClaudeHome, in.CodexHome = "", ""
+		in.ManagedRoot = filepath.Join(r.isolatedRoot, "managed-claude")
+	}
+	policy := couchscratch.ReadSandboxPolicy(in)
+	if !policy.Known {
+		return false, "scratch: normal temp (sandbox policy unknown)"
+	}
+	if !couchscratch.ScratchAllowed(probe.Root, policy) {
+		return false, "scratch: normal temp (sandbox doesn't allow " + probe.Root + "; add an allowance then relaunch)"
+	}
+	return true, "scratch: RAM disk"
 }
 
 // nativeScratchServers observes every native server, regardless of Pair scope.

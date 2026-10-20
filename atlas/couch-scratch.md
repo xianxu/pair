@@ -10,6 +10,34 @@ from `/Volumes`, with at least 2 GiB available. `Manager.PrepareSlot` creates a
 CLAUDE_CODE_TMPDIR. Missing/full/unwritable scratch preserves inherited temp
 settings. Durable Pair state and Go caches keep their existing destinations.
 
+Before preparing a slot, `couchscratch.ScratchAllowed` checks the selected
+agent's sandbox policy (#720). The host write probe alone is insufficient:
+Couch runs outside the sandbox it is configuring. Claude's supported local
+user/project/local settings combine filesystem allowances and denies; an
+enabled sandbox must allow the volume or a parent, with denies taking
+precedence. Disabled sandboxing permits the optional root. Codex normally adds
+the inherited TMPDIR to workspace-write roots, so its normal configuration
+keeps RAM scratch; read-only or `exclude_tmpdir_env_var` declines it. CODEX_HOME
+and CLAUDE_CONFIG_DIR route only the non-credential settings reads.
+
+The projection deliberately declines unsupported policy layers rather than
+implementing native configuration resolvers: detected Claude managed settings,
+CLI settings-source overrides, Codex profiles/config overrides, malformed or
+unreadable files, unsupported path forms and unknown agents use normal temp.
+Each settings read is capped at 1 MiB; configuration is never rewritten. The
+decision runs at launch or explicit show, not UI ticks, and creates no cache,
+worker or journal. Existing inherited temp values are preserved on fallback.
+
+`couch --show` includes `scratch: RAM disk` or a normal-temp reason, explicitly
+labelled **current launch selection**. This read-only view recomputes admission;
+it does not inspect an existing child's environment or create scratch. A launch
+that cannot use the volume emits one bounded note. Add the missing allowance
+and relaunch the slot to adopt it. Fresh/switch launches supply the selected
+invocation through a call-local record projection, while durable last-registered
+profiles retain their meaning. Tests include a successful host write alongside
+a denying consumer policy, the operator's real allowance shape, and unchanged
+Codex TMPDIR-default admission. Live acceptance rides a natural relaunch.
+
 Admission checks availability before identity lookup and falls back immediately
 if maintenance holds the manager. Owner-index locking is also nonblocking. The
 launch context bounds retained lookup and the first-workspace fallback together.

@@ -427,7 +427,7 @@ bug must not break your ability to fix it, and launching pair directly always
 still works. See [atlas/couch.md](atlas/couch.md).
 
 When `/Volumes/TestScratch` is mounted with at least 2 GiB free, new Couch slots
-use private RAM directories for TMPDIR, GOTMPDIR and CLAUDE_CODE_TMPDIR. Existing
+🤖{whose agent sandbox admits that volume }use private RAM directories for TMPDIR, GOTMPDIR and CLAUDE_CODE_TMPDIR. Existing
 panes need relaunch; unavailable scratch keeps inherited temp settings. Ordinary
 temp entries untouched for 24 hours may be removed at startup/hourly; special
 files and trees containing them are kept. Native socket discovery stays fixed.

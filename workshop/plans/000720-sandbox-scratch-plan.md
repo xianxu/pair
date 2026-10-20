@@ -27,9 +27,9 @@ Policy is invocation-scoped: known, sandbox-enabled, allowed and denied concrete
 
 | Name | Location | Status | Wraps |
 |------|----------|--------|-------|
-| ReadSandboxPolicy | cmd/internal/couchscratch/sandbox_settings.go | new | bounded read-only config files |
-| scratchSlotEnvironment | cmd/internal/couchcmd/scratch.go | modified | policy before existing Manager preparation |
-| SlotEnvironment callback | cmd/internal/couchcore/couch.go, launch_existing.go, warm_attach.go | modified | actual selected LaunchProfile |
+| ReadSandboxPolicy / sandboxInvocation | cmd/internal/couchscratch/sandbox_read.go | new | bounded read-only config files and invocation projection |
+| scratchAdmission / configureScratch | cmd/internal/couchcmd/scratch.go | modified | policy before existing Manager preparation |
+| SlotEnvironment callback input | cmd/internal/couchcore/couch.go, launch_existing.go | modified | actual selected LaunchProfile |
 | ScratchDiagnostic / show projection | cmd/internal/couchcore/couch.go, slotreport.go, operationdispatch.go; couchcmd/run.go | new | read-only current admission text |
 
 Settings IO uses a portable fixture directory and injected getenv/read boundary. Tests model settings mutations between launches through the same reader; no live agent or credential access. The manager's existing note/cleanup/mount protections remain owners. Show reports current admission for the next launch, not observed child environment or a stored permission grant.
@@ -74,9 +74,9 @@ ARCH-PURE: one pure policy predicate, literal table tests and pure decode/projec
 
 ## Tasks
 
-- [ ] Write ScratchAllowed and projection unit tests first using the strategy table; run red before implementation. Keep the operator's enabled user-settings /Volumes/TestScratch allowance as the positive acceptance control.
-- [ ] Implement minimal projection/reader and actual-profile launch plumbing; reproduce the original host-probe-success/consumer-denied failure with a red integration test, then make it pass. Preserve warm/fresh routing and isolated runtime tests.
-- [ ] Add read-only show selection, tests, source inventory and atlas map. Check pure-vs-IO placement and bounded read/entry scaling. Add a local/shared lint proposal only if this resolves a mechanically detectable API misuse; this is consumer-policy semantics, not a general syntactic mistake.
+- [x] Write ScratchAllowed and projection unit tests first using the strategy table; run red before implementation. Keep the operator's enabled user-settings /Volumes/TestScratch allowance as the positive acceptance control.
+- [x] Implement minimal projection/reader and actual-profile launch plumbing; reproduce the original host-probe-success/consumer-denied failure with a red integration test, then make it pass. Preserve warm/fresh routing and isolated runtime tests.
+- [x] Add read-only show selection, tests, source inventory and atlas map. Check pure-vs-IO placement and bounded read/entry scaling. Add a local/shared lint proposal only if this resolves a mechanically detectable API misuse; this is consumer-policy semantics, not a general syntactic mistake.
 - [ ] Run focused couchscratch/couchcmd/couchcore tests and artifactpath, then push and run the recorded full suite. Close through SDLC's fresh review, fix Important findings, land through sdlc merge, report Git-verified PR/merge to hub and stop.
 
 ## Acceptance and evidence
@@ -90,3 +90,7 @@ Codex source: [SandboxPolicy writable roots](https://github.com/openai/codex/blo
 ### 2026-10-19 — plan-quality advisory
 
 Plan-quality round 1 INFO, no blocking findings. PQ-1 requests concrete projection function names and removal of a duplicated prose case inventory. Named ProjectClaudeSettings/ProjectCodexSettings and compressed the task to the existing adversarial strategy table, preserving the hub's positive acceptance control. No behavioral design change.
+
+### 2026-10-19 — implementation map
+
+Keep the existing callback signature: supply its selected profile through a call-local ThreadRecord copy at launch, leaving the durable last-registered profile unchanged. Warm attach already supplies the retained selected profile and needs no production change. The bounded IO/invocation reader lives separately in sandbox_read.go; scratchAdmission wraps the existing environment preparer so the manager and its generic fixture API stay unchanged. Update the map to actual ownership, not an anticipated signature expansion. Estimate-quality INFO's tight allocations are acknowledged: reader and launch rows include their tests, discovery includes completed research once (not additional research), and the review row includes foreground verification/landing attention; no numbers are backfitted.

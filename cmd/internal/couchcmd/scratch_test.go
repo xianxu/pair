@@ -221,7 +221,7 @@ func TestInjectedScratchConstructorLaunchesWithRAMAndFallback(t *testing.T) {
 	}
 	zero := 0
 	c.Slots = &couchcore.SlotCatalogFake{Workspaces: map[string]couchcore.WorkspaceIdentity{checkout: {Repo: "fixture", RepoIdentity: filepath.Join(checkout, ".git"), WorktreeRoot: checkout, PrimaryRoot: checkout, Kind: "primary", Slot: &zero}}}
-	record := couchcore.ThreadRecord{SchemaVersion: couchcore.ThreadSchemaVersion, Address: couchcore.ThreadAddress{RepoScope: scope.Key, Tag: "couch-0123456789abcdef"}, StartingPath: checkout, WorkingPath: checkout, CreatedAt: time.Unix(100, 0), Revision: 1}
+	record := couchcore.ThreadRecord{SchemaVersion: couchcore.ThreadSchemaVersion, Address: couchcore.ThreadAddress{RepoScope: scope.Key, Tag: "couch-0123456789abcdef"}, StartingPath: checkout, WorkingPath: checkout, CreatedAt: time.Unix(100, 0), Revision: 1, LatestLaunchProfile: &couchcore.LaunchProfile{Agent: "codex"}}
 	for _, enabled := range []bool{true, false} {
 		mounted = enabled
 		env := append([]string{"ZELLIJ_SOCKET_DIR=/wrong", "TMPDIR=/outside", "GOTMPDIR=/outside", "CLAUDE_CODE_TMPDIR=/outside"}, c.SlotEnvironment(t.Context(), record)...)

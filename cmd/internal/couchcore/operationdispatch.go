@@ -248,6 +248,11 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 				}
 			}
 			result := ShowResult{Threads: narrowed, LaunchFailures: failures, LaunchFailureError: failureError}
+			if c.ScratchDiagnostic != nil {
+				for _, match := range matches {
+					result.Scratch = append(result.Scratch, string(match.Address.Tag)+": "+c.ScratchDiagnostic(call.Context, match))
+				}
+			}
 			switch {
 			case slotErr != nil:
 				result.Slot = &SlotReport{PlanError: "slot unresolved: " + slotErr.Error()}

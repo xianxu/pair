@@ -49,8 +49,8 @@ normal temp folder) and print one note naming the missing allowance.
 
 ## Plan
 
-- [ ] Implement the shared pure sandbox predicate and bounded standard settings projection with red-first table/fixture tests.
-- [ ] Gate scratch exports with the actual selected launch profile; share the read-only selection with show diagnostics and update the atlas.
+- [x] Implement the shared pure sandbox predicate and bounded standard settings projection with red-first table/fixture tests.
+- [x] Gate scratch exports with the actual selected launch profile; share the read-only selection with show diagnostics and update the atlas.
 - [ ] Run focused checks and recorded full suite, close review, land through SDLC and report to the hub.
 
 Durable design: [sandbox-aware slot scratch](../plans/000720-sandbox-scratch-plan.md). One atomic close boundary; full flow because settings and diagnostic plumbing exceed the quick production-line shell.
@@ -81,3 +81,15 @@ total: 1.56
 ### 2026-10-19 — design approved
 
 Claimed in pair:7 and started from fresh main. Root seam: scratchSlotEnvironment delegates to a host write probe with no consumer-policy admission. A read-only research subagent checked official Claude settings/managed-policy semantics and the absence of an existing sandbox reader. Hub approved the conservative Claude projection and narrow Codex TMPDIR check, then the compact full-flow shape (6cfb6a23-fb86-4013-93fd-1047d7a7b73c). Required positive control: enabled Claude user settings with allowWrite containing /Volumes/TestScratch must stay on RAM. No settings/credential writes or native agent startup. Current Codex tool calls are filesystem-unsandboxed (danger-full-access); they are not sandboxed-conformance evidence. Codex's source explicitly defaults TMPDIR exclusion false and adds TMPDIR to workspace-write roots; links and trust envelope are in the durable plan. Live follow-up is the next natural relaunch; no staging on pair:0.
+
+### 2026-10-19 — red/green and bounded implementation
+
+Plan-quality round 2 CLEAN, PQ-1 addressed; estimate-quality INFO accepted, then change-code exited 0. Predicate subagent owned only sandbox.go/test: permissive-stub red followed by literal policy green. Root-owned settings projections and reader first failed their required positive controls, then passed. The public composition regression TestScratchHostProbeCannotAuthorizeSandboxExport failed with all three RAM exports despite a denying Claude config (0.330s); after admission wiring it passed (0.329s). It mutates portable settings between deny, allow and malformed states, proves the host probe really succeeds, and checks the one explanatory note and shared diagnostic. TestScratchEnvironmentReachesFreshAndWarmLaunches first failed because fresh admission received nil profile (0.306s), then passed with a call-local selected-profile projection (0.359s). The existing callback API and durable profile semantics are retained.
+
+Focused scratch/launch/switch/show checks passed in couchscratch/couchcmd/couchcore (0.148s/0.599s/0.341s), and the complete artifactpath package passed 11.647s. Settings fuzz passed 40,866 executions in 2s (2.181s wall), no panic or corpus failure. Current real user settings were inspected without content output: sandbox enabled, ten concrete allowWrite paths including TestScratch, no denyWrite and no filesystem-disabled key; managed directory absent. The checked-in positive fixture preserves that relevant shape without native configuration writes. New TOML dependency is pelletier/go-toml/v2 v2.4.3; parsing is typed for consumed fields and tolerant of unrelated additions, never a regex or settings rewrite. Settings reads are fixed-count/bounded and cannot hang on special files. Full recorded suite and close review remain due; no live sandboxed agent check is claimed.
+
+## Revisions
+
+### 2026-10-19 — approved projection envelope
+
+Hub approved standard local Claude settings with conservative unknown-layer fallback, and Codex's narrow TMPDIR rule (b02f4c9f-ac9d-49c5-bcdc-7ff5f673caa9; 6cfb6a23-fb86-4013-93fd-1047d7a7b73c). Profile/CLI config resolution and detected managed policy remain native-owned: use normal temp instead of predicting them. Show labels the current next-launch selection and does not claim to observe an existing child. No pair:0 stage; acceptance uses headless fixtures and source evidence, with live follow-up at the next natural relaunch.
