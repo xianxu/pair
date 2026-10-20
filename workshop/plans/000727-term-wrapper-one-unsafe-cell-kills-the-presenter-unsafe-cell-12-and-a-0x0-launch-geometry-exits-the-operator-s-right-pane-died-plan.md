@@ -98,6 +98,61 @@ configuration. Operator acceptance must cover loss and recreation from a survivi
   authority. Unknown observation kinds must not break existing optional capture readers.
 - No machine changes, production pane driving or pair:0 staging without hub coordination.
 
+## Function-level adversarial strategy
+
+| Risky production function | Strategy and mechanical guard |
+|---|---|
+| repairBackendRow(cells) | Generated arbitrary Cell rows (including arbitrary byte strings/width/link fields); independent strict validation after repair, fixed row length/column positions, unchanged originally valid cells unless part of a broken wide pair. Count visits at 8/16 rows. |
+| describeCellFault(cell, position, reason) | Arbitrary large/malformed cell strings; bound encoded bytes, codepoint/hex element counts and verify no terminal controls or raw link addresses in JSON output. |
+| Endpoint.capture / captureHistory | Inject raw backend screen/history cells, publish through the real presenter and emulator oracle; confirm valid projection, unchanged backend, later input delivery, one observation across repeated snapshots. |
+| openTermDiagnostics / observeCellFault | Actual managed JSONL writer in private directory; close/drain ownership and sink failure cannot affect presentation; verify codepoint evidence through encoding. |
+| waitInitialGeometry(host, deadline) | Stateful FakeHost with controlled resize/termination/closed-channel sequences; one size read per wake, no child effect before success, fixed deadline and no spin. |
+| RecoveryTransition(state,event) | Exhaust all state/event pairs and controlled overlapping-event sequences; termination dominates every pre-exec state, normal exit never requests shell, ExecShell requires completed cleanup. |
+| runShellOnHost / runShellRecovery | Real disposable PTY plus held teardown and actual shell command acknowledgment; no shell handoff before restore/join, observed termination during cleanup prevents exec, one exec effect maximum. |
+| SwitchRightTerminalTabContext | Stateful zellijtest inventory mutations and adversarial replies through actual native admission; only confirmed same-tab absence authorizes new-pane, existing terminal authorizes one targeted chord, unknown/cancelled permits no effects. |
+| shared RightTerminalPaneShell | Existing layout/split conformance plus recovery invocation must all derive the same command. |
+
+## Recovery transition authority (ARCH-ORDER)
+
+Production RecoveryTransition in termcmd/recovery.go owns the ending; the IO owner cannot
+set independent recovery flags. States are Running, CleanupNormal, CleanupFault,
+CleanupTerminated, ShellReady, Finished. Events are ChildExit, WrapperFailure,
+HostTermination, CleanupComplete, CleanupFailed, Handoff. Effects are Cleanup, ExecShell,
+Finish; a rejected event produces no effect. This is process-local and creates no durable state.
+
+| Current | Event | Next / effect |
+|---|---|---|
+| Running | ChildExit | CleanupNormal / Cleanup |
+| Running | WrapperFailure | CleanupFault / Cleanup |
+| Running or any cleanup or ShellReady | HostTermination | CleanupTerminated (if cleanup still owed) or Finished / never ExecShell |
+| CleanupNormal or CleanupTerminated | CleanupComplete or CleanupFailed | Finished / Finish |
+| CleanupFault | CleanupComplete (stdio usable) | ShellReady / none |
+| CleanupFault | CleanupFailed or dead stdio | Finished / report, no exec into unusable terminal |
+| ShellReady | Handoff | Finished / ExecShell exactly once |
+| Finished | any event | Finished / no effect |
+| all other pairs | any event | unchanged / no effect |
+
+A normally completed child keeps normal-exit authority even if cleanup adds an error;
+report cleanup errors without restarting a shell the operator just exited. Host termination
+always dominates observed failure or completion before handoff. Cleanup itself remains owed
+until existing input/resize producers, children, presenter and host have been joined/restored.
+
+runShellOnHost records a real termination value as a typed termination outcome. The outer
+runShellRecovery retains the same host.Terminated channel across the call. OSHost.Close
+stops signal.Notify, restores normal process signal delivery, then closes that channel;
+buffered values survive closure. After teardown returns, drain buffered real signal values
+and pass HostTermination events before CleanupComplete/Handoff. A closed channel with no
+value is cleanup completion, not evidence of termination. From signal.Stop onward the
+process's normal SIGTERM/SIGHUP behavior remains active through syscall.Exec, so a later
+signal cannot be silently consumed by an abandoned wrapper signal watcher. No check-then-
+rearm window, second signal subscription or polling goroutine is introduced.
+
+Controlled tests inject termination before completion, while child/presenter cleanup is held,
+and at the post-close drain; they also close the channel without a signal and verify recovery
+is still allowed. A native self-exec/PTY fixture verifies the handoff shell can accept a command
+and termination is not transformed into a new shell. Dead terminal EIO/EPIPE and missing
+usable stdio are explicit no-exec outcomes; the pane-survival contract presumes a live parent.
+
 ## Execution
 
 ### 1. Backend cells and evidence
@@ -106,53 +161,31 @@ Files: create terminal/cell_degrade.go and cell_degrade_test.go; modify endpoint
 observation.go; create termcmd/diagnostics.go and diagnostics_test.go; wire existing
 ptychild.Options.Observer from terminalMux; update artifactpath's diagnostic-source manifest.
 
-- [ ] Write red tests injecting bad backend cells into a real Endpoint, then use the real
-  presenter and emulator oracle. Assert U+FFFD, neighboring cells/columns preserved,
-  valid publication/history, presenter Ready and later keyboard delivery to child.
-  Cover C0/C1/ESC/invalid bytes, overlong content/link, widths/wide pairs and primary
-  history. Keep strict Frame.Validate/Render negative controls on directly supplied bad frames.
-- [ ] Run targeted tests and retain semantic failures before implementation.
-- [ ] Implement pure row repair, call it on owned screen/history snapshots; add first-fault
-  observation and bounded managed term log. Never log while holding a file lock on a paint path.
-- [ ] Verify no raw control payload/link reaches parent; fault evidence survives the actual
-  JSONL encoding, is bounded and emitted once; closed/unavailable diagnostics do not kill paint.
-- [ ] Run terminal, termcmd, ptychild, terminalcapture and source-guard tests; commit.
+- [ ] Write and run red tests for the named functions above; retain semantic failure evidence.
+- [ ] Implement pure repair and bounded first-fault evidence at owned backend snapshots.
+- [ ] Wire existing nonblocking observation to the registered buffered diagnostic sink.
+- [ ] Run terminal/termcmd/ptychild/terminalcapture/source-guard tests and commit.
 
 ### 2. Geometry and native-shell recovery
 
 Files: termcmd/run.go, recovery.go, recovery_test.go, presentation_test.go.
 
-- [ ] Red: zero initial size has no child effect before a valid resize; valid resize starts
-  once; repeated zero wakes do not spin; termination/closed resize channel exits and restores
-  ownership. Use FakeHost plus channel readiness, never elapsed-sleep readiness.
-- [ ] Pin valid→zero rows/cols→valid sequence with same endpoint identity, last good
-  geometry, presenter Ready, later output and key delivered. Existing ignore should pass.
-- [ ] Red: real disposable wrapper failure returns only after producer/child cleanup and
-  raw restoration, then native shell accepts a command on original PTY; normal child exit,
-  host termination and dead stdio never invoke recovery. Test exec failure once, no recursion.
-- [ ] Implement bounded geometry wait and minimal ending classifier/native-shell exec seam.
-  Session cleanup still owns every child, watcher, descriptor and presenter.
+- [ ] Write and run red geometry/recovery transition and real-PTY tests from the strategy table.
+- [ ] Implement waitInitialGeometry and RecoveryTransition with the signal/cleanup handoff above.
+- [ ] Retain the existing mid-session zero-size ignore and qualify it through real input/output.
 - [ ] Run targeted terminal/termcmd/hostty/ptychild checks and commit.
 
 ### 3. Missing terminal shortcut and qualification
 
 Files: layoutcmd/layoutcmd.go and tests; shared workbenchshortcut command; termcmd/run.go;
-README.md and atlas/terminal.md plus relevant atlas shortcut reference.
+README.md, atlas/terminal.md and the relevant atlas shortcut reference.
 
-- [ ] Red stateful-fake tests: missing pane/new action creates one in caller's confirmed tab;
-  prev/next do nothing; existing/stale-registry-but-present terminal gets one chord and no
-  creation; terminal only in another tab is not selected. Empty/malformed/cancelled/missing
-  caller observations produce no creation. Preserve exact-target effect guards.
-- [ ] Implement the new-action absence branch using shared pane command. Keep one source
-  for layout/split/recovery command, checked by existing layout conformance tests.
-- [ ] Verify nvim CLI and agent shortcut paths reach that same shared action. Update README
-  and atlas with degraded-cell diagnostic location, startup wait, plain-shell fallback and key.
-- [ ] Run all affected packages, headless editor/shortcut and source guard checks, commit/push,
-  open PR and run recorded full suite. Use SDLC close's mandatory fresh review; fix findings.
-- [ ] Ask hub to coordinate staging/operator smoke: open the original status file through v,
-  verify text and input survive; exercise disposable failure/zero resize and Alt+Shift+T
-  recreation. Do not claim the original unknown cell has been identified from a screenshot.
-- [ ] On SHIP and acceptance, sdlc merge --yes; verify merged ancestry/clean slot, report hub.
+- [ ] Write and run red stateful-fake recovery routing tests from the strategy table.
+- [ ] Implement confirmed-absence creation and shared pane command; qualify existing nvim/agent wiring.
+- [ ] Update README/atlas for diagnostics, waiting, shell fallback and recovery key.
+- [ ] Run affected checks, commit/push, open PR and recorded full suite; close through SDLC review.
+- [ ] Land on deterministic tests per hub approval, then operator's next natural relaunch owns live acceptance.
+- [ ] On SHIP, sdlc merge --yes; verify merge/clean slot, report hub and stop.
 
 ## Alternatives
 
@@ -172,3 +205,11 @@ landing on deterministic tests, a full recorded suite and SHIP review. The opera
 next natural relaunch on rebuilt main owns live acceptance. Do not drive their pane.
 Pin full flow before code; the combined implementation is expected to exceed 100
 added production lines despite the compact design.
+
+### 2026-10-20 — PQ-1/PQ-2 refinements
+
+Replaced repetitive prose test inventories with named-function adversarial strategies,
+including generated row safety/column invariants. Added one production recovery transition
+owner and exact termination precedence through teardown, closed-channel/value distinction,
+post-close signal drain and normal signal delivery across exec. These refine the approved
+cleanup-before-shell contract; no new visible state, retry, watcher or authority store.

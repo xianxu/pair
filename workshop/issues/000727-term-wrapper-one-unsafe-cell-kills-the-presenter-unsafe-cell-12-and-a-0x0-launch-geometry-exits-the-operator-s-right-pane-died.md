@@ -106,3 +106,13 @@ acceptance, with diagnostic evidence to identify the still-unknown original cell
 This supersedes the plan's coordinated-staging step. Initial change-code inferred
 quick from design length alone; pin full before code because the planned combined
 production changes exceed the 100-line shell. Canonicalized the durable plan filename.
+
+### 2026-10-20 — plan-quality round 1 refinements
+
+PQ-1 requires named-function adversarial strategies instead of prose case inventories;
+PQ-2 requires explicit recovery transition authority for termination during teardown.
+Updated the durable plan with the function table and one pure RecoveryTransition owner,
+real signal values drained after OSHost.Close, and normal process signal delivery from
+signal.Stop through exec. A cleanup-induced empty closed channel is not termination.
+No implementation started; plan review will be rerun. Removed the obsolete short-named
+plan after canonicalization so the committed tree has one durable plan.
