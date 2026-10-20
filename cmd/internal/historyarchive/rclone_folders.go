@@ -97,12 +97,8 @@ func (r Rclone) EnsureChild(ctx context.Context, parent PinnedDrive, name string
 	if state.Phase() == FolderReady {
 		return child, nil
 	}
-	entries := 0
-	for _, matches := range inventory {
-		if len(matches) >= maxFlatInventoryEntries-entries {
-			return PinnedDrive{}, errors.New("Drive parent entry capacity reached; child creation deferred")
-		}
-		entries += len(matches)
+	if !driveChildCapacity(inventory) {
+		return PinnedDrive{}, errors.New("Drive parent entry capacity reached; child creation deferred")
 	}
 	var effect DriveFolderEffect
 	state, effect, err = StepDriveFolder(state, DriveFolderEvent{Kind: FolderCreate})
@@ -146,4 +142,35 @@ func (r Rclone) EnsureChild(ctx context.Context, parent PinnedDrive, name string
 		return PinnedDrive{}, errors.Join(mkdirErr, errors.New("Drive child folder creation remains unconfirmed"))
 	}
 	return child, nil
+}
+
+// driveChildCapacity counts all names, including reserved uncertain effects.
+func driveChildCapacity(inventory map[string][]RemoteEntry) bool {
+	remaining := maxFlatInventoryEntries
+	for _, entries := range inventory {
+		if len(entries) >= remaining {
+			return false
+		}
+		remaining -= len(entries)
+	}
+	return true
+}
+
+// ensureArchiveChild retains one capacity reservation for every possible create
+// effect. An empty ID is uncertainty, never evidence usable by ResolveChild.
+func (r Rclone) ensureArchiveChild(ctx context.Context, parent PinnedDrive, name string, inventory map[string][]RemoteEntry) (PinnedDrive, error) {
+	child, found, err := r.ResolveChild(ctx, parent, name, inventory)
+	if err != nil || found {
+		return child, err
+	}
+	if !driveChildCapacity(inventory) {
+		return PinnedDrive{}, errors.New("Drive parent entry capacity reached; child creation deferred")
+	}
+	child, err = r.EnsureChild(ctx, parent, name, inventory)
+	entry := RemoteEntry{Name: name, IsDir: true}
+	if err == nil {
+		entry.ID = child.FolderID
+	}
+	inventory[name] = []RemoteEntry{entry}
+	return child, err
 }

@@ -198,7 +198,7 @@ func (d DriveMirror) Run(ctx context.Context, cfg ContinuousConfig, store string
 		if !cached || !observed.found && observed.err == nil && len(batch) > 0 {
 			observed.pin, observed.found, observed.err = d.Rclone.ResolveChild(ctx, pin, year, before)
 			if observed.err == nil && !observed.found && len(batch) > 0 {
-				observed.pin, observed.err = d.Rclone.EnsureChild(ctx, pin, year, before)
+				observed.pin, observed.err = d.Rclone.ensureArchiveChild(ctx, pin, year, before)
 				observed.found = observed.err == nil
 			}
 			if observed.err == nil && observed.found {
@@ -215,12 +215,9 @@ func (d DriveMirror) Run(ctx context.Context, cfg ContinuousConfig, store string
 		}
 		child, found, e := d.Rclone.ResolveChild(ctx, observed.pin, leaf, observed.inventory)
 		if e == nil && !found && len(batch) > 0 {
-			child, e = d.Rclone.EnsureChild(ctx, observed.pin, leaf, observed.inventory)
+			child, e = d.Rclone.ensureArchiveChild(ctx, observed.pin, leaf, observed.inventory)
 			found = e == nil
-			if found {
-				observed.inventory[leaf] = []RemoteEntry{{Name: leaf, IsDir: true, ID: child.FolderID}}
-				years[year] = observed
-			}
+			years[year] = observed
 		}
 		if e != nil {
 			failures = append(failures, fmt.Errorf("%s: %w", month, e))

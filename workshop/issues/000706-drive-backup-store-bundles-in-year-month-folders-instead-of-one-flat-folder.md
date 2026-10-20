@@ -91,6 +91,8 @@ total: 4.73
 - Found a parent-capacity hole while reviewing folder effects: EnsureChild could issue mkdir against an already-full 100000-entry parent. New regression failed with two IO calls/one mkdir; the pre-create capacity guard now refuses with zero IO. No retries, deadline changes or assertion weakening.
 - Existing index/precedence fixtures assumed fresh uploads were legacy root objects, so month writes invalidated their stimulus. They now seed real legacy pairs before production adoption, preserving the whole original legacy recovery/refusal/precedence matrix; month discovery/restore tests remain M2. Full artifactpath and repolint packages pass. M1 targeted behavior passes. After correcting the legacy precedence fixture stimulus, both complete historyarchive and archivetest packages pass (69.935 s / 0.067 s). The prior package failures named exactly those four legacy precedence cases; their targeted rerun passed too. No flake classification or bypass. No real remote or operator-session mutation.
 
+- M1 review round 1 REWORK: BR-1 found repeated child creation reused stale parent capacity; BR-2 required README layout/batching documentation at this boundary. Captured RED for confirmed and uncertain successive year creates and uncertain successive month creates. Applied one shared coordinator helper that retains capacity reservations after an uncertain effect and actual IDs after confirmation; no new durable state or IO added. Updated README inside its existing pending agent addition, preserving other review markers. Added the cache/capacity lesson and appended the plan refinement.
+
 ## Revisions
 
 ### 2026-10-19 — Make dual-layout execution and scope explicit

@@ -164,3 +164,9 @@ Files: label_index_drive.go, label_index_view.go, restore_model.go, restore_inpu
 ### 2026-10-19 — PQ-1: function-specific adversarial verification
 
 The first plan-quality review accepted the architecture and scope but required executable test contracts. Named the risky layout, folder-state, receipt, upload, index, restore and reporting functions; replaced prose case inventories with fuzz, generated event-sequence, atomicity and independent invariant strategies. Kept counted N/2N and global resource guards. No scope, mechanism or operating-envelope change.
+
+### 2026-10-20 — M1 BR-1/BR-2: parent capacity and boundary documentation
+
+The intended pre-effect parent bound must span the whole pass, including an uncertain create. Retain a projected capacity slot after any admitted missing-child attempt, replacing it with the confirmed ID when available. A reserved empty ID never proves existence; later attempts may not reuse it as Ready. Apply the same rule to root/year and year/month attempts. This repairs the existing parent-bound implementation without a new persisted state or evidence mechanism. Regression sequences cover two missing years and two missing months at 99999 entries, including lost confirmation.
+
+Upload-layout and per-folder batch documentation belongs at M1 in both README and atlas; M2 adds only its delivered discovery, restore and reporting behavior. Existing human review markers remain pending.

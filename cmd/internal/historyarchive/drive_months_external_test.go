@@ -171,3 +171,66 @@ func TestDriveMirrorMonthCommandGrowth(t *testing.T) {
 		})
 	}
 }
+
+func TestDriveMirrorParentCapacityAcrossCreates(t *testing.T) {
+	for _, uncertain := range []bool{false, true} {
+		t.Run(fmt.Sprintf("uncertain=%v", uncertain), func(t *testing.T) {
+			cfg, _, root := driveFixture(t, 2, time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC))
+			fake := &archivetest.FakeRclone{Objects: map[string][]archivetest.FakeRemoteObject{"occupied": make([]archivetest.FakeRemoteObject, 99999)}, ChildFolders: map[string]map[string][]archivetest.FakeRemoteObject{}}
+			for i := range fake.Objects["occupied"] {
+				fake.Objects["occupied"][i] = archivetest.FakeRemoteObject{ID: fmt.Sprint(i), IsDir: true}
+			}
+			rootReads := 0
+			fake.BeforeFolder = func(_ context.Context, op, id string) error {
+				if op == "lsjson" && id == "folder-1" {
+					rootReads++
+					if uncertain && rootReads == 3 {
+						return fmt.Errorf("lost year confirmation")
+					}
+				}
+				return nil
+			}
+			got, err := (ha.DriveMirror{Rclone: ha.Rclone{Runner: fake}, Now: func() time.Time { return time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC) }}).Run(context.Background(), cfg, filepath.Join(root, "archive"))
+			if err == nil || got.Pending == 0 {
+				t.Fatalf("report=%+v err=%v", got, err)
+			}
+			if len(fake.ChildFolders["folder-1"]["2025"]) != 0 {
+				t.Fatal("second year created past confirmed or uncertain capacity")
+			}
+			if fake.Mkdirs > 2 {
+				t.Fatalf("extra creates: %d", fake.Mkdirs)
+			}
+			// The retained root must remain readable at the production decoder limit.
+			pin, e := (ha.Rclone{Runner: fake}).ResolveDestination(context.Background(), ha.DriveDestination{Remote: "pair-backup", Folder: "backups/pair-history"})
+			if e != nil {
+				t.Fatal(e)
+			}
+			if _, e = (ha.Rclone{Runner: fake}).ObserveFlatInventory(context.Background(), pin); e != nil {
+				t.Fatalf("root poisoned: %v", e)
+			}
+		})
+	}
+}
+
+func TestDriveMirrorMonthCapacityReservesUncertainCreate(t *testing.T) {
+	cfg, _, root := driveFixture(t, 2, time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC))
+	fake := monthFixtureRemote("2025")
+	fake.ChildFolders["year-2025"]["occupied"] = make([]archivetest.FakeRemoteObject, 99999)
+	for i := range fake.ChildFolders["year-2025"]["occupied"] {
+		fake.ChildFolders["year-2025"]["occupied"][i] = archivetest.FakeRemoteObject{ID: fmt.Sprint(i), IsDir: true}
+	}
+	yearReads := 0
+	fake.BeforeFolder = func(_ context.Context, op, id string) error {
+		if op == "lsjson" && id == "year-2025" {
+			yearReads++
+			if yearReads == 2 {
+				return fmt.Errorf("lost month confirmation")
+			}
+		}
+		return nil
+	}
+	got, err := (ha.DriveMirror{Rclone: ha.Rclone{Runner: fake}, Now: func() time.Time { return time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC) }}).Run(context.Background(), cfg, filepath.Join(root, "archive"))
+	if err == nil || got.Pending != 2 || fake.Mkdirs != 1 || len(fake.ChildFolders["year-2025"]["02"]) != 0 {
+		t.Fatalf("report=%+v err=%v mkdirs=%d", got, err, fake.Mkdirs)
+	}
+}
