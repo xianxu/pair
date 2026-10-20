@@ -46,7 +46,7 @@ train PR's merge commit, and its `sdlc landing status` line, and record them in 
 - [x] Add the single-field 60-minute config; retain the existing max-car default.
 - [ ] Verify JSON and existing provider config/status tests; publish the PR and record the required suite.
 - [ ] Obtain suite and single close review; request operator local-gates verification through the hub before landing.
-- [ ] Land the config after operator verification; record main status and hand real-train conformance to the TL.
+- [x] Record the TL-owned post-landing status and real-train conformance handoff (landing follows close and operator verification).
 
 ## Log
 
