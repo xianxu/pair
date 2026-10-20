@@ -1,13 +1,21 @@
 ---
 id: 000709
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-19
 updated: 2026-10-19
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '740c2ee436c57a4c1b8ff73ff0b613aca2844d93' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '2ecbc94060a802b3ee10565f1376e1697aae0f6a' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-19T20:14:40-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:5
+    worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
+    repository: github.com/xianxu/pair
 ---
 
 # landing: pilot landing trains in pair (60-minute interval)
@@ -36,8 +44,15 @@ train PR's merge commit, and its `sdlc landing status` line, and append them to 
 
 ## Plan
 
-- [ ]
+- [ ] Add the single-field 60-minute config; retain the existing max-car default.
+- [ ] Verify JSON and existing provider config/status tests; publish the PR and record the required suite.
+- [ ] Request operator local-gates verification through the hub; obtain review/partial-landing disposition before landing.
+- [ ] After landing, record main status and the first ≥2-car train evidence; close only after conformance.
 
 ## Log
 
 ### 2026-10-19
+
+Claimed and started from fresh main. TL dispatch e96c835f approves the one-file 60-minute pilot; #622 remains claimed pending a separate coordinated restart. Startup weave regenerated local-gates-guard.yml and merge-check.yml; reverted only those generated changes per dispatch (#699 pending). Baseline sdlc landing status reports trains off.
+
+ARCH-DRY: use existing ariadne#449 config/parser, default car cap and train lifecycle without new runtime logic. ARCH-PURE/EVOLVE: this is read-only input to the existing typed parser, with no format change or rewrite path. ARCH-PURPOSE: the real ≥2-car conformance remains required after configuration lands. Existing train ownership, capacity, uncertainty, security and retention policies remain provider-owned; no new states, credentials, hot path or accumulating artifacts. ariadne#475 (departure slots) and ariadne#470 (grant hold) are related external edges, not implementation in this pilot.
