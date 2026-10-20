@@ -1,13 +1,13 @@
 ---
 id: 000722
-status: working
+status: blocked
 deps: []
 github_issue:
 created: 2026-10-19
-updated: 2026-10-19
+updated: 2026-10-20
 estimate_hours: 9.6185
 collaboration-mode: collaboration
-card_mirror: '89b1bbe51c79149ab669b681556f32a5d85a8217' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'c08e228457c45dc6801d7d5d11c64e03093ed2e1' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-19T23:16:03-07:00
 claimant:
     operator: Xian Xu
@@ -209,3 +209,9 @@ Counted tests cover1000 and2000 cycles with fixed state and exact effects; the o
 Final wrapper race selection passed12.664s. Root counted run independently confirmed1000/2000 cycles, peak/current3 outcomes and500/1000 Esc effects. Artifactpath11.571s, couchcore234.352s, couchtty41.051s and tracked-source catalog3.501s passed. Broad affected-package regression passed couchcmd112.998s and couchmessage25.720s but failed wrapcmd196.827s in TestTerminalModelControlObserverBoundsStringStorage (26 large vs6 small allocations) and TestWrapperTitleLeaseNotInherited (3.07s startup timeout). Both passed three focused repetitions on identical44d7bdccf812 in3.814s without edits; their source/tests match origin/main. Filed unclaimed #724 and registered both exact tests with this observed fail-to-pass evidence. Root causes remain unconfirmed; no suite result is inferred from those focused passes.
 
 PR477 updated to44d7bdccf812; recorded suite requested on that exact head and queued normally at position1. Server merge-check and local-gates guard passed; conformance pending at this read. A fresh authoritative read of ariadne#481 at08:10:06Z still shows open, unclaimed, no branch or landing. No live fleet action has been performed.
+
+### 2026-10-20 — epoch suite passed; waiting on real seam
+
+Recorded full suite PASS on44d7bdccf8124f25d15082a7286ba1c0ff0f4a46: exit0 in8m40s after564s normal FIFO wait, log sha256466a921231a5, posted sdlc-local/suite. All packages passed, including wrapcmd54.785s; this run needed no known-flake rerun. Server conformance, merge-check and local-gates guard also passed on that code head. Later commits only record evidence. The approved1000/2000-cycle bound and simplest rejected alternative are now implemented/documented; renewed change-code passed before implementation.
+
+TL receipt f9b3f58b dispatches ariadne#481 to ariadne:3. Replied to its contract question with exact adapter/fake/test paths, inherited environment,5s/1MiB process limits and all-three-kind completeness requirements (submitted receipt2a473297). Peer receipt e3b2faa1 says its durable plan awaits hub approval and proposes WF_SDLC_QUEUE_ROOT plus private test lock/fleet discovery scope; it will supply the implemented executable and private paths. No live pause is permitted for conformance. Wait for that isolated real-seam test, then hub-authorized operator-present board acceptance and mandatory close review. Mark #722 blocked, retain claim and PR477; no close/merge or production drain was performed.
