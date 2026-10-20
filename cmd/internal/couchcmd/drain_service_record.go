@@ -200,20 +200,58 @@ func mergeDrainRecordUnknown(fresh, old json.RawMessage, t reflect.Type) (json.R
 		return mergeDrainRecordUnknown(fresh, old, t.Elem())
 	}
 	if t.Kind() == reflect.Slice {
-		var current, previous []json.RawMessage
-		if json.Unmarshal(fresh, &current) != nil || json.Unmarshal(old, &previous) != nil {
-			return fresh, nil
-		}
-		for i := range current {
-			if i < len(previous) {
-				merged, err := mergeDrainRecordUnknown(current[i], previous[i], t.Elem())
+		// Activity order is observational. Only its stable operation authority
+		// can carry an extension across reordering, completion or replacement.
+		if t.Elem() == reflect.TypeOf(couchcore.DrainActivity{}) {
+			var current, previous []json.RawMessage
+			if json.Unmarshal(fresh, &current) != nil || json.Unmarshal(old, &previous) != nil {
+				return fresh, nil
+			}
+			prior := make(map[[3]string]json.RawMessage, len(previous))
+			for _, raw := range previous {
+				key, err := drainRecordActivityKey(raw)
 				if err != nil {
 					return nil, err
 				}
-				current[i] = merged
+				if _, duplicate := prior[key]; duplicate {
+					return nil, errors.New("ambiguous prior drain activity identity")
+				}
+				prior[key] = raw
+			}
+			seen := make(map[[3]string]bool, len(current))
+			for i, raw := range current {
+				key, err := drainRecordActivityKey(raw)
+				if err != nil {
+					return nil, err
+				}
+				if seen[key] {
+					return nil, errors.New("ambiguous current drain activity identity")
+				}
+				seen[key] = true
+				if previous, found := prior[key]; found {
+					merged, err := mergeDrainRecordUnknown(raw, previous, t.Elem())
+					if err != nil {
+						return nil, err
+					}
+					current[i] = merged
+				}
+			}
+			return json.Marshal(current)
+		}
+		// Scalar arrays have no extension fields. For a future unkeyed object
+		// array, retain opaque fields only when all known values are unchanged;
+		// an index alone is never evidence that an element is the same entity.
+		if t.Elem().Kind() != reflect.Struct && t.Elem().Kind() != reflect.Pointer {
+			return fresh, nil
+		}
+		known := reflect.New(t)
+		if json.Unmarshal(old, known.Interface()) == nil {
+			projected, err := json.Marshal(known.Elem().Interface())
+			if err == nil && bytes.Equal(projected, fresh) {
+				return append(json.RawMessage(nil), old...), nil
 			}
 		}
-		return json.Marshal(current)
+		return fresh, nil
 	}
 	if t.Kind() != reflect.Struct && t.Kind() != reflect.Map {
 		return fresh, nil
@@ -262,4 +300,15 @@ func mergeDrainRecordUnknown(fresh, old json.RawMessage, t reflect.Type) (json.R
 		}
 	}
 	return json.Marshal(current)
+}
+
+func drainRecordActivityKey(raw json.RawMessage) ([3]string, error) {
+	var activity struct{ ID, Kind, Workspace string }
+	if err := json.Unmarshal(raw, &activity); err != nil {
+		return [3]string{}, err
+	}
+	if activity.ID == "" || activity.Kind == "" {
+		return [3]string{}, errors.New("drain activity has no stable identity")
+	}
+	return [3]string{activity.ID, activity.Kind, activity.Workspace}, nil
 }

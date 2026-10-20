@@ -48,7 +48,11 @@ func decodeQueueSnapshot(data []byte) (QueueSnapshot, error) {
 	if err != nil {
 		return fail(err)
 	}
-	for _, key := range []string{"schema_version", "state", "complete", "pause_owners", "active", "detail"} {
+	topFields := []string{"schema_version", "state", "complete", "pause_owners", "active", "detail"}
+	if err := rejectDrainQueueAliases(obj, topFields...); err != nil {
+		return fail(err)
+	}
+	for _, key := range topFields {
 		if err := drainRequired(obj, key); err != nil {
 			return fail(err)
 		}
@@ -78,7 +82,11 @@ func decodeQueueSnapshot(data []byte) (QueueSnapshot, error) {
 	}
 	seen := map[string]bool{}
 	for i, o := range q.PauseOwners {
-		for _, key := range []string{"owner", "reason", "cancel_running"} {
+		ownerFields := []string{"owner", "reason", "cancel_running"}
+		if err := rejectDrainQueueAliases(owners[i], ownerFields...); err != nil {
+			return fail(err)
+		}
+		for _, key := range ownerFields {
 			if err := drainRequired(owners[i], key); err != nil {
 				return fail(err)
 			}
@@ -94,6 +102,9 @@ func decodeQueueSnapshot(data []byte) (QueueSnapshot, error) {
 	}
 	seen = map[string]bool{}
 	for i, a := range q.Active {
+		if err := rejectDrainQueueAliases(active[i], "id", "workspace", "kind", "state", "head"); err != nil {
+			return fail(err)
+		}
 		for _, key := range []string{"id", "workspace", "kind", "state"} {
 			if err := drainRequired(active[i], key); err != nil {
 				return fail(err)
@@ -118,6 +129,21 @@ func decodeQueueSnapshot(data []byte) (QueueSnapshot, error) {
 		seen[key] = true
 	}
 	return q, nil
+}
+
+// rejectDrainQueueAliases prevents encoding/json case-insensitive struct field
+// matching from shadowing known keys, including through Unicode folds.
+// Additive fields are allowed only when they cannot shadow a known key.
+// Optional known keys (head) participate even when their canonical key is absent.
+func rejectDrainQueueAliases(obj map[string]json.RawMessage, known ...string) error {
+	for key := range obj {
+		for _, name := range known {
+			if key != name && strings.EqualFold(key, name) {
+				return fmt.Errorf("case alias shadows known queue field %s", name)
+			}
+		}
+	}
+	return nil
 }
 
 func drainBoundedText(s string, n int) bool { return len(s) <= n && utf8.ValidString(s) }

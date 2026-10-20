@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -575,4 +576,54 @@ func TestDrainServiceFinalIdleMustMatchPersistedWrapperInstance(t *testing.T) {
 		c.mu.Unlock()
 		return b.State == couchcore.DrainStuck && !m.Ack && !m.Observation.Known
 	})
+}
+
+func TestDrainServiceRecordActivityExtensionsFollowStableIdentity(t *testing.T) {
+	a := couchcore.DrainActivity{ID: "a", Kind: "suite", Workspace: "pair:1", State: "running"}
+	b := couchcore.DrainActivity{ID: "b", Kind: "merge", Workspace: "pair:2", State: "running"}
+	old := json.RawMessage(`[{"ID":"a","Kind":"suite","Workspace":"pair:1","State":"running","Head":"","FutureActivity":{"owner":"a"}},{"ID":"b","Kind":"merge","Workspace":"pair:2","State":"running","Head":"","FutureActivity":{"owner":"b"}}]`)
+	cases := []struct {
+		name    string
+		current []couchcore.DrainActivity
+		want    []string
+	}{
+		{"reordered", []couchcore.DrainActivity{b, a}, []string{"b", "a"}},
+		{"retired", []couchcore.DrainActivity{b}, []string{"b"}},
+		{"new-id", []couchcore.DrainActivity{{ID: "new", Kind: "suite", Workspace: "pair:1", State: "running"}}, []string{""}},
+		{"new-kind", []couchcore.DrainActivity{{ID: "a", Kind: "landing", Workspace: "pair:1", State: "running"}}, []string{""}},
+		{"new-workspace", []couchcore.DrainActivity{{ID: "a", Kind: "suite", Workspace: "pair:7", State: "running"}}, []string{""}},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			fresh, _ := json.Marshal(test.current)
+			merged, err := mergeDrainRecordUnknown(fresh, old, reflect.TypeOf(test.current))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var activities []struct {
+				FutureActivity struct {
+					Owner string `json:"owner"`
+				}
+			}
+			if err := json.Unmarshal(merged, &activities); err != nil {
+				t.Fatal(err)
+			}
+			for i, want := range test.want {
+				if activities[i].FutureActivity.Owner != want {
+					t.Fatalf("activity %d extension belongs to %q, want %q: %s", i, activities[i].FutureActivity.Owner, want, merged)
+				}
+			}
+		})
+	}
+}
+
+func TestDrainServiceRecordRejectsAmbiguousActivityExtensions(t *testing.T) {
+	activity := json.RawMessage(`{"ID":"a","Kind":"suite","Workspace":"pair:1","State":"running","Head":""}`)
+	one := json.RawMessage("[" + string(activity) + "]")
+	duplicate := json.RawMessage("[" + string(activity) + "," + string(activity) + "]")
+	for _, pair := range [][2]json.RawMessage{{one, duplicate}, {duplicate, one}, {json.RawMessage(`[{"ID":"","Kind":"suite"}]`), one}} {
+		if _, err := mergeDrainRecordUnknown(pair[0], pair[1], reflect.TypeOf([]couchcore.DrainActivity{})); err == nil {
+			t.Fatal("accepted ambiguous or absent activity identity")
+		}
+	}
 }

@@ -105,3 +105,40 @@ func TestDrainQueueMalformedDiagnosticBounded(t *testing.T) {
 		t.Fatalf("malformed diagnostic bound: %d %v", len(q.Detail), err == nil)
 	}
 }
+
+func TestDrainQueueRejectsCaseFoldAliasesOfKnownFields(t *testing.T) {
+	for name, raw := range map[string]string{
+		"complete override":         strings.Replace(strings.Replace(drainQueueFixture, `"complete":true`, `"complete":false,"Complete":true`, 1), `"detail":""`, `"detail":"incomplete source"`, 1),
+		"state override":            strings.Replace(drainQueueFixture, `"state":"paused"`, `"state":"unknown","State":"paused"`, 1),
+		"schema version":            strings.Replace(drainQueueFixture, `"schema_version":1`, `"schema_version":1,"Schema_Version":1`, 1),
+		"pause owners":              strings.Replace(drainQueueFixture, `"pause_owners":[`, `"Pause_Owners":[],"pause_owners":[`, 1),
+		"active":                    strings.Replace(drainQueueFixture, `"active":[`, `"Active":[],"active":[`, 1),
+		"detail":                    strings.Replace(drainQueueFixture, `"detail":""`, `"detail":"","Detail":"other"`, 1),
+		"owner":                     strings.Replace(drainQueueFixture, `"owner":"couch-drain:test"`, `"owner":"other","Owner":"couch-drain:test"`, 1),
+		"owner reason":              strings.Replace(drainQueueFixture, `"reason":"Couch drain test: reason"`, `"reason":"original","Reason":"changed"`, 1),
+		"cancel running":            strings.Replace(drainQueueFixture, `"cancel_running":false`, `"cancel_running":false,"Cancel_Running":true`, 1),
+		"activity ID":               strings.Replace(drainQueueFixture, `"id":"op1"`, `"id":"op1","ID":"op2"`, 1),
+		"activity workspace":        strings.Replace(drainQueueFixture, `"workspace":"pair:5"`, `"workspace":"","Workspace":"pair:5"`, 1),
+		"activity kind":             strings.Replace(drainQueueFixture, `"kind":"suite"`, `"kind":"suite","Kind":"merge"`, 1),
+		"activity state":            strings.Replace(drainQueueFixture, `"kind":"suite","state":"running"`, `"kind":"suite","state":"unknown","State":"running"`, 1),
+		"optional head alias alone": strings.Replace(drainQueueFixture, `"id":"op1"`, `"id":"op1","Head":"sha"`, 1),
+		"optional head override":    strings.Replace(drainQueueFixture, `"id":"op1"`, `"id":"op1","head":"original","Head":"changed"`, 1),
+		"unicode fold":              strings.Replace(drainQueueFixture, `"kind":"suite"`, `"kind":"suite","Kind":"merge"`, 1),
+	} {
+		t.Run(name, func(t *testing.T) {
+			q, err := decodeQueueSnapshot([]byte(raw))
+			if err == nil {
+				t.Fatalf("accepted alias override: %+v", q)
+			}
+			if q.Complete || q.State != "unknown" {
+				t.Fatalf("rejected aliases retained authoritative evidence: %+v", q)
+			}
+		})
+	}
+	additive := strings.Replace(drainQueueFixture, `"detail":""`, `"detail":"","future":{"Complete":true}`, 1)
+	additive = strings.Replace(additive, `"owner":"couch-drain:test"`, `"future":{"Owner":"new"},"owner":"couch-drain:test"`, 1)
+	additive = strings.Replace(additive, `"id":"op1"`, `"future":{"State":"other"},"head":"sha","id":"op1"`, 1)
+	if q, err := decodeQueueSnapshot([]byte(additive)); err != nil || q.Active[0].Head != "sha" {
+		t.Fatalf("unrelated additive extensions or optional canonical head refused: %+v %v", q, err)
+	}
+}
