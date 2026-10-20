@@ -16,7 +16,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "741c05e9", done: "aac7a684"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # couch --keys help: list the steps and the panel round trip (open /usage, close with esc) where agents look
@@ -73,6 +73,10 @@ Not a state change: there are no new admissible states. The refusal text changes
 
 ## Log
 
+
+
+- 2026-10-19: closed — Full suite green on 5dddd69ef (sdlc-local/suite). TestKeysHelpIsTheVerbsOwnHelp (couch --keys --help and -h print every Steps row, the limits and the /usage open, peek, esc round trip); TestCouchHelpNamesTheKeySteps; TestSkillKeyStepsMatchTheTable (skill steps sentence equals the table both ways, close-panel row present); TestStepsTableIsTheParsersAcceptedSet; panel refusal names esc at reducer (TestPanelRefusalNamesEsc), wrapper (TestAgentDrivePanelAdmitsOnlyEsc) and service (TestDrivePanelAdmitsOnlyEsc, incl. text and submit via the not-settled path). Four mutations each red.; review verdict: SHIP
+- 2026-10-19: flow upgraded quick → full — 114 added lines in code files (limit 100)
 - 2026-10-19 (pair:2): implemented per Plan; the hub approved it ("proceed"). Mutations, each red: no panel hint (agentdrive, wrapcmd, couchcmd), no early service observe (couchcmd), skill sentence drops a step (couchcmd), table gains a row (agentdrive, couchcmd). The table syntax for text is `text:LITERAL`; the skill now uses the same spelling. start-plan weave rewrote the two CI workflow files from the ariadne base; I restored them, since they belong to pair#699 (hub: keep restoring until it lands).
 
 - 10-19 correction (TL): the original Problem said `--keys esc` closed the panel; it didn't (pair:2's recording
