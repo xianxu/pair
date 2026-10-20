@@ -1,8 +1,8 @@
 ---
 id: 000699
-status: codecomplete
+status: done
 created: 2026-10-19
-updated: 2026-10-19
+updated: 2026-10-20
 estimate_hours:
 github_issue:
 started: 2026-10-19T21:32:38-07:00
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: ec35b5d820a6cb463bea6c1690fef44af5ee81ed
         evidence_commit: fdc9435712453408c16d2d9bf977935ff00d13bc
+        landed_commit: 2b4a5d3ad19c23d3c262bacb584d62345042f32f
 ---
 
 # CI: build weave from a pinned ariadne commit
