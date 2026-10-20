@@ -43,9 +43,9 @@ Prove the fixes through deterministic interference, then a bounded cohort on com
 
 ## Plan
 
-- [ ] Keep controlled red evidence: process-wide allocation contamination and one unavailable agent identity followed by a live title. Preserve original failure receipts.
-- [ ] Isolate only allocation sampling in a self-exec test helper; retain the strict allocation comparison, 1 MiB/2 MiB controls and visibility checks. Verify the measuring process identity; a temporary unbounded-parser mutation must fail the oracle.
-- [ ] Extract the title fixture's sampling step in test-only code, reobserve unavailable agent identity until established, and add a deterministic unknown-then-live test plus useful timeout phase diagnostics. Keep existing 3 s bounds and generation-fenced cleanup.
+- [x] Keep controlled red evidence: process-wide allocation contamination and one unavailable agent identity followed by a live title. Preserve original failure receipts.
+- [x] Isolate only allocation sampling in a self-exec test helper; retain the strict allocation comparison, 1 MiB/2 MiB controls and visibility checks. Verify the measuring process identity; a temporary unbounded-parser mutation must fail the oracle.
+- [x] Extract the title fixture's sampling step in test-only code, reobserve unavailable agent identity until established, and add a deterministic unknown-then-live test plus useful timeout phase diagnostics. Keep existing 3 s bounds and generation-fenced cleanup.
 - [ ] Run targeted tests and a bounded before/after cohort with no more than four workload processes. Record outcomes and load; then publish, recorded full suite, close review and land on SHIP through SDLC. No visible staging needed for test-only changes; report outcome to hub.
 
 
@@ -62,3 +62,11 @@ Baseline compiled wrapcmd binary, the two exact tests, count=3: all six invocati
 Disposable Go overlay probes (no repository implementation edits) under /Volumes/TestScratch/tmp/pair-slot7/pair724.RgEPoV: TestProbe724GlobalAllocationInterference failed in 0.622s wall, with small=6 and large=26 after synchronously scheduling exactly twenty unrelated allocations per large call. The parser and its allocation code were unchanged. This reproduces the historical numeric symptom as global-counter misattribution. TestProbe724TransientAgentIdentity failed in 3.357s wall (test 3.03s): identity reader was called exactly once, title PID file existed, and a subsequent real identity was available for fenced cleanup. Thus one unavailable observation poisons fixture readiness. These are deterministic red controls, not a claim that the original broad log recorded these exact interleavings.
 
 Quick test-only scope; no production timeout, allocation tolerance, sandbox setting, native fixture policy or persisted format changes. Plan goes to hub before change-code. If the diff reveals production behavior defects or requires new state/mechanism, stop and revise rather than stretching this plan.
+
+### 2026-10-20 — production trace and red/green
+
+Hub asked whether the unknown identity cache exists in production. It does not drive production title readiness: titlepoller.Run writes title PID, then panebirth.Await re-observes pane publication; RunCLI explicitly exits 1 with a diagnostic when wrapper-owner admission identity is unknown. wrapperTitleProcess.identity is a distinct title-child launch-generation fence used only for optional forced shutdown after lease EOF timeout, never readiness. Replacing that fence with a late PID guess would be unsafe and is outside this fix. Sent this trace to hub (f906b792-8fcf-41c2-9626-1f4583efbf90, submitted). No production files changed.
+
+Quick change-code passed. New regressions first failed in 0.820s: measuring PID was the parent itself; the title sampling step permanently retained unavailable identity. Minimal fixes isolate the allocation sampler in a self-exec helper whose reported PID must match the exact child, and observe title fixture agent identity again only while unavailable. Once known, its generation is retained unchanged. Fixture timeout diagnostics now distinguish agent identity, title publication/identity/read errors and wrapper identity; both original 3 s bounds are unchanged.
+
+Green focused run passed 1.837s: strict isolated allocations small/1MiB/2MiB = 6/6/6, unknown-then-live identity regression passed, and real TestWrapperTitleLeaseNotInherited passed 0.98s (owner-death exit 6.3ms). A disposable production-source Go overlay changed only SetDataSize(terminalControlDataMax) to SetDataSize(0); the strengthened oracle failed as intended in 0.736s wall with 7/38/41 allocations. This is a negative control, not a flaky suite attempt or an accepted failure. The native fixture overlay, bounded load cohort and full recorded suite remain to run.
