@@ -440,3 +440,83 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T12:54:25-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 727 — term wrapper: one unsafe cell kills the presenter ('unsafe cell 12'), and a 0x0 launch geometry exits: the operator's right pane died |
+| repo | pair |
+| issue file | workshop/issues/000727-term-wrapper-one-unsafe-cell-kills-the-presenter-unsafe-cell-12-and-a-0x0-launch-geometry-exits-the-operator-s-right-pane-died.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 84eb4a1b3b26ea73a98c78cdc996679b9e1927a7..0bb089faf0a0ecff33e26ab5868dd1d0817f7406 |
+| command | sdlc close --issue 727 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T12:54:25-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff correctly reconciles the source-reader inventory with the integrated tests while retaining scanner enforcement. Production code, Spec, Done-when, and implementation plan are unchanged. No new defects or scope changes were found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Recovery implementation and regression are unchanged; TestRecoveryOwnsInputPumpEnding passes.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Focus-preserving implementation is unchanged; TestNewTerminalRecreatesConfirmedAbsentPane passes.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Native conformance test and required runner registration are unchanged; all eight native-runner tests pass. Native conformance was not rerun.
+```
+
+1. **Strengths**
+   - The three added inventory entries correctly classify fixture literals and private fixture reads.
+   - Both repository scanners retain `fixed_scanner` classification and complete preflight registration.
+   - Independent audit reproduces five failures with the base inventory and zero with the corrected inventory.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes:** All eight inventory tests pass, including the actual affected-runner negative control. Focused recovery, focus, scanner, and native-runner regressions pass. Diff whitespace checks pass. Full suite and native conformance were not rerun.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** Existing inventory authority is reused.
+   - **ARCH-PURE — pass:** No logic or IO boundary changes.
+   - **ARCH-PURPOSE — pass:** All five inventory mismatches are resolved without weakening enforcement.
+   - **ARCH-EVOLVE — pass:** Existing schema and field meanings are preserved.
+
+   No new surface requires README or atlas updates.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"8006eefd-cc00-4b67-9c54-16c6a8daabf5","repository":"github.com/xianxu/pair","issue_id":"000727","recipe":"fix-review","round":6,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/085275e107509d98","reviewed_head":"0bb089faf0a0ecff33e26ab5868dd1d0817f7406","slot":"pair:7","requested_at":"2026-10-20T19:53:02.646583Z"},"phase":"finished","pid":64431,"started_at":"2026-10-20T19:53:02.821583Z","finished_at":"2026-10-20T19:54:24.49226Z","session_id":"01a15adf-dde5-70d0-ab65-832b0bd64e3b","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.420422833s
+head: "0bb089faf0a0ecff33e26ab5868dd1d0817f7406"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
