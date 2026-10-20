@@ -74,3 +74,88 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-19T23:17:52-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 714 — Cold-start recovery gaps: a failed resume wedges the slot in starting; post-reboot candidate scans incomplete; a codex slot lost its candidate |
+| repo | pair |
+| issue file | workshop/issues/000714-cold-start-recovery-gaps-a-failed-resume-wedges-the-slot-in-starting-post-reboot-candidate-scans-incomplete-a-codex-slot-lost-its-candidate.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | b98802e09dfa33a77fd723d34948d247a5dd2e34..4ef81b8631480327f2659235b9804e9b4cc1d0d1 |
+| command | sdlc close --issue 714 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-19T23:17:52-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned changes satisfy #714’s approved failed-launch recovery and diagnostics scope. Confirmed failures become immediately retryable while uncertain attempts retain ownership. No blocking defects found. A recorded full-suite pass on the integrated head remains required before landing.
+
+```findings
+{}
+```
+
+1. **Strengths**
+
+   - `recovery_launch_disposition.go:19–52` checks exact helper identity, completed exit, process-group absence, exact terminal absence, and revision before releasing ownership.
+   - `starttransaction.go:104` applies failure through the existing pure transition model and retains recovery selection, transcript binding, park, and thread.
+   - `completeFailureAddress` centralizes atomic identity composition across all three diagnostic composition owners; the local lint rule guards against regression.
+   - The production-dispatch regression verifies reopened diagnostic history and immediate same-conversation retry without advancing time.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed during this review:
+
+   - Focused recovery, lifecycle-failure, operation-attempt, and start-transaction tests.
+   - Focused race checks for `couchcore` and `couchcmd`.
+   - Complete `repolint`, `artifactpath`, and `threadrecord` package tests.
+   - `git diff --check`.
+
+   Coverage includes stale revisions, wrong-helper identity, present/unknown terminals, surviving process groups, duplicate/late events, retained transcript binding, diagnostic refusal, and bounded lock/probe waits. Live qualification and the recorded full suite were not rerun here. No prior findings required disposition.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — Pass:** Reuses `ReconcileStart`, existing retention helpers, stores, and recorder ownership.
+   - **ARCH-PURE — Pass:** Transition and address composition remain pure; observation and persistence stay in the IO finalizer.
+   - **ARCH-PURPOSE — Pass:** Delivers the approved retry/diagnostics contract. The transferred discovery work exists in #721.
+   - **ARCH-MOCK — Pass:** Production seams use existing stateful process/artifact fakes and portable stores; existing live conformance remains available.
+   - **ARCH-CONSTRAINTS — Pass:** Final observation/CAS is bounded; tests exercise stalled observation, lock contention, and linear work.
+   - **ARCH-SECURE — Pass:** Partial diagnostic identity cannot replace complete evidence; failed observations preserve ownership.
+   - **ARCH-ORDER — Pass:** Release uses the explicit transition with nonce/revision fencing; tests cover stale and late events.
+   - **ARCH-FUNERAL — Pass:** Adds no durable artifact family; existing diagnostic retention applies.
+   - **ARCH-EVOLVE — Pass:** Changes no persisted schema or field meaning; existing strict codec behavior remains intact.
+
+   Atlas covers the new transition and lint surface. No new command, flag, or configuration key requires a README addition.
+
+7. **Plan revision recommendations:** None. The existing revisions accurately describe the implemented scope and combined finalization budget.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"80344617-5563-4148-a542-c0b12cb7067e","repository":"github.com/xianxu/pair","issue_id":"000714","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/a6f89a2bb18a7927","reviewed_head":"4ef81b8631480327f2659235b9804e9b4cc1d0d1","slot":"pair:3","requested_at":"2026-10-20T06:16:06.252778Z"},"phase":"finished","pid":65143,"started_at":"2026-10-20T06:16:06.419975Z","finished_at":"2026-10-20T06:17:46.204931Z","session_id":"01a157f3-efca-7c91-a565-8a6c5b4fe601","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.689709541s
+head: "4ef81b8631480327f2659235b9804e9b4cc1d0d1"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
