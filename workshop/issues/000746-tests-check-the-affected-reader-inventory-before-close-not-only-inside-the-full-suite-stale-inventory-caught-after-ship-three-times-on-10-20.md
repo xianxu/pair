@@ -42,8 +42,8 @@ fixture file) and pair#706 (eight test files).
 
 ## Plan
 
-- [ ] Add fast check and explicit per-file record modes around the existing audit; pin stale diagnostics and repair with private tracked fixtures.
-- [ ] Add the Make target, affected-runner first step and local before-close instruction; verify fail-before-work ordering.
+- [x] Add fast check and explicit per-file record modes around the existing audit; pin stale diagnostics and repair with private tracked fixtures.
+- [x] Add the Make target, affected-runner first step and local before-close instruction; verify fail-before-work ordering.
 - [ ] Run the fast guard and recorded affected check, close and land through SDLC.
 
 Design: ARCH-DRY reuses audit/tracked_readers/SOURCE_GUARDS without a new scanner.
@@ -55,3 +55,17 @@ negative controls remain. No new persistent file family or schema.
 ## Log
 
 ### 2026-10-20
+
+### 2026-10-20 — implementation and red/green evidence
+
+Fast-mode red: --check was rejected (exit2); affected ordering red: an injected
+inventory failure was ignored and selection exited0. Shared check/record/remove
+modes now reuse the existing audit, preserving source scanner enforcement and
+unknown inventory fields; duplicate keys refuse. Per-file recording requires an
+explicit disposition and refuses untracked readers or omitted fixed preflight.
+Four private-Git CLI tests pass (2.294s); all twelve stateful runner tests pass
+(29.760s), preserving exact selected argv with the new inventory-first call.
+The real make test-affected-inventory passed in2.922s, with no Go/Make invocation
+from check mode. README/atlas and Pair's generated-instruction source require
+this target before every close, including narrow re-close. No close bypass or
+schema change. Recorded affected verification follows on the pushed head.

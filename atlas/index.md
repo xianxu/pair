@@ -29,6 +29,8 @@
 
 - `.sdlc/affected.json`, `scripts/test-affected.py` — affected branch checks
   consume ariadne#473's main-authoritative selection through `make test-affected`.
+  `make test-affected-inventory` reuses the reader audit before close and before
+  affected execution; explicit per-file repair commands retain scanner coverage.
   Selected Go argv stays exact; fixed named source scanners run first for Go
   selections. Non-Go file-reader populations and unknown paths force full.
   `tests/affected-consumers.json` audits recipe inputs against the real planner;

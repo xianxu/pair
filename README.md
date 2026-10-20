@@ -1987,6 +1987,11 @@ answer with a wrong holder or process identity fails in both modes.
 Affected branch checks use `.sdlc/affected.json` and `make test-affected` once the
 installed SDLC supports ariadne#473. SDLC reads the declaration from main and
 supplies `SDLC_AFFECTED_GO_PKGS` (exact import paths) and `SDLC_AFFECTED_GROUPS`.
+Before close or re-close, run `make test-affected-inventory`. It audits tracked
+Go test readers without building Go or running the seeded guard tests, and is
+also the affected runner's first step. Failures name each reader and print its
+per-file record or removal command. Audit its repository inputs and fixed
+preflight coverage before recording a disposition; never refresh hashes in bulk.
 For a manual selected run:
 
 ```bash
