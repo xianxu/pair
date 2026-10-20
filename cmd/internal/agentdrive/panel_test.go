@@ -162,3 +162,44 @@ func TestDriveDismissalEndsDoneOrUnconfirmed(t *testing.T) {
 		}
 	})
 }
+
+func TestStepsTableIsTheParsersAcceptedSet(t *testing.T) {
+	examples := map[KeyKind]string{KeyText: "text:hello", KeyWait: "wait:10"}
+	for _, step := range Steps {
+		spec, ok := examples[step.Kind]
+		if !ok {
+			spec = string(step.Kind)
+		}
+		if _, err := ParseKeySequence([]string{spec}); err != nil {
+			t.Errorf("table step %s refused: %v", step.Syntax, err)
+		}
+	}
+	for _, spec := range []string{"tab", "left", string(KeyLeft), string(KeyRight)} {
+		if _, err := ParseKeySequence([]string{spec}); err == nil {
+			t.Errorf("%q accepted but not in the table", spec)
+		}
+	}
+	if err := (KeySequence{{Kind: KeyLeft}}).Validate(); err == nil {
+		t.Error("internal recipe key validated as a caller step")
+	}
+}
+
+func TestPanelRefusalNamesEsc(t *testing.T) {
+	now := time.Unix(100, 0)
+	s, _ := NewDrive(Request{Keys: KeySequence{{Kind: KeyClearLine}}}, "claude", now.Add(time.Minute))
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventStart, At: now, Screen: Screen{Epoch: 1, Complete: true, Dismissable: true}})
+	if r := s.Result(); r.Outcome != OutcomeRefused || r.Detail != PanelRefusal {
+		t.Fatalf("panel refusal %#v", r)
+	}
+	s, _ = NewDrive(Request{Keys: KeySequence{{Kind: KeyClearLine}}}, "claude", now.Add(time.Minute))
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventStart, At: now, Screen: Screen{Epoch: 1, Complete: true}})
+	if r := s.Result(); r.Detail == PanelRefusal {
+		t.Fatalf("panel hint without a panel %#v", r)
+	}
+	// A lone esc refused on a panel (an incomplete frame) must not be told to send esc.
+	s, _ = NewDrive(Request{Keys: KeySequence{{Kind: KeyEsc}}}, "claude", now.Add(time.Minute))
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventStart, At: now, Screen: Screen{Epoch: 1, Dismissable: true}})
+	if r := s.Result(); r.Outcome != OutcomeRefused || r.Detail == PanelRefusal {
+		t.Fatalf("lone esc told to send esc %#v", r)
+	}
+}

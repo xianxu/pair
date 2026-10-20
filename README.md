@@ -587,7 +587,8 @@ requests and model selection still require an empty composer. A
 slash-command panel the hub opened, such as Claude's `/usage`, admits exactly
 `couch --keys pair:7 esc` when its Esc footer is recognized on the current
 screen. Every other key refuses while it shows, and success means an empty
-composer came back.
+composer came back. `couch --keys --help` lists the steps, the limits, these
+rules and that round trip.
 
 ```sh
 couch --keys pair:7 clear-line text:/model submit wait:200 down enter
