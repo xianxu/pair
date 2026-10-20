@@ -1,13 +1,21 @@
 ---
 id: 000721
-status: open
+status: working
 deps: [pair#714]
 github_issue:
 created: 2026-10-19
 updated: 2026-10-19
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'bcbba55dc78467cd1e3093484d66d23993756810' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '90a4e923f7295dcd1b49ce5352c527e41a396417' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-19T21:10:41-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Offer unconfirmed native recovery candidates without a usable screen
@@ -59,3 +67,7 @@ Files: `launcher/{recovery_authority_os.go,recovery_authority.go}` and tests; `c
 ## Log
 
 - 2026-10-19: Split from #714 by TL approval; native-only variant/lifetime approved. #714 lands failed-launch retry and diagnostics first.
+
+- 2026-10-19: Parent #714 landed as PR #471, merge e63e7fd421fd34ad3308f566545527ef3a19666b, after integrating #695 and receiving renewed SHIP plus an integrated recorded suite PASS (8m45s). Hub report receipt 5a4adbd1-af20-4460-a389-fdab7b7ca0c6 submitted. Started this issue on its own main-based branch 000721-native-only-recovery-candidates. No implementation or change-code yet; durable plan remains next.
+- 2026-10-19: start-plan refreshed the ariadne dependency and generated pending #699 changes in local-gates-guard.yml and merge-check.yml. Preserved them in stash named 721-start-plan-generated-workflows-preserved-for-699; older 715-start-plan-generated-workflows-preserved remains untouched. Do not include workflow migration in this issue.
+- 2026-10-19: Carry forward the approved native-only v2/five-minute design and explicit unconfirmed labels without auto-selection, binding manufacture, device/inode relaxation, or budget increase. Re-read current owners before writing the plan: #695 has now landed transcript binding on the thread record and type-owned unknown-field preservation, so the earlier #714 codec assumptions must be verified against the current tree rather than copied. The Spec's original M2/M3 commands are historical: renumber actual boundaries for #721. Plan-quality and estimate follow normal change-code gates; no new implementation has started.
