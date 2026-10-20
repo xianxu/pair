@@ -66,6 +66,8 @@ Target: `ops  :1  ariadne  :1  :2 …  brain  pair  :1 …`, then `ops-echo  ech
 
 - Close review SHIP with no findings; entered normal merge. The conformance job initially ran no steps because GitHub could not acquire a hosted macOS runner; one TL-authorized failed-job retry passed. Train 190 held #732 on a conflict with #730: read-only merge-tree pinpoints atlas/couch.md only (hub-style introduction adjacent to the tab-order paragraph), with no code conflicts. Already-landed main through #725 merged cleanly. TL instructed waiting for #730 to land, then integrating main, running targeted tests, narrow re-close and next train; no unlanded issue branch is merged.
 
+- After TL confirmed #730 landed in train 197, integrated current main. The sole conflict was atlas/couch.md; retained #730’s reverse tab-chip/underlined switcher description and #732’s hub-worker ordering paragraph. No code conflict or new behavior. Targeted combined ordering/style/render coverage passed: `go test ./cmd/internal/couchtty -run 'Test(Hub|PresentThreads|Grouped|MenuHub|SwitcherIndents|RenderStatus)' -count=1` (0.350s); staged diff check clean. Submitting narrow re-close, then the next normal train; that landing owns integration-suite verification.
+
 ## Revisions
 
 ### 2026-10-20 — acceptance timing (TL ops:0)
