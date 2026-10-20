@@ -827,6 +827,8 @@ remaining uncertainty is stated, never papered over:
   there is no paired short listing. Direct inventory readers use the same full parser.
 - **Input during admission (#711).** A recipient whose broker actor and both live
   registrations are unchanged can become busy after its wrapper accepts a reservation.
+  Admission captures the sender's original broker actor under lock and retains it through
+  routing, reservation and queue fallback; same-binding reconnect is a new lifetime.
   Operator input invalidating that observation uses the existing exact-target queue;
   disconnect or replacement still refuses stale work. Refusals identify caller lookup /
   current validation or recipient lookup / observe / reserve, and the CLI never infers

@@ -238,3 +238,19 @@ routing IO, and release-to-queue fallback; split caller/recipient failures and l
 while preserving errors.Is and recovery-class semantics. Permanent tests drive all sites.
 These complete the already-approved unchanged-both-registrations and one-parser contract;
 visible states and acceptance arrangement remain unchanged. Hub informed before code.
+
+### 2026-10-20 — review corrections verified
+
+BR-1/BR-3 red tests failed before code in every enumerated reconnect/refusal phase; after
+capturing the original sender actor under lock and checking it through the three yield
+boundaries, all pass. Ordinary input still queues/submits once, and actual sender/recipient
+loss or reconnect cannot authorize the old invocation. BR-2's three opaque-name cases
+failed before code and now pass, with validated state propagated into the runtime builder
+and no native client query for exited names. Focused green: couchmessage 0.174s and
+launcher 0.464s; log review-fixes-green.log in the retained scratch root.
+
+Corrected full affected-package run passed: couchmessage 26.028s, launcher 65.829s,
+couchcmd 47.995s, artifactpath 7.139s, termcmd 2.546s, internal/repolint 7.705s.
+Log review-affected-final.log. No source changes followed that run. These corrections
+complete the existing contract rather than introduce a third mechanism or visible state.
+A fresh recorded full suite and second whole-branch close review are still required.

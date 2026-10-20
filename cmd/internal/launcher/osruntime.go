@@ -350,7 +350,7 @@ func (r OSRuntime) ListSessions() ([]ListRow, error) {
 	// "attached (N clients)", so every count IS the output: a justified full
 	// scan, like bare pair's picker (pair#228).
 	var queryErr error
-	rows := buildListRowsForScope(names, string(raw), index, scopeKeyFromDataDir(r.GlobalDataDir, r.DataDir), r.InferAgent, func(session string) int {
+	rows := buildListRowsForScope(names, states, index, scopeKeyFromDataDir(r.GlobalDataDir, r.DataDir), r.InferAgent, func(session string) int {
 		if queryErr != nil {
 			return 0
 		}
