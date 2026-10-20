@@ -301,7 +301,7 @@ func scanTrackedWithRepository(repository repositoryRead, root string, readFile 
 				}
 			}
 		}
-		fileFindings, err := golint.Check(filename, source, golint.Catalog)
+		fileFindings, err := golint.Check(filename, source, pairCatalog)
 		if err != nil {
 			return nil, nil, count, err
 		}
@@ -462,7 +462,7 @@ func TestTrackedGoFilesPassCatalog(t *testing.T) {
 		t.Fatal(err)
 	}
 	remaining = append(remaining, localFindings...)
-	t.Logf("checked %d tracked Go sources, %d shared rules plus Pair native-fixture-roots; %d exact sleep debt sites", count, len(golint.Catalog), len(debt.Sites))
+	t.Logf("checked %d tracked Go sources, %d catalog rules plus Pair native-fixture-roots; %d exact sleep debt sites", count, len(pairCatalog), len(debt.Sites))
 	for _, f := range remaining {
 		t.Errorf("%s:%s", f.Path, f.Finding.String())
 	}

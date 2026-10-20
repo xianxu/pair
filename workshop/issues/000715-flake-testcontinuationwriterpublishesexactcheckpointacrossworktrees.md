@@ -47,8 +47,8 @@ A Pair-local golint rule will reject Process.Release in the wrapcmd package, cit
 
 ## Plan
 
-- [ ] Add a gate-controlled reproduction and observe its expected RED result before changing production ownership.
-- [ ] Return/reuse ownedGroup at the watcher spawn seam, defer its shutdown/join, update callers and fixtures, and add the local catalog rule plus failure-path tests.
+- [x] Add a gate-controlled reproduction and observe its expected RED result before changing production ownership.
+- [x] Return/reuse ownedGroup at the watcher spawn seam, defer its shutdown/join, update callers and fixtures, and add the local catalog rule plus failure-path tests.
 - [ ] Measure normal versus TERM-refused exit, run original continuation under bounded load, focused race/source/lint checks, recorded suite, close and land.
 
 ## Log
@@ -56,3 +56,5 @@ A Pair-local golint rule will reject Process.Release in the wrapcmd package, cit
 ### 2026-10-19
 
 Investigation: session-watch RunCLI acquires storagegc.AcquireSelectedProcess before native PID/liveness observation and defers lease.Close; both write under .retention. wrapcmd.startWatcherProcess starts Setsid and immediately releases the child, so helper CombinedOutput does not fence those writes. gcruntime maintenance already Stop/Wait joins. Current sessionwatch exits before scanning/publishing when native identity changes, so watcher shutdown after native completion introduces no new final-event contract. Hub approved existing ownedGroup reuse in delivery 88f5c1b1-818d-4daf-9f45-3ab4058a8eeb, requiring normal exit overhead measurement. Unrelated generated workflow changes from start-plan's dependency catch-up are preserved in named stash 715-start-plan-generated-workflows-preserved; hub identifies them as pending #699 and directs leaving them stashed.
+
+Deterministic RED: TestWrapJoinsWatcherBeforeReturning normal and ignores-term both failed on the original production ownership (0.721s package), after explicitly releasing the held watcher only once wrapper Run returned; actual sessionwatch.RunCLI then wrote a session-watch retention registration. Every failed fixture child was stopped and reaped. GREEN now retains the existing ownedGroup and joins it on every wrapper return. Five-case regression passes: normal, ignored TERM, TERM-refusing descendant, already-exited watcher and failed watcher start. Native-exit-marker to return samples: normal 23.330ms, already-exited 7.659ms, start-failure 13.976ms; refusal cases 1.018s/1.015s. Prior detached baseline samples were 19.632ms/9.941ms, so the sample normal-path difference is approximately 3.7ms, not the one-second grace; repeated loaded measurement remains pending. Detach-before-first-turn Codex/Claude and exact one-watcher/process-group tests pass (6.026s combined). New local lint regression was RED on direct/chained/parenthesized Process.Release, then GREEN; full repolint and artifactpath inventories pass (15.810s/15.288s). Focused race verification is running; full loaded and recorded-suite gates remain pending.

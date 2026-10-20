@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #715: A child that survives client detach still needs a lifetime owner. Keep its direct child handle and join it before wrapper return; process liveness polling does not fence startup or deferred retention writes. Gate a real watcher before lease acquisition, finish the native child, and prove no writer survives the wrapper scope. Preserve process-group isolation and measure prompt TERM handling separately from the refusal grace.
+
 - Characterize an external reader on a separate disposable copy when a conforming implementation may create coordination files. Otherwise a diagnostic probe can change the source state before a production preservation test, selecting a different path on another platform. Assert the untouched source image around the production operation only. (#701)
 - Preserve failure provenance across a fallback collector: uncertain source evidence may defer, but established unsafe paths/limits and local output failures must retain their rejected category and repair action. Test the categories independently; a blanket conversion can make an unsafe configuration look temporarily busy. (#701 BR-1)
 - A fixture's readiness publication must follow every prerequisite the production consumer queries immediately. Observe the real reply synchronously between atomic writes, assert final readiness is absent there, and inject each write failure; a later parent wait cannot close a gap the concurrent admission observer already entered. (#698)

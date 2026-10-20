@@ -3518,9 +3518,11 @@ the incarnation live. Any post-ack error before `Spawn` successfully transfers
 the handle—including an acknowledgement error after the byte may already have
 been delivered, registration read failure, promotion conflict, or legacy-
 registry save failure—treats exec as possible. Both stdio and PTY runners make
-the Pair client the leader of one actor-owned process group; Couch-launched
-session-watcher and title-poller sidecars inherit that group rather than
-detaching. Couch sends TERM and then unconditional KILL to the group, reaps the
+the Pair client the leader of one actor-owned process group. Its launch
+auxiliaries inherit that group. The surviving native wrapper separately owns
+its session-watcher and title-poller children: their own sessions survive client
+detach, and wrapper shutdown stops and joins them (#715). Couch sends TERM and
+then unconditional KILL to the client group, reaps the
 client, and proves the group empty. On Darwin, a group signal probe returning
 EPERM is ambiguous even after the client is reaped: Couch confirms membership
 with `kern.proc.pgrp`. An empty successful snapshot proves absence; any member
