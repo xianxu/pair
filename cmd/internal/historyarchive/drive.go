@@ -447,7 +447,7 @@ func readDriveLabel(ctx context.Context, source Sink, c driveCandidate) ([]byte,
 	if len(raw) > MaxMetadataBytes {
 		return nil, errors.New("Drive label exceeds metadata bound")
 	}
-	if err = decodeJSONNoDuplicateKeys(raw, &label, true); err != nil {
+	if label, err = DecodeLabel(raw); err != nil {
 		return nil, err
 	}
 	if err = ValidateLabel(label); err != nil {

@@ -76,7 +76,7 @@ func TestSIGUSR2ReExecsWrapperWithoutReplacingPaneProcess(t *testing.T) {
 		execArgv <- append([]string(nil), argv...)
 		return errors.New("test stops exec")
 	}
-	startWatcherProcess = func(_ []string, _ []string, _ ...*os.File) error { return nil }
+	startWatcherProcess = func(_ []string, _ []string, _ ...*os.File) (*ownedGroup, error) { return nil, nil }
 
 	done := make(chan int, 1)
 	var stderr bytes.Buffer

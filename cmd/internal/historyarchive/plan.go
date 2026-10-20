@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 )
 
 func canonicalRecipients(rs []string) []string {
@@ -56,7 +57,18 @@ func (m Manifest) Keys() (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-	base := fmt.Sprintf("%s/%s/%s-%s-%s-%s", m.Kind, m.From.UTC().Format("2006/01"), m.Kind, m.From.UTC().Format("20060102T150405.000000000Z"), m.To.UTC().Format("20060102T150405.000000000Z"), id)
+	return BundleKeys(m.Kind, m.From, m.To, id)
+}
+
+// BundleKeys derives object names from the public identity and time range.
+func BundleKeys(kind string, from, to time.Time, id string) (string, string, error) {
+	if err := validateKind(kind); err != nil {
+		return "", "", err
+	}
+	if !validTime(from) || !validTime(to) || to.Before(from) || !validHex(id, 64) {
+		return "", "", errors.New("invalid bundle key identity or UTC range")
+	}
+	base := fmt.Sprintf("%s/%s/%s-%s-%s-%s", kind, from.UTC().Format("2006/01"), kind, from.UTC().Format("20060102T150405.000000000Z"), to.UTC().Format("20060102T150405.000000000Z"), id)
 	return base + ".tar.zst.gpg", base + ".json", nil
 }
 func PlanBundles(r ArchiveRequest, files []FileEntry) ([]Manifest, error) {
