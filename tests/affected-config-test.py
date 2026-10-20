@@ -165,14 +165,47 @@ func TestPackageUnion(t *testing.T) {
 func TestPathsAndFallbacks(t *testing.T) {
     cfg, _ := config(t)
     g := graph(t)
-    exact(t, cfg, g, []string{"scripts/supervision-labels/check.py"}, nil, []string{"build"})
-    exact(t, cfg, g, []string{"nvim/workbench_route.lua"}, nil, []string{"build", "lua", "review", "shell"})
     exact(t, cfg, g, []string{"cmd/internal/runtimebundle/assets/runtime/files/nvim/workbench_route.lua"},
         []string{"example.com/fixture/cmd/internal/runtimebundle"}, []string{"build", "lua"})
     for _, path := range []string{"Makefile", "Makefile.local", "tests/lib/helper.sh", "go.mod", "go.sum", ".sdlc/affected.json", ".github/workflows/ci.yml", "tests/webcast/unclaimed.fixture", "tests/broadcast-viewer/unclaimed.fixture", "tests/terminal-oracle/unclaimed.fixture", "tests/new-unowned.fixture", "cmd/internal/absent_platform_package/deleted.go", "probes/absent_platform_package/deleted.go"} {
         t.Run(path, func(t *testing.T) {
             selected := affected.Plan([]string{path}, g, cfg, nil)
             if !selected.Full { t.Fatalf("%s must force full; got %+v", path, selected) }
+        })
+    }
+}
+
+// Non-Go source inputs have Go test consumers too. group.go is only a
+// trigger: it does not add those consumers to GoPkgs, so these populations
+// must retain full coverage until the provider can model that direction.
+func TestActualNonGoInputsForceFull(t *testing.T) {
+    cfg, _ := config(t)
+    g, err := affected.LoadGoGraph(context.Background(), os.Getenv("PAIR_AFFECTED_ROOT"))
+    if err != nil { t.Fatal(err) }
+    paths := []string{
+        "scripts/supervision-labels/labels.py",
+        "scripts/supervision-labels/check.py",
+        "scripts/build-go-atomic.sh",
+        "nvim/init.lua", "nvim/workbench_actions.lua", "nvim/scrollback.lua",
+        "nvim/review.lua", "nvim/review/comment.lua", "nvim/review/comment_float.lua",
+        "zellij/config.kdl", "zellij/layouts/main-2.kdl", "zellij/layouts/main-3.kdl",
+        "doctor/doctor.sh", "doctor/perf.sh", "doctor/fixtures/perf_capture.txt",
+        "bin/pair-help", "bin/lib/dev-rebuild.sh",
+        "tests/adapt-golden.expected", "tests/fixtures/zellij-replies.json",
+        "tests/copy-on-select-test.sh", "tests/with-isolated-pair.sh",
+        "tests/without-ancestors.py", "tests/lib/zellij_fixture_replies.py",
+        "tests/terminal-oracle/driver.cjs", "tests/webcast/model.test.mjs",
+        "tests/broadcast-viewer/pinspots.json",
+        "testdata/edit-records/propose/fixture.json",
+        "cmd/internal/sessioninventory/testdata/normalization/v1.json",
+        "cmd/internal/wrapcmd/testdata/drive/codex/0.162.1/session-status.screen",
+        "cmd/internal/webcast/notes/testdata/anchor-candidates.json",
+        "terminfo/pair-vt-256color.ti",
+    }
+    for _, path := range paths {
+        t.Run(path, func(t *testing.T) {
+            selected := affected.Plan([]string{path}, g, cfg, nil)
+            if !selected.Full { t.Errorf("non-Go input %s omitted its Go consumers: %+v", path, selected) }
         })
     }
 }
@@ -189,6 +222,12 @@ func TestActualPairRoots(t *testing.T) {
             if root == "./cmd/pair-go" { t.Errorf("%s uses cross-cutting dispatcher root", group.Name) }
         }
     }
+    // Non-Go fallbacks must not widen a legitimate Go-only selection.
+    exact(t, cfg, g, []string{"cmd/internal/slugcmd/slug.go"}, []string{
+        "github.com/xianxu/pair/cmd/internal/dispatcher",
+        "github.com/xianxu/pair/cmd/internal/slugcmd",
+        "github.com/xianxu/pair/cmd/pair-go",
+    }, []string{"build"})
 }
 
 // This independent suite-to-command inventory is audited from real recipes,
@@ -266,9 +305,10 @@ func TestActualFileConsumerCoverage(t *testing.T) {
                     seen[key] = true
                     checked++
                     selected := affected.Plan([]string{relative}, g, cfg, nil)
-                    covered := selected.Full
-                    for _, got := range selected.Groups { if got == group { covered = true } }
-                    if !covered { t.Errorf("%s/%s input %s omits consumer; groups=%v", group, target, relative, selected.Groups) }
+                    // These audited non-Go inputs can also alter Go test
+                    // behavior. Selecting their shell/Lua group alone omits
+                    // those Go consumers; the governing fallback is full.
+                    if !selected.Full { t.Errorf("%s/%s input %s must force full for Go consumers; selection=%+v", group, target, relative, selected) }
                 }
             }
         }

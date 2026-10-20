@@ -318,6 +318,181 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: f1168227-4b31-4ce0-866f-e74cc12b86b8
+            repository: github.com/xianxu/pair
+            issue_id: "000725"
+            recipe: milestone-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/05e175f181203a49
+            reviewed_head: daf9ab9f5a8770dce86a8b94a6ebe2b33c33f9c0
+            slot: pair:3
+            requested_at: "2026-10-20T10:13:08.570182Z"
+          phase: finished
+          pid: 85184
+          started_at: "2026-10-20T10:13:08.739537Z"
+          finished_at: "2026-10-20T10:15:47.38472Z"
+          session_id: 01a158cc-f34c-7af2-a50a-14a754a073e9
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: daf9ab9f5a8770dce86a8b94a6ebe2b33c33f9c0
+        tracker_head: c5b4a9f472243597b12bb2a1a08a3cab0967385f
+        branch_point: ab32acea6c97663232623b2881e7e7c91aae8a17
+        since: "2026-10-20T02:22:02-07:00"
+        until: "2026-10-20T03:12:13-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-20T02:22:02-07:00"
+              end: "2026-10-20T03:12:13-07:00"
+              began: "2026-10-20T02:22:02-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot3/pair
+        sources:
+            - harness: codex
+              id: 01a15810-571b-7123-9206-e124cade8c8a
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: b82ac9e131658ec9848228a1e4025814760aa94b5c35d2887b7247e04234de5d
+              started: "2026-10-20T06:47:08.671Z"
+              spawned: false
+              bytes: 7689555
+              windows:
+                - start: "2026-10-20T02:22:02-07:00"
+                  end: "2026-10-20T03:12:13-07:00"
+            - harness: codex
+              id: 01a1589e-9c30-7462-9d48-d5a266b57dfc
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a15810-571b-7123-9206-e124cade8c8a
+              digest: 68af452e18eec6d65598d57fc3013fc7ea326c27694d5df93192cc20b8a98994
+              started: "2026-10-20T09:22:32.176Z"
+              spawned: true
+              bytes: 528451
+              windows:
+                - start: "2026-10-20T09:22:32.176Z"
+                  end: "2026-10-20T03:12:13-07:00"
+            - harness: codex
+              id: 01a158a2-891f-7bb0-a8bd-099e54105678
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: 0be893ece2612c1e78a1a473d1b5f33a873ab75d9f46a9dd0a705c297f78ecc5
+              started: "2026-10-20T09:26:49.854Z"
+              spawned: false
+              bytes: 487657
+              windows:
+                - start: "2026-10-20T09:26:49.854Z"
+                  end: "2026-10-20T03:12:13-07:00"
+            - harness: codex
+              id: 01a158a4-6d29-7801-b850-eab4f006c584
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: 55af6f00c737256d833f33e1e4f8048f385945d47c12f8b35c97e04505141cc2
+              started: "2026-10-20T09:28:53.658Z"
+              spawned: false
+              bytes: 404580
+              windows:
+                - start: "2026-10-20T09:28:53.658Z"
+                  end: "2026-10-20T03:12:13-07:00"
+            - harness: codex
+              id: 01a158a5-f5e7-78c3-b32d-91c4a8ff4f88
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: 334946c6e69ada73c0855a250a9fdaf0a530afea4b5dcd915868f3cbc34647fd
+              started: "2026-10-20T09:30:34.78Z"
+              spawned: false
+              bytes: 394655
+              windows:
+                - start: "2026-10-20T09:30:34.78Z"
+                  end: "2026-10-20T03:12:13-07:00"
+            - harness: codex
+              id: 01a158a6-687a-7f11-971d-ffdaf3b8500a
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: 456f5a46b433bb2176d35c745440d7c3efb7406aa4ce41fc7c5690342ccafd76
+              started: "2026-10-20T09:31:03.65Z"
+              spawned: false
+              bytes: 401115
+              windows:
+                - start: "2026-10-20T09:31:03.65Z"
+                  end: "2026-10-20T03:12:13-07:00"
+            - harness: codex
+              id: 01a158a8-e5f4-7681-8bd6-2773c44f4444
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: 90d61b3318a368486652a50fa648de34a07e1570efa78f2281d548ab63e79bf3
+              started: "2026-10-20T09:33:46.808Z"
+              spawned: false
+              bytes: 3175118
+              windows:
+                - start: "2026-10-20T09:33:46.808Z"
+                  end: "2026-10-20T03:12:13-07:00"
+            - harness: codex
+              id: 01a158a9-ac51-76e3-a19e-fadafe8a699a
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a158a8-e5f4-7681-8bd6-2773c44f4444
+              digest: 263ee1d04432c4328981b747aaeee38252070a42e7b77a3b06feb001e61ca82a
+              started: "2026-10-20T09:34:37.346Z"
+              spawned: true
+              bytes: 1701681
+              windows:
+                - start: "2026-10-20T09:34:37.346Z"
+                  end: "2026-10-20T03:12:13-07:00"
+            - harness: codex
+              id: 01a158b4-0751-7763-ae55-45adef642419
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a158a8-e5f4-7681-8bd6-2773c44f4444
+              digest: ebd20342c4c110b49ffa0c42b20d0d63d9431d7afa62b8c179c50b764c5752da
+              started: "2026-10-20T09:45:55.96Z"
+              spawned: true
+              bytes: 1407429
+              windows:
+                - start: "2026-10-20T09:45:55.96Z"
+                  end: "2026-10-20T03:12:13-07:00"
+        cuts:
+            - dispatched: "2026-10-20T02:42:02-07:00"
+              finalized: "2026-10-20T02:44:33-07:00"
+              finalizing: false
+            - dispatched: "2026-10-20T02:56:20-07:00"
+              finalized: "2026-10-20T02:59:29-07:00"
+              finalizing: false
+      "n": 3
+      timestamp: "2026-10-20T03:15:48-07:00"
+      dispatched: "2026-10-20T03:13:05-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: The audited command roots and transitive dependency checks remain present; TestActualGroupConsumerCoverage passes against the pinned upstream planner and actual Pair graph.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: The inventory now enumerates recursive file inputs for grouped recipes. Actual file-consumer coverage passes; disposable mutations removing shell nvim coverage or Lua's shared perf fixture coverage both make that regression fail.
+          round: 3
+      findings:
+        - kind: defect
+          id: BR-3
+          severity: Critical
+          title: Non-Go changes omit Go tests that execute or read those inputs
+          detail: '.sdlc/affected.json:33,123 claims inputs without selecting their consuming Go tests. Against upstream d6309691af55cb39765a55623ed01f5ab31212e2 and Pair''s actual graph, nvim/workbench_actions.lua selects Full=false, GoPkgs=[], groups=[build lua review shell], omitting workbenchshortcut''s TestRenderedLuaGlobalMapsMatchCommittedFile (shortcut_test.go:354). scripts/supervision-labels/labels.py similarly selects only build, omitting couchcmd''s real Python integration test (supervision_fact_storage_test.go:50). Additional confirmed inputs are nvim/init.lua, tests/adapt-golden.expected and zellij/config.kdl; all produce empty GoPkgs despite direct Go-test consumers. The runner adds only runtimebundle for lua, so these consumers remain unexecuted. ARCH-PURPOSE: This is the 3rd finding in family affected-consumer-coverage. Earlier rounds fixed instances. Extend the governing rule and inventory to every test consumer, including Go tests'' external file reads and subprocess inputs; sweep the class and enforce consumer execution or full fallback through actual-planner and runner regressions. Reconcile the scripts-only selection requirement explicitly rather than leaving its Go integration consumer uncovered.'
+          family: affected-consumer-coverage
+          round: 3
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#725 (boundary-review)
@@ -343,6 +518,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-2** [Critical] `affected-consumer-coverage` (kind: defect) Cross-language source changes omit consuming shell suites
   .sdlc/affected.json:137 omits nvim inputs consumed by shell recipes. Against upstream d6309691af55cb39765a55623ed01f5ab31212e2 and Pair's actual graph, both nvim/zellij_trace.lua and nvim/init.lua select Full=false and groups=[lua review], skipping test-zellij-trace and test-term-pane-shortcuts. The former loads zellij_trace.lua at tests/zellij-trace-test.sh:25; the latter asserts init.lua content at tests/term-pane-shortcuts-test.sh:320. ARCH-PURPOSE: This is the 2nd finding in family affected-consumer-coverage. Earlier rounds fixed instances. Do NOT fix only these instances: state and enforce the rule that every grouped recipe's executed or text-read input selects its consuming group or full. Enumerate recursive cross-language inputs across all groups, extend the inventory beyond Go roots, and add actual-planner regressions for that enumeration.
 
+## Round 3 — 2026-10-20T03:15:48-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — The audited command roots and transitive dependency checks remain present; TestActualGroupConsumerCoverage passes against the pinned upstream planner and actual Pair graph.
+- BR-2 — addressed — The inventory now enumerates recursive file inputs for grouped recipes. Actual file-consumer coverage passes; disposable mutations removing shell nvim coverage or Lua's shared perf fixture coverage both make that regression fail.
+
+### Raised
+
+- **BR-3** [Critical] `affected-consumer-coverage` (kind: defect) Non-Go changes omit Go tests that execute or read those inputs
+  .sdlc/affected.json:33,123 claims inputs without selecting their consuming Go tests. Against upstream d6309691af55cb39765a55623ed01f5ab31212e2 and Pair's actual graph, nvim/workbench_actions.lua selects Full=false, GoPkgs=[], groups=[build lua review shell], omitting workbenchshortcut's TestRenderedLuaGlobalMapsMatchCommittedFile (shortcut_test.go:354). scripts/supervision-labels/labels.py similarly selects only build, omitting couchcmd's real Python integration test (supervision_fact_storage_test.go:50). Additional confirmed inputs are nvim/init.lua, tests/adapt-golden.expected and zellij/config.kdl; all produce empty GoPkgs despite direct Go-test consumers. The runner adds only runtimebundle for lua, so these consumers remain unexecuted. ARCH-PURPOSE: This is the 3rd finding in family affected-consumer-coverage. Earlier rounds fixed instances. Extend the governing rule and inventory to every test consumer, including Go tests' external file reads and subprocess inputs; sweep the class and enforce consumer execution or full fallback through actual-planner and runner regressions. Reconcile the scripts-only selection requirement explicitly rather than leaving its Go integration consumer uncovered.
+
 ## Open findings
 
-- **BR-2** [Critical] `affected-consumer-coverage` (kind: defect) Cross-language source changes omit consuming shell suites
+- **BR-3** [Critical] `affected-consumer-coverage` (kind: defect) Non-Go changes omit Go tests that execute or read those inputs

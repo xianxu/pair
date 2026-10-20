@@ -36,6 +36,19 @@ class PureSelection(unittest.TestCase):
                              ["go", "test", RUNTIME, "-count=1", "-timeout", "20m"])
         self.assertEqual(m.go_test_argv(m.parse_selection("", "build")), [])
 
+    def test_source_guards_are_fixed_and_named(self):
+        argv = runner().source_guard_argv()
+        packages = argv[2:argv.index("-run")]
+        for package in ("internal/repolint", "cmd/internal/artifactpath", "cmd/internal/testpair",
+                        "cmd/internal/zellijtest", "cmd/internal/termcmd", "cmd/internal/terminal"):
+            self.assertIn(PREFIX + package, packages)
+        self.assertFalse(any("..." in package for package in packages))
+        pattern = argv[argv.index("-run") + 1]
+        for name in ("TestTrackedGoFilesPassCatalog", "TestNoDeclarationCarriesTwoStackedGodocs",
+                     "TestConsumersOfNoDestinationMethodsClassifyIt"):
+            self.assertRegex(name, pattern)
+        self.assertIsNone(re.fullmatch(pattern, "TestUnrelatedExpensiveIntegration"))
+
     def test_invalid_selection(self):
         m = runner()
         for packages, groups in (("", ""), ("./...", ""), ("-run", ""),
@@ -54,10 +67,14 @@ import json, os, pathlib, sys
 kind = pathlib.Path(sys.argv[0]).name
 row = {"kind": kind, "args": sys.argv[1:], "binary": os.environ.get("PAIR_TEST_BINARY", ""),
        "identity": os.environ.get("PAIR_SESSION_ID"), "knob": os.environ.get("PAIR_TEST_SENTINEL")}
-with open(os.environ["AFFECTED_RECORD"], "a") as f:
+record = pathlib.Path(os.environ["AFFECTED_RECORD"])
+prior = [json.loads(line) for line in record.read_text().splitlines()] if record.exists() else []
+ordinal = 1 + sum(r["kind"] == kind and r["args"][:1] == sys.argv[1:2] for r in prior)
+with open(record, "a") as f:
     f.write(json.dumps(row) + "\\n")
 print("child-output:" + kind, flush=True)
-if os.environ.get("AFFECTED_FAIL") == kind + ":" + (sys.argv[1] if len(sys.argv) > 1 else ""):
+failure = kind + ":" + (sys.argv[1] if len(sys.argv) > 1 else "")
+if os.environ.get("AFFECTED_FAIL") in (failure, failure + "@" + str(ordinal)):
     sys.exit(17)
 if kind == "go" and len(sys.argv) > 1 and sys.argv[1] == "build":
     dest = pathlib.Path(sys.argv[sys.argv.index("-o")+1])
@@ -101,8 +118,9 @@ class MakeEntrypoint(unittest.TestCase):
                 result, rows = self.run_selection(" ".join(packages))
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 go = [r for r in rows if r["kind"] == "go"]
+                self.assertEqual(len(go), 2, "fixed scanner preflight then exact selected test")
                 self.assertEqual([r["args"] for r in go],
-                                 [["test", *packages, "-count=1", "-timeout", "20m"]])
+                                 [runner().source_guard_argv()[1:], ["test", *packages, "-count=1", "-timeout", "20m"]])
                 self.assertEqual([r["args"] for r in rows if r["kind"] == "make"], [["test-make-env"], ["runtimebundle-generate"]])
                 self.assertTrue(all(r["identity"] is None and r["knob"] == "preserved" for r in rows))
 
@@ -123,7 +141,7 @@ class MakeEntrypoint(unittest.TestCase):
         result, rows = self.run_selection(RUNTIME, "lua")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         go_tests = [r for r in rows if r["kind"] == "go" and r["args"][0] == "test"]
-        self.assertEqual([r["args"] for r in go_tests], [["test", RUNTIME, "-count=1", "-timeout", "20m"]])
+        self.assertEqual([r["args"] for r in go_tests], [runner().source_guard_argv()[1:], ["test", RUNTIME, "-count=1", "-timeout", "20m"]])
         self.assertEqual(rows[0]["args"], ["test-make-env"])
         self.assertEqual(rows[1]["args"], ["runtimebundle-generate"])
 
@@ -136,13 +154,19 @@ class MakeEntrypoint(unittest.TestCase):
                 self.assertEqual(rows, [])
 
     def test_child_failure_stops_and_preserves_output(self):
-        for failure in ("make:runtimebundle-generate", "go:test", "go:build", "make:test-affected-build"):
+        for failure in ("make:runtimebundle-generate", "go:test", "go:test@2", "go:build", "make:test-affected-build"):
             with self.subTest(failure=failure):
                 self.record.unlink(missing_ok=True)
                 result, rows = self.run_selection(PREFIX + "cmd/internal/model", "build", failure)
                 self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertIn("child-output:", result.stdout)
-                self.assertEqual(rows[-1]["kind"] + ":" + rows[-1]["args"][0], failure)
+                self.assertEqual(rows[-1]["kind"] + ":" + rows[-1]["args"][0], failure.split("@")[0])
+
+    def test_source_guard_failure_stops_before_selected_packages(self):
+        result, rows = self.run_selection(PREFIX + "cmd/internal/model", "shell", "go:test")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(rows[-1]["args"], runner().source_guard_argv()[1:])
+        self.assertFalse(any(r["binary"] for r in rows))
 
     def test_fixed_guard_failure_stops_before_selected_effects(self):
         result, rows = self.run_selection(PREFIX + "cmd/internal/model", "shell", "make:test-make-env")

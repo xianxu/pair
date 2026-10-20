@@ -29,22 +29,13 @@
 
 - `.sdlc/affected.json`, `scripts/test-affected.py` — affected branch checks
   consume ariadne#473's main-authoritative selection through `make test-affected`.
-  Exact Go import paths run once; five groups reuse the non-Go Make recipes.
-  Lua additionally regenerates and tests `runtimebundle`. Shared helpers,
-  Makefiles, gate config, executable dispatch and unclaimed non-Go files force
-  full coverage. Runner regressions audit the default recipe/group union;
-  `tests/affected-consumers.json` records each recipe's actual Pair command
-  roots and recursive file/fixture/text inputs. Tests expand those inputs and
-  require their consumer group or full through the real planner/Go graph.
-  Editor consumers share broad nvim ownership; build covers runtime bundle
-  inputs. Shared build scripts keep full coverage.
-  Source-name inventory is a textual dependency: every valid selection runs
-  test-make-env once, as a fixed preflight unless build already owns its run.
-  Unowned Go paths keep the full fallback, including absent/platform-excluded packages.
-  declaration fixtures execute the actual upstream strict parser and planner
-  (explicit dependency skip until the provider is available). The operator owns
-  the local-gates label; the hub owns first recorded affected/docs-train evidence
-  after main gains the declaration. See [testing instructions](../README.md).
+  Selected Go argv stays exact; fixed named source scanners run first for Go
+  selections. Non-Go file-reader populations and unknown paths force full.
+  `tests/affected-consumers.json` audits recipe inputs against the real planner;
+  the Go-reader inventory requires re-audit for new or changed source readers.
+  The environment guard runs once; groups share a private Pair executable.
+  The operator owns the local-gates label; the hub owns first recorded
+  affected/docs-train evidence after landing.
 
 - `make test` — the full gate. It runs every shell/Lua suite, then `go test ./...`
   with test-result caching off, so it covers every package. Make adds `-trimpath`

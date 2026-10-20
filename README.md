@@ -1976,28 +1976,27 @@ For a manual selected run:
 SDLC_AFFECTED_GO_PKGS=github.com/xianxu/pair/cmd/internal/slugcmd make test-affected
 ```
 
-The runner tests only the supplied Go packages and selected `lua`, `review`,
-`doctor`, `build` or `shell` recipes. Go-only runs avoid a suite-owned Pair
-build; selected non-Go groups share one fresh private executable. Lua changes
-regenerate the embedded runtime and add `runtimebundle` to the Go selection
-exactly once. Make retains its usual session-environment scrub. Empty or invalid
-selections refuse; SDLC records docs-only passes without invoking the runner.
-Makefiles, module metadata, shared test helpers, gate configuration and executable
-dispatch force a full suite. Unclaimed non-Go paths also force full, including
-external fixtures under `tests/webcast`, `tests/broadcast-viewer` and
-`tests/terminal-oracle`. The environment-inventory guard reads source text
-outside Go import dependencies, so every valid selection runs `test-make-env`
-once (the build group runs it when selected; other runs use a fixed preflight).
-Unknown, deleted or platform-excluded package paths retain the full fallback.
-The independent
-per-recipe input audit lives in `tests/affected-consumers.json`: Go command roots
-and recursively executed, copied or text-read file inputs. Actual-planner
-regressions check their coverage and the inventory's recipe completeness.
-Groups loading the editor conservatively share `nvim/**`; the build group also
-covers runtime bundle inputs. Shared build infrastructure forces full coverage.
-`make test` retains every existing check and adds runner
-and declaration regressions; landing still requires the full-suite evidence
-owned by SDLC.
+The runner executes the supplied Go packages with exact argv and the selected
+`lua`, `review`, `doctor`, `build` or `shell` recipes. Before a Go selection it
+also runs a fixed set of source-scanner tests: import dependencies cannot describe
+tests that read another package's source files. The scanner preflight reports its
+elapsed time and stops the run on failure. Go-only runs avoid a suite-owned Pair
+build; selected groups share one fresh private executable. The Lua group
+regenerates the embedded runtime and tests `runtimebundle` exactly once.
+Make retains its usual session-environment scrub. Empty or invalid selections
+refuse; SDLC records docs-only passes without invoking the runner.
+
+Non-Go source populations with Go file readers (`nvim`, `zellij`, `doctor`,
+`bin`, `scripts`, `tests` and shared `testdata`) conservatively force full coverage.
+Makefiles, module metadata, gate configuration and executable dispatch also force
+full. Unknown, deleted or platform-excluded package paths retain the full fallback.
+Every valid selection runs the environment-inventory guard `test-make-env` once
+(the build group runs it when selected; other runs use a fixed preflight).
+The independent per-recipe audit in `tests/affected-consumers.json` asserts the
+real planner covers command roots, dependencies and file inputs. A separate
+Go-reader inventory refuses new or changed unmapped source readers for re-audit.
+`make test` retains every existing check and adds runner, reader-inventory and
+declaration regressions; landing still requires SDLC's full-suite evidence.
 
 The declaration regression consumes upstream parser/planner source from a sibling
 ariadne checkout or the installed Go module. Until ariadne#473 is available there,

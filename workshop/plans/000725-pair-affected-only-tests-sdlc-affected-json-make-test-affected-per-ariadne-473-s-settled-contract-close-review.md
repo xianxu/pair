@@ -202,3 +202,109 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T03:15:47-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 725 — pair affected-only tests: .sdlc/affected.json + make test-affected, per ariadne#473's settled contract |
+| repo | pair |
+| issue file | workshop/issues/000725-pair-affected-only-tests-sdlc-affected-json-make-test-affected-per-ariadne-473-s-settled-contract.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | ab32acea6c97663232623b2881e7e7c91aae8a17..daf9ab9f5a8770dce86a8b94a6ebe2b33c33f9c0 |
+| command | sdlc close --issue 725 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T03:15:47-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The runner and grouped-recipe coverage checks work, and BR-2’s correction has meaningful regression evidence. However, the inventory still excludes Go tests that directly consume non-Go files. Actual-planner probes confirm those tests are omitted from affected selections, leaving a blocking coverage gap.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The audited command roots and transitive dependency checks remain present; TestActualGroupConsumerCoverage passes against the pinned upstream planner and actual Pair graph.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The inventory now enumerates recursive file inputs for grouped recipes. Actual file-consumer coverage passes; disposable mutations removing shell nvim coverage or Lua's shared perf fixture coverage both make that regression fail.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: affected-consumer-coverage
+    title: |
+      Non-Go changes omit Go tests that execute or read those inputs
+    detail: |
+      .sdlc/affected.json:33,123 claims inputs without selecting their consuming Go tests. Against upstream d6309691af55cb39765a55623ed01f5ab31212e2 and Pair's actual graph, nvim/workbench_actions.lua selects Full=false, GoPkgs=[], groups=[build lua review shell], omitting workbenchshortcut's TestRenderedLuaGlobalMapsMatchCommittedFile (shortcut_test.go:354). scripts/supervision-labels/labels.py similarly selects only build, omitting couchcmd's real Python integration test (supervision_fact_storage_test.go:50). Additional confirmed inputs are nvim/init.lua, tests/adapt-golden.expected and zellij/config.kdl; all produce empty GoPkgs despite direct Go-test consumers. The runner adds only runtimebundle for lua, so these consumers remain unexecuted. ARCH-PURPOSE: This is the 3rd finding in family affected-consumer-coverage. Earlier rounds fixed instances. Extend the governing rule and inventory to every test consumer, including Go tests' external file reads and subprocess inputs; sweep the class and enforce consumer execution or full fallback through actual-planner and runner regressions. Reconcile the scripts-only selection requirement explicitly rather than leaving its Go integration consumer uncovered.
+```
+
+### 1. Strengths
+
+- Selection validation and argv construction are pure; invalid selections cause no child effects (`scripts/test-affected.py:21`).
+- Runner tests exercise the real Make entrypoint, failure propagation, environment scrubbing and private-binary cleanup.
+- Recipe ownership is checked against the independent full-suite prerequisite list.
+- README and atlas document the new command, fallback behavior and upstream dependency.
+
+### 2. Critical findings
+
+- **Go consumers of non-Go inputs remain uncovered**, as detailed above. The inventory at `tests/affected-config-test.py:229` checks grouped recipes only. Extend it to Go-test consumers and verify that the selected execution actually runs them.
+
+### 3. Important findings
+
+None.
+
+### 4. Minor findings
+
+None.
+
+### 5. Test coverage notes
+
+- All nine runner tests passed.
+- Explicit upstream qualification passed, including strict parsing, dependency unions, fallbacks and **732 distinct group/file inputs**.
+- Removing shell’s `nvim/**` coverage caused file-consumer regressions to fail.
+- Removing Lua’s shared perf-fixture coverage also caused a regression failure.
+- Directly invoked dispatcher, workbenchshortcut and couchcmd consumer tests passed, confirming these are runnable tests omitted by the affected selections.
+- The full suite was not rerun during this review.
+
+### 6. Architectural notes for upcoming work
+
+- **ARCH-DRY — pass:** existing Make recipes and upstream planner are reused.
+- **ARCH-PURE — pass:** validation and argv logic remain separate from execution.
+- **ARCH-PURPOSE — flag:** coverage enumeration stops at grouped recipes, excluding Go consumers of external files.
+- **ARCH-MOCK — pass:** runner integration uses stateful executable recorders and failure injection.
+- **ARCH-CONSTRAINTS — pass:** bounded sequential execution, one selected Go invocation and one group wrapper.
+- **ARCH-SECURE — pass:** selection input becomes validated argv before execution.
+- **ARCH-ORDER — pass:** synchronous execution carries no authoritative state between invocations.
+- **ARCH-FUNERAL — pass:** new test scratch directories have scoped cleanup.
+- **ARCH-EVOLVE — pass:** declaration parsing retains the explicitly required strict schema contract; no rewrite path is introduced.
+
+### 7. Plan revision recommendations
+
+Add a `## Revisions` entry broadening the coverage rule to **all executed tests**, including Go tests’ non-Go inputs. Name the complete enumeration, explain how those consumers run under the unchanged upstream selection contract, and reconcile any necessary exceptions with scripts-only selectivity.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"f1168227-4b31-4ce0-866f-e74cc12b86b8","repository":"github.com/xianxu/pair","issue_id":"000725","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/05e175f181203a49","reviewed_head":"daf9ab9f5a8770dce86a8b94a6ebe2b33c33f9c0","slot":"pair:3","requested_at":"2026-10-20T10:13:08.570182Z"},"phase":"finished","pid":85184,"started_at":"2026-10-20T10:13:08.739537Z","finished_at":"2026-10-20T10:15:47.38472Z","session_id":"01a158cc-f34c-7af2-a50a-14a754a073e9","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.35240125s
+head: "daf9ab9f5a8770dce86a8b94a6ebe2b33c33f9c0"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000411

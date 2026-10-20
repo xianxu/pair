@@ -240,6 +240,7 @@ test-affected-build: $(PAIR_AFFECTED_BUILD)
 test-affected-shell: $(PAIR_AFFECTED_SHELL)
 test-affected-runner:
 	python3 -B tests/test-affected-test.py
+	python3 -B tests/affected-go-readers-test.py
 test-affected-config:
 	python3 -B tests/affected-config-test.py
 

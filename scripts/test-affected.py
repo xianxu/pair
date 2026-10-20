@@ -6,10 +6,115 @@ import re
 import shlex
 import subprocess
 import sys
+import time
 
 GROUPS = frozenset({"lua", "review", "doctor", "build", "shell"})
 PACKAGE = re.compile(r"github\.com/xianxu/pair(?:/[A-Za-z0-9_][A-Za-z0-9_.-]*)+")
 RUNTIME = "github.com/xianxu/pair/cmd/internal/runtimebundle"
+
+
+# Source readers bypass the import graph. Run this fixed audited set before
+# selected Go packages; never widen the provider's selected-package argv.
+SOURCE_GUARDS = {'cmd/internal/artifactpath': ('TestArtifactConstructorAuthorityRejectsProductionCommandMutations',
+                               'TestArtifactDocsUseBindingsForCurrentConsumers',
+                               'TestDeadSymbolGuardDeclarationRules',
+                               'TestDiffKnownViolationsCountsDuplicates',
+                               'TestEveryMainPackageIsIgnoredAtTheRepoRoot',
+                               'TestEveryMakefileTestSelectorMatchesALiveTest',
+                               'TestLifecycleArtifactFamiliesAreClassified',
+                               'TestManifestCoversRequiredArtifactFamilies',
+                               'TestNoCompanionSuffixConstructionOutsideArtifactpath',
+                               'TestNoProductionSymbolIsReferencedOnlyByTests',
+                               'TestNonArtifactSourceCannotImportArtifactpath',
+                               'TestNonGoConsumersUseExactPathBindings',
+                               'TestNormalizeArtifactViolationStripsLineNumbers',
+                               'TestProductionArtifactReferencesAreExactlyClassified',
+                               'TestProductionRootsCoverTopLevelCommandPackages',
+                               'TestProductionSourceFileRecognizesExtensionlessShebang',
+                               'TestProductionSourceInventoryIsIndependentOfArtifactTokens',
+                               'TestResolvedBindingCatalogIsUniqueAndReferencesKnownFamilies',
+                               'TestResolvedConsumerRejectsDirectArtifactConstruction',
+                               'TestResolvedConsumerRequiresFamilyCorrelatedBinding',
+                               'TestVocabularyConsumerContract'),
+ 'cmd/internal/checkpoint': ('TestPhaseListIsWrittenOnlyInAllPhases',),
+ 'cmd/internal/couchcmd': ('TestAtlasDocumentsEveryTypedOperation',
+                           'TestM3DocsMatchActionableSwitcherInventoryProvider',
+                           'TestNoCurrentSourcesAdvertiseObsoleteCouchArgv',
+                           'TestOperationPresentationDocs',
+                           'TestREADMEDocumentsEveryCouchChord',
+                           'TestREADMEDocumentsEveryPanelControl',
+                           'TestREADMEDocumentsM3ThreadSemantics',
+                           'TestREADMEDocumentsOnlyThePublicProjection',
+                           'TestREADMEDocumentsTheOperatorFacingSurface',
+                           'TestREADMERootEscapeMatchesReducerWhenNoActorIsLive'),
+ 'cmd/internal/couchcore': ('TestEverySlotStateSiteIsAResource',
+                            'TestIssue149BlockedRunnersDelegateToOneHandshakeAuthority',
+                            'TestIssue149CurrentCoreConceptKinds',
+                            'TestIssue149M5CoreConceptInventoryContract',
+                            'TestIssue149M5CoreConceptInventoryRejectsRowMutation',
+                            'TestIssue149M5DeclarationDispositionSetIsClosed',
+                            'TestIssue149M5DeclarationDispositionSourceSetMatchesMilestoneDiff',
+                            'TestIssue149M5UnmarkedExportedAuthorityFailsClosed',
+                            'TestIssue149PureCoreTestsStayAtPureBoundary',
+                            'TestIssue151CoreConceptsMatchCurrentBoundary',
+                            'TestIssue151M3ArchitecturalLedgerIsClosed',
+                            'TestIssue151M3ChecklistMatchesCurrentBoundary',
+                            'TestIssue151M3DeclarationDispositionMutationsFailClosed',
+                            'TestIssue151M3DeclarationDispositionSetIsClosed',
+                            'TestIssue151M3DeclarationDispositionSourceSetMatchesMilestoneDiff',
+                            'TestIssue151M3HistoricalOracleRejectsMovingHeadAndWorktreeBytes',
+                            'TestIssue151M3ImplementationDependencyRemovalFails',
+                            'TestIssue151M3IntegrationDependenciesMatchPinnedSource',
+                            'TestIssue151M3SourceConceptsAppearAtExactPlanPaths',
+                            'TestIssue152DeliveredCoreConceptsResolveToGoDeclarations',
+                            'TestIssue256CoreConceptsProseCitesTestsNotCoordinates',
+                            'TestIssue256PlanTablesMatchTheTree',
+                            'TestOpaqueIdentityCommentDoesNotReintroducePathDerivedContract',
+                            'TestRetiredClaimsAreNotRestatedAsCurrent',
+                            'TestSlotTokenAllowlistIsCurrent'),
+ 'cmd/internal/couchtty': ('TestConceptInventoryRejectsWholeRowDeletion', 'TestCoreConceptsContract'),
+ 'cmd/internal/dispatcher': ('TestEveryImplementedFamilyIsRoutable',
+                             'TestLuaBuiltPairSubcommandsAreDeclaredAndRoutable'),
+ 'cmd/internal/launcher': ('TestPSGuardDetectsDirectContextAbsoluteAndWrappedCalls',
+                           'TestProductionDoesNotExecPS'),
+ 'cmd/internal/mouseinput': ('TestFindLocatesAReportAfterOtherBytes',
+                             'TestIsPrefixCoversEveryGenuinePrefixAndNothingElse',
+                             'TestNoConsumerComparesARawButtonAgainstAWheelConstant',
+                             'TestParseDecodesBothTerminators',
+                             'TestParsePrefixReturnsTheWireBytes',
+                             'TestParseRefusesWhatItCannotDecode'),
+ 'cmd/internal/notifytransport': ('TestNamespaceLockCloseOnExec', 'TestRawOpensAreAtomicCloseOnExec'),
+ 'cmd/internal/sessioninventory': ('TestNativeAuthorityShadowSweepRejectsSyntheticConsumer',
+                                   'TestNoNativeAuthorityShadowInInteractiveConsumers'),
+ 'cmd/internal/storagegc': ('TestManagedIOInventoryAnchors',),
+ 'cmd/internal/termcmd': ('TestNoDeclarationCarriesTwoStackedGodocs',),
+ 'cmd/internal/terminal': ('TestConsumersOfNoDestinationMethodsClassifyIt',
+                           'TestNoDestinationProducersAreEnumerated'),
+ 'cmd/internal/testpair': ('TestNoPerTestBuildsOfFullPair',
+                           'TestPairEnvironmentBootstrapIntegration',
+                           'TestPairEnvironmentGuardFixtures',
+                           'TestPairEnvironmentGuardIndirectTerminalFixture',
+                           'TestPairEnvironmentGuardInstalledCouchFullSource',
+                           'TestPairEnvironmentGuardScriptFixtures',
+                           'TestPairSubprocessesUseIsolatedEnvironment',
+                           'TestPerTestBuildGuardFixtures',
+                           'TestPerTestBuildGuardOriginalGoRecipes'),
+ 'cmd/internal/zellijreply': ('TestEffectCoverageRejectsMissingAndWeakenedGuards',
+                              'TestEffectCoverageRejectsUnclassifiedSinkReferences',
+                              'TestM2EffectsUseExistingAdmissionToken'),
+ 'cmd/internal/zellijtest': ('TestEveryZellijFixtureReplyUsesProductionDecoder',
+                             'TestFixtureReplyGeneratorUnitContracts'),
+ 'internal/repolint': ('TestNativeFixtureRootReader',
+                       'TestNativeFixtureRootRealSources',
+                       'TestNativeFixtureRootRule',
+                       'TestTrackedGoFilesPassCatalog'),
+ 'probes/zellijprobe': ('TestNoProbeExitsPastItsOwnCleanup',)}
+
+
+def source_guard_argv() -> list[str]:
+    names = sorted({name for tests in SOURCE_GUARDS.values() for name in tests})
+    return ["go", "test", *("github.com/xianxu/pair/" + package for package in SOURCE_GUARDS),
+            "-run", "^(" + "|".join(names) + ")$", "-count=1", "-timeout", "20m"]
 
 
 @dataclass(frozen=True)
@@ -46,6 +151,12 @@ def run_selection(selection: TestSelection, make_argv: list[str]) -> None:
     argv = go_test_argv(selection)
     if argv:
         subprocess.run([*make_argv, "runtimebundle-generate"], check=True)
+        if selection.packages:
+            started = time.monotonic()
+            try:
+                subprocess.run(source_guard_argv(), check=True)
+            finally:
+                print(f"affected source preflight: {time.monotonic() - started:.3f}s", flush=True)
         subprocess.run(argv, check=True)
     if selection.groups:
         subprocess.run(["bash", "tests/lib/with-pair-test-binary.sh", *make_argv,

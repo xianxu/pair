@@ -58,6 +58,10 @@ The contract is settled by ariadne#473 M1 (milestone evidence a6c87575, fake-con
 
 The original real-status/train requirement above is qualified by upstream main-only configuration authority. Per hub approval 36f3d275-8e19-4e86-a4b4-10d175c5c020, #725 closes at landing after fixtures and representative native selected-command timing against the full suite, with numbers in the Log. After configuration lands, the hub picks the next real code branch for sdlc-local/affected and the first docs-only branch for train vouch, recording this follow-up in test-economy. No recorded status or train acceptance is claimed before it exists.
 
+### Done when Revision — file readers
+
+Hub approval 6c4bd7ed-04db-4159-94a2-ad131ea75534 supersedes script-only and source-Lua-only selectivity: non-Go populations with Go file readers force full. Go selections run a fixed named source-scanner preflight followed by exactly the provider-selected package argv. Tests assert the conservative fallbacks, reader inventory and constant invocation count.
+
 ## Plan
 
 See [durable plan](../plans/000725-affected-tests-plan.md), one atomic close boundary.
@@ -101,11 +105,17 @@ See [durable plan](../plans/000725-affected-tests-plan.md), one atomic close bou
 
 - 2026-10-20: Completed recursive file/fixture/text audit for every grouped recipe, extending independent inventory to go/files. Actual upstream Plan/Pair graph regression went red on omitted consumers, then passed 747 distinct group/file inputs alongside all command dependencies. Added conservative build/shell nvim ownership, build runtime asset inputs, review Zellij config and Lua shared perf fixture; shared build-go-atomic script now forces full. Unclaimed external fixtures and absent/platform-excluded packages still full; no broad cmd/probes/tests path claim. Text-inventory guard remains fixed. Mutations removing shell's nvim coverage or Lua's shared fixture consumer fail. All 9 runner tests pass. Final slugcmd selection remains three Go packages + build with unchanged runner/recipes, so the 86.939s native command sample still qualifies that selection; full-suite comparison on final branch pending.
 
+- 2026-10-20: Close round3 REWORK BR-3 confirmed group.go only triggers non-Go recipes; Go tests reading selected non-Go inputs were omitted. Hub approved conservative full fallback for non-Go file-reader populations, then fixed Go source-scanner preflight for Go changes. This supersedes selective labels.py/source-Lua acceptance; group-free Go argv remains exact. Import-only graph source-reader limitation is recorded here for ariadne#473. Runner regression red: N=1/2 observed one Go call instead of required scanner+selected two; after implementation all 11 runner tests PASS, including child failure before downstream effects. Native fixed named-scanner preflight PASS 29.827s, no suite queue. Prior 86.939s selected timing is superseded; rerun final command and full suite. No passing suite has yet been claimed for #725.
+
+- 2026-10-20: Final representative native command PASS 80.679s wall with actual planner's dispatcher/slugcmd/cmd-pair-go plus build; fixed source preflight 19.753s within that run (standalone prior sample29.827s). No queue. Fixed preflight includes probe cleanup and the couchcore plan256 source contract found in the repository-wide audit. Runner11 tests and reader-inventory6 tests PASS; reader tripwire covers448 lexical matches (25 fixed scanner files,51 non-Go/full fallbacks,372 local/synthetic/same-package fixtures). New/changed/deleted reader mutations and removed termcmd registration refuse. This is a lexical re-audit tripwire, not arbitrary dataflow analysis. Upstream parser/planner qualification pinned113e7767719b5b4b4964ba9a8f5e73fecce825b8 PASS, including747 non-Go audited inputs forcing full and actual selective Go roots/dependencies. Full branch suite and its measured execution/queue comparison pending.
+
 ## Revisions
 
 - 2026-10-20: Added executable plan and explicit source-Lua/runtimebundle test exception approved by hub. No upstream schema or environment contract changes. Real recorded affected/train acceptance is pending upstream M2 availability rather than being waived.
 
 - 2026-10-20: Acceptance ordering revision approved by hub: prelanding fixture/native timing + full suite; hub-owned actual affected/status and docs-only train proof after config reaches main. Clarified pure runner boundary for PQ-1 without changing behavior or upstream contract.
+
+- 2026-10-20: Governing acceptance revision: non-Go source populations with Go readers force full rather than claiming script/source-Lua-only selectivity. Fixed scanner preflight runs for any nonempty selected Go package list, then the exact selected argv. Hub explicitly approved fallback and this final constant-cost correction; no further design approval needed. Prelanding representative timing/full suite/operator label and postlanding hub-owned recorded affected/docs vouch remain required.
 
 ## Estimate
 
