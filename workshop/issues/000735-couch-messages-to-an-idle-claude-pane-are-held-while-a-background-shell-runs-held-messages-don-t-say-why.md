@@ -1,13 +1,21 @@
 ---
 id: 000735
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'd6a1b1dc108cc86643ebc525fab43243bd39c997' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '880f8588d212ac0b006af6a94f22413404e8e547' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-20T11:54:21-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch: messages to an idle Claude pane are held while a background shell runs; held messages don't say why
@@ -52,3 +60,7 @@ and its pair-diagnostics segment is empty, so there is no record of readiness de
 ## Log
 
 ### 2026-10-20
+
+- Claimed and started in pair:3. Reproduction replayed the operator's raw recording plus resize events through the production terminal model to 11:10: complete 189x39 viewport, empty composer at (2,35), but cursor visibility false, so `peerComposerState` returned Unknown. Changing only snapshot visibility to true returns Empty. Existing background-footer delivery regressions pass on unchanged code.
+- The recording's last show-cursor before the stall is raw offset 2166899. A duplicate 189x39 resize at 2166913 follows it. `terminalResize.resolve` clears visibility on every committed resize, including unchanged geometry. No subsequent repaint restores it during the quiet interval. Hypothesis: a no-op resize invalidates valid composer evidence; the shell footer itself is already supported. Preserve the fail-closed behavior for actual geometry changes and hidden/incomplete preexisting frames (ARCH-PURPOSE, ARCH-DRY).
+- Logging investigation: `supervision.jsonl` remains the production destination; archived diagnostic segments exist. The current payload is frozen since 10-19 15:56; scratch-copy Open/Write succeeds. Fact logging currently discards Open errors and remains unavailable for the entire supervisor lifetime. The lost historical error prevents attributing this incident yet. Existing facts record slot snapshots and completed hub deliveries, not per-message hold reasons. Investigation ongoing; no live log/state mutated.
