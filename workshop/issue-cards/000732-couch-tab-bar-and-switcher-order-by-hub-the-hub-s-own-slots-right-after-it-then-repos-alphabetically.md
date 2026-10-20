@@ -13,14 +13,14 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
-actual_hours: 0.49
+actual_hours: 1.84
 tracker:
     version: 1
     completion:
-        token: close-cbed34a80b28
+        token: close-725c386cf6dd
         repository: github.com/xianxu/pair
-        reviewed_head: a93fe02d46530fe7178f5702a15de7d21d908de3
-        evidence_commit: c4bffab400c4fb585d3804f3bf5d89bf4d8025c8
+        reviewed_head: 0ab34d5f2bc870cc2b2b5a5ac9e6c17d85b32b46
+        evidence_commit: 1e185c3880f16b2bb99203c4d4c73ab6ddc67630
 ---
 
 # couch: tab bar and switcher order: by hub, the hub's own slots right after it, then repos alphabetically
