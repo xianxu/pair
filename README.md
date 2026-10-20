@@ -1235,9 +1235,10 @@ captures use their separate age policy and exact reader protections.
 The tab bar starts with the hub, the checkout you started Couch from, and then
 lists every other slot grouped by repository:
 `ops  ariadne  :1  :2  blog  pair  :1  :2`. In the switcher the hub is the first line and the rest sit indented
-under it. The hub tab and switcher row use reversed colours as a bookmark;
-focus brackets still mark the active tab, and the selected hub row is bold
-with a cursor arrow. When the tabs don't fit, a repository's numbered slots fold into a
+under it. The hub tab uses reversed colours as a bookmark; switcher hub rows
+are underlined, and only the selected row uses reverse video. Focus brackets
+still mark the active tab, and a selected hub keeps its underline and bold
+cursor arrow. When the tabs don't fit, a repository's numbered slots fold into a
 count (`pair  +2`), starting from the right. A red, belled or focused tab is
 never folded away, and the switcher always lists everything.
 
