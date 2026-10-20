@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
-estimate_hours:
+estimate_hours: 1.77
 collaboration-mode: collaboration
-card_mirror: '94cde688d9fa5567a1768960be8f0b3f933e6461' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'b4a97024cf8ebe0ffe456188544b976d5f9a9269' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T07:54:36-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
 ---
 
 # Hub lifecycle ops time out client-side (resume pair:6, relaunch parley.nvim:4: 'context deadline exceeded') with no diagnosis
@@ -97,6 +98,24 @@ State design (M1). Actions: run a lifecycle op, `--operation-status ID`, retry.
 | Any other admission overrun | refused, naming the phase that overran | retry; report if persistent | none |
 
 ARCH notes: ARCH-ORDER (fresh authority before the effect; admission is a cheap gate); ARCH-CONSTRAINTS (Discover cost is linear in slots and now concurrent; admission does zero probes when warm); ARCH-MOCK (stateful catalog fake with a clock); ARCH-FUNERAL (the snapshot has a bounded age and is replaced, never accumulated).
+
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-go-module   design=0.3 impl=0.24
+item: smaller-go-module      design=0.1 impl=0.14
+item: smaller-go-module      design=0.2 impl=0.14
+item: smaller-go-module      design=0.05 impl=0.12
+item: milestone-review       design=0.0 impl=0.14
+item: milestone-review       design=0.0 impl=0.14
+item: atlas-docs             design=0.05 impl=0.04
+design-buffer: 0.15
+total: 1.77
+```
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.* Rows: M1's admission memo, warm sources and budget (greenfield, single concern); M1's concurrent Discover (smaller, mirroring the existing code); M2's proven-resume scan skip (smaller, but a subtle boundary, so more design); the recover-plan working-directory fix (smaller); two milestone reviews; atlas. Impl values are 40% of the v2 midpoints. The plan doc is thorough, so the design buffer is 15%. The calibration doc is flagged stale (#127), so the numbers are provisional.
 
 ## Log
 
