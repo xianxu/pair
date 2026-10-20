@@ -56,6 +56,15 @@ type orphanReapReport struct {
 	Confirmed bool                `json:"confirmed"`
 	SampledAt time.Time           `json:"sampled_at"`
 	Outcomes  []orphanReapOutcome `json:"outcomes"`
+	// LeftRunning is the same verb over the orphan registry (pair#695): the
+	// processes teardown named and left, each ended by its exact identity.
+	LeftRunning []leftRunningReapOutcome `json:"left_running"`
+}
+
+type leftRunningReapOutcome struct {
+	Entry  couchcore.LeftRunningOrphan `json:"entry"`
+	Status string                      `json:"status"`
+	Detail string                      `json:"detail,omitempty"`
 }
 
 func runReapOrphansCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, call messageCall, reaper launcher.Reaper) int {
@@ -84,7 +93,7 @@ func runReapOrphansCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, 
 	for _, e := range result.Resources.Errors {
 		fmt.Fprintln(stderr, "Coverage:", rowtext.Sanitize(e))
 	}
-	report := orphanReapReport{Confirmed: true, SampledAt: result.Resources.SampledAt, Outcomes: reapOrphanNvim(ctx, reaper, result.Resources.OrphanNvim)}
+	report := orphanReapReport{Confirmed: true, SampledAt: result.Resources.SampledAt, Outcomes: reapOrphanNvim(ctx, reaper, result.Resources.OrphanNvim), LeftRunning: reapLeftRunning(ctx, reaper, result.Resources.LeftRunning)}
 	return finishOrphanReap(inv, stdout, stderr, report)
 }
 
@@ -106,7 +115,11 @@ func refuseOrphanReap(inv cliInvocation, ctx context.Context, socket string, std
 	for _, row := range result.Resources.OrphanNvim {
 		outcomes = append(outcomes, orphanReapOutcome{Row: row, Status: orphanRefused, Detail: "--confirm not given"})
 	}
-	return finishOrphanReap(inv, stdout, stderr, orphanReapReport{SampledAt: result.Resources.SampledAt, Outcomes: outcomes})
+	left := make([]leftRunningReapOutcome, 0, len(result.Resources.LeftRunning))
+	for _, entry := range result.Resources.LeftRunning {
+		left = append(left, leftRunningReapOutcome{Entry: entry, Status: orphanRefused, Detail: "--confirm not given"})
+	}
+	return finishOrphanReap(inv, stdout, stderr, orphanReapReport{SampledAt: result.Resources.SampledAt, Outcomes: outcomes, LeftRunning: left})
 }
 
 // finishOrphanReap prints one report and decides the exit code: a row that
@@ -126,6 +139,11 @@ func finishOrphanReap(inv cliInvocation, stdout, stderr io.Writer, report orphan
 			return 1
 		}
 	}
+	for _, o := range report.LeftRunning {
+		if o.Status == orphanFailed || o.Status == orphanRefused {
+			return 1
+		}
+	}
 	return 0
 }
 
@@ -136,7 +154,19 @@ func renderOrphanReap(out io.Writer, report orphanReapReport) {
 			rows = append(rows, o.Row)
 		}
 		renderOrphanNvimRows(out, rows)
+		entries := make([]couchcore.LeftRunningOrphan, 0, len(report.LeftRunning))
+		for _, o := range report.LeftRunning {
+			entries = append(entries, o.Entry)
+		}
+		renderLeftRunningRows(out, entries)
 		return
+	}
+	for _, o := range report.LeftRunning {
+		detail := ""
+		if o.Detail != "" {
+			detail = ": " + rowtext.Sanitize(o.Detail)
+		}
+		fmt.Fprintf(out, "%s left-running %s%s\n", o.Status, leftRunningRow(o.Entry), detail)
 	}
 	if len(report.Outcomes) == 0 {
 		fmt.Fprintln(out, "No unattributed embedded nvim: nothing to reap.")
@@ -169,20 +199,34 @@ func renderOrphanReap(out io.Writer, report orphanReapReport) {
 func reapOrphanNvim(ctx context.Context, reaper launcher.Reaper, rows []couchcore.OrphanNvim) []orphanReapOutcome {
 	outcomes := make([]orphanReapOutcome, 0, len(rows))
 	for _, row := range rows {
-		outcome := orphanReapOutcome{Row: row, Status: orphanReaped}
-		err := reaper.Reap(ctx, launcher.SessionServerIdentity{
-			PID:      row.Key.PID,
-			Identity: row.Key.Identity,
-			Session:  fmt.Sprintf("orphan-nvim-%d", row.Key.PID),
-		})
-		switch {
-		case err == nil:
-		case errors.Is(err, launcher.ErrServerChanged):
-			outcome.Status, outcome.Detail = orphanSkipped, "pid no longer holds the identity the sweep named (gone, or recycled)"
-		default:
-			outcome.Status, outcome.Detail = orphanFailed, err.Error()
-		}
-		outcomes = append(outcomes, outcome)
+		status, detail := reapExact(ctx, reaper, row.Key.PID, row.Key.Identity, fmt.Sprintf("orphan-nvim-%d", row.Key.PID))
+		outcomes = append(outcomes, orphanReapOutcome{Row: row, Status: status, Detail: detail})
 	}
 	return outcomes
+}
+
+// reapLeftRunning ends each registered left-running process's tree by its
+// exact identity, on the same cadence and fence as the nvim sweep. A reaped
+// or vanished entry drops from the registry at the next sample.
+func reapLeftRunning(ctx context.Context, reaper launcher.Reaper, entries []couchcore.LeftRunningOrphan) []leftRunningReapOutcome {
+	outcomes := make([]leftRunningReapOutcome, 0, len(entries))
+	for _, entry := range entries {
+		status, detail := reapExact(ctx, reaper, entry.Process.PID, entry.Process.Identity, fmt.Sprintf("left-running-%d", entry.Process.PID))
+		outcomes = append(outcomes, leftRunningReapOutcome{Entry: entry, Status: status, Detail: detail})
+	}
+	return outcomes
+}
+
+// reapExact is one row's reap and its outcome: reaped, skipped when the pid no
+// longer holds the named identity, or failed.
+func reapExact(ctx context.Context, reaper launcher.Reaper, pid int, identity, label string) (string, string) {
+	err := reaper.Reap(ctx, launcher.SessionServerIdentity{PID: pid, Identity: identity, Session: label})
+	switch {
+	case err == nil:
+		return orphanReaped, ""
+	case errors.Is(err, launcher.ErrServerChanged):
+		return orphanSkipped, "pid no longer holds the identity the sweep named (gone, or recycled)"
+	default:
+		return orphanFailed, err.Error()
+	}
 }

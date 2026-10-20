@@ -126,20 +126,23 @@ type HostedIngestSnapshot struct {
 }
 
 type ResourceView struct {
-	HostedIngest           *HostedIngestSnapshot `json:"hosted_ingest,omitempty"`
-	HistoryOldest          time.Time             `json:"history_oldest"`
-	HistoryFrames          int                   `json:"history_frames"`
-	SampledAt              time.Time             `json:"sampled_at"`
-	Slots                  []ResourceSlotView    `json:"slots"`
-	Processes              []ResourceProcessView `json:"processes"`
-	Orphans                []ResourceProcessView `json:"orphans"`
-	Unattributed           []ResourceProcessView `json:"unattributed"`
-	OrphanNvim             []OrphanNvim          `json:"orphan_nvim"`
-	Errors                 []string              `json:"errors"`
-	Cost                   ResourceCost          `json:"cost"`
-	ObservedCPUTimeNS      uint64                `json:"observed_cpu_time_ns"`
-	ObservedDiskWriteBytes uint64                `json:"observed_disk_write_bytes"`
-	Episodes               []ResourceEpisode     `json:"episodes"`
+	HostedIngest  *HostedIngestSnapshot `json:"hosted_ingest,omitempty"`
+	HistoryOldest time.Time             `json:"history_oldest"`
+	HistoryFrames int                   `json:"history_frames"`
+	SampledAt     time.Time             `json:"sampled_at"`
+	Slots         []ResourceSlotView    `json:"slots"`
+	Processes     []ResourceProcessView `json:"processes"`
+	Orphans       []ResourceProcessView `json:"orphans"`
+	Unattributed  []ResourceProcessView `json:"unattributed"`
+	OrphanNvim    []OrphanNvim          `json:"orphan_nvim"`
+	// LeftRunning is the orphan registry (pair#695): what teardown left
+	// running, pruned to the identities this sample still saw.
+	LeftRunning            []LeftRunningOrphan `json:"left_running"`
+	Errors                 []string            `json:"errors"`
+	Cost                   ResourceCost        `json:"cost"`
+	ObservedCPUTimeNS      uint64              `json:"observed_cpu_time_ns"`
+	ObservedDiskWriteBytes uint64              `json:"observed_disk_write_bytes"`
+	Episodes               []ResourceEpisode   `json:"episodes"`
 }
 type ResourceSelection struct {
 	Processes []ResourceProvenance

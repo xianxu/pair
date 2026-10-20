@@ -129,6 +129,7 @@ func TestWarmReattachSendsNoResumeProfileAndNoLayout(t *testing.T) {
 		"COUCH_THREAD_SCOPE=" + created.Address.RepoScope,
 		"COUCH_THREAD_TAG=" + string(created.Address.Tag),
 		"COUCH_THREAD_RESUME=1",
+		lifetimeLeaseEnvForTest(t, env.Dir, created.StartingPath, created.Address),
 	}
 	for _, want := range wantOwnership {
 		if !slices.Contains(child.Env, want) {

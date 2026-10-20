@@ -9,12 +9,15 @@ import (
 )
 
 // ReplaceThreadExpected retires old and publishes next in one store journal.
-// Readable sources require the exact observed revision. A retained explicit
-// Fresh intent permits bookkeeping replacement even when unproved remnants
-// remain: the exact intent must appear on both the source and new start claim.
-// Ordinary replacement retains the existing archivable-record guard. Neither
-// mode signals processes or grants permission to reuse a native conversation.
-func (s *ThreadStore) ReplaceThreadExpected(old ThreadAddress, expectedRevision uint64, next ThreadRecord) error {
+// Readable sources require the exact observed revision, the archivable-record
+// guard, and the authority that says why old may go (pair#695): a teardown
+// proof at that revision, whose fold already cleared a park or start claim
+// its dead owners left. The one exception is FreshLeavesRemnants, a confirmed
+// Fresh whose source could not be proven down: it replaces over remnants and
+// their bookkeeping by the operator's choice. A Fresh intent must carry over
+// unchanged to the new record and its start claim. Replacement signals no
+// process and grants no permission to reuse a native conversation.
+func (s *ThreadStore) ReplaceThreadExpected(old ThreadAddress, expectedRevision uint64, next ThreadRecord, authority RetireAuthority) error {
 	if s.layout.Local {
 		return errors.New("a slot store replaces its current record through replaceSlotCurrent")
 	}
@@ -65,7 +68,7 @@ func (s *ThreadStore) ReplaceThreadExpected(old ThreadAddress, expectedRevision 
 			return &ThreadRevisionError{Address: old, Want: expectedRevision, Got: record.Revision}
 		}
 		if record.RecoveryIntent != nil && record.RecoveryIntent.Kind() == threadrecord.RecoveryFresh {
-			if record.RecoveryIntent == nil || next.RecoveryIntent == nil || record.RecoveryIntent.Kind() != threadrecord.RecoveryFresh {
+			if next.RecoveryIntent == nil {
 				return errors.New("fresh replacement lacks retained source selection")
 			}
 			expected := threadrecord.CloneRecoveryIntent(record.RecoveryIntent)
@@ -73,7 +76,13 @@ func (s *ThreadStore) ReplaceThreadExpected(old ThreadAddress, expectedRevision 
 			if !reflect.DeepEqual(expected, next.RecoveryIntent) || len(next.Incarnations) != 1 || next.Incarnations[0].Start == nil || !reflect.DeepEqual(expected, next.Incarnations[0].Start.RecoveryIntent) {
 				return errors.New("fresh replacement selection changed")
 			}
-		} else if err := archivableRecord(record); err != nil {
+		}
+		if _, remnants := authority.(FreshLeavesRemnants); !remnants {
+			if err := archivableRecord(record); err != nil {
+				return err
+			}
+		}
+		if err := authorizeRetire(authority, old, &record, raw, &next); err != nil {
 			return err
 		}
 		if _, exists, err := s.readOptionalPayload(s.recordPath(next.Address)); err != nil {
@@ -81,7 +90,11 @@ func (s *ThreadStore) ReplaceThreadExpected(old ThreadAddress, expectedRevision 
 		} else if exists || manifestContains(manifest, next.Address) {
 			return &ThreadExistsError{Address: next.Address}
 		}
-		entries, err := s.archiveJournalEntries(old, raw)
+		kept, err := retiredBytes(authority, &record, raw)
+		if err != nil {
+			return err
+		}
+		entries, err := s.archiveJournalEntries(old, raw, kept)
 		if err != nil {
 			return err
 		}

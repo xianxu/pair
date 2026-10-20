@@ -2,9 +2,10 @@ package couchcore
 
 import (
 	"encoding/json"
-	"github.com/xianxu/pair/cmd/internal/launcher"
-	"path/filepath"
 	"strings"
+
+	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
 
 type ProcessIdentityLine struct {
@@ -29,10 +30,11 @@ type LifecycleFailureTarget struct {
 
 // LifecycleFailureSlotKey derives identity from a previously verified physical path.
 func LifecycleFailureSlotKey(t LifecycleFailureTarget) string {
-	if filepath.IsAbs(t.StartingPath) {
-		return "slot:" + t.StartingPath
+	address, err := NewSlotAddress(SlotIdentity{}, t.StartingPath)
+	if err != nil {
+		return ""
 	}
-	return ""
+	return address.Key()
 }
 
 func lifecycleFailureTargetKey(t LifecycleFailureTarget) string {
@@ -77,34 +79,14 @@ func safeFailureProcessKind(v string) string {
 	}
 	return "process"
 }
-func cloneFailureUnknown(m map[string]json.RawMessage) map[string]json.RawMessage {
-	if m == nil {
-		return nil
-	}
-	n := make(map[string]json.RawMessage, len(m))
-	for k, v := range m {
-		n[k] = append(json.RawMessage(nil), v...)
-	}
-	return n
-}
-func mergeFailureUnknown(a, b map[string]json.RawMessage) map[string]json.RawMessage {
-	n := cloneFailureUnknown(a)
-	if n == nil && b != nil {
-		n = map[string]json.RawMessage{}
-	}
-	for k, v := range b {
-		n[k] = append(json.RawMessage(nil), v...)
-	}
-	return n
-}
 func cloneFailureHolders(h []ProcessIdentityLine) []ProcessIdentityLine {
 	if h == nil {
 		return nil
 	}
 	out := append([]ProcessIdentityLine(nil), h...)
 	for i := range out {
-		out[i].Unknown = cloneFailureUnknown(out[i].Unknown)
-		out[i].processUnknown = cloneFailureUnknown(out[i].processUnknown)
+		out[i].Unknown = strictjson.CloneRaw(out[i].Unknown)
+		out[i].processUnknown = strictjson.CloneRaw(out[i].processUnknown)
 	}
 	return out
 }
@@ -113,8 +95,8 @@ func mergeFailureHolders(old, next []ProcessIdentityLine) []ProcessIdentityLine 
 	for i := range out {
 		for _, o := range old {
 			if o.Process == out[i].Process {
-				out[i].Unknown = mergeFailureUnknown(o.Unknown, out[i].Unknown)
-				out[i].processUnknown = mergeFailureUnknown(o.processUnknown, out[i].processUnknown)
+				out[i].Unknown = strictjson.MergeRaw(o.Unknown, out[i].Unknown)
+				out[i].processUnknown = strictjson.MergeRaw(o.processUnknown, out[i].processUnknown)
 			}
 		}
 	}

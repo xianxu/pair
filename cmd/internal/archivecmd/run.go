@@ -13,10 +13,11 @@ import (
 	"syscall"
 
 	"github.com/xianxu/pair/cmd/internal/historyarchive"
+	"github.com/xianxu/pair/cmd/internal/rowtext"
 	"golang.org/x/sys/unix"
 )
 
-const usage = "Usage: pair archive inventory\n       pair archive create --request FILE\n       pair archive continuous [--kind KIND] [--json]\n\nCreate a verified encrypted backup from an explicit JSON request, or run one continuous pass over the agent transcripts, Codex databases, ops documents and sdlc data (configured in $PAIR_DATA_DIR/archive/continuous.json). Sources are preserved.\n"
+const usage = "Usage: pair archive inventory\n       pair archive create --request FILE\n       pair archive continuous [--kind KIND] [--json]\n       pair archive find [--kind KIND] [--since UTC] [--until UTC]\n       pair archive sync-index [--from drive|local]\n       pair archive restore --id ID [--id ID ...] --to DIR [--from auto|local|drive] [--path REL ...]\n\nCreate verified encrypted backups, find local labels, synchronize the label/location index, or restore into a fresh scratch directory (configured in $PAIR_DATA_DIR/archive/continuous.json). Sources are preserved. Drive index synchronization downloads labels only.\n"
 
 type CreateFunc func(context.Context, historyarchive.ArchiveRequest) ([]historyarchive.CatalogRecord, error)
 
@@ -31,7 +32,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer, create CreateFunc) int {
 	fail := func(phase string, err error) int {
 		// One diagnostic line, even when a child reports several diagnostic lines.
-		message := strings.Join(strings.Fields(err.Error()), " ")
+		message := rowtext.Sanitize(strings.Join(strings.Fields(err.Error()), " "))
 		fmt.Fprintf(stderr, "pair archive: %s: %s\n", phase, message)
 		return 1
 	}
@@ -56,6 +57,15 @@ func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer, cr
 	if len(args) >= 1 && args[0] == "continuous" {
 		return runContinuous(ctx, args[1:], stdout, fail)
 	}
+	if len(args) >= 1 && args[0] == "find" {
+		return runFind(ctx, args[1:], stdout, fail)
+	}
+	if len(args) >= 1 && args[0] == "restore" {
+		return runRestore(ctx, args[1:], stdout, fail)
+	}
+	if len(args) >= 1 && args[0] == "sync-index" {
+		return runSyncIndex(ctx, args[1:], stdout, fail)
+	}
 	if len(args) != 3 || args[0] != "create" || args[1] != "--request" || args[2] == "" {
 		return fail("arguments", errors.New("use pair archive inventory or pair archive create --request FILE"))
 	}
@@ -66,11 +76,7 @@ func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer, cr
 	if err != nil {
 		return fail("read request; provide a regular JSON file up to 4 MiB", err)
 	}
-	home, _ := os.UserHomeDir()
-	env := map[string]string{}
-	for _, key := range []string{"PAIR_DATA_DIR", "XDG_DATA_HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "QODER_HOME", "COUCH_STORE_DIR"} {
-		env[key] = os.Getenv(key)
-	}
+	home, env := archiveEnvironment()
 	request, err := historyarchive.DecodeRequestWithRoots(raw, home, env)
 	if err != nil {
 		return fail("validate request; correct JSON fields and explicit destinations", err)

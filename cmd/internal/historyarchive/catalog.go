@@ -19,43 +19,71 @@ import (
 
 const catalogShardBytes int64 = 64 << 20
 
+// catalogScanReport counts actual traversal work for bounded inventory diagnostics.
+type catalogScanReport struct {
+	ShardScans     int
+	RecordVisits   int
+	DirectoryScans int
+}
+
 // Catalog holds the one cross-process lock for all numbered shards. Records
 // are streamed, not retained as a growing in-memory index.
 type Catalog struct {
-	dir    *os.File
-	lock   *os.File
-	base   string
-	limit  int64
-	shards []string
-	fault  func(string) error
+	dir        *os.File
+	lock       *os.File
+	base       string
+	limit      int64
+	shards     []string
+	fault      func(string) error
+	readOnly   bool
+	scanReport *catalogScanReport
 }
 
 func OpenCatalog(ctx context.Context, path string) (*Catalog, error) {
 	return openCatalog(ctx, path, catalogShardBytes)
 }
-func openCatalog(ctx context.Context, path string, limit int64) (c *Catalog, err error) {
+
+// OpenExistingCatalog opens a catalog for non-mutating reads under its existing
+// shared lock. Missing directories, lock files or shards are never created.
+// Incomplete tails are refused; only a writer may recover them.
+func OpenExistingCatalog(ctx context.Context, path string) (*Catalog, error) {
+	return openCatalogMode(ctx, path, catalogShardBytes, true, nil)
+}
+
+func openCatalog(ctx context.Context, path string, limit int64) (*Catalog, error) {
+	return openCatalogMode(ctx, path, limit, false, nil)
+}
+
+func openCatalogMode(ctx context.Context, path string, limit int64, readOnly bool, report *catalogScanReport) (c *Catalog, err error) {
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
 	if !filepath.IsAbs(path) || filepath.Base(path) == "." || limit <= 0 || limit > catalogShardBytes {
 		return nil, errors.New("invalid catalog path or shard limit")
 	}
-	dir, err := openSafeDir(filepath.Dir(path), true)
+	dir, err := openSafeDir(filepath.Dir(path), !readOnly)
 	if err != nil {
 		return nil, err
 	}
-	c = &Catalog{dir: dir, base: filepath.Base(path), limit: limit}
+	c = &Catalog{dir: dir, base: filepath.Base(path), limit: limit, readOnly: readOnly, scanReport: report}
 	defer func(owned *Catalog) {
 		if err != nil {
 			owned.Close()
 		}
 	}(c)
-	c.lock, err = openRegularAt(dir, c.base+".lock", unix.O_RDWR|unix.O_CREAT)
+	lockFlags, lockMode := unix.O_RDWR|unix.O_CREAT, unix.LOCK_EX
+	if readOnly {
+		lockFlags, lockMode = unix.O_RDONLY, unix.LOCK_SH
+	}
+	c.lock, err = openRegularAt(dir, c.base+".lock", lockFlags)
 	if err != nil {
 		return nil, err
 	}
-	if err = unix.Flock(int(c.lock.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
+	if err = unix.Flock(int(c.lock.Fd()), lockMode|unix.LOCK_NB); err != nil {
 		return nil, fmt.Errorf("catalog busy; retry: %w", err)
+	}
+	if report != nil {
+		report.DirectoryScans++
 	}
 	names, err := dir.Readdirnames(-1)
 	if err != nil {
@@ -81,6 +109,9 @@ func openCatalog(ctx context.Context, path string, limit int64) (c *Catalog, err
 		numbers[n] = name
 	}
 	if len(numbers) == 0 {
+		if readOnly {
+			return nil, os.ErrNotExist
+		}
 		f, e := openRegularAt(dir, c.base, unix.O_RDWR|unix.O_CREAT|unix.O_EXCL)
 		if e != nil {
 			return nil, e
@@ -100,7 +131,7 @@ func openCatalog(ctx context.Context, path string, limit int64) (c *Catalog, err
 		c.shards = append(c.shards, name)
 	}
 	for _, name := range c.shards {
-		if err = c.scan(ctx, name, true, nil); err != nil {
+		if err = c.scan(ctx, name, !readOnly, nil); err != nil {
 			return nil, err
 		}
 	}
@@ -136,9 +167,17 @@ func (c *Catalog) sync(f *os.File) error {
 	return nil
 }
 
-// scan repairs only a missing newline tail, never a complete malformed record.
+// scan repairs only a missing newline tail when explicitly requested by a
+// writer, never a complete malformed record. Read-only scans never sync files.
 func (c *Catalog) scan(ctx context.Context, name string, repair bool, visit func(CatalogRecord) error) error {
-	f, err := openRegularAt(c.dir, name, unix.O_RDWR)
+	if c.scanReport != nil {
+		c.scanReport.ShardScans++
+	}
+	flags := unix.O_RDWR
+	if c.readOnly {
+		flags = unix.O_RDONLY
+	}
+	f, err := openRegularAt(c.dir, name, flags)
 	if err != nil {
 		return err
 	}
@@ -159,6 +198,9 @@ func (c *Catalog) scan(ctx context.Context, name string, repair bool, visit func
 		line, e := readCatalogLine(reader)
 		if e == io.EOF {
 			if len(line) > 0 {
+				if c.readOnly {
+					return errors.New("incomplete catalog tail; writer recovery required")
+				}
 				if !repair {
 					return errors.New("catalog changed while locked")
 				}
@@ -184,12 +226,18 @@ func (c *Catalog) scan(ctx context.Context, name string, repair bool, visit func
 		if err = ValidateRecord(record); err != nil {
 			return fmt.Errorf("complete catalog record invalid; inspect catalog: %w", err)
 		}
+		if c.scanReport != nil {
+			c.scanReport.RecordVisits++
+		}
 		if visit != nil {
 			if err = visit(record); err != nil {
 				return err
 			}
 		}
 		complete += int64(len(line))
+	}
+	if c.readOnly {
+		return nil
 	}
 	return c.sync(f)
 }
@@ -246,6 +294,9 @@ func sameCatalogRecord(a, b CatalogRecord) bool {
 	return bytes.Equal(ar, br)
 }
 func (c *Catalog) Append(ctx context.Context, record CatalogRecord) error {
+	if c.readOnly {
+		return errors.New("cannot append to read-only catalog")
+	}
 	if err := ValidateRecord(record); err != nil {
 		return err
 	}

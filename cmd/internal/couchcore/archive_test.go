@@ -34,7 +34,7 @@ func TestArchiveThreadRemovesItFromTheWorkingSetAndKeepsTheRecord(t *testing.T) 
 	kept := archivableThread(t, store, "couch-0000000000000001")
 	retired := archivableThread(t, store, "couch-0000000000000002")
 
-	if err := store.ArchiveThread(retired.Address); err != nil {
+	if err := store.ArchiveThread(retired.Address, retireAuthorityForTest(t, store, retired.Address)); err != nil {
 		t.Fatalf("ArchiveThread: %v", err)
 	}
 
@@ -95,7 +95,7 @@ func TestStoreArchiveRefusesAnUnfinishedTransaction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.ArchiveThread(begun.Address); err == nil {
+	if err := store.ArchiveThread(begun.Address, retireAuthorityForTest(t, store, begun.Address)); err == nil {
 		t.Fatal("archived a thread with a park in flight")
 	}
 	if _, err := store.GetThread(begun.Address); err != nil {
@@ -121,7 +121,7 @@ func TestStoreArchiveRefusesAnUnfinishedTransaction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.ArchiveThread(claimed.Address); err == nil {
+	if err := store.ArchiveThread(claimed.Address, retireAuthorityForTest(t, store, claimed.Address)); err == nil {
 		t.Fatal("archived a thread with a start claim outstanding")
 	}
 	if _, err := store.GetThread(claimed.Address); err != nil {
@@ -137,7 +137,7 @@ func TestStoreArchiveRefusesAnUnfinishedTransaction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.ArchiveThread(occupied.Address); err != nil {
+	if err := store.ArchiveThread(occupied.Address, retireAuthorityForTest(t, store, occupied.Address)); err != nil {
 		t.Fatalf("the store refused on a process it cannot probe: %v", err)
 	}
 }
@@ -149,7 +149,7 @@ func TestArchiveThreadAcceptsAnUnusableThread(t *testing.T) {
 
 	store, _ := newTestThreadStore(t)
 	broken := archivableThread(t, store, "couch-0000000000000001")
-	if err := store.ArchiveThread(broken.Address); err != nil {
+	if err := store.ArchiveThread(broken.Address, retireAuthorityForTest(t, store, broken.Address)); err != nil {
 		t.Fatalf("ArchiveThread on debris: %v", err)
 	}
 }
@@ -158,7 +158,7 @@ func TestArchiveThreadRefusesAnUnknownAddress(t *testing.T) {
 	t.Parallel()
 
 	store, _ := newTestThreadStore(t)
-	err := store.ArchiveThread(ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0000000000000009"})
+	err := store.ArchiveThread(ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0000000000000009"}, retireAuthorityForTest(t, store, ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0000000000000009"}))
 	if err == nil {
 		t.Fatal("archived a thread that does not exist")
 	}
@@ -175,7 +175,7 @@ func TestCouchArchiveStopsTheSessionBeforeMovingTheRecord(t *testing.T) {
 	artifacts := NewFakeThreadArtifactCollisionChecker()
 	artifacts.SetPairSession(thread.Address, "pair-"+string(thread.Address.Tag), true)
 	artifacts.SetDetachedSession(thread.Address, "pair-"+string(thread.Address.Tag))
-	couch := &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)}
+	couch := teardownReady(t, &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)})
 
 	if _, err := couch.ArchiveThread(context.Background(), thread.Address); err != nil {
 		t.Fatalf("ArchiveThread: %v", err)
@@ -200,7 +200,7 @@ func TestCouchArchiveRefusesWhenTheSessionCannotBeStopped(t *testing.T) {
 	artifacts := NewFakeThreadArtifactCollisionChecker()
 	artifacts.SetPairSession(thread.Address, "pair-"+string(thread.Address.Tag), false)
 	artifacts.QuiesceHook = func(ThreadAddress) error { return errors.New("zellij is not answering") }
-	couch := &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)}
+	couch := teardownReady(t, &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)})
 
 	if _, err := couch.ArchiveThread(context.Background(), thread.Address); err == nil {
 		t.Fatal("archived a thread whose session could not be stopped")
@@ -305,7 +305,7 @@ func TestArchivingAnUnreadableRecordNeverStopsItsSession(t *testing.T) {
 	corrupt := writeCorruptRecord(t, store, healthy, "couch-0000000000000002")
 	artifacts := NewFakeThreadArtifactCollisionChecker()
 	artifacts.SetPairSession(corrupt, "pair-"+string(corrupt.Tag), true)
-	couch := &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)}
+	couch := teardownReady(t, &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)})
 
 	result, err := couch.ArchiveThread(context.Background(), corrupt)
 	if err != nil {
@@ -340,7 +340,7 @@ func TestARefusedArchiveStopsNothing(t *testing.T) {
 	}
 	artifacts := NewFakeThreadArtifactCollisionChecker()
 	artifacts.SetPairSession(live.Address, "pair-live-session", true)
-	couch := &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)}
+	couch := teardownReady(t, &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)})
 
 	if _, err := couch.ArchiveThread(context.Background(), live.Address); err == nil {
 		t.Fatal("archived a live thread")
@@ -377,7 +377,7 @@ func TestArchiveRefusesEveryOccupiedIncarnationNotJustLive(t *testing.T) {
 			artifacts := NewFakeThreadArtifactCollisionChecker()
 			artifacts.SetPairSession(updated.Address, "pair-x-session", true)
 			artifacts.SetSessionPresence(updated.Address, SessionObservation{State: SessionPresent})
-			couch := &Couch{Threads: store, Artifacts: artifacts, Proc: proc, Path: NewFakePathOps(nil)}
+			couch := teardownReady(t, &Couch{Threads: store, Artifacts: artifacts, Proc: proc, Path: NewFakePathOps(nil)})
 
 			_, err = couch.ArchiveThread(context.Background(), updated.Address)
 			if err == nil {
@@ -467,7 +467,7 @@ func TestRecoveryArchivePreservesPendingCheckpointAndHistory(t *testing.T) {
 	}
 	artifacts := NewFakeThreadArtifactCollisionChecker()
 	artifacts.SetPairSession(record.Address, "pair-source", false)
-	c := &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)}
+	c := teardownReady(t, &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)})
 	materialized, err := c.materializeContinuation(record)
 	if err != nil {
 		t.Fatal(err)
@@ -516,7 +516,7 @@ func TestRecoveryArchiveRetiresOnlyExactDeadSettledHelper(t *testing.T) {
 			if mode == "session-unknown" {
 				artifacts.BeforePairSession = func(ThreadAddress) error { return errors.New("query failed") }
 			}
-			c := &Couch{Threads: store, Artifacts: artifacts, Proc: proc, Path: NewFakePathOps(nil)}
+			c := teardownReady(t, &Couch{Threads: store, Artifacts: artifacts, Proc: proc, Path: NewFakePathOps(nil)})
 			_, err = c.ArchiveThread(context.Background(), record.Address)
 			want := mode == "dead" || mode == "pid-reused"
 			if (err == nil) != want {
@@ -546,7 +546,7 @@ func TestRecoveryArchiveRejectsRecordChangedDuringQuiesce(t *testing.T) {
 		_, err := store.updateExistingThread(record.Address, record.Revision, func(r *ThreadRecord) error { r.Name = "concurrent update"; return nil })
 		return err
 	}
-	c := &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)}
+	c := teardownReady(t, &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)})
 	_, err := c.ArchiveThread(context.Background(), record.Address)
 	var conflict *ThreadRevisionError
 	if !errors.As(err, &conflict) {
@@ -578,7 +578,7 @@ func TestRecoveryArchiveRefusesSessionAppearingBeforeStop(t *testing.T) {
 				}
 				return nil
 			}
-			c := &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)}
+			c := teardownReady(t, &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)})
 			_, err := c.ArchiveThread(context.Background(), record.Address)
 			if err == nil || len(artifacts.Quiesces()) != 0 {
 				t.Fatalf("archive touched newly appearing session: err=%v stops=%v", err, artifacts.Quiesces())
@@ -620,7 +620,7 @@ func TestRecoveryArchiveRefusesLiveContinuationReferences(t *testing.T) {
 			if actor == "session" {
 				artifacts.SetDetachedSession(record.Address, "pair-source")
 			}
-			c := &Couch{Threads: store, Artifacts: artifacts, Proc: proc, Path: NewFakePathOps(nil)}
+			c := teardownReady(t, &Couch{Threads: store, Artifacts: artifacts, Proc: proc, Path: NewFakePathOps(nil)})
 			if _, err := c.ArchiveThread(context.Background(), record.Address); err == nil {
 				t.Fatal("archive accepted occupied continuation")
 			}
@@ -642,11 +642,11 @@ func TestArchiveExpectedUnreadableObservationDoesNotArchiveRepairedRecord(t *tes
 	record := archivableThread(t, store, "couch-0000000000000250")
 	// Revision zero represents an unreadable observation. A repaired record must
 	// be inspected afresh, even if its new state happens to be unoccupied.
-	if err := store.ArchiveThreadExpected(record.Address, 0); err == nil {
+	if err := store.ArchiveThreadExpected(record.Address, 0, retireAuthorityForTest(t, store, record.Address)); err == nil {
 		t.Fatal("unreadable observation archived a repaired record")
 	}
 	corrupt := writeCorruptRecord(t, store, record, "couch-0000000000000251")
-	if err := store.ArchiveThreadExpected(corrupt, 0); err != nil {
+	if err := store.ArchiveThreadExpected(corrupt, 0, retireAuthorityForTest(t, store, corrupt)); err != nil {
 		t.Fatalf("unchanged unreadable record lost archive escape: %v", err)
 	}
 }
@@ -675,7 +675,7 @@ func TestCouchArchiveNeverBoundThreadDoesNotSignal(t *testing.T) {
 			checker := &archiveScopedChecker{ScopedThreadArtifactCollisionChecker: NewScopedThreadArtifactCollisionChecker(global)}
 			deleter := &fakeSessionDeleter{}
 			checker.Sessions = deleter
-			c := &Couch{Threads: store, Artifacts: checker, Proc: NewFakeProcOps()}
+			c := teardownReady(t, &Couch{Threads: store, Artifacts: checker, Proc: NewFakeProcOps()})
 			_, err := c.ArchiveThread(context.Background(), record.Address)
 			if corrupt {
 				if err == nil {
@@ -689,6 +689,9 @@ func TestCouchArchiveNeverBoundThreadDoesNotSignal(t *testing.T) {
 					t.Fatal(err)
 				}
 				archived, err := store.ArchivedThreads()
+				if err == nil && len(archived) == 1 && archived[0].ProvenDownAt != nil {
+					archived[0].ProvenDownAt = nil // the proof's stamp (pair#695)
+				}
 				if err != nil || len(archived) != 1 || !reflect.DeepEqual(archived[0], record) {
 					t.Fatalf("archive=%+v err=%v", archived, err)
 				}
@@ -757,7 +760,7 @@ func TestCouchArchiveMissingBindingDoesNotBypassRequestOrRevision(t *testing.T) 
 					}
 				}
 			}
-			c := &Couch{Threads: store, Artifacts: checker, Proc: NewFakeProcOps()}
+			c := teardownReady(t, &Couch{Threads: store, Artifacts: checker, Proc: NewFakeProcOps()})
 			if _, err := c.ArchiveThread(context.Background(), record.Address); err == nil {
 				t.Fatal("archived despite retained request or changed evidence")
 			}

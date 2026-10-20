@@ -39,6 +39,7 @@ func projectResourceView(v couchcore.ResourceView) couchcore.ResourceView {
 	out.Orphans = nil
 	out.Unattributed = nil
 	out.OrphanNvim = nil
+	out.LeftRunning = nil
 	out.Episodes = nil
 	out.Errors = nil
 	if v.HostedIngest != nil {
@@ -48,7 +49,7 @@ func projectResourceView(v couchcore.ResourceView) couchcore.ResourceView {
 	}
 	base, _ := json.Marshal(couchmessage.Response{Code: "ok", Resources: &out})
 	// Reserve space for omission notices and the final measured cost counters.
-	budget := (couchmessage.MaxFrameBytes - len(base) - 4096) / 6
+	budget := (couchmessage.MaxFrameBytes - len(base) - 4096) / 7
 	var omitted int
 	out.Processes, omitted = resourceDetailPrefix(v.Processes, budget)
 	notices := []string{}
@@ -64,6 +65,8 @@ func projectResourceView(v couchcore.ResourceView) couchcore.ResourceView {
 	note("unattributed processes", omitted)
 	out.OrphanNvim, omitted = resourceDetailPrefix(v.OrphanNvim, budget)
 	note("orphan nvim", omitted)
+	out.LeftRunning, omitted = resourceDetailPrefix(v.LeftRunning, budget)
+	note("left-running processes", omitted)
 	out.Episodes, omitted = resourceDetailPrefix(v.Episodes, budget)
 	note("episodes", omitted)
 	out.Errors, omitted = resourceDetailPrefix(v.Errors, budget)

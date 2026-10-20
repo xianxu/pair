@@ -1,6 +1,7 @@
 package archivetest
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -8,9 +9,11 @@ import (
 	"errors"
 	"fmt"
 	archive "github.com/xianxu/pair/cmd/internal/historyarchive"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -25,16 +28,18 @@ type FakeRemoteObject struct {
 // between sequential calls; Before may mutate state synchronously.
 // pair:m5-concept integration
 type FakeRclone struct {
-	Objects                                   map[string][]FakeRemoteObject
-	FolderID                                  string
-	MissingHashes, MissingTool, MissingRemote bool
-	Before                                    func(context.Context, string, string) error
-	AfterCopyError                            error
-	PartialCopyBytes                          int
-	FailAfterObjects                          int
-	Invocations, CopyBatches, HashBatches     int
-	Lists, Copies, Downloads                  int
-	nextID                                    int
+	Objects                                     map[string][]FakeRemoteObject
+	FolderID                                    string
+	MissingHashes, MissingTool, MissingRemote   bool
+	Before                                      func(context.Context, string, string) error
+	AfterCopyError                              error
+	PartialCopyBytes                            int
+	FailAfterObjects                            int
+	Invocations, CopyBatches, HashBatches       int
+	Lists, Copies, Downloads                    int
+	DownloadBatches                             int
+	DownloadedLabelBytes, DownloadedCipherBytes int64
+	nextID                                      int
 }
 
 func (f *FakeRclone) Run(ctx context.Context, args []string, limit int) ([]byte, error) {
@@ -101,6 +106,12 @@ func (f *FakeRclone) Run(ctx context.Context, args []string, limit int) ([]byte,
 		}
 		output, _ = json.Marshal(entries)
 	case "copy":
+		if len(args) >= 3 && !filepath.IsAbs(args[1]) && filepath.IsAbs(args[2]) {
+			return nil, f.downloadBatch(ctx, args)
+		}
+		if len(args) < 3 || !filepath.IsAbs(args[1]) || filepath.IsAbs(args[2]) {
+			return nil, errors.New("unsupported fake copy direction")
+		}
 		f.CopyBatches++
 		if len(args) < 3 {
 			return nil, errors.New("copy missing destination")
@@ -181,4 +192,122 @@ func (f *FakeRclone) Run(ctx context.Context, args []string, limit int) ([]byte,
 		return nil, errors.New("rclone output exceeds bound")
 	}
 	return output, ctx.Err()
+}
+
+// downloadBatch models the flags the production selected-object download uses.
+// Transfer budgets count actual bytes written, including retained partial data.
+func (f *FakeRclone) downloadBatch(ctx context.Context, args []string) error {
+	f.DownloadBatches++
+	flags := map[string]string{}
+	for i := 3; i < len(args); i += 2 {
+		if i+1 >= len(args) {
+			return errors.New("missing fake download flag value")
+		}
+		key := args[i]
+		if _, ok := flags[key]; ok {
+			return errors.New("duplicate fake download flag")
+		}
+		switch key {
+		case "--filter-from", "--transfers", "--max-transfer", "--cutoff-mode", "--max-size", "--drive-root-folder-id", "--retries", "--low-level-retries":
+		default:
+			return errors.New("unsupported fake download flag")
+		}
+		flags[key] = args[i+1]
+	}
+	if flags["--filter-from"] == "" || flags["--transfers"] != "8" || flags["--cutoff-mode"] != "hard" {
+		return errors.New("missing bounded fake download flags")
+	}
+	parseBytes := func(key string) (int64, error) {
+		value := flags[key]
+		if !strings.HasSuffix(value, "B") {
+			return 0, errors.New("fake download limit requires bytes")
+		}
+		n, err := strconv.ParseInt(strings.TrimSuffix(value, "B"), 10, 64)
+		if err != nil || n <= 0 {
+			return 0, errors.New("invalid fake download byte limit")
+		}
+		return n, nil
+	}
+	budget, err := parseBytes("--max-transfer")
+	if err != nil {
+		return err
+	}
+	maxSize, err := parseBytes("--max-size")
+	if err != nil {
+		return err
+	}
+	raw, err := os.ReadFile(flags["--filter-from"])
+	if err != nil {
+		return err
+	}
+	lines := strings.Split(strings.TrimSuffix(string(raw), "\n"), "\n")
+	if len(lines) < 2 || len(lines) > 100001 || lines[len(lines)-1] != "- **" {
+		return errors.New("fake download filter must exclude unselected objects")
+	}
+	copied := 0
+	seen := map[string]bool{}
+	for _, rule := range lines[:len(lines)-1] {
+		if !strings.HasPrefix(rule, "+ /") {
+			return errors.New("unsupported fake download filter")
+		}
+		name := strings.TrimPrefix(rule, "+ /")
+		id := strings.TrimSuffix(name, ".tar.zst.gpg")
+		if id == name {
+			id = strings.TrimSuffix(name, ".json")
+		}
+		if decoded, err := hex.DecodeString(id); err != nil || len(decoded) != 32 || id == name || id != strings.ToLower(id) || seen[name] {
+			return errors.New("invalid fake download object name")
+		}
+		seen[name] = true
+		if err = ctx.Err(); err != nil {
+			return err
+		}
+		if name == "" || filepath.Base(name) != name || strings.ContainsAny(name, "/\\\r\n\x00") {
+			return errors.New("invalid fake download name")
+		}
+		objects := f.Objects[name]
+		if len(objects) != 1 {
+			return errors.New("missing or ambiguous download object")
+		}
+		data := objects[0].Data
+		if int64(len(data)) > maxSize {
+			continue
+		}
+		clipped := false
+		if int64(len(data)) > budget {
+			data = data[:budget]
+			clipped = true
+		}
+		if f.PartialCopyBytes > 0 && f.PartialCopyBytes < len(data) {
+			data = data[:f.PartialCopyBytes]
+		}
+		path := filepath.Join(args[2], name)
+		file, openErr := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+		if openErr != nil {
+			return openErr
+		}
+		n, writeErr := io.Copy(file, bytes.NewReader(data))
+		closeErr := file.Close()
+		budget -= n
+		if strings.HasSuffix(name, ".json") {
+			f.DownloadedLabelBytes += n
+		} else {
+			f.DownloadedCipherBytes += n
+		}
+		f.Downloads++
+		copied++
+		if err = errors.Join(writeErr, closeErr); err != nil {
+			return err
+		}
+		if clipped {
+			return errors.New("max transfer limit reached")
+		}
+		if f.FailAfterObjects > 0 && copied >= f.FailAfterObjects {
+			return errors.New("partial batch download failed")
+		}
+	}
+	if err = ctx.Err(); err != nil {
+		return err
+	}
+	return f.AfterCopyError
 }
