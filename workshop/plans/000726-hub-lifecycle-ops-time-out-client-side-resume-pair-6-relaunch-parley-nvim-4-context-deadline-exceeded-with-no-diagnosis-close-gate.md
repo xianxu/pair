@@ -756,6 +756,147 @@ rounds:
       isolation: fenced
       reviewed: b5995e632b94b90d31ac92b9be709134a17d63aa
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 357bd11f-8d43-4d2f-b999-75401f4c938e
+            repository: github.com/xianxu/pair
+            issue_id: "000726"
+            recipe: milestone-review
+            round: 6
+            attempt: 1
+            agent: claude
+            root: /Volumes/TestScratch/review-checkouts/029b9f6d5e0fd8a1
+            reviewed_head: dd8a86665c176e52ab7195a431622aada3b1ef06
+            slot: pair:2
+            requested_at: "2026-10-20T16:50:23.206698Z"
+          phase: finished
+          pid: 50256
+          started_at: "2026-10-20T16:50:23.41367Z"
+          finished_at: "2026-10-20T16:52:58.921833Z"
+          session_id: aac39a45-9f3f-4335-8d47-bd8400a32dc7
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: dd8a86665c176e52ab7195a431622aada3b1ef06
+        tracker_head: 1dec9fc5a441562b94a6c70120460d8af53f735a
+        branch_point: e2ac2a19f253961b715b6edf104ca82d72b5c40a
+        since: "2026-10-20T07:54:36-07:00"
+        until: "2026-10-20T09:30:56-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-20T07:54:36-07:00"
+              end: "2026-10-20T09:30:56-07:00"
+              began: "2026-10-20T07:54:36-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+        sources:
+            - harness: claude
+              id: 4221e67d-3549-4c0f-bf5c-bf5d3cf13458
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 77c11275a0674c1f1ae23c7ca50df7c1e8883f40a25b65facbb7f39748efafb9
+              started: "2026-10-20T15:10:15.104Z"
+              spawned: false
+              bytes: 401871
+              windows:
+                - start: "2026-10-20T15:10:15.104Z"
+                  end: "2026-10-20T09:30:56-07:00"
+            - harness: claude
+              id: 6925e360-3a18-45ee-b050-adbde3ed67ca
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: cf80fecf6c2d10f1483be7a4fae3b7a2dfb225e693b6ed7e3ad997fd6ef3668c
+              started: "2026-10-20T15:09:56.095Z"
+              spawned: false
+              bytes: 486488
+              windows:
+                - start: "2026-10-20T15:09:56.095Z"
+                  end: "2026-10-20T09:30:56-07:00"
+            - harness: claude
+              id: 9073df29-d226-4140-b23c-4f03f2b4c472
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 77ce229ca85fb8da8e5c85cea59b7c229422a501badcdf99a6e4f7d77dcd545a
+              started: "2026-10-16T03:47:36.231Z"
+              spawned: false
+              bytes: 57059945
+              windows:
+                - start: "2026-10-20T07:54:36-07:00"
+                  end: "2026-10-20T09:30:56-07:00"
+            - harness: claude
+              id: a8921d8e-ff5d-448d-bbbe-7c4096d6664b
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 6fb5337ed3171a0a204a700171391668aa62f2d24fccd650aa0c8a0867b8ea60
+              started: "2026-10-20T15:06:32.044Z"
+              spawned: false
+              bytes: 622144
+              windows:
+                - start: "2026-10-20T15:06:32.044Z"
+                  end: "2026-10-20T09:30:56-07:00"
+            - harness: claude
+              id: dd2ee03c-3bb0-40c3-8aec-7153c858d9f0
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 7004d633528a081b3018685616f0dbb291cfa1fc1f6fe3791036196047975501
+              started: "2026-10-20T15:08:59.765Z"
+              spawned: false
+              bytes: 564150
+              windows:
+                - start: "2026-10-20T15:08:59.765Z"
+                  end: "2026-10-20T09:30:56-07:00"
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 1.3874166666666667
+        cuts:
+            - boundary: M1
+              dispatched: "2026-10-20T08:25:12-07:00"
+              finalized: "2026-10-20T08:33:44-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-20T08:42:07-07:00"
+              finalized: "2026-10-20T08:54:17-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-20T09:00:29-07:00"
+              finalized: "2026-10-20T09:04:14-07:00"
+              finalizing: true
+            - boundary: M2
+              dispatched: "2026-10-20T09:14:52-07:00"
+              finalized: "2026-10-20T09:19:42-07:00"
+              finalizing: false
+            - boundary: M2
+              dispatched: "2026-10-20T09:24:08-07:00"
+              finalized: "2026-10-20T09:26:13-07:00"
+              finalizing: true
+      "n": 6
+      timestamp: "2026-10-20T09:53:00-07:00"
+      dispatched: "2026-10-20T09:50:20-07:00"
+      agent: claude
+      reviewer: claude (anthropic; author anthropic)
+      dispose:
+        - id: BR-8
+          disposition: addressed
+          note: Warm caps its own wait at slotAdmissionBudget (hub_target_memo.go:104-107); without it TestHubTargetMemoWarmCapsItsOwnWait fails after 30 s.
+          round: 6
+        - id: BR-12
+          disposition: addressed
+          note: Entries now carry started (ordering) and finished (expiry), and live() ages failures from finished; reverting to started turns TestHubTargetMemoAgesFailuresFromTheirEnd red.
+          round: 6
+        - id: BR-16
+          disposition: not-addressed
+          note: atlas/couch.md:83-85 and the issue M2 bullet (line 78) are fixed, but grepping the old phrase still finds the resume_candidates_test.go:194 doc comment ("affects only the inferred choices"); reword it.
+          round: 6
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: dd8a86665c176e52ab7195a431622aada3b1ef06
+      blocked: false
 ---
 
 # Gate ledger — pair#726 (boundary-review)
@@ -844,8 +985,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-16** [Minor] `plan-code-drift` (kind: defect) Atlas and the plan M2 bullet still claim an incomplete scan affects only the inferred choices
   atlas/couch.md:83-84 and the issue's M2 bullet keep the wording BR-15 removed from resume_candidates.go:126. This is the 4th finding in this family. Rule: a change to user-visible wording or behavior sweeps every atlas passage and Plan bullet that restates it in the same commit (grep the old phrase).
 
+## Round 6 — 2026-10-20T09:53:00-07:00 (claude) — passed
+
+### Disposed
+
+- BR-8 — addressed — Warm caps its own wait at slotAdmissionBudget (hub_target_memo.go:104-107); without it TestHubTargetMemoWarmCapsItsOwnWait fails after 30 s.
+- BR-12 — addressed — Entries now carry started (ordering) and finished (expiry), and live() ages failures from finished; reverting to started turns TestHubTargetMemoAgesFailuresFromTheirEnd red.
+- BR-16 — not-addressed — atlas/couch.md:83-85 and the issue M2 bullet (line 78) are fixed, but grepping the old phrase still finds the resume_candidates_test.go:194 doc comment ("affects only the inferred choices"); reword it.
+
 ## Open findings
 
-- **BR-8** [Minor] `admission-sync-discover-over-exchange` (kind: defect) hubReceiptFilter waits on a cold memo resolution with no budget
-- **BR-12** [Minor] `refusal-must-carry-reason` (kind: defect) A failed resolution that runs 30 s or more is stored already expired, so admission says "warming" forever again
 - **BR-16** [Minor] `plan-code-drift` (kind: defect) Atlas and the plan M2 bullet still claim an incomplete scan affects only the inferred choices
