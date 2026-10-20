@@ -1,13 +1,21 @@
 ---
 id: 000714
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-19
 updated: 2026-10-19
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'fb0fa542f2fe364fcd7adab0bcdf1527b6161ef2' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'b5bdac4c26241aac08a84e98807cf44829a2cb4b' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-19T21:04:51-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Cold-start recovery gaps: a failed resume wedges the slot in starting; post-reboot candidate scans incomplete; a codex slot lost its candidate
@@ -33,6 +41,14 @@ four gaps:
 
 ## Spec
 
+Proposed design, awaiting TL approval: [durable plan](../plans/000714-cold-start-recovery-plan.md).
+
+First distinguish confirmed failure from uncertainty at the existing recovery launch boundary. Under the per-thread operation hold, an owned helper that has completed plus an absent exact proposed terminal permits a nonce/revision-fenced terminal failure transition. Retain the selection/context, park and thread while removing only the failed creating incarnation. Present/unknown terminal or unknown helper evidence preserves the occupied claim. Optional diagnostics must never decide that disposition.
+
+Compose diagnostic identities atomically: a partial outer address must not replace the captured complete launch address. Keep strict failure codecs and one terminal publisher; unresolved refusals use path/reference evidence. Test the actual repo-scope-only resume dispatch and immediate second resume.
+
+Screen availability and native conversation evidence are independent. Keep existing screen-generation checks and scan budgets. Preserve readable descriptive activity with accurate source labels and precise warnings. Add explicit, unconfirmed native candidates when no usable screen exists, using a versioned native-only snapshot through the existing inferred-selection route, exact artifact fingerprints, complete bounded scan, revision/digest-bound explicit choice and independent exec revalidation. Never establish a binding or select automatically from cwd/time. Proposed native-only selection lifetime: five minutes; TL/operator approval required for this state/authority extension.
+
 ## Done when
 
 - A failed resume/launch records its diagnostics and leaves the slot retryable (a test: a launch that exits before
@@ -43,7 +59,9 @@ four gaps:
 
 ## Plan
 
-- [ ]
+- [ ] M1 — Confirmed failed launch disposition, immediate retry and durable diagnostics.
+- [ ] M2 — Separate screen/native evidence and present explicit unbound candidates.
+- [ ] M3 — Validate native-only authority through exec, qualify restart behavior and land.
 
 ## Log
 
@@ -68,3 +86,15 @@ four gaps:
     `normalizeLaunchFailure` (launchfailure.go:95) rejects it ("invalid launch failure identity"). Also hit the first
     exit-1, whose message still claimed diagnostics went to failures.json (last written 15:49). Exit-1 cause unknown.
   - **Possible 4th:** supervision.jsonl has had no write since 15:56 though the post-reboot supervisor is its writer.
+
+### 2026-10-19 — slot 3 planning
+
+- Claimed and started #714 on its own main-based branch after the #715 landing. Read current launch/failure/recovery owners; no implementation changes. #699 workflow files are clean and remain outside this item.
+- Confirmed current source paths from the TL read: recovery's unconfirmed tail retains every post-ack claim; outer diagnostic enrichment treats a repo-scope-only address as complete. Existing helper-exited uncertainty tests deliberately retain claims when observation is unavailable, so an unconditional rollback would violate the current safety contract (ARCH-ORDER).
+- Read-only metadata for old pair:3 proves a device-ID mismatch: witness device 16777232, current stat device 16777230; raw inode 731744298 and events inode 731744297 match their witness values. This does not prove durable volume identity and is not a reason to ignore generation checks. Old raw capture size is 381260612 bytes, also beyond the 256 MiB recovery-read budget. Native discovery must not depend on accepting that screen (ARCH-SECURE, ARCH-CONSTRAINTS).
+- A bounded read-only subagent traced existing candidate discovery: lack of established binding is not by itself why all inferred choices disappear; usable screen/witness and a complete scan currently gate them. The old missing Pair log explains absent causal binding, but its underlying capture/logging cause remains unproved. A native-only explicit candidate variant is proposed rather than changing watcher binding rules (ARCH-DRY, ARCH-PURPOSE).
+- Durable plan written with state/action/loss table, terminal event enumeration, counted growth tests, v1/v2 compatibility boundary and three review milestones. Waiting for hub approval before change-code or implementation.
+
+## Revisions
+
+- 2026-10-19: Initial design separates definite failed launches from uncertain outcomes and proposes independent native-only candidate evidence. Reason: current on-disk device mismatch plus an oversized historical screen prevents safe reuse of the capture-backed inference contract; old acceptance criteria remain in scope.
