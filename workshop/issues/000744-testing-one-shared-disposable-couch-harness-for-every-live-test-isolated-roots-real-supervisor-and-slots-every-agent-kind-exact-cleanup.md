@@ -91,3 +91,7 @@ Existing live tests migrate to it as they're next touched; new ones must use it.
 ### Original Plan — historical
 
 - [ ]
+
+### 2026-10-20 — TL3d5e6782 approves transport isolation correction
+
+The PQ-1 scope correction is approved, conditional on unset-isolation path/sweep compatibility, refusal before effects for invalid/overlong paths, and actual-listener foreign-residue coverage. Rerun the remembered full-flow plan gate. No code has been written.
