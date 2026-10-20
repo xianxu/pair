@@ -51,7 +51,7 @@ operator pressed Esc on a `/usage` panel for the TL).
 
 Durable plan: `workshop/plans/000717-couch-keys-support-special-keys-tab-shift-tab-arrows-backspace-function-keys-ctrl-alt-chords-plan.md` (two milestones; state design table there).
 
-- [ ] M1 — named keys in the one step table (bytes, parser, help, skill)
+- [x] M1 — named keys in the one step table (bytes, parser, help, skill)
 - [ ] M2 — `couch --interrupt repo:N --confirm`: one Ctrl+C, only on an active turn
 
 ## Estimate
@@ -72,6 +72,8 @@ total: 1.24
 
 ## Log
 
+
+- 2026-10-20: closed M1 — agentdrive TestStepBytes (every named key bytes), TestRefusedStepsStateTheirReason, TestUnknownStepListsTheNames, TestRecipeDirectionsAreCallerArrows, TestStepsTableIsTheParsersAcceptedSet; couchcmd TestKeysHelpIsTheVerbsOwnHelp (families once, refused chords with reasons), TestSkillKeyStepsMatchTheTable; wrapcmd TestAgentDriveSpecialKeysReachTheAgentAsTableBytes (every new key through the real writer and Pair input translation; a writer-path mutation goes red). Targeted packages green.; review verdict: SHIP
 - Edges: `~ pair#716` (keys help; one shared table) and `~ pair#691` (esc on an open panel). Land after #691 or
   account for its admissibility function.
 - If "special characters" meant arbitrary text in `text:` steps (quotes, `$`, backticks, newlines) rather than named
