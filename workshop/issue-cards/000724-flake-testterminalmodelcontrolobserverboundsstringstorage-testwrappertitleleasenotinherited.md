@@ -1,6 +1,6 @@
 ---
 id: 000724
-status: codecomplete
+status: done
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 2388cc418956637e6809b2bef3fcb7c54bd74c73
         evidence_commit: f543ac0c04564853e3f5f151b3df4983d4e26d56
+        landed_commit: fea2c082d6ea5b1181fcf9c53419ff53553eb708
 ---
 
 # flake: TestTerminalModelControlObserverBoundsStringStorage, TestWrapperTitleLeaseNotInherited
