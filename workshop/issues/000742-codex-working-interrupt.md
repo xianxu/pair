@@ -16,6 +16,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "fdc34bcf", done: "fe9bca56"}
 ---
 
 # Couch interrupt refuses a working Codex turn
