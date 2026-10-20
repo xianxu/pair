@@ -5,9 +5,9 @@ deps: [ariadne#509]
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
-estimate_hours:
+estimate_hours: 5.06
 collaboration-mode: collaboration
-card_mirror: '6396682f6300b31c0599486303de17d6aa540a16' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '128120ffd724f84fe7916c022ed10ed1ae096acf' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T14:15:16-07:00
 claimant:
     operator: Xian Xu
@@ -47,6 +47,34 @@ capacity instead of on our tests. The operator's rule is local-first verificatio
   socket, HOME or store visible in the VM).
 - `sdlc local-check run --name conformance` records on a PR that touches the paths, and is skipped on one that doesn't.
 - Local-gates change: the operator verifies and applies `local-gates-verified` (never the worker).
+
+## Estimate
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. Calibration is marked stale by `sdlc estimate-source`; values are provisional.*
+
+Primitive mapping, in block order: issue/spec; pure request/transition/claim module; Tart/guest transport and image provisioning; COW snapshot/independent Git adapter; public dispatcher; strict native evidence integration; nightly command/declaration; atlas/docs; one real Tart discovery budget; M1/M2/M3/close reviews. M1's two greenfield concerns use upper implementation anchors (0.8h each before scaling); Tart integration uses 1.5h. Smaller mirrored pieces use 0.4–0.5h anchors. Each review uses 0.3h. Implementation values are scaled once by v3.1's 0.40. Familiarity 1.5 reflects a bounded but unfamiliar VM/guest runtime; no separate cross-repo multiplier because #509/#737/#744 code is outside this issue.
+
+Library check: Tart/guest-agent supplies virtualization and transport; native filesystem/Git supplies COW/snapshot primitives. Halve those two design anchors before the thorough-plan ×0.2 discount. Other design anchors receive ×0.2 for the accepted plan. Design subtotal 0.90h, +15% = 1.035h; scaled implementation subtotal 2.68h ×1.5 = 4.02h; total 5.055h, recorded as 5.06h. Seven-night elapsed observation and external dependency/CI waits are outside focused ship-time. Working range roughly 3.5–7.5h given the stale calibration and native runtime uncertainty.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.5
+item: issue-spec design=0.20 impl=0.08
+item: greenfield-go-module design=0.20 impl=0.32
+item: api-integration design=0.20 impl=0.60
+item: greenfield-go-module design=0.10 impl=0.32
+item: skill-or-dispatcher design=0.10 impl=0.16
+item: smaller-go-module design=0.04 impl=0.20
+item: smaller-go-module design=0.04 impl=0.20
+item: atlas-docs design=0.02 impl=0.08
+item: real-api-discovery design=0.00 impl=0.24
+item: milestone-review design=0.00 impl=0.12
+item: milestone-review design=0.00 impl=0.12
+item: milestone-review design=0.00 impl=0.12
+item: milestone-review design=0.00 impl=0.12
+design-buffer: 0.15
+total: 5.06
+```
 
 ## Plan
 
