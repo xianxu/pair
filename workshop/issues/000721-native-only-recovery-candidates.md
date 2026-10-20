@@ -1,13 +1,23 @@
 ---
 id: 000721
-status: open
+status: codecomplete
 deps: [pair#714]
 github_issue:
 created: 2026-10-19
-updated: 2026-10-19
-estimate_hours:
+updated: 2026-10-20
+estimate_hours: 3.47
 collaboration-mode: collaboration
-card_mirror: 'bcbba55dc78467cd1e3093484d66d23993756810' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '1d333de77a56b287320f8e1c76052419bf4c9f5c' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-19T21:10:41-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
+actual_hours: 2.77
 ---
 
 # Offer unconfirmed native recovery candidates without a usable screen
@@ -54,8 +64,71 @@ Files: `launcher/{recovery_authority_os.go,recovery_authority.go}` and tests; `c
 
 ## Plan
 
-- [ ] Start on main after #714 lands; write durable plan from the transferred Spec and run normal change-code gates.
+- [x] Start on main after #714 lands; write durable plan from the transferred Spec and run normal change-code gates.
+- [x] Complete native-only codec/collector/selection/authority implementation and targeted verification from the durable plan.
+- [x] Obtain hub qualification decision on the tested candidate.
+- [x] Queue the recorded full suite on the pushed code head; require its recorded pass before landing.
+
+Durable design: [native-only recovery candidates plan](../plans/000721-native-only-recovery-candidates-plan.md). Hub approval and full-flow change-code passed. The durable plan uses one atomic issue-close boundary because preview and final launch authority must ship together.
 
 ## Log
 
+
+- 2026-10-20: closed — BR-1 through BR-4 corrections: seven-package Recovery/ResumeCandidate/Bounded targeted PASS; core/cmd/launcher/replay Recovery/Resume/Bounded race PASS (32.454s/3.635s/7.104s/2.134s); artifactpath/testpair/repolint PASS; six pre-effect mutation/expiry/missing-verifier regressions and disabled-verifier mutation control PASS; 200MiB replay preflight and early activity preservation regressions PASS. Required recorded suite restarted on 996864c8913c33f6b3f4a0c93d5ad3201e53d0c1; must pass before landing. Hub approval c1e6ca82-f486-49b4-a933-08d3ab6ae897: production-path regressions plus next natural recovery, no stage or pair:6 action.; review verdict: SHIP
 - 2026-10-19: Split from #714 by TL approval; native-only variant/lifetime approved. #714 lands failed-launch retry and diagnostics first.
+
+- 2026-10-19: Parent #714 landed as PR #471, merge e63e7fd421fd34ad3308f566545527ef3a19666b, after integrating #695 and receiving renewed SHIP plus an integrated recorded suite PASS (8m45s). Hub report receipt 5a4adbd1-af20-4460-a389-fdab7b7ca0c6 submitted. Started this issue on its own main-based branch 000721-native-only-recovery-candidates. No implementation or change-code yet; durable plan remains next.
+- 2026-10-19: start-plan refreshed the ariadne dependency and generated pending #699 changes in local-gates-guard.yml and merge-check.yml. Preserved them in stash named 721-start-plan-generated-workflows-preserved-for-699; older 715-start-plan-generated-workflows-preserved remains untouched. Do not include workflow migration in this issue.
+- 2026-10-19: Carry forward the approved native-only v2/five-minute design and explicit unconfirmed labels without auto-selection, binding manufacture, device/inode relaxation, or budget increase. Re-read current owners before writing the plan: #695 has now landed transcript binding on the thread record and type-owned unknown-field preservation, so the earlier #714 codec assumptions must be verified against the current tree rather than copied. The Spec's original M2/M3 commands are historical: renumber actual boundaries for #721. Plan-quality and estimate follow normal change-code gates; no new implementation has started.
+- 2026-10-19: Resumed saved continuation; inspected current preview/acquisition/collector/selection and launcher/codec owners, including bounded read-only subagent exploration. Confirmed recovery nested codecs remain strict despite record/TranscriptBinding preservation from #695. Drafted durable plan with source-aware v2 compatibility, fixed cutoff propagation through keys and reobservation, independent screen/native outcomes, shared retry byte accounting, state table and named-function adversarial tests (ARCH-DRY, ARCH-ORDER, ARCH-EVOLVE). No code edits or estimate; hub approval precedes change-code.
+
+- 2026-10-19: Hub approved the durable plan and single atomic boundary in verified submitted receipt 6657d462-20bb-4bbe-b22b-39507571b925 (ops:0 to current pair:3 incarnation). Live qualification remains a decision on the tested candidate; hub default is production-path regressions plus the next natural recovery, not permission to touch pair:6. Baseline `go test ./cmd/internal/threadrecord ./cmd/internal/sessioninventory -run 'Recovery' -count=1` PASS; issue validation conforms. Entering change-code plan-quality gate, estimate afterward.
+
+- 2026-10-20: Implementation checkpoint after full-flow admission: source codec/selector, bounded collector, independent evidence acquisition, native-only preview/selection, source-aware CLI/menu and final launcher validation are implemented. Core source/acquisition/selection tests observed RED before fixes; codec/collector/launcher workers likewise reported RED→GREEN. Combined targeted Recovery/ResumeCandidate tests pass in threadrecord, sessioninventory, couchcore, couchcmd, couchtty and launcher. The combined race run for Recovery/Resume passed in core (37.644s), launcher (9.694s) and inventory (2.927s), before final partial-fact/Fresh composition refinements; renewed final race and recorded suite remain pending. Artifactpath/testpair/repolint guard run passed; rerun after final test additions underway.
+- 2026-10-20: Portable production constructor test exercises prepareSingleton→NewCouchWith using unchanged run.go evidence wiring, real disposable native home and injected clock one hour from host time; listing→explicit selection confirms exact native ID/saved argv/no prompt and no binding/capture manufacture. Removing the production evidence assignment made that test fail; source restored and targeted acceptance race PASS (1.948s). Cutoff-propagation and pre-retirement-persistence mutation controls also failed as intended, restored afterward. Native counted N=8/16 evidence: metadata 16/32, one listing, stat 16/32, reads 8/16, cwd resolutions 9/17; exact byte/metadata/root bounds covered.
+- 2026-10-20: Integration regressions cover same inode with changed device, oversized/missing screen, absent/invalid witness, stale/copied/expired selection, interrupted retirement with durable reopen, and fresh listing after retained native expiry. No device/inode relaxation or larger scan budget. A failed retry now retains earlier descriptive facts; Fresh separately preserves a genuinely readable screen while native-only resume persists no capture. Known partial evidence remains incomplete and cannot issue unbound native keys.
+
+- 2026-10-20: Final targeted six-package Recovery/ResumeCandidate run PASS, and renewed final race Recovery/Resume PASS: core 44.085s, launcher 7.289s, inventory 2.788s. Final artifactpath/testpair/repolint guard run PASS (10.667s/12.632s/11.294s). Restored mutation-control source and diff checks clean. Remaining: concrete hub qualification decision, pushed-head recorded suite, close review and landing.
+
+- 2026-10-20: Verified submitted hub receipt c1e6ca82-f486-49b4-a933-08d3ab6ae897 approves production-path regressions plus next natural recovery on candidate c0c70e0e3f3da050e1d1b7f13478f8a7b21f3632; no stage and no action on pair:6. Hub owns natural verification/smoke calibration. PR #479 opened: https://github.com/xianxu/pair/pull/479. Proceeding to recorded suite, close and merge as directed.
+
+- 2026-10-20: Final provenance audit found capture-file time also projected onto native-only Fresh activity. Regression failed, then Fresh activity was cleared for native-only previews while Screen retains its explicit source label. Cancelled this checkout’s in-flight suite on f861c992 via sdlc local-check cancel (no other checkout stopped); it records no result. Restarting on corrected code after targeted verification. Split the issue Plan’s self-referential close/landing row into qualification and pre-close verification; close/landing remain tracked in the durable plan.
+
+- 2026-10-20: Archive metadata is now reserved against the same read budget before attempting its bounded read, including invalid metadata/fallback. New near-cap regression failed before the guard and passes afterward. Affected Recovery/ResumeCandidate tests PASS in core/cmd/launcher (13.263s/0.905s/0.257s), followed by targeted native-only/partial-fact race PASS in core/cmd (1.787s/1.747s). Restarting recorded suite on this corrected head; no budget increase.
+
+- 2026-10-20: Recorded suite is queued on e44d238f973487baf283de6220876aef9d1c0945 behind the machine-wide FIFO (pair:5 running, ariadne:1 next). Following tl-worker’s explicit permission to overlap close review with a queued recorded suite; targeted evidence is complete and landing still requires the recorded final-code pass. Issue Plan’s verification row records the queue action; the durable plan keeps the suite-pass/landing obligations open until proven. No source changes.
+
+- 2026-10-20: First close review REWORK, four findings recorded in close ledger: BR-1 pre-effect validation; BR-2 phantom raw-byte reservation above replay limit; BR-3 descriptive activity lost on early errors; BR-4 missing README update. Cancelled this checkout’s queued suite on e44d238f before modifying code. Fixed classes with frozen native snapshot and required exact-selected verifier at persistence/retirement/claim boundaries, shared pure fingerprint conversion, shared replay caps and per-stage reservation, independent owned raw-file activity, and README sweep. New BR-2/3 regressions failed before fixes; BR-1 six boundary regressions and disabled-verifier mutation control failed before fix, then targeted core/cmd race passed. Full affected verification and renewed suite/review remain pending.
+
+- 2026-10-20: BR-1–BR-4 corrections verified: seven-package targeted Recovery/ResumeCandidate/Bounded PASS; renewed race Recovery/Resume/Bounded PASS in core (32.454s), cmd (3.635s), launcher (7.104s), replay (2.134s). Artifactpath/testpair/repolint guards PASS. Shared archive metadata helper now charges only immediately before its bounded read, including failures; retained peek/preservation use the same helper without participating in a native-scan budget. BR-2 regression uses sparse 200MiB raw plus an existing charged budget to prove unread replay bytes cannot starve a native transcript; BR-3 covers missing events and current/archive identity/metadata refusals while preserving labelled raw mtime. Ledger remains for renewed review; recorded suite restarts on the corrected pushed head.
+
+- 2026-10-20: Close round 2 SHIP: BR-1–BR-4 addressed, no new findings. Required recorded full suite PASS on 996864c8913c33f6b3f4a0c93d5ad3201e53d0c1, exit 0 in 9m17s, log sha256 prefix 97963d87e4f9; all server checks green. Entering approved merge. Natural recovery qualification remains hub-owned per c1e6ca82-f486-49b4-a933-08d3ab6ae897; no stage and pair:6 untouched.
+
+## Revisions
+
+
+- 2026-10-19: Added the concrete durable plan after main-based start and current-owner inspection. Original M2/M3 scope is retained as one atomic #721 review boundary, with unchanged approved behavior and added explicit codec/cutoff/accounting test contracts.
+- 2026-10-19: Plan-quality PQ-1 requires compressed function-level test strategy rather than duplicated case inventories. Revised Tasks 1–4 accordingly; no architecture/scope change. First change-code inferred quick due to design line count; reran with --flow=full to honor TL-approved full flow. No implementation or estimate yet.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. The named calibration is stale against its newer ledger, so these units remain provisional.
+
+Decomposition follows the settled plan: source codec, collector extension, independent acquisition, selection/persistence, CLI/menu projection, launcher validation, portable conformance, atlas, one close review, and issue shaping. Existing strictjson/native parsers/lifecycle fixtures short-circuit greenfield design: 2.0h × 0.5 library availability × 0.2 spec discount = 0.2h for each greenfield concern. Smaller module design uses 0.2–0.3h × 0.2. All implementation entries already apply the v3.1 40% scale to table values (greenfield 0.8h → 0.32h; smaller 0.4–0.5h → 0.16–0.20h). Familiar codebase means familiarity 1.0; thorough approved plan means 15% design buffer. No external API discovery or cross-repo propagation. Design 1.10h × 1.15 + implementation 2.20h = 3.465h, rounded to 3.47h.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-go-module design=0.20 impl=0.32
+item: smaller-go-module design=0.04 impl=0.20
+item: greenfield-go-module design=0.20 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: smaller-go-module design=0.04 impl=0.16
+item: smaller-go-module design=0.06 impl=0.20
+item: greenfield-go-module design=0.20 impl=0.32
+item: atlas-docs design=0.02 impl=0.08
+item: milestone-review design=0.04 impl=0.20
+item: issue-spec design=0.10 impl=0.08
+design-buffer: 0.15
+total: 3.47
+```

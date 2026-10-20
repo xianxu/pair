@@ -26,7 +26,19 @@ type RecoveryRuntime interface {
 	ReadRecoveryAt(context.Context, FileEntry, int64, int64) ([]byte, bool, error)
 	ResolveRecoveryCWD(context.Context, string) (string, error)
 }
+
+// RecoverySourceKind distinguishes screen comparison from native observation.
+type RecoverySourceKind string
+
+const (
+	RecoverySourceCapture RecoverySourceKind = "capture-backed"
+	RecoverySourceNative  RecoverySourceKind = "native-only"
+)
+
 type RecoveryCollectRequest struct {
+	// Empty SourceKind preserves the capture-backed request contract.
+	SourceKind        RecoverySourceKind
+	ObservationCutoff *time.Time
 	// Actual tty/source IO already consumed by the caller, charged to the shared budget.
 	BytesAlreadyRead int64
 	Agent            Agent
@@ -79,14 +91,43 @@ func CollectRecoveryEvidence(ctx context.Context, runtime Runtime, q RecoveryCol
 		out.incomplete("runtime lacks bounded recovery IO")
 		return out
 	}
-	if q.ProducingLaunch == nil || q.ProducingLaunch.IsZero() {
-		out.incomplete("capture producing launch is unknown")
+	cutoff := q.CapturedAt
+	switch q.SourceKind {
+	case "", RecoverySourceCapture:
+		if q.ObservationCutoff != nil {
+			out.incomplete("capture source includes native observation cutoff")
+			return out
+		}
+		if q.ProducingLaunch == nil || q.ProducingLaunch.IsZero() {
+			out.incomplete("capture producing launch is unknown")
+		}
+		if q.CapturedAt == nil || q.CapturedAt.IsZero() {
+			out.incomplete("capture timestamp is unknown")
+		}
+	case RecoverySourceNative:
+		if q.ObservationCutoff == nil || q.ObservationCutoff.IsZero() {
+			out.incomplete("native observation cutoff is unknown")
+			return out
+		}
+		if q.CapturedAt != nil || len(q.RenderedTail) != 0 || q.TTYActivity != nil {
+			out.incomplete("native source includes capture evidence")
+			return out
+		}
+		if q.ProducingLaunch != nil && q.ProducingLaunch.IsZero() {
+			out.incomplete("native producing launch hint is zero")
+			return out
+		}
+		cutoff = q.ObservationCutoff
+	default:
+		out.incomplete("unknown recovery source kind")
+		return out
 	}
-	if q.CapturedAt == nil || q.CapturedAt.IsZero() {
-		out.incomplete("capture timestamp is unknown")
-	}
-	if q.ProducingLaunch != nil && q.CapturedAt != nil && q.ProducingLaunch.After(*q.CapturedAt) {
-		out.incomplete("capture predates producing launch")
+	if q.ProducingLaunch != nil && cutoff != nil && q.ProducingLaunch.After(*cutoff) {
+		if q.SourceKind == RecoverySourceNative {
+			out.incomplete("native observation predates producing launch hint")
+		} else {
+			out.incomplete("capture predates producing launch")
+		}
 		return out
 	}
 	cwd, err := io.ResolveRecoveryCWD(ctx, q.TargetCWD)
@@ -153,7 +194,7 @@ func CollectRecoveryEvidence(ctx context.Context, runtime Runtime, q RecoveryCol
 			continue
 		}
 		parser := newRecoveryParser(q.Agent, e)
-		parser.cutoff = q.CapturedAt
+		parser.cutoff = cutoff
 		err := readRecoverySnapshot(ctx, io, e, &out, func(records []FramedJSONLRecord) error {
 			for _, r := range records {
 				if err := ctx.Err(); err != nil {
@@ -199,7 +240,7 @@ func CollectRecoveryEvidence(ctx context.Context, runtime Runtime, q RecoveryCol
 			out.Excluded++
 			continue
 		}
-		if q.CapturedAt != nil && !c.CreatedAt.IsZero() && c.CreatedAt.After(*q.CapturedAt) {
+		if cutoff != nil && !c.CreatedAt.IsZero() && c.CreatedAt.After(*cutoff) {
 			out.Excluded++
 			continue
 		}
@@ -230,7 +271,11 @@ func CollectRecoveryEvidence(ctx context.Context, runtime Runtime, q RecoveryCol
 	if err := ctx.Err(); err != nil {
 		out.incomplete(err.Error())
 	}
-	out.Ranked = RankRecoveryCandidates(out.Candidates, q.RenderedTail, cwd, q.TTYActivity)
+	if q.SourceKind == RecoverySourceNative {
+		out.Ranked = rankRecoveryCandidates(out.Candidates, nil, cwd, nil, true)
+	} else {
+		out.Ranked = RankRecoveryCandidates(out.Candidates, q.RenderedTail, cwd, q.TTYActivity)
+	}
 	return out
 }
 func sameRecoveryEntry(a, b FileEntry) bool {

@@ -45,7 +45,7 @@ func newRecoveryExecutionFixture(t *testing.T) *recoveryExecutionFixture {
 	f := &recoveryExecutionFixture{testEnv: env, record: created, observation: observation}
 	env.Artifacts.SetSessionPresence(created.Address, SessionObservation{State: SessionAbsent})
 	env.Artifacts.SetPairSession(created.Address, "old-session", false)
-	env.Couch.RecoveryEvidence = func(context.Context, ThreadRecord) (RecoveryObservation, error) { return f.observation, nil }
+	env.Couch.RecoveryEvidence = func(context.Context, ThreadRecord, RecoveryObservationRequest) (RecoveryObservation, error) { return f.observation, nil }
 	env.Couch.RecoveryPreserve = func(_ context.Context, _ ThreadRecord, o RecoveryObservation) (RecoveryObservation, error) {
 		f.preserved++
 		return o, nil
@@ -243,7 +243,7 @@ func TestResumeCandidateBusyOwnedSourceRefusesBeforePreservation(t *testing.T) {
 // from the durable claim/context instead of always returning the current screen.
 func (f *recoveryExecutionFixture) useRetainedCaptureSource(t *testing.T) {
 	t.Helper()
-	f.Couch.RecoveryEvidence = func(_ context.Context, record ThreadRecord) (RecoveryObservation, error) {
+	f.Couch.RecoveryEvidence = func(_ context.Context, record ThreadRecord, _ RecoveryObservationRequest) (RecoveryObservation, error) {
 		observation := f.observation
 		retained := record.RecoveryContext != nil
 		for _, inc := range record.Incarnations {

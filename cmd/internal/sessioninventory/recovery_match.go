@@ -92,14 +92,21 @@ func scoreBetter(a, b RecoveryTailScore) bool {
 // and orders evidence deterministically. Callers own physical cwd resolution,
 // source chronology and capture/native generation revalidation before effects.
 func RankRecoveryCandidates(candidates []RecoveryCandidate, rendered []string, targetCWD string, ttyActivity *time.Time) []RankedRecoveryCandidate {
+	return rankRecoveryCandidates(candidates, rendered, targetCWD, ttyActivity, false)
+}
+
+func rankRecoveryCandidates(candidates []RecoveryCandidate, rendered []string, targetCWD string, ttyActivity *time.Time, nativeOnly bool) []RankedRecoveryCandidate {
 	var out []RankedRecoveryCandidate
 	for _, c := range candidates {
 		if !c.RootEligible || c.Interactive.State != InteractiveYes || targetCWD == "" || c.CWD != targetCWD {
 			continue
 		}
 		c.Messages = append([]RecoveryMessage(nil), c.Messages...)
-		r := RankedRecoveryCandidate{Candidate: c, Score: ScoreRecoveryTail(rendered, c.Messages), RequiresExplicitSelection: true}
-		if ttyActivity != nil && !c.SemanticLast.IsZero() {
+		r := RankedRecoveryCandidate{Candidate: c, RequiresExplicitSelection: true}
+		if !nativeOnly {
+			r.Score = ScoreRecoveryTail(rendered, c.Messages)
+		}
+		if !nativeOnly && ttyActivity != nil && !c.SemanticLast.IsZero() {
 			delta := c.SemanticLast.Sub(*ttyActivity)
 			if delta < 0 {
 				delta = -delta
@@ -110,6 +117,9 @@ func RankRecoveryCandidates(candidates []RecoveryCandidate, rendered []string, t
 	}
 	sort.Slice(out, func(i, j int) bool {
 		a, b := out[i], out[j]
+		if nativeOnly && !a.Candidate.SemanticLast.Equal(b.Candidate.SemanticLast) {
+			return a.Candidate.SemanticLast.After(b.Candidate.SemanticLast)
+		}
 		if scoreBetter(a.Score, b.Score) {
 			return true
 		}

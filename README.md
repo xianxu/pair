@@ -527,11 +527,11 @@ couch --session-sync register FILE --owner SLOT [--json]
 couch --session-sync lookup FILE | list | forget FILE | rename OLD NEW [--json]
                          discover bindings or update metadata after a filesystem move; see atlas/couch-agentic-documents.md
 couch --recover-plan-from-sdlc   per-slot recovery report (JSON), see below
-couch --resume repo:N [--json]   from a live slot: Continue if listed live, otherwise resume a proven conversation
+couch --resume repo:N [--json]   from a live slot: Continue if listed live, otherwise resume an established native binding
 couch --resume-candidates repo:N [--json]
-                         list the best choice and up to four alternatives with activity and tty-tail evidence; automatic choice is off
+                         preview explicit choices: screen-tail evidence or unconfirmed native ID, cwd and activity; no automatic selection
 couch --resume repo:N --candidate KEY [--json]
-                         choose an inferred conversation explicitly; stale evidence refuses
+                         select exact observed evidence; native-only keys expire after five minutes, so refresh expired or changed evidence
 couch --reboot repo:N --confirm [--json]
                          request Start fresh on the current binary; attributed running processes require an exact stop-set offer
 couch --recovery-confirmation TOKEN [--json]
@@ -619,10 +619,19 @@ race: if their server dies between the listing and attach, Zellij can resurrect
 the saved layout.
 
 For a slot whose state needs recovery, **Relaunch** opens a read-only candidate
-preview with transcript and terminal evidence. Selection is explicit; Couch
-does not automatically choose an inferred conversation. Native resume requires
-its old owners to be absent or safely retired through the exact confirmation
-below; unproved ownership still blocks that native launch.
+preview. Capture-backed choices show measured screen-tail matching. When the
+screen cannot support inference, native-only choices show **unconfirmed**, the
+physical cwd, semantic native activity and native ID, with no tail percentage.
+Screen availability and capture-file activity are separate from native-scan
+completeness; an unavailable screen does not make a complete native scan partial.
+Selection is explicit and does not establish a transcript binding. Native-only
+keys expire after five minutes; refresh the preview after expiry or changed
+evidence. Plain `couch --resume repo:N` attaches to a listed live session or uses
+an established native binding. See the [Couch atlas](atlas/couch.md) for the
+evidence and validation details.
+
+Native resume requires its old owners to be absent or safely retired through
+the exact confirmation below; unproved ownership still blocks that native launch.
 **Start fresh** remains offered when the old TTY capture or transcript scan is
 missing, expired, incomplete or unsupported. The choice still checks supported
 records, launch settings and workspace identity before launching; an offer is
@@ -1759,10 +1768,11 @@ so a parked `:0` offers it too; a `:0` whose checkout is gone does not.
 
 **Resume** attaches to a surviving listed session without requiring a native
 transcript binding or saved agent launch settings. Starting a stopped agent
-instead requires eligible conversation evidence and launch settings. Recovery
-previews list supported candidates with evidence; the operator or hub chooses
-one explicitly. A possibly running old owner prevents native resume until it
-has been safely retired. A shared admission check prevents two Pair slots from
+instead requires launch settings and an established native binding for plain
+resume, or an explicitly selected recovery candidate. Recovery previews show
+capture-backed matching or unconfirmed native-only evidence; the operator or
+hub chooses one explicitly. A possibly running old owner prevents native resume
+until it has been safely retired. A shared admission check prevents two Pair slots from
 starting the same native conversation at once, including launches outside Couch.
 An uncertain start retains ownership; missing readiness alone never proves the
 conversation is free. Claude and Qoder latest selectors resolve uniquely before launch. Codex indirect

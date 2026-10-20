@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/couchidentity"
+	"github.com/xianxu/pair/cmd/internal/threadrecord"
 	"io"
 	"os"
 	"path/filepath"
@@ -21,18 +22,22 @@ import (
 	"github.com/xianxu/pair/cmd/internal/storagegc"
 )
 
+// RecoverySelectionVerifier rechecks one fixed native choice without ranking alternatives.
+type RecoverySelectionVerifier func(context.Context, ThreadRecord, threadrecord.RecoveryContext, string, string) error
+
 // Couch is the composition root: every seam in one place, every operation a
 // method on it. The terminal UI and (later) the advisor's tools are both
 // clients of these methods -- never of two separate implementations.
 type Couch struct {
-	failureRecorderMu     sync.Mutex
-	failureRecorder       *LifecycleFailureRecorder
-	recoveryMu            sync.Mutex
-	recoveryConfirmations map[string]recoveryConfirmationState
-	RecoveryEvidence      RecoveryEvidenceReader
-	RecoveryPreserve      RecoveryCapturePreserver
-	RecoveryTerminal      RecoveryTerminalPreparation
-	RecoveryRetirement    RecoveryRetirementPreparer
+	failureRecorderMu       sync.Mutex
+	failureRecorder         *LifecycleFailureRecorder
+	recoveryMu              sync.Mutex
+	recoveryConfirmations   map[string]recoveryConfirmationState
+	RecoveryVerifySelection RecoverySelectionVerifier
+	RecoveryEvidence        RecoveryEvidenceReader
+	RecoveryPreserve        RecoveryCapturePreserver
+	RecoveryTerminal        RecoveryTerminalPreparation
+	RecoveryRetirement      RecoveryRetirementPreparer
 	// SlotWrapper and ProcessTable let a reboot stop the slot's registered
 	// wrapper tree even when terminal attribution fails (pair#607).
 	SlotWrapper  SlotWrapperLookup

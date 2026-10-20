@@ -71,8 +71,15 @@ budget conformance runs before releases supporting a changed Zellij version.
 ## Recovery intent compatibility (#556 M1)
 
 Couch thread schema 4 retains the explicit recovery choice independently of the
-pending start. Inferred intent keeps the existing strict capture/candidate
-context. Proven and Fresh are tagged intents carrying address, source revision,
+pending start. Inferred intent keeps capture-backed context v1 and additionally
+supports native-only context v2 (#721). V2 carries the fixed UTC observation
+cutoff, source record revision, optional attributable launch hint, exact selected
+artifact fingerprints and five-minute expiry, with no capture or tail score.
+Its codec preserves unknown context/source/candidate members through rewrites;
+v1 keeps its existing known-field encoding and strict nested boundary. Older
+context readers refuse v2, and frozen record schemas cannot acquire v2 authority
+through migration. Expired evidence remains structurally readable; admission and
+the final launcher check enforce the lifetime. Proven and Fresh are tagged intents carrying address, source revision,
 time, saved agent, selected native identity (Proven only), and optional previous
 screen coordinates plus branch/issue. Optional orientation never proves a native
 conversation. Readable schema-3 records migrate only in memory; startup does not

@@ -32,3 +32,28 @@ func TestRecoveryTailLastThreeAndDistinctWindows(t *testing.T) {
 		t.Fatalf("repetition inflated support: %+v", score)
 	}
 }
+
+func TestRecoveryNativeOnlyRankingStableTiesAndSnapshotOwnership(t *testing.T) {
+	c := RecoveryCandidate{Agent: AgentCodex, NativeID: "a", CWD: "/repo", RootEligible: true, Interactive: InteractiveEvidence{State: InteractiveYes}, Messages: []RecoveryMessage{{Role: EventAssistant, Text: recoveryTestText, Complete: true}}}
+	d := c
+	d.NativeID = "b"
+	wrongCWD := c
+	wrongCWD.CWD = "/elsewhere"
+	child := c
+	child.RootEligible = false
+	exec := c
+	exec.Interactive.State = InteractiveNo
+	for _, input := range [][]RecoveryCandidate{{d, c, child, wrongCWD, exec}, {c, d, wrongCWD, exec, child}} {
+		ranked := rankRecoveryCandidates(input, []string{recoveryTestText}, "/repo", nil, true)
+		if len(ranked) != 2 || ranked[0].Candidate.NativeID != "a" || ranked[1].Candidate.NativeID != "b" {
+			t.Fatalf("unstable ties or ineligible root: %+v", ranked)
+		}
+		if ranked[0].Score != (RecoveryTailScore{}) || !ranked[0].RequiresExplicitSelection {
+			t.Fatalf("screen score or automatic authority: %+v", ranked[0])
+		}
+		ranked[0].Candidate.Messages[0].Text = "changed"
+		if c.Messages[0].Text != recoveryTestText {
+			t.Fatal("native ranking aliases input message snapshot")
+		}
+	}
+}

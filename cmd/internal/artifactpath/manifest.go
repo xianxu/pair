@@ -823,6 +823,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/recovery_prepared.go",
 	"cmd/internal/couchcore/recovery_start_fence.go",
 	"cmd/internal/couchcore/recovery_key.go",
+	"cmd/internal/couchcore/recovery_choice_json.go",
 	"cmd/internal/couchcore/recovery_preview.go",
 	"cmd/internal/couchcore/recovery_conversation_in_use.go",
 	"cmd/internal/couchcore/recovery_slot_tree.go",
@@ -837,6 +838,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/sessioninventory/recovery_filemeta_linux.go",
 	"cmd/internal/sessioninventory/recovery_filemeta_other.go",
 	"cmd/internal/sessioninventory/recovery_match.go",
+	"cmd/internal/threadrecord/recovery_source_json.go",
 	"cmd/internal/sessioninventory/recovery_os.go",
 
 	"cmd/internal/osfs/metadata_read.go",
