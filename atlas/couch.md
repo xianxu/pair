@@ -2240,8 +2240,16 @@ frame repainted after the write proves nothing, because a usage panel repaints
 when its data loads. One rule, `agentdrive.Request.Admits`, decides admission
 for the service, its pre-input guard, the wrapper and the reducer. The panel
 is the rows below the viewport's last full-width rule, since earlier prompt
-rows stay visible above it; the footer wording comes from the Claude 2.1.304
-capture in `wrapcmd/testdata/drive/claude/2.1.304/`. Any other request refused
+rows stay visible above it. A panel taller than the screen has scrolled its rule
+away and fills the whole viewport. The footer wording comes from the Claude
+2.1.304 captures in `wrapcmd/testdata/drive/claude/2.1.304/` (short and tall
+panels, plus real working-turn screens that must refuse). Claude reports
+progress as working for as long as its panel is open, so the wrapper's turn flag
+stays set. For the lone `esc` only, the panel proof outranks that flag:
+`Dismissable` has no turn gate, and a dismissal drive does not stop on an active
+turn (`DriveState.panelOwnsInput`). It still confirms only on an idle composer,
+which follows Claude's progress-stopped report at dismissal. Every other drive
+still stops on an active turn. Any other request refused
 while a panel shows says so and names the lone `esc` (`agentdrive.PanelRefusal`).
 For a non-recovery key, the service learns about the panel through one read-only
 observation, made only on the not-settled refusal path (pair#716).

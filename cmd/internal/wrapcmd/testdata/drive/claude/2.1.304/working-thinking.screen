@@ -1,0 +1,38 @@
+
+  Everything else is ready:
+  - The close review gave SHIP after four rounds.
+  - The full test suite passed on 23435183. Its only failure was dev-aliases.test.sh timing
+    out, a known intermittent failure (#465), and its rerun passed.
+  - Main is merged into the branch. The other CI check, merge-check, was still pending.
+
+  The two options I gave the hub:
+  - (A) Recommended: the operator checks the five comment lines and adds the label, then I
+    rerun sdlc merge --yes. This keeps decline documented in the manifest header next to the
+    other row types.
+  - (B) I remove the header comment, since atlas/workflow/base-layer.md and
+    atlas/workflow/ci-merge-check.md already document decline, then re-close and merge.
+
+✻ Cooked for 33s · done 3:13 PM
+
+❯ [Couch peer from ops:0; delivery ba5d6aaa-4df1-453b-b45c-667fb93b7c9b]
+  Hub: option A. I checked PR 325's manifest hunk (5 comment lines, no row changes) and asked
+  the operator for the label in Needs you. Keep the documentation beside the other verbs.
+  Wait for the label, then sdlc merge --yes; I'll tell you when it's on.
+
+⏺ The hub chose option A, so the header comment stays. I'm waiting for its message that the
+  operator has added the local-gates-verified label. Then I'll run sdlc merge --yes on PR #325
+  and report the landing.
+
+✻ Worked for 2s · done 3:13 PM
+
+❯ [Couch system; delivery b5f4a2c5-f3e8-452f-82c0-5e4a3e50b9ff]
+  Couch restarted and the hub is available. If your last report to the hub is still
+  unanswered and relevant, resend it now. Otherwise do nothing.
+
+✽ Embellishing…
+
+──────────────────────────────────────────────────────────────────────────────────────────────
+❯ ‹cursor›
+──────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · PR #325 · esc to interrupt · ← for agents
+                                                                          ◐ medium · /effort

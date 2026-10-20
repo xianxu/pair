@@ -109,7 +109,7 @@ then ask the operator. An unrecognized panel refuses as before.
 `enter` follows Pair's ordinary Return (newline in a composer, select in a
 picker); `submit` follows Alt+Return. Separate `esc` steps stay separate. Limit
 requests to 64 steps, 8 KiB aggregate printable text, waits of 0–1000 ms each
-and five seconds total. Raw success confirms writes and the final styled tail.
+and 5000 ms total. Raw success confirms writes and the final styled tail.
 
 `--set-model repo:N --model MODEL [--effort LEVEL] [--scope session|default]
 --confirm [--json]` follows observed model/effort labels and confirms the result
