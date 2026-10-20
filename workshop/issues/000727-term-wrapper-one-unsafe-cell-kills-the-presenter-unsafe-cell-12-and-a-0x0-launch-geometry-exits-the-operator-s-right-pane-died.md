@@ -107,6 +107,33 @@ from a verified landing ticket; the suite retained its queue position. The fresh
 runner accepted the new close and waited normally on suite evidence before being
 parked for the lifetime investigation above.
 
+### 2026-10-20 — durable drain checkpoint (resume after reboot)
+
+Confirmed current Couch drain 69bb7fc3-a125-42c6-9900-5814613b8eba on the canonical
+board, targeting pair:7: operator requested Couch shutdown, reboot and the RAM-disk
+no-journal fix. Queue admission is paused. Canceled only this checkout's queued
+recorded suite through local-check cancel (attempt e429172d2efc52a822119384239ad8f9,
+code 7bda7379dddfada81f0dd81cd502fecec5c74201); it never acquired capacity or ran.
+Interrupted only this issue's exact waiting merge, verified from its landing ticket
+(pid 92913), with SIGINT. No other slot or active suite was touched.
+
+PR #486 is open, unlanded. All production changes remain reviewed SHIP; the final
+manifest-only narrow close is SHIP (evidence c84c4101e4fcfbab0a59a0b31d65acd7ec7d3f28).
+The tree was clean at close mirror 0da710bb22a8312c5c28c68cc8f26ac444df8362 before
+this documentation checkpoint. No final full-suite pass exists yet: the preceding
+full run completed all checks except the now-fixed effect inventory; this last
+queued run was canceled for drain, not retried as a flake. Two deterministic
+fixture failures and their fixes are recorded above. Native and targeted evidence
+is preserved; the original unsafe-cell trigger and natural live check remain open.
+
+NEXT after the hub resumes work: load tl-worker/sdlc/couch rules and sdlc state;
+verify no old owned runner remains; restart the recorded suite on the pushed HEAD
+(the code is unchanged from 7bda7379), then sdlc merge --yes with the central binary.
+Do not re-close docs-only checkpoint changes or implement registry/role retirement.
+The hub's final decision defers that known limitation to unclaimed pair#731. Do not
+stage or build pair:0; live acceptance is the operator's next natural relaunch.
+Finish landing, report verified merge/PR and follow-up #731 to the hub, then stop.
+
 ## Revisions
 
 ### 2026-10-20 — include pane survival and recovery (hub updates)
