@@ -16,7 +16,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "45cbd808", done: "5e64429d"}
+flow: {kind: quick, provenance: inferred, spec: "0dd72e62", done: "fe5614c4"}
 ---
 
 # couch: tab bar and switcher order: by hub, the hub's own slots right after it, then repos alphabetically
