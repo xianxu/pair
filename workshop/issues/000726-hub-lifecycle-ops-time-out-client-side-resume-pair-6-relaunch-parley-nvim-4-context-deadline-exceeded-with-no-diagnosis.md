@@ -108,6 +108,7 @@ ARCH notes: ARCH-ORDER (fresh authority before the effect; admission is a cheap 
   - Resolutions are stamped with their start time, so an older one never replaces a newer one.
   - Entries are swept when expired and capped at 256.
   - At most 8 background flights and 8 concurrent Discover rows.
+  - Entries keep their start time for ordering and their finish time for expiry. `Warm` bounds its own wait by the admission budget (round 3).
   - The concurrency test proves overlap with a rendezvous of in-flight slot probes, never with elapsed time (the hub's flake rule: deterministic, no timeouts).
   - State table additions: "Cold resolution failed after the budget" shows as refused with that error for 30 s, recovered by fixing the cause and retrying, with no loss. "Move admitted on a stale slot" shows as the queued move refusing ("resolved differently since admission; nothing was moved"), recovered by retrying, with no loss.
 
@@ -130,6 +131,8 @@ total: 1.77
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.* Rows: M1's admission memo, warm sources and budget (greenfield, single concern); M1's concurrent Discover (smaller, mirroring the existing code); M2's proven-resume scan skip (smaller, but a subtle boundary, so more design); the recover-plan working-directory fix (smaller); two milestone reviews; atlas. Impl values are 40% of the v2 midpoints. The plan doc is thorough, so the design buffer is 15%. The calibration doc is flagged stale (#127), so the numbers are provisional.
 
 ## Log
+
+- 2026-10-20 (pair:2): M1 closed FIX-THEN-SHIP (round 3). The round-3 fix lands in this one commit, per the protocol. A failed resolution is aged from when it finished, not from when it started, so a resolution slower than 30 s still reports its cause (`TestHubTargetMemoAgesFailuresFromTheirEnd`, which asserts no second resolution). `Warm` now caps its own wait at the admission budget for any caller (`TestHubTargetMemoWarmCapsItsOwnWait`). Mutations: aging from start, and no self-cap, each red. These fixes are covered by the next boundary review.
 
 - 2026-10-20 (pair:2): M1 review round 2: BR-7 (a timing assertion) is fixed by a rendezvous of slot probes held at once. Mutation: serial Discover fails it after the bounded safety, about 20 s, with "all slots in flight together: false". My first rendezvous draft passed under serial twice: it counted the primary's own probe, then cumulative arrivals. Minors fixed: the receipt filter has a budget, start-time ordering, sweep and cap, and the plan's Revisions. Mutations: late result overwrites, no sweep, each red.
 

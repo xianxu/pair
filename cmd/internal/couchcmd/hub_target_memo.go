@@ -29,10 +29,20 @@ const hubTargetMaxEntries = 256
 // resolution has not finished inside the admission budget.
 var errSlotCatalogWarming = errors.New("slot catalog is warming; nothing was queued; retry in a few seconds")
 
+// hubTargetEntry keeps when its resolution started, which orders results, and
+// when it finished, which ages it: a slow failed resolution still answers
+// for the full hubTargetFailureAge after it ends.
 type hubTargetEntry struct {
-	slot couchcore.HubSlot
-	err  error
-	at   time.Time
+	slot              couchcore.HubSlot
+	err               error
+	started, finished time.Time
+}
+
+func (e hubTargetEntry) live(now time.Time, maxAge time.Duration) bool {
+	if e.err != nil {
+		return now.Sub(e.finished) < hubTargetFailureAge
+	}
+	return now.Sub(e.finished) < maxAge
 }
 
 // hubTargetKey canonicalizes a repo:N reference; anything else keys as given.
@@ -91,18 +101,15 @@ func (m *hubTargetMemo) Fresh(ctx context.Context, ref string) (couchcore.HubSlo
 // reference's single-flight resolution and waits until ctx ends; an
 // unfinished resolution keeps running and fills the memo for the next caller.
 func (m *hubTargetMemo) Warm(ctx context.Context, ref string) (couchcore.HubSlot, error) {
+	// Every request-path read is bounded by the admission budget, whatever
+	// context the caller passes.
+	ctx, cancel := context.WithTimeout(ctx, slotAdmissionBudget)
+	defer cancel()
 	key := hubTargetKey(ref)
 	m.mu.Lock()
-	if e, ok := m.entries[key]; ok {
-		age := m.now().Sub(e.at)
-		if e.err == nil && age < m.maxAge {
-			m.mu.Unlock()
-			return e.slot, nil
-		}
-		if e.err != nil && age < hubTargetFailureAge {
-			m.mu.Unlock()
-			return couchcore.HubSlot{}, e.err
-		}
+	if e, ok := m.entries[key]; ok && e.live(m.now(), m.maxAge) {
+		m.mu.Unlock()
+		return e.slot, e.err
 	}
 	flight, ok := m.inflight[key]
 	if !ok {
@@ -137,25 +144,25 @@ func (m *hubTargetMemo) remember(ref string, slot couchcore.HubSlot, err error, 
 	key := hubTargetKey(ref)
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if old, ok := m.entries[key]; ok && old.at.After(started) {
+	if old, ok := m.entries[key]; ok && old.started.After(started) {
 		return
 	}
 	now := m.now()
 	for k, e := range m.entries {
-		if (e.err == nil && now.Sub(e.at) >= m.maxAge) || (e.err != nil && now.Sub(e.at) >= hubTargetFailureAge) {
+		if !e.live(now, m.maxAge) {
 			delete(m.entries, k)
 		}
 	}
 	for len(m.entries) >= hubTargetMaxEntries {
 		oldest := ""
 		for k, e := range m.entries {
-			if oldest == "" || e.at.Before(m.entries[oldest].at) {
+			if oldest == "" || e.finished.Before(m.entries[oldest].finished) {
 				oldest = k
 			}
 		}
 		delete(m.entries, oldest)
 	}
-	m.entries[key] = hubTargetEntry{slot: slot, err: err, at: started}
+	m.entries[key] = hubTargetEntry{slot: slot, err: err, started: started, finished: now}
 }
 
 // wait joins outstanding resolutions; the lifetime's end cancels them.

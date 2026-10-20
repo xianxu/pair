@@ -214,3 +214,47 @@ func TestHubTargetMemoOrdersByStartAndSweeps(t *testing.T) {
 		t.Fatalf("expired entries kept: %d", n)
 	}
 }
+
+// TestHubTargetMemoAgesFailuresFromTheirEnd (M1 review round 3): a failed
+// resolution slower than the failure age still answers the next admission
+// with its own error, counted from when it finished.
+func TestHubTargetMemoAgesFailuresFromTheirEnd(t *testing.T) {
+	now := time.Unix(1000, 0)
+	var clock sync.Mutex
+	var calls atomic.Int64
+	m := newHubTargetMemo(t.Context(), func(context.Context, string) (couchcore.HubSlot, error) {
+		calls.Add(1)
+		clock.Lock()
+		now = now.Add(2 * hubTargetFailureAge) // a hung probe outlasts the failure age
+		clock.Unlock()
+		return couchcore.HubSlot{}, errors.New("sdlc workspace: probe timed out")
+	}, func() time.Time { clock.Lock(); defer clock.Unlock(); return now })
+	_, _ = m.Fresh(t.Context(), "pair:6")
+	if _, err := m.Warm(t.Context(), "pair:6"); err == nil || !strings.Contains(err.Error(), "probe timed out") || calls.Load() != 1 {
+		t.Fatalf("slow failure not answered from the memo: %v (resolutions %d)", err, calls.Load())
+	}
+}
+
+// TestHubTargetMemoWarmCapsItsOwnWait: a caller passing an unbounded context
+// still gets an answer within the admission budget.
+func TestHubTargetMemoWarmCapsItsOwnWait(t *testing.T) {
+	block := make(chan struct{})
+	defer close(block)
+	m := newHubTargetMemo(t.Context(), func(ctx context.Context, _ string) (couchcore.HubSlot, error) {
+		select {
+		case <-block:
+		case <-ctx.Done():
+		}
+		return couchcore.HubSlot{}, ctx.Err()
+	}, nil)
+	result := make(chan error, 1)
+	go func() { _, err := m.Warm(context.Background(), "pair:6"); result <- err }()
+	select {
+	case err := <-result:
+		if !errors.Is(err, errSlotCatalogWarming) {
+			t.Fatalf("unbounded caller: %v", err)
+		}
+	case <-time.After(20 * slotAdmissionBudget): // safety bound only; a pass never depends on it
+		t.Fatal("Warm waited past its own admission budget for an unbounded caller")
+	}
+}
