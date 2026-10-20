@@ -41,10 +41,12 @@ A list that only grows stops being read, which defeats notifications.
 
 ## Plan
 
-- [ ] Pin restart, select/dismiss suppression and re-occurrence, clear-all keyboard/mouse, notification-only 12h expiry, and live expiry wiring with targeted tests.
+- [x] Pin restart, select/dismiss suppression and re-occurrence, clear-all keyboard/mouse, notification-only 12h expiry, and live expiry wiring with targeted tests.
 - [ ] Remove attention persistence/restore/saver, add pure suppression/expiry transitions and panel clear-all, update README/atlas, run affected verification and close.
 
 ## Log
+
+- Red/green: original selection left condition rows visited and dismissal re-raised them; both regressions now pass. Added 12h boundary/live-condition preservation, clear-all with keyboard and mouse under overflow, restart reset, fresh-occurrence, and existing-activity-tick expiry tests. Removed persistence/saver path and obsolete store tests.
 
 ### 2026-10-20
 
