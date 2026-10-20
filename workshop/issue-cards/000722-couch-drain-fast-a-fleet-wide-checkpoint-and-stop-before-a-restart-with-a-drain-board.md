@@ -1,6 +1,6 @@
 ---
 id: 000722
-status: codecomplete
+status: working
 created: 2026-10-19
 updated: 2026-10-20
 estimate_hours: 9.6185
