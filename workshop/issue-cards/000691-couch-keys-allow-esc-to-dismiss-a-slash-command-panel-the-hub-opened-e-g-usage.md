@@ -1,6 +1,6 @@
 ---
 id: 000691
-status: working
+status: codecomplete
 created: 2026-10-18
 updated: 2026-10-19
 estimate_hours:
@@ -13,15 +13,14 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
-actual_hours: 1.27
+actual_hours: 2.68
 tracker:
     version: 1
     completion:
-        token: close-ab42085f42ba
+        token: close-be24ed12c52f
         repository: github.com/xianxu/pair
-        reviewed_head: 4675381be1ac22635fecf3523b303c7a15f6f433
-        evidence_commit: d79cc27baa6846bb709decf2e14ff0e19bdc139f
-        landed_commit: f1c1ee6edd90ca36857da04b1d4818085b886ca9
+        reviewed_head: 0127de1adbef4af2f798ff5a796d05ab578d8f62
+        evidence_commit: f3ca1c4c6201ce04e74f3fcb8a23d36137dfd54e
 ---
 
 # couch --keys: allow Esc to dismiss a slash-command panel the hub opened (e.g. /usage)
