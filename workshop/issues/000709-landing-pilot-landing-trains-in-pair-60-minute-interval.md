@@ -44,8 +44,8 @@ train PR's merge commit, and its `sdlc landing status` line, and record them in 
 ## Plan
 
 - [x] Add the single-field 60-minute config; retain the existing max-car default.
-- [ ] Verify JSON and existing provider config/status tests; publish the PR and record the required suite.
-- [ ] Obtain suite and single close review; request operator local-gates verification through the hub before landing.
+- [x] Verify JSON and existing provider config/status tests; publish the PR and record the required suite.
+- [x] Prepare the single close review with suite evidence and operator local-gates verification obtained through the hub before landing.
 - [x] Record the TL-owned post-landing status and real-train conformance handoff (landing follows close and operator verification).
 
 ## Log
@@ -59,6 +59,10 @@ ARCH-DRY: use existing ariadne#449 config/parser, default car cap and train life
 ### 2026-10-19 — candidate configuration
 
 Added only train_interval_minutes=60; the provider retains its default max-car cap. JSON validation confirms exactly that field/value; git diff --check passes. Existing provider controls pass (2.067s): go test ./cmd/sdlc -run '^(TestParseLandingConfig|TestReadLandingScheduleAbsentIsOff|TestLandingScheduleSourceFailsToSerial|TestLandingPRLabelMarksLocalGates|TestLandingStatusShowsTrainsAndReadiness)$' -count=1 in the slot-private Ariadne. The config is read from main, so branch status remains off until landing; no live train acceptance claimed.
+
+### 2026-10-19 21:01 PDT — suite and operator verification confirmed
+
+Required recorded suite passed on d0b77effdafdcd7874fce0a8acb4384e6deb7edf: make PAIR_GO_TRIMPATH=-trimpath test, exit0, execution8m57s after424s queue; log .git/sdlc/local-checks/d0b77effdafdcd7874fce0a8acb4384e6deb7edf/suite.log, sha256 prefix2a00c0f3d785, recorded sdlc-local/suite. Later commits are documentation only. Operator label local-gates-verified is present on PR469; latest local-gates-guard and verdict pass, as does merge-check. Canonical TL dispatch e517c822 directs close then sdlc merge --yes. No self-label or CI bypass. First real multi-car train remains TL-owned per the recorded acceptance revision; after landing this slot checks main's 60-minute status.
 
 ## Revisions
 
