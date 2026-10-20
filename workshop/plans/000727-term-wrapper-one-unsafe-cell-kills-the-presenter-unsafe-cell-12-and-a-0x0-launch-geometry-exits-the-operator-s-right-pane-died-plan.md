@@ -161,28 +161,28 @@ Files: create terminal/cell_degrade.go and cell_degrade_test.go; modify endpoint
 observation.go; create termcmd/diagnostics.go and diagnostics_test.go; wire existing
 ptychild.Options.Observer from terminalMux; update artifactpath's diagnostic-source manifest.
 
-- [ ] Write and run red tests for the named functions above; retain semantic failure evidence.
-- [ ] Implement pure repair and bounded first-fault evidence at owned backend snapshots.
-- [ ] Wire existing nonblocking observation to the registered buffered diagnostic sink.
+- [x] Write and run red tests for the named functions above; retain semantic failure evidence.
+- [x] Implement pure repair and bounded first-fault evidence at owned backend snapshots.
+- [x] Wire existing nonblocking observation to the registered buffered diagnostic sink.
 - [ ] Run terminal/termcmd/ptychild/terminalcapture/source-guard tests and commit.
 
 ### 2. Geometry and native-shell recovery
 
 Files: termcmd/run.go, recovery.go, recovery_test.go, presentation_test.go.
 
-- [ ] Write and run red geometry/recovery transition and real-PTY tests from the strategy table.
-- [ ] Implement waitInitialGeometry and RecoveryTransition with the signal/cleanup handoff above.
-- [ ] Retain the existing mid-session zero-size ignore and qualify it through real input/output.
-- [ ] Run targeted terminal/termcmd/hostty/ptychild checks and commit.
+- [x] Write and run red geometry/recovery transition and real-PTY tests from the strategy table.
+- [x] Implement waitInitialGeometry and RecoveryTransition with the signal/cleanup handoff above.
+- [x] Retain the existing mid-session zero-size ignore and qualify it through real input/output.
+- [x] Run targeted terminal/termcmd/hostty/ptychild checks and commit.
 
 ### 3. Missing terminal shortcut and qualification
 
 Files: layoutcmd/layoutcmd.go and tests; shared workbenchshortcut command; termcmd/run.go;
 README.md, atlas/terminal.md and the relevant atlas shortcut reference.
 
-- [ ] Write and run red stateful-fake recovery routing tests from the strategy table.
-- [ ] Implement confirmed-absence creation and shared pane command; qualify existing nvim/agent wiring.
-- [ ] Update README/atlas for diagnostics, waiting, shell fallback and recovery key.
+- [x] Write and run red stateful-fake recovery routing tests from the strategy table.
+- [x] Implement confirmed-absence creation and shared pane command; qualify existing nvim/agent wiring.
+- [x] Update README/atlas for diagnostics, waiting, shell fallback and recovery key.
 - [ ] Run affected checks, commit/push, open PR and recorded full suite; close through SDLC review.
 - [ ] Land on deterministic tests per hub approval, then operator's next natural relaunch owns live acceptance.
 - [ ] On SHIP, sdlc merge --yes; verify merge/clean slot, report hub and stop.

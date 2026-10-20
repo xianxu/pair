@@ -55,7 +55,7 @@ geometry at launch (pane measured before it had a size) refuses outright instead
 
 ## Plan
 
-- [ ] Execute [the single-pass plan](../plans/000727-term-wrapper-one-unsafe-cell-kills-the-presenter-unsafe-cell-12-and-a-0x0-launch-geometry-exits-the-operator-s-right-pane-died-plan.md): safe backend-cell projection and bounded diagnostics; geometry/recovery lifecycle; missing-terminal shortcut recovery.
+- [x] Execute [the single-pass plan](../plans/000727-term-wrapper-one-unsafe-cell-kills-the-presenter-unsafe-cell-12-and-a-0x0-launch-geometry-exits-the-operator-s-right-pane-died-plan.md): safe backend-cell projection and bounded diagnostics; geometry/recovery lifecycle; missing-terminal shortcut recovery.
 - [ ] Run the recorded full suite, close review, coordinated operator acceptance, then land through SDLC.
 
 ## Log
@@ -185,3 +185,21 @@ started during the production-wiring TDD and recorded its two expected semantic
 reds; the final recovery run is green. Remaining work: final affected-package
 verification, recorded full suite, close review and landing. No live acceptance
 claimed; no pair:0 changes.
+
+### 2026-10-20 — final targeted verification and recorded-suite queue
+
+Implementation commit 55df33935c21f65e800ac483aaa7d82feed7c9ca is pushed in
+PR #486. Final complete affected packages passed: terminal 93.468s,
+workbenchshortcut 0.213s, zellijtest 17.989s; final termcmd/layoutcmd with race
+passed 8.015s/8.698s after production wiring. hostty/ptychild passed
+0.238s/0.984s. Artifact-path inventory passed. The recorded full suite is queued
+normally (attempt bea3d4367048109a4e60570962f1d871); no duplicate full run.
+
+Fresh implementation checks also cover maximal bounded evidence, strict direct
+Frame rejection, exact foreign-tab absence and unknown-inventory no-effect.
+The optional diagnostic writer uses its existing registration/rotation/retention;
+this incident changes resilience policy, not a new mechanical API misuse class.
+There is no generic lint rule that can infer which backend payload is safe to
+repair or which teardown grants handoff. The deterministic transition and safety
+regressions defend those decisions. Live acceptance remains owed at the next
+natural relaunch per the hub, with the actual original cell trigger unknown.
