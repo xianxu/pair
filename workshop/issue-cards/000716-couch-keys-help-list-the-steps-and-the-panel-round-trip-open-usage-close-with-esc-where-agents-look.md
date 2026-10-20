@@ -1,6 +1,6 @@
 ---
 id: 000716
-status: codecomplete
+status: done
 created: 2026-10-19
 updated: 2026-10-19
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 76299b60688ce6a402007a5f756f642eb28478d1
         evidence_commit: 0ad99236fdac86c0d7b044a1f71b6c3fd33822ae
+        landed_commit: 80b3d22c0b8560df7d0f223ad3ee49191f10dec3
 ---
 
 # couch --keys help: list the steps and the panel round trip (open /usage, close with esc) where agents look
