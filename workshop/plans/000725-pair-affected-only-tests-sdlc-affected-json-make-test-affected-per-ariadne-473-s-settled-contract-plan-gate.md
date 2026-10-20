@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: 46e6c83e-15e7-442e-93d2-040d9cff7e1a
+        repository: github.com/xianxu/pair
+        issue_id: "000725"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot3/pair
+        reviewed_head: f1451a71feb231ee71fc2a3a47f788f4333150d5
+        slot: pair:3
+        requested_at: "2026-10-20T09:31:02.363688Z"
+      phase: finished
+      pid: 60832
+      started_at: "2026-10-20T09:31:02.610498Z"
+      finished_at: "2026-10-20T09:31:33.674836Z"
+      session_id: 01a158a6-687a-7f11-971d-ffdaf3b8500a
+      outcome: returned
 gate: plan-quality
 issue: 725
 id_prefix: PQ
@@ -65,7 +85,32 @@ rounds:
           note: Named validation, argv-construction and dispatch functions separate pure logic from IO; function-level strategies specify adversarial inputs and mechanical guards.
           round: 2
       blocked: false
-content_hash: ef14be5bb2d369752fd68c9a7d497590d7432392e3f9c6c07f8e3a62dd4db1e9
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: f70725d6-5eee-4c77-a771-6ecf5cc027f4
+            repository: github.com/xianxu/pair
+            issue_id: "000725"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot3/pair
+            reviewed_head: f1451a71feb231ee71fc2a3a47f788f4333150d5
+            slot: pair:3
+            requested_at: "2026-10-20T09:30:32.638069Z"
+          phase: finished
+          pid: 36036
+          started_at: "2026-10-20T09:30:32.920627Z"
+          finished_at: "2026-10-20T09:30:58.092563Z"
+          session_id: 01a158a5-f5e7-78c3-b32d-91c4a8ff4f88
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-20T02:30:58-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      blocked: false
+content_hash: 205f96234f525a74d07f97fe338b002ea7971bcdbd3bc9bd30386c4bb2465c21
 ---
 
 # Gate ledger — pair#725 (plan-quality)
@@ -85,6 +130,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - PQ-1 — addressed — Named validation, argv-construction and dispatch functions separate pure logic from IO; function-level strategies specify adversarial inputs and mechanical guards.
+
+## Round 3 — 2026-10-20T02:30:58-07:00 (codex) — passed
 
 ## Open findings
 

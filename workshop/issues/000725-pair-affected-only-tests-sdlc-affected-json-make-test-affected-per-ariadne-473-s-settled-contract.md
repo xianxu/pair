@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
-estimate_hours:
+estimate_hours: 2.21
 collaboration-mode: collaboration
-card_mirror: '74042514b334d812e24e650177339cfe7d0735ab' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '042783714901991e8be412512e7b33d2026c31f2' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T02:22:02-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # pair affected-only tests: .sdlc/affected.json + make test-affected, per ariadne#473's settled contract
