@@ -1,6 +1,6 @@
 ---
 id: 000711
-status: codecomplete
+status: done
 created: 2026-10-19
 updated: 2026-10-20
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 6231932580842773fd14e5349f4b52a48d34c4cc
         evidence_commit: c38a0d8a1e6b140b6e22991d5d677d532343433e
+        landed_commit: a1b3dfaa6714e38f18283e7e73d527eca6aa53e8
 ---
 
 # couch --send-to hub refused 'no live registration' while both actors were live; advises a restart
