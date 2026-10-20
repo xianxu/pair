@@ -87,6 +87,9 @@ func TestRecoveryLaunchUncertaintyPreservesExactClaim(t *testing.T) {
 				}
 				if scenario == "helper exited" {
 					env.Runner.SetExited(id, 23)
+					// Failed terminal observation, unlike proven absence, cannot
+					// release the exited helper's recovery claim.
+					env.Artifacts.BeforePairSession = func(ThreadAddress) error { return cause }
 				}
 				if scenario == "ack uncertainty" {
 					return errors.New("ack transport uncertain")

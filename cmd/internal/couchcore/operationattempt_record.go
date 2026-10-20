@@ -48,9 +48,7 @@ func (a *OperationAttempt) ObserveCall(call OperationCall) {
 	t := lifecycleFailureTargetForCall(call)
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if t.Address != (ThreadAddress{}) {
-		a.target.Address = t.Address
-	}
+	a.target.Address = completeFailureAddress(t.Address, a.target.Address)
 	if t.StartingPath != "" {
 		a.target.StartingPath = t.StartingPath
 	}
@@ -173,9 +171,7 @@ func lifecycleFailureForAttempt(a *OperationAttempt, cause error, at time.Time) 
 	}
 	f.Nonce, f.Operation, f.FailedAt = a.nonce, a.op, at
 	f.Target = target.Target
-	if target.Address != (ThreadAddress{}) {
-		f.Address = target.Address
-	}
+	f.Address = completeFailureAddress(target.Address, f.Address)
 	if target.StartingPath != "" {
 		f.StartingPath = target.StartingPath
 	}

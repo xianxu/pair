@@ -210,6 +210,25 @@ operator line name cleanup uncertainty and retain the diagnostic nonce. Inspect
 with couch --show, then use the existing continue, resume from disk or start fresh
 recovery outcome when fresh evidence permits it. No new recovery state is added.
 
+### Failed recovery launch disposition (#714)
+
+An acknowledged recovery launch gets one final registration look before it is
+classified. If registration is still unconfirmed, Couch retains the per-thread
+operation hold while checking the exact recorded helper and proposed terminal.
+Only a reaped direct child, an absent owned process group and an absent exact
+terminal release the failed creating incarnation. `ReconcileStart` owns the pure
+evidence decision; `StartFailedConfirmed` applies its nonce/revision-fenced
+transition and retains the original selection, park and thread for immediate
+retry. It does not signal, delete a session or start a replacement.
+
+Live/unknown group or terminal evidence, changed metadata and failed disposition
+persistence all remain **Launch unconfirmed**; inspect the exact attempt before
+another recovery action. The final disposition has one five-second context for
+observation and metadata admission/write, followed by the existing optional
+ten-second diagnostic-publication cap. Lock contention may refuse immediately.
+The successful-launch path adds no disposition probes. See
+`couchcore/recovery_launch_disposition.go` and `recovery_launch_failure_test.go`.
+
 ### Lifecycle failure evidence (#531, #683)
 
 `launchfailure.go` owns `LifecycleFailure` and the legacy `LaunchFailure` aliases,
@@ -251,6 +270,13 @@ references; preparation can add the actual dispatched thread address without
 resolving or authorizing it for diagnostics. Unreadable records remain recoverable.
 Optional nonce/publication failures preserve the original action result with a
 warning rather than inviting another external effect.
+
+Diagnostic address composition uses `completeFailureAddress`: it copies one
+complete scope/tag pair atomically, falling back to the captured launch address
+when outer dispatch evidence is partial. It never combines components from two
+targets. Unresolved calls retain their reference/path with an empty address, so
+strict record validation stays in force. The concise operator message also
+retains an outer recorder's save-failed warning alongside the launch exit.
 
 Pure `LastLifecycleSuccessAt(record)` is the sole success-time definition: verified
 park time and a committed live incarnation's start time. LastActiveAt is excluded
@@ -2240,8 +2266,25 @@ frame repainted after the write proves nothing, because a usage panel repaints
 when its data loads. One rule, `agentdrive.Request.Admits`, decides admission
 for the service, its pre-input guard, the wrapper and the reducer. The panel
 is the rows below the viewport's last full-width rule, since earlier prompt
-rows stay visible above it; the footer wording comes from the Claude 2.1.304
-capture in `wrapcmd/testdata/drive/claude/2.1.304/`.
+rows stay visible above it. A panel taller than the screen has scrolled its rule
+away and fills the whole viewport. The footer wording comes from the Claude
+2.1.304 captures in `wrapcmd/testdata/drive/claude/2.1.304/` (short and tall
+panels, plus real working-turn screens that must refuse). Claude reports
+progress as working for as long as its panel is open, so the wrapper's turn flag
+stays set. For the lone `esc` only, the panel proof outranks that flag:
+`Dismissable` has no turn gate, and a dismissal drive does not stop on an active
+turn (`DriveState.panelOwnsInput`). It still confirms only on an idle composer,
+which follows Claude's progress-stopped report at dismissal. Every other drive
+still stops on an active turn. Any other request refused
+while a panel shows says so and names the lone `esc` (`agentdrive.PanelRefusal`).
+For a non-recovery key, the service learns about the panel through one read-only
+observation, made only on the not-settled refusal path (pair#716).
+
+`agentdrive.Steps` is the one table of caller steps (pair#716). `Validate`
+accepts a named key only if it is a row. `couch --keys --help` renders the rows,
+the limit constants, the admission rules and the panel round trip, and
+`couch --help` names them inline. A test holds the skill's step sentence to the
+same table.
 
 `couchmessage/drive_endpoint.go` provides `drive-observe`, `drive-start`,
 `drive-status` and idempotent `drive-cancel` over the existing authenticated
@@ -4555,7 +4598,9 @@ boundaries with exact bytes, geometry and timing. Regular Couch is supported;
 `COUCH_ISOLATED_ROOT` remains optional. Capture stays disabled by default. See the
 [live capture runbook](couch-live-capture.md) for launch, limits and extraction.
 
-Recovery candidates are an explicit choice: `couch --resume-candidates repo:N --json` lists the best candidate and up to four alternatives with native identity, last activity, tail match and a stable selection key. `couch --resume repo:N --candidate KEY` selects that evidence snapshot. The menu uses the same preview and offers fresh startup from the previous screen. Automatic inference is disabled pending a witnessed calibration corpus.
+Recovery candidates are an explicit choice: `couch --resume-candidates repo:N --json` lists up to five native/proven choices. Capture-backed alternatives retain their measured tail matching; when the screen cannot support inference, native-only alternatives show **unconfirmed**, physical cwd, semantic native activity and native ID without a tail score. Screen failure reasons and readable capture-file activity remain separate from native-scan completeness. A missing launch association weakens provenance without making an otherwise complete scan incomplete.
+
+`couch --resume repo:N --candidate KEY` selects the exact observed evidence. Native-only keys bind the fixed observation cutoff, source revision and ordered artifact fingerprints and expire after five minutes; refresh after expiry or changed evidence. Selection freezes the original native snapshot and verifies the exact selected artifact before preservation, retirement and claim admission. It persists bounded native evidence before source retirement; the launcher independently revalidates the artifact and physical cwd before composing native resume argv. No capture or established binding is manufactured. Plain resume continues to require an established binding; Fresh remains available with honest context-loss advice. Listing does not provision or write lifecycle state, and automatic inference stays disabled. The shared scan envelope remains 30 seconds, 10,000 metadata visits, 64 eligible roots and 256 MiB; failed screen reads and retry scans share that read budget. Screen replay separately preflights its shared 64 MiB raw and 8 MiB event limits before reserving replay bytes; rejected screens leave unread bytes available to native discovery. Readable owned raw-file activity remains descriptive even if companion events or archive authority fails.
 
 Explicit multi-directory launches enqueue the typed `start-hub` operation on
 the existing console operation queue. It reuses StartInteractive for each extra

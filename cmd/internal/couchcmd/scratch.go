@@ -3,6 +3,8 @@ package couchcmd
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -83,6 +85,10 @@ func workspaceScratchOwner(id couchcore.WorkspaceIdentity) (couchscratch.Slot, b
 // configureScratch composes startup effects only for the singleton owner. CLI
 // readers cannot change native metadata or start a maintenance worker.
 func (r OSRuntime) configureScratch(c *couchcore.Couch) {
+	c.ScratchDiagnostic = func(_ context.Context, record couchcore.ThreadRecord) string {
+		_, status := r.scratchAdmission(record)
+		return status
+	}
 	if !r.ownership.held() {
 		return
 	}
@@ -118,7 +124,15 @@ func (r OSRuntime) configureScratch(c *couchcore.Couch) {
 		}
 		return owner, err
 	}
-	c.SlotEnvironment = scratchSlotEnvironment(manager, lookup)
+	prepare := scratchSlotEnvironment(manager, lookup)
+	c.SlotEnvironment = func(ctx context.Context, record couchcore.ThreadRecord) []string {
+		allowed, status := r.scratchAdmission(record)
+		if !allowed {
+			note(status)
+			return nil
+		}
+		return prepare(ctx, record)
+	}
 	c.ScratchStartup = func(ctx context.Context, warn func(string)) {
 		if warn != nil {
 			notify = warn
@@ -148,6 +162,29 @@ func (r OSRuntime) configureScratch(c *couchcore.Couch) {
 		_, _ = manager.Sweep(ctx) // Manager reports one bounded aggregate itself.
 	}
 	c.ScratchMaintenance = manager.Maintain
+}
+
+// scratchAdmission shares the persistent declaration with launch and read-only show.
+func (r OSRuntime) scratchAdmission(_ couchcore.ThreadRecord) (bool, string) {
+	marker := couchscratch.ScratchOptInPath(r.Getenv("HOME"), r.Getenv("XDG_CONFIG_HOME"))
+	if marker == "" {
+		return false, "scratch: normal temp (opt-in location unavailable; set absolute HOME or XDG_CONFIG_HOME)"
+	}
+	if r.isolatedRoot != "" {
+		physical, err := canonicalFuture(marker)
+		if err != nil || !confined(r.isolatedRoot, physical) {
+			return false, fmt.Sprintf("scratch: normal temp (opt-in outside isolated Couch: %q)", marker)
+		}
+	}
+	info, err := os.Lstat(marker)
+	optedIn := err == nil && info.Mode().IsRegular()
+	if !optedIn {
+		return false, fmt.Sprintf("scratch: normal temp (setup declaration required: %q)", marker)
+	}
+	if !couchscratch.ChooseSlotScratch(r.scratchProbe(), optedIn) {
+		return false, "scratch: normal temp (RAM disk unavailable)"
+	}
+	return true, "scratch: RAM disk"
 }
 
 // nativeScratchServers observes every native server, regardless of Pair scope.

@@ -28,6 +28,8 @@ const (
 	cliSkill
 	cliAdopt
 	cliHelp
+	// cliKeysHelp is `couch --keys --help`: the step table and recipes (#716).
+	cliKeysHelp
 	cliSessionSync
 	// cliWebQuery is couch broadcast-web's agent queries (#462); args holds
 	// the argv after the flag, which query.Run parses.

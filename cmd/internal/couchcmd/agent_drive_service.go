@@ -84,9 +84,19 @@ func (s *messageService) handleAgentDrive(ctx context.Context, r couchmessage.Re
 	}
 	callerToken := switchSourceToken(callerLive)
 	recoveryOnly := r.Drive.RecoveryOnly()
+	const notIdle = "wait until the agent composer is empty and its turn finishes"
 	targetLive, ok := s.LivenessForThread(target.Scope, target.Tag)
-	if !ok || targetLive.Binding != target || !recoveryOnly && (targetLive.Settled == nil || !*targetLive.Settled) {
-		return refuse(errors.New("wait until the agent composer is empty and its turn finishes"))
+	if !ok || targetLive.Binding != target {
+		return refuse(errors.New(notIdle))
+	}
+	if !recoveryOnly && (targetLive.Settled == nil || !*targetLive.Settled) {
+		// Refused either way. One read-only observation lets a refusal on an
+		// open panel name the key that would be admitted (pair#716).
+		detail := notIdle
+		if observation, err := endpoint.ObserveDrive(ctx); err == nil {
+			detail = r.Drive.Refusal(observation.Admission(), notIdle)
+		}
+		return refuse(errors.New(detail))
 	}
 	targetToken := switchSourceToken(targetLive)
 	observation, err := endpoint.ObserveDrive(ctx)
@@ -97,7 +107,7 @@ func (s *messageService) handleAgentDrive(ctx context.Context, r couchmessage.Re
 		return r.Drive.Admits(observation.Admission())
 	}
 	if !admissible(observation) || observation.Instance == "" {
-		return refuse(errors.New("wait until the agent composer is empty and its turn finishes"))
+		return refuse(errors.New(r.Drive.Refusal(observation.Admission(), notIdle)))
 	}
 	callerCurrent := func(ctx context.Context) error {
 		if err := ctx.Err(); err != nil {

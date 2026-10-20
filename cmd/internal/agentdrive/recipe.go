@@ -86,6 +86,19 @@ func (r Request) Admits(a Admission) bool {
 	return a.Idle || r.RecoveryOnly() && a.Recoverable || r.DismissOnly() && a.Dismissable
 }
 
+// PanelRefusal is the refusal for any other request while a recognized panel
+// shows: it names the one key that is admitted.
+const PanelRefusal = "a slash-command panel is open; only a lone esc is admitted (couch --keys SLOT esc), then retry"
+
+// Refusal explains why r was refused: the panel hint when a panel shows and r
+// is not already the lone esc, otherwise the caller's own wording.
+func (r Request) Refusal(a Admission, otherwise string) string {
+	if a.Dismissable && !a.Idle && !a.Recoverable && !r.DismissOnly() {
+		return PanelRefusal
+	}
+	return otherwise
+}
+
 func (r Request) Validate() error {
 	if (len(r.Keys) == 0) == (r.Model == nil) {
 		return errors.New("drive requires exactly one key sequence or model request")

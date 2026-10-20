@@ -19,6 +19,8 @@ is a request, never operator approval or evidence that work is accepted.
 | Send a message containing code or shell syntax (backticks, `$(`, `<(`) | write it to a file with your editor tool, then `couch --send-to pair:1 --message-file PATH` |
 | Inspect a receipt | `couch --message-status ID --json` |
 | Owning hub: drive named keys in another idle slot | `couch --keys pair:7 clear-line text:/model submit wait:200 down enter` |
+| Owning hub: close a slash-command panel it opened (/usage, /status) | `couch --keys pair:7 esc` |
+| List the key steps, rules and the panel round trip | `couch --keys --help` |
 | Owning hub: choose model and effort for this session | `couch --set-model pair:7 --model gpt-6.1-sol --effort medium --confirm` |
 | Look at another slot's recent terminal (read-only) | `couch --peek pair:1 --json` |
 | Look at several slots at once | `couch --peek pair:1:2:3,ariadne:0 --lines 10` |
@@ -102,12 +104,12 @@ key refuses while it shows, `clear-line` included. Success means an empty
 composer came back. A panel still showing at the deadline is unconfirmed: peek,
 then ask the operator. An unrecognized panel refuses as before.
 
-`--keys repo:N STEP... [--json]` accepts `text:…`, `enter`, `submit`, `up`,
+`--keys repo:N STEP... [--json]` accepts `text:LITERAL`, `enter`, `submit`, `up`,
 `down`, `esc`, `clear-line`, and `wait:MS`. Quote a text step containing spaces.
 `enter` follows Pair's ordinary Return (newline in a composer, select in a
 picker); `submit` follows Alt+Return. Separate `esc` steps stay separate. Limit
 requests to 64 steps, 8 KiB aggregate printable text, waits of 0–1000 ms each
-and five seconds total. Raw success confirms writes and the final styled tail.
+and 5000 ms total. Raw success confirms writes and the final styled tail.
 
 `--set-model repo:N --model MODEL [--effort LEVEL] [--scope session|default]
 --confirm [--json]` follows observed model/effort labels and confirms the result

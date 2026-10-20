@@ -61,8 +61,11 @@ func (p *proxy) agentDriveScreen() agentdrive.Screen {
 	text, known := qualifiedComposerText(p.agentBasename, evidence.Snapshot)
 	s.Recoverable = known && s.Complete && !s.TurnActive && !picker
 	// A panel replaces the composer, so it is the unknown-composer case that
-	// still carries positive evidence: its own Esc footer (pair#691).
-	s.Dismissable = !known && s.Complete && !s.TurnActive && !picker && agentdrive.DismissablePanel(p.agentBasename, s.Lines)
+	// still carries positive evidence: its own Esc footer (pair#691). It has
+	// no turn gate: Claude reports progress as working for as long as its
+	// panel is open, and the panel proof outranks that inference for a lone
+	// esc only. The picker gate stays.
+	s.Dismissable = !known && s.Complete && !picker && agentdrive.DismissablePanel(p.agentBasename, s.Lines)
 	// Cleanup proof is intentionally one acknowledged native command line. A
 	// multiline composer has no captured clearing contract and grants no cleanup.
 	if s.Recoverable && text == "/model" {
@@ -149,9 +152,9 @@ func (d *peerDelivery) startAgentDrive(id string, start couchmessage.DriveStart)
 	}
 	screen := d.driveProbe()
 	available := d.driveAvailableLocked()
-	admissible := start.Request.Admits(agentdrive.Admission{Idle: d.driveIdleLocked() && screen.Idle, Recoverable: available && screen.Recoverable, Dismissable: available && screen.Dismissable})
-	if !admissible || !screen.Complete {
-		return refuse("agent composer must be empty with no turn or picker; wait until it is idle")
+	admission := agentdrive.Admission{Idle: d.driveIdleLocked() && screen.Idle, Recoverable: available && screen.Recoverable, Dismissable: available && screen.Dismissable}
+	if !start.Request.Admits(admission) || !screen.Complete {
+		return refuse(start.Request.Refusal(admission, "agent composer must be empty with no turn or picker; wait until it is idle"))
 	}
 	state, err := agentdrive.NewDrive(start.Request, d.binding.Agent, start.Deadline)
 	if err != nil {
@@ -276,7 +279,7 @@ func (p *proxy) dispatchAgentDrive(out io.Writer) {
 		p.inputAdmission.Unlock()
 		return
 	}
-	if screen.TurnActive {
+	if screen.TurnActive && !r.state.Dismissal() {
 		r.state, r.effects = agentdrive.ReduceDrive(r.state, agentdrive.DriveEvent{Kind: agentdrive.EventScreen, At: d.now(), Screen: screen})
 		if r.state.Terminal() {
 			p.finishAgentDriveLocked(r, screen)

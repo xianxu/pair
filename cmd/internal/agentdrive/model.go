@@ -151,7 +151,18 @@ func cloneDrive(s DriveState) DriveState {
 	return s
 }
 func (s DriveState) Terminal() bool { return s.phase == phaseTerminal }
-func (s DriveState) Started() bool  { return s.phase != phaseNew }
+
+// Dismissal reports a drive admitted only by a recognized panel.
+func (s DriveState) Dismissal() bool { return s.dismissal }
+
+// panelOwnsInput exempts a lone-esc dismissal from the turn stop (pair#691).
+// Claude reports progress as working while its panel is open, so the turn
+// flag stays set; the panel proof, rechecked before the write, says the keys
+// go to the panel. Every other drive still stops on an active turn.
+func (s DriveState) panelOwnsInput(event DriveEvent) bool {
+	return s.request.DismissOnly() && (s.dismissal || s.phase == phaseNew && event.Kind == EventStart && event.Screen.Dismissable)
+}
+func (s DriveState) Started() bool { return s.phase != phaseNew }
 
 // RecoveryDue also preempts a queued key whose quiet period would consume the
 // cleanup reserve. The wrapper must not replace other pending effects on ticks.
@@ -326,7 +337,7 @@ func ReduceDrive(input DriveState, event DriveEvent) (DriveState, []DriveEffect)
 	if event.Kind == EventWriteFailed {
 		return finish(s, OutcomeUnconfirmed, "input outcome unconfirmed: "+event.Error)
 	}
-	if event.Screen.TurnActive {
+	if event.Screen.TurnActive && !s.panelOwnsInput(event) {
 		return finish(s, uncertain(s), "agent turn started; input stopped")
 	}
 	if event.Kind == EventTick && s.RecoveryDue(event.At) {
@@ -338,7 +349,7 @@ func ReduceDrive(input DriveState, event DriveEvent) (DriveState, []DriveEffect)
 			return s, nil
 		}
 		if !s.request.Admits(event.Screen.Admission()) || !event.Screen.Complete {
-			return finish(s, OutcomeRefused, "wait until the agent composer is empty and its turn finishes")
+			return finish(s, OutcomeRefused, s.request.Refusal(event.Screen.Admission(), "wait until the agent composer is empty and its turn finishes"))
 		}
 		s.dismissal = event.Screen.Dismissable && !event.Screen.Idle && !event.Screen.Recoverable
 		s.epoch = event.Screen.Epoch

@@ -11,6 +11,9 @@ representative evidence, not an exhaustive index.
 
 - A replay benchmark must prove every claimed stage executed inside its CPU bracket. NewFakeChild with nil Sink skips publication delivery entirely; count deliveries/bytes and validations, check batch.Err, and join publication plus reply workers before the ending sample. Retain incomplete-path runs as diagnostics rather than calling them full-path performance evidence. (#723)
 
+- #714 PQ-2: Verify persisted compatibility against the real decoder and its adversarial tests before claiming unknown-field preservation. A schema-unchanged bugfix can retain an existing strict refusal contract; a preservation migration is a separate, explicit change.
+
+- #714: Failure diagnostics compose whole identities, never nonzero structs or fieldwise fragments. Test a scope-only outer dispatch through actual normalization and reopened persisted history; a recorded Save call is not proof of a saved failure. Preserve publication warnings at the concise operator boundary too.
 - A configuration-only rollout still needs root README coverage when it introduces an operator-facing setting. Sweep the config path/key, selected value, inspection command and approval owner together; an atlas entry alone leaves the usage contract incomplete. (#709 BR-1)
 
 - #715 BR-1: A local extension to a shared tool updates both its adoption instructions and its rule-maintenance instructions in the existing atlas page. Document the local composition owner, scope, shared error/suppression semantics, and which upstream consumers remain unchanged; updating only the feature's lifecycle map misses the tooling surface.
@@ -2409,3 +2412,13 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #712 BR-1: Enumerate metadata locks as IO in a timeout promise. A context passed to native probes does not bound a blocking GetThread, and rereading identity after expiry can recreate the hang. Use the context-aware read-only route, retain observed identity before expiry, and contend the actual store lock while asserting return before release. Bound disposition persistence separately and report a failed commit without discarding the occupied claim.
 
 - #712 BR-1 disposition: A deadline-safe observation followed by an unbounded state write still hangs. Enumerate routing, metadata reads, CAS retry and journal locking under one persistence context; contend both the pre-read and read/write seams. If durable unknown cannot commit, keep the exact occupied claim and report that uncertainty too.
+- #721 PQ-1: A named-function adversarial strategy table owns the test plan. Tasks reference it and carry execution commands; do not duplicate it as prose case inventories. Keep unique safety invariants in design/state/format contracts.
+- #721: Type-owned preserving codecs must normalize absent unknown-member maps consistently with their clones. Empty allocated maps can break exact durable-intent comparisons after a JSON round trip; test equality through the real profile/record encoding rather than weakening the claim check.
+
+- #721 BR-1: Freeze the exact selected snapshot before leaving acquisition; rebuilding from aliased observations can silently accept a changed candidate. Revalidate exact selected artifacts at effect admission, not only after a claim. Mutate through retirement/nonce hooks and test nil verifier and expiry during IO.
+- #721 BR-2/BR-3: Shared IO budgets charge only stages that can run. Preflight using the replay owner’s actual raw/event caps before reserving bytes; a rejected witness must not reserve unread raw data. Observe descriptive file activity independently of companion-file and retained-identity authority, and test early failures as well as late ones.
+- #721 BR-4: A user-visible command change updates both root README reference and usage passages alongside atlas. Search all command mentions before close.
+
+- #720 BR-1/BR-2: Do not grow an optional host feature into a native settings resolver. When permission fidelity needs repeated fixes, prefer an explicit persistent operator declaration and name its false-declaration limitation. A host write probe cannot prove sandbox access. Keep opt-in filenames outside reserved artifact families instead of weakening path-use guards.
+
+- #720 BR-3: A diagnostic added to a show command must cover its valid non-thread targets too. Test a slot with no thread through dispatch; iterating matched threads alone silently omits machine-wide selection information.
