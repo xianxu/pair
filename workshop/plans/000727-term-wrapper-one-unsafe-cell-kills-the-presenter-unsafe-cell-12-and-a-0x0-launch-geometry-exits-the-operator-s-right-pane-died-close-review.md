@@ -360,3 +360,83 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T11:47:23-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 727 — term wrapper: one unsafe cell kills the presenter ('unsafe cell 12'), and a 0x0 launch geometry exits: the operator's right pane died |
+| repo | pair |
+| issue file | workshop/issues/000727-term-wrapper-one-unsafe-cell-kills-the-presenter-unsafe-cell-12-and-a-0x0-launch-geometry-exits-the-operator-s-right-pane-died.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 00890cc01bddc334cff613db81abc4eadd1d04b6..b5291a95ec1267728faa50794d13bb8396565921 |
+| command | sdlc close --issue 727 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T11:47:23-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned interdiff changes only review records and tracker documentation. Production code, tests, Spec, Done-when, and the implementation plan remain unchanged. The new revision records verification and preserves the previously approved natural-relaunch acceptance; it introduces no scope change or new defect.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Previously accepted recovery correction is unchanged; TestRecoveryOwnsInputPumpEnding passes.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Previously accepted focus correction is unchanged; TestNewTerminalRecreatesConfirmedAbsentPane passes.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Native conformance coverage remains unchanged and required by the scheduled runner; all eight runner tests pass. Native conformance was not rerun.
+```
+
+1. **Strengths**
+   - Git comparison confirms production and test files match the previously reviewed `7bda7379` head.
+   - The tracker revision explicitly preserves deferred live acceptance and does not claim landing.
+   - Recovery, focus, and native-runner enforcement regressions pass.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes:** Focused Go regressions, eight Python runner tests, and diff whitespace checks passed. Full suite and native conformance were not rerun; the recorded full-suite result was not independently reproduced.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** No duplicated implementation introduced.
+   - **ARCH-PURE — pass:** No logic or IO boundary changes.
+   - **ARCH-PURPOSE — pass:** Documentation preserves existing acceptance obligations.
+   - **ARCH-EVOLVE — pass:** No persisted-format contract changes.
+
+   No new surface requires README or atlas updates.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"3f58a2b8-57c5-4b73-b0fa-872f564db048","repository":"github.com/xianxu/pair","issue_id":"000727","recipe":"fix-review","round":5,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/3b93d00131395836","reviewed_head":"b5291a95ec1267728faa50794d13bb8396565921","slot":"pair:7","requested_at":"2026-10-20T18:46:48.06569Z"},"phase":"finished","pid":79992,"started_at":"2026-10-20T18:46:48.193154Z","finished_at":"2026-10-20T18:47:23.298268Z","session_id":"01a15aa3-37b9-7ad1-a889-e803f9fafcec","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.805087541s
+head: "b5291a95ec1267728faa50794d13bb8396565921"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
