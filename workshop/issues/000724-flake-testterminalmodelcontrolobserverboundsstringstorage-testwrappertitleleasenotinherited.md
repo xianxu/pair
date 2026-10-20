@@ -52,6 +52,7 @@ Prove the fixes through deterministic interference, then a bounded cohort on com
 ## Log
 
 ### 2026-10-20
+- 2026-10-20: closed — Test-only fixes, no production or atlas surface: isolated strict AllocsPerRun sampling with exact child-PID proof, fixture unknown agent identity reobserved; production title startup traced separately and unchanged, both existing3s bounds retained. Controlled reds: foreign allocation handshake reproduces6/26 on unchanged parser; first-unknown native fixture times out3.03s despite live title. Greens: same native probe passes0.92s with2 observations; focused title/parser suite passes6.540s, normal counts6/6/6. Unbounded-parser mutation fails7/38/41. Bounded cohort two load workers plus one test workload,45.409s, before/after20 passes per test each, no natural failure-rate claim; workers joined. ariadne#493 unclaimed lint follow-up filed. Recorded final-code suite queued on2388cc418956637e6809b2bef3fcb7c54bd74c73; tl-worker permits review overlap; --no-plan-check covers only pending qualification/landing workflow row. Final suite and CI pass required before merge; hub owns project; no live staging for test-only fixtures.; review verdict: SHIP
 
 ### 2026-10-20 — claim, root-cause probes and quick plan
 
