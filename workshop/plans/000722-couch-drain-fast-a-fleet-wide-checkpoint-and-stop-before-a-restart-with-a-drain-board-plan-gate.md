@@ -57,6 +57,25 @@ reviewer_runs:
       finished_at: "2026-10-20T21:16:32.288444Z"
       session_id: 01a15b2b-f1f7-7eb3-9334-621720781e6a
       outcome: returned
+    - version: 1
+      intent:
+        id: 86472a3d-2e3f-49ad-a236-4d191cd8c3ae
+        repository: github.com/xianxu/pair
+        issue_id: "000722"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot5/pair
+        reviewed_head: c618c675f508b700d21b41fa7fb67d4098ec644f
+        slot: pair:5
+        requested_at: "2026-10-20T21:17:31.725778Z"
+      phase: finished
+      pid: 31293
+      started_at: "2026-10-20T21:17:31.860089Z"
+      finished_at: "2026-10-20T21:17:59.635643Z"
+      session_id: 01a15b2d-3691-7793-a553-5f476305867d
+      outcome: returned
 gate: plan-quality
 issue: 722
 id_prefix: PQ
@@ -208,6 +227,32 @@ rounds:
       agent: codex
       reviewer: codex (openai; author openai)
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 453b2e1a-10af-40a2-ac10-e8580b2dd829
+            repository: github.com/xianxu/pair
+            issue_id: "000722"
+            recipe: plan-quality
+            round: 6
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot5/pair
+            reviewed_head: c618c675f508b700d21b41fa7fb67d4098ec644f
+            slot: pair:5
+            requested_at: "2026-10-20T21:17:05.75113Z"
+          phase: finished
+          pid: 11558
+          started_at: "2026-10-20T21:17:05.900765Z"
+          finished_at: "2026-10-20T21:17:29.033394Z"
+          session_id: 01a15b2c-d142-7ea2-a690-08385033b13c
+          outcome: returned
+      "n": 6
+      timestamp: "2026-10-20T14:17:29-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      blocked: false
+      protocol_error: no valid findings block
 content_hash: 6d24203eec155d5a29217b63b4b5e8e54aded039788aaae4753d67c833547a12
 ---
 
@@ -242,6 +287,10 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - PQ-1 — addressed — Named production functions, adversarial strategies and mechanical guards remain present; the governing revision adds counted lifetime-growth verification.
 
 ## Round 5 — 2026-10-20T14:16:06-07:00 (codex) — passed
+
+## Round 6 — 2026-10-20T14:17:29-07:00 (codex) — passed
+
+**Protocol error:** no valid findings block — this round contributed no findings.
 
 ## Open findings
 
