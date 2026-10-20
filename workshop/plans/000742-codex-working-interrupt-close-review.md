@@ -83,3 +83,84 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000411
+
+---
+
+## Re-review — 2026-10-20T13:41:01-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 742 — Couch interrupt refuses a working Codex turn |
+| repo | pair |
+| issue file | workshop/issues/000742-codex-working-interrupt.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 9c926136d44af5bad734eaef7986e327a06a1965..69bd42d1ae642733a110eac1d680b042c7abc146 |
+| command | sdlc close --issue 742 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T13:41:01-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+Both prior findings are addressed. The implementation matches the revised per-agent contract, focused tests pass with race detection, and mutation checks demonstrate meaningful regression coverage. No new defects found. The tracker still explicitly leaves the recorded local and hub live checks pending before landing.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Issue line 50 now distinguishes Claude grace refusal from Codex current-work override, matching agent_drive.go:69–83. codex_interrupt_test.go:113–139 exercises cached stop grace through admission and the writer; restoring the cached-working requirement makes its stop_grace subtest fail. Existing Claude grace-refusal coverage passes.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Issue line 55 now separates captured Working/running-shell frames from synthetic Waiting fixtures. The pinned before/after correction agrees with metadata.json:6–9 and the synthetic fixture description in codex_interrupt_test.go:38–39.
+```
+
+1. **Strengths**
+
+   - Lifecycle observation and interrupt admission share `RecognizeCodexWorking`.
+   - Production-output tests verify exactly one Ctrl+C, fresh idle confirmation, and second-interrupt refusal.
+   - Negative cases cover partial frames, pickers, quoted text, startup status, ownership conflicts, and changed evidence before writing.
+   - README and atlas document the revised proof and confirmation behavior.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Focused interrupt and Codex tests passed in both packages, normally and under `-race`. All eight reader-inventory checks passed. Temporary overlays demonstrated failures when restoring the cached-working requirement, base recognizer, or confirmation without positive idle evidence. Temporary files were removed; the checkout remains unchanged.
+
+   Native Waiting behavior remains covered synthetically; the recorded local and hub live checks remain pending in the tracker.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY: pass.** Both work-proof consumers derive from the shared recognizer.
+   - **ARCH-PURE: pass.** Recognition and reduction remain deterministic; terminal IO stays in adapters.
+   - **ARCH-PURPOSE: pass.** The repair covers composer-relative recognition, stale lifecycle evidence, and positive completion.
+   - **ARCH-EVOLVE: pass.** No runtime persisted-format changes.
+
+7. **Plan revision recommendations:** None; the existing revisions resolve both prior documentation inconsistencies.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"1d9c66f2-8661-438f-bd23-8b0c92ae9b14","repository":"github.com/xianxu/pair","issue_id":"000742","recipe":"small-diff-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/bc570e8dbdff0c85","reviewed_head":"69bd42d1ae642733a110eac1d680b042c7abc146","slot":"pair:2","requested_at":"2026-10-20T20:39:00.987108Z"},"phase":"finished","pid":57766,"started_at":"2026-10-20T20:39:01.189062Z","finished_at":"2026-10-20T20:41:00.999526Z","session_id":"01a15b09-f4dd-7652-b170-9b330ff3f579","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.786300333s
+head: "69bd42d1ae642733a110eac1d680b042c7abc146"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

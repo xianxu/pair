@@ -76,6 +76,80 @@ rounds:
       recipe: small-diff-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 1d9c66f2-8661-438f-bd23-8b0c92ae9b14
+            repository: github.com/xianxu/pair
+            issue_id: "000742"
+            recipe: small-diff-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/bc570e8dbdff0c85
+            reviewed_head: 69bd42d1ae642733a110eac1d680b042c7abc146
+            slot: pair:2
+            requested_at: "2026-10-20T20:39:00.987108Z"
+          phase: finished
+          pid: 57766
+          started_at: "2026-10-20T20:39:01.189062Z"
+          finished_at: "2026-10-20T20:41:00.999526Z"
+          session_id: 01a15b09-f4dd-7652-b170-9b330ff3f579
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 69bd42d1ae642733a110eac1d680b042c7abc146
+        tracker_head: bac7b53aa8dbbdf80f364d511b83b40d2b422999
+        branch_point: 9c926136d44af5bad734eaef7986e327a06a1965
+        since: "2026-10-20T12:53:03-07:00"
+        until: "2026-10-20T13:38:08-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-20T12:53:03-07:00"
+              end: "2026-10-20T13:38:08-07:00"
+              began: "2026-10-20T12:53:03-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+        sources:
+            - harness: codex
+              id: 01a15a8b-89c9-7e02-a733-8b52dd00ebac
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 6e6aa7f1275992817277dab4a39de0cb44be4ffb48f6ce6089066d831b0d957b
+              started: "2026-10-20T18:21:51.812Z"
+              spawned: false
+              bytes: 8596671
+              windows:
+                - start: "2026-10-20T12:53:03-07:00"
+                  end: "2026-10-20T13:38:08-07:00"
+        cuts:
+            - dispatched: "2026-10-20T13:33:22-07:00"
+              finalized: "2026-10-20T13:35:44-07:00"
+              finalizing: false
+      "n": 2
+      timestamp: "2026-10-20T13:41:02-07:00"
+      dispatched: "2026-10-20T13:38:58-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Issue line 50 now distinguishes Claude grace refusal from Codex current-work override, matching agent_drive.go:69–83. codex_interrupt_test.go:113–139 exercises cached stop grace through admission and the writer; restoring the cached-working requirement makes its stop_grace subtest fail. Existing Claude grace-refusal coverage passes.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: Issue line 55 now separates captured Working/running-shell frames from synthetic Waiting fixtures. The pinned before/after correction agrees with metadata.json:6–9 and the synthetic fixture description in codex_interrupt_test.go:38–39.
+          round: 2
+      recipe: small-diff-review
+      isolation: fenced
+      reviewed: 69bd42d1ae642733a110eac1d680b042c7abc146
+      blocked: false
 ---
 
 # Gate ledger — pair#742 (boundary-review)
@@ -92,7 +166,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-2** [Minor] `plan-completion-matches-evidence` The completed capture item overstates the native Waiting evidence
   workshop/issues/000742-codex-working-interrupt.md:55 marks native Working and background-wait capture complete, although its Revisions and testdata/drive/codex/0.163.0/metadata.json:8 explicitly identify Waiting fixtures as synthetic. This is the sole completed-plan evidence overstatement in this window. Describe captured Working/running-shell evidence and reported Waiting wording with synthetic fixtures separately.
 
+## Round 2 — 2026-10-20T13:41:02-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Issue line 50 now distinguishes Claude grace refusal from Codex current-work override, matching agent_drive.go:69–83. codex_interrupt_test.go:113–139 exercises cached stop grace through admission and the writer; restoring the cached-working requirement makes its stop_grace subtest fail. Existing Claude grace-refusal coverage passes.
+- BR-2 — addressed — Issue line 55 now separates captured Working/running-shell frames from synthetic Waiting fixtures. The pinned before/after correction agrees with metadata.json:6–9 and the synthetic fixture description in codex_interrupt_test.go:38–39.
+
 ## Open findings
 
-- **BR-1** [Important] `acceptance-criteria-match-contract` Update the stop-grace acceptance criterion for per-agent work proof
-- **BR-2** [Minor] `plan-completion-matches-evidence` The completed capture item overstates the native Waiting evidence
+(none — every finding has been disposed)
