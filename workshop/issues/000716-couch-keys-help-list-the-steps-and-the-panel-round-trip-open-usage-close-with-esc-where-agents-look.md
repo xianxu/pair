@@ -14,9 +14,11 @@ card_mirror: 'd8b3ec2af2e6ae37007fc788dcc5e59d2c09777f' # card fields mirrored f
 
 ## Problem
 
-On 10-19 the TL (ops:0) asked the operator to press Esc by hand to close a `/usage` panel in a slot, believing
-`couch --keys` couldn't. `couch --keys ariadne:5 esc` worked first try ("recovery key bytes accepted and current empty
-composer observed"). The capability was documented, but only where an agent wouldn't find it in the moment:
+On 10-19 the TL (ops:0) could not tell from `couch --help` which keys `--keys` takes or what happens with an open
+slash-command panel, and then misread a `--keys esc` receipt ("recovery key bytes accepted and current empty composer
+observed") as having closed a `/usage` panel. pair:2 showed from the wrapper recording that the operator had already
+closed it; an open panel still refuses every key, including `esc`, until pair#691 lands. The rules exist, but only
+where an agent wouldn't find them in the moment:
 
 - `couch --help` shows just `couch --keys repo:N STEP... [--json]`: no step list, no recipe.
 - `couch --keys --help` refuses ("invalid --keys form; use couch --help"), unlike a verb with its own help.
@@ -53,5 +55,7 @@ Make the step list and the panel round trip discoverable from the command line:
 
 ## Log
 
+- 10-19 correction (TL): the original Problem said `--keys esc` closed the panel; it didn't (pair:2's recording
+  analysis). Rewritten above; the close recipe depends on pair#691.
 - Overlap: pair#691 (Esc admissibility while a panel shows; being re-scoped after this finding). Whichever lands
   second accounts for the other's wording.
