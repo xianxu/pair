@@ -57,7 +57,7 @@ geometry at launch (pane measured before it had a size) refuses outright instead
 ## Plan
 
 - [x] Execute [the single-pass plan](../plans/000727-term-wrapper-one-unsafe-cell-kills-the-presenter-unsafe-cell-12-and-a-0x0-launch-geometry-exits-the-operator-s-right-pane-died-plan.md): safe backend-cell projection and bounded diagnostics; geometry/recovery lifecycle; missing-terminal shortcut recovery.
-- [ ] Run the recorded full suite, close review, coordinated operator acceptance, then land through SDLC.
+- [x] Run the recorded full suite and close review; record the hub-approved natural-relaunch acceptance and #731 limitation. Landing remains the SDLC merge gate.
 
 ## Log
 
@@ -135,6 +135,25 @@ stage or build pair:0; live acceptance is the operator's next natural relaunch.
 Finish landing, report verified merge/PR and follow-up #731 to the hub, then stop.
 
 ## Revisions
+
+### 2026-10-20 — post-reboot verification and checklist disposition
+
+The hub resumed #727 after the operator reboot (delivery
+b79c0b0e-304b-4b55-8859-44f92711ed52). Unchanged production/test code from
+7bda7379dddfada81f0dd81cd502fecec5c74201 passed the complete recorded suite on
+pushed documentation checkpoint 3f50e8faafb6abf52078829308306d82ab9f6922:
+attempt 9ef62e46c1b80f4b9eaf5678127803b9, exit 0 in 8m42s after 1973s queue
+wait, log hash c5c3f22bd3ad, recorded sdlc-local/suite. All scripts, editor
+checks and Go packages passed, including zellijreply's corrected exhaustive
+effect inventory (0.134s). No flake retry or exemption was needed.
+
+The final checklist now describes the completed pre-landing verification rather
+than requiring landing before its own close. This changes no acceptance scope:
+the hub-approved live check still rides the operator's next natural relaunch,
+the unknown original cell trigger remains unknown, and the stale fallback-shell
+role remains deferred to #731. No registry/classification code was added. The
+requested narrow re-close and ordinary validated merge follow; this paragraph
+does not claim either landing or live acceptance.
 
 ### 2026-10-20 — include pane survival and recovery (hub updates)
 
