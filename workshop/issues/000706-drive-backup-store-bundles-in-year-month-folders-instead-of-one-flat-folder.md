@@ -5,9 +5,9 @@ deps: [pair#689]
 github_issue:
 created: 2026-10-19
 updated: 2026-10-19
-estimate_hours:
+estimate_hours: 4.73
 collaboration-mode: collaboration
-card_mirror: '729e4838f2462d4d218b6307b142f6e468ecd8e7' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '2daebdaefa6749b932ca308dc827431d4cddc18e' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-19T20:44:04-07:00
 claimant:
     operator: Xian Xu
@@ -39,6 +39,35 @@ Durable plan: [Drive month folders](../plans/000706-drive-month-folders-plan.md)
 
 - [ ] M1 — Shared layout/folder state model, compatible receipt codecs, stateful folder fake and bounded month-aware uploads with legacy checks.
 - [ ] M2 — Multi-folder label discovery and recorded-location restore, per-folder reporting, counted/native qualification and operator Drive check; close and land.
+
+## Estimate
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.* Calibration is stale, so the result is provisional. The approved thorough plan earns the 0.2 design discount and 15% design buffer; familiarity is 1.0 after #678/#689. Implementation values below already use v3.1's 40% scaling; no second scale.
+
+Library check: standard time/path/JSON plus existing extensible-object helpers cover the layout mechanics, so the greenfield layout's 1.25 h design midpoint is halved, then multiplied by 0.2 = 0.125. No library supplies the production folder event/effect model: keep its full 1.25 midpoint times 0.2 = 0.25. Rclone API integrations each use the 2 h design midpoint times 0.2 = 0.4. Smaller extensions use 0.15 times 0.2 = 0.03; index multi-file wiring uses cross-cutting midpoint 0.6 times 0.2 = 0.12. Docs use 0.125 times 0.2 = 0.025. Three review boundaries use 0.1 times 0.2 = 0.02 design and 0.35 times 0.4 = 0.14 implementation each. One external rclone discovery/qualification budget is 0.45 times 0.4 = 0.18 implementation. No novel stack, cross-repo propagation or scope-pivot allowance. Operator scheduling waits are excluded.
+
+Rows map respectively to layout, folder transitions, receipt codecs, folder adapter, hierarchy fake, upload coordinator, index integration, restore acquisition, folder reports, documentation, M1/M2/close reviews and rclone conformance. Design subtotal 1.5 h, implementation subtotal 3 h; total 1.5*1.15+3 = 4.725 h, rounded 4.73 h.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-go-module design=0.125 impl=0.22
+item: greenfield-go-module design=0.25 impl=0.22
+item: smaller-go-module design=0.03 impl=0.14
+item: api-integration design=0.4 impl=0.4
+item: smaller-go-module design=0.03 impl=0.2
+item: api-integration design=0.4 impl=0.6
+item: cross-cutting-refactor design=0.12 impl=0.2
+item: smaller-go-module design=0.03 impl=0.2
+item: smaller-go-module design=0.03 impl=0.14
+item: atlas-docs design=0.025 impl=0.08
+item: milestone-review design=0.02 impl=0.14
+item: milestone-review design=0.02 impl=0.14
+item: milestone-review design=0.02 impl=0.14
+item: real-api-discovery design=0 impl=0.18
+design-buffer: 0.15
+total: 4.73
+```
 
 ## Log
 

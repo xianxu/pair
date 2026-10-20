@@ -35,6 +35,37 @@ rounds:
           family: function-level-test-strategy
           round: 1
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 1735a429-2bfd-4a4c-b278-b4e031bcb986
+            repository: github.com/xianxu/pair
+            issue_id: "000706"
+            recipe: plan-quality
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot6/pair
+            reviewed_head: f2f2a5226fb77691578273f85d9e74acd2628714
+            slot: pair:6
+            requested_at: "2026-10-20T03:53:30.180811Z"
+          phase: finished
+          pid: 43415
+          started_at: "2026-10-20T03:53:30.429483Z"
+          finished_at: "2026-10-20T03:53:51.094592Z"
+          session_id: 01a15771-61e1-75d0-b25a-f0c092bce1c6
+          outcome: returned
+      "n": 2
+      timestamp: "2026-10-19T20:53:51-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Named risky functions now have fuzz, generated-sequence, round-trip, bounds and atomicity strategies with independent invariants across both milestones.
+          round: 2
+      blocked: false
+content_hash: fbfe185c29e21ebe3cfa38e73c905e7f6ac4cdacd99d927fa47edf12a23e6397
 ---
 
 # Gate ledger — pair#706 (plan-quality)
@@ -49,6 +80,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **PQ-1** [Important] `function-level-test-strategy` Replace test-case inventories with named risky functions and mechanical guards
   The M1/M2 test rows enumerate cases but do not name the layout parsing/validation functions or folder transition function and give each an adversarial input class plus mechanical guard. Compress these rows into function-specific strategies: malformed-input fuzzing and round-trip invariants for layout/receipt codecs, generated event sequences with independently stated invariants for the production folder transition function (ARCH-PURE, ARCH-ORDER), and named restore/index functions with their bounds and atomicity guards.
 
+## Round 2 — 2026-10-19T20:53:51-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Named risky functions now have fuzz, generated-sequence, round-trip, bounds and atomicity strategies with independent invariants across both milestones.
+
 ## Open findings
 
-- **PQ-1** [Important] `function-level-test-strategy` Replace test-case inventories with named risky functions and mechanical guards
+(none — every finding has been disposed)
