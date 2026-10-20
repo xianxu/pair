@@ -3,6 +3,7 @@ package couchcore
 import (
 	"encoding/json"
 	"errors"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -52,7 +53,8 @@ func TestRegistrationFixtureReadinessPublication(t *testing.T) {
 				t.Fatal(err)
 			}
 			listingPath, agentPath := filepath.Join(dir, "listing-ready"), filepath.Join(dir, "agent-ready")
-			env := testpair.Environment(t, dir, "PAIR_TEST_COUCH_TERMINAL_FIXTURE=1", "PAIR_SESSION_NAME=pair-fixture", "PAIR_TEST_ZELLIJ_READY="+listingPath, "PAIR_TEST_ZELLIJ_LOG="+filepath.Join(dir, "calls"))
+			persistRegistrationFixtureServer(t, listingPath, "pair-fixture")
+			env := testpair.Environment(t, dir, "PAIR_TEST_COUCH_TERMINAL_FIXTURE=1", "PAIR_SESSION_NAME=caller-poison", "PAIR_TEST_ZELLIJ_READY="+listingPath, "PAIR_TEST_ZELLIJ_LOG="+filepath.Join(dir, "calls"))
 			record, err := readiness.Encode(readiness.ReadyRecord{Tag: "fixture", Agent: "claude", Session: "pair-fixture", Nonce: "nonce", PID: os.Getpid(), AgentIdentity: procutil.Identity(strconv.Itoa(os.Getpid()))})
 			if err != nil {
 				t.Fatal(err)
@@ -154,7 +156,8 @@ func TestRegistrationTerminalFixtureDistinguishesListingForms(t *testing.T) {
 	if err := os.WriteFile(ready, []byte("ready"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	env := testpair.Environment(t, dir, "PAIR_TEST_COUCH_TERMINAL_FIXTURE=1", "PAIR_SESSION_NAME=pair-fixture", "PAIR_TEST_ZELLIJ_READY="+ready, "PAIR_TEST_ZELLIJ_LOG="+filepath.Join(dir, "calls"))
+	persistRegistrationFixtureServer(t, ready, "pair-fixture")
+	env := testpair.Environment(t, dir, "PAIR_TEST_COUCH_TERMINAL_FIXTURE=1", "PAIR_SESSION_NAME=caller-poison", "PAIR_TEST_ZELLIJ_READY="+ready, "PAIR_TEST_ZELLIJ_LOG="+filepath.Join(dir, "calls"))
 	for _, row := range []struct{ flag, want string }{{"--short", "pair-fixture\n"}, {"--no-formatting", "pair-fixture [Created 1s ago]\n"}} {
 		cmd := exec.CommandContext(t.Context(), path, "list-sessions", row.flag)
 		cmd.Env = env
@@ -225,5 +228,168 @@ func TestRegistrationNestedWrapperUsesDisposableEnvironment(t *testing.T) {
 	}
 	if raw, err := os.ReadFile(foreignEvents); err != nil || string(raw) != "preserve" {
 		t.Fatalf("foreign fixture capture changed: %v", err)
+	}
+}
+
+// A live endpoint and exact current process identity form the persisted server
+// boundary. No list-sessions caller supplies the session identity.
+func persistRegistrationFixtureServer(t *testing.T, ready, session string) net.Listener {
+	t.Helper()
+	//lint:allow tmp-literal — AF_UNIX path must stay below the macOS pathname limit
+	dir, err := os.MkdirTemp("/tmp", "pair-listing-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	socket := filepath.Join(dir, session)
+	listener, err := net.Listen("unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			_ = conn.Close()
+		}
+	}()
+	t.Cleanup(func() { _ = listener.Close(); <-done })
+	raw, err := json.Marshal(map[string]any{"session": session, "socket": socket, "pid": os.Getpid(), "identity": procutil.Identity(strconv.Itoa(os.Getpid()))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(ready+".server", raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	return listener
+}
+
+func TestRegistrationFixtureListingUsesPersistedServerLifetime(t *testing.T) {
+	binary, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	command := filepath.Join(dir, "zellij")
+	if err := os.Symlink(binary, command); err != nil {
+		t.Fatal(err)
+	}
+	ready := filepath.Join(dir, "ready")
+	if err := os.WriteFile(ready, []byte("ready"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	listener := persistRegistrationFixtureServer(t, ready, "pair-exact-server")
+	for _, callerSession := range []string{"", "foreign-poison"} {
+		cmd := exec.CommandContext(t.Context(), command, "list-sessions", "--short")
+		cmd.Env = testpair.Environment(t, dir, "PAIR_TEST_COUCH_TERMINAL_FIXTURE=1", "PAIR_TEST_ZELLIJ_READY="+ready, "PAIR_SESSION_NAME="+callerSession)
+		out, err := cmd.CombinedOutput()
+		if err != nil || string(out) != "pair-exact-server\n" {
+			t.Errorf("caller session %q: listing=%q err=%v", callerSession, out, err)
+		}
+	}
+	if err := listener.Close(); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.CommandContext(t.Context(), command, "list-sessions", "--short")
+	cmd.Env = testpair.Environment(t, dir, "PAIR_TEST_COUCH_TERMINAL_FIXTURE=1", "PAIR_TEST_ZELLIJ_READY="+ready, "PAIR_SESSION_NAME=stale-poison")
+	out, err := cmd.CombinedOutput()
+	if err == nil || cmd.ProcessState.ExitCode() != 1 || string(out) != "No active zellij sessions found.\n" {
+		t.Fatalf("ended endpoint with stale readiness: %q, %v", out, err)
+	}
+}
+
+func TestRegistrationFixtureRejectsUncertainServerState(t *testing.T) {
+	t.Run("unreadable", func(t *testing.T) {
+		ready := filepath.Join(t.TempDir(), "ready")
+		if err := os.WriteFile(ready, []byte("ready"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Mkdir(ready+".server", 0700); err != nil {
+			t.Fatal(err)
+		}
+		if session, err := registrationFixtureLiveSession(ready); err == nil || session != "" {
+			t.Fatalf("unreadable state = %q, %v; want refusal", session, err)
+		}
+	})
+	for _, raw := range []string{`not-json`, `{}`, `{"session":"pair-exact","socket":"/tmp/foreign","pid":1,"identity":"identity"}`} {
+		t.Run(raw, func(t *testing.T) {
+			ready := filepath.Join(t.TempDir(), "ready")
+			if err := os.WriteFile(ready, []byte("ready"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(ready+".server", []byte(raw), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if session, err := registrationFixtureLiveSession(ready); err == nil || session != "" {
+				t.Fatalf("uncertain state = %q, %v; want refusal", session, err)
+			}
+		})
+	}
+}
+
+func TestRegistrationFixtureReapedServerCannotBeListed(t *testing.T) {
+	binary, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	command := filepath.Join(dir, "claude")
+	if err := os.Symlink(binary, command); err != nil {
+		t.Fatal(err)
+	}
+	ready, release := filepath.Join(dir, "ready"), filepath.Join(dir, "release")
+	listener := persistRegistrationFixtureServer(t, ready, "pair-reaped")
+	if err := os.WriteFile(ready, []byte("ready"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	child := exec.Command(command, "--fixture-agent")
+	child.Env = testpair.Environment(t, dir, "PAIR_TEST_COUCH_TERMINAL_FIXTURE=1", "PAIR_TEST_ZELLIJ_RELEASE="+release)
+	if err := child.Start(); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- child.Wait() }()
+	joined := false
+	join := func() {
+		if joined {
+			return
+		}
+		_ = os.WriteFile(release, []byte("release"), 0600)
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Errorf("owned lifetime process: %v", err)
+			}
+		case <-time.After(5 * time.Second):
+			_ = child.Process.Kill()
+			<-done
+			t.Error("owned lifetime process needed forced termination")
+		}
+		joined = true
+	}
+	t.Cleanup(join)
+	identity := procutil.Identity(strconv.Itoa(child.Process.Pid))
+	if identity == "" {
+		t.Fatal("owned lifetime process has no identity")
+	}
+	raw, err := json.Marshal(map[string]any{"session": "pair-reaped", "socket": listener.Addr().String(), "pid": child.Process.Pid, "identity": identity})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(ready+".server", raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if session, err := registrationFixtureLiveSession(ready); err != nil || session != "pair-reaped" {
+		t.Fatalf("live owned process: %q, %v", session, err)
+	}
+	join()
+	// Keep both the readiness record and a reachable endpoint deliberately.
+	// The persisted generation was reaped, so neither can resurrect it.
+	if session, err := registrationFixtureLiveSession(ready); err != nil || session != "" {
+		t.Fatalf("reaped process with stale readiness/state: %q, %v", session, err)
 	}
 }

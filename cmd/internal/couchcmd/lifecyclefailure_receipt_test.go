@@ -85,3 +85,21 @@ func TestLifecycleFailureReceiptMetadataPreservesOriginalTypedResult(t *testing.
 		t.Fatalf("diagnostic envelope changed the lifecycle result: %+v", outcome)
 	}
 }
+
+func TestSessionCleanupUnconfirmedReceiptRetainsDiagnosticIdentity(t *testing.T) {
+	store := couchcore.NewFakeLaunchFailureStore()
+	recorder := couchcore.NewLifecycleFailureRecorder(store, func() time.Time { return time.Unix(100, 0) }, func() (string, error) { return "cleanup-attempt", nil })
+	attempt, err := recorder.Begin("resume", couchcore.LifecycleFailureTarget{StartingPath: "/physical/slot", Slot: "pair:5"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	value, finished := attempt.Finish(nil, &couchcore.SessionCleanupUnconfirmed{Session: "📁9-4", Cause: errors.New("observation refused")})
+	out := slotOperationOutcome(value, finished)
+	if out.Status != couchmessage.ReceiptFailed || out.Code != "unconfirmed" || out.FailureNonce != attempt.Nonce() || !strings.Contains(out.Detail, "ownership retained") {
+		t.Fatalf("cleanup uncertainty lost at receipt: %+v", out)
+	}
+	history, err := store.Read()
+	if err != nil || len(history) != 1 || history[0].Phase != "launch" || history[0].Outcome != "unproven" {
+		t.Fatalf("cleanup history rejected: %+v %v", history, err)
+	}
+}
