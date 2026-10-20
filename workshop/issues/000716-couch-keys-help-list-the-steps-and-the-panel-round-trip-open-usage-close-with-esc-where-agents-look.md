@@ -76,6 +76,8 @@ Not a state change: there are no new admissible states. The refusal text changes
 
 
 
+
+- 2026-10-19: closed — Full suite green on 76299b606 (main merged, includes pair#715). 657e99e1e fixes both close advisories: a refused lone esc keeps the generic wording (TestPanelRefusalNamesEsc), and the wait meaning and the skill limits come from the constants (TestSkillKeyStepsMatchTheTable); both mutations red. Earlier failure on 657e99e1 was the pair#715 family (#718); continuation test 20/20 on main under load. (fixed-then-ship); review verdict: SHIP
 - 2026-10-19: closed — Full suite green on 5dddd69ef (sdlc-local/suite). TestKeysHelpIsTheVerbsOwnHelp (couch --keys --help and -h print every Steps row, the limits and the /usage open, peek, esc round trip); TestCouchHelpNamesTheKeySteps; TestSkillKeyStepsMatchTheTable (skill steps sentence equals the table both ways, close-panel row present); TestStepsTableIsTheParsersAcceptedSet; panel refusal names esc at reducer (TestPanelRefusalNamesEsc), wrapper (TestAgentDrivePanelAdmitsOnlyEsc) and service (TestDrivePanelAdmitsOnlyEsc, incl. text and submit via the not-settled path). Four mutations each red.; review verdict: SHIP
 - 2026-10-19: flow upgraded quick → full — 114 added lines in code files (limit 100)
 - 2026-10-19 (pair:2): implemented per Plan; the hub approved it ("proceed"). Mutations, each red: no panel hint (agentdrive, wrapcmd, couchcmd), no early service observe (couchcmd), skill sentence drops a step (couchcmd), table gains a row (agentdrive, couchcmd). The table syntax for text is `text:LITERAL`; the skill now uses the same spelling. start-plan weave rewrote the two CI workflow files from the ariadne base; I restored them, since they belong to pair#699 (hub: keep restoring until it lands).
