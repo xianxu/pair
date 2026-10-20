@@ -83,3 +83,9 @@ ARCH-DRY: Codex's one pure recognizer serves lifecycle and drive proof, reusing 
 ### 2026-10-20 — review acceptance clarification (BR-1/BR-2)
 
 The original Done-when phrase “Idle, stop grace, panels…” was too broad: Claude stop grace refuses, while Codex uses its current coherent work proof despite stale notification grace/completion. This clarifies the already-approved Spec; no action or state changes. The completed capture task no longer implies a native Waiting capture: Working/running-shell frames were captured; Waiting is reported text exercised synthetically.
+
+### 2026-10-20 — failed staged live check and stable-marker repair
+
+ops:0 live check failed on parley.nvim:3 after the operator relaunched it at13:48:07. Wrapper92530 was verified from a16907dd; supervisor was older. Supervisor work-proof consumption and drive wire files have identical git blobs in f3c597f8 and a16907dd, while Interruptible is computed by the wrapper: a Couch restart would not repair this recognition miss. The CLI's relaunch-Couch suffix is generic no-receipt wording. Current live peek showed Waiting for background terminal (1m02s • esc to interrupt) · 1 background terminal running… plus a separate └ sleep60 row before composer. Native capture witness confirms94x39, raw offset0 from13:48:09; preserved raw is being replayed read-only.
+
+ops:0 approved the corrective simplification: anchor the current status group above the qualified composer on an explicit Working/Waiting verb and esc-to-interrupt marker, ignoring following counters, truncation and command-detail rows. Retain MCP exclusion, complete-frame/input ownership fences, one-write and positive-idle confirmation. This replaces fragile incidental metadata parsing within the existing recognizer; no new state or input action. Pin all three native captures. The queued check on69bd42d1 is cancelled through the managed verb because production will change; requeue on the corrected head.
