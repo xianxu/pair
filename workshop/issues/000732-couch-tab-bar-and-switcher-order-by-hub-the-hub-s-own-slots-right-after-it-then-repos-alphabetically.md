@@ -64,6 +64,8 @@ Target: `ops  :1  ariadne  :1  :2 …  brain  pair  :1 …`, then `ops-echo  ech
 
 - Resumed after TL confirmed the queue running. Recorded suite passed on ba98382eb81edc71149c8604d321366d1908d918: `make PAIR_GO_TRIMPATH=-trimpath test`, exit 0 in 8m56s; sdlc-local/suite posted, log SHA256 prefix b50c57039e62. No flakes. Atlas and targeted/full-package verification are complete; submitting the single close review, then landing on SHIP under TL authorization.
 
+- Close review SHIP with no findings; entered normal merge. The conformance job initially ran no steps because GitHub could not acquire a hosted macOS runner; one TL-authorized failed-job retry passed. Train 190 held #732 on a conflict with #730: read-only merge-tree pinpoints atlas/couch.md only (hub-style introduction adjacent to the tab-order paragraph), with no code conflicts. Already-landed main through #725 merged cleanly. TL instructed waiting for #730 to land, then integrating main, running targeted tests, narrow re-close and next train; no unlanded issue branch is merged.
+
 ## Revisions
 
 ### 2026-10-20 — acceptance timing (TL ops:0)
