@@ -49,7 +49,7 @@ Target: `ops  :1  ariadne  :1  :2 …  brain  pair  :1 …`, then `ops-echo  ech
 
 - [x] Add failing two-hub tests for shared projection, switcher order, and tab order, with shuffled input and numeric slots.
 - [x] Promote the hub repository group in existing pure hubSection (ARCH-DRY, ARCH-PURE); preserve ownership, hub order, and alphabetical remainder.
-- [ ] Update atlas; run targeted tests and recorded suite; close review and report for next-restart live acceptance.
+- [x] Update atlas; run targeted tests and recorded suite; close review and report for next-restart live acceptance.
 
 ## Log
 
@@ -59,6 +59,8 @@ Target: `ops  :1  ariadne  :1  :2 …  brain  pair  :1 …`, then `ops-echo  ech
 
 - Verification checkpoint: new two-hub regression failed on the old ordering, then passed after the shared fix; targeted ordering/render coverage passed, and `go test ./cmd/internal/couchtty -count=1` passed (50.254s). PR #489 is open.
 - Stopped for Couch drain 69bb7fc3-a125-42c6-9900-5814613b8eba: recorded suite on pushed head 519585c8c56162ad69472afad99ca3736668c8a9 never acquired a machine suite slot; the queue is paused for operator reboot/RAM-disk fix. Cancelled only this checkout’s queued suite with `sdlc local-check cancel --name suite`; no full-suite pass or close review claimed. Resume: run `sdlc local-check run --name suite` on pushed HEAD after queue resumption, finish the remaining Plan checkbox, run `sdlc close --issue 732 --verified ...`, then `sdlc merge --yes` on SHIP. No stage (TL instruction; pair:0 held by #722).
+
+- Resumed after TL confirmed the queue running. Recorded suite passed on ba98382eb81edc71149c8604d321366d1908d918: `make PAIR_GO_TRIMPATH=-trimpath test`, exit 0 in 8m56s; sdlc-local/suite posted, log SHA256 prefix b50c57039e62. No flakes. Atlas and targeted/full-package verification are complete; submitting the single close review, then landing on SHIP under TL authorization.
 
 ## Revisions
 
