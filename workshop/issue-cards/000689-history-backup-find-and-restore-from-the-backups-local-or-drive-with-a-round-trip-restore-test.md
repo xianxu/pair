@@ -1,6 +1,6 @@
 ---
 id: 000689
-status: codecomplete
+status: done
 created: 2026-10-18
 updated: 2026-10-19
 estimate_hours: 4.93
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: ca6ecbc6eec6bf94b8bfc7d7426bd7461bde27c0
         evidence_commit: bce9bcd77d4cc2a7983f1f6ef7e472a60945194a
+        landed_commit: df16e5f535d3fabc46044958030c8f1e1280f007
 ---
 
 # history backup: find and restore from the backups (local or Drive), with a round-trip restore test
