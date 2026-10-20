@@ -33,22 +33,20 @@ Add `.sdlc/landing.json` to pair with `train_interval_minutes: 60` (exact schema
 `sdlc landing --help`). The PR touches landing configuration, so the local-gates guard fails it until the operator applies
 the `local-gates-verified` label; ask the hub, never apply the label yourself. After it lands, the first pair train with at
 least 2 low-risk cars is the conformance check: for each car record `gh pr view N --json state,mergeCommit,headRefOid`, the
-train PR's merge commit, and its `sdlc landing status` line, and append them to this issue's Log.
+train PR's merge commit, and its `sdlc landing status` line, and record them in the TL-owned test-economy project (revised acceptance below).
 
 ## Done when
 
-- `.sdlc/landing.json` is on pair main; `sdlc landing status` in pair shows trains on with a 60-minute interval.
-- One real train with ≥2 cars has landed, with the evidence above logged; or any failure is filed against ariadne#449's
-  follow-ups with that evidence.
-- Then (operator, 10-19): once pair's first train proves it, the same `.sdlc/landing.json` goes to ariadne and
-  parley.nvim, each as its own labeled PR (filed by the hub in those repos).
+- The candidate adds only `.sdlc/landing.json` with a 60-minute interval and the existing default car cap; required suite and close review pass.
+- Operator verification is obtained through the hub before landing; after landing, `sdlc landing status` on pair main shows trains on at 60 minutes.
+- The first real ≥2-car train is handed to the TL as a follow-up, recorded in the test-economy project with per-car PR state/merge/head, train PR merge commit and landing status. The TL files a bug for any failure and owns follow-on ariadne/parley rollout.
 
 ## Plan
 
 - [x] Add the single-field 60-minute config; retain the existing max-car default.
 - [ ] Verify JSON and existing provider config/status tests; publish the PR and record the required suite.
-- [ ] Request operator local-gates verification through the hub; obtain review/partial-landing disposition before landing.
-- [ ] After landing, record main status and the first ≥2-car train evidence; close only after conformance.
+- [ ] Obtain suite and single close review; request operator local-gates verification through the hub before landing.
+- [ ] Land the config after operator verification; record main status and hand real-train conformance to the TL.
 
 ## Log
 
@@ -61,3 +59,20 @@ ARCH-DRY: use existing ariadne#449 config/parser, default car cap and train life
 ### 2026-10-19 — candidate configuration
 
 Added only train_interval_minutes=60; the provider retains its default max-car cap. JSON validation confirms exactly that field/value; git diff --check passes. Existing provider controls pass (2.067s): go test ./cmd/sdlc -run '^(TestParseLandingConfig|TestReadLandingScheduleAbsentIsOff|TestLandingScheduleSourceFailsToSerial|TestLandingPRLabelMarksLocalGates|TestLandingStatusShowsTrainsAndReadiness)$' -count=1 in the slot-private Ariadne. The config is read from main, so branch status remains off until landing; no live train acceptance claimed.
+
+## Revisions
+
+### 2026-10-19 20:17 PDT — TL owns post-landing conformance
+
+TL disposition bd560b95-151f-4607-81e4-f27f96071a67 supersedes the original acceptance below: one suite, one close review, then merge after the operator label. Close covers the configuration; the TL watches pair landing status, records the first ≥2-car train in the test-economy project, files a bug if it misbehaves, and owns subsequent repo rollout. This removes the circular dependency between whole-issue close and post-landing acceptance without adding a milestone split. Spec, Done when and Plan now reflect that handoff.
+
+Original acceptance preserved:
+
+
+- `.sdlc/landing.json` is on pair main; `sdlc landing status` in pair shows trains on with a 60-minute interval.
+- One real train with ≥2 cars has landed, with the evidence above logged; or any failure is filed against ariadne#449's
+  follow-ups with that evidence.
+- Then (operator, 10-19): once pair's first train proves it, the same `.sdlc/landing.json` goes to ariadne and
+  parley.nvim, each as its own labeled PR (filed by the hub in those repos).
+
+PR https://github.com/xianxu/pair/pull/469 contains configuration head d0b77effdafdcd7874fce0a8acb4384e6deb7edf. Required recorded suite is queued in sdlc-local-1133542116, log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/e5b9ea2dd1d90ef283cd8304af62865e/run.log; preserve and poll session 61967 rather than starting a duplicate. Hub requested the operator label; no label or gate waiver applied by this slot.
