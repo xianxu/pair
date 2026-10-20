@@ -86,6 +86,8 @@ Durable design: [native-only recovery candidates plan](../plans/000721-native-on
 
 - 2026-10-20: Final targeted six-package Recovery/ResumeCandidate run PASS, and renewed final race Recovery/Resume PASS: core 44.085s, launcher 7.289s, inventory 2.788s. Final artifactpath/testpair/repolint guard run PASS (10.667s/12.632s/11.294s). Restored mutation-control source and diff checks clean. Remaining: concrete hub qualification decision, pushed-head recorded suite, close review and landing.
 
+- 2026-10-20: Verified submitted hub receipt c1e6ca82-f486-49b4-a933-08d3ab6ae897 approves production-path regressions plus next natural recovery on candidate c0c70e0e3f3da050e1d1b7f13478f8a7b21f3632; no stage and no action on pair:6. Hub owns natural verification/smoke calibration. PR #479 opened: https://github.com/xianxu/pair/pull/479. Proceeding to recorded suite, close and merge as directed.
+
 ## Revisions
 
 

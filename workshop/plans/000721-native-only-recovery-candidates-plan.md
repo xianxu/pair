@@ -135,7 +135,7 @@ The preview/key is in-memory or caller-held and expires after five minutes; list
 - [x] Run `go test ./cmd/internal/launcher -run 'Recovery' -count=1`; require failure from missing native-only support.
 - [x] Branch ValidateRecoveryRecord's lifetime validation and OSRuntime.ValidateRecoveryAuthority's capture-specific checks by source. Reuse RevalidateRecoveryCandidate and existing argv construction; extract selected-entry conversion if needed rather than duplicating it. Preserve final record-byte reread and current-clock validation.
 - [x] Run `go test -race ./cmd/internal/couchcore ./cmd/internal/launcher ./cmd/internal/sessioninventory -run 'Recovery|Resume' -count=1` and `go test ./internal/repolint ./cmd/internal/artifactpath ./cmd/internal/testpair -count=1`. Run existing detached/warm/cold resume and lifecycle/binding regressions, recording actual test selectors in the Log. Verify the function-table guards with targeted mutation controls, restoring code before commit.
-- [ ] Ask the hub for a disposable qualification decision on the tested commit before staging. Use the existing acceptance seam; hub owns real-slot actions and decides whether next-natural-recovery qualification suffices for #721. Record the concrete decision and evidence.
+- [x] Ask the hub for a disposable qualification decision on the tested commit before staging. Use the existing acceptance seam; hub owns real-slot actions and decides whether next-natural-recovery qualification suffices for #721. Record the concrete decision and evidence.
 
 
 ## Risky functions: strategy and mechanical guard
@@ -153,7 +153,7 @@ The preview/key is in-memory or caller-held and expires after five minutes; list
 
 ## Close and landing
 
-- [ ] Reconcile Core concepts rows with the actual name-status diff; append Revisions for changed locations or scope instead of silently replacing the plan. Tick completed tasks, record measured counts/bounds and remaining historical evidence gaps in the issue Log. Keep #699 workflow stashes untouched.
+- [x] Reconcile Core concepts rows with the actual name-status diff; append Revisions for changed locations or scope instead of silently replacing the plan. Tick completed tasks, record measured counts/bounds and remaining historical evidence gaps in the issue Log. Keep #699 workflow stashes untouched.
 - [ ] Commit/push the tested branch through `sdlc pr`, then run `sdlc local-check run --name suite` on the pushed head. Record the exact head and suite evidence; do not type an actual-hours guess.
 - [ ] Run `sdlc close --issue 721 --verified '<exact commands, suite head, and qualification evidence>'`. Its fresh-context review owns the review boundary. Address findings and record the verdict; no duplicate ad-hoc review. On SHIP enter `sdlc merge --yes`; follow any integration/CI error as its next-action instruction.
 - [ ] Verify PR landing/tracker/archive evidence and report the outcome once to hub, checking the delivery receipt. Do not claim shipped while waiting for approval, qualification or landing.
