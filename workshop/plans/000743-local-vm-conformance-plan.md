@@ -199,3 +199,7 @@ This revision also replaces the request for nightly-service installation approva
 ### 2026-10-20 14:30 — PQ-1, named test strategies
 
 The first plan-quality review accepted the architecture but required compressing procedural case inventories into named risky-function strategies. Added the canonical table and changed milestone test tasks to reference it. This clarifies executable pure/IO surfaces without changing scope, mechanisms, state or approval boundaries. Existing lesson #721 PQ-1 already owns this rule; do not duplicate it.
+
+### 2026-10-20 14:33 — Native image work held
+
+The hub's authenticated hold supersedes the earlier operator-approved wording for image refresh/installs. Our already-started pull was interrupted; no VM was cloned/booted. Continue code and portable fake/fixture tests only until explicit operator approval. Before any authorized resume/provisioning, notify the hub as originally requested. M1 cannot close without its outstanding real image/VM qualification.

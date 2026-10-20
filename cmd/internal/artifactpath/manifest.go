@@ -666,6 +666,11 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #743 VM request/image/launch ownership data is outside Pair artifacts.
+	"cmd/internal/vmcmd/request.go",
+	"cmd/internal/vmcmd/image.go",
+	"cmd/internal/vmcmd/state.go",
+	"cmd/internal/vmcmd/claim.go",
 	"internal/testbinary/cache.go",
 	"internal/testoracle/run.go",
 	// #649 wiring, contextual runtime delegation, and the pure title reducer
