@@ -53,13 +53,17 @@ The contract is settled by ariadne#473 M1 (milestone evidence a6c87575, fake-con
   (numbers in the Log), and a docs-only branch vouches for a train without running tests.
 - It's a local-gates change (`.sdlc/`), so the PR needs the operator's `local-gates-verified` label.
 
+### Done when Revision — 2026-10-20
+
+The original real-status/train requirement above is qualified by upstream main-only configuration authority. Per hub approval 36f3d275-8e19-4e86-a4b4-10d175c5c020, #725 closes at landing after fixtures and representative native selected-command timing against the full suite, with numbers in the Log. After configuration lands, the hub picks the next real code branch for sdlc-local/affected and the first docs-only branch for train vouch, recording this follow-up in test-economy. No recorded status or train acceptance is claimed before it exists.
+
 ## Plan
 
 See [durable plan](../plans/000725-affected-tests-plan.md), one atomic close boundary.
 
 - [ ] Add declaration, selective command and production entrypoint regressions; qualify upstream strict parser/planner fixtures.
 - [ ] Audit current non-Go recipe ownership; document the Lua/runtimebundle exception and full fallbacks.
-- [ ] After ariadne#473 M2 lands, record real affected and docs-only/train evidence and compare measured duration to full suite.
+- [ ] Record fixtures and native selected-command timing against full suite; note hub-owned post-landing recorded affected/docs-vouch follow-up in the Done when Revision.
 - [ ] Run full suite, close review, request operator local-gates label through hub, then merge and verify outcome.
 
 ## Log
@@ -70,6 +74,10 @@ See [durable plan](../plans/000725-affected-tests-plan.md), one atomic close bou
 
 - 2026-10-20: TL approved plan via 8505a073-10d2-4bf5-8c07-8b6b8d9f5ab6. Added counted exact leaf-plus-importer Go argv fixture, explicitly excluding ./... widening; entering full-flow change-code.
 
+- 2026-10-20: PQ-1 addressed by explicit pure validation/argv functions and named IO dispatch functions with adversarial strategies, rather than feature-level case inventories. Hub confirmed main-only-config acceptance ordering (36f3d275-8e19-4e86-a4b4-10d175c5c020); revised Done when explicitly preserves post-landing test-economy follow-up ownership.
+
 ## Revisions
 
 - 2026-10-20: Added executable plan and explicit source-Lua/runtimebundle test exception approved by hub. No upstream schema or environment contract changes. Real recorded affected/train acceptance is pending upstream M2 availability rather than being waived.
+
+- 2026-10-20: Acceptance ordering revision approved by hub: prelanding fixture/native timing + full suite; hub-owned actual affected/status and docs-only train proof after config reaches main. Clarified pure runner boundary for PQ-1 without changing behavior or upstream contract.

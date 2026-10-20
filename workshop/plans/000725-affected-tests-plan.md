@@ -14,7 +14,13 @@ collaboration-mode: discussion
 
 ## Core concepts
 
-There are no new pure domain entities: the selection/config parser/Go dependency graph remain owned by ariadne#473. Pair consumes their sorted package/group selection without implementing another dependency planner (ARCH-DRY, ARCH-PURE).
+The dependency planner/config parser/Go graph remain owned by ariadne#473. Pair introduces only a validated execution selection, without a second dependency planner (ARCH-DRY, ARCH-PURE).
+
+| Pure entity | Lives in | Status |
+|---|---|---|
+| `TestSelection` (immutable package/group tuples), `parse_selection`, `go_test_argv` | `scripts/test-affected.py` | new |
+
+`parse_selection(package_text, group_text)` validates whitespace-tokenized inputs and returns TestSelection. `go_test_argv(selection)` derives the exact selected argv plus the declared Lua/runtimebundle exception. These read no environment/files and execute nothing; colocated assertions in tests/test-affected-test.py call them with literal values. `main` alone reads environment; `run_selection(selection)` alone executes child processes. No injected function-call mocks are needed for the pure functions.
 
 | Integration | Lives in | Status | Wraps |
 |---|---|---|---|
@@ -58,19 +64,21 @@ This is batch development tooling, not a UI hot path. Per invocation: one valida
 
 ## Function-level verification
 
-| Owner | Strategy |
+| Named owner | Adversarial strategy and mechanical guard |
 |---|---|
-| Selected test runner validation/dispatch | Enter actual Make target with stateful go/make recorder: exact argv, groups-only, Go-only, combined, lua augmentation/dedup, invalid inputs before effects, inherited flags, stdout and nonzero propagation; remove validation/dispatch wiring and require regressions fail. Count N=1/2 selections. |
-| Affected declaration | Use the upstream strict ParseConfig/Plan in a disposable fixture module (provider directory selectable for prelanding qualification, installed provider after M2). Real Pair config + synthetic changed package/importer graph; scripts-only, full Makefile, unknown file, docs-only, nvim source, embedded Lua and stale group root fixtures. Check actual Go roots with LoadGoGraph after generation. Unknown/duplicate config mutation refuses. No copied planner in production. |
-| Test recipe ownership | Guard every current default non-Go target is in exactly one group, every declared group has a runner target and vice versa, each claimed default script is covered; preserve intentionally overlapping source dependency paths. |
-| Production smoke/economy | After ariadne#473 M2 lands, run its actual recorded affected check on a pushed real Pair code branch and a docs-only branch; inspect sdlc-local/affected and train-ready evidence. Compare affected execution duration (queue reported separately) against an exact measured full suite, record head/scope/time. #725 itself forces full because Makefiles/.sdlc change. |
+| `parse_selection` (PURE) | Mutate literal token streams across the allowlist/duplicate/empty boundaries; rejection precedes any execution, pinned by direct unit tests plus actual Make entrypoint tests. |
+| `go_test_argv` (PURE) | Compare exact argv with independent leaf-plus-importer expectations at N=1/2; assert no ./... or unrelated package and exactly one Lua runtimebundle addition. |
+| `run_selection`, `main` (INTEGRATION) | Stateful child executables retain argv/env/failure state across calls; drive the real make entrypoint and require exact child counts, preserved output/status, one wrapper lifetime and no effects on invalid input. |
+| `check_config` in `tests/affected-config-test.py` (INTEGRATION) | Execute upstream strict ParseConfig/Plan against real configuration and controlled ownership/dependency changes; duplicate/unknown mutation refuses, changed package and importer union stays exact, declared and undeclared non-Go ownership stay selective/full respectively. Include both editable nvim source and generated embedded Lua attribution. Validate roots using the actual Pair Go graph. |
+| `test_recipe_ownership` in `tests/test-affected-test.py` (INTEGRATION) | Compare current default non-Go Make prerequisites against the disjoint group-target union and each group against declared configuration; missing, duplicate or stale target mutations must fail, preventing silent recipe drift. |
+| `test_selected_native_timing` qualification (INTEGRATION) | Before label/landing, run a representative selected command on real Pair code and compare measured execution duration against the branch full suite, reporting queue separately. After landing, hub chooses first real code branch for recorded affected and first docs branch for train vouch as test-economy follow-up. #725 itself forces full. |
 
 ## Tasks — one atomic close boundary
 
 - [ ] Write the runner/config fixture regressions first. Run them red, including invalid and failure paths. Qualify the strict upstream consumer fixture against a disposable #473 candidate while its M2 is pending.
 - [ ] Implement declaration, selected runner and shared Make group lists; run focused tests and native selected command smoke. Audit every group claim and default non-Go target; mutate key runner guards to establish regressions.
 - [ ] Document commands, selection exception for Lua/runtimebundle, fallback/full rules and operator label ownership in README/atlas. Append decisions and evidence to issue Log, preserve unrelated generated workflow stashes.
-- [ ] Once #473 M2 is available, measure/record actual affected and docs-only no-run behavior using real branch evidence; do not claim these while unavailable. Run full suite on #725 pushed head, close through mandatory fresh review, and fix blocking findings.
+- [ ] Measure representative native selected-command duration against the full suite before label/landing. Run full suite on #725 pushed head, close through mandatory fresh review, and fix blocking findings. Record hub-owned post-landing affected-status/docs-vouch follow-up in Done when Revision; no early claim of recorded status.
 - [ ] Send the concrete tested PR to hub for operator local-gates-verified label. Wait without self-labelling or waiving CI; after label and SHIP use sdlc merge, verify tracker/archive, report receipt-submitted outcome.
 
 ## Revisions
@@ -78,3 +86,5 @@ This is batch development tooling, not a UI hot path. Per invocation: one valida
 - 2026-10-20: Initial plan consumes settled ariadne#473 M1 unchanged. Hub clarification keeps source-Lua/runtimebundle coupling inside Pair's command; generated embed paths remain additive package+group selection. Actual affected status/timing and docs train evidence wait for M2 landing, as explicitly approved by hub.
 
 - 2026-10-20: TL approved full-flow plan (8505a073-10d2-4bf5-8c07-8b6b8d9f5ab6). Strengthened runner count fixture: for a single changed leaf, pass exactly leaf plus selected importers to one go test invocation; explicitly reject ./... or any unselected package. The Lua/runtimebundle exception stays limited to its declared group.
+
+- 2026-10-20: PQ-1: named TestSelection/parse_selection/go_test_argv as pure owners and main/run_selection as the IO shell; replaced the feature-level case inventories with per-function adversarial strategies. Hub confirmation 36f3d275-8e19-4e86-a4b4-10d175c5c020 revises acceptance order because the upstream runner reads affected.json from origin/main: qualify fixtures/native timing before landing, then hub owns first real code affected status and docs-only train vouch in test-economy after #725 lands.
