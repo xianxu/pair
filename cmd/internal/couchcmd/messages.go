@@ -24,7 +24,7 @@ func runMessageCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer) int 
 }
 
 func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, call messageCall) int {
-	if inv.messageOp == "keys" || inv.messageOp == "set-model" {
+	if couchmessage.IsDriveOp(inv.messageOp) {
 		return runAgentDriveCLI(inv, rt, stdout, stderr, call)
 	}
 	if inv.messageOp == "resources" {

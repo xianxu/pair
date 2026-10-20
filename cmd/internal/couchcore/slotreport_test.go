@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -21,6 +22,7 @@ func TestShowReportsASlotWithoutAThread(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	env.Couch.SlotIO = s.f
 	env.Couch.Slots = NewOSSlotCatalog(s.f)
+	env.Couch.ScratchDiagnostic = func(context.Context, ThreadRecord) string { return "scratch: normal temp (setup declaration required)" }
 	result, err := dispatchTestOperation(env.Couch, "show", map[string]string{"ref": s.layout.Host(), "repo-scope": "scope"})
 	if err != nil {
 		t.Fatal(err)
@@ -31,6 +33,9 @@ func TestShowReportsASlotWithoutAThread(t *testing.T) {
 	}
 	if len(show.Threads) != 0 {
 		t.Fatalf("threads = %+v, want none", show.Threads)
+	}
+	if len(show.Scratch) != 1 || !strings.Contains(show.Scratch[0], "setup declaration required") {
+		t.Fatalf("slot without thread lost scratch diagnostic: %+v", show.Scratch)
 	}
 	env0, _ := show.Slot.Observation.Get(ResourceEnv)
 	reg, _ := show.Slot.Observation.Get(ResourceRegistration)

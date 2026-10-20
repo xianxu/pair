@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/rowtext"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
 const recoveryPreviewTimeout = couchmessage.RecoveryPreviewTimeout
@@ -68,7 +70,11 @@ func runResumeCandidatesCLI(inv cliInvocation, rt Runtime, out, diagnostic io.Wr
 	}
 	for i, c := range choices {
 		label := c.Label
-		if i == candidateStart && len(preview.Candidates) > 0 {
+		nativeOnly := c.SourceKind == sessioninventory.RecoverySourceNative
+		if nativeOnly && !strings.Contains(strings.ToLower(label), "unconfirmed") {
+			label += " (unconfirmed)"
+		}
+		if !nativeOnly && i == candidateStart && len(preview.Candidates) > 0 {
 			label = "best · " + label
 		}
 		activity := "unknown"
@@ -85,6 +91,11 @@ func runResumeCandidatesCLI(inv cliInvocation, rt Runtime, out, diagnostic io.Wr
 		if c.NativeID != "" && c.Key != "" {
 			evidence = fmt.Sprintf("matched %d/%d · tail %.0f%%", c.Matched, c.Total, c.TailMatch)
 		}
+		activityLabel := "last activity"
+		if nativeOnly {
+			activityLabel = "native activity"
+			evidence = "native transcript · physical cwd " + c.CWD + " · launch association unknown"
+		}
 		command := "couch --resume " + inv.ref + " --candidate " + c.Key
 		if c.Key == "" {
 			if c.NativeID != "" {
@@ -93,7 +104,17 @@ func runResumeCandidatesCLI(inv cliInvocation, rt Runtime, out, diagnostic io.Wr
 				command = couchcore.SlotOperationCommand("reboot", inv.ref)
 			}
 		}
-		fmt.Fprintf(out, "%d. %s [%s] %s\n   last activity %s · %s\n   %s\n   %s\n", i+1, rowtext.Sanitize(label), rowtext.Sanitize(c.Agent), rowtext.Sanitize(c.NativeID), activity, evidence, rowtext.Sanitize(c.Excerpt), command)
+		if nativeOnly && c.Key == "" {
+			command = "Refresh candidates before selecting this transcript."
+		}
+		fmt.Fprintf(out, "%d. %s [%s] %s\n   %s %s · %s\n   %s\n   %s\n", i+1, rowtext.Sanitize(label), rowtext.Sanitize(c.Agent), rowtext.Sanitize(c.NativeID), activityLabel, activity, rowtext.Sanitize(evidence), rowtext.Sanitize(c.Excerpt), command)
+	}
+	if !preview.Screen.LastActivity.IsZero() {
+		source := preview.Screen.ActivitySource
+		if source == "" {
+			source = "capture-file activity"
+		}
+		fmt.Fprintln(out, rowtext.Sanitize(source), preview.Screen.LastActivity.Local().Format("2006-01-02 15:04 MST"))
 	}
 	for _, reason := range preview.Reasons {
 		fmt.Fprintln(out, rowtext.Sanitize(reason))

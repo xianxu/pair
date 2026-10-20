@@ -60,7 +60,7 @@ func TestPreparedFreshUnavailableEvidenceStillLaunches(t *testing.T) {
 			case "future":
 				f.observation.Capture.CapturedAt = f.Now.Add(time.Hour)
 			case "unsupported":
-				f.Couch.RecoveryEvidence = func(context.Context, ThreadRecord) (RecoveryObservation, error) {
+				f.Couch.RecoveryEvidence = func(context.Context, ThreadRecord, RecoveryObservationRequest) (RecoveryObservation, error) {
 					return RecoveryObservation{Incomplete: true, Reasons: []string{"unsupported transcript format"}}, nil
 				}
 			}

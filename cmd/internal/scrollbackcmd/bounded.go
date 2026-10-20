@@ -11,13 +11,15 @@ import (
 )
 
 const (
-	maxRawBytes     = 64 << 20
-	maxEventsBytes  = 8 << 20
-	maxRenderedRows = 100000
-	maxDimension    = 1000
-	maxHistoryCells = 1 << 20
-	maxHistoryBytes = 128 << 20
-	maxScreenCells  = 262144
+	// MaxReplayRawBytes is shared with callers that preflight replay IO.
+	MaxReplayRawBytes = 64 << 20
+	// MaxReplayEventsBytes bounds the event member of a replay.
+	MaxReplayEventsBytes = 8 << 20
+	maxRenderedRows      = 100000
+	maxDimension         = 1000
+	maxHistoryCells      = 1 << 20
+	maxHistoryBytes      = 128 << 20
+	maxScreenCells       = 262144
 )
 
 // Keep every retention bound explicit: increasing only rows leaves VT's smaller
@@ -52,11 +54,11 @@ func renderBoundedLinesContext(ctx context.Context, rawPath, eventsPath string, 
 	if ctx == nil {
 		return nil, fmt.Errorf("recording replay requires context")
 	}
-	raw, err := osfs.ReadRegularMetadata(ctx, rawPath, maxRawBytes)
+	raw, err := osfs.ReadRegularMetadata(ctx, rawPath, MaxReplayRawBytes)
 	if err != nil {
 		return nil, err
 	}
-	data, err := osfs.ReadRegularMetadata(ctx, eventsPath, maxEventsBytes)
+	data, err := osfs.ReadRegularMetadata(ctx, eventsPath, MaxReplayEventsBytes)
 	if err != nil {
 		return nil, err
 	}

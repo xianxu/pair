@@ -192,3 +192,160 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-19T23:45:36-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 691 — couch --keys: allow Esc to dismiss a slash-command panel the hub opened (e.g. /usage) |
+| repo | pair |
+| issue file | workshop/issues/000691-couch-keys-allow-esc-to-dismiss-a-slash-command-panel-the-hub-opened-e-g-usage.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | b98802e09dfa33a77fd723d34948d247a5dd2e34..0127de1adbef4af2f798ff5a796d05ab578d8f62 |
+| command | sdlc close --issue 691 |
+| reviewer | claude (anthropic; author anthropic) |
+| isolation | fenced |
+| timestamp | 2026-10-19T23:45:36-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Checking BR-2 now: #716 already added `PanelRefusal` and tested it. Next I'll run the tests and look at the wrapper's dispatch path.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+This reopen fixes both problems the hub's live check measured. First, a panel taller than the screen is now recognized even though its opening rule has scrolled out of view. Second, a lone `esc` is now exempt from the turn stop, which Claude's "working" progress signal keeps active while a panel is open. The exemption is narrow. `panelOwnsInput` (`cmd/internal/agentdrive/model.go:162`) needs `DismissOnly()`, and either an admitted dismissal or a start event with `Dismissable` set. The wrapper's turn branch (`cmd/internal/wrapcmd/agent_drive.go:282`) checks the same `Dismissal()`. The check just before the write (`agent_drive.go:316`) still requires panel proof on the current frame. The agentdrive and wrapcmd tests pass, and so do the drive/keys/skill/panel tests in couchcmd. The full couchcmd run had 2 failing tests, both from my sandbox: `git init` was refused outside the reviewer's directories (sdlc #339), and neither test is in this diff. I re-ran two of the implementor's mutations myself. Removing `!r.state.Dismissal()` in the wrapper fails the wrapcmd test ("dismissal bytes \"\""). Putting the `panel < 0` early return back fails the agentdrive test. BR-2 was already fixed in #716. Nothing blocks.
+
+1. **Strengths**
+   - The safety cases are tested as hard as the success case, using real 2.1.304 captures of working turns. There are three of them, each with two variants that place the footer words where they must not count. Through the wrapper they must refuse, write nothing, and not give the panel hint. A guard checks that the capture painted a recognized composer, so a bad replay can't pass by accident (`agent_drive_panel_test.go:132`).
+   - `TestAgentDriveDismissalStopsIfThePanelGoes` covers the race where a working turn replaces the panel after admission but before the write. It shows the pre-write check refuses the write.
+   - The turn exemption is limited to exactly `[esc]` with panel proof. `TestDismissalToleratesThePanelsTurnFlag` shows that clear-line, double esc, esc on an occupied composer, and raw drives still stop on an active turn.
+   - Confirmation still needs `Idle`, so a frame showing the composer while the turn flag is still set keeps the drive watching instead of confirming. Both the reducer test and the wrapper test with `turn=true` cover this.
+   - The `MaxKeyTotalWaitMS` constant now drives the skill's limits assertion (`keys_help_test.go:60`).
+
+2. **Critical:** none.
+
+3. **Important:** none.
+
+4. **Minor**
+   - `cmd/internal/agentdrive/panel_test.go:47`: the "footer words above the composer" variant in `workingTurnScreens` actually puts the footer inside the composer box. It lands after the opening rule, because `composer` finds the closing rule. So it passes without testing the case its name describes. The wrapcmd variant (`agent_drive_panel_test.go:126`) places it correctly above the opening rule. Fix: walk back to the opening rule, as the wrapcmd helper does.
+   - `cmd/internal/agentdrive/panel.go:31`: one doc-comment line runs well past the wrapping of the rest of the block.
+
+5. **Test coverage notes**
+   - Recognizer: positive on both captures. The negatives now include "footer then other text". The old "footer with no rule" negative was dropped on purpose, because a panel with no rule on screen is now the tall-panel positive.
+   - Wrapper: the full grid of short and tall panels, each with and without the turn flag. Every non-esc sequence gets the `PanelRefusal` wording, `esc` is written exactly once, a panel repaint doesn't end the drive, and confirmation comes only after the turn ends.
+   - Not covered: a panel opened over a genuinely working turn. The plan lists it as unverified, and the hub said to try it only in a throwaway setup. That belongs to the post-merge live check, already handled under BR-1.
+
+6. **Architecture notes**
+   - ARCH-DRY: pass for production code. The admission rule is still the single `Request.Admits`. The two test packages each build the working-screen variants their own way. That's acceptable across packages, but it's how the mislabeled variant above slipped in.
+   - ARCH-PURE: pass. The recognizer and the turn-stop exemption are pure and tested without IO. The wrapper only reads the turn flag and the picker flag.
+   - ARCH-PURPOSE: pass. Both measured blockers are fixed, and the live check stays with the hub after merge (BR-1).
+   - ARCH-MOCK: pass. The wrapper tests run against the harness session fake with replayed real captures. The hub's live check is the conformance step.
+   - ARCH-CONSTRAINTS: pass. The 200-row and tail-size limits on the recognizer are kept. No new work on the keystroke path.
+   - ARCH-SECURE: pass. Only the viewport is read, unbalanced markup is refused, and the footer has to be the last non-blank row of the panel area.
+   - ARCH-ORDER: pass. The exemption goes through `ReduceDrive`, and the wrapper's turn branch keys off `Dismissal()`, which is reducer state. The tests include the panel-goes race. The one gap is the panel-over-a-real-turn row, which the plan documents.
+   - ARCH-FUNERAL: pass. The change creates nothing durable beyond test fixtures.
+   - ARCH-EVOLVE: pass. No persisted runtime format changed. The test metadata JSON only gained keys.
+
+7. **Plan revision recommendations:** none. The Revised plan and the Log match the code. Item 5 (the live check) stays open by design.
+
+```findings
+dispose:
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Request.Refusal returns PanelRefusal naming `couch --keys SLOT esc` (recipe.go:91-99, #716); asserted in agentdrive panel_test.go:219, couchcmd agent_drive_service_test.go:407, wrapcmd agent_drive_panel_test.go:64.
+findings:
+  - id: new
+    severity: Minor
+    kind: defect
+    family: test-variant-fidelity
+    title: |
+      agentdrive "footer words above the composer" variant actually inserts inside the composer box
+    detail: |
+      panel_test.go:47 inserts at closing-rule-index minus 1 (after the opening rule), so the variant passes without testing the case its name describes; walk back to the opening rule as wrapcmd agent_drive_panel_test.go:118-126 does.
+```
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"965a6ab7-785a-49c1-90e3-271c5790cb9b","repository":"github.com/xianxu/pair","issue_id":"000691","recipe":"milestone-review","round":3,"attempt":1,"agent":"claude","root":"/Volumes/TestScratch/review-checkouts/16a4005f15d7a965","reviewed_head":"0127de1adbef4af2f798ff5a796d05ab578d8f62","slot":"pair:2","requested_at":"2026-10-20T06:41:47.822109Z"},"phase":"finished","pid":22170,"started_at":"2026-10-20T06:41:48.100993Z","finished_at":"2026-10-20T06:45:35.779041Z","session_id":"e75a8ce4-304d-441e-aed7-d2d5b73c10ab","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.662911375s
+head: "0127de1adbef4af2f798ff5a796d05ab578d8f62"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T00:09:24-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 691 — couch --keys: allow Esc to dismiss a slash-command panel the hub opened (e.g. /usage) |
+| repo | pair |
+| issue file | workshop/issues/000691-couch-keys-allow-esc-to-dismiss-a-slash-command-panel-the-hub-opened-e-g-usage.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | d5450cd9578396d018b938062b2b3a0841ada13a..a5c7d1cc16da78c133c7ebf4740255058f6d57eb |
+| command | sdlc close --issue 691 |
+| reviewer | claude (anthropic; author anthropic) |
+| isolation | fenced |
+| timestamp | 2026-10-20T00:09:24-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+This window has one code change: the `workingTurnScreens` helper in `cmd/internal/agentdrive/panel_test.go:44-58`. The other changed files are generated ledger and review records for round 3. The fix resolves BR-3. The helper now walks back past the composer's closing rule to its opening rule, puts `"  Esc to cancel"` on the row just above the box, and keeps the screen at 39 rows by dropping the top row. I checked placement by adding a temporary test to this checkout that printed the variant's last rows, then deleted it. For all three working-turn captures (working-thinking, working-after-usage, working-shell), the footer words now sit immediately above the opening `─` rule and the `❯` prompt row, outside the box. The new `Fatalf` guard (`panel_test.go:54`) stops the walk-back from silently landing on the wrong row if a capture changes. `TestDismissablePanel*` passes and `go vet` is clean. The spec, revisions and Done-when are unchanged, and there are no conflict resolutions to judge.
+
+1. **Strengths**
+   - `panel_test.go:46-57` now uses the same walk-back as the correct wrapcmd variant (`agent_drive_panel_test.go:113-123`), so the two packages test the same case.
+   - The new guard at `panel_test.go:54-56` checks the placement rather than assuming it, which closes off the way BR-3 got in.
+2. **Critical:** none.
+3. **Important:** none.
+4. **Minor:** none new.
+5. **Test coverage notes:** The "above the composer" variant now tests the case its name describes, and `TestDismissablePanelRefusesEveryWorkingTurn` still refuses all nine screens.
+   - On the family rule: this is the only finding in `test-variant-fidelity`, not a repeat. Its rule is that a negative variant must assert its own placement. The guard does that here, and the wrapcmd sibling was already correct, so I found no other instance to fix.
+6. **Architecture notes:**
+   - **ARCH-DRY:** pass. The fix copies the wrapcmd walk-back instead of sharing a helper with it. That duplication across two test packages is old code outside this window. It could become a shared testdata helper later.
+   - **ARCH-PURE:** pass. Test-only change, no IO beyond reading the captures.
+   - **ARCH-PURPOSE:** pass. The finding's class was swept: wrapcmd, the only other instance, was already correct.
+   - **ARCH-EVOLVE:** pass. No persisted format changed.
+7. **Plan revision recommendations:** none.
+
+```findings
+dispose:
+  - id: BR-3
+    disposition: addressed
+    note: |
+      panel_test.go:44-58 now walks back to the opening rule (guarded by a prompt-row Fatalf) and inserts above it; probe confirmed footer sits directly above the opening rule on all three captures, length kept at 39; tests pass.
+```
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"325d111e-ee4c-423e-90c7-66a1e4222045","repository":"github.com/xianxu/pair","issue_id":"000691","recipe":"fix-review","round":4,"attempt":1,"agent":"claude","root":"/Volumes/TestScratch/review-checkouts/91f5e0a3336859dd","reviewed_head":"a5c7d1cc16da78c133c7ebf4740255058f6d57eb","slot":"pair:2","requested_at":"2026-10-20T07:08:42.472123Z"},"phase":"finished","pid":67484,"started_at":"2026-10-20T07:08:42.646142Z","finished_at":"2026-10-20T07:09:22.784988Z","session_id":"55c5b588-66df-40cb-8a15-0f87b10439ad","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.238876875s
+head: "a5c7d1cc16da78c133c7ebf4740255058f6d57eb"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

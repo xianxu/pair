@@ -22,10 +22,13 @@ type DriveObservation struct {
 	// Dismissable positively identifies a panel whose footer declares Esc as
 	// its dismissal; only an exact [esc] may use it (pair#691).
 	Dismissable bool
+	// Interruptible positively identifies a working turn the wrapper may stop;
+	// only an interrupt request may use it (pair#717).
+	Interruptible bool
 }
 
 func (o DriveObservation) Admission() agentdrive.Admission {
-	return agentdrive.Admission{Idle: o.Idle, Recoverable: o.Recoverable, Dismissable: o.Dismissable}
+	return agentdrive.Admission{Idle: o.Idle, Recoverable: o.Recoverable, Dismissable: o.Dismissable, Interruptible: o.Interruptible}
 }
 
 func (o DriveObservation) Validate() error {

@@ -999,7 +999,7 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 		return s.handleAgentSwitch(ctx, request)
 	case couchmessage.IsSubmissionOp(request.Op):
 		return s.handleSubmission(ctx, request)
-	case request.Op == "keys" || request.Op == "set-model":
+	case couchmessage.IsDriveOp(request.Op):
 		return s.handleAgentDrive(ctx, request)
 	case request.Op == "recovery-confirmation" || couchcore.IsSlotOperation(request.Op) || request.Op == "operation-status":
 		return s.handleSlotOperation(ctx, request)

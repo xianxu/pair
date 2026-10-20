@@ -120,7 +120,7 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 		switch args[0] {
 		case "--drain":
 			return parseDrainCLI(args)
-		case "--keys", "--set-model":
+		case "--keys", "--set-model", "--interrupt":
 			return parseAgentDriveCLI(args)
 		case "--move-slot":
 			return parseHubMoveCLI(args)

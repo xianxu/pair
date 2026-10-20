@@ -6,5 +6,7 @@
   "panel_footer": "Esc to cancel",
   "panel_rule": "a full-width rule opens the panel; earlier prompt rows stay visible above it",
   "closed_by": "not the hub --keys esc: the wrapper recording shows the dismissal redraw before 16:58:33 and the hub esc at 16:58:57 on an empty composer (pair#691 Log)",
-  "isolation": "no slot input by the fixture importer"
+  "isolation": "no slot input by the fixture importer",
+  "usage_panel_tall": "hub live check 2026-10-19 ~21:05, parley.nvim:4 (94x39): couch --peek --json with the panel taller than the screen, last 39 rows; no rule and no prompt row on screen",
+  "working": "working-*.screen: viewports replayed at 94x39 from the ariadne:5 wrapper recording scrollback-1-ariadne-46-claude.raw during working turns (spinner, composer box, esc to interrupt footer); thinking, after a dismissed /usage, and with a running shell"
 }

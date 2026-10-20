@@ -7,6 +7,13 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- Splitting an acceptance task into a child issue requires sweeping copied Spec tasks and Done when for parent-only checks. A Log saying the parent still owns console/deployment acceptance does not override an active child Spec clause requiring it. Keep the old clause only as superseded Revisions history. (#723 BR-1)
+
+- A replay benchmark must prove every claimed stage executed inside its CPU bracket. NewFakeChild with nil Sink skips publication delivery entirely; count deliveries/bytes and validations, check batch.Err, and join publication plus reply workers before the ending sample. Retain incomplete-path runs as diagnostics rather than calling them full-path performance evidence. (#723)
+
+- #714 PQ-2: Verify persisted compatibility against the real decoder and its adversarial tests before claiming unknown-field preservation. A schema-unchanged bugfix can retain an existing strict refusal contract; a preservation migration is a separate, explicit change.
+
+- #714: Failure diagnostics compose whole identities, never nonzero structs or fieldwise fragments. Test a scope-only outer dispatch through actual normalization and reopened persisted history; a recorded Save call is not proof of a saved failure. Preserve publication warnings at the concise operator boundary too.
 - A configuration-only rollout still needs root README coverage when it introduces an operator-facing setting. Sweep the config path/key, selected value, inspection command and approval owner together; an atlas entry alone leaves the usage contract incomplete. (#709 BR-1)
 
 - #715 BR-1: A local extension to a shared tool updates both its adoption instructions and its rule-maintenance instructions in the existing atlas page. Document the local composition owner, scope, shared error/suppression semantics, and which upstream consumers remain unchanged; updating only the feature's lifecycle map misses the tooling surface.
@@ -2409,3 +2416,16 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #722 integration audit: Exact identity must accompany the final observation that grants completion. A prior wrapper check followed by a later unqualified idle read can seal an old checkpoint after a same-Binding re-exec. Swap the instance only at the final read and require the old ack to become invalid.
 - #722 integration audit: Required exact JSON keys do not make a later encoding/json struct decode exact: differently cased additive keys can override them. Exercise aliases at every authority-bearing object depth and retain unrelated additive fields without granting them known-field authority.
 - #722 suite: New production files must enter artifactpath's exhaustive inventory as well as the Go lint catalog and slot-state audit. Classify actual ownership explicitly; fixed private Couch metadata is not a new tag-bearing Pair artifact family, and the old-violation quarantine must not grow.
+- #721 PQ-1: A named-function adversarial strategy table owns the test plan. Tasks reference it and carry execution commands; do not duplicate it as prose case inventories. Keep unique safety invariants in design/state/format contracts.
+- #721: Type-owned preserving codecs must normalize absent unknown-member maps consistently with their clones. Empty allocated maps can break exact durable-intent comparisons after a JSON round trip; test equality through the real profile/record encoding rather than weakening the claim check.
+
+- #721 BR-1: Freeze the exact selected snapshot before leaving acquisition; rebuilding from aliased observations can silently accept a changed candidate. Revalidate exact selected artifacts at effect admission, not only after a claim. Mutate through retirement/nonce hooks and test nil verifier and expiry during IO.
+- #721 BR-2/BR-3: Shared IO budgets charge only stages that can run. Preflight using the replay owner’s actual raw/event caps before reserving bytes; a rejected witness must not reserve unread raw data. Observe descriptive file activity independently of companion-file and retained-identity authority, and test early failures as well as late ones.
+- #721 BR-4: A user-visible command change updates both root README reference and usage passages alongside atlas. Search all command mentions before close.
+
+- #720 BR-1/BR-2: Do not grow an optional host feature into a native settings resolver. When permission fidelity needs repeated fixes, prefer an explicit persistent operator declaration and name its false-declaration limitation. A host write probe cannot prove sandbox access. Keep opt-in filenames outside reserved artifact families instead of weakening path-use guards.
+
+- #720 BR-3: A diagnostic added to a show command must cover its valid non-thread targets too. Test a slot with no thread through dispatch; iterating matched threads alone silently omits machine-wide selection information.
+
+- #724: testing.AllocsPerRun reads process-global Mallocs; GOMAXPROCS(1) does not suspend unrelated goroutines. Isolate strict allocation oracles in a self-exec helper and bind the sample to its actual PID; keep an unbounded-implementation negative control so isolation does not weaken the bound.
+- #724: Publishing a native PID is not simultaneous identity availability. A fixture must re-observe unavailable identity until established, then retain that exact generation; caching the PID must not disable all later identity observations. Report both title publication and agent identity on timeout so a real live title is not misdiagnosed as never started.

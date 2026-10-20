@@ -17,12 +17,15 @@ type Screen struct {
 	Recoverable                bool
 	// Dismissable names a recognized panel with no composer; only DismissOnly
 	// may use it.
-	Dismissable  bool
-	ComposerText string
+	Dismissable bool
+	// Interruptible names a working turn the wrapper may stop; only an
+	// interrupt request may use it (pair#717).
+	Interruptible bool
+	ComposerText  string
 }
 
 func (s Screen) Admission() Admission {
-	return Admission{Idle: s.Idle, Recoverable: s.Recoverable, Dismissable: s.Dismissable}
+	return Admission{Idle: s.Idle, Recoverable: s.Recoverable, Dismissable: s.Dismissable, Interruptible: s.Interruptible}
 }
 
 func screenHistory(screen Screen) []string {

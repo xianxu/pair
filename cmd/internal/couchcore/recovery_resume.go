@@ -34,6 +34,9 @@ func selectRecoveryChoice(p RecoveryPreview, key string) (RecoveryChoice, error)
 			continue
 		}
 		expected := RecoveryCandidateSelector{Version: 1, Address: p.Address, Agent: choice.Agent, NativeID: choice.NativeID, Digest: p.Snapshot.Digest}
+		if p.Snapshot.Source != nil {
+			expected.Version, expected.Source, expected.ExpiresAt = 2, p.Snapshot.Source, p.Snapshot.ExpiresAt
+		}
 		if _, err := ValidateRecoveryCandidateKey(key, expected); err != nil {
 			return RecoveryChoice{}, err
 		}

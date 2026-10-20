@@ -88,6 +88,14 @@ type NotificationLifecycle struct {
 	nextToken uint64
 }
 
+// Working is the one definition of "the agent is working right now": a turn
+// is open and not completed, the agent reported activity, and no stop grace
+// is pending. A stop report starts the grace, so a just-finished turn is not
+// working. couch --interrupt rests on it (pair#717).
+func (s NotificationLifecycle) Working() bool {
+	return s.Active && !s.Completed && s.ActivitySeen && !s.GracePending
+}
+
 type LifecycleDecision struct {
 	Notify        bool
 	Message       string
@@ -250,6 +258,7 @@ func (p *proxy) processLifecycleObservation(observation TurnObservation) {
 	p.notificationLifecycle = state
 	// The settle check reads turnActive off this goroutine (#421), and a turn
 	// can open or close here with no output to re-arm it.
+	p.turnWorking.Store(state.Working())
 	if p.turnActive.Swap(state.Active) != state.Active && p.peer != nil {
 		p.peer.lifecycleTurnChanged(state.Active)
 	}
