@@ -62,7 +62,12 @@ func (h *hubAdmissionRig) setResolver(f func(context.Context, string) (couchcore
 }
 
 func (h *hubAdmissionRig) admit(id string) couchmessage.Response {
-	req := slotRequest(h.caller, "resume", id, "pair:5")
+	return h.admitOp("resume", id)
+}
+
+func (h *hubAdmissionRig) admitOp(op, id string) couchmessage.Response {
+	req := slotRequest(h.caller, op, id, "pair:5")
+	req.Confirmed = op != "resume"
 	return switchCall(h.t, h.serviceRig, req)
 }
 
@@ -70,13 +75,19 @@ func (h *hubAdmissionRig) admit(id string) couchmessage.Response {
 // warm memo and a connected caller, admission runs no sdlc or git process;
 // the queued guard still re-proves authority on fresh discovery.
 func TestHubSlotAdmissionSpawnsNothingWhenWarm(t *testing.T) {
+	for _, op := range []string{"resume", "relaunch"} {
+		t.Run(op, func(t *testing.T) { testHubSlotAdmissionWarm(t, op) })
+	}
+}
+
+func testHubSlotAdmissionWarm(t *testing.T, op string) {
 	h := newHubAdmissionRig(t)
 	if _, err := h.s.hubTargets.Fresh(t.Context(), "pair:5"); err != nil {
 		t.Fatal(err)
 	}
 	h.spawns.Store(0)
-	if got := h.admit("warm"); got.Code != "accepted" {
-		t.Fatalf("warm admission %+v", got)
+	if got := h.admitOp(op, "warm"); got.Code != "accepted" {
+		t.Fatalf("warm %s admission %+v", op, got)
 	}
 	if n := h.spawns.Load(); n != 0 {
 		t.Fatalf("warm admission spawned %d sdlc/git resolutions", n)
