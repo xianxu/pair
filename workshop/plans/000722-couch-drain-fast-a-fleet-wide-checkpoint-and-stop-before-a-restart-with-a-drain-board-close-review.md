@@ -311,3 +311,93 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T07:05:20-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 722 — couch --drain [--fast]: a fleet-wide checkpoint-and-stop before a restart, with a drain board |
+| repo | pair |
+| issue file | workshop/issues/000722-couch-drain-fast-a-fleet-wide-checkpoint-and-stop-before-a-restart-with-a-drain-board.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 7d4e0c3aba6b39fb12d5125ee967dcde9e5be4be..31899be8ee9f96a6869ded680014c974b38fb64f |
+| command | sdlc close --issue 722 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T07:05:20-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: medium
+```
+
+BR-4 is addressed: production failure paths now use the reducer, regression tests fail when the fixes are removed, and the structural lint passes. No additional behavioral defect was found. However, the pinned head fails existing physical-write checks in two affected packages; both packages pass at the pinned base, leaving validation unresolved.
+
+```findings
+dispose:
+  - id: BR-4
+    disposition: addressed
+    note: |
+      drain_service.go routes failure/release outcomes through ReduceDrain. Reducer and service regressions fail with the previous implementations restored in disposable checkouts. Focused race tests, lint fixtures, and the repository catalog scan pass.
+findings:
+  - id: new
+    severity: Important
+    kind: unverifiable
+    family: test-write-envelope
+    title: |
+      Pinned-head package validation exceeds enforced physical-write budgets
+    detail: |
+      ARCH-CONSTRAINTS: go test ./cmd/internal/couchcore ./cmd/internal/couchcmd ./cmd/internal/couchmessage ./cmd/internal/couchtty ./cmd/internal/wrapcmd ./internal/repolint fails after behavioral assertions pass: couchcore writes 139386880 bytes against 134217728, and couchtty writes 87937024 against 67108864. Enforcement is at cmd/internal/couchcore/launchhelper_test.go:50 and cmd/internal/couchtty/reattach_testmain_test.go:21. Both packages pass in a Git-backed disposable clone of the pinned base. Provide a measured green pinned-head run with an explanation of the discrepancy, or diagnose and correct the excess before crossing the boundary.
+```
+
+1. **Strengths**
+   - Broker-release failure invalidates stale queue evidence and requires fresh reconciliation (`couchcore/drain.go:174`).
+   - Release handling checks the current generation before applying outcomes (`couchcmd/drain_service.go:810`).
+   - Tests cover acknowledgement ordering, retained outcomes, transport, and bounded generation retirement.
+   - README and atlas document the CLI, recovery behavior, and revised fast-mode policy.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** The write-budget validation blocker above. Its cause has not been attributed to a particular implementation change.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+   - All drain-targeted tests pass across core, messaging, coordinator, and wrapper packages.
+   - Console drain tests and focused race tests pass.
+   - BR-4 reducer and coordinator mutation controls fail as expected; disposable checkouts were removed.
+   - Full couchcmd, couchmessage, wrapcmd, and repolint checks pass.
+   - The initial archive-only baseline was inconclusive; the subsequent Git-backed baseline passes both affected packages.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** shared notice formatter and dispatch-selection policy.
+   - **ARCH-PURE — pass:** listed pure entities have direct tests without IO; integration dependencies are injected.
+   - **ARCH-PURPOSE — pass:** checkpoint, acknowledgement, quiescence, and cancellation contracts are implemented.
+   - **ARCH-MOCK — pass:** stateful dependency fixtures and retained real-conformance runner exist.
+   - **ARCH-CONSTRAINTS — flag:** package write-envelope validation remains unresolved.
+   - **ARCH-SECURE — pass:** strict parsing and generation/incarnation fencing fail closed.
+   - **ARCH-ORDER — pass:** BR-4 restores reducer authority with regression and lint enforcement.
+   - **ARCH-FUNERAL — pass:** bounded current records and control outcomes have explicit retirement.
+   - **ARCH-EVOLVE — pass:** persisted extension preservation and strict known-field validation are tested.
+
+7. **Plan revision recommendations:** No design revision required. Record the answering write-budget measurements when resolving the validation finding. Existing live-acceptance and landing holds remain applicable.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"dadb6fbb-7a46-4bc8-9cc3-1d74b697b5fa","repository":"github.com/xianxu/pair","issue_id":"000722","recipe":"milestone-review","round":4,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/c2ccd605232809fa","reviewed_head":"31899be8ee9f96a6869ded680014c974b38fb64f","slot":"pair:5","requested_at":"2026-10-20T13:53:16.820326Z"},"phase":"finished","pid":74321,"started_at":"2026-10-20T13:53:16.91428Z","finished_at":"2026-10-20T14:05:19.65961Z","session_id":"01a15996-7d64-7e11-9124-74e107f7d3b3","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.583554292s
+head: "31899be8ee9f96a6869ded680014c974b38fb64f"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
