@@ -72,6 +72,8 @@ Durable design: [native-only recovery candidates plan](../plans/000721-native-on
 
 ## Log
 
+
+- 2026-10-20: closed — BR-1 through BR-4 corrections: seven-package Recovery/ResumeCandidate/Bounded targeted PASS; core/cmd/launcher/replay Recovery/Resume/Bounded race PASS (32.454s/3.635s/7.104s/2.134s); artifactpath/testpair/repolint PASS; six pre-effect mutation/expiry/missing-verifier regressions and disabled-verifier mutation control PASS; 200MiB replay preflight and early activity preservation regressions PASS. Required recorded suite restarted on 996864c8913c33f6b3f4a0c93d5ad3201e53d0c1; must pass before landing. Hub approval c1e6ca82-f486-49b4-a933-08d3ab6ae897: production-path regressions plus next natural recovery, no stage or pair:6 action.; review verdict: SHIP
 - 2026-10-19: Split from #714 by TL approval; native-only variant/lifetime approved. #714 lands failed-launch retry and diagnostics first.
 
 - 2026-10-19: Parent #714 landed as PR #471, merge e63e7fd421fd34ad3308f566545527ef3a19666b, after integrating #695 and receiving renewed SHIP plus an integrated recorded suite PASS (8m45s). Hub report receipt 5a4adbd1-af20-4460-a389-fdab7b7ca0c6 submitted. Started this issue on its own main-based branch 000721-native-only-recovery-candidates. No implementation or change-code yet; durable plan remains next.

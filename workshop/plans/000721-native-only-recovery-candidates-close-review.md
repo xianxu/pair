@@ -112,3 +112,104 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T00:47:03-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 721 — Offer unconfirmed native recovery candidates without a usable screen |
+| repo | pair |
+| issue file | workshop/issues/000721-native-only-recovery-candidates.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 3a1418f40e77f77d5a6e9e619efa46f8cbe36c8b..996864c8913c33f6b3f4a0c93d5ad3201e53d0c1 |
+| command | sdlc close --issue 721 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T00:47:03-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range fulfills the native-only recovery contract. All four prior findings are addressed, with behavioral regression tests confirmed to fail when their fixes are disabled. No new blocking findings emerged. README and atlas updates cover the changed surface; the recorded full-suite and landing obligations remain tracked separately.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      recovery_prepared.go:339,360,381,459 validates the frozen native selection before persistence, retirement, lifecycle cleanup and claim admission. TestRecoveryNativeOnlyRevalidatesBeforeEffects passes; disabling the verifier made all six boundary cases fail in a disposable pinned-head copy.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      recovery_evidence_os.go:280 shares replay raw/event bounds before reservation, with subsequent charges at read stages. TestRecoveryOversizedReplayDoesNotConsumeNativeBudget passes and fails when this preflight is removed.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      recovery_evidence_os.go:242 observes owned raw-file activity before lease, metadata and identity authorization. TestRecoveryEarlyScreenFailureRetainsRawFileActivity covers missing events and retained/archive failures; removing the observation makes the regression fail.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      README.md:531–534 and :621–634 now explain unconfirmed native choices, explicit selection, separate activity provenance and five-minute expiry/refresh. These descriptions match recovery_preview.go, recovery_key.go and the validated selection path.
+```
+
+1. **Strengths**
+
+   - The original native snapshot is cloned and retained through lifecycle changes; validation checks expiry both before and after artifact IO.
+   - Screen authorization and descriptive activity are separated without relaxing device/inode checks.
+   - V2 preserves unknown context/source/candidate fields, while the frozen V1 encoding and compatibility guards remain tested.
+   - Production composition tests retain the real evidence wiring and verify explicit native selection without manufactured binding, capture or prompt.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed:
+
+   - Seven-package targeted tests: `Recovery|ResumeCandidates|ResumeCandidate|Bounded`.
+   - Race tests in couchcore, launcher and sessioninventory: `Recovery|Resume`.
+   - repolint, artifactpath and testpair guards.
+   - Three independent mutation controls for BR-1–BR-3, each producing the expected regression failure.
+
+   The testpair guard initially detected the temporary review copy inside the review workspace; it passed after that copy was removed. The repository remains unchanged. This review did not run the full recorded suite.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared replay limits, fingerprint conversion and existing collector/revalidation owners are reused.
+   - **ARCH-PURE — pass:** source validation, codecs, ranking and projection remain pure; filesystem work uses injected integration seams.
+   - **ARCH-PURPOSE — pass:** native-only evidence reaches listing, explicit selection, persistence, CLI/menu presentation and final launcher authority.
+   - **ARCH-MOCK — pass:** stateful runtime/process fakes and portable native homes exercise the production boundaries.
+   - **ARCH-CONSTRAINTS — pass:** existing scan limits remain; exact-budget, oversized-screen and N/2N counting tests cover relevant bounds.
+   - **ARCH-SECURE — pass:** selectors and persisted/native inputs are validated; artifact ownership, physical cwd and file identity are rechecked.
+   - **ARCH-ORDER — pass:** existing recovery transitions remain authoritative, with controlled mutations testing refusal at effect boundaries.
+   - **ARCH-FUNERAL — pass:** no new durable artifact family; bounded snapshots use existing record retention.
+   - **ARCH-EVOLVE — pass:** V2 preserves nested unknown fields; incompatible authority is versioned and rejected by legacy guards.
+
+   Core-concept locations and classifications match the implementation.
+
+7. **Plan revision recommendations:** None. Existing revisions describe the corrected owners, validation boundaries and accounting behavior.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"d66976ec-2491-4600-b79c-45cd80c9388f","repository":"github.com/xianxu/pair","issue_id":"000721","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/d2e633853a1734ff","reviewed_head":"996864c8913c33f6b3f4a0c93d5ad3201e53d0c1","slot":"pair:3","requested_at":"2026-10-20T07:43:42.874617Z"},"phase":"finished","pid":97088,"started_at":"2026-10-20T07:43:43.045222Z","finished_at":"2026-10-20T07:47:02.882278Z","session_id":"01a15844-2589-7c60-9301-9cc8db6c28ca","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.141644959s
+head: "996864c8913c33f6b3f4a0c93d5ad3201e53d0c1"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

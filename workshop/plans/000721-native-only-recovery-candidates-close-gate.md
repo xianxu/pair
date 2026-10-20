@@ -227,6 +227,227 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: d66976ec-2491-4600-b79c-45cd80c9388f
+            repository: github.com/xianxu/pair
+            issue_id: "000721"
+            recipe: milestone-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/d2e633853a1734ff
+            reviewed_head: 996864c8913c33f6b3f4a0c93d5ad3201e53d0c1
+            slot: pair:3
+            requested_at: "2026-10-20T07:43:42.874617Z"
+          phase: finished
+          pid: 97088
+          started_at: "2026-10-20T07:43:43.045222Z"
+          finished_at: "2026-10-20T07:47:02.882278Z"
+          session_id: 01a15844-2589-7c60-9301-9cc8db6c28ca
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: 996864c8913c33f6b3f4a0c93d5ad3201e53d0c1
+        tracker_head: c47ecf82459be419b5add46697edee3bd5fcbace
+        branch_point: 3a1418f40e77f77d5a6e9e619efa46f8cbe36c8b
+        since: "2026-10-19T21:10:41-07:00"
+        until: "2026-10-20T00:42:40-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-19T21:10:41-07:00"
+              end: "2026-10-20T00:42:40-07:00"
+              began: "2026-10-19T21:10:41-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot3/pair
+        sources:
+            - harness: codex
+              id: 01a15678-2c82-7682-8812-61f85b526f0a
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: d297189423602c210660bbb10f315f0e36469be4d9f8d06c053b67a7bb82fab1
+              started: "2026-10-19T23:21:19.095Z"
+              spawned: false
+              bytes: 12235358
+              windows:
+                - start: "2026-10-19T21:10:41-07:00"
+                  end: "2026-10-20T00:42:40-07:00"
+            - harness: codex
+              id: 01a15810-571b-7123-9206-e124cade8c8a
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: 2c699506de5ecf3b9c4390eae8cb9feffd1d440e2d98eb10001ac315ce4a8034
+              started: "2026-10-20T06:47:08.671Z"
+              spawned: false
+              bytes: 4380340
+              windows:
+                - start: "2026-10-20T06:47:08.671Z"
+                  end: "2026-10-20T00:42:40-07:00"
+            - harness: codex
+              id: 01a15810-d79a-77b0-ac36-0f24ac2103da
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a15810-571b-7123-9206-e124cade8c8a
+              digest: f3d5b5b753d58e969bd2c7036a0e73c89028d8f1da1612241d8cb16d57a4ecd0
+              started: "2026-10-20T06:47:41.317Z"
+              spawned: true
+              bytes: 1774581
+              windows:
+                - start: "2026-10-20T06:47:41.317Z"
+                  end: "2026-10-20T00:42:40-07:00"
+            - harness: codex
+              id: 01a15815-474b-7612-818e-9abbeb4f0af9
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: 155751c1754fdf74d38a04059a208796d26543aa5fe01f8f12e86fba9dd37b4b
+              started: "2026-10-20T06:52:32.423Z"
+              spawned: false
+              bytes: 639644
+              windows:
+                - start: "2026-10-20T06:52:32.423Z"
+                  end: "2026-10-20T00:42:40-07:00"
+            - harness: codex
+              id: 01a15817-0137-73a1-a82b-b5f5722e166e
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: 7747ab0dd5d4654237f4886c85b1ef2aad0b6e0a639a5be10aa0d0d22b7be8ad
+              started: "2026-10-20T06:54:25.507Z"
+              spawned: false
+              bytes: 439119
+              windows:
+                - start: "2026-10-20T06:54:25.507Z"
+                  end: "2026-10-20T00:42:40-07:00"
+            - harness: codex
+              id: 01a15818-b842-7983-b766-ccb6bc22c5e2
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: 8d8ee34755d941ab3ee37d8a6e38e04150ce15e3636dea0a09f2067a9f1d6d6e
+              started: "2026-10-20T06:56:18.138Z"
+              spawned: false
+              bytes: 518198
+              windows:
+                - start: "2026-10-20T06:56:18.138Z"
+                  end: "2026-10-20T00:42:40-07:00"
+            - harness: codex
+              id: 01a15819-958c-7f31-879f-3e9cc5944f8f
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: ce2d4cf2737b020c6b2abba0f935efecc9675cca05b3ec1eb050ac4fba75f66d
+              started: "2026-10-20T06:57:14.813Z"
+              spawned: false
+              bytes: 422672
+              windows:
+                - start: "2026-10-20T06:57:14.813Z"
+                  end: "2026-10-20T00:42:40-07:00"
+            - harness: codex
+              id: 01a1581a-ca17-7851-9db7-b0f9d435706e
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a15810-571b-7123-9206-e124cade8c8a
+              digest: 480600734ed9520c830fac8663470b67e78be531cb44ca417a88ea687c6e959f
+              started: "2026-10-20T06:58:33.202Z"
+              spawned: true
+              bytes: 1108923
+              windows:
+                - start: "2026-10-20T06:58:33.202Z"
+                  end: "2026-10-20T00:42:40-07:00"
+            - harness: codex
+              id: 01a1581a-fea0-7173-b5ec-8bc1149c5109
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a15810-571b-7123-9206-e124cade8c8a
+              digest: 6776be8c601b39ffec41a4bc725641668f8826a6f6954304de48148300376fcc
+              started: "2026-10-20T06:58:46.649Z"
+              spawned: true
+              bytes: 848646
+              windows:
+                - start: "2026-10-20T06:58:46.649Z"
+                  end: "2026-10-20T00:42:40-07:00"
+        queue_waits:
+            - attempt_id: f362417d7963a354d4add24c0f3358f2
+              slot: pair:3
+              record_digest: d3b5bfc2c00ca464d2a02f636de51c827ff928c712240641bd6e7217e87dc8bf
+              start: "2026-10-20T04:23:57.388355Z"
+              end: "2026-10-20T04:48:43.982663Z"
+              queue_seconds: 1486.594308
+              raw_seconds: 1486.594308
+              exact: true
+            - attempt_id: dc6266e5245eb2c4939d554b12b0f278
+              slot: pair:3
+              record_digest: 1b1d1273505fe04db62a30ff4fef152b574b6d94411b1be573ecafac723f7a03
+              start: "2026-10-20T06:15:38.841775Z"
+              end: "2026-10-20T06:27:48.233515Z"
+              queue_seconds: 729.39174
+              raw_seconds: 729.39174
+              exact: true
+        protected:
+            - issue: "714"
+              slot: pair:3
+              start: "2026-10-19T21:10:41-07:00"
+              end: "2026-10-20T04:23:57.388355Z"
+            - issue: "714"
+              slot: pair:3
+              start: "2026-10-19T21:10:41-07:00"
+              end: "2026-10-20T04:18:58.596Z"
+            - issue: "714"
+              slot: pair:3
+              start: "2026-10-20T04:11:18.667Z"
+              end: "2026-10-20T04:12:15.059Z"
+            - issue: "714"
+              slot: pair:3
+              start: "2026-10-20T04:13:01.451Z"
+              end: "2026-10-20T04:13:20.295Z"
+            - issue: "714"
+              slot: pair:3
+              start: "2026-10-20T04:14:09.422Z"
+              end: "2026-10-20T04:14:32.759Z"
+            - issue: "714"
+              slot: pair:3
+              start: "2026-10-20T04:14:38.231Z"
+              end: "2026-10-20T04:14:59.489Z"
+            - issue: "714"
+              slot: pair:3
+              start: "2026-10-20T04:48:43.982663Z"
+              end: "2026-10-20T06:15:13.801Z"
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 0.16611666666666666
+        cuts:
+            - dispatched: "2026-10-20T00:25:54-07:00"
+              finalized: "2026-10-20T00:29:19-07:00"
+              finalizing: false
+      "n": 2
+      timestamp: "2026-10-20T00:47:04-07:00"
+      dispatched: "2026-10-20T00:43:39-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: recovery_prepared.go:339,360,381,459 validates the frozen native selection before persistence, retirement, lifecycle cleanup and claim admission. TestRecoveryNativeOnlyRevalidatesBeforeEffects passes; disabling the verifier made all six boundary cases fail in a disposable pinned-head copy.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: recovery_evidence_os.go:280 shares replay raw/event bounds before reservation, with subsequent charges at read stages. TestRecoveryOversizedReplayDoesNotConsumeNativeBudget passes and fails when this preflight is removed.
+          round: 2
+        - id: BR-3
+          disposition: addressed
+          note: recovery_evidence_os.go:242 observes owned raw-file activity before lease, metadata and identity authorization. TestRecoveryEarlyScreenFailureRetainsRawFileActivity covers missing events and retained/archive failures; removing the observation makes the regression fail.
+          round: 2
+        - id: BR-4
+          disposition: addressed
+          note: README.md:531–534 and :621–634 now explain unconfirmed native choices, explicit selection, separate activity provenance and five-minute expiry/refresh. These descriptions match recovery_preview.go, recovery_key.go and the validated selection path.
+          round: 2
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 996864c8913c33f6b3f4a0c93d5ad3201e53d0c1
+      blocked: false
 ---
 
 # Gate ledger — pair#721 (boundary-review)
@@ -247,9 +468,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-4** [Important] `user-surface-documentation` README update appears missing for native-only candidate selection
   README.md:531–534 still describes resume-candidates as listing the best choice and alternatives with TTY-tail evidence. The range changes that user-facing command to offer unconfirmed native-only choices without tail scoring and introduces a five-minute selection lifetime, but updates only atlas pages. Update the README command description and recovery usage passage with the source distinction, explicit selection, and expiry/refresh behavior required by the docs gate.
 
+## Round 2 — 2026-10-20T00:47:04-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — recovery_prepared.go:339,360,381,459 validates the frozen native selection before persistence, retirement, lifecycle cleanup and claim admission. TestRecoveryNativeOnlyRevalidatesBeforeEffects passes; disabling the verifier made all six boundary cases fail in a disposable pinned-head copy.
+- BR-2 — addressed — recovery_evidence_os.go:280 shares replay raw/event bounds before reservation, with subsequent charges at read stages. TestRecoveryOversizedReplayDoesNotConsumeNativeBudget passes and fails when this preflight is removed.
+- BR-3 — addressed — recovery_evidence_os.go:242 observes owned raw-file activity before lease, metadata and identity authorization. TestRecoveryEarlyScreenFailureRetainsRawFileActivity covers missing events and retained/archive failures; removing the observation makes the regression fail.
+- BR-4 — addressed — README.md:531–534 and :621–634 now explain unconfirmed native choices, explicit selection, separate activity provenance and five-minute expiry/refresh. These descriptions match recovery_preview.go, recovery_key.go and the validated selection path.
+
 ## Open findings
 
-- **BR-1** [Critical] `recovery-revalidation-before-effects` Native-only evidence is not revalidated before retirement and claim
-- **BR-2** [Critical] `recovery-budget-charges-attempted-io` Oversized screens consume native scan budget despite never being read
-- **BR-3** [Critical] `recovery-retains-independent-observations` Early screen failures discard independently readable activity
-- **BR-4** [Important] `user-surface-documentation` README update appears missing for native-only candidate selection
+(none — every finding has been disposed)
