@@ -1,13 +1,21 @@
 ---
 id: 000727
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '8ce9379f7a5b33f07ee9b1958354172ac18cdc39' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '990ab260516b760fc7ca72dfb649d90f6256c2f1' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-20T08:47:04-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:7
+    worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
+    repository: github.com/xianxu/pair
 ---
 
 # term wrapper: one unsafe cell kills the presenter ('unsafe cell 12'), and a 0x0 launch geometry exits: the operator's right pane died
@@ -40,10 +48,50 @@ geometry at launch (pane measured before it had a size) refuses outright instead
 - Launch with a 0x0 geometry that becomes 80x24 shortly after succeeds (test).
 - The operator's `v teams/devinfra/tl-status-xian-xu.md` opens again (live).
 
+- A mid-session resize with either dimension zero preserves the last good geometry, child, presenter and input (test).
+- An unexpected wrapper error restores terminal ownership and leaves an interactive plain shell in the same pane; normal exit and host termination do not restart a shell (tests).
+- Alt+Shift+T from a surviving Pair-aware pane recreates a missing right terminal after confirmed same-tab inventory; unknown inventory never creates a pane (tests and live).
+
 ## Plan
 
-- [ ]
+- [ ] Execute [the single-pass plan](../plans/000727-term-resilience-plan.md): safe backend-cell projection and bounded diagnostics; geometry/recovery lifecycle; missing-terminal shortcut recovery.
+- [ ] Run the recorded full suite, close review, coordinated operator acceptance, then land through SDLC.
 
 ## Log
 
 ### 2026-10-20
+
+
+## Revisions
+
+### 2026-10-20 — include pane survival and recovery (hub updates)
+
+The operator reported that wrapper exit removed the Zellij pane, leaving no shell, and
+Alt+Shift+T could not recreate it. Add the three Done-when rows above. Preserve the
+last valid geometry during zero-sized resizes; wait up to five seconds for a nonzero
+launch size, then fall back to a plain shell rather than kill the pane. Unexpected
+wrapper failure restores/joins all wrapper ownership before replacing this process
+with the configured interactive shell. Normal child exit and terminal termination
+remain exits. Alt+Shift+T confirms same-tab inventory and creates one right terminal
+only on positively observed absence; malformed/empty replies remain refusal.
+The original cell's precise trigger is unknown: retain bounded codepoints/invalid-byte
+hex from the first degradation per endpoint, not whole frames or raw link addresses.
+
+### 2026-10-20 — investigation checkpoint
+
+- Claimed/start-plan in pair:7. start-plan's refresh generated the two pending #699 CI
+  workflows; inspected and reverted only those generated changes before retrying.
+- Git comparison e712d8335f3e77a0694d6bd8869f5e3bf69b033f to
+  f3c597f8dab1955b8b81c304e0cf2e99b935071b has no changes under terminal,
+  termcmd, hostty, ptychild or layoutcmd. #722 changes Couch drain/status rows.
+  Restart timing is not evidence that #722 introduced this renderer problem.
+- runShellOnHost samples launch size once. inheritSize already ignores zero dimensions
+  mid-session. Presenter/render validation is strict and a failed publication ends the
+  wrapper, whose deferred closeAll closes the child. Both pane launch commands exec
+  pair term, so returning from it leaves no shell. Screenshots confirm these messages,
+  but contain no offending-cell payload.
+- Shared SwitchRightTerminalTabContext explicitly returns nil when no terminal exists.
+  New-terminal recovery must use confirmed inventory, including when stale pane IDs
+  remain in sidecars, rather than interpret a missing registration as absence.
+- A read-only internal subagent independently traced geometry, teardown and shortcut
+  paths; no live process, native pane or pair:0 was touched.
