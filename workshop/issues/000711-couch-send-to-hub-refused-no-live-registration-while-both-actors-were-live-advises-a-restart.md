@@ -135,22 +135,21 @@ registration-publication rewrite. The previous contract is preserved below as su
 
 <details><summary>Superseded initial Spec / Done when / Plan</summary>
 
-## Spec
-
-- Reproduce: is it the alias (`hub`), the message length, or a transient listing disagreement? Instrument the refusal with
-  which side (caller or recipient) failed and why (no registration vs. disagreeing observations vs. alias unresolved).
-- A transient disagreement retries within the send's own bounded deadline before refusing.
-- The refusal names the failing side and the real cause, and its advice is proportionate (e.g. "retry in a few seconds;
-  if it persists, `couch --actors` and tell the operator"), never "restart Couch" unless the registration is really gone.
-
-## Done when
-
-- A fixture with a transient listing disagreement delivers after an internal retry; a fixture with a missing recipient refuses
-  naming the recipient; the `hub` alias and the exact hub address behave identically in both.
-
-## Plan
-
-- [ ]
-
-
+> ## Spec
+> 
+> - Reproduce: is it the alias (`hub`), the message length, or a transient listing disagreement? Instrument the refusal with
+>   which side (caller or recipient) failed and why (no registration vs. disagreeing observations vs. alias unresolved).
+> - A transient disagreement retries within the send's own bounded deadline before refusing.
+> - The refusal names the failing side and the real cause, and its advice is proportionate (e.g. "retry in a few seconds;
+>   if it persists, `couch --actors` and tell the operator"), never "restart Couch" unless the registration is really gone.
+> 
+> ## Done when
+> 
+> - A fixture with a transient listing disagreement delivers after an internal retry; a fixture with a missing recipient refuses
+>   naming the recipient; the `hub` alias and the exact hub address behave identically in both.
+> 
+> ## Plan
+> 
+> - [ ]
+> 
 </details>
