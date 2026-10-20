@@ -63,6 +63,10 @@ Normal tests qualify pure confinement/ownership/agent reducers with stateful pro
 
 ## Revisions
 
+### 2026-10-20 — approved base plan; PQ-1 isolation correction pending
+
+Verified submitted TLcf61df78 approved the base native plan and change-code. Full-flow plan-quality then found that directory-wide dead-wrapper collection at message listener startup can touch foreign residue in the shared per-UID parent even with disjoint addresses. No implementation started. The durable plan now proposes extending existing COUCH_ISOLATED_ROOT authority to an owned message parent, with actual-listener foreign-residue regression and compatibility checks. This narrow transport seam corrects the original no-production-change assumption; request TL approval before code, then rerun the remembered plan gate.
+
 ### 2026-10-20 14:47 PDT — dispatched native prerequisite for #722
 
 Verified submitted TL2d5e80a3: park #722 with claim, commit/push and next step; take #744 from main on its own branch, plan first, land it, then resume #722 over landed main. Native Zellij topology approved; scope limited to #722/#740/#741 needs. The original broader Spec/Done when/Plan are retained below; the active contract above narrows agent coverage to Claude/Codex and makes the initial native helper qualification its first live consumer. Qoder is a future adapter, not a promised result now.
