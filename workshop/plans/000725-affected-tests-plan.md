@@ -76,3 +76,5 @@ This is batch development tooling, not a UI hot path. Per invocation: one valida
 ## Revisions
 
 - 2026-10-20: Initial plan consumes settled ariadne#473 M1 unchanged. Hub clarification keeps source-Lua/runtimebundle coupling inside Pair's command; generated embed paths remain additive package+group selection. Actual affected status/timing and docs train evidence wait for M2 landing, as explicitly approved by hub.
+
+- 2026-10-20: TL approved full-flow plan (8505a073-10d2-4bf5-8c07-8b6b8d9f5ab6). Strengthened runner count fixture: for a single changed leaf, pass exactly leaf plus selected importers to one go test invocation; explicitly reject ./... or any unselected package. The Lua/runtimebundle exception stays limited to its declared group.
