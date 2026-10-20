@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A replay benchmark must prove every claimed stage executed inside its CPU bracket. NewFakeChild with nil Sink skips publication delivery entirely; count deliveries/bytes and validations, check batch.Err, and join publication plus reply workers before the ending sample. Retain incomplete-path runs as diagnostics rather than calling them full-path performance evidence. (#723)
+
 - A configuration-only rollout still needs root README coverage when it introduces an operator-facing setting. Sweep the config path/key, selected value, inspection command and approval owner together; an atlas entry alone leaves the usage contract incomplete. (#709 BR-1)
 
 - #715 BR-1: A local extension to a shared tool updates both its adoption instructions and its rule-maintenance instructions in the existing atlas page. Document the local composition owner, scope, shared error/suppression semantics, and which upstream consumers remain unchanged; updating only the feature's lifecycle map misses the tooling surface.
