@@ -116,6 +116,7 @@ class MakeEntrypoint(unittest.TestCase):
                 group_calls = [r for r in rows if r["kind"] == "make" and r["binary"]]
                 self.assertEqual(len(group_calls), 1)
                 self.assertEqual(group_calls[0]["args"], ["test-affected-" + g for g in groups.split()])
+                self.assertFalse(any(r["args"] == ["test-make-env"] for r in rows), "build runs the guard itself")
                 self.assertFalse(Path(group_calls[0]["binary"]).exists(), "private binary leaked")
 
     def test_lua_regenerates_and_tests_runtimebundle_once(self):
@@ -142,6 +143,12 @@ class MakeEntrypoint(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertIn("child-output:", result.stdout)
                 self.assertEqual(rows[-1]["kind"] + ":" + rows[-1]["args"][0], failure)
+
+    def test_fixed_guard_failure_stops_before_selected_effects(self):
+        result, rows = self.run_selection(PREFIX + "cmd/internal/model", "shell", "make:test-make-env")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("child-output:make", result.stdout)
+        self.assertEqual([(r["kind"], r["args"]) for r in rows], [("make", ["test-make-env"])])
 
     def test_recipe_ownership(self):
         result = subprocess.run(["make", "-prRn", "-f", "Makefile.local", "test", "PAIR_TEST_BINARY=/unused", "GOFLAGS="],

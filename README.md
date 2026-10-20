@@ -1986,8 +1986,10 @@ Makefiles, module metadata, shared test helpers, gate configuration and executab
 dispatch force a full suite. Unclaimed non-Go paths also force full, including
 external fixtures under `tests/webcast`, `tests/broadcast-viewer` and
 `tests/terminal-oracle`. The environment-inventory guard reads source text
-outside Go import dependencies, so changes under `cmd/**/*.go`, `probes/**/*.go`
-and the existing claimed script/Lua paths also select `build`. The independent
+outside Go import dependencies, so every valid selection runs `test-make-env`
+once (the build group runs it when selected; other runs use a fixed preflight).
+Unknown, deleted or platform-excluded package paths retain the full fallback.
+The independent
 suite-to-command audit lives in `tests/affected-consumers.json`; actual-graph
 regressions check every command dependency and the inventory's recipe coverage.
 `make test` retains every existing check and adds runner

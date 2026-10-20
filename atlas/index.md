@@ -35,8 +35,9 @@
   full coverage. Runner regressions audit the default recipe/group union;
   `tests/affected-consumers.json` records each recipe's actual Pair command
   roots, tested with their transitive dependencies against the real Go graph.
-  Source-name inventory is a textual dependency: production/test Go sources
-  under cmd/probes and already-claimed script/Lua paths additionally select build.
+  Source-name inventory is a textual dependency: every valid selection runs
+  test-make-env once, as a fixed preflight unless build already owns its run.
+  Unowned Go paths keep the full fallback, including absent/platform-excluded packages.
   declaration fixtures execute the actual upstream strict parser and planner
   (explicit dependency skip until the provider is available). The operator owns
   the local-gates label; the hub owns first recorded affected/docs-train evidence

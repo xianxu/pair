@@ -39,6 +39,10 @@ def go_test_argv(selection: TestSelection) -> list[str]:
 
 
 def run_selection(selection: TestSelection, make_argv: list[str]) -> None:
+    # This guard scans source text across import boundaries. Build owns the
+    # same recipe; every other affected selection needs it once up front.
+    if "build" not in selection.groups:
+        subprocess.run([*make_argv, "test-make-env"], check=True)
     argv = go_test_argv(selection)
     if argv:
         subprocess.run([*make_argv, "runtimebundle-generate"], check=True)

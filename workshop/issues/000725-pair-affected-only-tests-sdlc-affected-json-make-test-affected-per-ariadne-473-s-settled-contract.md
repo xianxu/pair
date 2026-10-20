@@ -91,6 +91,10 @@ See [durable plan](../plans/000725-affected-tests-plan.md), one atomic close bou
 
 - 2026-10-20: Actual upstream absent-owner probes showed broad cmd/probes .go claims would turn deleted/platform-excluded packages into build-only selection, weakening conservative full fallback. Removed those experimental claims before publication. Proposing fixed environment-inventory preflight (skip when build already owns it), with red recorder tests and restored absent-package full regressions, to hub for approval before runner changes.
 
+- 2026-10-20: Hub approved fixed preflight (delivery 29a53677-8658-419c-84d3-1ef1cc04ff30, replying to submitted request 23093c3f-af65-440f-b2de-7214b1c3924c). Implemented make test-make-env once after selection validation unless build already owns its run. 9 runner tests pass; mutations removing the preflight or duplicating it for build both fail their regressions. Actual upstream source pinned at d6309691af55cb39765a55623ed01f5ab31212e2 passes parser, graph, per-recipe/transitive command coverage and absent/deleted/platform-excluded package full-fallback fixtures. No broad cmd/probes path claims remain.
+
+- 2026-10-20: Fixed guard measured independently at 35.095s wall (PASS, 308 derived knobs preserved, session identities dropped). Updated actual upstream selection for slugcmd/slug.go is the same three Go import paths plus build (install-layout exercises pair-slug). Native make test-affected with that exact selection passed in 86.939s wall, no suite queue: dispatcher 0.265s, slugcmd 0.776s, cmd/pair-go 18.126s, plus all build-group recipes. This supersedes the initial pre-audit 13.396s sample. Full-suite execution/queue comparison pending on final code; no recorded affected status claimed.
+
 ## Revisions
 
 - 2026-10-20: Added executable plan and explicit source-Lua/runtimebundle test exception approved by hub. No upstream schema or environment contract changes. Real recorded affected/train acceptance is pending upstream M2 availability rather than being waived.
