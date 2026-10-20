@@ -425,13 +425,13 @@ func (c *drainCoordinator) reconcile(parent context.Context) {
 	s, controls = c.stateSnapshot()
 	pending := c.opts.Broker.DrainPending()
 	c.fanout(controls, func(workspace string, control drainControlRecord) {
+		revision := revisions[workspace]
 		member, ok := live[workspace]
 		if !ok || member.Identity() != control.Member.Identity() {
-			_ = c.event(couchcore.DrainEvent{Kind: couchcore.DrainMemberObserved, Workspace: workspace, Identity: control.Member.Identity(), Observation: couchcore.DrainObservation{}})
+			c.observeMember(workspace, control.Member.Identity(), couchcore.DrainObservation{}, revision, s.ID)
 			return
 		}
 		c.control(workspace, control)
-		revision := revisions[workspace]
 		endpoint := c.opts.Endpoint(member.Binding)
 		obs := member.Observation
 		if endpoint == nil {

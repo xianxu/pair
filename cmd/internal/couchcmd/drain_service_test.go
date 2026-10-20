@@ -1277,60 +1277,68 @@ func TestDrainServiceAckRequiresCurrentEvidence(t *testing.T) {
 }
 
 func TestDrainServiceSnapshotBeforeAckCannotInvalidateIt(t *testing.T) {
-	c, f, _ := newDrainServiceFixture(t)
-	_, err := c.start(context.Background(), "00000000-0000-4000-8000-000000000001", "", false, time.Minute, f.snapshot()["pair:0"].Binding)
-	if err != nil {
-		t.Fatal(err)
-	}
-	waitDrainService(t, c, func(b couchcore.DrainBoard) bool {
-		for _, r := range b.Rows {
-			if r.Reason != "active turn" {
-				return false
+	for _, missing := range []bool{false, true} {
+		t.Run(fmt.Sprintf("missing=%v", missing), func(t *testing.T) {
+			c, f, _ := newDrainServiceFixture(t)
+			_, err := c.start(context.Background(), "00000000-0000-4000-8000-000000000001", "", false, time.Minute, f.snapshot()["pair:0"].Binding)
+			if err != nil {
+				t.Fatal(err)
 			}
-		}
-		return true
-	})
-	snapshotRead, release := make(chan struct{}), make(chan struct{})
-	var once atomic.Bool
-	c.pass.Lock()
-	c.opts.Snapshot = func() map[string]drainLiveMember {
-		live := f.snapshot()
-		if once.CompareAndSwap(false, true) {
-			close(snapshotRead)
-			<-release
-		}
-		return live
-	}
-	c.pass.Unlock()
-	c.signal()
-	select {
-	case <-snapshotRead:
-	case <-time.After(3 * time.Second):
-		t.Fatal("snapshot not reached")
-	}
-	// Cleanup releases the paused read even if acknowledgement refuses.
-	var released bool
-	defer func() {
-		if !released {
+			waitDrainService(t, c, func(b couchcore.DrainBoard) bool {
+				for _, r := range b.Rows {
+					if r.Reason != "active turn" {
+						return false
+					}
+				}
+				return true
+			})
+			snapshotRead, release := make(chan struct{}), make(chan struct{})
+			var once atomic.Bool
+			c.pass.Lock()
+			c.opts.Snapshot = func() map[string]drainLiveMember {
+				live := f.snapshot()
+				if once.CompareAndSwap(false, true) {
+					if missing {
+						delete(live, "pair:1")
+					}
+					close(snapshotRead)
+					<-release
+				}
+				return live
+			}
+			c.pass.Unlock()
+			// Cleanup releases the paused read even if acknowledgement refuses.
+			var released bool
+			defer func() {
+				if !released {
+					close(release)
+				}
+			}()
+			c.signal()
+			select {
+			case <-snapshotRead:
+			case <-time.After(3 * time.Second):
+				t.Fatal("snapshot not reached")
+			}
+			member := f.snapshot()["pair:1"]
+			f.mu.Lock()
+			member.Observation.Submission = 1
+			f.members["pair:1"] = member
+			f.mu.Unlock()
+			if _, err := c.ack(context.Background(), c.view().ID, "pair:1", member.Identity()); err != nil {
+				t.Fatal(err)
+			}
 			close(release)
-		}
-	}()
-	member := f.snapshot()["pair:1"]
-	f.mu.Lock()
-	member.Observation.Submission = 1
-	f.members["pair:1"] = member
-	f.mu.Unlock()
-	if _, err := c.ack(context.Background(), c.view().ID, "pair:1", member.Identity()); err != nil {
-		t.Fatal(err)
-	}
-	close(release)
-	released = true
-	c.pass.Lock()
-	defer c.pass.Unlock()
-	c.mu.Lock()
-	m := c.record.State.Members["pair:1"]
-	c.mu.Unlock()
-	if !m.Ack {
-		t.Fatal("registry read begun before ack invalidated its newer baseline")
+			released = true
+			c.pass.Lock()
+			defer c.pass.Unlock()
+			c.mu.Lock()
+			m := c.record.State.Members["pair:1"]
+			c.mu.Unlock()
+			if !m.Ack {
+				t.Fatal("registry read begun before ack invalidated its newer baseline")
+			}
+
+		})
 	}
 }
