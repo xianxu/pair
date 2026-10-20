@@ -47,3 +47,15 @@ capacity instead of on our tests. The operator's rule is local-first verificatio
 ## Log
 
 ### 2026-10-20
+
+## Revisions
+
+- 2026-10-20 13:30 (TL, from the operator's decisions in ops side doc `2026-10-20-19-conformance-structure.md`):
+  - **Tier 3 gate:** the VM conformance runs **once per landing train** when any car touches the paths, not per
+    close; it starts as a **nightly** run (off-hours) and is promoted to blocking after about a week clean. Any flake
+    is fixed at its root, never retried.
+  - **One VM, via a machine-wide lock:** macOS allows two VMs; tier 3 takes one through a lock like the suite lock,
+    leaving the other for ad-hoc runs (which take the lock's other position).
+  - **Every agent kind:** agent-facing cases run against Claude and Codex (Qoder when it has credits).
+  - **Pair first** (operator); ariadne and parley later.
+  - Uses the shared disposable-Couch harness (pair#744) for its live cases.
