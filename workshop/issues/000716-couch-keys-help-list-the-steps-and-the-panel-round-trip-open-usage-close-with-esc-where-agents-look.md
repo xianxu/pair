@@ -62,16 +62,18 @@ Make the step list and the panel round trip discoverable from the command line:
 
 Quick flow. One step table drives the parser, the help and the skill check (ARCH-DRY).
 
-- [ ] `agentdrive.Steps` (keys.go): one row per caller step (kind, syntax, meaning). `Validate` accepts a named key only if it is a row, so the parser's accepted set is the table by construction. `StepSyntax()` renders the inline list.
-- [ ] `couch --keys --help` / `-h` (parsed in `parseAgentDriveCLI` before the slot argument): prints the table, the limits from the same constants, the admission rules (idle composer; `clear-line`/`esc` on an occupied composer; exactly `esc` on a recognized panel), and the round trip: `couch --keys SLOT clear-line text:/usage submit`, `couch --peek SLOT --lines 40`, `couch --keys SLOT esc`.
-- [ ] `couch --help`'s `--keys` line names `StepSyntax()` and points at `couch --keys --help`.
-- [ ] Skill: a quick-table row "Owning hub: close a slash-command panel it opened (/usage, /status) | `couch --keys pair:7 esc`", and the steps sentence lists every row. A test fails if the skill's steps sentence and the table disagree in either direction.
-- [ ] Review advisory from #691 (hub asked to fold it in): a refusal while a recognized panel shows names `esc` as the one admitted key. `agentdrive.Admission.Refusal(otherwise)` returns the panel hint when `Dismissable`, else the caller's existing text. Used by the reducer start, the wrapper start and the service. The service's early not-settled refusal of non-recovery keys makes one read-only `ObserveDrive` on that refusal path only, so that `text:` or `submit` on a panel also gets the hint.
-- [ ] Tests: table and parser agreement (every row parses; an unknown or internal kind refuses); keys help output (steps, limits, both recipes); `couch --help` names the steps; skill agreement; refusal hint at the reducer, wrapper and service levels.
+- [x] `agentdrive.Steps` (keys.go): one row per caller step (kind, syntax, meaning). `Validate` accepts a named key only if it is a row, so the parser's accepted set is the table by construction. `StepSyntax()` renders the inline list.
+- [x] `couch --keys --help` / `-h` (parsed in `parseAgentDriveCLI` before the slot argument): prints the table, the limits from the same constants, the admission rules (idle composer; `clear-line`/`esc` on an occupied composer; exactly `esc` on a recognized panel), and the round trip: `couch --keys SLOT clear-line text:/usage submit`, `couch --peek SLOT --lines 40`, `couch --keys SLOT esc`.
+- [x] `couch --help`'s `--keys` line names `StepSyntax()` and points at `couch --keys --help`.
+- [x] Skill: a quick-table row "Owning hub: close a slash-command panel it opened (/usage, /status) | `couch --keys pair:7 esc`", and the steps sentence lists every row. A test fails if the skill's steps sentence and the table disagree in either direction.
+- [x] Review advisory from #691 (hub asked to fold it in): a refusal while a recognized panel shows names `esc` as the one admitted key. `agentdrive.Admission.Refusal(otherwise)` returns the panel hint when `Dismissable`, else the caller's existing text. Used by the reducer start, the wrapper start and the service. The service's early not-settled refusal of non-recovery keys makes one read-only `ObserveDrive` on that refusal path only, so that `text:` or `submit` on a panel also gets the hint.
+- [x] Tests: table and parser agreement (every row parses; an unknown or internal kind refuses); keys help output (steps, limits, both recipes); `couch --help` names the steps; skill agreement; refusal hint at the reducer, wrapper and service levels.
 
 Not a state change: there are no new admissible states. The refusal text changes, and the service makes one extra observation on a path that already refuses.
 
 ## Log
+
+- 2026-10-19 (pair:2): implemented per Plan; the hub approved it ("proceed"). Mutations, each red: no panel hint (agentdrive, wrapcmd, couchcmd), no early service observe (couchcmd), skill sentence drops a step (couchcmd), table gains a row (agentdrive, couchcmd). The table syntax for text is `text:LITERAL`; the skill now uses the same spelling. start-plan weave rewrote the two CI workflow files from the ariadne base; I restored them, since they belong to pair#699 (hub: keep restoring until it lands).
 
 - 10-19 correction (TL): the original Problem said `--keys esc` closed the panel; it didn't (pair:2's recording
   analysis). Rewritten above; the close recipe depends on pair#691.

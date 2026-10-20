@@ -338,7 +338,7 @@ func ReduceDrive(input DriveState, event DriveEvent) (DriveState, []DriveEffect)
 			return s, nil
 		}
 		if !s.request.Admits(event.Screen.Admission()) || !event.Screen.Complete {
-			return finish(s, OutcomeRefused, "wait until the agent composer is empty and its turn finishes")
+			return finish(s, OutcomeRefused, event.Screen.Admission().Refusal("wait until the agent composer is empty and its turn finishes"))
 		}
 		s.dismissal = event.Screen.Dismissable && !event.Screen.Idle && !event.Screen.Recoverable
 		s.epoch = event.Screen.Epoch

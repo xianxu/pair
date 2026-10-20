@@ -28,6 +28,7 @@ import (
 
 	"golang.org/x/term"
 
+	"github.com/xianxu/pair/cmd/internal/agentdrive"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchkeys"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
@@ -313,6 +314,10 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 	}
 	if invocation.kind == cliHelp {
 		usage(stdout)
+		return 0
+	}
+	if invocation.kind == cliKeysHelp {
+		keysUsage(stdout)
 		return 0
 	}
 	if invocation.kind == cliSkill {
@@ -1419,6 +1424,8 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "             slot verdicts with Couch's threads, with a suggested next step.")
 	verbLine(w, "--switch-agent", "       couch --switch-agent repo:N --agent NAME --confirm [--json]")
 	verbLine(w, "--keys", "       couch --keys repo:N STEP... [--json]")
+	fmt.Fprintf(w, "             Hub only. STEP: %s\n", agentdrive.StepSyntax())
+	fmt.Fprintln(w, "             Steps, rules and the slash-command panel round trip: couch --keys --help.")
 	verbLine(w, "--set-model", "       couch --set-model repo:N --model NAME --effort LEVEL [--scope session|default] --confirm [--json]")
 	fmt.Fprintln(w, "             Hub only, another idle clean slot: use NAME's last successful path config,")
 	fmt.Fprintln(w, "             then repo default. Missing config: ask the operator to set it in the switch form.")

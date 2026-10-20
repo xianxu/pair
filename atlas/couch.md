@@ -2148,7 +2148,16 @@ when its data loads. One rule, `agentdrive.Request.Admits`, decides admission
 for the service, its pre-input guard, the wrapper and the reducer. The panel
 is the rows below the viewport's last full-width rule, since earlier prompt
 rows stay visible above it; the footer wording comes from the Claude 2.1.304
-capture in `wrapcmd/testdata/drive/claude/2.1.304/`.
+capture in `wrapcmd/testdata/drive/claude/2.1.304/`. Any other request refused
+while a panel shows says so and names the lone `esc` (`agentdrive.PanelRefusal`).
+For a non-recovery key, the service learns about the panel through one read-only
+observation, made only on the not-settled refusal path (pair#716).
+
+`agentdrive.Steps` is the one table of caller steps (pair#716). `Validate`
+accepts a named key only if it is a row. `couch --keys --help` renders the rows,
+the limit constants, the admission rules and the panel round trip, and
+`couch --help` names them inline. A test holds the skill's step sentence to the
+same table.
 
 `couchmessage/drive_endpoint.go` provides `drive-observe`, `drive-start`,
 `drive-status` and idempotent `drive-cancel` over the existing authenticated

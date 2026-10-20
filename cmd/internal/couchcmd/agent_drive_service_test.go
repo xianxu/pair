@@ -3,6 +3,7 @@ package couchcmd
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -402,6 +403,9 @@ func TestDrivePanelAdmitsOnlyEsc(t *testing.T) {
 			if !scenario.accepted {
 				if q.count() != 0 {
 					t.Fatal("refused panel input queued work")
+				}
+				if !strings.Contains(response.Error, agentdrive.PanelRefusal) {
+					t.Fatalf("panel refusal does not name esc: %+v", response)
 				}
 				return
 			}

@@ -34,6 +34,42 @@ type KeyStep struct {
 
 type KeySequence []KeyStep
 
+// StepDoc is one caller step. Steps is the single table the parser accepts and
+// `couch --keys --help` and the couch skill describe (pair#716).
+type StepDoc struct {
+	Kind            KeyKind
+	Syntax, Meaning string
+}
+
+var Steps = []StepDoc{
+	{KeyText, "text:LITERAL", "type printable text; quote a step containing spaces"},
+	{KeyEnter, "enter", "Return: newline in the composer, select in a picker"},
+	{KeySubmit, "submit", "Alt+Return: submit the composer"},
+	{KeyUp, "up", "arrow up"},
+	{KeyDown, "down", "arrow down"},
+	{KeyEsc, "esc", "Escape, always its own step"},
+	{KeyClearLine, "clear-line", "Ctrl+U: clear the composer's current line"},
+	{KeyWait, "wait:MS", "pause 0–1000 ms, at most 5 seconds in total"},
+}
+
+// StepSyntax lists every step's syntax, space-separated, in table order.
+func StepSyntax() string {
+	syntax := make([]string, len(Steps))
+	for i, step := range Steps {
+		syntax[i] = step.Syntax
+	}
+	return strings.Join(syntax, " ")
+}
+
+func isStep(kind KeyKind) bool {
+	for _, step := range Steps {
+		if step.Kind == kind {
+			return true
+		}
+	}
+	return false
+}
+
 // ParseKeySequence accepts exact named inputs, text:literal and wait:milliseconds.
 // Invalid input never returns a partially actionable sequence.
 func ParseKeySequence(specs []string) (KeySequence, error) {
@@ -97,12 +133,13 @@ func (s KeySequence) Validate() error {
 				return fmt.Errorf("wait exceeds %d aggregate milliseconds; shorten the sequence", MaxKeyTotalWaitMS)
 			}
 			waitMS += step.WaitMS
-		case KeyEnter, KeySubmit, KeyUp, KeyDown, KeyEsc, KeyClearLine:
+		default:
+			if !isStep(step.Kind) {
+				return fmt.Errorf("step %d: unknown key %q; steps are %s", i+1, step.Kind, StepSyntax())
+			}
 			if step.Text != "" || step.WaitMS != 0 {
 				return fmt.Errorf("step %d: %s accepts no extra fields", i+1, step.Kind)
 			}
-		default:
-			return fmt.Errorf("step %d: unknown key %q", i+1, step.Kind)
 		}
 	}
 	return nil
