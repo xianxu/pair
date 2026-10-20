@@ -1,13 +1,21 @@
 ---
 id: 000732
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'c9c020ea19c94c4471db562d722de8412fadf374' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '0c3670d57e42e629b0e8beeb7a8a57930b49e2b8' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-20T10:15:12-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch: tab bar and switcher order: by hub, the hub's own slots right after it, then repos alphabetically
@@ -38,8 +46,12 @@ Target: `ops  :1  ariadne  :1  :2 …  brain  pair  :1 …`, then `ops-echo  ech
 
 ## Plan
 
-- [ ]
+- [ ] Add failing two-hub tests for shared projection, switcher order, and tab order, with shuffled input and numeric slots.
+- [ ] Promote the hub repository group in existing pure hubSection (ARCH-DRY, ARCH-PURE); preserve ownership, hub order, and alphabetical remainder.
+- [ ] Update atlas; run targeted tests and recorded suite; close review and report for next-restart live acceptance.
 
 ## Log
 
 ### 2026-10-20
+
+- Quick plan posted to hub; proceeding unless objected. Both consumers already derive from PresentThreads; changing their shared hubSection avoids a second ordering implementation. No IO, durable state, lifecycle, or format changes. Existing sort remains O(N log N); section promotion is a bounded number of linear passes, with no nested row scans.
