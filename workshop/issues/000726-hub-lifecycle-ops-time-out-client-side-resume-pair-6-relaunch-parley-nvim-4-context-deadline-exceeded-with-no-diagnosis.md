@@ -63,7 +63,7 @@ gets "verify with couch --recover-plan-from-sdlc", which itself fails to resolve
 
 ### Design (approved by the hub; revised for plan review round 1)
 
-- [ ] M1 — admission returns a typed outcome inside the budget
+- [x] M1 — admission returns a typed outcome inside the budget
   - **Warm sources for every admission input, so a warm admission spawns no process (PQ-1).**
     - *Caller workspace:* the supervisor's existing per-connection identity, `connectedWorkspace` (`s.workspaces`, set at connect). `authorizeParkAdmission` already uses it (ARCH-DRY). Admission no longer calls `authority.workspace` (that is `ResolveWorkspace` → `sdlc`).
     - *Target slot:* a memo `hubTargetMemo`: canonical target reference → `HubSlot` plus the time it was resolved. Only the existing fresh resolver (`hubTargetResolver`: `WorkspaceReferencePath` → `Discover`, then `ResolveWorkspace`) fills it. Every fresh resolution refreshes the memo, including those in queue prepare and at the effect gate. Admission reads an entry younger than its bound (10 minutes; slot topology changes rarely).
@@ -138,3 +138,4 @@ total: 1.77
 - 2026-10-20 (pair:2): M1 implemented. Measured live after the concurrent Discover: pair 3.0 s down to 1.0 s, parley.nvim 2.7 s down to 0.85 s (load about 30). Tests: `TestHubSlotAdmissionSpawnsNothingWhenWarm` (zero spawning resolutions when warm; the queued guard re-proves fresh), `TestHubSlotAdmissionColdRefusesWarmingThenAdmits` (typed refusal inside the budget, nothing queued; admits once the late resolution lands), `TestHubSlotAdmissionStaleMemoRefusesBeforeAnyEffect`, the memo tests (single flight, expiry, Fresh refreshes, lifetime join), and `TestDiscoverVerifiesSlotsConcurrently` and `TestDiscoverStillFailsWholeInventoryOnReplacedHost`, under -race. Mutations, each red: admission resolving the target fresh, admission resolving the caller workspace fresh, no admission budget, Fresh answering from the memo, serial Discover, and no SameFile fence. A caller without a connected binding falls back to one fresh workspace resolution; the warm zero-spawn claim is for a connected hub, which is how hub CLI requests arrive.
 
 ### 2026-10-20
+- 2026-10-20: closed M1 — Round 3. BR-7: TestDiscoverVerifiesSlotsConcurrently proves overlap with a rendezvous of slot probes held at once (no elapsed-time assertion); serial Discover fails it. Minors: receipt filter budget, start-time ordering (TestHubTargetMemoOrdersByStartAndSweeps), sweep and cap, plan Revisions. All M1 tests green under -race; mutations red. couchcmd, couchcore, artifactpath green.; review verdict: FIX-THEN-SHIP
