@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"sync/atomic"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
@@ -15,6 +16,7 @@ import (
 // hubRuntime owns one immutable domain snapshot. It exists only for explicit
 // directory launches; nil retains the legacy implicit-cwd path.
 type hubRuntime struct {
+	drainGuard atomic.Pointer[func(couchcore.OperationCall) error]
 	effectOnce sync.Once
 	effects    chan struct{}
 	mu         sync.RWMutex
@@ -190,7 +192,7 @@ func dispatchHubOperation(h *hubRuntime, call couchcore.OperationCall, dispatch 
 		return dispatch(call)
 	}
 	op, ok := Resolve(call.Name)
-	if !ok || op.Effect != couchcore.EffectProcess && call.Name != "move-slot" {
+	if !ok && call.Name != "start-hub" || ok && op.Effect != couchcore.EffectProcess && call.Name != "move-slot" {
 		return dispatch(call)
 	}
 	ctx := call.Context
@@ -202,6 +204,11 @@ func dispatchHubOperation(h *hubRuntime, call couchcore.OperationCall, dispatch 
 		return nil, err
 	}
 	defer release()
+	if guard := h.drainGuard.Load(); guard != nil {
+		if err := (*guard)(call); err != nil {
+			return nil, err
+		}
+	}
 	payload, err := unwrapHubMutation(ctx, call.TypedPayload)
 	if err != nil {
 		return nil, err

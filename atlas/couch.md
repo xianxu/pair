@@ -12,6 +12,71 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 
 ## What exists today
 
+### Fleet checkpoint and stop (#722)
+
+The operator asks the TL to drain the fleet before a restart. The steward is
+`HubOwnership.Main()`, the first command-line hub (#456); only its verified live
+TL may start or cancel. Read-only status is available to anyone. There is no
+console start action in this issue.
+
+```
+couch --drain [--reason TEXT] [--fast] [--timeout DURATION] [--json]
+couch --drain --status [--json]
+couch --drain --ack ID [--json]
+couch --drain --cancel [--json]
+```
+
+Start is asynchronous: it returns the generation ID and initial board. Its
+persisted owner intent closes Couch admission before the SDLC pause attempt;
+notices become eligible only after that owner is confirmed paused. The queue
+seam is shared with ariadne#481: `sdlc queue pause --reason TEXT --owner TOKEN`
+(fast adds `--cancel-running`), `resume --owner TOKEN`, and `status --json`.
+The owner is `couch-drain:{ID}`. Enablement requires real #481 conformance;
+unsupported commands or incomplete/unknown observations stay stuck, never
+silently count as a pause or quiescence. Status reads the published board.
+
+The v1 notice formatter in `couchcore/drain_notice.go` owns the exact text.
+Graceful requests finish the current atomic step, commit and push the checkpoint,
+and record the stopping point in the issue Log. Fast requests stop now without
+finishing the current step, record the stopping point, and commit and push the
+checkpoint without discarding unfinished working-tree edits. Both require
+starting nothing new, then `couch --drain --ack ID` after the checkpoint is
+durable, ending the turn and staying idle. The ack is the sole worker protocol
+action; no separate drained report is needed. It attests the checkpoint rather
+than scanning git or proving remote durability. An optional reason is quoted
+data, not an instruction.
+
+| Board state | Meaning and recovery |
+|---|---|
+| draining | Pause, checkpoint turn, idle proof, owned work, or cancellation is still pending; wait, or retry an unconfirmed cancel. |
+| stuck | Read the exact reason and inspect status. A quiet member without an ack immediately shows `stuck: no ack`; checkpoint and ack. Unknown identity, input, queue or storage evidence does not authorize restart. |
+| drained | Every current incarnation has its ack and positive idle evidence; complete queue evidence confirms the own pause and no active suite, merge or landing work. Keep waiting until the intended restart or cancellation. |
+| cancelled | Own queue pause is confirmed absent and old control effects are reconciled. Other owners may still pause SDLC; inspect status. Interrupted work must be resumed explicitly later. |
+
+The default deadline is 10 minutes, bounded to 1 second–24 hours. Timeout lists
+remaining reasons and retains both holds; later valid evidence can still complete
+the same generation. Duplicate start returns its current generation; changing
+reason/mode requires cancel then start. Later activity invalidates an old ack,
+and a replacement incarnation needs fresh notice/ack evidence. A recovered active
+record retains dispatch holds and requires cancellation before a new drain.
+
+`drainCoordinator` owns the one generation; `ReduceDrain` and
+`ProjectDrainBoard` project authenticated acknowledgements plus current wrapper,
+registry and queue facts. Drain control bypasses held peer FIFO without batching
+with peers. Fast mode freezes the original wrapper/turn/input identity, completes
+or reconciles at most one fenced Esc, then allows the checkpoint notice. Idle
+means no Esc; unsupported/picker/unknown input remains stuck. An uncertain
+interrupt holds the notice. No restart or agent relaunch is performed by drain.
+
+Cancellation revokes uncommitted control handoffs under the input lease, joins
+known effects, releases only its own queue owner and keeps admission held until
+release is confirmed. Already handed input cannot be undone. A lost reply calls
+for `--drain --status` and retained-result reconciliation, never automatic
+re-paste or another Esc. Unknown cancellation stays held; retry cancel to
+reconcile it. Cancelling never restarts interrupted work. The generation record
+is one bounded `drain.json` in the existing namespace, with strict known fields
+and preserved additive extensions.
+
 ### Slot scratch (#708)
 
 [Slot scratch](couch-scratch.md) maps optional TestScratch temp settings, the

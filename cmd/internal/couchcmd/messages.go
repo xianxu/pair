@@ -14,6 +14,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/notifyosc"
 )
 
 type messageCall func(context.Context, string, any, any) error
@@ -68,6 +69,15 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 	}
 	r := callerIdentity(rt, inv.messageOp)
 	switch inv.messageOp {
+	case "drain":
+		r.Drain = inv.drain
+		if inv.drain.Action == "start" {
+			r.ID, err = newRequestID()
+			if err != nil {
+				fmt.Fprintln(stderr, "couch:", err)
+				return 1
+			}
+		}
 	case "send":
 		if r.ID, err = newRequestID(); err != nil {
 			fmt.Fprintln(stderr, "couch: create message ID:", err)
@@ -96,7 +106,9 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 	defer cancel()
 	var result couchmessage.Response
 	if err := call(ctx, socket, r, &result); err != nil {
-		if r.Op == "send" {
+		if r.Op == "drain" && inv.drain.Action != "status" {
+			fmt.Fprintf(stderr, "couch: drain %s outcome uncertain: %s; inspect couch --drain --status; do not retry automatically\n", r.ID, notifyosc.Sanitize([]byte(err.Error())))
+		} else if r.Op == "send" {
 			printUncertainMessage(stderr, r.ID, err.Error())
 		} else {
 			fmt.Fprintln(stderr, "couch:", err)
@@ -127,6 +139,11 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 		fmt.Fprintf(stderr, "couch: %s: %s\n", result.Code, result.Error)
 	} else if result.Code == "not-dispatched" {
 		fmt.Fprintf(stdout, "not-dispatched: %s\n", result.Error)
+	} else if r.Op == "drain" && result.Drain != nil {
+		fmt.Fprintf(stdout, "drain %s: %s — %s\n", result.Drain.ID, result.Drain.State, notifyosc.Sanitize([]byte(result.Drain.Detail)))
+		for _, row := range result.Drain.Rows {
+			fmt.Fprintf(stdout, "%s: %s — %s\n", notifyosc.Sanitize([]byte(row.Workspace)), row.State, notifyosc.Sanitize([]byte(row.Reason)))
+		}
 	} else if r.Op == "actors" {
 		if len(result.Actors) == 0 {
 			fmt.Fprintln(stdout, "No live message-capable slots.")

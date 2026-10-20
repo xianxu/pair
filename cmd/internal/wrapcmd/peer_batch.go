@@ -33,6 +33,11 @@ func (d *peerDelivery) batchReady() bool {
 func (d *peerDelivery) finalizeBatch(id string, messages []couchmessage.Message) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	for _, m := range messages {
+		if err := d.validateDrainMessageLocked(m); err != nil {
+			return err
+		}
+	}
 	if err := couchmessage.ValidateBatch(messages, d.binding, id); err != nil {
 		return err
 	}
@@ -40,7 +45,7 @@ func (d *peerDelivery) finalizeBatch(id string, messages []couchmessage.Message)
 		return errors.New("peer batch preparation unavailable")
 	}
 	head, original := messages[0], d.current.Message
-	if head.Origin != original.Origin || head.ID != original.ID || head.From != original.From || head.To != original.To || head.Body != original.Body || !head.Deadline.Equal(original.Deadline) || !head.AcceptedAt.Equal(original.AcceptedAt) {
+	if head.Origin != original.Origin || head.DrainInstance != original.DrainInstance || head.ID != original.ID || head.From != original.From || head.To != original.To || head.Body != original.Body || !head.Deadline.Equal(original.Deadline) || !head.AcceptedAt.Equal(original.AcceptedAt) {
 		return errors.New("peer batch head changed")
 	}
 	for _, m := range messages[1:] {

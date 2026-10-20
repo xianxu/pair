@@ -84,6 +84,20 @@ func (d *peerDelivery) handleEndpoint(_ context.Context, raw []byte) ([]byte, er
 	}
 	var err error
 	switch request.Op {
+	case "drain-observe":
+		o := d.observeDrain()
+		response.DrainObservation = &o
+	case "drain-interrupt":
+		var r couchmessage.DrainInterruptResult
+		r, err = d.startDrainInterrupt(request.ID, *request.DrainObserved)
+		response.DrainInterrupt = &r
+	case "drain-interrupt-status":
+		var r couchmessage.DrainInterruptResult
+		r, err = d.drainInterruptStatus(request.ID)
+		response.DrainInterrupt = &r
+	case "drain-revoke":
+		r := d.revokeDrain(request.ID)
+		response.DrainRevoke = &r
 	case "drive-observe":
 		o := d.agentDriveObservation()
 		response.DriveObservation = &o
@@ -221,6 +235,7 @@ func (p *proxy) startPeerRuntime(executable string) (*peerRuntime, error) {
 	}
 	lifetime, stop := context.WithCancel(context.Background())
 	d := newPeerDelivery(binding, time.Now)
+	d.drainProxy = p
 	r := &peerRuntime{cancel: stop, delivery: d, binding: binding, namespace: namespace}
 	server, err := couchmessage.StartServer(lifetime, socket, d.handleEndpoint)
 	if err != nil {

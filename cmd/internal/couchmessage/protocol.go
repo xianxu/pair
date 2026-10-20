@@ -19,6 +19,7 @@ import (
 // Request has closed per-operation shapes. Wrapper lifecycle operations use a
 // full binding and must pass the supervisor adapter's live identity check.
 type Request struct {
+	Drain                                            *DrainRequest       `json:",omitempty"`
 	Drive                                            *agentdrive.Request `json:",omitempty"`
 	ToHub                                            string              `json:",omitempty"`
 	Persist                                          bool                `json:",omitempty"`
@@ -45,6 +46,7 @@ type Request struct {
 }
 
 type Response struct {
+	Drain     *couchcore.DrainBoard   `json:",omitempty"`
 	Resources *couchcore.ResourceView `json:",omitempty"`
 	// Refusals answers refusals: each canonical slot's newest unsuperseded
 	// reason and recovery class. No caller credentials: this is unauthenticated.
@@ -144,6 +146,12 @@ func validMessageID(id string) bool {
 }
 
 func ValidateRequest(r Request) error {
+	if r.Op == "drain" {
+		return ValidateDrainRequest(r)
+	}
+	if r.Drain != nil {
+		return errors.New("drain payload applies only to drain")
+	}
 	if r.Drive != nil && r.Op != "keys" && r.Op != "set-model" {
 		return errors.New("drive intent applies only to keys and set-model")
 	}

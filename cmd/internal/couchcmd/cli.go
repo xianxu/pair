@@ -9,6 +9,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/agentdrive"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/webcast/query"
 )
 
@@ -49,6 +50,7 @@ type adoptionArgs struct {
 }
 
 type cliInvocation struct {
+	drain      *couchmessage.DrainRequest
 	drive      *agentdrive.Request
 	hubPaths   []string
 	toHub      string
@@ -116,6 +118,8 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 	// scanning layout flags, which could otherwise consume a literal body.
 	if len(args) > 0 {
 		switch args[0] {
+		case "--drain":
+			return parseDrainCLI(args)
 		case "--keys", "--set-model":
 			return parseAgentDriveCLI(args)
 		case "--move-slot":

@@ -78,11 +78,13 @@ func (o Origin) Valid() bool { return o == OriginPeer || o == OriginSystem }
 // a connected receiver retains the message until its composer is ready;
 // DeliveryTimeout starts only when the wrapper writes the paste.
 type Message struct {
-	Origin   Origin `json:",omitempty"`
-	ID       string
-	From, To Binding
-	Body     string
-	Deadline time.Time
+	// DrainInstance fences a system drain notice to a wrapper-owned incarnation.
+	DrainInstance string `json:",omitempty"`
+	Origin        Origin `json:",omitempty"`
+	ID            string
+	From, To      Binding
+	Body          string
+	Deadline      time.Time
 	// AcceptedAt is the broker's immutable admission time, including time
 	// spent queued before promotion. Zero is accepted for legacy messages.
 	AcceptedAt time.Time `json:",omitzero"`
@@ -249,6 +251,8 @@ const (
 	// Enqueue is Admit that always joins the queue: the wrapper refused a
 	// reservation, so the worker promotes it once the wrapper settles.
 	Enqueue EventKind = "enqueue"
+	// EnqueueDrainControl is internal supervisor authority, never a peer payload.
+	EnqueueDrainControl EventKind = "enqueue-drain-control"
 	// FreezeBatch attaches a contiguous queued prefix to the prepared head.
 	FreezeBatch EventKind = "freeze-batch"
 )
@@ -381,9 +385,9 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 	case OperatorSubmit:
 		s.remaining, s.refilledAt = s.capacity, e.At
 		activity()
-	case Admit, Enqueue:
+	case Admit, Enqueue, EnqueueDrainControl:
 		m := e.Message
-		if !m.Origin.Valid() || !validMessageID(m.ID) || m.To != s.binding || m.From.Validate() != nil || ValidateBody(m.Body) != nil || !m.Deadline.After(e.At) {
+		if ValidateDrainInstance(m) != nil || !m.Origin.Valid() || !validMessageID(m.ID) || m.To != s.binding || m.From.Validate() != nil || ValidateBody(m.Body) != nil || !m.Deadline.After(e.At) {
 			return fail(errors.New("invalid message admission"))
 		}
 		for _, active := range s.PendingMessages() {
@@ -402,14 +406,20 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 				return s, nil, nil
 			}
 		}
-		busy := s.pending.ID != "" || len(s.queue) > 0 || e.Kind == Enqueue
-		if busy && len(s.queue) >= MaxQueued {
+		control := e.Kind == EnqueueDrainControl
+		if control && m.Origin != OriginSystem {
+			return fail(errors.New("drain control requires system provenance"))
+		}
+		busy := s.pending.ID != "" || len(s.queue) > 0 || e.Kind == Enqueue || control
+		if busy && len(s.queue) >= MaxQueued && !control {
 			return fail(fmt.Errorf("%w: %d messages already wait", ErrRecipientBusy, MaxQueued))
 		}
 		// A self-addressed message comes from inside the recipient's own
 		// session: the operator's session-sync submit (parley.nvim#313). It
 		// is an operator submit, not a peer message (#433).
-		if m.From == s.binding {
+		if control {
+			// The bounded supervisor control lane neither spends nor refills peer allowance.
+		} else if m.From == s.binding {
 			s.remaining, s.refilledAt = s.capacity, e.At
 		} else if s.remaining <= 0 {
 			return fail(ErrBudgetExhausted)
@@ -417,8 +427,13 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 			s.remaining--
 		}
 		if busy {
-			s.queue = append(slices.Clip(s.queue), m)
-			positions(len(s.queue) - 1)
+			if control {
+				s.queue = append([]Message{m}, s.queue...)
+				positions(0)
+			} else {
+				s.queue = append(slices.Clip(s.queue), m)
+				positions(len(s.queue) - 1)
+			}
 			break
 		}
 		s.pending = m
