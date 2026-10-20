@@ -254,3 +254,14 @@ couchcmd 47.995s, artifactpath 7.139s, termcmd 2.546s, internal/repolint 7.705s.
 Log review-affected-final.log. No source changes followed that run. These corrections
 complete the existing contract rather than introduce a third mechanism or visible state.
 A fresh recorded full suite and second whole-branch close review are still required.
+
+Final consumer sweep found pairSessionNames had become production-orphaned after the
+runtime migrated to the validated map. Removed that old whitespace-splitting short parser
+and its obsolete deduplication unit test; strict complete-list duplicate refusal and exact
+opaque-name filtering remain covered by the new production-path tests. No new mechanism
+or operating contract: this retires the replaced interpretation rather than leaving a
+second parser available for accidental reuse. Focused parser/runtime verification follows.
+
+Focused parser/runtime checks after retiring the orphaned helper passed (launcher 1.681s);
+log parser-retirement-final.log. Only deletion of the now-unused short parser/test followed
+the six-package pass; the recorded suite will qualify this final head.
