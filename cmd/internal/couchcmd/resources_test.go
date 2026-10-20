@@ -598,3 +598,41 @@ func TestResourceSamplerHistoryFailureDoesNotGateAdvisoryAlerts(t *testing.T) {
 		t.Fatalf("fresh supervisor must re-arm advisory episode: %d", sends)
 	}
 }
+
+// Each pass prunes the orphan registry against its own table and reports what
+// is left; a table the pass could not read prunes nothing (pair#695).
+func TestResourceSamplerPrunesAndReportsLeftRunning(t *testing.T) {
+	ns, err := couchcore.ResolveCouchNamespace(t.TempDir(), "/unused")
+	if err != nil {
+		t.Fatal(err)
+	}
+	registry := couchcore.NewLeftRunningRegistry(ns)
+	at := time.Unix(90, 0)
+	if err := registry.Add(context.Background(), []couchcore.LeftRunningOrphan{
+		{Origin: "slot:/w/pair", Process: couchcore.ProcessIdentity{PID: 40, Identity: "runner"}, Command: "sdlc", LeftAt: at},
+		{Origin: "slot:/w/pair", Process: couchcore.ProcessIdentity{PID: 41, Identity: "gone"}, Command: "npm", LeftAt: at},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	f := &samplerReader{rows: []procutil.Process{{PID: 10, Identity: "owned"}, {PID: 40, PPID: 1, Identity: "runner", Name: "sdlc"}, {PID: 41, PPID: 1, Identity: "recycled", Name: "npm"}}}
+	s := testResourceSampler(f)
+	s.leftRunning = registry
+	f.tableErr = errors.New("table unreadable")
+	if !s.pass(context.Background()) {
+		t.Fatal("pass did not run")
+	}
+	if got := s.view().LeftRunning; len(got) != 2 {
+		t.Fatalf("an unread table pruned the registry: %+v", got)
+	}
+	f.tableErr = nil
+	if !s.pass(context.Background()) {
+		t.Fatal("pass did not run")
+	}
+	got := s.view().LeftRunning
+	if len(got) != 1 || got[0].Process.PID != 40 {
+		t.Fatalf("left running = %+v, want only the identity the table still holds", got)
+	}
+	if kept, _ := registry.Read(); len(kept) != 1 {
+		t.Fatalf("registry after prune = %+v", kept)
+	}
+}

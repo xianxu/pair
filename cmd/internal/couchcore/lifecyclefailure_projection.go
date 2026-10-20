@@ -125,12 +125,15 @@ func (c *Couch) applyLifecycleFailures(rows []ActionableThreadSummary) []Actiona
 }
 
 // LastLifecycleSuccessAt is the one display-only definition of a recorded
-// lifecycle success. Activity/retirement is deliberately not success. #695 can
-// add its persisted proven-teardown event here without changing failure history.
+// lifecycle success: a verified park, a committed live start, and a proven
+// teardown (pair#695). Activity/retirement alone is deliberately not success.
 func LastLifecycleSuccessAt(record ThreadRecord) time.Time {
 	var latest time.Time
 	if record.VerifiedPark != nil {
 		latest = record.VerifiedPark.ParkedAt
+	}
+	if record.ProvenDownAt != nil && record.ProvenDownAt.After(latest) {
+		latest = *record.ProvenDownAt
 	}
 	for _, incarnation := range record.Incarnations {
 		if incarnation.State == IncarnationLive && incarnation.Start == nil && incarnation.StartedAt.After(latest) {

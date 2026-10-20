@@ -43,6 +43,9 @@ type resourceSampler struct {
 	// generation (pair#606): an environment never changes after exec, so each
 	// process costs one read in its lifetime. Only run touches it.
 	threads map[couchcore.ResourceProcessKey]inheritedThread
+	// leftRunning is the orphan registry teardown writes (pair#695); each
+	// pass prunes it against its table and reports the rest.
+	leftRunning *couchcore.LeftRunningRegistry
 }
 
 // resourceSweep is a reap's answer: the view one pass produced, and whether that
@@ -307,6 +310,13 @@ func (s *resourceSampler) pass(ctx context.Context) bool {
 		return false
 	}
 	next, v, _ := couchcore.AdvanceResources(s.state, sample, s.policy)
+	if s.leftRunning != nil {
+		entries, err := s.registeredLeftRunning(ctx, sample.TableKnown, rows)
+		if err != nil {
+			v.Errors = append(v.Errors, "orphan registry: "+err.Error())
+		}
+		v.LeftRunning = entries
+	}
 	if s.alerts != nil {
 		if err := s.alerts(ctx, &next); err != nil {
 			v.Errors = append(v.Errors, "resource alerts: "+err.Error())
@@ -342,6 +352,22 @@ func (s *resourceSampler) pass(ctx context.Context) bool {
 	return true
 }
 
+// registeredLeftRunning drops the registry entries whose exact identity this
+// pass's table no longer holds (a table the pass could not read prunes
+// nothing) and returns the rest.
+func (s *resourceSampler) registeredLeftRunning(ctx context.Context, tableKnown bool, rows map[couchcore.ResourceProcessKey]procutil.Process) ([]couchcore.LeftRunningOrphan, error) {
+	if tableKnown {
+		gone := func(p couchcore.ProcessIdentity) bool {
+			_, ok := rows[couchcore.ResourceProcessKey{PID: p.PID, Identity: p.Identity}]
+			return !ok
+		}
+		if err := s.leftRunning.Prune(ctx, gone); err != nil {
+			return nil, err
+		}
+	}
+	return s.leftRunning.Read()
+}
+
 func (s *resourceSampler) view() couchcore.ResourceView {
 	if s == nil {
 		return couchcore.ResourceView{Errors: []string{"resource sampler unavailable"}}
@@ -374,6 +400,7 @@ func cloneResourceView(v couchcore.ResourceView) couchcore.ResourceView {
 		v.HostedIngest = &hosted
 	}
 	v.Errors = append([]string(nil), v.Errors...)
+	v.LeftRunning = append([]couchcore.LeftRunningOrphan(nil), v.LeftRunning...)
 	v.Slots = append([]couchcore.ResourceSlotView(nil), v.Slots...)
 	for i := range v.Slots {
 		p := &v.Slots[i]

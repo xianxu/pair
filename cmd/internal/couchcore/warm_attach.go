@@ -85,7 +85,11 @@ func (c *Couch) attachListedTerminalOnce(ctx, queryCtx context.Context, thread T
 	if opts.WarmOnly {
 		background = "1"
 	}
-	env := []string{"COUCH_TREE=" + string(args.Worktree), "COUCH_STORE_DIR=" + c.Namespace.Dir(), "COUCH_THREAD_SCOPE=" + thread.Address.RepoScope, "COUCH_THREAD_TAG=" + string(thread.Address.Tag), "COUCH_THREAD_RESUME=1", "PAIR_RETENTION_BACKGROUND=" + background, launcher.CouchSessionIntentEnv + "=" + string(intent)}
+	lease, err := c.lifetimeLeaseEnv(thread)
+	if err != nil {
+		return ActorRecord{}, nil, fmt.Errorf("prepare lifetime lease: %w", err)
+	}
+	env := []string{"COUCH_TREE=" + string(args.Worktree), "COUCH_STORE_DIR=" + c.Namespace.Dir(), "COUCH_THREAD_SCOPE=" + thread.Address.RepoScope, "COUCH_THREAD_TAG=" + string(thread.Address.Tag), "COUCH_THREAD_RESUME=1", "PAIR_RETENTION_BACKGROUND=" + background, launcher.CouchSessionIntentEnv + "=" + string(intent), lease}
 	if c.SlotEnvironment != nil {
 		env = append(env, c.SlotEnvironment(ctx, thread)...)
 	}

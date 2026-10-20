@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
+	"github.com/xianxu/pair/cmd/internal/lifetimelease"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
 )
 
@@ -30,6 +31,13 @@ func RunCLI(args []string, getenv func(string) string, stderr io.Writer) int {
 		return 1
 	}
 	defer lease.Close()
+	// The slot's lifetime lease (pair#695 P1): session-watch is a pair process
+	// of the tree, released with Setsid, so only the lease can witness it.
+	if held, err := lifetimelease.HoldFromEnv(context.Background(), getenv); err != nil {
+		fmt.Fprintf(stderr, "pair-session-watch: lifetime lease: %v\n", err)
+	} else if held != nil {
+		defer held.Close()
+	}
 	cleanupPairTag := ensurePairTag(opts.Tag)
 	defer cleanupPairTag()
 	if raw := getenv(BindingNoticeEnv); raw != "" {

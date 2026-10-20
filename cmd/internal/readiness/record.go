@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"reflect"
+	"regexp"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -25,7 +27,17 @@ type ReadyRecord struct {
 	Session               string          `json:"session"`
 	Nonce                 string          `json:"nonce"`
 	PID                   int             `json:"pid"`
+	// TTY is the agent's controlling terminal as the kernel's device number in
+	// decimal (procutil.Process.TTY: Darwin e_tdev, Linux tty_nr), published
+	// only for a Couch-launched wrapper: Couch's teardown proves the agent gone
+	// when no process holds it (pair#695 P1).
+	TTY string `json:"tty,omitempty"`
 }
+
+var (
+	readyKnownFields = strictjson.KnownFields(reflect.TypeOf(ReadyRecord{}))
+	ttyNamePattern   = regexp.MustCompile(`^[A-Za-z0-9]{1,32}(/[0-9]{1,6})?$`)
+)
 
 func Encode(record ReadyRecord) (string, error) {
 	if len(record.DeprecatedOrientation) != 0 {
@@ -43,9 +55,12 @@ func Encode(record ReadyRecord) (string, error) {
 	return buf.String(), nil
 }
 
+// Decode accepts members it does not own and decodes its own strictly
+// (pair#695 §2a). It keeps no unknown members: the wrapper is the record's
+// only writer and always writes it whole, so no reader ever rewrites it.
 func Decode(raw string) (ReadyRecord, error) {
 	var record ReadyRecord
-	if err := strictjson.Decode([]byte(raw), &record); err != nil {
+	if _, err := strictjson.DecodeKnown([]byte(raw), readyKnownFields, &record); err != nil {
 		return ReadyRecord{}, err
 	}
 	if err := Validate(record); err != nil {
@@ -70,6 +85,8 @@ func Validate(record ReadyRecord) error {
 		return fmt.Errorf("ready record: nonce is empty")
 	case record.PID <= 0:
 		return fmt.Errorf("ready record: pid must be positive")
+	case record.TTY != "" && !ttyNamePattern.MatchString(record.TTY):
+		return fmt.Errorf("ready record: invalid tty name")
 	default:
 		return nil
 	}

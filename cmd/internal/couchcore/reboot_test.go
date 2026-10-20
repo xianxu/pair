@@ -143,8 +143,15 @@ func TestRebootArchiveEscapePreservesBytesAndStopsNothing(t *testing.T) {
 				t.Fatalf("archive-only result %+v", result)
 			}
 			archived, err := os.ReadFile(env.Couch.Threads.archivePath(record.Address))
-			if err != nil || !bytes.Equal(raw, archived) {
-				t.Fatalf("archive changed bytes %v", err)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Undecodable bytes leave exactly; a readable record proven down
+			// carries only its proof time on top (pair#695).
+			if unreadable && !bytes.Equal(raw, archived) {
+				t.Fatal("archive changed the unreadable bytes")
+			} else if !unreadable {
+				assertRetiredBytes(t, archived, raw)
 			}
 			if len(env.Runner.Ops) != 0 || len(env.Proc.Signals) != 0 || len(env.Artifacts.Quiesces()) != 0 || env.Proc.Exists(700) != Live {
 				t.Fatal("archive escape acted on source")
@@ -192,7 +199,7 @@ func TestArchiveObservedBytesRefusesChangedUnreadableRecord(t *testing.T) {
 	if err := os.WriteFile(path, after, 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := env.Couch.Threads.ArchiveThreadExpectedBytes(record.Address, before); err == nil {
+	if err := env.Couch.Threads.ArchiveThreadExpectedBytes(record.Address, before, UnreadableRecordEscape{raw: before}); err == nil {
 		t.Fatal("stale unreadable snapshot archived replacement bytes")
 	}
 	current, err := os.ReadFile(path)
