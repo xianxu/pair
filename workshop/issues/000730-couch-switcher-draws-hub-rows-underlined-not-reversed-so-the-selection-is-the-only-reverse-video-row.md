@@ -1,13 +1,21 @@
 ---
 id: 000730
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '4b3bbfa0a1429d6b15e6769754b511526a6f8bbc' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'cd62c2f81f7dbb904f85d23a21300154e1e53b42' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-20T10:08:52-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch: switcher draws hub rows underlined, not reversed, so the selection is the only reverse-video row
@@ -34,8 +42,12 @@ which one is selected (operator, 10-20, screenshot in ops's session file).
 
 ## Plan
 
-- [ ]
+- [ ] Pin hub underline, selected reverse, and other-hub dimming at the terminal-cell boundary; change the existing hub decorator (ARCH-PURE, ARCH-DRY).
+- [ ] Run targeted tests and recorded suite; stage build for the operator’s two-hub live check.
 
 ## Log
 
 ### 2026-10-20
+
+- Quick-flow design: reuse the existing reset-restoring decorator, underline all hub rows and add reverse only for selection. Tab-chip inversion is separate and stays unchanged. No new state, IO, persistence or growth driver.
+- Automatic start-plan weave refresh produced unrelated CI workflow edits; preserved in stash named pair730 automatic weave workflow refresh preserved.
