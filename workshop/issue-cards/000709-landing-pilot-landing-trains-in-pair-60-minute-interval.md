@@ -1,6 +1,6 @@
 ---
 id: 000709
-status: codecomplete
+status: done
 created: 2026-10-19
 updated: 2026-10-19
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 514a3b237c535ecb618a68b490e4ce3fbdfe5de6
         evidence_commit: 7594f24b25e3776b541c7d866423a218db5ae3ff
+        landed_commit: 246ebd6e887771a1de0373b86ad78c5ec01e1690
 ---
 
 # landing: pilot landing trains in pair (60-minute interval)
