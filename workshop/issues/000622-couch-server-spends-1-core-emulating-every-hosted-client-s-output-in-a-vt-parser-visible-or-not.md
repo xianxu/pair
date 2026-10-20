@@ -134,6 +134,12 @@ The existing merge runner retained its order behind #699. Train183 admitted #622
 
 Evidence gap: attempt848e3cd34e0d640f857d568fbc4700de reported an error renaming its interruption log; the reported source `test-stats/inflight/848e3cd34e0d640f857d568fbc4700de/run.log` is absent and the integrated-head local-check directory is empty. Do not fabricate a retained log or suite result. Read-only Couch board reports the current drain stuck with cancellation unconfirmed; ordinary hub delivery is refused while draining. No authenticated drain notice reached this incarnation, so no drain ack was sent. #722 remains on its separate SHIP branch, staged to pair:0 and held for operator-present live acceptance; this interruption does not satisfy that check.
 
+### 2026-10-20 12:49 PDT — train 190 yielded before another diagnostic suite
+
+The recorded branch suite passed in 9m21 on the pushed checkpoint. Train 190 admitted #622/PR474, #730/PR488, #732/PR489 and #727/PR486; #732 was held for its merge conflict before testing. The surviving three-car suite failed reader-inventory validation (three unmapped recovery fixtures and two changed fixed-scanner hashes). Its main-baseline diagnostic then passed in 9m43. No final prefix attribution was established.
+
+TL delivery85fc534d required yielding if more than one diagnostic run remained. The #622-only prefix was still waiting for suite capacity, with further prefixes remaining. Cancelled that owned queued check through `sdlc local-check cancel --name suite`; the conductor exited and train190/PR491 was abandoned. No running suite, Git integration or push was interrupted; existing SHIPs remain. The hub received the yield report. #726 took the turn and subsequently merged as PR487 at 12:49:54 PDT. Re-enter #622's landing after recording this checkpoint; no #622 landing is claimed.
+
 ## Revisions
 
 ### 2026-10-16 — measurement milestone before optimization design
