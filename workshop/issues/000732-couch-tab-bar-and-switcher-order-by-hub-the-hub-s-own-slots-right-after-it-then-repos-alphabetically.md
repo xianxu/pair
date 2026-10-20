@@ -54,6 +54,7 @@ Target: `ops  :1  ariadne  :1  :2 …  brain  pair  :1 …`, then `ops-echo  ech
 ## Log
 
 ### 2026-10-20
+- 2026-10-20: closed — Shuffled two-hub regression pins shared ordering, switcher navigation/rendering, and ops :1 tab output; targeted ordering tests and complete couchtty package pass. Recorded suite passed on ba98382eb81edc71149c8604d321366d1908d918 (exit 0, 8m56s, log b50c57039e62). Atlas updated. TL explicitly moved live acceptance after landing to next Couch restart; no staging.; review verdict: SHIP
 
 - Quick plan posted to hub; proceeding unless objected. Both consumers already derive from PresentThreads; changing their shared hubSection avoids a second ordering implementation. No IO, durable state, lifecycle, or format changes. Existing sort remains O(N log N); section promotion is a bounded number of linear passes, with no nested row scans.
 
