@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
-estimate_hours:
+estimate_hours: 2.09
 collaboration-mode: collaboration
-card_mirror: '990ab260516b760fc7ca72dfb649d90f6256c2f1' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '332831d5baf7ba6fa0e92b4586f33c6b231e4bc1' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T08:47:04-07:00
 claimant:
     operator: Xian Xu
@@ -116,3 +116,39 @@ real signal values drained after OSHost.Close, and normal process signal deliver
 signal.Stop through exec. A cleanup-induced empty closed channel is not termination.
 No implementation started; plan review will be rerun. Removed the obsolete short-named
 plan after canonicalization so the committed tree has one durable plan.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against
+baseline-v3.1.md. Method A only. Calibration is marked stale; values are provisional.
+The v2 primitives below use thorough-spec design discount x0.2, existing library
+reuse where applicable, implementation x0.40 once, familiar stack x1.0, and +15%
+design buffer. Tests are included in each implementation item, not costed twice.
+
+| Work | Primitive | Derivation (design; implementation) |
+|---|---|---|
+| Spec and operator recovery choices | issue-spec | 0.5 x0.2=0.10; 0.2 x0.4=0.08 |
+| Cell repair/evidence | greenfield-go-module | 0.75 x0.5 existing VT/validator reuse x0.2=0.075; 0.8 x0.4=0.32 |
+| Geometry and shell recovery lifecycle | tui-screen | 1.0 x0.2=0.20; 1.0 x0.4=0.40 |
+| Shared shortcut recovery | smaller-go-module | 0.2 x0.2=0.04; 0.5 x0.4=0.20 |
+| Existing buffered diagnostic integration | smaller-go-module | 0.15 x0.2=0.03; 0.4 x0.4=0.16 |
+| README/atlas | atlas-docs | 0.1 x0.2=0.02; 0.15 x0.4=0.06 |
+| One close boundary | milestone-review | 0.1 x0.2=0.02; 0.5 x0.4=0.20 |
+
+No new external API or native library discovery: reuse VT, hostty/PTY, diagnosticlog
+and current Zellij admission. No cross-repo implementation. Design subtotal 0.585h,
+implementation 1.42h; 0.585 x1.15 +1.42 =2.09275h, rounded 2.09h. Queue wait excluded.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.10 impl=0.08
+item: greenfield-go-module design=0.075 impl=0.32
+item: tui-screen design=0.20 impl=0.40
+item: smaller-go-module design=0.04 impl=0.20
+item: smaller-go-module design=0.03 impl=0.16
+item: atlas-docs design=0.02 impl=0.06
+item: milestone-review design=0.02 impl=0.20
+design-buffer: 0.15
+total: 2.09
+```
