@@ -164,7 +164,7 @@ ptychild.Options.Observer from terminalMux; update artifactpath's diagnostic-sou
 - [x] Write and run red tests for the named functions above; retain semantic failure evidence.
 - [x] Implement pure repair and bounded first-fault evidence at owned backend snapshots.
 - [x] Wire existing nonblocking observation to the registered buffered diagnostic sink.
-- [ ] Run terminal/termcmd/ptychild/terminalcapture/source-guard tests and commit.
+- [x] Run terminal/termcmd/ptychild/terminalcapture/source-guard tests and commit.
 
 ### 2. Geometry and native-shell recovery
 
@@ -213,3 +213,25 @@ including generated row safety/column invariants. Added one production recovery 
 owner and exact termination precedence through teardown, closed-channel/value distinction,
 post-close signal drain and normal signal delivery across exec. These refine the approved
 cleanup-before-shell contract; no new visible state, retry, watcher or authority store.
+
+### 2026-10-20 — BR-1/BR-2/BR-3 recovery boundary completeness
+
+The first close review was REWORK, not a finalized close. BR-1 found that the
+existing void input pump discarded decoder and read failures before the new
+recovery owner could classify them. Preserve typed input endings through the
+existing mux failure path: ordinary EOF and owner cancellation remain normal;
+unexpected decoder/read failures authorize the existing fault recovery only
+after cleanup; terminal-disconnection errors remain ineligible for handoff.
+No new recovery state, retry or owner is added.
+
+BR-2 found that native pane creation defaults to moving client focus despite the
+existing shortcut contract. Add --no-focus and assert both invoking-pane focus
+and new-pane unfocused state; a foreign tab's focus is independent. BR-3 adds a
+disposable native production-routing test for same-tab visible creation and
+retained client focus, required by the existing scheduled native-terminal runner.
+No workflow or merge-gate configuration changes. The operator's live acceptance
+still rides the next natural relaunch per the approved rollout.
+
+The old queued suite was canceled through local-check cancel before acquisition
+because these production fixes supersede its code head; this is not a flake
+retry. A new recorded suite is required on the corrected code.

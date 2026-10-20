@@ -73,13 +73,14 @@ def dispatch(state, args, query):
                   "toggle-pane-embed-or-floating", "change-floating-pane-coordinates", "clear", "close-pane", "set-pane-color"}:
         pane = target_pane(session, params[0] if action == "focus-pane-id" else option(params, "--pane-id"))
     requested_tab = option(params, "--tab-id")
+    if action == "new-pane" and requested_tab is not None and "--near-current-pane" in params:
+        raise ValueError("--tab-id conflicts with --near-current-pane")
     if requested_tab is not None and requested_tab != str(session["tab"]["tab_id"]):
         raise ValueError("requested tab is absent")
     target = identity(pane) if pane is not None else "tab_" + str(session["tab"]["tab_id"])
     if action == "new-pane":
         # Model the native returned pane and retained inventory, without executing
-        # its shell. Explicit tab targeting is checked above; near-current-pane
-        # binds placement to the invoking pane rather than a client's focus.
+        # its shell. Explicit tab targeting and no-focus match native placement.
         command = params[params.index("--") + 1:]
         if not command:
             raise ValueError("new pane command missing")
@@ -93,6 +94,9 @@ def dispatch(state, args, query):
         pane["terminal_command"] = None
         pane["pane_command"] = " ".join(command)
         pane["is_focused"] = "--no-focus" not in params
+        if pane["is_focused"]:
+            for old in session["panes"]:
+                old["is_focused"] = False
         session["panes"].append(pane)
         target = identity(pane)
     elif action == "set-pane-color":

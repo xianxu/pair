@@ -203,3 +203,54 @@ There is no generic lint rule that can infer which backend payload is safe to
 repair or which teardown grants handoff. The deterministic transition and safety
 regressions defend those decisions. Live acceptance remains owed at the next
 natural relaunch per the hub, with the actual original cell trigger unknown.
+
+### 2026-10-20 — BR-1/BR-2/BR-3 recovery boundary completeness
+
+The first close review was REWORK, not a finalized close. BR-1 found that the
+existing void input pump discarded decoder and read failures before the new
+recovery owner could classify them. Preserve typed input endings through the
+existing mux failure path: ordinary EOF and owner cancellation remain normal;
+unexpected decoder/read failures authorize the existing fault recovery only
+after cleanup; terminal-disconnection errors remain ineligible for handoff.
+No new recovery state, retry or owner is added.
+
+BR-2 found that native pane creation defaults to moving client focus despite the
+existing shortcut contract. Add --no-focus and assert both invoking-pane focus
+and new-pane unfocused state; a foreign tab's focus is independent. BR-3 adds a
+disposable native production-routing test for same-tab visible creation and
+retained client focus, required by the existing scheduled native-terminal runner.
+No workflow or merge-gate configuration changes. The operator's live acceptance
+still rides the next natural relaunch per the approved rollout.
+
+The old queued suite was canceled through local-check cancel before acquisition
+because these production fixes supersede its code head; this is not a flake
+retry. A new recorded suite is required on the corrected code.
+
+### 2026-10-20 — review fixes and native argv correction
+
+BR-1 semantic reds reproduced decoder/non-EOF read failures returning nil with
+zero handoffs. Typed pump outcomes now retain the fault, while ordinary EOF and
+cancellation stay normal and dead transport causes suppress exec. An overlapping
+invalid-UTF8 plus EIO control proves a decoder fault cannot conceal disconnection.
+The targeted pump/recovery race set passed (2.561s).
+
+BR-2 focused-state controls failed because the recreated pane became focused;
+--no-focus corrects the effect. BR-3's real disposable Zellij run then caught a
+native argument incompatibility that the fake accepted: --tab-id conflicts with
+--near-current-pane. Keep the explicit confirmed tab plus --no-focus, omit the
+conflicting flag, and make the fake reject that same invalid combination. This
+changes no owner, retry, native lookup or visible recovery state. The conformance
+runner requires actual execution of the new native test, not merely go-test exit
+zero; its eight Python proof tests pass. The receiver shell in that fixture emits
+no native query replies, so the existing producer inventory records that precise
+native-only exclusion rather than inventing a synthetic envelope.
+
+BR-3 native green: TestTerminalRecoveryZellijConformance passed 0.54s
+(package 0.681s), log /Volumes/TestScratch/tmp/pair-slot7/pair727-terminal-recovery-native-final.log.
+Actual PTY input proves focus remains in the invoking pane; dropping only
+--no-focus in the test-only runtime makes native input move to the new receiver,
+so the negative control proves the focus oracle. No operator context was used.
+Final complete race packages after fixes passed: termcmd 6.892s, layoutcmd 7.490s,
+zellijtest 8.095s. The initial new-code package run caught the missing native-only
+fixture classification and a mismatched godoc declaration name; both corrected
+without weakening their sentinels. The recorded suite will run on this fix commit.

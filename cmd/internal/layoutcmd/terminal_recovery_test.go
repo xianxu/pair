@@ -62,11 +62,19 @@ func TestNewTerminalRecreatesConfirmedAbsentPane(t *testing.T) {
 				t.Fatal(err)
 			}
 			effects := f.Effects()
+			for _, p := range f.Model().Sessions["test"].Panes {
+				if p["id"] == float64(2) && p["is_focused"] != true {
+					t.Fatal("invoking pane lost focus")
+				}
+				if p["tab_id"] == float64(0) && p["title"] == "terminal" && p["is_focused"] != false {
+					t.Fatal("recreated terminal stole client focus")
+				}
+			}
 			if len(effects) != 1 || effects[0].Action != "new-pane" {
 				t.Fatalf("lost terminal not recreated: %+v", effects)
 			}
 			args := effects[0].Args
-			want := []string{"action", "new-pane", "--direction", "right", "--tab-id", "0", "--near-current-pane", "--name", "terminal", "--", "sh", "-c", `zellij action rename-pane --pane-id "$ZELLIJ_PANE_ID" terminal 2>/dev/null; exec pair term`}
+			want := []string{"action", "new-pane", "--direction", "right", "--tab-id", "0", "--no-focus", "--name", "terminal", "--", "sh", "-c", `zellij action rename-pane --pane-id "$ZELLIJ_PANE_ID" terminal 2>/dev/null; exec pair term`}
 			if !reflect.DeepEqual(args, want) {
 				t.Fatalf("recovery is not bound to caller's tab: %q want %q", args, want)
 			}

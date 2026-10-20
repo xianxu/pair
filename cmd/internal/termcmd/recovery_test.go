@@ -543,3 +543,76 @@ func TestRecoveryProductionRejectsNonTTYStdio(t *testing.T) {
 		t.Fatalf("nonTTY code=%d calls=%d report=%q", code, calls, report.String())
 	}
 }
+
+type pumpFailureHost struct {
+	*hostty.FakeHost
+	input io.Reader
+}
+
+func (h *pumpFailureHost) Read(p []byte) (int, error) { return h.input.Read(p) }
+func (h *pumpFailureHost) ReadContext(ctx context.Context, p []byte) (int, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	return h.input.Read(p)
+}
+
+type pumpErrorReader struct{ err error }
+type pumpDataErrorReader struct {
+	data []byte
+	err  error
+}
+
+func (r pumpDataErrorReader) Read(p []byte) (int, error) { return copy(p, r.data), r.err }
+
+func (r pumpErrorReader) Read([]byte) (int, error) { return 0, r.err }
+
+func TestRecoveryOwnsInputPumpEnding(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     io.Reader
+		wantExec  int
+		wantError bool
+	}{
+		{"decoder failure", bytes.NewReader([]byte{0xff}), 1, true},
+		{"nonEOF read failure", pumpErrorReader{errors.New("fixture unexpected read failure")}, 1, true},
+		{"EOF", bytes.NewReader(nil), 0, false},
+		{"cancellation", pumpErrorReader{context.Canceled}, 0, false},
+		{"deadline cancellation", pumpErrorReader{context.DeadlineExceeded}, 0, false},
+		{"dead terminal EIO", pumpErrorReader{syscall.EIO}, 0, true},
+		{"decoder failure plus EIO", pumpDataErrorReader{data: []byte{0xff}, err: syscall.EIO}, 0, true},
+		{"dead terminal EPIPE", pumpErrorReader{syscall.EPIPE}, 0, true},
+		{"dead fd", pumpErrorReader{syscall.EBADF}, 0, true},
+		{"closed input", pumpErrorReader{os.ErrClosed}, 0, true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			host := &pumpFailureHost{FakeHost: hostty.NewFakeHost(ptychild.Size{Rows: 5, Cols: 80}), input: test.input}
+			calls := 0
+			done := make(chan error, 1)
+			go func() {
+				done <- runShellRecovery(host, &commandRecoveryRuntime{command: "exec sleep 30"}, nil, true, func(_ string, _ []string, _ []string, reason error) error {
+					calls++
+					if reason == nil || !host.Closed() || host.RawDepth() != 0 {
+						t.Error("input recovery preceded cleanup or lost reason")
+					}
+					return errors.New("fixture one exec failure")
+				})
+			}()
+			select {
+			case err := <-done:
+				if (err != nil) != test.wantError {
+					t.Errorf("error=%v wantError=%v", err, test.wantError)
+				}
+			case <-time.After(3 * time.Second):
+				t.Fatal("pump ending did not end session")
+			}
+			if calls != test.wantExec {
+				t.Fatalf("exec calls=%d want=%d", calls, test.wantExec)
+			}
+			if !host.Closed() || host.RawDepth() != 0 {
+				t.Fatal("pump ending leaked host ownership")
+			}
+		})
+	}
+}

@@ -249,7 +249,7 @@ func newRightTerminalTabContext(ctx context.Context, rt Runtime) error {
 	if target, ok := pickRightTerminal(panes, last, ids); ok {
 		args, _ = workbenchshortcut.DeliverChordArgs(target.ID, workbenchshortcut.ChordAltShiftT)
 	} else {
-		args = []string{"new-pane", "--direction", "right", "--tab-id", strconv.Itoa(tab), "--near-current-pane", "--name", "terminal", "--", "sh", "-c", workbenchshortcut.RightTerminalPaneShell}
+		args = []string{"new-pane", "--direction", "right", "--tab-id", strconv.Itoa(tab), "--no-focus", "--name", "terminal", "--", "sh", "-c", workbenchshortcut.RightTerminalPaneShell}
 	}
 	return zellijreply.Effect(ctx, func() error { return rt.RunZellijAction(args...) })
 }

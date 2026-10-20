@@ -427,9 +427,9 @@ func runShellOnHostObserved(host terminalHost, rt Runtime, observer terminal.Obs
 	inputDone, resizeDone := make(chan struct{}), make(chan struct{})
 	go func() {
 		defer close(inputDone)
-		pumpStdinContext(ctx, host, mux, rt, io.Discard, newRealEscapeTimer())
+		ending := pumpStdinContext(ctx, host, mux, rt, io.Discard, newRealEscapeTimer())
 		mux.mu.Lock()
-		mux.stopLocked(nil)
+		mux.stopLocked(ending.failure())
 		mux.mu.Unlock()
 	}()
 	go func() {
@@ -545,6 +545,41 @@ func (t *realEscapeTimer) StopAndDrain() {
 	}
 }
 
+// stdinPumpKind distinguishes normal input completion from a wrapper fault.
+// Disconnected transport retains its cause so recovery can refuse a dead host.
+type stdinPumpKind uint8
+
+const (
+	stdinPumpEOF stdinPumpKind = iota
+	stdinPumpCancelled
+	stdinPumpDisconnected
+	stdinPumpFailed
+)
+
+type stdinPumpEnding struct {
+	kind stdinPumpKind
+	err  error
+}
+
+func (ending stdinPumpEnding) failure() error {
+	if ending.kind == stdinPumpFailed || ending.kind == stdinPumpDisconnected {
+		return ending.err
+	}
+	return nil
+}
+func classifyStdinEnding(err error) stdinPumpEnding {
+	switch {
+	case errors.Is(err, io.EOF):
+		return stdinPumpEnding{kind: stdinPumpEOF}
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return stdinPumpEnding{kind: stdinPumpCancelled}
+	case unusableTerminal(err):
+		return stdinPumpEnding{kind: stdinPumpDisconnected, err: err}
+	default:
+		return stdinPumpEnding{kind: stdinPumpFailed, err: err}
+	}
+}
+
 type stdinResult struct {
 	data []byte
 	err  error
@@ -564,7 +599,7 @@ func pumpStdinWithTimer(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Wr
 	pumpStdinContext(context.Background(), stdin, mux, rt, stdout, timer)
 }
 
-func pumpStdinContext(ctx context.Context, stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Writer, timer EscapeTimer) {
+func pumpStdinContext(ctx context.Context, stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Writer, timer EscapeTimer) stdinPumpEnding {
 	results := make(chan stdinResult, 1)
 	done := make(chan struct{})
 	readCtx, cancel := context.WithCancel(ctx)
@@ -689,25 +724,33 @@ func pumpStdinContext(ctx context.Context, stdin io.Reader, mux ptyWriter, rt Ru
 			pending = append(pending, event)
 		}
 	}
-	flush := func() {
+	flush := func() error {
 		events, err := decoder.FlushEscape()
 		if err != nil {
 			mux.reportError(err)
-		} else {
-			handle(events)
+			return err
 		}
+		handle(events)
+		return nil
 	}
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return stdinPumpEnding{kind: stdinPumpCancelled}
 		case <-timer.C():
-			flush()
+			if err := flush(); err != nil {
+				return stdinPumpEnding{kind: stdinPumpFailed, err: err}
+			}
 		case result := <-results:
+			// Session cancellation ends ownership normally, including a read which
+			// unblocks with an incidental transport error during joined teardown.
+			if ctx.Err() != nil {
+				return stdinPumpEnding{kind: stdinPumpCancelled}
+			}
 			events, err := decoder.Feed(result.data)
 			if err != nil {
 				mux.reportError(err)
-				return
+				return stdinPumpEnding{kind: stdinPumpFailed, err: errors.Join(err, result.err)}
 			}
 			handle(events)
 			if decoder.PendingEscape() {
@@ -716,11 +759,13 @@ func pumpStdinContext(ctx context.Context, stdin io.Reader, mux ptyWriter, rt Ru
 				timer.StopAndDrain()
 			}
 			if result.err != nil {
-				flush()
+				if err := flush(); err != nil {
+					return stdinPumpEnding{kind: stdinPumpFailed, err: errors.Join(err, result.err)}
+				}
 				if rename != nil {
 					_ = mux.finishRename(rename.tabID, RenameOutcome{Kind: RenameOutcomeCancel, Name: rename.editor.Original()})
 				}
-				return
+				return classifyStdinEnding(result.err)
 			}
 		}
 	}
