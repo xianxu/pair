@@ -65,3 +65,7 @@ capacity instead of on our tests. The operator's rule is local-first verificatio
   with a clean HOME, copy results and logs out, stop) that owns the two-VM lock (one position for the landing train,
   one for ad-hoc). Any repo can use it; pair's conformance is its first user. The per-repo `.tart/` stays for
   interactive dev.
+- 2026-10-20 14:15 (TL, operator agreed): no second queue. The landing train stays the only queue; the VM is a
+  machine-wide resource pool (like the suite slots) that a train acquires at its tier-3 step, **after** its suite
+  passes and only if a car touches the conformance paths. One VM position for trains and the nightly burn-in, one for
+  ad-hoc runs. The machine plan (ariadne#475) counts VM positions once a second repo uses the VM.
