@@ -81,3 +81,4 @@ Durable design: [native-only recovery candidates plan](../plans/000721-native-on
 ## Revisions
 
 - 2026-10-19: Added the concrete durable plan after main-based start and current-owner inspection. Original M2/M3 scope is retained as one atomic #721 review boundary, with unchanged approved behavior and added explicit codec/cutoff/accounting test contracts.
+- 2026-10-19: Plan-quality PQ-1 requires compressed function-level test strategy rather than duplicated case inventories. Revised Tasks 1–4 accordingly; no architecture/scope change. First change-code inferred quick due to design line count; reran with --flow=full to honor TL-approved full flow. No implementation or estimate yet.
