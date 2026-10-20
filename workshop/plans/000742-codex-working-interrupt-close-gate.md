@@ -234,6 +234,90 @@ rounds:
       recipe: fix-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 0b58a7d3-cd13-4213-b528-dd18073c3c79
+            repository: github.com/xianxu/pair
+            issue_id: "000742"
+            recipe: small-diff-review
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/8b3e9deee711237a
+            reviewed_head: f684f972951b18ec530dd8acdc012bd6b1031680
+            slot: pair:2
+            requested_at: "2026-10-20T21:00:53.184972Z"
+          phase: finished
+          pid: 42579
+          started_at: "2026-10-20T21:00:53.275079Z"
+          finished_at: "2026-10-20T21:02:55.494578Z"
+          session_id: 01a15b1d-f98e-7212-8791-4b9be3b1909c
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: f684f972951b18ec530dd8acdc012bd6b1031680
+        tracker_head: 71195a3fdf41b4bdb8fef82c3a981df2d09c524e
+        branch_point: 9c926136d44af5bad734eaef7986e327a06a1965
+        since: "2026-10-20T12:53:03-07:00"
+        until: "2026-10-20T14:00:25-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-20T12:53:03-07:00"
+              end: "2026-10-20T14:00:25-07:00"
+              began: "2026-10-20T12:53:03-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+        sources:
+            - harness: codex
+              id: 01a15a8b-89c9-7e02-a733-8b52dd00ebac
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 4e8debcb315a64ffea16e3a07eef7cd447faf2fbdac5202d27407a6d5637120e
+              started: "2026-10-20T18:21:51.812Z"
+              spawned: false
+              bytes: 10092009
+              windows:
+                - start: "2026-10-20T12:53:03-07:00"
+                  end: "2026-10-20T14:00:25-07:00"
+        cuts:
+            - dispatched: "2026-10-20T13:33:22-07:00"
+              finalized: "2026-10-20T13:35:44-07:00"
+              finalizing: false
+            - dispatched: "2026-10-20T13:38:58-07:00"
+              finalized: "2026-10-20T13:41:02-07:00"
+              finalizing: true
+            - dispatched: "2026-10-20T13:59:07-07:00"
+              finalized: "2026-10-20T13:59:51-07:00"
+              finalizing: false
+      "n": 4
+      timestamp: "2026-10-20T14:02:56-07:00"
+      dispatched: "2026-10-20T14:00:51-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Issue line 51 distinguishes Claude grace refusal from Codex current-work override, matching agent_drive.go:69–83. The retained stop-grace test passes; restoring cached-working dependence makes it fail.
+          round: 4
+        - id: BR-2
+          disposition: addressed
+          note: Issue line 56 correctly separates original native Working/running-shell captures from synthetic Waiting evidence, consistent with metadata.json:6–9 and syntheticCodexWork's description.
+          round: 4
+        - id: BR-3
+          disposition: addressed
+          note: This whole-issue review inspects the full pinned base-to-head range against the reconciled Spec, including broadened status recognition. Restoring the earlier parser makes the operator truncated-Waiting regression fail.
+          round: 4
+      recipe: small-diff-review
+      isolation: fenced
+      reviewed: f684f972951b18ec530dd8acdc012bd6b1031680
+      blocked: false
 ---
 
 # Gate ledger — pair#742 (boundary-review)
@@ -269,6 +353,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Critical] `post-close-scope-requires-full-review` (kind: defect) scope changed after close — run a full `sdlc close`
   cmd/internal/wrapcmd/codex_working.go:41–44 removes duration and background-summary validation and broadens Waiting recognition to any "Waiting for " prefix; codex_interrupt_test.go:168–174 explicitly accepts formerly rejected metadata and an additional Waiting form. Issue Revisions lines 87–95 authorize this new executable contract, rather than recording either BR-1 or BR-2's documentation correction. The narrow fix review cannot admit this change; run a full sdlc close covering the revised contract and implementation.
 
+## Round 4 — 2026-10-20T14:02:56-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Issue line 51 distinguishes Claude grace refusal from Codex current-work override, matching agent_drive.go:69–83. The retained stop-grace test passes; restoring cached-working dependence makes it fail.
+- BR-2 — addressed — Issue line 56 correctly separates original native Working/running-shell captures from synthetic Waiting evidence, consistent with metadata.json:6–9 and syntheticCodexWork's description.
+- BR-3 — addressed — This whole-issue review inspects the full pinned base-to-head range against the reconciled Spec, including broadened status recognition. Restoring the earlier parser makes the operator truncated-Waiting regression fail.
+
 ## Open findings
 
-- **BR-3** [Critical] `post-close-scope-requires-full-review` (kind: defect) scope changed after close — run a full `sdlc close`
+(none — every finding has been disposed)

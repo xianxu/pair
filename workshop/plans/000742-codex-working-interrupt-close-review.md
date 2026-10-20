@@ -255,3 +255,85 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000411
+
+---
+
+## Re-review — 2026-10-20T14:02:56-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 742 — Couch interrupt refuses a working Codex turn |
+| repo | pair |
+| issue file | workshop/issues/000742-codex-working-interrupt.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 9c926136d44af5bad734eaef7986e327a06a1965..f684f972951b18ec530dd8acdc012bd6b1031680 |
+| command | sdlc close --issue 742 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T14:02:56-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The implementation matches the revised Spec, and this full-range review resolves BR-3. No new defects found. The recorded suite and hub live acceptance remain explicit requirements before landing; this review does not establish those results.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Issue line 51 distinguishes Claude grace refusal from Codex current-work override, matching agent_drive.go:69–83. The retained stop-grace test passes; restoring cached-working dependence makes it fail.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Issue line 56 correctly separates original native Working/running-shell captures from synthetic Waiting evidence, consistent with metadata.json:6–9 and syntheticCodexWork's description.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      This whole-issue review inspects the full pinned base-to-head range against the reconciled Spec, including broadened status recognition. Restoring the earlier parser makes the operator truncated-Waiting regression fail.
+```
+
+1. **Strengths**
+
+   - One recognizer supplies lifecycle and interrupt proof ([codex_working.go:34](/Volumes/TestScratch/review-checkouts/8b3e9deee711237a/cmd/internal/wrapcmd/codex_working.go:34)).
+   - Production-output tests exercise admission, exactly one Ctrl+C, fresh-idle confirmation, and second-interrupt refusal.
+   - Unknown screens cannot confirm interruption; README and atlas document the revised behavior.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed focused Codex/interrupt tests with race detection, broader drive-related wrapper tests, the full agentdrive package, vet, eight reader-inventory checks, and diff whitespace checks. Temporary overlays demonstrated failures without the status-parser, positive-idle, and stale-grace corrections. The checkout remains unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY: pass.** Both consumers use the shared recognizer and existing composer authority.
+   - **ARCH-PURE: pass.** Recognition and reduction remain deterministic; IO stays in adapters.
+   - **ARCH-PURPOSE: pass.** Captured Waiting failure, stale lifecycle evidence, and completion safety are covered.
+   - **ARCH-EVOLVE: pass.** No runtime persisted-format changes.
+
+7. **Plan revision recommendations:** None. The remaining landing checks are accurately left pending.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"0b58a7d3-cd13-4213-b528-dd18073c3c79","repository":"github.com/xianxu/pair","issue_id":"000742","recipe":"small-diff-review","round":4,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/8b3e9deee711237a","reviewed_head":"f684f972951b18ec530dd8acdc012bd6b1031680","slot":"pair:2","requested_at":"2026-10-20T21:00:53.184972Z"},"phase":"finished","pid":42579,"started_at":"2026-10-20T21:00:53.275079Z","finished_at":"2026-10-20T21:02:55.494578Z","session_id":"01a15b1d-f98e-7212-8791-4b9be3b1909c","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.550558792s
+head: "f684f972951b18ec530dd8acdc012bd6b1031680"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
