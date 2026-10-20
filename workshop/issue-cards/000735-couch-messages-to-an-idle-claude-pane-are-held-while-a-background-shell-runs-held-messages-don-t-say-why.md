@@ -1,6 +1,6 @@
 ---
 id: 000735
-status: codecomplete
+status: done
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 08a5d49ba46ff7cf71310be3929c8207662b9405
         evidence_commit: e449d13ab9c29333e97328a420ee5841c69bfe10
+        landed_commit: 910fd254d8115d25bdd1ed20b6b5b3b3af6f9dd6
 ---
 
 # couch: messages to an idle Claude pane are held while a background shell runs; held messages don't say why
