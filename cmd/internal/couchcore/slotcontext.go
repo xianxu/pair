@@ -150,11 +150,8 @@ func (c *Couch) resolveSlotInput(ctx context.Context, input string) (*ThreadTarg
 // unique prefix. A sibling whose existence cannot be decided is returned too,
 // so its own error surfaces instead of a silent reroute.
 func (c *Couch) repositoryPrimary(repo, fleetRoot string) (string, error) {
-	if fleetRoot != "" && workspaceRepoName(repo) {
-		sibling := filepath.Join(fleetRoot, repo)
-		if _, err := os.Lstat(sibling); !errors.Is(err, fs.ErrNotExist) {
-			return sibling, nil
-		}
+	if sibling, ok := RepositorySiblingPrimary(repo, fleetRoot); ok {
+		return sibling, nil
 	}
 	names, err := c.repositoryNames()
 	if err != nil {
@@ -165,6 +162,19 @@ func (c *Couch) repositoryPrimary(repo, fleetRoot string) (string, error) {
 		return "", fmt.Errorf("%w; open a repository's absolute path to enroll it", err)
 	}
 	return found.Key, nil
+}
+
+// RepositorySiblingPrimary is the shared exact-directory precedence rule for
+// fresh slot resolution and admission snapshots. An undecidable sibling is
+// retained so its own discovery error surfaces instead of silently rerouting.
+func RepositorySiblingPrimary(repo, fleetRoot string) (string, bool) {
+	if fleetRoot != "" && workspaceRepoName(repo) {
+		sibling := filepath.Join(fleetRoot, repo)
+		if _, err := os.Lstat(sibling); !errors.Is(err, fs.ErrNotExist) {
+			return sibling, true
+		}
+	}
+	return "", false
 }
 
 // repositoryNames reads retained enrollment and aliases only. No lifecycle

@@ -64,11 +64,12 @@ type messageAuthority struct {
 	// hub is the worktree root Couch started from: the TL slot, which gets
 	// the larger peer-message bucket (#433). "" when Couch started outside a
 	// checkout.
-	hub                string
-	hubs               *hubRuntime
-	hubTarget          func(context.Context, string) (couchcore.HubSlot, error)
-	hubRepositoryNames func(context.Context) ([]couchcore.RepositoryName, error)
-	hubRepositorySlots func(context.Context, string) (map[int]couchcore.HubSlot, error)
+	hub                    string
+	hubs                   *hubRuntime
+	hubTarget              func(context.Context, string) (couchcore.HubSlot, error)
+	hubRepositoryFleetRoot string
+	hubRepositoryNames     func(context.Context) ([]couchcore.RepositoryName, error)
+	hubRepositorySlots     func(context.Context, string) (map[int]couchcore.HubSlot, error)
 	// batchMaxChars is immutable startup policy; zero uses the qualified default.
 	batchMaxChars int
 }
@@ -488,8 +489,17 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	if len(configuredHubs) > 0 && configuredHubs[0] != nil {
 		authority.hubs = configuredHubs[0]
 		authority.hubTarget = hubTargetResolver(c)
-		authority.hubRepositoryNames = c.Threads.RepositoryNamesContext
-		authority.hubRepositorySlots = c.RepositoryHubSlots
+		// Match the supervisor context used by fresh WorkspaceReferencePath.
+		// If startup cannot establish it, retain the per-reference resolver rather
+		// than guess sibling precedence from enrolled names.
+		startup, stop := context.WithTimeout(context.Background(), messageAdmissionTimeout)
+		identity, contextErr := resolver.ResolveWorkspace(startup, ".")
+		stop()
+		if contextErr == nil {
+			authority.hubRepositoryFleetRoot = identity.FleetRoot
+			authority.hubRepositoryNames = c.Threads.RepositoryNamesContext
+			authority.hubRepositorySlots = c.RepositoryHubSlots
+		}
 		authority.hub = authority.hubs.snapshot().Main()
 	}
 	panes := couchmessage.NewPaneMailbox()
@@ -617,11 +627,13 @@ func newMessageService(parent context.Context, brokerSocket, registrySocket stri
 	}
 	s.connected.Store(&map[couchmessage.Binding]bool{})
 	if slotOps != nil {
+		slotOps.fleetRoot = authority.hubRepositoryFleetRoot
 		slotOps.authorizePark = s.authorizeParkAdmission
 	}
 	if authority.hubTarget != nil {
 		// Every fresh resolution refreshes admission's memo (pair#726).
 		s.hubTargets = newHubTargetMemo(lifetime, authority.hubTarget, authority.now)
+		s.hubTargets.fleetRoot = authority.hubRepositoryFleetRoot
 		s.hubTargets.names = authority.hubRepositoryNames
 		s.hubTargets.discover = authority.hubRepositorySlots
 		s.authority.hubTarget = s.hubTargets.Fresh
@@ -1247,6 +1259,8 @@ func (s *messageService) SetShares(shares func() []couchmessage.ShareStatus) {
 // shell's session and launch nonce (authority.recorded, for the agent its
 // record launched). Any failure refuses with nothing enqueued.
 func (s *messageService) handleSlotOperation(ctx context.Context, request couchmessage.Request) couchmessage.Response {
+	ctx, cancel := context.WithTimeout(ctx, slotAdmissionBudget)
+	defer cancel()
 	if err := couchmessage.ValidateRequest(request); err != nil {
 		return couchmessage.Response{Code: "invalid-request", Error: err.Error()}
 	}
@@ -1254,6 +1268,9 @@ func (s *messageService) handleSlotOperation(ctx context.Context, request couchm
 		return couchmessage.Response{Code: "unsupported", Error: "this Couch runs no slot operations"}
 	}
 	caller, err := s.liveCaller(ctx, request)
+	if ctx.Err() != nil {
+		return admissionRefusal("caller", ctx.Err())
+	}
 	if err != nil {
 		return couchmessage.Response{Code: "unavailable", Error: fmt.Sprintf(
 			"caller is not a live Couch slot (thread %s not listed, or this shell's session/launch does not match its record): %v", request.Tag, err)}
@@ -1261,10 +1278,19 @@ func (s *messageService) handleSlotOperation(ctx context.Context, request couchm
 	if authenticated, authErr := s.switchCaller(ctx, request); authErr == nil {
 		caller = authenticated
 	} else if request.Op == "recovery-confirmation" || request.Op == couchcore.OpRecoverPark {
+		if ctx.Err() != nil {
+			return admissionRefusal("caller", ctx.Err())
+		}
 		return couchmessage.Response{Code: "refused", Error: request.Op + " requires an authenticated live hub binding"}
+	}
+	if ctx.Err() != nil {
+		return admissionRefusal("caller", ctx.Err())
 	}
 	if request.Op == "recovery-confirmation" {
 		identity, err := s.connectedWorkspace(ctx, caller)
+		if ctx.Err() != nil {
+			return admissionRefusal("caller workspace", ctx.Err())
+		}
 		if err != nil || !s.authority.isHub(identity) {
 			return couchmessage.Response{Code: "refused", Error: "only the owning hub may accept a recovery confirmation"}
 		}
@@ -1273,9 +1299,15 @@ func (s *messageService) handleSlotOperation(ctx context.Context, request couchm
 		if authenticated, err := s.switchCaller(ctx, request); err == nil {
 			if identity, err := s.connectedWorkspace(ctx, authenticated); err == nil && s.authority.isHub(identity) {
 				if response, ok := s.slotOps.switchStatus(request.ID, s.hubReceiptFilter(ctx, identity)); ok {
+					if ctx.Err() != nil {
+						return admissionRefusal("status", ctx.Err())
+					}
 					return response
 				}
 			}
+		}
+		if ctx.Err() != nil {
+			return admissionRefusal("status", ctx.Err())
 		}
 	}
 	return s.handleHubSlotOperation(ctx, caller, request)

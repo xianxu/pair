@@ -60,12 +60,13 @@ func hubTargetKey(ref string) string {
 // their targets. All flights belong to the supervisor lifetime; admission waits
 // only within its own budget.
 type hubTargetMemo struct {
-	resolve  func(context.Context, string) (couchcore.HubSlot, error)
-	names    func(context.Context) ([]couchcore.RepositoryName, error)
-	discover func(context.Context, string) (map[int]couchcore.HubSlot, error)
-	now      func() time.Time
-	maxAge   time.Duration
-	lifetime context.Context
+	fleetRoot string
+	resolve   func(context.Context, string) (couchcore.HubSlot, error)
+	names     func(context.Context) ([]couchcore.RepositoryName, error)
+	discover  func(context.Context, string) (map[int]couchcore.HubSlot, error)
+	now       func() time.Time
+	maxAge    time.Duration
+	lifetime  context.Context
 
 	mu       sync.Mutex
 	entries  map[string]hubTargetEntry
@@ -102,21 +103,36 @@ func (m *hubTargetMemo) Fresh(ctx context.Context, ref string) (couchcore.HubSlo
 	return slot, err
 }
 
-// Warm answers from a young entry with no IO. Cold references share one
+// Warm checks exact sibling precedence, then answers from a young entry.
+// It spawns no process. Cold references share one
 // repository discovery; missing/unverified slots retain the fresh target path.
 // Neither warm source grants effect authority: Fresh always resolves again.
 func (m *hubTargetMemo) Warm(ctx context.Context, ref string) (couchcore.HubSlot, error) {
 	ctx, cancel := context.WithTimeout(ctx, slotAdmissionBudget)
 	defer cancel()
+	parsed, recognized, parseErr := couchcore.ParseWorkspaceReference(ref)
+	sibling := ""
+	if recognized && parseErr == nil {
+		sibling, _ = couchcore.RepositorySiblingPrimary(parsed.Repo, m.fleetRoot)
+	}
+	// Prewarm may have populated an enrolled alias before an exact sibling
+	// appeared. Check shared precedence before using or joining that raw key.
+	if sibling != "" {
+		m.forgetOtherPrimary(hubTargetKey(ref), sibling)
+	}
 	if e, ok := m.entry(hubTargetKey(ref)); ok {
 		return e.slot, e.err
 	}
-	if parsed, ok, err := couchcore.ParseWorkspaceReference(ref); ok && err == nil && m.names != nil && m.discover != nil {
-		names, err := m.names(ctx)
-		if err != nil {
-			return couchcore.HubSlot{}, err
+	if recognized && parseErr == nil && m.names != nil && m.discover != nil {
+		repository := couchcore.RepositoryName{Key: sibling, Dir: parsed.Repo}
+		var err error
+		if sibling == "" {
+			names, namesErr := m.names(ctx)
+			if namesErr != nil {
+				return couchcore.HubSlot{}, namesErr
+			}
+			repository, _, err = couchcore.ResolveRepositoryName(parsed.Repo, names)
 		}
-		repository, _, err := couchcore.ResolveRepositoryName(parsed.Repo, names)
 		if err == nil {
 			key := repositoryFlightKey(repository.Key)
 			if e, ok := m.entry(key); ok {
@@ -131,18 +147,18 @@ func (m *hubTargetMemo) Warm(ctx context.Context, ref string) (couchcore.HubSlot
 				if flight.err != nil {
 					return couchcore.HubSlot{}, flight.err
 				}
-				// Resolve the requested prefix too; it need not be an exact name/alias.
 				if slot, ok := flight.slots[parsed.Number]; ok {
 					m.remember(ref, slot, nil, flight.started)
 				}
 			}
+			if sibling != "" {
+				m.forgetOtherPrimary(hubTargetKey(ref), sibling)
+			}
 			if e, ok := m.entry(hubTargetKey(ref)); ok {
 				return e.slot, e.err
 			}
-			// A completed repository snapshot may have been prewarmed before this
-			// prefix was requested. Canonical names use the same validated identity.
 			canonical := couchcore.WorkspaceReference{Repo: repository.Dir, Number: parsed.Number}.String()
-			if e, ok := m.entry(canonical); ok {
+			if e, ok := m.entry(canonical); ok && e.slot.Repository == repository.Key {
 				return e.slot, e.err
 			}
 		}
@@ -163,6 +179,14 @@ func (m *hubTargetMemo) entry(key string) (hubTargetEntry, bool) {
 	defer m.mu.Unlock()
 	e, ok := m.entries[key]
 	return e, ok && e.live(m.now(), m.maxAge)
+}
+
+func (m *hubTargetMemo) forgetOtherPrimary(key, primary string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if e, ok := m.entries[key]; ok && e.slot.Repository != primary {
+		delete(m.entries, key)
+	}
 }
 
 // All kinds of flight share one capacity and the supervisor's lifetime.
@@ -210,33 +234,31 @@ func waitHubTargetFlight(ctx context.Context, f *hubTargetFlight) error {
 
 func (m *hubTargetMemo) repositoryFlight(primary string) *hubTargetFlight {
 	return m.startFlight(repositoryFlightKey(primary), func(f *hubTargetFlight) {
-		names, err := m.names(m.lifetime)
-		if err == nil {
-			f.slots, err = m.discover(m.lifetime, primary)
-		}
-		f.err = err
-		if m.lifetime.Err() != nil {
-			return
-		}
-		// Only unambiguous names are populated. Admission may use this snapshot,
-		// but the operation still re-proves its exact target before effects.
-		if err == nil {
-			for _, name := range names {
-				if name.Key != primary {
-					continue
-				}
-				for _, raw := range []string{name.Dir, name.Alias} {
-					resolved, _, err := couchcore.ResolveRepositoryName(raw, names)
-					if err != nil || resolved.Key != primary {
+		f.slots, f.err = m.discover(m.lifetime, primary)
+		// Enrollment supplies optional alias hints once the primary is selected;
+		// its failure cannot invalidate a verified exact sibling's slot snapshot.
+		if f.err == nil {
+			names, namesErr := m.names(m.lifetime)
+			if namesErr == nil {
+				for _, name := range names {
+					if name.Key != primary {
 						continue
 					}
-					for number, slot := range f.slots {
-						m.remember(fmt.Sprintf("%s:%d", raw, number), slot, nil, f.started)
+					for _, raw := range []string{name.Dir, name.Alias} {
+						resolved, _, err := couchcore.ResolveRepositoryName(raw, names)
+						if err != nil || resolved.Key != primary {
+							continue
+						}
+						for number, slot := range f.slots {
+							m.remember(fmt.Sprintf("%s:%d", raw, number), slot, nil, f.started)
+						}
 					}
 				}
 			}
 		}
-		m.remember(repositoryFlightKey(primary), couchcore.HubSlot{}, err, f.started)
+		if m.lifetime.Err() == nil {
+			m.remember(repositoryFlightKey(primary), couchcore.HubSlot{}, f.err, f.started)
+		}
 	})
 }
 

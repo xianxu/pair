@@ -159,11 +159,12 @@ func (s *messageService) handleHubSlotOperation(ctx context.Context, caller couc
 			return admissionPhase("caller", s.authenticateRecoveryCaller(ctx, caller, r))
 		}
 	}
-	budget, cancel := context.WithTimeout(ctx, slotAdmissionBudget)
-	err := admission(budget)
-	cancel()
+	err := admission(ctx)
 	if err != nil {
 		return couchmessage.Response{Code: "refused", Error: err.Error()}
+	}
+	if ctx.Err() != nil {
+		return admissionRefusal("target", ctx.Err())
 	}
 	return s.slotOps.handle(ctx, caller, r, guard)
 }
@@ -200,8 +201,10 @@ func (s *messageService) checkHubSlotOperation(ctx context.Context, caller couch
 	return authorizeHubMutation(origin, target, s.authority.hubs.snapshot())
 }
 
-// slotAdmissionBudget keeps a hub slot operation's admission below the
-// transport's 2 s exchange, so an overrun answers with a typed refusal
+// slotAdmissionBudget covers the complete lifecycle request, starting before
+// authentication and ending at enqueue (or a status reply). Nested admission
+// phases inherit this deadline; queued execution gets its own queue context.
+// Staying below the transport's 2 s exchange leaves time for a typed refusal
 // instead of a reply the server drops (pair#726).
 const slotAdmissionBudget = 1500 * time.Millisecond
 
@@ -214,6 +217,10 @@ func admissionPhase(phase string, err error) error {
 		return fmt.Errorf("admission ran out of its %s budget in the %s check; nothing was queued; retry", slotAdmissionBudget, phase)
 	}
 	return fmt.Errorf("%s: %w", phase, err)
+}
+
+func admissionRefusal(phase string, err error) couchmessage.Response {
+	return couchmessage.Response{Code: "refused", Error: admissionPhase(phase, err).Error()}
 }
 
 // admissionCallerWorkspace prefers the connected binding's verified
@@ -247,9 +254,7 @@ func (s *messageService) hubReceiptFilter(ctx context.Context, identity couchcor
 		if s.authority.hubs == nil {
 			return true
 		}
-		budget, cancel := context.WithTimeout(ctx, slotAdmissionBudget)
-		defer cancel()
-		target, err := s.warmHubTarget(budget, receipt.Target)
+		target, err := s.warmHubTarget(ctx, receipt.Target)
 		return err == nil && authorizeHubMutation(identity, target, s.authority.hubs.snapshot()) == nil
 	}
 }

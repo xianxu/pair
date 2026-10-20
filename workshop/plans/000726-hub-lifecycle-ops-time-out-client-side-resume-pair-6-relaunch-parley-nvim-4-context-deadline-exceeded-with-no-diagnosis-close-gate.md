@@ -1072,6 +1072,255 @@ rounds:
       recipe: fix-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: f58d3a93-3d1e-4e01-94e6-eb42bb68ca43
+            repository: github.com/xianxu/pair
+            issue_id: "000726"
+            recipe: milestone-review
+            round: 8
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/63fd352e96effb43
+            reviewed_head: 06fde08625b18c4fbbfb7ab4e84d8dbf37a59524
+            slot: pair:2
+            requested_at: "2026-10-20T18:31:55.466403Z"
+          phase: finished
+          pid: 64696
+          started_at: "2026-10-20T18:31:55.556003Z"
+          finished_at: "2026-10-20T18:36:34.392281Z"
+          session_id: 01a15a95-989b-7e30-b96e-d1102c354c12
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: 06fde08625b18c4fbbfb7ab4e84d8dbf37a59524
+        tracker_head: 5ddf0fca7cb52c410bf8125b4cc1b8d98c6b0668
+        branch_point: e2ac2a19f253961b715b6edf104ca82d72b5c40a
+        since: "2026-10-20T07:54:36-07:00"
+        until: "2026-10-20T11:31:27-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-20T07:54:36-07:00"
+              end: "2026-10-20T11:31:27-07:00"
+              began: "2026-10-20T07:54:36-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+        sources:
+            - harness: claude
+              id: 4221e67d-3549-4c0f-bf5c-bf5d3cf13458
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 77c11275a0674c1f1ae23c7ca50df7c1e8883f40a25b65facbb7f39748efafb9
+              started: "2026-10-20T15:10:15.104Z"
+              spawned: false
+              bytes: 401871
+              windows:
+                - start: "2026-10-20T15:10:15.104Z"
+                  end: "2026-10-20T11:31:27-07:00"
+            - harness: claude
+              id: 6925e360-3a18-45ee-b050-adbde3ed67ca
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: cf80fecf6c2d10f1483be7a4fae3b7a2dfb225e693b6ed7e3ad997fd6ef3668c
+              started: "2026-10-20T15:09:56.095Z"
+              spawned: false
+              bytes: 486488
+              windows:
+                - start: "2026-10-20T15:09:56.095Z"
+                  end: "2026-10-20T11:31:27-07:00"
+            - harness: claude
+              id: 9073df29-d226-4140-b23c-4f03f2b4c472
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: cf660e568368fb1db224aadce1f646603c4640b4d65f7e7fc289cc7be4b5777e
+              started: "2026-10-16T03:47:36.231Z"
+              spawned: false
+              bytes: 57785294
+              windows:
+                - start: "2026-10-20T07:54:36-07:00"
+                  end: "2026-10-20T11:31:27-07:00"
+            - harness: claude
+              id: a8921d8e-ff5d-448d-bbbe-7c4096d6664b
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 6fb5337ed3171a0a204a700171391668aa62f2d24fccd650aa0c8a0867b8ea60
+              started: "2026-10-20T15:06:32.044Z"
+              spawned: false
+              bytes: 622144
+              windows:
+                - start: "2026-10-20T15:06:32.044Z"
+                  end: "2026-10-20T11:31:27-07:00"
+            - harness: claude
+              id: dd2ee03c-3bb0-40c3-8aec-7153c858d9f0
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 7004d633528a081b3018685616f0dbb291cfa1fc1f6fe3791036196047975501
+              started: "2026-10-20T15:08:59.765Z"
+              spawned: false
+              bytes: 564150
+              windows:
+                - start: "2026-10-20T15:08:59.765Z"
+                  end: "2026-10-20T11:31:27-07:00"
+            - harness: codex
+              id: 01a15a8b-89c9-7e02-a733-8b52dd00ebac
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 5801cd87dc7ea074217929f7f4e3b5b24bcec64e53373b602935d328450bcf57
+              started: "2026-10-20T18:21:51.812Z"
+              spawned: false
+              bytes: 1580945
+              windows:
+                - start: "2026-10-20T18:21:51.812Z"
+                  end: "2026-10-20T11:31:27-07:00"
+            - harness: codex
+              id: 01a15a8c-f035-7473-97a1-e19202726aaa
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a15a8b-89c9-7e02-a733-8b52dd00ebac
+              digest: 4d9812015e346d59312b45580af651c5334e3f2ce680968105bce4dae97318ff
+              started: "2026-10-20T18:22:28.452Z"
+              spawned: true
+              bytes: 1023380
+              windows:
+                - start: "2026-10-20T18:22:28.452Z"
+                  end: "2026-10-20T11:31:27-07:00"
+        queue_waits:
+            - attempt_id: df4e0de83a7b02852a727e603a53986e
+              slot: pair:2
+              record_digest: 1922c33a4000af22fad2e71748019ce8508f21663c0bee450c2e45ab4d6aef52
+              start: "2026-10-20T16:31:08.064303Z"
+              end: "2026-10-20T16:40:52.242939Z"
+              queue_seconds: 584.178636
+              raw_seconds: 584.178636
+              exact: true
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 28.503233333333334
+        cuts:
+            - boundary: M1
+              dispatched: "2026-10-20T08:25:12-07:00"
+              finalized: "2026-10-20T08:33:44-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-20T08:42:07-07:00"
+              finalized: "2026-10-20T08:54:17-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-20T09:00:29-07:00"
+              finalized: "2026-10-20T09:04:14-07:00"
+              finalizing: true
+            - boundary: M2
+              dispatched: "2026-10-20T09:14:52-07:00"
+              finalized: "2026-10-20T09:19:42-07:00"
+              finalizing: false
+            - boundary: M2
+              dispatched: "2026-10-20T09:24:08-07:00"
+              finalized: "2026-10-20T09:26:13-07:00"
+              finalizing: true
+            - dispatched: "2026-10-20T09:50:20-07:00"
+              finalized: "2026-10-20T09:53:00-07:00"
+              finalizing: true
+            - dispatched: "2026-10-20T11:29:15-07:00"
+              finalized: "2026-10-20T11:30:31-07:00"
+              finalizing: false
+      "n": 8
+      timestamp: "2026-10-20T11:36:35-07:00"
+      dispatched: "2026-10-20T11:31:53-07:00"
+      agent: codex
+      reviewer: codex (openai; author anthropic,openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Failure entries retain the resolver error; TestHubTargetMemoRemembersALateFailure covers late completion and retry.
+          round: 8
+        - id: BR-2
+          disposition: addressed
+          note: Move target resolution uses Warm; TestHubMoveAdmissionUsesWarmSlotsAndRechecksFresh covers admission and fresh revalidation.
+          round: 8
+        - id: BR-3
+          disposition: withdrawn
+          note: Discover concurrency and replaced-host tests ran successfully under the race detector in this environment.
+          round: 8
+        - id: BR-4
+          disposition: addressed
+          note: Background flights and Discover verification have eight-worker caps, covered by focused race tests.
+          round: 8
+        - id: BR-5
+          disposition: addressed
+          note: Memo access and writes consistently use hubTargetKey.
+          round: 8
+        - id: BR-6
+          disposition: addressed
+          note: Admission and fresh guards share checkHubSlotOperation with injected sources.
+          round: 8
+        - id: BR-7
+          disposition: addressed
+          note: Discover concurrency uses an in-flight rendezvous rather than elapsed time as its success oracle.
+          round: 8
+        - id: BR-8
+          disposition: addressed
+          note: Receipt filtering bounds its memo wait; Warm also enforces its own budget.
+          round: 8
+        - id: BR-9
+          disposition: addressed
+          note: The issue Revisions records failure retention, move revalidation, caps, ordering, and additional visible states.
+          round: 8
+        - id: BR-10
+          disposition: addressed
+          note: remember rejects older-started results; late individual and repository completion regressions pass.
+          round: 8
+        - id: BR-11
+          disposition: addressed
+          note: Writes sweep expired entries and cap the map at 256; the sweep/cap regression passes.
+          round: 8
+        - id: BR-12
+          disposition: addressed
+          note: Failure expiry uses finished time; TestHubTargetMemoAgesFailuresFromTheirEnd passes.
+          round: 8
+        - id: BR-13
+          disposition: addressed
+          note: The oversized-store fixture exercises metadata and record limits, compares counted bytes, and passes with the routing regression.
+          round: 8
+        - id: BR-14
+          disposition: addressed
+          note: ReadRequest has one Source-nil capture fence after optional candidate collection.
+          round: 8
+        - id: BR-15
+          disposition: addressed
+          note: resume_candidates.go attributes the confirmed choice to the established binding without claiming all incomplete observations affect only inference.
+          round: 8
+        - id: BR-16
+          disposition: addressed
+          note: atlas/couch.md:83-85 and the Plan M2 bullet match the CLI wording and established-binding recovery path.
+          round: 8
+        - id: BR-17
+          disposition: addressed
+          note: This review inspected the complete pinned range, including repository batching, startup prewarm, production wiring, and Tier A acceptance. The issue Revisions at line 121 explicitly supersedes the original per-reference design.
+          round: 8
+      findings:
+        - kind: defect
+          id: BR-18
+          severity: Critical
+          title: The admission budget does not cover the complete admission path
+          detail: hub_guards.go:162-168 starts the 1.5 s budget after handleSlotOperation has authenticated the caller, then cancels it before slotOps.handle. Earlier liveCaller reads can wait up to one second for the store lock (message_service.go:1256; couchcore/retention.go:299), while later queueTarget performs another repository-name read with a separate 500 ms allowance. A caller check that succeeds after 700 ms followed by a cold target resolution reaches the parent 2 s deadline before the inner budget expires; transport.go then drops the refusal. This is the 3rd finding in family admission-sync-discover-over-exchange. Earlier rounds fixed instances; establish one deadline for the entire lifecycle admission path, including authentication, target resolution, queue-key lookup, and enqueue, and sweep slot, move, and status paths against that rule (ARCH-CONSTRAINTS, ARCH-PURPOSE). Add a socket regression combining delayed successful authentication with blocked target resolution, plus delayed queue-name lookup.
+          family: admission-sync-discover-over-exchange
+          round: 8
+        - kind: defect
+          id: BR-19
+          severity: Critical
+          title: Repository warming bypasses sibling-directory precedence
+          detail: hub_target_memo.go:119 resolves repository names directly against enrollment, then returns the batched slot at lines 135-146. The existing fresh resolver instead gives an exact sibling directory precedence over enrolled names and prefixes (couchcore/slotcontext.go:152-156), explicitly tested by TestExistingSiblingDirectoryBeatsPrefix. With an existing sibling parley and an enrolled parley.nvim, Warm("parley:1") can return parley.nvim:1 while Fresh resolves parley:1. If those repositories belong to different hubs, admission refuses a valid operation before fresh authority can correct the snapshot. Derive memo repository identity through the same reference-resolution rule, retaining batching after identity is established; cover cold and prewarmed references, including prefixes and aliases (ARCH-DRY, ARCH-PURPOSE).
+          family: canonical-reference-resolution
+          round: 8
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#726 (boundary-review)
@@ -1179,6 +1428,36 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-17** [Critical] `boundary-review-scope` (kind: defect) scope changed after close — run a full `sdlc close`
   The issue's new Revisions entry at line 105 introduces repository-wide single-flight discovery, startup prewarming, and Tier A batch acceptance beyond the outstanding wording finding. Executable changes in hub_target_memo.go:108-274, message_service.go:701-709, and slotcontext.go:203-222 implement that expansion. Run a full sdlc close covering the expanded scope; this narrow fix review cannot authorize it.
 
+## Round 8 — 2026-10-20T11:36:35-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Failure entries retain the resolver error; TestHubTargetMemoRemembersALateFailure covers late completion and retry.
+- BR-2 — addressed — Move target resolution uses Warm; TestHubMoveAdmissionUsesWarmSlotsAndRechecksFresh covers admission and fresh revalidation.
+- BR-3 — withdrawn — Discover concurrency and replaced-host tests ran successfully under the race detector in this environment.
+- BR-4 — addressed — Background flights and Discover verification have eight-worker caps, covered by focused race tests.
+- BR-5 — addressed — Memo access and writes consistently use hubTargetKey.
+- BR-6 — addressed — Admission and fresh guards share checkHubSlotOperation with injected sources.
+- BR-7 — addressed — Discover concurrency uses an in-flight rendezvous rather than elapsed time as its success oracle.
+- BR-8 — addressed — Receipt filtering bounds its memo wait; Warm also enforces its own budget.
+- BR-9 — addressed — The issue Revisions records failure retention, move revalidation, caps, ordering, and additional visible states.
+- BR-10 — addressed — remember rejects older-started results; late individual and repository completion regressions pass.
+- BR-11 — addressed — Writes sweep expired entries and cap the map at 256; the sweep/cap regression passes.
+- BR-12 — addressed — Failure expiry uses finished time; TestHubTargetMemoAgesFailuresFromTheirEnd passes.
+- BR-13 — addressed — The oversized-store fixture exercises metadata and record limits, compares counted bytes, and passes with the routing regression.
+- BR-14 — addressed — ReadRequest has one Source-nil capture fence after optional candidate collection.
+- BR-15 — addressed — resume_candidates.go attributes the confirmed choice to the established binding without claiming all incomplete observations affect only inference.
+- BR-16 — addressed — atlas/couch.md:83-85 and the Plan M2 bullet match the CLI wording and established-binding recovery path.
+- BR-17 — addressed — This review inspected the complete pinned range, including repository batching, startup prewarm, production wiring, and Tier A acceptance. The issue Revisions at line 121 explicitly supersedes the original per-reference design.
+
+### Raised
+
+- **BR-18** [Critical] `admission-sync-discover-over-exchange` (kind: defect) The admission budget does not cover the complete admission path
+  hub_guards.go:162-168 starts the 1.5 s budget after handleSlotOperation has authenticated the caller, then cancels it before slotOps.handle. Earlier liveCaller reads can wait up to one second for the store lock (message_service.go:1256; couchcore/retention.go:299), while later queueTarget performs another repository-name read with a separate 500 ms allowance. A caller check that succeeds after 700 ms followed by a cold target resolution reaches the parent 2 s deadline before the inner budget expires; transport.go then drops the refusal. This is the 3rd finding in family admission-sync-discover-over-exchange. Earlier rounds fixed instances; establish one deadline for the entire lifecycle admission path, including authentication, target resolution, queue-key lookup, and enqueue, and sweep slot, move, and status paths against that rule (ARCH-CONSTRAINTS, ARCH-PURPOSE). Add a socket regression combining delayed successful authentication with blocked target resolution, plus delayed queue-name lookup.
+- **BR-19** [Critical] `canonical-reference-resolution` (kind: defect) Repository warming bypasses sibling-directory precedence
+  hub_target_memo.go:119 resolves repository names directly against enrollment, then returns the batched slot at lines 135-146. The existing fresh resolver instead gives an exact sibling directory precedence over enrolled names and prefixes (couchcore/slotcontext.go:152-156), explicitly tested by TestExistingSiblingDirectoryBeatsPrefix. With an existing sibling parley and an enrolled parley.nvim, Warm("parley:1") can return parley.nvim:1 while Fresh resolves parley:1. If those repositories belong to different hubs, admission refuses a valid operation before fresh authority can correct the snapshot. Derive memo repository identity through the same reference-resolution rule, retaining batching after identity is established; cover cold and prewarmed references, including prefixes and aliases (ARCH-DRY, ARCH-PURPOSE).
+
 ## Open findings
 
-- **BR-17** [Critical] `boundary-review-scope` (kind: defect) scope changed after close — run a full `sdlc close`
+- **BR-18** [Critical] `admission-sync-discover-over-exchange` (kind: defect) The admission budget does not cover the complete admission path
+- **BR-19** [Critical] `canonical-reference-resolution` (kind: defect) Repository warming bypasses sibling-directory precedence

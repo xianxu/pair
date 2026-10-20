@@ -1114,10 +1114,16 @@ survives the drop, and only genuinely new lifecycle facts follow the new owner.
 
 Hub slot-operation admission (`handleHubSlotOperation`, pair#726) is a cheap
 gate on warm sources, inside its own 1.5 s budget, below the 2 s exchange. The
-caller comes from its connected workspace (`connectedWorkspace`), and the target
+single deadline spans initial authentication, target resolution, queue-name lookup
+and enqueue, including move and operation-status requests. The caller comes
+from its connected workspace (`connectedWorkspace`), and the target
 from `hubTargetMemo`. The memo maps a target reference to its `HubSlot`.
 One single-flight discovery per repository fills all its verified numbered
-slots under unambiguous names and aliases. Startup prewarms the distinct hub
+slots under unambiguous names and aliases. Memo reads and queue-key selection
+use the fresh resolver's shared exact-sibling-directory precedence rule before
+enrollment lookup, including prewarmed aliases. The service captures the
+supervisor's fleet context once at startup; if it cannot establish that context,
+it retains per-reference resolution rather than guessing from enrollment. Startup prewarms the distinct hub
 repositories without delaying service startup; cold concurrent requests join
 the same flight. Missing slots, primary slots and unresolved repository names
 fall back to the existing per-reference resolver. Both kinds of flight share

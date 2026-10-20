@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -428,5 +430,75 @@ func TestHubTargetMemoLateRepositoryCannotReplaceFreshTarget(t *testing.T) {
 	m.wait()
 	if got, err := m.Warm(t.Context(), "repo:1"); err != nil || got.Repository != "/fresh" {
 		t.Fatalf("late repository overwrote effect proof: %v %v", got, err)
+	}
+}
+
+// BR-19: the same exact sibling wins over an enrolled prefix or alias for
+// cold reads and for references already filled by startup prewarm.
+func TestHubTargetMemoPreservesSiblingPrecedence(t *testing.T) {
+	for _, name := range []string{"parley", "par", "blog"} {
+		for _, prewarm := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/prewarm=%v", name, prewarm), func(t *testing.T) {
+				fleet := t.TempDir()
+				enrolled := filepath.Join(fleet, "parley.nvim")
+				sibling := filepath.Join(fleet, name)
+				if err := os.MkdirAll(sibling, 0700); err != nil {
+					t.Fatal(err)
+				}
+				want := couchcore.HubSlot{Repository: sibling, Number: 1}
+				r := &serviceRig{t: t, world: newMessageWorld(), slotGit: map[string]couchcore.SlotGitStatus{}}
+				r.decorateAuthority = func(a messageAuthority) messageAuthority {
+					a.hubTarget = func(context.Context, string) (couchcore.HubSlot, error) { return want, nil }
+					a.hubRepositoryFleetRoot = fleet
+					a.hubRepositoryNames = func(context.Context) ([]couchcore.RepositoryName, error) {
+						return []couchcore.RepositoryName{{Key: enrolled, Dir: "parley.nvim", Alias: "blog"}}, nil
+					}
+					a.hubRepositorySlots = func(_ context.Context, primary string) (map[int]couchcore.HubSlot, error) {
+						return map[int]couchcore.HubSlot{1: {Repository: primary, Number: 1}}, nil
+					}
+					return a
+				}
+				r.slotOps = newSlotOperations(nil, func(ctx context.Context) ([]couchcore.RepositoryName, error) {
+					return r.s.authority.hubRepositoryNames(ctx)
+				}, time.Now)
+				r.init()
+				m := r.s.hubTargets
+				if prewarm {
+					m.Prewarm([]string{enrolled})
+					m.wait()
+				}
+				ref := name + ":1"
+				got, err := m.Warm(t.Context(), ref)
+				key, queued, queueErr := r.slotOps.queueTarget(t.Context(), ref)
+				if queueErr != nil || queued.Key != sibling || key != "remote\x00"+sibling+":1" {
+					t.Errorf("queue target %q %v %v, want sibling %s", key, queued, queueErr, sibling)
+				}
+				fresh, freshErr := m.Fresh(t.Context(), ref)
+				if err != nil || freshErr != nil || got != fresh || got != want {
+					t.Fatalf("warm %v %v, fresh %v %v, want sibling %v", got, err, fresh, freshErr, want)
+				}
+			})
+		}
+	}
+}
+
+func TestHubTargetMemoSiblingDoesNotNeedEnrollment(t *testing.T) {
+	fleet := t.TempDir()
+	primary := filepath.Join(fleet, "repo")
+	if err := os.MkdirAll(primary, 0700); err != nil {
+		t.Fatal(err)
+	}
+	want := couchcore.HubSlot{Repository: primary, Number: 1}
+	m := newHubTargetMemo(t.Context(), func(context.Context, string) (couchcore.HubSlot, error) { return want, nil }, nil)
+	m.fleetRoot = fleet
+	m.names = func(context.Context) ([]couchcore.RepositoryName, error) {
+		return nil, errors.New("enrollment unavailable")
+	}
+	m.discover = func(context.Context, string) (map[int]couchcore.HubSlot, error) {
+		return map[int]couchcore.HubSlot{1: want}, nil
+	}
+	got, err := m.Warm(t.Context(), "repo:1")
+	if err != nil || got != want {
+		t.Fatalf("exact sibling depends on enrollment: %v %v", got, err)
 	}
 }

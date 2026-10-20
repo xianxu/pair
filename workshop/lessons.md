@@ -2439,3 +2439,6 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 
 - #726 BR-17: A hub-approved scope extension after close still needs a full close review. The narrow fixed-then-ship recipe only covers fixes to the finalized scope; record the new governing contract in Revisions and route the expanded implementation through full close.
+
+- #726 BR-18: A request latency budget belongs to the request entry, before authentication, and spans the last synchronous lookup through enqueue. Do not renew it per stage. Check expiry even after a callback returns success, and test combined successful stage delays through the real socket, not each stage in isolation.
+- #726 BR-19: An admission cache must select the same physical repository as fresh resolution before it looks up an alias. Reuse exact sibling precedence in memo and queue-key selection; qualify cold and prewarmed aliases/prefixes and constructor context wiring.

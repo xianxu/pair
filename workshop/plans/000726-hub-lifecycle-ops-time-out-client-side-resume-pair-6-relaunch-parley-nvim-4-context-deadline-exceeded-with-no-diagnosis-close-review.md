@@ -183,3 +183,184 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T11:36:35-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 726 — Hub lifecycle ops time out client-side (resume pair:6, relaunch parley.nvim:4: 'context deadline exceeded') with no diagnosis |
+| repo | pair |
+| issue file | workshop/issues/000726-hub-lifecycle-ops-time-out-client-side-resume-pair-6-relaunch-parley-nvim-4-context-deadline-exceeded-with-no-diagnosis.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | e2ac2a19f253961b715b6edf104ca82d72b5c40a..06fde08625b18c4fbbfb7ab4e84d8dbf37a59524 |
+| command | sdlc close --issue 726 |
+| reviewer | codex (openai; author anthropic,openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T11:36:35-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-17 is addressed by this full-range review. All three changed-package test suites, focused race tests, and vet pass. Two correctness gaps remain: the admission budget excludes work before and after the guard, and repository warming can resolve a reference differently from the existing fresh resolver.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Failure entries retain the resolver error; TestHubTargetMemoRemembersALateFailure covers late completion and retry.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Move target resolution uses Warm; TestHubMoveAdmissionUsesWarmSlotsAndRechecksFresh covers admission and fresh revalidation.
+  - id: BR-3
+    disposition: withdrawn
+    note: |
+      Discover concurrency and replaced-host tests ran successfully under the race detector in this environment.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Background flights and Discover verification have eight-worker caps, covered by focused race tests.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Memo access and writes consistently use hubTargetKey.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Admission and fresh guards share checkHubSlotOperation with injected sources.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Discover concurrency uses an in-flight rendezvous rather than elapsed time as its success oracle.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      Receipt filtering bounds its memo wait; Warm also enforces its own budget.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      The issue Revisions records failure retention, move revalidation, caps, ordering, and additional visible states.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      remember rejects older-started results; late individual and repository completion regressions pass.
+  - id: BR-11
+    disposition: addressed
+    note: |
+      Writes sweep expired entries and cap the map at 256; the sweep/cap regression passes.
+  - id: BR-12
+    disposition: addressed
+    note: |
+      Failure expiry uses finished time; TestHubTargetMemoAgesFailuresFromTheirEnd passes.
+  - id: BR-13
+    disposition: addressed
+    note: |
+      The oversized-store fixture exercises metadata and record limits, compares counted bytes, and passes with the routing regression.
+  - id: BR-14
+    disposition: addressed
+    note: |
+      ReadRequest has one Source-nil capture fence after optional candidate collection.
+  - id: BR-15
+    disposition: addressed
+    note: |
+      resume_candidates.go attributes the confirmed choice to the established binding without claiming all incomplete observations affect only inference.
+  - id: BR-16
+    disposition: addressed
+    note: |
+      atlas/couch.md:83-85 and the Plan M2 bullet match the CLI wording and established-binding recovery path.
+  - id: BR-17
+    disposition: addressed
+    note: |
+      This review inspected the complete pinned range, including repository batching, startup prewarm, production wiring, and Tier A acceptance. The issue Revisions at line 121 explicitly supersedes the original per-reference design.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: admission-sync-discover-over-exchange
+    title: |
+      The admission budget does not cover the complete admission path
+    detail: |
+      hub_guards.go:162-168 starts the 1.5 s budget after handleSlotOperation has authenticated the caller, then cancels it before slotOps.handle. Earlier liveCaller reads can wait up to one second for the store lock (message_service.go:1256; couchcore/retention.go:299), while later queueTarget performs another repository-name read with a separate 500 ms allowance. A caller check that succeeds after 700 ms followed by a cold target resolution reaches the parent 2 s deadline before the inner budget expires; transport.go then drops the refusal. This is the 3rd finding in family admission-sync-discover-over-exchange. Earlier rounds fixed instances; establish one deadline for the entire lifecycle admission path, including authentication, target resolution, queue-key lookup, and enqueue, and sweep slot, move, and status paths against that rule (ARCH-CONSTRAINTS, ARCH-PURPOSE). Add a socket regression combining delayed successful authentication with blocked target resolution, plus delayed queue-name lookup.
+  - id: new
+    severity: Critical
+    kind: defect
+    family: canonical-reference-resolution
+    title: |
+      Repository warming bypasses sibling-directory precedence
+    detail: |
+      hub_target_memo.go:119 resolves repository names directly against enrollment, then returns the batched slot at lines 135-146. The existing fresh resolver instead gives an exact sibling directory precedence over enrolled names and prefixes (couchcore/slotcontext.go:152-156), explicitly tested by TestExistingSiblingDirectoryBeatsPrefix. With an existing sibling parley and an enrolled parley.nvim, Warm("parley:1") can return parley.nvim:1 while Fresh resolves parley:1. If those repositories belong to different hubs, admission refuses a valid operation before fresh authority can correct the snapshot. Derive memo repository identity through the same reference-resolution rule, retaining batching after identity is established; cover cold and prewarmed references, including prefixes and aliases (ARCH-DRY, ARCH-PURPOSE).
+```
+
+1. **Strengths**
+
+   - Admission snapshots remain separate from fresh prepare/effect authority checks.
+   - Flights share a capacity limit, service cancellation, and shutdown joining.
+   - Tier A tests exercise real broker sockets, CLI polling, console recovery, and persisted live incarnations.
+   - Candidate-scan skipping preserves capture fencing and non-candidate recovery evidence.
+
+2. **Critical findings**
+
+   - Two, detailed above. Both need regression coverage with the correction.
+
+3. **Important findings**
+
+   - None additional.
+
+4. **Minor findings**
+
+   - None.
+
+5. **Test coverage notes**
+
+   Passed:
+
+   - `go test ./cmd/internal/couchcmd ./cmd/internal/couchcore ./cmd/internal/artifactpath`
+   - Focused hub and couchcore tests under `-race`
+   - Existing sibling-precedence regression
+   - `go vet ./cmd/internal/couchcmd ./cmd/internal/couchcore`
+
+   Current tests do not combine admission-stage delays or compare memo resolution against sibling precedence. Live acceptance was not performed.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — flag:** memo and fresh resolution implement different reference-selection rules.
+   - **ARCH-PURE — pass:** resolver, repository sources, and clock are injected.
+   - **ARCH-PURPOSE — flag:** complete admission still lacks the promised bounded response.
+   - **ARCH-MOCK — pass:** tests use shared production seams and stateful portable fixtures; live Tier B remains explicitly separate.
+   - **ARCH-CONSTRAINTS — flag:** budgets cover individual stages rather than the complete exchange.
+   - **ARCH-SECURE — pass:** fresh authority and capture-identity checks remain intact.
+   - **ARCH-ORDER — pass:** late-result ordering and cancellation/join behavior have controlled tests.
+   - **ARCH-FUNERAL — pass:** entries are swept and capped; flights end with the service.
+   - **ARCH-EVOLVE — pass:** no persisted-format change.
+
+   Atlas covers the new internal flow. No new command, flag, or configuration key requires a README addition. The Plan contains no Core concepts table.
+
+7. **Plan revision recommendations**
+
+   Add `## Revisions` entries establishing:
+
+   - One admission deadline spanning authentication through enqueue, with controlled multi-stage delay tests.
+   - One canonical repository-selection rule shared by memo and fresh resolution, including sibling precedence and cold/prewarmed equivalence tests.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"f58d3a93-3d1e-4e01-94e6-eb42bb68ca43","repository":"github.com/xianxu/pair","issue_id":"000726","recipe":"milestone-review","round":8,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/63fd352e96effb43","reviewed_head":"06fde08625b18c4fbbfb7ab4e84d8dbf37a59524","slot":"pair:2","requested_at":"2026-10-20T18:31:55.466403Z"},"phase":"finished","pid":64696,"started_at":"2026-10-20T18:31:55.556003Z","finished_at":"2026-10-20T18:36:34.392281Z","session_id":"01a15a95-989b-7e30-b96e-d1102c354c12","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.477914166s
+head: "06fde08625b18c4fbbfb7ab4e84d8dbf37a59524"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
