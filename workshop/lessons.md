@@ -2434,3 +2434,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #722 BR-2: Keep real dependency conformance executable and opt-in with an isolated-root guard and a documented cadence. Historical scratch-probe logs cannot detect subsequent divergence from a stateful fake.
 
 - #722 BR-3: Compare the full operation-kind policy of a dependency against both the original Spec and fake before calling conformance complete. A real test that accepts narrower behavior needs an explicit approved scope revision; align suite, merge, landing, owner replay and resume assertions across both seams.
+
+- #722 BR-4: Enumerate failure and recovery writes when claiming a pure transition authority. Broker-release refusal, store failure and capacity failure must be reducer events too; enforce coordinator phase/error ownership with an AST catalog rule, including aliases.

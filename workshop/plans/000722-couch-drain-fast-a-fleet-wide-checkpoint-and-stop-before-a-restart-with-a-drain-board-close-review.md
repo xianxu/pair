@@ -202,3 +202,112 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T06:44:42-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 722 — couch --drain [--fast]: a fleet-wide checkpoint-and-stop before a restart, with a drain board |
+| repo | pair |
+| issue file | workshop/issues/000722-couch-drain-fast-a-fleet-wide-checkpoint-and-stop-before-a-restart-with-a-drain-board.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 7d4e0c3aba6b39fb12d5125ee967dcde9e5be4be..b17cc5ce215c1caf6cab8145e60bbaf63513fbb0 |
+| command | sdlc close --issue 722 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T06:44:42-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+BR-3 is addressed: the governing revision explicitly permits safe merge/landing retirement, and the fake, coordinator tests, real conformance assertions, README and atlas agree. Focused tests and race checks passed. One Important architectural gap remains: coordinator failure paths bypass the pure transition model. Operator-present live acceptance remains outstanding under the approved gate ordering.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Retained acknowledgement-baseline and delayed present/absent observation regressions pass, including under race; production observations use the revision-fenced observeMember path.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Retained real conformance and documented cadence remain present; reviewer reran all three conformance tests successfully against clean matching SDLC source/build dc76211e27578aca7aa62d434db9ca2bd43eed5b.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Governing plan lines 292–302 explicitly revise fast cancellation policy. Both new regression tests fail with the pre-fix fake and pass on head; real conformance confirms suite interruption and continued merge/landing activity.
+findings:
+  - id: new
+    severity: Important
+    kind: defect
+    family: state-transition-authority
+    title: |
+      Coordinator failure paths bypass the authoritative drain transition model
+    detail: |
+      cmd/internal/couchcmd/drain_service.go:819–820 directly changes cancelled back to cancelling after broker release fails, although ReduceDrain rejects every event in cancelled state. Additional direct Error assignments occur at lines 171, 255 and 552. Consequently the reducer does not enumerate all production transitions, contrary to ARCH-ORDER structural enforcement. Model broker release outcomes and other failure outcomes as explicit events, route these writes through the pure model, and enforce that the coordinator cannot directly mutate authoritative phase/error fields.
+```
+
+1. **Strengths**
+
+   - Completion requires checkpoint acknowledgement, subsequent idle evidence and authoritative queue quiescence.
+   - BR-3 tests cover suite, merge, landing and combined operation kinds; the coordinator continues waiting through separate retirements.
+   - Typed generation fences protect final input effects, with counted 1,000/2,000-cycle lifetime tests.
+   - README and atlas document the new commands, recovery behavior and revised fast policy.
+
+2. **Critical findings**
+
+   None.
+
+3. **Important findings**
+
+   The `state-transition-authority` finding above. Add a broker-release outcome event and test failed release followed by retry through the production reducer, including rejection of stale outcomes.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - Five-package focused drain/recovery tests: PASS.
+   - Four-package drain race tests: PASS.
+   - All retained real queue conformance tests: PASS, using fresh private roots.
+   - Mutation control: restoring the old fake makes both BR-3 regressions fail. Disposable checkout removed; tracked checkout unchanged.
+   - Full repository suite and operator-present live acceptance were not rerun in this review.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared notice, board and broker eligibility policies.
+   - **ARCH-PURE — pass:** listed pure entities use value-based tests without IO.
+   - **ARCH-PURPOSE — pass:** revised fast policy covers every queue kind.
+   - **ARCH-MOCK — pass:** stateful doubles share production seams; retained real conformance passes.
+   - **ARCH-CONSTRAINTS — pass:** bounded membership, fanout, subprocess output and polling.
+   - **ARCH-SECURE — pass:** strict decoding and exact incarnation/generation checks.
+   - **ARCH-ORDER — flag:** authoritative state mutations bypass the reducer.
+   - **ARCH-FUNERAL — pass:** bounded current record and generation outcomes.
+   - **ARCH-EVOLVE — pass:** nested unknown-field preservation and strict known-field validation.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry specifying broker-release success/failure/retry transitions, their completion invariant and the enforcement preventing coordinator-side phase/error mutation.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"7a623b66-2d6a-4da3-be41-e14b781184ba","repository":"github.com/xianxu/pair","issue_id":"000722","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/0e292e1f7a0ac1e3","reviewed_head":"b17cc5ce215c1caf6cab8145e60bbaf63513fbb0","slot":"pair:5","requested_at":"2026-10-20T13:41:19.936664Z"},"phase":"finished","pid":57818,"started_at":"2026-10-20T13:41:20.132552Z","finished_at":"2026-10-20T13:44:41.991386Z","session_id":"01a1598b-8df2-73b0-bff3-2a4ff9ee3e17","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.971019959s
+head: "b17cc5ce215c1caf6cab8145e60bbaf63513fbb0"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
