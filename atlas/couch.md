@@ -2134,6 +2134,21 @@ The exception is a validated recovery-only key sequence: one or more `esc` or
 retaining the same caller, owner, incarnation and input-exclusion guards. It
 may acquire a leftover awaiting-empty lease, never an active peer/drive lease.
 Generic keys and model selection retain the settled empty-composer requirement.
+A second exception (pair#691) is exactly one `esc` on a slash-command panel the
+hub opened, such as Claude's `/usage`. The panel replaces the composer, so the
+wrapper's `Dismissable` projection needs positive evidence of its own: the
+current viewport (never scrollback) ends in the panel's Esc footer, with no
+composer prompt and no numbered choice (`agentdrive/panel.go`). Pickers and
+permission prompts number their choices, so Esc there stays refused. Every
+other key, `clear-line` included, refuses while a panel shows. The dismissal is
+confirmed only when an empty composer returns. A panel still showing at the
+drive deadline reports unconfirmed with its tail, and nothing retries. A panel
+frame repainted after the write proves nothing, because a usage panel repaints
+when its data loads. One rule, `agentdrive.Request.Admits`, decides admission
+for the service, its pre-input guard, the wrapper and the reducer. The panel
+is the rows below the viewport's last full-width rule, since earlier prompt
+rows stay visible above it; the footer wording comes from the Claude 2.1.304
+capture in `wrapcmd/testdata/drive/claude/2.1.304/`.
 
 `couchmessage/drive_endpoint.go` provides `drive-observe`, `drive-start`,
 `drive-status` and idempotent `drive-cancel` over the existing authenticated
