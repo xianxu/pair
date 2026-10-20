@@ -7,7 +7,7 @@ created: 2026-10-19
 updated: 2026-10-19
 estimate_hours: 1.24
 collaboration-mode: collaboration
-card_mirror: 'ae8bc0010e77e9e159f3be99adc86f8bf3eb7a6c' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '410245214e2a7c734f23ce07730caa804a978bb8' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-19T21:04:51-07:00
 claimant:
     operator: Xian Xu
@@ -17,7 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
-actual_hours: 0.60
+actual_hours: 2.02
 ---
 
 # Cold-start recovery gaps: a failed resume wedges the slot in starting; post-reboot candidate scans incomplete; a codex slot lost its candidate
