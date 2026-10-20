@@ -1,13 +1,13 @@
 ---
 id: 000711
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-19
 updated: 2026-10-20
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '26da33de7d83d4e426d7ba0639fe8b4c3388e8f5' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '218c30e394db7eb0da302cfba0da2d8a890b9051' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T05:51:05-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "610cc940", done: "c315e15f"}
+actual_hours: 1.22
 ---
 
 # couch --send-to hub refused 'no live registration' while both actors were live; advises a restart
