@@ -213,3 +213,46 @@ Canonical submitted TL receipt 0a9b7377-14f4-444f-83ce-3cf1cb86353e approves thi
 ### 2026-10-19 — PQ-1 function-level verification strategy
 
 Plan-quality round1 accepted the architecture/ordering but rejected the task sections' prose test-case inventories. Replaced those inventories throughout tasks1–4 with named production functions, an adversarial-input/controllable-ordering strategy and an independent mechanical guard. Governing state/ordering requirements remain requirements rather than a test-case pre-image. This is a verification-description correction, not a change to the approved notice, SDLC seam, visible states or scope.
+
+### 2026-10-20 — re-plan proposal: bounded wrapper generation ownership (awaiting TL approval)
+
+The implemented wrapper retains interrupt receipts and cancellation tombstones in two maps capped at 128 IDs per wrapper incarnation. An isolated probe confirmed that cancellation64 retains128 revocation IDs, cancellation65/66 return unknown, and retrying65 cannot recover. This safely refuses input but can strand a real queue owner. Merely enlarging the cap postpones the same failure; evicting old IDs loses the late-input fence; relaunching a wrapper cannot establish the old incarnation's uncertain effects. These alternatives do not satisfy the approved bounded-current-outcome contract. Do not implement the following replacement until TL approval and a renewed change-code plan gate.
+
+**Revised architecture:** replace the retired-ID lifetime ledger with one monotonically ordered drain generation per wrapper. The existing namespace intent is the sole durable epoch allocator; the wrapper's existing input-admission lease owns its high-water mark and current-generation outcomes. Late lower-generation calls cannot acquire input authority even after their IDs have been discarded (ARCH-STATE, ARCH-FUNERAL, ARCH-ORDER).
+
+| Pure concept | Location | Change |
+|---|---|---|
+| Typed drain fence: generation UUID, positive uint64 epoch, expected wrapper instance | couchmessage drain protocol/model | new validated value shared by message and endpoint controls |
+| Persisted generation epoch | couchcmd drain_service_record.go | modified single intent record; allocate prior epoch+1 for a new generation, never for a duplicate start |
+| Wrapper current generation/high-water mark | wrapcmd drain_interrupt.go | modified lease-owned state; current outcomes only |
+
+| Integration | Change |
+|---|---|
+| Coordinator/store | Persist epoch with intent before pause/input; preserve it across restart and owner-only cancellation; reject overflow before effects |
+| Broker/RemoteEndpoint | Carry the same typed fence on notice, interrupt, interrupt-status and revoke; validate returned authority |
+| Wrapper input owner | Check instance and epoch under the existing input lease before accepting controls and at every final Esc/paste/submit; advance to a higher epoch atomically and discard retired-generation maps |
+| Stateful fleet/transport fakes | Model the same epoch authority, not a separate permissive test path |
+
+One epoch belongs to exactly one generation UUID. Same epoch/different UUID is refused; lower epochs cannot revive old controls or mutate the current generation. A higher epoch retires old effect authority under the input lease before admitting the new control. Pending callback objects retain their frozen fence and revalidate it even if their map entry was retired. Current-generation ID capacity remains bounded as a defensive malformed-producer limit, not a lifetime count of successful drains. The monotonic counter may reset only with a new wrapper incarnation; namespace record loss/reset with live wrappers fails closed rather than manufacturing a new low epoch. Do not add a cleanup timer, retired-generation journal, automatic relaunch, or new queue owner.
+
+An independent fresh-context wrapper read confirmed the capacity reproduction and adds these required fences: bind the epoch to the authenticated endpoint namespace as well as generation UUID; negotiate the capability so older wrappers refuse. Every control outcome echoes namespace/generation/epoch and wrapper instance, which broker/coordinator verify. Read-only observation/status never advances the watermark. Retire old outcome records only after their cancellation dispositions are known; a high-water mark proves no future old write, not that prior input never happened. Advancing an epoch must preserve existing automatic-input quarantine and any composer residue. Test these independently through reservation, enqueue, batching/finalization and every final input write.
+
+Public CLI, UUID acknowledgements, exact notices, #481 argv/JSON, four visible states, timeout and cancellation ordering remain unchanged. Persisted intent becomes schema_version2: an old reader ignoring the new epoch could revive retired controls, so it must refuse the new version. Version1/unsafe epoch data is held/unsupported by the new reader, with no automatic migration of possibly active effects. Additive unknown fields still survive normal version2 rewrites. Wrapper capability negotiation and strict typed fences likewise prevent silent downgrade. No new operator action or live experiment is proposed.
+
+Actions remain wait, inspect status, checkpoint/ack, retry cancel and cancel then start.
+
+| Internal condition | Visible state | Recovery | Possible loss |
+|---|---|---|---|
+| Valid next epoch / duplicate current epoch+UUID | Existing draining/drained projection | Existing action | None beyond the approved checkpoint contract |
+| Late retired call | Cannot grant input or alter current board | Inspect status if current work is affected | Retired receipt detail may be discarded; retired effects cannot be replayed |
+| Conflicting UUID, missing/unsafe epoch, storage reset or overflow | Stuck/refused with exact generation reason | Inspect status | No claimed safe restart or input authority |
+| Current generation cancellation | Existing cancelling/cancelled projection after control disposition and owner release | Retry cancel | Completed input is not rolled back |
+
+Verification and one close boundary:
+
+- [ ] Test pure fence validation and epoch allocation with reordered/duplicate/conflicting values and overflow; independently assert no lower epoch can grant authority and no duplicate start increments the epoch.
+- [ ] Test wrapper control acceptance plus final Esc/paste/submit through its stateful input owner, keeping old callbacks delayed while generations advance. Count retained maps at N and2N generations (including more than128) and input writes independently; assert constant current residue and no old-generation writes after retirement.
+- [ ] Test coordinator/store/broker plus actual RemoteEndpoint transport across repeated graceful/fast/cancel/recover cycles. Require cancellation beyond the former cap, exact returned fence checks and unchanged owner-only queue ordering; preserve all prior unknown-effect and incarnation tests.
+- [ ] Update atlas/operating envelope, run focused/race/fuzz and repository inventory/catalog checks, checkpoint, push, then record a fresh full suite on the changed code. Real #481 conformance, operator live board acceptance and the mandatory close review remain required before landing.
+
+Growth drivers: wrapper input events perform O(1) generation checks; retained current controls are bounded independently of total drain count. A generation advance discards only the fixed current map. Coordinator generation allocation is O(1); existing O(N) fanout and one shared queue poll remain. No new idle polling or subprocesses.
