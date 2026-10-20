@@ -151,6 +151,15 @@ total: 6.0395
 
 ## Log
 
+### 2026-10-20 14:38 PDT — disposable qualification remains failed; integrate landed main
+
+Complete couchcmd/couchmessage/wrapcmd package runs passed (125.764s/26.477s/124.465s). Core/console agent reports complete package passes, plus final focused changed-code tests; no full repository suite yet. The opt-in installed harness now uses real Couch, Pair and wrappers under isolated roots and archives raw evidence. Numbered worker launch refused because its fixture had no remote/main or compiled setup; do not fake provisioning. Three disposable primary repos are actual hubs, exercising issuing-steward exclusion and other hubs acting in worker posture; non-hub worker ownership is not claimed.
+
+Development run7 FAILED at90s runtime: all three real wrappers/agents launch, but CLI caller registration remains unavailable. Wrapper environments and version subprocess markers eliminate missing environment/early-return hypotheses; no PEER-start-fail is recorded. Public list and private read-only refusal diagnostics return no admission reason. Full failed log: /tmp/pair-722-drain-acceptance-development-7.log; retained artifact directory: /Volumes/TestScratch/tmp/pair-slot5/pair-drain-artifacts-3573115657. Recorded owned server generations are gone. The last cleanup-generation checks and atomic fixture inbox changes still require a fresh run. No acceptance, SHIP, stage or live-success claim.
+
+Checkpoint the fixture, then integrate already-landed main once before final qualification/required suite. This branch predates landed Couch fixes and the new reader inventory; importing only inventory hashes would misrepresent its source. Trace actual registration/admission failure after integration, without a synthetic binding or bypass. Watched live acceptance remains blocked on successful disposable qualification and renewed close.
+
+
 ### 2026-10-20 14:25 PDT — transient redesign implementation checkpoint
 
 Verified submitted TL831e9502; reopened through set-status in canonical pair:5 after PR474 merged. Renewed change-code completed (plan-quality CLEAN; estimate-quality INFO, new cumulative14.947h explicitly includes deletion, service integration and installed qualification). Old9.6185h remains historical forecast, not measured incurred work; no unexecuted old live-acceptance allowance is claimed as completed. Deletion/regression allowance includes broad message/lifecycle tests, races, lint and active suite diagnosis; installed fixture qualification remains the principal forecast uncertainty.

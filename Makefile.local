@@ -129,6 +129,12 @@ test-perf-budgets: $(BIN_DIR)/pair
 	PAIR_PERF_BUDGETS=1 go test ./cmd/internal/wrapcmd -run '^TestTailOverEndpointSocketIsFast$$' -count=1 -v
 
 .PHONY: test-couch-zellij-live
+.PHONY: test-drain-acceptance
+# #722: opt-in disposable installed fleet. Required close/pre-stage evidence is
+# recorded in the issue Log; ordinary suites retain the cheap regressions.
+test-drain-acceptance:
+	PAIR_DRAIN_ACCEPTANCE=1 go test ./cmd/couch -run '^TestDisposableCouchDrainFlags$$' -count=1 -v -timeout 4m
+
 # pair#432 excludes TestParkLifecycleLive, TestContinuationZellijSeedTransportLive
 # and Recovery/checkpoint until it settles duplicate-quit idempotency and the
 # cold-launch ownership poll. Restore them to -run and drop -skip there.
