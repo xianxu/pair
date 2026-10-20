@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/xianxu/pair/cmd/internal/procutil"
 	"os"
 	"os/exec"
 	"path/filepath"
