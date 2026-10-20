@@ -1,6 +1,6 @@
 ---
 id: 000699
-status: working
+status: codecomplete
 created: 2026-10-19
 updated: 2026-10-19
 estimate_hours:
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.05
+tracker:
+    version: 1
+    completion:
+        token: close-300f6fda32ca
+        repository: github.com/xianxu/pair
+        reviewed_head: ec35b5d820a6cb463bea6c1690fef44af5ee81ed
+        evidence_commit: fdc9435712453408c16d2d9bf977935ff00d13bc
 ---
 
 # CI: build weave from a pinned ariadne commit
