@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-19
 updated: 2026-10-20
-estimate_hours:
+estimate_hours: 1.24
 collaboration-mode: collaboration
-card_mirror: '9453834bef09722d833e2a1e3279899da7c725a2' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '9477153666c87eb534d681466a9cf6f9c41928c7' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T01:12:01-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
 ---
 
 # couch --keys: support special keys (tab, shift-tab, arrows, backspace, function keys, ctrl/alt chords)
@@ -52,6 +53,22 @@ Durable plan: `workshop/plans/000717-couch-keys-support-special-keys-tab-shift-t
 
 - [ ] M1 — named keys in the one step table (bytes, parser, help, skill)
 - [ ] M2 — `couch --interrupt repo:N --confirm`: one Ctrl+C, only on an active turn
+
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module      design=0.1 impl=0.16
+item: greenfield-go-module   design=0.3 impl=0.24
+item: milestone-review       design=0.0 impl=0.14
+item: milestone-review       design=0.0 impl=0.14
+item: atlas-docs             design=0.05 impl=0.04
+design-buffer: 0.15
+total: 1.24
+```
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.* M1 extends #716's table (smaller module, mirror). M2 is a new request shape through the reducer, wrapper, service and CLI (greenfield, single concern). Impl values are 40% of the v2 midpoints (0.4, 0.6, 0.35, 0.1). Design is low because the plan is settled and reviewed (thorough plan doc, so a 15% buffer). The calibration doc is flagged stale (#127), so the numbers are provisional.
 
 ## Log
 
