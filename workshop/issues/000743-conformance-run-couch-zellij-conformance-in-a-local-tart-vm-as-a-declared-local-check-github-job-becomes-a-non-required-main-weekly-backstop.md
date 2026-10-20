@@ -59,3 +59,13 @@ capacity instead of on our tests. The operator's rule is local-first verificatio
   - **Every agent kind:** agent-facing cases run against Claude and Codex (Qoder when it has credits).
   - **Pair first** (operator); ariadne and parley later.
   - Uses the shared disposable-Couch harness (pair#744) for its live cases.
+- 2026-10-20 14:00 (TL, operator decision in the same side doc): **the VM is machine-wide and Couch-provided**, not
+  pair's per-repo `.tart/` setup. Build first: one provisioned image (pinned Zellij, nvim, Go, agent CLIs; refreshed
+  on purpose) and one small runner (e.g. `pair vm run --checkout PATH -- <command>`: APFS-clone the checkout in, run
+  with a clean HOME, copy results and logs out, stop) that owns the two-VM lock (one position for the landing train,
+  one for ad-hoc). Any repo can use it; pair's conformance is its first user. The per-repo `.tart/` stays for
+  interactive dev.
+- 2026-10-20 14:15 (TL, operator agreed): no second queue. The landing train stays the only queue; the VM is a
+  machine-wide resource pool (like the suite slots) that a train acquires at its tier-3 step, **after** its suite
+  passes and only if a car touches the conformance paths. One VM position for trains and the nightly burn-in, one for
+  ad-hoc runs. The machine plan (ariadne#475) counts VM positions once a second repo uses the VM.
