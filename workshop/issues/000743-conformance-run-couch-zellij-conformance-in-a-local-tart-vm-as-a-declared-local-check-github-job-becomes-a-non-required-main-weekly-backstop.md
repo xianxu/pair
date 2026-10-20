@@ -1,13 +1,21 @@
 ---
 id: 000743
-status: open
-deps: []
+status: working
+deps: [ariadne#509]
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '9bd068ef97388118ca0169e76e2079433f052dee' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '6396682f6300b31c0599486303de17d6aa540a16' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-20T14:15:16-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # conformance: run couch-zellij-conformance in a local Tart VM as a declared local check; GitHub job becomes a non-required main/weekly backstop
@@ -42,11 +50,23 @@ capacity instead of on our tests. The operator's rule is local-first verificatio
 
 ## Plan
 
-- [ ]
+Full-flow durable design: [local VM conformance plan](../plans/000743-local-vm-conformance-plan.md). Awaiting hub approval before implementation.
+
+- [ ] M1 — Refreshed image and generic isolated runner.
+- [ ] M2 — Strict Pair conformance and runnable named check.
+- [ ] M3 — Nightly burn-in handoff and initial infrastructure landing.
 
 ## Log
 
 ### 2026-10-20
+
+- Claimed in pair:3 and entered planning. Read-only audit confirms Tart 2.32.1; stopped pair-test last accessed 2026-06-09, four CPUs/8 GiB, 50 GiB virtual disk. No VM was started or modified during planning.
+- ARCH-DRY: interactive `.tart` is inherited, ignored dev infrastructure with best-effort hooks/final SSH status; the CI runner must have a strict command/cleanup boundary. The generic runner owns two fixed machine positions, not a second scheduling queue.
+- SDLC lacks train-scoped/path-conditional checks and every local check currently takes a suite slot. Filed ariadne#509 unclaimed; it owns the post-suite train/single-landing hook, conditional any-car union and external resource separation. Do not emulate that contract in pair.
+- Current native targets exercise real terminal/nvim/Zellij machinery but use synthetic agents; #744 owns genuine disposable-Couch/Claude/Codex cases and is not assumed available. Required-case JSON validation must also cover the lifecycle population, where plain Go test currently permits skips.
+- Hub approved the initial rollout split in submitted receipt e41577c8-f467-40e7-baf7-c5d5cbea53da: land image/runner/runnable nightly first, keep landing activation off and GitHub PR conformance required through seven clean nights, then promote separately after ariadne#509. Durable plan records failure/uncertainty, resource lifetime, isolation, bounded residue and exact verification; no implementation has begun.
+- Filed #745 unclaimed for the explicit promotion/cutover and seven-night evidence; its dependencies are #743 and ariadne#509. #743 depends on ariadne#509 for supported resource-aware named-check acceptance, while M1 image/runner work is independent.
+- One advisory fresh-context plan review found four concrete gaps, all accepted: persist startup uncertainty before spawning so parent death cannot admit a second VM before running-state publication; admit provision/qualification through the ad-hoc lane; reserve bounded nightly evidence separately from ordinary-run pruning; and bootstrap the new named local check after its declaration reaches main (direct real-VM command qualifies before landing). No duplicate plan-approval review was run; change-code remains the mandatory plan-quality owner.
 
 ## Revisions
 
@@ -69,3 +89,4 @@ capacity instead of on our tests. The operator's rule is local-first verificatio
   machine-wide resource pool (like the suite slots) that a train acquires at its tier-3 step, **after** its suite
   passes and only if a car touches the conformance paths. One VM position for trains and the nightly burn-in, one for
   ad-hoc runs. The machine plan (ariadne#475) counts VM positions once a second repo uses the VM.
+- 2026-10-20 14:19 (TL, authenticated rollout approval): initial #743 acceptance is the refreshed shared image, generic isolated runner, strict runnable local conformance and nightly handoff with landing activation **off**. Keep required GitHub PR conformance during seven clean nights. A separate promotion issue owns conditional local landing activation (after ariadne#509) and GitHub PR-trigger removal; retain main/weekly backstop there. #744 is unowned, so do not assume or duplicate its genuine fleet/agent harness. This phases the original Done-when local-gate/path-skipping and GitHub-demotion requirements into promotion without weakening verification meanwhile.
