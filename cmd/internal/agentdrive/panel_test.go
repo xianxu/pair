@@ -41,11 +41,20 @@ func workingTurnScreens(t *testing.T) map[string][]string {
 		inHistory := append([]string{}, lines...)
 		inHistory[3] = "  Esc to cancel"
 		screens[name+", footer words in history"] = inHistory
-		composer := len(lines) - 1
-		for composer > 0 && !strings.HasPrefix(strings.TrimSpace(lines[composer]), "─") {
-			composer--
+		// Walk back past the composer's closing rule to its opening rule, and
+		// put the words on the row just above the box.
+		rule := len(lines) - 1
+		for rule > 0 && !strings.HasPrefix(lines[rule], "─") {
+			rule--
 		}
-		aboveComposer := append(append(append([]string{}, lines[:composer-1]...), "  Esc to cancel"), lines[composer-1:]...)
+		rule--
+		for rule > 0 && !strings.HasPrefix(lines[rule], "─") {
+			rule--
+		}
+		if !strings.HasPrefix(lines[rule+1], "❯") {
+			t.Fatalf("%s: row after the opening rule is not the prompt: %q", name, lines[rule+1])
+		}
+		aboveComposer := append(append(append([]string{}, lines[1:rule]...), "  Esc to cancel"), lines[rule:]...)
 		screens[name+", footer words above the composer"] = aboveComposer
 	}
 	return screens
