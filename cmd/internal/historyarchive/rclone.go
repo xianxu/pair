@@ -9,9 +9,12 @@ import (
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/rowtext"
 	"io"
+	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -287,6 +290,68 @@ func (r Rclone) ObserveFlatInventory(ctx context.Context, pin PinnedDrive) (map[
 // CopyBatch transfers only the coordinator's flat, privately staged objects.
 func (r Rclone) CopyBatch(ctx context.Context, pin PinnedDrive, folder string) error {
 	_, err := r.runner().Run(ctx, r.pinnedArgs(pin, "copy", folder, pin.Root, "--transfers", "8", "--immutable", "--ignore-existing", "--checksum", "--no-update-modtime"), 16<<10)
+	return err
+}
+
+func archiveDownloadName(name string) bool {
+	id := strings.TrimSuffix(name, ".tar.zst.gpg")
+	if id == name {
+		id = strings.TrimSuffix(name, ".json")
+	}
+	return id != name && validHex(id, 64) && id == strings.ToLower(id)
+}
+
+// DownloadBatch fetches only selected flat objects into caller-owned private
+// staging. The exclusive filter file is removed on success and failure alike.
+// Oversized objects are filtered by rclone and must be detected by the caller
+// when verifying the expected staged objects.
+func (r Rclone) DownloadBatch(ctx context.Context, pin PinnedDrive, names []string, destination, filterFile string, maxBytes, maxSize int64) (err error) {
+	if len(names) == 0 || len(names) > maxFlatInventoryEntries || maxBytes <= 0 || maxBytes > 4<<30 || maxSize <= 0 || maxSize > 2<<30 || !filepath.IsAbs(destination) || !filepath.IsAbs(filterFile) {
+		return errors.New("invalid download batch bounds or paths")
+	}
+	seen := make(map[string]bool, len(names))
+	for _, name := range names {
+		if !archiveDownloadName(name) || seen[name] {
+			return errors.New("invalid or duplicate download name")
+		}
+		seen[name] = true
+	}
+	if err = ctx.Err(); err != nil {
+		return err
+	}
+	info, err := os.Stat(destination)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return errors.New("download destination must be an existing directory")
+	}
+	list, err := os.OpenFile(filterFile, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if removeErr := os.Remove(filterFile); removeErr != nil && !os.IsNotExist(removeErr) {
+			err = errors.Join(err, removeErr)
+		}
+	}()
+	for _, name := range names {
+		if _, err = io.WriteString(list, "+ /"+name+"\n"); err != nil {
+			return errors.Join(err, list.Close())
+		}
+	}
+	if _, err = io.WriteString(list, "- **\n"); err != nil {
+		return errors.Join(err, list.Close())
+	}
+	err = list.Sync()
+	err = errors.Join(err, list.Close())
+	if err != nil {
+		return err
+	}
+	// rclone rejects --files-from-raw combined with --max-size. Exact rooted
+	// rules retain the file-size filter and exclude every unselected object.
+	args := r.pinnedArgs(pin, "copy", pin.Root, destination, "--filter-from", filterFile, "--transfers", "8", "--max-transfer", strconv.FormatInt(maxBytes, 10)+"B", "--cutoff-mode", "hard", "--max-size", strconv.FormatInt(maxSize, 10)+"B")
+	_, err = r.runner().Run(ctx, args, 16<<10)
 	return err
 }
 

@@ -179,7 +179,7 @@ func inspectBundle(ctx context.Context, sink Sink, bkey, lkey string, m Manifest
 	if err != nil {
 		return label, obs, err
 	}
-	if err = decodeStrict(raw, &label); err != nil {
+	if label, err = DecodeLabel(raw); err != nil {
 		return label, obs, err
 	}
 	record := CatalogRecord{Label: label, Sink: sinkName, BundleKey: bkey, LabelKey: lkey, VerifiedAt: now, Manifest: m}

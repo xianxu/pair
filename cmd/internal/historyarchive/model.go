@@ -69,17 +69,18 @@ type Manifest struct {
 
 // pair:m5-concept pure
 type BundleLabel struct {
-	Version     int       `json:"version"`
-	ID          string    `json:"id"`
-	Kind        string    `json:"kind"`
-	From        time.Time `json:"from"`
-	To          time.Time `json:"to"`
-	FileCount   int       `json:"file_count"`
-	RawBytes    int64     `json:"raw_bytes"`
-	Bytes       int64     `json:"bytes"`
-	Compression string    `json:"compression"`
-	Recipients  []string  `json:"recipients"`
-	SHA256      string    `json:"sha256"`
+	Version     int                        `json:"version"`
+	ID          string                     `json:"id"`
+	Kind        string                     `json:"kind"`
+	From        time.Time                  `json:"from"`
+	To          time.Time                  `json:"to"`
+	FileCount   int                        `json:"file_count"`
+	RawBytes    int64                      `json:"raw_bytes"`
+	Bytes       int64                      `json:"bytes"`
+	Compression string                     `json:"compression"`
+	Recipients  []string                   `json:"recipients"`
+	SHA256      string                     `json:"sha256"`
+	Extensions  map[string]json.RawMessage `json:"-"`
 }
 
 // pair:m5-concept pure
