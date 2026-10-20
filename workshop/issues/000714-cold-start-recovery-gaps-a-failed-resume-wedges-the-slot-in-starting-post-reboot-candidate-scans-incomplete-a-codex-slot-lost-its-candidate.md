@@ -41,27 +41,24 @@ four gaps:
 
 ## Spec
 
-Proposed design, awaiting TL approval: [durable plan](../plans/000714-cold-start-recovery-plan.md).
+Approved scope: failed-launch disposition and diagnostics only. Native recovery discovery/context work is split to #721. See [durable plan](../plans/000714-cold-start-recovery-plan.md).
 
-First distinguish confirmed failure from uncertainty at the existing recovery launch boundary. Under the per-thread operation hold, an owned helper that has completed plus an absent exact proposed terminal permits a nonce/revision-fenced terminal failure transition. Retain the selection/context, park and thread while removing only the failed creating incarnation. Present/unknown terminal or unknown helper evidence preserves the occupied claim. Optional diagnostics must never decide that disposition.
+Under the existing per-thread operation hold, an owned helper that has completed plus an absent exact proposed terminal permits a nonce/revision-fenced terminal failure transition. Retain the selection/context, park and thread while removing only the failed creating incarnation. Present/unknown terminal or unknown helper evidence preserves the occupied claim. All uncertain dispositions are visibly Launch unconfirmed, with Inspect as recovery. Optional diagnostics must never decide that disposition.
 
-Compose diagnostic identities atomically: a partial outer address must not replace the captured complete launch address. Keep strict failure codecs and one terminal publisher; unresolved refusals use path/reference evidence. Test the actual repo-scope-only resume dispatch and immediate second resume.
-
-Screen availability and native conversation evidence are independent. Keep existing screen-generation checks and scan budgets. Preserve readable descriptive activity with accurate source labels and precise warnings. Add explicit, unconfirmed native candidates when no usable screen exists, using a versioned native-only snapshot through the existing inferred-selection route, exact artifact fingerprints, complete bounded scan, revision/digest-bound explicit choice and independent exec revalidation. Never establish a binding or select automatically from cwd/time. Proposed native-only selection lifetime: five minutes; TL/operator approval required for this state/authority extension.
+Compose diagnostic identities atomically: partial outer evidence cannot replace a complete captured launch address or combine a tag/scope from different targets. Keep strict codecs and one terminal publisher. Unresolved refusals remain persistable by path/reference. No device/inode relaxation or scan-budget change is part of #714.
 
 ## Done when
 
-- A failed resume/launch records its diagnostics and leaves the slot retryable (a test: a launch that exits before
-  registering, then a second `--resume` that proceeds instead of refusing as "starting").
-- After a reboot, a resumable slot's candidate shows its last activity and no spurious generation/incomplete warning,
-  or the warning names what is actually missing (a test from a post-reboot fixture).
-- pair:3's missing candidate is explained (root cause in the Log) and fixed, or shown to be a real loss.
+- A recovery helper that exits before registration with its exact terminal absent records full launch diagnostics and leaves the same retained conversation immediately retryable; a second resume proceeds without waiting for stale-start age or choosing Fresh.
+- Present/unknown terminal, unknown helper, canceled/failed probe, or failed/stale disposition commit preserves the exact attempt and reports Launch unconfirmed; no new agent, signal or terminal deletion follows uncertainty.
+- Repo-scope-only outer resume dispatch preserves complete child launch identity and writes one readable failure record; unresolved refusals also persist, and diagnostic publication failure does not change lifecycle disposition.
+- Ordering/race, file-backed restart and bounded lock-contention tests pass; the pushed final head has a recorded full suite pass before normal merge.
 
 ## Plan
 
-- [ ] M1 — Confirmed failed launch disposition, immediate retry and durable diagnostics.
-- [ ] M2 — Separate screen/native evidence and present explicit unbound candidates.
-- [ ] M3 — Validate native-only authority through exec, qualify restart behavior and land.
+- [ ] Implement confirmed failure disposition and immediate retry with state/order regressions.
+- [ ] Repair complete-address diagnostic composition and enforce the mechanical class.
+- [ ] Verify focused/race/live behavior, recorded suite and close #714 directly; land and report.
 
 ## Log
 
@@ -98,3 +95,5 @@ Screen availability and native conversation evidence are independent. Keep exist
 ## Revisions
 
 - 2026-10-19: Initial design separates definite failed launches from uncertain outcomes and proposes independent native-only candidate evidence. Reason: current on-disk device mismatch plus an oversized historical screen prevents safe reuse of the capture-backed inference contract; old acceptance criteria remain in scope.
+
+- 2026-10-19, TL approval: close #714 after former M1; moved original M2/M3 into #721 (claimed for next, dependency #714). Merged disposition persistence failures into visible Launch unconfirmed. Native-only v2 and five-minute policy are approved for #721; no device/inode relaxation or budget increase. Current Done when and Plan now match the approved narrow contract; original broader requirements remain in the historical plan commit and #721 Spec.
