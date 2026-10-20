@@ -66,6 +66,46 @@ geometry at launch (pane measured before it had a size) refuses outright instead
 - 2026-10-20: closed — BR-1 decoder/read semantic reds fixed with typed pump outcomes and EOF/cancel/disconnect/overlap controls. BR-2 focus red fixed with no-focus. BR-3 native Zellij conformance passed 0.54s, including actual PTY focus and missing-no-focus negative control; native tab-id/near-current-pane conflict removed. Final complete termcmd/layoutcmd/zellijtest race packages passed 6.892s/7.490s/8.095s; terminal, hostty, ptychild, capture, qualify and artifactpath previously passed. Python scheduled-native execution gate 8 tests passed. Corrected code 97c32eaad2245af63532d100ac67e53283b268eb is pushed; its recorded suite is pending, no full pass claimed. Review overlaps suite per tl-worker; unchecked final checklist awaits suite and landing. TL owns project. Approved live check deferred to next natural relaunch, no pair:0 stage.; review verdict: SHIP
 
 
+### 2026-10-20 — full suite completed; exact effect inventory updated
+
+Recorded attempt 670c701f57d279ebc6057ac544689b9d on production/test head
+4db6b859d8c617b65dbe087214fde3d242c741a2 completed in 9m57s after 860s queue
+wait. All scripts, editors and Go packages passed except the deterministic
+zellijreply.TestM2EffectsUseExistingAdmissionToken sentinel. Its exhaustive
+manifest still named runShell / runShellOnHost, now thin wrappers around
+runShellWithExec / runShellOnHostObserved, and did not classify the new
+newRightTerminalTabContext effect. Updated those exact names, retaining the
+startup exemptions verbatim and requiring the existing ctx token for creation.
+No effect or coverage guard was weakened; zellijreply passed in 0.153s.
+Failure log: /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/670c701f57d279ebc6057ac544689b9d.log.
+This is a second deterministic branch fixture update, not a registered flake.
+The corrected new head still owes a recorded full pass.
+
+### 2026-10-20 — known fallback-role limitation deferred to pair#731
+
+Read-only lifetime inspection found that exec preserves the registered wrapper
+PID. TerminalPaneRegistry.LiveIDs checks liveness; RoleForPane additionally
+accepts the startup command or terminal title independently of registry contents.
+Thus a working native fallback shell may retain a Pair-terminal role and receive
+inappropriate global terminal chords. The registry currently has no own lock;
+removing one record is not a complete role fix. No native before/after exec
+metadata observation was made, and no registry/role implementation was changed.
+
+Stopped the exact owned waiting merge (exit 130) before any landing while asking
+the hub to re-plan under the third-delta rule. The hub's final decision
+(7225aa16-eefc-46c0-97b6-49c250d1ca29) is to land the reviewed resilience change:
+a working shell is better than today's removed pane. Filed unclaimed dependent
+pair#731 with the findings and native-observation gap. This explicitly supersedes
+the preceding proposed registration-retirement scope; that proposal was never
+implemented. No registry lock, schema or classification guard belongs in #727.
+The operator's next natural relaunch still owns live acceptance; pair:0 untouched.
+
+The first waiting merge also retained the old close anchor after narrow re-close,
+matching already-filed ariadne#499. Restarted only the exact owned waiting merge
+from a verified landing ticket; the suite retained its queue position. The fresh
+runner accepted the new close and waited normally on suite evidence before being
+parked for the lifetime investigation above.
+
 ## Revisions
 
 ### 2026-10-20 — include pane survival and recovery (hub updates)

@@ -2440,3 +2440,6 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #727 BR-2/BR-3: Native creation defaults are part of the shortcut contract. A focus-preserving create operation must request no-focus explicitly and qualify actual client focus with a disposable native session; argv equality in a fake is insufficient.
 
 - #727 suite: When moving a shared command literal, search source-based shell sentinels as well as Go consumers. Keep behavioral byte equality and point structural checks at the new authority plus its consumers; an old-file substring assertion can fail a valid deduplication that package tests already prove.
+
+- #727 suite: Function renames and new context-bearing effects must update exhaustive effect inventories, not only source ownership manifests. Preserve each exemption's existing meaning and require the inherited admission token for every new observed mutation.
+- #727 follow-up (#731): Exec preserves PID liveness but can end a capability owner's role. Inspect all independent role authorities (registry, initial command, title and actual command) before assuming record retirement fixes classification; stop/re-plan rather than growing one proposed mechanism through repeated corrections.
