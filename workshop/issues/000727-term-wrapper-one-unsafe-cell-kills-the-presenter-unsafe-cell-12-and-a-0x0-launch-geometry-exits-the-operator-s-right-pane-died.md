@@ -7,7 +7,7 @@ created: 2026-10-20
 updated: 2026-10-20
 estimate_hours: 1.98
 collaboration-mode: collaboration
-card_mirror: 'ff3ea11e42bbe90af1180fa83b1a3d71af14896f' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'bc5de66e5e1d27939ac6d245115001efd52b6d97' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T08:47:04-07:00
 claimant:
     operator: Xian Xu
@@ -17,7 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
-actual_hours: 2.13
+actual_hours: 2.68
 ---
 
 # term wrapper: one unsafe cell kills the presenter ('unsafe cell 12'), and a 0x0 launch geometry exits: the operator's right pane died
