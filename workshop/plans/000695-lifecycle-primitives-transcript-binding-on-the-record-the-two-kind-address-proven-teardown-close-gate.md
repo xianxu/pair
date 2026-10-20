@@ -1125,6 +1125,228 @@ rounds:
       isolation: fenced
       reviewed: f9d4f031fe85f8fb6d525c1b8a5b5a5a13b6d17e
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: be05aaf8-1a97-4576-a4bb-d6b88b2877fe
+            repository: github.com/xianxu/pair
+            issue_id: "000695"
+            recipe: fix-review
+            round: 8
+            attempt: 1
+            agent: claude
+            root: /Volumes/TestScratch/review-checkouts/3a358c9e6d57df36
+            reviewed_head: cd3cf1ac2a3d89da9471e2e426f8a57ecf86dc3b
+            slot: pair:1
+            requested_at: "2026-10-20T02:10:26.698876Z"
+          phase: finished
+          pid: 82054
+          started_at: "2026-10-20T02:10:26.890295Z"
+          finished_at: "2026-10-20T02:18:10.438264Z"
+          session_id: 8f63c762-61e8-4e14-8011-9d2724e7fea7
+          outcome: returned
+        - version: 1
+          intent:
+            disposable_root: true
+            id: c8bcda53-d77e-4a1e-b5c5-289287af1150
+            repository: github.com/xianxu/pair
+            issue_id: "000695"
+            recipe: fix-review
+            round: 8
+            attempt: 2
+            agent: claude
+            root: /Volumes/TestScratch/review-checkouts/3a358c9e6d57df36
+            reviewed_head: cd3cf1ac2a3d89da9471e2e426f8a57ecf86dc3b
+            slot: pair:1
+            requested_at: "2026-10-20T02:18:16.517387Z"
+          phase: finished
+          pid: 62311
+          started_at: "2026-10-20T02:18:16.732709Z"
+          finished_at: "2026-10-20T02:25:33.271074Z"
+          session_id: 969a7df4-c309-47cf-949f-53a7fea690d3
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: cd3cf1ac2a3d89da9471e2e426f8a57ecf86dc3b
+        tracker_head: 49c1af72fed3994e52e68fed20962247c9d3f021
+        branch_point: 88540c4dbdbf68d1b63de8f6c05840a11b82deb3
+        since: "2026-10-18T22:57:15-07:00"
+        until: "2026-10-19T18:29:50-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-18T22:57:15-07:00"
+              end: "2026-10-19T18:29:50-07:00"
+              began: "2026-10-18T22:57:15-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot1/pair
+        sources:
+            - harness: claude
+              id: 0f8622e1-c463-4612-8427-0339d0387f2b
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: ca3da0965e8961d1c61c665731c4cd42b4e97772c869410aef3541505e4f55ce
+              started: "2026-10-19T13:36:29.283Z"
+              spawned: false
+              bytes: 393181
+              windows:
+                - start: "2026-10-19T13:36:29.283Z"
+                  end: "2026-10-19T18:29:50-07:00"
+            - harness: claude
+              id: 507d0585-c54a-4834-8abd-9a52d7f9da76
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 543f244f1abe99f49999b94a19bf7b87b5736c356774801254f979352781fa00
+              started: "2026-10-19T02:49:17.103Z"
+              spawned: false
+              bytes: 17106707
+              windows:
+                - start: "2026-10-18T22:57:15-07:00"
+                  end: "2026-10-19T18:29:50-07:00"
+            - harness: claude
+              id: 6fa6fea2-8902-4f5c-9b2a-6548cf879f30
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: faaf9c38d70a8a84ae00d705b1eef74c2570dd281bc35df426c3f6a837398123
+              started: "2026-10-19T13:30:41.221Z"
+              spawned: false
+              bytes: 614766
+              windows:
+                - start: "2026-10-19T13:30:41.221Z"
+                  end: "2026-10-19T18:29:50-07:00"
+            - harness: claude
+              id: 84fed9bb-2c33-495b-a2ac-b1c365c8f242
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 45246414c4d539667e82f0898e93805a8f3c200e359a018f9d53d1c10c45e757
+              started: "2026-10-19T13:36:13.159Z"
+              spawned: false
+              bytes: 572779
+              windows:
+                - start: "2026-10-19T13:36:13.159Z"
+                  end: "2026-10-19T18:29:50-07:00"
+            - harness: claude
+              id: 98afc721-0259-4ecb-a3aa-286966a8fa6b
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 0a6426bb7d4eda2cbe641637263404af0ffc0e861b43796863689e58ebf3b5ab
+              started: "2026-10-19T13:35:01.399Z"
+              spawned: false
+              bytes: 418152
+              windows:
+                - start: "2026-10-19T13:35:01.399Z"
+                  end: "2026-10-19T18:29:50-07:00"
+            - harness: claude
+              id: b5833248-4bc3-4582-a4e6-6c13f3737a1f
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 00e83c9ffe05ea6321734652c9f1f96a46f491047bfc59de33ed5ac5eff504d4
+              started: "2026-10-19T13:32:47.197Z"
+              spawned: false
+              bytes: 604367
+              windows:
+                - start: "2026-10-19T13:32:47.197Z"
+                  end: "2026-10-19T18:29:50-07:00"
+            - harness: claude
+              id: ccfc2441-0f65-4249-8017-65b2eb08cc24
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 5b9b248858b400579af6244ff35f2baa03f8f0e3b41b50d9804fd87bf8a87314
+              started: "2026-10-19T13:34:27.337Z"
+              spawned: false
+              bytes: 574614
+              windows:
+                - start: "2026-10-19T13:34:27.337Z"
+                  end: "2026-10-19T18:29:50-07:00"
+        queue_waits:
+            - attempt_id: 1445b62cb2dd5a17cb7c0288dec9e972
+              slot: pair:1
+              record_digest: 723c5097e3005e039c48f91b9ebc5f795800271e11508eb250d4bad58b05d28e
+              start: "2026-10-19T20:17:24.689345Z"
+              end: "2026-10-19T21:06:57.319288Z"
+              queue_seconds: 2972.629943
+              raw_seconds: 2972.629943
+              exact: true
+            - attempt_id: 98a0a59be0897c1c1859129ba9f7443e
+              slot: pair:1
+              record_digest: 344451b4b4f239f83ef1180c373ebb01ae733bf2f1fab31e157a88bd399a0a75
+              start: "2026-10-19T21:20:26.111822Z"
+              end: "2026-10-19T22:28:42.531888Z"
+              queue_seconds: 4096.420066
+              raw_seconds: 4096.420066
+              exact: true
+            - attempt_id: 47b2fef6de776a0b9f4a3723781e4946
+              slot: pair:1
+              record_digest: 553d78160fddadeb4f496831499fe10b6ac9390c8ccc46ee45f47d6614d6bc7a
+              start: "2026-10-19T23:19:39.509446Z"
+              end: "2026-10-19T23:38:10.154435Z"
+              queue_seconds: 1110.644989
+              raw_seconds: 1110.644989
+              exact: true
+            - attempt_id: acbd0650b53472438bdf65712a5d3b0b
+              slot: pair:1
+              record_digest: a87d153597baad9379ffc7d3e4c92f6c3c405174d6bd6494430ed01317890152
+              start: "2026-10-19T23:47:22.272478Z"
+              end: "2026-10-20T00:17:10.102229Z"
+              queue_seconds: 1787.829751
+              raw_seconds: 1787.829751
+              exact: true
+            - attempt_id: 13c132ae04987e65b18fe6a033603a50
+              slot: pair:1
+              record_digest: edd274eeba1202e3247ce23a5f5d5352abb7e6b58ef0118d604cc897e609140a
+              start: "2026-10-20T00:37:13.172268Z"
+              end: "2026-10-20T00:51:05.960988Z"
+              queue_seconds: 832.78872
+              raw_seconds: 832.78872
+              exact: true
+            - attempt_id: 905409f564fe231a47fc99ebbacb7d61
+              slot: pair:1
+              record_digest: ab0ac002ea65a4282e4f7b955c5452981d2ec8f8c870c6e25752602f7895f9bd
+              start: "2026-10-20T01:01:31.08107Z"
+              end: "2026-10-20T01:20:27.725666Z"
+              queue_seconds: 1136.644596
+              raw_seconds: 1136.644596
+              exact: true
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 28.593
+        cuts:
+            - boundary: M1
+              dispatched: "2026-10-19T07:20:37-07:00"
+              finalized: "2026-10-19T07:40:57-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-19T07:55:34-07:00"
+              finalized: "2026-10-19T08:17:38-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-19T08:27:51-07:00"
+              finalized: "2026-10-19T08:44:32-07:00"
+              finalizing: true
+            - boundary: M2
+              dispatched: "2026-10-19T12:16:55-07:00"
+              finalized: "2026-10-19T12:31:56-07:00"
+              finalizing: false
+            - boundary: M2
+              dispatched: "2026-10-19T12:46:10-07:00"
+              finalized: "2026-10-19T13:16:10-07:00"
+              finalizing: true
+            - dispatched: "2026-10-19T17:26:10-07:00"
+              finalized: "2026-10-19T17:35:29-07:00"
+              finalizing: true
+      "n": 8
+      timestamp: "2026-10-19T19:25:33-07:00"
+      dispatched: "2026-10-19T19:10:23-07:00"
+      agent: claude
+      reviewer: claude (anthropic; author anthropic)
+      recipe: fix-review
+      isolation: fenced
+      reviewed: cd3cf1ac2a3d89da9471e2e426f8a57ecf86dc3b
+      blocked: false
 ---
 
 # Gate ledger — pair#695 (boundary-review)
@@ -1247,6 +1469,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-10 — addressed — record.go:113-118 now says nested types older than pair#695 stay strict and a nested type born additive (TranscriptBinding) keeps its own unknown members, matching the round-2 Revision.
 - BR-21 — addressed — teardown.go:245 now calls lifetimelease.RemoveFree, the same helper SweepFree uses: it takes LOCK_EX|LOCK_NB and checks the path still names the same file. TestRemoveFreeLeavesAHeldLease fails at lease_test.go:242 when the lock check is removed.
 - BR-22 — addressed — retire_test.go now walks the module root and also refuses non-test imports of couchcoretest. A planted cmd/zzprobe/p.go was flagged at retire_test.go:326 and :329.
+
+## Round 8 — 2026-10-19T19:25:33-07:00 (claude) — passed
 
 ## Open findings
 
