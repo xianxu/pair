@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-19
 updated: 2026-10-19
-estimate_hours:
+estimate_hours: 1.56
 collaboration-mode: collaboration
-card_mirror: 'c579a433e56e76b78f97c4c056bfeb5d0ad5c3e2' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'bb27176e8fb0279d34bc5d4040df5b9736e860a3' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-19T21:04:58-07:00
 claimant:
     operator: Xian Xu
@@ -53,6 +53,24 @@ normal temp folder) and print one note naming the missing allowance.
 - [ ] Run focused checks and recorded full suite, close review, land through SDLC and report to the hub.
 
 Durable design: [sandbox-aware slot scratch](../plans/000720-sandbox-scratch-plan.md). One atomic close boundary; full flow because settings and diagnostic plumbing exceed the quick production-line shell.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; source is marked stale. Plan-quality cleared before costing. Policy is one smaller Go module; the settings reader is one greenfield concern using a maintained TOML decoder (design midpoint 1.25h halved for library availability, then spec discount 0.2). Launch plumbing and show each extend an existing small module. Two native settings contracts get discovery allocation; review and atlas are separate. Familiar Go stack 1.0; implementation values are 40% of v2.1 values; design discounts reflect the approved concrete plan. Includes tests, excludes background suite/queue waiting. The moderate native-policy uncertainty remains documented rather than hidden in an invented full resolver.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module design=0.04 impl=0.20
+item: greenfield-go-module design=0.125 impl=0.22
+item: smaller-go-module design=0.03 impl=0.14
+item: smaller-go-module design=0.03 impl=0.14
+item: atlas-docs design=0.025 impl=0.05
+item: milestone-review design=0.02 impl=0.14
+item: real-api-discovery design=0 impl=0.36
+design-buffer: 0.15
+total: 1.56
+```
 
 ## Log
 

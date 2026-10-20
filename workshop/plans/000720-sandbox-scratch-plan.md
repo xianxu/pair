@@ -19,7 +19,7 @@ collaboration-mode: discussion
 | Name | Location | Status |
 |------|----------|--------|
 | SandboxPolicy / ScratchAllowed | cmd/internal/couchscratch/sandbox.go | new |
-| Settings projection helpers | cmd/internal/couchscratch/sandbox_settings.go | new |
+| ProjectClaudeSettings / ProjectCodexSettings | cmd/internal/couchscratch/sandbox_settings.go | new |
 
 Policy is invocation-scoped: known, sandbox-enabled, allowed and denied concrete directories. Unknown refuses optimization; disabled permits it; otherwise deny overlaps win and a component-boundary ancestor allowance must cover the scratch root. Relative/home paths resolve against their settings source and injected home; unsupported globs remain conservative. Codex workspace-write maps to an allowance because TMPDIR is writable by default, unless excluded. Read-only refuses; danger-full-access permits. No second admission policy in diagnostics.
 
@@ -65,7 +65,7 @@ ARCH-PURE: one pure policy predicate, literal table tests and pure decode/projec
 | Function / seam | Risk | Guard |
 |-----------------|------|-------|
 | ScratchAllowed | prefix grants, deny shadow, unknown treated as allowed | pure table with sibling prefix, ancestor, descendants and malformed/unknown policies |
-| settings decode/project | wrong precedence, absent vs broken files, bad known types | literal JSON/TOML tests + user/project/local fixture mutations |
+| ProjectClaudeSettings / ProjectCodexSettings | ambiguous precedence and malformed boundary types | literal JSON/TOML tests plus fuzz seeds; portable scope fixtures verify precedence |
 | ReadSandboxPolicy | native settings leaked or malformed accepted | bounded fixture reads, no config writes, unknown unrelated fields retained untouched |
 | launch callback | stale saved agent on switch/fresh | real Couch fake-runner launch tests assert selected profile and no denied exports |
 | scratch environment | host probe mistaken for agent permission | writable scratch fixture + denying Claude config yields nil overlay and one note |
@@ -74,7 +74,7 @@ ARCH-PURE: one pure policy predicate, literal table tests and pure decode/projec
 
 ## Tasks
 
-- [ ] Write pure predicate and settings fixtures first; run red tests before implementation. Include the operator's enabled sandbox user-settings shape with allowWrite /Volumes/TestScratch, absent settings, disabled sandbox, deny precedence, prefix collision, malformed fields, Codex TMPDIR default/exclusion/read-only and unknown profiles.
+- [ ] Write ScratchAllowed and projection unit tests first using the strategy table; run red before implementation. Keep the operator's enabled user-settings /Volumes/TestScratch allowance as the positive acceptance control.
 - [ ] Implement minimal projection/reader and actual-profile launch plumbing; reproduce the original host-probe-success/consumer-denied failure with a red integration test, then make it pass. Preserve warm/fresh routing and isolated runtime tests.
 - [ ] Add read-only show selection, tests, source inventory and atlas map. Check pure-vs-IO placement and bounded read/entry scaling. Add a local/shared lint proposal only if this resolves a mechanically detectable API misuse; this is consumer-policy semantics, not a general syntactic mistake.
 - [ ] Run focused couchscratch/couchcmd/couchcore tests and artifactpath, then push and run the recorded full suite. Close through SDLC's fresh review, fix Important findings, land through sdlc merge, report Git-verified PR/merge to hub and stop.
@@ -84,3 +84,9 @@ ARCH-PURE: one pure policy predicate, literal table tests and pure decode/projec
 Hub approved the shape and native-relaunch follow-up (6cfb6a23-fb86-4013-93fd-1047d7a7b73c). No pair:0 staging. Headless config/export/show fixtures qualify this change; live follow-up rides the next natural slot relaunch. No native settings change is authorized. Current Codex tool environment has filesystem sandbox disabled/danger-full-access, so our own shell calls do not prove sandboxed access.
 
 Codex source: [SandboxPolicy writable roots](https://github.com/openai/codex/blob/main/codex-rs/protocol/src/protocol.rs), new_workspace_write_policy and get_writable_roots_with_cwd; TMPDIR exclusion defaults false and TMPDIR is added unless excluded. [Config reference](https://developers.openai.com/codex/config-reference/) names sandbox_mode and exclude_tmpdir_env_var. Claude: [sandboxing](https://code.claude.com/docs/en/sandboxing), [settings](https://code.claude.com/docs/en/settings), [managed settings](https://code.claude.com/docs/en/managed-settings). Record these as source-derived semantics, not a full effective native resolver.
+
+## Revisions
+
+### 2026-10-19 — plan-quality advisory
+
+Plan-quality round 1 INFO, no blocking findings. PQ-1 requests concrete projection function names and removal of a duplicated prose case inventory. Named ProjectClaudeSettings/ProjectCodexSettings and compressed the task to the existing adversarial strategy table, preserving the hub's positive acceptance control. No behavioral design change.
