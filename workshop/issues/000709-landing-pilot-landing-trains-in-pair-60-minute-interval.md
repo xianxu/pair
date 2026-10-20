@@ -45,7 +45,7 @@ train PR's merge commit, and its `sdlc landing status` line, and append them to 
 
 ## Plan
 
-- [ ] Add the single-field 60-minute config; retain the existing max-car default.
+- [x] Add the single-field 60-minute config; retain the existing max-car default.
 - [ ] Verify JSON and existing provider config/status tests; publish the PR and record the required suite.
 - [ ] Request operator local-gates verification through the hub; obtain review/partial-landing disposition before landing.
 - [ ] After landing, record main status and the first ≥2-car train evidence; close only after conformance.
@@ -57,3 +57,7 @@ train PR's merge commit, and its `sdlc landing status` line, and append them to 
 Claimed and started from fresh main. TL dispatch e96c835f approves the one-file 60-minute pilot; #622 remains claimed pending a separate coordinated restart. Startup weave regenerated local-gates-guard.yml and merge-check.yml; reverted only those generated changes per dispatch (#699 pending). Baseline sdlc landing status reports trains off.
 
 ARCH-DRY: use existing ariadne#449 config/parser, default car cap and train lifecycle without new runtime logic. ARCH-PURE/EVOLVE: this is read-only input to the existing typed parser, with no format change or rewrite path. ARCH-PURPOSE: the real ≥2-car conformance remains required after configuration lands. Existing train ownership, capacity, uncertainty, security and retention policies remain provider-owned; no new states, credentials, hot path or accumulating artifacts. ariadne#475 (departure slots) and ariadne#470 (grant hold) are related external edges, not implementation in this pilot.
+
+### 2026-10-19 — candidate configuration
+
+Added only train_interval_minutes=60; the provider retains its default max-car cap. JSON validation confirms exactly that field/value; git diff --check passes. Existing provider controls pass (2.067s): go test ./cmd/sdlc -run '^(TestParseLandingConfig|TestReadLandingScheduleAbsentIsOff|TestLandingScheduleSourceFailsToSerial|TestLandingPRLabelMarksLocalGates|TestLandingStatusShowsTrainsAndReadiness)$' -count=1 in the slot-private Ariadne. The config is read from main, so branch status remains off until landing; no live train acceptance claimed.
