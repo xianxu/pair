@@ -64,6 +64,8 @@ Files: `launcher/{recovery_authority_os.go,recovery_authority.go}` and tests; `c
 
 - [ ] Start on main after #714 lands; write durable plan from the transferred Spec and run normal change-code gates.
 
+Durable design: [native-only recovery candidates plan](../plans/000721-native-only-recovery-candidates-plan.md). Start-on-main is complete; plan drafted, hub approval and change-code remain pending. The durable plan uses one atomic issue-close boundary because preview and final launch authority must ship together.
+
 ## Log
 
 - 2026-10-19: Split from #714 by TL approval; native-only variant/lifetime approved. #714 lands failed-launch retry and diagnostics first.
@@ -71,3 +73,8 @@ Files: `launcher/{recovery_authority_os.go,recovery_authority.go}` and tests; `c
 - 2026-10-19: Parent #714 landed as PR #471, merge e63e7fd421fd34ad3308f566545527ef3a19666b, after integrating #695 and receiving renewed SHIP plus an integrated recorded suite PASS (8m45s). Hub report receipt 5a4adbd1-af20-4460-a389-fdab7b7ca0c6 submitted. Started this issue on its own main-based branch 000721-native-only-recovery-candidates. No implementation or change-code yet; durable plan remains next.
 - 2026-10-19: start-plan refreshed the ariadne dependency and generated pending #699 changes in local-gates-guard.yml and merge-check.yml. Preserved them in stash named 721-start-plan-generated-workflows-preserved-for-699; older 715-start-plan-generated-workflows-preserved remains untouched. Do not include workflow migration in this issue.
 - 2026-10-19: Carry forward the approved native-only v2/five-minute design and explicit unconfirmed labels without auto-selection, binding manufacture, device/inode relaxation, or budget increase. Re-read current owners before writing the plan: #695 has now landed transcript binding on the thread record and type-owned unknown-field preservation, so the earlier #714 codec assumptions must be verified against the current tree rather than copied. The Spec's original M2/M3 commands are historical: renumber actual boundaries for #721. Plan-quality and estimate follow normal change-code gates; no new implementation has started.
+- 2026-10-19: Resumed saved continuation; inspected current preview/acquisition/collector/selection and launcher/codec owners, including bounded read-only subagent exploration. Confirmed recovery nested codecs remain strict despite record/TranscriptBinding preservation from #695. Drafted durable plan with source-aware v2 compatibility, fixed cutoff propagation through keys and reobservation, independent screen/native outcomes, shared retry byte accounting, state table and named-function adversarial tests (ARCH-DRY, ARCH-ORDER, ARCH-EVOLVE). No code edits or estimate; hub approval precedes change-code.
+
+## Revisions
+
+- 2026-10-19: Added the concrete durable plan after main-based start and current-owner inspection. Original M2/M3 scope is retained as one atomic #721 review boundary, with unchanged approved behavior and added explicit codec/cutoff/accounting test contracts.
