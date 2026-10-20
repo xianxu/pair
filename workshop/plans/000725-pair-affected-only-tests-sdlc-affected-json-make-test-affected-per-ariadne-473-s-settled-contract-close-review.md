@@ -415,3 +415,100 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T04:57:16-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 725 — pair affected-only tests: .sdlc/affected.json + make test-affected, per ariadne#473's settled contract |
+| repo | pair |
+| issue file | workshop/issues/000725-pair-affected-only-tests-sdlc-affected-json-make-test-affected-per-ariadne-473-s-settled-contract.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | ab32acea6c97663232623b2881e7e7c91aae8a17..55d81f74276404be06a6b7ab86e534a4e26bb393 |
+| command | sdlc close --issue 725 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T04:57:16-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation matches the governing Spec/Plan revisions. BR-4 is addressed with broader reader coverage, independent registration enforcement, and a native regression that demonstrably fails without the correction. No new blocking findings emerged.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Current upstream-planner fixtures pass command-root and transitive-dependency coverage for grouped recipes; no remaining defect identified.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Current file-consumer fixtures pass against the actual upstream planner, including conservative full fallback for audited non-Go inputs.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Non-Go reader populations force full; Go selections execute the fixed scanner preflight before the exact selected package argv. Planner and runner checks pass.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      The corrected inventory and independent source-walker rule pass all eight reader tests. The native regression catches both seeded violations. Removing the two scanner registrations only in a disposable worktree makes that regression fail because affected execution incorrectly exits zero, confirming meaningful regression evidence.
+```
+
+1. **Strengths**
+
+   - Selection validation and argv construction remain pure; subprocess execution uses argument arrays and propagates failures (`scripts/test-affected.py:431`).
+   - Recipe ownership checks preserve the existing full-suite prerequisite population (`Makefile.local:224`).
+   - BR-4’s regression exercises the actual Make entrypoint and verifies downstream groups stop after scanner failure (`tests/affected-go-readers-test.py:176`).
+   - README and atlas explain the new command, conservative fallbacks, preflights, and qualification ownership.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None requiring action.
+
+5. **Test coverage notes**
+
+   - Runner tests: **11 passed**.
+   - Reader inventory/native tests: **8 passed**.
+   - Upstream qualification against commit `113e7767719b5b4b4964ba9a8f5e73fecce825b8`: **passed**, including strict parsing, package/importer selection, group dependencies, and 732 expanded file-consumer checks.
+   - BR-4 registration-removal mutation: regression **failed as expected**.
+   - Full suite was not independently rerun during this review. The recorded suite revision and reviewed head differ only in the issue log.
+   - Disposable worktrees were removed; tracked checkout remains clean.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Reuses upstream planning and existing Make recipes.
+   - **ARCH-PURE — pass:** Pure selection logic is directly tested; IO stays in dispatch functions.
+   - **ARCH-PURPOSE — pass:** Consumer inventories, full fallbacks, and native regression address coverage beyond the originally reported instances.
+   - **ARCH-MOCK — pass:** Stateful child recorders share production execution boundaries; native qualification complements them.
+   - **ARCH-CONSTRAINTS — pass:** Invocation-count tests enforce constant preflight overhead and bounded wrapper lifetimes.
+   - **ARCH-SECURE — pass:** Invalid selections refuse before dispatch; inputs never enter shell evaluation.
+   - **ARCH-ORDER — pass:** Sequential execution stops on failure and launches no detached work.
+   - **ARCH-FUNERAL — pass:** Temporary artifacts and worktrees have cleanup paths.
+   - **ARCH-EVOLVE — pass:** Static configuration is not rewritten; strict unknown/duplicate refusal matches the documented safety contract.
+
+7. **Plan revision recommendations:** None. Existing revisions describe the delivered behavior and retain post-landing qualification ownership.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"1785520e-44fb-4a53-8556-3cc2e733b496","repository":"github.com/xianxu/pair","issue_id":"000725","recipe":"milestone-review","round":5,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/9bc8532ad945c6b9","reviewed_head":"55d81f74276404be06a6b7ab86e534a4e26bb393","slot":"pair:3","requested_at":"2026-10-20T11:53:14.61292Z"},"phase":"finished","pid":53966,"started_at":"2026-10-20T11:53:14.829242Z","finished_at":"2026-10-20T11:57:15.664987Z","session_id":"01a15928-990c-7131-a0ce-027a52391d33","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.229741375s
+head: "55d81f74276404be06a6b7ab86e534a4e26bb393"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

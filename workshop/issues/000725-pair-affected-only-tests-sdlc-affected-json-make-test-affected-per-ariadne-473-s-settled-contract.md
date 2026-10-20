@@ -73,6 +73,8 @@ See [durable plan](../plans/000725-affected-tests-plan.md), one atomic close bou
 
 ## Log
 
+
+- 2026-10-20: closed — Recorded full suite PASS on bc1e83cd in560.511449334s, queue3116.433279s separate, attempt488fd46fb54e5c917f576b83ac50a91f log3b991bdaa414. Runner11 and native-reader8 PASS; upstream parser/planner separately qualified113e7767 for747 audited file inputs. Exact native selected command87.553s incl19.542s source preflight,84.38 percent less execution than full. BR4 complete reader re-audit, independent source-walker registration, actual affected seeded violations require both scanner failures. no-plan-check retains only pending close/operator label/landing checklist; implementation and suite verified. Main-authoritative recorded affected/docs-train follow-up remains hub-owned after landing.; review verdict: SHIP
 - Deps: ariadne#473 (M2 adds the gates that consume it; this can land first: absent the gates, the file is inert).
 
 - 2026-10-20: Claimed pair:3 and started from fresh main ab32acea6c97663232623b2881e7e7c91aae8a17. Refreshed provider to current main; preserved unrelated generated workflows in 725-start-plan-generated-workflows-preserved-for-699 (older workflow stashes untouched). TL clarification 5626d3a8-45f9-4ea4-9ff5-48620198f6ab: nvim source selects lua and the runner regenerates/tests runtimebundle; generated embedded Lua selects runtimebundle+lua. Implement fixtures now, measure/record real affected evidence once M2 lands. Five groups reuse existing targets and unclaimed non-Go files force full (ARCH-DRY, ARCH-PURPOSE).

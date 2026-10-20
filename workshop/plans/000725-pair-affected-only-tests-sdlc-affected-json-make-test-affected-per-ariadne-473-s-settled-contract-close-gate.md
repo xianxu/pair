@@ -675,6 +675,197 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 1785520e-44fb-4a53-8556-3cc2e733b496
+            repository: github.com/xianxu/pair
+            issue_id: "000725"
+            recipe: milestone-review
+            round: 5
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/9bc8532ad945c6b9
+            reviewed_head: 55d81f74276404be06a6b7ab86e534a4e26bb393
+            slot: pair:3
+            requested_at: "2026-10-20T11:53:14.61292Z"
+          phase: finished
+          pid: 53966
+          started_at: "2026-10-20T11:53:14.829242Z"
+          finished_at: "2026-10-20T11:57:15.664987Z"
+          session_id: 01a15928-990c-7131-a0ce-027a52391d33
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: 55d81f74276404be06a6b7ab86e534a4e26bb393
+        tracker_head: 612a36a32418fc0ce75de6d9b9110cd6615abaa2
+        branch_point: ab32acea6c97663232623b2881e7e7c91aae8a17
+        since: "2026-10-20T02:22:02-07:00"
+        until: "2026-10-20T04:52:30-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-20T02:22:02-07:00"
+              end: "2026-10-20T04:52:30-07:00"
+              began: "2026-10-20T02:22:02-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot3/pair
+        sources:
+            - harness: codex
+              id: 01a15810-571b-7123-9206-e124cade8c8a
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: b82ac9e131658ec9848228a1e4025814760aa94b5c35d2887b7247e04234de5d
+              started: "2026-10-20T06:47:08.671Z"
+              spawned: false
+              bytes: 7689555
+              windows:
+                - start: "2026-10-20T02:22:02-07:00"
+                  end: "2026-10-20T04:52:30-07:00"
+            - harness: codex
+              id: 01a1589e-9c30-7462-9d48-d5a266b57dfc
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a15810-571b-7123-9206-e124cade8c8a
+              digest: 68af452e18eec6d65598d57fc3013fc7ea326c27694d5df93192cc20b8a98994
+              started: "2026-10-20T09:22:32.176Z"
+              spawned: true
+              bytes: 528451
+              windows:
+                - start: "2026-10-20T09:22:32.176Z"
+                  end: "2026-10-20T04:52:30-07:00"
+            - harness: codex
+              id: 01a158a2-891f-7bb0-a8bd-099e54105678
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: 0be893ece2612c1e78a1a473d1b5f33a873ab75d9f46a9dd0a705c297f78ecc5
+              started: "2026-10-20T09:26:49.854Z"
+              spawned: false
+              bytes: 487657
+              windows:
+                - start: "2026-10-20T09:26:49.854Z"
+                  end: "2026-10-20T04:52:30-07:00"
+            - harness: codex
+              id: 01a158a4-6d29-7801-b850-eab4f006c584
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: 55af6f00c737256d833f33e1e4f8048f385945d47c12f8b35c97e04505141cc2
+              started: "2026-10-20T09:28:53.658Z"
+              spawned: false
+              bytes: 404580
+              windows:
+                - start: "2026-10-20T09:28:53.658Z"
+                  end: "2026-10-20T04:52:30-07:00"
+            - harness: codex
+              id: 01a158a5-f5e7-78c3-b32d-91c4a8ff4f88
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: 334946c6e69ada73c0855a250a9fdaf0a530afea4b5dcd915868f3cbc34647fd
+              started: "2026-10-20T09:30:34.78Z"
+              spawned: false
+              bytes: 394655
+              windows:
+                - start: "2026-10-20T09:30:34.78Z"
+                  end: "2026-10-20T04:52:30-07:00"
+            - harness: codex
+              id: 01a158a6-687a-7f11-971d-ffdaf3b8500a
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: 456f5a46b433bb2176d35c745440d7c3efb7406aa4ce41fc7c5690342ccafd76
+              started: "2026-10-20T09:31:03.65Z"
+              spawned: false
+              bytes: 401115
+              windows:
+                - start: "2026-10-20T09:31:03.65Z"
+                  end: "2026-10-20T04:52:30-07:00"
+            - harness: codex
+              id: 01a158a8-e5f4-7681-8bd6-2773c44f4444
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: bdef8f8a8cda3b46856f8923ad79ed838ded6c6fce086f938e5cf44402d0e817
+              started: "2026-10-20T09:33:46.808Z"
+              spawned: false
+              bytes: 6922494
+              windows:
+                - start: "2026-10-20T09:33:46.808Z"
+                  end: "2026-10-20T04:52:30-07:00"
+            - harness: codex
+              id: 01a158a9-ac51-76e3-a19e-fadafe8a699a
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a158a8-e5f4-7681-8bd6-2773c44f4444
+              digest: 10ba849170daf9d31d28921d200e19aaf94a021722a2bd640e28be9b9c513d65
+              started: "2026-10-20T09:34:37.346Z"
+              spawned: true
+              bytes: 3144707
+              windows:
+                - start: "2026-10-20T09:34:37.346Z"
+                  end: "2026-10-20T04:52:30-07:00"
+            - harness: codex
+              id: 01a158b4-0751-7763-ae55-45adef642419
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a158a8-e5f4-7681-8bd6-2773c44f4444
+              digest: d3cca197796ee915a559b271f98c61cfa71ff7f39637d186f33be7929bc8c547
+              started: "2026-10-20T09:45:55.96Z"
+              spawned: true
+              bytes: 2913824
+              windows:
+                - start: "2026-10-20T09:45:55.96Z"
+                  end: "2026-10-20T04:52:30-07:00"
+        queue_waits:
+            - attempt_id: 488fd46fb54e5c917f576b83ac50a91f
+              slot: pair:3
+              record_digest: 0531347823b73adfcdee5f70d51f2824394bce60c17528e6049835f73e04d841
+              start: "2026-10-20T10:50:48.82438Z"
+              end: "2026-10-20T11:42:45.257659Z"
+              queue_seconds: 3116.433279
+              raw_seconds: 3116.433279
+              exact: true
+        cuts:
+            - dispatched: "2026-10-20T02:42:02-07:00"
+              finalized: "2026-10-20T02:44:33-07:00"
+              finalizing: false
+            - dispatched: "2026-10-20T02:56:20-07:00"
+              finalized: "2026-10-20T02:59:29-07:00"
+              finalizing: false
+            - dispatched: "2026-10-20T03:13:05-07:00"
+              finalized: "2026-10-20T03:15:48-07:00"
+              finalizing: false
+            - dispatched: "2026-10-20T03:36:30-07:00"
+              finalized: "2026-10-20T03:39:58-07:00"
+              finalizing: false
+      "n": 5
+      timestamp: "2026-10-20T04:57:16-07:00"
+      dispatched: "2026-10-20T04:53:11-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Current upstream-planner fixtures pass command-root and transitive-dependency coverage for grouped recipes; no remaining defect identified.
+          round: 5
+        - id: BR-2
+          disposition: addressed
+          note: Current file-consumer fixtures pass against the actual upstream planner, including conservative full fallback for audited non-Go inputs.
+          round: 5
+        - id: BR-3
+          disposition: addressed
+          note: Non-Go reader populations force full; Go selections execute the fixed scanner preflight before the exact selected package argv. Planner and runner checks pass.
+          round: 5
+        - id: BR-4
+          disposition: addressed
+          note: The corrected inventory and independent source-walker rule pass all eight reader tests. The native regression catches both seeded violations. Removing the two scanner registrations only in a disposable worktree makes that regression fail because affected execution incorrectly exits zero, confirming meaningful regression evidence.
+          round: 5
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 55d81f74276404be06a6b7ab86e534a4e26bb393
+      blocked: false
 ---
 
 # Gate ledger — pair#725 (boundary-review)
@@ -725,6 +916,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-4** [Critical] `affected-consumer-coverage` (kind: defect) Repository-wide Go scanners are misclassified and omitted from affected runs
   tests/affected-go-readers.json:91,183 classifies deletedvocabulary_test.go and couchcore/retire_test.go as local_or_literal_fixture, although their tests scan production files across the repository. Neither TestDeletedVocabularyIsNotDescribedAsLive nor TestOnlyTeardownProofHasNoProductionCaller appears in scripts/test-affected.py's SOURCE_GUARDS. For the planner-verified slugcmd/slug.go selection, neither owning package is selected; the preflight filters out both tests. In a disposable pinned-head checkout, appending "// TreeSummary is the active session model." to slugcmd/slug.go made the deleted-vocabulary test fail while the complete fixed preflight exited 0. ARCH-PURPOSE: This is the 4th finding in family affected-consumer-coverage. Earlier rounds fixed instances. Do not fix only these two registrations: state and enforce the rule for cross-package readers, re-audit all 372 local/fixture dispositions including helper-mediated reads, and add regression evidence that affected execution catches cross-package violations.
 
+## Round 5 — 2026-10-20T04:57:16-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Current upstream-planner fixtures pass command-root and transitive-dependency coverage for grouped recipes; no remaining defect identified.
+- BR-2 — addressed — Current file-consumer fixtures pass against the actual upstream planner, including conservative full fallback for audited non-Go inputs.
+- BR-3 — addressed — Non-Go reader populations force full; Go selections execute the fixed scanner preflight before the exact selected package argv. Planner and runner checks pass.
+- BR-4 — addressed — The corrected inventory and independent source-walker rule pass all eight reader tests. The native regression catches both seeded violations. Removing the two scanner registrations only in a disposable worktree makes that regression fail because affected execution incorrectly exits zero, confirming meaningful regression evidence.
+
 ## Open findings
 
-- **BR-4** [Critical] `affected-consumer-coverage` (kind: defect) Repository-wide Go scanners are misclassified and omitted from affected runs
+(none — every finding has been disposed)
