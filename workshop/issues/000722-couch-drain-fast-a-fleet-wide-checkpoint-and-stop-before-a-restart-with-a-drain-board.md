@@ -151,6 +151,11 @@ total: 6.0395
 
 ## Log
 
+### 2026-10-20 14:46 PDT — parked for independently landed #744
+
+Verified submitted TL2d5e80a3 approves the native-Zellij re-plan and dispatches #744 to pair:5. Park #722 with claim retained, clean committed/pushed branch and PR477 unchanged. Start #744 from main on its own branch, without importing #722 commits. Its scope is the native shared disposable-Couch harness for #722/#740/#741: isolated roots, real supervisor and N real slots, deterministic/Claude/Codex fixtures, exact cleanup and live-fleet guard. Plan first. After #744 lands, resume this branch, integrate landed main and replace its failed private acceptance prototype with the shared helper; audit both reader mappings, run exact-head installed acceptance/required suite/renewed close, then request TL/operator live scheduling. No stage, merge or acceptance claim for #722 meanwhile.
+
+
 ### 2026-10-20 14:44 PDT — stop at fixture third delta; revised native/shared-harness proposal
 
 Main integrated once; focused Drain/HubTarget/Warming/Activity tests pass. New8/16 service fanout test counts exactly one reserve and deliver per selected slot, no launch/process/git re-probes, bounded use-time file checks and zero status IO. Temporary admission-error tracing was removed without committing it. Trace proved the symlinked fake had kernel P_comm=terminal-fixture while argv claimed zellij; installing a physical executable named zellij fixed real registration without a product bypass.
