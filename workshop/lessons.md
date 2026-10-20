@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A durable plan names each risky function and its adversarial input class plus mechanical guard. Prefer fuzz, generated event sequences and independent invariants over prose case inventories; keep resource and operation-count assertions explicit. (#706 PQ-1)
+
 - #715 BR-1: A local extension to a shared tool updates both its adoption instructions and its rule-maintenance instructions in the existing atlas page. Document the local composition owner, scope, shared error/suppression semantics, and which upstream consumers remain unchanged; updating only the feature's lifecycle map misses the tooling surface.
 
 - #715: A child that survives client detach still needs a lifetime owner. Keep its direct child handle and join it before wrapper return; process liveness polling does not fence startup or deferred retention writes. Gate a real watcher before lease acquisition, finish the native child, and prove no writer survives the wrapper scope. Preserve process-group isolation and measure prompt TERM handling separately from the refusal grace.

@@ -11,6 +11,7 @@ import (
 	archive "github.com/xianxu/pair/cmd/internal/historyarchive"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -25,11 +26,19 @@ type FakeRemoteObject struct {
 
 // FakeRclone models retained remote bytes, duplicate names, and ambiguous late
 // copy outcomes through the production adapter's command seam. Configure only
-// between sequential calls; Before may mutate state synchronously.
+// between sequential calls; Before may mutate state synchronously. Configure
+// FolderObjects or ChildFolders (even an empty map) to enable hierarchy. An
+// Objects-only fixture retains legacy single-folder behavior for arbitrary pins.
 // pair:m5-concept integration
 type FakeRclone struct {
 	Objects                                     map[string][]FakeRemoteObject
 	FolderID                                    string
+	FolderObjects                               map[string]map[string][]FakeRemoteObject
+	ChildFolders                                map[string]map[string][]FakeRemoteObject
+	FolderLists                                 map[string]int
+	BeforeFolder                                func(context.Context, string, string) error
+	Mkdirs                                      int
+	AfterMkdirError                             error
 	MissingHashes, MissingTool, MissingRemote   bool
 	Before                                      func(context.Context, string, string) error
 	AfterCopyError                              error
@@ -66,6 +75,22 @@ func (f *FakeRclone) Run(ctx context.Context, args []string, limit int) ([]byte,
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	folderID := f.rootID()
+	pinned := false
+	for i, arg := range args {
+		if arg == "--drive-root-folder-id" && i+1 < len(args) {
+			folderID, pinned = args[i+1], true
+		}
+	}
+	if f.BeforeFolder != nil {
+		if err := f.BeforeFolder(ctx, operation, folderID); err != nil {
+			return nil, err
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	objects := f.folderObjects(folderID)
 	var output []byte
 	switch operation {
 	case "lsjson":
@@ -76,22 +101,32 @@ func (f *FakeRclone) Run(ctx context.Context, args []string, limit int) ([]byte,
 			}
 		}
 		var entries []archive.RemoteEntry
-		if directories {
-			id := f.FolderID
-			if id == "" {
-				id = "folder-1"
-			}
+		if directories && !pinned {
+			id := f.rootID()
 			entries = []archive.RemoteEntry{{Name: "pair-history", ID: id, IsDir: true, Size: -1}}
 		} else {
 			f.Lists++
+			if f.FolderLists == nil {
+				f.FolderLists = map[string]int{}
+			}
+			f.FolderLists[folderID]++
 			entries = []archive.RemoteEntry{}
-			names := make([]string, 0, len(f.Objects))
-			for name := range f.Objects {
+			names := make([]string, 0, len(objects)+len(f.ChildFolders[folderID]))
+			for name := range objects {
 				names = append(names, name)
+			}
+			for name := range f.ChildFolders[folderID] {
+				if _, exists := objects[name]; !exists {
+					names = append(names, name)
+				}
 			}
 			sort.Strings(names)
 			for _, name := range names {
-				for _, obj := range f.Objects[name] {
+				all := append(append([]FakeRemoteObject(nil), objects[name]...), f.ChildFolders[folderID][name]...)
+				for _, obj := range all {
+					if directories && !obj.IsDir {
+						continue
+					}
 					entry := archive.RemoteEntry{Name: name, ID: obj.ID, Size: int64(len(obj.Data)), IsDir: obj.IsDir}
 					if obj.IsDir {
 						entry.Size = -1
@@ -107,7 +142,7 @@ func (f *FakeRclone) Run(ctx context.Context, args []string, limit int) ([]byte,
 		output, _ = json.Marshal(entries)
 	case "copy":
 		if len(args) >= 3 && !filepath.IsAbs(args[1]) && filepath.IsAbs(args[2]) {
-			return nil, f.downloadBatch(ctx, args)
+			return nil, f.downloadBatch(ctx, args, objects)
 		}
 		if len(args) < 3 || !filepath.IsAbs(args[1]) || filepath.IsAbs(args[2]) {
 			return nil, errors.New("unsupported fake copy direction")
@@ -129,21 +164,21 @@ func (f *FakeRclone) Run(ctx context.Context, args []string, limit int) ([]byte,
 				return nil, errors.New("fake expects flat regular staging")
 			}
 			name := entry.Name()
-			if len(f.Objects[name]) != 0 {
+			if len(objects[name]) != 0 {
 				continue
 			}
 			data, err := os.ReadFile(filepath.Join(args[1], name))
 			if err != nil {
 				return nil, err
 			}
-			if f.Objects == nil {
-				f.Objects = map[string][]FakeRemoteObject{}
+			if objects == nil {
+				objects = f.makeFolderObjects(folderID)
 			}
 			f.nextID++
 			if f.PartialCopyBytes > 0 && f.PartialCopyBytes < len(data) {
 				data = data[:f.PartialCopyBytes]
 			}
-			f.Objects[name] = []FakeRemoteObject{{ID: fmt.Sprintf("object-%d", f.nextID), Data: append([]byte(nil), data...)}}
+			objects[name] = []FakeRemoteObject{{ID: fmt.Sprintf("object-%d", f.nextID), Data: append([]byte(nil), data...)}}
 			f.Copies++
 			copied++
 			if f.FailAfterObjects > 0 && copied >= f.FailAfterObjects {
@@ -152,6 +187,34 @@ func (f *FakeRclone) Run(ctx context.Context, args []string, limit int) ([]byte,
 		}
 		if f.AfterCopyError != nil {
 			return nil, f.AfterCopyError
+		}
+	case "mkdir":
+		if !pinned {
+			return nil, errors.New("fake mkdir requires pinned parent")
+		}
+		_, child, ok := strings.Cut(args[1], ":")
+		if !ok || child == "" || child == "." || child == ".." || path.Base(child) != child || strings.ContainsAny(child, "\\\r\n\x00") {
+			return nil, errors.New("fake mkdir requires one relative child")
+		}
+		existing := append(append([]FakeRemoteObject(nil), objects[child]...), f.ChildFolders[folderID][child]...)
+		for _, object := range existing {
+			if !object.IsDir {
+				return nil, errors.New("fake mkdir conflicts with file")
+			}
+		}
+		f.Mkdirs++
+		if len(existing) == 0 {
+			if f.ChildFolders == nil {
+				f.ChildFolders = map[string]map[string][]FakeRemoteObject{}
+			}
+			if f.ChildFolders[folderID] == nil {
+				f.ChildFolders[folderID] = map[string][]FakeRemoteObject{}
+			}
+			f.nextID++
+			f.ChildFolders[folderID][child] = []FakeRemoteObject{{ID: fmt.Sprintf("created-folder-%d", f.nextID), IsDir: true}}
+		}
+		if f.AfterMkdirError != nil {
+			return nil, f.AfterMkdirError
 		}
 	case "hashsum":
 		f.HashBatches++
@@ -176,7 +239,7 @@ func (f *FakeRclone) Run(ctx context.Context, args []string, limit int) ([]byte,
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
-			objects := f.Objects[name]
+			objects := objects[name]
 			if len(objects) != 1 {
 				return nil, errors.New("missing or ambiguous checksum object")
 			}
@@ -196,7 +259,7 @@ func (f *FakeRclone) Run(ctx context.Context, args []string, limit int) ([]byte,
 
 // downloadBatch models the flags the production selected-object download uses.
 // Transfer budgets count actual bytes written, including retained partial data.
-func (f *FakeRclone) downloadBatch(ctx context.Context, args []string) error {
+func (f *FakeRclone) downloadBatch(ctx context.Context, args []string, objects map[string][]FakeRemoteObject) error {
 	f.DownloadBatches++
 	flags := map[string]string{}
 	for i := 3; i < len(args); i += 2 {
@@ -265,7 +328,7 @@ func (f *FakeRclone) downloadBatch(ctx context.Context, args []string) error {
 		if name == "" || filepath.Base(name) != name || strings.ContainsAny(name, "/\\\r\n\x00") {
 			return errors.New("invalid fake download name")
 		}
-		objects := f.Objects[name]
+		objects := objects[name]
 		if len(objects) != 1 {
 			return errors.New("missing or ambiguous download object")
 		}
@@ -310,4 +373,30 @@ func (f *FakeRclone) downloadBatch(ctx context.Context, args []string) error {
 		return err
 	}
 	return f.AfterCopyError
+}
+
+// Objects is the legacy root store; FolderObjects contains only other pinned folders.
+func (f *FakeRclone) rootID() string {
+	if f.FolderID != "" {
+		return f.FolderID
+	}
+	return "folder-1"
+}
+func (f *FakeRclone) folderObjects(id string) map[string][]FakeRemoteObject {
+	if id == f.rootID() || (f.FolderObjects == nil && f.ChildFolders == nil) {
+		return f.Objects
+	}
+	return f.FolderObjects[id]
+}
+func (f *FakeRclone) makeFolderObjects(id string) map[string][]FakeRemoteObject {
+	objects := map[string][]FakeRemoteObject{}
+	if id == f.rootID() || (f.FolderObjects == nil && f.ChildFolders == nil) {
+		f.Objects = objects
+	} else {
+		if f.FolderObjects == nil {
+			f.FolderObjects = map[string]map[string][]FakeRemoteObject{}
+		}
+		f.FolderObjects[id] = objects
+	}
+	return objects
 }
