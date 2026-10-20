@@ -90,6 +90,19 @@ func peerComposerState(agent string, s terminalSnapshot) PeerComposerState {
 	return PeerComposerEmpty
 }
 
+// peerComposerWaitDetail explains missing evidence without retaining screen or
+// draft contents. It adds only constant-time checks to an unknown observation.
+func peerComposerWaitDetail(agent string, s terminalSnapshot) string {
+	reason := "composer geometry or input is unrecognized"
+	switch {
+	case !s.Complete:
+		reason = "terminal frame is incomplete"
+	case !s.CursorVisible && agent != "qoder":
+		reason = "cursor is hidden"
+	}
+	return "waiting for recognized composer: " + reason
+}
+
 func peerInputColumn(agent string) int {
 	if agent == "qoder" {
 		return qoderPromptCol + 2

@@ -906,6 +906,12 @@ complete pending composer must still match Couch's known envelope.
 - **Before the paste** the gates are unchanged. No other automatic input is in
   flight, no operator keystroke arrived in the last second, bracketed paste is
   on, and a recognized composer reads empty. Unknown or occupied composers wait.
+  Receipt Detail names incomplete frames, hidden cursors, or unrecognized
+  geometry/input without recording screen contents. The terminal resize owner
+  preserves existing evidence on unchanged synchronized geometry; an actual
+  resize or retry after an aborted resize still requires fresh cursor evidence
+  (`peer_resize_test.go`, pair#735). A running Claude shell footer alone does
+  not block its free composer. Supervision-log health is tracked in pair#736.
 - **A busy agent is read between frames and pasted mid-turn (pair#438).**
   A streaming agent nearly always has output in flight, so waiting for none
   starved deliveries for whole turns. Claude Code frames each repaint as a

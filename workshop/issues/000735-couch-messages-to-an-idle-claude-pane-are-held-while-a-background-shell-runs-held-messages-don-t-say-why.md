@@ -57,9 +57,9 @@ and its pair-diagnostics segment is empty, so there is no record of readiness de
 
 ## Plan
 
-- [ ] Regress the recorded empty shell-footer shape through native terminal paint, same-size resize, and actual peer delivery; keep real-resize, hidden, incomplete, occupied and aborted-resize cases conservative.
-- [ ] Treat unchanged terminal dimensions as a no-op within the existing serialized resize owner. Keep actual geometry changes invalidating cursor evidence (ARCH-DRY, ARCH-PURE).
-- [ ] Name incomplete/hidden/unrecognized composer evidence in the existing receipt Detail, without copying screen or draft text. Verify projection through broker status, including queued followers.
+- [x] Regress the recorded empty shell-footer shape through native terminal paint, same-size resize, and actual peer delivery; keep real-resize, hidden, incomplete, occupied and aborted-resize cases conservative.
+- [x] Treat unchanged terminal dimensions as a no-op within the existing serialized resize owner. Keep actual geometry changes invalidating cursor evidence (ARCH-DRY, ARCH-PURE).
+- [x] Name incomplete/hidden/unrecognized composer evidence in the existing receipt Detail, without copying screen or draft text. Verify projection through broker status, including queued followers.
 - [ ] Update tests, atlas/README diagnostics and lessons, run focused checks and recorded full suite, then close and land through SDLC.
 
 ## Log
@@ -69,6 +69,10 @@ and its pair-diagnostics segment is empty, so there is no record of readiness de
 - Claimed and started in pair:3. Reproduction replayed the operator's raw recording plus resize events through the production terminal model to 11:10: complete 189x39 viewport, empty composer at (2,35), but cursor visibility false, so `peerComposerState` returned Unknown. Changing only snapshot visibility to true returns Empty. Existing background-footer delivery regressions pass on unchanged code.
 - The recording's last show-cursor before the stall is raw offset 2166899. A duplicate 189x39 resize at 2166913 follows it. `terminalResize.resolve` clears visibility on every committed resize, including unchanged geometry. No subsequent repaint restores it during the quiet interval. Hypothesis: a no-op resize invalidates valid composer evidence; the shell footer itself is already supported. Preserve the fail-closed behavior for actual geometry changes and hidden/incomplete preexisting frames (ARCH-PURPOSE, ARCH-DRY).
 - Logging investigation: `supervision.jsonl` remains the production destination; archived diagnostic segments exist. The current payload is frozen since 10-19 15:56; scratch-copy Open/Write succeeds. Fact logging currently discards Open errors and remains unavailable for the entire supervisor lifetime. The lost historical error prevents attributing this incident yet. Existing facts record slot snapshots and completed hub deliveries, not per-message hold reasons. Investigation ongoing; no live log/state mutated.
+- Filed unclaimed #736 with the logger investigation and health-first next action, per ops:0's approved scope split.
+- Regression red: the sanitized recorded 189x39 frame loses valid composer evidence after duplicate resize; hidden/incomplete/geometry wait receipts and batch preparation omit specific causes. Green after preserving synchronized same-size state and adding bounded metadata-only hold reasons. A separate red/green retry regression caught the need to resynchronize after an aborted actual resize even when the emulator already has the target dimensions; only synchronized geometry qualifies as a no-op.
+- Focused resize/background/delivery checks pass, as does the source-reader inventory check. Full wrapper/broker package verification is running before recorded suite and SDLC close.
+- Broader initial run: couchmessage passed (26.150s); wrapcmd identified `TestHarnessTTYIntegration_SetWinsizeFailureLatchesAuthorization`, the same aborted-resize retry edge caught and fixed during that run. Final focused current-head checks covering that test, peer delivery, terminal resize and snapshot invalidation pass (6.747s); head/follower message-status projection passes (0.168s). Recorded full suite will validate the final compiled implementation before landing.
 
 ## Revisions
 

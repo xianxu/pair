@@ -949,7 +949,11 @@ first eight characters) among retained receipts you sent or received. An ambiguo
 prefix lists the matching full IDs; an unknown ID or prefix reports an unknown
 lookup. Keep the full ID for recipient recovery after a Couch restart.
 `--message-status` shows the wait and position in that receiver's line;
-do not resend a queued or held message. Disconnect or relaunch cancels mail
+an unrecognized composer names missing evidence such as a hidden cursor,
+an incomplete terminal frame, or unrecognized geometry/input. These reasons
+contain no screen or draft text. Repeated resize signals at unchanged dimensions
+preserve valid composer evidence, including while Claude has background shells.
+Do not resend a queued or held message. Disconnect or relaunch cancels mail
 not yet committed to the wrapper, with a receiver reason. A handed commit may
 be `indeterminate` because input cannot be ruled out. Once pasted, the existing 30-second confirmation window
 still bounds delivery. No eligible family slot returns `not-dispatched` with exit status zero.
