@@ -600,7 +600,9 @@ Named raw steps are `text:…`, `enter`, `submit`, the arrows, `tab`,
 `clear-line`, `wait:MS`, `f1`–`f12`, `ctrl-LETTER` and `alt-LETTER`;
 `couch --keys --help` lists them and the refused chords. Ctrl+C is never a
 step: `couch --interrupt pair:7 --confirm` sends one into a working turn, refuses
-with no working turn, and is never retried. `enter` follows Pair's Return behavior: newline in
+with no working turn, and is never retried. Codex work is proved by its current
+Working or Waiting for background terminal status above the composer; confirmation
+requires a fresh idle composer. `enter` follows Pair's Return behavior: newline in
 the composer, selection in a picker; `submit` follows Alt+Return. Each `esc`
 is a separate input step. Raw success confirms the writes and final observation.
 Use `--set-model` when you need a confirmed model, effort and scope: it follows

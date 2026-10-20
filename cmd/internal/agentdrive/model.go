@@ -415,7 +415,7 @@ func ReduceDrive(input DriveState, event DriveEvent) (DriveState, []DriveEffect)
 		if s.request.InterruptOnly() {
 			// Only the turn ending confirms an interrupt; a frame drawn while
 			// the turn still runs proves nothing.
-			if s.phase == phaseFinal && s.epoch > s.writeEpoch && !event.Screen.TurnActive {
+			if s.phase == phaseFinal && s.epoch > s.writeEpoch && !event.Screen.TurnActive && event.Screen.Idle {
 				return finish(s, OutcomeConfirmed, "Ctrl+C written and the turn ended")
 			}
 			return observe(s)

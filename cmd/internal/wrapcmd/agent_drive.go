@@ -11,6 +11,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/ttyio"
 	"io"
+	"strings"
 	"time"
 )
 
@@ -59,19 +60,27 @@ func (p *proxy) agentDriveScreen() agentdrive.Screen {
 	picker := pickerBefore || p.pickerActive.Load()
 	s.Idle = wrapperSettled(peerComposerState(p.agentBasename, evidence.Snapshot), s.TurnActive, picker)
 	text, known := qualifiedComposerText(p.agentBasename, evidence.Snapshot)
-	s.Recoverable = known && s.Complete && !s.TurnActive && !picker
 	// A panel replaces the composer, so it is the unknown-composer case that
 	// still carries positive evidence: its own Esc footer (pair#691). It has
 	// no turn gate: Claude reports progress as working for as long as its
 	// panel is open, and the panel proof outranks that inference for a lone
 	// esc only. The picker gate stays.
 	s.Dismissable = !known && s.Complete && !picker && agentdrive.DismissablePanel(p.agentBasename, s.Lines)
-	// An interrupt needs positive evidence of work, never the turn flag alone
-	// (pair#717): the lifecycle's Working() (activity seen, no stop grace),
-	// the agent's own composer on screen (not a panel, whose turn flag Claude
-	// keeps set), and the agent's own "esc to interrupt" hint, which also
-	// covers a turn whose end the lifecycle missed. Esc handles pickers.
-	s.Interruptible = s.TurnActive && p.turnWorking.Load() && known && s.Complete && !picker && agentdrive.AdvertisesInterrupt(s.Lines)
+	// Claude needs its lifecycle's Working() (no stop grace) and current
+	// interrupt footer; a panel can keep its turn flag set (pair#717).
+	// Codex instead reports work in its native composer-relative status.
+	working := s.TurnActive && p.turnWorking.Load() && agentdrive.AdvertisesInterrupt(s.Lines)
+	if p.agentBasename == "codex" {
+		working = RecognizeCodexWorking(snap)
+		// Codex's current native status is authoritative even when the
+		// notification lifecycle missed work or still holds stop grace.
+		// Unknown/picker/partial screens cannot prove that the turn ended.
+		busy := working || strings.Contains(codexStatusLine(snap), "esc to interrupt")
+		s.Idle = known && s.Complete && !picker && !busy && text == ""
+		s.TurnActive = busy || s.TurnActive && !s.Idle
+	}
+	s.Recoverable = known && s.Complete && !s.TurnActive && !picker
+	s.Interruptible = working && known && s.Complete && !picker
 	// Cleanup proof is intentionally one acknowledged native command line. A
 	// multiline composer has no captured clearing contract and grants no cleanup.
 	if s.Recoverable && text == "/model" {

@@ -52,9 +52,9 @@ ARCH-DRY: Codex's one pure recognizer serves lifecycle and drive proof, reusing 
 
 ## Plan
 
-- [ ] Capture coherent owned native Codex Working and background-wait frames; record the failing admission flags and exact composer/status relationship. Do not infer unobserved geometry.
-- [ ] Add regressions through handleChunk and the production mailbox/writer with no manually set Codex activity flags: top-anchored and tall composer, both status forms, complete/incomplete redraw and stale lifecycle observations. Assert one Ctrl+C, fresh positive idle confirmation, then second-interrupt refusal.
-- [ ] Repair the shared recognizer and per-agent admission/confirmation proof. Preserve Claude stop-grace and all negative/ownership cases. Mutate each corrected guard and require its oracle to fail.
+- [x] Capture coherent owned native Codex Working and background-wait evidence; record the failing admission flags and exact composer/status relationship. Do not infer unobserved geometry.
+- [x] Add regressions through handleChunk and the production mailbox/writer with no manually set Codex activity flags: top-anchored and tall composer, both status forms, complete/incomplete redraw and stale lifecycle observations. Assert one Ctrl+C, fresh positive idle confirmation, then second-interrupt refusal.
+- [x] Repair the shared recognizer and per-agent admission/confirmation proof. Preserve Claude stop-grace and all negative/ownership cases. Mutate each corrected guard and require its oracle to fail.
 - [ ] Run targeted packages/race and reader inventory; document the per-agent work proof in atlas. Push PR and record affected check; stage the tested head for hub-owned live Codex sleep/interrupt/second-refusal check, then close and merge.
 
 
@@ -70,3 +70,7 @@ ARCH-DRY: Codex's one pure recognizer serves lifecycle and drive proof, reusing 
 ## Revisions
 
 - 2026-10-20 12:59 PDT — Fresh capture qualifies the proposal: accept both captured •/◦ spinner markers in the explicit Working/background-wait status grammar; keep MCP startup and arbitrary text excluded. This is evidence for the same per-agent recognition repair, not a broadened interrupt action. Design approval requested from ops:0 before implementation; no production/test edits made.
+
+- 2026-10-20 — ops:0 approved the per-agent proof design (no new state): explicit Working/Waiting whitelist, both observed spinner glyphs, composer-relative location; MCP remains excluded. Waiting fixture is synthetic from the morning live-check text because the owned capture did not show it. change-code inferred quick flow. Native/synthetic production-output/writer tests went red before the Codex fix. Pure reducer test caught unknown-screen false confirmation and now requires fresh positive idle. Captured model-picker and recovery-key regressions caught over-broad screen projection during implementation; unknown is not invented work and recovery authority now derives after current work. Four mutations (composer region, Waiting wording, alternate spinner, cached flags) each fail the intended regression; restored afterward.
+
+- Full captured stream replay additionally qualified native running-shell status: ◦/• Working (3s • esc to interrupt) · 1 background terminal running · /ps to view · /stop to close at row12 above composer15. Added sanitized captured background-prefix fixture; its positive and synthetic Waiting+summary cases failed before recognizing the optional count/singular-plural summary. Long status continuation rows are rejoined within the same bounded composer-relative region. Malformed/zero-count/unknown suffixes refuse. Full wrapcmd passed before this final status grammar refinement (137.581s); final focused race and recorded check follow. Vet and eight reader-inventory checks passed earlier.

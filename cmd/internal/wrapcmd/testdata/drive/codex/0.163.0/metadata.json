@@ -1,0 +1,11 @@
+{
+  "agent": "codex",
+  "version": "codex-cli 0.163.0",
+  "captured_at": "2026-10-20",
+  "geometry": "120x38",
+  "working-prefix.raw": "Fresh owned native PTY, initial sleep20 prompt, stopped at first coherent Working frame; disposable repository path sanitized to /scratch/repo. No credentials in terminal stream.",
+  "sha256": "a0c3e88f8f736ee9f45dbd5228bf788e0d3fd6d0f5b9c7f8428cf94702f3d1e5",
+  "synthetic": "Waiting variants are constructed in codex_interrupt_test.go from TL 2026-10-20 morning live-check text; waiting was not captured in this run. Both spinner bullet glyphs were observed in coherent frames of the owned native capture. Waiting with background summary combines TL-observed Waiting wording with the captured native summary; that combination was not captured.",
+  "background-prefix.raw": "Same owned native PTY, stopped at coherent running-shell frame: ◦ Working (3s • esc to interrupt) · 1 background terminal running · /ps to view · /stop to close. Composer-relative row separation unchanged; disposable path sanitized.",
+  "background_sha256": "feea0a87f15d5790682a4a45069fd028c6d7a508ebf529f54c73cc6e55e95eb7"
+}
