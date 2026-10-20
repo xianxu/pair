@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: 43026815-eb47-47c9-9d56-eb2bd68f4ecd
+        repository: github.com/xianxu/pair
+        issue_id: "000721"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot3/pair
+        reviewed_head: c6251b3fd290ef645666d5a7efc6893e597636be
+        slot: pair:3
+        requested_at: "2026-10-20T06:57:13.598894Z"
+      phase: finished
+      pid: 20496
+      started_at: "2026-10-20T06:57:13.77044Z"
+      finished_at: "2026-10-20T06:57:45.980322Z"
+      session_id: 01a15819-958c-7f31-879f-3e9cc5944f8f
+      outcome: returned
 gate: plan-quality
 issue: 721
 id_prefix: PQ
@@ -66,7 +86,32 @@ rounds:
           note: Tasks 1–4 delegate test design to the named-function strategy table; duplicated case inventories are removed while safety invariants and verification commands remain explicit.
           round: 2
       blocked: false
-content_hash: 87177a90597eadf9cc0c076307b0265f72cbdd873dfe554790d8a8a98a6dba61
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: b66d5a4c-acbf-469f-8cab-385442972c58
+            repository: github.com/xianxu/pair
+            issue_id: "000721"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot3/pair
+            reviewed_head: c6251b3fd290ef645666d5a7efc6893e597636be
+            slot: pair:3
+            requested_at: "2026-10-20T06:56:16.952195Z"
+          phase: finished
+          pid: 69441
+          started_at: "2026-10-20T06:56:17.107712Z"
+          finished_at: "2026-10-20T06:57:10.279457Z"
+          session_id: 01a15818-b842-7983-b766-ccb6bc22c5e2
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-19T23:57:10-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      blocked: false
+content_hash: fe05928e110e6a158902581323b3ec7abaa0af51a896434861c9e934c15f1961
 ---
 
 # Gate ledger — pair#721 (plan-quality)
@@ -86,6 +131,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - PQ-1 — addressed — Tasks 1–4 delegate test design to the named-function strategy table; duplicated case inventories are removed while safety invariants and verification commands remain explicit.
+
+## Round 3 — 2026-10-19T23:57:10-07:00 (codex) — passed
 
 ## Open findings
 
