@@ -250,8 +250,8 @@ Actions remain wait, inspect status, checkpoint/ack, retry cancel and cancel the
 
 Verification and one close boundary:
 
-- [ ] Test pure fence validation and epoch allocation with reordered/duplicate/conflicting values and overflow; independently assert no lower epoch can grant authority and no duplicate start increments the epoch.
-- [ ] Test wrapper control acceptance plus final Esc/paste/submit through its stateful input owner, keeping old callbacks delayed while generations advance. Count retained maps at N and2N generations (including more than128) and input writes independently; assert constant current residue and no old-generation writes after retirement.
+- [x] Test pure fence validation and epoch allocation with reordered/duplicate/conflicting values and overflow; independently assert no lower epoch can grant authority and no duplicate start increments the epoch.
+- [x] Test wrapper control acceptance plus final Esc/paste/submit through its stateful input owner, keeping old callbacks delayed while generations advance. Count retained maps at N and2N generations (including more than128) and input writes independently; assert constant current residue and no old-generation writes after retirement.
 - [ ] Test coordinator/store/broker plus actual RemoteEndpoint transport across repeated graceful/fast/cancel/recover cycles. Require cancellation beyond the former cap, exact returned fence checks and unchanged owner-only queue ordering; preserve all prior unknown-effect and incarnation tests.
 - [ ] Update atlas/operating envelope, run focused/race/fuzz and repository inventory/catalog checks, checkpoint, push, then record a fresh full suite on the changed code. Real #481 conformance, operator live board acceptance and the mandatory close review remain required before landing.
 
@@ -264,3 +264,7 @@ Canonical TL receipt68935e6f approves the monotonic epoch/current outcome/input-
 Simplest rejected alternative: refuse a new drain until tombstones are reclaimed; without a generation fence reclaiming permits late input, and refusing forever replaces bounded operation with a lifetime availability limit.
 
 The wrapper resource test must run at least1000 start/cancel cycles (and2000 for its2N comparison), count peak/current retained control outcomes and final input effects, and require a fixed bound independent of total cycles. This is a counted state-growth oracle rather than a timing assertion. The prior cap horizon must fail the test before the epoch fix. A pure transition component owns generation acceptance/retirement; the wrapper shell performs its declared effects under the existing input lease rather than mutating authoritative generation fields directly (ARCH-PURE/ARCH-ORDER). Test read-only status, stale/conflicting epoch, delayed callbacks, recovery and preserved quarantine independently.
+
+### 2026-10-20 — preliminary real #481 consumer evidence
+
+Epoch implementation,1000/2000-cycle counted tests, protocol/wrapper/service/transport races and the recorded8m40s suite have passed (issue Log has exact heads/evidence). Before #481 landing, its owner supplied an M2 executable and isolated queue cohort. Production adapter/strict decoder conformance passed against b39a97b35386 for two-owner/replay/worker refusal, all active kinds, interruption retirement, unknown/corrupt residue and process-boundary lost-response reconciliation. Temporary probes leave production code unchanged. This is preliminary real-seam evidence, not a revision of acceptance: final landed #481/M3 admission/FIFO/process coverage and the authorized operator-present board check still precede close. No live queue/drain or stage was exercised.
