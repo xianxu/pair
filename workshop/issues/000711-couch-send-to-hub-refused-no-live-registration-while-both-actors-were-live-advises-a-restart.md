@@ -197,3 +197,13 @@ Existing parser and empty-reply authority remains unchanged. Full-suite evidence
 Filed unclaimed ariadne#496 for a narrow shared lint catalog guard against recognizable
 paired views of a live inventory; no peer code changes. README and atlas now describe
 phase evidence and proportionate inspection rather than blanket restart advice.
+
+### 2026-10-20 — rollout agreement
+
+Hub approved no pair:0 staging (delivery 9de20235-7d88-4506-b408-b37fa771fd2d).
+The deterministic tests qualify the races before landing. Ordinary hub and exact-address
+delivery after the next natural Couch restart is the live check; the hub owns recording
+that acceptance in smoke calibration. No live check is claimed here. Branch PR is #485.
+Recorded suite started on implementation head eb18dbd6ebf7b205da6b7fcd4e824e1f00a8e5c4;
+its pass and the close review remain mandatory before landing. The final unchecked Plan
+row is this remaining verification/publication workflow, not unfinished implementation.
