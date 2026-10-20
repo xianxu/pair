@@ -112,14 +112,27 @@ The shared upload path must project the whole catalog, not only bundles created 
 
 Existing ContinuousPass returns on local collection errors before calling DriveMirror; #710 gap 5 owns that collection/upload scheduling diagnosis and stale-backup policy. #706 does not silently expand into new source kinds, Couch snapshots, catalog encryption/bootstrap or launchd. Send the hub this overlap explicitly so #710's owner builds on the month coordinator rather than replacing it.
 
+## Function-specific test strategies
+
+| Risky function | Adversarial input class and mechanical guard |
+|---|---|
+| DriveArchiveLayout.MonthDestination / ValidateRecordedDriveLocation | Fuzz arbitrary roots, UTC ranges, IDs and stored locators; independently assert BundleKeys month agreement, root containment and rejection without IO. |
+| StepDriveFolder | Generate bounded event sequences, including invalid and late events; assert independently that Ready requires a unique positive observation, no second create occurs in one attempt, and failure/cancel cannot emit copy or receipt effects. Exhaust the state/event product, not just hand-picked happy sequences. |
+| DecodeUploadReceipt and receipt/object MarshalJSON/UnmarshalJSON | Fuzz malformed/duplicate/case-folded JSON under fixed byte limits; assert strict known fields, raw nested unknown preservation, deterministic re-encoding and byte identity for legacy no-extension fixtures. |
+| DriveMirror.Run | Stateful fake with injected interruption before/after each remote effect; independently require unique matching pair evidence for every published receipt, retained progress without receipt for uncertain objects, a global byte cap, all-catalog backlog accounting and N/2N command bounds. |
+| Rclone.ResolveChild / EnsureChild | Stateful fake and private local-rclone conformance; assert commands stay below the supplied pinned parent, ambiguous observations never select a child and unconfirmed effects never become Ready. |
+| DriveIndexSync.Run | Stateful folder graph with generated observation changes and injected group failures; assert failed refresh leaves snapshot bytes identical, successful complete snapshots retain unknown/history fields, and global caps apply across groups. Reuse the existing receipt-precedence sequence oracle. |
+| PlanRestore / Restorer.acquireRestoreInputs | Fuzz malformed recorded locators in the pure planner; use stateful fake group mutations in acquisition, asserting exact selected IDs and pinned folder IDs, shared aggregate budgets, full actual-byte verification and no published output after any acquisition failure. |
+| DecodeContinuousReport / archiveScheduler result handling | Fuzz additive/malformed folder-count reports; assert strict known counts, no fabricated whole-tree count, one warning key per observed physical destination and compatibility with legacy Inventory-only reports. |
+
 ## M1 — Layout, compatible receipts and month-aware uploads
 
 Files: new drive_layout.go/drive_layout_test.go, drive_folder_model.go/_test.go, rclone_folders.go/_test.go, drive_receipt_json.go/_test.go, drive_months.go/_test.go; modify drive.go, drive_model.go, archivetest/rclone.go and its tests, drive_external_test.go, drive_count model/report tests. Register every new ordinary Go file in cmd/internal/artifactpath/manifest.go.
 
-- [ ] Add failing pure tests for UTC month boundaries, cross-year ranges, configured-root containment, legacy paths, malformed dates/IDs and receipt raw-extension preservation (including nested members and old bytes).
+- [ ] Write failing tests for the named pure functions in the strategy table below; malformed inputs are fuzzed and compatible values obey independent round-trip invariants.
 - [ ] Implement the shared layout and codecs; make those regressions pass. Exercise MatchReceipt without losing extension fields.
-- [ ] Add state-machine tests covering missing/create/uncertain/reobserve/duplicate/cancel transitions. Extend the stateful fake to model folder hierarchy and IDs while keeping existing flat fixtures meaningful.
-- [ ] Add failing integration tests for multi-month batching, legacy adoption, partial legacy refusal, duplicate folders/names, partial copy, retry reconciliation, global stage budget, all-kind catalog backlog and folder-specific count output.
+- [ ] Write generated event-sequence tests for StepDriveFolder using the independent invariants below. Extend the stateful fake to model folder hierarchy and IDs while keeping existing flat fixtures meaningful.
+- [ ] Write failing DriveMirror.Run integration tests using retained fake state, injected effect boundaries, independent receipt/budget invariants and the counted-cost assertions above.
 - [ ] Implement only the minimal folder adapter/coordinator changes. Use one flat staged batch per physical folder and the existing UploadState transitions for receipts.
 - [ ] Add N/2N operation-count assertions; run existing Drive/receipt/staging regressions and fake self-tests. Run the full artifactpath package and repolint before M1 close.
 - [ ] Update atlas/history-backup.md and atlas/index.md for physical folder/receipt semantics. Run sdlc milestone-close --issue 706 --milestone M1 with measured behavior evidence; the binary owns its review.
@@ -128,9 +141,9 @@ Files: new drive_layout.go/drive_layout_test.go, drive_folder_model.go/_test.go,
 
 Files: label_index_drive.go, label_index_view.go, restore_model.go, restore_input.go and colocated/external tests; drive_count_model.go, continuous_report.go, cmd/internal/archivecmd/continuous.go, cmd/internal/couchcmd/archive_schedule.go and warning/protocol tests; README.md and atlas/history-backup.md; extend restore_live_external_test.go and local-rclone folder conformance.
 
-- [ ] Add failing catalog-loss sync-index tests with legacy plus multiple months, unknown fields, removed/rebound folders, complete empty folders, duplicate directories, metadata caps and one failed group leaving the saved snapshot byte-identical.
+- [ ] Write failing DriveIndexSync.Run tests through the stateful hierarchy using the atomicity and compatibility strategy below.
 - [ ] Implement bounded two-level discovery, per-physical-folder refreshes and atomic single-snapshot publication without a new index-evidence mechanism. Re-run all #689 receipt precedence tests.
-- [ ] Add failing restore tests proving recorded legacy/month paths and exact folder IDs are used, selected-only per-folder downloads share aggregate bounds, and mutation/ambiguity/cancellation produces no decrypted publication.
+- [ ] Write failing PlanRestore and Restorer.acquireRestoreInputs tests using the location-validation and publication invariants below.
 - [ ] Wire recorded locations into restore planning/acquisition; leave hashing, decoder isolation, member checks and exclusive publication in their existing owners.
 - [ ] Extend report validation and Couch warning consumption for observed physical folders, retaining the old Inventory field for older reports. Never label a subset count as a total tree count. Update warning guidance now that month layout exists.
 - [ ] Run historyarchive/fake/archivecmd/couch warning tests, targeted race checks, artifactpath/repolint and meaningful RED/GREEN controls for new behavior.
@@ -145,3 +158,9 @@ Files: label_index_drive.go, label_index_view.go, restore_model.go, restore_inpu
 - Bare start-plan caught up/rebuilt the sibling Ariadne as required, but weave refresh changed two unrelated tracked workflows. Preserved only those generated workflow changes in stash cf709527564ea17b03504c0fb767c56a76d70504; neither workflow enters this issue or receives a local-gates label. The second start-plan succeeded. Stash stays parked for separate toolchain/CI ownership, not silently restored onto this feature.
 - Current code stores receipts under one configured-root namespace, but hardcodes that root as both receipt location and restore remote acquisition. That is why a write-only folder change would not fulfill #706.
 - No production code changed during planning. No estimate before the plan-quality gate. Await hub approval before change-code.
+
+## Revisions
+
+### 2026-10-19 — PQ-1: function-specific adversarial verification
+
+The first plan-quality review accepted the architecture and scope but required executable test contracts. Named the risky layout, folder-state, receipt, upload, index, restore and reporting functions; replaced prose case inventories with fuzz, generated event-sequence, atomicity and independent invariant strategies. Kept counted N/2N and global resource guards. No scope, mechanism or operating-envelope change.
