@@ -2569,16 +2569,17 @@ var execProcess = syscall.Exec
 // group, and a watcher killed before the first completed turn left its launch
 // unbound for good (#329). After binding, Codex watchers keep observing lifecycle
 // events; other agents' watchers exit. Watchers also exit when the agent's process
-// identity changes or at the startup deadline if no agent pid appears.
-var startWatcherProcess = func(argv, env []string, files ...*os.File) error {
+// identity changes or at the startup deadline if no agent pid appears. The
+// wrapper retains the direct child so every exit joins its remaining writers.
+var startWatcherProcess = func(argv, env []string, files ...*os.File) (*ownedGroup, error) {
 	watcher := exec.Command(argv[0], argv[1:]...)
 	watcher.Env = env
 	watcher.ExtraFiles = files
 	watcher.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	if err := watcher.Start(); err != nil {
-		return err
+		return nil, err
 	}
-	return watcher.Process.Release()
+	return newOwnedGroup(watcher, time.Second), nil
 }
 
 func freshAgentInvocation(wrapperExecutable, scrollbackLog string, currentArgv []string, env []string) (*freshExecRequest, error) {
@@ -3022,7 +3023,11 @@ argsDone:
 			stream := readBindingNotices(reader, ordinal)
 			defer stream.Close()
 			p.nativeBindingNotices = stream.events
-			err = startWatcherProcess(watcher, setEnv(os.Environ(), sessionwatch.BindingNoticeEnv, "3"), writer)
+			var watcherGroup *ownedGroup
+			watcherGroup, err = startWatcherProcess(watcher, setEnv(os.Environ(), sessionwatch.BindingNoticeEnv, "3"), writer)
+			if watcherGroup != nil {
+				defer watcherGroup.Wait()
+			}
 			_ = writer.Close()
 		}
 		if err != nil {

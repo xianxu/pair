@@ -113,12 +113,6 @@ func TestDetachBeforeFirstTurnAuthorizesRelaunch(t *testing.T) {
 				case <-testwait.After(t):
 					t.Error("fixture wrap did not stop")
 				}
-				if raw, e := os.ReadFile(watcherPID); e == nil {
-					pid, _ := strconv.Atoi(string(raw))
-					if pid > 0 {
-						_ = syscall.Kill(pid, syscall.SIGKILL)
-					}
-				}
 			}()
 			waitDetachCondition(t, "agent startup", func() bool { _, e := os.Stat(ready); return e == nil })
 			waitDetachCondition(t, "wrap-owned watcher startup", func() bool { _, e := os.Stat(watcherPID); return e == nil })
