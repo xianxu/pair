@@ -135,6 +135,36 @@ The hub's final decision defers that known limitation to unclaimed pair#731. Do 
 stage or build pair:0; live acceptance is the operator's next natural relaunch.
 Finish landing, report verified merge/PR and follow-up #731 to the hub, then stop.
 
+### 2026-10-20 — train 190 inventory integration repair
+
+Train 190's combined suite failed deterministically in the newly landed #725
+reader inventory: three unmapped recovery test files and two changed scanner
+hashes. Retained failed attempt f5030b8dfbb66701f151888f878b22b0, log
+/Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/f5030b8dfbb66701f151888f878b22b0.log.
+The main baseline passed; the hub abandoned the remaining queued prefix diagnosis
+for fleet-blocking #726. This cancellation gives no final culprit attribution or
+passing integration evidence. The hub then directed the local inventory repair
+(delivery 2d1ebf02-8ebc-4761-9819-663b2432ec92).
+
+Stopped only #727's exact waiting merge (verified ticket PID 95206, exit 130),
+then merged main without conflicts. Read-only audit reproduced exactly the five
+inventory errors. The new layoutcmd and termcmd recovery tests contain local
+shell/editor literals and private fixture reads, no repository source scans:
+classify those three as local_or_literal_fixture. Re-audited effect_coverage and
+reply_contract: their repository input scopes and fixed scanner test names are
+unchanged; refresh only their two digests, keeping fixed_scanner ownership.
+No scanner registration, admission requirement or negative control was removed.
+
+The actual inventory test reproduced the five-error red before the repair. That
+first command began before the merge commit, so its separate disposable-HEAD
+seeded control also saw the old HEAD without test-affected; it is not a second
+production failure. After committing the clean main integration and applying
+only the five audited inventory entries, all eight affected-go-readers tests
+passed in 62.380s, including the actual seeded cross-package preflight refusal.
+The prior branch full-suite pass remains recorded, but does not claim this new
+integrated head is fully tested. Narrow re-close and normal merge validation
+follow; #731 and deferred natural-relaunch acceptance remain unchanged.
+
 ## Revisions
 
 ### 2026-10-20 — post-reboot verification and checklist disposition
