@@ -828,7 +828,7 @@ func (b *Broker) promote(ctx context.Context, a *SlotActor) bool {
 	b.mu.Unlock()
 	obs, err := a.endpoint.Observe(ctx)
 	if err == nil {
-		err = a.endpoint.Reserve(ctx, head.ID, obs.Sequence)
+		err = reserveDrainMessage(ctx, a.endpoint, head, obs.Sequence)
 	}
 	b.mu.Lock()
 	// The worker frees its own attempt without a wake: it schedules its own
@@ -855,7 +855,7 @@ func (b *Broker) promote(ctx context.Context, a *SlotActor) bool {
 		// Peer recovery remains compatible with legacy wrapper deadlines.
 		match := retained.Message.Origin.Valid() && retained.Message.Origin == head.Origin &&
 			retained.Message.ID == head.ID && retained.Message.From == head.From &&
-			retained.Message.To == head.To && retained.Message.Body == head.Body && retained.Message.DrainInstance == head.DrainInstance
+			retained.Message.To == head.To && retained.Message.Body == head.Body && retained.Message.DrainFence == head.DrainFence
 		if head.Origin == OriginSystem {
 			match = match && retained.Message.Deadline.Equal(head.Deadline) &&
 				(retained.Message.AcceptedAt.IsZero() || retained.Message.AcceptedAt.Equal(head.AcceptedAt))
@@ -889,7 +889,7 @@ func (b *Broker) promote(ctx context.Context, a *SlotActor) bool {
 	if err != nil {
 		b.mu.Unlock()
 		releaseCtx, cancel := context.WithTimeout(context.Background(), AdmissionTimeout)
-		_ = a.endpoint.Release(releaseCtx, head.ID)
+		_ = releaseDrainMessage(releaseCtx, a.endpoint, head)
 		cancel()
 		b.mu.Lock()
 		return ctx.Err() == nil
@@ -1048,7 +1048,7 @@ func (b *Broker) runActor(ctx context.Context, a *SlotActor) {
 			select {
 			case m := <-a.inbox:
 				ctx, cancel := context.WithTimeout(context.Background(), AdmissionTimeout)
-				_ = a.endpoint.Release(ctx, m.ID)
+				_ = releaseDrainMessage(ctx, a.endpoint, m)
 				cancel()
 			default:
 				return
@@ -1117,7 +1117,7 @@ func (b *Broker) deliver(ctx context.Context, a *SlotActor, m Message) {
 		detail = "receiver returned no terminal delivery outcome"
 	}
 	releaseCtx, releaseCancel := context.WithTimeout(context.Background(), AdmissionTimeout)
-	_ = a.endpoint.Release(releaseCtx, m.ID)
+	_ = releaseDrainMessage(releaseCtx, a.endpoint, m)
 	releaseCancel()
 	b.mu.Lock()
 	for id, active := range b.jobs {

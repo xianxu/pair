@@ -41,6 +41,7 @@ type drainCoordinatorOptions struct {
 }
 type drainCoordinator struct {
 	opts        drainCoordinatorOptions
+	namespace   string
 	ctx         context.Context
 	stop        context.CancelFunc
 	done        chan struct{}
@@ -64,19 +65,26 @@ func newDrainCoordinator(parent context.Context, opts drainCoordinatorOptions) (
 	if opts.Now == nil {
 		opts.Now = time.Now
 	}
+	namespace, err := couchmessage.DrainNamespaceKey(opts.Store.namespace)
+	if err != nil {
+		return nil, err
+	}
 	ctx, stop := context.WithCancel(parent)
-	c := &drainCoordinator{opts: opts, ctx: ctx, stop: stop, done: make(chan struct{}), wake: make(chan struct{}, 1), ackRevision: map[string]uint64{}}
+	c := &drainCoordinator{namespace: namespace, opts: opts, ctx: ctx, stop: stop, done: make(chan struct{}), wake: make(chan struct{}, 1), ackRevision: map[string]uint64{}}
 	c.board.Store(couchcore.DrainBoard{})
 	raw, err := opts.Store.Read(ctx)
 	if err == nil && len(raw) > 0 {
 		c.record, err = decodeDrainServiceRecord(raw)
 		c.raw = raw
+		if err == nil && c.record.Namespace != namespace {
+			err = errors.New("persisted drain belongs to another namespace")
+		}
 	}
 	if err != nil {
 		// Unreadable intent cannot grant a new start or admission. Keep a known
 		// synthetic recovery generation solely as a fail-closed gate diagnostic.
 		id := "00000000-0000-4000-8000-000000000000"
-		c.record.State = couchcore.DrainState{ID: id, Owner: "couch-drain:" + id, Phase: couchcore.DrainRecovered, Error: "drain storage unknown: " + err.Error()}
+		c.record = drainServiceRecord{State: couchcore.DrainState{ID: id, Owner: "couch-drain:" + id, Phase: couchcore.DrainRecovered, Error: "drain storage unknown: " + err.Error()}}
 		_ = opts.Broker.HoldDrain(id)
 	} else if c.record.State.ID != "" && (!c.record.Released || c.record.State.Phase != couchcore.DrainFinished) {
 		_ = opts.Broker.HoldDrain(c.record.State.ID)
@@ -170,7 +178,9 @@ func (c *drainCoordinator) saveLocked() error {
 func (c *drainCoordinator) event(e couchcore.DrainEvent) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	e.ID = c.record.State.ID
+	if e.ID == "" {
+		e.ID = c.record.State.ID
+	}
 	before := c.record.State
 	c.record.State, _ = couchcore.ReduceDrain(c.record.State, e)
 	if e.Kind == couchcore.DrainQueueObserved || e.Kind == couchcore.DrainMemberObserved || reflect.DeepEqual(before, c.record.State) {
@@ -222,7 +232,17 @@ func (c *drainCoordinator) start(ctx context.Context, id, reason string, fast bo
 		}
 		return c.view(), errors.New("drain already active; inspect status or cancel")
 	}
-	c.record = drainServiceRecord{SchemaVersion: 1, State: s, From: from, Controls: controls}
+	if id == c.record.State.ID {
+		if reason != c.record.State.Reason || fast != c.record.State.Fast {
+			return c.view(), errors.New("conflicting completed drain ID; inspect status")
+		}
+		return c.view(), nil
+	}
+	epoch, err := nextDrainEpoch(c.record.Epoch)
+	if err != nil {
+		return c.view(), err
+	}
+	c.record = drainServiceRecord{SchemaVersion: 2, Namespace: c.namespace, Epoch: epoch, State: s, From: from, Controls: controls}
 	c.raw = nil
 	c.census = append([]couchcore.DrainRow(nil), census...)
 	c.ackRevision = map[string]uint64{}
@@ -273,7 +293,7 @@ func (c *drainCoordinator) cancel(ctx context.Context) (couchcore.DrainBoard, er
 	if s.ID == "" || s.Phase == couchcore.DrainFinished && c.record.Released {
 		return c.view(), nil
 	}
-	if c.record.SchemaVersion != 1 {
+	if c.record.SchemaVersion != 2 {
 		return c.view(), errors.New("drain storage unknown; inspect persisted record before cancellation")
 	}
 	if err := c.opts.Broker.BeginDrainCancel(s.ID); err != nil {
@@ -395,9 +415,10 @@ func (c *drainCoordinator) reconcile(parent context.Context) {
 			c.mu.Lock()
 			current, present := c.record.Controls[workspace]
 			expectedInstance := current.WrapperInstance
+			expectedEpoch, expectedGeneration := c.record.Epoch, c.record.State.ID
 			sameMember := present && current.Member.Identity() == member.Identity()
 			c.mu.Unlock()
-			obs.Known = obs.Known && err == nil && fresh.Validate() == nil && fresh.Complete && sameMember && expectedInstance != "" && fresh.Instance == expectedInstance
+			obs.Known = obs.Known && err == nil && c.validDrainObservation(fresh) && sameMember && expectedInstance != "" && fresh.Instance == expectedInstance && fresh.Epoch == expectedEpoch && fresh.Generation == expectedGeneration
 			obs.Idle = obs.Idle && fresh.Idle
 			obs.Picker = obs.Picker || fresh.Picker
 			obs.Background = obs.Background || fresh.AutomaticInput
@@ -407,7 +428,7 @@ func (c *drainCoordinator) reconcile(parent context.Context) {
 			obs.Background = true
 		}
 		obs.Sequence = 0 // Fresh calls are ordered by this serialized reconciliation pass.
-		c.observeMember(workspace, member.Identity(), obs, revision)
+		c.observeMember(workspace, member.Identity(), obs, revision, s.ID)
 	})
 	// An already-handed effect whose binding is outside the known current fleet
 	// must block global completion, even when the SDLC queue is empty.
@@ -419,6 +440,9 @@ func (c *drainCoordinator) reconcile(parent context.Context) {
 	_ = parent
 }
 func (c *drainCoordinator) observeQueue() {
+	c.mu.Lock()
+	generation := c.record.State.ID
+	c.mu.Unlock()
 	now := c.opts.Now()
 	if !c.lastQueue.IsZero() && now.Sub(c.lastQueue) < 2*time.Second {
 		return
@@ -437,7 +461,28 @@ func (c *drainCoordinator) observeQueue() {
 	for _, a := range q.Active {
 		o.Active = append(o.Active, couchcore.DrainActivity{ID: a.ID, Workspace: a.Workspace, Kind: a.Kind, State: a.State, Head: a.Head})
 	}
-	_ = c.event(couchcore.DrainEvent{Kind: couchcore.DrainQueueObserved, Queue: o})
+	_ = c.event(couchcore.DrainEvent{ID: generation, Kind: couchcore.DrainQueueObserved, Queue: o})
+}
+
+// validDrainObservation accepts capability evidence only from this namespace.
+// A lower watermark may precede first admission; a newer/conflicting one cannot
+// establish authority for this intent.
+func (c *drainCoordinator) validDrainObservation(o couchmessage.DrainObservation) bool {
+	c.mu.Lock()
+	epoch, generation := c.record.Epoch, c.record.State.ID
+	c.mu.Unlock()
+	return o.Validate() == nil && o.Complete && o.Protocol == 2 && o.Namespace == c.namespace && o.Epoch <= epoch && (o.Epoch != epoch || o.Generation == generation)
+}
+
+func (c *drainCoordinator) controlFence(control drainControlRecord, kind couchmessage.DrainControlKind) (couchmessage.DrainFence, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	current, ok := c.record.Controls[control.Member.Binding.Slot]
+	if !ok || current.Member.Identity() != control.Member.Identity() || current.NoticeID != control.NoticeID || current.InterruptID != control.InterruptID || current.WrapperInstance == "" || current.WrapperInstance != control.WrapperInstance {
+		return couchmessage.DrainFence{}, errors.New("drain control authority changed")
+	}
+	f := couchmessage.DrainFence{Namespace: c.record.Namespace, Generation: c.record.State.ID, Epoch: c.record.Epoch, Instance: current.WrapperInstance, Kind: kind}
+	return f, f.Validate()
 }
 func (c *drainCoordinator) fanout(controls map[string]drainControlRecord, fn func(string, drainControlRecord)) {
 	type job struct {
@@ -499,7 +544,7 @@ func (c *drainCoordinator) control(workspace string, control drainControlRecord)
 		ctx, cancel := context.WithTimeout(c.ctx, 5*time.Second)
 		observed, err := endpoint.ObserveDrain(ctx)
 		cancel()
-		if err != nil || observed.Instance != control.WrapperInstance {
+		if err != nil || !c.validDrainObservation(observed) || observed.Instance != control.WrapperInstance {
 			_ = c.event(couchcore.DrainEvent{Kind: couchcore.DrainFailed, Detail: "wrapper incarnation changed or unknown: " + workspace})
 			return
 		}
@@ -513,7 +558,7 @@ func (c *drainCoordinator) control(workspace string, control drainControlRecord)
 			var err error
 			if !control.InterruptStarted {
 				observation, observeErr := endpoint.ObserveDrain(ctx)
-				if observeErr != nil || observation.Validate() != nil || !observation.Complete {
+				if observeErr != nil || !c.validDrainObservation(observation) {
 					err = errors.New("interrupt observation unknown")
 				} else if !c.beginInterrupt(workspace, observation) {
 					cancel()
@@ -521,13 +566,24 @@ func (c *drainCoordinator) control(workspace string, control drainControlRecord)
 				} else {
 					control.WrapperInstance = observation.Instance
 					control.InterruptObserved = &observation
-					result, err = endpoint.InterruptDrain(ctx, control.InterruptID, observation)
+					fence, fenceErr := c.controlFence(control, couchmessage.DrainInterruptControl)
+					if fenceErr != nil {
+						err = fenceErr
+					} else {
+						result, err = endpoint.InterruptDrain(ctx, control.InterruptID, fence, observation)
+					}
 				}
 			} else {
-				result, err = endpoint.DrainInterruptStatus(ctx, control.InterruptID)
+				fence, fenceErr := c.controlFence(control, couchmessage.DrainInterruptControl)
+				if fenceErr != nil {
+					err = fenceErr
+				} else {
+					result, err = endpoint.DrainInterruptStatus(ctx, control.InterruptID, fence)
+				}
 			}
 			cancel()
-			if err == nil && (result.ID != control.InterruptID || result.Instance != "" && control.WrapperInstance != "" && result.Instance != control.WrapperInstance || control.InterruptObserved != nil && result.Turn != control.InterruptObserved.Turn) {
+			expected, fenceErr := c.controlFence(control, couchmessage.DrainInterruptControl)
+			if err == nil && (fenceErr != nil || result.ID != control.InterruptID || result.Fence != expected || control.InterruptObserved != nil && result.Turn != control.InterruptObserved.Turn) {
 				err = errors.New("interrupt reply identity mismatch")
 			}
 			if err == nil {
@@ -542,7 +598,7 @@ func (c *drainCoordinator) control(workspace string, control drainControlRecord)
 				detail = err.Error()
 			}
 		}
-		_ = c.event(couchcore.DrainEvent{Kind: couchcore.DrainInterruptResult, Workspace: workspace, Identity: control.Member.Identity(), Outcome: outcome, Detail: detail})
+		_ = c.event(couchcore.DrainEvent{ID: s.ID, Kind: couchcore.DrainInterruptResult, Workspace: workspace, Identity: control.Member.Identity(), Outcome: outcome, Detail: detail})
 		if outcome != couchcore.DrainDone {
 			return
 		}
@@ -559,16 +615,21 @@ func (c *drainCoordinator) control(workspace string, control drainControlRecord)
 		ctx, cancel := context.WithTimeout(c.ctx, 5*time.Second)
 		observed, err := endpoint.ObserveDrain(ctx)
 		cancel()
-		if err != nil || observed.Validate() != nil || !observed.Complete {
+		if err != nil || !c.validDrainObservation(observed) {
 			_ = c.event(couchcore.DrainEvent{Kind: couchcore.DrainNoticeResult, Workspace: workspace, Identity: control.Member.Identity(), Outcome: couchcore.DrainUnknown, Detail: "notice wrapper observation unknown"})
 			return
 		}
 		if !c.beginNotice(workspace, observed.Instance) {
 			return
 		}
+		control.WrapperInstance = observed.Instance
+		fence, err := c.controlFence(control, couchmessage.DrainNoticeControl)
+		if err != nil {
+			return
+		}
 		text, _ := couchcore.DrainNotice(s.ID, s.Reason, s.Fast)
 		ctx, cancel = context.WithTimeout(c.ctx, 5*time.Second)
-		_, err = c.opts.Broker.SendDrain(ctx, s.ID, c.recordFrom(), control.NoticeID, control.Member.Binding, text, observed.Instance)
+		_, err = c.opts.Broker.SendDrain(ctx, s.ID, c.recordFrom(), control.NoticeID, control.Member.Binding, text, fence)
 		cancel()
 		if err != nil {
 			_ = c.event(couchcore.DrainEvent{Kind: couchcore.DrainNoticeResult, Workspace: workspace, Identity: control.Member.Identity(), Outcome: couchcore.DrainUnknown, Detail: err.Error()})
@@ -587,7 +648,7 @@ func (c *drainCoordinator) control(workspace string, control drainControlRecord)
 		outcome = couchcore.DrainUnknown
 		detail = "notice not submitted: " + string(receipt.Status)
 	}
-	_ = c.event(couchcore.DrainEvent{Kind: couchcore.DrainNoticeResult, Workspace: workspace, Identity: control.Member.Identity(), Outcome: outcome, Detail: detail})
+	_ = c.event(couchcore.DrainEvent{ID: s.ID, Kind: couchcore.DrainNoticeResult, Workspace: workspace, Identity: control.Member.Identity(), Outcome: outcome, Detail: detail})
 }
 func (c *drainCoordinator) recordFrom() couchmessage.Binding {
 	c.mu.Lock()
@@ -638,7 +699,7 @@ func (c *drainCoordinator) revoke(workspace string, control drainControlRecord) 
 			ctx, cancel := context.WithTimeout(c.ctx, 5*time.Second)
 			observed, err := endpoint.ObserveDrain(ctx)
 			cancel()
-			same = err == nil && observed.Instance == control.WrapperInstance
+			same = err == nil && c.validDrainObservation(observed) && observed.Instance == control.WrapperInstance
 		}
 		if !same {
 			_ = c.event(couchcore.DrainEvent{Kind: couchcore.DrainRevoked, Workspace: workspace, Identity: control.Member.Identity(), Outcome: couchcore.DrainUnknown, Detail: "wrapper incarnation changed; old control disposition unknown"})
@@ -663,7 +724,7 @@ func (c *drainCoordinator) revoke(workspace string, control drainControlRecord) 
 			ctx, cancel := context.WithTimeout(c.ctx, 5*time.Second)
 			observed, err := endpoint.ObserveDrain(ctx)
 			cancel()
-			if err != nil || observed.Validate() != nil {
+			if err != nil || !c.validDrainObservation(observed) {
 				_ = c.event(couchcore.DrainEvent{Kind: couchcore.DrainRevoked, Workspace: workspace, Identity: control.Member.Identity(), Outcome: couchcore.DrainUnknown, Detail: "cancel wrapper observation unknown"})
 				return
 			}
@@ -678,21 +739,35 @@ func (c *drainCoordinator) revoke(workspace string, control drainControlRecord) 
 				return
 			}
 		}
-		for _, id := range []string{control.NoticeID, control.InterruptID} {
+		for _, item := range []struct {
+			id   string
+			kind couchmessage.DrainControlKind
+		}{{control.NoticeID, couchmessage.DrainNoticeControl}, {control.InterruptID, couchmessage.DrainInterruptControl}} {
+			id := item.id
+			fence, fenceErr := c.controlFence(control, item.kind)
+			if fenceErr != nil {
+				outcome, detail = couchcore.DrainUnknown, fenceErr.Error()
+				continue
+			}
 			ctx, cancel := context.WithTimeout(c.ctx, 5*time.Second)
-			r, err := endpoint.RevokeDrain(ctx, id)
+			r, err := endpoint.RevokeDrain(ctx, id, fence)
 			cancel()
-			known := err == nil && r.ID == id && r.Instance == control.WrapperInstance && r.Outcome == "not-committed"
-			if err == nil && r.ID == id && r.Instance == control.WrapperInstance && r.Outcome == "already-committed" {
+			known := err == nil && r.ID == id && r.Fence == fence && r.Outcome == "not-committed"
+			if err == nil && r.ID == id && r.Fence == fence && r.Outcome == "already-committed" {
 				if id == control.InterruptID {
-					known = r.Interrupt != nil && r.Interrupt.ID == id && r.Interrupt.Instance == control.WrapperInstance && r.Interrupt.Outcome == "interrupted"
+					known = r.Interrupt != nil && r.Interrupt.ID == id && r.Interrupt.Fence == fence && r.Interrupt.Outcome == "interrupted"
 				} else {
-					known = r.Receipt != nil && r.Receipt.Message.ID == id && r.Receipt.Message.To == control.Member.Binding && r.Receipt.Status.Terminal() && r.Receipt.Status != couchmessage.Indeterminate
+					s, _ := c.stateSnapshot()
+					body, _ := couchcore.DrainNotice(fence.Generation, s.Reason, s.Fast)
+					known = r.Receipt != nil && r.Receipt.Message.ID == id && r.Receipt.Message.To == control.Member.Binding && r.Receipt.Message.From == c.recordFrom() && r.Receipt.Message.Origin == couchmessage.OriginSystem && r.Receipt.Message.DrainFence == fence && r.Receipt.Message.Body == body && r.Receipt.Status.Terminal() && r.Receipt.Status != couchmessage.Indeterminate
 				}
 			}
 			if !known {
 				outcome = couchcore.DrainUnknown
 				detail = "cancellation unconfirmed"
+				if err != nil {
+					detail += ": " + err.Error()
+				}
 			}
 		}
 	}
@@ -724,9 +799,12 @@ func (c *drainCoordinator) finishRelease(id string) {
 	_ = c.saveLocked()
 	c.mu.Unlock()
 }
-func (c *drainCoordinator) observeMember(workspace, identity string, obs couchcore.DrainObservation, revision uint64) {
+func (c *drainCoordinator) observeMember(workspace, identity string, obs couchcore.DrainObservation, revision uint64, generation ...string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if len(generation) > 0 && generation[0] != c.record.State.ID {
+		return
+	}
 	if revision != c.ackRevision[workspace] {
 		obs.Idle = false
 	}

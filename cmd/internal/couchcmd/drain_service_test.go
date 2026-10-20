@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
@@ -17,91 +19,205 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 )
 
+// The fake uses the production pure generation authority; maps below retain
+// current-generation payloads only, never decide whether input is authorized.
 type drainServiceEndpoint struct {
 	mu                  sync.Mutex
 	notices, interrupts int
-	unknown             bool
-	idle                bool
-	instance            string
+	unknown, idle       bool
+	instance, namespace string
+	authority           couchmessage.DrainGeneration
+	protocol            int
+	proof               func(couchmessage.DrainFence) couchmessage.DrainFence
 	receipts            map[string]couchmessage.Receipt
 	results             map[string]couchmessage.DrainInterruptResult
 	revoked             map[string]bool
 }
 
+func (e *drainServiceEndpoint) ownerLocked() error {
+	instance := e.instance
+	if instance == "" {
+		instance = "instance"
+	}
+	if e.authority.View().Instance == instance && e.authority.View().Namespace == e.namespace {
+		return nil
+	}
+	authority, err := couchmessage.NewDrainGeneration(e.namespace, instance)
+	if err != nil {
+		return err
+	}
+	e.authority = authority
+	e.receipts = map[string]couchmessage.Receipt{}
+	e.results = map[string]couchmessage.DrainInterruptResult{}
+	e.revoked = map[string]bool{}
+	return nil
+}
+func (e *drainServiceEndpoint) reduceLocked(event couchmessage.DrainGenerationEvent) error {
+	if err := e.ownerLocked(); err != nil {
+		return err
+	}
+	before := e.authority.View().Epoch
+	next, err := couchmessage.ReduceDrainGeneration(e.authority, event)
+	if err != nil {
+		return err
+	}
+	e.authority = next
+	if before != next.View().Epoch {
+		e.receipts = map[string]couchmessage.Receipt{}
+		e.results = map[string]couchmessage.DrainInterruptResult{}
+		e.revoked = map[string]bool{}
+	}
+	return nil
+}
+func (e *drainServiceEndpoint) echoLocked(f couchmessage.DrainFence) couchmessage.DrainFence {
+	if e.proof != nil {
+		return e.proof(f)
+	}
+	return f
+}
 func (e *drainServiceEndpoint) Observe(context.Context) (couchmessage.Observation, error) {
 	return couchmessage.Observation{LastActivity: time.Now().Add(-time.Hour)}, nil
 }
 func (e *drainServiceEndpoint) Reserve(context.Context, string, uint64) error { return nil }
 func (e *drainServiceEndpoint) Release(context.Context, string) error         { return nil }
+func (e *drainServiceEndpoint) ReserveDrain(_ context.Context, id string, sequence uint64, fence couchmessage.DrainFence) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if sequence != 0 || fence.Kind != couchmessage.DrainNoticeControl {
+		return errors.New("fake notice reservation authority mismatch")
+	}
+	return e.reduceLocked(couchmessage.DrainGenerationEvent{Kind: couchmessage.DrainAdmitControl, Fence: fence, ID: id})
+}
+func (e *drainServiceEndpoint) ReleaseDrain(_ context.Context, id string, fence couchmessage.DrainFence) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	_, err := e.authority.Lookup(fence, id)
+	return err
+}
 func (e *drainServiceEndpoint) Deliver(_ context.Context, m couchmessage.Message, _ func(couchmessage.Receipt)) (couchmessage.Receipt, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.revoked[m.ID] {
+	fence := m.DrainFence
+	if fence.Kind != couchmessage.DrainNoticeControl {
+		return couchmessage.Receipt{}, errors.New("fake expected fenced drain notice")
+	}
+	if err := e.ownerLocked(); err != nil {
+		return couchmessage.Receipt{}, err
+	}
+	if _, err := e.authority.Lookup(fence, m.ID); err != nil {
+		return couchmessage.Receipt{}, err
+	}
+	if r, ok := e.receipts[m.ID]; ok {
+		return r, nil
+	}
+	if !e.authority.Allows(fence, m.ID) {
 		return couchmessage.Receipt{Message: m, Status: couchmessage.Cancelled}, nil
 	}
-	e.notices++
-	r := couchmessage.Receipt{Message: m, Status: couchmessage.Submitted}
-	if e.receipts == nil {
-		e.receipts = map[string]couchmessage.Receipt{}
+	if err := e.reduceLocked(couchmessage.DrainGenerationEvent{Kind: couchmessage.DrainBeginInput, Fence: fence, ID: m.ID}); err != nil {
+		return couchmessage.Receipt{}, err
 	}
+	e.notices++
+	if err := e.reduceLocked(couchmessage.DrainGenerationEvent{Kind: couchmessage.DrainSettleControl, Fence: fence, ID: m.ID, Disposition: couchmessage.DrainControlCommitted}); err != nil {
+		return couchmessage.Receipt{}, err
+	}
+	r := couchmessage.Receipt{Message: m, Status: couchmessage.Submitted}
 	e.receipts[m.ID] = r
 	return r, nil
 }
 func (e *drainServiceEndpoint) ObserveDrain(context.Context) (couchmessage.DrainObservation, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	instance := e.instance
-	if instance == "" {
-		instance = "instance"
+	if err := e.ownerLocked(); err != nil {
+		return couchmessage.DrainObservation{}, err
 	}
-	return couchmessage.DrainObservation{Instance: instance, Turn: 1, Active: !e.idle, Idle: e.idle, ComposerKnown: true, ComposerEmpty: true, Complete: true}, nil
+	view := e.authority.View()
+	protocol := e.protocol
+	if protocol == 0 {
+		protocol = 2
+	}
+	return couchmessage.DrainObservation{Protocol: protocol, Namespace: view.Namespace, Epoch: view.Epoch, Generation: view.Generation, Instance: view.Instance, Turn: 1, Active: !e.idle, Idle: e.idle, ComposerKnown: true, ComposerEmpty: true, Complete: true}, nil
 }
-func (e *drainServiceEndpoint) InterruptDrain(_ context.Context, id string, o couchmessage.DrainObservation) (couchmessage.DrainInterruptResult, error) {
+func (e *drainServiceEndpoint) InterruptDrain(_ context.Context, id string, fence couchmessage.DrainFence, o couchmessage.DrainObservation) (couchmessage.DrainInterruptResult, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.results == nil {
-		e.results = map[string]couchmessage.DrainInterruptResult{}
+	if fence.Kind != couchmessage.DrainInterruptControl || o.Protocol != 2 || o.Namespace != e.namespace || o.Instance != fence.Instance {
+		return couchmessage.DrainInterruptResult{}, errors.New("fake interrupt observation mismatch")
+	}
+	if err := e.reduceLocked(couchmessage.DrainGenerationEvent{Kind: couchmessage.DrainAdmitControl, Fence: fence, ID: id}); err != nil {
+		return couchmessage.DrainInterruptResult{}, err
 	}
 	if r, ok := e.results[id]; ok {
 		return r, nil
 	}
-	r := couchmessage.DrainInterruptResult{ID: id, Instance: o.Instance, Turn: o.Turn, Outcome: "interrupted"}
-	if e.revoked[id] {
-		r.Outcome = "skipped"
-	} else {
+	result := couchmessage.DrainInterruptResult{ID: id, Fence: e.echoLocked(fence), Turn: o.Turn, Outcome: "skipped"}
+	disposition := couchmessage.DrainControlNotCommitted
+	if !e.idle && o.Active && e.authority.Allows(fence, id) {
+		if err := e.reduceLocked(couchmessage.DrainGenerationEvent{Kind: couchmessage.DrainBeginInput, Fence: fence, ID: id}); err != nil {
+			return couchmessage.DrainInterruptResult{}, err
+		}
 		e.interrupts++
+		result.Outcome = "interrupted"
+		disposition = couchmessage.DrainControlCommitted
 	}
-	e.results[id] = r
+	if err := e.reduceLocked(couchmessage.DrainGenerationEvent{Kind: couchmessage.DrainSettleControl, Fence: fence, ID: id, Disposition: disposition}); err != nil {
+		return couchmessage.DrainInterruptResult{}, err
+	}
+	e.results[id] = result
 	if e.unknown {
 		return couchmessage.DrainInterruptResult{}, errors.New("lost reply")
 	}
+	return result, nil
+}
+func (e *drainServiceEndpoint) DrainInterruptStatus(_ context.Context, id string, fence couchmessage.DrainFence) (couchmessage.DrainInterruptResult, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if err := e.ownerLocked(); err != nil {
+		return couchmessage.DrainInterruptResult{}, err
+	}
+	if _, err := e.authority.Lookup(fence, id); err != nil {
+		return couchmessage.DrainInterruptResult{}, err
+	}
+	if e.unknown {
+		return couchmessage.DrainInterruptResult{ID: id, Fence: e.echoLocked(fence), Outcome: "unknown"}, nil
+	}
+	r, ok := e.results[id]
+	if !ok {
+		return couchmessage.DrainInterruptResult{}, errors.New("fake unknown interrupt")
+	}
+	r.Fence = e.echoLocked(fence)
 	return r, nil
 }
-func (e *drainServiceEndpoint) DrainInterruptStatus(_ context.Context, id string) (couchmessage.DrainInterruptResult, error) {
+func (e *drainServiceEndpoint) RevokeDrain(_ context.Context, id string, fence couchmessage.DrainFence) (couchmessage.DrainRevokeResult, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.unknown {
-		return couchmessage.DrainInterruptResult{ID: id, Instance: "instance", Outcome: "unknown"}, nil
+	if err := e.ownerLocked(); err != nil {
+		return couchmessage.DrainRevokeResult{}, err
 	}
-	return e.results[id], nil
-}
-func (e *drainServiceEndpoint) RevokeDrain(_ context.Context, id string) (couchmessage.DrainRevokeResult, error) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if e.revoked == nil {
-		e.revoked = map[string]bool{}
-	}
-	e.revoked[id] = true
+	disposition := couchmessage.DrainControlNotCommitted
+	outcome := "not-committed"
+	result := couchmessage.DrainRevokeResult{ID: id, Fence: e.echoLocked(fence)}
 	if r, ok := e.receipts[id]; ok {
-		return couchmessage.DrainRevokeResult{ID: id, Instance: "instance", Outcome: "already-committed", Receipt: &r}, nil
+		disposition = couchmessage.DrainControlCommitted
+		outcome = "already-committed"
+		result.Receipt = &r
 	}
 	if r, ok := e.results[id]; ok && r.Outcome == "interrupted" {
-		if e.unknown {
-			return couchmessage.DrainRevokeResult{ID: id, Instance: "instance", Outcome: "unknown"}, nil
-		}
-		return couchmessage.DrainRevokeResult{ID: id, Instance: "instance", Outcome: "already-committed", Interrupt: &r}, nil
+		disposition = couchmessage.DrainControlCommitted
+		outcome = "already-committed"
+		result.Interrupt = &r
 	}
-	return couchmessage.DrainRevokeResult{ID: id, Instance: "instance", Outcome: "not-committed"}, nil
+	if e.unknown && outcome == "already-committed" {
+		disposition = couchmessage.DrainControlUnknown
+		outcome = "unknown"
+		result.Receipt = nil
+		result.Interrupt = nil
+	}
+	if err := e.reduceLocked(couchmessage.DrainGenerationEvent{Kind: couchmessage.DrainRevokeControl, Fence: fence, ID: id, Disposition: disposition}); err != nil {
+		return couchmessage.DrainRevokeResult{}, err
+	}
+	e.revoked[id] = true
+	result.Outcome = outcome
+	return result, nil
 }
 
 type drainServiceFleet struct {
@@ -138,10 +254,15 @@ func newDrainServiceFixture(t *testing.T) (*drainCoordinator, *drainServiceFleet
 	t.Cleanup(cancel)
 	b := couchmessage.NewBroker(ctx, time.Now, nil)
 	t.Cleanup(func() { _ = b.Close() })
+	store := newDrainStore(t.TempDir())
+	namespace, err := couchmessage.DrainNamespaceKey(store.namespace)
+	if err != nil {
+		t.Fatal(err)
+	}
 	f := &drainServiceFleet{members: map[string]drainLiveMember{}, endpoints: map[couchmessage.Binding]*drainServiceEndpoint{}}
 	for i := 0; i < 3; i++ {
 		binding := couchmessage.Binding{Slot: fmt.Sprintf("pair:%d", i), Repository: "/repo/.git", Scope: "scope", Tag: fmt.Sprint(i), Session: "session", Nonce: "nonce", Agent: "codex", Version: "test", PID: 1, Start: "start"}
-		e := &drainServiceEndpoint{}
+		e := &drainServiceEndpoint{namespace: namespace}
 		if err := b.Register(binding, e); err != nil {
 			t.Fatal(err)
 		}
@@ -149,7 +270,7 @@ func newDrainServiceFixture(t *testing.T) (*drainCoordinator, *drainServiceFleet
 		f.members[binding.Slot] = drainLiveMember{Binding: binding, Session: "admitted", Observation: couchcore.DrainObservation{Known: true, Connected: true}}
 	}
 	q := NewFakeDrainQueue()
-	c, err := newDrainCoordinator(ctx, drainCoordinatorOptions{Broker: b, Queue: q, Store: newDrainStore(t.TempDir()), Now: time.Now, Snapshot: f.snapshot, Endpoint: func(b couchmessage.Binding) couchmessage.DrainEndpoint { return f.endpoints[b] }})
+	c, err := newDrainCoordinator(ctx, drainCoordinatorOptions{Broker: b, Queue: q, Store: store, Now: time.Now, Snapshot: f.snapshot, Endpoint: func(b couchmessage.Binding) couchmessage.DrainEndpoint { return f.endpoints[b] }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -625,5 +746,359 @@ func TestDrainServiceRecordRejectsAmbiguousActivityExtensions(t *testing.T) {
 		if _, err := mergeDrainRecordUnknown(pair[0], pair[1], reflect.TypeOf([]couchcore.DrainActivity{})); err == nil {
 			t.Fatal("accepted ambiguous or absent activity identity")
 		}
+	}
+}
+
+func drainServiceRecordEpoch(t *testing.T, c *drainCoordinator) uint64 {
+	t.Helper()
+	c.mu.Lock()
+	raw, err := json.Marshal(c.record)
+	c.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields map[string]json.RawMessage
+	_ = json.Unmarshal(raw, &fields)
+	var epoch uint64
+	if err := json.Unmarshal(fields["epoch"], &epoch); err != nil || epoch == 0 {
+		t.Fatalf("persisted drain has no positive epoch: %s", raw)
+	}
+	return epoch
+}
+func TestDrainServiceEpochAllocationAndCancelledRetry(t *testing.T) {
+	c, f, _ := newDrainServiceFixture(t)
+	ctx := context.Background()
+	from := f.snapshot()["pair:0"].Binding
+	id1 := "00000000-0000-4000-8000-000000000001"
+	id2 := "00000000-0000-4000-8000-000000000002"
+	if _, err := c.start(ctx, id1, "restart", false, time.Minute, from); err != nil {
+		t.Fatal(err)
+	}
+	if epoch := drainServiceRecordEpoch(t, c); epoch != 1 {
+		t.Fatalf("first epoch %d", epoch)
+	}
+	duplicate, err := c.start(ctx, id1, "restart", false, time.Minute, from)
+	if err != nil || duplicate.ID != id1 || drainServiceRecordEpoch(t, c) != 1 {
+		t.Fatal("active retry allocated an epoch", duplicate, err)
+	}
+	if _, err := c.cancel(ctx); err != nil {
+		t.Fatal(err)
+	}
+	waitDrainService(t, c, func(b couchcore.DrainBoard) bool { return b.State == couchcore.DrainCancelled })
+	cancelled, err := c.start(ctx, id1, "restart", false, time.Minute, from)
+	if err != nil || cancelled.State != couchcore.DrainCancelled || drainServiceRecordEpoch(t, c) != 1 {
+		t.Fatal("delayed cancelled retry revived generation", cancelled, err)
+	}
+	if _, err := c.start(ctx, id2, "restart", false, time.Minute, from); err != nil {
+		t.Fatal(err)
+	}
+	if epoch := drainServiceRecordEpoch(t, c); epoch != 2 {
+		t.Fatalf("next epoch %d", epoch)
+	}
+}
+func TestDrainServiceEpochSurvivesRecovery(t *testing.T) {
+	c, f, q := newDrainServiceFixture(t)
+	ctx := context.Background()
+	if _, err := c.start(ctx, "00000000-0000-4000-8000-000000000001", "", false, time.Minute, f.snapshot()["pair:0"].Binding); err != nil {
+		t.Fatal(err)
+	}
+	before := drainServiceRecordEpoch(t, c)
+	c.close()
+	broker := couchmessage.NewBroker(ctx, time.Now, nil)
+	defer broker.Close()
+	recovered, err := newDrainCoordinator(ctx, drainCoordinatorOptions{Broker: broker, Queue: q, Store: c.opts.Store, Now: time.Now, Snapshot: f.snapshot, Endpoint: c.opts.Endpoint})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer recovered.close()
+	if recovered.view().State != couchcore.DrainStuck || drainServiceRecordEpoch(t, recovered) != before {
+		t.Fatal("recovery changed epoch or restored completion", recovered.view())
+	}
+}
+func TestDrainServiceEpochOverflowPrecedesIntentAndEffects(t *testing.T) {
+	c, f, q := newDrainServiceFixture(t)
+	ctx := context.Background()
+	from := f.snapshot()["pair:0"].Binding
+	if _, err := c.start(ctx, "00000000-0000-4000-8000-000000000001", "", false, time.Minute, from); err != nil {
+		t.Fatal(err)
+	}
+	_ = drainServiceRecordEpoch(t, c)
+	if _, err := c.cancel(ctx); err != nil {
+		t.Fatal(err)
+	}
+	waitDrainService(t, c, func(b couchcore.DrainBoard) bool { return b.State == couchcore.DrainCancelled })
+	c.pass.Lock()
+	c.mu.Lock()
+	raw, _ := json.Marshal(c.record)
+	var fields map[string]json.RawMessage
+	_ = json.Unmarshal(raw, &fields)
+	fields["epoch"] = json.RawMessage(`18446744073709551615`)
+	raw, _ = json.Marshal(fields)
+	if err := json.Unmarshal(raw, &c.record); err != nil {
+		t.Fatal(err)
+	}
+	c.raw = raw
+	c.mu.Unlock()
+	if err := c.opts.Store.Write(ctx, raw); err != nil {
+		c.pass.Unlock()
+		t.Fatal(err)
+	}
+	c.pass.Unlock()
+	before, _ := c.opts.Store.Read(ctx)
+	if _, err := c.start(ctx, "00000000-0000-4000-8000-000000000002", "", false, time.Minute, from); err == nil {
+		t.Fatal("epoch overflow admitted new generation")
+	}
+	after, _ := c.opts.Store.Read(ctx)
+	if !bytes.Equal(before, after) {
+		t.Fatal("epoch overflow rewrote durable intent")
+	}
+	status, _ := q.Status(ctx)
+	if len(status.PauseOwners) != 0 {
+		t.Fatal("epoch overflow paused queue", status)
+	}
+}
+func TestDrainServiceUnknownCancellationBlocksEpochRetirement(t *testing.T) {
+	c, f, _ := newDrainServiceFixture(t)
+	ctx := context.Background()
+	for _, e := range f.endpoints {
+		e.unknown = true
+	}
+	from := f.snapshot()["pair:0"].Binding
+	if _, err := c.start(ctx, "00000000-0000-4000-8000-000000000001", "", true, time.Minute, from); err != nil {
+		t.Fatal(err)
+	}
+	epoch := drainServiceRecordEpoch(t, c)
+	waitDrainService(t, c, func(b couchcore.DrainBoard) bool { return b.State == couchcore.DrainStuck })
+	if _, err := c.cancel(ctx); err != nil {
+		t.Fatal(err)
+	}
+	c.reconcile(ctx)
+	if _, err := c.start(ctx, "00000000-0000-4000-8000-000000000002", "new request", false, time.Minute, from); err == nil {
+		t.Fatal("unknown cancellation retired its epoch")
+	}
+	if drainServiceRecordEpoch(t, c) != epoch {
+		t.Fatal("unknown cancellation changed epoch")
+	}
+	for _, e := range f.endpoints {
+		e.mu.Lock()
+		e.unknown = false
+		e.mu.Unlock()
+	}
+	if _, err := c.cancel(ctx); err != nil {
+		t.Fatal(err)
+	}
+	waitDrainService(t, c, func(b couchcore.DrainBoard) bool { return b.State == couchcore.DrainCancelled })
+	if _, err := c.start(ctx, "00000000-0000-4000-8000-000000000002", "new request", false, time.Minute, from); err != nil {
+		t.Fatal(err)
+	}
+	if drainServiceRecordEpoch(t, c) != epoch+1 {
+		t.Fatal("confirmed cancellation did not admit next epoch")
+	}
+}
+
+func TestDrainServiceRejectedEpochRecordCannotAuthorizeCancel(t *testing.T) {
+	for _, badField := range []string{"namespace", "epoch", "schema_version"} {
+		t.Run(badField, func(t *testing.T) {
+			c, f, q := newDrainServiceFixture(t)
+			ctx := context.Background()
+			if _, err := c.start(ctx, "00000000-0000-4000-8000-000000000001", "", false, time.Minute, f.snapshot()["pair:0"].Binding); err != nil {
+				t.Fatal(err)
+			}
+			_ = drainServiceRecordEpoch(t, c)
+			waitDrainService(t, c, func(b couchcore.DrainBoard) bool {
+				for _, r := range b.Rows {
+					if r.Reason != "active turn" {
+						return false
+					}
+				}
+				return true
+			})
+			c.close()
+			raw, err := c.opts.Store.Read(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var object map[string]json.RawMessage
+			_ = json.Unmarshal(raw, &object)
+			switch badField {
+			case "namespace":
+				object[badField] = json.RawMessage(`"wrong-namespace"`)
+			case "epoch":
+				object[badField] = json.RawMessage(`0`)
+			case "schema_version":
+				object[badField] = json.RawMessage(`1`)
+			}
+			raw, _ = json.Marshal(object)
+			if err := os.WriteFile(filepath.Join(c.opts.Store.namespace, "drain.json"), raw, 0600); err != nil {
+				t.Fatal(err)
+			}
+			broker := couchmessage.NewBroker(ctx, time.Now, nil)
+			defer broker.Close()
+			recovered, err := newDrainCoordinator(ctx, drainCoordinatorOptions{Broker: broker, Queue: q, Store: c.opts.Store, Now: time.Now, Snapshot: f.snapshot, Endpoint: c.opts.Endpoint})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer recovered.close()
+			if recovered.view().State != couchcore.DrainStuck {
+				t.Fatal("rejected record did not hold", recovered.view())
+			}
+			if _, err := recovered.cancel(ctx); err == nil {
+				t.Fatal("partially decoded rejected record authorized cancellation")
+			}
+			recovered.mu.Lock()
+			schema := recovered.record.SchemaVersion
+			controls := len(recovered.record.Controls)
+			recovered.mu.Unlock()
+			if schema != 0 || controls != 0 {
+				t.Fatalf("rejected authority survived: schema=%d controls=%d", schema, controls)
+			}
+			status, _ := q.Status(ctx)
+			if len(status.PauseOwners) != 1 || status.PauseOwners[0].Owner != "couch-drain:00000000-0000-4000-8000-000000000001" {
+				t.Fatal("rejected record dropped original queue owner", status)
+			}
+			for _, endpoint := range f.endpoints {
+				endpoint.mu.Lock()
+				revoked := len(endpoint.revoked)
+				endpoint.mu.Unlock()
+				if revoked != 0 {
+					t.Fatal("rejected record invoked control revocation")
+				}
+			}
+		})
+	}
+}
+
+func TestDrainServiceInterruptProofRequiresExactFence(t *testing.T) {
+	mutations := map[string]func(couchmessage.DrainFence) couchmessage.DrainFence{
+		"namespace": func(f couchmessage.DrainFence) couchmessage.DrainFence {
+			f.Namespace = strings.Repeat("a", 64)
+			return f
+		},
+		"generation": func(f couchmessage.DrainFence) couchmessage.DrainFence {
+			f.Generation = "00000000-0000-4000-8000-000000000099"
+			return f
+		},
+		"epoch":    func(f couchmessage.DrainFence) couchmessage.DrainFence { f.Epoch++; return f },
+		"instance": func(f couchmessage.DrainFence) couchmessage.DrainFence { f.Instance = "replacement"; return f },
+		"kind": func(f couchmessage.DrainFence) couchmessage.DrainFence {
+			f.Kind = couchmessage.DrainNoticeControl
+			return f
+		},
+	}
+	for name, mutation := range mutations {
+		t.Run(name, func(t *testing.T) {
+			c, f, _ := newDrainServiceFixture(t)
+			for _, endpoint := range f.endpoints {
+				endpoint.proof = mutation
+			}
+			if _, err := c.start(context.Background(), "00000000-0000-4000-8000-000000000001", "", true, time.Minute, f.snapshot()["pair:0"].Binding); err != nil {
+				t.Fatal(err)
+			}
+			waitDrainService(t, c, func(b couchcore.DrainBoard) bool { return b.State == couchcore.DrainStuck })
+			c.reconcile(context.Background())
+			for _, endpoint := range f.endpoints {
+				endpoint.mu.Lock()
+				notices, interrupts := endpoint.notices, endpoint.interrupts
+				endpoint.mu.Unlock()
+				if notices != 0 || interrupts != 1 {
+					t.Fatalf("wrong proof enabled notice or repeated Esc: %d,%d", notices, interrupts)
+				}
+			}
+		})
+	}
+}
+func TestDrainServiceRevokeProofRequiresExactFence(t *testing.T) {
+	c, f, q := newDrainServiceFixture(t)
+	ctx := context.Background()
+	if _, err := c.start(ctx, "00000000-0000-4000-8000-000000000001", "", false, time.Minute, f.snapshot()["pair:0"].Binding); err != nil {
+		t.Fatal(err)
+	}
+	waitDrainService(t, c, func(b couchcore.DrainBoard) bool {
+		for _, r := range b.Rows {
+			if r.Reason != "active turn" {
+				return false
+			}
+		}
+		return true
+	})
+	for _, endpoint := range f.endpoints {
+		endpoint.mu.Lock()
+		endpoint.proof = func(f couchmessage.DrainFence) couchmessage.DrainFence { f.Epoch++; return f }
+		endpoint.mu.Unlock()
+	}
+	if _, err := c.cancel(ctx); err != nil {
+		t.Fatal(err)
+	}
+	c.reconcile(ctx)
+	if c.view().State == couchcore.DrainCancelled {
+		t.Fatal("wrong revoke epoch released dispatch")
+	}
+	status, _ := q.Status(ctx)
+	if len(status.PauseOwners) != 1 {
+		t.Fatal("wrong revoke epoch released queue owner")
+	}
+}
+func TestDrainServiceFakeBoundedEpochAuthority(t *testing.T) {
+	namespace, err := couchmessage.DrainNamespaceKey(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	for _, cycles := range []int{1000, 2000} {
+		t.Run(fmt.Sprint(cycles), func(t *testing.T) {
+			endpoint := &drainServiceEndpoint{namespace: namespace}
+			peak := 0
+			var retired couchmessage.DrainFence
+			var retiredID string
+			for i := 1; i <= cycles; i++ {
+				observed, err := endpoint.ObserveDrain(ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				fence := couchmessage.DrainFence{Namespace: namespace, Generation: fmt.Sprintf("%08x-0000-4000-8000-%012x", i, i), Epoch: uint64(i), Instance: observed.Instance, Kind: couchmessage.DrainInterruptControl}
+				interruptID := fmt.Sprintf("interrupt-%d", i)
+				if _, err := endpoint.InterruptDrain(ctx, interruptID, fence, observed); err != nil {
+					t.Fatal(err)
+				}
+				noticeFence := fence
+				noticeFence.Kind = couchmessage.DrainNoticeControl
+				noticeID := fmt.Sprintf("notice-%d", i)
+				if err := endpoint.ReserveDrain(ctx, noticeID, 0, noticeFence); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := endpoint.Deliver(ctx, couchmessage.Message{ID: noticeID, DrainFence: noticeFence}, func(couchmessage.Receipt) {}); err != nil {
+					t.Fatal(err)
+				}
+				if i > 1 {
+					if _, err := endpoint.DrainInterruptStatus(ctx, retiredID, retired); err == nil {
+						t.Fatal("retired read claimed current outcome")
+					}
+					if _, err := endpoint.InterruptDrain(ctx, retiredID, retired, observed); err == nil {
+						t.Fatal("retired input regained authority")
+					}
+				}
+				if _, err := endpoint.RevokeDrain(ctx, noticeID, noticeFence); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := endpoint.RevokeDrain(ctx, interruptID, fence); err != nil {
+					t.Fatal(err)
+				}
+				endpoint.mu.Lock()
+				residue := len(endpoint.receipts) + len(endpoint.results) + len(endpoint.revoked)
+				view := endpoint.authority.View()
+				endpoint.mu.Unlock()
+				peak = max(peak, residue)
+				if residue > 4 || view.Epoch != uint64(i) {
+					t.Fatalf("epoch %d residue %d view %+v", i, residue, view)
+				}
+				retired, retiredID = fence, interruptID
+			}
+			endpoint.mu.Lock()
+			notices, interrupts := endpoint.notices, endpoint.interrupts
+			endpoint.mu.Unlock()
+			if peak != 4 || notices != cycles || interrupts != cycles {
+				t.Fatalf("cycles%d peak%d notices%d interrupts%d", cycles, peak, notices, interrupts)
+			}
+		})
 	}
 }

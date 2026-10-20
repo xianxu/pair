@@ -206,24 +206,46 @@ func (e messageEndpoint) ObserveDrain(ctx context.Context) (couchmessage.DrainOb
 	}
 	return d.ObserveDrain(ctx)
 }
-func (e messageEndpoint) InterruptDrain(ctx context.Context, id string, o couchmessage.DrainObservation) (couchmessage.DrainInterruptResult, error) {
+func (e messageEndpoint) InterruptDrain(ctx context.Context, id string, fence couchmessage.DrainFence, o couchmessage.DrainObservation) (couchmessage.DrainInterruptResult, error) {
 	d, err := e.drainEndpoint(ctx)
 	if err != nil {
 		return couchmessage.DrainInterruptResult{}, err
 	}
-	return d.InterruptDrain(ctx, id, o)
+	return d.InterruptDrain(ctx, id, fence, o)
 }
-func (e messageEndpoint) DrainInterruptStatus(ctx context.Context, id string) (couchmessage.DrainInterruptResult, error) {
+func (e messageEndpoint) DrainInterruptStatus(ctx context.Context, id string, fence couchmessage.DrainFence) (couchmessage.DrainInterruptResult, error) {
 	d, err := e.drainEndpoint(ctx)
 	if err != nil {
 		return couchmessage.DrainInterruptResult{}, err
 	}
-	return d.DrainInterruptStatus(ctx, id)
+	return d.DrainInterruptStatus(ctx, id, fence)
 }
-func (e messageEndpoint) RevokeDrain(ctx context.Context, id string) (couchmessage.DrainRevokeResult, error) {
+func (e messageEndpoint) RevokeDrain(ctx context.Context, id string, fence couchmessage.DrainFence) (couchmessage.DrainRevokeResult, error) {
 	d, err := e.drainEndpoint(ctx)
 	if err != nil {
 		return couchmessage.DrainRevokeResult{}, err
 	}
-	return d.RevokeDrain(ctx, id)
+	return d.RevokeDrain(ctx, id, fence)
+}
+
+func (e messageEndpoint) ReserveDrain(ctx context.Context, id string, sequence uint64, fence couchmessage.DrainFence) error {
+	if err := e.check(ctx); err != nil {
+		return err
+	}
+	d, ok := e.endpoint.(couchmessage.DrainReservationEndpoint)
+	if !ok {
+		return errors.New("wrapper drain reservation capability unavailable; relaunch needed")
+	}
+	return d.ReserveDrain(ctx, id, sequence, fence)
+}
+
+func (e messageEndpoint) ReleaseDrain(ctx context.Context, id string, fence couchmessage.DrainFence) error {
+	if err := e.check(ctx); err != nil {
+		return err
+	}
+	d, ok := e.endpoint.(couchmessage.DrainReservationEndpoint)
+	if !ok {
+		return errors.New("wrapper drain release capability unavailable; relaunch needed")
+	}
+	return d.ReleaseDrain(ctx, id, fence)
 }

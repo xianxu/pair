@@ -14,6 +14,8 @@ type peerDeliveryBatch struct {
 }
 
 func (d *peerDelivery) prepareBatch(head couchmessage.Message) error {
+	unlock := d.lockDrainInput()
+	defer unlock()
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.binding.Agent != "claude" {
@@ -31,8 +33,17 @@ func (d *peerDelivery) batchReady() bool {
 	return d.batch != nil && d.batch.phase == couchmessage.BatchReady && !d.current.Status.Terminal()
 }
 func (d *peerDelivery) finalizeBatch(id string, messages []couchmessage.Message) error {
+	unlock := d.lockDrainInput()
+	defer unlock()
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	if len(messages) > 1 {
+		for _, m := range messages {
+			if !m.DrainFence.IsZero() {
+				return errors.New("drain controls cannot batch with other messages")
+			}
+		}
+	}
 	for _, m := range messages {
 		if err := d.validateDrainMessageLocked(m); err != nil {
 			return err
@@ -45,7 +56,7 @@ func (d *peerDelivery) finalizeBatch(id string, messages []couchmessage.Message)
 		return errors.New("peer batch preparation unavailable")
 	}
 	head, original := messages[0], d.current.Message
-	if head.Origin != original.Origin || head.DrainInstance != original.DrainInstance || head.ID != original.ID || head.From != original.From || head.To != original.To || head.Body != original.Body || !head.Deadline.Equal(original.Deadline) || !head.AcceptedAt.Equal(original.AcceptedAt) {
+	if head.Origin != original.Origin || head.DrainFence != original.DrainFence || head.ID != original.ID || head.From != original.From || head.To != original.To || head.Body != original.Body || !head.Deadline.Equal(original.Deadline) || !head.AcceptedAt.Equal(original.AcceptedAt) {
 		return errors.New("peer batch head changed")
 	}
 	for _, m := range messages[1:] {

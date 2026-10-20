@@ -78,13 +78,13 @@ func (o Origin) Valid() bool { return o == OriginPeer || o == OriginSystem }
 // a connected receiver retains the message until its composer is ready;
 // DeliveryTimeout starts only when the wrapper writes the paste.
 type Message struct {
-	// DrainInstance fences a system drain notice to a wrapper-owned incarnation.
-	DrainInstance string `json:",omitempty"`
-	Origin        Origin `json:",omitempty"`
-	ID            string
-	From, To      Binding
-	Body          string
-	Deadline      time.Time
+	// DrainFence is absent on ordinary messages and comparable by value.
+	DrainFence DrainFence `json:",omitzero"`
+	Origin     Origin     `json:",omitempty"`
+	ID         string
+	From, To   Binding
+	Body       string
+	Deadline   time.Time
 	// AcceptedAt is the broker's immutable admission time, including time
 	// spent queued before promotion. Zero is accepted for legacy messages.
 	AcceptedAt time.Time `json:",omitzero"`

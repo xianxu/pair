@@ -22,6 +22,8 @@ type drainControlRecord struct {
 }
 type drainServiceRecord struct {
 	SchemaVersion int                           `json:"schema_version"`
+	Namespace     string                        `json:"namespace"`
+	Epoch         uint64                        `json:"epoch"`
 	State         couchcore.DrainState          `json:"state"`
 	From          couchmessage.Binding          `json:"from"`
 	Released      bool                          `json:"released"`
@@ -40,8 +42,11 @@ func decodeDrainServiceRecord(raw json.RawMessage) (drainServiceRecord, error) {
 	if err := json.Unmarshal(raw, &r); err != nil {
 		return r, err
 	}
-	if r.SchemaVersion != 1 {
+	if r.SchemaVersion != 2 {
 		return r, errors.New("unsupported drain record version")
+	}
+	if r.Epoch == 0 || len(r.Namespace) != 64 || strings.Trim(r.Namespace, "0123456789abcdef") != "" {
+		return r, errors.New("persisted drain epoch or namespace missing/invalid")
 	}
 	if r.State.ID == "" || r.State.Owner != "couch-drain:"+r.State.ID || len(r.State.Members) > couchcore.MaxDrainMembers || len(r.Controls) > couchcore.MaxDrainMembers {
 		return r, errors.New("invalid persisted drain authority")
@@ -98,6 +103,13 @@ func decodeDrainServiceRecord(raw json.RawMessage) (drainServiceRecord, error) {
 		}
 	}
 	return r, nil
+}
+
+func nextDrainEpoch(previous uint64) (uint64, error) {
+	if previous == ^uint64(0) {
+		return 0, errors.New("drain epoch exhausted; inspect namespace state")
+	}
+	return previous + 1, nil
 }
 
 // Known fields are mandatory and strictly typed, including recursively inside

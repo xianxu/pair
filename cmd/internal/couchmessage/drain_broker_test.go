@@ -14,14 +14,14 @@ func TestDrainNoticeBypassesHeldPeerFIFO(t *testing.T) {
 	b := NewBroker(context.Background(), func() time.Time { return now }, nil)
 	defer b.Close()
 	from, to := brokerBinding("pair:0"), brokerBinding("pair:1")
-	f := newFakeEndpoint(now)
+	f := newDrainCancelEndpoint(now)
 	if err := b.Register(from, newFakeEndpoint(now)); err != nil {
 		t.Fatal(err)
 	}
 	if err := b.Register(to, f); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.HoldDrain("generation"); err != nil {
+	if err := b.HoldDrain("00000000-0000-4000-8000-000000000001"); err != nil {
 		t.Fatal(err)
 	}
 	// Accepted before the hold: a queued peer prefix must survive, in order.
@@ -39,7 +39,7 @@ func TestDrainNoticeBypassesHeldPeerFIFO(t *testing.T) {
 	if _, err := b.SendSystem(context.Background(), from, "ordinary-system", Route{Target: to.Slot}, "not control"); !errors.Is(err, ErrDraining) {
 		t.Fatalf("system bypass: %v", err)
 	}
-	if _, err := b.SendDrain(context.Background(), "generation", from, "control", to, "checkpoint"); err != nil {
+	if _, err := b.SendDrain(context.Background(), "00000000-0000-4000-8000-000000000001", from, "control", to, "checkpoint", drainFenceFixture(t, 1, DrainNoticeControl)); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -55,7 +55,7 @@ func TestDrainNoticeBypassesHeldPeerFIFO(t *testing.T) {
 	if err := b.ReleaseDrain("wrong"); err == nil {
 		t.Fatal("foreign owner released")
 	}
-	if err := b.ReleaseDrain("generation"); err != nil {
+	if err := b.ReleaseDrain("00000000-0000-4000-8000-000000000001"); err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range []string{"peer1", "peer2"} {
@@ -107,10 +107,10 @@ func newDrainCancelEndpoint(now time.Time) *drainCancelEndpoint {
 func (f *drainCancelEndpoint) ObserveDrain(context.Context) (DrainObservation, error) {
 	return DrainObservation{}, nil
 }
-func (f *drainCancelEndpoint) InterruptDrain(context.Context, string, DrainObservation) (DrainInterruptResult, error) {
+func (f *drainCancelEndpoint) InterruptDrain(context.Context, string, DrainFence, DrainObservation) (DrainInterruptResult, error) {
 	return DrainInterruptResult{}, nil
 }
-func (f *drainCancelEndpoint) DrainInterruptStatus(context.Context, string) (DrainInterruptResult, error) {
+func (f *drainCancelEndpoint) DrainInterruptStatus(context.Context, string, DrainFence) (DrainInterruptResult, error) {
 	return DrainInterruptResult{}, nil
 }
 func (f *drainCancelEndpoint) Reserve(ctx context.Context, id string, seq uint64) error {
@@ -148,16 +148,23 @@ func (f *drainCancelEndpoint) Deliver(ctx context.Context, m Message, progress f
 	}
 	f.committed[m.ID] = Receipt{Message: m, Status: Delivering}
 	f.mu.Unlock()
-	return f.FakeDeliveryEndpoint.Deliver(ctx, m, progress)
+	r, err := f.FakeDeliveryEndpoint.Deliver(ctx, m, progress)
+	if err == nil {
+		r.Message = m
+		f.mu.Lock()
+		f.committed[m.ID] = r
+		f.mu.Unlock()
+	}
+	return r, err
 }
-func (f *drainCancelEndpoint) RevokeDrain(_ context.Context, id string) (DrainRevokeResult, error) {
+func (f *drainCancelEndpoint) RevokeDrain(_ context.Context, id string, fence DrainFence) (DrainRevokeResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.revokeUnknown {
-		return DrainRevokeResult{ID: id, Instance: f.revokeInstance, Outcome: "unknown"}, nil
+		return DrainRevokeResult{ID: id, Fence: revokeFence(fence, f.revokeInstance), Outcome: "unknown"}, nil
 	}
 	if r, ok := f.committed[id]; ok {
-		return DrainRevokeResult{ID: id, Instance: f.revokeInstance, Outcome: "already-committed", Receipt: &r}, nil
+		return DrainRevokeResult{ID: id, Fence: revokeFence(fence, f.revokeInstance), Outcome: "already-committed", Receipt: &r}, nil
 	}
 	f.revoked[id] = true
 	f.reserved = ""
@@ -165,7 +172,7 @@ func (f *drainCancelEndpoint) RevokeDrain(_ context.Context, id string) (DrainRe
 		f.loseRevokeReply = false
 		return DrainRevokeResult{}, errors.New("lost revoke reply after effect")
 	}
-	return DrainRevokeResult{ID: id, Instance: f.revokeInstance, Outcome: "not-committed"}, nil
+	return DrainRevokeResult{ID: id, Fence: revokeFence(fence, f.revokeInstance), Outcome: "not-committed"}, nil
 }
 func drainCancelRig(t *testing.T, f *drainCancelEndpoint) (*Broker, Binding, Binding) {
 	t.Helper()
@@ -178,7 +185,7 @@ func drainCancelRig(t *testing.T, f *drainCancelEndpoint) (*Broker, Binding, Bin
 	if err := b.Register(to, f); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.HoldDrain("generation"); err != nil {
+	if err := b.HoldDrain("00000000-0000-4000-8000-000000000001"); err != nil {
 		t.Fatal(err)
 	}
 	return b, from, to
@@ -190,21 +197,21 @@ func TestDrainCancelRevokesNoticeBeforeReserve(t *testing.T) {
 	b.mu.Lock()
 	m := Message{ID: "control", From: from, To: to, Origin: OriginSystem, Body: "checkpoint", AcceptedAt: time.Now(), Deadline: time.Now().Add(time.Minute)}
 	err := b.apply(b.actors[to], Event{Kind: EnqueueDrainControl, Binding: to, Message: m, At: time.Now()})
-	b.drainControls[m.ID] = "generation"
+	b.drainControls[m.ID] = "00000000-0000-4000-8000-000000000001"
 	b.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := b.CancelDrainControl(context.Background(), "generation", "control"); err != nil {
+	if err := b.CancelDrainControl(context.Background(), "00000000-0000-4000-8000-000000000001", "control"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := b.SendDrain(context.Background(), "generation", from, "new", to, "checkpoint"); !errors.Is(err, ErrDraining) {
+	if _, err := b.SendDrain(context.Background(), "00000000-0000-4000-8000-000000000001", from, "new", to, "checkpoint", drainFenceFixture(t, 1, DrainNoticeControl)); !errors.Is(err, ErrDraining) {
 		t.Fatal("cancel allowed new notice", err)
 	}
-	if err := b.CancelDrainControl(context.Background(), "generation", "control"); err != nil {
+	if err := b.CancelDrainControl(context.Background(), "00000000-0000-4000-8000-000000000001", "control"); err != nil {
 		t.Fatal("repeat", err)
 	}
-	if err := b.ReleaseDrain("generation"); err != nil {
+	if err := b.ReleaseDrain("00000000-0000-4000-8000-000000000001"); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -218,7 +225,7 @@ func TestDrainCancelRevokesNoticeDuringReserve(t *testing.T) {
 	f.reserveEntered = make(chan struct{})
 	f.reserveRelease = make(chan struct{})
 	b, from, to := drainCancelRig(t, f)
-	if _, err := b.SendDrain(context.Background(), "generation", from, "control", to, "checkpoint"); err != nil {
+	if _, err := b.SendDrain(context.Background(), "00000000-0000-4000-8000-000000000001", from, "control", to, "checkpoint", drainFenceFixture(t, 1, DrainNoticeControl)); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -226,11 +233,11 @@ func TestDrainCancelRevokesNoticeDuringReserve(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("no reservation")
 	}
-	if err := b.CancelDrainControl(context.Background(), "generation", "control"); err != nil {
+	if err := b.CancelDrainControl(context.Background(), "00000000-0000-4000-8000-000000000001", "control"); err != nil {
 		t.Fatal(err)
 	}
 	close(f.reserveRelease)
-	if err := b.ReleaseDrain("generation"); err != nil {
+	if err := b.ReleaseDrain("00000000-0000-4000-8000-000000000001"); err != nil {
 		t.Fatal(err)
 	}
 	waitStatus(t, b, from, "control", Cancelled)
@@ -246,7 +253,7 @@ func TestDrainCancelRevokesNoticeBeforeCommitAndReconcilesLostReply(t *testing.T
 	f.deliveryEntered = make(chan struct{})
 	f.loseRevokeReply = true
 	b, from, to := drainCancelRig(t, f)
-	if _, err := b.SendDrain(context.Background(), "generation", from, "control", to, "checkpoint"); err != nil {
+	if _, err := b.SendDrain(context.Background(), "00000000-0000-4000-8000-000000000001", from, "control", to, "checkpoint", drainFenceFixture(t, 1, DrainNoticeControl)); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -254,17 +261,17 @@ func TestDrainCancelRevokesNoticeBeforeCommitAndReconcilesLostReply(t *testing.T
 	case <-time.After(time.Second):
 		t.Fatal("no pending commit")
 	}
-	if err := b.CancelDrainControl(context.Background(), "generation", "control"); err == nil {
+	if err := b.CancelDrainControl(context.Background(), "00000000-0000-4000-8000-000000000001", "control"); err == nil {
 		t.Fatal("lost reply became confirmed")
 	}
-	if err := b.ReleaseDrain("generation"); err == nil {
+	if err := b.ReleaseDrain("00000000-0000-4000-8000-000000000001"); err == nil {
 		t.Fatal("released uncertain revoke")
 	}
-	if err := b.CancelDrainControl(context.Background(), "generation", "control"); err != nil {
+	if err := b.CancelDrainControl(context.Background(), "00000000-0000-4000-8000-000000000001", "control"); err != nil {
 		t.Fatal(err)
 	}
 	close(f.commitGate)
-	if err := b.ReleaseDrain("generation"); err != nil {
+	if err := b.ReleaseDrain("00000000-0000-4000-8000-000000000001"); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -276,7 +283,7 @@ func TestDrainCancelRevokesNoticeBeforeCommitAndReconcilesLostReply(t *testing.T
 func TestDrainCancelCommittedRequiresRetainedKnownTerminal(t *testing.T) {
 	f := newDrainCancelEndpoint(time.Now())
 	b, from, to := drainCancelRig(t, f)
-	if _, err := b.SendDrain(context.Background(), "generation", from, "control", to, "checkpoint"); err != nil {
+	if _, err := b.SendDrain(context.Background(), "00000000-0000-4000-8000-000000000001", from, "control", to, "checkpoint", drainFenceFixture(t, 1, DrainNoticeControl)); err != nil {
 		t.Fatal(err)
 	}
 	var m Message
@@ -285,26 +292,26 @@ func TestDrainCancelCommittedRequiresRetainedKnownTerminal(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("no committed notice")
 	}
-	if err := b.CancelDrainControl(context.Background(), "generation", "control"); err == nil {
+	if err := b.CancelDrainControl(context.Background(), "00000000-0000-4000-8000-000000000001", "control"); err == nil {
 		t.Fatal("pending committed receipt treated known terminal")
 	}
-	if err := b.ReleaseDrain("generation"); err == nil {
+	if err := b.ReleaseDrain("00000000-0000-4000-8000-000000000001"); err == nil {
 		t.Fatal("released pending handoff")
 	}
 	f.mu.Lock()
 	f.committed[m.ID] = Receipt{Message: m, Status: Submitted}
 	f.mu.Unlock()
-	if err := b.CancelDrainControl(context.Background(), "generation", "control"); err != nil {
+	if err := b.CancelDrainControl(context.Background(), "00000000-0000-4000-8000-000000000001", "control"); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.ReleaseDrain("generation"); err != nil {
+	if err := b.ReleaseDrain("00000000-0000-4000-8000-000000000001"); err != nil {
 		t.Fatal(err)
 	}
 	waitStatus(t, b, from, "control", Submitted)
 	if err := b.HoldDrain("new-generation"); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.CancelDrainControl(context.Background(), "generation", "control"); err == nil {
+	if err := b.CancelDrainControl(context.Background(), "00000000-0000-4000-8000-000000000001", "control"); err == nil {
 		t.Fatal("stale cancellation mutated next generation")
 	}
 	select {
@@ -318,7 +325,7 @@ func TestDrainCancelUnknownCannotReleaseAfterJobBecomesTerminal(t *testing.T) {
 	f := newDrainCancelEndpoint(time.Now())
 	f.revokeUnknown = true
 	b, from, to := drainCancelRig(t, f)
-	if _, err := b.SendDrain(context.Background(), "generation", from, "control", to, "checkpoint"); err != nil {
+	if _, err := b.SendDrain(context.Background(), "00000000-0000-4000-8000-000000000001", from, "control", to, "checkpoint", drainFenceFixture(t, 1, DrainNoticeControl)); err != nil {
 		t.Fatal(err)
 	}
 	var m Message
@@ -327,14 +334,14 @@ func TestDrainCancelUnknownCannotReleaseAfterJobBecomesTerminal(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("no delivery")
 	}
-	if err := b.CancelDrainControl(context.Background(), "generation", "control"); err == nil {
+	if err := b.CancelDrainControl(context.Background(), "00000000-0000-4000-8000-000000000001", "control"); err == nil {
 		t.Fatal("unknown revoke succeeded")
 	}
 	// The original RPC can independently finish ambiguously. Terminal is not
 	// synonymous with a known input disposition and must not free dispatch.
 	f.outcomes <- Receipt{Status: Indeterminate}
 	waitStatus(t, b, from, "control", Indeterminate)
-	if err := b.ReleaseDrain("generation"); err == nil {
+	if err := b.ReleaseDrain("00000000-0000-4000-8000-000000000001"); err == nil {
 		t.Fatal("unknown revoke plus terminal job released gate")
 	}
 	if err := b.HoldDrain("new"); err == nil {
@@ -344,11 +351,11 @@ func TestDrainCancelUnknownCannotReleaseAfterJobBecomesTerminal(t *testing.T) {
 	f.revokeUnknown = false
 	f.committed[m.ID] = Receipt{Message: m, Status: Submitted}
 	f.mu.Unlock()
-	if err := b.CancelDrainControl(context.Background(), "generation", "control"); err != nil {
+	if err := b.CancelDrainControl(context.Background(), "00000000-0000-4000-8000-000000000001", "control"); err != nil {
 		t.Fatal(err)
 	}
 	waitStatus(t, b, from, "control", Submitted)
-	if err := b.ReleaseDrain("generation"); err != nil {
+	if err := b.ReleaseDrain("00000000-0000-4000-8000-000000000001"); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -356,7 +363,7 @@ func TestDrainCancelUnknownCannotReleaseAfterJobBecomesTerminal(t *testing.T) {
 func TestDrainCancelRefusesForeignCommittedReceipt(t *testing.T) {
 	f := newDrainCancelEndpoint(time.Now())
 	b, from, to := drainCancelRig(t, f)
-	if _, err := b.SendDrain(context.Background(), "generation", from, "control", to, "checkpoint"); err != nil {
+	if _, err := b.SendDrain(context.Background(), "00000000-0000-4000-8000-000000000001", from, "control", to, "checkpoint", drainFenceFixture(t, 1, DrainNoticeControl)); err != nil {
 		t.Fatal(err)
 	}
 	var m Message
@@ -369,10 +376,10 @@ func TestDrainCancelRefusesForeignCommittedReceipt(t *testing.T) {
 	f.mu.Lock()
 	f.committed[m.ID] = Receipt{Message: m, Status: Submitted}
 	f.mu.Unlock()
-	if err := b.CancelDrainControl(context.Background(), "generation", "control"); err == nil {
+	if err := b.CancelDrainControl(context.Background(), "00000000-0000-4000-8000-000000000001", "control"); err == nil {
 		t.Fatal("foreign incarnation receipt accepted")
 	}
-	if err := b.ReleaseDrain("generation"); err == nil {
+	if err := b.ReleaseDrain("00000000-0000-4000-8000-000000000001"); err == nil {
 		t.Fatal("foreign receipt released dispatch")
 	}
 }
@@ -381,7 +388,7 @@ func TestDrainCancelUnknownHoldsDespiteTerminalSubmitted(t *testing.T) {
 	f := newDrainCancelEndpoint(time.Now())
 	f.revokeUnknown = true
 	b, from, to := drainCancelRig(t, f)
-	if _, err := b.SendDrain(context.Background(), "generation", from, "control", to, "checkpoint"); err != nil {
+	if _, err := b.SendDrain(context.Background(), "00000000-0000-4000-8000-000000000001", from, "control", to, "checkpoint", drainFenceFixture(t, 1, DrainNoticeControl)); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -389,18 +396,25 @@ func TestDrainCancelUnknownHoldsDespiteTerminalSubmitted(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("no delivery")
 	}
-	if err := b.CancelDrainControl(context.Background(), "generation", "control"); err == nil {
+	if err := b.CancelDrainControl(context.Background(), "00000000-0000-4000-8000-000000000001", "control"); err == nil {
 		t.Fatal("unknown revoke succeeded")
 	}
 	f.outcomes <- Receipt{Status: Submitted}
 	waitStatus(t, b, from, "control", Submitted)
-	if err := b.ReleaseDrain("generation"); err == nil {
+	if err := b.ReleaseDrain("00000000-0000-4000-8000-000000000001"); err == nil {
 		t.Fatal("late terminal receipt bypassed cancellation reconciliation")
 	}
-	if err := b.CancelDrainControl(context.Background(), "generation", "control"); err != nil {
+	f.mu.Lock()
+	f.revokeUnknown = false
+	for id, r := range f.committed {
+		r.Status = Submitted
+		f.committed[id] = r
+	}
+	f.mu.Unlock()
+	if err := b.CancelDrainControl(context.Background(), "00000000-0000-4000-8000-000000000001", "control"); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.ReleaseDrain("generation"); err != nil {
+	if err := b.ReleaseDrain("00000000-0000-4000-8000-000000000001"); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -423,7 +437,7 @@ func TestDrainCancelJoinsDeliveryCleanupBeforeRelease(t *testing.T) {
 	f.releaseGate = make(chan struct{})
 	f.releaseEntered = make(chan struct{})
 	b, from, to := drainCancelRig(t, f)
-	if _, err := b.SendDrain(context.Background(), "generation", from, "control", to, "checkpoint"); err != nil {
+	if _, err := b.SendDrain(context.Background(), "00000000-0000-4000-8000-000000000001", from, "control", to, "checkpoint", drainFenceFixture(t, 1, DrainNoticeControl)); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -434,7 +448,7 @@ func TestDrainCancelJoinsDeliveryCleanupBeforeRelease(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
 	defer cancel()
 	done := make(chan error, 1)
-	go func() { done <- b.CancelDrainControl(ctx, "generation", "control") }()
+	go func() { done <- b.CancelDrainControl(ctx, "00000000-0000-4000-8000-000000000001", "control") }()
 	select {
 	case <-f.releaseEntered:
 	case <-time.After(time.Second):
@@ -443,14 +457,14 @@ func TestDrainCancelJoinsDeliveryCleanupBeforeRelease(t *testing.T) {
 	if err := <-done; !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("reported cancellation before held cleanup joined: %v", err)
 	}
-	if err := b.ReleaseDrain("generation"); err == nil {
+	if err := b.ReleaseDrain("00000000-0000-4000-8000-000000000001"); err == nil {
 		t.Fatal("released while delivery cleanup running")
 	}
 	close(f.releaseGate)
-	if err := b.CancelDrainControl(context.Background(), "generation", "control"); err != nil {
+	if err := b.CancelDrainControl(context.Background(), "00000000-0000-4000-8000-000000000001", "control"); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.ReleaseDrain("generation"); err != nil {
+	if err := b.ReleaseDrain("00000000-0000-4000-8000-000000000001"); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -460,16 +474,16 @@ func TestDrainBeginCancelStopsFirstNotice(t *testing.T) {
 	if err := b.BeginDrainCancel("other"); err == nil {
 		t.Fatal("foreign generation cancelled")
 	}
-	if err := b.BeginDrainCancel("generation"); err != nil {
+	if err := b.BeginDrainCancel("00000000-0000-4000-8000-000000000001"); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.BeginDrainCancel("generation"); err != nil {
+	if err := b.BeginDrainCancel("00000000-0000-4000-8000-000000000001"); err != nil {
 		t.Fatal("duplicate", err)
 	}
-	if _, err := b.SendDrain(context.Background(), "generation", from, "control", to, "checkpoint"); !errors.Is(err, ErrDraining) {
+	if _, err := b.SendDrain(context.Background(), "00000000-0000-4000-8000-000000000001", from, "control", to, "checkpoint", drainFenceFixture(t, 1, DrainNoticeControl)); !errors.Is(err, ErrDraining) {
 		t.Fatalf("notice admitted after cancel: %v", err)
 	}
-	if err := b.ReleaseDrain("generation"); err != nil {
+	if err := b.ReleaseDrain("00000000-0000-4000-8000-000000000001"); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -477,7 +491,7 @@ func TestDrainBeginCancelStopsFirstNotice(t *testing.T) {
 func TestDrainControlReceiptSurvivesActiveGenerationDeadline(t *testing.T) {
 	f := newDrainCancelEndpoint(time.Now())
 	b, from, to := drainCancelRig(t, f)
-	if _, err := b.SendDrain(context.Background(), "generation", from, "control", to, "checkpoint"); err != nil {
+	if _, err := b.SendDrain(context.Background(), "00000000-0000-4000-8000-000000000001", from, "control", to, "checkpoint", drainFenceFixture(t, 1, DrainNoticeControl)); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -496,13 +510,14 @@ func TestDrainControlReceiptSurvivesActiveGenerationDeadline(t *testing.T) {
 	if !exists {
 		t.Fatal("active drain receipt expired before max drain deadline")
 	}
-	if err := b.CancelDrainControl(context.Background(), "generation", "control"); err != nil {
+	if err := b.CancelDrainControl(context.Background(), "00000000-0000-4000-8000-000000000001", "control"); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.ReleaseDrain("generation"); err != nil {
+	if err := b.ReleaseDrain("00000000-0000-4000-8000-000000000001"); err != nil {
 		t.Fatal(err)
 	}
 	b.mu.Lock()
+	future = future.Add(25 * time.Hour)
 	b.sweep()
 	_, exists = b.receipts["control"]
 	b.mu.Unlock()
@@ -511,82 +526,96 @@ func TestDrainControlReceiptSurvivesActiveGenerationDeadline(t *testing.T) {
 	}
 }
 
-func TestDrainNoticeExpectedInstanceFence(t *testing.T) {
+func revokeFence(f DrainFence, instance string) DrainFence {
+	if instance != "" {
+		f.Instance = instance
+	}
+	return f
+}
+func (f *drainCancelEndpoint) ReserveDrain(ctx context.Context, id string, sequence uint64, fence DrainFence) error {
+	return f.Reserve(ctx, id, sequence)
+}
+func (f *drainCancelEndpoint) ReleaseDrain(ctx context.Context, id string, fence DrainFence) error {
+	return f.Release(ctx, id)
+}
+func TestDrainNoticeExpectedFence(t *testing.T) {
 	f := newDrainCancelEndpoint(time.Now())
 	b, from, to := drainCancelRig(t, f)
-	for _, instances := range [][]string{{""}, {"one", "two"}, {strings.Repeat("x", 129)}, {"bad\ninstance"}} {
-		if _, err := b.SendDrain(context.Background(), "generation", from, "invalid", to, "checkpoint", instances...); err == nil {
-			t.Fatalf("accepted invalid instance %q", instances)
+	fence := drainFenceFixture(t, 1, DrainNoticeControl)
+	for _, change := range []func(*DrainFence){func(f *DrainFence) { f.Instance = "" }, func(f *DrainFence) { f.Epoch = 0 }, func(f *DrainFence) { f.Kind = DrainInterruptControl }, func(f *DrainFence) { f.Generation = "other" }} {
+		bad := fence
+		change(&bad)
+		if _, err := b.SendDrain(context.Background(), fence.Generation, from, "invalid", to, "checkpoint", bad); err == nil {
+			t.Fatal("invalid fence accepted")
 		}
 	}
-	r, err := b.SendDrain(context.Background(), "generation", from, "control", to, "checkpoint", "expected-instance")
+	r, err := b.SendDrain(context.Background(), fence.Generation, from, "control", to, "checkpoint", fence)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r.Message.DrainInstance != "expected-instance" {
-		t.Fatal("admission lost instance fence")
+	if r.Message.DrainFence != fence {
+		t.Fatal("fence lost")
 	}
 	select {
 	case m := <-f.delivered:
-		if m.DrainInstance != "expected-instance" {
-			t.Fatal("delivery lost instance fence")
+		if m.DrainFence != fence {
+			t.Fatal("delivery fence lost")
 		}
 		f.outcomes <- Receipt{Status: Submitted}
 	case <-time.After(time.Second):
 		t.Fatal("no delivery")
 	}
 	waitStatus(t, b, from, "control", Submitted)
-	if _, err := b.SendDrain(context.Background(), "generation", from, "control", to, "checkpoint", "different-instance"); err == nil {
-		t.Fatal("retained control adopted different instance")
-	}
-	if _, err := b.SendDrain(context.Background(), "generation", from, "control", to, "checkpoint", "expected-instance"); err != nil {
-		t.Fatal("matching retained control refused", err)
-	}
-	other := r.Message
-	other.DrainInstance = "different-instance"
-	if drainReceiptMatches(r.Message, other) {
-		t.Fatal("retained receipt match ignored instance")
+	for _, change := range []func(*DrainFence){func(f *DrainFence) { f.Instance = "other" }, func(f *DrainFence) { f.Epoch++ }, func(f *DrainFence) { f.Namespace = strings.Repeat("a", 64) }} {
+		bad := fence
+		change(&bad)
+		if _, err := b.SendDrain(context.Background(), fence.Generation, from, "control", to, "checkpoint", bad); err == nil {
+			t.Fatal("retained receipt crossed fence")
+		}
+		other := r.Message
+		other.DrainFence = bad
+		if drainReceiptMatches(r.Message, other) {
+			t.Fatal("receipt match ignored fence")
+		}
 	}
 }
-
-func TestDrainInstancePureAdmissionRejectsPeerAndMalformedFence(t *testing.T) {
+func TestDrainFencePureAdmissionRejectsPeerAndMalformedFence(t *testing.T) {
 	now := time.Now()
 	binding := brokerBinding("pair:0")
 	s, _, err := Advance(ActorState{}, Event{Kind: Register, Binding: binding, At: now})
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, m := range []Message{
-		{ID: "peer", Origin: OriginPeer, From: binding, To: binding, Body: "x", Deadline: now.Add(time.Minute), DrainInstance: "instance"},
-		{ID: "system", Origin: OriginSystem, From: binding, To: binding, Body: "x", Deadline: now.Add(time.Minute), DrainInstance: "invalid\ninstance"},
-	} {
+	fence := drainFenceFixture(t, 1, DrainNoticeControl)
+	for _, origin := range []Origin{OriginPeer, OriginSystem} {
+		bad := fence
+		if origin == OriginSystem {
+			bad.Epoch = 0
+		}
+		m := Message{ID: "id", Origin: origin, From: binding, To: binding, Body: "x", Deadline: now.Add(time.Minute), DrainFence: bad}
 		if _, _, err := Advance(s, Event{Kind: Enqueue, Binding: binding, Message: m, At: now}); err == nil {
-			t.Fatalf("admitted invalid pure fence %+v", m)
+			t.Fatal("invalid pure fence admitted")
 		}
 	}
 }
-
-func TestDrainPromotionRejectsRetainedDifferentInstance(t *testing.T) {
+func TestDrainPromotionRejectsRetainedDifferentFence(t *testing.T) {
 	now := time.Now()
 	f := newDrainCancelEndpoint(now)
 	b, from, to := drainCancelRig(t, f)
+	fence := drainFenceFixture(t, 1, DrainNoticeControl)
+	other := fence
+	other.Epoch++
 	b.mu.Lock()
 	b.now = func() time.Time { return now }
 	b.mu.Unlock()
 	f.mu.Lock()
-	f.retained.Add(Receipt{Message: Message{ID: "control", Origin: OriginSystem, From: from, To: to, Body: "checkpoint", Deadline: now.Add(PasteTimeout), AcceptedAt: now, DrainInstance: "other-instance"}, Status: Submitted})
+	f.retained.Add(Receipt{Message: Message{ID: "control", Origin: OriginSystem, From: from, To: to, Body: "checkpoint", Deadline: now.Add(PasteTimeout), AcceptedAt: now, DrainFence: other}, Status: Submitted})
 	f.mu.Unlock()
-	if _, err := b.SendDrain(context.Background(), "generation", from, "control", to, "checkpoint", "expected-instance"); err != nil {
+	if _, err := b.SendDrain(context.Background(), fence.Generation, from, "control", to, "checkpoint", fence); err != nil {
 		t.Fatal(err)
 	}
 	waitStatus(t, b, from, "control", Cancelled)
-	select {
-	case <-f.delivered:
-		t.Fatal("retained conflict repasted")
-	default:
-	}
 }
-
 func TestDrainCancelRejectsReplacementWrapperRevoke(t *testing.T) {
 	for _, committed := range []bool{false, true} {
 		t.Run(fmt.Sprint(committed), func(t *testing.T) {
@@ -597,7 +626,8 @@ func TestDrainCancelRejectsReplacementWrapperRevoke(t *testing.T) {
 				f.deliveryEntered = make(chan struct{})
 			}
 			b, from, to := drainCancelRig(t, f)
-			if _, err := b.SendDrain(context.Background(), "generation", from, "control", to, "checkpoint", "original-instance"); err != nil {
+			fence := drainFenceFixture(t, 1, DrainNoticeControl)
+			if _, err := b.SendDrain(context.Background(), fence.Generation, from, "control", to, "checkpoint", fence); err != nil {
 				t.Fatal(err)
 			}
 			if committed {
@@ -617,15 +647,80 @@ func TestDrainCancelRejectsReplacementWrapperRevoke(t *testing.T) {
 					t.Fatal("no pending commit")
 				}
 			}
-			if err := b.CancelDrainControl(context.Background(), "generation", "control"); err == nil {
-				t.Fatal("replacement wrapper resolved old drain notice")
+			if err := b.CancelDrainControl(context.Background(), fence.Generation, "control"); err == nil {
+				t.Fatal("replacement wrapper resolved old fence")
 			}
-			if err := b.ReleaseDrain("generation"); err == nil {
-				t.Fatal("replacement revocation released old generation")
+			if err := b.ReleaseDrain(fence.Generation); err == nil {
+				t.Fatal("replacement release")
 			}
 			if !committed {
 				close(f.commitGate)
 			}
 		})
+	}
+}
+
+type strictDrainReservationEndpoint struct {
+	*drainCancelEndpoint
+	genericReserve, genericRelease bool
+	reserved, released             []DrainFence
+}
+
+func (f *strictDrainReservationEndpoint) Reserve(context.Context, string, uint64) error {
+	f.mu.Lock()
+	f.genericReserve = true
+	f.mu.Unlock()
+	return errors.New("untyped drain reserve")
+}
+func (f *strictDrainReservationEndpoint) Release(context.Context, string) error {
+	f.mu.Lock()
+	f.genericRelease = true
+	f.mu.Unlock()
+	return errors.New("untyped drain release")
+}
+func (f *strictDrainReservationEndpoint) ReserveDrain(ctx context.Context, id string, seq uint64, fence DrainFence) error {
+	f.mu.Lock()
+	f.reserved = append(f.reserved, fence)
+	f.mu.Unlock()
+	return f.drainCancelEndpoint.Reserve(ctx, id, seq)
+}
+func (f *strictDrainReservationEndpoint) ReleaseDrain(ctx context.Context, id string, fence DrainFence) error {
+	f.mu.Lock()
+	f.released = append(f.released, fence)
+	f.mu.Unlock()
+	return f.drainCancelEndpoint.Release(ctx, id)
+}
+func TestDrainBrokerUsesTypedReservationAndCleanup(t *testing.T) {
+	f := &strictDrainReservationEndpoint{drainCancelEndpoint: newDrainCancelEndpoint(time.Now())}
+	b := NewBroker(context.Background(), time.Now, nil)
+	defer b.Close()
+	from, to := brokerBinding("pair:0"), brokerBinding("pair:1")
+	if err := b.Register(from, newFakeEndpoint(time.Now())); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Register(to, f); err != nil {
+		t.Fatal(err)
+	}
+	fence := drainFenceFixture(t, 1, DrainNoticeControl)
+	if err := b.HoldDrain(fence.Generation); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.SendDrain(context.Background(), fence.Generation, from, "control", to, "checkpoint", fence); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-f.delivered:
+		f.outcomes <- Receipt{Status: Submitted}
+	case <-time.After(time.Second):
+		t.Fatal("no typed delivery")
+	}
+	waitStatus(t, b, from, "control", Submitted)
+	if err := b.CancelDrainControl(context.Background(), fence.Generation, "control"); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.genericReserve || f.genericRelease || len(f.reserved) != 1 || len(f.released) != 1 || f.reserved[0] != fence || f.released[0] != fence {
+		t.Fatalf("wrong cleanup authority generic=%v/%v reserves=%+v releases=%+v", f.genericReserve, f.genericRelease, f.reserved, f.released)
 	}
 }

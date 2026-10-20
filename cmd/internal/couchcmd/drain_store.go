@@ -70,7 +70,7 @@ func validateDrainRecord(data []byte) error {
 	if err := json.Unmarshal(obj["schema_version"], &version); err != nil {
 		return err
 	}
-	if version != 1 {
+	if version != 2 {
 		return fmt.Errorf("unsupported drain record schema_version %d", version)
 	}
 	return nil

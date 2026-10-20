@@ -24,7 +24,7 @@ type transportDrainWrapper struct {
 	mu                 sync.Mutex
 	binding            couchmessage.Binding
 	endpoint           *drainServiceEndpoint
-	reserved           map[string]bool
+	reserved           map[string]couchmessage.DrainFence
 	calls              map[string]int
 	order              []string
 	loseInterruptReply bool
@@ -49,25 +49,42 @@ func (w *transportDrainWrapper) handle(ctx context.Context, raw []byte) ([]byte,
 	case "observe":
 		response.Observation, _ = w.endpoint.Observe(ctx)
 	case "reserve":
+		return nil, errors.New("ordinary reservation cannot authorize a drain")
+	case "drain-reserve":
+		response.DrainFence = request.DrainFence
+		if err := w.endpoint.ReserveDrain(ctx, request.ID, request.Sequence, *request.DrainFence); err != nil {
+			return nil, err
+		}
 		w.mu.Lock()
-		w.reserved[request.ID] = true
+		for id, fence := range w.reserved {
+			if fence.Epoch < request.DrainFence.Epoch {
+				delete(w.reserved, id)
+			}
+		}
+		w.reserved[request.ID] = *request.DrainFence
 		w.mu.Unlock()
 	case "release":
+		return nil, errors.New("ordinary release cannot authorize a drain")
+	case "drain-release":
+		response.DrainFence = request.DrainFence
+		if err := w.endpoint.ReleaseDrain(ctx, request.ID, *request.DrainFence); err != nil {
+			return nil, err
+		}
 		w.mu.Lock()
 		delete(w.reserved, request.ID)
 		w.mu.Unlock()
 	case "commit":
 		w.mu.Lock()
-		reserved := w.reserved[request.ID]
+		reserved, ok := w.reserved[request.ID]
 		w.mu.Unlock()
-		if !reserved {
+		if !ok || reserved != request.Message.DrainFence {
 			return nil, errors.New("commit without input reservation")
 		}
 		observed, err := w.endpoint.ObserveDrain(ctx)
 		if err != nil {
 			return nil, err
 		}
-		if request.Message.DrainInstance != observed.Instance {
+		if request.Message.DrainFence.Instance != observed.Instance {
 			return nil, errors.New("commit for replaced wrapper instance")
 		}
 		receipt, err := w.endpoint.Deliver(ctx, *request.Message, func(couchmessage.Receipt) {})
@@ -93,7 +110,7 @@ func (w *transportDrainWrapper) handle(ctx context.Context, raw []byte) ([]byte,
 		}
 		response.DrainObservation = &observed
 	case "drain-interrupt":
-		result, err := w.endpoint.InterruptDrain(ctx, request.ID, *request.DrainObserved)
+		result, err := w.endpoint.InterruptDrain(ctx, request.ID, *request.DrainFence, *request.DrainObserved)
 		if err != nil {
 			return nil, err
 		}
@@ -107,13 +124,13 @@ func (w *transportDrainWrapper) handle(ctx context.Context, raw []byte) ([]byte,
 			return nil, errors.New("transport closes after retained interrupt effect")
 		}
 	case "drain-interrupt-status":
-		result, err := w.endpoint.DrainInterruptStatus(ctx, request.ID)
+		result, err := w.endpoint.DrainInterruptStatus(ctx, request.ID, *request.DrainFence)
 		if err != nil {
 			return nil, err
 		}
 		response.DrainInterrupt = &result
 	case "drain-revoke":
-		result, err := w.endpoint.RevokeDrain(ctx, request.ID)
+		result, err := w.endpoint.RevokeDrain(ctx, request.ID, *request.DrainFence)
 		if err != nil {
 			return nil, err
 		}
@@ -143,6 +160,10 @@ func TestDrainTransportThreeMembers(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			namespace := t.TempDir()
+			namespaceKey, err := couchmessage.DrainNamespaceKey(namespace)
+			if err != nil {
+				t.Fatal(err)
+			}
 			broker := couchmessage.NewBroker(ctx, time.Now, nil)
 			defer broker.Close()
 			fleet := &drainServiceFleet{members: map[string]drainLiveMember{}, endpoints: map[couchmessage.Binding]*drainServiceEndpoint{}}
@@ -162,7 +183,7 @@ func TestDrainTransportThreeMembers(t *testing.T) {
 			}()
 			for i := 0; i < 3; i++ {
 				binding := couchmessage.Binding{Slot: fmt.Sprintf("pair:%d", i), Repository: filepath.Join(namespace, "repo.git"), Scope: "scope", Tag: fmt.Sprint(i), Session: "session", Nonce: fmt.Sprintf("nonce-%d", i), Agent: "codex", Version: "test", PID: os.Getpid(), Start: "start"}
-				wrapper := &transportDrainWrapper{binding: binding, endpoint: &drainServiceEndpoint{}, reserved: map[string]bool{}, calls: map[string]int{}, loseInterruptReply: fast && i == 1}
+				wrapper := &transportDrainWrapper{binding: binding, endpoint: &drainServiceEndpoint{namespace: namespaceKey}, reserved: map[string]couchmessage.DrainFence{}, calls: map[string]int{}, loseInterruptReply: fast && i == 1}
 				socket, err := couchmessage.EndpointSocket(namespace, binding)
 				if err != nil {
 					t.Fatal(err)
@@ -260,7 +281,7 @@ func TestDrainTransportThreeMembers(t *testing.T) {
 				}
 				order := append([]string(nil), wrapper.order...)
 				wrapper.mu.Unlock()
-				if calls["observe"] == 0 || calls["reserve"] != 1 || calls["commit"] != 1 || calls["drain-observe"] == 0 {
+				if calls["observe"] == 0 || calls["drain-reserve"] != 1 || calls["commit"] != 1 || calls["drain-observe"] == 0 {
 					t.Fatalf("transport bypassed for %s: %v", binding.Slot, calls)
 				}
 				if fast && (len(order) != 2 || order[0] != "interrupt" || order[1] != "notice") {
@@ -279,6 +300,68 @@ func TestDrainTransportThreeMembers(t *testing.T) {
 			if err != nil || len(final.PauseOwners) != 1 || final.PauseOwners[0].Owner != "other-owner" {
 				t.Fatal("cancel released another owner", final, err)
 			}
+			// Reuse the exact wrapper incarnation for a second epoch, switch
+			// mode, then recover the supervisor before owner-only cancellation.
+			fleet.mu.Lock()
+			for workspace, member := range fleet.members {
+				member.Observation.Idle = false
+				fleet.members[workspace] = member
+				endpoint := fleet.endpoints[member.Binding]
+				endpoint.mu.Lock()
+				endpoint.idle = false
+				endpoint.mu.Unlock()
+			}
+			fleet.mu.Unlock()
+			secondID := "00000000-0000-4000-8000-000000000002"
+			if _, err := coordinator.start(ctx, secondID, "second transport epoch", !fast, time.Minute, fleet.snapshot()["pair:0"].Binding); err != nil {
+				t.Fatal(err)
+			}
+			waitDrainService(t, coordinator, func(b couchcore.DrainBoard) bool {
+				for _, row := range b.Rows {
+					if row.Reason != "active turn" {
+						return false
+					}
+				}
+				return true
+			})
+			if drainServiceRecordEpoch(t, coordinator) != 2 {
+				t.Fatal("transport did not allocate second epoch")
+			}
+			coordinator.close()
+			recoveredBroker := couchmessage.NewBroker(ctx, time.Now, nil)
+			defer recoveredBroker.Close()
+			for binding, endpoint := range remotes {
+				if err := recoveredBroker.Register(binding, endpoint); err != nil {
+					t.Fatal(err)
+				}
+			}
+			recovered, err := newDrainCoordinator(ctx, drainCoordinatorOptions{Broker: recoveredBroker, Queue: queue, Store: newDrainStore(namespace), Now: time.Now, Snapshot: fleet.snapshot, Endpoint: func(binding couchmessage.Binding) couchmessage.DrainEndpoint { return remotes[binding] }})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer recovered.close()
+			if recovered.view().State != couchcore.DrainStuck || drainServiceRecordEpoch(t, recovered) != 2 {
+				t.Fatal("transport recovery changed epoch or reused live completion")
+			}
+			if _, err := recovered.cancel(ctx); err != nil {
+				t.Fatal(err)
+			}
+			waitDrainService(t, recovered, func(b couchcore.DrainBoard) bool { return b.State == couchcore.DrainCancelled })
+			for binding, wrapper := range wrappers {
+				wrapper.endpoint.mu.Lock()
+				notices, interrupts := wrapper.endpoint.notices, wrapper.endpoint.interrupts
+				residue := len(wrapper.endpoint.receipts) + len(wrapper.endpoint.results) + len(wrapper.endpoint.revoked)
+				watermark := wrapper.endpoint.authority.View()
+				wrapper.endpoint.mu.Unlock()
+				if notices != 2 || interrupts != 1 || residue > 4 || watermark.Epoch != 2 {
+					t.Fatalf("%s repeated transport residue/input: notices%d interrupts%d residue%d watermark%+v", binding.Slot, notices, interrupts, residue, watermark)
+				}
+			}
+			final, err = queue.Status(ctx)
+			if err != nil || len(final.PauseOwners) != 1 || final.PauseOwners[0].Owner != "other-owner" {
+				t.Fatal("recovered cancellation released another queue owner", final, err)
+			}
+
 		})
 	}
 }

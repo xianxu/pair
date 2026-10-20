@@ -77,6 +77,15 @@ reconcile it. Cancelling never restarts interrupted work. The generation record
 is one bounded `drain.json` in the existing namespace, with strict known fields
 and preserved additive extensions.
 
+The schema-2 intent retains one monotonic epoch and namespace identity; the
+public drain UUID stays unchanged. Protocol-2 wrapper controls and outcomes carry
+that identity, epoch, incarnation and control kind. The wrapper input lease owns
+the epoch watermark and two fixed control slots, retaining only current outcomes.
+A newer epoch requires confirmed revocation of the previous controls; stale
+callbacks cannot send input or alter the current outcome. Status reads never
+advance the watermark. Unsupported wrappers or invalid/older intents remain
+held for explicit recovery rather than silently weakening the fence.
+
 ### Slot scratch (#708)
 
 [Slot scratch](couch-scratch.md) maps optional TestScratch temp settings, the

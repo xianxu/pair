@@ -682,6 +682,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/drain_notice.go",
 	"cmd/internal/couchmessage/drain_broker.go",
 	"cmd/internal/couchmessage/drain_endpoint.go",
+	"cmd/internal/couchmessage/drain_generation.go",
 	"cmd/internal/couchmessage/drain_protocol.go",
 	"cmd/internal/couchtty/console_drain.go",
 	"cmd/internal/wrapcmd/drain_interrupt.go",

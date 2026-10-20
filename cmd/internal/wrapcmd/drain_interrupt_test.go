@@ -18,13 +18,13 @@ func TestDrainInterruptCannotHitCheckpointTurn(t *testing.T) {
 			defer f.close()
 			f.output("\x1b[?2004h" + strings.Replace(claudeLiveComposerPaint(), "alpha", "", 1) + "\x1b[21;3H")
 			p := f.proxy
-			d := newPeerDelivery(peerTestMessage(time.Now()).To, time.Now)
+			d := newDrainTestDelivery(peerTestMessage(time.Now()).To, time.Now)
 			p.peer = d
 			d.drainProxy = p
 			p.turnActive.Store(true)
 			p.drainTurn = 1
 			observed := d.observeDrain()
-			if _, err := d.startDrainInterrupt("drain-one", observed); err != nil {
+			if _, err := d.startDrainInterrupt("drain-one", testDrainFence(d, couchmessage.DrainInterruptControl), observed); err != nil {
 				t.Fatal(err)
 			}
 			switch change {
@@ -57,13 +57,16 @@ func TestDrainInterruptCannotHitCheckpointTurn(t *testing.T) {
 			if out.String() != want {
 				t.Fatalf("Esc affected replacement/unsafe turn: %q", out.String())
 			}
-			first, _ := d.drainInterruptStatus("drain-one")
-			_, err := d.startDrainInterrupt("drain-one", observed)
+			if change == "instance" {
+				return
+			} // A new incarnation cannot share retained-status authority.
+			first, _ := d.drainInterruptStatus("drain-one", testDrainFence(d, couchmessage.DrainInterruptControl))
+			_, err := d.startDrainInterrupt("drain-one", testDrainFence(d, couchmessage.DrainInterruptControl), observed)
 			if err != nil {
 				t.Fatal(err)
 			}
 			p.executeDrainInterrupt(&out)
-			again, _ := d.drainInterruptStatus("drain-one")
+			again, _ := d.drainInterruptStatus("drain-one", testDrainFence(d, couchmessage.DrainInterruptControl))
 			if out.String() != want || first != again {
 				t.Fatalf("duplicate rewrote input: %q %+v %+v", out.String(), first, again)
 			}
@@ -77,13 +80,15 @@ func TestDrainCancelRevokesNotice(t *testing.T) {
 			defer f.close()
 			f.output("\x1b[?2004h" + strings.Replace(claudeLiveComposerPaint(), "alpha", "", 1) + "\x1b[21;3H")
 			p := f.proxy
-			d := newPeerDelivery(peerTestMessage(time.Now()).To, time.Now)
+			d := newDrainTestDelivery(peerTestMessage(time.Now()).To, time.Now)
 			p.peer = d
 			d.drainProxy = p
 			m := peerTestMessage(time.Now())
+			m.Origin = couchmessage.OriginSystem
+			m.DrainFence = testDrainFence(d, couchmessage.DrainNoticeControl)
 			var out bytes.Buffer
 			if phase != "before-reserve" {
-				if err := d.reserve(m.ID, 0); err != nil {
+				if err := d.reserveDrain(m.ID, 0, m.DrainFence); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -96,15 +101,15 @@ func TestDrainCancelRevokesNotice(t *testing.T) {
 				p.dispatchPeer(&out)
 			}
 			before := out.String()
-			r := d.revokeDrain(m.ID)
+			r := d.revokeDrain(m.ID, testDrainFence(d, couchmessage.DrainNoticeControl))
 			want := "not-committed"
 			if phase == "pasted" {
-				want = "already-committed"
+				want = "unknown"
 			}
 			if r.Outcome != want {
 				t.Fatalf("%+v", r)
 			}
-			if again := d.revokeDrain(m.ID); again.Outcome != r.Outcome {
+			if again := d.revokeDrain(m.ID, testDrainFence(d, couchmessage.DrainNoticeControl)); again.Outcome != r.Outcome {
 				t.Fatalf("not retained: %+v", again)
 			}
 			p.dispatchPeer(&out)
@@ -126,7 +131,7 @@ func TestDrainInterruptLifecycleFenceAndUnknownWrite(t *testing.T) {
 	defer f.close()
 	f.output("\x1b[?2004h" + strings.Replace(claudeLiveComposerPaint(), "alpha", "", 1) + "\x1b[21;3H")
 	p := f.proxy
-	d := newPeerDelivery(peerTestMessage(time.Now()).To, time.Now)
+	d := newDrainTestDelivery(peerTestMessage(time.Now()).To, time.Now)
 	p.peer = d
 	d.drainProxy = p
 	p.processLifecycleObservation(TurnObservation{Kind: ObservationUserSubmission})
@@ -134,7 +139,7 @@ func TestDrainInterruptLifecycleFenceAndUnknownWrite(t *testing.T) {
 	if !observed.Active || !observed.ComposerKnown || !observed.Complete {
 		t.Fatalf("bad fixture: %+v", observed)
 	}
-	if _, err := d.startDrainInterrupt("old-turn", observed); err != nil {
+	if _, err := d.startDrainInterrupt("old-turn", testDrainFence(d, couchmessage.DrainInterruptControl), observed); err != nil {
 		t.Fatal(err)
 	}
 	p.processLifecycleObservation(TurnObservation{Kind: ObservationNativeCompletion})
@@ -144,7 +149,7 @@ func TestDrainInterruptLifecycleFenceAndUnknownWrite(t *testing.T) {
 	if out.Len() != 0 {
 		t.Fatalf("Esc to checkpoint turn: %q", out.String())
 	}
-	r, _ := d.drainInterruptStatus("old-turn")
+	r, _ := d.drainInterruptStatus("old-turn", testDrainFence(d, couchmessage.DrainInterruptControl))
 	if r.Outcome != "skipped" {
 		t.Fatalf("%+v", r)
 	}
@@ -152,13 +157,14 @@ func TestDrainInterruptLifecycleFenceAndUnknownWrite(t *testing.T) {
 	if next.Turn <= observed.Turn {
 		t.Fatal("logical turn fence did not advance")
 	}
-	if _, err := d.startDrainInterrupt("uncertain-write", next); err != nil {
+	d.revokeDrain("old-turn", testDrainFence(d, couchmessage.DrainInterruptControl))
+	if _, err := d.startDrainInterrupt("uncertain-write", testDrainFenceAt(d, couchmessage.DrainInterruptControl, 2), next); err != nil {
 		t.Fatal(err)
 	}
 	w := &drainFailWriter{}
 	p.executeDrainInterrupt(w)
 	p.executeDrainInterrupt(w)
-	r, _ = d.drainInterruptStatus("uncertain-write")
+	r, _ = d.drainInterruptStatus("uncertain-write", testDrainFence(d, couchmessage.DrainInterruptControl))
 	if r.Outcome != "unknown" || w.calls != 1 {
 		t.Fatalf("unknown write retried: %+v calls=%d", r, w.calls)
 	}
@@ -173,12 +179,13 @@ func TestDrainEndpointRealTransportAndRevoke(t *testing.T) {
 	defer f.close()
 	f.output("\x1b[?2004h" + strings.Replace(claudeLiveComposerPaint(), "alpha", "", 1) + "\x1b[21;3H")
 	p := f.proxy
-	d := newPeerDelivery(peerTestMessage(time.Now()).To, time.Now)
+	d := newDrainTestDelivery(peerTestMessage(time.Now()).To, time.Now)
 	p.peer = d
 	d.drainProxy = p
 	// Fixture's toy bindings deliberately aren't endpoint-valid; use a complete one.
 	d.binding = couchmessage.Binding{Slot: "pair:1", Repository: "/repo", Scope: "scope", Tag: "tag", Session: "session", Nonce: "nonce", Agent: "claude", Version: "test", PID: 123, Start: "start"}
 	namespace := t.TempDir()
+	d.drainNamespace, _ = couchmessage.DrainNamespaceKey(namespace)
 	socket, err := couchmessage.EndpointSocket(namespace, d.binding)
 	if err != nil {
 		t.Fatal(err)
@@ -193,17 +200,17 @@ func TestDrainEndpointRealTransportAndRevoke(t *testing.T) {
 	if err != nil || !o.Idle {
 		t.Fatalf("%+v %v", o, err)
 	}
-	r, err := e.InterruptDrain(context.Background(), "idle-drain", o)
+	r, err := e.InterruptDrain(context.Background(), "idle-drain", testDrainFence(d, couchmessage.DrainInterruptControl), o)
 	if err != nil || r.Outcome != "pending" {
 		t.Fatalf("%+v %v", r, err)
 	}
 	var out bytes.Buffer
 	p.executeDrainInterrupt(&out)
-	r, err = e.DrainInterruptStatus(context.Background(), "idle-drain")
+	r, err = e.DrainInterruptStatus(context.Background(), "idle-drain", testDrainFence(d, couchmessage.DrainInterruptControl))
 	if err != nil || r.Outcome != "skipped" || out.Len() != 0 {
 		t.Fatalf("%+v %v %q", r, err, out.String())
 	}
-	revoked, err := e.RevokeDrain(context.Background(), "notice-one")
+	revoked, err := e.RevokeDrain(context.Background(), "notice-one", testDrainFence(d, couchmessage.DrainNoticeControl))
 	if err != nil || revoked.Outcome != "not-committed" {
 		t.Fatalf("%+v %v", revoked, err)
 	}
@@ -244,7 +251,7 @@ func TestDrainCancelRevokesInterrupt(t *testing.T) {
 			defer f.close()
 			f.output("\x1b[?2004h" + strings.Replace(claudeLiveComposerPaint(), "alpha", "", 1) + "\x1b[21;3H")
 			p := f.proxy
-			d := newPeerDelivery(peerTestMessage(time.Now()).To, time.Now)
+			d := newDrainTestDelivery(peerTestMessage(time.Now()).To, time.Now)
 			p.peer = d
 			d.drainProxy = p
 			p.turnActive.Store(true)
@@ -252,7 +259,7 @@ func TestDrainCancelRevokesInterrupt(t *testing.T) {
 			observed := d.observeDrain()
 			var out bytes.Buffer
 			if phase != "not-started" {
-				if _, err := d.startDrainInterrupt("stop-one", observed); err != nil {
+				if _, err := d.startDrainInterrupt("stop-one", testDrainFence(d, couchmessage.DrainInterruptControl), observed); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -263,7 +270,7 @@ func TestDrainCancelRevokesInterrupt(t *testing.T) {
 				p.executeDrainInterrupt(&drainFailWriter{})
 			}
 			before := out.String()
-			revoked := d.revokeDrain("stop-one")
+			revoked := d.revokeDrain("stop-one", testDrainFence(d, couchmessage.DrainInterruptControl))
 			want := "not-committed"
 			if phase == "interrupted" {
 				want = "already-committed"
@@ -274,14 +281,14 @@ func TestDrainCancelRevokesInterrupt(t *testing.T) {
 			if revoked.Outcome != want {
 				t.Fatalf("%s: %+v", phase, revoked)
 			}
-			if _, err := d.startDrainInterrupt("stop-one", observed); err != nil {
+			if _, err := d.startDrainInterrupt("stop-one", testDrainFence(d, couchmessage.DrainInterruptControl), observed); err != nil {
 				t.Fatal(err)
 			}
 			p.executeDrainInterrupt(&out)
 			if out.String() != before {
 				t.Fatalf("late canceled interrupt wrote Esc: %q -> %q", before, out.String())
 			}
-			if again := d.revokeDrain("stop-one"); again.Outcome != want {
+			if again := d.revokeDrain("stop-one", testDrainFence(d, couchmessage.DrainInterruptControl)); again.Outcome != want {
 				t.Fatalf("unstable revoke: %+v", again)
 			}
 		})
@@ -295,7 +302,7 @@ func TestDrainNoticeWrapperInstanceFence(t *testing.T) {
 			defer f.close()
 			f.output("\x1b[?2004h" + strings.Replace(claudeLiveComposerPaint(), "alpha", "", 1) + "\x1b[21;3H")
 			p := f.proxy
-			d := newPeerDelivery(peerTestMessage(time.Now()).To, time.Now)
+			d := newDrainTestDelivery(peerTestMessage(time.Now()).To, time.Now)
 			p.peer = d
 			d.drainProxy = p
 			d.binding = couchmessage.Binding{Slot: "pair:1", Repository: "/repo", Scope: "scope", Tag: "tag", Session: "session", Nonce: "nonce", Agent: "claude", Version: "test", PID: 123, Start: "start"}
@@ -304,12 +311,12 @@ func TestDrainNoticeWrapperInstanceFence(t *testing.T) {
 			m.From = d.binding
 			m.From.Slot = "ops:0"
 			m.Origin = couchmessage.OriginSystem
-			m.DrainInstance = d.drive.instance
+			m.DrainFence = testDrainFence(d, couchmessage.DrainNoticeControl)
+			if err := d.reserveDrain(m.ID, 0, m.DrainFence); err != nil {
+				t.Fatal(err)
+			}
 			if phase == "enqueue" {
 				d.drive = newDriveMailbox()
-			}
-			if err := d.reserve(m.ID, 0); err != nil {
-				t.Fatal(err)
 			}
 			var err error
 			if phase == "batch" {
@@ -366,18 +373,18 @@ func TestDrainRevokeReportsLeaseInstanceAcrossReplacement(t *testing.T) {
 	defer f.close()
 	p := f.proxy
 	binding := peerTestMessage(time.Now()).To
-	original := newPeerDelivery(binding, time.Now)
+	original := newDrainTestDelivery(binding, time.Now)
 	p.peer = original
 	original.drainProxy = p
 	observed := original.observeDrain()
-	replacement := newPeerDelivery(binding, time.Now)
+	replacement := newDrainTestDelivery(binding, time.Now)
 	p.peer = replacement
 	replacement.drainProxy = p
-	r := replacement.revokeDrain("old-notice")
-	if r.Instance != replacement.drive.instance || r.Instance == observed.Instance {
+	r := replacement.revokeDrain("old-notice", testDrainFence(replacement, couchmessage.DrainNoticeControl))
+	if r.Fence.Instance != replacement.drive.instance || r.Fence.Instance == observed.Instance {
 		t.Fatalf("replacement absence masqueraded as original-wrapper proof: observed=%s result=%+v", observed.Instance, r)
 	}
-	if again := replacement.revokeDrain("old-notice"); again.Instance != r.Instance || again.Outcome != r.Outcome {
+	if again := replacement.revokeDrain("old-notice", testDrainFence(replacement, couchmessage.DrainNoticeControl)); again.Fence.Instance != r.Fence.Instance || again.Outcome != r.Outcome {
 		t.Fatalf("retained revoke lost instance: %+v -> %+v", r, again)
 	}
 }

@@ -41,19 +41,15 @@ func (b *Broker) isDrainControl(id string) bool {
 }
 
 // SendDrain is internal-only; ordinary OriginSystem messages cannot use the lane.
-func (b *Broker) SendDrain(ctx context.Context, generation string, from Binding, id string, to Binding, body string, expectedInstance ...string) (Receipt, error) {
+func (b *Broker) SendDrain(ctx context.Context, generation string, from Binding, id string, to Binding, body string, fence DrainFence) (Receipt, error) {
 	if err := ctx.Err(); err != nil {
 		return Receipt{}, err
 	}
-	instance := ""
-	if len(expectedInstance) > 1 {
-		return Receipt{}, errors.New("drain requires exactly one expected wrapper instance")
+	if err := fence.Validate(); err != nil {
+		return Receipt{}, err
 	}
-	if len(expectedInstance) == 1 {
-		instance = expectedInstance[0]
-		if err := (DriveObservation{Instance: instance}).Validate(); err != nil {
-			return Receipt{}, err
-		}
+	if fence.Kind != DrainNoticeControl || fence.Generation != generation {
+		return Receipt{}, errors.New("drain notice fence does not match generation")
 	}
 
 	if !validMessageID(id) {
@@ -74,7 +70,7 @@ func (b *Broker) SendDrain(ctx context.Context, generation string, from Binding,
 		return Receipt{}, ErrUnavailable
 	}
 	if old, ok := b.receiptLocked(id); ok {
-		if b.drainControls[id] != generation || old.Message.From != from || old.Message.To != to || old.Message.Body != body || old.Message.DrainInstance != instance {
+		if b.drainControls[id] != generation || old.Message.From != from || old.Message.To != to || old.Message.Body != body || old.Message.DrainFence != fence {
 			return Receipt{}, errors.New("conflicting drain control ID")
 		}
 		return old, nil
@@ -88,7 +84,7 @@ func (b *Broker) SendDrain(ctx context.Context, generation string, from Binding,
 		return Receipt{}, errors.New("drain control capacity reached")
 	}
 	now := b.now()
-	m := Message{DrainInstance: instance, Origin: OriginSystem, ID: id, From: from, To: to, Body: body, AcceptedAt: now, Deadline: now.Add(PasteTimeout)}
+	m := Message{DrainFence: fence, Origin: OriginSystem, ID: id, From: from, To: to, Body: body, AcceptedAt: now, Deadline: now.Add(PasteTimeout)}
 	a := b.actors[to]
 	if err := b.apply(a, Event{Kind: EnqueueDrainControl, Binding: to, Message: m, At: now}); err != nil {
 		return Receipt{}, err
@@ -170,7 +166,7 @@ func (b *Broker) CancelDrainControl(parent context.Context, generation, id strin
 		b.mu.Unlock()
 		return errors.New("drain control wrapper identity unavailable")
 	}
-	if drainKnownTerminal(r.Status) {
+	if drainKnownTerminal(r.Status) && r.Message.DrainFence.IsZero() {
 		job := b.jobs[id]
 		if job != nil {
 			job.cancel()
@@ -199,15 +195,15 @@ func (b *Broker) CancelDrainControl(parent context.Context, generation, id strin
 		return errors.New("wrapper drain revocation unsupported; relaunch needed")
 	}
 	b.mu.Unlock()
-	outcome, err := endpoint.RevokeDrain(ctx, id)
+	outcome, err := endpoint.RevokeDrain(ctx, id, r.Message.DrainFence)
 	if err != nil {
 		return fmt.Errorf("drain revocation uncertain: %w", err)
 	}
 	if outcome.ID != id {
 		return errors.New("drain revocation returned a different ID")
 	}
-	if r.Message.DrainInstance != "" && outcome.Instance != r.Message.DrainInstance {
-		return errors.New("drain revocation returned a different wrapper instance")
+	if outcome.Fence != r.Message.DrainFence {
+		return errors.New("drain revocation returned a different generation fence")
 	}
 	status, detail := Cancelled, "drain cancelled before wrapper commit"
 	switch outcome.Outcome {
@@ -281,7 +277,7 @@ func (b *Broker) confirmDrainRevoked(ctx context.Context, generation, id string,
 
 func drainKnownTerminal(s Status) bool { return s.Terminal() && s != Indeterminate }
 func drainReceiptMatches(a, b Message) bool {
-	return a.ID == b.ID && a.Origin == b.Origin && a.From == b.From && a.To == b.To && a.Body == b.Body && a.DrainInstance == b.DrainInstance
+	return a.ID == b.ID && a.Origin == b.Origin && a.From == b.From && a.To == b.To && a.Body == b.Body && a.DrainFence == b.DrainFence
 }
 
 // BeginDrainCancel fences even a generation which admitted no notices yet.
@@ -293,4 +289,26 @@ func (b *Broker) BeginDrainCancel(generation string) error {
 	}
 	b.drainCancelling = true
 	return nil
+}
+
+// reserveDrainMessage keeps typed control authority out of generic reservations.
+func reserveDrainMessage(ctx context.Context, endpoint DeliveryEndpoint, m Message, sequence uint64) error {
+	if m.DrainFence.IsZero() {
+		return endpoint.Reserve(ctx, m.ID, sequence)
+	}
+	drain, ok := endpoint.(DrainReservationEndpoint)
+	if !ok {
+		return errors.New("wrapper typed drain reservation unsupported")
+	}
+	return drain.ReserveDrain(ctx, m.ID, sequence, m.DrainFence)
+}
+func releaseDrainMessage(ctx context.Context, endpoint DeliveryEndpoint, m Message) error {
+	if m.DrainFence.IsZero() {
+		return endpoint.Release(ctx, m.ID)
+	}
+	drain, ok := endpoint.(DrainReservationEndpoint)
+	if !ok {
+		return errors.New("wrapper typed drain release unsupported")
+	}
+	return drain.ReleaseDrain(ctx, m.ID, m.DrainFence)
 }

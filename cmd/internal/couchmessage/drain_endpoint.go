@@ -5,17 +5,30 @@ import (
 	"errors"
 )
 
-// DrainObservation is wrapper-owned evidence, never inferred from timestamps.
-// Turn changes at every lifecycle boundary; Input changes on operator input.
+// DrainObservation negotiates generation authority separately from screen facts.
+// Epoch zero and empty Generation mean this incarnation has accepted no drain.
 type DrainObservation struct {
+	Protocol                                                                     int
+	Namespace, Generation                                                        string
+	Epoch                                                                        uint64
 	Instance                                                                     string
 	Turn, Input                                                                  uint64
 	Active, Idle, Picker, ComposerKnown, ComposerEmpty, AutomaticInput, Complete bool
 }
 
 func (o DrainObservation) Validate() error {
-	if err := (DriveObservation{Instance: o.Instance}).Validate(); err != nil {
+	if o.Protocol != 2 {
+		return errors.New("wrapper drain protocol2 unavailable; relaunch needed")
+	}
+	if _, err := NewDrainGeneration(o.Namespace, o.Instance); err != nil {
 		return err
+	}
+	if o.Epoch == 0 {
+		if o.Generation != "" {
+			return errors.New("drain observation generation without epoch")
+		}
+	} else if !(DrainFence{Namespace: o.Namespace, Generation: o.Generation, Epoch: o.Epoch, Instance: o.Instance, Kind: DrainNoticeControl}).valid() {
+		return errors.New("invalid observed drain generation")
 	}
 	if o.ComposerEmpty && !o.ComposerKnown {
 		return errors.New("empty composer without known composer")
@@ -25,23 +38,34 @@ func (o DrainObservation) Validate() error {
 	}
 	return nil
 }
+func (f DrainFence) valid() bool { return f.Validate() == nil }
 
 type DrainInterruptResult struct {
-	ID, Instance, Outcome, Detail string
-	Turn                          uint64
+	ID              string
+	Fence           DrainFence
+	Outcome, Detail string
+	Turn            uint64
 }
 type DrainRevokeResult struct {
-	ID, Instance, Outcome string
-	Receipt               *Receipt              `json:",omitempty"`
-	Interrupt             *DrainInterruptResult `json:",omitempty"`
+	ID        string
+	Fence     DrainFence
+	Outcome   string
+	Receipt   *Receipt              `json:",omitempty"`
+	Interrupt *DrainInterruptResult `json:",omitempty"`
 }
 
-// DrainEndpoint is an optional capability. Old wrappers must fail closed.
 type DrainEndpoint interface {
 	ObserveDrain(context.Context) (DrainObservation, error)
-	InterruptDrain(context.Context, string, DrainObservation) (DrainInterruptResult, error)
-	DrainInterruptStatus(context.Context, string) (DrainInterruptResult, error)
-	RevokeDrain(context.Context, string) (DrainRevokeResult, error)
+	InterruptDrain(context.Context, string, DrainFence, DrainObservation) (DrainInterruptResult, error)
+	DrainInterruptStatus(context.Context, string, DrainFence) (DrainInterruptResult, error)
+	RevokeDrain(context.Context, string, DrainFence) (DrainRevokeResult, error)
+}
+
+// DrainReservationEndpoint prevents an unfenced old release from mutating a
+// reused control ID. Ordinary peer reservation and cleanup keep their old API.
+type DrainReservationEndpoint interface {
+	ReserveDrain(context.Context, string, uint64, DrainFence) error
+	ReleaseDrain(context.Context, string, DrainFence) error
 }
 
 func (e RemoteEndpoint) ObserveDrain(ctx context.Context) (DrainObservation, error) {
@@ -52,14 +76,29 @@ func (e RemoteEndpoint) ObserveDrain(ctx context.Context) (DrainObservation, err
 	if r.DrainObservation == nil {
 		return DrainObservation{}, errors.New("wrapper drain capability unavailable; relaunch needed")
 	}
-	return *r.DrainObservation, r.DrainObservation.Validate()
-}
-func validDrainInterrupt(r *DrainInterruptResult, id string) (DrainInterruptResult, error) {
-	if r == nil || r.ID != id {
-		return DrainInterruptResult{}, errors.New("wrapper returned no matching drain interrupt result")
+	o := *r.DrainObservation
+	if err := o.Validate(); err != nil {
+		return DrainObservation{}, err
 	}
-	if err := (DriveObservation{Instance: r.Instance}).Validate(); err != nil {
-		return DrainInterruptResult{}, err
+	namespace, err := DrainNamespaceKey(e.Namespace)
+	if err != nil || o.Namespace != namespace {
+		return DrainObservation{}, errors.New("wrapper drain observation namespace mismatch")
+	}
+	return o, nil
+}
+func (e RemoteEndpoint) validateDrainFence(f DrainFence) error {
+	if err := f.Validate(); err != nil {
+		return err
+	}
+	namespace, err := DrainNamespaceKey(e.Namespace)
+	if err != nil || f.Namespace != namespace {
+		return errors.New("drain fence does not name endpoint namespace")
+	}
+	return nil
+}
+func validDrainInterrupt(r *DrainInterruptResult, id string, f DrainFence) (DrainInterruptResult, error) {
+	if r == nil || r.ID != id || r.Fence != f || f.Kind != DrainInterruptControl || f.Validate() != nil {
+		return DrainInterruptResult{}, errors.New("wrapper returned no matching drain interrupt fence")
 	}
 	switch r.Outcome {
 	case "pending", "interrupted", "skipped", "refused", "unknown":
@@ -71,59 +110,84 @@ func validDrainInterrupt(r *DrainInterruptResult, id string) (DrainInterruptResu
 	}
 	return *r, nil
 }
-func (e RemoteEndpoint) InterruptDrain(ctx context.Context, id string, o DrainObservation) (DrainInterruptResult, error) {
-	r, err := e.call(ctx, EndpointRequest{Op: "drain-interrupt", ID: id, DrainObserved: &o})
+func (e RemoteEndpoint) InterruptDrain(ctx context.Context, id string, f DrainFence, o DrainObservation) (DrainInterruptResult, error) {
+	if err := e.validateDrainFence(f); err != nil {
+		return DrainInterruptResult{}, err
+	}
+	r, err := e.call(ctx, EndpointRequest{Op: "drain-interrupt", ID: id, DrainFence: &f, DrainObserved: &o})
 	if err != nil {
 		return DrainInterruptResult{}, err
 	}
-	return validDrainInterrupt(r.DrainInterrupt, id)
+	return validDrainInterrupt(r.DrainInterrupt, id, f)
 }
-func (e RemoteEndpoint) DrainInterruptStatus(ctx context.Context, id string) (DrainInterruptResult, error) {
-	r, err := e.call(ctx, EndpointRequest{Op: "drain-interrupt-status", ID: id})
+func (e RemoteEndpoint) DrainInterruptStatus(ctx context.Context, id string, f DrainFence) (DrainInterruptResult, error) {
+	if err := e.validateDrainFence(f); err != nil {
+		return DrainInterruptResult{}, err
+	}
+	r, err := e.call(ctx, EndpointRequest{Op: "drain-interrupt-status", ID: id, DrainFence: &f})
 	if err != nil {
 		return DrainInterruptResult{}, err
 	}
-	return validDrainInterrupt(r.DrainInterrupt, id)
+	return validDrainInterrupt(r.DrainInterrupt, id, f)
 }
-func (e RemoteEndpoint) RevokeDrain(ctx context.Context, id string) (DrainRevokeResult, error) {
-	r, err := e.call(ctx, EndpointRequest{Op: "drain-revoke", ID: id})
+func (e RemoteEndpoint) RevokeDrain(ctx context.Context, id string, f DrainFence) (DrainRevokeResult, error) {
+	if err := e.validateDrainFence(f); err != nil {
+		return DrainRevokeResult{}, err
+	}
+	r, err := e.call(ctx, EndpointRequest{Op: "drain-revoke", ID: id, DrainFence: &f})
 	if err != nil {
 		return DrainRevokeResult{}, err
 	}
-	if r.DrainRevoke == nil || r.DrainRevoke.ID != id {
-		return DrainRevokeResult{}, errors.New("wrapper returned no matching drain revocation")
+	result := r.DrainRevoke
+	if result == nil || result.ID != id || result.Fence != f {
+		return DrainRevokeResult{}, errors.New("wrapper returned no matching drain revocation fence")
 	}
-	if err := (DriveObservation{Instance: r.DrainRevoke.Instance}).Validate(); err != nil {
-		return DrainRevokeResult{}, err
+	if result.Receipt != nil && (f.Kind != DrainNoticeControl || result.Receipt.Message.ID != id || result.Receipt.Message.DrainFence != f) {
+		return DrainRevokeResult{}, errors.New("drain revoke receipt fence mismatch")
 	}
-	if r.DrainRevoke.Interrupt != nil && r.DrainRevoke.Interrupt.Instance != r.DrainRevoke.Instance {
-		return DrainRevokeResult{}, errors.New("drain revoke interrupt instance mismatch")
+	if result.Interrupt != nil {
+		if _, err := validDrainInterrupt(result.Interrupt, id, f); err != nil {
+			return DrainRevokeResult{}, err
+		}
 	}
-	switch r.DrainRevoke.Outcome {
+	switch result.Outcome {
 	case "not-committed", "unknown":
 	case "already-committed":
-		if r.DrainRevoke.Interrupt != nil {
-			result, err := validDrainInterrupt(r.DrainRevoke.Interrupt, id)
-			if err != nil || result.Outcome != "interrupted" {
+		if f.Kind == DrainInterruptControl {
+			if result.Interrupt == nil || result.Interrupt.Outcome != "interrupted" {
 				return DrainRevokeResult{}, errors.New("drain revocation omitted committed interrupt outcome")
 			}
-		} else if r.DrainRevoke.Receipt == nil || r.DrainRevoke.Receipt.Message.ID != id {
+		} else if result.Receipt == nil {
 			return DrainRevokeResult{}, errors.New("drain revocation omitted committed receipt")
 		}
 	default:
 		return DrainRevokeResult{}, errors.New("invalid drain revoke outcome")
 	}
-	return *r.DrainRevoke, nil
+	return *result, nil
+}
+func (e RemoteEndpoint) ReserveDrain(ctx context.Context, id string, sequence uint64, f DrainFence) error {
+	if err := e.validateDrainFence(f); err != nil {
+		return err
+	}
+	_, err := e.call(ctx, EndpointRequest{Op: "drain-reserve", ID: id, Sequence: sequence, DrainFence: &f})
+	return err
+}
+func (e RemoteEndpoint) ReleaseDrain(ctx context.Context, id string, f DrainFence) error {
+	if err := e.validateDrainFence(f); err != nil {
+		return err
+	}
+	_, err := e.call(ctx, EndpointRequest{Op: "drain-release", ID: id, DrainFence: &f})
+	return err
 }
 
-// ValidateDrainInstance keeps this optional system-only identity fence closed.
-// Empty preserves the wire shape and semantics of ordinary messages.
+// ValidateDrainInstance keeps the optional system-only drain capability closed.
+// The name remains compatible with existing envelope admission call sites.
 func ValidateDrainInstance(m Message) error {
-	if m.DrainInstance == "" {
+	if m.DrainFence.IsZero() {
 		return nil
 	}
-	if m.Origin != OriginSystem {
-		return errors.New("drain instance requires system origin")
+	if m.Origin != OriginSystem || m.DrainFence.Kind != DrainNoticeControl {
+		return errors.New("drain notice fence requires system origin and notice kind")
 	}
-	return (DriveObservation{Instance: m.DrainInstance}).Validate()
+	return m.DrainFence.Validate()
 }
