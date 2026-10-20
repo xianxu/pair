@@ -45,10 +45,16 @@ type Request struct {
 	Binding   *Binding
 }
 
+// CodeWarming is an admission refusal guaranteeing that nothing was queued.
+// Only this response may authorize an automatic retry of the same intent.
+const CodeWarming = "warming"
+
 type Response struct {
 	DrainDeliveries []DrainDelivery         `json:",omitempty"`
 	Drain           *couchcore.DrainBoard   `json:",omitempty"`
 	Resources       *couchcore.ResourceView `json:",omitempty"`
+	// RetryAfterMillis is a transient admission hint, only for CodeWarming.
+	RetryAfterMillis int `json:",omitempty"`
 	// Refusals answers refusals: each canonical slot's newest unsuperseded
 	// reason and recovery class. No caller credentials: this is unauthenticated.
 	Refusals        map[string]RefusalInfo `json:",omitempty"`
@@ -411,7 +417,7 @@ func Handle(ctx context.Context, b *Broker, r Request) Response {
 	}
 	caller, err := b.Caller(r.Scope, r.Tag, r.Session, r.Nonce)
 	if err != nil {
-		return protocolError(err, false)
+		return protocolError(fmt.Errorf("caller lookup: %w", err), false)
 	}
 	switch r.Op {
 	case "actors":

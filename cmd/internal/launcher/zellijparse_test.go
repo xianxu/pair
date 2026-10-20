@@ -42,16 +42,3 @@ func TestSessionNameRejectedNumericBoundary(t *testing.T) {
 		}
 	}
 }
-
-func TestPairSessionNames(t *testing.T) {
-	// --short output: clean names, one per line, unsorted + a dup + non-pair rows.
-	short := "pair-work\nother\npair-brain\npair-work\n\nscratch\n"
-	got := pairSessionNames(short)
-	want := []string{"pair-brain", "pair-work"} // pair-* only, sorted, deduped
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("pairSessionNames = %v, want %v", got, want)
-	}
-	if names := pairSessionNames(""); names != nil {
-		t.Fatalf("empty input → nil, got %v", names)
-	}
-}

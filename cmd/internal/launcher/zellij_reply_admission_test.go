@@ -13,7 +13,6 @@ func TestZellijClientCountRejectsNonemptyForeignReply(t *testing.T) {
 	for _, raw := range []string{`[{"id":1,"is_plugin":false}]`, `{"active_swap_layout_name":null,"is_swap_layout_dirty":false}`} {
 		t.Run(raw, func(t *testing.T) {
 			f := newEmptyReplyFake(t,
-				emptyReplyFrame{Args: []string{"list-sessions", "--short"}, Stdout: "pair-a\n"},
 				emptyReplyFrame{Args: []string{"list-sessions", "--no-formatting"}, Stdout: "pair-a [Created 1s ago]\n"},
 				emptyReplyFrame{Args: []string{"--session", "pair-a", "action", "list-clients"}, Stdout: raw},
 			)
@@ -21,8 +20,8 @@ func TestZellijClientCountRejectsNonemptyForeignReply(t *testing.T) {
 			if err == nil || got != nil {
 				t.Errorf("foreign reply granted detached authority: %+v, %v", got, err)
 			}
-			if calls := f.calls(t); calls != 3 {
-				t.Errorf("calls=%d; want3, no retry of unknown", calls)
+			if calls := f.calls(t); calls != 2 {
+				t.Errorf("calls=%d; want2, no retry of unknown", calls)
 			}
 		})
 	}
@@ -89,8 +88,8 @@ func TestListedTerminalUnknownNeverRetries(t *testing.T) {
 	}
 }
 
-func TestWrongKindShortListingStopsBeforeFurtherQuery(t *testing.T) {
-	f := newEmptyReplyFake(t, emptyReplyFrame{Args: []string{"list-sessions", "--short"}, Stdout: `[{"id":1,"is_plugin":false}]`}, emptyReplyFrame{Args: []string{"list-sessions", "--no-formatting"}, Stdout: "pair-a [Created 1s ago]\n"})
+func TestWrongKindFullListingStopsBeforeFurtherQuery(t *testing.T) {
+	f := newEmptyReplyFake(t, emptyReplyFrame{Args: []string{"list-sessions", "--no-formatting"}, Stdout: `[{"id":1,"is_plugin":false}]`})
 	got, err := f.source.SnapshotSessionsContext(t.Context(), []string{"pair-a"})
 	if err == nil || got != nil || f.calls(t) != 1 {
 		t.Fatalf("foreign first listing continued: got=%v err=%v calls=%d", got, err, f.calls(t))

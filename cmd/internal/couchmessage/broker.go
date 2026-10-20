@@ -409,6 +409,11 @@ func (b *Broker) caller(binding Binding) bool {
 	a := b.actors[binding]
 	return b.ctx.Err() == nil && a != nil && a.state.Connected()
 }
+
+// currentCaller fences an admission to its original registration, under b.mu.
+func (b *Broker) currentCaller(binding Binding, actor *SlotActor) bool {
+	return b.actors[binding] == actor && b.caller(binding)
+}
 func (b *Broker) Status(caller Binding, id string) (Receipt, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -576,8 +581,9 @@ func (b *Broker) send(parent context.Context, from Binding, id string, route Rou
 	b.sweep()
 	if !b.caller(from) {
 		b.mu.Unlock()
-		return Receipt{}, ErrUnavailable
+		return Receipt{}, fmt.Errorf("caller lookup: %w", ErrUnavailable)
 	}
+	sender := b.actors[from]
 	if old, ok := b.receiptLocked(id); ok {
 		same := old.Message.Origin == origin && old.Message.From == from && old.Message.Body == body && b.destinations[id] == route
 		b.mu.Unlock()
@@ -606,7 +612,7 @@ func (b *Broker) send(parent context.Context, from Binding, id string, route Rou
 	pending := &admission{origin: origin, from: from, route: route, body: body, done: make(chan struct{})}
 	b.admissions[id] = pending
 	b.mu.Unlock()
-	receipt, families, err := b.admit(ctx, from, id, route, body, origin)
+	receipt, families, err := b.admit(ctx, sender, from, id, route, body, origin)
 	b.mu.Lock()
 	if _, stored := b.receipts[id]; err != nil && !stored {
 		err = b.refuseLocked(from, id, route, body, err, families, origin)
@@ -619,7 +625,7 @@ func (b *Broker) send(parent context.Context, from Binding, id string, route Rou
 	b.mu.Unlock()
 	return receipt, err
 }
-func (b *Broker) admit(ctx context.Context, from Binding, id string, route Route, body string, origin Origin) (Receipt, map[string]string, error) {
+func (b *Broker) admit(ctx context.Context, sender *SlotActor, from Binding, id string, route Route, body string, origin Origin) (Receipt, map[string]string, error) {
 	family := !strings.Contains(route.Target, ":")
 	families, err := b.readFamilies(ctx)
 	if err != nil {
@@ -631,9 +637,9 @@ func (b *Broker) admit(ctx context.Context, from Binding, id string, route Route
 			return Receipt{}, families, err
 		}
 		b.mu.Lock()
-		if !b.caller(from) {
+		if !b.currentCaller(from, sender) {
 			b.mu.Unlock()
-			return Receipt{}, families, ErrUnavailable
+			return Receipt{}, families, fmt.Errorf("caller %s current: %w", from.Slot, ErrUnavailable)
 		}
 		var candidates []Candidate
 		for binding, a := range b.actors {
@@ -656,7 +662,7 @@ func (b *Broker) admit(ctx context.Context, from Binding, id string, route Route
 		to, err := ResolveRecipient(route, candidates, families, b.now(), func(to Binding) bool { return b.eligible(from, to) })
 		if err != nil {
 			b.mu.Unlock()
-			return Receipt{}, families, err
+			return Receipt{}, families, fmt.Errorf("recipient %s lookup: %w", route.Target, err)
 		}
 		a := b.actors[to]
 		if !family && (a.reservation != "" || len(a.inbox) != 0 || actorCandidate(a, b.now()).Pending) {
@@ -667,7 +673,7 @@ func (b *Broker) admit(ctx context.Context, from Binding, id string, route Route
 		a.reservation = id
 		seq := a.sequence
 		b.mu.Unlock()
-		receipt, err := b.tryAdmission(ctx, a, seq, from, id, route, body, family, origin)
+		receipt, err := b.tryAdmission(ctx, a, seq, sender, from, id, route, body, family, origin)
 		if err == nil {
 			return receipt, families, nil
 		}
@@ -684,8 +690,11 @@ func (b *Broker) admit(ctx context.Context, from Binding, id string, route Route
 		if !family && errors.Is(err, ErrRecipientBusy) {
 			b.mu.Lock()
 			defer b.mu.Unlock()
-			if b.actors[to] != a || !b.caller(to) || !b.caller(from) {
-				return Receipt{}, families, ErrUnavailable
+			if !b.currentCaller(from, sender) {
+				return Receipt{}, families, fmt.Errorf("caller %s current: %w", from.Slot, ErrUnavailable)
+			}
+			if b.actors[to] != a || !b.caller(to) {
+				return Receipt{}, families, fmt.Errorf("recipient %s admission: %w", to.Slot, ErrUnavailable)
 			}
 			receipt, err := b.enqueueLocked(a, from, id, route, body, origin)
 			return receipt, families, err
@@ -696,7 +705,7 @@ func (b *Broker) admit(ctx context.Context, from Binding, id string, route Route
 		tried[to] = true
 	}
 }
-func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, from Binding, id string, route Route, body string, family bool, origin Origin) (Receipt, error) {
+func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, sender *SlotActor, from Binding, id string, route Route, body string, family bool, origin Origin) (Receipt, error) {
 	// The binding itself never changes on a SlotActor; reconnect installs a new
 	// actor retaining the old actor's model state.
 	to := a.binding
@@ -712,22 +721,30 @@ func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, fro
 		obs, err = a.endpoint.Observe(ctx)
 	}
 	if err != nil {
-		return Receipt{}, err
+		return Receipt{}, fmt.Errorf("recipient %s observe: %w", to.Slot, err)
 	}
 	if err = a.endpoint.Reserve(ctx, id, obs.Sequence); err != nil {
 		var committed *AlreadyCommittedError
 		if errors.As(err, &committed) {
 			return b.adoptRetained(a, from, id, route, body, committed.Receipt, origin)
 		}
-		return Receipt{}, err
+		return Receipt{}, fmt.Errorf("recipient %s reserve: %w", to.Slot, err)
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if err = ctx.Err(); err != nil {
 		return Receipt{}, err
 	}
-	if b.actors[to] != a || a.reservation != id || !b.caller(to) || a.sequence != seq || !b.caller(from) {
-		return Receipt{}, ErrUnavailable
+	if !b.currentCaller(from, sender) {
+		return Receipt{}, fmt.Errorf("caller %s current: %w", from.Slot, ErrUnavailable)
+	}
+	if b.actors[to] != a || a.reservation != id || !b.caller(to) {
+		return Receipt{}, fmt.Errorf("recipient %s admission: %w", to.Slot, ErrUnavailable)
+	}
+	// Input can invalidate a reservation without changing either registration.
+	// Reuse the exact-target busy queue; actor replacement was refused above.
+	if a.sequence != seq {
+		return Receipt{}, ErrRecipientBusy
 	}
 	if family && !b.eligible(from, to) {
 		return Receipt{}, ErrNoRecipient

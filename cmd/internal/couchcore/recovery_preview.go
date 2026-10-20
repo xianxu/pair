@@ -78,6 +78,11 @@ type RecoveryObservationRequest struct {
 	ObservedAt       time.Time
 	Source           *threadrecord.NativeRecoverySource
 	BytesAlreadyRead int64
+	// SkipCandidates is set by a direct Proven or Fresh selection, which
+	// consumes no native candidates. The reader still builds Source, the
+	// screen, the capture, Agent, Generation, branch and issue, and fences the
+	// capture identity, but skips the native transcript scan (pair#726).
+	SkipCandidates bool
 }
 
 type RecoveryEvidenceReader func(context.Context, ThreadRecord, RecoveryObservationRequest) (RecoveryObservation, error)

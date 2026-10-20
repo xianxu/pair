@@ -529,7 +529,7 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 			case !pasteReady:
 				d.current.Detail = "waiting for paste mode"
 			case composer == PeerComposerUnknown:
-				d.current.Detail = "waiting for recognized composer"
+				d.current.Detail = peerComposerWaitDetail(p.agentBasename, snapshot)
 			case !event.Ready:
 				d.current.Detail = "waiting for empty composer"
 				operatorHold = true

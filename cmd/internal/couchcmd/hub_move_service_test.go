@@ -30,18 +30,21 @@ func newHubMoveRig(t *testing.T) *hubMoveRig {
 	h, defs, _ := moveFixture(t)
 	r := &serviceRig{t: t, world: newMessageWorld(), slotGit: map[string]couchcore.SlotGitStatus{}}
 	r.slotOps = newSlotOperations(nil, nil, time.Now)
-	r.init()
-	r.s.authority.hubs = h
-	r.s.authority.hubTarget = func(_ context.Context, ref string) (couchcore.HubSlot, error) {
-		if !strings.HasPrefix(ref, "pair:") {
-			return couchcore.HubSlot{}, fmt.Errorf("unknown target %s", ref)
+	r.decorateAuthority = func(a messageAuthority) messageAuthority {
+		a.hubs = h
+		a.hubTarget = func(_ context.Context, ref string) (couchcore.HubSlot, error) {
+			if !strings.HasPrefix(ref, "pair:") {
+				return couchcore.HubSlot{}, fmt.Errorf("unknown target %s", ref)
+			}
+			n, err := strconv.Atoi(strings.TrimPrefix(ref, "pair:"))
+			if err != nil {
+				return couchcore.HubSlot{}, err
+			}
+			return couchcore.HubSlot{Repository: filepath.Join(defs[0].Workspace, "pair"), Number: n}, nil
 		}
-		n, err := strconv.Atoi(strings.TrimPrefix(ref, "pair:"))
-		if err != nil {
-			return couchcore.HubSlot{}, err
-		}
-		return couchcore.HubSlot{Repository: filepath.Join(defs[0].Workspace, "pair"), Number: n}, nil
+		return a
 	}
+	r.init()
 	x := &hubMoveRig{serviceRig: r, queue: &leanSwitchQueue{}, hubs: h, defs: defs}
 	x.install(hubClaimFiles{})
 	for i, def := range defs {
@@ -57,6 +60,7 @@ func newHubMoveRig(t *testing.T) *hubMoveRig {
 		r.attach(b, couchmessage.PaneHandle(fmt.Sprintf("hub-%d", i)))
 		r.wrapper(b)
 		r.waitConnected(b, true)
+		r.waitWorkspace(b)
 		x.callers = append(x.callers, b)
 	}
 	x.worker = r.connect(7)
@@ -279,5 +283,41 @@ func TestHubMoveSocketEphemeralThenNewPersistentRequest(t *testing.T) {
 	}
 	if owner := state.Resolve(couchcore.HubSlot{Repository: filepath.Join(defs[0].Workspace, "pair"), Number: 7}).Hub; owner != defs[1].Root {
 		t.Fatalf("restart owner %s", owner)
+	}
+}
+
+// TestHubMoveAdmissionUsesWarmSlotsAndRechecksFresh (pair#726 BR-2): move
+// admission names its slots from the memo with no fresh resolution, and the
+// queued job refuses if a fresh resolution no longer matches.
+func TestHubMoveAdmissionUsesWarmSlotsAndRechecksFresh(t *testing.T) {
+	r := newHubMoveRig(t)
+	resolve := r.s.authority.hubTarget
+	var resolutions atomic.Int64
+	shift := atomic.Bool{}
+	r.s.hubTargets = newHubTargetMemo(r.s.lifetime, func(ctx context.Context, ref string) (couchcore.HubSlot, error) {
+		resolutions.Add(1)
+		slot, err := resolve(ctx, ref)
+		if shift.Load() {
+			slot.Number += 2
+		}
+		return slot, err
+	}, nil)
+	r.s.authority.hubTarget = r.s.hubTargets.Fresh
+	if _, err := r.s.hubTargets.Fresh(t.Context(), "pair:7"); err != nil {
+		t.Fatal(err)
+	}
+	resolutions.Store(0)
+	if got := r.call(r.request(1, "take", "pair:7", 1, false)); got.Code != "accepted" {
+		t.Fatalf("warm move admission %+v", got)
+	}
+	if n := resolutions.Load(); n != 0 {
+		t.Fatalf("warm move admission ran %d fresh resolutions", n)
+	}
+	shift.Store(true)
+	if _, err := r.queue.job(0).prepare(t.Context()); err == nil || !strings.Contains(err.Error(), "resolved differently") {
+		t.Fatalf("queued move with a moved slot: %v", err)
+	}
+	if r.owner(7) != r.defs[0].Root {
+		t.Fatal("a refused move changed ownership")
 	}
 }

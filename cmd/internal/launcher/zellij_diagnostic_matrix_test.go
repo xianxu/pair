@@ -99,16 +99,12 @@ func TestZellijDiagnosticAuthorityMatrix(t *testing.T) {
 			t.Fatalf("catalog changed independent diagnostic fixture %q", tc.name)
 		}
 		shellReply := zellijtest.ShellCase(t, "launcher-matrix-"+tc.name)
-		shortPrefix := zellijtest.ShellCase(t, "launcher-matrix-short-prefix")
 		for _, consumer := range []string{"inventory", "name-bound"} {
 			for _, fault := range []string{"none", "joined-exit", "collection", "cancel", "collection-and-cancel"} {
 				t.Run(tc.name+"/"+consumer+"/"+fault, func(t *testing.T) {
 					dir := t.TempDir()
 					path := filepath.Join(dir, "zellij")
 					script := "#!/bin/sh\n"
-					if tc.name == "strict-inventory" {
-						script += "if [ \"$1\" = list-sessions ] && [ \"$2\" = --short ]; then\n" + shortPrefix + "\nfi\n"
-					}
 					script += shellReply
 					if err := os.WriteFile(path, []byte(script), 0700); err != nil {
 						t.Fatal(err)

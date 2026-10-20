@@ -95,11 +95,12 @@ func TestRecoveryConfirmationCLIUsesTokenOnlyRequest(t *testing.T) {
 func TestRecoveryConfirmationHubOwnershipAndGenerationRechecked(t *testing.T) {
 	r, runner, _ := slotRig(t)
 	caller := r.connect(0)
+	r.waitWorkspace(caller)
 	h := guardHubState(t)
 	r.s.authority.hubs = h
-	r.s.authority.hubTarget = func(context.Context, string) (couchcore.HubSlot, error) {
+	wireGuardTestMemo(r, func(context.Context, string) (couchcore.HubSlot, error) {
 		return couchcore.HubSlot{Repository: "/repo", Number: 2}, nil
-	}
+	})
 	r.slotOps.reference = func(context.Context, string) (string, error) { return "pair:2", nil }
 	var queuedGuard func(context.Context) error
 	r.slotOps.recovery = func(key, actor string, req couchmessage.Request, guard func(context.Context) error, started func(), finished func(any, error)) error {

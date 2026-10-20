@@ -1,0 +1,188 @@
+{
+  "version": 1,
+  "command": [
+    "make",
+    "test-affected"
+  ],
+  "weight": 1,
+  "timeout_minutes": 30,
+  "full": [
+    ".github/workflows/**",
+    ".sdlc/**",
+    "Makefile*",
+    "bin/**",
+    "cmd/**/testdata/**",
+    "cmd/couch/**",
+    "cmd/internal/dispatcher/**",
+    "cmd/internal/runtimebundle/assets/runtime/manifest.json",
+    "cmd/pair-go/**",
+    "cmd/pair-launch-helper/**",
+    "doctor/**",
+    "go.mod",
+    "go.sum",
+    "nvim/**",
+    "probes/**/testdata/**",
+    "scripts/**",
+    "scripts/build-go-atomic.sh",
+    "scripts/test-affected.py",
+    "terminfo/**",
+    "testdata/**",
+    "tests/**",
+    "tests/affected-config-test.py",
+    "tests/affected-consumers.json",
+    "tests/lib/**",
+    "tests/test-affected-test.py",
+    "zellij/**"
+  ],
+  "groups": [
+    {
+      "name": "lua",
+      "paths": [
+        "cmd/internal/runtimebundle/assets/runtime/files/nvim/**",
+        "doctor/fixtures/perf_capture.txt",
+        "nvim/**",
+        "tests/autopair-test.sh",
+        "tests/bang-tag-nvim-test.sh",
+        "tests/changelog-isolation-test.py",
+        "tests/changelog-notify-test.sh",
+        "tests/cr-newline-test.sh",
+        "tests/draft-complete-mode-test.sh",
+        "tests/lifecycle-command-nvim-test.sh",
+        "tests/nvim-pidfile-lifecycle-test.sh",
+        "tests/nvim-route-poke-admission-test.sh",
+        "tests/pair-doctor-test.sh",
+        "tests/queue-send-test.sh",
+        "tests/retention-test.sh",
+        "tests/review-restore-admission-test.lua",
+        "tests/statusline-pos-test.sh",
+        "tests/submission-transaction-nvim-test.sh",
+        "tests/workbench-route-nvim-test.sh",
+        "tests/zellij-observation_test.lua"
+      ],
+      "go": [
+        "./cmd/internal/gccmd",
+        "./cmd/internal/pairlog",
+        "./cmd/internal/retentioncmd",
+        "./cmd/internal/reviewcmd",
+        "./cmd/internal/runtimebundle"
+      ]
+    },
+    {
+      "name": "review",
+      "paths": [
+        "nvim/**",
+        "tests/overlay-return-test.sh",
+        "tests/pair-review-target-test.sh",
+        "tests/review-applied-round-test.sh",
+        "tests/review-apply-test.sh",
+        "tests/review-branch-restore-test.sh",
+        "tests/review-comments-test.sh",
+        "tests/review-controls-test.sh",
+        "tests/review-definition-test.sh",
+        "tests/review-docflow-test.sh",
+        "tests/review-fresh-restore-diagnostics-test.py",
+        "tests/review-fresh-restore-test.sh",
+        "tests/review-indicator-test.sh",
+        "tests/review-observation-diagnostics-test.py",
+        "tests/review-observation-test.sh",
+        "tests/review-poke-test.sh",
+        "tests/review-projection-test.sh",
+        "tests/review-readiness-cli-test.sh",
+        "tests/review-resume-isolation-test.py",
+        "tests/review-resume-test.sh",
+        "tests/review-toggle-test.sh",
+        "tests/review-window-test.sh",
+        "zellij/config.kdl"
+      ],
+      "go": [
+        "./cmd/internal/pairlog",
+        "./cmd/internal/reviewapply",
+        "./cmd/internal/reviewcmd"
+      ]
+    },
+    {
+      "name": "doctor",
+      "paths": [
+        "bin/lib/adapt-log.sh",
+        "doctor/**",
+        "nvim/adapt.lua",
+        "nvim/doctor.lua",
+        "tests/adapt-golden.expected",
+        "tests/adapt-schema-test.sh",
+        "tests/emitter-health-test.sh",
+        "tests/perf-key-conformance-test.sh"
+      ],
+      "go": [
+        "./cmd/internal/adapt",
+        "./cmd/internal/diagnosticcmd",
+        "./cmd/internal/hoprttcmd"
+      ]
+    },
+    {
+      "name": "build",
+      "paths": [
+        "bin/couch-dev",
+        "bin/lib/adapt-log.sh",
+        "bin/lib/dev-rebuild.sh",
+        "bin/pair-dev",
+        "doctor/doctor.sh",
+        "doctor/emitter-health.sh",
+        "doctor/perf.sh",
+        "nvim/**",
+        "scripts/build-go-atomic.sh",
+        "scripts/supervision-labels/**",
+        "tests/build-go-atomic-test.py",
+        "tests/dev-rebuild-test.sh",
+        "tests/host-preflight.sh",
+        "tests/make-test-env-test.sh",
+        "tests/pair-embedded-runtime-test.sh",
+        "tests/pair-go-install-layout-test.sh",
+        "tests/run-headless-test.sh",
+        "tests/without-ancestors-test.py",
+        "tests/without-ancestors.py",
+        "zellij/**"
+      ],
+      "go": [
+        "./cmd/internal/entrypoint",
+        "./cmd/internal/launcher",
+        "./cmd/internal/runtimebundle",
+        "./cmd/internal/runtimebundle/generatecmd",
+        "./cmd/internal/runtimebundlegen",
+        "./cmd/internal/slugcmd"
+      ]
+    },
+    {
+      "name": "shell",
+      "paths": [
+        "nvim/**",
+        "tests/changelog-open-test.sh",
+        "tests/changelog-session-key-test.sh",
+        "tests/copy-on-select-test.sh",
+        "tests/paint-gate-consumers-test.sh",
+        "tests/pair-rename.sh",
+        "tests/pair-restart-quit-test.sh",
+        "tests/pair-session-watch-test.sh",
+        "tests/plan-superseded-facts-test.sh",
+        "tests/scrollback-open-test.sh",
+        "tests/term-pane-shortcuts-test.sh",
+        "tests/zellij-trace-test.sh",
+        "zellij/**"
+      ],
+      "go": [
+        "./cmd/internal/changelogcmd",
+        "./cmd/internal/clipcmd",
+        "./cmd/internal/couchtty",
+        "./cmd/internal/launcher",
+        "./cmd/internal/layoutcmd",
+        "./cmd/internal/opener",
+        "./cmd/internal/pairlifecycle",
+        "./cmd/internal/ptychild",
+        "./cmd/internal/scrollbackcmd",
+        "./cmd/internal/sessionwatch",
+        "./cmd/internal/termcmd",
+        "./cmd/internal/wrapcmd",
+        "./probes/zellijscrollregion"
+      ]
+    }
+  ]
+}

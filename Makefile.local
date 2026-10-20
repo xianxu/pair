@@ -227,11 +227,34 @@ pair: $(BIN_DIR)/pair
 #                     inside the vt.Emulator library API itself, which is
 #                     outside our scope to fix — exclude that package
 #                     here rather than chase a library-level race.
+# Each default non-Go recipe has exactly one affected group owner. Keep the
+# ordinary full-suite list independent: test-affected-runner audits its union
+# against these lists, so a newly added default recipe cannot silently drift.
+PAIR_AFFECTED_LUA := test-lua test-retention test-nvim-pidfile test-lifecycle-command test-queue test-submission-transaction test-bang-tag test-autopair test-draft-complete test-pair-doctor test-cr test-statusline
+PAIR_AFFECTED_REVIEW := test-review
+PAIR_AFFECTED_DOCTOR := test-doctor test-perf-capture test-perf-key-conformance test-emitter-health test-adapt-schema
+PAIR_AFFECTED_BUILD := test-build-go-atomic test-supervision-labels test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-make-env test-host-preflight test-run-headless
+PAIR_AFFECTED_SHELL := test-session-watch test-pair-restart-quit test-pair-rename test-changelog test-copy-on-select test-term-pane-shortcuts test-zellij-trace test-plan-superseded test-paint-gate-consumers
+
+.PHONY: test-affected test-affected-lua test-affected-review test-affected-doctor test-affected-build test-affected-shell test-affected-runner test-affected-config
+test-affected:
+	python3 -B scripts/test-affected.py
+test-affected-lua: $(PAIR_AFFECTED_LUA)
+test-affected-review: $(PAIR_AFFECTED_REVIEW)
+test-affected-doctor: $(PAIR_AFFECTED_DOCTOR)
+test-affected-build: $(PAIR_AFFECTED_BUILD)
+test-affected-shell: $(PAIR_AFFECTED_SHELL)
+test-affected-runner:
+	python3 -B tests/test-affected-test.py
+	python3 -B tests/affected-go-readers-test.py
+test-affected-config:
+	python3 -B tests/affected-config-test.py
+
 ifeq ($(PAIR_TEST_BINARY),)
 test:
 	bash tests/lib/with-pair-test-binary.sh $(MAKE) test
 else
-test: test-build-go-atomic test-supervision-labels test-host-preflight runtimebundle-generate test-retention test-nvim-pidfile test-run-headless test-lua test-lifecycle-command test-perf-capture test-queue test-submission-transaction test-bang-tag test-autopair test-draft-complete test-pair-doctor test-perf-key-conformance test-plan-superseded test-paint-gate-consumers test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-pair-rename test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review test-make-env
+test: test-affected-runner test-affected-config test-build-go-atomic test-supervision-labels test-host-preflight runtimebundle-generate test-retention test-nvim-pidfile test-run-headless test-lua test-lifecycle-command test-perf-capture test-queue test-submission-transaction test-bang-tag test-autopair test-draft-complete test-pair-doctor test-perf-key-conformance test-plan-superseded test-paint-gate-consumers test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-pair-rename test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review test-make-env
 	# pair#610: temporary 20m per-package budget; couchcore is ~580s idle.
 	# pair#611 profiles/splits/shards it before removing this allowance.
 	go test ./... -count=1 -timeout 20m
