@@ -70,6 +70,22 @@ func (r Request) RecoveryOnly() bool {
 	return true
 }
 
+// DismissOnly is exactly one Esc: the key a recognized panel declares as its
+// own dismissal (pair#691). It is narrower than RecoveryOnly on purpose.
+func (r Request) DismissOnly() bool {
+	return r.Validate() == nil && r.Model == nil && len(r.Keys) == 1 && r.Keys[0] == KeyStep{Kind: KeyEsc}
+}
+
+// Admission is the wrapper's positive evidence about the current viewport.
+type Admission struct{ Idle, Recoverable, Dismissable bool }
+
+// Admits is the single admission rule. The Couch service, its pre-input
+// guard, the wrapper and the reducer all call it, so no layer can admit a
+// request another refuses (ARCH-DRY).
+func (r Request) Admits(a Admission) bool {
+	return a.Idle || r.RecoveryOnly() && a.Recoverable || r.DismissOnly() && a.Dismissable
+}
+
 func (r Request) Validate() error {
 	if (len(r.Keys) == 0) == (r.Model == nil) {
 		return errors.New("drive requires exactly one key sequence or model request")

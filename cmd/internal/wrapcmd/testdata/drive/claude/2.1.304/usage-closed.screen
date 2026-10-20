@@ -1,0 +1,12 @@
+  label. Nothing needs resending, so I'm still waiting for the hub to say the
+  local-gates-verified label is on PR #325 before I run sdlc merge --yes.
+
+✻ Churned for 2s · done 4:19 PM
+
+❯ /usage
+  ⎿  Settings dialog dismissed
+
+──────────────────────────────────────────────────────────────────────────────────────────────
+❯ ‹cursor›
+──────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · PR #325

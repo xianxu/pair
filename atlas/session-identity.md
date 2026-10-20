@@ -129,7 +129,12 @@ epoch later and considers only subsequent input and native bytes. Silence and
 ambiguity retain probation.
 
 `pair wrap` spawns `pair session-watch` for its launch ordinal after starting the
-agent. The watcher lives with that agent across client detach. Fresh and resumed
+agent. The watcher lives with that agent across client detach in its own process
+session. The wrapper retains its direct child handle and stops/joins the watcher
+group before returning, so startup and retention writes cannot outlive wrapper
+shutdown (#715). It reuses the native-child owned-group TERM/grace/KILL policy;
+only a TERM-refusing process or descendant consumes the one-second grace.
+Fresh and resumed
 launches share correlation: new files and appended activity in existing files
 are candidates, but events beginning before the corresponding byte boundary
 cannot confirm this launch. Current exact Pair sends followed by native

@@ -94,7 +94,7 @@ func (s *messageService) handleAgentDrive(ctx context.Context, r couchmessage.Re
 		return refuse(fmt.Errorf("observe agent drive: %w; relaunch the slot on the new build if unsupported", err))
 	}
 	admissible := func(observation couchmessage.DriveObservation) bool {
-		return observation.Idle || recoveryOnly && observation.Recoverable
+		return r.Drive.Admits(observation.Admission())
 	}
 	if !admissible(observation) || observation.Instance == "" {
 		return refuse(errors.New("wait until the agent composer is empty and its turn finishes"))
