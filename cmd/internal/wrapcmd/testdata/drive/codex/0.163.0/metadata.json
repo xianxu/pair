@@ -7,5 +7,22 @@
   "sha256": "a0c3e88f8f736ee9f45dbd5228bf788e0d3fd6d0f5b9c7f8428cf94702f3d1e5",
   "synthetic": "Waiting variants are constructed in codex_interrupt_test.go from TL 2026-10-20 morning live-check text; waiting was not captured in this run. Both spinner bullet glyphs were observed in coherent frames of the owned native capture. Waiting with background summary combines TL-observed Waiting wording with the captured native summary; that combination was not captured.",
   "background-prefix.raw": "Same owned native PTY, stopped at coherent running-shell frame: ◦ Working (3s • esc to interrupt) · 1 background terminal running · /ps to view · /stop to close. Composer-relative row separation unchanged; disposable path sanitized.",
-  "background_sha256": "feea0a87f15d5790682a4a45069fd028c6d7a508ebf529f54c73cc6e55e95eb7"
+  "background_sha256": "feea0a87f15d5790682a4a45069fd028c6d7a508ebf529f54c73cc6e55e95eb7",
+  "operator_frames": {
+    "source": "Authorized read-only replay of operator wrapper92530/a169 preserved slot scrollback from 2026-10-20 13:48:09 at94x39; source conversation not copied.",
+    "derivation": "Captured viewport reconstructions, not original byte capture. Replayed original raw in16-byte chunks; serialized only native status-group through composer/footer cells with their SGR styles, positions and cursor into one synchronized frame. All footer content following model separator redacted to x while preserving geometry/styles. Old conversation, peer receipts and project paths omitted.",
+    "operator-working-six.raw": {
+      "offset": 30848,
+      "status_row": 33,
+      "composer_row": 36,
+      "sha256": "ae0a761aae2dc993467fb714cd5f0e6a62aff72a11b09247d997d021454de46b"
+    },
+    "operator-waiting.raw": {
+      "offset": 49264,
+      "status_row": 32,
+      "detail_row": 33,
+      "composer_row": 36,
+      "sha256": "2a1f56d5d6ee9ea87d76b0de8c613ce775cc018d4feaaa9578ffba46713f827c"
+    }
+  }
 }

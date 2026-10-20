@@ -1,11 +1,8 @@
 package wrapcmd
 
-import (
-	"strconv"
-	"strings"
-)
+import "strings"
 
-const codexWorkingSuffix = "esc to interrupt)"
+const codexWorkingHint = "esc to interrupt"
 
 // codexStatusLine reads the native status immediately above a qualified
 // composer. Codex 0.163.0 leaves two blank rows between them; its short UI
@@ -41,36 +38,10 @@ func RecognizeCodexWorking(snapshot terminalSnapshot) bool {
 	} else {
 		return false
 	}
-	for _, prefix := range []string{"Working (", "Waiting for background terminal ("} {
-		if strings.HasPrefix(line, prefix) {
-			middle, background, ok := strings.Cut(strings.TrimPrefix(line, prefix), codexWorkingSuffix)
-			if !ok || !codexBackgroundSummary(background) {
-				return false
-			}
-			return strings.ContainsAny(middle, "0123456789")
-		}
-	}
-	return false
-}
-
-// A running shell appends this native summary to the same status row.
-func codexBackgroundSummary(s string) bool {
-	if s == "" {
-		return true
-	}
-	fields := strings.Fields(s)
-	if len(fields) != 13 || fields[2] != "background" {
-		return false
-	}
-	n, err := strconv.Atoi(fields[1])
-	if err != nil || n <= 0 || strconv.Itoa(n) != fields[1] {
-		return false
-	}
-	terminal := "terminal"
-	if n != 1 {
-		terminal = "terminals"
-	}
-	return s == " · "+fields[1]+" background "+terminal+" running · /ps to view · /stop to close"
+	// Elapsed counters, background summaries and command-detail rows are
+	// presentation, not work authority. They can wrap or be truncated.
+	return (strings.HasPrefix(line, "Working ") || strings.HasPrefix(line, "Waiting for ")) &&
+		strings.Contains(line, codexWorkingHint)
 }
 
 func terminalSnapshotRow(snapshot terminalSnapshot, y int) string {

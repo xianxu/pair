@@ -40,6 +40,15 @@ func capturedCodexBackgroundWorking(t *testing.T) string {
 	return string(raw)
 }
 
+func capturedCodexOperatorWork(t *testing.T, name string) string {
+	t.Helper()
+	raw, err := os.ReadFile("testdata/drive/codex/0.163.0/" + name + ".raw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(raw)
+}
+
 // This synthetic frame preserves the captured status/composer separation.
 // Waiting wording comes from the TL's morning live check, not our capture.
 func syntheticCodexWork(status string, tall bool) string {
@@ -69,6 +78,8 @@ func codexInterruptDispatch(p *proxy) string {
 
 func TestCodexInterruptUsesRenderedWorkThroughProductionOutput(t *testing.T) {
 	for name, paint := range map[string]string{
+		"operator working six seconds":                     capturedCodexOperatorWork(t, "operator-working-six"),
+		"operator truncated waiting with detail":           capturedCodexOperatorWork(t, "operator-waiting"),
 		"captured top anchored":                            capturedCodexWorking(t),
 		"captured running background terminal":             capturedCodexBackgroundWorking(t),
 		"waiting with native background summary synthetic": syntheticCodexWork("• Waiting for background terminal (15s • esc to interrupt) · 1 background terminal running · /ps to view · /stop to close", false),
@@ -79,6 +90,9 @@ func TestCodexInterruptUsesRenderedWorkThroughProductionOutput(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			f, d := codexInterruptFixture(t)
+			if strings.HasPrefix(name, "operator ") {
+				f.resize(94, 39)
+			}
 			f.output(paint)
 			if !f.proxy.turnWorking.Load() {
 				t.Fatal("production output did not recognize native work")
@@ -151,29 +165,36 @@ func TestCodexCurrentWorkDoesNotAuthorizeRecoveryKeys(t *testing.T) {
 	}
 }
 
-func TestCodexWorkBackgroundSummaryGrammar(t *testing.T) {
-	for _, tc := range []struct {
-		text string
-		want bool
-	}{
-		{"", true},
-		{" · 1 background terminal running · /ps to view · /stop to close", true},
-		{" · 2 background terminals running · /ps to view · /stop to close", true},
-		{" · 0 background terminals running · /ps to view · /stop to close", false},
-		{" · 2 background terminal running · /ps to view · /stop to close", false},
-		{" · +1 background terminal running · /ps to view · /stop to close", false},
-		{" · 1 background terminal running", false},
-		{" unknown suffix", false},
+func TestCodexWorkIgnoresIncidentalStatusMetadata(t *testing.T) {
+	for _, status := range []string{
+		"• Working (esc to interrupt)",
+		"◦ Working (3s • esc to interrupt) · …",
+		"• Working (3s • esc to interrupt) · 0 background terminals running",
+		"• Waiting for background terminal (15s • esc to interrupt) · 2 background terminal running · …",
+		"◦ Waiting for command (esc to interrupt) · new detail",
 	} {
-		if got := codexBackgroundSummary(tc.text); got != tc.want {
-			t.Errorf("summary %q: got %v want %v", tc.text, got, tc.want)
-		}
+		t.Run(status, func(t *testing.T) {
+			f, _ := codexInterruptFixture(t)
+			f.output(syntheticCodexWork(status, false))
+			if !f.proxy.agentDriveScreen().Interruptible {
+				t.Fatal("incidental metadata hid current work")
+			}
+		})
 	}
 }
 
 func TestCodexInterruptRejectsUnqualifiedFramesAndOwners(t *testing.T) {
 	for name, setup := range map[string]func(*harnessSessionFake, *peerDelivery){
 		"idle": func(f *harnessSessionFake, d *peerDelivery) { f.output(syntheticCodexWork("", false)) },
+		"missing interrupt hint": func(f *harnessSessionFake, d *peerDelivery) {
+			f.output(syntheticCodexWork("• Working (3s)", false))
+		},
+		"verb prefix lookalike": func(f *harnessSessionFake, d *peerDelivery) {
+			f.output(syntheticCodexWork("• Workingness (3s • esc to interrupt)", false))
+		},
+		"unapproved waiting verb": func(f *harnessSessionFake, d *peerDelivery) {
+			f.output(syntheticCodexWork("• Waiting elsewhere (3s • esc to interrupt)", false))
+		},
 		"MCP status": func(f *harnessSessionFake, d *peerDelivery) {
 			f.output(syntheticCodexWork("• Starting MCP servers (1/2): codex_apps (0s • esc to interrupt)", false))
 		},

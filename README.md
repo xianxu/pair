@@ -601,7 +601,7 @@ Named raw steps are `text:…`, `enter`, `submit`, the arrows, `tab`,
 `couch --keys --help` lists them and the refused chords. Ctrl+C is never a
 step: `couch --interrupt pair:7 --confirm` sends one into a working turn, refuses
 with no working turn, and is never retried. Codex work is proved by its current
-Working or Waiting for background terminal status above the composer; confirmation
+Working or Waiting for… status with its interrupt hint above the composer; confirmation
 requires a fresh idle composer. `enter` follows Pair's Return behavior: newline in
 the composer, selection in a picker; `submit` follows Alt+Return. Each `esc`
 is a separate input step. Raw success confirms the writes and final observation.

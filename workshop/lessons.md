@@ -2455,3 +2455,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #742: Qualify each agent's interrupt proof through coherent native output and the actual writer, without manually setting work flags. Native status geometry belongs to the qualified composer, not the physical viewport bottom; include measured spinner variants and exclude startup wording. Cached notification activity cannot override current native work evidence, and only a fresh positive idle composer confirms interruption.
 
 - #742 BR-1/BR-2: When proof differs by agent, qualify acceptance criteria by agent as well as the Spec. Completed capture rows distinguish captured native frames from reported text in synthetic fixtures. A later Log qualification does not repair a contradictory Done-when or completed Plan row.
+
+- #742 live miss: Native work authority is the composer-relative allowed status verb plus interrupt hint. Elapsed counters, background counts, truncation and command-detail rows are presentation; parsing them as authority creates false refusals. Pin narrow and wide native viewports, and keep startup/quoted/no-hint cases negative.

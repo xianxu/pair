@@ -2369,8 +2369,9 @@ also sets that flag. Claude uses the lifecycle reducer's `Working()` predicate
 (open, not completed, activity seen, no stop grace), a recognized composer and
 its own bottom-viewport interrupt hint. Codex uses the current coherent native
 work status above its qualified composer: `RecognizeCodexWorking` recognizes
-`Working` and `Waiting for background terminal`, with either captured spinner
-bullet. The same recognizer feeds lifecycle observation and interrupt admission;
+`Working ` and `Waiting for ` status prefixes plus `esc to interrupt`, with
+either captured spinner bullet. Counters, truncated summaries and following
+command-detail rows do not supply authority and are ignored. The same recognizer feeds lifecycle observation and interrupt admission;
 Codex admission does not depend on cached notification flags. Status position
 is relative to the composer because modern Codex can leave most of the viewport
 blank below it. MCP startup, quoted status text and partial redraws do not prove
