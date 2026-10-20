@@ -60,7 +60,7 @@ and its pair-diagnostics segment is empty, so there is no record of readiness de
 - [x] Regress the recorded empty shell-footer shape through native terminal paint, same-size resize, and actual peer delivery; keep real-resize, hidden, incomplete, occupied and aborted-resize cases conservative.
 - [x] Treat unchanged terminal dimensions as a no-op within the existing serialized resize owner. Keep actual geometry changes invalidating cursor evidence (ARCH-DRY, ARCH-PURE).
 - [x] Name incomplete/hidden/unrecognized composer evidence in the existing receipt Detail, without copying screen or draft text. Verify projection through broker status, including queued followers.
-- [ ] Update tests, atlas/README diagnostics and lessons, run focused checks and recorded full suite.
+- [x] Update tests, atlas/README diagnostics and lessons, run focused checks and recorded full suite.
 
 After verification, SDLC close and merge own review and landing.
 
@@ -76,6 +76,7 @@ After verification, SDLC close and merge own review and landing.
 - Focused resize/background/delivery checks pass, as does the source-reader inventory check. Full wrapper/broker package verification is running before recorded suite and SDLC close.
 - Broader initial run: couchmessage passed (26.150s); wrapcmd identified `TestHarnessTTYIntegration_SetWinsizeFailureLatchesAuthorization`, the same aborted-resize retry edge caught and fixed during that run. Final focused current-head checks covering that test, peer delivery, terminal resize and snapshot invalidation pass (6.747s); head/follower message-status projection passes (0.168s). Recorded full suite will validate the final compiled implementation before landing.
 - Exact raw recording plus event-sidecar replay to 11:10 also passes on the fixed code: 189x39, cursor (2,35), visible and complete, recognized Empty (0.520s package run). Probe used a temporary Go overlay outside the repository; the committed regression preserves the same sanitized admission shape without private transcript rows. PR #492 is open; recorded suite on dd811b548f2a218a7fb5ba72b76850bf09dafab1 is queued.
+- Recorded full suite PASS on dd811b548f2a218a7fb5ba72b76850bf09dafab1: exit 0 in 9m33s after 1115s machine-queue wait; log SHA256 prefix 6c500122ddbb, recorded sdlc-local/suite. Wrapcmd passes in 54.205s and couchmessage in 25.043s. Hosted native conformance, merge check and local-gates guard are green. Ops:0's approved next-restart operator qualification remains separate from the pre-landing checks.
 
 ## Revisions
 
