@@ -148,7 +148,7 @@ Files: label_index_drive.go, label_index_view.go, restore_model.go, restore_inpu
 - [x] Extend report validation and Couch warning consumption for observed physical folders, retaining the old Inventory field for older reports. Never label a subset count as a total tree count. Update warning guidance now that month layout exists.
 - [x] Run historyarchive/fake/archivecmd/couch warning tests, targeted race checks, artifactpath/repolint and meaningful RED/GREEN controls for new behavior.
 - [x] Qualify installed rclone folder resolution/creation with a private local backend; extend the throwaway-key end-to-end round trip to recover one legacy and one month pair after deleting local catalog/receipts/index. No real credentials or operator sessions in automated tests.
-- [ ] Ask hub to arrange an operator real Drive pass: a fresh month upload, retry without re-copy, legacy restore, month restore, folder IDs and checksum path/counts; normal GPG pinentry, scratch deletion confirmed. No worker-owned real-remote mutation or :0 stage without hub direction.
+- [x] Ask hub to arrange an operator real Drive pass: a fresh month upload, retry without re-copy, legacy restore, month restore, folder IDs and checksum path/counts; normal GPG pinentry, scratch deletion confirmed. No worker-owned real-remote mutation or :0 stage without hub direction.
 - [x] Update README/atlas with new layout, dual-layout recovery, observed-folder counts, bounds and no automatic migration. Preserve human review markers unless explicitly actionable.
 - [ ] Push candidate, run the recorded full suite, then M2 close and whole close through SDLC reviews. On SHIP run sdlc merge --yes, verify Git/GitHub/tracker landing and report to hub. TL owns the project file.
 
