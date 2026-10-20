@@ -1,6 +1,6 @@
 ---
 id: 000714
-status: codecomplete
+status: done
 created: 2026-10-19
 updated: 2026-10-19
 estimate_hours: 1.24
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 4ef81b8631480327f2659235b9804e9b4cc1d0d1
         evidence_commit: 0fac411dd13a885487952bb0abceea42dce6628a
+        landed_commit: e63e7fd421fd34ad3308f566545527ef3a19666b
 ---
 
 # Cold-start recovery gaps: a failed resume wedges the slot in starting; post-reboot candidate scans incomplete; a codex slot lost its candidate
