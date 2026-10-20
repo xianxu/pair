@@ -39,11 +39,18 @@ type Couch struct {
 	ProcessTable func() ([]procutil.Process, error)
 	// LeaseHolders names the processes holding a slot's lifetime lease
 	// (pair#695 P1); production is lifetimelease.Holders (lsof).
-	LeaseHolders           func(context.Context, string) ([]int, error)
-	Identities             IdentityAllocator
-	Slots                  SlotCatalog
-	Workspaces             WorkspaceReadiness
-	WorkspaceProgress      io.Writer
+	LeaseHolders      func(context.Context, string) ([]int, error)
+	Identities        IdentityAllocator
+	Slots             SlotCatalog
+	Workspaces        WorkspaceReadiness
+	WorkspaceProgress io.Writer
+	// SlotEnvironment prepares temp storage from the retained owner even when
+	// a warm attach starts from a neutral working directory.
+	SlotEnvironment func(context.Context, ThreadRecord) []string
+	// ScratchStartup runs quiescent metadata setup and the initial age sweep.
+	ScratchStartup func(context.Context, func(string))
+	// ScratchMaintenance runs the hourly worker until supervisor shutdown.
+	ScratchMaintenance     func(context.Context)
 	ContinuationGeneration func(context.Context, ThreadAddress, string, string) (*checkpoint.TargetGeneration, error)
 	ContinuationSource     func(context.Context, ThreadAddress) (ContinuationSource, error)
 	Namespace              CouchNamespace

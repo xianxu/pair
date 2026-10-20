@@ -534,6 +534,10 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	go func() { defer service.workers.Done(); watcher.run(service.lifetime, waitTick) }()
 	service.workers.Add(1)
 	go func() { defer service.workers.Done(); listings.Run(service.lifetime) }()
+	if c.ScratchMaintenance != nil {
+		service.workers.Add(1)
+		go func() { defer service.workers.Done(); c.ScratchMaintenance(service.lifetime) }()
+	}
 	// The slot renicer (#502): what each slot's agent spawns runs at
 	// COUCH_SLOT_NICE; Couch, the wrapper, zellij and the agent stay at
 	// normal priority.

@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -9,8 +10,102 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/osfs"
+	"github.com/xianxu/pair/cmd/internal/procutil"
+	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/testpair"
+	"strconv"
 )
+
+// Writes land on a real filesystem; the observer runs synchronously between
+// publications, so the listing consumer sees the intermediate state every run.
+type registrationReadinessObserver struct {
+	osfs.FS
+	writes     int
+	failAt     int
+	failure    error
+	afterWrite func(int)
+}
+
+func (fs *registrationReadinessObserver) WriteAtomic(path, data string) error {
+	fs.writes++
+	if fs.writes == fs.failAt {
+		return fs.failure
+	}
+	if err := fs.FS.WriteAtomic(path, data); err != nil {
+		return err
+	}
+	fs.afterWrite(fs.writes)
+	return nil
+}
+
+func TestRegistrationFixtureReadinessPublication(t *testing.T) {
+	for _, failAt := range []int{0, 1, 2} {
+		t.Run(strconv.Itoa(failAt), func(t *testing.T) {
+			binary, err := os.Executable()
+			if err != nil {
+				t.Fatal(err)
+			}
+			dir := t.TempDir()
+			command := filepath.Join(dir, "zellij")
+			if err := os.Symlink(binary, command); err != nil {
+				t.Fatal(err)
+			}
+			listingPath, agentPath := filepath.Join(dir, "listing-ready"), filepath.Join(dir, "agent-ready")
+			env := testpair.Environment(t, dir, "PAIR_TEST_COUCH_TERMINAL_FIXTURE=1", "PAIR_SESSION_NAME=pair-fixture", "PAIR_TEST_ZELLIJ_READY="+listingPath, "PAIR_TEST_ZELLIJ_LOG="+filepath.Join(dir, "calls"))
+			record, err := readiness.Encode(readiness.ReadyRecord{Tag: "fixture", Agent: "claude", Session: "pair-fixture", Nonce: "nonce", PID: os.Getpid(), AgentIdentity: procutil.Identity(strconv.Itoa(os.Getpid()))})
+			if err != nil {
+				t.Fatal(err)
+			}
+			injected := errors.New("publication refused")
+			observed := false
+			fs := &registrationReadinessObserver{failAt: failAt, failure: injected, afterWrite: func(write int) {
+				if write != 1 {
+					return
+				}
+				observed = true
+				if _, err := os.Stat(agentPath); !errors.Is(err, os.ErrNotExist) {
+					t.Errorf("agent-ready visible between publications: %v", err)
+				}
+				for _, row := range []struct{ flag, want string }{{"--short", "pair-fixture\n"}, {"--no-formatting", "pair-fixture [Created 1s ago]\n"}} {
+					cmd := exec.CommandContext(t.Context(), command, "list-sessions", row.flag)
+					cmd.Env = env
+					out, err := cmd.CombinedOutput()
+					if err != nil || string(out) != row.want {
+						t.Errorf("listing between publications %s = %q, %v; want %q", row.flag, out, err, row.want)
+					}
+				}
+			}}
+			err = publishRegistrationFixtureReadiness(fs, listingPath, agentPath, string(record))
+			if failAt != 0 {
+				if !errors.Is(err, injected) || fs.writes != failAt {
+					t.Fatalf("failed publication: writes=%d err=%v", fs.writes, err)
+				}
+				if _, err := os.Stat(agentPath); !errors.Is(err, os.ErrNotExist) {
+					t.Errorf("failed publication announced agent-ready: %v", err)
+				}
+			} else {
+				if err != nil || fs.writes != 2 {
+					t.Fatalf("publication: writes=%d err=%v", fs.writes, err)
+				}
+				if raw, err := os.ReadFile(agentPath); err != nil || string(raw) != string(record) {
+					t.Errorf("agent-ready = %q, %v; want exact record %q", raw, err, record)
+				}
+			}
+			if observed != (failAt != 1) {
+				t.Errorf("between-write observer ran=%v, failAt=%d", observed, failAt)
+			}
+			raw, err := os.ReadFile(listingPath)
+			if failAt == 1 {
+				if !errors.Is(err, os.ErrNotExist) {
+					t.Errorf("first write failure published listing: %q, %v", raw, err)
+				}
+			} else if err != nil || string(raw) != "ready" {
+				t.Errorf("listing-ready not retained: %q, %v", raw, err)
+			}
+		})
+	}
+}
 
 func TestRegistrationTerminalFixtureReturnsExplicitEmptyObservations(t *testing.T) {
 	binary, err := os.Executable()
