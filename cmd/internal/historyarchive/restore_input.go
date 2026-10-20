@@ -32,13 +32,17 @@ func (r Restorer) acquireRestoreInputs(ctx context.Context, plan RestorePlan, st
 	if plan.Request.From != "drive" {
 		local, err = openSafeDir(r.Config.Sink, false)
 		if err != nil && !errors.Is(err, unix.ENOENT) {
-			return nil, err
+			return nil, fmt.Errorf("open local restore archive %q: %w", r.Config.Sink, err)
 		}
 		if local != nil {
 			defer local.Close()
 		}
 	}
 	var remote []RestoreBundlePlan
+	sources := map[string]string{}
+	stagedPath := func(bundle RestoreBundlePlan) string {
+		return filepath.Join(filepath.Dir(plan.Request.To), ".pair-restore-staging", "ciphertext", bundle.Label.ID+".tar.zst.gpg")
+	}
 	for _, bundle := range plan.Bundles {
 		if err = ctx.Err(); err != nil {
 			return inputs, err
@@ -47,28 +51,32 @@ func (r Restorer) acquireRestoreInputs(ctx context.Context, plan RestorePlan, st
 		if local != nil {
 			source, err = openRegularAt(local, bundle.BundleKey, unix.O_RDONLY)
 			if err != nil && !errors.Is(err, unix.ENOENT) {
-				return inputs, err
+				return inputs, fmt.Errorf("open local restore bundle %s at %q: %w", bundle.Label.ID, filepath.Join(r.Config.Sink, bundle.BundleKey), err)
 			}
 		}
 		if source == nil {
 			if plan.Request.From == "local" {
-				return inputs, fmt.Errorf("local bundle %s is absent", bundle.Label.ID)
+				return inputs, fmt.Errorf("local bundle %s at %q is absent: %w", bundle.Label.ID, filepath.Join(r.Config.Sink, bundle.BundleKey), os.ErrNotExist)
 			}
 			remote = append(remote, bundle)
+			if len(bundle.DriveLocations) > 0 {
+				sources[bundle.Label.ID] = bundle.DriveLocations[0].Locator
+			}
 			continue
 		}
+		sources[bundle.Label.ID] = filepath.Join(r.Config.Sink, bundle.BundleKey)
 		out, createErr := CreateRestoreFile(dir, bundle.Label.ID+".tar.zst.gpg", budget)
 		if createErr != nil {
 			source.Close()
-			return inputs, createErr
+			return inputs, fmt.Errorf("create staged ciphertext %q for bundle %s from %q: %w", stagedPath(bundle), bundle.Label.ID, sources[bundle.Label.ID], createErr)
 		}
 		n, hash, copyErr := fileDigest(ctx, source, out, bundle.Label.Bytes)
 		copyErr = errors.Join(copyErr, source.Close(), out.Sync(), out.Close())
 		if copyErr != nil {
-			return inputs, copyErr
+			return inputs, fmt.Errorf("copy/hash local bundle %s from %q to %q: %w", bundle.Label.ID, sources[bundle.Label.ID], stagedPath(bundle), copyErr)
 		}
 		if n != bundle.Label.Bytes || hash != bundle.Label.SHA256 {
-			return inputs, fmt.Errorf("local bundle %s ciphertext checksum/size conflict; inspect it or explicitly select Drive", bundle.Label.ID)
+			return inputs, fmt.Errorf("local bundle %s at %q ciphertext checksum/size conflict; inspect it or explicitly select Drive", bundle.Label.ID, sources[bundle.Label.ID])
 		}
 	}
 	if len(remote) > 0 {
@@ -80,18 +88,18 @@ func (r Restorer) acquireRestoreInputs(ctx context.Context, plan RestorePlan, st
 	for _, bundle := range plan.Bundles {
 		file, openErr := openRegularAt(dir, bundle.Label.ID+".tar.zst.gpg", unix.O_RDONLY)
 		if openErr != nil {
-			return inputs, openErr
+			return inputs, fmt.Errorf("open staged ciphertext %q for bundle %s from %q: %w", stagedPath(bundle), bundle.Label.ID, sources[bundle.Label.ID], openErr)
 		}
 		inputs = append(inputs, stagedRestoreInput{Plan: bundle, File: file})
 		n, hash, digestErr := fileDigest(ctx, file, nil, bundle.Label.Bytes)
 		if digestErr != nil {
-			return inputs, digestErr
+			return inputs, fmt.Errorf("hash staged ciphertext %q for bundle %s from %q: %w", stagedPath(bundle), bundle.Label.ID, sources[bundle.Label.ID], digestErr)
 		}
 		if n != bundle.Label.Bytes || hash != bundle.Label.SHA256 {
-			return inputs, fmt.Errorf("bundle %s ciphertext checksum/size conflict", bundle.Label.ID)
+			return inputs, fmt.Errorf("bundle %s staged ciphertext %q from %q checksum/size conflict", bundle.Label.ID, stagedPath(bundle), sources[bundle.Label.ID])
 		}
 		if _, err = file.Seek(0, io.SeekStart); err != nil {
-			return inputs, err
+			return inputs, fmt.Errorf("rewind staged ciphertext %q for bundle %s from %q: %w", stagedPath(bundle), bundle.Label.ID, sources[bundle.Label.ID], err)
 		}
 	}
 	return inputs, nil
@@ -155,7 +163,7 @@ func (r Restorer) acquireDriveRestoreInputs(ctx context.Context, plan RestorePla
 	sort.Strings(keys)
 	pin, err := r.Rclone.ResolveDestination(ctx, root)
 	if err != nil {
-		return err
+		return fmt.Errorf("resolve restore Drive root %q: %w", root.String(), err)
 	}
 	// Local backends have no stable directory ID; discovery records the
 	// physical path as its conformance-only identity.
@@ -176,7 +184,7 @@ func (r Restorer) acquireDriveRestoreInputs(ctx context.Context, plan RestorePla
 	}
 	rootInventory, err := observe(pin)
 	if err != nil {
-		return err
+		return fmt.Errorf("list restore Drive root %q (folder ID %q): %w", root.String(), pin.FolderID, err)
 	}
 	for _, key := range keys {
 		g := groups[key]
@@ -188,31 +196,31 @@ func (r Restorer) acquireDriveRestoreInputs(ctx context.Context, plan RestorePla
 			for n, name := range parts {
 				child, found, err := r.Rclone.ResolveChild(ctx, g.pin, name, inventory)
 				if err != nil {
-					return err
+					return fmt.Errorf("resolve restore Drive child %q for location %q (parent ID %q): %w", name, g.location.Locator, g.pin.FolderID, err)
 				}
 				if !found {
-					return errors.New("recorded Drive folder is absent; run sync-index")
+					return fmt.Errorf("recorded Drive folder child %q for location %q is absent; run sync-index", name, g.location.Locator)
 				}
 				g.pin = child
 				if n < len(parts)-1 {
 					inventory, err = observe(child)
 					if err != nil {
-						return err
+						return fmt.Errorf("list restore Drive parent %q for location %q (folder ID %q): %w", name, g.location.Locator, child.FolderID, err)
 					}
 				}
 			}
 		}
 		if g.pin.FolderID != g.location.FolderID {
-			return errors.New("recorded Drive folder identity changed; run sync-index")
+			return fmt.Errorf("recorded Drive folder %q identity changed (expected %q, observed %q); run sync-index", g.location.Locator, g.location.FolderID, g.pin.FolderID)
 		}
 		inventory, err := observe(g.pin)
 		if err != nil {
-			return err
+			return fmt.Errorf("list restore Drive location %q (folder ID %q): %w", g.location.Locator, g.pin.FolderID, err)
 		}
 		for _, bundle := range g.bundles {
 			entries := inventory[bundle.Label.ID+".tar.zst.gpg"]
 			if len(entries) != 1 || entries[0].IsDir || entries[0].Size != bundle.Label.Bytes || (!r.Rclone.LocalConformance && !validRemoteIdentity(entries[0].ID)) {
-				return fmt.Errorf("Drive bundle %s is absent, ambiguous or has conflicting size/identity", bundle.Label.ID)
+				return fmt.Errorf("Drive bundle %s at %q is absent, ambiguous or has conflicting size/identity", bundle.Label.ID, g.location.Locator)
 			}
 		}
 	}
@@ -224,7 +232,7 @@ func (r Restorer) acquireDriveRestoreInputs(ctx context.Context, plan RestorePla
 			names = append(names, bundle.Label.ID+".tar.zst.gpg")
 		}
 		if err := r.Rclone.DownloadBatch(ctx, g.pin, names, filepath.Join(stagePath, "ciphertext"), filepath.Join(stagePath, "files-from"), g.bytes, g.maxBytes); err != nil {
-			return err
+			return fmt.Errorf("download restore Drive location %q (folder ID %q) to %q: %w", g.location.Locator, g.pin.FolderID, filepath.Join(stagePath, "ciphertext"), err)
 		}
 	}
 	return nil

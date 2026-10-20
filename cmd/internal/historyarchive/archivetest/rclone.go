@@ -295,9 +295,12 @@ func (f *FakeRclone) downloadBatch(ctx context.Context, args []string, objects m
 	if err != nil {
 		return err
 	}
-	maxSize, err := parseBytes("--max-size")
-	if err != nil {
-		return err
+	maxSize := budget
+	if flags["--max-size"] != "" {
+		maxSize, err = parseBytes("--max-size")
+		if err != nil {
+			return err
+		}
 	}
 	raw, err := os.ReadFile(flags["--filter-from"])
 	if err != nil {
