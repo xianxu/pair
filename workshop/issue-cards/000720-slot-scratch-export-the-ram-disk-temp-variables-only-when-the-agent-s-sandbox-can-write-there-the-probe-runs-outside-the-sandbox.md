@@ -1,8 +1,8 @@
 ---
 id: 000720
-status: codecomplete
+status: done
 created: 2026-10-19
-updated: 2026-10-19
+updated: 2026-10-20
 estimate_hours: 1.56
 github_issue:
 started: 2026-10-19T21:04:58-07:00
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 5e2686d4bb1354880671ae468a280c9b9383db6c
         evidence_commit: 998af57acd82c2136db82a7a1015abb6ee70b16a
+        landed_commit: c2c6b9279dbdb77aaa7d3b68498ea4326156cd20
 ---
 
 # Slot scratch: export the RAM-disk temp variables only when the agent's sandbox can write there (the probe runs outside the sandbox)
