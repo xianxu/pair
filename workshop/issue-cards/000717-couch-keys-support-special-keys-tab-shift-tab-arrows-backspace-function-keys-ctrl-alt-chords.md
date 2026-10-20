@@ -1,6 +1,6 @@
 ---
 id: 000717
-status: codecomplete
+status: done
 created: 2026-10-19
 updated: 2026-10-20
 estimate_hours: 1.24
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 60203319cfd4e0d7fc137c51b151df8986f54377
         evidence_commit: 7401b2f0cc2ec19bce73922856f47f367192775b
+        landed_commit: f9bb7c3453fb074eb3dcd88be48d1756381bdf4f
 ---
 
 # couch --keys: support special keys (tab, shift-tab, arrows, backspace, function keys, ctrl/alt chords)
