@@ -15,7 +15,14 @@ type Screen struct {
 	History                    []string
 	Idle, TurnActive, Complete bool
 	Recoverable                bool
-	ComposerText               string
+	// Dismissable names a recognized panel with no composer; only DismissOnly
+	// may use it.
+	Dismissable  bool
+	ComposerText string
+}
+
+func (s Screen) Admission() Admission {
+	return Admission{Idle: s.Idle, Recoverable: s.Recoverable, Dismissable: s.Dismissable}
 }
 
 func screenHistory(screen Screen) []string {

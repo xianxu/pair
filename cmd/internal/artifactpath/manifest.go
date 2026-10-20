@@ -691,6 +691,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/agentdrive/keys.go",
 	"cmd/internal/agentdrive/recipe.go",
 	"cmd/internal/agentdrive/screen.go",
+	"cmd/internal/agentdrive/panel.go",
 	"cmd/internal/agentdrive/model.go",
 	"cmd/internal/tailmarkup/markup.go",
 	"cmd/internal/couchmessage/drive_endpoint.go",

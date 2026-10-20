@@ -19,6 +19,13 @@ type DriveObservation struct {
 	// Recoverable positively identifies a known composer without an active turn,
 	// picker or buffered input; only recovery-only keys may use it.
 	Recoverable bool
+	// Dismissable positively identifies a panel whose footer declares Esc as
+	// its dismissal; only an exact [esc] may use it (pair#691).
+	Dismissable bool
+}
+
+func (o DriveObservation) Admission() agentdrive.Admission {
+	return agentdrive.Admission{Idle: o.Idle, Recoverable: o.Recoverable, Dismissable: o.Dismissable}
 }
 
 func (o DriveObservation) Validate() error {
