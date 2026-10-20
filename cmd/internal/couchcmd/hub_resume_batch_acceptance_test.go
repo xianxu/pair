@@ -29,8 +29,9 @@ import (
 // authority proofs: caching those proofs would make the count look better
 // while weakening ownership checks.
 func TestHubResumeBatchSocketAcceptance(t *testing.T) {
-	for _, prewarm := range []bool{true, false} {
-		t.Run(map[bool]string{true: "startup-prewarm", false: "cold"}[prewarm], func(t *testing.T) {
+	for _, mode := range []string{"startup-prewarm", "cold", "cold-restart-held"} {
+		t.Run(mode, func(t *testing.T) {
+			prewarm, held := mode != "cold", mode == "cold-restart-held"
 			root, err := filepath.EvalSymlinks(t.TempDir())
 			if err != nil {
 				t.Fatal(err)
@@ -120,9 +121,24 @@ func TestHubResumeBatchSocketAcceptance(t *testing.T) {
 				}
 			})
 
-			var discovers, freshProofs atomic.Int64
+			// The held startup is released by observed wire responses, never by
+			// a latency assumption: each CLI must first see its definite no-queue
+			// response, then retry admission itself after the repository warms.
+			releaseWarm := make(chan struct{})
+			var releaseOnce sync.Once
+			release := func() { releaseOnce.Do(func() { close(releaseWarm) }) }
+			t.Cleanup(release)
+			var discovers, freshProofs, workspaceProofs atomic.Int64
+			var trackWorkspace atomic.Bool
 			r := &serviceRig{t: t, world: newMessageWorld(), slotGit: map[string]couchcore.SlotGitStatus{}, slotOps: consoleSlotOperations(console, c, nil)}
 			r.decorateAuthority = func(a messageAuthority) messageAuthority {
+				workspace := a.workspace
+				a.workspace = func(ctx context.Context, path string) (couchcore.WorkspaceIdentity, error) {
+					if trackWorkspace.Load() {
+						workspaceProofs.Add(1)
+					}
+					return workspace(ctx, path)
+				}
 				a.hubTarget = func(ctx context.Context, ref string) (couchcore.HubSlot, error) {
 					freshProofs.Add(1)
 					return hubTargetResolver(c)(ctx, ref)
@@ -130,6 +146,13 @@ func TestHubResumeBatchSocketAcceptance(t *testing.T) {
 				a.hubRepositoryNames = c.Threads.RepositoryNamesContext
 				a.hubRepositorySlots = func(ctx context.Context, primary string) (map[int]couchcore.HubSlot, error) {
 					discovers.Add(1)
+					if held {
+						select {
+						case <-releaseWarm:
+						case <-ctx.Done():
+							return nil, ctx.Err()
+						}
+					}
 					return c.RepositoryHubSlots(ctx, primary)
 				}
 				if prewarm {
@@ -138,7 +161,7 @@ func TestHubResumeBatchSocketAcceptance(t *testing.T) {
 				return a
 			}
 			r.init()
-			if prewarm {
+			if prewarm && !held {
 				// Observe production startup, before any CLI request; explicitly
 				// warming here would hide a missing startup Prewarm call.
 				testwait.Until(t, "startup fills all three admission targets", func() bool {
@@ -150,20 +173,41 @@ func TestHubResumeBatchSocketAcceptance(t *testing.T) {
 				if n := discovers.Load(); n != 1 {
 					t.Fatalf("startup repository Discovers = %d, want 1 before the first CLI request", n)
 				}
-			} else {
+			} else if !held {
 				if n := discovers.Load(); n != 0 {
 					t.Fatalf("cold fixture already discovered %d repositories", n)
 				}
 				r.s.authority.hubs = hubs
 			}
 			caller := r.connect(0)
-			r.world.set(caller, func(s *worldSlot) { s.workspace = identity })
+			r.world.set(caller, func(s *worldSlot) { s.root, s.workspace = primary, identity })
 			r.s.mu.Lock()
 			r.s.workspaces[caller] = identity
 			r.s.mu.Unlock()
 			env := testRT{env: map[string]string{"COUCH_STORE_DIR": "/couch/namespace", "COUCH_THREAD_SCOPE": caller.Scope, "COUCH_THREAD_TAG": caller.Tag, "PAIR_SESSION_NAME": caller.Session, "PAIR_LAUNCH_NONCE": caller.Nonce}}
+			trackWorkspace.Store(true)
+			warming := make(chan struct{}, 3)
+			var warmingMu sync.Mutex
+			seenWarming := make(map[string]bool)
 			call := func(ctx context.Context, _ string, request, response any) error {
-				return couchmessage.Call(ctx, r.brokerSock, request, response)
+				err := couchmessage.Call(ctx, r.brokerSock, request, response)
+				// Inspect only after Call has decoded the actual broker response.
+				if err == nil && held {
+					req := request.(couchmessage.Request)
+					resp := response.(*couchmessage.Response)
+					if req.Op == "resume" && resp.Code == couchmessage.CodeWarming {
+						if resp.RetryAfterMillis <= 0 || resp.Operation != nil || !strings.Contains(resp.Error, "nothing was queued") {
+							t.Errorf("warming must give a retry-after and no queued operation: %+v", resp)
+						}
+						warmingMu.Lock()
+						if !seenWarming[req.Target] {
+							seenWarming[req.Target] = true
+							warming <- struct{}{}
+						}
+						warmingMu.Unlock()
+					}
+				}
+				return err
 			}
 			type result struct {
 				ref      string
@@ -182,11 +226,38 @@ func TestHubResumeBatchSocketAcceptance(t *testing.T) {
 				}(n)
 			}
 			close(start)
+			if held {
+				for n := 0; n < 3; n++ {
+					select {
+					case <-warming:
+					case got := <-results:
+						t.Fatalf("%s stopped before all three warming responses: exit %d, stdout %q, stderr %q", got.ref, got.code, got.out, got.err)
+					case <-testwait.After(t):
+						t.Fatal("cold supervisor did not return warming to all three CLI resumes")
+					}
+				}
+				if n := workspaceProofs.Load(); n != 0 {
+					t.Errorf("cold admission made %d synchronous workspace proofs, want zero", n)
+				}
+				if n := freshProofs.Load(); n != 0 {
+					t.Errorf("cold admission made %d raw target resolutions, want zero", n)
+				}
+				r.slotOps.mu.Lock()
+				heldReceipts := len(r.slotOps.receipts)
+				r.slotOps.mu.Unlock()
+				if heldReceipts != 0 {
+					t.Errorf("warming refusals left %d queued receipts, want zero", heldReceipts)
+				}
+				release()
+			}
 			for n := 0; n < 3; n++ {
 				select {
 				case got := <-results:
-					if got.code != 0 || !strings.Contains(got.out, got.ref+" resume succeeded") || strings.Contains(got.out+got.err, "warming") || strings.Contains(got.out+got.err, "uncertain") {
+					if got.code != 0 || !strings.Contains(got.out, got.ref+" resume succeeded") || (mode == "startup-prewarm" && strings.Contains(got.out+got.err, "warming")) || strings.Contains(got.out+got.err, "uncertain") {
 						t.Errorf("%s exit %d, stdout %q, stderr %q", got.ref, got.code, got.out, got.err)
+					}
+					if held && (!strings.Contains(got.out+got.err, "waiting") || !strings.Contains(got.out+got.err, "warm")) {
+						t.Errorf("%s did not explain waiting for warm-up: stdout %q, stderr %q", got.ref, got.out, got.err)
 					}
 				case <-testwait.After(t):
 					t.Fatal("concurrent CLI resume batch dropped a result")

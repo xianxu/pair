@@ -779,14 +779,19 @@ it observed.
 `couch --resume repo:N` and `couch --reboot repo:N --confirm` run one slot's step
 through the running Couch. Only an agent in a live Couch slot may call them: Couch
 checks its own records (the calling thread has a live pane, and its recorded launch
-names this shell's session and launch), so a slot whose messaging setup failed can
-still call, and anyone else is refused. An older running Couch answers with a hint
+names this shell's session and launch). Hub-managed operations also need the
+calling slot's connected workspace proof; if it is missing, reconnect the slot
+and retry. Anyone else is refused. An older running Couch answers with a hint
 to restart it. A thread whose agent never took a turn has no conversation to
 resume: resume refuses at once and names reboot, and the report suggests reboot,
 never resume, for it. The request runs on the switcher's own queue, in the background (the
 operator's screen stays put), and is admitted only if the switcher would offer the
 same action on that row at that moment. Reboot needs `--confirm` because the
-operation declares it. The CLI polls a receipt Couch keeps in memory for 5 minutes
+operation declares it. After a cold start, a warming catalog answers that nothing
+was queued and gives a retry-after. The CLI prints that it is waiting and retries
+that same request within a 30-second total limit. If warming outlasts that wait,
+it reports that nothing was queued and asks you to retry. It never automatically
+resends an uncertain admission. The CLI polls a receipt Couch keeps in memory for 5 minutes
 (visible only to the slot that asked); a lost or unreadable outcome prints
 "outcome uncertain". Verify by reading the report again, never by the receipt: a
 repeat is refused harmlessly once the slot is live. `couch --skill` carries the

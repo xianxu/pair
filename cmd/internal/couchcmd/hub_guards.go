@@ -161,7 +161,7 @@ func (s *messageService) handleHubSlotOperation(ctx context.Context, caller couc
 	}
 	err := admission(ctx)
 	if err != nil {
-		return couchmessage.Response{Code: "refused", Error: err.Error()}
+		return hubAdmissionError(err)
 	}
 	if ctx.Err() != nil {
 		return admissionRefusal("target", ctx.Err())
@@ -223,30 +223,30 @@ func admissionRefusal(phase string, err error) couchmessage.Response {
 	return couchmessage.Response{Code: "refused", Error: admissionPhase(phase, err).Error()}
 }
 
-// admissionCallerWorkspace prefers the connected binding's verified
-// workspace, which costs no IO; a caller without a connected binding (a
-// reconnecting wrapper) falls back to one fresh workspace resolution.
+// admissionCallerWorkspace reads only the exact connected registration.
+// A context does not bound native resolver teardown, so admission must never
+// fall back to workspace inspection when this cached proof is missing.
 func (s *messageService) admissionCallerWorkspace(ctx context.Context, caller couchmessage.Binding) (couchcore.WorkspaceIdentity, error) {
-	if origin, err := s.connectedWorkspace(ctx, caller); err == nil {
-		return origin, nil
-	}
-	root, err := s.authority.thread(ctx, caller)
+	origin, err := s.connectedWorkspace(ctx, caller)
 	if err != nil {
-		return couchcore.WorkspaceIdentity{}, err
+		return couchcore.WorkspaceIdentity{}, fmt.Errorf("caller workspace unavailable; reconnect this Couch slot and retry; nothing was queued: %w", err)
 	}
-	return s.authority.workspace(ctx, root)
+	return origin, nil
 }
 
-// warmHubTarget is admission's target source: the memo, or the fresh
-// resolver where no memo exists.
+// Target resolutions run only in service-owned memo flights or queued proofs.
 func (s *messageService) warmHubTarget(ctx context.Context, ref string) (couchcore.HubSlot, error) {
-	if s.hubTargets != nil {
-		return s.hubTargets.Warm(ctx, ref)
+	if s.hubTargets == nil {
+		return couchcore.HubSlot{}, errors.New("slot catalog unavailable; reconnect or restart Couch and retry; nothing was queued")
 	}
-	if s.authority.hubTarget == nil {
-		return couchcore.HubSlot{}, fmt.Errorf("target slot resolver unavailable")
+	return s.hubTargets.Warm(ctx, ref)
+}
+
+func hubAdmissionError(err error) couchmessage.Response {
+	if errors.Is(err, errSlotCatalogWarming) {
+		return couchmessage.Response{Code: couchmessage.CodeWarming, RetryAfterMillis: 500, Error: err.Error()}
 	}
-	return s.authority.hubTarget(ctx, ref)
+	return couchmessage.Response{Code: "refused", Error: err.Error()}
 }
 
 func (s *messageService) hubReceiptFilter(ctx context.Context, identity couchcore.WorkspaceIdentity) func(couchmessage.OperationReceipt) bool {

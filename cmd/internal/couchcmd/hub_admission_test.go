@@ -120,7 +120,7 @@ func TestHubSlotAdmissionColdRefusesWarmingThenAdmits(t *testing.T) {
 	start := time.Now()
 	got := h.admit("cold")
 	elapsed := time.Since(start)
-	if got.Code != "refused" || !strings.Contains(got.Error, "warming") || !strings.Contains(got.Error, "target") {
+	if got.Code != couchmessage.CodeWarming || got.RetryAfterMillis <= 0 || got.Operation != nil || !strings.Contains(got.Error, "warming") || !strings.Contains(got.Error, "target") {
 		t.Fatalf("cold admission %+v", got)
 	}
 	if elapsed >= couchmessage.AdmissionTimeout {

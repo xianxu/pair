@@ -95,6 +95,9 @@ func (s *messageService) handleHubMove(ctx context.Context, r couchmessage.Reque
 	names := strings.Split(r.Target, ",")
 	for _, name := range names {
 		slot, err := s.warmHubTarget(ctx, name)
+		if errors.Is(err, errSlotCatalogWarming) {
+			return hubAdmissionError(admissionPhase("target", err))
+		}
 		if ctx.Err() != nil {
 			return admissionRefusal("target", ctx.Err())
 		}

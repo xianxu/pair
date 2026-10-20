@@ -364,3 +364,173 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T11:56:28-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 726 — Hub lifecycle ops time out client-side (resume pair:6, relaunch parley.nvim:4: 'context deadline exceeded') with no diagnosis |
+| repo | pair |
+| issue file | workshop/issues/000726-hub-lifecycle-ops-time-out-client-side-resume-pair-6-relaunch-parley-nvim-4-context-deadline-exceeded-with-no-diagnosis.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | e2ac2a19f253961b715b6edf104ca82d72b5c40a..08e29b1498ae46a0e4fb5a7b3079ae1c4e974710 |
+| command | sdlc close --issue 726 |
+| reviewer | codex (openai; author anthropic,openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T11:56:28-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-19 is verified, and the supplied regression suites pass. BR-18 remains blocking: the shared deadline now reaches every admission stage, but caller-workspace fallback still waits synchronously for subprocess cancellation, allowing the client exchange to expire without a typed refusal.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Late failures are retained and returned; the late-failure regression passes.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Move admission uses warm targets; its regression verifies fresh rechecking before execution.
+  - id: BR-3
+    disposition: withdrawn
+    note: |
+      Discover concurrency and replacement-fence tests ran successfully in this environment.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Background flights and Discover row verification are capped at eight; focused tests pass.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Workspace references use canonical keys; canonical-key tests pass.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Admission and execution share checkHubSlotOperation with injected sources.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Discover overlap is asserted through a rendezvous rather than elapsed time.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      Receipt filtering uses Warm under the request deadline; deadline and blocked-filter tests pass.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Plan Revisions document failure retention, move rechecks, filtering, ordering, and caps.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      Start stamps prevent older resolutions replacing newer observations; ordering regressions pass.
+  - id: BR-11
+    disposition: addressed
+    note: |
+      Writes sweep expired entries and enforce the 256-entry cap.
+  - id: BR-12
+    disposition: addressed
+    note: |
+      Failure expiry uses completion time; the slow-failure regression passes.
+  - id: BR-13
+    disposition: addressed
+    note: |
+      The oversized native-store fixture exercises metadata and record limits and verifies screen-only byte consumption.
+  - id: BR-14
+    disposition: addressed
+    note: |
+      ReadRequest retains one Source-nil capture fence after optional candidate collection.
+  - id: BR-15
+    disposition: addressed
+    note: |
+      Candidate output attributes the confirmed choice to its established binding without limiting the cause of incompleteness.
+  - id: BR-16
+    disposition: addressed
+    note: |
+      The Plan M2 passage and atlas/couch.md now describe the established-binding distinction consistently with SkipCandidates routing.
+  - id: BR-17
+    disposition: addressed
+    note: |
+      This review covers the complete pinned range, including repository batching, startup prewarm, and Tier A acceptance.
+  - id: BR-18
+    disposition: not-addressed
+    note: |
+      Critical; family admission-sync-discover-over-exchange remains open. hub_guards.go:237 synchronously resolves an uncached caller workspace through OSProvisionIO, whose cancellation callback waits another two seconds (provision_io.go:75-87). A disposable socket regression removed the cached caller workspace and used the real resolver/runner with an owned sdlc script executing sleep 30: Call timed out at 2.000 s and the handler completed around 3.53 s. Returning an immediate reconnect refusal made the same test pass. ARCH-CONSTRAINTS, ARCH-PURPOSE, ARCH-MOCK: enforce elapsed response latency including subprocess teardown across every admission fallback, rather than treating context propagation as the bound.
+  - id: BR-19
+    disposition: addressed
+    note: |
+      Memo and queue selection reuse RepositorySiblingPrimary. Cold/prewarmed prefix and alias cases pass; disabling the shared sibling rule makes all six precedence cases fail.
+```
+
+1. **Strengths**
+
+   - Repository warming shares discovery while preserving fresh authority checks before effects. Cold and prewarmed three-slot socket acceptance passes.
+   - Recovery scan skipping preserves source, capture, generation, and screen facts. The oversized-store fixture tests the original failure shape.
+   - Sibling precedence is shared across fresh resolution, memo selection, and queue keys, with mutation-sensitive regression coverage.
+
+2. **Critical findings**
+
+   **BR-18 remains open:** [hub_guards.go:237](/Volumes/TestScratch/review-checkouts/87746dfcd6c986cc/cmd/internal/couchcmd/hub_guards.go:237) invokes synchronous workspace resolution after a cache miss. The deadline expires at 1.5 seconds, but [provision_io.go:75](/Volumes/TestScratch/review-checkouts/87746dfcd6c986cc/cmd/internal/couchcore/provision_io.go:75) joins a cancellation callback containing a two-second wait.
+
+   This remains in the repeated family `admission-sync-discover-over-exchange`. Apply the family-wide rule: **every synchronous admission dependency must return within the remaining exchange budget, including cancellation and teardown**. Enumerate the fallbacks and sweep them together. A missing caller workspace can return a typed reconnect refusal, or resolution can use a bounded service-owned path that admission stops awaiting safely.
+
+3. **Important findings**
+
+   None additional.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - Full `couchcmd`, `couchcore`, and `artifactpath` package tests passed.
+   - Focused race tests covering memo behavior, admission, move rechecks, socket batches, Discover, and recovery scan selection passed.
+   - `go vet` passed.
+   - Removing the entry deadline reproduced both supplied socket failures.
+   - Disabling sibling precedence broke its regressions.
+   - The additional real-runner cancellation reproduction failed on pinned production code and passed with immediate workspace refusal.
+
+   Disposable test files were removed; the pinned checkout remains unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared guard and sibling-selection helpers.
+   - **ARCH-PURE — pass:** external sources and clocks remain injectable; no new pure-entity classification contradiction.
+   - **ARCH-PURPOSE — flag:** BR-18 still permits the timeout the issue promises to replace.
+   - **ARCH-MOCK — flag:** cooperative cancellation doubles miss the real runner’s teardown delay; cover that behavior in the regression seam.
+   - **ARCH-CONSTRAINTS — flag:** context expiry does not enforce the declared response-latency envelope.
+   - **ARCH-SECURE — pass:** cached admission observations do not replace fresh effect authority.
+   - **ARCH-ORDER — pass:** receipt transitions remain centralized; late-result ordering and stale-authority rejection are covered.
+   - **ARCH-FUNERAL — pass:** entries are swept/capped, and background flights are cancelled and joined.
+   - **ARCH-EVOLVE — pass:** no persisted-format change.
+
+   Atlas covers the new internal flow. No new command, flag, keybinding, or configuration surface requires a README addition. The Plan has no Core concepts table.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry specifying that admission budgets include cancellation/teardown latency, defining the caller-workspace cache-miss policy, and requiring a socket regression against the production subprocess cancellation seam.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"a191279c-8a14-4a00-9ef3-28a0c290347d","repository":"github.com/xianxu/pair","issue_id":"000726","recipe":"milestone-review","round":9,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/87746dfcd6c986cc","reviewed_head":"08e29b1498ae46a0e4fb5a7b3079ae1c4e974710","slot":"pair:2","requested_at":"2026-10-20T18:49:56.945242Z"},"phase":"finished","pid":83213,"started_at":"2026-10-20T18:49:57.097185Z","finished_at":"2026-10-20T18:56:27.696195Z","session_id":"01a15aa6-1a1e-7d42-b3d5-5c261787b47a","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.852020583s
+head: "08e29b1498ae46a0e4fb5a7b3079ae1c4e974710"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

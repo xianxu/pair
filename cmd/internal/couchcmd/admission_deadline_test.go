@@ -3,6 +3,8 @@ package couchcmd
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -20,47 +22,9 @@ func TestSlotAdmissionSocketSharesOneDeadlineAcrossStages(t *testing.T) {
 		t.Run(phase, func(t *testing.T) {
 			h := newHubAdmissionRig(t)
 			var firstDeadline atomic.Pointer[time.Time]
-			remember := func(ctx context.Context) {
-				d, ok := ctx.Deadline()
-				if !ok {
-					t.Error("initial admission stage has no deadline")
-				}
-				firstDeadline.Store(&d)
-			}
-			if phase == "target" {
-				agent := h.s.authority.agent
-				var once atomic.Bool
-				h.s.authority.agent = func(ctx context.Context, address couchcore.ThreadAddress) (string, error) {
-					if once.CompareAndSwap(false, true) {
-						remember(ctx)
-						timer := time.NewTimer(700 * time.Millisecond)
-						defer timer.Stop()
-						select {
-						case <-timer.C:
-						case <-ctx.Done():
-							return "", ctx.Err()
-						}
-					}
-					return agent(ctx, address)
-				}
-				h.setResolver(func(ctx context.Context, _ string) (couchcore.HubSlot, error) {
-					<-ctx.Done()
-					return couchcore.HubSlot{}, ctx.Err()
-				})
-			} else {
-				// Use the uncached source so the successful target stage's
-				// request deadline can be compared with the queue-name stage.
-				h.s.hubTargets = nil
-				h.s.authority.hubTarget = func(ctx context.Context, _ string) (couchcore.HubSlot, error) {
-					remember(ctx)
-					timer := time.NewTimer(700 * time.Millisecond)
-					defer timer.Stop()
-					select {
-					case <-timer.C:
-					case <-ctx.Done():
-						return couchcore.HubSlot{}, ctx.Err()
-					}
-					return couchcore.HubSlot{Repository: "/repo", Number: 5}, nil
+			if phase == "queue names" {
+				if _, err := h.s.hubTargets.Fresh(t.Context(), "pair:5"); err != nil {
+					t.Fatal(err)
 				}
 				h.slotOps.names = func(ctx context.Context) ([]couchcore.RepositoryName, error) {
 					d, ok := ctx.Deadline()
@@ -70,15 +34,43 @@ func TestSlotAdmissionSocketSharesOneDeadlineAcrossStages(t *testing.T) {
 					<-ctx.Done()
 					return nil, ctx.Err()
 				}
+			} else {
+				h.setResolver(func(ctx context.Context, _ string) (couchcore.HubSlot, error) {
+					<-ctx.Done()
+					return couchcore.HubSlot{}, ctx.Err()
+				})
+			}
+			agent := h.s.authority.agent
+			var once atomic.Bool
+			h.s.authority.agent = func(ctx context.Context, address couchcore.ThreadAddress) (string, error) {
+				if once.CompareAndSwap(false, true) {
+					d, ok := ctx.Deadline()
+					if !ok {
+						t.Error("initial admission stage has no deadline")
+					}
+					firstDeadline.Store(&d)
+					timer := time.NewTimer(700 * time.Millisecond)
+					defer timer.Stop()
+					select {
+					case <-timer.C:
+					case <-ctx.Done():
+						return "", ctx.Err()
+					}
+				}
+				return agent(ctx, address)
 			}
 			ctx, cancel := context.WithTimeout(t.Context(), couchmessage.AdmissionTimeout)
 			defer cancel()
 			var response couchmessage.Response
 			err := couchmessage.Call(ctx, h.brokerSock, slotRequest(h.caller, "resume", "shared-deadline", "pair:5"), &response)
 			if err != nil {
-				t.Fatalf("broker dropped admission instead of returning a typed %s refusal: %v", phase, err)
+				t.Fatalf("broker dropped admission instead of returning typed %s refusal: %v", phase, err)
 			}
-			if response.Code != "refused" || !strings.Contains(response.Error, phase) {
+			wantCode := "refused"
+			if phase == "target" {
+				wantCode = couchmessage.CodeWarming
+			}
+			if response.Code != wantCode || !strings.Contains(response.Error, phase) {
 				t.Fatalf("%s refusal: %+v", phase, response)
 			}
 			if h.runner.count() != 0 {
@@ -139,22 +131,36 @@ func TestLifecycleAdmissionStartsDeadlineBeforeAuthentication(t *testing.T) {
 	}
 }
 
-func TestHubReceiptFilterKeepsTheRequestDeadline(t *testing.T) {
+func TestHubReceiptFilterHonorsRequestCancellation(t *testing.T) {
 	h := newHubAdmissionRig(t)
-	h.s.hubTargets = nil
-	ctx, cancel := context.WithTimeout(t.Context(), 2*slotAdmissionBudget)
-	defer cancel()
-	want, _ := ctx.Deadline()
-	h.s.authority.hubTarget = func(got context.Context, _ string) (couchcore.HubSlot, error) {
-		deadline, ok := got.Deadline()
-		if !ok || !deadline.Equal(want) {
-			t.Errorf("receipt filtering renewed request deadline: %v, want %v", deadline, want)
+	entered, release := make(chan struct{}), make(chan struct{})
+	defer close(release)
+	h.setResolver(func(ctx context.Context, _ string) (couchcore.HubSlot, error) {
+		close(entered)
+		select {
+		case <-release:
+		case <-ctx.Done():
 		}
 		return couchcore.HubSlot{Repository: "/repo", Number: 5}, nil
-	}
+	})
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
 	filter := h.s.hubReceiptFilter(ctx, couchcore.WorkspaceIdentity{PrimaryRoot: "/repo", WorktreeRoot: "/repo0"})
-	if !filter(couchmessage.OperationReceipt{Target: "pair:5"}) {
-		t.Fatal("same-hub receipt was filtered")
+	done := make(chan bool, 1)
+	go func() { done <- filter(couchmessage.OperationReceipt{Target: "pair:5"}) }()
+	select {
+	case <-entered:
+	case <-testwait.After(t):
+		t.Fatal("memo flight did not start")
+	}
+	cancel()
+	select {
+	case allowed := <-done:
+		if allowed {
+			t.Fatal("cancelled request authorized receipt")
+		}
+	case <-testwait.After(t):
+		t.Fatal("receipt filtering waited for the service-owned resolver after request cancellation")
 	}
 }
 
@@ -197,5 +203,56 @@ func TestBlockedStatusFilterDoesNotHoldTheReceiptMutex(t *testing.T) {
 		}
 	case <-testwait.After(t):
 		t.Fatal("blocked status filter held the receipt mutex")
+	}
+}
+
+// A request deadline does not bound OSProvisionIO's joined process-group
+// cancellation. Caller admission must refuse without entering that native seam.
+func TestMissingCallerWorkspaceSocketNeverRunsSynchronousResolver(t *testing.T) {
+	h := newHubAdmissionRig(t)
+	root := t.TempDir()
+	bin := filepath.Join(root, "bin")
+	if err := os.Mkdir(bin, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bin, "sdlc"), []byte("#!/bin/sh\nexec sleep 30\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	h.world.set(h.caller, func(s *worldSlot) { s.root = root; s.workspace.WorktreeRoot = root })
+	h.s.mu.Lock()
+	delete(h.s.workspaces, h.caller)
+	h.s.mu.Unlock()
+	var nativeCalls atomic.Int64
+	native := couchcore.NewOSSlotCatalog(couchcore.OSProvisionIO{})
+	h.s.authority.workspace = func(ctx context.Context, path string) (couchcore.WorkspaceIdentity, error) {
+		nativeCalls.Add(1)
+		return native.ResolveWorkspace(ctx, path)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), couchmessage.AdmissionTimeout)
+	defer cancel()
+	var response couchmessage.Response
+	if err := couchmessage.Call(ctx, h.brokerSock, slotRequest(h.caller, "resume", "missing-workspace", "pair:5"), &response); err != nil {
+		t.Fatalf("uncached workspace lost socket reply in native teardown: %v", err)
+	}
+	if response.Code != "refused" || !strings.Contains(response.Error, "reconnect") {
+		t.Fatalf("missing caller workspace: %+v", response)
+	}
+	if nativeCalls.Load() != 0 || h.runner.count() != 0 {
+		t.Fatalf("native calls %d, queued %d", nativeCalls.Load(), h.runner.count())
+	}
+}
+
+func TestMissingHubMemoNeverFallsBackToSynchronousTargetResolution(t *testing.T) {
+	h := newHubAdmissionRig(t)
+	h.s.hubTargets = nil
+	var calls atomic.Int64
+	h.s.authority.hubTarget = func(context.Context, string) (couchcore.HubSlot, error) {
+		calls.Add(1)
+		return couchcore.HubSlot{Repository: "/repo", Number: 5}, nil
+	}
+	got := h.admit("no-memo")
+	if got.Code != "refused" || !strings.Contains(got.Error, "unavailable") || calls.Load() != 0 || h.runner.count() != 0 {
+		t.Fatalf("missing memo %+v, native calls %d, queued %d", got, calls.Load(), h.runner.count())
 	}
 }

@@ -30,18 +30,21 @@ func newHubMoveRig(t *testing.T) *hubMoveRig {
 	h, defs, _ := moveFixture(t)
 	r := &serviceRig{t: t, world: newMessageWorld(), slotGit: map[string]couchcore.SlotGitStatus{}}
 	r.slotOps = newSlotOperations(nil, nil, time.Now)
-	r.init()
-	r.s.authority.hubs = h
-	r.s.authority.hubTarget = func(_ context.Context, ref string) (couchcore.HubSlot, error) {
-		if !strings.HasPrefix(ref, "pair:") {
-			return couchcore.HubSlot{}, fmt.Errorf("unknown target %s", ref)
+	r.decorateAuthority = func(a messageAuthority) messageAuthority {
+		a.hubs = h
+		a.hubTarget = func(_ context.Context, ref string) (couchcore.HubSlot, error) {
+			if !strings.HasPrefix(ref, "pair:") {
+				return couchcore.HubSlot{}, fmt.Errorf("unknown target %s", ref)
+			}
+			n, err := strconv.Atoi(strings.TrimPrefix(ref, "pair:"))
+			if err != nil {
+				return couchcore.HubSlot{}, err
+			}
+			return couchcore.HubSlot{Repository: filepath.Join(defs[0].Workspace, "pair"), Number: n}, nil
 		}
-		n, err := strconv.Atoi(strings.TrimPrefix(ref, "pair:"))
-		if err != nil {
-			return couchcore.HubSlot{}, err
-		}
-		return couchcore.HubSlot{Repository: filepath.Join(defs[0].Workspace, "pair"), Number: n}, nil
+		return a
 	}
+	r.init()
 	x := &hubMoveRig{serviceRig: r, queue: &leanSwitchQueue{}, hubs: h, defs: defs}
 	x.install(hubClaimFiles{})
 	for i, def := range defs {
@@ -57,6 +60,7 @@ func newHubMoveRig(t *testing.T) *hubMoveRig {
 		r.attach(b, couchmessage.PaneHandle(fmt.Sprintf("hub-%d", i)))
 		r.wrapper(b)
 		r.waitConnected(b, true)
+		r.waitWorkspace(b)
 		x.callers = append(x.callers, b)
 	}
 	x.worker = r.connect(7)

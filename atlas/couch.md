@@ -1117,7 +1117,17 @@ gate on warm sources, inside its own 1.5 s budget, below the 2 s exchange. The
 single deadline spans initial authentication, target resolution, queue-name lookup
 and enqueue, including move and operation-status requests. The caller comes
 from its connected workspace (`connectedWorkspace`), and the target
-from `hubTargetMemo`. The memo maps a target reference to its `HubSlot`.
+from `hubTargetMemo`. Admission never falls back to a synchronous fresh caller
+workspace or target resolver: native cancellation can itself outlast the exchange.
+A missing caller proof says to reconnect; a missing memo says it is unavailable.
+A pending memo flight returns wire code `warming`, no operation receipt and a
+positive `RetryAfterMillis` (500 ms). The CLI repeats only that typed nothing-queued
+refusal, keeping its request ID and intent, for at most eight attempts inside a
+30-second total admission budget. Each exchange and sleep is capped by the
+remaining budget, and progress says it is waiting for the catalog to warm.
+Transport errors, uncertain replies and all other refusals never trigger admission
+resends. Queued work and its fresh proofs retain their own queue context.
+The memo maps a target reference to its `HubSlot`.
 One single-flight discovery per repository fills all its verified numbered
 slots under unambiguous names and aliases. Memo reads and queue-key selection
 use the fresh resolver's shared exact-sibling-directory precedence rule before
@@ -1130,8 +1140,7 @@ fall back to the existing per-reference resolver. Both kinds of flight share
 the eight-resolution cap, run under the service lifetime and join at `Close`.
 Entries are used for 10 minutes and every fresh target resolution refreshes its
 entry; memo writes sweep expired entries and cap them at 256. Admission waits
-only within its budget. Otherwise admission refuses with "slot catalog is
-warming; nothing was queued; retry", and any overrun names its phase. A failed
+only within its budget. Otherwise admission returns the typed warming refusal above, and any overrun names its phase. A failed
 resolution answers with its own error for 30 s before retrying. Move-slot
 admission (`handleHubMove`) names its slots from the same memo, within the same
 budget. The queued move then re-resolves each slot fresh and refuses if any
