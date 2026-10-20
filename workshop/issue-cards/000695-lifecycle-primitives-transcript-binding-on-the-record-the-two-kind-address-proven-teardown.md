@@ -13,14 +13,14 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
-actual_hours: 7.36
+actual_hours: 7.84
 tracker:
     version: 1
     completion:
-        token: close-a5edb9f5beb2
+        token: close-09968da826e5
         repository: github.com/xianxu/pair
-        reviewed_head: cd3cf1ac2a3d89da9471e2e426f8a57ecf86dc3b
-        evidence_commit: 1e62bd8f63fd96ca11911775f7aab7e0df77f7d0
+        reviewed_head: 2ac8c028e16bae89de44f0749effb18805650f1a
+        evidence_commit: c356fa3ca1e33d9fb71ea3fe3409c523d396c1f6
 ---
 
 # Lifecycle primitives: transcript binding on the record, the two-kind address, proven teardown
