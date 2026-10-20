@@ -70,11 +70,7 @@ func runContinuous(ctx context.Context, args []string, stdout io.Writer, fail fu
 		_, err = stdout.Write(raw)
 		return err
 	}
-	home, _ := os.UserHomeDir()
-	env := map[string]string{}
-	for _, key := range []string{"PAIR_DATA_DIR", "XDG_DATA_HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "QODER_HOME", "COUCH_STORE_DIR"} {
-		env[key] = os.Getenv(key)
-	}
+	home, env := archiveEnvironment()
 	store, snapshots, err := continuousStore(home, env)
 	if err != nil {
 		return fail("resolve archive store", err)

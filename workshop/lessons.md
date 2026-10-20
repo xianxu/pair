@@ -2360,6 +2360,10 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #576: Inserting a declaration above another declaration must not steal its preceding godoc. Keep each comment adjacent to its named declaration and run the existing termcmd declaration-comment guard alongside the source-inventory guards before an expensive suite; that guard covers production files across packages.
 
+- #689 BR-1: An authoritative complete inventory needs destination-level evidence even when its record set is empty. Store the complete observation time and binding atomically with the snapshot; partial historical attestations must obey that evidence before claiming availability. Test initial empty refresh and binding replacement followed by projection of previously unseen receipts, in addition to disappearance after indexed presence.
+
+- #689 M2 BR-2: Derive a decoder's whole-stream budget from the admitted payload plus the shared framing allowance, rather than the format's worst-case payload ceiling. Prove the exact total and one-byte-over on both ordinary and large snapshot kinds; a gigabyte overflow test can hide a much smaller promised bound.
+- #689 M2 diagnostic check: Quote untrusted member names in library errors and sanitize the final CLI error boundary with the shared terminal-text owner, because child and filesystem errors can carry controls too. Regress the real reporting seam with OSC, C0, C1 and printable Unicode; whitespace folding alone is not terminal safety.
 - #687 close review: a composition regression must enter the production options/constructor path with its stateful inspection seam. Replacing its Proof in the test only verifies the adapter, not the wiring; confirm a controlled wiring removal fails the production-path regression. Freeze prepared issue/plan artifacts while close reviews run, even for verification-only log updates.
 
 - #687 BR-1: pure predicates use literal value fixtures, even when a convenient integration fixture exists. Audit setup as well as assertions: a test for a PURE entity must not create/read metadata or inject a process probe; keep those effects in separate integration tests.
