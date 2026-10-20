@@ -5,9 +5,9 @@ deps: [pair#714]
 github_issue:
 created: 2026-10-19
 updated: 2026-10-19
-estimate_hours:
+estimate_hours: 3.47
 collaboration-mode: collaboration
-card_mirror: '90a4e923f7295dcd1b49ce5352c527e41a396417' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '5789e1ac026318794f05d1e85aaa9e244254545a' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-19T21:10:41-07:00
 claimant:
     operator: Xian Xu
@@ -82,3 +82,26 @@ Durable design: [native-only recovery candidates plan](../plans/000721-native-on
 
 - 2026-10-19: Added the concrete durable plan after main-based start and current-owner inspection. Original M2/M3 scope is retained as one atomic #721 review boundary, with unchanged approved behavior and added explicit codec/cutoff/accounting test contracts.
 - 2026-10-19: Plan-quality PQ-1 requires compressed function-level test strategy rather than duplicated case inventories. Revised Tasks 1–4 accordingly; no architecture/scope change. First change-code inferred quick due to design line count; reran with --flow=full to honor TL-approved full flow. No implementation or estimate yet.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. The named calibration is stale against its newer ledger, so these units remain provisional.
+
+Decomposition follows the settled plan: source codec, collector extension, independent acquisition, selection/persistence, CLI/menu projection, launcher validation, portable conformance, atlas, one close review, and issue shaping. Existing strictjson/native parsers/lifecycle fixtures short-circuit greenfield design: 2.0h × 0.5 library availability × 0.2 spec discount = 0.2h for each greenfield concern. Smaller module design uses 0.2–0.3h × 0.2. All implementation entries already apply the v3.1 40% scale to table values (greenfield 0.8h → 0.32h; smaller 0.4–0.5h → 0.16–0.20h). Familiar codebase means familiarity 1.0; thorough approved plan means 15% design buffer. No external API discovery or cross-repo propagation. Design 1.10h × 1.15 + implementation 2.20h = 3.465h, rounded to 3.47h.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-go-module design=0.20 impl=0.32
+item: smaller-go-module design=0.04 impl=0.20
+item: greenfield-go-module design=0.20 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: smaller-go-module design=0.04 impl=0.16
+item: smaller-go-module design=0.06 impl=0.20
+item: greenfield-go-module design=0.20 impl=0.32
+item: atlas-docs design=0.02 impl=0.08
+item: milestone-review design=0.04 impl=0.20
+item: issue-spec design=0.10 impl=0.08
+design-buffer: 0.15
+total: 3.47
+```
