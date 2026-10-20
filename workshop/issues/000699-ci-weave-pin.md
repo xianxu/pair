@@ -63,8 +63,10 @@ The payload is the weave refresh output and one authored pin, with no hand-writt
   ariadne's sole supported compiler (`.sdlc/weave-compiler-refs`).
 - [x] Prove the pin is consumer-owned: `weave compile` leaves its bytes unchanged, and
   `construct/generated/weave/ownership.json` does not list it.
-- [ ] Recorded suite, close, then the PR. It is a local-gates PR, so the hub gets the operator's
-  `local-gates-verified` label. Real CI acceptance, the compiler identity line from the build step, goes to the hub.
+- [x] Recorded suite: sdlc-local/suite success on 13aa8d4d.
+
+Landing follows the close: the PR is a local-gates PR, so the hub gets the operator's `local-gates-verified` label.
+Real CI acceptance, the compiler identity line from the build step, goes to the hub.
 
 The tests that reject malformed pins, fetch or build failure, and an older weave earlier in PATH are upstream's
 (ariadne `scripts/test/weave-compatibility.test.sh`, `portable-ci.test.sh`), run on ariadne's CI. This repository's
