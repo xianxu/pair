@@ -10,33 +10,30 @@ from `/Volumes`, with at least 2 GiB available. `Manager.PrepareSlot` creates a
 CLAUDE_CODE_TMPDIR. Missing/full/unwritable scratch preserves inherited temp
 settings. Durable Pair state and Go caches keep their existing destinations.
 
-Before preparing a slot, `couchscratch.ScratchAllowed` checks the selected
-agent's sandbox policy (#720). The host write probe alone is insufficient:
-Couch runs outside the sandbox it is configuring. Claude's supported local
-user/project/local settings combine filesystem allowances and denies; an
-enabled sandbox must allow the volume or a parent, with denies taking
-precedence. Disabled sandboxing permits the optional root. Codex normally adds
-the inherited TMPDIR to workspace-write roots, so its normal configuration
-keeps RAM scratch; read-only or `exclude_tmpdir_env_var` declines it. CODEX_HOME
-and CLAUDE_CONFIG_DIR route only the non-credential settings reads.
+Before preparing a slot, `couchscratch.ChooseSlotScratch` requires the operator's
+persistent setup declaration (#720). Create a regular file at
+`$XDG_CONFIG_HOME/pair/sandbox-allowed`, or
+`$HOME/.config/pair/sandbox-allowed` when XDG_CONFIG_HOME is unset, only
+after configuring the agents' sandbox allowances for TestScratch. Its contents
+are ignored. The marker survives RAM-disk recreation. Remove it to stop future
+optional exports; running children retain their environment until relaunched.
 
-The projection deliberately declines unsupported policy layers rather than
-implementing native configuration resolvers: detected Claude managed settings,
-CLI settings-source overrides, Codex profiles/config overrides, malformed or
-unreadable files, unsupported path forms and unknown agents use normal temp.
-Each settings read is capped at 1 MiB; configuration is never rewritten. The
-decision runs at launch or explicit show, not UI ticks, and creates no cache,
-worker or journal. Existing inherited temp values are preserved on fallback.
+Couch checks the marker with a read-only stat and keeps the existing mount,
+space, ownership and write checks. It does not interpret Claude or Codex
+settings. A successful host write alone cannot authorize the export. A missing,
+unobservable or non-regular declaration keeps normal temp and emits one note
+naming the marker. The declaration is an operator promise, not proof: creating
+it without configuring allowances can still cause sandboxed builds to fail.
+Correct the setup and relaunch in that case.
 
 `couch --show` includes `scratch: RAM disk` or a normal-temp reason, explicitly
-labelled **current launch selection**. This read-only view recomputes admission;
-it does not inspect an existing child's environment or create scratch. A launch
-that cannot use the volume emits one bounded note. Add the missing allowance
-and relaunch the slot to adopt it. Fresh/switch launches supply the selected
-invocation through a call-local record projection, while durable last-registered
-profiles retain their meaning. Tests include a successful host write alongside
-a denying consumer policy, the operator's real allowance shape, and unchanged
-Codex TMPDIR-default admission. Live acceptance rides a natural relaunch.
+labelled **current launch selection**. This read-only view shares admission;
+it does not inspect an existing child's environment or create scratch. The
+check runs on launch or explicit show, with no settings reads, cache or worker.
+Isolated Couch rejects declaration paths outside its private root. Fixture
+acceptance covers a writable host without a marker, marker lifecycle, XDG
+routing, launch overlays and effect-free show. Live follow-up rides a natural
+relaunch after the operator creates the marker.
 
 Admission checks availability before identity lookup and falls back immediately
 if maintenance holds the manager. Owner-index locking is also nonblocking. The

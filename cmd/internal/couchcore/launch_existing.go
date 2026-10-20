@@ -105,11 +105,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	}
 	background := ""
 	if c.SlotEnvironment != nil {
-		// This call-local projection is the selected invocation, not the last
-		// registered agent (which can be absent on fresh or old on a switch).
-		selected := thread
-		selected.LatestLaunchProfile = &LaunchProfile{Agent: in.Args.Stack, Argv: cloneArgv(in.Args.ExtraArgs)}
-		env = append(env, c.SlotEnvironment(ctx, selected)...)
+		env = append(env, c.SlotEnvironment(ctx, thread)...)
 	}
 	if in.Background {
 		background = "1"

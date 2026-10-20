@@ -179,6 +179,14 @@ func TestOwnedChildWritesOnlyInsidePrivateSlotTemp(t *testing.T) {
 
 func TestInjectedScratchConstructorLaunchesWithRAMAndFallback(t *testing.T) {
 	root := isolatedCouchTestEnvironment(t)
+	t.Setenv("XDG_CONFIG_HOME", "")
+	marker := couchscratch.ScratchOptInPath(filepath.Join(root, "home"), "")
+	if err := os.MkdirAll(filepath.Dir(marker), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(marker, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
 	socketRoot := filepath.Join(root, "native-sockets")
 	t.Setenv("ZELLIJ_SOCKET_DIR", socketRoot)
 	ram := filepath.Join(root, "ram")
@@ -221,7 +229,7 @@ func TestInjectedScratchConstructorLaunchesWithRAMAndFallback(t *testing.T) {
 	}
 	zero := 0
 	c.Slots = &couchcore.SlotCatalogFake{Workspaces: map[string]couchcore.WorkspaceIdentity{checkout: {Repo: "fixture", RepoIdentity: filepath.Join(checkout, ".git"), WorktreeRoot: checkout, PrimaryRoot: checkout, Kind: "primary", Slot: &zero}}}
-	record := couchcore.ThreadRecord{SchemaVersion: couchcore.ThreadSchemaVersion, Address: couchcore.ThreadAddress{RepoScope: scope.Key, Tag: "couch-0123456789abcdef"}, StartingPath: checkout, WorkingPath: checkout, CreatedAt: time.Unix(100, 0), Revision: 1, LatestLaunchProfile: &couchcore.LaunchProfile{Agent: "codex"}}
+	record := couchcore.ThreadRecord{SchemaVersion: couchcore.ThreadSchemaVersion, Address: couchcore.ThreadAddress{RepoScope: scope.Key, Tag: "couch-0123456789abcdef"}, StartingPath: checkout, WorkingPath: checkout, CreatedAt: time.Unix(100, 0), Revision: 1}
 	for _, enabled := range []bool{true, false} {
 		mounted = enabled
 		env := append([]string{"ZELLIJ_SOCKET_DIR=/wrong", "TMPDIR=/outside", "GOTMPDIR=/outside", "CLAUDE_CODE_TMPDIR=/outside"}, c.SlotEnvironment(t.Context(), record)...)

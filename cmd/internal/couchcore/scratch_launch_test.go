@@ -22,7 +22,7 @@ func TestScratchEnvironmentReachesFreshAndWarmLaunches(t *testing.T) {
 			var h Handle
 			var err error
 			if !warm {
-				_, h, err = env.Couch.Spawn(StartArgs{Worktree: "/repo", Stack: "codex", ExtraArgs: []string{"--sandbox", "workspace-write"}})
+				_, h, err = env.Couch.Spawn(StartArgs{Worktree: "/repo"})
 			} else {
 				record := validThreadRecord(t)
 				record.StartingPath, record.WorkingPath = "/repo", "/repo"
@@ -45,13 +45,6 @@ func TestScratchEnvironmentReachesFreshAndWarmLaunches(t *testing.T) {
 			if owner.StartingPath != "/repo" || owner.Address.Tag == "" {
 				t.Fatalf("wrong retained owner: %+v", owner)
 			}
-			wantAgent := "codex"
-			if warm {
-				wantAgent = "claude"
-			}
-			if owner.LatestLaunchProfile == nil || owner.LatestLaunchProfile.Agent != wantAgent {
-				t.Fatalf("scratch admission did not receive selected %s profile: %+v", wantAgent, owner.LatestLaunchProfile)
-			}
 			got := map[string]string{}
 			for _, entry := range env.Runner.Child(h.ID()).Env {
 				k, v, _ := strings.Cut(entry, "=")
@@ -69,21 +62,24 @@ func TestScratchEnvironmentReachesFreshAndWarmLaunches(t *testing.T) {
 func TestShowProjectsScratchWithoutPreparingEnvironment(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	record := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude"})
-	called := 0
-	env.Couch.SlotEnvironment = func(context.Context, ThreadRecord) []string { t.Fatal("show prepared scratch"); return nil }
+	calls := 0
+	env.Couch.SlotEnvironment = func(context.Context, ThreadRecord) []string {
+		t.Fatal("show prepared scratch")
+		return nil
+	}
 	env.Couch.ScratchDiagnostic = func(_ context.Context, got ThreadRecord) string {
-		called++
-		if got.Address != record.Address || got.LatestLaunchProfile.Agent != "claude" {
-			t.Fatalf("wrong diagnostic authority: %+v", got)
+		calls++
+		if got.Address != record.Address {
+			t.Fatal("wrong scratch identity")
 		}
-		return "scratch: normal temp (sandbox doesn't allow /Volumes/TestScratch)"
+		return "scratch: normal temp (setup declaration required: /fixture/sandbox-allowed)"
 	}
 	result, err := dispatchTestOperation(env.Couch, "show", map[string]string{"ref": string(record.Address.Tag), "repo-scope": record.Address.RepoScope})
 	if err != nil {
 		t.Fatal(err)
 	}
 	show := result.(ShowResult)
-	if called != 1 || len(show.Scratch) != 1 || !strings.Contains(show.Scratch[0], "sandbox doesn't allow") {
-		t.Fatalf("calls=%d show=%+v", called, show)
+	if calls != 1 || len(show.Scratch) != 1 || !strings.Contains(show.Scratch[0], "sandbox-allowed") {
+		t.Fatalf("calls=%d result=%+v", calls, show)
 	}
 }

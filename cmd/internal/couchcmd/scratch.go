@@ -3,6 +3,8 @@ package couchcmd
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -162,27 +164,25 @@ func (r OSRuntime) configureScratch(c *couchcore.Couch) {
 	c.ScratchMaintenance = manager.Maintain
 }
 
-// scratchAdmission shares optional-root policy with launch and read-only show.
-func (r OSRuntime) scratchAdmission(record couchcore.ThreadRecord) (bool, string) {
-	probe := r.scratchProbe()
-	if !couchscratch.ChooseScratch(probe) {
-		return false, "scratch: normal temp (RAM disk unavailable)"
+// scratchAdmission shares the persistent declaration with launch and read-only show.
+func (r OSRuntime) scratchAdmission(_ couchcore.ThreadRecord) (bool, string) {
+	marker := couchscratch.ScratchOptInPath(r.Getenv("HOME"), r.Getenv("XDG_CONFIG_HOME"))
+	if marker == "" {
+		return false, "scratch: normal temp (opt-in location unavailable; set absolute HOME or XDG_CONFIG_HOME)"
 	}
-	if record.LatestLaunchProfile == nil {
-		return false, "scratch: normal temp (sandbox policy unknown)"
-	}
-	profile := record.LatestLaunchProfile
-	in := couchscratch.SandboxSettings{Agent: profile.Agent, Argv: profile.Argv, Project: record.StartingPath, Home: r.Getenv("HOME"), ClaudeHome: r.Getenv("CLAUDE_CONFIG_DIR"), CodexHome: r.Getenv("CODEX_HOME")}
 	if r.isolatedRoot != "" {
-		in.ClaudeHome, in.CodexHome = "", ""
-		in.ManagedRoot = filepath.Join(r.isolatedRoot, "managed-claude")
+		physical, err := canonicalFuture(marker)
+		if err != nil || !confined(r.isolatedRoot, physical) {
+			return false, fmt.Sprintf("scratch: normal temp (opt-in outside isolated Couch: %q)", marker)
+		}
 	}
-	policy := couchscratch.ReadSandboxPolicy(in)
-	if !policy.Known {
-		return false, "scratch: normal temp (sandbox policy unknown)"
+	info, err := os.Lstat(marker)
+	optedIn := err == nil && info.Mode().IsRegular()
+	if !optedIn {
+		return false, fmt.Sprintf("scratch: normal temp (setup declaration required: %q)", marker)
 	}
-	if !couchscratch.ScratchAllowed(probe.Root, policy) {
-		return false, "scratch: normal temp (sandbox doesn't allow " + probe.Root + "; add an allowance then relaunch)"
+	if !couchscratch.ChooseSlotScratch(r.scratchProbe(), optedIn) {
+		return false, "scratch: normal temp (RAM disk unavailable)"
 	}
 	return true, "scratch: RAM disk"
 }

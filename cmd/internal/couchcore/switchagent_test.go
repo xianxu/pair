@@ -33,17 +33,9 @@ func TestSwitchAgentPreviewAndCommitKeepExistingAddress(t *testing.T) {
 		env.Artifacts.SetPairSession(source.Address, continuationChildSession(t, env.Runner, id), true)
 		return nil
 	}
-	var scratchProfile *LaunchProfile
-	env.Couch.SlotEnvironment = func(_ context.Context, record ThreadRecord) []string {
-		scratchProfile = record.LatestLaunchProfile
-		return nil
-	}
 	result, err := env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{Address: source.Address, Agent: "codex", Argv: prepared.Profile.Argv, AcceptedFingerprint: prepared.Fingerprint})
 	if err != nil {
 		t.Fatal(err)
-	}
-	if scratchProfile == nil || scratchProfile.Agent != "codex" || !reflect.DeepEqual(scratchProfile.Argv, prepared.Profile.Argv) {
-		t.Fatalf("scratch used stale source profile: %+v", scratchProfile)
 	}
 	started, ok := result.Started()
 	if !ok || started.Record.Thread != source.Address {

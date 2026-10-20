@@ -129,9 +129,15 @@ ChooseSlotScratch: pure cross-product table over declaration and host availabili
 
 #### V2 implementation and acceptance (supersedes old task rows)
 
-- [ ] Delete the native policy/projection files and their tests, TOML dependency and selected-profile plumbing; restore unchanged legacy source expectations rather than leaving unused resolver pieces.
-- [ ] Add red-first pure opt-in tables and writable-host/no-marker composition regression, then the small read-only marker admission. Cover an explicit XDG path and isolated HOME fallback, marker lifecycle and current-selection diagnostics.
-- [ ] Update README/atlas around the declaration and its admitted limitation. Run focused tests/source guards, push the corrected code and queue a new recorded suite; cancel the superseded attempt only through SDLC.
+- [x] Delete the native policy/projection files and their tests, TOML dependency and selected-profile plumbing; restore unchanged legacy source expectations rather than leaving unused resolver pieces.
+- [x] Add red-first pure opt-in tables and writable-host/no-marker composition regression, then the small read-only marker admission. Cover an explicit XDG path and isolated HOME fallback, marker lifecycle and current-selection diagnostics.
+- [x] Update README/atlas around the declaration and its admitted limitation. Run focused tests/source guards, push the corrected code and queue a new recorded suite; cancel the superseded attempt only through SDLC.
 - [ ] Close with BR-1/BR-2 disposed by eliminating native-policy interpretation, then land only after final-code recorded suite/CI pass. Report Git-verified merge to hub and stop. Hub creates the real marker and updates ops setup README before slot relaunches; worker never creates it on this machine.
 
 No pair:0 staging or native config writes. Existing estimate remains the original forecast, including spent abandoned work; do not backfit it to the smaller remaining implementation. Re-run change-code on this revised design before code. The first suite attempt 8cffba3e5ad21df2e70eca2667f643f3 was cancelled while queued before execution; no result is accepted from it.
+
+### 2026-10-19 — V2 marker basename and implemented evidence
+
+Hub approved pair/sandbox-allowed (3827d91b-8eff-4aec-9ef2-9802731551e7), with the same XDG_CONFIG_HOME and HOME fallback. This supersedes the proposed agent-sandbox-allowed basename: the existing source guard correctly reserves the agent- path family for thread artifacts. No guard exception or new mechanism is needed.
+
+Native settings readers, projections, tests, selected-profile plumbing and the TOML dependency are deleted. Pure opt-in red failed against a permissive stub; green passed 0.177s. The integration red then failed on the missing marker note (0.388s); implemented admission passed 0.362s. Focused pure/composition/show/launch controls passed couchscratch 0.155s, couchcmd 0.397s, couchcore 0.311s; all scratch-related couchcmd tests passed 0.462s and core controls 0.234s. Marker mutation, explicit XDG, isolated escape refusal and symlink refusal are covered. Source guard initially caught the basename collision; the renamed result must pass before publication. No native machine marker/settings were changed.
