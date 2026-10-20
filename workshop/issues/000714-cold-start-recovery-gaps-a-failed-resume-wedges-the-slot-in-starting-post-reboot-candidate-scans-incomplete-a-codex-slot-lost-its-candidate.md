@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-19
 updated: 2026-10-19
-estimate_hours:
+estimate_hours: 1.24
 collaboration-mode: collaboration
-card_mirror: 'b5bdac4c26241aac08a84e98807cf44829a2cb4b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '18af724e7a584d8f7113115f61e6525376186bd9' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-19T21:04:51-07:00
 claimant:
     operator: Xian Xu
@@ -54,6 +54,25 @@ Compose diagnostic identities atomically: partial outer evidence cannot replace 
 - Repo-scope-only outer resume dispatch preserves complete child launch identity and writes one readable failure record; unresolved refusals also persist, and diagnostic publication failure does not change lifecycle disposition.
 - Ordering/race, file-backed restart and bounded lock-contention tests pass; the pushed final head has a recorded full suite pass before normal merge.
 
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only; calibration currently marked stale by sdlc, so provisional.
+
+Two smaller-go-module extensions cover failed-start transition/finalization with portable store/order tests and diagnostic composition with dispatcher regression. Both reuse existing stores, process fakes and transition patterns: no greenfield library dependency. Upper-end v2 implementation 0.5h becomes 0.20h each at v3.1 40%; thorough accepted spec discounts design 0.20h to 0.04h. Local lint is a third small extension (0.15 design *0.2=0.03; 0.30 impl *0.4=0.12). Issue/spec uses 1h design *0.2 and 0.20 impl *0.4. Docs uses 0.10 design *0.2 and 0.10 impl *0.4; one boundary review uses 0.10 design *0.2 and 0.50 impl *0.4. Familiarity 1.0 for recent #712/#715 owners; +15% design buffer for accepted durable plan. Sum design 0.35, implementation 0.84: 0.35*1.15+0.84=1.2425h, recorded 1.24h.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.20 impl=0.08
+item: smaller-go-module design=0.04 impl=0.20
+item: smaller-go-module design=0.04 impl=0.20
+item: smaller-go-module design=0.03 impl=0.12
+item: atlas-docs design=0.02 impl=0.04
+item: milestone-review design=0.02 impl=0.20
+design-buffer: 0.15
+total: 1.24
+```
+
 ## Plan
 
 - [ ] Implement confirmed failure disposition and immediate retry with state/order regressions.
@@ -97,3 +116,5 @@ Compose diagnostic identities atomically: partial outer evidence cannot replace 
 - 2026-10-19: Initial design separates definite failed launches from uncertain outcomes and proposes independent native-only candidate evidence. Reason: current on-disk device mismatch plus an oversized historical screen prevents safe reuse of the capture-backed inference contract; old acceptance criteria remain in scope.
 
 - 2026-10-19, TL approval: close #714 after former M1; moved original M2/M3 into #721 (claimed for next, dependency #714). Merged disposition persistence failures into visible Launch unconfirmed. Native-only v2 and five-minute policy are approved for #721; no device/inode relaxation or budget increase. Current Done when and Plan now match the approved narrow contract; original broader requirements remain in the historical plan commit and #721 Spec.
+
+- 2026-10-19, plan gate refinement: PQ-1 names a missing function-level testing contract; plan now gives one adversarial strategy/mechanical guard per risky owner. PQ-2 verified against threadrecord/recovery_context_test.go TestRecoverySchemaRejectsUnknownNestedFields: current ThreadStore rejects unsupported nested fields, so #714 retains that unchanged schema/refusal behavior rather than claiming existing preservation. No implementation started before gate acceptance.

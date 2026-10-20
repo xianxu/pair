@@ -79,26 +79,39 @@ State/event table for an acknowledged recovery claim:
 - ARCH-CONSTRAINTS: failure finalization reuses the existing five-second recovery observation budget and a separate bounded persistence budget; neither diagnostics nor lock acquisition may extend it indefinitely. No cost on successful registration beyond existing finalization. Count observer/store calls for failure sequences; contend real store locks to prove bounded return.
 - Growth: O(1) work per failed launch: one final registration look, one exact terminal observation and one disposition CAS; no native enumeration or transcript scan. Count calls across 8/16 failures; at most linear growth. Diagnostic publication remains one bounded write per failed outer operation and zero on success.
 - ARCH-SECURE: persisted witnesses, records, native JSONL and paths are untrusted. Keep strict typed decoding, regular-file/root/cwd checks, full interactive provenance and exact fingerprints. Failure text uses existing sanitization and output bounds. No credential or transcript content enters the issue Log.
-- ARCH-EVOLVE: no persisted format or enum change. A transient StartEvent stores the existing no-incarnation/retained-choice representation. Preserve unknown fields through the existing ThreadStore rewrite and verify codec round trips.
+- ARCH-EVOLVE: no persisted format or enum change. A transient StartEvent stores the existing no-incarnation/retained-choice representation. Retain the current strict decode/refusal contract: threadrecord.DecodePersisted and TestRecoverySchemaRejectsUnknownNestedFields reject unknown nested members. This issue changes no schema and does not introduce a decoder/preservation migration; that compatibility work is outside this fix. Validate unchanged supported-record round trips and unchanged unsupported-record refusal.
 - ARCH-FUNERAL: no new durable file/process family. Diagnostics use existing bounded failure retention; the failed start's selection uses the current retained-context lifecycle and is superseded by the next start.
 - ARCH-DRY / ARCH-PURE: use current hold, transition, store and recorder owners; one pure disposition and one complete-address composition policy.
 - ARCH-MOCK: existing stateful Runner/Proc/Artifacts fakes plus portable file-backed stores cover the production seam; disposable live qualification confirms early exit/retry on the staged binary.
 - ARCH-PURPOSE: #714's approved contract is now failed-launch retry/diagnostics only. Native recovery remains a separately filed dependency successor, not an undocumented deferral.
 
+## Function-level test strategy
+
+| Risky function / seam | Adversarial class and mechanical guard |
+|---|---|
+| `DecideRecoveryLaunchDisposition` (new pure function) | Exhaust helper/session/registration knowledge values; independent literal policy asserts only proved failure releases and established registration wins. |
+| `AdvanceStartTransaction` / new terminal failure event | Generate duplicate, stale and reordered nonce/event sequences; assert immutable input, retained exact selection and no removal of a registered/newer incarnation. |
+| `completeFailureAddress` (new pure composition owner) | Table/fuzz partial and conflicting addresses; assert an output is one complete input or zero, never a fieldwise hybrid. |
+| `lifecycleFailureTargetForCall`, `OperationAttempt.ObserveCall`, `lifecycleFailureForAttempt` | Dispatch arbitrary partial target evidence through real recorder normalization; assert complete nested evidence survives and unresolved targets remain persistable. |
+| `Couch.finalizeFailedRecoveryLaunch` (new IO finalizer) | Gate helper completion, exact-session replies and revision changes with stateful fakes; use contended real metadata locks and an injected deadline to prove bounded return without stale release or automatic cleanup. |
+| `DispatchOperation` -> `ResumeTargetWith` -> `launchTrackedThread` | File-backed restart regression at the production scope-only resume boundary; assert one readable diagnostic and immediate same-conversation retry with no clock advance. |
+| `OperationAttempt.FinishContext` and nested capture | Inject failure-store refusal and duplicate completion; assert lifecycle result unchanged, one bounded publication, and zero diagnostic IO on successful launch. |
+
 ## Task — Definite launch failure and durable diagnostics
 
-Files: `couchcore/{recovery_launch_disposition.go,starttransaction.go,launch_existing.go,operationattempt_record.go,lifecyclefailure_record.go}` and colocated tests; `couchcmd/lifecyclefailure_service_test.go`; `atlas/couch.md`.
+Files: `couchcore/{recovery_launch_disposition.go,starttransaction.go,launch_existing.go,operationattempt_record.go,lifecyclefailure_record.go}` and colocated tests; `couchcmd/lifecyclefailure_service_test.go`; `internal/repolint` local catalog and rule tests; `atlas/couch.md`.
 
-- [ ] Add failing production-dispatch regression with repo-scope but no tag: recovery helper exits before registering, exact terminal absent, complete captured launch identity and output reach failure store exactly once; a second resume starts immediately without advancing the clock.
-- [ ] Add a pure disposition table and pure start-event sequences: exact selection/park retained, input immutable, stale revision/nonce rejected, late registration cannot be cleared. Preserve current helper-exited uncertainty tests when terminal observation fails.
-- [ ] Run `go test ./cmd/internal/couchcore ./cmd/internal/couchcmd -run 'RecoveryLaunch|LifecycleFailure|OperationAttempt|StartTransaction' -count=1`; confirm the added regressions fail for the intended wedge/identity reason.
-- [ ] Implement the terminal disposition. Observe using exact proposed session binding under the current operation hold, use bounded context-aware metadata reads/writes, then apply one nonce/revision event. A completed helper plus absent terminal releases only this claim; all uncertain cases retain it. Keep ordinary warm/spawn cleanup unchanged.
-- [ ] Centralize complete-address diagnostic composition at both ObserveCall and terminal enrichment. Sweep every partial-address assignment in that family. Preserve exact launch address when outer evidence is partial; unresolved refusals remain persistable by path/reference. Do not weaken normalizeLaunchFailure.
-- [ ] Test live owner with failed helper, unknown/live terminal, failed probe, canceled wait, late registration, CAS conflict, held store lock, diagnostic store failure, duplicate Finish and successful operation (zero diagnostic IO). Include integration assertions through CLI dispatcher and restarted file-backed store.
-- [ ] Add a Pair-local lint rule for the mechanical partial-address override family using the existing local catalog; test the safe centralized composition and bad whole-address nonzero guards. Restrict rule to actual diagnostic composition owners to avoid generic ThreadAddress false positives.
-- [ ] Run focused tests plus race checks, update atlas/lessons and Log, commit with Agent/Co-Authored-By trailers, push and run the recorded suite, then close #714 directly through `sdlc close --issue 714 --verified ...`. On SHIP enter `sdlc merge --yes`, report the landing and stop before starting the successor.
-
+- [ ] Write the production-dispatch immediate-retry and retained-diagnostics regressions using the function strategies above; implement no production changes yet.
+- [ ] Run `go test ./cmd/internal/couchcore ./cmd/internal/couchcmd -run 'RecoveryLaunch|LifecycleFailure|OperationAttempt|StartTransaction' -count=1`; observe the intended failure at the wedge/identity assertions.
+- [ ] Implement `DecideRecoveryLaunchDisposition` and `Couch.finalizeFailedRecoveryLaunch`: after owned exit completion, observe the exact proposed session under the existing operation hold and apply one bounded nonce/revision transition. Retain all uncertain outcomes; ordinary warm/spawn cleanup stays unchanged.
+- [ ] Extend `AdvanceStartTransaction` with the terminal failed-start event, retaining its selection/park/thread while clearing only the matching creating incarnation; execute it through bounded context-aware ThreadStore CAS.
+- [ ] Implement `completeFailureAddress` and use it at call extraction, ObserveCall and terminal failure enrichment. Sweep these composition owners for nonzero-address and fieldwise overwrites; keep normalizeLaunchFailure strict.
+- [ ] Add a Pair-local lint guard for unsafe direct partial-address overrides in the three diagnostic composition owners using the existing local catalog. Exercise bad variants and the centralized complete-address form through rule fixtures.
+- [ ] Run the named function strategies, focused package tests and race checks. Record counted O(1) failure observation/storage work and bounded lock-contention results. Update atlas/lessons and Log; commit with Agent/Co-Authored-By trailers.
+- [ ] Request staged disposable live qualification from the hub, push and run the recorded full suite, then close #714 directly through `sdlc close --issue 714 --verified ...`. On SHIP enter `sdlc merge --yes`, report the landing and stop before starting #721.
 
 ## Revisions
 
 - 2026-10-19, TL approval: split original M2/M3 into a new issue. This plan now ends at the former M1 with one issue-close boundary. All failed-disposition uncertainty is displayed as Launch unconfirmed with Inspect; no separate visible disposition state. Original design remains in the prior plan commit and transferred successor Spec.
+
+- 2026-10-19, plan gate PQ-1/PQ-2: replaced prose test inventories with one named-function adversarial strategy/guard table. Corrected unsupported ThreadStore preservation claim after reading DecodePersisted and TestRecoverySchemaRejectsUnknownNestedFields; no schema migration enters this issue.
