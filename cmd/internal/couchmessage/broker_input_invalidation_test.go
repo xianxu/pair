@@ -3,6 +3,7 @@ package couchmessage
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -13,9 +14,19 @@ import (
 // validates its own observation. It makes the input/admission race explicit.
 type inputInvalidationEndpoint struct {
 	*FakeDeliveryEndpoint
-	once       sync.Once
-	after      func()
-	deliveries atomic.Int32
+	once         sync.Once
+	after        func()
+	releaseOnce  sync.Once
+	afterRelease func()
+	deliveries   atomic.Int32
+}
+
+func (e *inputInvalidationEndpoint) Release(ctx context.Context, id string) error {
+	err := e.FakeDeliveryEndpoint.Release(ctx, id)
+	if e.afterRelease != nil {
+		e.releaseOnce.Do(e.afterRelease)
+	}
+	return err
 }
 
 func (e *inputInvalidationEndpoint) Reserve(ctx context.Context, id string, sequence uint64) error {
@@ -104,6 +115,95 @@ func TestBrokerReservationRejectsLostRegistration(t *testing.T) {
 			}
 			if old, next := endpoint.deliveries.Load(), replacement.deliveries.Load(); old != 0 || next != 0 {
 				t.Fatalf("stale work delivered: old %d, replacement %d", old, next)
+			}
+		})
+	}
+}
+
+func TestBrokerSenderReconnectCannotAuthorizeOldAdmission(t *testing.T) {
+	for _, phase := range []string{"catalog", "reserve", "release"} {
+		t.Run(phase, func(t *testing.T) {
+			now := time.Unix(1000, 0)
+			b := NewBroker(t.Context(), func() time.Time { return now }, nil)
+			defer b.Close()
+			sender, hub := brokerBinding("pair:7"), brokerBinding("ops:0")
+			endpoint := &inputInvalidationEndpoint{FakeDeliveryEndpoint: newFakeEndpoint(now), after: func() { b.OperatorInput(hub) }}
+			if err := b.Register(sender, newFakeEndpoint(now)); err != nil {
+				t.Fatal(err)
+			}
+			if err := b.Register(hub, endpoint); err != nil {
+				t.Fatal(err)
+			}
+			reconnect := func() {
+				b.Disconnect(sender)
+				if err := b.Register(sender, newFakeEndpoint(now)); err != nil {
+					t.Fatal(err)
+				}
+				for _, binding := range []Binding{sender, hub} {
+					if got, err := b.Caller(binding.Scope, binding.Tag, binding.Session, binding.Nonce); err != nil || got != binding {
+						t.Fatalf("current Caller must survive actor replacement: %+v, %v", got, err)
+					}
+				}
+			}
+			switch phase {
+			case "catalog":
+				var once sync.Once
+				b.SetFamilies(func(context.Context) (map[string]string, error) { once.Do(reconnect); return nil, nil })
+			case "reserve":
+				endpoint.after = func() { b.OperatorInput(hub); reconnect() }
+			case "release":
+				endpoint.afterRelease = reconnect
+			}
+			receipt, err := b.Send(t.Context(), sender, "old-sender", Route{Target: hub.Slot}, "report")
+			if !errors.Is(err, ErrUnavailable) {
+				t.Errorf("reconnected sender authorized an old admission: receipt %+v, err %v", receipt, err)
+			} else if !strings.HasPrefix(err.Error(), "caller pair:7 current") {
+				t.Errorf("sender lifetime refusal lost side/phase: %v", err)
+			}
+			if count := endpoint.deliveries.Load(); count != 0 {
+				t.Errorf("stale sender delivered %d messages", count)
+			}
+		})
+	}
+}
+
+func TestBrokerAdmissionLossNamesSideAndPhase(t *testing.T) {
+	for _, phase := range []string{"entry", "catalog", "release-caller", "release-recipient"} {
+		t.Run(phase, func(t *testing.T) {
+			now := time.Unix(1000, 0)
+			b := NewBroker(t.Context(), func() time.Time { return now }, nil)
+			defer b.Close()
+			sender, hub := brokerBinding("pair:7"), brokerBinding("ops:0")
+			endpoint := &inputInvalidationEndpoint{FakeDeliveryEndpoint: newFakeEndpoint(now), after: func() { b.OperatorInput(hub) }}
+			if err := b.Register(sender, newFakeEndpoint(now)); err != nil {
+				t.Fatal(err)
+			}
+			if err := b.Register(hub, endpoint); err != nil {
+				t.Fatal(err)
+			}
+			prefix := "caller pair:7 current"
+			switch phase {
+			case "entry":
+				b.Disconnect(sender)
+				prefix = "caller lookup"
+			case "catalog":
+				var once sync.Once
+				b.SetFamilies(func(context.Context) (map[string]string, error) {
+					once.Do(func() { b.Disconnect(sender) })
+					return nil, nil
+				})
+			case "release-caller":
+				endpoint.afterRelease = func() { b.Disconnect(sender) }
+			case "release-recipient":
+				endpoint.afterRelease = func() { b.Disconnect(hub) }
+				prefix = "recipient ops:0 admission"
+			}
+			receipt, err := b.Send(t.Context(), sender, "lost-admission", Route{Target: hub.Slot}, "report")
+			if !errors.Is(err, ErrUnavailable) || !strings.HasPrefix(err.Error(), prefix) {
+				t.Errorf("loss must preserve unavailable and name %q: receipt %+v, err %v", prefix, receipt, err)
+			}
+			if count := endpoint.deliveries.Load(); count != 0 {
+				t.Errorf("lost registration delivered %d messages", count)
 			}
 		})
 	}

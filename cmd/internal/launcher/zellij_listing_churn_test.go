@@ -97,3 +97,30 @@ func TestRuntimeListSessionsUsesOneInventoryObservation(t *testing.T) {
 		t.Fatalf("inventory query budget: queries=%v effects=%v", queries, f.Effects())
 	}
 }
+
+func TestRuntimeListSessionsUsesValidatedOpaqueNameState(t *testing.T) {
+	for _, tc := range []struct {
+		name, suffix string
+		state        SessionState
+		queries      int
+	}{
+		{"pair-EXITED-is-a-name", "", SessionDetached, 2},
+		{"pair-with spaces", " (EXITED - attach to resurrect)", SessionExited, 1},
+		{"pair-with\ttabs", " (EXITED - attach to resurrect)", SessionExited, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := installAdmissionFixture(t)
+			f.SetModel(zellijtest.Model{Sessions: map[string]zellijtest.Session{tc.name: {}}})
+			full := tc.name + " [Created 1s ago]" + tc.suffix + "\n"
+			f.SetFaults(zellijtest.Fault{Ordinal: 1, Reply: &full})
+			dir := t.TempDir()
+			rows, err := (OSRuntime{DataDir: dir, GlobalDataDir: dir}).ListSessions()
+			if err != nil || len(rows) != 1 || rows[0].Session != tc.name || rows[0].State != tc.state {
+				t.Fatalf("validated state was reinterpreted: rows=%v err=%v", rows, err)
+			}
+			if len(f.Queries()) != tc.queries || len(f.Effects()) != 0 {
+				t.Fatalf("exited session queried or native effect occurred: queries=%v effects=%v", f.Queries(), f.Effects())
+			}
+		})
+	}
+}

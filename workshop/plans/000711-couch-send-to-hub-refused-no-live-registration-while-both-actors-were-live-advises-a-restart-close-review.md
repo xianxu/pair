@@ -1,0 +1,99 @@
+# Boundary Review — pair#711 (whole-issue close)
+
+| field | value |
+|-------|-------|
+| issue | 711 — couch --send-to hub refused 'no live registration' while both actors were live; advises a restart |
+| repo | pair |
+| issue file | workshop/issues/000711-couch-send-to-hub-refused-no-live-registration-while-both-actors-were-live-advises-a-restart.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 7d4e0c3aba6b39fb12d5125ee967dcde9e5be4be..734d84a932b3c64e1043cf625a2038e71bb294a4 |
+| command | sdlc close --issue 711 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T06:13:23-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The single-listing approach removes the observed race, and all three affected packages pass. However, independent regression probes expose stale sender authority, incorrect runtime session-state classification, and incomplete refusal diagnostics. These require fixes before close.
+
+Done-when: current — it covers the revised listing, input-queue, lifetime-fencing, diagnostic, and query-budget contracts.
+
+```findings
+findings:
+  - id: new
+    severity: Critical
+    family: admission-registration-lifetime-fencing
+    title: |
+      Same-binding sender reconnect can admit a stale reservation
+    detail: |
+      At cmd/internal/couchmessage/broker.go:726, b.caller(from) checks current connectivity without comparing the sender registration with the one that began admission. A disposable regression disconnected and re-registered the sender after successful Reserve, then invoked recipient OperatorInput; Send returned a queued receipt with no error. This violates the Spec's unchanged-both-registrations condition. Enumerated admission sites requiring the same sender lifetime token are send's initial validation (574), admit's loop validation (631), tryAdmission's post-IO validation (726), and the busy-to-queue validation (684). Capture the sender actor/generation and preserve it across these paths. Add sender-reconnect controls alongside the existing recipient-reconnect control. ARCH-PURPOSE: sweep both registration lifetimes.
+  - id: new
+    severity: Critical
+    family: validated-inventory-state-consumers
+    title: |
+      Runtime listing discards validated exited states and reclassifies names incorrectly
+    detail: |
+      At cmd/internal/launcher/osruntime.go:334-353, ListSessions extracts names from sessionListingStates but discards its state values. Its downstream buildListRowsForScope at list.go:78 calls zellijsession.RowState, which uses Fields[0] and Contains("EXITED"). Disposable probes showed a live pair-EXITED-is-a-name displayed as exited, while exited names containing spaces or tabs displayed as detached and triggered client queries. The remaining production instance in this window is ListSessions -> buildListRowsForScope -> RowState; ZellijSource.snapshot already consumes validated states correctly. Pass the validated state map into the runtime row builder and add these three edge cases. ARCH-DRY and ARCH-PURPOSE: all promised inventory consumers must use the same identity/state interpretation.
+  - id: new
+    severity: Important
+    family: availability-refusal-phase-context
+    title: |
+      Admission races still return bare, misleading unavailable errors
+    detail: |
+      The send path retains bare ErrUnavailable returns at cmd/internal/couchmessage/broker.go:576, :633, and :685. These are the complete unlabelled registration-refusal instances in the admission path: initial caller validation, caller validation after routing IO, and combined caller/recipient validation after reservation release. A disposable regression disconnected the caller inside the injected family source; Send returned "recipient is not live", losing both the failing side and phase. Wrap each caller failure with caller/current context, split the combined fallback guard by side, preserve errors.Is classification, and retain regression coverage. ARCH-PURPOSE: diagnostics must cover concurrent invalidation as well as initially missing registrations.
+```
+
+1. **Strengths**
+
+   - Direct and cached listing readers use one full native observation; deterministic client-query ordering is preserved.
+   - Malformed refreshes retain the last good timestamp.
+   - The permanent input regression checks queue promotion and exactly one delivery.
+   - README and atlas updates explain phase diagnostics and remove blanket restart advice.
+
+2. **Critical findings**
+
+   Two, detailed above: sender registration fencing and runtime state interpretation.
+
+3. **Important findings**
+
+   One, detailed above: incomplete phase context during admission races.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   `go test ./cmd/internal/couchmessage ./cmd/internal/launcher ./cmd/internal/couchcmd` passed. Disposable Go-overlay probes failed for all three findings; temporary files were removed and tracked files remained unchanged. Existing tests miss sender reconnect, runtime opaque-name state cases, and caller loss during routing. The recorded full-suite prerequisite remains outstanding in the issue.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY: flag** — runtime retains a competing state interpretation.
+   - **ARCH-PURE: pass** — parsing remains pure and IO uses existing seams.
+   - **ARCH-PURPOSE: flag** — lifetime and diagnostic contracts are incompletely delivered.
+   - **ARCH-EVOLVE: pass** — no persisted format changes.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry covering both sender and recipient registration fencing, runtime consumption of validated state values, and the complete admission-refusal phase sweep, with permanent regressions for the cases above.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"2da21866-4cee-4387-a74d-117dea7c0e10","repository":"github.com/xianxu/pair","issue_id":"000711","recipe":"small-diff-review","round":1,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/b52028d24f0f238a","reviewed_head":"734d84a932b3c64e1043cf625a2038e71bb294a4","slot":"pair:7","requested_at":"2026-10-20T13:10:28.650937Z"},"phase":"finished","pid":15274,"started_at":"2026-10-20T13:10:28.908748Z","finished_at":"2026-10-20T13:13:22.529271Z","session_id":"01a1596f-4f3c-7b50-b9ce-3551a4df83ef","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.397923541s
+head: "734d84a932b3c64e1043cf625a2038e71bb294a4"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

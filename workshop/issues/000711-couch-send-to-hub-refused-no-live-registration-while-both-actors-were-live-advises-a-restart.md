@@ -207,3 +207,34 @@ that acceptance in smoke calibration. No live check is claimed here. Branch PR i
 Recorded suite started on implementation head eb18dbd6ebf7b205da6b7fcd4e824e1f00a8e5c4;
 its pass and the close review remain mandatory before landing. The final unchecked Plan
 row is this remaining verification/publication workflow, not unfinished implementation.
+
+### 2026-10-20 — close round 1: REWORK, no close finalized
+
+BR-1/BR-3 permanent red regressions confirm sender same-binding reconnect can authorize
+an old request at catalog IO, after successful reservation, and during release before
+busy-queue fallback. Both Caller lookups remain valid, yet old Send incorrectly returns
+queued; four refusal paths also return bare ErrUnavailable. BR-2 red confirms runtime
+listing reinterprets a live EXITED-containing name as exited and exited whitespace/tab
+names as detached. This is not a claim about the historical 13:15 interleaving.
+The obsolete queued suite on eb18dbd6 was cancelled through local-check cancel before
+code corrections; it provides no passing evidence. No gate was waived or finalized.
+
+### 2026-10-20 06:15 PDT — Revision: complete the existing lifetime/parser contracts
+
+BR-1: capture the existing sender SlotActor pointer under the initial Send lock, then pass
+that same lifetime resource through admit/tryAdmission. One shared locked predicate must
+check exact actor identity plus connectivity at the routing-loop check, post-reservation
+check, and release-to-queue fallback. Recipient pointer/reservation checks remain first
+before classifying input as busy. No counter, persisted state, queue, retry or executor is
+added. Historical retained receipts remain recovery evidence, not new delivery authority.
+
+BR-2: pass the validated full-list exited-state map into buildListRowsForScope instead of
+discarding its values and reparsing strings through RowState. Migrate its two pure/unit
+fixture callers alongside OSRuntime.ListSessions. Runtime tests cover live names containing
+EXITED plus exited names containing spaces/tabs and assert no client call for exited rows.
+
+BR-3: the complete bare-unavailable admission sweep is Send entry, admit after family
+routing IO, and release-to-queue fallback; split caller/recipient failures and label phase,
+while preserving errors.Is and recovery-class semantics. Permanent tests drive all sites.
+These complete the already-approved unchanged-both-registrations and one-parser contract;
+visible states and acceptance arrangement remain unchanged. Hub informed before code.
