@@ -1,6 +1,6 @@
 ---
 id: 000734
-status: open
+status: wontfix
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
@@ -13,6 +13,9 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
+tracker:
+    version: 1
+    abandoned: {}
 ---
 
 # Declare opt-in drain acceptance local check
