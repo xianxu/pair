@@ -19,6 +19,25 @@ reviewer_runs:
       finished_at: "2026-10-20T06:31:10.799368Z"
       session_id: 01a15801-408c-7552-ad19-252d46f54385
       outcome: returned
+    - version: 1
+      intent:
+        id: 67622147-1aa7-43b7-815d-5b6e6ecd67cf
+        repository: github.com/xianxu/pair
+        issue_id: "000722"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot5/pair
+        reviewed_head: 6a62dc942ee4076528a3af60a9bad20aea01f8f2
+        slot: pair:5
+        requested_at: "2026-10-20T07:50:57.348415Z"
+      phase: finished
+      pid: 88410
+      started_at: "2026-10-20T07:50:57.437777Z"
+      finished_at: "2026-10-20T07:51:40.149981Z"
+      session_id: 01a1584a-c580-7be1-b9e4-27e176dcf190
+      outcome: returned
 gate: plan-quality
 issue: 722
 id_prefix: PQ
@@ -115,7 +134,37 @@ rounds:
           note: Tasks name production functions with adversarial strategies and independent mechanical guards; the prior correction remains satisfied.
           round: 3
       blocked: false
-content_hash: 790d2a2c662bc29edc8f4e0ef8c5f7777589e3f23c2f5ebb4ed0d95c30a6e1d3
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 684cff94-2e7d-4567-8206-87a113b67526
+            repository: github.com/xianxu/pair
+            issue_id: "000722"
+            recipe: plan-quality
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot5/pair
+            reviewed_head: 6a62dc942ee4076528a3af60a9bad20aea01f8f2
+            slot: pair:5
+            requested_at: "2026-10-20T07:50:23.066834Z"
+          phase: finished
+          pid: 57607
+          started_at: "2026-10-20T07:50:23.237338Z"
+          finished_at: "2026-10-20T07:50:55.626932Z"
+          session_id: 01a1584a-4077-7770-b374-d76ec32b4fd4
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-20T00:50:55-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Named production functions, adversarial strategies and mechanical guards remain present; the governing revision adds counted lifetime-growth verification.
+          round: 4
+      blocked: false
+content_hash: 09c568e870c0aa2c04d2bd05603e13fefd57851f43f6aba65b247f65b9f82d86
 ---
 
 # Gate ledger — pair#722 (plan-quality)
@@ -141,6 +190,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - PQ-1 — addressed — Tasks name production functions with adversarial strategies and independent mechanical guards; the prior correction remains satisfied.
+
+## Round 4 — 2026-10-20T00:50:55-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Named production functions, adversarial strategies and mechanical guards remain present; the governing revision adds counted lifetime-growth verification.
 
 ## Open findings
 
