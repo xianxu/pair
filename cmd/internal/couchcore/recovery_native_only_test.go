@@ -109,6 +109,21 @@ func TestRecoveryNativeOnlyPreviewUsesFixedSource(t *testing.T) {
 	}
 }
 
+func TestRecoveryNativeOnlyFreshDoesNotMislabelCaptureFileTime(t *testing.T) {
+	record, observed, now := recoveryPreviewFixture()
+	observed.Capture.LastActivity = now.Add(-time.Minute)
+	observed.Source = &threadrecord.NativeRecoverySource{Kind: sessioninventory.RecoverySourceNative, Cutoff: now, Revision: record.Revision}
+	observed.Screen = ScreenObservation{Availability: ScreenUnavailable, LastActivity: observed.Capture.LastActivity, ActivitySource: "capture-file activity"}
+	observed.Ranked[0].Score = sessioninventory.RecoveryTailScore{}
+	preview, err := DecideSlotRecovery(record, observed, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !preview.Fresh.LastActivity.IsZero() || !preview.Screen.LastActivity.Equal(observed.Capture.LastActivity) {
+		t.Fatalf("file time became Fresh conversation activity: %+v", preview)
+	}
+}
+
 func TestRecoveryNativeOnlySelectionCarriesCutoffAndPreservesNoScreen(t *testing.T) {
 	f := newRecoveryExecutionFixture(t)
 	f.observation.Capture = threadrecord.RecoveryCapture{}

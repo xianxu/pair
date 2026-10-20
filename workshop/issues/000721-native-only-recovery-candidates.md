@@ -65,7 +65,8 @@ Files: `launcher/{recovery_authority_os.go,recovery_authority.go}` and tests; `c
 
 - [x] Start on main after #714 lands; write durable plan from the transferred Spec and run normal change-code gates.
 - [x] Complete native-only codec/collector/selection/authority implementation and targeted verification from the durable plan.
-- [ ] Obtain hub qualification decision on the tested candidate; run recorded suite, close review and landing.
+- [x] Obtain hub qualification decision on the tested candidate.
+- [ ] Run the recorded full suite and record verification evidence before close.
 
 Durable design: [native-only recovery candidates plan](../plans/000721-native-only-recovery-candidates-plan.md). Hub approval and full-flow change-code passed. The durable plan uses one atomic issue-close boundary because preview and final launch authority must ship together.
 
@@ -87,6 +88,8 @@ Durable design: [native-only recovery candidates plan](../plans/000721-native-on
 - 2026-10-20: Final targeted six-package Recovery/ResumeCandidate run PASS, and renewed final race Recovery/Resume PASS: core 44.085s, launcher 7.289s, inventory 2.788s. Final artifactpath/testpair/repolint guard run PASS (10.667s/12.632s/11.294s). Restored mutation-control source and diff checks clean. Remaining: concrete hub qualification decision, pushed-head recorded suite, close review and landing.
 
 - 2026-10-20: Verified submitted hub receipt c1e6ca82-f486-49b4-a933-08d3ab6ae897 approves production-path regressions plus next natural recovery on candidate c0c70e0e3f3da050e1d1b7f13478f8a7b21f3632; no stage and no action on pair:6. Hub owns natural verification/smoke calibration. PR #479 opened: https://github.com/xianxu/pair/pull/479. Proceeding to recorded suite, close and merge as directed.
+
+- 2026-10-20: Final provenance audit found capture-file time also projected onto native-only Fresh activity. Regression failed, then Fresh activity was cleared for native-only previews while Screen retains its explicit source label. Cancelled this checkout’s in-flight suite on f861c992 via sdlc local-check cancel (no other checkout stopped); it records no result. Restarting on corrected code after targeted verification. Split the issue Plan’s self-referential close/landing row into qualification and pre-close verification; close/landing remain tracked in the durable plan.
 
 ## Revisions
 

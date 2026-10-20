@@ -109,6 +109,11 @@ func DecideSlotRecovery(record ThreadRecord, observation RecoveryObservation, no
 	// Always project Fresh. An empty key is deliberately not native-resume
 	// authority: the UI uses its existing confirmed fresh-start action instead.
 	p.Fresh = &RecoveryChoice{Label: "Start fresh", Agent: observation.Agent, LastActivity: observation.Capture.LastActivity}
+	if observation.Source != nil {
+		// Native alternatives have no producing capture. Its readable file time
+		// stays in Screen with its provenance instead of labelling Fresh activity.
+		p.Fresh.LastActivity = time.Time{}
+	}
 
 	if observation.Incomplete {
 		return p, nil
