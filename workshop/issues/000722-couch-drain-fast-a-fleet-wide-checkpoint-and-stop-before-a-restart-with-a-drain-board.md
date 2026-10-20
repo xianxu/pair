@@ -1,13 +1,13 @@
 ---
 id: 000722
-status: codecomplete
+status: working
 deps: []
 github_issue:
 created: 2026-10-19
 updated: 2026-10-20
 estimate_hours: 9.6185
 collaboration-mode: collaboration
-card_mirror: '49bc382cbe1824d6362ed2770bbee192da1e189e' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'e54bad0e5c0b64923d05e8de2ed7061e64cf1270' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-19T23:16:03-07:00
 claimant:
     operator: Xian Xu
@@ -35,7 +35,7 @@ ops `teams/devinfra/tl-status-xian-xu.side/2026-10-19-15-fleet-drain.md`.
 
 `couch --undrain [--message TEXT]` clears flags and sends the generic “drain lifted; continue your current work” plus the steward's optional note. No drain persistence, formal ack CLI, completion barrier, dispatch/lifecycle hold, automatic Esc, automatic queue pause/resume or automatic recovery. The steward drives SDLC pause/resume and judges restart readiness. Startup safe mode/restart-kind is #739; global park is #740.
 
-TL4160a300 conveys the operator-reviewed contract and explicitly keeps this work in #722 despite the side doc's earlier suggestion of a replacement issue. The matching latest durable-plan Revision is a proposal for operator review before code. #622's train remains first priority; this issue has not reopened or entered renewed change-code.
+TL831e9502 confirms operator approval of the re-scoped plan: exclude the issuing steward hub from flags and drain notices; other connected hubs remain selected. Edges 2–5 are approved as proposed. The issuing steward keeps driving under the separate tl-lead rule, ariadne#506. #622 has landed, freeing canonical pair:5 for the renewed change-code gate.
 
 ## Done when
 
@@ -49,7 +49,7 @@ TL4160a300 conveys the operator-reviewed contract and explicitly keeps this work
 
 ## Plan
 
-- [ ] Operator reviews the re-scoped durable-plan Revision through TL; then reopen and run renewed full-flow change-code from canonical pair:5 after #622's train completes.
+- [x] Operator approved the re-scoped Revision through TL831e9502, excluding the issuing steward; reopened through the setter in canonical pair:5 after #622 landed. Renewed change-code follows.
 - [ ] Remove the obsolete completion/persistence/control machinery; implement only transient flags, ordinary notices/status and undrain with tests.
 - [ ] Qualify message/lifecycle independence, restart emptiness, truthful idle observations and one compact badge through normal tests and the bounded disposable installed composition.
 - [ ] Run required verification and mandatory close review, then TL-scheduled watched live acceptance before ordinary landing.
