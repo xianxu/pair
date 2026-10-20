@@ -161,3 +161,18 @@ Image sources and tool downloads use pinned digests/checksums in the lock file. 
 ## Approval requested
 
 Approve the full-flow design, especially fixed lane ownership/leftover refusal, the explicit image refresh and machine installation, proposed 03:30 nightly time, and the phased acceptance. Required pre-landing conformance remains GitHub-backed until promotion. The initial issue covers the image/runner/nightly shell; genuine per-agent fleet coverage is not claimed without #744. ariadne#509 must land before supported resource-aware named-check acceptance; planning and M1 can proceed independently.
+
+## Revisions
+
+### 2026-10-20 14:26 — Hub approval; one scheduling mechanism
+
+Authenticated receipt 10faa55a-dfce-4057-8d28-9c2edf6912b7 approves the design with this governing change: **all launchd/cron trigger/installation references above are superseded**. The operator selected the shared Couch scheduler (#737), as tracked in ops's couch-scheduling project. This issue delivers the deterministic nightly command and a task-declaration handoff for `ops/scripts/scheduled/nightly-conformance/`; until #737 lands, the hub/operator triggers that same command by hand and records the nights. No private scheduling service or internal timer is installed. The machine/image refresh and installs are operator-approved, with a notice to the hub immediately before each such operation.
+
+M3's authoritative files and tasks replace its earlier trigger-specific steps:
+
+- Create `scripts/vm/nightly.sh` (deterministic run command) and `scripts/vm/scheduled-task.md` (ops task declaration/handoff: `30 3 * * *`, machine scope, timeout covering the bounded VM command, skip-if-missed; native Go task adapter calls this command). The scheduler owns executable declaration syntax; adapt the handoff to #737's landed schema before registration rather than inventing a second parser. Ops scheduled-task code follows ops's own worker/SDLC track; no direct code writes to its hub checkout.
+- Test the command through the stateful local-check seam: exact current-main selection, train lane, one run, no retries, visible retained failure, separate capped nightly artifacts, and no change to landing admission. Scheduler clock/due/skip/catch-up policy belongs to #737, so these are declaration fields, not another implementation in this command.
+- After landing, bootstrap the named check on main and hand the exact manual invocation, result path and declaration to the hub. The hub/operator runs it until #737 can register it. No scheduled invocation or machine scheduler installation is claimed as #743 acceptance.
+- Keep M1/M2 and the remaining M3 verification, operator local-gates label and landing steps unchanged. Required hosted PR conformance stays active; #745 owns promotion. Genuine agent cases wait for #744; neither #737 nor #744 is assumed implemented here.
+
+This revision also replaces the request for nightly-service installation approval: no service will be installed. Notify the hub before the already-approved image refresh/provisioning or host tool installation, then continue without asking again.
