@@ -113,6 +113,11 @@ func TestWrapJoinsWatcherBeforeReturning(t *testing.T) {
 				}
 				var err error
 				watcher, err = realStartWatcherProcess(argv, env, append(files, reader)...)
+				if err == nil && mode == "already-exited" {
+					waitDetachCondition(t, "watcher exit before wrapper continues", func() bool {
+						return !groupHasLiveMember(watcher.cmd.Process.Pid)
+					})
+				}
 				return watcher, err
 			}
 			var stderr bytes.Buffer
