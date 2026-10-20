@@ -2293,6 +2293,21 @@ that are never a plain step, each with its reason: `ctrl-c` (use `couch
 the aliases `ctrl-i`, `ctrl-m` and `ctrl-u`. The aliases are refused because a
 second name for the same byte would split the admission rules.
 
+`couch --interrupt repo:N --confirm` (pair#717) is the third drive request
+shape, beside keys and model (`Request.Interrupt`). It is never a key step, so
+no sequence can carry Ctrl+C by accident. Each shape defines its admitting proof
+once (`Request.shapeProof`), and start admission (`Admits`), the pre-write
+recheck (`WriteAdmits`) and the turn gate (`DriveState.TurnTolerant`) all derive
+from it. The interrupt's proof is `Interruptible`: a working turn, a complete
+frame, no picker, and the wrapper owning input. It may take a residual
+automatic-input wait, as recovery does, but never an active owner. `Admits`
+checks the interrupt first and exclusively, so an idle agent never gets
+Ctrl+C. The drive writes one internal `interrupt` key (`\x03`) and is done
+when the turn ends. It is unconfirmed at the deadline and never resent. A second
+interrupt refuses because no turn is working. `couchmessage.IsDriveOp` names
+the three drive ops wherever the protocol, service, CLI and console dispatch
+them.
+
 `couchmessage/drive_endpoint.go` provides `drive-observe`, `drive-start`,
 `drive-status` and idempotent `drive-cancel` over the existing authenticated
 endpoint. The RPC handler admits a bounded job; it never writes the PTY.

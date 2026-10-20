@@ -74,3 +74,25 @@ func TestSkillKeyStepsMatchTheTable(t *testing.T) {
 		t.Fatalf("skill limits disagree with the constants; want %q", limits)
 	}
 }
+
+func TestInterruptCLIRequiresConfirmAndKeysRefuseCtrlC(t *testing.T) {
+	inv, err := ParseCLI([]string{"--interrupt", "pair:7", "--confirm"}, nil)
+	if err != nil || inv.messageOp != "interrupt" || inv.drive == nil || !inv.drive.Interrupt || !inv.confirmed {
+		t.Fatalf("interrupt parse %+v %v", inv, err)
+	}
+	if _, err := ParseCLI([]string{"--interrupt", "pair:7"}, nil); err == nil || !strings.Contains(err.Error(), "--confirm") {
+		t.Fatalf("interrupt without confirm: %v", err)
+	}
+	if _, err := ParseCLI([]string{"--interrupt", "pair:7", "--confirm", "esc"}, nil); err == nil {
+		t.Fatal("interrupt took a key step")
+	}
+	_, err = ParseCLI([]string{"--keys", "pair:7", "ctrl-c"}, nil)
+	if err == nil || !strings.Contains(err.Error(), "couch --interrupt") {
+		t.Fatalf("keys ctrl-c: %v", err)
+	}
+	var out bytes.Buffer
+	usage(&out)
+	if !strings.Contains(out.String(), "couch --interrupt repo:N --confirm") {
+		t.Fatal("couch --help omits --interrupt")
+	}
+}

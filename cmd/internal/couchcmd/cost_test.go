@@ -84,7 +84,7 @@ func assertCosts(t *testing.T, surface string, got map[string]verbCost) {
 // Every verb in --help and in the skill carries the tag the table records,
 // so an agent reading either one learns the same cost (pair#490).
 func TestHelpAndSkillCarryEveryVerbCost(t *testing.T) {
-	for _, verb := range []string{"--keys", "--set-model"} {
+	for _, verb := range []string{"--keys", "--set-model", "--interrupt"} {
 		if verbCosts[verb] != costSeconds {
 			t.Errorf("%s must be seconds cost for bounded input/control observation", verb)
 		}

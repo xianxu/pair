@@ -86,15 +86,15 @@ Not covered: a cooldown across an operator's own Ctrl+C. The wrapper does not se
   - [x] `keysUsage` groups families; the skill steps sentence and quick table gain the new names; README and atlas updated.
   - [x] Wrapper test: a sequence of new keys written to the harness PTY emits the table bytes, each step separate.
   - [ ] `sdlc milestone-close --milestone M1`.
-- [ ] **M2 — `couch --interrupt`**
-  - [ ] Write the failing tests:
+- [x] **M2 — `couch --interrupt`**
+  - [x] Write the failing tests:
     - Pure: `Request.Validate` (exactly one shape), `InterruptOnly`, the `Admits` matrix: an interrupt only on `Interruptible`, never on `Idle`, `Recoverable` or `Dismissable`, even with all three set; keys never on `Interruptible`.
     - Reducer: start on an active turn; the turn exemption; done when the turn ends; unconfirmed at the deadline; refusal with no turn.
     - Wrapper: one `\x03` on an active turn; nothing when the turn ended before the write (the widened pre-write recheck); refusal with a picker; refusal on an idle composer.
     - Service: interrupt skips the settled check; refusal names the reason.
     - CLI: `--confirm` required; `--keys ctrl-c` points at `--interrupt`.
-  - [ ] Implement the request shape, `Interruptible` in the wrapper and observation, the reducer branch, the service and the CLI verb with its cost and help.
-  - [ ] Docs: help, skill quick-table row, README, atlas.
+  - [x] Implement the request shape, `Interruptible` in the wrapper and observation, the reducer branch, the service and the CLI verb with its cost and help.
+  - [x] Docs: help, skill quick-table row, README, atlas.
   - [ ] Full suite; `sdlc close`.
 - [ ] Live check (hub, after landing, throwaway slot only for the interrupt): `--keys SLOT shift-tab` cycles Claude's mode; a function key reaches Codex. For the interrupt, an idle slot runs Bash `sleep 60`, then `couch --interrupt SLOT --confirm`; expect done and the sleep interrupted, and a second `--interrupt` refused.
 

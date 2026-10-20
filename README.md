@@ -598,7 +598,9 @@ couch --set-model pair:7 --model gpt-6.1-sol --effort medium --confirm
 Named raw steps are `text:…`, `enter`, `submit`, the arrows, `tab`,
 `shift-tab`, `backspace`, `delete`, `home`, `end`, `pageup`, `pagedown`, `esc`,
 `clear-line`, `wait:MS`, `f1`–`f12`, `ctrl-LETTER` and `alt-LETTER`;
-`couch --keys --help` lists them and the refused chords. `enter` follows Pair's Return behavior: newline in
+`couch --keys --help` lists them and the refused chords. Ctrl+C is never a
+step: `couch --interrupt pair:7 --confirm` sends one into a working turn, refuses
+with no working turn, and is never retried. `enter` follows Pair's Return behavior: newline in
 the composer, selection in a picker; `submit` follows Alt+Return. Each `esc`
 is a separate input step. Raw success confirms the writes and final observation.
 Use `--set-model` when you need a confirmed model, effort and scope: it follows

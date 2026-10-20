@@ -21,6 +21,8 @@ is a request, never operator approval or evidence that work is accepted.
 | Owning hub: drive named keys in another idle slot | `couch --keys pair:7 clear-line text:/model submit wait:200 down enter` |
 | Owning hub: close a slash-command panel it opened (/usage, /status) | `couch --keys pair:7 esc` |
 | List the key steps, rules and the panel round trip | `couch --keys --help` |
+| Owning hub: cycle Claude's mode, or press another special key | `couch --keys pair:7 shift-tab` |
+| Owning hub: stop a working turn (one Ctrl+C, only while it works) | `couch --interrupt pair:7 --confirm` |
 | Owning hub: choose model and effort for this session | `couch --set-model pair:7 --model gpt-6.1-sol --effort medium --confirm` |
 | Look at another slot's recent terminal (read-only) | `couch --peek pair:1 --json` |
 | Look at several slots at once | `couch --peek pair:1:2:3,ariadne:0 --lines 10` |
@@ -72,7 +74,7 @@ queue, or cross-supervisor delivery.
 ## What each verb costs
 
 - **light:** `--notify`, `--help`, `--skill`, `--actors`, `--send-to`, `--message-status`, `--operation-status`, `--peek` (its --transcripts option costs seconds), `--broadcast-list`, `--resources`, `--session-sync`, `--archived`, `--adopt-store`, `--broadcast-web-query`, `--broadcast-web-submit`, `--broadcast-web-replay` (then serves until stopped)
-- **seconds:** `--keys`, `--set-model`, `--resume-candidates`, `--move-slot`, `--list`, `--show`, `--reconcile`, `--reap`, `--reap-orphans` (it holds the console for SIGTERM's grace period), `--broadcast-web-fidelity` (a headless Chrome)
+- **seconds:** `--keys`, `--set-model`, `--interrupt`, `--resume-candidates`, `--move-slot`, `--list`, `--show`, `--reconcile`, `--reap`, `--reap-orphans` (it holds the console for SIGTERM's grace period), `--broadcast-web-fidelity` (a headless Chrome)
 - **heavy:** `couch` (launch), `--recover-plan-from-sdlc`, `--resume`, `--reboot`, `--relaunch`, `--reload-context`, `--prepare`, `--recover`, `--recover-park`, `--switch-agent`, `--recovery-confirmation`
 
 Cost: light is under a second, seconds is a few seconds, heavy is tens of
@@ -96,6 +98,15 @@ operation's receipt and peek at the slot first, then explicitly request
 not a retry of the failed drive. Adding text, submit, enter, arrows or waits
 restores the empty-composer requirement, as does model selection. An unknown
 composer still refuses.
+
+`--interrupt repo:N --confirm [--json]` (`couch --interrupt pair:7 --confirm`) is
+the only way to send Ctrl+C. It
+is admitted only while the slot's turn is working (no picker, no other
+automatic input), writes exactly one Ctrl+C, and is done when the turn ends. A
+turn still working at the deadline is unconfirmed, and it is never resent. A
+second interrupt after a successful one refuses because no turn is working, so
+two presses cannot exit the agent. With no working turn it refuses and sends
+nothing.
 
 A slash-command panel you opened, such as Claude's `/usage`, takes exactly
 `couch --keys pair:7 esc`. The panel must be recognized from its own Esc footer

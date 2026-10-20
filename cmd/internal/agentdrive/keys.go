@@ -12,16 +12,19 @@ import (
 type KeyKind string
 
 const (
-	KeyText           KeyKind = "text"
-	KeyEnter          KeyKind = "enter"
-	KeySubmit         KeyKind = "submit"
-	KeyUp             KeyKind = "up"
-	KeyDown           KeyKind = "down"
-	KeyEsc            KeyKind = "esc"
-	KeyClearLine      KeyKind = "clear-line"
-	KeyWait           KeyKind = "wait"
-	KeyLeft           KeyKind = "left"
-	KeyRight          KeyKind = "right"
+	KeyText      KeyKind = "text"
+	KeyEnter     KeyKind = "enter"
+	KeySubmit    KeyKind = "submit"
+	KeyUp        KeyKind = "up"
+	KeyDown      KeyKind = "down"
+	KeyEsc       KeyKind = "esc"
+	KeyClearLine KeyKind = "clear-line"
+	KeyWait      KeyKind = "wait"
+	KeyLeft      KeyKind = "left"
+	KeyRight     KeyKind = "right"
+	// KeyInterrupt is the interrupt shape's internal Ctrl+C. It is not a
+	// Steps row, so Validate refuses it inside any caller sequence.
+	KeyInterrupt      KeyKind = "interrupt"
 	MaxKeySteps               = 64
 	MaxKeyTextBytes           = 8 * 1024
 	MaxKeyWaitMS              = 1000
@@ -215,8 +218,11 @@ func (s KeySequence) Validate() error {
 // a standalone ESC before a subsequent Return; waits have no input bytes.
 // The complete sequence must pass Validate before the first step is executed.
 func (k KeyStep) InputBytes() []byte {
-	if k.Kind == KeyText {
+	switch k.Kind {
+	case KeyText:
 		return []byte(k.Text)
+	case KeyInterrupt:
+		return []byte{'\x03'}
 	}
 	if step, ok := stepDoc(k.Kind); ok && step.Bytes != "" {
 		return []byte(step.Bytes)

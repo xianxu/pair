@@ -51,15 +51,31 @@ func (r ModelRequest) Validate() error {
 	return nil
 }
 
+// Request carries exactly one shape: a key sequence, a model selection, or an
+// interrupt. The interrupt is its own shape, never a key step, so no sequence
+// can carry one by accident (pair#717).
 type Request struct {
-	Keys  KeySequence   `json:",omitempty"`
-	Model *ModelRequest `json:",omitempty"`
+	Keys      KeySequence   `json:",omitempty"`
+	Model     *ModelRequest `json:",omitempty"`
+	Interrupt bool          `json:",omitempty"`
+}
+
+// InterruptOnly is the interrupt shape: one Ctrl+C into a working turn.
+func (r Request) InterruptOnly() bool { return r.Validate() == nil && r.Interrupt }
+
+// rawSteps is what the raw reducer writes: the caller's keys, or the one
+// internal Ctrl+C of an interrupt.
+func (r Request) rawSteps() KeySequence {
+	if r.Interrupt {
+		return KeySequence{{Kind: KeyInterrupt}}
+	}
+	return r.Keys
 }
 
 // RecoveryOnly grants only a bounded user-requested ESC/clear-line sequence
 // access to a positively recognized occupied composer.
 func (r Request) RecoveryOnly() bool {
-	if r.Validate() != nil || r.Model != nil {
+	if r.Validate() != nil || r.Model != nil || r.Interrupt {
 		return false
 	}
 	for _, key := range r.Keys {
@@ -77,14 +93,47 @@ func (r Request) DismissOnly() bool {
 }
 
 // Admission is the wrapper's positive evidence about the current viewport.
-type Admission struct{ Idle, Recoverable, Dismissable bool }
+// Interruptible is the opposite of Idle: a working turn the wrapper may stop.
+type Admission struct{ Idle, Recoverable, Dismissable, Interruptible bool }
+
+// shapeProof is each request shape's own admitting proof, defined once. Start
+// admission, the pre-write recheck and (through DriveState.TurnTolerant) the
+// turn gate all derive from it (pair#717).
+func (r Request) shapeProof(a Admission) bool {
+	switch {
+	case r.InterruptOnly():
+		return a.Interruptible
+	case r.DismissOnly():
+		return a.Recoverable || a.Dismissable
+	case r.RecoveryOnly():
+		return a.Recoverable
+	}
+	return false
+}
 
 // Admits is the single admission rule. The Couch service, its pre-input
 // guard, the wrapper and the reducer all call it, so no layer can admit a
-// request another refuses (ARCH-DRY).
+// request another refuses (ARCH-DRY). An interrupt is checked first and
+// exclusively: an idle agent is never sent Ctrl+C.
 func (r Request) Admits(a Admission) bool {
-	return a.Idle || r.RecoveryOnly() && a.Recoverable || r.DismissOnly() && a.Dismissable
+	if r.InterruptOnly() {
+		return r.shapeProof(a)
+	}
+	return a.Idle || r.shapeProof(a)
 }
+
+// WriteAdmits is the pre-write recheck. Recovery and interrupt shapes ride on
+// their proof for every write they make; generic keys are admitted once at
+// start and a model drive checks each picker effect's own proof.
+func (r Request) WriteAdmits(a Admission) bool {
+	if r.InterruptOnly() || r.RecoveryOnly() {
+		return r.shapeProof(a)
+	}
+	return true
+}
+
+// InterruptRefusal is the refusal for an interrupt with no proven working turn.
+const InterruptRefusal = "no working turn to interrupt (or a picker or other automatic input holds the slot); nothing was sent"
 
 // PanelRefusal is the refusal for any other request while a recognized panel
 // shows: it names the one key that is admitted.
@@ -93,6 +142,9 @@ const PanelRefusal = "a slash-command panel is open; only a lone esc is admitted
 // Refusal explains why r was refused: the panel hint when a panel shows and r
 // is not already the lone esc, otherwise the caller's own wording.
 func (r Request) Refusal(a Admission, otherwise string) string {
+	if r.InterruptOnly() {
+		return InterruptRefusal
+	}
 	if a.Dismissable && !a.Idle && !a.Recoverable && !r.DismissOnly() {
 		return PanelRefusal
 	}
@@ -100,8 +152,17 @@ func (r Request) Refusal(a Admission, otherwise string) string {
 }
 
 func (r Request) Validate() error {
-	if (len(r.Keys) == 0) == (r.Model == nil) {
-		return errors.New("drive requires exactly one key sequence or model request")
+	shapes := 0
+	for _, present := range []bool{len(r.Keys) > 0, r.Model != nil, r.Interrupt} {
+		if present {
+			shapes++
+		}
+	}
+	if shapes != 1 {
+		return errors.New("drive requires exactly one key sequence, model request or interrupt")
+	}
+	if r.Interrupt {
+		return nil
 	}
 	if r.Model != nil {
 		return r.Model.Validate()

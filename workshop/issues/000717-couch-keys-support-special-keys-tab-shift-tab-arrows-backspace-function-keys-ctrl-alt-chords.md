@@ -72,6 +72,8 @@ total: 1.24
 
 ## Log
 
+- 2026-10-20 (pair:2): M2 implemented. Mutations, each red: interrupt not exclusive in Admits (agentdrive); Interruptible ignoring the turn (wrapcmd); any fresh frame confirming (agentdrive, wrapcmd); the service keeping the settled check (couchcmd); the residual lease refused (wrapcmd); the interrupt not turn tolerant (agentdrive, wrapcmd). "Turn ended before the write" is caught by the writer's start recheck: admission and the write share one dispatch and one screen, so `WriteAdmits` for the interrupt is a second line, as with #691's dismissal. M1 advisories folded in: the skill quick table gains shift-tab and interrupt rows, and `couch --interrupt` now exists. The string-literal Steps kinds stay as they are (cosmetic; the table is the source).
+
 
 - 2026-10-20: closed M1 — agentdrive TestStepBytes (every named key bytes), TestRefusedStepsStateTheirReason, TestUnknownStepListsTheNames, TestRecipeDirectionsAreCallerArrows, TestStepsTableIsTheParsersAcceptedSet; couchcmd TestKeysHelpIsTheVerbsOwnHelp (families once, refused chords with reasons), TestSkillKeyStepsMatchTheTable; wrapcmd TestAgentDriveSpecialKeysReachTheAgentAsTableBytes (every new key through the real writer and Pair input translation; a writer-path mutation goes red). Targeted packages green.; review verdict: SHIP
 - Edges: `~ pair#716` (keys help; one shared table) and `~ pair#691` (esc on an open panel). Land after #691 or
