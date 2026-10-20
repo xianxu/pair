@@ -2431,3 +2431,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #711 BR-1/BR-3: Current connectivity is not the registration lifetime that began an admission. Capture the owner actor under the initial lock and retain that exact resource through routing IO, successful reservation, and release-to-queue fallback. Test same-binding sender reconnect at every yield boundary as well as recipient replacement; keep all refusal paths side/phase labeled.
 - #711 BR-2: Preserve validated values through the final consumer, not only validated keys. Passing exact names onward while reparsing state with Fields/Contains revives ambiguity; runtime/display builders consume the same validated state map. Cover live EXITED-containing names and exited whitespace/tab names, including zero client queries for exited rows.
+
+- #730 BR-1: When changing a terminal visual cue, sweep both README and atlas for the old style description. Adjacent surfaces may intentionally keep different styles; state each explicitly rather than updating only the architecture map.
