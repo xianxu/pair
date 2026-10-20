@@ -341,9 +341,11 @@ grep -Fq '"move-focus", "right"' "$ROOT/cmd/internal/wrapcmd/wrap.go" \
   && pass "right terminal split leaves borderless to the layout, not the call site" \
   || { printf 'FAIL right terminal split passes --borderless; the layout already declares it at all nine rungs\n'; fail=1; }
 
-grep -Fq "$layout_terminal_shell" "$ROOT/cmd/internal/termcmd/run.go" \
-  && pass "right terminal split command matches layout3 terminal command" \
-  || { printf 'FAIL right terminal split command drifted from layout3 terminal command\n'; fail=1; }
+grep -Fq "$layout_terminal_shell" "$ROOT/cmd/internal/workbenchshortcut/terminal_command.go" \
+  && grep -Fq 'const rightTerminalPaneShell = workbenchshortcut.RightTerminalPaneShell' "$ROOT/cmd/internal/termcmd/run.go" \
+  && grep -Fq 'workbenchshortcut.RightTerminalPaneShell' "$ROOT/cmd/internal/layoutcmd/layoutcmd.go" \
+  && pass "split and recovery share the layout3 terminal command" \
+  || { printf 'FAIL shared right terminal command or its consumers drifted from layout3\n'; fail=1; }
 
 grep -Fq 'support_kitty_keyboard_protocol true' "$ROOT/zellij/config.kdl" \
   && pass "Zellij explicitly enables Kitty keyboard protocol" \

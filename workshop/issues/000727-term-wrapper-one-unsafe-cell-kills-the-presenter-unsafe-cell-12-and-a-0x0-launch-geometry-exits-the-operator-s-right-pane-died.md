@@ -256,3 +256,18 @@ Final complete race packages after fixes passed: termcmd 6.892s, layoutcmd 7.490
 zellijtest 8.095s. The initial new-code package run caught the missing native-only
 fixture classification and a mismatched godoc declaration name; both corrected
 without weakening their sentinels. The recorded suite will run on this fix commit.
+
+### 2026-10-20 — deterministic recorded-suite sentinel failure
+
+Corrected production head 97c32eaad2245af63532d100ac67e53283b268eb completed the
+recorded suite's first 3m13s after 666s queue wait, then failed the source sentinel
+in tests/term-pane-shortcuts-test.sh: 'right terminal split command drifted from
+layout3 terminal command'. All behavioral shortcut assertions passed. The old
+sentinel searched run.go for a literal that now belongs to the shared
+workbenchshortcut constant; run.go intentionally aliases it. Updated the sentinel
+to compare the layout literal at its shared source and require both split and
+recovery consumers to use that source. The actual command equality assertion is
+retained. This is a deterministic branch fixture defect, not a flake; no same-head
+retry or passing status on the failed head is requested. Retained failure log:
+/Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/649f032a85eeef174f700eda5f2a9264.log.
+The corrected full suite must run on a new commit, followed by narrow fix review.

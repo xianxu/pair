@@ -2438,3 +2438,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #727 BR-1: A correct recovery reducer cannot classify a failure the IO shell discarded. Carry every producer's terminal outcome to its owner, and exercise decoder failure, unexpected read error, EOF/cancellation and disconnection through the production recovery path.
 - #727 BR-2/BR-3: Native creation defaults are part of the shortcut contract. A focus-preserving create operation must request no-focus explicitly and qualify actual client focus with a disposable native session; argv equality in a fake is insufficient.
+
+- #727 suite: When moving a shared command literal, search source-based shell sentinels as well as Go consumers. Keep behavioral byte equality and point structural checks at the new authority plus its consumers; an old-file substring assertion can fail a valid deduplication that package tests already prove.
