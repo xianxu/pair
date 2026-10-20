@@ -58,3 +58,28 @@ func TestScratchEnvironmentReachesFreshAndWarmLaunches(t *testing.T) {
 		})
 	}
 }
+
+func TestShowProjectsScratchWithoutPreparingEnvironment(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	record := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude"})
+	calls := 0
+	env.Couch.SlotEnvironment = func(context.Context, ThreadRecord) []string {
+		t.Fatal("show prepared scratch")
+		return nil
+	}
+	env.Couch.ScratchDiagnostic = func(_ context.Context, got ThreadRecord) string {
+		calls++
+		if got.Address != record.Address {
+			t.Fatal("wrong scratch identity")
+		}
+		return "scratch: normal temp (setup declaration required: /fixture/sandbox-allowed)"
+	}
+	result, err := dispatchTestOperation(env.Couch, "show", map[string]string{"ref": string(record.Address.Tag), "repo-scope": record.Address.RepoScope})
+	if err != nil {
+		t.Fatal(err)
+	}
+	show := result.(ShowResult)
+	if calls != 1 || len(show.Scratch) != 1 || !strings.Contains(show.Scratch[0], "sandbox-allowed") {
+		t.Fatalf("calls=%d result=%+v", calls, show)
+	}
+}

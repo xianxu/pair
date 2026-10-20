@@ -2414,3 +2414,7 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #721 BR-1: Freeze the exact selected snapshot before leaving acquisition; rebuilding from aliased observations can silently accept a changed candidate. Revalidate exact selected artifacts at effect admission, not only after a claim. Mutate through retirement/nonce hooks and test nil verifier and expiry during IO.
 - #721 BR-2/BR-3: Shared IO budgets charge only stages that can run. Preflight using the replay owner’s actual raw/event caps before reserving bytes; a rejected witness must not reserve unread raw data. Observe descriptive file activity independently of companion-file and retained-identity authority, and test early failures as well as late ones.
 - #721 BR-4: A user-visible command change updates both root README reference and usage passages alongside atlas. Search all command mentions before close.
+
+- #720 BR-1/BR-2: Do not grow an optional host feature into a native settings resolver. When permission fidelity needs repeated fixes, prefer an explicit persistent operator declaration and name its false-declaration limitation. A host write probe cannot prove sandbox access. Keep opt-in filenames outside reserved artifact families instead of weakening path-use guards.
+
+- #720 BR-3: A diagnostic added to a show command must cover its valid non-thread targets too. Test a slot with no thread through dispatch; iterating matched threads alone silently omits machine-wide selection information.
