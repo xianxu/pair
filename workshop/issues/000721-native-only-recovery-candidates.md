@@ -16,6 +16,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "1b4683c1", done: "1fe1ac55"}
 ---
 
 # Offer unconfirmed native recovery candidates without a usable screen
