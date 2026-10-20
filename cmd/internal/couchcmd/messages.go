@@ -23,7 +23,7 @@ func runMessageCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer) int 
 }
 
 func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, call messageCall) int {
-	if inv.messageOp == "keys" || inv.messageOp == "set-model" {
+	if couchmessage.IsDriveOp(inv.messageOp) {
 		return runAgentDriveCLI(inv, rt, stdout, stderr, call)
 	}
 	if inv.messageOp == "resources" {
@@ -109,12 +109,12 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 	}
 	// Older supervisors use the recipient error for missing callers too.
 	// Actors/status can only have a missing caller; send may lack either end.
-	// This is registration evidence, not evidence of a protocol version mismatch.
+	// A generic unavailable reply does not prove registration loss or justify a restart.
 	if result.Code == "unavailable" && result.Error == couchmessage.ErrUnavailable.Error() {
 		if r.Op == "send" {
-			result.Error = "Couch cannot find a live caller or recipient registration; if the slots are running, restart Couch to reconnect them"
+			result.Error = "Couch could not verify caller or recipient availability; inspect couch --actors and report a persistent refusal"
 		} else {
-			result.Error = "this slot is not registered with Couch; restart Couch to reconnect running slots"
+			result.Error = "Couch could not verify this caller; inspect couch --actors and report a persistent refusal"
 		}
 	}
 	success := result.Code == "ok" || result.Code == "accepted" || result.Code == "not-dispatched"

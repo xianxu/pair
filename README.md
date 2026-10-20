@@ -427,7 +427,7 @@ bug must not break your ability to fix it, and launching pair directly always
 still works. See [atlas/couch.md](atlas/couch.md).
 
 When `/Volumes/TestScratch` is mounted with at least 2 GiB free, new Couch slots
-use private RAM directories for TMPDIR, GOTMPDIR and CLAUDE_CODE_TMPDIR. Existing
+🤖{whose operator has declared sandbox setup with the persistent XDG pair/sandbox-allowed marker }use private RAM directories for TMPDIR, GOTMPDIR and CLAUDE_CODE_TMPDIR. Existing
 panes need relaunch; unavailable scratch keeps inherited temp settings. Ordinary
 temp entries untouched for 24 hours may be removed at startup/hourly; special
 files and trees containing them are kept. Native socket discovery stays fixed.
@@ -527,11 +527,11 @@ couch --session-sync register FILE --owner SLOT [--json]
 couch --session-sync lookup FILE | list | forget FILE | rename OLD NEW [--json]
                          discover bindings or update metadata after a filesystem move; see atlas/couch-agentic-documents.md
 couch --recover-plan-from-sdlc   per-slot recovery report (JSON), see below
-couch --resume repo:N [--json]   from a live slot: Continue if listed live, otherwise resume a proven conversation
+couch --resume repo:N [--json]   from a live slot: Continue if listed live, otherwise resume an established native binding
 couch --resume-candidates repo:N [--json]
-                         list the best choice and up to four alternatives with activity and tty-tail evidence; automatic choice is off
+                         preview explicit choices: screen-tail evidence or unconfirmed native ID, cwd and activity; no automatic selection
 couch --resume repo:N --candidate KEY [--json]
-                         choose an inferred conversation explicitly; stale evidence refuses
+                         select exact observed evidence; native-only keys expire after five minutes, so refresh expired or changed evidence
 couch --reboot repo:N --confirm [--json]
                          request Start fresh on the current binary; attributed running processes require an exact stop-set offer
 couch --recovery-confirmation TOKEN [--json]
@@ -587,15 +587,20 @@ requests and model selection still require an empty composer. A
 slash-command panel the hub opened, such as Claude's `/usage`, admits exactly
 `couch --keys pair:7 esc` when its Esc footer is recognized on the current
 screen. Every other key refuses while it shows, and success means an empty
-composer came back.
+composer came back. `couch --keys --help` lists the steps, the limits, these
+rules and that round trip.
 
 ```sh
 couch --keys pair:7 clear-line text:/model submit wait:200 down enter
 couch --set-model pair:7 --model gpt-6.1-sol --effort medium --confirm
 ```
 
-Named raw steps are `text:…`, `enter`, `submit`, `up`, `down`, `esc`,
-`clear-line` and `wait:MS`. `enter` follows Pair's Return behavior: newline in
+Named raw steps are `text:…`, `enter`, `submit`, the arrows, `tab`,
+`shift-tab`, `backspace`, `delete`, `home`, `end`, `pageup`, `pagedown`, `esc`,
+`clear-line`, `wait:MS`, `f1`–`f12`, `ctrl-LETTER` and `alt-LETTER`;
+`couch --keys --help` lists them and the refused chords. Ctrl+C is never a
+step: `couch --interrupt pair:7 --confirm` sends one into a working turn, refuses
+with no working turn, and is never retried. `enter` follows Pair's Return behavior: newline in
 the composer, selection in a picker; `submit` follows Alt+Return. Each `esc`
 is a separate input step. Raw success confirms the writes and final observation.
 Use `--set-model` when you need a confirmed model, effort and scope: it follows
@@ -618,10 +623,19 @@ race: if their server dies between the listing and attach, Zellij can resurrect
 the saved layout.
 
 For a slot whose state needs recovery, **Relaunch** opens a read-only candidate
-preview with transcript and terminal evidence. Selection is explicit; Couch
-does not automatically choose an inferred conversation. Native resume requires
-its old owners to be absent or safely retired through the exact confirmation
-below; unproved ownership still blocks that native launch.
+preview. Capture-backed choices show measured screen-tail matching. When the
+screen cannot support inference, native-only choices show **unconfirmed**, the
+physical cwd, semantic native activity and native ID, with no tail percentage.
+Screen availability and capture-file activity are separate from native-scan
+completeness; an unavailable screen does not make a complete native scan partial.
+Selection is explicit and does not establish a transcript binding. Native-only
+keys expire after five minutes; refresh the preview after expiry or changed
+evidence. Plain `couch --resume repo:N` attaches to a listed live session or uses
+an established native binding. See the [Couch atlas](atlas/couch.md) for the
+evidence and validation details.
+
+Native resume requires its old owners to be absent or safely retired through
+the exact confirmation below; unproved ownership still blocks that native launch.
 **Start fresh** remains offered when the old TTY capture or transcript scan is
 missing, expired, incomplete or unsupported. The choice still checks supported
 records, launch settings and workspace identity before launching; an offer is
@@ -1758,10 +1772,11 @@ so a parked `:0` offers it too; a `:0` whose checkout is gone does not.
 
 **Resume** attaches to a surviving listed session without requiring a native
 transcript binding or saved agent launch settings. Starting a stopped agent
-instead requires eligible conversation evidence and launch settings. Recovery
-previews list supported candidates with evidence; the operator or hub chooses
-one explicitly. A possibly running old owner prevents native resume until it
-has been safely retired. A shared admission check prevents two Pair slots from
+instead requires launch settings and an established native binding for plain
+resume, or an explicitly selected recovery candidate. Recovery previews show
+capture-backed matching or unconfirmed native-only evidence; the operator or
+hub chooses one explicitly. A possibly running old owner prevents native resume
+until it has been safely retired. A shared admission check prevents two Pair slots from
 starting the same native conversation at once, including launches outside Couch.
 An uncertain start retains ownership; missing readiness alone never proves the
 conversation is free. Claude and Qoder latest selectors resolve uniquely before launch. Codex indirect
@@ -1984,6 +1999,12 @@ SDLC reviews use the pinned commit’s `.sdlc/review-prepare.json` (version 1,
 the ignored runtime embed assets in a disposable checkout before tests run.
 Preparation leaves tracked sources unchanged. See the [runtime bundle map](atlas/go-migration-inventory.md).
 
+Pair's landing-train pilot is configured in `.sdlc/landing.json` with
+`train_interval_minutes: 60`, retaining the existing default car limit. `sdlc merge` reads the setting from main; inspect the landing line and recent trains
+with `sdlc landing status`. Configuration changes require the operator's
+`local-gates-verified` label. The TL owns the first multi-car conformance check;
+see the [pilot map](atlas/index.md#see-also).
+
 When `pair` runs and there's anything to pick — a detached Pair session owned by this repo **or** a tag from this repo used within the last 14 days — it shows an `fzf` picker. Detached rows come first, then historical rows annotated `(Nd ago, no live session)`, then a `+ new <agent> session` sentinel. A historical row whose session has prompts parked in its queue also carries an amber `[⏎ N queued]` badge, so you don't resume a session without remembering the work you queued up in it. Picking a historical row reuses the repo-local tag and any surviving draft / saved agent config (same path as `pair resume <tag>`). Override the 14-day window with `PAIR_HISTORY_DAYS`; `PAIR_DEBUG_HISTORY=1 pair` prints the scan and exits without launching.
 
 When an agent is explicit and no `--` separator was typed, for example
@@ -2133,8 +2154,10 @@ Couch also raises a desktop alert and tells the hub if its input guard
 unexpectedly stalls an otherwise idle slot for 30 seconds. Inspect the named
 slot; the alert says whether delivery recovered or remains blocked.
 After rebuilding, restart Couch to use a newly added command. Existing messaging
-commands remain compatible; if running slots report missing messaging
-registrations, restart Couch to reconnect them.
+commands remain compatible. A refused send names the failing caller/recipient
+phase; inspect `couch --actors` and tell the hub if it persists. A generic
+unavailable reply alone is not evidence that Couch needs restarting. Accepted
+queued messages keep their receipts; inspect uncertain sends before resending.
 
 Agent hooks can send the same signal explicitly with `pair notify "message"`
 or the compatibility name `pair-notify "message"`. Legacy `--osc 9` and

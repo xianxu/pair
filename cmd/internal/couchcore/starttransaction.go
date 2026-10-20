@@ -27,6 +27,7 @@ type StartEventKind string
 const (
 	StartSessionBound     StartEventKind = "session-bound"
 	StartClaimed          StartEventKind = "claimed"
+	StartFailedConfirmed  StartEventKind = "failed-confirmed"
 	StartRecoveryFenced   StartEventKind = "recovery-fenced"
 	StartHelperRecorded   StartEventKind = "helper-recorded"
 	StartRegistered       StartEventKind = "registered"
@@ -100,6 +101,16 @@ func AdvanceStartTransaction(record ThreadRecord, event StartEvent) (ThreadRecor
 			}
 			next.Transcript = threadrecord.CloneTranscriptBinding(event.Transcript)
 		}
+	case StartFailedConfirmed:
+		incarnation, err := exactStartIncarnation(&next, event.Nonce)
+		if err != nil {
+			return ThreadRecord{}, err
+		}
+		if len(next.Incarnations) != 1 || incarnation.PID <= 0 || incarnation.Identity == "" || incarnation.Start.RecoveryIntent == nil {
+			return ThreadRecord{}, errors.New("confirmed recovery failure requires one recorded recovery helper")
+		}
+		retainStartRecoveryContext(&next, incarnation.Start)
+		next.Incarnations = nil
 	case StartRecoveryFenced:
 		if len(next.Incarnations) != 1 {
 			return ThreadRecord{}, errors.New("recovery fence requires one exact start")

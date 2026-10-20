@@ -31,7 +31,14 @@ func ValidateRecoveryRecord(a RecoveryAuthority, r threadrecord.Record, scope Re
 	}
 	if a.Intent.Kind() == threadrecord.RecoveryInferred {
 		c := a.Intent.Context
-		if now.Before(c.CreatedAt) || !now.Before(c.ExpiresAt) || !c.ExpiresAt.Equal(c.Capture.CapturedAt.Add(storagegc.CaptureRetentionPeriod)) {
+		if c.SourceKind() == sessioninventory.RecoverySourceNative {
+			if a.Intent.SourceRevision > a.RecordRevision {
+				return errors.New("native recovery source revision changed")
+			}
+			if err := threadrecord.ValidateNativeRecoverySourceAt(c.Source, now, a.Intent.SourceRevision); err != nil {
+				return err
+			}
+		} else if now.Before(c.CreatedAt) || !now.Before(c.ExpiresAt) || !c.ExpiresAt.Equal(c.Capture.CapturedAt.Add(storagegc.CaptureRetentionPeriod)) {
 			return errors.New("recovery evidence expired or retention changed")
 		}
 	} else if now.Before(a.Intent.CreatedAt) || a.Intent.SourceRevision > a.RecordRevision || a.Intent.Agent != agent {
@@ -92,61 +99,65 @@ func (r OSRuntime) ValidateRecoveryAuthority(ctx context.Context, a RecoveryAuth
 		return err
 	}
 	// Tagged orientation is descriptive data. Losing an optional screen cannot
-	// revoke an explicit proven or Fresh selection; inference still requires it.
+	// revoke a proven, Fresh or native-only selection. Capture-backed inference
+	// retains its exact archive requirements.
 	if a.Intent.Kind() == threadrecord.RecoveryInferred {
-		checkCapture := func() error {
-			if err := ctx.Err(); err != nil {
+		var checkCapture func() error
+		if a.Intent.Context.SourceKind() == sessioninventory.RecoverySourceCapture {
+			checkCapture = func() error {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+				c := a.Intent.Context.Capture
+				rawID, err := storagegc.CaptureIdentity(c.Raw)
+				if err != nil {
+					return err
+				}
+				eventsID, err := storagegc.CaptureIdentity(c.Events)
+				if err != nil {
+					return err
+				}
+				if rawID != c.RawIdentity || eventsID != c.EventsIdentity {
+					return errors.New("recovery capture generation changed")
+				}
+				return nil
+			}
+			if err = checkCapture(); err != nil {
 				return err
 			}
 			c := a.Intent.Context.Capture
-			rawID, err := storagegc.CaptureIdentity(c.Raw)
+			paths, err := artifactpath.ResolveScoped(r.DataDir, tag)
 			if err != nil {
 				return err
 			}
-			eventsID, err := storagegc.CaptureIdentity(c.Events)
+			archived, err := paths.ParkedScrollbackArtifacts(c.Token)
+			if err != nil || c.Token == "" || archived.Raw != c.Raw || archived.Events != c.Events {
+				return errors.New("recovery capture is not the exact owner's archived screen")
+			}
+			metadata, err := osfs.ReadRegularMetadata(ctx, archived.Metadata, 8192)
 			if err != nil {
 				return err
 			}
-			if rawID != c.RawIdentity || eventsID != c.EventsIdentity {
-				return errors.New("recovery capture generation changed")
-			}
-			return nil
-		}
-		if err = checkCapture(); err != nil {
-			return err
-		}
-		c := a.Intent.Context.Capture
-		paths, err := artifactpath.ResolveScoped(r.DataDir, tag)
-		if err != nil {
-			return err
-		}
-		archived, err := paths.ParkedScrollbackArtifacts(c.Token)
-		if err != nil || c.Token == "" || archived.Raw != c.Raw || archived.Events != c.Events {
-			return errors.New("recovery capture is not the exact owner's archived screen")
-		}
-		metadata, err := osfs.ReadRegularMetadata(ctx, archived.Metadata, 8192)
-		if err != nil {
-			return err
-		}
-		member := artifactpath.ParkedCapture{Raw: archived.Raw, Events: archived.Events, Metadata: archived.Metadata}
-		captureMeta, err := artifactpath.DecodeCaptureMetadata(metadata, member)
-		if err != nil {
-			return err
-		}
-		if captureMeta.RawIdentity != c.RawIdentity || captureMeta.EventsIdentity == nil || *captureMeta.EventsIdentity != c.EventsIdentity || !captureMeta.CapturedAt.Equal(c.CapturedAt) {
-			return errors.New("recovery capture metadata changed")
-		}
-		if c.LaunchOrdinal != 0 {
-			events, err := osfs.ReadRegularMetadata(ctx, c.Events, artifactpath.MaxCaptureWitnessEventsBytes)
+			member := artifactpath.ParkedCapture{Raw: archived.Raw, Events: archived.Events, Metadata: archived.Metadata}
+			captureMeta, err := artifactpath.DecodeCaptureMetadata(metadata, member)
 			if err != nil {
 				return err
 			}
-			witness, err := artifactpath.DecodeCaptureWitness(events)
-			if err != nil {
-				return err
+			if captureMeta.RawIdentity != c.RawIdentity || captureMeta.EventsIdentity == nil || *captureMeta.EventsIdentity != c.EventsIdentity || !captureMeta.CapturedAt.Equal(c.CapturedAt) {
+				return errors.New("recovery capture metadata changed")
 			}
-			if witness.LaunchOrdinal != c.LaunchOrdinal || witness.Nonce != c.Nonce || witness.ScopeKey != a.Address.RepoScope || witness.Tag != tag {
-				return errors.New("recovery capture producer changed")
+			if c.LaunchOrdinal != 0 {
+				events, err := osfs.ReadRegularMetadata(ctx, c.Events, artifactpath.MaxCaptureWitnessEventsBytes)
+				if err != nil {
+					return err
+				}
+				witness, err := artifactpath.DecodeCaptureWitness(events)
+				if err != nil {
+					return err
+				}
+				if witness.LaunchOrdinal != c.LaunchOrdinal || witness.Nonce != c.Nonce || witness.ScopeKey != a.Address.RepoScope || witness.Tag != tag {
+					return errors.New("recovery capture producer changed")
+				}
 			}
 		}
 		if a.Intent.NativeID != "" {
@@ -161,10 +172,19 @@ func (r OSRuntime) ValidateRecoveryAuthority(ctx context.Context, a RecoveryAuth
 			if selected == nil || selected.Agent != agent {
 				return errors.New("recovery native selection changed")
 			}
-			entry := sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: selected.ArtifactRoot, RelativePath: selected.ArtifactRelativePath}, StableFileID: sessioninventory.StableFileID(selected.StableFileID), GenerationToken: sessioninventory.GenerationToken(selected.GenerationToken), MutationToken: sessioninventory.MutationToken(selected.MutationToken), Size: selected.Size, ModTime: &selected.ModTime}
-			cutoff := c.LastActivity
-			if cutoff.IsZero() {
-				cutoff = c.RawIdentity.ModifiedAt
+			entry := selected.InventoryEntry()
+			c := a.Intent.Context
+			var cutoff time.Time
+			if c.SourceKind() == sessioninventory.RecoverySourceNative {
+				if selected.CWD != actualCWD {
+					return errors.New("native recovery candidate physical cwd changed")
+				}
+				cutoff = c.Source.Cutoff
+			} else {
+				cutoff = c.Capture.LastActivity
+				if cutoff.IsZero() {
+					cutoff = c.Capture.RawIdentity.ModifiedAt
+				}
 			}
 			native, err := r.nativeInventory(agent, "")
 			if err != nil {
@@ -174,8 +194,10 @@ func (r OSRuntime) ValidateRecoveryAuthority(ctx context.Context, a RecoveryAuth
 				return err
 			}
 		}
-		if err = checkCapture(); err != nil {
-			return err
+		if checkCapture != nil {
+			if err = checkCapture(); err != nil {
+				return err
+			}
 		}
 	} else if a.Intent.Kind() == threadrecord.RecoveryProven {
 		runtime, err := r.nativeInventory(agent, "")

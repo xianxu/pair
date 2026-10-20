@@ -7,6 +7,15 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- Splitting an acceptance task into a child issue requires sweeping copied Spec tasks and Done when for parent-only checks. A Log saying the parent still owns console/deployment acceptance does not override an active child Spec clause requiring it. Keep the old clause only as superseded Revisions history. (#723 BR-1)
+
+- A replay benchmark must prove every claimed stage executed inside its CPU bracket. NewFakeChild with nil Sink skips publication delivery entirely; count deliveries/bytes and validations, check batch.Err, and join publication plus reply workers before the ending sample. Retain incomplete-path runs as diagnostics rather than calling them full-path performance evidence. (#723)
+
+- #714 PQ-2: Verify persisted compatibility against the real decoder and its adversarial tests before claiming unknown-field preservation. A schema-unchanged bugfix can retain an existing strict refusal contract; a preservation migration is a separate, explicit change.
+
+- #714: Failure diagnostics compose whole identities, never nonzero structs or fieldwise fragments. Test a scope-only outer dispatch through actual normalization and reopened persisted history; a recorded Save call is not proof of a saved failure. Preserve publication warnings at the concise operator boundary too.
+- A configuration-only rollout still needs root README coverage when it introduces an operator-facing setting. Sweep the config path/key, selected value, inspection command and approval owner together; an atlas entry alone leaves the usage contract incomplete. (#709 BR-1)
+
 - #715 BR-1: A local extension to a shared tool updates both its adoption instructions and its rule-maintenance instructions in the existing atlas page. Document the local composition owner, scope, shared error/suppression semantics, and which upstream consumers remain unchanged; updating only the feature's lifecycle map misses the tooling surface.
 
 - #715: A child that survives client detach still needs a lifetime owner. Keep its direct child handle and join it before wrapper return; process liveness polling does not fence startup or deferred retention writes. Gate a real watcher before lease acquisition, finish the native child, and prove no writer survives the wrapper scope. Preserve process-group isolation and measure prompt TERM handling separately from the refusal grace.
@@ -2232,7 +2241,7 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #647 M1: preserve simultaneous observation and lifecycle errors together. Replacing an authority refusal with a helper-exit error loses its no-retry classification; test the helper exiting inside the failing observation, and assert no second helper or later read is admitted.
 
-- #647 BR-1/BR-2: sweep complete launcher entry paths as well as leaf validators. An outer retry can replace unknown evidence after a strict parser rejects it. Two valid listing shapes must also agree on exact identities before projection; preserve opaque names and interpret EXITED only as a validated suffix.
+- #647 BR-1/BR-2: sweep complete launcher entry paths as well as leaf validators. An outer retry can replace unknown evidence after a strict parser rejects it. Derive names and state from one validated complete listing; independent short/full observations can legitimately disagree during unrelated session churn (#711 corrects the paired-snapshot design). Preserve opaque names and interpret EXITED only as a validated suffix.
 - #647 BR-3: upgrade every shared native fixture consumer when tightening a contract, including composed production launch controls. Retain JSON progress for long package runs: an early fixture failure can otherwise consume the package deadline during cleanup and conceal which test caused the delay.
 - A readiness counter contract needs a stateful test through the actual readiness decision, not only isolated zero/one counts. Cover unchanged observations before growth and show that both equality-accepting and never-accepting mutations fail, especially when native acceptance is deferred. (#645 BR-1)
 
@@ -2403,3 +2412,22 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #712 BR-1: Enumerate metadata locks as IO in a timeout promise. A context passed to native probes does not bound a blocking GetThread, and rereading identity after expiry can recreate the hang. Use the context-aware read-only route, retain observed identity before expiry, and contend the actual store lock while asserting return before release. Bound disposition persistence separately and report a failed commit without discarding the occupied claim.
 
 - #712 BR-1 disposition: A deadline-safe observation followed by an unbounded state write still hangs. Enumerate routing, metadata reads, CAS retry and journal locking under one persistence context; contend both the pre-read and read/write seams. If durable unknown cannot commit, keep the exact occupied claim and report that uncertainty too.
+- #721 PQ-1: A named-function adversarial strategy table owns the test plan. Tasks reference it and carry execution commands; do not duplicate it as prose case inventories. Keep unique safety invariants in design/state/format contracts.
+- #721: Type-owned preserving codecs must normalize absent unknown-member maps consistently with their clones. Empty allocated maps can break exact durable-intent comparisons after a JSON round trip; test equality through the real profile/record encoding rather than weakening the claim check.
+
+- #721 BR-1: Freeze the exact selected snapshot before leaving acquisition; rebuilding from aliased observations can silently accept a changed candidate. Revalidate exact selected artifacts at effect admission, not only after a claim. Mutate through retirement/nonce hooks and test nil verifier and expiry during IO.
+- #721 BR-2/BR-3: Shared IO budgets charge only stages that can run. Preflight using the replay owner’s actual raw/event caps before reserving bytes; a rejected witness must not reserve unread raw data. Observe descriptive file activity independently of companion-file and retained-identity authority, and test early failures as well as late ones.
+- #721 BR-4: A user-visible command change updates both root README reference and usage passages alongside atlas. Search all command mentions before close.
+
+- #720 BR-1/BR-2: Do not grow an optional host feature into a native settings resolver. When permission fidelity needs repeated fixes, prefer an explicit persistent operator declaration and name its false-declaration limitation. A host write probe cannot prove sandbox access. Keep opt-in filenames outside reserved artifact families instead of weakening path-use guards.
+
+- #720 BR-3: A diagnostic added to a show command must cover its valid non-thread targets too. Test a slot with no thread through dispatch; iterating matched threads alone silently omits machine-wide selection information.
+
+- #724: testing.AllocsPerRun reads process-global Mallocs; GOMAXPROCS(1) does not suspend unrelated goroutines. Isolate strict allocation oracles in a self-exec helper and bind the sample to its actual PID; keep an unbounded-implementation negative control so isolation does not weaken the bound.
+- #724: Publishing a native PID is not simultaneous identity availability. A fixture must re-observe unavailable identity until established, then retain that exact generation; caching the PID must not disable all later identity observations. Report both title publication and agent identity on timeout so a real live title is not misdiagnosed as never started.
+
+- #711: Registration identity and observation freshness are different guards. Check actor/registration replacement first; ordinary operator input invalidating an otherwise live reservation belongs to the existing busy queue, not a missing-registration error. Reproduce input between successful Reserve and broker commit, and retain sender/recipient disconnect plus same-binding reconnect negative controls.
+- #711: Validate a native snapshot before renewing its cache timestamp. A completed subprocess can still return malformed evidence; preserve the prior good observation and its original age. Count one native query at N/2N sessions and zero native calls per cached reader rather than repairing contradictory sequential snapshots with retries.
+
+- #711 BR-1/BR-3: Current connectivity is not the registration lifetime that began an admission. Capture the owner actor under the initial lock and retain that exact resource through routing IO, successful reservation, and release-to-queue fallback. Test same-binding sender reconnect at every yield boundary as well as recipient replacement; keep all refusal paths side/phase labeled.
+- #711 BR-2: Preserve validated values through the final consumer, not only validated keys. Passing exact names onward while reparsing state with Fields/Contains revives ambiguity; runtime/display builders consume the same validated state map. Cover live EXITED-containing names and exited whitespace/tab names, including zero client queries for exited rows.

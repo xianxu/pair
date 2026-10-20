@@ -39,8 +39,8 @@ esac
 	listings := launcher.NewListingPoller(checker.Zellij, time.Hour, 5*time.Second)
 	listings.Refresh(context.Background())
 	polled := calls()
-	if polled != 2 {
-		t.Fatalf("one refresh ran %d listings, want 2", polled)
+	if polled != 1 {
+		t.Fatalf("one refresh ran %d listings, want 1", polled)
 	}
 	observer, ok := messageListedObserver(checker, listings)
 	if !ok {

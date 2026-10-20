@@ -19,3 +19,24 @@ func TestDriveProtocolClosedShape(t *testing.T) {
 		}
 	}
 }
+
+func TestInterruptProtocolNeedsItsOwnIntentAndConfirmation(t *testing.T) {
+	r := Request{Op: "interrupt", Scope: "s", Tag: "t", Session: "s", Nonce: "n", ID: "drive-1", Target: "pair:2", Confirmed: true, Drive: &agentdrive.Request{Interrupt: true}}
+	if err := ValidateRequest(r); err != nil {
+		t.Fatal(err)
+	}
+	for name, change := range map[string]func(*Request){
+		"no confirmation": func(r *Request) { r.Confirmed = false },
+		"keys intent": func(r *Request) {
+			r.Drive = &agentdrive.Request{Keys: agentdrive.KeySequence{{Kind: agentdrive.KeyEsc}}}
+		},
+		"interrupt through keys":      func(r *Request) { r.Op = "keys"; r.Confirmed = false },
+		"interrupt through set-model": func(r *Request) { r.Op = "set-model" },
+	} {
+		bad := r
+		change(&bad)
+		if err := ValidateRequest(bad); err == nil {
+			t.Errorf("%s accepted", name)
+		}
+	}
+}

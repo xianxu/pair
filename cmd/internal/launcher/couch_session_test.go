@@ -484,7 +484,8 @@ func TestCouchSessionAttachStopsAtFirstUnknownListing(t *testing.T) {
 				// This observation is the wrong reply kind. Every later native response
 				// would be valid, so retrying would erase the refusal and reach attach.
 				wrongKind := `{"active_swap_layout_name":null,"is_swap_layout_dirty":false}`
-				fixture.SetFaults(zellijtest.Fault{Ordinal: 2*(failedCall-1) + 1, Reply: &wrongKind})
+				// Each authority boundary now reads one complete native inventory.
+				fixture.SetFaults(zellijtest.Fault{Ordinal: failedCall, Reply: &wrongKind})
 				rt := &couchSessionListingRuntime{
 					couchSessionRuntime: &couchSessionRuntime{fakeRuntime: newFakeRuntime()},
 					source:              ZellijSource{Path: fixture.Path()},
@@ -503,24 +504,42 @@ func TestCouchSessionAttachStopsAtFirstUnknownListing(t *testing.T) {
 				if rt.listingCalls != failedCall {
 					t.Fatalf("unknown observation replaced: listing calls=%d want=%d", rt.listingCalls, failedCall)
 				}
-				if got := len(fixture.Queries()); got != 2*(failedCall-1)+1 {
-					t.Fatalf("query count=%d want=%d", got, 2*(failedCall-1)+1)
+				if got := len(fixture.Queries()); got != failedCall {
+					t.Fatalf("query count=%d want=%d", got, failedCall)
 				}
 			})
 		}
 	}
 }
 
-func TestCouchSessionAttachRefusesContradictoryListingPair(t *testing.T) {
-	opts := managedSessionOptions("attach")
-	fixture := installAdmissionFixture(t)
-	fixture.SetModel(zellijtest.Model{Sessions: map[string]zellijtest.Session{opts.Args.CouchSession.Name: {}}})
-	other := "pair-other [Created 1s ago]\n"
-	fixture.SetFaults(zellijtest.Fault{Ordinal: 2, Reply: &other})
-	rt := &couchSessionListingRuntime{couchSessionRuntime: &couchSessionRuntime{fakeRuntime: newFakeRuntime()}, source: ZellijSource{Path: fixture.Path()}}
-	var stderr bytes.Buffer
-	code, err := RunLaunch(opts, rt, &stderr)
-	if code == 0 || len(rt.attached) != 0 || rt.launchCount != 0 || rt.listingCalls != 1 || len(fixture.Queries()) != 2 || len(fixture.Effects()) != 0 {
-		t.Fatalf("contradictory listing reached effects: code=%d err=%v attached=%v launches=%d reads=%d queries=%v effects=%v stderr=%s", code, err, rt.attached, rt.launchCount, rt.listingCalls, fixture.Queries(), fixture.Effects(), &stderr)
+// Independent admission boundaries remain necessary even though each inventory
+// now comes from one native reply: preparation may outlive the selected session.
+func TestCouchSessionAttachRefusesReplacementAtEffectFence(t *testing.T) {
+	for _, exported := range []bool{false, true} {
+		t.Run(fmt.Sprintf("exported=%v", exported), func(t *testing.T) {
+			opts := managedSessionOptions("attach")
+			fixture := installAdmissionFixture(t)
+			fixture.SetModel(zellijtest.Model{Sessions: map[string]zellijtest.Session{opts.Args.CouchSession.Name: {}}})
+			// RunLaunch checks its selected intent, then attach checks admission and
+			// the final effect fence. The exported handoff has only the latter two.
+			finalBoundary := 3
+			if exported {
+				finalBoundary = 2
+			}
+			replacement := zellijtest.Model{Sessions: map[string]zellijtest.Session{"pair-other": {}}}
+			fixture.SetFaults(zellijtest.Fault{Ordinal: finalBoundary, Model: &replacement})
+			rt := &couchSessionListingRuntime{couchSessionRuntime: &couchSessionRuntime{fakeRuntime: newFakeRuntime()}, source: ZellijSource{Path: fixture.Path()}}
+			var stderr bytes.Buffer
+			var code int
+			var err error
+			if exported {
+				code, err = AttachExistingSession(opts, opts.Env, rt, opts.Args.ForcedTag, opts.Args.CouchSession.Name, "codex")
+			} else {
+				code, err = RunLaunch(opts, rt, &stderr)
+			}
+			if code == 0 || len(rt.attached) != 0 || rt.launchCount != 0 || rt.listingCalls != finalBoundary || len(fixture.Queries()) != finalBoundary || len(fixture.Effects()) != 0 {
+				t.Fatalf("session replacement reached effects: code=%d err=%v attached=%v launches=%d reads=%d queries=%v effects=%v stderr=%s", code, err, rt.attached, rt.launchCount, rt.listingCalls, fixture.Queries(), fixture.Effects(), &stderr)
+			}
+		})
 	}
 }
