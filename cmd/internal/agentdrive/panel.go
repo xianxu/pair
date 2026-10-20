@@ -28,7 +28,8 @@ var panelRule = regexp.MustCompile(`^─{20,}$`)
 // the last nonblank row is a known footer, and no row is a composer prompt or
 // a numbered choice. A composer's closing rule leaves only its status footer
 // below, so a composer never qualifies. lines must be the viewport only, never
-// scrollback, so old text cannot authorize a key.
+// scrollback, so old text cannot authorize a key. Like ReadModelScreen, more
+// than 200 rows is refused rather than scanned.
 func DismissablePanel(agent string, lines []string) bool {
 	if agent != "claude" || len(lines) > 200 {
 		return false
