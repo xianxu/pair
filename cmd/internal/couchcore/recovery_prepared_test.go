@@ -37,7 +37,7 @@ func TestProvenRecoveryWithoutScreenUsesNativeConversationOnly(t *testing.T) {
 
 func TestPreparedFreshDoesNotRequireTranscriptScanOrScreen(t *testing.T) {
 	f := newRecoveryExecutionFixture(t)
-	f.Couch.RecoveryEvidence = func(context.Context, ThreadRecord) (RecoveryObservation, error) {
+	f.Couch.RecoveryEvidence = func(context.Context, ThreadRecord, RecoveryObservationRequest) (RecoveryObservation, error) {
 		return RecoveryObservation{}, errors.New("previous screen missing")
 	}
 	result, err := f.Couch.RecoverSelection(context.Background(), RecoverySelection{Target: ResumeTarget{Address: f.record.Address}, Kind: RecoveryFresh, Reference: "pair:99"})

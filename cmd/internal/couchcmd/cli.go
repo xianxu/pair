@@ -28,6 +28,8 @@ const (
 	cliSkill
 	cliAdopt
 	cliHelp
+	// cliKeysHelp is `couch --keys --help`: the step table and recipes (#716).
+	cliKeysHelp
 	cliSessionSync
 	// cliWebQuery is couch broadcast-web's agent queries (#462); args holds
 	// the argv after the flag, which query.Run parses.
@@ -114,7 +116,7 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 	// scanning layout flags, which could otherwise consume a literal body.
 	if len(args) > 0 {
 		switch args[0] {
-		case "--keys", "--set-model":
+		case "--keys", "--set-model", "--interrupt":
 			return parseAgentDriveCLI(args)
 		case "--move-slot":
 			return parseHubMoveCLI(args)

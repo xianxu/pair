@@ -7,6 +7,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/rowtext"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
 func openRecoveryPreview(state MenuState, row couchcore.ActionableThreadSummary) (MenuState, []MenuEffect) {
@@ -136,7 +137,11 @@ func renderRecoveryMenu(frame MenuFrame, width, height int) []string {
 			marker = "▸ "
 		}
 		label := choice.Label
-		if (i == 0 && frame.RecoveryPreview.Proven == nil || i == 1 && frame.RecoveryPreview.Proven != nil) && len(frame.RecoveryPreview.Candidates) > 0 {
+		nativeOnly := choice.SourceKind == sessioninventory.RecoverySourceNative
+		if nativeOnly && !strings.Contains(strings.ToLower(label), "unconfirmed") {
+			label += " (unconfirmed)"
+		}
+		if !nativeOnly && choice.Key != "" && (i == 0 && frame.RecoveryPreview.Proven == nil || i == 1 && frame.RecoveryPreview.Proven != nil) && len(frame.RecoveryPreview.Candidates) > 0 {
 			label = "best · " + label
 		}
 		activity := "unknown"
@@ -153,13 +158,33 @@ func renderRecoveryMenu(frame MenuFrame, width, height int) []string {
 		if choice.NativeID != "" && choice.Key != "" {
 			evidence = fmt.Sprintf("  matched %d/%d · tail %.0f%%", choice.Matched, choice.Total, choice.TailMatch)
 		}
-		lines = append(lines, marker+label, fmt.Sprintf("  %s · %s · last activity %s", choice.Agent, choice.NativeID, activity), evidence, "  "+choice.Excerpt)
+		activityLabel := "last activity"
+		if nativeOnly {
+			activityLabel = "native activity"
+			evidence = "  Native transcript · physical cwd " + choice.CWD + " · launch association unknown"
+		}
+		lines = append(lines, marker+label, fmt.Sprintf("  %s · %s · %s %s", choice.Agent, choice.NativeID, activityLabel, activity), evidence, "  "+choice.Excerpt)
 	}
 	if frame.RecoveryPreview != nil {
 		for _, evidence := range frame.RecoveryPreview.Candidates {
 			if evidence.Key == "" {
-				lines = append(lines, fmt.Sprintf("Recorded evidence: %s · %s · tail %.0f%%", evidence.Agent, evidence.NativeID, evidence.TailMatch), "  "+evidence.Excerpt)
+				if evidence.SourceKind == sessioninventory.RecoverySourceNative {
+					activity := "unknown"
+					if !evidence.LastActivity.IsZero() {
+						activity = evidence.LastActivity.Local().Format("2006-01-02 15:04 MST")
+					}
+					lines = append(lines, fmt.Sprintf("Recorded native evidence (unconfirmed): %s · %s", evidence.Agent, evidence.NativeID), "  physical cwd "+evidence.CWD+" · native activity "+activity, "  "+evidence.Excerpt)
+				} else {
+					lines = append(lines, fmt.Sprintf("Recorded evidence: %s · %s · tail %.0f%%", evidence.Agent, evidence.NativeID, evidence.TailMatch), "  "+evidence.Excerpt)
+				}
 			}
+		}
+		if screen := frame.RecoveryPreview.Screen; !screen.LastActivity.IsZero() {
+			source := screen.ActivitySource
+			if source == "" {
+				source = "capture-file activity"
+			}
+			lines = append(lines, source+" "+screen.LastActivity.Local().Format("2006-01-02 15:04 MST"))
 		}
 		lines = append(lines, frame.RecoveryPreview.Reasons...)
 		if frame.RecoveryPreview.Incomplete {

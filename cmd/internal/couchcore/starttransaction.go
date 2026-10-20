@@ -27,6 +27,7 @@ type StartEventKind string
 const (
 	StartSessionBound     StartEventKind = "session-bound"
 	StartClaimed          StartEventKind = "claimed"
+	StartFailedConfirmed  StartEventKind = "failed-confirmed"
 	StartRecoveryFenced   StartEventKind = "recovery-fenced"
 	StartHelperRecorded   StartEventKind = "helper-recorded"
 	StartRegistered       StartEventKind = "registered"
@@ -42,6 +43,10 @@ type StartEvent struct {
 	Owner          SupervisorOwner
 	Helper         ProcessIdentity
 	Profile        *LaunchProfile
+	// Transcript, on a claim, stores the conversation this start binds to on
+	// the record in the claim's own write (pair#695 P2): a resume that adopted
+	// a newer ledger root or bound a legacy record keeps it from here on.
+	Transcript *threadrecord.TranscriptBinding
 	// Layout is the couch-wide layout this start was launched in, recorded on
 	// the thread as a witness. A POINTER because "no layout was chosen" is a
 	// real state distinct from any layout value: a warm reattach sends no
@@ -90,6 +95,22 @@ func AdvanceStartTransaction(record ThreadRecord, event StartEvent) (ThreadRecor
 			profile := cloneLaunchProfile(*event.Profile)
 			incarnation.Start.LaunchProfile = &profile
 		}
+		if event.Transcript != nil {
+			if err := event.Transcript.Validate(); err != nil {
+				return ThreadRecord{}, fmt.Errorf("start claim transcript binding: %w", err)
+			}
+			next.Transcript = threadrecord.CloneTranscriptBinding(event.Transcript)
+		}
+	case StartFailedConfirmed:
+		incarnation, err := exactStartIncarnation(&next, event.Nonce)
+		if err != nil {
+			return ThreadRecord{}, err
+		}
+		if len(next.Incarnations) != 1 || incarnation.PID <= 0 || incarnation.Identity == "" || incarnation.Start.RecoveryIntent == nil {
+			return ThreadRecord{}, errors.New("confirmed recovery failure requires one recorded recovery helper")
+		}
+		retainStartRecoveryContext(&next, incarnation.Start)
+		next.Incarnations = nil
 	case StartRecoveryFenced:
 		if len(next.Incarnations) != 1 {
 			return ThreadRecord{}, errors.New("recovery fence requires one exact start")

@@ -1,8 +1,10 @@
 package launcher
 
 import (
+	"context"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
+	"github.com/xianxu/pair/cmd/internal/lifetimelease"
 	"io"
 	"os"
 	"os/exec"
@@ -169,6 +171,14 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 	}
 	opts := newLaunchOptions(args, env, pairHome, dataDir, useRepoDefault, os.Getenv, parkPromptTimeout())
 	opts.startupTiming = timing
+	// The slot's lifetime lease, held for as long as this launcher runs its
+	// tree (pair#695 P1). Only under Couch; a failure costs teardown one of its
+	// witnesses, never the session.
+	if held, err := lifetimelease.HoldFromEnv(context.Background(), os.Getenv); err != nil {
+		fmt.Fprintf(stderr, "pair: lifetime lease: %v\n", err)
+	} else if held != nil {
+		defer held.Close()
+	}
 
 	if args.Command == "continue" {
 		if args.ContinueRetry != "" {

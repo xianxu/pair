@@ -145,29 +145,20 @@ func assertEmptyReply(t *testing.T, err error) {
 	}
 }
 func TestZellijEmptyReplySnapshotIsNotAbsenceOrDetached(t *testing.T) {
-	short := []string{"list-sessions", "--short"}
 	full := []string{"list-sessions", "--no-formatting"}
 	clients := []string{"--session", "pair-a", "action", "list-clients"}
-	for _, stage := range []string{"short", "full", "clients"} {
+	for _, stage := range []string{"full", "clients"} {
 		for _, empty := range []string{"", " \n\t"} {
 			t.Run(fmt.Sprintf("%s/%q", stage, empty), func(t *testing.T) {
 				var frames []emptyReplyFrame
-				if stage != "short" {
-					frames = append(frames, emptyReplyFrame{Args: short, Stdout: zellijtest.Case(t, "launcher-frames-short").Stdout})
-				}
+				args := full
 				if stage == "clients" {
 					frames = append(frames, emptyReplyFrame{Args: full, Stdout: zellijtest.Case(t, "launcher-frames-full").Stdout})
-				}
-				args := short
-				if stage == "full" {
-					args = full
-				}
-				if stage == "clients" {
 					args = clients
 				}
 				frames = append(frames, earlyUnblockFrame(t, args, empty))
 				firstCalls := len(frames)
-				frames = append(frames, emptyReplyFrame{Args: short, Events: []string{"Log", "UnblockInput"}, Stdout: zellijtest.Case(t, "launcher-frames-short").Stdout}, emptyReplyFrame{Args: full, Stdout: zellijtest.Case(t, "launcher-frames-full").Stdout}, emptyReplyFrame{Args: clients, Stdout: zellijtest.Case(t, "launcher-frames-clients").Stdout})
+				frames = append(frames, emptyReplyFrame{Args: full, Events: []string{"Log", "UnblockInput"}, Stdout: zellijtest.Case(t, "launcher-frames-full").Stdout}, emptyReplyFrame{Args: clients, Stdout: zellijtest.Case(t, "launcher-frames-clients").Stdout})
 				fake := newEmptyReplyFake(t, frames...)
 				got, err := fake.source.Snapshot()
 				assertEmptyReply(t, err)
@@ -181,7 +172,7 @@ func TestZellijEmptyReplySnapshotIsNotAbsenceOrDetached(t *testing.T) {
 				if err != nil || len(got) != 1 || got[0].State != SessionAttached {
 					t.Fatalf("fresh observation = %+v, %v", got, err)
 				}
-				if n := fake.calls(t); n != firstCalls+3 {
+				if n := fake.calls(t); n != firstCalls+2 {
 					t.Fatalf("fresh query calls %d", n)
 				}
 			})
@@ -189,31 +180,16 @@ func TestZellijEmptyReplySnapshotIsNotAbsenceOrDetached(t *testing.T) {
 	}
 }
 func TestZellijEmptyReplyLivenessIsNotAbsence(t *testing.T) {
-	short := []string{"list-sessions", "--short"}
 	full := []string{"list-sessions", "--no-formatting"}
-	for _, stage := range []int{0, 1} {
-		t.Run(strconv.Itoa(stage), func(t *testing.T) {
-			var frames []emptyReplyFrame
-			if stage == 1 {
-				frames = append(frames, emptyReplyFrame{Args: short, Stdout: zellijtest.Case(t, "launcher-frames-short").Stdout})
-			}
-			args := short
-			if stage == 1 {
-				args = full
-			}
-			frames = append(frames, earlyUnblockFrame(t, args, ""))
-			frames = append(frames, emptyReplyFrame{Args: short, Stdout: zellijtest.Case(t, "launcher-frames-short").Stdout}, emptyReplyFrame{Args: full, Stdout: zellijtest.Case(t, "launcher-frames-full").Stdout})
-			fake := newEmptyReplyFake(t, frames...)
-			got, err := fake.source.LivenessContext(context.Background())
-			assertEmptyReply(t, err)
-			if got != nil || fake.calls(t) != stage+1 {
-				t.Fatalf("uncertain liveness = %+v; calls %d", got, fake.calls(t))
-			}
-			got, err = fake.source.LivenessContext(context.Background())
-			if err != nil || len(got) != 1 || got[0].State != SessionLive {
-				t.Fatalf("fresh liveness = %+v %v", got, err)
-			}
-		})
+	fake := newEmptyReplyFake(t, earlyUnblockFrame(t, full, ""), emptyReplyFrame{Args: full, Stdout: zellijtest.Case(t, "launcher-frames-full").Stdout})
+	got, err := fake.source.LivenessContext(context.Background())
+	assertEmptyReply(t, err)
+	if got != nil || fake.calls(t) != 1 {
+		t.Fatalf("uncertain liveness = %+v; calls %d", got, fake.calls(t))
+	}
+	got, err = fake.source.LivenessContext(context.Background())
+	if err != nil || len(got) != 1 || got[0].State != SessionLive || fake.calls(t) != 2 {
+		t.Fatalf("fresh liveness = %+v %v; calls %d", got, err, fake.calls(t))
 	}
 }
 
@@ -293,10 +269,10 @@ func TestZellijEmptyReplyOwnerProbeGrantsNoAuthority(t *testing.T) {
 	}
 }
 func TestZellijEmptyReplyExplicitNoSessionsRemainsValid(t *testing.T) {
-	frames := []emptyReplyFrame{{Args: []string{"list-sessions", "--short"}, Stderr: zellijtest.Case(t, "launcher-frames-no-sessions").Stderr, Exit: zellijtest.Case(t, "launcher-frames-no-sessions").Code}, {Args: []string{"list-sessions", "--no-formatting"}, Stderr: zellijtest.Case(t, "launcher-frames-no-sessions").Stderr, Exit: zellijtest.Case(t, "launcher-frames-no-sessions").Code}}
+	frames := []emptyReplyFrame{{Args: []string{"list-sessions", "--no-formatting"}, Stderr: zellijtest.Case(t, "launcher-frames-no-sessions").Stderr, Exit: zellijtest.Case(t, "launcher-frames-no-sessions").Code}}
 	fake := newEmptyReplyFake(t, frames...)
 	got, err := fake.source.Snapshot()
-	if err != nil || len(got) != 0 || fake.calls(t) != 2 {
+	if err != nil || len(got) != 0 || fake.calls(t) != 1 {
 		t.Fatalf("explicit empty inventory = %+v %v", got, err)
 	}
 }

@@ -427,7 +427,7 @@ bug must not break your ability to fix it, and launching pair directly always
 still works. See [atlas/couch.md](atlas/couch.md).
 
 When `/Volumes/TestScratch` is mounted with at least 2 GiB free, new Couch slots
-use private RAM directories for TMPDIR, GOTMPDIR and CLAUDE_CODE_TMPDIR. Existing
+🤖{whose operator has declared sandbox setup with the persistent XDG pair/sandbox-allowed marker }use private RAM directories for TMPDIR, GOTMPDIR and CLAUDE_CODE_TMPDIR. Existing
 panes need relaunch; unavailable scratch keeps inherited temp settings. Ordinary
 temp entries untouched for 24 hours may be removed at startup/hourly; special
 files and trees containing them are kept. Native socket discovery stays fixed.
@@ -484,9 +484,10 @@ couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
 couch --resources [--json] cached process sample plus fresh hosted-ingest totals
 couch --reap-orphans [--confirm] [--json]
-                         the unattributed embedded nvim --resources named; without --confirm it lists them
-                         and ends nothing, with --confirm it ends each one and its tree, every signal fenced
-                         on the identity the sweep recorded [seconds]
+                         the unattributed embedded nvim --resources named, and the processes a teardown left
+                         running (an agent's setsid'd runner: a background build, test or merge); without
+                         --confirm it lists them and ends nothing, with --confirm it ends each one and its
+                         tree, every signal fenced on the identity the sweep or teardown recorded [seconds]
 couch --broadcast-list [--json]   every link out by kind (screen, web view, web drive) and its viewers, and the
                          recordings shared for replay (pair#477); never a link
 couch --broadcast-web-query DIR dom|events|notes|link ...
@@ -526,11 +527,11 @@ couch --session-sync register FILE --owner SLOT [--json]
 couch --session-sync lookup FILE | list | forget FILE | rename OLD NEW [--json]
                          discover bindings or update metadata after a filesystem move; see atlas/couch-agentic-documents.md
 couch --recover-plan-from-sdlc   per-slot recovery report (JSON), see below
-couch --resume repo:N [--json]   from a live slot: Continue if listed live, otherwise resume a proven conversation
+couch --resume repo:N [--json]   from a live slot: Continue if listed live, otherwise resume an established native binding
 couch --resume-candidates repo:N [--json]
-                         list the best choice and up to four alternatives with activity and tty-tail evidence; automatic choice is off
+                         preview explicit choices: screen-tail evidence or unconfirmed native ID, cwd and activity; no automatic selection
 couch --resume repo:N --candidate KEY [--json]
-                         choose an inferred conversation explicitly; stale evidence refuses
+                         select exact observed evidence; native-only keys expire after five minutes, so refresh expired or changed evidence
 couch --reboot repo:N --confirm [--json]
                          request Start fresh on the current binary; attributed running processes require an exact stop-set offer
 couch --recovery-confirmation TOKEN [--json]
@@ -586,15 +587,20 @@ requests and model selection still require an empty composer. A
 slash-command panel the hub opened, such as Claude's `/usage`, admits exactly
 `couch --keys pair:7 esc` when its Esc footer is recognized on the current
 screen. Every other key refuses while it shows, and success means an empty
-composer came back.
+composer came back. `couch --keys --help` lists the steps, the limits, these
+rules and that round trip.
 
 ```sh
 couch --keys pair:7 clear-line text:/model submit wait:200 down enter
 couch --set-model pair:7 --model gpt-6.1-sol --effort medium --confirm
 ```
 
-Named raw steps are `text:…`, `enter`, `submit`, `up`, `down`, `esc`,
-`clear-line` and `wait:MS`. `enter` follows Pair's Return behavior: newline in
+Named raw steps are `text:…`, `enter`, `submit`, the arrows, `tab`,
+`shift-tab`, `backspace`, `delete`, `home`, `end`, `pageup`, `pagedown`, `esc`,
+`clear-line`, `wait:MS`, `f1`–`f12`, `ctrl-LETTER` and `alt-LETTER`;
+`couch --keys --help` lists them and the refused chords. Ctrl+C is never a
+step: `couch --interrupt pair:7 --confirm` sends one into a working turn, refuses
+with no working turn, and is never retried. `enter` follows Pair's Return behavior: newline in
 the composer, selection in a picker; `submit` follows Alt+Return. Each `esc`
 is a separate input step. Raw success confirms the writes and final observation.
 Use `--set-model` when you need a confirmed model, effort and scope: it follows
@@ -617,10 +623,19 @@ race: if their server dies between the listing and attach, Zellij can resurrect
 the saved layout.
 
 For a slot whose state needs recovery, **Relaunch** opens a read-only candidate
-preview with transcript and terminal evidence. Selection is explicit; Couch
-does not automatically choose an inferred conversation. Native resume requires
-its old owners to be absent or safely retired through the exact confirmation
-below; unproved ownership still blocks that native launch.
+preview. Capture-backed choices show measured screen-tail matching. When the
+screen cannot support inference, native-only choices show **unconfirmed**, the
+physical cwd, semantic native activity and native ID, with no tail percentage.
+Screen availability and capture-file activity are separate from native-scan
+completeness; an unavailable screen does not make a complete native scan partial.
+Selection is explicit and does not establish a transcript binding. Native-only
+keys expire after five minutes; refresh the preview after expiry or changed
+evidence. Plain `couch --resume repo:N` attaches to a listed live session or uses
+an established native binding. See the [Couch atlas](atlas/couch.md) for the
+evidence and validation details.
+
+Native resume requires its old owners to be absent or safely retired through
+the exact confirmation below; unproved ownership still blocks that native launch.
 **Start fresh** remains offered when the old TTY capture or transcript scan is
 missing, expired, incomplete or unsupported. The choice still checks supported
 records, launch settings and workspace identity before launching; an offer is
@@ -764,14 +779,19 @@ it observed.
 `couch --resume repo:N` and `couch --reboot repo:N --confirm` run one slot's step
 through the running Couch. Only an agent in a live Couch slot may call them: Couch
 checks its own records (the calling thread has a live pane, and its recorded launch
-names this shell's session and launch), so a slot whose messaging setup failed can
-still call, and anyone else is refused. An older running Couch answers with a hint
+names this shell's session and launch). Hub-managed operations also need the
+calling slot's connected workspace proof; if it is missing, reconnect the slot
+and retry. Anyone else is refused. An older running Couch answers with a hint
 to restart it. A thread whose agent never took a turn has no conversation to
 resume: resume refuses at once and names reboot, and the report suggests reboot,
 never resume, for it. The request runs on the switcher's own queue, in the background (the
 operator's screen stays put), and is admitted only if the switcher would offer the
 same action on that row at that moment. Reboot needs `--confirm` because the
-operation declares it. The CLI polls a receipt Couch keeps in memory for 5 minutes
+operation declares it. After a cold start, a warming catalog answers that nothing
+was queued and gives a retry-after. The CLI prints that it is waiting and retries
+that same request within a 30-second total limit. If warming outlasts that wait,
+it reports that nothing was queued and asks you to retry. It never automatically
+resends an uncertain admission. The CLI polls a receipt Couch keeps in memory for 5 minutes
 (visible only to the slot that asked); a lost or unreadable outcome prints
 "outcome uncertain". Verify by reading the report again, never by the receipt: a
 repeat is refused harmlessly once the slot is live. `couch --skill` carries the
@@ -833,9 +853,12 @@ same effect ID. Episodes live in memory, so restarting Couch re-arms them and
 can repeat an advisory alert. History is best-effort and never gates alerts.
 Unattributed candidates are report-only, and the monitor never kills anything.
 The one destructive verb is the operator's: `couch --reap-orphans` names the
-orphaned embedded nvim the sweep found and ends nothing, and
+orphaned embedded nvim the sweep found, and the processes a teardown left
+running (pair#695: an agent's descendant that had left its terminal, such as a
+background build or merge, which teardown never kills; `--resources` lists them
+under "Left running by teardown"), and ends nothing.
 `couch --reap-orphans --confirm` re-classifies from a fresh sample and then ends
-each named tree, every signal fenced on the identity the sweep recorded — a pid
+each named tree, the left-running ones included, every signal fenced on the identity the sweep recorded — a pid
 that has exited or been recycled is skipped with the reason printed, never
 signalled on the strength of a number that still exists.
 See [resource monitoring](atlas/couch.md#resource-monitoring-587) for policy
@@ -931,7 +954,11 @@ first eight characters) among retained receipts you sent or received. An ambiguo
 prefix lists the matching full IDs; an unknown ID or prefix reports an unknown
 lookup. Keep the full ID for recipient recovery after a Couch restart.
 `--message-status` shows the wait and position in that receiver's line;
-do not resend a queued or held message. Disconnect or relaunch cancels mail
+an unrecognized composer names missing evidence such as a hidden cursor,
+an incomplete terminal frame, or unrecognized geometry/input. These reasons
+contain no screen or draft text. Repeated resize signals at unchanged dimensions
+preserve valid composer evidence, including while Claude has background shells.
+Do not resend a queued or held message. Disconnect or relaunch cancels mail
 not yet committed to the wrapper, with a receiver reason. A handed commit may
 be `indeterminate` because input cannot be ruled out. Once pasted, the existing 30-second confirmation window
 still bounds delivery. No eligible family slot returns `not-dispatched` with exit status zero.
@@ -1754,10 +1781,11 @@ so a parked `:0` offers it too; a `:0` whose checkout is gone does not.
 
 **Resume** attaches to a surviving listed session without requiring a native
 transcript binding or saved agent launch settings. Starting a stopped agent
-instead requires eligible conversation evidence and launch settings. Recovery
-previews list supported candidates with evidence; the operator or hub chooses
-one explicitly. A possibly running old owner prevents native resume until it
-has been safely retired. A shared admission check prevents two Pair slots from
+instead requires launch settings and an established native binding for plain
+resume, or an explicitly selected recovery candidate. Recovery previews show
+capture-backed matching or unconfirmed native-only evidence; the operator or
+hub chooses one explicitly. A possibly running old owner prevents native resume
+until it has been safely retired. A shared admission check prevents two Pair slots from
 starting the same native conversation at once, including launches outside Couch.
 An uncertain start retains ownership; missing readiness alone never proves the
 conversation is free. Claude and Qoder latest selectors resolve uniquely before launch. Codex indirect
@@ -1952,6 +1980,49 @@ PAIR_REQUIRE_LSOF_CONFORMANCE=1 go test ./cmd/internal/diagnosticlog -count=1 \
 Required mode fails instead of skipping an unavailable/incomplete probe. A complete
 answer with a wrong holder or process identity fails in both modes.
 
+Affected branch checks use `.sdlc/affected.json` and `make test-affected` once the
+installed SDLC supports ariadne#473. SDLC reads the declaration from main and
+supplies `SDLC_AFFECTED_GO_PKGS` (exact import paths) and `SDLC_AFFECTED_GROUPS`.
+For a manual selected run:
+
+```bash
+SDLC_AFFECTED_GO_PKGS=github.com/xianxu/pair/cmd/internal/slugcmd make test-affected
+```
+
+The runner executes the supplied Go packages with exact argv and the selected
+`lua`, `review`, `doctor`, `build` or `shell` recipes. Before a Go selection it
+also runs a fixed set of source-scanner tests: import dependencies cannot describe
+tests that read another package's source files. The scanner preflight reports its
+elapsed time and stops the run on failure. Go-only runs avoid a suite-owned Pair
+build; selected groups share one fresh private executable. The Lua group
+regenerates the embedded runtime and tests `runtimebundle` exactly once.
+Make retains its usual session-environment scrub. Empty or invalid selections
+refuse; SDLC records docs-only passes without invoking the runner.
+
+Non-Go source populations with Go file readers (`nvim`, `zellij`, `doctor`,
+`bin`, `scripts`, `tests` and shared `testdata`) conservatively force full coverage.
+Makefiles, module metadata, gate configuration and executable dispatch also force
+full. Unknown, deleted or platform-excluded package paths retain the full fallback.
+Every valid selection runs the environment-inventory guard `test-make-env` once
+(the build group runs it when selected; other runs use a fixed preflight).
+The independent per-recipe audit in `tests/affected-consumers.json` asserts the
+real planner covers command roots, dependencies and file inputs. A separate
+Go-reader inventory refuses new or changed unmapped source readers for re-audit.
+An independent source-walker check requires preflight registration even for a
+reader labelled as a local fixture; a native seeded-violation regression drives
+the actual affected command in a disposable checkout.
+`make test` retains every existing check and adds runner, reader-inventory and
+declaration regressions; landing still requires SDLC's full-suite evidence.
+
+The declaration regression consumes upstream parser/planner source from a sibling
+ariadne checkout or the installed Go module. Until ariadne#473 is available there,
+it reports an explicit dependency skip. Qualify an upstream candidate without
+changing that checkout using `ARIADNE_AFFECTED_SOURCE=/path/to/ariadne` and optional
+`ARIADNE_AFFECTED_REF=<local-git-ref>` with `make test-affected-config`; an explicitly
+requested unavailable source fails. Changes to this declaration require the
+operator's `local-gates-verified` label. The hub owns the first recorded code
+affected check and docs-only train qualification after the declaration lands.
+
 `make test` also runs ariadne's pinned Go lint catalog over tracked Go sources.
 For a focused check, run `go test ./internal/repolint -count=1 -v`. Use a full Git
 checkout with the configured main tracking ref available: the sleep-debt ratchet
@@ -1979,6 +2050,12 @@ SDLC reviews use the pinned commit’s `.sdlc/review-prepare.json` (version 1,
 `command: ["make", "runtimebundle-generate"]`, `timeout_minutes: 10`) to generate
 the ignored runtime embed assets in a disposable checkout before tests run.
 Preparation leaves tracked sources unchanged. See the [runtime bundle map](atlas/go-migration-inventory.md).
+
+Pair's landing-train pilot is configured in `.sdlc/landing.json` with
+`train_interval_minutes: 60`, retaining the existing default car limit. `sdlc merge` reads the setting from main; inspect the landing line and recent trains
+with `sdlc landing status`. Configuration changes require the operator's
+`local-gates-verified` label. The TL owns the first multi-car conformance check;
+see the [pilot map](atlas/index.md#see-also).
 
 When `pair` runs and there's anything to pick — a detached Pair session owned by this repo **or** a tag from this repo used within the last 14 days — it shows an `fzf` picker. Detached rows come first, then historical rows annotated `(Nd ago, no live session)`, then a `+ new <agent> session` sentinel. A historical row whose session has prompts parked in its queue also carries an amber `[⏎ N queued]` badge, so you don't resume a session without remembering the work you queued up in it. Picking a historical row reuses the repo-local tag and any surviving draft / saved agent config (same path as `pair resume <tag>`). Override the 14-day window with `PAIR_HISTORY_DAYS`; `PAIR_DEBUG_HISTORY=1 pair` prints the scan and exits without launching.
 
@@ -2129,8 +2206,10 @@ Couch also raises a desktop alert and tells the hub if its input guard
 unexpectedly stalls an otherwise idle slot for 30 seconds. Inspect the named
 slot; the alert says whether delivery recovered or remains blocked.
 After rebuilding, restart Couch to use a newly added command. Existing messaging
-commands remain compatible; if running slots report missing messaging
-registrations, restart Couch to reconnect them.
+commands remain compatible. A refused send names the failing caller/recipient
+phase; inspect `couch --actors` and tell the hub if it persists. A generic
+unavailable reply alone is not evidence that Couch needs restarting. Accepted
+queued messages keep their receipts; inspect uncertain sends before resending.
 
 Agent hooks can send the same signal explicitly with `pair notify "message"`
 or the compatibility name `pair-notify "message"`. Legacy `--osc 9` and

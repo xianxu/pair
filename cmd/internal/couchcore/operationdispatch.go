@@ -248,6 +248,14 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 				}
 			}
 			result := ShowResult{Threads: narrowed, LaunchFailures: failures, LaunchFailureError: failureError}
+			if c.ScratchDiagnostic != nil {
+				if isSlot && len(matches) == 0 {
+					result.Scratch = append(result.Scratch, c.ScratchDiagnostic(call.Context, ThreadRecord{}))
+				}
+				for _, match := range matches {
+					result.Scratch = append(result.Scratch, string(match.Address.Tag)+": "+c.ScratchDiagnostic(call.Context, match))
+				}
+			}
 			switch {
 			case slotErr != nil:
 				result.Slot = &SlotReport{PlanError: "slot unresolved: " + slotErr.Error()}
@@ -499,7 +507,7 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				return c.ResumeTargetWith(ctx, target, ResumeOptions{WarmOnly: true})
 			}
 			return c.ResumeTarget(ctx, target)
-		case "keys", "set-model":
+		case "keys", "set-model", "interrupt":
 			return nil, fmt.Errorf("%s requires the authenticated live supervisor and wrapper drive capability", call.Operation.Name)
 		case "switch", "attach", "move-slot":
 			return nil, fmt.Errorf("%s requires an active couch console", call.Operation.Name)

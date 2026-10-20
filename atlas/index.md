@@ -13,19 +13,31 @@
 - [Go migration inventory](go-migration-inventory.md) — artifact/caller/runtime contract for the staged primary-Go-binary migration.
 - [Workflow](workflow/index.md) — issue-based development loop inherited from the ariadne base layer.
 - [How-to-bring-up-a-new-harness-cli](how-to-bring-up-a-new-harness-cli.md) — guide on integrating a new agent harness CLI.
-- [couch](couch.md) — the session supervisor (`cmd/couch`): one leased namespace, Couch-owned composite durable threads coordinated with Pair-owned address claims, recoverable pre-exec starts, stale-thread/checkpoint recovery, explicit archive, tty routing, the after-restart recover plan with resume/reboot over the message socket (#367), confirmed remote agent switching, exact previous tty reads (#517), and listing-based terminal admission, observation-only startup and capture producer witnesses (#528), plus bounded failed-launch evidence with one-line recovery guidance (#531), shared hosted title ownership on the existing activity schedule (#649), sampled per-slot CPU/RSS/disk writes, orphan attribution and hub alerts (#587), and capped FIFO hub-message batches with per-message receipts (#648), shared positive geometry for tall Codex composer confirmation and Return (#652), and bounded server-origin lifecycle notices with restart summaries (#574), and the durable attention list with its top-right panel and status-row badge (#673).
+- [couch](couch.md) — the session supervisor (`cmd/couch`): one leased namespace, Couch-owned composite durable threads coordinated with Pair-owned address claims, recoverable pre-exec starts, stale-thread/checkpoint recovery, explicit archive, tty routing, the after-restart recover plan with resume/reboot over the message socket (#367), confirmed remote agent switching, exact previous tty reads (#517), and listing-based terminal admission, observation-only startup and capture producer witnesses (#528), plus bounded failed-launch evidence with one-line recovery guidance (#531), shared hosted title ownership on the existing activity schedule (#649), sampled per-slot CPU/RSS/disk writes, orphan attribution and hub alerts (#587), and capped FIFO hub-message batches with per-message receipts (#648), shared positive geometry for tall Codex composer confirmation and Return (#652), and bounded server-origin lifecycle notices with restart summaries (#574), the durable attention list with its top-right panel and status-row badge (#673), and the lifecycle primitives: additive preserving records, the transcript binding resumes open by one stat, the slot lifecycle address with its per-thread lifetime lease, proven teardown, typed retire authorities and the left-running orphan registry (#695).
 - [Workspace provisioning](workspace-provisioning.md) — repeatable numbered worktree setup, local Couch state, Weave readiness and durable recovery (#305–306); the slot resource table, observation and reconcile plan (#387); repository-family admission and subdirectory propagation are mapped in [couch](couch.md).
 - [Workbench performance](workbench-performance.md) — normal-suite counted UI/message/attach invariants, scan ratchets, extension guide and separate live CPU acceptance.
-- [Couch slot scratch](couch-scratch.md) — optional TestScratch temp environments, age cleanup, socket pinning and reboot-only Zellij metadata routing (#708).
+- [Couch slot scratch](couch-scratch.md) — opt-in TestScratch temp environments, current-selection diagnostics, age cleanup, socket pinning and reboot-only Zellij metadata routing (#708, #720).
 - [Agent scratch volume](agent-scratch-volume.md) — Go build cache and agent/test temp roots on an APFS volume fseventsd doesn't journal (#496): setup, verify, lifecycle, teardown.
 - [Review workbench](review-workbench.md) — embedded nvim document-review pane (#66): agent proposes edit records, nvim applies them undo-ably + journals rounds via docflow.
 - [Agentic document caller contract](couch-agentic-documents.md) — durable registration, read-only discovery, rename and forget for submitted markdown files; shared with Parley.
 
 ## See also
 
+- `.sdlc/landing.json` — pair’s 60-minute landing-train pilot (#709), read from main by `sdlc merge`; inspect the line and recent trains with `sdlc landing status`. The operator verifies changes through the local-gates label; the TL owns the first multi-car conformance check.
+
 - [Go lint catalog](go-lint-catalog.md) — pinned upstream rules, repository coverage, reasoned exceptions and shrink-only sleep debt.
 
-- `make test` — the one gate. It runs every shell/Lua suite, then `go test ./...`
+- `.sdlc/affected.json`, `scripts/test-affected.py` — affected branch checks
+  consume ariadne#473's main-authoritative selection through `make test-affected`.
+  Selected Go argv stays exact; fixed named source scanners run first for Go
+  selections. Non-Go file-reader populations and unknown paths force full.
+  `tests/affected-consumers.json` audits recipe inputs against the real planner;
+  the Go-reader inventory requires re-audit for new or changed source readers.
+  The environment guard runs once; groups share a private Pair executable.
+  The operator owns the local-gates label; the hub owns first recorded
+  affected/docs-train evidence after landing.
+
+- `make test` — the full gate. It runs every shell/Lua suite, then `go test ./...`
   with test-result caching off, so it covers every package. Make adds `-trimpath`
   to existing `GOFLAGS` to share package compilation across worktrees; the recorded
   suite pins `PAIR_GO_TRIMPATH=-trimpath`. `internal/reporoot` finds test assets by

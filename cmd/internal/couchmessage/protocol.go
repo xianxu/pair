@@ -44,8 +44,14 @@ type Request struct {
 	Binding   *Binding
 }
 
+// CodeWarming is an admission refusal guaranteeing that nothing was queued.
+// Only this response may authorize an automatic retry of the same intent.
+const CodeWarming = "warming"
+
 type Response struct {
-	Resources *couchcore.ResourceView `json:",omitempty"`
+	// RetryAfterMillis is a transient admission hint, only for CodeWarming.
+	RetryAfterMillis int                     `json:",omitempty"`
+	Resources        *couchcore.ResourceView `json:",omitempty"`
 	// Refusals answers refusals: each canonical slot's newest unsuperseded
 	// reason and recovery class. No caller credentials: this is unauthenticated.
 	Refusals        map[string]RefusalInfo `json:",omitempty"`
@@ -84,6 +90,10 @@ type SubmissionStatus struct {
 	Error     string                   `json:"error,omitempty"`
 	Target    core.Target              `json:"target"`
 }
+
+// IsDriveOp names the ops that carry agentdrive intent into a hub-owned slot:
+// keys, set-model and interrupt (pair#717).
+func IsDriveOp(op string) bool { return op == "keys" || op == "set-model" || op == "interrupt" }
 
 func IsSubmissionOp(op string) bool {
 	switch op {
@@ -144,8 +154,8 @@ func validMessageID(id string) bool {
 }
 
 func ValidateRequest(r Request) error {
-	if r.Drive != nil && r.Op != "keys" && r.Op != "set-model" {
-		return errors.New("drive intent applies only to keys and set-model")
+	if r.Drive != nil && !IsDriveOp(r.Op) {
+		return errors.New("drive intent applies only to keys, set-model and interrupt")
 	}
 	if r.RecoveryConfirmation != "" && (r.Op != "recovery-confirmation" || !validMessageID(r.RecoveryConfirmation) || len(r.RecoveryConfirmation) > 128) {
 		return errors.New("recovery confirmation requires a bounded opaque token")
@@ -299,7 +309,7 @@ func ValidateRequest(r Request) error {
 	if r.Agent != "" && r.Op != "switch-agent" && (r.Op != "send" || !validFamily(r.Agent)) {
 		return errors.New("an agent filter applies only to send and must be a plain agent name")
 	}
-	if r.Confirmed && r.Op != "switch-agent" && r.Op != "set-model" && !couchcore.IsSlotOperation(r.Op) {
+	if r.Confirmed && r.Op != "switch-agent" && r.Op != "set-model" && r.Op != "interrupt" && !couchcore.IsSlotOperation(r.Op) {
 		return errors.New("a confirmation applies only to slot operations")
 	}
 	if r.SameBinary && !couchcore.SlotOperationTakesSameBinary(r.Op) {
@@ -309,7 +319,7 @@ func ValidateRequest(r Request) error {
 		return errors.New("--force-unknown applies only to relaunch, reload-context and prepare")
 	}
 	switch {
-	case r.Op == "keys" || r.Op == "set-model":
+	case IsDriveOp(r.Op):
 		if !validMessageID(r.ID) || r.Drive == nil || r.Body != "" || r.Agent != "" || r.Title != "" || r.ToHub != "" || r.Persist || r.Lines != 0 || r.TailScope != "" || r.TailTag != "" {
 			return errors.New("drive requires only exact target, request ID and typed intent")
 		}
@@ -319,8 +329,8 @@ func ValidateRequest(r Request) error {
 		if err := r.Drive.Validate(); err != nil {
 			return err
 		}
-		if (r.Op == "set-model") != (r.Drive.Model != nil) || (r.Op == "set-model") != r.Confirmed {
-			return errors.New("set-model requires model intent and --confirm; keys takes no confirmation")
+		if (r.Op == "set-model") != (r.Drive.Model != nil) || (r.Op == "interrupt") != r.Drive.Interrupt || (r.Op == "keys") == r.Confirmed {
+			return errors.New("set-model requires model intent and --confirm, interrupt requires interrupt intent and --confirm; keys takes no confirmation")
 		}
 	case r.Op == "recovery-confirmation":
 		if !validMessageID(r.ID) || r.RecoveryConfirmation == "" || r.Target != "" || r.Body != "" || r.Agent != "" || r.Confirmed || r.CandidateKey != "" || r.Title != "" || r.TailScope != "" || r.TailTag != "" || r.Lines != 0 {
@@ -398,7 +408,7 @@ func Handle(ctx context.Context, b *Broker, r Request) Response {
 	}
 	caller, err := b.Caller(r.Scope, r.Tag, r.Session, r.Nonce)
 	if err != nil {
-		return protocolError(err, false)
+		return protocolError(fmt.Errorf("caller lookup: %w", err), false)
 	}
 	switch r.Op {
 	case "actors":

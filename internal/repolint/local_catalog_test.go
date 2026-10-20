@@ -13,6 +13,11 @@ var pairCatalog = append(append([]golint.Rule(nil), golint.Catalog...), golint.R
 	Incident: "pair#715",
 	Message:  "retain wrapper child ownership and join it with Wait before returning; Process.Release permits writes after wrapper shutdown",
 	Match:    wrapperChildReleases,
+}, golint.Rule{
+	Name:     "lifecycle-failure-address",
+	Incident: "pair#714",
+	Message:  "compose diagnostic addresses atomically with completeFailureAddress; partial target evidence must not replace an exact captured address",
+	Match:    lifecycleFailureAddressOverrides,
 })
 
 func wrapperChildReleases(file *ast.File) []ast.Node {

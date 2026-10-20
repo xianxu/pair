@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchcoretest"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
 	"os"
@@ -51,7 +52,7 @@ func TestCouchReferencesCarryVisibilityAndArchiveGrace(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.ArchiveThread(address); err != nil {
+	if err := store.ArchiveThread(address, couchcoretest.RetireProof(t, store, address)); err != nil {
 		t.Fatal(err)
 	}
 	if err := c.WithLock(context.Background(), func(l *storagegc.Locked) error {
@@ -201,7 +202,7 @@ func TestApplyRetainsAndCollectsOwnersWithoutPairNamespace(t *testing.T) {
 				if _, err := store.CreateThread(record); err != nil {
 					t.Fatal(err)
 				}
-				if err := store.ArchiveThread(address); err != nil {
+				if err := store.ArchiveThread(address, couchcoretest.RetireProof(t, store, address)); err != nil {
 					t.Fatal(err)
 				}
 				archivePath = filepath.Join(ns.Dir(), "threadstore", "archive", scope, tag+".json")
@@ -332,7 +333,7 @@ func TestCouchReferencesLocalArchiveLocatorRoundTrip(t *testing.T) {
 	if _, err := store.CreateThread(record); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.ArchiveThread(address); err != nil {
+	if err := store.ArchiveThread(address, couchcoretest.RetireProof(t, store, address)); err != nil {
 		t.Fatal(err)
 	}
 	record.Address.Tag = "couch-0000000000000002"

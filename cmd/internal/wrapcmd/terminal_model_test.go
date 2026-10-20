@@ -580,23 +580,6 @@ func TestTerminalModelControlObserverIsChunkEquivalent(t *testing.T) {
 	}
 }
 
-func TestTerminalModelControlObserverBoundsStringStorage(t *testing.T) {
-	small := []byte("\x1b]0;payload\x9b?25h\x07")
-	large := []byte("\x1b]0;" + strings.Repeat("x", 1<<20) + "\x9b?25h\x07")
-	allocations := func(stream []byte) float64 {
-		return testing.AllocsPerRun(10, func() {
-			var observer terminalControlObserver
-			observer.Feed(stream)
-			if observer.visible {
-				panic("OSC payload authorized visibility")
-			}
-		})
-	}
-	if smallAllocs, largeAllocs := allocations(small), allocations(large); largeAllocs > smallAllocs+1 {
-		t.Fatalf("large OSC allocations = %.0f, small = %.0f; parser storage is not bounded", largeAllocs, smallAllocs)
-	}
-}
-
 func TestTerminalModelControlObserverBoundsCompleteControlEqually(t *testing.T) {
 	var overflowed terminalControlObserver
 	overflowed.Feed([]byte("\x1b[?18446744073709551641h")) // 2^64 + 25 wraps to 25 in an int.

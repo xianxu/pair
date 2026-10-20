@@ -189,7 +189,7 @@ func TestMixedSchemeSnapshotStaysDiscoverable(t *testing.T) {
 
 	rows := buildListRowsForScope(
 		[]string{"pair-pair-legacy", "📁pair-fresh"},
-		"", index, scope.Key,
+		map[string]bool{"pair-pair-legacy": false, "📁pair-fresh": false}, index, scope.Key,
 		func(tag string) string { return "claude" },
 		func(string) int { return 0 },
 	)

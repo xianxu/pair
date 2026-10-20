@@ -15,7 +15,7 @@ func archiveDetachFixture(t *testing.T) (*ThreadStore, *storagegc.Coordinator, A
 	t.Helper()
 	s, c := retentionStore(t)
 	record := archivableThread(t, s, "couch-0000000000000001")
-	if err := s.ArchiveThread(record.Address); err != nil {
+	if err := s.ArchiveThread(record.Address, retireAuthorityForTest(t, s, record.Address)); err != nil {
 		t.Fatal(err)
 	}
 	a, err := readTestArchiveGrace(s, record.Address)

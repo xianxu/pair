@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/couchidentity"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"time"
 
@@ -100,6 +101,22 @@ type Record struct {
 	Park                *ParkTransaction  `json:"park,omitempty"`
 	VerifiedPark        *VerifiedPark     `json:"verified_park,omitempty"`
 	ParkHistory         []ParkTransaction `json:"park_history,omitempty"`
+	// Transcript is the agent's exact native conversation (pair#695 P2).
+	// Absent on records from before it; added without a schema bump because
+	// a reader that ignores it falls back to the ledger, as before. Decode
+	// checks its types only: its location is checked where it is used (Bind),
+	// so one bad or newer-build binding refuses a resume, never the record.
+	Transcript *TranscriptBinding `json:"transcript,omitempty"`
+	// ProvenDownAt is when a teardown proved this record's tree gone, stamped
+	// on the record as it is archived (pair#695); a lifecycle success.
+	ProvenDownAt *time.Time `json:"proven_down_at,omitempty"`
+	// Unknown holds top-level members this build does not own, captured on
+	// decode and written back verbatim by EncodePersisted (pair#695 §2a), so a
+	// rewrite by an older build cannot erase a newer build's field. Only the
+	// current schema tolerates them. Nested types older than pair#695 stay
+	// strict; a nested type born additive (TranscriptBinding) preserves its
+	// own unknown members.
+	Unknown map[string]json.RawMessage `json:"-"`
 }
 
 var componentPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
@@ -136,6 +153,7 @@ func Validate(record Record, validators Validators) error {
 			return fmt.Errorf("previous session: %w", err)
 		}
 	}
+
 	if record.ContinuationMissed != nil {
 		if err := record.ContinuationMissed.Validate(); err != nil {
 			return err
@@ -284,9 +302,11 @@ func DecodePersisted(raw []byte, expected Address, validators Validators) (Recor
 		}
 		record.SchemaVersion = SchemaVersion
 	case SchemaVersion:
-		if err := strictjson.Decode(raw, &record); err != nil {
+		decoded, err := decodeCurrent(raw)
+		if err != nil {
 			return Record{}, err
 		}
+		record = decoded
 	default:
 		return Record{}, fmt.Errorf("unsupported thread schema version %d", version)
 	}
@@ -294,6 +314,32 @@ func DecodePersisted(raw []byte, expected Address, validators Validators) (Recor
 		return Record{}, err
 	}
 	return record, nil
+}
+
+var recordKnownFields = strictjson.KnownFields(reflect.TypeOf(Record{}))
+
+// decodeCurrent decodes the owned members strictly and keeps the rest.
+// Owned members may be null exactly as strictjson.Decode allows.
+func decodeCurrent(raw []byte) (Record, error) {
+	var record Record
+	unknown, err := strictjson.DecodeKnown(raw, recordKnownFields, &record)
+	if err != nil {
+		return Record{}, err
+	}
+	if len(unknown) > 0 {
+		record.Unknown = unknown
+	}
+	return record, nil
+}
+
+// EncodePersisted is the one encoding of a persisted record: indented owned
+// members, then the preserved unknown ones verbatim.
+func EncodePersisted(record Record) ([]byte, error) {
+	raw, err := json.MarshalIndent(record, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	return strictjson.AppendMembers(raw, record.Unknown, recordKnownFields)
 }
 
 // recordV1 is frozen. Keeping its exact field set makes migration strict and
@@ -366,6 +412,11 @@ func rejectLegacyRecoveryFields(envelope map[string]json.RawMessage) error {
 // Schema 3 knows only capture-dependent recovery. Reject newer fields by
 // presence, including null, before the shared decoder can erase their version.
 func rejectTaggedRecoveryFields(envelope map[string]json.RawMessage) error {
+	if raw, ok := envelope["recovery_context"]; ok {
+		if err := rejectNativeRecoveryContext(raw); err != nil {
+			return err
+		}
+	}
 	if _, ok := envelope["recovery_intent"]; ok {
 		return fmt.Errorf("legacy schema cannot contain retained recovery intent")
 	}
@@ -392,10 +443,51 @@ func rejectTaggedRecoveryFields(envelope map[string]json.RawMessage) error {
 		if err := strictjson.Decode(raw, &intent); err != nil {
 			return err
 		}
+		if raw, ok := intent["context"]; ok {
+			if err := rejectNativeRecoveryContext(raw); err != nil {
+				return err
+			}
+		}
 		for _, field := range []string{"mode", "address", "source_revision", "created_at", "agent", "orientation"} {
 			if _, ok := intent[field]; ok {
 				return fmt.Errorf("legacy recovery intent cannot contain %s", field)
 			}
+		}
+	}
+	return nil
+}
+
+// A legacy envelope must not acquire native-only semantics merely because its
+// nested Go type gained a newer context version. Check presence before decode.
+func rejectNativeRecoveryContext(raw json.RawMessage) error {
+	if string(raw) == "null" {
+		return nil
+	}
+	var context map[string]json.RawMessage
+	if err := strictjson.Decode(raw, &context); err != nil {
+		return err
+	}
+	if _, ok := context["source"]; ok {
+		return fmt.Errorf("legacy recovery context cannot contain source")
+	}
+	if raw, ok := context["version"]; ok {
+		var version int
+		if err := strictjson.Decode(raw, &version); err != nil {
+			return err
+		}
+		if version != 1 {
+			return fmt.Errorf("legacy recovery context must be capture-backed version 1")
+		}
+	}
+	var candidates []map[string]json.RawMessage
+	if raw, ok := context["candidates"]; ok {
+		if err := strictjson.Decode(raw, &candidates); err != nil {
+			return err
+		}
+	}
+	for _, candidate := range candidates {
+		if _, ok := candidate["cwd"]; ok {
+			return fmt.Errorf("legacy recovery candidate cannot contain cwd")
 		}
 	}
 	return nil

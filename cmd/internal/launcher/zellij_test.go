@@ -17,7 +17,7 @@ import (
 )
 
 func TestZellijSnapshotQueryFailuresDiscardAllSessions(t *testing.T) {
-	for _, stage := range []string{"list-sessions --short", "list-sessions --no-formatting", "--session pair-b action list-clients"} {
+	for _, stage := range []string{"list-sessions --no-formatting", "--session pair-b action list-clients"} {
 		t.Run(stage, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "zellij")
 			script := `#!/bin/sh
@@ -66,7 +66,7 @@ func TestZellijSnapshotCancellation(t *testing.T) {
 }
 
 func TestZellijSnapshotCancellationDuringQuery(t *testing.T) {
-	for _, stage := range []string{"list-sessions --short", "list-sessions --no-formatting", "--session pair-b action list-clients"} {
+	for _, stage := range []string{"list-sessions --no-formatting", "--session pair-b action list-clients"} {
 		t.Run(stage, func(t *testing.T) {
 			dir := t.TempDir()
 			path := filepath.Join(dir, "zellij")

@@ -61,7 +61,7 @@ func (r OSRecoveryEvidenceReader) ReadRetainedTerminal(ctx context.Context, addr
 		return TerminalRecording{}, errors.New("retained terminal lease unavailable")
 	}
 	defer lease.Close()
-	metadata, err := recoveryCaptureMetadata(ctx, paths, &capture, agent)
+	metadata, err := recoveryCaptureMetadata(ctx, paths, &capture, agent, nil)
 	if err != nil {
 		return TerminalRecording{}, err
 	}

@@ -116,7 +116,24 @@ func (c *Couch) Reboot(ctx context.Context, t RebootTarget) (RebootResult, error
 		if err := ctx.Err(); err != nil {
 			return RebootResult{}, err
 		}
-		if err := c.Threads.ArchiveThreadExpectedBytes(address, raw); err != nil {
+		if decodeErr != nil {
+			escape, err := backend.unreadableEscape(address, raw)
+			if err != nil {
+				return RebootResult{}, err
+			}
+			if err := c.Threads.ArchiveThreadExpectedBytes(address, raw, escape); err != nil {
+				return RebootResult{}, err
+			}
+			return RebootResult{Archived: address, ArchiveOnly: true, Reason: reason, SessionNotStopped: true}, nil
+		}
+		// Readable with its folder gone: the escape still stops nothing, but
+		// the record names a tree, so it leaves only once that tree is
+		// proven down (pair#695); a survivor is named and refused.
+		proof, err := c.ProveDown(ctx, record)
+		if err != nil {
+			return RebootResult{}, fmt.Errorf("reboot %s: %w", address.Tag, err)
+		}
+		if err := c.Threads.ArchiveThreadExpected(address, proof.Revision(), proof); err != nil {
 			return RebootResult{}, err
 		}
 		return RebootResult{Archived: address, ArchiveOnly: true, Reason: reason, SessionNotStopped: true}, nil

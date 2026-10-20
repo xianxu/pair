@@ -3,6 +3,7 @@ package couchcmd
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -403,6 +404,9 @@ func TestDrivePanelAdmitsOnlyEsc(t *testing.T) {
 				if q.count() != 0 {
 					t.Fatal("refused panel input queued work")
 				}
+				if !strings.Contains(response.Error, agentdrive.PanelRefusal) {
+					t.Fatalf("panel refusal does not name esc: %+v", response)
+				}
 				return
 			}
 			if _, err := q.job(0).prepare(context.Background()); err != nil {
@@ -411,6 +415,64 @@ func TestDrivePanelAdmitsOnlyEsc(t *testing.T) {
 			e.observation.Dismissable = false
 			if _, err := q.job(0).prepare(context.Background()); err == nil {
 				t.Fatal("guard accepted a closed panel")
+			}
+		})
+	}
+}
+
+// TestDriveInterruptNeedsAWorkingTurnProof: the interrupt skips the settled
+// check (a working turn is never settled) and is admitted only on the
+// wrapper's working-turn proof, which no key request can use (pair#717).
+func TestDriveInterruptNeedsAWorkingTurnProof(t *testing.T) {
+	for _, scenario := range []struct {
+		name          string
+		drive         agentdrive.Request
+		interruptible bool
+		accepted      bool
+	}{
+		{"interrupt on a working turn", agentdrive.Request{Interrupt: true}, true, true},
+		{"interrupt with no working turn", agentdrive.Request{Interrupt: true}, false, false},
+		{"esc on a working turn", agentdrive.Request{Keys: agentdrive.KeySequence{{Kind: agentdrive.KeyEsc}}}, true, false},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			r, q, hub, worker, e := driveRig(t)
+			e.observation.Idle = false
+			e.observation.Interruptible = scenario.interruptible
+			old := r.s.liveness.Load()
+			next := make(map[string]couchmessage.SlotLiveness)
+			for k, v := range *old {
+				next[k] = v
+			}
+			live := next[worker.Slot]
+			settled := false
+			live.Settled = &settled
+			next[worker.Slot] = live
+			r.s.liveness.Store(&next)
+			req := driveRequest(hub, "interrupt", worker.Slot)
+			drive := scenario.drive
+			req.Drive = &drive
+			if drive.Interrupt {
+				req.Op, req.Confirmed = "interrupt", true
+			}
+			response := switchCall(t, r, req)
+			if (response.Code == "accepted") != scenario.accepted {
+				t.Fatalf("response %+v", response)
+			}
+			if !scenario.accepted {
+				if q.count() != 0 {
+					t.Fatal("refused request queued work")
+				}
+				if drive.Interrupt && !strings.Contains(response.Error, agentdrive.InterruptRefusal) {
+					t.Fatalf("interrupt refusal %+v", response)
+				}
+				return
+			}
+			if _, err := q.job(0).prepare(context.Background()); err != nil {
+				t.Fatalf("interrupt guard: %v", err)
+			}
+			e.observation.Interruptible = false
+			if _, err := q.job(0).prepare(context.Background()); err == nil {
+				t.Fatal("guard accepted an interrupt after the turn ended")
 			}
 		})
 	}

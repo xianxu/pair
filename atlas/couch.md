@@ -75,6 +75,15 @@ Fresh archives the source and allocates a new tag. Age never authorizes killing
 the Couch supervisor. Agent activity never demotes a positively listed session
 from Continue.
 
+A direct Proven or Fresh recovery sets `RecoveryObservationRequest.SkipCandidates`
+(pair#726). The reader still builds `Source`, the screen, the capture, `Agent`,
+`Generation`, the branch and the issue, and fences the capture identity. It
+skips only the native transcript scan, which walks the agent's whole native
+store under the hub effect gate and is consumed only by an inferred (keyed)
+choice. When it offers the confirmed Resume from disk, `--resume-candidates`
+says an incomplete scan does not feed that choice: it comes from the
+established binding.
+
 Public Continue attaches through `couchcore/warm_attach.go`. After attachment,
 it may replace only a proven-dead client-helper incarnation with its exact
 locally owned helper, rechecking the old PID/start identity at the write gate.
@@ -210,6 +219,25 @@ operator line name cleanup uncertainty and retain the diagnostic nonce. Inspect
 with couch --show, then use the existing continue, resume from disk or start fresh
 recovery outcome when fresh evidence permits it. No new recovery state is added.
 
+### Failed recovery launch disposition (#714)
+
+An acknowledged recovery launch gets one final registration look before it is
+classified. If registration is still unconfirmed, Couch retains the per-thread
+operation hold while checking the exact recorded helper and proposed terminal.
+Only a reaped direct child, an absent owned process group and an absent exact
+terminal release the failed creating incarnation. `ReconcileStart` owns the pure
+evidence decision; `StartFailedConfirmed` applies its nonce/revision-fenced
+transition and retains the original selection, park and thread for immediate
+retry. It does not signal, delete a session or start a replacement.
+
+Live/unknown group or terminal evidence, changed metadata and failed disposition
+persistence all remain **Launch unconfirmed**; inspect the exact attempt before
+another recovery action. The final disposition has one five-second context for
+observation and metadata admission/write, followed by the existing optional
+ten-second diagnostic-publication cap. Lock contention may refuse immediately.
+The successful-launch path adds no disposition probes. See
+`couchcore/recovery_launch_disposition.go` and `recovery_launch_failure_test.go`.
+
 ### Lifecycle failure evidence (#531, #683)
 
 `launchfailure.go` owns `LifecycleFailure` and the legacy `LaunchFailure` aliases,
@@ -228,7 +256,8 @@ Retention trims to 64 entries, then evicts oldest whole entries until at most
 `lifecyclefailure_codec.go` preserves unknown raw values, including nested address
 and holder/process members, through enrichment and rewrite. Known types, required
 identity/time fields and recursive duplicate keys remain strict; legacy rows need
-no new fields. No format version or global strictjson policy changes.
+no new fields. No format version or global strictjson policy changes. Since #695
+the codec sits on the shared `strictjson` object helpers (below).
 
 `operationattempt_record.go` owns `OperationAttempt.Finish`, the sole terminal
 recorder. Synchronous dispatch finishes its attempt directly. Queued actions keep
@@ -250,6 +279,13 @@ references; preparation can add the actual dispatched thread address without
 resolving or authorizing it for diagnostics. Unreadable records remain recoverable.
 Optional nonce/publication failures preserve the original action result with a
 warning rather than inviting another external effect.
+
+Diagnostic address composition uses `completeFailureAddress`: it copies one
+complete scope/tag pair atomically, falling back to the captured launch address
+when outer dispatch evidence is partial. It never combines components from two
+targets. Unresolved calls retain their reference/path with an empty address, so
+strict record validation stays in force. The concise operator message also
+retains an outer recorder's save-failed warning alongside the launch exit.
 
 Pure `LastLifecycleSuccessAt(record)` is the sole success-time definition: verified
 park time and a committed live incarnation's start time. LastActiveAt is excluded
@@ -274,6 +310,98 @@ postponed for diagnostic IO. A crash before terminal publication can lose that
 attempt's in-memory evidence; older published history remains durable. Private
 service conformance and a disposable-slot display check after an operator Couch
 restart provide separate acceptance; this feature does not stage :0.
+
+### Lifecycle primitives (#695)
+
+**Additive records.** `strictjson/object.go` is the one strict-known,
+preserve-unknown codec: `SplitObject`, `EncodeObject`, `AppendMembers`, `CloneRaw`
+and `MergeRaw`. It refuses duplicate keys at any depth, and it writes preserved
+values verbatim. The failure log and the thread record use it. The thread record
+(`threadrecord.Record.Unknown`) carries top-level members it does not own through
+every rewrite. `ThreadRecord.MarshalJSON` is the persisted encoding, so every
+writer keeps them wherever it marshals. An older couch CLI running a direct-store
+operation therefore cannot erase a newer field. Nested objects stay strict, and
+there is no schema bump. Decode checks the binding's types only, so one bad or
+newer-build binding refuses a resume (`resume-transcript-invalid`) and never hides
+the thread.
+
+**Transcript binding.** `ThreadRecord.Transcript` (`threadrecord/transcript.go`)
+stores the agent's exact conversation. It keeps the native ID plus the root name
+and relative path that the ledger binding's authorization proof names. A native ID
+alone does not locate the file: Claude munges the cwd, and Codex adds a dated
+folder. Resume, relaunch, recovery, startup and preview all go through
+`Couch.bindTranscript` (`couchcore/transcript_bind.go`):
+
+- It reads the tag's ledger by its known name with `ReadCurrentLaunchAt`, never a
+  listing. A newer established root adopts, which covers pair's own context reset.
+- It stats the bound file once. A missing file refuses with
+  `resume-transcript-missing` and is never searched for.
+- An unreadable or missing ledger keeps a located stored binding. The row note for
+  that case belongs to pair#684's row notes.
+- Only when no file is known does the old listing resolver answer, once:
+  `bindByResolver` handles a session before its first turn, a legacy record, or a
+  proofless binding row.
+
+The resume start claim stores the result (`StartEvent.Transcript`) in its own
+revision-checked write. `sessioninventory.RootTranscriptID` and `NativeRootNames`
+are the pure path parsers and root names it validates with. The counted tests run
+the production binder over `sessioninventorytest.FakeRuntime`: 1 ledger read,
+1 stat, 0 listings.
+
+**Lifecycle address.** `couchcore/lifecycleaddress.go`'s `LifecycleAddress` is a
+slot's physical root, built by `NewSlotAddress`. A `:0` primary passes a zero
+`SlotIdentity`. `Key` is `slot:<root>`, the same function as #683's failure slot
+key. It has one kind: the operator chose one team per repository, so a team is an
+ordinary `:0` slot.
+
+**Lifetime lease (M2).** `lifetimelease` holds a shared flock at
+`<namespace>/leases/<digest>.lease`, one per thread tree. The key is
+`Key() + scope/tag`, per thread rather than per slot, because a store from before
+one-thread-per-repository (pair#363) can hold sibling threads at one path.
+- Couch prepares the lease and passes it in `COUCH_LIFETIME_LEASE`.
+- The launcher's pair, `pair wrap` and session-watch each hold it. The wrapper
+  strips it from the agent's env, so nothing the agent runs can hold the slot.
+- Plain pair without Couch opens nothing.
+- The wrapper also publishes the agent's controlling tty in `agent-ready`, read
+  from the kernel process table (`procutil.Process.TTY`).
+- The lease file is created by the launch and removed after any proof.
+  Retirements with no proof leave theirs to `lifetimelease.SweepFree` at Couch
+  start, which unlinks only free files. `Hold` re-checks that it locked the file
+  its path names.
+
+**Teardown (M2).** `couchcore/teardown.go`.
+- `Teardown(thread)` quiesces the session and stops the registered wrapper. It
+  then sweeps the lease holders and the processes on the agent's tty, by exact
+  identity, with SIGTERM then SIGKILL, at most 3 rounds, within a 10s budget.
+- It proves the tree down: the lease is free, the published agent (by exact
+  identity) is dead, nothing is on the tty, and the session is absent twice. #692's listing omission is unproven, never absence.
+- It then folds the park or start claim the dead owners left
+  (`clearLifecycleDebris`).
+- The tty is trusted only while the tree is up (the agent is listed or the lease
+  is held), because a dead agent's device may be reused.
+- `ProveDown` proves without stopping or folding.
+- Failures are `ErrTeardownUnproven`, with a phase and holders, through #683's
+  `LifecycleFailureDetails`.
+- The agent's descendants that left its tty (setsid'd runners) are `LeftRunning`.
+  They are never killed. They are registered in `<namespace>/orphans.json`
+  (`LeftRunningRegistry`, tolerant and preserving, 256 cap). `couch --resources`
+  shows them, and `couch --reap-orphans --confirm` ends them by exact identity.
+  The resource sampler prunes vanished identities.
+
+**Retire authorities (M2).** `couchcore/retire.go`. Every store retirement
+(`archiveThread`, `ReplaceThreadExpected`, `replaceSlotCurrent`) takes a sealed
+`RetireAuthority` and refuses without one:
+- `TeardownProof`: that thread, that lifecycle key, at the proof's revision.
+- `AdoptionAuthority`: survivor adoption, with every other owner proven dead.
+- `UnreadableRecordEscape`: undecodable bytes, exactly those.
+- `FreshLeavesRemnants`: a confirmed Fresh whose source could not be proven down.
+  It stops only what the operator confirmed and starts beside the remnants. It is
+  the only authority that may replace over an open park or claim.
+
+Archive tears down after its quiesce. Reboot's archive-only escape and a fresh
+slot start use `ProveDown`. A record retired by proof is archived with
+`proven_down_at`, which `LastLifecycleSuccessAt` counts, so an emptied slot's
+`--show` hides the unproven attempt before it.
 
 Claude native resume validates an exact session through bounded UUID-leaf
 probes under the authorized project roots, preserving duplicate and root-role
@@ -697,11 +825,27 @@ remaining uncertainty is stated, never papered over:
   is `SendTransportTimeout` (admission plus a second), so the verdict arrives.
 - **Liveness behind the authority (#618).** The use-time ownership check runs
   at every admission and every queued-message retry (`PromoteRetry`, 1 s). Its
-  terminal listing reads `launcher.ListingPoller`: one supervisor loop runs both
-  `zellij list-sessions` forms every second, and a snapshot older than 5 s
+  terminal listing reads `launcher.ListingPoller`: one supervisor loop reads one
+  validated full `zellij list-sessions --no-formatting` reply every second (#711),
+  deriving names and exited state from that same observation. A snapshot older than 5 s
   refuses as "zellij liveness is stale". The thread record, PID file, ready
   file and session index are still read per check. Recovery and relaunch
   decisions keep their direct zellij reads.
+  Malformed refreshes preserve the last good timestamp instead of renewing authority.
+  An unrelated session starting between two native calls cannot create a disagreement:
+  there is no paired short listing. Direct inventory readers use the same full parser.
+- **Input during admission (#711).** A recipient whose broker actor and both live
+  registrations are unchanged can become busy after its wrapper accepts a reservation.
+  Admission captures the sender's original broker actor under lock and retains it through
+  routing, reservation and queue fallback; same-binding reconnect is a new lifetime.
+  Operator input invalidating that observation uses the existing exact-target queue;
+  disconnect or replacement still refuses stale work. Refusals identify caller lookup /
+  current validation or recipient lookup / observe / reserve, and the CLI never infers
+  that restarting Couch is appropriate from a generic unavailable reply. Unknown or
+  malformed evidence grants no new authority, and uncertain sends retain receipt-first
+  recovery. The three causal regressions and 8/16-session query budgets live in
+  `broker_input_invalidation_test.go`, `zellij_listing_churn_test.go`, and
+  `message_phase_test.go`.
 - **Receive state in `--list` (#618).** `couch --list` asks the running
   supervisor once (the unauthenticated `refusals` op, 250 ms, best effort) for
   each slot's latest unsuperseded refusal and prints it under the row as
@@ -771,6 +915,12 @@ complete pending composer must still match Couch's known envelope.
 - **Before the paste** the gates are unchanged. No other automatic input is in
   flight, no operator keystroke arrived in the last second, bracketed paste is
   on, and a recognized composer reads empty. Unknown or occupied composers wait.
+  Receipt Detail names incomplete frames, hidden cursors, or unrecognized
+  geometry/input without recording screen contents. The terminal resize owner
+  preserves existing evidence on unchanged synchronized geometry; an actual
+  resize or retry after an aborted resize still requires fresh cursor evidence
+  (`peer_resize_test.go`, pair#735). A running Claude shell footer alone does
+  not block its free composer. Supervision-log health is tracked in pair#736.
 - **A busy agent is read between frames and pasted mid-turn (pair#438).**
   A streaming agent nearly always has output in flight, so waiting for none
   starved deliveries for whole turns. Claude Code frames each repaint as a
@@ -967,6 +1117,46 @@ original hub without replay. The existing cancellable hub effect gate serializes
 bounded admission against moves; the ownership mutex is not held across IO.
 Projection generations fence jobs extracted before the drop. Restart collection
 survives the drop, and only genuinely new lifecycle facts follow the new owner.
+
+Hub slot-operation admission (`handleHubSlotOperation`, pair#726) is a cheap
+gate on warm sources, inside its own 1.5 s budget, below the 2 s exchange. The
+single deadline spans initial authentication, target resolution, queue-name lookup
+and enqueue, including move and operation-status requests. The caller comes
+from its connected workspace (`connectedWorkspace`), and the target
+from `hubTargetMemo`. Admission never falls back to a synchronous fresh caller
+workspace or target resolver: native cancellation can itself outlast the exchange.
+A missing caller proof says to reconnect; a missing memo says it is unavailable.
+A pending memo flight returns wire code `warming`, no operation receipt and a
+positive `RetryAfterMillis` (500 ms). The CLI repeats only that typed nothing-queued
+refusal, keeping its request ID and intent, for at most eight attempts inside a
+30-second total admission budget. Each exchange and sleep is capped by the
+remaining budget, and progress says it is waiting for the catalog to warm.
+Transport errors, uncertain replies and all other refusals never trigger admission
+resends. Queued work and its fresh proofs retain their own queue context.
+The memo maps a target reference to its `HubSlot`.
+One single-flight discovery per repository fills all its verified numbered
+slots under unambiguous names and aliases. Memo reads and queue-key selection
+use the fresh resolver's shared exact-sibling-directory precedence rule before
+enrollment lookup, including prewarmed aliases. The service captures the
+supervisor's fleet context once at startup; if it cannot establish that context,
+it retains per-reference resolution rather than guessing from enrollment. Startup prewarms the distinct hub
+repositories without delaying service startup; cold concurrent requests join
+the same flight. Missing slots, primary slots and unresolved repository names
+fall back to the existing per-reference resolver. Both kinds of flight share
+the eight-resolution cap, run under the service lifetime and join at `Close`.
+Entries are used for 10 minutes and every fresh target resolution refreshes its
+entry; memo writes sweep expired entries and cap them at 256. Admission waits
+only within its budget. Otherwise admission returns the typed warming refusal above, and any overrun names its phase. A failed
+resolution answers with its own error for 30 s before retrying. Move-slot
+admission (`handleHubMove`) names its slots from the same memo, within the same
+budget. The queued move then re-resolves each slot fresh and refuses if any
+differs, because those slots are the move's payload. A warm
+admission spawns no `sdlc` or `git`. The queued guard still re-proves authority
+on fresh discovery in prepare and at the effect gate, so a stale memo admits at
+most a job that refuses before any effect. `OSSlotCatalog.Discover` verifies
+slot rows concurrently, at most eight at a time. It keeps each row's
+replacement fence and fails the whole inventory on a fatal row. That cut an
+8-slot discovery from 3 s to 1 s.
 
 `couchmessage.Message.Origin` is immutable: peer is omitted/zero, system is created
 only through internal server admission. External requests cannot carry origin.
@@ -2147,8 +2337,55 @@ frame repainted after the write proves nothing, because a usage panel repaints
 when its data loads. One rule, `agentdrive.Request.Admits`, decides admission
 for the service, its pre-input guard, the wrapper and the reducer. The panel
 is the rows below the viewport's last full-width rule, since earlier prompt
-rows stay visible above it; the footer wording comes from the Claude 2.1.304
-capture in `wrapcmd/testdata/drive/claude/2.1.304/`.
+rows stay visible above it. A panel taller than the screen has scrolled its rule
+away and fills the whole viewport. The footer wording comes from the Claude
+2.1.304 captures in `wrapcmd/testdata/drive/claude/2.1.304/` (short and tall
+panels, plus real working-turn screens that must refuse). Claude reports
+progress as working for as long as its panel is open, so the wrapper's turn flag
+stays set. For the lone `esc` only, the panel proof outranks that flag:
+`Dismissable` has no turn gate, and a dismissal drive does not stop on an active
+turn (`DriveState.panelOwnsInput`). It still confirms only on an idle composer,
+which follows Claude's progress-stopped report at dismissal. Every other drive
+still stops on an active turn. Any other request refused
+while a panel shows says so and names the lone `esc` (`agentdrive.PanelRefusal`).
+For a non-recovery key, the service learns about the panel through one read-only
+observation, made only on the not-settled refusal path (pair#716).
+
+`agentdrive.Steps` is the one table of caller steps (pair#716). `Validate`
+accepts a named key only if it is a row. `couch --keys --help` renders the rows,
+the limit constants, the admission rules and the panel round trip, and
+`couch --help` names them inline. A test holds the skill's step sentence to the
+same table. Since pair#717 each row also carries its bytes, which `InputBytes`
+reads. These are classic xterm encodings, the family the drive already sends to
+Claude and Codex. The families `f1-f12`, `ctrl-LETTER` and `alt-LETTER` are
+generated rows that share a group, printed once. `RefusedSteps` names chords
+that are never a plain step, each with its reason: `ctrl-c` (use `couch
+--interrupt`), `ctrl-d`, `ctrl-z`, the flow-control `ctrl-s` and `ctrl-q`, and
+the aliases `ctrl-i`, `ctrl-m` and `ctrl-u`. The aliases are refused because a
+second name for the same byte would split the admission rules.
+
+`couch --interrupt repo:N --confirm` (pair#717) is the third drive request
+shape, beside keys and model (`Request.Interrupt`). It is never a key step, so
+no sequence can carry Ctrl+C by accident. Each shape defines its admitting proof
+once (`Request.shapeProof`), and start admission (`Admits`), the pre-write
+recheck (`WriteAdmits`) and the turn gate (`DriveState.TurnTolerant`) all derive
+from it. The interrupt's proof is `Interruptible`: positive evidence of work,
+never the turn flag alone, because a bare submission or an open Claude panel
+also sets that flag. The proof needs three things. First, the lifecycle
+reducer's one `Working()` predicate: open, not completed, activity seen, and no
+stop grace pending. `turnWorking` mirrors that predicate off the master loop.
+Second, the agent's own composer on screen, which rules out a panel. Third, the
+agent's own "esc to interrupt" hint in the bottom viewport rows
+(`agentdrive.AdvertisesInterrupt`), which also covers a turn end the lifecycle
+missed. It also needs a complete frame, no picker, and the wrapper owning
+input. It may take a residual
+automatic-input wait, as recovery does, but never an active owner. `Admits`
+checks the interrupt first and exclusively, so an idle agent never gets
+Ctrl+C. The drive writes one internal `interrupt` key (`\x03`) and is done
+when the turn ends. It is unconfirmed at the deadline and never resent. A second
+interrupt refuses because no turn is working. `couchmessage.IsDriveOp` names
+the three drive ops wherever the protocol, service, CLI and console dispatch
+them.
 
 `couchmessage/drive_endpoint.go` provides `drive-observe`, `drive-start`,
 `drive-status` and idempotent `drive-cancel` over the existing authenticated
@@ -2177,8 +2414,10 @@ steps likewise wait for a complete frame within that deadline.
 Success requires a new matching confirmation after apply, never old scrollback
 or a pre-existing footer. Omitted effort follows the observed picker value.
 
-Raw steps are `text:…`, `enter`, `submit`, `up`, `down`, `esc`, `clear-line`,
-and `wait:MS`. Return translation stays shared with Pair: `enter` means newline
+Raw steps are the `agentdrive.Steps` rows: `text:…`, `enter`, `submit`, the
+arrows, `tab`, `shift-tab`, `backspace`, `delete`, `home`, `end`, `pageup`,
+`pagedown`, `esc`, `clear-line`, `wait:MS`, `f1-f12`, `ctrl-LETTER` and
+`alt-LETTER`. Return translation stays shared with Pair: `enter` means newline
 in the qualified composer and selection in a picker; `submit` means Alt+Return.
 A lone ESC is flushed as one separate step. Raw success confirms acknowledged
 input and the final styled observation, without claiming an arbitrary command's
@@ -4462,7 +4701,9 @@ boundaries with exact bytes, geometry and timing. Regular Couch is supported;
 `COUCH_ISOLATED_ROOT` remains optional. Capture stays disabled by default. See the
 [live capture runbook](couch-live-capture.md) for launch, limits and extraction.
 
-Recovery candidates are an explicit choice: `couch --resume-candidates repo:N --json` lists the best candidate and up to four alternatives with native identity, last activity, tail match and a stable selection key. `couch --resume repo:N --candidate KEY` selects that evidence snapshot. The menu uses the same preview and offers fresh startup from the previous screen. Automatic inference is disabled pending a witnessed calibration corpus.
+Recovery candidates are an explicit choice: `couch --resume-candidates repo:N --json` lists up to five native/proven choices. Capture-backed alternatives retain their measured tail matching; when the screen cannot support inference, native-only alternatives show **unconfirmed**, physical cwd, semantic native activity and native ID without a tail score. Screen failure reasons and readable capture-file activity remain separate from native-scan completeness. A missing launch association weakens provenance without making an otherwise complete scan incomplete.
+
+`couch --resume repo:N --candidate KEY` selects the exact observed evidence. Native-only keys bind the fixed observation cutoff, source revision and ordered artifact fingerprints and expire after five minutes; refresh after expiry or changed evidence. Selection freezes the original native snapshot and verifies the exact selected artifact before preservation, retirement and claim admission. It persists bounded native evidence before source retirement; the launcher independently revalidates the artifact and physical cwd before composing native resume argv. No capture or established binding is manufactured. Plain resume continues to require an established binding; Fresh remains available with honest context-loss advice. Listing does not provision or write lifecycle state, and automatic inference stays disabled. The shared scan envelope remains 30 seconds, 10,000 metadata visits, 64 eligible roots and 256 MiB; failed screen reads and retry scans share that read budget. Screen replay separately preflights its shared 64 MiB raw and 8 MiB event limits before reserving replay bytes; rejected screens leave unread bytes available to native discovery. Readable owned raw-file activity remains descriptive even if companion events or archive authority fails.
 
 Explicit multi-directory launches enqueue the typed `start-hub` operation on
 the existing console operation queue. It reuses StartInteractive for each extra

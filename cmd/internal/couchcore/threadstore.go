@@ -278,7 +278,7 @@ func (s *ThreadStore) CreateThread(record ThreadRecord) (ThreadRecord, error) {
 // record file appears. The manifest entry stays with the caller, because a
 // replace edits the manifest once for both of its halves.
 func (s *ThreadStore) createJournalEntries(record ThreadRecord) ([]storeJournalEntry, error) {
-	recordRaw, err := json.MarshalIndent(toPersistedThreadRecord(record), "", "  ")
+	recordRaw, err := encodeThreadRecord(record)
 	if err != nil {
 		return nil, err
 	}
@@ -481,7 +481,7 @@ func (s *ThreadStore) updateExistingThreadOnBackend(ctx context.Context, address
 				return err
 			}
 		}
-		raw, err := json.MarshalIndent(toPersistedThreadRecord(next), "", "  ")
+		raw, err := encodeThreadRecord(next)
 		if err != nil {
 			return err
 		}
@@ -943,7 +943,7 @@ func (s *ThreadStore) advanceSuccessfulStart(address ThreadAddress, expectedRevi
 		if err := ValidateThreadRecord(next); err != nil {
 			return err
 		}
-		nextThreadRaw, err := json.MarshalIndent(toPersistedThreadRecord(next), "", "  ")
+		nextThreadRaw, err := encodeThreadRecord(next)
 		if err != nil {
 			return err
 		}
@@ -1386,26 +1386,29 @@ func (s *ThreadStore) archivePath(address ThreadAddress) string {
 // can carry no incarnation at all, so the record cannot. Everything else goes:
 // parked, detached and every unusable reason but `unknown`, because the operator
 // is the one who decides a thread is finished.
-func (s *ThreadStore) ArchiveThread(address ThreadAddress) error {
-	return s.archiveThread(address, nil, nil)
+//
+// The authority says why the record may go (pair#695): a teardown proof at
+// its revision, or the unreadable-record escape for exactly its bytes.
+func (s *ThreadStore) ArchiveThread(address ThreadAddress, authority RetireAuthority) error {
+	return s.archiveThread(address, nil, nil, authority)
 }
 
 // ArchiveThreadExpected preserves the exact record inspected before external
 // session effects. A concurrently published request must not be archived by an
 // older action merely because the newer record is also unoccupied. Revision
 // zero represents an unreadable observation and refuses a newly readable record.
-func (s *ThreadStore) ArchiveThreadExpected(address ThreadAddress, revision uint64) error {
-	return s.archiveThread(address, &revision, nil)
+func (s *ThreadStore) ArchiveThreadExpected(address ThreadAddress, revision uint64, authority RetireAuthority) error {
+	return s.archiveThread(address, &revision, nil, authority)
 }
 
 // ArchiveThreadExpectedBytes files only the exact observed snapshot, including
 // undecodable bytes. The existing record guards and archive journal still own it.
-func (s *ThreadStore) ArchiveThreadExpectedBytes(address ThreadAddress, raw []byte) error {
+func (s *ThreadStore) ArchiveThreadExpectedBytes(address ThreadAddress, raw []byte, authority RetireAuthority) error {
 	expected := append([]byte(nil), raw...)
-	return s.archiveThread(address, nil, &expected)
+	return s.archiveThread(address, nil, &expected, authority)
 }
 
-func (s *ThreadStore) archiveThread(address ThreadAddress, expectedRevision *uint64, expectedRaw *[]byte) error {
+func (s *ThreadStore) archiveThread(address ThreadAddress, expectedRevision *uint64, expectedRaw *[]byte, authority RetireAuthority) error {
 	if err := validateThreadAddress(address); err != nil {
 		return err
 	}
@@ -1414,7 +1417,7 @@ func (s *ThreadStore) archiveThread(address ThreadAddress, expectedRevision *uin
 		return routeErr
 	}
 	if backend != s {
-		return backend.archiveThread(address, expectedRevision, expectedRaw)
+		return backend.archiveThread(address, expectedRevision, expectedRaw, authority)
 	}
 	return s.withLock(func() error {
 		manifest, manifestRaw, _, err := s.loadManifestLocked()
@@ -1457,6 +1460,11 @@ func (s *ThreadStore) archiveThread(address ThreadAddress, expectedRevision *uin
 			if err := archivableRecord(record); err != nil {
 				return err
 			}
+			if err := authorizeRetire(authority, address, &record, raw, nil); err != nil {
+				return err
+			}
+		} else if err := authorizeRetire(authority, address, nil, raw, nil); err != nil {
+			return err
 		}
 		nextManifest := manifest
 		nextManifest.Generation++
@@ -1468,7 +1476,15 @@ func (s *ThreadStore) archiveThread(address ThreadAddress, expectedRevision *uin
 		// One journal, four effects: archive bytes and their grace clock appear,
 		// the record disappears, and the manifest stops listing it. A crash between them would
 		// otherwise leave a record in no set or in both.
-		entries, err := s.archiveJournalEntries(address, raw)
+		var decoded *ThreadRecord
+		if decodeErr == nil {
+			decoded = &record
+		}
+		kept, err := retiredBytes(authority, decoded, raw)
+		if err != nil {
+			return err
+		}
+		entries, err := s.archiveJournalEntries(address, raw, kept)
 		if err != nil {
 			return err
 		}
@@ -1479,18 +1495,19 @@ func (s *ThreadStore) archiveThread(address ThreadAddress, expectedRevision *uin
 	})
 }
 
-// archiveJournalEntries is the record half of retiring a thread: its exact
-// bytes and their grace clock appear under archive/, the record disappears,
-// and so does its derived continuation snapshot (whose content the archived
-// bytes already preserve). The manifest entry stays with the caller, because a
-// replace edits the manifest once for both of its halves. It reads the
-// snapshot, so it runs under the store lock.
-func (s *ThreadStore) archiveJournalEntries(address ThreadAddress, raw []byte) ([]storeJournalEntry, error) {
-	grace, err := s.archiveGraceBytes(address, raw)
+// archiveJournalEntries is the record half of retiring a thread: the record
+// at raw disappears, kept and its grace clock appear under archive/, and so
+// does the record's derived continuation snapshot (whose content the archived
+// bytes already preserve). kept is raw itself, or raw with a proof's
+// proven_down_at stamp (retiredBytes). The manifest entry stays with the
+// caller, because a replace edits the manifest once for both of its halves.
+// It reads the snapshot, so it runs under the store lock.
+func (s *ThreadStore) archiveJournalEntries(address ThreadAddress, raw, kept []byte) ([]storeJournalEntry, error) {
+	grace, err := s.archiveGraceBytes(address, kept)
 	if err != nil {
 		return nil, err
 	}
-	archived := append([]byte{}, raw...)
+	archived := append([]byte{}, kept...)
 	expectedRecord := append([]byte{}, raw...)
 	entries := []storeJournalEntry{
 		{Path: relativeStorePath(s.root, s.archivePath(address)), After: &archived},

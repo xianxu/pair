@@ -29,18 +29,58 @@ func recoverySelectionDigest(record ThreadRecord, selection RecoverySelection, t
 	return hex.EncodeToString(sum[:])
 }
 
-func (c *Couch) recoveryObservation(ctx context.Context, record ThreadRecord) RecoveryObservation {
+func (c *Couch) recoveryObservation(ctx context.Context, record ThreadRecord, requests ...RecoveryObservationRequest) RecoveryObservation {
 	observation := RecoveryObservation{Agent: RecordAgent(record), Incomplete: true, Reasons: []string{"Previous screen or native evidence unavailable; working context may be lost."}}
+	request := RecoveryObservationRequest{ObservedAt: c.Clock.Now()}
+	if len(requests) > 0 {
+		request = requests[0]
+	}
 	if c.RecoveryEvidence != nil {
 		for attempt := 0; attempt < 2; attempt++ {
-			got, err := c.RecoveryEvidence(ctx, record)
+			got, err := c.RecoveryEvidence(ctx, record, request)
+			if err != nil {
+				// A later failed acquisition cannot erase already observed facts.
+				// They remain descriptive: the aggregate is incomplete below.
+				if got.Screen.Availability == "" {
+					got.Screen = observation.Screen
+				}
+				if got.Capture.Raw == "" {
+					got.Capture = observation.Capture
+				}
+				if got.Source == nil {
+					got.Source = observation.Source
+				}
+				if got.Generation == "" {
+					got.Generation = observation.Generation
+				}
+				if got.Agent == "" {
+					got.Agent = observation.Agent
+				}
+				if got.Branch == "" {
+					got.Branch, got.Issue = observation.Branch, observation.Issue
+				}
+				if len(got.Ranked) == 0 {
+					got.Ranked = observation.Ranked
+				}
+				got.Reasons = append(append([]string(nil), observation.Reasons...), got.Reasons...)
+			}
+			if got.BytesRead < request.BytesAlreadyRead {
+				got.BytesRead = request.BytesAlreadyRead
+			}
+			observation = got
+			if got.BytesRead > request.BytesAlreadyRead {
+				request.BytesAlreadyRead = got.BytesRead
+			}
+			if request.Source == nil {
+				request.Source = threadrecord.CloneNativeRecoverySource(got.Source)
+			}
 			if err == nil {
-				observation = got
 				if !got.Incomplete {
 					break
 				}
 			} else {
-				observation.Reasons = []string{rowtext.Sanitize(err.Error()), "Previous screen or native evidence unavailable; working context may be lost."}
+				observation.Incomplete = true
+				observation.Reasons = append(observation.Reasons, rowtext.Sanitize(err.Error()), "Previous screen or native evidence unavailable; working context may be lost.")
 			}
 			if ctx.Err() != nil {
 				break
@@ -93,13 +133,30 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 	}
 	// Resolve an advertised key before mode-specific profile and lifecycle
 	// guards: the candidate route can represent Fresh as well as native resume.
+	request := RecoveryObservationRequest{ObservedAt: c.Clock.Now()}
+	if selection.Kind == RecoveryInferred {
+		selector, err := decodeRecoveryCandidateKey(selection.CandidateKey)
+		if err != nil {
+			return result, err
+		}
+		if selector.Address != record.Address {
+			return result, errors.New("recovery selector belongs to another thread")
+		}
+		if selector.Source != nil {
+			if err := threadrecord.ValidateNativeRecoverySourceAt(selector.Source, c.Clock.Now(), record.Revision); err != nil {
+				return result, err
+			}
+			request.Source = selector.Source
+		}
+	}
 	observe := func() RecoveryObservation {
 		observationCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
-		return c.recoveryObservation(observationCtx, record)
+		return c.recoveryObservation(observationCtx, record, request)
 	}
 	keyedSelection := selection.Kind == RecoveryInferred
 	var observed RecoveryObservation
+	var selectedSnapshot *threadrecord.RecoveryContext
 	var choice RecoveryChoice
 	if keyedSelection {
 		observed = observe()
@@ -113,6 +170,8 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 		}
 		if choice.NativeID == "" {
 			selection.Kind = RecoveryFresh
+		} else if preview.Snapshot != nil && preview.Snapshot.Source != nil {
+			selectedSnapshot = threadrecord.CloneRecoveryContext(preview.Snapshot)
 		}
 	}
 	profile, err := c.recoveryLaunchProfileForSelection(ctx, record, selection)
@@ -138,6 +197,9 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 		}
 	}
 	if !keyedSelection {
+		// A direct selection consumes no native candidates; the scan walks the
+		// whole native store under the hub effect gate (pair#726).
+		request.SkipCandidates = true
 		observed = observe()
 	}
 	if choice.Agent == "" {
@@ -233,7 +295,7 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 	}
 	defer func() { retErr = errors.Join(retErr, finish(retErr == nil)) }()
 	orient := &threadrecord.RecoveryOrientation{Branch: observed.Branch, Issue: observed.Issue}
-	if observed.Capture.RawIdentity.Inode != 0 && !observed.Capture.CapturedAt.IsZero() && !c.Clock.Now().Before(observed.Capture.CapturedAt) && c.Clock.Now().Before(observed.Capture.CapturedAt.Add(storagegc.CaptureRetentionPeriod)) {
+	if (observed.Source == nil || selection.Kind == RecoveryFresh && observed.Screen.Availability == ScreenAvailable) && observed.Capture.RawIdentity.Inode != 0 && !observed.Capture.CapturedAt.IsZero() && !c.Clock.Now().Before(observed.Capture.CapturedAt) && c.Clock.Now().Before(observed.Capture.CapturedAt.Add(storagegc.CaptureRetentionPeriod)) {
 		if c.RecoveryPreserve == nil {
 			return result, errors.New("capture preservation unavailable; source was not stopped")
 		}
@@ -248,7 +310,9 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 		orient.Unavailable = "Previous screen unavailable or expired; use branch and issue evidence. Working context may be lost."
 	}
 	intent := threadrecord.RecoveryIntent{Mode: selection.Kind, Address: toPersistedThreadAddress(record.Address), SourceRevision: record.Revision, CreatedAt: c.Clock.Now(), Agent: profile.Agent, Orientation: orient, SelectedKey: fmt.Sprintf("%s:%s:%d", selection.Kind, record.Address.Tag, record.Revision), NativeID: choice.NativeID}
-	if selection.Kind == RecoveryInferred {
+	if selection.Kind == RecoveryInferred && selectedSnapshot != nil {
+		intent = threadrecord.RecoveryIntent{Context: *selectedSnapshot, SelectedKey: choice.Key, NativeID: choice.NativeID, SourceRevision: selectedSnapshot.Source.Revision}
+	} else if selection.Kind == RecoveryInferred {
 		preview, err := DecideSlotRecovery(record, observed, c.Clock.Now())
 		if err != nil {
 			return result, err
@@ -275,6 +339,9 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 	if err := ctx.Err(); err != nil {
 		return result, err
 	}
+	if err := c.verifyNativeRecoverySelection(ctx, record, intent); err != nil {
+		return result, err
+	}
 	phase := recoveryPrepared
 	record, err = c.Threads.PreserveRecoveryBeforeRetirement(record.Address, record.Revision, intent)
 	if err != nil {
@@ -291,6 +358,9 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 	}
 	if retirement.Retire != nil {
 		if err := ctx.Err(); err != nil {
+			return result, err
+		}
+		if err := c.verifyNativeRecoverySelection(ctx, record, intent); err != nil {
 			return result, err
 		}
 		record, err = c.parkPreparedRecovery(ctx, record, parkHelper)
@@ -311,6 +381,9 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 	if err := c.confirmRecoveryAbsent(ctx, record); err != nil {
 		return result, fmt.Errorf("source cannot yet be proved stopped; Start fresh can leave it untouched: %w", err)
 	}
+	if err := c.verifyNativeRecoverySelection(ctx, record, intent); err != nil {
+		return result, err
+	}
 	record, err = c.fenceRecoveryStart(ctx, record, intent)
 	if err != nil {
 		return result, err
@@ -324,6 +397,39 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 		return result, err
 	}
 	return c.launchPreparedSelection(ctx, record, selection, profile, intent, choice, phase, repo, notes)
+}
+
+// Native authority always names the original selected snapshot. Record revisions
+// can advance while preserving and retiring it; the source revision cannot.
+func (c *Couch) verifyNativeRecoverySelection(ctx context.Context, record ThreadRecord, intent threadrecord.RecoveryIntent) error {
+	if intent.Kind() != threadrecord.RecoveryInferred || intent.Context.Source == nil {
+		return nil
+	}
+	if err := threadrecord.ValidateRecoveryIntent(intent, toPersistedThreadAddress(record.Address)); err != nil {
+		return err
+	}
+	if intent.SourceRevision > record.Revision {
+		return errors.New("native recovery source revision changed")
+	}
+	admit := func() error {
+		return threadrecord.ValidateNativeRecoverySourceAt(intent.Context.Source, c.Clock.Now(), intent.SourceRevision)
+	}
+	if err := admit(); err != nil {
+		return err
+	}
+	if c.RecoveryVerifySelection == nil {
+		return errors.New("native recovery selection verification unavailable; source was not admitted")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := c.RecoveryVerifySelection(ctx, record, intent.Context, intent.SelectedKey, intent.NativeID); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return admit()
 }
 
 func (c *Couch) launchPreparedSelection(ctx context.Context, record ThreadRecord, selection RecoverySelection, profile LaunchProfile, intent threadrecord.RecoveryIntent, choice RecoveryChoice, phase recoveryExecutionPhase, preparedRepo string, notes []string) (RecoveryResumeResult, error) {
@@ -353,6 +459,9 @@ func (c *Couch) launchPreparedSelection(ctx context.Context, record ThreadRecord
 	if selection.Kind == RecoveryFresh {
 		shape = StartFreshExisting
 	}
+	if err := c.verifyNativeRecoverySelection(ctx, record, intent); err != nil {
+		return result, err
+	}
 	record, err = c.Threads.CommitStartClaim(record.Address, record.Revision, repo, c.Clock.Now(), StartEvent{Kind: StartClaimed, Shape: shape, Nonce: nonce, Owner: SupervisorOwner{PID: owner.PID, Identity: owner.Identity}, Profile: &profile, RecoveryIntent: &intent})
 	if err != nil {
 		return result, err
@@ -375,7 +484,7 @@ func (c *Couch) launchRecoveryClaim(ctx context.Context, record ThreadRecord, no
 		return fail(err)
 	}
 	if selection.Kind == RecoveryInferred {
-		observed, err := c.RecoveryEvidence(ctx, record)
+		observed, err := c.RecoveryEvidence(ctx, record, RecoveryObservationRequest{ObservedAt: c.Clock.Now(), Source: intent.Context.Source})
 		if err != nil {
 			return fail(err)
 		}
@@ -413,7 +522,12 @@ func (c *Couch) launchRecoveryClaim(ctx context.Context, record ThreadRecord, no
 	}
 	orient := intent.Orientation
 	if orient == nil {
-		orient = &threadrecord.RecoveryOrientation{Branch: intent.Context.Branch, Issue: intent.Context.Issue, Capture: &intent.Context.Capture}
+		orient = &threadrecord.RecoveryOrientation{Branch: intent.Context.Branch, Issue: intent.Context.Issue}
+		if intent.Context.Source == nil {
+			orient.Capture = &intent.Context.Capture
+		} else {
+			orient.Unavailable = "Previous screen unavailable; native candidate selected explicitly."
+		}
 	}
 	context := orientation.RecoveryOrientationContext{SlotAddress: selection.Reference, Branch: orient.Branch, Issue: orient.Issue, NativeID: intent.NativeID}
 	if orient.Capture != nil {
@@ -431,7 +545,11 @@ func (c *Couch) launchRecoveryClaim(ctx context.Context, record ThreadRecord, no
 	result.Mode = ResumeDisk
 	result.Notice = fmt.Sprintf("resumed %s", intent.NativeID)
 	if selection.Kind == RecoveryInferred {
-		result.Notice = fmt.Sprintf("resumed %s: last active %s, %.0f%% tail match", intent.NativeID, choice.LastActivity.Local().Format("15:04 MST"), choice.TailMatch)
+		if intent.Context.Source != nil {
+			result.Notice = fmt.Sprintf("resumed %s: unconfirmed native candidate, native last activity %s", intent.NativeID, choice.LastActivity.Local().Format("15:04 MST"))
+		} else {
+			result.Notice = fmt.Sprintf("resumed %s: last active %s, %.0f%% tail match", intent.NativeID, choice.LastActivity.Local().Format("15:04 MST"), choice.TailMatch)
+		}
 	}
 	if selection.Kind == RecoveryFresh {
 		result.Mode = Fresh
@@ -455,6 +573,22 @@ func (c *Couch) launchRecoveryFreshAddress(ctx context.Context, old ThreadRecord
 	}
 	backend, err := c.Threads.storeForAddress(old.Address)
 	if err != nil {
+		return RecoveryResumeResult{}, err
+	}
+	// Why the source may go (pair#695). The confirmed offer already stopped
+	// what the operator agreed to; nothing more is stopped here. A source
+	// proven down leaves by proof, with the park or claim its dead owners
+	// left folded; otherwise Fresh starts beside the remnants, as chosen.
+	var authority RetireAuthority
+	proof, err := c.proveDownAndFold(ctx, old, "recover-fresh")
+	if err == nil {
+		authority = proof
+		if proof.Revision() != old.Revision {
+			if old, err = c.Threads.GetThread(old.Address); err != nil {
+				return RecoveryResumeResult{}, err
+			}
+		}
+	} else if authority, err = newFreshLeavesRemnants(old, err); err != nil {
 		return RecoveryResumeResult{}, err
 	}
 	sourceAbsent := c.confirmRecoveryAbsent(ctx, old) == nil
@@ -494,9 +628,9 @@ func (c *Couch) launchRecoveryFreshAddress(ctx context.Context, old ThreadRecord
 		next.RecoveryIntent = threadrecord.CloneRecoveryIntent(&nextIntent)
 		next.Incarnations[0].Start.RecoveryIntent = threadrecord.CloneRecoveryIntent(&nextIntent)
 		if backend.layout.Local {
-			return backend.replaceSlotCurrent(observed, next)
+			return backend.replaceSlotCurrent(observed, next, authority)
 		}
-		return backend.ReplaceThreadExpected(old.Address, old.Revision, next)
+		return backend.ReplaceThreadExpected(old.Address, old.Revision, next, authority)
 	}})
 	if err != nil {
 		return RecoveryResumeResult{}, err
