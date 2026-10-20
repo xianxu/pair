@@ -16,7 +16,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "a651e122", done: "a4d38aa0"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # CI: build weave from a pinned ariadne commit
@@ -74,6 +74,10 @@ acceptance is its own merge-check run on the PR, building and reporting the pinn
 
 ## Log
 
+
+
+- 2026-10-19: closed — sdlc-local/suite success on 13aa8d4d (docs-only commit since); merge-check.yml byte-identical to ariadne #459 template (weave refresh --substrate); pin 63d6bfd8 = ariadne sole supported compiler, unchanged by weave compile, absent from ownership.json; workflow validator refuses 5 malformed pins. Atlas: CI pin contract is documented upstream (ariadne atlas/workflow/ci-merge-check.md); pair adds no surface; review verdict: SHIP
+- 2026-10-19: flow upgraded quick → full — 139 added lines in code files (limit 100)
 - 2026-10-19: refresh and pin. The workflow's own pin validator accepts the committed bytes and refuses uppercase, a short SHA,
   a missing newline, a branch name and a trailing extra line. The pin's sha1 is unchanged across `weave compile`, and
   ownership.json does not name it.
