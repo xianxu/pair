@@ -1,13 +1,21 @@
 ---
 id: 000706
-status: open
+status: working
 deps: [pair#689]
 github_issue:
 created: 2026-10-19
 updated: 2026-10-19
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'fa476282abdbc00e9d7ce194e2762c9924141e7c' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '729e4838f2462d4d218b6307b142f6e468ecd8e7' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-19T20:44:04-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Drive backup: store bundles in year/month folders instead of one flat folder
@@ -27,8 +35,21 @@ New uploads go to `backups/pair-history/<YYYY>/<MM>/` (from the bundle's time ra
 
 ## Plan
 
-- [ ]
+Durable plan: [Drive month folders](../plans/000706-drive-month-folders-plan.md).
+
+- [ ] M1 — Shared layout/folder state model, compatible receipt codecs, stateful folder fake and bounded month-aware uploads with legacy checks.
+- [ ] M2 — Multi-folder label discovery and recorded-location restore, per-folder reporting, counted/native qualification and operator Drive check; close and land.
 
 ## Log
 
 ### 2026-10-19
+
+- 2026-10-19: Verified #706 unowned, claimed and ran bare start-plan. Its sibling Ariadne catch-up rebuilt tooling but generated unrelated changes to .github/workflows/local-gates-guard.yml and merge-check.yml; preserved exactly those two files in named stash cf709527564ea17b03504c0fb767c56a76d70504, then start-plan succeeded. No workflow changes or labels enter #706.
+- 2026-10-19: Read #710 gaps 1–5. Month upload must include older/all-kind catalog backlog; future catalog bundles can use the same label-derived path. The existing early return on local collection failures before DriveMirror remains #710 gap 5's scheduling/policy work, not a hidden expansion of #706. No source-kind discovery, encrypted catalog bootstrap, Couch snapshots or launchd added here.
+- 2026-10-19: Drafted full-flow plan with shared UTC label.From layout, root-keyed receipts recording actual folder locations, pinned child IDs, serial per-folder batches under the existing global 4 GiB cap, atomic multi-folder sync-index, recorded-location restore, raw unknown-field codecs and counted tests. Await hub approval before change-code; estimate deferred until plan-quality passes.
+
+## Revisions
+
+### 2026-10-19 — Make dual-layout execution and scope explicit
+
+Preserve the original Spec and optional legacy move as a separate action. The durable plan proposes new month writes with legacy reads, root-scoped receipt storage and physical-folder locators, plus per-folder count reporting. Legacy partial/conflicting pairs are reported rather than silently duplicated or repaired. Explicit sync-index may enumerate the bounded two-level directory layout for disaster recovery; ordinary upload visits current/pending months only. #710 overlap is accounted for through generic all-catalog routing and backlog tests while its collection/scheduling and new-kind work remains separate. These refinements are proposed for the hub's approval, not implemented behavior.
