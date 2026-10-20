@@ -44,7 +44,7 @@ which one is selected (operator, 10-20, screenshot in ops's session file).
 ## Plan
 
 - [x] Pin hub underline, selected reverse, and other-hub dimming at the terminal-cell boundary; change the existing hub decorator (ARCH-PURE, ARCH-DRY).
-- [ ] Run targeted tests and recorded suite; stage build for the operator’s two-hub live check.
+- [x] Run targeted tests and queue the recorded suite; defer staging/live look per the TL revision below. A recorded pass remains mandatory before landing.
 
 ## Log
 
@@ -69,3 +69,7 @@ which one is selected (operator, 10-20, screenshot in ops's session file).
 - Recorded suite on code head 82ebdf3b9a1411e139592d3c43a218bb9e5f71b4 never entered the test slot. It waited behind Ariadne suites, then the operator reboot drain paused admission. Canceled only this checkout’s queued suite using `sdlc local-check cancel --name suite`; no suite pass exists.
 - Resume: run `sdlc state`, run recorded suite on the pushed branch head, tick remaining verification plan item, close with measured actuals and fresh-context review, then merge on SHIP. Do not stage over #722; TL deferred the live look until next Couch restart (Revisions above).
 - Unrelated automatic weave workflow changes remain preserved in stash named `pair730 automatic weave workflow refresh preserved`; exclude them from this issue.
+
+### 2026-10-20 — resumed verification
+
+- Recorded suite queued on pushed checkpoint 196495090a7892b4e0495b0cf65035a32f1a262b; no test execution yet. Per tl-worker’s explicit overlap rule, run close review during the queue wait; landing still requires a recorded pass, and any code fix requires fresh suite verification.
