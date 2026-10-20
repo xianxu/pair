@@ -20,6 +20,7 @@ type effectBoundary struct{ token, exemption string }
 var m2EffectManifest = map[string]effectBoundary{
 	"layoutcmd/layoutcmd.go:FocusRightTerminalContext:RunZellijAction#1":     {token: "ctx"},
 	"layoutcmd/layoutcmd.go:SwitchRightTerminalTabContext:RunZellijAction#1": {token: "ctx"},
+	"layoutcmd/layoutcmd.go:newRightTerminalTabContext:RunZellijAction#1":    {token: "ctx"},
 	"layoutcmd/layoutcmd.go:execZellijContext:Run#1":                         {exemption: "read-only query collector, not a mutation"},
 	"layoutcmd/layoutcmd.go:RunZellijAction:CombinedOutput#1":                {exemption: "issued Runtime mutation implementation retains its lifetime"},
 	"layoutcmd/rightpane.go:restoreTilingContext:RunZellijAction#1":          {token: "ctx"},
@@ -36,8 +37,8 @@ var m2EffectManifest = map[string]effectBoundary{
 	"termcmd/run.go:runDecisionContext:RecordLastTerminalPaneID#1":           {token: "ctx"},
 	"termcmd/run.go:runDecisionContext:RunZellijAction#1":                    {token: "ctx"},
 	"termcmd/run.go:splitTerminalDownAdmitted:RunZellijActionQuiet#1":        {token: "ctx"},
-	"termcmd/run.go:runShell:RegisterTerminalPane#1":                         {exemption: "startup local registration precedes native admission"},
-	"termcmd/run.go:runShellOnHost:newTab#1":                                 {exemption: "startup local terminal tab, independent of Zellij observations"},
+	"termcmd/run.go:runShellWithExec:RegisterTerminalPane#1":                 {exemption: "startup local registration precedes native admission"},
+	"termcmd/run.go:runShellOnHostObserved:newTab#1":                         {exemption: "startup local terminal tab, independent of Zellij observations"},
 	"termcmd/run.go:pumpStdinContext:RunZellijAction#1":                      {exemption: "ordinary wheel input, independent of Zellij observations"},
 	"termcmd/run.go:pumpStdinContext:RunZellijAction#2":                      {exemption: "ordinary wheel input, independent of Zellij observations"},
 	"termcmd/run.go:pumpStdinContext:handle#1":                               {exemption: "ordinary decoded input dispatcher, not admitted effect"},
