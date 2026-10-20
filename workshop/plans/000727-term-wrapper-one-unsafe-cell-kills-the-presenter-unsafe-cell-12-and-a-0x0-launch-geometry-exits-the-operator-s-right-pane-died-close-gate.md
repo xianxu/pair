@@ -344,6 +344,189 @@ rounds:
       isolation: fenced
       reviewed: 97c32eaad2245af63532d100ac67e53283b268eb
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 570f3ede-e1f2-40bd-af09-c6bb20481737
+            repository: github.com/xianxu/pair
+            issue_id: "000727"
+            recipe: fix-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/a8a85d36a450fe8d
+            reviewed_head: 4db6b859d8c617b65dbe087214fde3d242c741a2
+            slot: pair:7
+            requested_at: "2026-10-20T16:47:05.529827Z"
+          phase: finished
+          pid: 65843
+          started_at: "2026-10-20T16:47:05.679141Z"
+          finished_at: "2026-10-20T16:48:26.617976Z"
+          session_id: 01a15a35-9f49-7f82-aef8-c7bc1a807cdd
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: 4db6b859d8c617b65dbe087214fde3d242c741a2
+        tracker_head: 9f9f2a3aaf3e256580403b9a4f52bfa9e80fa4e1
+        branch_point: 8620374573f7a42310ffe6348d7946d5326dd15f
+        since: "2026-10-20T08:47:04-07:00"
+        until: "2026-10-20T09:46:22-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-20T08:47:04-07:00"
+              end: "2026-10-20T09:46:22-07:00"
+              began: "2026-10-20T08:47:04-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot7/pair
+        sources:
+            - harness: codex
+              id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              slot: pair:7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 17cdc6b5e41346363a0e734574d2ff3ede626e955ad389b0ae98753693ff4d1b
+              started: "2026-10-13T04:50:49.58Z"
+              spawned: false
+              bytes: 198912925
+              windows:
+                - start: "2026-10-20T08:47:04-07:00"
+                  end: "2026-10-20T09:46:22-07:00"
+            - harness: codex
+              id: 01a159ff-1dfb-7780-bc4e-14af28341ab2
+              slot: pair:7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              parent_id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              digest: f89118ef5ffbb6f7ba81c7786566acc8ba67a3ddbb397a737eef78a9e62f2f41
+              started: "2026-10-20T15:47:34.137Z"
+              spawned: true
+              bytes: 1433447
+              windows:
+                - start: "2026-10-20T15:47:34.137Z"
+                  end: "2026-10-20T09:46:22-07:00"
+            - harness: codex
+              id: 01a15a05-cb5b-7600-bcda-f2d221fa6946
+              slot: pair:7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: e4bb165011c00ee3950c2ba7f08e9263e84380ec9dd2d265e04658108d679660
+              started: "2026-10-20T15:54:52.502Z"
+              spawned: false
+              bytes: 607435
+              windows:
+                - start: "2026-10-20T15:54:52.502Z"
+                  end: "2026-10-20T09:46:22-07:00"
+            - harness: codex
+              id: 01a15a08-085e-7d70-a4ec-bf90ed500d8b
+              slot: pair:7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: ef6be92d140da503ed98c59715b1bd6e7b21437566f9433965c79a8cc49c8f27
+              started: "2026-10-20T15:57:18.778Z"
+              spawned: false
+              bytes: 513210
+              windows:
+                - start: "2026-10-20T15:57:18.778Z"
+                  end: "2026-10-20T09:46:22-07:00"
+            - harness: codex
+              id: 01a15a09-c99f-7271-8bbd-cb205f1cd2b7
+              slot: pair:7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 8c1ae75f8f6627c6a13fa48a83cfc75eb525c928f200fc09a7f3dbecab549120
+              started: "2026-10-20T15:59:13.75Z"
+              spawned: false
+              bytes: 431060
+              windows:
+                - start: "2026-10-20T15:59:13.75Z"
+                  end: "2026-10-20T09:46:22-07:00"
+            - harness: codex
+              id: 01a15a0c-31ed-7002-88e3-80248b6d55cf
+              slot: pair:7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: d744eec5c6a408404d96ffb7146daad69bae90e695e3853fcb5b5272a7e5a89c
+              started: "2026-10-20T16:01:51.488Z"
+              spawned: false
+              bytes: 443293
+              windows:
+                - start: "2026-10-20T16:01:51.488Z"
+                  end: "2026-10-20T09:46:22-07:00"
+            - harness: codex
+              id: 01a15a0c-a319-72c2-99f3-dd301032c08d
+              slot: pair:7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: e2407cccf92659f8d39d5762efc99529bf4c808c8d7e96e1db5ce8789f37f1d1
+              started: "2026-10-20T16:02:20.495Z"
+              spawned: false
+              bytes: 403720
+              windows:
+                - start: "2026-10-20T16:02:20.495Z"
+                  end: "2026-10-20T09:46:22-07:00"
+            - harness: codex
+              id: 01a15a0d-fd4d-7fb1-afbb-a944fe169e13
+              slot: pair:7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              parent_id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              digest: f478bca0df2df1407a37014fcd217a26e7c2de92298ab18e2f4159b4fb76bc5a
+              started: "2026-10-20T16:03:48.782Z"
+              spawned: true
+              bytes: 953484
+              windows:
+                - start: "2026-10-20T16:03:48.782Z"
+                  end: "2026-10-20T09:46:22-07:00"
+            - harness: codex
+              id: 01a15a0e-2f46-75a0-bebe-7553805d3d33
+              slot: pair:7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              parent_id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              digest: e222a1a4d5a0b1c5ca0b617183cdf7459c4035601c3fbbca5c9b95efbaddacff
+              started: "2026-10-20T16:04:01.622Z"
+              spawned: true
+              bytes: 1182479
+              windows:
+                - start: "2026-10-20T16:04:01.622Z"
+                  end: "2026-10-20T09:46:22-07:00"
+        queue_waits:
+            - attempt_id: 649f032a85eeef174f700eda5f2a9264
+              slot: pair:7
+              record_digest: 80f0cb37c842040e1e65913017ae59a56c49be62a48d233832607cd262c1ed87
+              start: "2026-10-20T16:29:22.681558Z"
+              end: "2026-10-20T16:40:29.560384Z"
+              queue_seconds: 666.878826
+              raw_seconds: 666.878826
+              exact: true
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 23.414283333333334
+        cuts:
+            - dispatched: "2026-10-20T09:20:21-07:00"
+              finalized: "2026-10-20T09:23:16-07:00"
+              finalizing: false
+            - dispatched: "2026-10-20T09:29:52-07:00"
+              finalized: "2026-10-20T09:32:33-07:00"
+              finalizing: true
+      "n": 3
+      timestamp: "2026-10-20T09:48:27-07:00"
+      dispatched: "2026-10-20T09:47:03-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Prior correction remains unchanged; TestRecoveryOwnsInputPumpEnding passes in this review.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: The --no-focus correction remains unchanged; TestNewTerminalRecreatesConfirmedAbsentPane passes both cases.
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: Previously accepted native conformance coverage remains unchanged and required by the scheduled runner; all eight runner proof tests pass. Native conformance was not rerun in this narrow review.
+          round: 3
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 4db6b859d8c617b65dbe087214fde3d242c741a2
+      blocked: false
 ---
 
 # Gate ledger — pair#727 (boundary-review)
@@ -369,6 +552,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-1 — addressed — run.go:430-432 propagates typed pump failures into recovery. TestRecoveryOwnsInputPumpEnding passes; disabling propagation in a disposable checkout reproduces missing errors and zero handoffs for decoder and non-EOF read failures.
 - BR-2 — addressed — layoutcmd.go:252 includes --no-focus. Fake and native tests preserve invoking-pane focus; removing the flag makes both fake regression cases fail. The native negative control also demonstrates redirected keyboard input.
 - BR-3 — addressed — TestTerminalRecoveryZellijConformance passed against Zellij 0.45.1 through production routing, verifying same-tab visible creation, actual client focus and foreign-tab isolation. The scheduled native runner requires its execution; all eight runner proof tests passed.
+
+## Round 3 — 2026-10-20T09:48:27-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Prior correction remains unchanged; TestRecoveryOwnsInputPumpEnding passes in this review.
+- BR-2 — addressed — The --no-focus correction remains unchanged; TestNewTerminalRecreatesConfirmedAbsentPane passes both cases.
+- BR-3 — addressed — Previously accepted native conformance coverage remains unchanged and required by the scheduled runner; all eight runner proof tests pass. Native conformance was not rerun in this narrow review.
 
 ## Open findings
 

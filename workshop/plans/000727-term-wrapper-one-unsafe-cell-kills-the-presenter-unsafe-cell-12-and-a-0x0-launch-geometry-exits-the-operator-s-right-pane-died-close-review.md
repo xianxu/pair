@@ -202,3 +202,81 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000411
+
+---
+
+## Re-review — 2026-10-20T09:48:27-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 727 — term wrapper: one unsafe cell kills the presenter ('unsafe cell 12'), and a 0x0 launch geometry exits: the operator's right pane died |
+| repo | pair |
+| issue file | workshop/issues/000727-term-wrapper-one-unsafe-cell-kills-the-presenter-unsafe-cell-12-and-a-0x0-launch-geometry-exits-the-operator-s-right-pane-died.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 4573ad6cba12d99fc27285255bde6cecd4062d6e..4db6b859d8c617b65dbe087214fde3d242c741a2 |
+| command | sdlc close --issue 727 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T09:48:27-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff correctly repairs a stale shell-test assertion after the terminal command moved to its shared owner. Production behavior, Spec, and Plan remain unchanged. The corrected test passes; restoring the previous assertion reproduces the documented failure. No new defects found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Prior correction remains unchanged; TestRecoveryOwnsInputPumpEnding passes in this review.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The --no-focus correction remains unchanged; TestNewTerminalRecreatesConfirmedAbsentPane passes both cases.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Previously accepted native conformance coverage remains unchanged and required by the scheduled runner; all eight runner proof tests pass. Native conformance was not rerun in this narrow review.
+```
+
+1. **Strengths**
+   - `tests/term-pane-shortcuts-test.sh:344` checks the shared command owner and both consumers.
+   - The behavioral split-command equality assertion remains intact at line 140.
+   - Tracker updates accurately record the failed suite without claiming a full pass.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes:** Complete shortcut shell test, focused Go regressions, eight runner proof tests, and diff whitespace checks passed. Restoring the old assertion produced the expected failure. Temporary snapshot removed; checkout clean. Full suite not rerun.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** Assertion follows the existing shared authority.
+   - **ARCH-PURE — pass:** No business logic or IO boundaries changed.
+   - **ARCH-PURPOSE — pass:** Repairs the stale check while retaining behavioral validation.
+   - **ARCH-EVOLVE — pass:** No persisted-format contract changed.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"570f3ede-e1f2-40bd-af09-c6bb20481737","repository":"github.com/xianxu/pair","issue_id":"000727","recipe":"fix-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/a8a85d36a450fe8d","reviewed_head":"4db6b859d8c617b65dbe087214fde3d242c741a2","slot":"pair:7","requested_at":"2026-10-20T16:47:05.529827Z"},"phase":"finished","pid":65843,"started_at":"2026-10-20T16:47:05.679141Z","finished_at":"2026-10-20T16:48:26.617976Z","session_id":"01a15a35-9f49-7f82-aef8-c7bc1a807cdd","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.191946708s
+head: "4db6b859d8c617b65dbe087214fde3d242c741a2"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
