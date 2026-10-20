@@ -216,7 +216,7 @@ func TestBrokerRefusalRetainsRecoveryClass(t *testing.T) {
 				t.Fatal("send unexpectedly admitted")
 			}
 			got := b.LatestRefusals()["pair:3"]
-			if got.Class != tc.class || got.Reason != refusalReason(tc.cause) {
+			if got.Class != tc.class || got.Reason != refusalReason(fmt.Errorf("recipient %s observe: %w", to.Slot, tc.cause)) {
 				t.Fatalf("projection=%+v; want class %q and preserved diagnostic", got, tc.class)
 			}
 		})

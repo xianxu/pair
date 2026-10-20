@@ -85,11 +85,11 @@ esac
 			t.Fatalf("attempt%d rows=%+v err=%v", i, rows, err)
 		}
 	}
-	if len(events) != 12 {
-		t.Fatalf("observed %d calls, want original 12", len(events))
+	if len(events) != 8 {
+		t.Fatalf("observed %d calls, want 8 (one listing and one client query per observation)", len(events))
 	}
 	for i, want := range []string{"", "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n", "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n1 terminal_0 sh\n", "partial\n"} {
-		e := events[i*3+2]
+		e := events[i*2+1]
 		if string(e.Stdout) != want || len(e.Args) != 4 || e.Args[1] != "pair-observed" || e.Started.IsZero() || e.Finished.Before(e.Started) || e.Duration < 0 {
 			t.Fatalf("attempt%d evidence=%+v", i, e)
 		}
@@ -110,7 +110,7 @@ esac
 	}
 	// A context observer must not escape into unrelated calls.
 	_, _ = source.runContext(t.Context(), "unobserved")
-	if len(events) != 12 {
+	if len(events) != 8 {
 		t.Fatal("observer escaped its context")
 	}
 }

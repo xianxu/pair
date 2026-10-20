@@ -3,6 +3,7 @@ package couchcmd
 import (
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/agentdrive"
@@ -16,7 +17,7 @@ func parseAgentDriveCLI(args []string) (cliInvocation, error) {
 	if args[0] == "--keys" && len(args) == 2 && (args[1] == "--help" || args[1] == "-h") {
 		return cliInvocation{kind: cliKeysHelp}, nil
 	}
-	if len(args) < 3 {
+	if len(args) < 3 && (args[0] != "--interrupt" || len(args) < 2) {
 		return bad()
 	}
 	ref, ok, err := couchcore.ParseWorkspaceReference(args[1])
@@ -34,6 +35,23 @@ func parseAgentDriveCLI(args []string) (cliInvocation, error) {
 		if err != nil {
 			return cliInvocation{}, err
 		}
+		return inv, nil
+	}
+	if inv.messageOp == "interrupt" {
+		for _, flag := range args[2:] {
+			switch {
+			case flag == "--confirm" && !inv.confirmed:
+				inv.confirmed = true
+			case flag == "--json" && !inv.jsonOutput:
+				inv.jsonOutput = true
+			default:
+				return bad()
+			}
+		}
+		if !inv.confirmed {
+			return cliInvocation{}, fmt.Errorf("--interrupt requires --confirm: it sends Ctrl+C into the slot's working turn")
+		}
+		inv.drive.Interrupt = true
 		return inv, nil
 	}
 	model := &agentdrive.ModelRequest{Scope: agentdrive.ScopeSession}
@@ -84,8 +102,17 @@ func keysUsage(w io.Writer) {
 	fmt.Fprintln(w, "Hub only: types named keys into another slot's agent, which the hub must own.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Steps:")
-	for _, step := range agentdrive.Steps {
+	for _, step := range agentdrive.StepGroups() {
 		fmt.Fprintf(w, "  %-14s %s\n", step.Syntax, step.Meaning)
+	}
+	fmt.Fprintln(w, "Not steps (refused before anything is sent):")
+	refused := make([]string, 0, len(agentdrive.RefusedSteps))
+	for name := range agentdrive.RefusedSteps {
+		refused = append(refused, string(name))
+	}
+	sort.Strings(refused)
+	for _, name := range refused {
+		fmt.Fprintf(w, "  %-14s %s\n", name, agentdrive.RefusedSteps[agentdrive.KeyKind(name)])
 	}
 	fmt.Fprintf(w, "Limits: %d steps, %d bytes of text, waits of at most %d ms each and %d ms in total.\n",
 		agentdrive.MaxKeySteps, agentdrive.MaxKeyTextBytes, agentdrive.MaxKeyWaitMS, agentdrive.MaxKeyTotalWaitMS)
@@ -102,4 +129,7 @@ func keysUsage(w io.Writer) {
 	fmt.Fprintln(w, "  couch --keys pair:7 esc                             close it; done when the empty composer returns")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "An unconfirmed result is never retried for you: peek at the slot before sending more input.")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Interrupting a working turn is its own verb, never a step:")
+	fmt.Fprintln(w, "  couch --interrupt pair:7 --confirm   one Ctrl+C, only while a turn is working; done when it ends")
 }

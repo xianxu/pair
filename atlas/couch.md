@@ -816,11 +816,27 @@ remaining uncertainty is stated, never papered over:
   is `SendTransportTimeout` (admission plus a second), so the verdict arrives.
 - **Liveness behind the authority (#618).** The use-time ownership check runs
   at every admission and every queued-message retry (`PromoteRetry`, 1 s). Its
-  terminal listing reads `launcher.ListingPoller`: one supervisor loop runs both
-  `zellij list-sessions` forms every second, and a snapshot older than 5 s
+  terminal listing reads `launcher.ListingPoller`: one supervisor loop reads one
+  validated full `zellij list-sessions --no-formatting` reply every second (#711),
+  deriving names and exited state from that same observation. A snapshot older than 5 s
   refuses as "zellij liveness is stale". The thread record, PID file, ready
   file and session index are still read per check. Recovery and relaunch
   decisions keep their direct zellij reads.
+  Malformed refreshes preserve the last good timestamp instead of renewing authority.
+  An unrelated session starting between two native calls cannot create a disagreement:
+  there is no paired short listing. Direct inventory readers use the same full parser.
+- **Input during admission (#711).** A recipient whose broker actor and both live
+  registrations are unchanged can become busy after its wrapper accepts a reservation.
+  Admission captures the sender's original broker actor under lock and retains it through
+  routing, reservation and queue fallback; same-binding reconnect is a new lifetime.
+  Operator input invalidating that observation uses the existing exact-target queue;
+  disconnect or replacement still refuses stale work. Refusals identify caller lookup /
+  current validation or recipient lookup / observe / reserve, and the CLI never infers
+  that restarting Couch is appropriate from a generic unavailable reply. Unknown or
+  malformed evidence grants no new authority, and uncertain sends retain receipt-first
+  recovery. The three causal regressions and 8/16-session query budgets live in
+  `broker_input_invalidation_test.go`, `zellij_listing_churn_test.go`, and
+  `message_phase_test.go`.
 - **Receive state in `--list` (#618).** `couch --list` asks the running
   supervisor once (the unauthenticated `refusals` op, 250 ms, best effort) for
   each slot's latest unsuperseded refusal and prints it under the row as
@@ -2284,7 +2300,37 @@ observation, made only on the not-settled refusal path (pair#716).
 accepts a named key only if it is a row. `couch --keys --help` renders the rows,
 the limit constants, the admission rules and the panel round trip, and
 `couch --help` names them inline. A test holds the skill's step sentence to the
-same table.
+same table. Since pair#717 each row also carries its bytes, which `InputBytes`
+reads. These are classic xterm encodings, the family the drive already sends to
+Claude and Codex. The families `f1-f12`, `ctrl-LETTER` and `alt-LETTER` are
+generated rows that share a group, printed once. `RefusedSteps` names chords
+that are never a plain step, each with its reason: `ctrl-c` (use `couch
+--interrupt`), `ctrl-d`, `ctrl-z`, the flow-control `ctrl-s` and `ctrl-q`, and
+the aliases `ctrl-i`, `ctrl-m` and `ctrl-u`. The aliases are refused because a
+second name for the same byte would split the admission rules.
+
+`couch --interrupt repo:N --confirm` (pair#717) is the third drive request
+shape, beside keys and model (`Request.Interrupt`). It is never a key step, so
+no sequence can carry Ctrl+C by accident. Each shape defines its admitting proof
+once (`Request.shapeProof`), and start admission (`Admits`), the pre-write
+recheck (`WriteAdmits`) and the turn gate (`DriveState.TurnTolerant`) all derive
+from it. The interrupt's proof is `Interruptible`: positive evidence of work,
+never the turn flag alone, because a bare submission or an open Claude panel
+also sets that flag. The proof needs three things. First, the lifecycle
+reducer's one `Working()` predicate: open, not completed, activity seen, and no
+stop grace pending. `turnWorking` mirrors that predicate off the master loop.
+Second, the agent's own composer on screen, which rules out a panel. Third, the
+agent's own "esc to interrupt" hint in the bottom viewport rows
+(`agentdrive.AdvertisesInterrupt`), which also covers a turn end the lifecycle
+missed. It also needs a complete frame, no picker, and the wrapper owning
+input. It may take a residual
+automatic-input wait, as recovery does, but never an active owner. `Admits`
+checks the interrupt first and exclusively, so an idle agent never gets
+Ctrl+C. The drive writes one internal `interrupt` key (`\x03`) and is done
+when the turn ends. It is unconfirmed at the deadline and never resent. A second
+interrupt refuses because no turn is working. `couchmessage.IsDriveOp` names
+the three drive ops wherever the protocol, service, CLI and console dispatch
+them.
 
 `couchmessage/drive_endpoint.go` provides `drive-observe`, `drive-start`,
 `drive-status` and idempotent `drive-cancel` over the existing authenticated
@@ -2313,8 +2359,10 @@ steps likewise wait for a complete frame within that deadline.
 Success requires a new matching confirmation after apply, never old scrollback
 or a pre-existing footer. Omitted effort follows the observed picker value.
 
-Raw steps are `text:…`, `enter`, `submit`, `up`, `down`, `esc`, `clear-line`,
-and `wait:MS`. Return translation stays shared with Pair: `enter` means newline
+Raw steps are the `agentdrive.Steps` rows: `text:…`, `enter`, `submit`, the
+arrows, `tab`, `shift-tab`, `backspace`, `delete`, `home`, `end`, `pageup`,
+`pagedown`, `esc`, `clear-line`, `wait:MS`, `f1-f12`, `ctrl-LETTER` and
+`alt-LETTER`. Return translation stays shared with Pair: `enter` means newline
 in the qualified composer and selection in a picker; `submit` means Alt+Return.
 A lone ESC is flushed as one separate step. Raw success confirms acknowledged
 input and the final styled observation, without claiming an arbitrary command's

@@ -76,12 +76,6 @@ func (e DriveEffect) MatchesScreen(agent string, screen Screen) bool {
 	return true
 }
 
-// Internal recipe directions are excluded from ParseKeySequence's caller syntax.
-const (
-	KeyLeft  KeyKind = "recipe-left"
-	KeyRight KeyKind = "recipe-right"
-)
-
 type drivePhase uint8
 
 const (
@@ -152,15 +146,15 @@ func cloneDrive(s DriveState) DriveState {
 }
 func (s DriveState) Terminal() bool { return s.phase == phaseTerminal }
 
-// Dismissal reports a drive admitted only by a recognized panel.
-func (s DriveState) Dismissal() bool { return s.dismissal }
+// TurnTolerant reports a drive whose admitting proof stands during a turn: a
+// lone-esc dismissal of a recognized panel (pair#691), whose turn flag Claude
+// keeps set while the panel shows, or an interrupt, whose proof is the turn
+// (pair#717). Every other drive stops on an active turn.
+func (s DriveState) TurnTolerant() bool { return s.dismissal || s.request.InterruptOnly() }
 
-// panelOwnsInput exempts a lone-esc dismissal from the turn stop (pair#691).
-// Claude reports progress as working while its panel is open, so the turn
-// flag stays set; the panel proof, rechecked before the write, says the keys
-// go to the panel. Every other drive still stops on an active turn.
-func (s DriveState) panelOwnsInput(event DriveEvent) bool {
-	return s.request.DismissOnly() && (s.dismissal || s.phase == phaseNew && event.Kind == EventStart && event.Screen.Dismissable)
+// turnTolerant also covers the start event of a dismissal, before it is set.
+func (s DriveState) turnTolerant(event DriveEvent) bool {
+	return s.TurnTolerant() || s.request.DismissOnly() && s.phase == phaseNew && event.Kind == EventStart && event.Screen.Dismissable
 }
 func (s DriveState) Started() bool { return s.phase != phaseNew }
 
@@ -264,11 +258,12 @@ func uncertain(s DriveState) Outcome {
 	return OutcomeRefused
 }
 func rawNext(s DriveState, at time.Time) (DriveState, []DriveEffect) {
-	if s.index == len(s.request.Keys) {
+	steps := s.request.rawSteps()
+	if s.index == len(steps) {
 		s.phase = phaseFinal
 		return observe(s)
 	}
-	key := s.request.Keys[s.index]
+	key := steps[s.index]
 	if key.Kind == KeyWait {
 		s.index++
 		s.phase = phaseWaiting
@@ -332,12 +327,16 @@ func ReduceDrive(input DriveState, event DriveEvent) (DriveState, []DriveEffect)
 			s.result.Tail = boundedTail(screenHistory(event.Screen))
 			return finish(s, OutcomeUnconfirmed, "esc written but the panel still shows at the deadline; inspect the slot before sending more input")
 		}
+		if s.request.InterruptOnly() && s.phase == phaseFinal && event.Screen.TurnActive {
+			s.result.Tail = boundedTail(screenHistory(event.Screen))
+			return finish(s, OutcomeUnconfirmed, "Ctrl+C written but the turn is still active at the deadline; inspect the slot; it is never resent")
+		}
 		return finish(s, uncertain(s), "drive deadline expired; inspect the slot before sending more input")
 	}
 	if event.Kind == EventWriteFailed {
 		return finish(s, OutcomeUnconfirmed, "input outcome unconfirmed: "+event.Error)
 	}
-	if event.Screen.TurnActive && !s.panelOwnsInput(event) {
+	if event.Screen.TurnActive && !s.turnTolerant(event) {
 		return finish(s, uncertain(s), "agent turn started; input stopped")
 	}
 	if event.Kind == EventTick && s.RecoveryDue(event.At) {
@@ -412,6 +411,14 @@ func ReduceDrive(input DriveState, event DriveEvent) (DriveState, []DriveEffect)
 		}
 		if s.phase == phaseWriting || s.phase == phaseNew || s.phase == phaseWaiting {
 			return s, nil
+		}
+		if s.request.InterruptOnly() {
+			// Only the turn ending confirms an interrupt; a frame drawn while
+			// the turn still runs proves nothing.
+			if s.phase == phaseFinal && s.epoch > s.writeEpoch && !event.Screen.TurnActive {
+				return finish(s, OutcomeConfirmed, "Ctrl+C written and the turn ended")
+			}
+			return observe(s)
 		}
 		if s.request.Model == nil {
 			if s.dismissal {

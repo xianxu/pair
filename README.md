@@ -427,7 +427,7 @@ bug must not break your ability to fix it, and launching pair directly always
 still works. See [atlas/couch.md](atlas/couch.md).
 
 When `/Volumes/TestScratch` is mounted with at least 2 GiB free, new Couch slots
-use private RAM directories for TMPDIR, GOTMPDIR and CLAUDE_CODE_TMPDIR. Existing
+🤖{whose operator has declared sandbox setup with the persistent XDG pair/sandbox-allowed marker }use private RAM directories for TMPDIR, GOTMPDIR and CLAUDE_CODE_TMPDIR. Existing
 panes need relaunch; unavailable scratch keeps inherited temp settings. Ordinary
 temp entries untouched for 24 hours may be removed at startup/hourly; special
 files and trees containing them are kept. Native socket discovery stays fixed.
@@ -595,8 +595,12 @@ couch --keys pair:7 clear-line text:/model submit wait:200 down enter
 couch --set-model pair:7 --model gpt-6.1-sol --effort medium --confirm
 ```
 
-Named raw steps are `text:…`, `enter`, `submit`, `up`, `down`, `esc`,
-`clear-line` and `wait:MS`. `enter` follows Pair's Return behavior: newline in
+Named raw steps are `text:…`, `enter`, `submit`, the arrows, `tab`,
+`shift-tab`, `backspace`, `delete`, `home`, `end`, `pageup`, `pagedown`, `esc`,
+`clear-line`, `wait:MS`, `f1`–`f12`, `ctrl-LETTER` and `alt-LETTER`;
+`couch --keys --help` lists them and the refused chords. Ctrl+C is never a
+step: `couch --interrupt pair:7 --confirm` sends one into a working turn, refuses
+with no working turn, and is never retried. `enter` follows Pair's Return behavior: newline in
 the composer, selection in a picker; `submit` follows Alt+Return. Each `esc`
 is a separate input step. Raw success confirms the writes and final observation.
 Use `--set-model` when you need a confirmed model, effort and scope: it follows
@@ -2193,8 +2197,10 @@ Couch also raises a desktop alert and tells the hub if its input guard
 unexpectedly stalls an otherwise idle slot for 30 seconds. Inspect the named
 slot; the alert says whether delivery recovered or remains blocked.
 After rebuilding, restart Couch to use a newly added command. Existing messaging
-commands remain compatible; if running slots report missing messaging
-registrations, restart Couch to reconnect them.
+commands remain compatible. A refused send names the failing caller/recipient
+phase; inspect `couch --actors` and tell the hub if it persists. A generic
+unavailable reply alone is not evidence that Couch needs restarting. Accepted
+queued messages keep their receipts; inspect uncertain sends before resending.
 
 Agent hooks can send the same signal explicitly with `pair notify "message"`
 or the compatibility name `pair-notify "message"`. Legacy `--osc 9` and

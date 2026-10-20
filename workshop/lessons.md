@@ -7,6 +7,10 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- Splitting an acceptance task into a child issue requires sweeping copied Spec tasks and Done when for parent-only checks. A Log saying the parent still owns console/deployment acceptance does not override an active child Spec clause requiring it. Keep the old clause only as superseded Revisions history. (#723 BR-1)
+
+- A replay benchmark must prove every claimed stage executed inside its CPU bracket. NewFakeChild with nil Sink skips publication delivery entirely; count deliveries/bytes and validations, check batch.Err, and join publication plus reply workers before the ending sample. Retain incomplete-path runs as diagnostics rather than calling them full-path performance evidence. (#723)
+
 - #714 PQ-2: Verify persisted compatibility against the real decoder and its adversarial tests before claiming unknown-field preservation. A schema-unchanged bugfix can retain an existing strict refusal contract; a preservation migration is a separate, explicit change.
 
 - #714: Failure diagnostics compose whole identities, never nonzero structs or fieldwise fragments. Test a scope-only outer dispatch through actual normalization and reopened persisted history; a recorded Save call is not proof of a saved failure. Preserve publication warnings at the concise operator boundary too.
@@ -2237,7 +2241,7 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #647 M1: preserve simultaneous observation and lifecycle errors together. Replacing an authority refusal with a helper-exit error loses its no-retry classification; test the helper exiting inside the failing observation, and assert no second helper or later read is admitted.
 
-- #647 BR-1/BR-2: sweep complete launcher entry paths as well as leaf validators. An outer retry can replace unknown evidence after a strict parser rejects it. Two valid listing shapes must also agree on exact identities before projection; preserve opaque names and interpret EXITED only as a validated suffix.
+- #647 BR-1/BR-2: sweep complete launcher entry paths as well as leaf validators. An outer retry can replace unknown evidence after a strict parser rejects it. Derive names and state from one validated complete listing; independent short/full observations can legitimately disagree during unrelated session churn (#711 corrects the paired-snapshot design). Preserve opaque names and interpret EXITED only as a validated suffix.
 - #647 BR-3: upgrade every shared native fixture consumer when tightening a contract, including composed production launch controls. Retain JSON progress for long package runs: an early fixture failure can otherwise consume the package deadline during cleanup and conceal which test caused the delay.
 - A readiness counter contract needs a stateful test through the actual readiness decision, not only isolated zero/one counts. Cover unchanged observations before growth and show that both equality-accepting and never-accepting mutations fail, especially when native acceptance is deferred. (#645 BR-1)
 
@@ -2422,3 +2426,15 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #725 BR-3/source audit: dependency graphs describe imports, not Go tests that read other packages or non-Go repository files. Group trigger roots do not execute their Go tests. Fall back to full for unmapped file-input populations; run fixed named source-scanner tests before exact selected Go argv and fail new/changed lexical reader sites pending audit. Test the actual upstream planner and actual runner composition together.
 
 - #725 BR-4: A file hash inventory only defends changes after its initial audit; a mistaken local-fixture disposition can preserve a silent hole. Trace helper calls to real roots, enforce source-walker registration independently of labels, and seed a violation in an unrelated package through the actual affected command. Require each scanner test to execute, rather than checking only that its package appears beside a filtered test regex.
+- #720 BR-1/BR-2: Do not grow an optional host feature into a native settings resolver. When permission fidelity needs repeated fixes, prefer an explicit persistent operator declaration and name its false-declaration limitation. A host write probe cannot prove sandbox access. Keep opt-in filenames outside reserved artifact families instead of weakening path-use guards.
+
+- #720 BR-3: A diagnostic added to a show command must cover its valid non-thread targets too. Test a slot with no thread through dispatch; iterating matched threads alone silently omits machine-wide selection information.
+
+- #724: testing.AllocsPerRun reads process-global Mallocs; GOMAXPROCS(1) does not suspend unrelated goroutines. Isolate strict allocation oracles in a self-exec helper and bind the sample to its actual PID; keep an unbounded-implementation negative control so isolation does not weaken the bound.
+- #724: Publishing a native PID is not simultaneous identity availability. A fixture must re-observe unavailable identity until established, then retain that exact generation; caching the PID must not disable all later identity observations. Report both title publication and agent identity on timeout so a real live title is not misdiagnosed as never started.
+
+- #711: Registration identity and observation freshness are different guards. Check actor/registration replacement first; ordinary operator input invalidating an otherwise live reservation belongs to the existing busy queue, not a missing-registration error. Reproduce input between successful Reserve and broker commit, and retain sender/recipient disconnect plus same-binding reconnect negative controls.
+- #711: Validate a native snapshot before renewing its cache timestamp. A completed subprocess can still return malformed evidence; preserve the prior good observation and its original age. Count one native query at N/2N sessions and zero native calls per cached reader rather than repairing contradictory sequential snapshots with retries.
+
+- #711 BR-1/BR-3: Current connectivity is not the registration lifetime that began an admission. Capture the owner actor under the initial lock and retain that exact resource through routing IO, successful reservation, and release-to-queue fallback. Test same-binding sender reconnect at every yield boundary as well as recipient replacement; keep all refusal paths side/phase labeled.
+- #711 BR-2: Preserve validated values through the final consumer, not only validated keys. Passing exact names onward while reparsing state with Fields/Contains revives ambiguity; runtime/display builders consume the same validated state map. Cover live EXITED-containing names and exited whitespace/tab names, including zero client queries for exited rows.

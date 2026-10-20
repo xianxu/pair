@@ -94,16 +94,75 @@ func TestKeyStepInputBytes(t *testing.T) {
 	}
 }
 
-func TestRecipeDirectionKeysAreInternal(t *testing.T) {
-	for _, tc := range []struct {
-		kind  KeyKind
-		bytes string
-	}{{KeyLeft, "\x1b[D"}, {KeyRight, "\x1b[C"}} {
-		if string((KeyStep{Kind: tc.kind}).InputBytes()) != tc.bytes {
-			t.Fatal("wrong internal direction bytes")
+// The recipe's directions are the caller's arrows now: one name, one byte
+// sequence (pair#717).
+func TestRecipeDirectionsAreCallerArrows(t *testing.T) {
+	for kind, bytes := range map[KeyKind]string{KeyLeft: "\x1b[D", KeyRight: "\x1b[C"} {
+		if string((KeyStep{Kind: kind}).InputBytes()) != bytes {
+			t.Fatalf("%s bytes", kind)
 		}
-		if _, err := ParseKeySequence([]string{string(tc.kind)}); err == nil {
-			t.Fatal("internal direction exposed to caller")
+		if _, err := ParseKeySequence([]string{string(kind)}); err != nil {
+			t.Fatalf("%s refused: %v", kind, err)
+		}
+	}
+}
+
+// TestStepBytes pins every caller key's bytes to the xterm encodings the
+// drive sends (pair#717). A table change must change this test too.
+func TestStepBytes(t *testing.T) {
+	want := map[string]string{
+		"enter": "\r", "submit": "\x1b\r", "up": "\x1b[A", "down": "\x1b[B", "left": "\x1b[D", "right": "\x1b[C",
+		"tab": "\t", "shift-tab": "\x1b[Z", "backspace": "\x7f", "delete": "\x1b[3~", "home": "\x1b[H", "end": "\x1b[F",
+		"pageup": "\x1b[5~", "pagedown": "\x1b[6~", "esc": "\x1b", "clear-line": "\x15",
+		"f1": "\x1bOP", "f2": "\x1bOQ", "f3": "\x1bOR", "f4": "\x1bOS", "f5": "\x1b[15~", "f6": "\x1b[17~",
+		"f7": "\x1b[18~", "f8": "\x1b[19~", "f9": "\x1b[20~", "f10": "\x1b[21~", "f11": "\x1b[23~", "f12": "\x1b[24~",
+		"ctrl-a": "\x01", "ctrl-o": "\x0f", "ctrl-r": "\x12", "ctrl-y": "\x19", "alt-b": "\x1bb", "alt-z": "\x1bz",
+	}
+	for name, bytes := range want {
+		seq, err := ParseKeySequence([]string{name})
+		if err != nil {
+			t.Errorf("%s refused: %v", name, err)
+			continue
+		}
+		if got := string(seq[0].InputBytes()); got != bytes {
+			t.Errorf("%s = %q, want %q", name, got, bytes)
+		}
+	}
+	named := 0
+	for _, step := range Steps {
+		if step.Kind == KeyText || step.Kind == KeyWait {
+			continue
+		}
+		named++
+		if step.Bytes == "" {
+			t.Errorf("%s has no bytes", step.Syntax)
+		}
+	}
+	if named != 16+12+(26-len(RefusedSteps))+26 {
+		t.Errorf("named keys = %d; the families or exclusions changed", named)
+	}
+}
+
+func TestRefusedStepsStateTheirReason(t *testing.T) {
+	for name, reason := range RefusedSteps {
+		_, err := ParseKeySequence([]string{"tab", string(name)})
+		if err == nil || !strings.Contains(err.Error(), reason) {
+			t.Errorf("%s: %v", name, err)
+		}
+		if isStep(name) {
+			t.Errorf("%s is both refused and a step", name)
+		}
+	}
+	if !strings.Contains(RefusedSteps["ctrl-c"], "couch --interrupt") {
+		t.Error("ctrl-c refusal does not point at the interrupt")
+	}
+}
+
+func TestUnknownStepListsTheNames(t *testing.T) {
+	for _, name := range []string{"f13", "ctrl-1", "alt-[", "shift-up", "Tab"} {
+		_, err := ParseKeySequence([]string{"enter", name})
+		if err == nil || !strings.Contains(err.Error(), StepSyntax()) {
+			t.Errorf("%s: %v", name, err)
 		}
 	}
 }
