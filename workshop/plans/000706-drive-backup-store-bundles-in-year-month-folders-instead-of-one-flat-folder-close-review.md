@@ -81,3 +81,69 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T14:50:08-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 706 — Drive backup: store bundles in year/month folders instead of one flat folder |
+| repo | pair |
+| issue file | workshop/issues/000706-drive-backup-store-bundles-in-year-month-folders-instead-of-one-flat-folder.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | e00984eb04bccc752811fafd3963e388ecacf631..2e938cdceac80d01c0e93f4ab6045fe8d6bdca3e |
+| command | sdlc close --issue 706 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T14:50:08-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff correctly repairs eight reader-inventory entries without weakening the scanner. Tracker changes record review outcomes; Spec, Plan and scope remain unchanged. No new defects found. BR-1 and BR-2 remain disposed; neither fix changes in this window.
+
+```findings
+{}
+```
+
+1. **Strengths**
+   - All eight entries in `tests/affected-go-readers.json:294` have correct hashes and fixture classifications.
+   - Rejected path literals and private temporary-directory walks are appropriately distinguished from repository-source readers.
+   - Scanner enforcement and test assertions remain intact.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage:** Seven reader-guard tests passed. The repository-inventory regression fails with the base inventory and passes with head, demonstrating that this correction resolves the eight reported mismatches. The expensive seeded integration test and full repository suite were not rerun.
+
+6. **Architecture, limited to this interdiff:**
+   - **ARCH-DRY — Pass:** existing inventory and scanner reused.
+   - **ARCH-PURE — Pass:** no business logic or IO boundaries changed.
+   - **ARCH-PURPOSE — Pass:** all eight affected entries audited and corrected.
+   - **ARCH-EVOLVE — Pass:** inventory schema and existing classifications preserved.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"5dcc5c28-6854-4119-b95a-1bf600c83506","repository":"github.com/xianxu/pair","issue_id":"000706","recipe":"fix-review","round":5,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/9863a64e4d18ac80","reviewed_head":"2e938cdceac80d01c0e93f4ab6045fe8d6bdca3e","slot":"pair:6","requested_at":"2026-10-20T21:49:13.015753Z"},"phase":"finished","pid":50734,"started_at":"2026-10-20T21:49:13.108276Z","finished_at":"2026-10-20T21:50:08.446814Z","session_id":"01a15b4a-3912-7c10-9433-e26e0a437892","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.540151542s
+head: "2e938cdceac80d01c0e93f4ab6045fe8d6bdca3e"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
