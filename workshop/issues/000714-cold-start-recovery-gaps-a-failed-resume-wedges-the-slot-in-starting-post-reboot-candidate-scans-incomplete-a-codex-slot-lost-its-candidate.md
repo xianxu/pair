@@ -83,6 +83,7 @@ total: 1.24
 ## Log
 
 ### 2026-10-19
+- 2026-10-19: closed — Production scope-only resume RED reproduced retained start and missing diagnostics; GREEN proves immediate same-native retry and reopened durable history. Focused race family 13.609s, CLI 1.049s, deadline race 1.343s, repolint/artifactpath 6.735s/6.008s; counted 8/16 releases each one observation and commit; diagnostic mutation control RED/restored GREEN and 35069 fuzz inputs. TL explicitly directed no stage/live check and owns next natural-failure smoke. Recorded suite f362417d7963a354d4add24c0f3358f2 queued on pushed implementation f767ed8491dd08bf6256eb9dedb7559501d56267; review overlaps queue per tl-worker, no landing before suite passes.; review verdict: SHIP
 
 - 10-19 17:30 TL root-cause read (read-only, from records + source):
   - **pair:3 (gap 3): never bound, not lost.** Binding rows live in `~/.local/share/pair/repos/<scope>/ledger-<tag>.jsonl`
