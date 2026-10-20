@@ -935,6 +935,196 @@ rounds:
       isolation: fenced
       reviewed: 99ca957e2b74d77402d35ca9eb40a408a295cb11
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: b8c7408c-8a96-423f-9fef-ff9b5c780d65
+            repository: github.com/xianxu/pair
+            issue_id: "000695"
+            recipe: milestone-review
+            round: 7
+            attempt: 1
+            agent: claude
+            root: /Volumes/TestScratch/review-checkouts/bf781e2264670ba0
+            reviewed_head: f9d4f031fe85f8fb6d525c1b8a5b5a5a13b6d17e
+            slot: pair:1
+            requested_at: "2026-10-20T00:26:13.755908Z"
+          phase: finished
+          pid: 4682
+          started_at: "2026-10-20T00:26:13.932818Z"
+          finished_at: "2026-10-20T00:35:29.038101Z"
+          session_id: a53bc65f-e1da-4ce1-844c-b4beefbb2c8d
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: f9d4f031fe85f8fb6d525c1b8a5b5a5a13b6d17e
+        tracker_head: abb871671e94a94ba410e62e0cd12c71775f95b9
+        branch_point: fffbf9c0d921bfc1df6ffb1fc0fe18628e53d812
+        since: "2026-10-18T22:57:15-07:00"
+        until: "2026-10-19T16:47:18-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-18T22:57:15-07:00"
+              end: "2026-10-19T16:47:18-07:00"
+              began: "2026-10-18T22:57:15-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot1/pair
+        sources:
+            - harness: claude
+              id: 0f8622e1-c463-4612-8427-0339d0387f2b
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: ca3da0965e8961d1c61c665731c4cd42b4e97772c869410aef3541505e4f55ce
+              started: "2026-10-19T13:36:29.283Z"
+              spawned: false
+              bytes: 393181
+              windows:
+                - start: "2026-10-19T13:36:29.283Z"
+                  end: "2026-10-19T16:47:18-07:00"
+            - harness: claude
+              id: 507d0585-c54a-4834-8abd-9a52d7f9da76
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 7a9fef517c978e06247002f5f9fdab5df82f006d847b0f5ceea1f4fb8f99bb3a
+              started: "2026-10-19T02:49:17.103Z"
+              spawned: false
+              bytes: 16587613
+              windows:
+                - start: "2026-10-18T22:57:15-07:00"
+                  end: "2026-10-19T16:47:18-07:00"
+            - harness: claude
+              id: 6fa6fea2-8902-4f5c-9b2a-6548cf879f30
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: faaf9c38d70a8a84ae00d705b1eef74c2570dd281bc35df426c3f6a837398123
+              started: "2026-10-19T13:30:41.221Z"
+              spawned: false
+              bytes: 614766
+              windows:
+                - start: "2026-10-19T13:30:41.221Z"
+                  end: "2026-10-19T16:47:18-07:00"
+            - harness: claude
+              id: 84fed9bb-2c33-495b-a2ac-b1c365c8f242
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 45246414c4d539667e82f0898e93805a8f3c200e359a018f9d53d1c10c45e757
+              started: "2026-10-19T13:36:13.159Z"
+              spawned: false
+              bytes: 572779
+              windows:
+                - start: "2026-10-19T13:36:13.159Z"
+                  end: "2026-10-19T16:47:18-07:00"
+            - harness: claude
+              id: 98afc721-0259-4ecb-a3aa-286966a8fa6b
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 0a6426bb7d4eda2cbe641637263404af0ffc0e861b43796863689e58ebf3b5ab
+              started: "2026-10-19T13:35:01.399Z"
+              spawned: false
+              bytes: 418152
+              windows:
+                - start: "2026-10-19T13:35:01.399Z"
+                  end: "2026-10-19T16:47:18-07:00"
+            - harness: claude
+              id: b5833248-4bc3-4582-a4e6-6c13f3737a1f
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 00e83c9ffe05ea6321734652c9f1f96a46f491047bfc59de33ed5ac5eff504d4
+              started: "2026-10-19T13:32:47.197Z"
+              spawned: false
+              bytes: 604367
+              windows:
+                - start: "2026-10-19T13:32:47.197Z"
+                  end: "2026-10-19T16:47:18-07:00"
+            - harness: claude
+              id: ccfc2441-0f65-4249-8017-65b2eb08cc24
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 5b9b248858b400579af6244ff35f2baa03f8f0e3b41b50d9804fd87bf8a87314
+              started: "2026-10-19T13:34:27.337Z"
+              spawned: false
+              bytes: 574614
+              windows:
+                - start: "2026-10-19T13:34:27.337Z"
+                  end: "2026-10-19T16:47:18-07:00"
+        queue_waits:
+            - attempt_id: 1445b62cb2dd5a17cb7c0288dec9e972
+              slot: pair:1
+              record_digest: 723c5097e3005e039c48f91b9ebc5f795800271e11508eb250d4bad58b05d28e
+              start: "2026-10-19T20:17:24.689345Z"
+              end: "2026-10-19T21:06:57.319288Z"
+              queue_seconds: 2972.629943
+              raw_seconds: 2972.629943
+              exact: true
+            - attempt_id: 98a0a59be0897c1c1859129ba9f7443e
+              slot: pair:1
+              record_digest: 344451b4b4f239f83ef1180c373ebb01ae733bf2f1fab31e157a88bd399a0a75
+              start: "2026-10-19T21:20:26.111822Z"
+              end: "2026-10-19T22:28:42.531888Z"
+              queue_seconds: 4096.420066
+              raw_seconds: 4096.420066
+              exact: true
+            - attempt_id: 47b2fef6de776a0b9f4a3723781e4946
+              slot: pair:1
+              record_digest: 553d78160fddadeb4f496831499fe10b6ac9390c8ccc46ee45f47d6614d6bc7a
+              start: "2026-10-19T23:19:39.509446Z"
+              end: "2026-10-19T23:38:10.154435Z"
+              queue_seconds: 1110.644989
+              raw_seconds: 1110.644989
+              exact: true
+        cuts:
+            - boundary: M1
+              dispatched: "2026-10-19T07:20:37-07:00"
+              finalized: "2026-10-19T07:40:57-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-19T07:55:34-07:00"
+              finalized: "2026-10-19T08:17:38-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-19T08:27:51-07:00"
+              finalized: "2026-10-19T08:44:32-07:00"
+              finalizing: true
+            - boundary: M2
+              dispatched: "2026-10-19T12:16:55-07:00"
+              finalized: "2026-10-19T12:31:56-07:00"
+              finalizing: false
+            - boundary: M2
+              dispatched: "2026-10-19T12:46:10-07:00"
+              finalized: "2026-10-19T13:16:10-07:00"
+              finalizing: true
+      "n": 7
+      timestamp: "2026-10-19T17:35:29-07:00"
+      dispatched: "2026-10-19T17:26:10-07:00"
+      agent: claude
+      reviewer: claude (anthropic; author anthropic)
+      dispose:
+        - id: BR-9
+          disposition: addressed
+          note: 'The #684 issue''s M2 checklist now owns both items from pair#695 M1 (BR-4), the stored-binding row note and the legacy-ledger row detail, and its log records receiving them. The transcript_bind.go:134 message now reads "its transcript binding is invalid", which is neutral about where the binding came from.'
+          round: 7
+        - id: BR-10
+          disposition: addressed
+          note: record.go:113-118 now says nested types older than pair#695 stay strict and a nested type born additive (TranscriptBinding) keeps its own unknown members, matching the round-2 Revision.
+          round: 7
+        - id: BR-21
+          disposition: addressed
+          note: 'teardown.go:245 now calls lifetimelease.RemoveFree, the same helper SweepFree uses: it takes LOCK_EX|LOCK_NB and checks the path still names the same file. TestRemoveFreeLeavesAHeldLease fails at lease_test.go:242 when the lock check is removed.'
+          round: 7
+        - id: BR-22
+          disposition: addressed
+          note: retire_test.go now walks the module root and also refuses non-test imports of couchcoretest. A planted cmd/zzprobe/p.go was flagged at retire_test.go:326 and :329.
+          round: 7
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: f9d4f031fe85f8fb6d525c1b8a5b5a5a13b6d17e
+      blocked: false
 ---
 
 # Gate ledger — pair#695 (boundary-review)
@@ -1049,9 +1239,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-22** [Minor] `authority-unforgeable` (kind: defect) The production-caller scan for TestOnlyTeardownProof covers only cmd/internal and exempts couchcoretest
   This is the 2nd finding in family authority-unforgeable. Rule: an authority's test-only minting path is unreachable from every production package in the module, so the guard walks the module root and also refuses non-test imports of couchcoretest. retire_test.go walks ".." (cmd/internal) only, so cmd/couch and cmd/pair-go are unscanned.
 
+## Round 7 — 2026-10-19T17:35:29-07:00 (claude) — passed
+
+### Disposed
+
+- BR-9 — addressed — The #684 issue's M2 checklist now owns both items from pair#695 M1 (BR-4), the stored-binding row note and the legacy-ledger row detail, and its log records receiving them. The transcript_bind.go:134 message now reads "its transcript binding is invalid", which is neutral about where the binding came from.
+- BR-10 — addressed — record.go:113-118 now says nested types older than pair#695 stay strict and a nested type born additive (TranscriptBinding) keeps its own unknown members, matching the round-2 Revision.
+- BR-21 — addressed — teardown.go:245 now calls lifetimelease.RemoveFree, the same helper SweepFree uses: it takes LOCK_EX|LOCK_NB and checks the path still names the same file. TestRemoveFreeLeavesAHeldLease fails at lease_test.go:242 when the lock check is removed.
+- BR-22 — addressed — retire_test.go now walks the module root and also refuses non-test imports of couchcoretest. A planted cmd/zzprobe/p.go was flagged at retire_test.go:326 and :329.
+
 ## Open findings
 
-- **BR-9** [Minor] `deferral-recorded-at-receiver` (kind: defect) BR-4's row note and legacy-ledger row detail are deferred to #684 M2 only in #695's plan; #684's tracker does not mention them
-- **BR-10** [Minor] `nested-unknown-preservation` (kind: defect) Record.Unknown comment still says nested objects stay strict after BR-7 made transcript tolerant
-- **BR-21** [Minor] `unlink-lock-file-under-lock` (kind: defect) Teardown unlinks the proven-free lease without holding its exclusive lock, unlike SweepFree
-- **BR-22** [Minor] `authority-unforgeable` (kind: defect) The production-caller scan for TestOnlyTeardownProof covers only cmd/internal and exempts couchcoretest
+(none — every finding has been disposed)
