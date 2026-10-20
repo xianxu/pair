@@ -43,7 +43,7 @@ which one is selected (operator, 10-20, screenshot in ops's session file).
 
 ## Plan
 
-- [ ] Pin hub underline, selected reverse, and other-hub dimming at the terminal-cell boundary; change the existing hub decorator (ARCH-PURE, ARCH-DRY).
+- [x] Pin hub underline, selected reverse, and other-hub dimming at the terminal-cell boundary; change the existing hub decorator (ARCH-PURE, ARCH-DRY).
 - [ ] Run targeted tests and recorded suite; stage build for the operator’s two-hub live check.
 
 ## Log
@@ -52,3 +52,4 @@ which one is selected (operator, 10-20, screenshot in ops's session file).
 
 - Quick-flow design: reuse the existing reset-restoring decorator, underline all hub rows and add reverse only for selection. Tab-chip inversion is separate and stays unchanged. No new state, IO, persistence or growth driver.
 - Automatic start-plan weave refresh produced unrelated CI workflow edits; preserved in stash named pair730 automatic weave workflow refresh preserved.
+- Red/green: terminal-cell regression failed on an unselected reversed hub, then TestHub/TestRenderMenu passed after the decorator fix. Existing multi-hub render test still pins foreign-hub dimming. Atlas now distinguishes tab inversion and switcher underline.
