@@ -75,6 +75,14 @@ Fresh archives the source and allocates a new tag. Age never authorizes killing
 the Couch supervisor. Agent activity never demotes a positively listed session
 from Continue.
 
+A direct Proven or Fresh recovery sets `RecoveryObservationRequest.SkipCandidates`
+(pair#726). The reader still builds `Source`, the screen, the capture, `Agent`,
+`Generation`, the branch and the issue, and fences the capture identity. It
+skips only the native transcript scan, which walks the agent's whole native
+store under the hub effect gate and is consumed only by an inferred (keyed)
+choice. `--resume-candidates` says an incomplete scan affects only the inferred
+choices when it offers the confirmed Resume from disk.
+
 Public Continue attaches through `couchcore/warm_attach.go`. After attachment,
 it may replace only a proven-dead client-helper incarnation with its exact
 locally owned helper, rechecking the old PID/start identity at the write gate.

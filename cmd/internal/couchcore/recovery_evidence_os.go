@@ -196,6 +196,15 @@ func (r OSRecoveryEvidenceReader) ReadRequest(ctx context.Context, record Thread
 			out.Reasons = append(out.Reasons, "Previous screen expired")
 		}
 	}
+	if q.SkipCandidates {
+		if out.Source == nil {
+			if err := validateRecoveryCaptureSnapshot(ctx, out.Capture); err != nil {
+				out.Incomplete = true
+				out.Reasons = append(out.Reasons, err.Error())
+			}
+		}
+		return out, nil
+	}
 	runtime, err := sessioninventory.NewNativeTranscriptRuntime(r.HomeDir, r.DataDir, sessioninventory.Agent(out.Agent), "", os.Getenv)
 	if err != nil {
 		out.Incomplete = true
