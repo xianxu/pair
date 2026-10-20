@@ -43,7 +43,7 @@ Target: `ops  :1  ariadne  :1  :2 …  brain  pair  :1 …`, then `ops-echo  ech
 
 - A unit test pins the order for a fixture with two hubs, a hub with its own slots, and several repos (including one
   whose name sorts before the hub's), for both the tab bar and the switcher.
-- The operator's live look at the next Couch restart shows ops:1 right after ops.
+- Land on SHIP after automated verification. The operator checks ops:1 immediately after ops at the next Couch restart after landing; any live defect is filed separately (TL revision, 2026-10-20).
 
 ## Plan
 
@@ -56,3 +56,9 @@ Target: `ops  :1  ariadne  :1  :2 …  brain  pair  :1 …`, then `ops-echo  ech
 ### 2026-10-20
 
 - Quick plan posted to hub; proceeding unless objected. Both consumers already derive from PresentThreads; changing their shared hubSection avoids a second ordering implementation. No IO, durable state, lifecycle, or format changes. Existing sort remains O(N log N); section promotion is a bounded number of linear passes, with no nested row scans.
+
+## Revisions
+
+### 2026-10-20 — acceptance timing (TL ops:0)
+
+The original Done when required the operator live look before acceptance. TL instructed no staging because pair:0 is held by #722; the shuffled two-hub regression can land on SHIP. Done when now permits close and landing after automated verification, with the operator live look at the next Couch restart after landing. Any defect found there becomes a new issue.

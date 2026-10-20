@@ -587,12 +587,12 @@ func keptEnd(actors []StatusActor, cells []chipCell) int {
 	return end
 }
 
-// chipGroups splits the actors into runs of one repository; a hub is a run of
-// its own, so its repository's slots are never drawn as its `:N`.
+// chipGroups splits the actors into runs of one repository. A primary hub
+// anchors its own slots; a numbered hub remains a run of its own.
 func chipGroups(actors []StatusActor) [][2]int {
 	var groups [][2]int
 	for i, a := range actors {
-		if i == 0 || a.Hub || actors[i-1].Hub || a.GroupKey == "" || a.GroupKey != actors[i-1].GroupKey {
+		if i == 0 || a.Hub || actors[i-1].Hub && actors[i-1].SlotNumber > 0 || a.GroupKey == "" || a.GroupKey != actors[i-1].GroupKey {
 			groups = append(groups, [2]int{i, i})
 		}
 		groups[len(groups)-1][1] = i + 1
