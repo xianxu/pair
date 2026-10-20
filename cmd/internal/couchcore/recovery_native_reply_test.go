@@ -102,7 +102,6 @@ func recoveryNativeInitialQueries() [][]string {
 	return [][]string{
 		{"--session", "pair-exact", "action", "list-panes", "--json", "--command"},
 		{"--session", "pair-exact", "action", "list-panes", "--json", "--command"},
-		{"list-sessions", "--short"},
 		{"list-sessions", "--no-formatting"},
 		{"--session", "pair-exact", "action", "list-clients"},
 	}
@@ -112,7 +111,7 @@ func TestRecoverThreadNativeReplyUnknownStopsBeforeEffects(t *testing.T) {
 	for _, stage := range []struct {
 		name    string
 		ordinal int
-	}{{"first-owner", 1}, {"second-owner", 2}, {"clients", 5}} {
+	}{{"first-owner", 1}, {"second-owner", 2}, {"listing", 3}, {"clients", 4}} {
 		for _, reply := range []struct{ name, raw string }{{"empty", ""}, {"whitespace", " \t\n"}, {"wrong-kind", `{"active_swap_layout_name":null,"is_swap_layout_dirty":false}`}, {"malformed", "[{"}} {
 			t.Run(stage.name+"/"+reply.name, func(t *testing.T) {
 				f := newRecoveryNativeFixture(t)
@@ -178,7 +177,7 @@ func TestRecoverThreadNativeHeaderOnlyClientsReattaches(t *testing.T) {
 	}
 	t.Cleanup(func() { f.env.Runner.SetExited(result.Handle.ID(), 0) })
 	queries := f.native.Queries()
-	if len(queries) < 5 {
+	if len(queries) < len(recoveryNativeInitialQueries()) {
 		t.Fatalf("warm recovery skipped initial observations: %+v", queries)
 	}
 	for i, args := range recoveryNativeInitialQueries() {
@@ -198,7 +197,7 @@ func TestRecoveryQueryCaptureRetainsFailedRecoveryRequest(t *testing.T) {
 	capture := newRecoveryQueryCapture(t)
 	f := newRecoveryNativeFixture(t)
 	empty := ""
-	f.native.SetFaults(zellijtest.Fault{Ordinal: 5, Reply: &empty})
+	f.native.SetFaults(zellijtest.Fault{Ordinal: 4, Reply: &empty})
 	ctx := capture.Context(t.Context())
 	capture.Mark("recover-enter")
 	_, err := f.env.Couch.RecoverThread(ctx, f.source.Address, "")
@@ -207,14 +206,14 @@ func TestRecoveryQueryCaptureRetainsFailedRecoveryRequest(t *testing.T) {
 		t.Fatalf("recovery classification: %v", err)
 	}
 	snapshot := capture.snapshot()
-	if len(snapshot.Records) != 7 || snapshot.DroppedRecords != 0 || len(f.native.Queries()) != 5 {
+	if len(snapshot.Records) != 6 || snapshot.DroppedRecords != 0 || len(f.native.Queries()) != 4 {
 		t.Fatalf("capture lost or added observations: records=%d dropped=%d queries=%v", len(snapshot.Records), snapshot.DroppedRecords, f.native.Queries())
 	}
-	failed := snapshot.Records[5]
-	if !failed.NoReply || failed.ExitCode != 0 || failed.StdoutBytes != 0 || len(failed.Stdout) != 0 || !reflect.DeepEqual(failed.Args, recoveryNativeInitialQueries()[4]) {
+	failed := snapshot.Records[4]
+	if !failed.NoReply || failed.ExitCode != 0 || failed.StdoutBytes != 0 || len(failed.Stdout) != 0 || !reflect.DeepEqual(failed.Args, recoveryNativeInitialQueries()[3]) {
 		t.Fatalf("failed request evidence: %+v", failed)
 	}
-	if snapshot.Records[0].Name != "recover-enter" || snapshot.Records[6].Name != "recover-return" || failed.Started.Before(snapshot.Records[0].Started) || failed.Finished.After(snapshot.Records[6].Started) {
+	if snapshot.Records[0].Name != "recover-enter" || snapshot.Records[5].Name != "recover-return" || failed.Started.Before(snapshot.Records[0].Started) || failed.Finished.After(snapshot.Records[5].Started) {
 		t.Fatal("capture did not correlate the failing query with the recovery call")
 	}
 }

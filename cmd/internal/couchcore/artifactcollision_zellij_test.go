@@ -244,8 +244,8 @@ func TestWarmResumeListingBudgetIsIndependentOfOtherSessions(t *testing.T) {
 			}
 			lc := pairlifecycletest.CountCalls(t, log, "list-clients")
 			ls := pairlifecycletest.CountCalls(t, log, "list-sessions")
-			if lc != 0 || ls != 8 {
-				t.Fatalf("list-clients = %d, list-sessions = %d; want 0 and 8 at every S (initial/pre-spawn/pre-ack/post-ack each use short plus full listing)", lc, ls)
+			if lc != 0 || ls != 4 {
+				t.Fatalf("list-clients = %d, list-sessions = %d; want 0 and 4 at every S (initial/pre-spawn/pre-ack/post-ack each use one validated full listing)", lc, ls)
 			}
 		})
 	}

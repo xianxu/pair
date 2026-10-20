@@ -267,3 +267,19 @@ second parser available for accidental reuse. Focused parser/runtime verificatio
 Focused parser/runtime checks after retiring the orphaned helper passed (launcher 1.681s);
 log parser-retirement-final.log. Only deletion of the now-unused short parser/test followed
 the six-package pass; the recorded suite will qualify this final head.
+
+### 2026-10-20 — recorded suite exposed four remaining legacy fixture expectations
+
+Attempt 0d6db2414b5bdc28294ef055d6fd039b ran the complete suite on a85138a5.
+Its four couchcore failures are deterministic fixture drift from the approved
+one-full-listing change, not flakes: TestWarmResumeListingBudgetIsIndependentOfOtherSessions
+still expected eight native calls instead of four independent full-listing fences;
+TestRecoverThreadNativeReplyUnknownStopsBeforeEffects and
+TestRecoverThreadNativeHeaderOnlyClientsReattaches still included the deleted short query;
+TestRecoveryQueryCaptureRetainsFailedRecoveryRequest injected its client failure at old
+ordinal five, now the next owner query. Updated only those fixture expectations, keeping
+all four warm-resume fences, all no-effect/no-retry/identity checks, and exact failure
+capture. Added the full-listing unknown-reply stage alongside both owner stages and clients.
+The four corrected tests pass together (couchcore 4.589s). No production changes,
+no raised timeout, no waived failure. A new recorded suite and narrow post-close review
+will qualify this test-only correction; the earlier SHIP does not cover these edits.
