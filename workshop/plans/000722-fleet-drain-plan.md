@@ -156,22 +156,22 @@ New persisted format: known keys strict (including duplicate rejection); unknown
 
 Files: new `couchcore/drain*.go` and colocated tests.
 
-- [ ] Write literal/event-sequence tests first: `TestDrainGenerationSequences`, `TestDrainBoardTruth`, `TestDrainNoticeV1`, `TestDrainCountedGrowth`. Independently assert no all-drained without same-generation ack, positive idle and complete paused/quiet queue; cover no-ack quiet, expiry, later activity, replacement and reordered completion.
+- [ ] Test `ReduceDrain` and `ProjectDrainBoard` with generated, controllably reordered event sequences and independent no-false-drained/owner-isolation invariants; guard each input authority separately with a mutation. Test `DrainNotice` with literal expected v1 output and arbitrary bounded reason data. Count reducer/effect operations at N and 2N to reject repeated fleet scans or per-member queue probes.
 - [ ] Run `go test ./cmd/internal/couchcore -run 'TestDrain' -count=1`; confirm RED for missing contract, implement the transition/formatter, then GREEN. Commit the self-contained model.
 
 ### 2. Queue seam, portable persistence and fake
 
 Files: new `couchcmd/drain_queue*.go`, `drain_store.go` and tests.
 
-- [ ] Write `TestDrainQueueOwnerIsolation`, `TestDrainQueueLostReplies`, `TestDrainQueueCLIContract`, `TestDrainStoreCrashRecovery`, `TestDrainStoreUnknownFields`. Use a portable folder and stateful owner/activity transitions, not function-return call scripts.
-- [ ] Run `go test ./cmd/internal/couchcmd -run 'TestDrainQueue|TestDrainStore' -count=1`; demonstrate RED, implement adapter/decoder/storage, then GREEN. Missing #481 binary support must produce unknown/unsupported. Commit.
+- [ ] Test `sdlcDrainQueue.Pause`, `.Resume` and `.Status` against the stateful owner/activity fake and executable argv boundary; reorder effect completion versus lost response and independently assert owner isolation. Fuzz `decodeQueueSnapshot` with malformed/oversized JSON and enforce complete-known evidence before absence inference. Test `drainStore.Read`/`.Write` with filesystem failure injection and unknown-field round trips; assert durable intent never vanishes after an uncertain effect.
+- [ ] Run `go test ./cmd/internal/couchcmd -run 'DrainQueue|DrainStore' -count=1`; demonstrate RED, implement adapter/decoder/storage, then GREEN. Missing #481 binary support must produce unknown/unsupported. Commit.
 
 ### 3. Broker/coordinator, authenticated ack and fast interruption
 
 Files: new `drain_service.go`, `drain_cli.go`, `drain_protocol.go`, `drain_endpoint.go`, `wrapcmd/drain_interrupt.go`; named existing wiring files above plus Registry.Liveness's submission observation if required.
 
-- [ ] Write `TestDrainFleetGraceful`, `TestDrainFleetFast` with idle, mid-turn and running-suite members; explicitly advance notices, checkpoint acks, turn completion and queue operations. Cover steward self-ack, other-hub refusal, start idempotency, status read-only, queued dispatch holding/release, late join, replacement, partial pause/resume and cancellation races.
-- [ ] Write `TestDrainInterruptOwnership` and recorded-screen controls: busy supported turn, idle, picker, buffered input, old wrapper, superseded incarnation, operator input race, lost write reply and duplicate request. Missing/protocol-extra fields fail closed; known allowed raw payload is Esc only.
+- [ ] Test `drainCoordinator.start`, `.ack`, `.cancel` and `.reconcile` through the real service with a stateful fleet, portable store and queue fake; control effect order and independently assert exact-generation completion and no early admission release. Test broker `eligibleDrainHead` and `revokeDrainControl` against the actor transition model with held peer FIFO; guard every reserve/commit path with the same generation authority.
+- [ ] Test wrapper `ReduceDrainInterrupt` and `executeDrainInterrupt` with controllable original-turn/input-lease ordering and recorded-screen evidence; independently count Esc writes and reject writes to any newer turn. Fuzz `ValidateDrainRequest` and endpoint payload validation over malformed/extra fields; the only accepted input effect is the fenced Esc.
 - [ ] Run targeted tests across couchcmd/couchmessage/wrapcmd; verify RED then GREEN through the actual service/endpoint seam. Mutate ack, identity, queue and reserve guards independently and demonstrate each safety oracle fails. Commit.
 
 ### 4. Board UI and operational documentation
@@ -179,7 +179,7 @@ Files: new `drain_service.go`, `drain_cli.go`, `drain_protocol.go`, `drain_endpo
 Files: `couchtty/console_drain.go`, console/status/tab projection and tests; `README.md`, `atlas/couch.md`, embedded Couch skill/help. Link any new atlas file from index.
 
 - [ ] Publish immutable board snapshots through a console event; render per-slot draining/drained/stuck plus global pause/unknown reason. Keep reasons in CLI/JSON status, sanitize terminal text and preserve selected pane, narrow-width state visibility and existing picker indicators.
-- [ ] Add `TestDrainConsoleProjection` and CLI/parser/help contract tests. Exercise malformed/duplicate flags, excessive reason/deadline, all mode combinations, JSON bounds, no live probes on status rendering. Run targeted tests and commit docs with behavior.
+- [ ] Test `Console.SetDrainBoard` and the tab/status renderer with immutable board values and independently measured terminal bounds; assert rendering invokes no live probe. Fuzz `parseDrainCLI` with arbitrary argv and enforce one closed operation shape and configured bounds. Literal help/notice contract checks guard public wording. Run targeted tests and commit docs with behavior.
 
 ### 5. Real seam conformance, suite, review and landing
 
@@ -209,3 +209,7 @@ Task3 includes the production broker/endpoint transition changes and all three t
 ### 2026-10-19 — TL design approval
 
 Canonical submitted TL receipt 0a9b7377-14f4-444f-83ce-3cf1cb86353e approves this plan and instructs change-code. Async start, 10m default/1s–24h deadline, one persisted owner intent, confirmed-pause-before-notice, owner-only cancellation and no timeout release are approved. Visible states are exactly draining, stuck (with reason), drained and cancelled; the table's “inactive: cancelled” is rendered cancelled. Each uses the recovery listed in the table. TL copied the exact notice and queue seam into ariadne#481; real #481 conformance remains the production enablement/close dependency. Execute the approved full flow; the code surface is outside the quick-flow shell even though this design is under its line limit.
+
+### 2026-10-19 — PQ-1 function-level verification strategy
+
+Plan-quality round1 accepted the architecture/ordering but rejected the task sections' prose test-case inventories. Replaced those inventories throughout tasks1–4 with named production functions, an adversarial-input/controllable-ordering strategy and an independent mechanical guard. Governing state/ordering requirements remain requirements rather than a test-case pre-image. This is a verification-description correction, not a change to the approved notice, SDLC seam, visible states or scope.
