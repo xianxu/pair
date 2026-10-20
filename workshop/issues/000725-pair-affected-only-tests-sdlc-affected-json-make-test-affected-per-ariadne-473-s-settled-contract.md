@@ -1,13 +1,21 @@
 ---
 id: 000725
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'ef019de39627d50000c5547d67c91f423c112a1b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '74042514b334d812e24e650177339cfe7d0735ab' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-20T02:22:02-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # pair affected-only tests: .sdlc/affected.json + make test-affected, per ariadne#473's settled contract
@@ -47,8 +55,19 @@ The contract is settled by ariadne#473 M1 (milestone evidence a6c87575, fake-con
 
 ## Plan
 
-- [ ]
+See [durable plan](../plans/000725-affected-tests-plan.md), one atomic close boundary.
+
+- [ ] Add declaration, selective command and production entrypoint regressions; qualify upstream strict parser/planner fixtures.
+- [ ] Audit current non-Go recipe ownership; document the Lua/runtimebundle exception and full fallbacks.
+- [ ] After ariadne#473 M2 lands, record real affected and docs-only/train evidence and compare measured duration to full suite.
+- [ ] Run full suite, close review, request operator local-gates label through hub, then merge and verify outcome.
 
 ## Log
 
 - Deps: ariadne#473 (M2 adds the gates that consume it; this can land first: absent the gates, the file is inert).
+
+- 2026-10-20: Claimed pair:3 and started from fresh main ab32acea6c97663232623b2881e7e7c91aae8a17. Refreshed provider to current main; preserved unrelated generated workflows in 725-start-plan-generated-workflows-preserved-for-699 (older workflow stashes untouched). TL clarification 5626d3a8-45f9-4ea4-9ff5-48620198f6ab: nvim source selects lua and the runner regenerates/tests runtimebundle; generated embedded Lua selects runtimebundle+lua. Implement fixtures now, measure/record real affected evidence once M2 lands. Five groups reuse existing targets and unclaimed non-Go files force full (ARCH-DRY, ARCH-PURPOSE).
+
+## Revisions
+
+- 2026-10-20: Added executable plan and explicit source-Lua/runtimebundle test exception approved by hub. No upstream schema or environment contract changes. Real recorded affected/train acceptance is pending upstream M2 availability rather than being waived.
