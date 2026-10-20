@@ -484,9 +484,10 @@ couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
 couch --resources [--json] cached process sample plus fresh hosted-ingest totals
 couch --reap-orphans [--confirm] [--json]
-                         the unattributed embedded nvim --resources named; without --confirm it lists them
-                         and ends nothing, with --confirm it ends each one and its tree, every signal fenced
-                         on the identity the sweep recorded [seconds]
+                         the unattributed embedded nvim --resources named, and the processes a teardown left
+                         running (an agent's setsid'd runner: a background build, test or merge); without
+                         --confirm it lists them and ends nothing, with --confirm it ends each one and its
+                         tree, every signal fenced on the identity the sweep or teardown recorded [seconds]
 couch --broadcast-list [--json]   every link out by kind (screen, web view, web drive) and its viewers, and the
                          recordings shared for replay (pair#477); never a link
 couch --broadcast-web-query DIR dom|events|notes|link ...
@@ -833,9 +834,12 @@ same effect ID. Episodes live in memory, so restarting Couch re-arms them and
 can repeat an advisory alert. History is best-effort and never gates alerts.
 Unattributed candidates are report-only, and the monitor never kills anything.
 The one destructive verb is the operator's: `couch --reap-orphans` names the
-orphaned embedded nvim the sweep found and ends nothing, and
+orphaned embedded nvim the sweep found, and the processes a teardown left
+running (pair#695: an agent's descendant that had left its terminal, such as a
+background build or merge, which teardown never kills; `--resources` lists them
+under "Left running by teardown"), and ends nothing.
 `couch --reap-orphans --confirm` re-classifies from a fresh sample and then ends
-each named tree, every signal fenced on the identity the sweep recorded — a pid
+each named tree, the left-running ones included, every signal fenced on the identity the sweep recorded — a pid
 that has exited or been recycled is skipped with the reason printed, never
 signalled on the strength of a number that still exists.
 See [resource monitoring](atlas/couch.md#resource-monitoring-587) for policy

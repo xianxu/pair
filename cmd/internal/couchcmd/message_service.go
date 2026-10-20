@@ -21,6 +21,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/lifetimelease"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/strictjson"
 	core "github.com/xianxu/pair/cmd/internal/submission"
@@ -345,6 +346,10 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	switchGuard := &switchServiceGuard{}
 	c.SwitchGuard = switchGuard
 	namespace := c.Namespace.Dir()
+	// Lifetime leases left by retirements that had no proof to remove them
+	// (pair#695): only the free ones go, so a live tree keeps its lease, and
+	// Hold reopens if one goes under it. Debris only; a failure keeps it.
+	_, _ = lifetimelease.SweepFree(lifetimelease.Dir(namespace))
 	brokerSocket, err := couchmessage.SocketPath(namespace, "broker")
 	if err != nil {
 		return nil, err
@@ -490,6 +495,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 		return couchcore.ProcessIdentity{PID: live.Binding.PID, Identity: live.Binding.Start}, true
 	}
 	c.ProcessTable = procutil.Table
+	c.LeaseHolders = lifetimelease.Holders
 	facts := openSupervisionFacts(artifacts.PairLifecycleDataDir(), namespace)
 	service, err := newMessageService(context.Background(), brokerSocket, registrySocket, authority, panes, console.MessageSlotGit, consoleSlotOperations(console, c, probe), facts)
 	if err != nil {
@@ -548,7 +554,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	inventory := newResourceInventory(console, c, service)
 	persistence := newResourceHistoryPersistence(namespace)
 	alerts := newResourceAlertDispatcher(service)
-	sampler := &resourceSampler{reader: procutil.NativeResourceReader{}, slots: inventory.snapshot, policy: resourcePolicy, alerts: alerts.dispatch, persist: persistence.persist, history: persistence.historySummary, sweeps: make(chan chan resourceSweep)}
+	sampler := &resourceSampler{reader: procutil.NativeResourceReader{}, slots: inventory.snapshot, policy: resourcePolicy, alerts: alerts.dispatch, persist: persistence.persist, history: persistence.historySummary, sweeps: make(chan chan resourceSweep), leftRunning: couchcore.NewLeftRunningRegistry(c.Namespace)}
 	hostedIngest := console.HostedIngestSnapshot
 	service.hostedIngest.Store(&hostedIngest)
 	service.resources.Store(sampler)

@@ -80,7 +80,10 @@ func (s *ThreadStore) observeSlotCurrentContext(ctx context.Context) (out slotCu
 
 // replaceSlotCurrent keeps retained evidence and publication in one existing
 // local journal. Exact observed bytes serialize fresh against resume and fresh.
-func (s *ThreadStore) replaceSlotCurrent(old slotCurrentObservation, next ThreadRecord) error {
+// A current record is retired only with an authority (pair#695): a teardown
+// proof at its revision, an adoption by the survivor being published, or the
+// unreadable escape for its exact bytes. An empty slot needs none.
+func (s *ThreadStore) replaceSlotCurrent(old slotCurrentObservation, next ThreadRecord, authority RetireAuthority) error {
 	if !s.layout.Local {
 		return errors.New("slot replacement requires local store")
 	}
@@ -107,6 +110,15 @@ func (s *ThreadStore) replaceSlotCurrent(old slotCurrentObservation, next Thread
 		if current.Unsupported {
 			return current.Err
 		}
+		if current.Exists {
+			retiring := next.Address
+			if current.Record != nil {
+				retiring = current.Record.Address
+			}
+			if err := authorizeRetire(authority, retiring, current.Record, current.Raw, &next); err != nil {
+				return err
+			}
+		}
 		var entries []storeJournalEntry
 		if old.Record != nil {
 			path := s.archivePath(old.Record.Address)
@@ -131,11 +143,15 @@ func (s *ThreadStore) replaceSlotCurrent(old slotCurrentObservation, next Thread
 			} else if !errors.Is(err, os.ErrNotExist) {
 				return err
 			}
-			grace, err := s.archiveGraceBytes(old.Record.Address, old.Raw)
+			kept, err := retiredBytes(authority, old.Record, old.Raw)
 			if err != nil {
 				return err
 			}
-			entries = append(entries, storeJournalEntry{Path: relativeStorePath(s.root, path), Expected: archiveBefore, After: &old.Raw}, storeJournalEntry{Path: relativeStorePath(s.root, s.archiveGracePath(old.Record.Address)), Expected: graceBefore, After: &grace})
+			grace, err := s.archiveGraceBytes(old.Record.Address, kept)
+			if err != nil {
+				return err
+			}
+			entries = append(entries, storeJournalEntry{Path: relativeStorePath(s.root, path), Expected: archiveBefore, After: &kept}, storeJournalEntry{Path: relativeStorePath(s.root, s.archiveGracePath(old.Record.Address)), Expected: graceBefore, After: &grace})
 		} else if old.Exists {
 			entry, err := s.slotRecoveryBackupLocked(old.Raw)
 			if err != nil {
@@ -145,7 +161,7 @@ func (s *ThreadStore) replaceSlotCurrent(old slotCurrentObservation, next Thread
 				entries = append(entries, *entry)
 			}
 		}
-		raw, err := json.MarshalIndent(next, "", "  ")
+		raw, err := encodeThreadRecord(next)
 		if err != nil {
 			return err
 		}
@@ -400,10 +416,14 @@ func (c *Couch) startFreshSlotWithPrompt(ctx context.Context, path, agent string
 	for _, candidate := range observation.Candidates {
 		used[candidate.Address] = true
 	}
+	authority, err := c.slotCurrentAuthority(ctx, old)
+	if err != nil {
+		return StartResult{}, err
+	}
 	record, nonce, err := c.claimFreshRecord(ctx, freshClaimInput{
 		ScopeKey: scope.Key, Cwd: cwd, RepoIdentity: slot.RepoIdentity, TagPrefix: filepath.Base(slot.PrimaryRoot),
 		Profile: profile, Used: used, Store: local,
-		Commit: func(record ThreadRecord) error { return local.replaceSlotCurrent(old, record) },
+		Commit: func(record ThreadRecord) error { return local.replaceSlotCurrent(old, record, authority) },
 	})
 	if err != nil {
 		return StartResult{}, err
@@ -468,6 +488,24 @@ func (c *Couch) slotLaunchProfile(local *ThreadStore, slot SlotIdentity, cwd, ag
 // An agent passed here is the operator's own choice.
 func (c *Couch) OpenSlot(ctx context.Context, path, agent string) (StartResult, error) {
 	return c.openSlot(ctx, path, agent, false)
+}
+
+// slotCurrentAuthority is why a fresh start may retire the slot's current
+// record: none for an empty slot, the escape for an undecodable one, and
+// otherwise a proof that its tree is down. Fresh starts only on a down slot,
+// so the proof never stops anything; a survivor is named and refused.
+func (c *Couch) slotCurrentAuthority(ctx context.Context, old slotCurrentObservation) (RetireAuthority, error) {
+	switch {
+	case !old.Exists:
+		return nil, nil
+	case old.Record == nil:
+		return UnreadableRecordEscape{raw: append([]byte(nil), old.Raw...)}, nil
+	}
+	proof, err := c.ProveDown(ctx, *old.Record)
+	if err != nil {
+		return nil, fmt.Errorf("start fresh: the slot's current conversation is not proved down; park it first: %w", err)
+	}
+	return proof, nil
 }
 
 // openSlot is OpenSlot with the agent's provenance. agentGuessed means the
@@ -575,6 +613,7 @@ func (c *Couch) openSlot(ctx context.Context, path, agent string, agentGuessed b
 		default:
 			return StartResult{}, refuseResume(ResumeSurvivorsAmbiguous, fmt.Sprintf("slot current is unavailable and %d running conversations could each be its own; stop all but one managed session, then resume again", len(survivors)))
 		}
+		var others []ProcessIdentity
 		for _, candidate := range sessions.Candidates {
 			active := candidate.Presence == SessionPresent
 			for _, process := range candidate.Processes {
@@ -582,6 +621,9 @@ func (c *Couch) openSlot(ctx context.Context, path, agent string, agentGuessed b
 			}
 			if active && candidate.Address != survivors[0].Address {
 				return StartResult{}, errors.New("another managed slot owner survives; resolve all owners before reconstruction")
+			}
+			if candidate.Address != survivors[0].Address {
+				others = append(others, candidate.Processes...)
 			}
 			if candidate.Address == survivors[0].Address && len(survivors[0].Incarnations) == 0 {
 				for _, process := range candidate.Processes {
@@ -591,7 +633,11 @@ func (c *Couch) openSlot(ctx context.Context, path, agent string, agentGuessed b
 				}
 			}
 		}
-		if err := local.replaceSlotCurrent(observed, survivors[0]); err != nil {
+		adoption, err := c.NewAdoptionAuthority(survivors[0].Address, others)
+		if err != nil {
+			return StartResult{}, err
+		}
+		if err := local.replaceSlotCurrent(observed, survivors[0], adoption); err != nil {
 			return StartResult{}, err
 		}
 		record = &survivors[0]

@@ -676,7 +676,25 @@ func (c ScopedThreadArtifactCollisionChecker) ResolveEstablished(ctx context.Con
 	}).ResolveEstablished(ctx, repoScope, tag, agent)
 }
 
+// BindTranscript binds over the same native runtime ResolveEstablished
+// builds, with ResolveEstablished as the fallback when no file is known.
+func (c ScopedThreadArtifactCollisionChecker) BindTranscript(ctx context.Context, thread ThreadRecord) (TranscriptBind, error) {
+	paths, err := artifactpath.Resolve(artifactpath.Address{
+		DataDir: c.GlobalDataDir, RepoScope: thread.Address.RepoScope, Tag: string(thread.Address.Tag),
+	})
+	if err != nil {
+		return TranscriptBind{}, err
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return TranscriptBind{}, err
+	}
+	runtime := sessioninventory.NewOSRuntime(home, paths.ScopeDir()).WithOwnerLaunchCache(c.OwnerLaunches).WithWorkObserver(c.InventoryWork)
+	return bindTranscriptWith(ctx, runtime, SessionInventoryNativeBindingResolver{Runtime: runtime}, thread)
+}
+
 var (
+	_ TranscriptBinder        = ScopedThreadArtifactCollisionChecker{}
 	_ NativeBindingResolver   = ScopedThreadArtifactCollisionChecker{}
 	_ DetachedSessionResolver = ScopedThreadArtifactCollisionChecker{}
 )

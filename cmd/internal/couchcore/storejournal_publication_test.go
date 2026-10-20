@@ -24,7 +24,7 @@ func TestStorePublicationKilledPublisher(t *testing.T) {
 			s, c := retentionStore(t)
 			record := archivableThread(t, s, "couch-0000000000000001")
 			if phase == "receipt" {
-				if err := s.ArchiveThread(record.Address); err != nil {
+				if err := s.ArchiveThread(record.Address, retireAuthorityForTest(t, s, record.Address)); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -172,7 +172,7 @@ func TestStorePublicationChild(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-	} else if err := s.ArchiveThread(address); err != nil {
+	} else if err := s.ArchiveThread(address, retireAuthorityForTest(t, s, address)); err != nil {
 		t.Fatal(err)
 	}
 	t.Fatal("publication barrier not reached")

@@ -12,86 +12,6 @@ import (
 
 type lifecycleFailureWire LifecycleFailure
 
-// failureKnownFields is derived from owned tags so opaque members cannot shadow them.
-func failureKnownFields(t reflect.Type) map[string]bool {
-	m := map[string]bool{}
-	for i := 0; i < t.NumField(); i++ {
-		tag := t.Field(i).Tag.Get("json")
-		if tag == "-" || t.Field(i).PkgPath != "" {
-			continue
-		}
-		name := tag
-		for j, c := range name {
-			if c == ',' {
-				name = name[:j]
-				break
-			}
-		}
-		if name == "" {
-			name = t.Field(i).Name
-		}
-		m[name] = true
-	}
-	return m
-}
-func failureObject(raw []byte, known map[string]bool, nullable map[string]bool) (map[string]json.RawMessage, map[string]json.RawMessage, error) {
-	if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
-		return nil, nil, fmt.Errorf("failure object cannot be null")
-	}
-	var all map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &all); err != nil {
-		return nil, nil, err
-	}
-	if all == nil {
-		return nil, nil, fmt.Errorf("failure object required")
-	}
-	owned := map[string]json.RawMessage{}
-	unknown := map[string]json.RawMessage{}
-	for k, v := range all {
-		if known[k] {
-			if !nullable[k] && bytes.Equal(bytes.TrimSpace(v), []byte("null")) {
-				return nil, nil, fmt.Errorf("failure field %s cannot be null", k)
-			}
-			owned[k] = v
-		} else {
-			unknown[k] = append(json.RawMessage(nil), v...)
-		}
-	}
-	return owned, unknown, nil
-}
-func failureEncodeObject(owned, unknown map[string]json.RawMessage, known map[string]bool) ([]byte, error) {
-	merged := cloneFailureUnknown(owned)
-	if merged == nil {
-		merged = map[string]json.RawMessage{}
-	}
-	for k, v := range unknown {
-		if known[k] {
-			continue
-		}
-		if err := strictjson.RejectDuplicateKeys(v); err != nil {
-			return nil, err
-		}
-		merged[k] = v
-	}
-	keys := make([]string, 0, len(merged))
-	for k := range merged {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	var b bytes.Buffer
-	b.WriteByte('{')
-	for i, k := range keys {
-		if i > 0 {
-			b.WriteByte(',')
-		}
-		name, _ := json.Marshal(k)
-		b.Write(name)
-		b.WriteByte(':')
-		b.Write(merged[k])
-	}
-	b.WriteByte('}')
-	return b.Bytes(), nil
-}
 func decodeLifecycleFailureHistory(raw []byte) (LifecycleFailureHistory, error) {
 	if err := strictjson.RejectDuplicateKeys(raw); err != nil {
 		return nil, err
@@ -108,8 +28,8 @@ func decodeLifecycleFailureHistory(raw []byte) (LifecycleFailureHistory, error) 
 	}
 	var h LifecycleFailureHistory
 	for _, entry := range entries {
-		known := failureKnownFields(reflect.TypeOf(lifecycleFailureWire{}))
-		owned, unknown, err := failureObject(entry, known, map[string]bool{"before_exit": true, "after_exit": true})
+		known := strictjson.KnownFields(reflect.TypeOf(lifecycleFailureWire{}))
+		owned, unknown, err := strictjson.SplitObject(entry, known, map[string]bool{"before_exit": true, "after_exit": true})
 		if err != nil {
 			return nil, err
 		}
@@ -120,7 +40,7 @@ func decodeLifecycleFailureHistory(raw []byte) (LifecycleFailureHistory, error) 
 		}
 		var addressUnknown map[string]json.RawMessage
 		if address, ok := owned["address"]; ok {
-			a, u, e := failureObject(address, map[string]bool{"repo_scope": true, "tag": true}, nil)
+			a, u, e := strictjson.SplitObject(address, map[string]bool{"repo_scope": true, "tag": true}, nil)
 			if e != nil {
 				return nil, e
 			}
@@ -139,7 +59,7 @@ func decodeLifecycleFailureHistory(raw []byte) (LifecycleFailureHistory, error) 
 				return nil, err
 			}
 			for _, r := range hs {
-				m, u, e := failureObject(r, map[string]bool{"process": true, "kind": true}, nil)
+				m, u, e := strictjson.SplitObject(r, map[string]bool{"process": true, "kind": true}, nil)
 				if e != nil {
 					return nil, e
 				}
@@ -147,7 +67,7 @@ func decodeLifecycleFailureHistory(raw []byte) (LifecycleFailureHistory, error) 
 				if !ok {
 					return nil, fmt.Errorf("missing holder process")
 				}
-				pm, pu, e := failureObject(p, map[string]bool{"PID": true, "Identity": true}, nil)
+				pm, pu, e := strictjson.SplitObject(p, map[string]bool{"PID": true, "Identity": true}, nil)
 				if e != nil {
 					return nil, e
 				}
@@ -210,7 +130,7 @@ func encodeLifecycleFailureRow(f LifecycleFailure) ([]byte, error) {
 	} else {
 		var a map[string]json.RawMessage
 		_ = json.Unmarshal(owned["address"], &a)
-		owned["address"], err = failureEncodeObject(a, f.addressUnknown, map[string]bool{"repo_scope": true, "tag": true})
+		owned["address"], err = strictjson.EncodeObject(a, f.addressUnknown, map[string]bool{"repo_scope": true, "tag": true})
 		if err != nil {
 			return nil, err
 		}
@@ -225,12 +145,12 @@ func encodeLifecycleFailureRow(f LifecycleFailure) ([]byte, error) {
 			p, _ := json.Marshal(line.Process)
 			var pm map[string]json.RawMessage
 			_ = json.Unmarshal(p, &pm)
-			p, err = failureEncodeObject(pm, line.processUnknown, map[string]bool{"PID": true, "Identity": true})
+			p, err = strictjson.EncodeObject(pm, line.processUnknown, map[string]bool{"PID": true, "Identity": true})
 			if err != nil {
 				return nil, err
 			}
 			kind, _ := json.Marshal(line.Kind)
-			r, err := failureEncodeObject(map[string]json.RawMessage{"process": p, "kind": kind}, line.Unknown, map[string]bool{"process": true, "kind": true})
+			r, err := strictjson.EncodeObject(map[string]json.RawMessage{"process": p, "kind": kind}, line.Unknown, map[string]bool{"process": true, "kind": true})
 			if err != nil {
 				return nil, err
 			}
@@ -239,7 +159,7 @@ func encodeLifecycleFailureRow(f LifecycleFailure) ([]byte, error) {
 		hb.WriteByte(']')
 		owned["holders"] = hb.Bytes()
 	}
-	return failureEncodeObject(owned, f.Unknown, failureKnownFields(reflect.TypeOf(lifecycleFailureWire{})))
+	return strictjson.EncodeObject(owned, f.Unknown, strictjson.KnownFields(reflect.TypeOf(lifecycleFailureWire{})))
 }
 func encodeLifecycleFailureHistory(h LifecycleFailureHistory) ([]byte, error) {
 	var b bytes.Buffer

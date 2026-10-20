@@ -30,7 +30,7 @@ func TestEnrolledSlotPublicLifecycleUsesLocalAuthority(t *testing.T) {
 	if _, err := os.Stat(s.recordPath(r.Address)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("global slot record recreated: %v", err)
 	}
-	if err := s.ArchiveThread(r.Address); err != nil {
+	if err := s.ArchiveThread(r.Address, retireAuthorityForTest(t, s, r.Address)); err != nil {
 		t.Fatal(err)
 	}
 	history, err := s.ArchivedThreads()
@@ -52,7 +52,7 @@ func TestEnrolledSlotArchiveListingIgnoresStaleGlobalCopy(t *testing.T) {
 	if err := s.EnrollSlotRepository(context.Background(), repository); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.ArchiveThread(r.Address); err != nil {
+	if err := s.ArchiveThread(r.Address, retireAuthorityForTest(t, s, r.Address)); err != nil {
 		t.Fatal(err)
 	}
 	local := newSlotThreadStore(s.namespace, repository.Slots[0].Identity)
