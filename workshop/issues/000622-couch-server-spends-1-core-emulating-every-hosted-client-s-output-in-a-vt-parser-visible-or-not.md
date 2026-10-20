@@ -43,12 +43,9 @@ Couch CPU all the time, whether or not anyone is looking at that slot.
 
 ## Done when
 
-- The Couch server's steady CPU with ~27 hosted clients drops by a measured amount (before/after `sample` and CPU%),
-  with the console, `--peek` and waiting notices behaving as before (tests plus a live check).
-- M2 may land before that production check under TL642b580a; its landing gate is
-  qualified CPU reduction, semantic/race tests, required recorded suite and SHIP
-  review. The live criterion remains pending and whole-issue closure waits for
-  the next TL-coordinated restart; fixture timings do not satisfy live acceptance.
+- Controlled offline replay of one retained three-minute real scrollback stream, at fixed client count/geometry/chunking, reduces median CPU per byte over three pre-#622 runs versus three current-build runs; no more than four measurement processes run concurrently.
+- Production CPU and native samples are recorded with workload/identity limits; console, live peek and waiting continue to behave normally after the TL-coordinated restart.
+- M1/M2 semantic, race, recorded-suite and SHIP evidence remain the implementation gates; the controlled replay supplies causal performance acceptance rather than attributing unmatched fleet CPU to #622.
 
 ## Plan
 
@@ -105,6 +102,18 @@ The two interim hub outcome reports a523d633 and20027db5 expired waiting for a r
 M1 milestone-close adopted measured1.21h and returned SHIP with no Critical, Important or Minor findings. Fresh reviewer independently passed targeted race/resource tests, complete ptychild tests and diff checks; all eight ARCH lenses pass. Evidence committed by the binary as53f3ee0de35a. M1 is checked; M2 remains unchecked and the issue working. Proceeding to the explicitly authorized partial landing through sdlc merge --yes. No whole-issue close, CPU reduction or live acceptance is claimed.
 
 Clarification of #626 evidence:30.16s is the targeted test's total duration including fixture preparation, not a measured worker-only time. The original timeout's cause remains unproven; neither that duration nor host load establishes causality.
+
+### 2026-10-19 — read-only post-restart production observation
+
+Canonical TL dispatch06f1bbea authorizes observation after the21:01 restart, with no relaunches. Supervisor93340 launch21:01:29.823; hosted metadata starts21:01:30.504261. Loaded executable inode832400381 matches current disk inode, mtime19:13:37, clean build4b3105cb2d8d4b4a99ec29e8e7d91a3974de820a. Git ancestry proves M2 is included. Unlike the prior baseline, this measurement establishes the loaded image identity. Twenty matched hosted clients and zero ingest omissions/replacements in all snapshots; cached process-detail omissions are separate.
+
+Main matched interval22:14:53.061172–22:16:14.860601 has81.799429s counters at0.775089MB/s. Adjacent cumulative CPU19:33.08→19:56.71 across81.917814s monotonic gives23.63 CPU seconds,28.845984% of one core. RSS854848→854896KiB; load1/5/15 at endpoints89.01/49.69/47.00→98.47/60.95/51.47. Natural mixed fleet, with concurrent build/suite/merge processes; server GOMAXPROCS and selected console are unknown. Exploratory prior counter window65.173589s at0.780600MB/s has only45.792033s CPU brackets (26.074405%); retain the20s skew rather than treating it as a paired workload interval.
+
+The prior baseline was34.00/64.82% at1.098/1.616MB/s for22 matched clients; neither workload, byte mix nor client population is controlled across restarts. These lower absolute current CPU numbers do not establish a causal optimization gain. Native5s profiles at22:14:07 and22:14:53 show eager ingest/VT/capture/validation, plus GC/runtime and wait stacks; inclusive symbol counts are neither additive shares nor CPU percentages.
+
+Live peeks for pair:1/5/7/8 and ariadne:0 preserve coherent Claude/Codex/Qoder tails and cursor/status. parley.nvim:0 explicitly reports recording-only/no connected wrapper; it is not counted as a successful live peek. TL receipt9be71c1b confirms accurate post-restart notices at about21:15 (parley.nvim:4 prompt),21:45 (ariadne:2 unanswered report),22:00 (ariadne:2 idle off resting branch), each checked by TL peek. Operator console-render/selection attestation is pending.
+
+Raw evidence is local-only at /Volumes/TestScratch/tmp/pair-slot5/pair622-live.7rGWDf: resources0/1/2.json, cpu0/1/2.json, peek-start/end.json, server-a/b.sample.txt and derived.json. Profile SHA256s3c75121806ae7905a69aa24c050f0ce2919cb2494a4ac5d3bd8524bc8f646aa8 /811560883ad3a09ae80241d753a55bb553f4f9af7ac0637231c14ef73fcf21ad. Raw tails/profiles are not uploaded.
 
 ## Revisions
 
@@ -203,3 +212,17 @@ M1 PR382 landed; TL restart dispatch4306f6e3 verified submitted to this incarnat
 [Live measurement and comparison](../plans/000622-live-measurement.md): server99807, 22 matched clients across75.354s and133.023s. Confirmed idle ariadne:0/parley.nvim:0 emit41–71kB/s; matched aggregate1.616/1.098MB/s. Cumulative server CPU104.16→153.46→198.65s over adjacent monotonic76.055/132.910s brackets (64.82%/34.00% of one core). Both populations changed, zero omitted; no idle-fleet or exact per-client CPU inference. Native5s samples, host contention, counter/CPU timestamp skew, failed initial broad peek and loaded-executable/disk inode mismatch are preserved. No input, process signal, rebuild, stage or restart was performed.
 
 ARCH-DRY/ORDER: reject lossy hidden rings; exact lazy replay would require preserving prompt protocol/effect/geometry authority and still consume continuous output. Profile/source support a narrower eager candidate: printable ASCII handlePrint and validateCell segmentation shortcuts, preserving all general Unicode and provisional-cluster semantics. Durable plan appends differential/generated controls, baseline/candidate complete-ingest benchmarks, full gates and coordinated live acceptance. Await TL approval before change-code/code. No whole-issue performance claim or estimate revision yet.
+
+### 2026-10-19 22:17 PDT — controlled replay replaces unmatched live comparison
+
+TL2cfd2adc explicitly replaces the CPU reduction criterion with controlled A/B: one recorded few-minute real stream, fixed clients, median of three runs per build, at most four parallel processes; production CPU/sample and consumer conformance remain recorded. This changes the measurement method, not the required CPU benefit. Original Done when preserved:
+
+
+- The Couch server's steady CPU with ~27 hosted clients drops by a measured amount (before/after `sample` and CPU%),
+  with the console, `--peek` and waiting notices behaving as before (tests plus a live check).
+- M2 may land before that production check under TL642b580a; its landing gate is
+  qualified CPU reduction, semantic/race tests, required recorded suite and SHIP
+  review. The live criterion remains pending and whole-issue closure waits for
+  the next TL-coordinated restart; fixture timings do not satisfy live acceptance.
+
+The controlled procedure is appended to the existing durable plan. No new optimization, fleet input, live capture enablement, restart or product state is authorized. Fresh documentation branch000622-live-acceptance is based on main; start-plan ran without an issue argument because the canonical #622 stem already has merged PRs. This avoids reusing those branches.
