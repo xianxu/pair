@@ -130,8 +130,12 @@ func (d DriveMirror) Run(ctx context.Context, cfg ContinuousConfig, store string
 		}
 		groups[month.Folder] = append(groups[month.Folder], candidate)
 	}
-	// This bound applies before creating folders, even when every month is new.
-	if len(groups) >= MaxIndexDestinations {
+	// Count the legacy root and the inspection-only current month before effects.
+	current := root.Folder + "/" + now.Format("2006/01")
+	if _, ok := groups[current]; !ok {
+		groups[current] = nil
+	}
+	if len(groups)+1 > MaxIndexDestinations {
 		return report, errors.New("Drive month projection exceeds destination bound")
 	}
 	run := func(dest DriveDestination, folder PinnedDrive, inventory map[string][]RemoteEntry, batch []driveCandidate) {
@@ -159,10 +163,6 @@ func (d DriveMirror) Run(ctx context.Context, cfg ContinuousConfig, store string
 	}
 	// Inspection alone never creates an empty month. Historical receipt-only
 	// folders are deliberately absent from this work list.
-	current := root.Folder + "/" + now.Format("2006/01")
-	if _, ok := groups[current]; !ok {
-		groups[current] = nil
-	}
 	months := make([]string, 0, len(groups))
 	for month := range groups {
 		months = append(months, month)
