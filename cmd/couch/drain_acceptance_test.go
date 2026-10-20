@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/x/vt"
 	"github.com/creack/pty"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/procutil"
@@ -33,7 +34,22 @@ func TestDisposableCouchDrainFlags(t *testing.T) {
 	bin := t.TempDir()
 	pair := testpair.At(t, filepath.Join(bin, "pair-go"))
 	for name, source := range map[string]string{"couch": couch, "zellij": fixture, "claude": fixture} {
-		if err := os.Symlink(source, filepath.Join(bin, name)); err != nil {
+		destination := filepath.Join(bin, name)
+		if name == "zellij" {
+			// Native process filtering uses the kernel image name; a symlink to
+			// terminal-fixture keeps that name and cannot prove a zellij server.
+			raw, err := os.ReadFile(source)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(destination, raw, 0700); err != nil {
+				t.Fatal(err)
+			}
+			info, err := os.Lstat(destination)
+			if err != nil || info.Mode()&os.ModeSymlink != 0 {
+				t.Fatalf("zellij fixture must be a real executable file: %v", err)
+			}
+		} else if err := os.Symlink(source, destination); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -171,7 +187,7 @@ func TestDisposableCouchDrainFlags(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		c := &console{cmd: cmd, terminal: terminal, done: make(chan struct{}), readDone: make(chan struct{}), output: &drainAcceptanceOutput{}}
+		c := &console{cmd: cmd, terminal: terminal, done: make(chan struct{}), readDone: make(chan struct{}), output: newDrainAcceptanceOutput()}
 		capture, err := os.Create(filepath.Join(controls, fmt.Sprintf("console-%d.raw", cmd.Process.Pid)))
 		if err != nil {
 			t.Fatal(err)
@@ -198,6 +214,7 @@ func TestDisposableCouchDrainFlags(t *testing.T) {
 			case <-time.After(5 * time.Second):
 				t.Error("Couch PTY reader was not joined")
 			}
+			c.output.Close()
 			if err := os.WriteFile(filepath.Join(controls, fmt.Sprintf("console-%d.raw", cmd.Process.Pid)), []byte(c.output.String()), 0600); err != nil {
 				t.Errorf("console evidence: %v", err)
 			}
@@ -287,6 +304,38 @@ func TestDisposableCouchDrainFlags(t *testing.T) {
 		}
 		return len(agents) == 3
 	})
+	// Require native process observations for the real fixture servers. This
+	// pins the kernel-name boundary that a symlinked test executable violates.
+	rows, err := (procutil.Source{}).SnapshotNamed(ctx, "zellij")
+	if err != nil {
+		t.Fatal(err)
+	}
+	observed := map[int]procutil.Observation{}
+	for _, row := range rows {
+		observed[row.PID] = row
+	}
+	for _, dir := range agents {
+		raw, err := os.ReadFile(filepath.Join(dir, "ready.server"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var server struct {
+			PID      int
+			Identity string
+		}
+		if err := json.Unmarshal(raw, &server); err != nil {
+			t.Fatal(err)
+		}
+		row, ok := observed[server.PID]
+		if !ok || row.Identity != server.Identity || row.Name != "zellij" || row.Err != nil {
+			t.Fatalf("fixture server lacks native zellij identity: %+v found=%t", row, ok)
+		}
+		evidence, _ := json.Marshal(row)
+		if err := os.WriteFile(filepath.Join(dir, "native-server-observation.json"), evidence, 0600); err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("native fixture server: PID=%d P_comm=%q argv=%q identity=%s", row.PID, row.Name, row.Args, row.Identity)
+	}
 	callNumber := 0
 	lastCLIOutput := ""
 	allowUnavailable := true
@@ -398,6 +447,41 @@ func TestDisposableCouchDrainFlags(t *testing.T) {
 	response := call("--drain", "--json")
 	checkFlags(response, 2)
 	submitted(response)
+	// Check current rendered cells after each PTY resize, never stale output.
+	for _, cols := range []uint16{80, 30, 120} {
+		before := c.output.Resize(int(cols), 30)
+		if err := pty.Setsize(c.terminal, &pty.Winsize{Rows: 30, Cols: cols}); err != nil {
+			t.Fatal(err)
+		}
+		wait(fmt.Sprintf("current drain badge at width%d", cols), func() bool {
+			row, frames := c.output.Status()
+			return frames > before && strings.Count(row, "drain") == 1 && strings.Contains(row, "drain 2")
+		})
+		frame := c.output.Screen()
+		if err := os.WriteFile(filepath.Join(controls, fmt.Sprintf("flagged-%d.txt", cols)), []byte(frame), 0600); err != nil {
+			t.Fatal(err)
+		}
+		row, _ := c.output.Status()
+		if strings.ContainsAny(row, "{}") || strings.Contains(row, "beta (drain") || strings.Contains(row, "gamma (drain") {
+			t.Fatalf("per-actor drain suffix: %q", row)
+		}
+	}
+	// Click the ordinary beta chip and observe actual selected-view chrome.
+	row, _ := c.output.Status()
+	col := strings.Index(row, "beta") + 1
+	if col == 0 {
+		t.Fatalf("beta chip missing: %q", row)
+	}
+	if _, err := c.terminal.Write([]byte(fmt.Sprintf("\x1b[<0;%d;30M\x1b[<0;%d;30m", col, col))); err != nil {
+		t.Fatal(err)
+	}
+	wait("ordinary beta chip selects while flagged", func() bool {
+		row, _ := c.output.Status()
+		return strings.Contains(row, "[beta]") && strings.Count(row, "drain") == 1
+	})
+	if err := os.WriteFile(filepath.Join(controls, "flagged-selected-beta.txt"), []byte(c.output.Screen()), 0600); err != nil {
+		t.Fatal(err)
+	}
 	// Normal peer delivery remains usable while flags are set.
 	call("--send-to", "beta:0", "--message", "ordinary-while-flagged")
 	waitSent("ordinary-while-flagged")
@@ -412,12 +496,22 @@ func TestDisposableCouchDrainFlags(t *testing.T) {
 		return bytes.Contains(raw, []byte("acknowledge message received, will resume processing after drain is lifted"))
 	})
 	response = call("--undrain", "--json")
+	for _, d := range response.DrainDeliveries {
+		if d.Receipt == nil || d.Receipt.Message.Body != "drain lifted; continue your current work" {
+			t.Fatalf("generic continuation: %+v", d)
+		}
+	}
 	checkFlags(response, 0)
 	submitted(response)
 	response = call("--drain", "--fast", "--json")
 	checkFlags(response, 2)
 	submitted(response)
 	response = call("--undrain", "--message", "custom-continuation-marker", "--json")
+	for _, d := range response.DrainDeliveries {
+		if d.Receipt == nil || d.Receipt.Message.Body != "drain lifted; continue your current work\nNote: \"custom-continuation-marker\"" {
+			t.Fatalf("custom continuation: %+v", d)
+		}
+	}
 	checkFlags(response, 0)
 	submitted(response)
 	response = call("--drain", "--json")
@@ -428,19 +522,19 @@ func TestDisposableCouchDrainFlags(t *testing.T) {
 	if _, err := c.terminal.Write([]byte("\x00")); err != nil {
 		t.Fatal(err)
 	}
-	wait("switcher before quit confirmation", func() bool { return strings.Contains(c.output.String(), "threads") })
-	if _, err := c.terminal.Write([]byte("\x1bx")); err != nil {
+	wait("switcher before quit confirmation", func() bool { return strings.Contains(c.output.Screen(), "threads") })
+	if _, err := c.terminal.Write([]byte("\x1b[120;3u")); err != nil {
 		t.Fatal(err)
 	}
-	wait("normal park-all confirmation while flagged", func() bool { return strings.Contains(c.output.String(), "leave couch") })
+	wait("normal park-all confirmation while flagged", func() bool { return strings.Contains(c.output.Screen(), "leave couch") })
 	if _, err := c.terminal.Write([]byte("\x1b")); err != nil {
 		t.Fatal(err)
 	}
 	checkFlags(call("--drain", "--status", "--json"), 2)
 	// Public whole-Couch detach is Ctrl-Space then Alt+d. It must complete even
 	// with flags present, independently of the informational drain posture.
-	wait("switcher render", func() bool { return strings.Contains(c.output.String(), "threads") })
-	if _, err := c.terminal.Write([]byte("\x1bd")); err != nil {
+	wait("switcher render", func() bool { return strings.Contains(c.output.Screen(), "threads") })
+	if _, err := c.terminal.Write([]byte("\x1b[100;3u")); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -470,15 +564,61 @@ func TestDisposableCouchDrainFlags(t *testing.T) {
 type drainAcceptanceOutput struct {
 	mu sync.Mutex
 	bytes.Buffer
+	em          *vt.Emulator
+	repliesDone chan struct{}
+	frames      uint64
+	carry       []byte
 }
 
+func newDrainAcceptanceOutput() *drainAcceptanceOutput {
+	o := &drainAcceptanceOutput{em: vt.NewEmulator(120, 30), repliesDone: make(chan struct{})}
+	go func() { defer close(o.repliesDone); _, _ = io.Copy(io.Discard, o.em) }()
+	return o
+}
 func (o *drainAcceptanceOutput) Write(p []byte) (int, error) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	return o.Buffer.Write(p)
+	_, _ = o.Buffer.Write(p)
+	marker := []byte("\x1b[?2026l")
+	combined := append(append([]byte(nil), o.carry...), p...)
+	o.frames += uint64(bytes.Count(combined, marker))
+	from := max(0, len(combined)-len(marker)+1)
+	o.carry = append(o.carry[:0], combined[from:]...)
+	return o.em.Write(p)
 }
 func (o *drainAcceptanceOutput) String() string {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return o.Buffer.String()
 }
+func (o *drainAcceptanceOutput) Resize(cols, rows int) uint64 {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.em.Resize(cols, rows)
+	return o.frames
+}
+func (o *drainAcceptanceOutput) Status() (string, uint64) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.rowLocked(o.em.Height() - 1), o.frames
+}
+func (o *drainAcceptanceOutput) rowLocked(y int) string {
+	var b strings.Builder
+	for x := 0; x < o.em.Width(); x++ {
+		if c := o.em.CellAt(x, y); c != nil {
+			b.WriteString(c.Content)
+		}
+	}
+	return strings.TrimRight(b.String(), " ")
+}
+func (o *drainAcceptanceOutput) Screen() string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	var b strings.Builder
+	for y := 0; y < o.em.Height(); y++ {
+		b.WriteString(o.rowLocked(y))
+		b.WriteByte('\n')
+	}
+	return b.String()
+}
+func (o *drainAcceptanceOutput) Close() { _ = o.em.Close(); <-o.repliesDone }

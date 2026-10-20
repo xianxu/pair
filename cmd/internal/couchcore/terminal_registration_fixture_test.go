@@ -10,7 +10,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/zellijtest"
 	"golang.org/x/term"
-	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -53,8 +52,11 @@ func registrationTerminalFixture() error {
 		}
 		session := os.Getenv("PAIR_SESSION_NAME")
 		for i, arg := range args {
-			if arg == "--session" && i+1 < len(args) {
+			if (arg == "--session" || arg == "-s") && i+1 < len(args) {
 				session = args[i+1]
+			}
+			if arg == "--server" && i+1 < len(args) {
+				session = filepath.Base(args[i+1])
 			}
 		}
 		if session == "" && filepath.Base(os.Args[0]) == "zellij" {
@@ -164,6 +166,7 @@ func registrationTerminalFixture() error {
 		}
 		child.Stdout, child.Stderr = os.Stdout, os.Stderr
 		if realWrapper {
+			child.Stdin, child.Stdout, child.Stderr = nil, nil, nil
 			raw, err := json.Marshal(child.Env)
 			if err != nil {
 				return err
@@ -176,7 +179,18 @@ func registrationTerminalFixture() error {
 				return err
 			}
 			defer terminal.Close()
-			go func() { _, _ = io.Copy(io.Discard, terminal) }()
+			go func() {
+				buffer := make([]byte, 8192)
+				for {
+					n, err := terminal.Read(buffer)
+					if n > 0 {
+						_, _ = os.Stdout.Write(buffer[:n])
+					}
+					if err != nil {
+						return
+					}
+				}
+			}()
 			if err := (osfs.FS{}).WriteAtomic(os.Getenv("PAIR_TEST_ZELLIJ_READY"), "ready"); err != nil {
 				return err
 			}
@@ -229,6 +243,9 @@ func registrationTerminalFixture() error {
 			return err
 		}
 		server.Stdout, server.Stderr = os.Stdout, os.Stderr
+		if os.Getenv("PAIR_TEST_COUCH_REAL_WRAPPER") == "1" {
+			server.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+		}
 		return server.Run()
 	case strings.Contains(joined, " attach "):
 		if err := (osfs.FS{}).WriteAtomic(os.Getenv("PAIR_TEST_ZELLIJ_ATTACH_READY"), "attach"); err != nil {

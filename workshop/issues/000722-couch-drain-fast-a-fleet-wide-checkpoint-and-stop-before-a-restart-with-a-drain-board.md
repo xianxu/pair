@@ -151,6 +151,13 @@ total: 6.0395
 
 ## Log
 
+### 2026-10-20 14:44 PDT — stop at fixture third delta; revised native/shared-harness proposal
+
+Main integrated once; focused Drain/HubTarget/Warming/Activity tests pass. New8/16 service fanout test counts exactly one reserve and deliver per selected slot, no launch/process/git re-probes, bounded use-time file checks and zero status IO. Temporary admission-error tracing was removed without committing it. Trace proved the symlinked fake had kernel P_comm=terminal-fixture while argv claimed zellij; installing a physical executable named zellij fixed real registration without a product bypass.
+
+Run9 then established all three actors, notices, ordinary work and exact ack through real wrappers, plus normal quit confirmation. It FAILED at public detach: the fake server shares the client process group that real detach intentionally terminates. Final prototype Setsid/PTY and current-VT-frame edits only compile; no acceptance claimed. Stop under the third-delta rule and append a concrete native/shared-harness re-plan. #744 is now on main with a mandatory shared helper/new-test contract; ask TL to dispatch/resolve that prerequisite rather than continue inventing a private terminal lifecycle. Keep the #722 claim and PR, no close/stage/live action.
+
+
 ### 2026-10-20 14:38 PDT — disposable qualification remains failed; integrate landed main
 
 Complete couchcmd/couchmessage/wrapcmd package runs passed (125.764s/26.477s/124.465s). Core/console agent reports complete package passes, plus final focused changed-code tests; no full repository suite yet. The opt-in installed harness now uses real Couch, Pair and wrappers under isolated roots and archives raw evidence. Numbered worker launch refused because its fixture had no remote/main or compiled setup; do not fake provisioning. Three disposable primary repos are actual hubs, exercising issuing-steward exclusion and other hubs acting in worker posture; non-hub worker ownership is not claimed.

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
@@ -107,5 +108,68 @@ func TestDrainFlagsRestartIgnoresLegacyFile(t *testing.T) {
 	bytes, err := os.ReadFile(path)
 	if err != nil || string(bytes) != string(want) {
 		t.Fatalf("legacy file changed: %q %v", bytes, err)
+	}
+}
+
+type countedFlagEndpoint struct {
+	serviceEndpointFake
+	reserves, deliveries *atomic.Int32
+}
+
+func (e countedFlagEndpoint) Reserve(ctx context.Context, _ string, _ uint64) error {
+	e.reserves.Add(1)
+	return ctx.Err()
+}
+
+func (e countedFlagEndpoint) Deliver(ctx context.Context, _ couchmessage.Message, _ func(couchmessage.Receipt)) (couchmessage.Receipt, error) {
+	e.deliveries.Add(1)
+	return couchmessage.Receipt{Status: couchmessage.Submitted}, ctx.Err()
+}
+
+func TestDrainFlagFanoutCountsAt8And16(t *testing.T) {
+	for _, n := range []int{8, 16} {
+		t.Run(fmt.Sprint(n), func(t *testing.T) {
+			r := newServiceRig(t)
+			steward := r.connect(0)
+			r.s.authority.hub = "/repo0"
+			var reserves, deliveries atomic.Int32
+			for i := 1; i <= n; i++ {
+				b := r.world.add(i)
+				r.world.mu.Lock()
+				r.world.endpoints[b] = countedFlagEndpoint{reserves: &reserves, deliveries: &deliveries}
+				r.world.mu.Unlock()
+				r.attach(b, couchmessage.PaneHandle(fmt.Sprintf("fanout-%d", i)))
+				r.wrapper(b)
+				r.waitConnected(b, true)
+			}
+			before := r.world.counts()
+			got := r.s.handle(context.Background(), flagRequest(steward, "start"))
+			if got.Code != "ok" || len(got.DrainDeliveries) != n || len(got.Drain.Rows) != n {
+				t.Fatalf("fanout: %+v", got)
+			}
+			for _, d := range got.DrainDeliveries {
+				if d.Receipt == nil {
+					t.Fatalf("missing receipt: %+v", d)
+				}
+				id := d.Receipt.Message.ID
+				testwait.Until(t, "counted notice submitted", func() bool {
+					r, e := r.s.broker.Status(steward, id)
+					return e == nil && r.Status == couchmessage.Submitted
+				})
+			}
+			if reserves.Load() != int32(n) || deliveries.Load() != int32(n) {
+				t.Fatalf("N=%d reserve=%d deliver=%d", n, reserves.Load(), deliveries.Load())
+			}
+			after := r.world.counts()
+			if after[0] != before[0] || after[1] != before[1] || after[2] != before[2] || after[3]-before[3] > 6*n+4 {
+				t.Fatalf("fanout repeated expensive census: N=%d before=%v after=%v", n, before, after)
+			}
+			for i := 0; i < n; i++ {
+				r.s.handle(context.Background(), flagRequest(steward, "status"))
+			}
+			if r.world.counts() != after {
+				t.Fatal("status performed authority IO")
+			}
+		})
 	}
 }
