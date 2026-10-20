@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/couchcmd.TestContinuationWriterPublishesExactCheckpointAcrossWorktrees]
+flow: {kind: quick, provenance: inferred, spec: "88f5c36f", done: "433fd673"}
 ---
 
 # flake: TestContinuationWriterPublishesExactCheckpointAcrossWorktrees
