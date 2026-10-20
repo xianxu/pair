@@ -102,6 +102,8 @@ Durable design: [native-only recovery candidates plan](../plans/000721-native-on
 
 - 2026-10-20: BR-1–BR-4 corrections verified: seven-package targeted Recovery/ResumeCandidate/Bounded PASS; renewed race Recovery/Resume/Bounded PASS in core (32.454s), cmd (3.635s), launcher (7.104s), replay (2.134s). Artifactpath/testpair/repolint guards PASS. Shared archive metadata helper now charges only immediately before its bounded read, including failures; retained peek/preservation use the same helper without participating in a native-scan budget. BR-2 regression uses sparse 200MiB raw plus an existing charged budget to prove unread replay bytes cannot starve a native transcript; BR-3 covers missing events and current/archive identity/metadata refusals while preserving labelled raw mtime. Ledger remains for renewed review; recorded suite restarts on the corrected pushed head.
 
+- 2026-10-20: Close round 2 SHIP: BR-1–BR-4 addressed, no new findings. Required recorded full suite PASS on 996864c8913c33f6b3f4a0c93d5ad3201e53d0c1, exit 0 in 9m17s, log sha256 prefix 97963d87e4f9; all server checks green. Entering approved merge. Natural recovery qualification remains hub-owned per c1e6ca82-f486-49b4-a933-08d3ab6ae897; no stage and pair:6 untouched.
+
 ## Revisions
 
 
