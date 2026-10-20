@@ -50,6 +50,7 @@ type terminalMux struct {
 	shellEnv       []string
 	closeErr       error
 	presenter      *terminal.Presenter
+	cellObserver   terminal.Observer
 	rt             Runtime
 	paneID         string
 	tabs           []*terminalTab
@@ -145,7 +146,7 @@ func (m *terminalMux) newTab() error {
 	size := m.childSizeLocked()
 	m.mu.Unlock()
 	ready := make(chan struct{})
-	child, err := ptychild.Start(ptychild.Options{Argv: append([]string{m.shellName}, m.shellArgs...), Size: size, Env: append([]string(nil), m.shellEnv...), Sink: func(ctx context.Context, b ptychild.OutputBatch) error {
+	child, err := ptychild.Start(ptychild.Options{Argv: append([]string{m.shellName}, m.shellArgs...), Size: size, Env: append([]string(nil), m.shellEnv...), Observer: m.cellObserver, Sink: func(ctx context.Context, b ptychild.OutputBatch) error {
 		select {
 		case <-ready:
 		case <-ctx.Done():

@@ -26,6 +26,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 	"github.com/xianxu/pair/cmd/internal/zellijreply"
+	"golang.org/x/term"
 	"strconv"
 )
 
@@ -60,7 +61,7 @@ const rightTerminalClassifier = "pair term"
 
 // The same pane command as main-3.kdl, checked by the layout conformance test.
 // New panes inherit Zellij's retained environment, not the caller's scrubbed one.
-const rightTerminalPaneShell = `zellij action rename-pane --pane-id "$ZELLIJ_PANE_ID" terminal 2>/dev/null; exec pair term`
+const rightTerminalPaneShell = workbenchshortcut.RightTerminalPaneShell
 
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return RunWithRuntime(args, stdin, stdout, stderr, OSRuntime{})
@@ -336,18 +337,51 @@ type terminalHost interface {
 }
 
 func runShell(stdin io.Reader, stdout, stderr io.Writer, rt Runtime) int {
+	return runShellWithExec(stdin, stdout, stderr, rt, execNativeShell)
+}
+
+func runShellWithExec(stdin io.Reader, stdout, stderr io.Writer, rt Runtime, execShell nativeShellExec) int {
 	if err := rt.RegisterTerminalPane(); err != nil {
-		fmt.Fprintf(stderr, "term: register terminal pane: %v\n", err)
-	}
-	env, err := runtimebundle.TerminalEnvironment(workbenchshortcut.DataDirFromEnv())
-	if err != nil {
-		fmt.Fprintf(stderr, "term: terminal profile: %v\n", err)
-		return 1
+		fmt.Fprintf(stderr, "term: register terminal pane: %s\n", boundedRecoveryReason(err))
 	}
 	input, _ := stdin.(*os.File)
 	output, _ := stdout.(*os.File)
-	if err := runShellOnHost(hostty.NewOSHost(input, output), rt, env...); err != nil {
-		fmt.Fprintf(stderr, "term: %v\n", err)
+	usable := input != nil && output != nil && term.IsTerminal(int(input.Fd())) && term.IsTerminal(int(output.Fd()))
+	root := workbenchshortcut.DataDirFromEnv()
+	diagnostics, diagnosticErr := openTermDiagnostics(root)
+	var observer terminal.Observer
+	if diagnosticErr != nil {
+		fmt.Fprintf(stderr, "term: diagnostics unavailable: %s\n", boundedRecoveryReason(diagnosticErr))
+	} else {
+		observer = diagnostics.observe
+		defer diagnostics.Close()
+	}
+	handoff := func(name string, args, env []string, reason error) error {
+		// Session cleanup has returned: terminal writes are ordinary again. The
+		// evidence sink is best effort and must never hold the shell hostage.
+		if diagnostics != nil {
+			_ = diagnostics.Close()
+		}
+		fmt.Fprintf(stderr, "term: using plain shell: %s\n", boundedRecoveryReason(reason))
+		return execShell(name, args, env, reason)
+	}
+	host := hostty.NewOSHost(input, output)
+	env, profileErr := runtimebundle.TerminalEnvironment(root)
+	var result error
+	if profileErr != nil {
+		// No raw mode, children or presenter were acquired. Close the signal and
+		// transport owner before entering the same recovery authority as sessions.
+		signals := host.Terminated()
+		result = finishShellRecovery(signals, rt, usable, handoff, &sessionEnding{
+			event:   RecoveryWrapperFailure,
+			cause:   fmt.Errorf("terminal profile: %w", profileErr),
+			cleanup: host.Close(),
+		})
+	} else {
+		result = runShellRecovery(host, rt, observer, usable, handoff, env...)
+	}
+	if result != nil {
+		fmt.Fprintf(stderr, "term: %s\n", boundedRecoveryReason(result))
 		return 1
 	}
 	return 0
@@ -355,22 +389,37 @@ func runShell(stdin io.Reader, stdout, stderr io.Writer, rt Runtime) int {
 
 // runShellOnHost joins input and resize producers while parent transport is
 // still owned, then releases presentation before restoring the host terminal.
-func runShellOnHost(host terminalHost, rt Runtime, env ...string) (result error) {
-	defer func() { result = errors.Join(result, host.Close()) }()
+func runShellOnHost(host terminalHost, rt Runtime, env ...string) error {
+	return runShellOnHostObserved(host, rt, nil, env...)
+}
+
+func runShellOnHostObserved(host terminalHost, rt Runtime, observer terminal.Observer, env ...string) (result error) {
+	ending := RecoveryWrapperFailure
+	var cleanupErr error
+	defer func() {
+		cleanupErr = errors.Join(cleanupErr, host.Close())
+		if errors.Is(result, errHostTermination) {
+			ending = RecoveryHostTermination
+		}
+		if result != nil || cleanupErr != nil {
+			result = &sessionEnding{event: ending, cause: result, cleanup: cleanupErr}
+		}
+	}()
 	restore, err := host.MakeRaw()
 	if err != nil {
 		return err
 	}
-	defer func() { result = errors.Join(result, restore()) }()
-	size, err := host.Size()
+	defer func() { cleanupErr = errors.Join(cleanupErr, restore()) }()
+	size, err := waitInitialGeometry(host, 5*time.Second)
 	if err != nil {
 		return err
 	}
 	name, args := rt.ShellCommand()
 	mux := newTerminalMux(name, args, host, rt)
+	mux.cellObserver = observer
 	mux.rows, mux.cols = size.Rows, size.Cols
 	mux.shellEnv = append([]string(nil), env...)
-	defer func() { mux.closeAll(); result = errors.Join(result, mux.closeErr) }()
+	defer func() { mux.closeAll(); cleanupErr = errors.Join(cleanupErr, mux.closeErr) }()
 	if err := mux.newTab(); err != nil {
 		return err
 	}
@@ -378,9 +427,9 @@ func runShellOnHost(host terminalHost, rt Runtime, env ...string) (result error)
 	inputDone, resizeDone := make(chan struct{}), make(chan struct{})
 	go func() {
 		defer close(inputDone)
-		pumpStdinContext(ctx, host, mux, rt, io.Discard, newRealEscapeTimer())
+		ending := pumpStdinContext(ctx, host, mux, rt, io.Discard, newRealEscapeTimer())
 		mux.mu.Lock()
-		mux.stopLocked(nil)
+		mux.stopLocked(ending.failure())
 		mux.mu.Unlock()
 	}()
 	go func() {
@@ -401,17 +450,34 @@ func runShellOnHost(host terminalHost, rt Runtime, env ...string) (result error)
 	if signals, ok := host.(hostty.TerminationHost); ok {
 		terminated = signals.Terminated()
 	}
-	select {
-	case <-mux.done:
-	case <-terminated:
-	case <-mux.presenter.Failed():
-		result = mux.presenter.Failure()
+session:
+	for {
+		select {
+		case <-mux.done:
+			ending = RecoveryChildExit
+			break session
+		case sig, ok := <-terminated:
+			if ok && sig != nil {
+				result = errHostTermination
+				ending = RecoveryHostTermination
+				break session
+			}
+			if !ok {
+				terminated = nil
+			}
+		case <-mux.presenter.Failed():
+			result = mux.presenter.Failure()
+			break session
+		}
 	}
 	cancel()
 	<-inputDone
 	<-resizeDone
 	mux.mu.Lock()
 	result = errors.Join(result, mux.failure)
+	if mux.failure != nil && ending != RecoveryHostTermination {
+		ending = RecoveryWrapperFailure
+	}
 	mux.mu.Unlock()
 	return result
 }
@@ -479,6 +545,41 @@ func (t *realEscapeTimer) StopAndDrain() {
 	}
 }
 
+// stdinPumpKind distinguishes normal input completion from a wrapper fault.
+// Disconnected transport retains its cause so recovery can refuse a dead host.
+type stdinPumpKind uint8
+
+const (
+	stdinPumpEOF stdinPumpKind = iota
+	stdinPumpCancelled
+	stdinPumpDisconnected
+	stdinPumpFailed
+)
+
+type stdinPumpEnding struct {
+	kind stdinPumpKind
+	err  error
+}
+
+func (ending stdinPumpEnding) failure() error {
+	if ending.kind == stdinPumpFailed || ending.kind == stdinPumpDisconnected {
+		return ending.err
+	}
+	return nil
+}
+func classifyStdinEnding(err error) stdinPumpEnding {
+	switch {
+	case errors.Is(err, io.EOF):
+		return stdinPumpEnding{kind: stdinPumpEOF}
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return stdinPumpEnding{kind: stdinPumpCancelled}
+	case unusableTerminal(err):
+		return stdinPumpEnding{kind: stdinPumpDisconnected, err: err}
+	default:
+		return stdinPumpEnding{kind: stdinPumpFailed, err: err}
+	}
+}
+
 type stdinResult struct {
 	data []byte
 	err  error
@@ -498,7 +599,7 @@ func pumpStdinWithTimer(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Wr
 	pumpStdinContext(context.Background(), stdin, mux, rt, stdout, timer)
 }
 
-func pumpStdinContext(ctx context.Context, stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Writer, timer EscapeTimer) {
+func pumpStdinContext(ctx context.Context, stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Writer, timer EscapeTimer) stdinPumpEnding {
 	results := make(chan stdinResult, 1)
 	done := make(chan struct{})
 	readCtx, cancel := context.WithCancel(ctx)
@@ -623,25 +724,33 @@ func pumpStdinContext(ctx context.Context, stdin io.Reader, mux ptyWriter, rt Ru
 			pending = append(pending, event)
 		}
 	}
-	flush := func() {
+	flush := func() error {
 		events, err := decoder.FlushEscape()
 		if err != nil {
 			mux.reportError(err)
-		} else {
-			handle(events)
+			return err
 		}
+		handle(events)
+		return nil
 	}
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return stdinPumpEnding{kind: stdinPumpCancelled}
 		case <-timer.C():
-			flush()
+			if err := flush(); err != nil {
+				return stdinPumpEnding{kind: stdinPumpFailed, err: err}
+			}
 		case result := <-results:
+			// Session cancellation ends ownership normally, including a read which
+			// unblocks with an incidental transport error during joined teardown.
+			if ctx.Err() != nil {
+				return stdinPumpEnding{kind: stdinPumpCancelled}
+			}
 			events, err := decoder.Feed(result.data)
 			if err != nil {
 				mux.reportError(err)
-				return
+				return stdinPumpEnding{kind: stdinPumpFailed, err: errors.Join(err, result.err)}
 			}
 			handle(events)
 			if decoder.PendingEscape() {
@@ -650,11 +759,13 @@ func pumpStdinContext(ctx context.Context, stdin io.Reader, mux ptyWriter, rt Ru
 				timer.StopAndDrain()
 			}
 			if result.err != nil {
-				flush()
+				if err := flush(); err != nil {
+					return stdinPumpEnding{kind: stdinPumpFailed, err: errors.Join(err, result.err)}
+				}
 				if rename != nil {
 					_ = mux.finishRename(rename.tabID, RenameOutcome{Kind: RenameOutcomeCancel, Name: rename.editor.Original()})
 				}
-				return
+				return classifyStdinEnding(result.err)
 			}
 		}
 	}
