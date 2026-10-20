@@ -586,7 +586,9 @@ the current atomic step, commit and push a checkpoint, and record where they
 stopped in the issue Log. Fast drain tells them to stop now, preserve unfinished
 edits, and make that checkpoint without finishing the current step. Each worker
 runs `couch --drain --ack ID` after its checkpoint is durable, then ends its turn
-and stays idle. No separate drained report is required.
+and stays idle. No separate drained report is required. Fast mode also interrupts
+running suites, recording them for an explicit rerun later. Admitted merges and
+landings finish or retire at their safe boundaries; the board waits for them.
 
 The board reports **draining**, **stuck** with a reason, **drained**, or
 **cancelled**. An otherwise quiet worker without its ack is `stuck: no ack`.

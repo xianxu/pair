@@ -159,3 +159,52 @@ func TestDrainQueueUnknownDiagnosticBounded(t *testing.T) {
 		t.Fatalf("unknown detail exceeds text bound: %d", len(s.Detail))
 	}
 }
+
+func TestDrainQueueFakeFastMatchesRealKindsAndReplay(t *testing.T) {
+	f := NewFakeDrainQueue()
+	ctx := context.Background()
+	for _, a := range []QueueActivity{
+		{ID: "suite", Kind: "suite", State: "running"},
+		{ID: "merge", Kind: "merge", State: "running"},
+		{ID: "merge", Kind: "landing", State: "running"},
+		{ID: "landing", Kind: "landing", State: "running"},
+		{ID: "combined", Kind: "suite", State: "running"},
+		{ID: "combined", Kind: "merge", State: "running"},
+	} {
+		f.Enqueue(a)
+		if !f.AdmitNext() {
+			t.Fatal("no admission")
+		}
+	}
+	if err := f.Pause(ctx, "owner", "original", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Pause(ctx, "owner", "changed replay", false); err != nil {
+		t.Fatal(err)
+	}
+	s, err := f.Status(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s.PauseOwners) != 1 || s.PauseOwners[0].Reason != "original" || !s.PauseOwners[0].CancelRunning {
+		t.Fatalf("replay changed owner: %+v", s.PauseOwners)
+	}
+	for _, a := range s.Active {
+		expected := "running"
+		if a.ID == "suite" || a.ID == "combined" {
+			expected = "interrupting"
+		}
+		if a.State != expected {
+			t.Errorf("%s/%s state=%s, want %s", a.ID, a.Kind, a.State, expected)
+		}
+	}
+	if err := f.Resume(ctx, "owner"); err != nil {
+		t.Fatal(err)
+	}
+	after, _ := f.Status(ctx)
+	for i, a := range after.Active {
+		if a.State != s.Active[i].State {
+			t.Fatal("resume restarted or interrupted active work")
+		}
+	}
+}

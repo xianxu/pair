@@ -1342,3 +1342,76 @@ func TestDrainServiceSnapshotBeforeAckCannotInvalidateIt(t *testing.T) {
 		})
 	}
 }
+
+func TestDrainServiceFastWaitsForMergeAndLandingRetirement(t *testing.T) {
+	c, f, q := newDrainServiceFixture(t)
+	for _, a := range []QueueActivity{
+		{ID: "suite", Workspace: "pair:1", Kind: "suite", State: "running"},
+		{ID: "merge", Workspace: "pair:2", Kind: "merge", State: "running"},
+		{ID: "landing", Workspace: "pair:0", Kind: "landing", State: "running"},
+	} {
+		q.Enqueue(a)
+		if !q.AdmitNext() {
+			t.Fatal("no admission")
+		}
+	}
+	_, err := c.start(context.Background(), "00000000-0000-4000-8000-000000000001", "", true, time.Minute, f.snapshot()["pair:0"].Binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitDrainService(t, c, func(b couchcore.DrainBoard) bool {
+		for _, r := range b.Rows {
+			if r.Reason != "active turn" {
+				return false
+			}
+		}
+		return true
+	})
+	snapshot, err := q.Status(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, a := range snapshot.Active {
+		expected := "running"
+		if a.Kind == "suite" {
+			expected = "interrupting"
+		}
+		if a.State != expected {
+			t.Fatalf("fast %s=%s, want %s", a.Kind, a.State, expected)
+		}
+	}
+	for workspace, m := range f.snapshot() {
+		if _, err := c.ack(context.Background(), c.view().ID, workspace, m.Identity()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	f.idle()
+	// Advance queue polling deterministically after each explicit retirement.
+	refresh := func() couchcore.DrainBoard {
+		c.pass.Lock()
+		c.lastQueue = time.Time{}
+		c.pass.Unlock()
+		c.reconcile(context.Background())
+		return c.view()
+	}
+	q.Finish("suite")
+	b := refresh()
+	if b.State != couchcore.DrainDraining || len(b.Queue.Active) != 2 {
+		t.Fatalf("suite retirement hid merges: %+v", b)
+	}
+	for _, r := range b.Rows {
+		if r.Workspace == "pair:2" && r.Reason != "waiting for merge" || r.Workspace == "pair:0" && r.Reason != "waiting for landing" {
+			t.Fatalf("work unnamed: %+v", r)
+		}
+	}
+	q.Finish("merge")
+	b = refresh()
+	if b.State != couchcore.DrainDraining || len(b.Queue.Active) != 1 || b.Queue.Active[0].Kind != "landing" {
+		t.Fatalf("merge retirement hid landing: %+v", b)
+	}
+	q.Finish("landing")
+	b = refresh()
+	if b.State != couchcore.DrainDrained || len(b.Queue.Active) != 0 {
+		t.Fatalf("all retirement not drained: %+v", b)
+	}
+}

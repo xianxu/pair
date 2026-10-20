@@ -34,10 +34,22 @@ func (f *FakeDrainQueue) Pause(ctx context.Context, owner, reason string, fast b
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	f.owners[owner] = QueuePauseOwner{Owner: owner, Reason: reason, CancelRunning: fast}
+	if _, exists := f.owners[owner]; !exists {
+		f.owners[owner] = QueuePauseOwner{Owner: owner, Reason: reason, CancelRunning: fast}
+	}
 	if fast {
+		// The real queue interrupts suite-owning operations, never a separate
+		// merge/landing. Multiple kind rows of one operation share its phase.
+		suites := map[string]bool{}
+		for _, a := range f.active {
+			if a.Kind == "suite" && (a.State == "running" || a.State == "interrupting") {
+				suites[a.ID] = true
+			}
+		}
 		for i := range f.active {
-			f.active[i].State = "interrupting"
+			if suites[f.active[i].ID] {
+				f.active[i].State = "interrupting"
+			}
 		}
 	}
 	return f.reply()

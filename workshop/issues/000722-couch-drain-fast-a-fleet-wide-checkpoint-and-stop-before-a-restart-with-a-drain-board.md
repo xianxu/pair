@@ -283,3 +283,11 @@ Canonical submitted TL receipt e881ba7d-158e-4a5a-812f-335f0a0fb030 explicitly a
 | landing | Preserve running work; finish/retire at its safe boundary | Landing retires, no active row |
 
 The fake must match the real seam across this complete kind enumeration and owner replay/resume; the retained real conformance already asserts the suite-only interruption policy. Add fake and coordinator regressions that require live merge/landing rows to keep the board draining even after every agent has acked/settled and the suite retired. The public CLI, notice text, JSON schema, owner-scoped hold and approved graceful-only live check are unchanged. BR-1 and BR-2 were disposed addressed by round2, including reviewer-run mutation controls and real conformance; only BR-3 remains. Cancelled this slot's still-queued prior-head suite because the fake corrections change the tested head. No stage or live effect occurred.
+
+### 2026-10-20 06:39 PDT — approved queue-kind policy verified
+
+New fake/coordinator regressions failed before the correction: fake owner replay changed the original reason/mode, and fast merge state incorrectly became interrupting. Fake pause now preserves its first owner record, matching real idempotent pause, and targets only running suite-owning operations; several kind rows for one operation share its phase, while separate merge/landing owners remain running. Resume does not restart or newly interrupt work. The coordinator test acks/settles every agent, retires the suite, and still requires draining with named merge/landing rows; retiring merge alone continues waiting for landing; only complete empty activity yields drained.
+
+New policy tests pass under race1.678s. Retained real adapter conformance reran PASS16.540s using fresh private roots and the same clean matching source/build702b01324fa543038178e23b831d3e3346c1204a. README and atlas explicitly describe suite interruption versus safe merge/landing retirement. This implements canonical TL-approved Spec revision e881ba7d; no queue argv/schema or production coordinator behavior changed in this correction. All drain tests and a new recorded suite/close review follow on the corrected pushed head; staging still requires SHIP.
+
+All couchcmd drain tests passed28.164s after the fake policy correction; git diff --check clean.

@@ -33,6 +33,11 @@ seam is shared with ariadne#481: `sdlc queue pause --reason TEXT --owner TOKEN`
 (fast adds `--cancel-running`), `resume --owner TOKEN`, and `status --json`.
 The retained [isolated real queue conformance runner](../cmd/internal/couchcmd/testdata/drainqueue/README.md) runs before enablement and whenever the adapter contract or deployed queue implementation changes.
 
+Fast pause interrupts suites and preserves their interrupted outcomes for explicit
+rerun. Admitted merges and landings finish or retire at safe boundaries, including
+a merge's next suite admission boundary. They remain named active work and keep
+the board draining until retired; fast does not kill integration or push.
+
 The owner is `couch-drain:{ID}`. Enablement requires real #481 conformance;
 unsupported commands or incomplete/unknown observations stay stuck, never
 silently count as a pause or quiescence. Status reads the published board.
