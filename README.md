@@ -32,6 +32,9 @@ Launches a `zellij` workbench in one of two layouts:
   overlays. At
   a shell prompt terminal-local chords are intercepted; draft-only Alt+Up/Down
   pass through to the shell.
+  Invalid backend cells display as `�` while the terminal keeps running. If the
+  wrapper itself fails, it restores the terminal and hands the pane to a plain
+  interactive shell. A missing right pane can be recreated with `Alt+Shift+t`.
 
 Layout flags are Pair-owned and may appear before or after the agent name but
 before `--`, for example `pair codex --layout3` or
@@ -168,7 +171,7 @@ adds context that a one-line description cannot carry.
 | **Alt+Shift+d** | layout 3 terminal | Split the right terminal downward; the new lower pane takes focus. `Alt+k` from the left returns to the split pane last used. |
 | **Alt+←** / **Alt+→** | layout 3 terminal | Switch local terminal tabs. |
 | **Shift+Alt+←** / **Shift+Alt+→** | any pane | Switch the right terminal's tabs from wherever you are, **without moving focus** — check another tab while you keep typing in the draft. |
-| **Shift+Alt+t** | any pane | Create a new right-terminal tab from wherever you are, without moving focus — works even while a full-screen app (nvim) owns the right pane. |
+| **Shift+Alt+t** | any pane | Create a new right-terminal tab from wherever you are, without moving focus — works even while a full-screen app (nvim) owns the right pane. If the right terminal is absent, recreate its pane after confirming the current tab. |
 | **Alt+c** | non-agent panes | Open/show/hide review. From the draft, restore the current review branch's document before toggling; pending work blocks switching documents. Without a review identity, offers `:PairReview`. |
 | **Alt+c** | review buffer (normal/insert) | Hide review and return to the draft. Esc keeps review open; insert/visual Esc leaves that mode, and normal Esc dismisses internal floats. |
 | **Enter** | review buffer (normal), on a compact marker | Open the editable comment thread (`:w` save, `q` save/close, `:q!` discard). |
@@ -779,14 +782,19 @@ it observed.
 `couch --resume repo:N` and `couch --reboot repo:N --confirm` run one slot's step
 through the running Couch. Only an agent in a live Couch slot may call them: Couch
 checks its own records (the calling thread has a live pane, and its recorded launch
-names this shell's session and launch), so a slot whose messaging setup failed can
-still call, and anyone else is refused. An older running Couch answers with a hint
+names this shell's session and launch). Hub-managed operations also need the
+calling slot's connected workspace proof; if it is missing, reconnect the slot
+and retry. Anyone else is refused. An older running Couch answers with a hint
 to restart it. A thread whose agent never took a turn has no conversation to
 resume: resume refuses at once and names reboot, and the report suggests reboot,
 never resume, for it. The request runs on the switcher's own queue, in the background (the
 operator's screen stays put), and is admitted only if the switcher would offer the
 same action on that row at that moment. Reboot needs `--confirm` because the
-operation declares it. The CLI polls a receipt Couch keeps in memory for 5 minutes
+operation declares it. After a cold start, a warming catalog answers that nothing
+was queued and gives a retry-after. The CLI prints that it is waiting and retries
+that same request within a 30-second total limit. If warming outlasts that wait,
+it reports that nothing was queued and asks you to retry. It never automatically
+resends an uncertain admission. The CLI polls a receipt Couch keeps in memory for 5 minutes
 (visible only to the slot that asked); a lost or unreadable outcome prints
 "outcome uncertain". Verify by reading the report again, never by the receipt: a
 repeat is refused harmlessly once the slot is live. `couch --skill` carries the
@@ -949,7 +957,11 @@ first eight characters) among retained receipts you sent or received. An ambiguo
 prefix lists the matching full IDs; an unknown ID or prefix reports an unknown
 lookup. Keep the full ID for recipient recovery after a Couch restart.
 `--message-status` shows the wait and position in that receiver's line;
-do not resend a queued or held message. Disconnect or relaunch cancels mail
+an unrecognized composer names missing evidence such as a hidden cursor,
+an incomplete terminal frame, or unrecognized geometry/input. These reasons
+contain no screen or draft text. Repeated resize signals at unchanged dimensions
+preserve valid composer evidence, including while Claude has background shells.
+Do not resend a queued or held message. Disconnect or relaunch cancels mail
 not yet committed to the wrapper, with a receiver reason. A handed commit may
 be `indeterminate` because input cannot be ruled out. Once pasted, the existing 30-second confirmation window
 still bounds delivery. No eligible family slot returns `not-dispatched` with exit status zero.
@@ -1235,9 +1247,10 @@ captures use their separate age policy and exact reader protections.
 The tab bar starts with the hub, the checkout you started Couch from, and then
 lists every other slot grouped by repository:
 `ops  ariadne  :1  :2  blog  pair  :1  :2`. In the switcher the hub is the first line and the rest sit indented
-under it. The hub tab and switcher row use reversed colours as a bookmark;
-focus brackets still mark the active tab, and the selected hub row is bold
-with a cursor arrow. When the tabs don't fit, a repository's numbered slots fold into a
+under it. The hub tab uses reversed colours as a bookmark; switcher hub rows
+are underlined, and only the selected row uses reverse video. Focus brackets
+still mark the active tab, and a selected hub keeps its underline and bold
+cursor arrow. When the tabs don't fit, a repository's numbered slots fold into a
 count (`pair  +2`), starting from the right. A red, belled or focused tab is
 never folded away, and the switcher always lists everything.
 

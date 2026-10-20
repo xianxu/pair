@@ -30,6 +30,7 @@ const maxSlotOperationReceipts = 64
 // handlers), started (the queue runner) and finished (the console loop) all
 // take it, and none waits on the queue or the console while holding it.
 type slotOperations struct {
+	fleetRoot     string
 	reference     func(context.Context, string) (string, error)
 	recovery      func(string, string, couchmessage.Request, func(context.Context) error, func(), func(any, error)) error
 	run           slotOperationRunner
@@ -84,6 +85,9 @@ func newSlotOperations(run slotOperationRunner, names func(context.Context) ([]c
 
 // handle answers one validated request from a verified, current caller.
 func (s *slotOperations) handle(ctx context.Context, caller couchmessage.Binding, r couchmessage.Request, guards ...func(context.Context) error) couchmessage.Response {
+	if ctx.Err() != nil {
+		return admissionRefusal("queue names", ctx.Err())
+	}
 	key := receiptKey{caller.Scope, caller.Tag, r.ID}
 	if r.Op == "operation-status" {
 		s.mu.Lock()
@@ -114,6 +118,9 @@ func (s *slotOperations) handle(ctx context.Context, caller couchmessage.Binding
 				guard = guards[0]
 			}
 			queueKey, repository, resolveErr := s.queueTarget(ctx, r.Target)
+			if ctx.Err() != nil {
+				return admissionRefusal("queue names", ctx.Err())
+			}
 			if resolveErr != nil {
 				return couchmessage.Response{Code: couchcore.SlotOpUnknownSlot, Error: resolveErr.Error()}
 			}
@@ -187,7 +194,13 @@ func (s *slotOperations) admit(ctx context.Context, caller couchmessage.Binding,
 		queueKey, err = s.queueKey(ctx, r.Target)
 	}
 	if err != nil {
+		if ctx.Err() != nil {
+			return admissionRefusal("queue names", ctx.Err())
+		}
 		return couchmessage.Response{Code: couchcore.SlotOpUnknownSlot, Error: err.Error()}
+	}
+	if ctx.Err() != nil {
+		return admissionRefusal("queue names", ctx.Err())
 	}
 
 	s.mu.Lock()
@@ -200,6 +213,9 @@ func (s *slotOperations) admit(ctx context.Context, caller couchmessage.Binding,
 		return receiptAdmissionResponse(receipt, err)
 	case len(s.receipts) >= maxSlotOperationReceipts:
 		return couchmessage.Response{Code: "overloaded", Error: "too many slot operations held; read the report and retry later"}
+	}
+	if ctx.Err() != nil {
+		return admissionRefusal("enqueue", ctx.Err())
 	}
 	s.receipts[key] = receipt
 	// Enqueue never blocks, so holding the lock is safe; a job that starts at
@@ -260,7 +276,7 @@ func (s *slotOperations) sweepLocked() {
 
 // queueKey names the slot a request acts on by its resolved repository, so
 // every spelling of one slot (name, alias, prefix) shares one pending key. A
-// store read only: no git, no sdlc.
+// local sibling check and store read only: no git, no sdlc.
 func (s *slotOperations) queueKey(ctx context.Context, target string) (string, error) {
 	key, _, err := s.queueTarget(ctx, target)
 	return key, err
@@ -271,13 +287,17 @@ func (s *slotOperations) queueTarget(ctx context.Context, target string) (string
 	if err != nil {
 		return "", couchcore.RepositoryName{}, err
 	}
-	names, err := s.names(ctx)
-	if err != nil {
-		return "", couchcore.RepositoryName{}, err
-	}
-	repo, _, err := couchcore.ResolveRepositoryName(ref.Repo, names)
-	if err != nil {
-		return "", couchcore.RepositoryName{}, err
+	sibling, exists := couchcore.RepositorySiblingPrimary(ref.Repo, s.fleetRoot)
+	repo := couchcore.RepositoryName{Key: sibling, Dir: ref.Repo}
+	if !exists {
+		names, namesErr := s.names(ctx)
+		if namesErr != nil {
+			return "", couchcore.RepositoryName{}, namesErr
+		}
+		repo, _, err = couchcore.ResolveRepositoryName(ref.Repo, names)
+		if err != nil {
+			return "", couchcore.RepositoryName{}, err
+		}
 	}
 	return "remote\x00" + repo.Key + ":" + strconv.Itoa(ref.Number), repo, nil
 }

@@ -79,48 +79,55 @@ func TestHubTabInversionLeavesFoldCountsNormal(t *testing.T) {
 	}
 }
 
-func TestHubSwitcherInversionSurvivesGlyphsAndSelection(t *testing.T) {
-	for _, selected := range []bool{false, true} {
-		for _, blocked := range []bool{false, true} {
-			for _, color := range []bool{false, true} {
-				state, one := idleMenuState(t)
-				state.Hub = one.StartingPath
-				state.Blocked = map[couchcore.ThreadAddress]bool{one.Address: blocked}
-				state.Attention = map[couchcore.ThreadAddress][]AttentionMessage{one.Address: {{Text: "hello"}}}
-				if selected {
-					state.Frames[0].SelectedAddress = one.Address
-					state.Frames[0].SelectedKey = one.RowKey
-				}
-				lines, _ := renderRootMenuFrame(state, state.CurrentFrame(), 100, 16, idleNow, color)
-				menu := strings.Join(lines, "\n")
-				line := menuLineContaining(t, menu, "pair:1±*")
-				cells := hubCells(t, line+"X", 120)
-				for _, c := range cells {
-					if c.Content == "X" {
-						if c.Style.Attrs != 0 {
-							t.Fatal("hub style leaked beyond row")
+func TestHubSwitcherUnderlineComposesWithSelection(t *testing.T) {
+	for _, hub := range []bool{false, true} {
+		for _, selected := range []bool{false, true} {
+			for _, blocked := range []bool{false, true} {
+				for _, color := range []bool{false, true} {
+					state, one := idleMenuState(t)
+					if hub {
+						state.Hub = one.StartingPath
+					}
+					state.Blocked = map[couchcore.ThreadAddress]bool{one.Address: blocked}
+					state.Attention = map[couchcore.ThreadAddress][]AttentionMessage{one.Address: {{Text: "hello"}}}
+					if selected {
+						state.Frames[0].SelectedAddress = one.Address
+						state.Frames[0].SelectedKey = one.RowKey
+					}
+					lines, _ := renderRootMenuFrame(state, state.CurrentFrame(), 100, 16, idleNow, color)
+					menu := strings.Join(lines, "\n")
+					line := menuLineContaining(t, menu, "pair:1±*")
+					cells := hubCells(t, line+"X", 120)
+					for _, c := range cells {
+						if c.Content == "X" {
+							if c.Style.Attrs != 0 || c.Style.Underline != uv.UnderlineNone {
+								t.Fatal("hub style leaked beyond row")
+							}
+							break
 						}
-						break
+						if c.Content == "" {
+							continue
+						}
+						if got := c.Style.Attrs&uv.AttrReverse != 0; got != selected {
+							t.Fatalf("reverse = %v, want selected=%v: %q", got, selected, line)
+						}
+						if got := c.Style.Underline != uv.UnderlineNone; got != hub {
+							t.Fatalf("underline = %v, want hub=%v: %q", got, hub, line)
+						}
+						if selected && hub && c.Style.Attrs&uv.AttrBold == 0 {
+							t.Fatalf("selected hub bold missing: %q", line)
+						}
 					}
-					if c.Content == "" {
-						continue
+					if selected && !strings.Contains(line, "▸") {
+						t.Fatal("selected hub lost arrow")
 					}
-					if c.Style.Attrs&uv.AttrReverse == 0 {
-						t.Fatalf("hub reverse missing: %q", line)
+					if hub && blocked && color && !strings.Contains(line, "\x1b[31m") {
+						t.Fatal("hub lost blocked red")
 					}
-					if selected && c.Style.Attrs&uv.AttrBold == 0 {
-						t.Fatalf("selected hub bold missing: %q", line)
+					detail := menuLineContaining(t, menu, "hello")
+					if !selected && strings.Contains(detail, "\x1b[7m") {
+						t.Fatal("hub inversion leaked into attention")
 					}
-				}
-				if selected && !strings.Contains(line, "▸") {
-					t.Fatal("selected hub lost arrow")
-				}
-				if blocked && color && !strings.Contains(line, "\x1b[31m") {
-					t.Fatal("hub lost blocked red")
-				}
-				detail := menuLineContaining(t, menu, "hello")
-				if !selected && strings.Contains(detail, "\x1b[7m") {
-					t.Fatal("hub inversion leaked into attention")
 				}
 			}
 		}

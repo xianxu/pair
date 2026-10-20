@@ -944,6 +944,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/terminal/destination.go",
 	"cmd/internal/terminalqualify/presenter_cases.go",
 	"cmd/internal/terminal/endpoint.go",
+	"cmd/internal/terminal/cell_degrade.go",
 	"cmd/internal/terminal/frame.go",
 	"cmd/internal/terminal/tap.go",
 	// #395 broadcast: in-memory frames, an HTTP stream and a tunnel; it
@@ -1158,6 +1159,9 @@ var NonArtifactSources = []string{
 	"cmd/internal/ptychild/terminal.go",
 	"cmd/internal/runtimebundle/terminal.go",
 	"cmd/internal/termcmd/presentation.go",
+	// #727 optional managed fault evidence; no lifecycle artifact filename.
+	"cmd/internal/termcmd/diagnostics.go",
+	"cmd/internal/termcmd/recovery.go",
 	"cmd/internal/couchtty/terminal.go",
 	"cmd/internal/couchtty/terminal_input.go",
 	// #395 broadcast control: phase, tap and session lifecycle; no artifact paths.
@@ -1343,6 +1347,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/hubs.go",
 	"cmd/internal/couchcmd/hub_move.go",
 	"cmd/internal/couchcmd/hub_guards.go",
+	"cmd/internal/couchcmd/hub_target_memo.go",
 	"cmd/internal/couchcmd/console_slot_operations.go",
 	"cmd/internal/couchkeys/couchkeys.go",
 	"cmd/internal/couchcore/actionableinventory.go",
@@ -1706,6 +1711,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/titlepoller/titlepoller.go",
 	"cmd/internal/workbenchshortcut/generatecmd/main.go",
 	"cmd/internal/workbenchshortcut/framing.go",
+	"cmd/internal/workbenchshortcut/terminal_command.go",
 	"cmd/internal/workbenchshortcut/render_lua.go",
 	"cmd/internal/wrapcmd/composer_recognizers.go",
 	"cmd/internal/wrapcmd/codex_working.go",

@@ -109,3 +109,56 @@ func TestExistingSiblingDirectoryBeatsPrefix(t *testing.T) {
 		t.Fatalf("sibling: %v", err)
 	}
 }
+
+func TestRepositoryHubSlotsAgreesWithReferenceResolution(t *testing.T) {
+	env, f, _ := recoverAcceptanceFixture(t, 3)
+	slots, err := env.Couch.RepositoryHubSlots(t.Context(), f.Primary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(slots) != 3 {
+		t.Fatalf("slots = %v", slots)
+	}
+	resolver := env.Couch.Slots.(SlotWorkspaceResolver)
+	for n := 1; n <= 3; n++ {
+		ref := WorkspaceReference{Repo: filepath.Base(f.Primary), Number: n}.String()
+		path, recognized, err := env.Couch.WorkspaceReferencePath(t.Context(), ref)
+		if err != nil || !recognized {
+			t.Fatalf("reference %s: %v %v", ref, recognized, err)
+		}
+		id, err := resolver.ResolveWorkspace(t.Context(), path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := HubSlot{Repository: id.PrimaryRoot, Number: *id.Slot}
+		if slots[n] != want {
+			t.Fatalf("%s: %v want %v", ref, slots[n], want)
+		}
+	}
+}
+
+func TestRepositoryHubSlotsRejectsUnverifiedRows(t *testing.T) {
+	c, _, fleet := shortNameFixture(t)
+	primary := filepath.Join(fleet, "parley.nvim")
+	catalog := c.Slots.(*SlotCatalogFake)
+	repository := catalog.Repositories[primary]
+	repository.Slots[0].Verified = false
+	repository.Slots[1].Err = errors.New("replaced workspace")
+	catalog.Repositories[primary] = repository
+	before := len(catalog.Calls)
+	slots, err := c.RepositoryHubSlots(t.Context(), primary)
+	if err != nil || len(slots) != 0 {
+		t.Fatalf("unverified rows: %v %v", slots, err)
+	}
+	if calls := len(catalog.Calls) - before; calls != 1 {
+		t.Fatalf("Discover calls %d, want one", calls)
+	}
+	catalog.Errors = map[string]error{primary: errors.New("inventory unavailable")}
+	if _, err := c.RepositoryHubSlots(t.Context(), primary); err == nil || !strings.Contains(err.Error(), "inventory unavailable") {
+		t.Fatalf("discovery failure: %v", err)
+	}
+	c.Slots = nil
+	if _, err := c.RepositoryHubSlots(t.Context(), primary); err == nil {
+		t.Fatal("missing catalog accepted")
+	}
+}

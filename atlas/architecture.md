@@ -545,6 +545,9 @@ executes Pair in the invoking editor, preserving its pane ID and capturing
 command output. Other routed actions address the draft by pane ID through
 `draftroute` / `nvim/workbench_route.lua`, keeping command text out of a focused
 shell. Draft-only maps are omitted from review, scrollback and changelog editors.
+The terminal-new action confirms native same-tab inventory (#727): an existing
+right terminal receives the tab chord; confirmed absence recreates its pane.
+Stale registrations and another tab's terminal cannot redirect that action.
 
 `workbenchshortcut.FindChordOutsidePaste` looks ahead for complete unpasted
 chords; the wrapper's existing translator retains paste state and pending bytes.

@@ -1,22 +1,16 @@
 ---
 id: 000636
-status: done
+status: working
 deps: []
 github_issue:
 created: 2026-10-16
 updated: 2026-10-18
 estimate_hours:
-card_mirror: '8d6ad42a747cde0ed29ad0829fc3bbc637f3cd55' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'b906d2e2a8c8cc897a3fca9aaf2017b6ec828476' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-17T10:14:59-07:00
-claimant:
-    operator: Xian Xu
-    machine: 4716879978a7b90f6b583da1716fd0e9
-    machine_name: Xian’s MacBook Pro
-    workspace: pair:6
-    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
-    repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "fb20d267", done: "9f6648a3"}
 actual_hours: N/A
+flake_tests: [github.com/xianxu/pair/cmd/internal/couchcore.TestRecoveryRealHelperAndSessionConformanceLive/warm]
 ---
 
 # Warm recovery live conformance intermittently receives no Zellij query reply
@@ -145,3 +139,10 @@ Fresh recorded suite on d6e985ec8aa2fbc498f9b1689bf07a202ae921f8 passed exit0 in
 ### 2026-10-18 — landing integration catalog
 
 The landing gate integrated main including #665 (fab5a7861807aa4fcc26e7826a43e3ebd2f40e3d). Targeted new catalog check found the two deliberate short /tmp socket roots; these are not ordinary temporary storage: the native session/version leaves and actual ownership-probe socket must fit AF_UNIX limits even under macOS long TMPDIR. Stopped only our own waiting merge before edits. Added the catalog's precise tmp-literal exception comments at both allocation sites, retaining existing private allocation/cleanup and actual socket-budget tests. Catalog and recovery/isolation tests then passed2.350s/3.820s; git diff --check passed. No executable Go behavior changed. The merge gate still owns authoritative integrated-suite validation; no suite was canceled and no blind retry used.
+
+
+### 2026-10-20 — live candidate flake during #706 acceptance
+
+CI conformance run 39501347923 attempt 1, job 118899343326, on exact head 79e14fb3b64439a7229e4713cb888dbfdb7c67d2 failed couchcore.TestRecoveryRealHelperAndSessionConformanceLive/warm: recovery state could not be checked because the ownership observation list-panes --json --command returned no reply. The complete job log includes original recovery query capture and native diagnostics; helper was dead before the recovery observation. ParkLifecycle passed. Full log SHA-256: 13a59060918236830a483d3dbb87cb60943d7fd250beaa93232b9322b52472fa. #706 has no couchcore, launcher or Zellij consumer diff against main.
+
+TL f8ad191d-7cd8-466f-ada5-34ca37797ebd authorized one unchanged failed-job rerun and required candidate-flake registration for #743's burn-in. Run 39501347923 attempt 2, job 118902229502, passed the entire conformance on that same exact head; warm passed in 1.84s. Rerun log SHA-256: 40ff096e867b6e77072223be4592387797157f8d9b9571a4bd766323c757b4d2. No source, assertion or deadline changes. Registered the exact warm subtest on this issue via sdlc flake register with both external CI outcomes. The observed intermittency is established; root cause remains unproved and this registration does not satisfy #743's clean burn-in requirement.

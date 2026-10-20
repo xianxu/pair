@@ -2,10 +2,13 @@ package couchmessage
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestBrokerStatusPrefixesRespectVisibilityAndExactIDs(t *testing.T) {
@@ -66,6 +69,24 @@ func TestBrokerStatusPrefixKeepsQueueProjection(t *testing.T) {
 		receipt, err := f.broker.StatusContext(context.Background(), caller, "queue000")
 		if err != nil || receipt.Message.ID != id || receipt.Status != Queued || !strings.Contains(receipt.Detail, "position 4") || !strings.Contains(receipt.Detail, "waiting for recognized composer") {
 			t.Fatalf("queue projection for %s: %+v %v", caller.Slot, receipt, err)
+		}
+	}
+}
+
+func TestBrokerStatusKeepsComposerEvidenceForHeadAndFollowers(t *testing.T) {
+	f := newBusyReceiverFixture(t, Queued)
+	const reason = "waiting for recognized composer: cursor is hidden"
+	f.endpoint.interim <- Receipt{Status: Queued, Detail: reason}
+	select {
+	case <-f.endpoint.progressApplied:
+	case <-testwait.After(t):
+		t.Fatal("receiver did not publish its wait reason")
+	}
+	for i, m := range f.messages {
+		response := Handle(context.Background(), f.broker, Request{Op: "status", Scope: f.from.Scope, Tag: f.from.Tag, Session: f.from.Session, Nonce: f.from.Nonce, ID: m.ID})
+		want := fmt.Sprintf("position %d; %s", i+1, reason)
+		if response.Receipt == nil || response.Receipt.Detail != want || response.Receipt.Status.Terminal() {
+			t.Fatalf("message-status lost wrapper reason: %+v, want %q", response, want)
 		}
 	}
 }

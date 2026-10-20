@@ -44,8 +44,14 @@ type Request struct {
 	Binding   *Binding
 }
 
+// CodeWarming is an admission refusal guaranteeing that nothing was queued.
+// Only this response may authorize an automatic retry of the same intent.
+const CodeWarming = "warming"
+
 type Response struct {
-	Resources *couchcore.ResourceView `json:",omitempty"`
+	// RetryAfterMillis is a transient admission hint, only for CodeWarming.
+	RetryAfterMillis int                     `json:",omitempty"`
+	Resources        *couchcore.ResourceView `json:",omitempty"`
 	// Refusals answers refusals: each canonical slot's newest unsuperseded
 	// reason and recovery class. No caller credentials: this is unauthenticated.
 	Refusals        map[string]RefusalInfo `json:",omitempty"`

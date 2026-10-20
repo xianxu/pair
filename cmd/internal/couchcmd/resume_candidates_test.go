@@ -189,3 +189,17 @@ func TestResumeCandidatesCLIRetainsPartialScreenActivity(t *testing.T) {
 		t.Fatalf("partial screen fact lost or unsafe: code=%d output=%s diagnostic=%s", code, &out, &diagnostic)
 	}
 }
+
+// TestResumeCandidatesCLIIncompleteScanSparesTheConfirmedChoice (pair#726):
+// when the confirmed Resume from disk is offered, an incomplete scan says that
+// choice comes from the established binding, not from the scan.
+func TestResumeCandidatesCLIIncompleteScanSparesTheConfirmedChoice(t *testing.T) {
+	var out, diagnostic bytes.Buffer
+	code := runMessageCLIWithCall(cliInvocation{kind: cliMessage, messageOp: "resume-candidates", ref: "pair:6"}, messageRuntime(), &out, &diagnostic, func(_ context.Context, _ string, _ any, response any) error {
+		*response.(*couchmessage.Response) = couchmessage.Response{Code: "ok", RecoveryPreview: &couchcore.RecoveryPreview{Incomplete: true, Proven: &couchcore.RecoveryChoice{Label: "Resume from disk (confirmed)", Agent: "codex", NativeID: "proven-native"}}}
+		return nil
+	})
+	if code != 0 || !strings.Contains(out.String(), "comes from the established binding, not from this scan") {
+		t.Fatalf("code=%d output=%s diagnostic=%s", code, &out, &diagnostic)
+	}
+}

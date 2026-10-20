@@ -3,6 +3,7 @@ package couchcmd
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
@@ -23,6 +24,13 @@ func guardHubState(t *testing.T) *hubRuntime {
 		t.Fatal(err)
 	}
 	return &hubRuntime{state: state}
+}
+
+// Guards exercise admission's memo and execution's fresh source separately,
+// as newMessageService does when authority is supplied at construction.
+func wireGuardTestMemo(r *serviceRig, resolve func(context.Context, string) (couchcore.HubSlot, error)) {
+	r.s.hubTargets = newHubTargetMemo(r.s.lifetime, resolve, nil)
+	r.s.authority.hubTarget = r.s.hubTargets.Fresh
 }
 func TestHubSwitchMutationAdmissionAndQueuedMove(t *testing.T) {
 	for _, queued := range []bool{false, true} {
@@ -75,27 +83,24 @@ func TestHubSlotMutationGuardsEveryOperationAndQueuedMove(t *testing.T) {
 		t.Run(op, func(t *testing.T) {
 			r, runner, _ := slotRig(t)
 			caller := r.world.add(3)
-			if op == "recover-park" {
-				caller = r.connect(3)
-			}
 			r.world.set(caller, func(s *worldSlot) { n := 3; s.workspace.PrimaryRoot = "/repo"; s.workspace.Slot = &n })
-			// The cached admission identity must carry the same canonical slot
-			// facts as the fixture's current-world workspace resolver.
-			r.s.mu.Lock()
-			r.s.workspaces[caller] = r.world.slots[caller.Thread()].workspace
-			r.s.mu.Unlock()
+			// Register only after the world has its canonical slot facts, then
+			// wait for the exact connected binding's cached workspace proof.
+			r.attach(caller, "caller")
+			r.wrapper(caller)
+			r.waitConnected(caller, true)
+			r.waitWorkspace(caller)
 			r.slotOps.names = func(context.Context) ([]couchcore.RepositoryName, error) {
 				return []couchcore.RepositoryName{{Key: "/repo", Dir: "pair"}}, nil
 			}
 			r.s.authority.hubs = guardHubState(t)
-			r.s.authority.hubTarget = func(context.Context, string) (couchcore.HubSlot, error) {
+			wireGuardTestMemo(r, func(context.Context, string) (couchcore.HubSlot, error) {
 				return couchcore.HubSlot{Repository: "/repo", Number: 2}, nil
-			}
+			})
 			req := slotRequest(caller, op, "guarded", "pair:2")
 			req.Confirmed = true
-			// Live-pane recovery callers need no messaging registration.
 			got := switchCall(t, r, req)
-			if got.Code != "refused" || runner.count() != 0 {
+			if got.Code != "refused" || !strings.Contains(got.Error, "belongs to hub") || runner.count() != 0 {
 				t.Fatalf("cross-hub %s admitted: %+v", op, got)
 			}
 			h := r.s.authority.hubs
@@ -128,10 +133,12 @@ func TestHubSlotMutationGuardsEveryOperationAndQueuedMove(t *testing.T) {
 func TestHubSwitchReceiptScope(t *testing.T) {
 	r, _, main, _, _ := leanSwitchRig(t)
 	other := r.connect(1)
+	r.waitWorkspace(main)
+	r.waitWorkspace(other)
 	r.s.authority.hubs = guardHubState(t)
-	r.s.authority.hubTarget = func(context.Context, string) (couchcore.HubSlot, error) {
+	wireGuardTestMemo(r, func(context.Context, string) (couchcore.HubSlot, error) {
 		return couchcore.HubSlot{Repository: "/repo", Number: 2}, nil
-	}
+	})
 	r.slotOps.mu.Lock()
 	r.slotOps.receipts[receiptKey{"scope", "owner", "one"}] = couchmessage.OperationReceipt{ID: "one", Op: "switch-agent", Target: "pair:2", Status: couchmessage.ReceiptQueued}
 	r.slotOps.mu.Unlock()

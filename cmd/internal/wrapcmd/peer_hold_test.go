@@ -85,7 +85,7 @@ func TestPeerUnrecognizedComposerAfterDraftStillWaits(t *testing.T) {
 	*now = now.Add(time.Minute)
 	f.output("\x1b[2Jno composer here")
 	f.proxy.dispatchPeer(&out) // the draft hold closes: one minute credited
-	if r := d.receipt(); r.Status != couchmessage.Queued || r.Detail != "waiting for recognized composer" {
+	if r := d.receipt(); r.Status != couchmessage.Queued || !strings.Contains(r.Detail, "waiting for recognized composer:") {
 		t.Fatalf("unrecognized composer: %+v", r)
 	}
 	deadline := d.receipt().Message.Deadline.Add(time.Minute)

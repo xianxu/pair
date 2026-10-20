@@ -37,9 +37,10 @@ type terminalModel struct {
 }
 
 type terminalResize struct {
-	model    *terminalModel
-	mu       sync.Mutex
-	resolved bool
+	model     *terminalModel
+	mu        sync.Mutex
+	resolved  bool
+	unchanged bool
 }
 
 type terminalControlObserver struct {
@@ -141,6 +142,11 @@ func (m *terminalModel) PrepareResize(cols, rows int) (*terminalResize, error) {
 		m.resizeMu.Unlock()
 		return nil, err
 	}
+	// A repeated SIGWINCH need not repaint the child. Keep its existing
+	// evidence, including uncertainty, when no terminal geometry changed.
+	if m.synchronized && m.emulator.Width() == cols && m.emulator.Height() == rows {
+		return &terminalResize{model: m, unchanged: true}, nil
+	}
 	m.synchronized = false
 	m.generation++
 	m.emulator.Resize(cols, rows)
@@ -173,7 +179,7 @@ func (r *terminalResize) resolve(commit bool) error {
 	if commit {
 		if m.closed {
 			err = io.ErrClosedPipe
-		} else {
+		} else if !r.unchanged {
 			m.observer.visible = false
 			m.synchronized = true
 			m.generation++

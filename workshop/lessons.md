@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #735: Replay native recordings with resize events as well as bytes before blaming footer wording. A duplicate geometry update may receive no native repaint; preserve existing cursor/frame evidence on a synchronized no-op, while a retry after an aborted real resize must still restore synchronization and await a fresh cursor. Regress both paths and expose the missing evidence in retained wait receipts without copying screen contents.
+
 - Splitting an acceptance task into a child issue requires sweeping copied Spec tasks and Done when for parent-only checks. A Log saying the parent still owns console/deployment acceptance does not override an active child Spec clause requiring it. Keep the old clause only as superseded Revisions history. (#723 BR-1)
 
 - A replay benchmark must prove every claimed stage executed inside its CPU bracket. NewFakeChild with nil Sink skips publication delivery entirely; count deliveries/bytes and validations, check batch.Err, and join publication plus reply workers before the ending sample. Retain incomplete-path runs as diagnostics rather than calling them full-path performance evidence. (#723)
@@ -2438,3 +2440,30 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #711 BR-1/BR-3: Current connectivity is not the registration lifetime that began an admission. Capture the owner actor under the initial lock and retain that exact resource through routing IO, successful reservation, and release-to-queue fallback. Test same-binding sender reconnect at every yield boundary as well as recipient replacement; keep all refusal paths side/phase labeled.
 - #711 BR-2: Preserve validated values through the final consumer, not only validated keys. Passing exact names onward while reparsing state with Fields/Contains revives ambiguity; runtime/display builders consume the same validated state map. Cover live EXITED-containing names and exited whitespace/tab names, including zero client queries for exited rows.
+
+- #727: A backend snapshot is an untrusted boundary even when it came from our emulator. Repair owned cells before composition, preserving strict direct Frame validation; cover screen, history, malformed wide pairs and bounded evidence through the real presenter. One bad cell must not revoke terminal ownership.
+- #727: Recovery permission is a lifecycle decision, not “err != nil”. Keep child exit, wrapper failure and real host termination typed through cleanup; drain real signals after stopping their watcher, and test a signal during held restoration. A closed channel is not a signal, and a cleanup failure must not accidentally authorize another shell.
+- #727: A stale pane registration cannot prove a pane still exists or is absent. Confirm native inventory on the creation path, bind creation to the invoking tab, and test foreign-tab and uncertain observations without effects.
+
+- #727 BR-1: A correct recovery reducer cannot classify a failure the IO shell discarded. Carry every producer's terminal outcome to its owner, and exercise decoder failure, unexpected read error, EOF/cancellation and disconnection through the production recovery path.
+- #727 BR-2/BR-3: Native creation defaults are part of the shortcut contract. A focus-preserving create operation must request no-focus explicitly and qualify actual client focus with a disposable native session; argv equality in a fake is insufficient.
+
+- #727 suite: When moving a shared command literal, search source-based shell sentinels as well as Go consumers. Keep behavioral byte equality and point structural checks at the new authority plus its consumers; an old-file substring assertion can fail a valid deduplication that package tests already prove.
+
+- #727 suite: Function renames and new context-bearing effects must update exhaustive effect inventories, not only source ownership manifests. Preserve each exemption's existing meaning and require the inherited admission token for every new observed mutation.
+- #727 follow-up (#731): Exec preserves PID liveness but can end a capability owner's role. Inspect all independent role authorities (registry, initial command, title and actual command) before assuming record retirement fixes classification; stop/re-plan rather than growing one proposed mechanism through repeated corrections.
+- #730 BR-1: When changing a terminal visual cue, sweep both README and atlas for the old style description. Adjacent surfaces may intentionally keep different styles; state each explicitly rather than updating only the architecture map.
+- #717 BR-4/BR-6: Prove an acting state (working, idle, a panel open) from direct evidence defined in one place, never a borrowed flag that other events also set. The interrupt first read the turn flag, which an open Claude panel and a bare submission also set; then a mirrored "activity seen" flag, which a stop grace still held. The fix is one reducer-owned predicate (`NotificationLifecycle.Working()`) mirrored as a single value, plus the agent's own on-screen signal ("esc to interrupt"). Before admitting a destructive key, list every event that sets the flag you read and test each as a refusal.
+
+- #726 BR-7: Prove concurrency with a rendezvous, never elapsed time. Hold each worker's probe until all expected peers are held at once, counting probes held now, not a running total. A serial pass then never meets it, and a bounded safety release reports the failure. Exclude non-worker calls of the same shape (the primary's own probe matched the filter). Mutate to serial and see the test go red before trusting it: two drafts passed under serial.
+- #726: An admission that resolves authority on the request path must answer inside the exchange from warm sources and re-prove authority fresh before any effect. Where the admitted data is the effect's payload (a move's slots), the queued job must re-resolve it fresh and refuse on any difference.
+
+
+- #726 BR-17: A hub-approved scope extension after close still needs a full close review. The narrow fixed-then-ship recipe only covers fixes to the finalized scope; record the new governing contract in Revisions and route the expanded implementation through full close.
+
+- #726 BR-18: A request latency budget belongs to the request entry, before authentication, and spans the last synchronous lookup through enqueue. Do not renew it per stage. Check expiry even after a callback returns success, and test combined successful stage delays through the real socket, not each stage in isolation.
+- #726 BR-19: An admission cache must select the same physical repository as fresh resolution before it looks up an alias. Reuse exact sibling precedence in memo and queue-key selection; qualify cold and prewarmed aliases/prefixes and constructor context wiring.
+
+- #726 BR-18 round 9: Context expiry is not a wall-clock return bound when a subprocess runner joins cancellation cleanup. Request admission consumes connected proofs and a lifetime-owned memo; a cache miss returns an explicit nothing-queued refusal. Retry only a typed warming refusal with a retry-after, same intent and a bounded total; never infer retry safety from error text or an uncertain reply. Qualify the native cancellation seam and a held cold batch through the real socket/CLI.
+
+- #727/#725 integration: When main adds a digest-based source-reader inventory, audit every added or changed test reader before re-entering a train. Classify fixture literals separately from repository scanners; refresh hashes only after checking input scope and retaining every fixed preflight test. Run the real inventory negative controls on a committed integration HEAD, because their disposable checkout reads HEAD rather than the working tree.
