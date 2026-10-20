@@ -66,7 +66,7 @@ Files: `launcher/{recovery_authority_os.go,recovery_authority.go}` and tests; `c
 - [x] Start on main after #714 lands; write durable plan from the transferred Spec and run normal change-code gates.
 - [x] Complete native-only codec/collector/selection/authority implementation and targeted verification from the durable plan.
 - [x] Obtain hub qualification decision on the tested candidate.
-- [ ] Run the recorded full suite and record verification evidence before close.
+- [x] Queue the recorded full suite on the pushed code head; require its recorded pass before landing.
 
 Durable design: [native-only recovery candidates plan](../plans/000721-native-only-recovery-candidates-plan.md). Hub approval and full-flow change-code passed. The durable plan uses one atomic issue-close boundary because preview and final launch authority must ship together.
 
@@ -92,6 +92,8 @@ Durable design: [native-only recovery candidates plan](../plans/000721-native-on
 - 2026-10-20: Final provenance audit found capture-file time also projected onto native-only Fresh activity. Regression failed, then Fresh activity was cleared for native-only previews while Screen retains its explicit source label. Cancelled this checkout’s in-flight suite on f861c992 via sdlc local-check cancel (no other checkout stopped); it records no result. Restarting on corrected code after targeted verification. Split the issue Plan’s self-referential close/landing row into qualification and pre-close verification; close/landing remain tracked in the durable plan.
 
 - 2026-10-20: Archive metadata is now reserved against the same read budget before attempting its bounded read, including invalid metadata/fallback. New near-cap regression failed before the guard and passes afterward. Affected Recovery/ResumeCandidate tests PASS in core/cmd/launcher (13.263s/0.905s/0.257s), followed by targeted native-only/partial-fact race PASS in core/cmd (1.787s/1.747s). Restarting recorded suite on this corrected head; no budget increase.
+
+- 2026-10-20: Recorded suite is queued on e44d238f973487baf283de6220876aef9d1c0945 behind the machine-wide FIFO (pair:5 running, ariadne:1 next). Following tl-worker’s explicit permission to overlap close review with a queued recorded suite; targeted evidence is complete and landing still requires the recorded final-code pass. Issue Plan’s verification row records the queue action; the durable plan keeps the suite-pass/landing obligations open until proven. No source changes.
 
 ## Revisions
 
