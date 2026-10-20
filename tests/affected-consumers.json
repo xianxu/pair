@@ -1,0 +1,463 @@
+{
+  "lua": {
+    "test-lua": {
+      "go": [
+        "cmd/internal/reviewcmd"
+      ],
+      "files": [
+        "Makefile*",
+        "cmd/internal/sessioninventory/testdata/normalization/v1.json",
+        "doctor/fixtures/perf_capture.txt",
+        "nvim/**",
+        "testdata/edit-records/*.json",
+        "testdata/edit-records/propose/*.json",
+        "tests/changelog-isolation-test.py",
+        "tests/fixtures/zellij-replies.json",
+        "tests/lib/**",
+        "tests/nvim-route-poke-admission-test.sh",
+        "tests/review-restore-admission-test.lua",
+        "tests/workbench-route-nvim-test.sh",
+        "tests/zellij-observation_test.lua"
+      ]
+    },
+    "test-retention": {
+      "go": [
+        "cmd/internal/retentioncmd",
+        "cmd/internal/gccmd"
+      ],
+      "files": [
+        "Makefile*",
+        "nvim/**",
+        "tests/lib/**",
+        "tests/retention-test.sh"
+      ]
+    },
+    "test-nvim-pidfile": {
+      "go": [
+        "cmd/internal/reviewcmd"
+      ],
+      "files": [
+        "Makefile*",
+        "nvim/**",
+        "tests/lib/**",
+        "tests/nvim-pidfile-lifecycle-test.sh"
+      ]
+    },
+    "test-lifecycle-command": {
+      "go": [],
+      "files": [
+        "Makefile*",
+        "nvim/**",
+        "tests/lib/**",
+        "tests/lifecycle-command-nvim-test.sh"
+      ]
+    },
+    "test-queue": {
+      "go": [],
+      "files": [
+        "Makefile*",
+        "nvim/**",
+        "tests/lib/**",
+        "tests/queue-send-test.sh"
+      ]
+    },
+    "test-submission-transaction": {
+      "go": [
+        "cmd/internal/pairlog"
+      ],
+      "files": [
+        "Makefile*",
+        "nvim/**",
+        "tests/dom-submission-nvim-test.sh",
+        "tests/dom-submission-ui-test.lua",
+        "tests/lib/**",
+        "tests/submission-transaction-nvim-test.sh"
+      ]
+    },
+    "test-bang-tag": {
+      "go": [],
+      "files": [
+        "Makefile*",
+        "nvim/**",
+        "tests/bang-tag-nvim-test.sh",
+        "tests/lib/**"
+      ]
+    },
+    "test-autopair": {
+      "go": [],
+      "files": [
+        "Makefile*",
+        "nvim/**",
+        "tests/autopair-test.sh",
+        "tests/lib/**"
+      ]
+    },
+    "test-draft-complete": {
+      "go": [],
+      "files": [
+        "Makefile*",
+        "nvim/**",
+        "tests/draft-complete-mode-test.sh",
+        "tests/lib/**"
+      ]
+    },
+    "test-pair-doctor": {
+      "go": [
+        "cmd/internal/pairlog"
+      ],
+      "files": [
+        "Makefile*",
+        "nvim/**",
+        "tests/lib/**",
+        "tests/pair-doctor-test.sh"
+      ]
+    },
+    "test-cr": {
+      "go": [],
+      "files": [
+        "Makefile*",
+        "nvim/**",
+        "tests/cr-newline-test.sh",
+        "tests/lib/**"
+      ]
+    },
+    "test-statusline": {
+      "go": [],
+      "files": [
+        "Makefile*",
+        "nvim/**",
+        "tests/changelog-notify-test.sh",
+        "tests/lib/**",
+        "tests/statusline-pos-test.sh"
+      ]
+    }
+  },
+  "review": {
+    "test-review": {
+      "go": [
+        "cmd/internal/reviewcmd",
+        "cmd/internal/reviewapply",
+        "cmd/internal/pairlog"
+      ],
+      "files": [
+        "Makefile*",
+        "nvim/**",
+        "scripts/build-go-atomic.sh",
+        "tests/lib/**",
+        "tests/overlay-return-test.sh",
+        "tests/pair-review-target-test.sh",
+        "tests/review-applied-round-test.sh",
+        "tests/review-apply-test.sh",
+        "tests/review-branch-restore-test.sh",
+        "tests/review-comments-test.sh",
+        "tests/review-controls-test.sh",
+        "tests/review-definition-test.sh",
+        "tests/review-docflow-test.sh",
+        "tests/review-fresh-restore-diagnostics-test.py",
+        "tests/review-fresh-restore-test.sh",
+        "tests/review-indicator-test.sh",
+        "tests/review-observation-diagnostics-test.py",
+        "tests/review-observation-gate-test.lua",
+        "tests/review-observation-test.sh",
+        "tests/review-observation-trace-test.lua",
+        "tests/review-poke-test.sh",
+        "tests/review-projection-test.sh",
+        "tests/review-readiness-cli-test.sh",
+        "tests/review-resolver-fake-test.lua",
+        "tests/review-resolver-native-deadline-test.lua",
+        "tests/review-resume-isolation-test.py",
+        "tests/review-resume-test.sh",
+        "tests/review-toggle-test.sh",
+        "tests/review-window-test.sh",
+        "zellij/config.kdl"
+      ]
+    }
+  },
+  "doctor": {
+    "test-doctor": {
+      "go": [],
+      "files": [
+        "Makefile*",
+        "doctor/doctor.sh",
+        "doctor/doctor_test.sh",
+        "doctor/emitter-health.sh",
+        "tests/lib/**"
+      ]
+    },
+    "test-perf-capture": {
+      "go": [
+        "cmd/internal/hoprttcmd"
+      ],
+      "files": [
+        "Makefile*",
+        "doctor/perf.sh",
+        "doctor/perf_budget_test.py",
+        "doctor/perf_test.sh",
+        "scripts/build-go-atomic.sh",
+        "tests/lib/**"
+      ]
+    },
+    "test-perf-key-conformance": {
+      "go": [
+        "cmd/internal/hoprttcmd"
+      ],
+      "files": [
+        "Makefile*",
+        "doctor/perf.sh",
+        "nvim/doctor.lua",
+        "tests/lib/**",
+        "tests/perf-key-conformance-test.sh"
+      ]
+    },
+    "test-emitter-health": {
+      "go": [],
+      "files": [
+        "Makefile*",
+        "doctor/emitter-health.sh",
+        "tests/emitter-health-test.sh",
+        "tests/lib/**"
+      ]
+    },
+    "test-adapt-schema": {
+      "go": [
+        "cmd/internal/diagnosticcmd",
+        "cmd/internal/adapt"
+      ],
+      "files": [
+        "Makefile*",
+        "bin/lib/adapt-log.sh",
+        "nvim/adapt.lua",
+        "tests/adapt-golden.expected",
+        "tests/adapt-schema-test.sh",
+        "tests/lib/**"
+      ]
+    }
+  },
+  "build": {
+    "test-build-go-atomic": {
+      "go": [],
+      "files": [
+        "Makefile*",
+        "cmd/couch/.skip-make-build",
+        "cmd/pair-go/.skip-make-build",
+        "cmd/pair-launch-helper/.skip-make-build",
+        "scripts/build-go-atomic.sh",
+        "tests/build-go-atomic-test.py",
+        "tests/lib/**"
+      ]
+    },
+    "test-supervision-labels": {
+      "go": [],
+      "files": [
+        "Makefile*",
+        "scripts/supervision-labels/*.py",
+        "tests/lib/**"
+      ]
+    },
+    "test-dev-rebuild": {
+      "go": [],
+      "files": [
+        "Makefile*",
+        "bin/couch-dev",
+        "bin/lib/dev-rebuild.sh",
+        "tests/dev-rebuild-test.sh",
+        "tests/lib/**"
+      ]
+    },
+    "test-pair-go-install-layout": {
+      "go": [
+        "cmd/internal/entrypoint",
+        "cmd/internal/runtimebundlegen",
+        "cmd/internal/runtimebundle/generatecmd",
+        "cmd/internal/launcher",
+        "cmd/internal/slugcmd"
+      ],
+      "files": [
+        "Makefile*",
+        "bin/couch-dev",
+        "bin/lib/**",
+        "bin/pair-dev",
+        "bin/pair-help",
+        "bin/pair-notify",
+        "doctor/doctor.sh",
+        "doctor/emitter-health.sh",
+        "doctor/perf.sh",
+        "nvim/**",
+        "scripts/build-go-atomic.sh",
+        "terminfo/pair-vt-256color.ti",
+        "tests/lib/**",
+        "tests/pair-go-install-layout-test.sh",
+        "zellij/**"
+      ]
+    },
+    "test-pair-embedded-runtime": {
+      "go": [
+        "cmd/internal/entrypoint",
+        "cmd/internal/runtimebundle",
+        "cmd/internal/runtimebundlegen",
+        "cmd/internal/runtimebundle/generatecmd",
+        "cmd/internal/launcher"
+      ],
+      "files": [
+        "Makefile*",
+        "bin/lib/**",
+        "bin/pair-help",
+        "bin/pair-notify",
+        "doctor/doctor.sh",
+        "doctor/emitter-health.sh",
+        "doctor/perf.sh",
+        "nvim/**",
+        "terminfo/pair-vt-256color.ti",
+        "tests/lib/**",
+        "tests/pair-embedded-runtime-test.sh",
+        "tests/without-ancestors-test.py",
+        "tests/without-ancestors.py",
+        "zellij/**"
+      ]
+    },
+    "test-make-env": {
+      "go": [],
+      "files": [
+        "Makefile*",
+        "bin/**",
+        "cmd/**",
+        "doctor/**",
+        "nvim/**",
+        "probes/**",
+        "tests/**",
+        "tests/lib/**",
+        "tests/make-test-env-test.sh",
+        "zellij/**"
+      ]
+    },
+    "test-host-preflight": {
+      "go": [],
+      "files": [
+        "Makefile*",
+        "tests/host-preflight.sh",
+        "tests/lib/**"
+      ]
+    },
+    "test-run-headless": {
+      "go": [],
+      "files": [
+        "Makefile*",
+        "tests/lib/**",
+        "tests/run-headless-test.sh"
+      ]
+    }
+  },
+  "shell": {
+    "test-session-watch": {
+      "go": [
+        "cmd/internal/sessionwatch"
+      ],
+      "files": [
+        "Makefile*",
+        "scripts/build-go-atomic.sh",
+        "tests/lib/**",
+        "tests/pair-session-watch-test.sh"
+      ]
+    },
+    "test-pair-restart-quit": {
+      "go": [
+        "cmd/internal/pairlifecycle"
+      ],
+      "files": [
+        "Makefile*",
+        "scripts/build-go-atomic.sh",
+        "tests/lib/**",
+        "tests/pair-restart-quit-test.sh"
+      ]
+    },
+    "test-pair-rename": {
+      "go": [
+        "cmd/internal/launcher"
+      ],
+      "files": [
+        "Makefile*",
+        "tests/lib/**",
+        "tests/pair-rename.sh"
+      ]
+    },
+    "test-changelog": {
+      "go": [
+        "cmd/internal/opener",
+        "cmd/internal/changelogcmd",
+        "cmd/internal/scrollbackcmd"
+      ],
+      "files": [
+        "Makefile*",
+        "nvim/scrollback.lua",
+        "nvim/workbench_actions.lua",
+        "scripts/build-go-atomic.sh",
+        "tests/changelog-open-test.sh",
+        "tests/changelog-session-key-test.sh",
+        "tests/lib/**",
+        "tests/scrollback-open-test.sh"
+      ]
+    },
+    "test-copy-on-select": {
+      "go": [
+        "cmd/internal/clipcmd",
+        "cmd/internal/layoutcmd"
+      ],
+      "files": [
+        "Makefile*",
+        "scripts/build-go-atomic.sh",
+        "tests/copy-on-select-test.sh",
+        "tests/lib/**"
+      ]
+    },
+    "test-term-pane-shortcuts": {
+      "go": [
+        "cmd/internal/termcmd",
+        "cmd/internal/layoutcmd",
+        "cmd/internal/wrapcmd"
+      ],
+      "files": [
+        "Makefile*",
+        "nvim/**",
+        "scripts/build-go-atomic.sh",
+        "tests/lib/**",
+        "tests/term-pane-shortcuts-test.sh",
+        "zellij/**"
+      ]
+    },
+    "test-zellij-trace": {
+      "go": [],
+      "files": [
+        "Makefile*",
+        "nvim/zellij_trace.lua",
+        "tests/lib/**",
+        "tests/zellij-trace-test.sh"
+      ]
+    },
+    "test-plan-superseded": {
+      "go": [
+        "cmd/internal/termcmd",
+        "probes/zellijscrollregion"
+      ],
+      "files": [
+        "Makefile*",
+        "tests/lib/**",
+        "tests/plan-superseded-facts-test.sh",
+        "tests/term-pane-shortcuts-test.sh",
+        "zellij/config.kdl",
+        "zellij/layouts/main-3.kdl"
+      ]
+    },
+    "test-paint-gate-consumers": {
+      "go": [
+        "cmd/internal/termcmd",
+        "cmd/internal/couchtty",
+        "cmd/internal/ptychild"
+      ],
+      "files": [
+        "Makefile*",
+        "tests/lib/**",
+        "tests/paint-gate-consumers-test.sh"
+      ]
+    }
+  }
+}

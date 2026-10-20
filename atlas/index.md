@@ -27,7 +27,17 @@
 
 - [Go lint catalog](go-lint-catalog.md) — pinned upstream rules, repository coverage, reasoned exceptions and shrink-only sleep debt.
 
-- `make test` — the one gate. It runs every shell/Lua suite, then `go test ./...`
+- `.sdlc/affected.json`, `scripts/test-affected.py` — affected branch checks
+  consume ariadne#473's main-authoritative selection through `make test-affected`.
+  Selected Go argv stays exact; fixed named source scanners run first for Go
+  selections. Non-Go file-reader populations and unknown paths force full.
+  `tests/affected-consumers.json` audits recipe inputs against the real planner;
+  the Go-reader inventory requires re-audit for new or changed source readers.
+  The environment guard runs once; groups share a private Pair executable.
+  The operator owns the local-gates label; the hub owns first recorded
+  affected/docs-train evidence after landing.
+
+- `make test` — the full gate. It runs every shell/Lua suite, then `go test ./...`
   with test-result caching off, so it covers every package. Make adds `-trimpath`
   to existing `GOFLAGS` to share package compilation across worktrees; the recorded
   suite pins `PAIR_GO_TRIMPATH=-trimpath`. `internal/reporoot` finds test assets by

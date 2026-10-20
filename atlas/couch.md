@@ -75,6 +75,15 @@ Fresh archives the source and allocates a new tag. Age never authorizes killing
 the Couch supervisor. Agent activity never demotes a positively listed session
 from Continue.
 
+A direct Proven or Fresh recovery sets `RecoveryObservationRequest.SkipCandidates`
+(pair#726). The reader still builds `Source`, the screen, the capture, `Agent`,
+`Generation`, the branch and the issue, and fences the capture identity. It
+skips only the native transcript scan, which walks the agent's whole native
+store under the hub effect gate and is consumed only by an inferred (keyed)
+choice. When it offers the confirmed Resume from disk, `--resume-candidates`
+says an incomplete scan does not feed that choice: it comes from the
+established binding.
+
 Public Continue attaches through `couchcore/warm_attach.go`. After attachment,
 it may replace only a proven-dead client-helper incarnation with its exact
 locally owned helper, rechecking the old PID/start identity at the write gate.
@@ -1102,6 +1111,46 @@ original hub without replay. The existing cancellable hub effect gate serializes
 bounded admission against moves; the ownership mutex is not held across IO.
 Projection generations fence jobs extracted before the drop. Restart collection
 survives the drop, and only genuinely new lifecycle facts follow the new owner.
+
+Hub slot-operation admission (`handleHubSlotOperation`, pair#726) is a cheap
+gate on warm sources, inside its own 1.5 s budget, below the 2 s exchange. The
+single deadline spans initial authentication, target resolution, queue-name lookup
+and enqueue, including move and operation-status requests. The caller comes
+from its connected workspace (`connectedWorkspace`), and the target
+from `hubTargetMemo`. Admission never falls back to a synchronous fresh caller
+workspace or target resolver: native cancellation can itself outlast the exchange.
+A missing caller proof says to reconnect; a missing memo says it is unavailable.
+A pending memo flight returns wire code `warming`, no operation receipt and a
+positive `RetryAfterMillis` (500 ms). The CLI repeats only that typed nothing-queued
+refusal, keeping its request ID and intent, for at most eight attempts inside a
+30-second total admission budget. Each exchange and sleep is capped by the
+remaining budget, and progress says it is waiting for the catalog to warm.
+Transport errors, uncertain replies and all other refusals never trigger admission
+resends. Queued work and its fresh proofs retain their own queue context.
+The memo maps a target reference to its `HubSlot`.
+One single-flight discovery per repository fills all its verified numbered
+slots under unambiguous names and aliases. Memo reads and queue-key selection
+use the fresh resolver's shared exact-sibling-directory precedence rule before
+enrollment lookup, including prewarmed aliases. The service captures the
+supervisor's fleet context once at startup; if it cannot establish that context,
+it retains per-reference resolution rather than guessing from enrollment. Startup prewarms the distinct hub
+repositories without delaying service startup; cold concurrent requests join
+the same flight. Missing slots, primary slots and unresolved repository names
+fall back to the existing per-reference resolver. Both kinds of flight share
+the eight-resolution cap, run under the service lifetime and join at `Close`.
+Entries are used for 10 minutes and every fresh target resolution refreshes its
+entry; memo writes sweep expired entries and cap them at 256. Admission waits
+only within its budget. Otherwise admission returns the typed warming refusal above, and any overrun names its phase. A failed
+resolution answers with its own error for 30 s before retrying. Move-slot
+admission (`handleHubMove`) names its slots from the same memo, within the same
+budget. The queued move then re-resolves each slot fresh and refuses if any
+differs, because those slots are the move's payload. A warm
+admission spawns no `sdlc` or `git`. The queued guard still re-proves authority
+on fresh discovery in prepare and at the effect gate, so a stale memo admits at
+most a job that refuses before any effect. `OSSlotCatalog.Discover` verifies
+slot rows concurrently, at most eight at a time. It keeps each row's
+replacement fence and fails the whole inventory on a fatal row. That cut an
+8-slot discovery from 3 s to 1 s.
 
 `couchmessage.Message.Origin` is immutable: peer is omitted/zero, system is created
 only through internal server admission. External requests cannot carry origin.

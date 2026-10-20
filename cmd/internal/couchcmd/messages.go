@@ -207,7 +207,12 @@ func newRequestID() (string, error) {
 // Slot operations admit, then poll: a resume can outlast the socket's 2 s
 // exchange, so the CLI polls the receipt within this budget (pair#367 M2).
 const (
-	slotOperationPollInterval = 500 * time.Millisecond
+	// Admission may retry only an explicit warming refusal (nothing queued).
+	// Bound both elapsed time, including exchanges, and the number of attempts.
+	slotAdmissionRetryBudget   = 30 * time.Second
+	slotAdmissionMaxAttempts   = 8
+	slotAdmissionMaxRetryAfter = 5 * time.Second
+	slotOperationPollInterval  = 500 * time.Millisecond
 	// Covers the operation plus a restart's readiness wait (pair#427).
 	slotOperationPollBudget = 5 * time.Minute
 	// slotOperationProgressEvery paces the "still running" line, so a start
@@ -251,8 +256,10 @@ func (e *slotOperationUncertain) Error() string {
 }
 
 // exchangeSlotOperation admits op on inv's slot through the running Couch
-// and polls its receipt to a terminal status. Each call gets a fresh
-// AdmissionTimeout context; the poll budget is the outer deadline. After
+// and polls its receipt to a terminal status. Explicit warming refusals may
+// retry the same request within the admission retry budget. Each call is
+// bounded by AdmissionTimeout and the remaining admission budget. Once
+// admitted, receipt polling has its own unchanged poll budget. After
 // admission any lost or unreadable outcome (dial failure, timeout, an
 // unavailable caller after a Couch restart, a receipt no longer held) is a
 // *slotOperationUncertain: the report, not the receipt, is the evidence.
@@ -278,8 +285,8 @@ func exchangeSlotOperation(inv cliInvocation, op string, rt Runtime, call messag
 	if err := couchmessage.ValidateRequest(admit); err != nil {
 		return none, err
 	}
-	exchange := func(r couchmessage.Request) (couchmessage.Response, error) {
-		ctx, cancel := context.WithTimeout(context.Background(), couchmessage.AdmissionTimeout)
+	exchange := func(r couchmessage.Request, timeout time.Duration) (couchmessage.Response, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 		var result couchmessage.Response
 		return result, call(ctx, socket, r, &result)
@@ -287,7 +294,29 @@ func exchangeSlotOperation(inv cliInvocation, op string, rt Runtime, call messag
 	uncertain := func(detail string) (couchmessage.OperationReceipt, error) {
 		return none, &slotOperationUncertain{request: admit, detail: detail}
 	}
-	result, err := exchange(admit)
+	admissionStart := clock.now()
+	var result couchmessage.Response
+	for attempt := 1; ; attempt++ {
+		remaining := slotAdmissionRetryBudget - clock.now().Sub(admissionStart)
+		if remaining <= 0 {
+			return none, fmt.Errorf("slot catalog still warming after %s; nothing was queued; retry", slotAdmissionRetryBudget)
+		}
+		result, err = exchange(admit, min(couchmessage.AdmissionTimeout, remaining))
+		if err != nil || result.Code != couchmessage.CodeWarming {
+			break
+		}
+		// The typed refusal is the guarantee that retrying cannot duplicate an
+		// effect. An attached receipt or malformed hint does not authorize it.
+		if result.Operation != nil || result.RetryAfterMillis <= 0 || result.RetryAfterMillis > int(slotAdmissionMaxRetryAfter/time.Millisecond) {
+			break
+		}
+		remaining = slotAdmissionRetryBudget - clock.now().Sub(admissionStart)
+		if attempt >= slotAdmissionMaxAttempts || remaining <= 0 {
+			return none, fmt.Errorf("slot catalog still warming after %d admission attempts (%s); nothing was queued; retry", attempt, clock.now().Sub(admissionStart).Round(time.Second))
+		}
+		fmt.Fprintf(progress, "couch: %s %s waiting for slot catalog to warm (attempt %d/%d)\n", inv.ref, op, attempt, slotAdmissionMaxAttempts)
+		clock.sleep(min(time.Duration(result.RetryAfterMillis)*time.Millisecond, remaining))
+	}
 	switch {
 	case err != nil:
 		return uncertain(err.Error())
@@ -322,7 +351,7 @@ func exchangeSlotOperation(inv cliInvocation, op string, rt Runtime, call messag
 			fmt.Fprintf(progress, "couch: %s %s still %s after %s%s\n", inv.ref, op, receipt.Status, told.Sub(start).Round(time.Second), stale())
 		}
 		clock.sleep(slotOperationPollInterval)
-		result, err := exchange(status)
+		result, err := exchange(status, couchmessage.AdmissionTimeout)
 		switch {
 		case errors.Is(err, context.DeadlineExceeded) || errors.Is(err, os.ErrDeadlineExceeded):
 			// A status read is idempotent, and a Couch busy launching under

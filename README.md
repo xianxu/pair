@@ -779,14 +779,19 @@ it observed.
 `couch --resume repo:N` and `couch --reboot repo:N --confirm` run one slot's step
 through the running Couch. Only an agent in a live Couch slot may call them: Couch
 checks its own records (the calling thread has a live pane, and its recorded launch
-names this shell's session and launch), so a slot whose messaging setup failed can
-still call, and anyone else is refused. An older running Couch answers with a hint
+names this shell's session and launch). Hub-managed operations also need the
+calling slot's connected workspace proof; if it is missing, reconnect the slot
+and retry. Anyone else is refused. An older running Couch answers with a hint
 to restart it. A thread whose agent never took a turn has no conversation to
 resume: resume refuses at once and names reboot, and the report suggests reboot,
 never resume, for it. The request runs on the switcher's own queue, in the background (the
 operator's screen stays put), and is admitted only if the switcher would offer the
 same action on that row at that moment. Reboot needs `--confirm` because the
-operation declares it. The CLI polls a receipt Couch keeps in memory for 5 minutes
+operation declares it. After a cold start, a warming catalog answers that nothing
+was queued and gives a retry-after. The CLI prints that it is waiting and retries
+that same request within a 30-second total limit. If warming outlasts that wait,
+it reports that nothing was queued and asks you to retry. It never automatically
+resends an uncertain admission. The CLI polls a receipt Couch keeps in memory for 5 minutes
 (visible only to the slot that asked); a lost or unreadable outcome prints
 "outcome uncertain". Verify by reading the report again, never by the receipt: a
 repeat is refused harmlessly once the slot is live. `couch --skill` carries the
@@ -1971,6 +1976,49 @@ PAIR_REQUIRE_LSOF_CONFORMANCE=1 go test ./cmd/internal/diagnosticlog -count=1 \
 
 Required mode fails instead of skipping an unavailable/incomplete probe. A complete
 answer with a wrong holder or process identity fails in both modes.
+
+Affected branch checks use `.sdlc/affected.json` and `make test-affected` once the
+installed SDLC supports ariadne#473. SDLC reads the declaration from main and
+supplies `SDLC_AFFECTED_GO_PKGS` (exact import paths) and `SDLC_AFFECTED_GROUPS`.
+For a manual selected run:
+
+```bash
+SDLC_AFFECTED_GO_PKGS=github.com/xianxu/pair/cmd/internal/slugcmd make test-affected
+```
+
+The runner executes the supplied Go packages with exact argv and the selected
+`lua`, `review`, `doctor`, `build` or `shell` recipes. Before a Go selection it
+also runs a fixed set of source-scanner tests: import dependencies cannot describe
+tests that read another package's source files. The scanner preflight reports its
+elapsed time and stops the run on failure. Go-only runs avoid a suite-owned Pair
+build; selected groups share one fresh private executable. The Lua group
+regenerates the embedded runtime and tests `runtimebundle` exactly once.
+Make retains its usual session-environment scrub. Empty or invalid selections
+refuse; SDLC records docs-only passes without invoking the runner.
+
+Non-Go source populations with Go file readers (`nvim`, `zellij`, `doctor`,
+`bin`, `scripts`, `tests` and shared `testdata`) conservatively force full coverage.
+Makefiles, module metadata, gate configuration and executable dispatch also force
+full. Unknown, deleted or platform-excluded package paths retain the full fallback.
+Every valid selection runs the environment-inventory guard `test-make-env` once
+(the build group runs it when selected; other runs use a fixed preflight).
+The independent per-recipe audit in `tests/affected-consumers.json` asserts the
+real planner covers command roots, dependencies and file inputs. A separate
+Go-reader inventory refuses new or changed unmapped source readers for re-audit.
+An independent source-walker check requires preflight registration even for a
+reader labelled as a local fixture; a native seeded-violation regression drives
+the actual affected command in a disposable checkout.
+`make test` retains every existing check and adds runner, reader-inventory and
+declaration regressions; landing still requires SDLC's full-suite evidence.
+
+The declaration regression consumes upstream parser/planner source from a sibling
+ariadne checkout or the installed Go module. Until ariadne#473 is available there,
+it reports an explicit dependency skip. Qualify an upstream candidate without
+changing that checkout using `ARIADNE_AFFECTED_SOURCE=/path/to/ariadne` and optional
+`ARIADNE_AFFECTED_REF=<local-git-ref>` with `make test-affected-config`; an explicitly
+requested unavailable source fails. Changes to this declaration require the
+operator's `local-gates-verified` label. The hub owns the first recorded code
+affected check and docs-only train qualification after the declaration lands.
 
 `make test` also runs ariadne's pinned Go lint catalog over tracked Go sources.
 For a focused check, run `go test ./internal/repolint -count=1 -v`. Use a full Git

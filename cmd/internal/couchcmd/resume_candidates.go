@@ -120,7 +120,13 @@ func runResumeCandidatesCLI(inv cliInvocation, rt Runtime, out, diagnostic io.Wr
 		fmt.Fprintln(out, rowtext.Sanitize(reason))
 	}
 	if preview.Incomplete {
-		fmt.Fprintln(out, "Candidate scan incomplete.")
+		if preview.Proven != nil {
+			// The confirmed choice comes from the established binding, which
+			// the scan does not feed; its resume skips the scan (pair#726).
+			fmt.Fprintln(out, "Candidate scan incomplete. The confirmed Resume from disk comes from the established binding, not from this scan.")
+		} else {
+			fmt.Fprintln(out, "Candidate scan incomplete.")
+		}
 	}
 	if preview.Truncated {
 		fmt.Fprintln(out, "Additional candidates omitted.")
