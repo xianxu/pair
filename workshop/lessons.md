@@ -2408,3 +2408,4 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #722 integration audit: Exact identity must accompany the final observation that grants completion. A prior wrapper check followed by a later unqualified idle read can seal an old checkpoint after a same-Binding re-exec. Swap the instance only at the final read and require the old ack to become invalid.
 - #722 integration audit: Required exact JSON keys do not make a later encoding/json struct decode exact: differently cased additive keys can override them. Exercise aliases at every authority-bearing object depth and retain unrelated additive fields without granting them known-field authority.
+- #722 suite: New production files must enter artifactpath's exhaustive inventory as well as the Go lint catalog and slot-state audit. Classify actual ownership explicitly; fixed private Couch metadata is not a new tag-bearing Pair artifact family, and the old-violation quarantine must not grow.
