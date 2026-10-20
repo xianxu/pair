@@ -1,13 +1,21 @@
 ---
 id: 000746
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '567416ca73910f4c38dd5344570a86664af0edee' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'a83e52cdd6504b21e0293f2d037a192a88e665c9' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-20T14:55:45-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:7
+    worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
+    repository: github.com/xianxu/pair
 ---
 
 # tests: check the affected-reader inventory before close, not only inside the full suite (stale inventory caught after SHIP three times on 10-20)
@@ -33,7 +41,15 @@ fixture file) and pair#706 (eight test files).
 
 ## Plan
 
-- [ ]
+- [ ] Add fast check and explicit per-file record modes around the existing audit; pin stale diagnostics and repair with private tracked fixtures.
+- [ ] Add the Make target, affected-runner first step and local before-close instruction; verify fail-before-work ordering.
+- [ ] Run the fast guard and recorded affected check, close and land through SDLC.
+
+Design: ARCH-DRY reuses audit/tracked_readers/SOURCE_GUARDS without a new scanner.
+The check scans tracked test sources once and starts no Go tools. A named record
+operation retains other JSON fields and refuses untracked readers and invalid
+classification; no mass update. Existing full guard tests and strict source-walk
+negative controls remain. No new persistent file family or schema.
 
 ## Log
 
