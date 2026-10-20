@@ -3,6 +3,7 @@ package couchcmd
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -54,12 +55,14 @@ func hubTargetKey(ref string) string {
 }
 
 // hubTargetMemo remembers each target reference's HubSlot for admission
-// (pair#726). Only the fresh resolver fills it: every fresh resolution, at
-// admission, queue prepare or the effect gate, refreshes the entry. A cold or
-// expired entry starts one single-flight fresh resolution under the
-// supervisor's lifetime; admission waits for it only within its own budget.
+// (pair#726). Repository discovery fills the admission snapshot in one flight;
+// individual fresh resolutions at queue prepare and the effect gate refresh
+// their targets. All flights belong to the supervisor lifetime; admission waits
+// only within its own budget.
 type hubTargetMemo struct {
 	resolve  func(context.Context, string) (couchcore.HubSlot, error)
+	names    func(context.Context) ([]couchcore.RepositoryName, error)
+	discover func(context.Context, string) (map[int]couchcore.HubSlot, error)
 	now      func() time.Time
 	maxAge   time.Duration
 	lifetime context.Context
@@ -71,9 +74,11 @@ type hubTargetMemo struct {
 }
 
 type hubTargetFlight struct {
-	done chan struct{}
-	slot couchcore.HubSlot
-	err  error
+	done    chan struct{}
+	slot    couchcore.HubSlot
+	err     error
+	slots   map[int]couchcore.HubSlot
+	started time.Time
 }
 
 func newHubTargetMemo(lifetime context.Context, resolve func(context.Context, string) (couchcore.HubSlot, error), now func() time.Time) *hubTargetMemo {
@@ -97,44 +102,159 @@ func (m *hubTargetMemo) Fresh(ctx context.Context, ref string) (couchcore.HubSlo
 	return slot, err
 }
 
-// Warm answers from a young entry with no IO. Otherwise it joins or starts the
-// reference's single-flight resolution and waits until ctx ends; an
-// unfinished resolution keeps running and fills the memo for the next caller.
+// Warm answers from a young entry with no IO. Cold references share one
+// repository discovery; missing/unverified slots retain the fresh target path.
+// Neither warm source grants effect authority: Fresh always resolves again.
 func (m *hubTargetMemo) Warm(ctx context.Context, ref string) (couchcore.HubSlot, error) {
-	// Every request-path read is bounded by the admission budget, whatever
-	// context the caller passes.
 	ctx, cancel := context.WithTimeout(ctx, slotAdmissionBudget)
 	defer cancel()
-	key := hubTargetKey(ref)
-	m.mu.Lock()
-	if e, ok := m.entries[key]; ok && e.live(m.now(), m.maxAge) {
-		m.mu.Unlock()
+	if e, ok := m.entry(hubTargetKey(ref)); ok {
 		return e.slot, e.err
 	}
-	flight, ok := m.inflight[key]
-	if !ok {
-		if len(m.inflight) >= hubTargetMaxFlights {
-			m.mu.Unlock()
-			return couchcore.HubSlot{}, errSlotCatalogWarming
+	if parsed, ok, err := couchcore.ParseWorkspaceReference(ref); ok && err == nil && m.names != nil && m.discover != nil {
+		names, err := m.names(ctx)
+		if err != nil {
+			return couchcore.HubSlot{}, err
 		}
-		flight = &hubTargetFlight{done: make(chan struct{})}
-		m.inflight[key] = flight
-		m.wg.Add(1)
-		go func() {
-			defer m.wg.Done()
-			flight.slot, flight.err = m.Fresh(m.lifetime, ref)
-			m.mu.Lock()
-			delete(m.inflight, key)
-			m.mu.Unlock()
-			close(flight.done)
-		}()
+		repository, _, err := couchcore.ResolveRepositoryName(parsed.Repo, names)
+		if err == nil {
+			key := repositoryFlightKey(repository.Key)
+			if e, ok := m.entry(key); ok {
+				if e.err != nil {
+					return couchcore.HubSlot{}, e.err
+				}
+			} else {
+				flight := m.repositoryFlight(repository.Key)
+				if err := waitHubTargetFlight(ctx, flight); err != nil {
+					return couchcore.HubSlot{}, err
+				}
+				if flight.err != nil {
+					return couchcore.HubSlot{}, flight.err
+				}
+				// Resolve the requested prefix too; it need not be an exact name/alias.
+				if slot, ok := flight.slots[parsed.Number]; ok {
+					m.remember(ref, slot, nil, flight.started)
+				}
+			}
+			if e, ok := m.entry(hubTargetKey(ref)); ok {
+				return e.slot, e.err
+			}
+			// A completed repository snapshot may have been prewarmed before this
+			// prefix was requested. Canonical names use the same validated identity.
+			canonical := couchcore.WorkspaceReference{Repo: repository.Dir, Number: parsed.Number}.String()
+			if e, ok := m.entry(canonical); ok {
+				return e.slot, e.err
+			}
+		}
 	}
-	m.mu.Unlock()
+	flight := m.startFlight(hubTargetKey(ref), func(f *hubTargetFlight) {
+		f.slot, f.err = m.Fresh(m.lifetime, ref)
+	})
+	if err := waitHubTargetFlight(ctx, flight); err != nil {
+		return couchcore.HubSlot{}, err
+	}
+	return flight.slot, flight.err
+}
+
+func repositoryFlightKey(primary string) string { return "\x00repository:" + primary }
+
+func (m *hubTargetMemo) entry(key string) (hubTargetEntry, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	e, ok := m.entries[key]
+	return e, ok && e.live(m.now(), m.maxAge)
+}
+
+// All kinds of flight share one capacity and the supervisor's lifetime.
+func (m *hubTargetMemo) startFlight(key string, run func(*hubTargetFlight)) *hubTargetFlight {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if f, ok := m.inflight[key]; ok {
+		return f
+	}
+	// Recheck under the flight lock: another flight may have completed since
+	// the caller's cache read. Reuse its outcome rather than discovering twice.
+	if e, ok := m.entries[key]; ok && e.live(m.now(), m.maxAge) {
+		f := &hubTargetFlight{done: make(chan struct{}), slot: e.slot, err: e.err, started: e.started}
+		close(f.done)
+		return f
+	}
+	if m.lifetime.Err() != nil || len(m.inflight) >= hubTargetMaxFlights {
+		return nil
+	}
+	f := &hubTargetFlight{done: make(chan struct{}), started: m.now()}
+	m.inflight[key] = f
+	m.wg.Add(1)
+	go func() {
+		defer m.wg.Done()
+		run(f)
+		m.mu.Lock()
+		delete(m.inflight, key)
+		close(f.done)
+		m.mu.Unlock()
+	}()
+	return f
+}
+
+func waitHubTargetFlight(ctx context.Context, f *hubTargetFlight) error {
+	if f == nil {
+		return errSlotCatalogWarming
+	}
 	select {
-	case <-flight.done:
-		return flight.slot, flight.err
+	case <-f.done:
+		return nil
 	case <-ctx.Done():
-		return couchcore.HubSlot{}, errSlotCatalogWarming
+		return errSlotCatalogWarming
+	}
+}
+
+func (m *hubTargetMemo) repositoryFlight(primary string) *hubTargetFlight {
+	return m.startFlight(repositoryFlightKey(primary), func(f *hubTargetFlight) {
+		names, err := m.names(m.lifetime)
+		if err == nil {
+			f.slots, err = m.discover(m.lifetime, primary)
+		}
+		f.err = err
+		if m.lifetime.Err() != nil {
+			return
+		}
+		// Only unambiguous names are populated. Admission may use this snapshot,
+		// but the operation still re-proves its exact target before effects.
+		if err == nil {
+			for _, name := range names {
+				if name.Key != primary {
+					continue
+				}
+				for _, raw := range []string{name.Dir, name.Alias} {
+					resolved, _, err := couchcore.ResolveRepositoryName(raw, names)
+					if err != nil || resolved.Key != primary {
+						continue
+					}
+					for number, slot := range f.slots {
+						m.remember(fmt.Sprintf("%s:%d", raw, number), slot, nil, f.started)
+					}
+				}
+			}
+		}
+		m.remember(repositoryFlightKey(primary), couchcore.HubSlot{}, err, f.started)
+	})
+}
+
+// Prewarm starts one flight for each distinct hub repository without delaying
+// startup. Cancel the memo lifetime, then wait, to join all background work.
+func (m *hubTargetMemo) Prewarm(primaries []string) {
+	if m.names == nil || m.discover == nil {
+		return
+	}
+	seen := map[string]bool{}
+	for _, primary := range primaries {
+		if primary == "" || seen[primary] {
+			continue
+		}
+		seen[primary] = true
+		if _, ok := m.entry(repositoryFlightKey(primary)); !ok {
+			m.repositoryFlight(primary)
+		}
 	}
 }
 

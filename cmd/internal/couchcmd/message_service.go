@@ -64,9 +64,11 @@ type messageAuthority struct {
 	// hub is the worktree root Couch started from: the TL slot, which gets
 	// the larger peer-message bucket (#433). "" when Couch started outside a
 	// checkout.
-	hub       string
-	hubs      *hubRuntime
-	hubTarget func(context.Context, string) (couchcore.HubSlot, error)
+	hub                string
+	hubs               *hubRuntime
+	hubTarget          func(context.Context, string) (couchcore.HubSlot, error)
+	hubRepositoryNames func(context.Context) ([]couchcore.RepositoryName, error)
+	hubRepositorySlots func(context.Context, string) (map[int]couchcore.HubSlot, error)
 	// batchMaxChars is immutable startup policy; zero uses the qualified default.
 	batchMaxChars int
 }
@@ -486,6 +488,8 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	if len(configuredHubs) > 0 && configuredHubs[0] != nil {
 		authority.hubs = configuredHubs[0]
 		authority.hubTarget = hubTargetResolver(c)
+		authority.hubRepositoryNames = c.Threads.RepositoryNamesContext
+		authority.hubRepositorySlots = c.RepositoryHubSlots
 		authority.hub = authority.hubs.snapshot().Main()
 	}
 	panes := couchmessage.NewPaneMailbox()
@@ -618,6 +622,8 @@ func newMessageService(parent context.Context, brokerSocket, registrySocket stri
 	if authority.hubTarget != nil {
 		// Every fresh resolution refreshes admission's memo (pair#726).
 		s.hubTargets = newHubTargetMemo(lifetime, authority.hubTarget, authority.now)
+		s.hubTargets.names = authority.hubRepositoryNames
+		s.hubTargets.discover = authority.hubRepositorySlots
 		s.authority.hubTarget = s.hubTargets.Fresh
 	}
 	// Family admission's resting check is on the request path (one git status
@@ -692,6 +698,13 @@ func newMessageService(parent context.Context, brokerSocket, registrySocket stri
 		return nil, err
 	}
 	s.sessions = sessions
+	if s.hubTargets != nil && authority.hubs != nil {
+		var primaries []string
+		for _, hub := range authority.hubs.snapshot().Hubs() {
+			primaries = append(primaries, hub.Slot.Repository)
+		}
+		s.hubTargets.Prewarm(primaries)
+	}
 	return s, nil
 }
 

@@ -1115,12 +1115,16 @@ survives the drop, and only genuinely new lifecycle facts follow the new owner.
 Hub slot-operation admission (`handleHubSlotOperation`, pair#726) is a cheap
 gate on warm sources, inside its own 1.5 s budget, below the 2 s exchange. The
 caller comes from its connected workspace (`connectedWorkspace`), and the target
-from `hubTargetMemo`. The memo maps a target reference to its `HubSlot`. Only
-the fresh resolver fills it, and every fresh resolution refreshes it. An entry
-is used for 10 minutes. A cold or expired entry starts one single-flight fresh
-resolution under the service lifetime, joined at `Close`, and admission waits
-for it only within the budget. At most eight resolutions run at once, and keys
-are canonical `repo:N`. Otherwise admission refuses with "slot catalog is
+from `hubTargetMemo`. The memo maps a target reference to its `HubSlot`.
+One single-flight discovery per repository fills all its verified numbered
+slots under unambiguous names and aliases. Startup prewarms the distinct hub
+repositories without delaying service startup; cold concurrent requests join
+the same flight. Missing slots, primary slots and unresolved repository names
+fall back to the existing per-reference resolver. Both kinds of flight share
+the eight-resolution cap, run under the service lifetime and join at `Close`.
+Entries are used for 10 minutes and every fresh target resolution refreshes its
+entry; memo writes sweep expired entries and cap them at 256. Admission waits
+only within its budget. Otherwise admission refuses with "slot catalog is
 warming; nothing was queued; retry", and any overrun names its phase. A failed
 resolution answers with its own error for 30 s before retrying. Move-slot
 admission (`handleHubMove`) names its slots from the same memo, within the same

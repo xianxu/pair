@@ -258,3 +258,175 @@ func TestHubTargetMemoWarmCapsItsOwnWait(t *testing.T) {
 		t.Fatal("Warm waited past its own admission budget for an unbounded caller")
 	}
 }
+
+// One repository discovery serves N and 2N different slot admissions. Prefixes
+// and aliases share that flight; a missing primary still uses fresh resolution.
+func TestHubTargetMemoRepositoryBatch(t *testing.T) {
+	for _, size := range []int{4, 8} {
+		t.Run(fmt.Sprint(size), func(t *testing.T) {
+			var discovers, fallback atomic.Int64
+			started, release := make(chan struct{}), make(chan struct{})
+			m := newHubTargetMemo(t.Context(), func(_ context.Context, ref string) (couchcore.HubSlot, error) {
+				fallback.Add(1)
+				return couchcore.HubSlot{Repository: "/repo", Number: 0}, nil
+			}, nil)
+			m.names = func(context.Context) ([]couchcore.RepositoryName, error) {
+				return []couchcore.RepositoryName{{Key: "/repo", Dir: "repository", Alias: "repo"}}, nil
+			}
+			m.discover = func(ctx context.Context, primary string) (map[int]couchcore.HubSlot, error) {
+				if primary != "/repo" {
+					t.Errorf("primary %s", primary)
+				}
+				if discovers.Add(1) == 1 {
+					close(started)
+				}
+				select {
+				case <-release:
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				}
+				slots := map[int]couchcore.HubSlot{}
+				for n := 1; n <= size; n++ {
+					slots[n] = couchcore.HubSlot{Repository: primary, Number: n}
+				}
+				return slots, nil
+			}
+			results := make(chan error, size)
+			for n := 1; n <= size; n++ {
+				go func(n int) {
+					got, err := m.Warm(t.Context(), fmt.Sprintf("rep:%d", n))
+					if err == nil && got.Number != n {
+						err = fmt.Errorf("slot %v want %d", got, n)
+					}
+					results <- err
+				}(n)
+			}
+			<-started
+			close(release)
+			for n := 0; n < size; n++ {
+				if err := <-results; err != nil {
+					t.Fatal(err)
+				}
+			}
+			for n := 1; n <= size; n++ {
+				if _, err := m.Warm(t.Context(), fmt.Sprintf("repo:%d", n)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if discovers.Load() != 1 || fallback.Load() != 0 {
+				t.Fatalf("discover %d fallback %d", discovers.Load(), fallback.Load())
+			}
+			if _, err := m.Warm(t.Context(), "repo:0"); err != nil {
+				t.Fatal(err)
+			}
+			if discovers.Load() != 1 || fallback.Load() != 1 {
+				t.Fatalf("primary fallback: discover %d fallback %d", discovers.Load(), fallback.Load())
+			}
+		})
+	}
+}
+
+func TestHubTargetMemoPrewarmAndSharedFlightCap(t *testing.T) {
+	lifetime, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	started := make(chan string, hubTargetMaxFlights)
+	m := newHubTargetMemo(lifetime, func(ctx context.Context, ref string) (couchcore.HubSlot, error) {
+		started <- ref
+		<-ctx.Done()
+		return couchcore.HubSlot{}, ctx.Err()
+	}, nil)
+	m.names = func(context.Context) ([]couchcore.RepositoryName, error) { return nil, nil }
+	m.discover = func(ctx context.Context, primary string) (map[int]couchcore.HubSlot, error) {
+		started <- primary
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	primaries := []string{"/repo", "/repo"}
+	for n := 1; n < hubTargetMaxFlights; n++ {
+		primaries = append(primaries, fmt.Sprintf("/repo%d", n))
+	}
+	m.Prewarm(primaries)
+	for n := 0; n < hubTargetMaxFlights; n++ {
+		select {
+		case <-started:
+		case <-time.After(5 * time.Second):
+			t.Fatal("prewarm not started")
+		}
+	}
+	if _, err := m.Warm(t.Context(), "other:1"); !errors.Is(err, errSlotCatalogWarming) {
+		t.Fatalf("shared cap: %v", err)
+	}
+	cancel()
+	m.wait()
+	select {
+	case extra := <-started:
+		t.Fatalf("over cap: %s", extra)
+	default:
+	}
+}
+
+func TestHubTargetMemoRepositoryFailureExpiryAndFallback(t *testing.T) {
+	now := time.Unix(1000, 0)
+	var clock sync.Mutex
+	var discoveries, fallback atomic.Int64
+	m := newHubTargetMemo(t.Context(), func(context.Context, string) (couchcore.HubSlot, error) {
+		fallback.Add(1)
+		return couchcore.HubSlot{Repository: "/fresh", Number: 1}, nil
+	}, func() time.Time { clock.Lock(); defer clock.Unlock(); return now })
+	m.names = func(context.Context) ([]couchcore.RepositoryName, error) {
+		return []couchcore.RepositoryName{{Key: "/repo", Dir: "repo"}, {Key: "/other", Dir: "other"}}, nil
+	}
+	m.discover = func(context.Context, string) (map[int]couchcore.HubSlot, error) {
+		discoveries.Add(1)
+		return nil, errors.New("repository probe failed")
+	}
+	for _, ref := range []string{"repo:1", "repo:2"} {
+		if _, err := m.Warm(t.Context(), ref); err == nil || !strings.Contains(err.Error(), "repository probe failed") {
+			t.Fatalf("%s: %v", ref, err)
+		}
+	}
+	if discoveries.Load() != 1 || fallback.Load() != 0 {
+		t.Fatalf("failure repeated or masked: discoveries %d fallback %d", discoveries.Load(), fallback.Load())
+	}
+	clock.Lock()
+	now = now.Add(hubTargetFailureAge)
+	clock.Unlock()
+	_, _ = m.Warm(t.Context(), "repo:3")
+	if discoveries.Load() != 2 {
+		t.Fatalf("expired failure not retried: %d", discoveries.Load())
+	}
+	// Unknown/ambiguous references belong to the existing resolver, which can
+	// retain sibling-directory precedence and supply the precise refusal.
+	if _, err := m.Warm(t.Context(), "missing:1"); err != nil {
+		t.Fatal(err)
+	}
+	if fallback.Load() != 1 {
+		t.Fatalf("fallback %d", fallback.Load())
+	}
+}
+
+func TestHubTargetMemoLateRepositoryCannotReplaceFreshTarget(t *testing.T) {
+	var tick atomic.Int64
+	started, release := make(chan struct{}), make(chan struct{})
+	m := newHubTargetMemo(t.Context(), func(context.Context, string) (couchcore.HubSlot, error) {
+		return couchcore.HubSlot{Repository: "/fresh", Number: 1}, nil
+	}, func() time.Time { return time.Unix(1000, tick.Add(1)) })
+	m.names = func(context.Context) ([]couchcore.RepositoryName, error) {
+		return []couchcore.RepositoryName{{Key: "/repo", Dir: "repo"}}, nil
+	}
+	m.discover = func(context.Context, string) (map[int]couchcore.HubSlot, error) {
+		close(started)
+		<-release
+		return map[int]couchcore.HubSlot{1: {Repository: "/old", Number: 1}}, nil
+	}
+	m.Prewarm([]string{"/repo"})
+	<-started
+	if _, err := m.Fresh(t.Context(), "repo:1"); err != nil {
+		t.Fatal(err)
+	}
+	close(release)
+	m.wait()
+	if got, err := m.Warm(t.Context(), "repo:1"); err != nil || got.Repository != "/fresh" {
+		t.Fatalf("late repository overwrote effect proof: %v %v", got, err)
+	}
+}
