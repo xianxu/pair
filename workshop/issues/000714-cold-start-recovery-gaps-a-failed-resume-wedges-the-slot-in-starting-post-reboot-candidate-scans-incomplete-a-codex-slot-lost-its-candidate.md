@@ -78,7 +78,7 @@ total: 1.24
 
 - [x] Implement confirmed failure disposition and immediate retry with state/order regressions.
 - [x] Repair complete-address diagnostic composition and enforce the mechanical class.
-- [ ] Verify focused/race/live behavior, recorded suite and close #714 directly; land and report.
+- [x] Verify focused/race behavior, bounded failure paths and lint/source audits. Recorded suite and landing remain normal publication gates, tracked below.
 
 ## Log
 
@@ -123,3 +123,5 @@ total: 1.24
 - 2026-10-19: Implementation RED reproduced the actual outer scope-only resume, exit 23, retained creating claim, empty reopened failure store and immediate resume-starting refusal. Reused pure ReconcileStart rather than duplicate its policy; StartFailedConfirmed retains exact recovery choice. Added completed-child/live-group, terminal uncertainty, CAS race, wrong-helper and held-store tests. A separate RED proved outer recorder save refusal was hidden by OperatorError; corrected its concise notice without affecting disposition. Diagnostic subagent independently reproduced partial-identity loss and mutation-tested the repair.
 
 - 2026-10-19: Focused race verification passed (couchcore 13.609s); CLI recovery/lifecycle tests passed (couchcmd 1.049s). Bounded terminal-observation test passed under race (1.343s); complete repolint/artifactpath audits passed (6.735s / 6.008s). Counted 8/16 failures use exactly one terminal observation and one revision increment each. Held real store lock refuses before release while preserving the exact claim. Diagnostics fuzz executed 35069 inputs; controlled direct-address replacement failed persisted-history regression and restored source passed. Added RED/GREEN proof that both save refusal and Launch unconfirmed survive concise operator rendering.
+
+- 2026-10-19: TL explicitly directed no stage to :0 and no contrived disposable live check; land on the production scope-only resume RED/GREEN evidence, recorded suite, close and merge. TL owns verification at the next natural failed resume in smoke calibration. PR #471 published; recorded suite attempt f362417d7963a354d4add24c0f3358f2 is queued on implementation head f767ed8491dd08bf6256eb9dedb7559501d56267. Boundary review may overlap the queued suite under tl-worker rules; a recorded pass must precede landing.

@@ -108,7 +108,8 @@ Files: `couchcore/{recovery_launch_disposition.go,starttransaction.go,launch_exi
 - [x] Implement `completeFailureAddress` and use it at call extraction, ObserveCall and terminal failure enrichment. Sweep these composition owners for nonzero-address and fieldwise overwrites; keep normalizeLaunchFailure strict.
 - [x] Add a Pair-local lint guard for unsafe direct partial-address overrides in the three diagnostic composition owners using the existing local catalog. Exercise bad variants and the centralized complete-address form through rule fixtures.
 - [x] Run the named function strategies, focused package tests and race checks. Record counted O(1) failure observation/storage work and bounded lock-contention results. Update atlas/lessons and Log; commit with Agent/Co-Authored-By trailers.
-- [ ] Request staged disposable live qualification from the hub, push and run the recorded full suite, then close #714 directly through `sdlc close --issue 714 --verified ...`. On SHIP enter `sdlc merge --yes`, report the landing and stop before starting #721.
+- [x] Obtain hub qualification decision: no stage or contrived live check; production-path RED/GREEN is sufficient. Publish PR and request recorded suite.
+- [ ] Require recorded suite pass before landing; close #714 directly through `sdlc close --issue 714 --verified ...`, allowing boundary review to overlap its queued suite per tl-worker. On SHIP enter `sdlc merge --yes`, report landing, then take #721 from main.
 
 ## Revisions
 
@@ -117,3 +118,5 @@ Files: `couchcore/{recovery_launch_disposition.go,starttransaction.go,launch_exi
 - 2026-10-19, plan gate PQ-1/PQ-2: replaced prose test inventories with one named-function adversarial strategy/guard table. Corrected unsupported ThreadStore preservation claim after reading DecodePersisted and TestRecoverySchemaRejectsUnknownNestedFields; no schema migration enters this issue.
 
 - 2026-10-19, implementation refinement: ReconcileStart already encodes the approved dead-helper/absent-session policy, so reuse it instead of adding a duplicate pure decider. The new finalizer is IO and stays in Integration points. A direct-child exit with live owned group retains the claim. Final observation and CAS share one five-second context (a stricter combined budget than separate phases); diagnostic save-failure notice is retained at OperatorError. No policy or scope expansion.
+
+- 2026-10-19, TL qualification decision: do not stage :0 or induce a disposable failure. Existing production-path regression is the qualification for this rare event; TL will record a next-natural-failed-resume smoke observation. No live-state mutation requested.
