@@ -256,3 +256,11 @@ Verification and one close boundary:
 - [ ] Update atlas/operating envelope, run focused/race/fuzz and repository inventory/catalog checks, checkpoint, push, then record a fresh full suite on the changed code. Real #481 conformance, operator live board acceptance and the mandatory close review remain required before landing.
 
 Growth drivers: wrapper input events perform O(1) generation checks; retained current controls are bounded independently of total drain count. A generation advance discards only the fixed current map. Coordinator generation allocation is O(1); existing O(N) fanout and one shared queue poll remain. No new idle polling or subprocesses.
+
+### 2026-10-20 — revised mechanism approved; counted lifetime test
+
+Canonical TL receipt68935e6f approves the monotonic epoch/current outcome/input-lease watermark mechanism above, with the public/#481 contracts unchanged, and requires renewed change-code. Its two asks are incorporated here before implementation.
+
+Simplest rejected alternative: refuse a new drain until tombstones are reclaimed; without a generation fence reclaiming permits late input, and refusing forever replaces bounded operation with a lifetime availability limit.
+
+The wrapper resource test must run at least1000 start/cancel cycles (and2000 for its2N comparison), count peak/current retained control outcomes and final input effects, and require a fixed bound independent of total cycles. This is a counted state-growth oracle rather than a timing assertion. The prior cap horizon must fail the test before the epoch fix. A pure transition component owns generation acceptance/retirement; the wrapper shell performs its declared effects under the existing input lease rather than mutating authoritative generation fields directly (ARCH-PURE/ARCH-ORDER). Test read-only status, stale/conflicting epoch, delayed callbacks, recovery and preserved quarantine independently.
