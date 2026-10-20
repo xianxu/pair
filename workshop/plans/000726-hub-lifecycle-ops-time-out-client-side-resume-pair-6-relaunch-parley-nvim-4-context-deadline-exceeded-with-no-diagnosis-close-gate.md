@@ -470,6 +470,292 @@ rounds:
       isolation: fenced
       reviewed: 5ab066922b8fcd0ffbc58fb4d83e6d420575a72c
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 77f97969-8591-4d37-92ae-7b149fcf94a7
+            repository: github.com/xianxu/pair
+            issue_id: "000726"
+            recipe: milestone-review
+            round: 1
+            attempt: 1
+            agent: claude
+            root: /Volumes/TestScratch/review-checkouts/afb06a2400ca1fd2
+            reviewed_head: 2e9772fb0bdc2e99cb1d9379591101ad10f1d847
+            slot: pair:2
+            requested_at: "2026-10-20T16:14:54.824962Z"
+          phase: finished
+          pid: 36060
+          started_at: "2026-10-20T16:14:54.981843Z"
+          finished_at: "2026-10-20T16:19:42.155721Z"
+          session_id: 1c8649d8-b80d-49c3-b031-050baad5475f
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 2e9772fb0bdc2e99cb1d9379591101ad10f1d847
+        tracker_head: df13eb8fedf40744fb0c47f289bc8c88a2959702
+        branch_point: e2ac2a19f253961b715b6edf104ca82d72b5c40a
+        since: "2026-10-20T07:54:36-07:00"
+        until: "2026-10-20T09:14:16-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-20T07:54:36-07:00"
+              end: "2026-10-20T09:14:16-07:00"
+              began: "2026-10-20T07:54:36-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+        sources:
+            - harness: claude
+              id: 4221e67d-3549-4c0f-bf5c-bf5d3cf13458
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 77c11275a0674c1f1ae23c7ca50df7c1e8883f40a25b65facbb7f39748efafb9
+              started: "2026-10-20T15:10:15.104Z"
+              spawned: false
+              bytes: 401871
+              windows:
+                - start: "2026-10-20T15:10:15.104Z"
+                  end: "2026-10-20T09:14:16-07:00"
+            - harness: claude
+              id: 6925e360-3a18-45ee-b050-adbde3ed67ca
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: cf80fecf6c2d10f1483be7a4fae3b7a2dfb225e693b6ed7e3ad997fd6ef3668c
+              started: "2026-10-20T15:09:56.095Z"
+              spawned: false
+              bytes: 486488
+              windows:
+                - start: "2026-10-20T15:09:56.095Z"
+                  end: "2026-10-20T09:14:16-07:00"
+            - harness: claude
+              id: 9073df29-d226-4140-b23c-4f03f2b4c472
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 53e14d3dc5c77bcbb6af8d392c58c0df22ce496d942f833bac5e99c618428296
+              started: "2026-10-16T03:47:36.231Z"
+              spawned: false
+              bytes: 56356139
+              windows:
+                - start: "2026-10-20T07:54:36-07:00"
+                  end: "2026-10-20T09:14:16-07:00"
+            - harness: claude
+              id: a8921d8e-ff5d-448d-bbbe-7c4096d6664b
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 6fb5337ed3171a0a204a700171391668aa62f2d24fccd650aa0c8a0867b8ea60
+              started: "2026-10-20T15:06:32.044Z"
+              spawned: false
+              bytes: 622144
+              windows:
+                - start: "2026-10-20T15:06:32.044Z"
+                  end: "2026-10-20T09:14:16-07:00"
+            - harness: claude
+              id: dd2ee03c-3bb0-40c3-8aec-7153c858d9f0
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 7004d633528a081b3018685616f0dbb291cfa1fc1f6fe3791036196047975501
+              started: "2026-10-20T15:08:59.765Z"
+              spawned: false
+              bytes: 564150
+              windows:
+                - start: "2026-10-20T15:08:59.765Z"
+                  end: "2026-10-20T09:14:16-07:00"
+        cuts:
+            - boundary: M1
+              dispatched: "2026-10-20T08:25:12-07:00"
+              finalized: "2026-10-20T08:33:44-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-20T08:42:07-07:00"
+              finalized: "2026-10-20T08:54:17-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-20T09:00:29-07:00"
+              finalized: "2026-10-20T09:04:14-07:00"
+              finalizing: true
+      "n": 4
+      timestamp: "2026-10-20T09:19:42-07:00"
+      dispatched: "2026-10-20T09:14:52-07:00"
+      agent: claude
+      reviewer: claude (anthropic; author anthropic)
+      findings:
+        - kind: defect
+          id: BR-13
+          severity: Important
+          title: Done-when and Plan Tests fixture (over-cap inventory, oversized transcript, counted reads) not delivered nor revised
+          detail: '3rd finding in this family. Rule: before a milestone closes, every Plan Tests bullet and Done-when test it claims is delivered as written or rewritten in Revisions in the same commit. recovery_skip_candidates_test.go uses one 456-byte transcript and infers no reads from empty Ranked; the inference is sound (reverting the skip branch goes red) but the stated acceptance fixture is absent. Add an oversized-transcript plus counting-reader Proven RecoverSelection test, or record the substitution in Revisions.'
+          family: plan-code-drift
+          round: 4
+        - kind: defect
+          id: BR-14
+          severity: Minor
+          title: Capture-identity fence when Source is nil is duplicated in ReadRequest (lines 199-206 and 224-230)
+          detail: '2nd finding in this family. Rule: one guard, one site; variants pass in what differs rather than copying it. Wrap the native scan in if !q.SkipCandidates and fall through to the single shared fence (ARCH-DRY).'
+          family: duplicated-guard-structure
+          round: 4
+        - kind: defect
+          id: BR-15
+          severity: Minor
+          title: resume-candidates says an incomplete scan affects only inferred choices even when Incomplete came from the capture fence
+          detail: resume_candidates.go:123-126 keys on Incomplete and Proven != nil, but a failed validateRecoveryCaptureSnapshot ("recovery screen changed") also sets Incomplete and does affect the confirmed resume via Preserve. Condition the wording on the scan being the cause, or soften it.
+          family: refusal-must-carry-reason
+          round: 4
+      boundary: M2
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 32fb8751-afe8-4b86-8bb5-38c1210839f3
+            repository: github.com/xianxu/pair
+            issue_id: "000726"
+            recipe: milestone-review
+            round: 2
+            attempt: 1
+            agent: claude
+            root: /Volumes/TestScratch/review-checkouts/0e5c1334d2d15431
+            reviewed_head: b5995e632b94b90d31ac92b9be709134a17d63aa
+            slot: pair:2
+            requested_at: "2026-10-20T16:24:10.198475Z"
+          phase: finished
+          pid: 79661
+          started_at: "2026-10-20T16:24:10.309067Z"
+          finished_at: "2026-10-20T16:26:12.179266Z"
+          session_id: 7edb68f7-08bf-4dbd-bfc1-ef31cea8a1cf
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: b5995e632b94b90d31ac92b9be709134a17d63aa
+        tracker_head: df13eb8fedf40744fb0c47f289bc8c88a2959702
+        branch_point: e2ac2a19f253961b715b6edf104ca82d72b5c40a
+        since: "2026-10-20T07:54:36-07:00"
+        until: "2026-10-20T09:23:44-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-20T07:54:36-07:00"
+              end: "2026-10-20T09:23:44-07:00"
+              began: "2026-10-20T07:54:36-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+        sources:
+            - harness: claude
+              id: 4221e67d-3549-4c0f-bf5c-bf5d3cf13458
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 77c11275a0674c1f1ae23c7ca50df7c1e8883f40a25b65facbb7f39748efafb9
+              started: "2026-10-20T15:10:15.104Z"
+              spawned: false
+              bytes: 401871
+              windows:
+                - start: "2026-10-20T15:10:15.104Z"
+                  end: "2026-10-20T09:23:44-07:00"
+            - harness: claude
+              id: 6925e360-3a18-45ee-b050-adbde3ed67ca
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: cf80fecf6c2d10f1483be7a4fae3b7a2dfb225e693b6ed7e3ad997fd6ef3668c
+              started: "2026-10-20T15:09:56.095Z"
+              spawned: false
+              bytes: 486488
+              windows:
+                - start: "2026-10-20T15:09:56.095Z"
+                  end: "2026-10-20T09:23:44-07:00"
+            - harness: claude
+              id: 9073df29-d226-4140-b23c-4f03f2b4c472
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: d274f36490fec49f1d97efb91638fde75be0872ee892ee946c587cea086342c2
+              started: "2026-10-16T03:47:36.231Z"
+              spawned: false
+              bytes: 56620787
+              windows:
+                - start: "2026-10-20T07:54:36-07:00"
+                  end: "2026-10-20T09:23:44-07:00"
+            - harness: claude
+              id: a8921d8e-ff5d-448d-bbbe-7c4096d6664b
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 6fb5337ed3171a0a204a700171391668aa62f2d24fccd650aa0c8a0867b8ea60
+              started: "2026-10-20T15:06:32.044Z"
+              spawned: false
+              bytes: 622144
+              windows:
+                - start: "2026-10-20T15:06:32.044Z"
+                  end: "2026-10-20T09:23:44-07:00"
+            - harness: claude
+              id: dd2ee03c-3bb0-40c3-8aec-7153c858d9f0
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 7004d633528a081b3018685616f0dbb291cfa1fc1f6fe3791036196047975501
+              started: "2026-10-20T15:08:59.765Z"
+              spawned: false
+              bytes: 564150
+              windows:
+                - start: "2026-10-20T15:08:59.765Z"
+                  end: "2026-10-20T09:23:44-07:00"
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 1.3874166666666667
+        cuts:
+            - boundary: M1
+              dispatched: "2026-10-20T08:25:12-07:00"
+              finalized: "2026-10-20T08:33:44-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-20T08:42:07-07:00"
+              finalized: "2026-10-20T08:54:17-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-20T09:00:29-07:00"
+              finalized: "2026-10-20T09:04:14-07:00"
+              finalizing: true
+            - boundary: M2
+              dispatched: "2026-10-20T09:14:52-07:00"
+              finalized: "2026-10-20T09:19:42-07:00"
+              finalizing: false
+      "n": 5
+      timestamp: "2026-10-20T09:26:13-07:00"
+      dispatched: "2026-10-20T09:24:08-07:00"
+      agent: claude
+      reviewer: claude (anthropic; author anthropic)
+      dispose:
+        - id: BR-13
+          disposition: addressed
+          note: TestRecoverySkipCandidatesOnAnOversizedNativeStore builds a store over RecoveryMetadataLimit with an over-RecoveryRecordLimit record and counts bytes via BytesRead against a screen-only read; Revisions records the counting substitution; reverting the SkipCandidates guard turns the test red (verified).
+          round: 5
+        - id: BR-14
+          disposition: addressed
+          note: The scan moved into collectCandidates behind !q.SkipCandidates; one Source-nil validateRecoveryCaptureSnapshot site remains at recovery_evidence_os.go:202-208.
+          round: 5
+        - id: BR-15
+          disposition: addressed
+          note: resume_candidates.go:126 now says only that the confirmed choice comes from the established binding, which holds whatever caused Incomplete; pinned by TestResumeCandidatesCLIIncompleteScanSparesTheConfirmedChoice. Atlas and plan restatements are raised separately.
+          round: 5
+      findings:
+        - kind: defect
+          id: BR-16
+          severity: Minor
+          title: Atlas and the plan M2 bullet still claim an incomplete scan affects only the inferred choices
+          detail: 'atlas/couch.md:83-84 and the issue''s M2 bullet keep the wording BR-15 removed from resume_candidates.go:126. This is the 4th finding in this family. Rule: a change to user-visible wording or behavior sweeps every atlas passage and Plan bullet that restates it in the same commit (grep the old phrase).'
+          family: plan-code-drift
+          round: 5
+      boundary: M2
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: b5995e632b94b90d31ac92b9be709134a17d63aa
+      blocked: false
 ---
 
 # Gate ledger — pair#726 (boundary-review)
@@ -534,7 +820,32 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-12** [Minor] `refusal-must-carry-reason` (kind: defect) A failed resolution that runs 30 s or more is stored already expired, so admission says "warming" forever again
   2nd finding in this family. Rule: an error from a finished resolution must reach the next admission for the full hubTargetFailureAge, counted from when it finished. Since BR-10, remember() stamps start time (hub_target_memo.go:158) and Warm and the sweep age failures from it (:102, :145). With 5 s ProbeTimeout probes across 8-wide waves of rows, a hung sdlc pushes Discover past 30 s, every retry starts a new flight and refuses "warming", and the cause never shows. Fix: keep the start time for ordering and add a finish time for failure expiry; test with a fake-clock resolver slower than hubTargetFailureAge.
 
+## Round 4 — 2026-10-20T09:19:42-07:00 (claude) — BLOCKED
+
+### Raised
+
+- **BR-13** [Important] `plan-code-drift` (kind: defect) Done-when and Plan Tests fixture (over-cap inventory, oversized transcript, counted reads) not delivered nor revised
+  3rd finding in this family. Rule: before a milestone closes, every Plan Tests bullet and Done-when test it claims is delivered as written or rewritten in Revisions in the same commit. recovery_skip_candidates_test.go uses one 456-byte transcript and infers no reads from empty Ranked; the inference is sound (reverting the skip branch goes red) but the stated acceptance fixture is absent. Add an oversized-transcript plus counting-reader Proven RecoverSelection test, or record the substitution in Revisions.
+- **BR-14** [Minor] `duplicated-guard-structure` (kind: defect) Capture-identity fence when Source is nil is duplicated in ReadRequest (lines 199-206 and 224-230)
+  2nd finding in this family. Rule: one guard, one site; variants pass in what differs rather than copying it. Wrap the native scan in if !q.SkipCandidates and fall through to the single shared fence (ARCH-DRY).
+- **BR-15** [Minor] `refusal-must-carry-reason` (kind: defect) resume-candidates says an incomplete scan affects only inferred choices even when Incomplete came from the capture fence
+  resume_candidates.go:123-126 keys on Incomplete and Proven != nil, but a failed validateRecoveryCaptureSnapshot ("recovery screen changed") also sets Incomplete and does affect the confirmed resume via Preserve. Condition the wording on the scan being the cause, or soften it.
+
+## Round 5 — 2026-10-20T09:26:13-07:00 (claude) — passed
+
+### Disposed
+
+- BR-13 — addressed — TestRecoverySkipCandidatesOnAnOversizedNativeStore builds a store over RecoveryMetadataLimit with an over-RecoveryRecordLimit record and counts bytes via BytesRead against a screen-only read; Revisions records the counting substitution; reverting the SkipCandidates guard turns the test red (verified).
+- BR-14 — addressed — The scan moved into collectCandidates behind !q.SkipCandidates; one Source-nil validateRecoveryCaptureSnapshot site remains at recovery_evidence_os.go:202-208.
+- BR-15 — addressed — resume_candidates.go:126 now says only that the confirmed choice comes from the established binding, which holds whatever caused Incomplete; pinned by TestResumeCandidatesCLIIncompleteScanSparesTheConfirmedChoice. Atlas and plan restatements are raised separately.
+
+### Raised
+
+- **BR-16** [Minor] `plan-code-drift` (kind: defect) Atlas and the plan M2 bullet still claim an incomplete scan affects only the inferred choices
+  atlas/couch.md:83-84 and the issue's M2 bullet keep the wording BR-15 removed from resume_candidates.go:126. This is the 4th finding in this family. Rule: a change to user-visible wording or behavior sweeps every atlas passage and Plan bullet that restates it in the same commit (grep the old phrase).
+
 ## Open findings
 
 - **BR-8** [Minor] `admission-sync-discover-over-exchange` (kind: defect) hubReceiptFilter waits on a cold memo resolution with no budget
 - **BR-12** [Minor] `refusal-must-carry-reason` (kind: defect) A failed resolution that runs 30 s or more is stored already expired, so admission says "warming" forever again
+- **BR-16** [Minor] `plan-code-drift` (kind: defect) Atlas and the plan M2 bullet still claim an incomplete scan affects only the inferred choices
