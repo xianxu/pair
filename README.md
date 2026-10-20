@@ -32,6 +32,9 @@ Launches a `zellij` workbench in one of two layouts:
   overlays. At
   a shell prompt terminal-local chords are intercepted; draft-only Alt+Up/Down
   pass through to the shell.
+  Invalid backend cells display as `�` while the terminal keeps running. If the
+  wrapper itself fails, it restores the terminal and hands the pane to a plain
+  interactive shell. A missing right pane can be recreated with `Alt+Shift+t`.
 
 Layout flags are Pair-owned and may appear before or after the agent name but
 before `--`, for example `pair codex --layout3` or
@@ -168,7 +171,7 @@ adds context that a one-line description cannot carry.
 | **Alt+Shift+d** | layout 3 terminal | Split the right terminal downward; the new lower pane takes focus. `Alt+k` from the left returns to the split pane last used. |
 | **Alt+←** / **Alt+→** | layout 3 terminal | Switch local terminal tabs. |
 | **Shift+Alt+←** / **Shift+Alt+→** | any pane | Switch the right terminal's tabs from wherever you are, **without moving focus** — check another tab while you keep typing in the draft. |
-| **Shift+Alt+t** | any pane | Create a new right-terminal tab from wherever you are, without moving focus — works even while a full-screen app (nvim) owns the right pane. |
+| **Shift+Alt+t** | any pane | Create a new right-terminal tab from wherever you are, without moving focus — works even while a full-screen app (nvim) owns the right pane. If the right terminal is absent, recreate its pane after confirming the current tab. |
 | **Alt+c** | non-agent panes | Open/show/hide review. From the draft, restore the current review branch's document before toggling; pending work blocks switching documents. Without a review identity, offers `:PairReview`. |
 | **Alt+c** | review buffer (normal/insert) | Hide review and return to the draft. Esc keeps review open; insert/visual Esc leaves that mode, and normal Esc dismisses internal floats. |
 | **Enter** | review buffer (normal), on a compact marker | Open the editable comment thread (`:w` save, `q` save/close, `:q!` discard). |

@@ -18,6 +18,7 @@ REQUIRED = {
     "TestLiveConsoleNvimPreservesContentAndChrome",
     "TestLiveReservedRowSurvivesRealScrolling",
     "TestNotificationPTYConformance",
+    "TestTerminalRecoveryZellijConformance",
 }
 
 
@@ -98,11 +99,11 @@ def main():
         build_env = dict(entry.decode().split("=", 1) for entry in raw.split(b"\0") if entry)
         subprocess.run(["bash", str(root / "tests/lib/pair-test-binary.sh"), candidate],
                        env=build_env, check=True, timeout=180)
-        env = dict(build_env, PAIR_LIVE_COUCH="1", PAIR_LIVE_COUCH_NATIVE="1", PAIR_NATIVE_BINARY=candidate)
-        pattern = "^(TestNativeConsoleWrapperZellij|TestLiveConsoleNvimPreservesContentAndChrome|TestLiveReservedRowSurvivesRealScrolling|TestNotificationPTYConformance)$"
+        env = dict(build_env, PAIR_LIVE_COUCH="1", PAIR_LIVE_COUCH_NATIVE="1", PAIR_LIVE_ZELLIJ="1", PAIR_NATIVE_BINARY=candidate)
+        pattern = "^(TestNativeConsoleWrapperZellij|TestLiveConsoleNvimPreservesContentAndChrome|TestLiveReservedRowSurvivesRealScrolling|TestNotificationPTYConformance|TestTerminalRecoveryZellijConformance)$"
         artifacts = Path(scratch) / "artifacts"
         artifacts.mkdir()
-        command = ["go", "test", "-race", "-json", "./cmd/internal/couchtty", "-run", pattern, "-count=1", "-timeout=5m", "-artifacts", "-outputdir", str(artifacts)]
+        command = ["go", "test", "-p", "1", "-race", "-json", "./cmd/internal/couchtty", "./cmd/internal/layoutcmd", "-run", pattern, "-count=1", "-timeout=5m", "-artifacts", "-outputdir", str(artifacts)]
         qualify(command, env, Path(scratch))
         print(f"Verified execution of all {len(REQUIRED)} required native tests/subtests.")
 
