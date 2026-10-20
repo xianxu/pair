@@ -46,6 +46,9 @@ A list that only grows stops being read, which defeats notifications.
 
 ## Log
 
+- Production-startup regression seeds a valid legacy attention/list.json, starts the real message service, verifies the empty-list notice, observes/clears a fresh event, and verifies legacy bytes unchanged. Passed on the implementation; failed against a temporary overlay of the original persistence path (missing empty-list notice), proving restart regression coverage.
+- Local-check affected fell back to suite because its disposable package-graph checkout lacks generated runtime assets; canceled that queued old-head suite to include the new startup test. Requeue on the pushed test-complete head.
+
 - Red/green: original selection left condition rows visited and dismissal re-raised them; both regressions now pass. Added 12h boundary/live-condition preservation, clear-all with keyboard and mouse under overflow, restart reset, fresh-occurrence, and existing-activity-tick expiry tests. Removed persistence/saver path and obsolete store tests.
 
 ### 2026-10-20
