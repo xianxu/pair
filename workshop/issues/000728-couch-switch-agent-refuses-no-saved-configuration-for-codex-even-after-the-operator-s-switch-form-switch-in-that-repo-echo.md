@@ -39,3 +39,10 @@ agent's last successful launch configuration in that repo. The refusal names exa
 ## Log
 
 ### 2026-10-20
+
+## Log
+
+- 10-20 10:05 (TL): same refusal in a devinfra repo: `couch --switch-agent ariadne:4 --agent codex --confirm` →
+  "no saved configuration for codex; the operator must configure it in the switch form first", although the same
+  command succeeded on ariadne:0 and ariadne:5 an hour earlier. So the saved configuration looks per slot (or per
+  launch history), not per repo: a slot that never ran Codex has none.
