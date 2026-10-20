@@ -185,6 +185,188 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 8f1d271f-256b-4829-9f93-e5f9102b6dd6
+            repository: github.com/xianxu/pair
+            issue_id: "000706"
+            recipe: milestone-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/a476782903c4fa4d
+            reviewed_head: 686270450d4949ce1738cbaa91c806a7ad8d83ab
+            slot: pair:6
+            requested_at: "2026-10-20T18:16:42.654874Z"
+          phase: finished
+          pid: 62068
+          started_at: "2026-10-20T18:16:42.771872Z"
+          finished_at: "2026-10-20T18:19:29.296147Z"
+          session_id: 01a15a87-ab35-75f3-a75a-3b74e1b321f9
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 686270450d4949ce1738cbaa91c806a7ad8d83ab
+        tracker_head: 5fe89353e75f9d65fc3704476e3c65f58317981b
+        branch_point: fc2932e416e5dfb4096e30c8f1ef8baaf355c780
+        since: "2026-10-19T20:44:04-07:00"
+        until: "2026-10-20T11:16:11-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-19T20:44:04-07:00"
+              end: "2026-10-20T11:16:11-07:00"
+              began: "2026-10-19T20:44:04-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot6/pair
+        sources:
+            - harness: codex
+              id: 01a14b2c-9890-74f3-a738-58879659bef5
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: 681dc7abde0209dbd553f142b14861b6b2a048839154bd6486eca81e1b4efc38
+              started: "2026-10-17T18:42:56.865Z"
+              spawned: false
+              bytes: 58403686
+              windows:
+                - start: "2026-10-19T20:44:04-07:00"
+                  end: "2026-10-20T11:16:11-07:00"
+            - harness: codex
+              id: 01a1576f-cd4b-72f2-95dc-3dced4835dcb
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: 23fc1ec80a2c7363b69d5856a50396aa7a45e9d207a1dd751a6c87528f3c9d27
+              started: "2026-10-20T03:51:48.038Z"
+              spawned: false
+              bytes: 623919
+              windows:
+                - start: "2026-10-20T03:51:48.038Z"
+                  end: "2026-10-20T11:16:11-07:00"
+            - harness: codex
+              id: 01a15771-61e1-75d0-b25a-f0c092bce1c6
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: 215123b95afe9271ee0f3e822fad647307f194654c0d10b880870637810846a4
+              started: "2026-10-20T03:53:31.517Z"
+              spawned: false
+              bytes: 426064
+              windows:
+                - start: "2026-10-20T03:53:31.517Z"
+                  end: "2026-10-20T11:16:11-07:00"
+            - harness: codex
+              id: 01a15772-a7f0-7a71-8179-40bb6f026d64
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: c3ebdafbf2992b50f68053cf01ef42e285cdb4cdfa68df37001118898abdbf92
+              started: "2026-10-20T03:54:54.909Z"
+              spawned: false
+              bytes: 452494
+              windows:
+                - start: "2026-10-20T03:54:54.909Z"
+                  end: "2026-10-20T11:16:11-07:00"
+            - harness: codex
+              id: 01a15773-30ba-7fd1-a14d-117b4947d2b0
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: f48d52c254c920ccc35103a443c2bc82a899caf33c9b5aac72b685559225e762
+              started: "2026-10-20T03:55:29.867Z"
+              spawned: false
+              bytes: 413603
+              windows:
+                - start: "2026-10-20T03:55:29.867Z"
+                  end: "2026-10-20T11:16:11-07:00"
+            - harness: codex
+              id: 01a15773-e28b-7e71-a28e-1412dd5a3698
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: fddacb7f6bd07bb2cacf33e86e19ba1f8cd39d89187255d4a77109fd4a853290
+              started: "2026-10-20T03:56:15.104Z"
+              spawned: true
+              bytes: 463283
+              windows:
+                - start: "2026-10-20T03:56:15.104Z"
+                  end: "2026-10-20T11:16:11-07:00"
+            - harness: codex
+              id: 01a15774-1140-78d0-a327-5734dca0eab7
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: c812386785b161e27ff3f425058819952060a75457251b20030e27f2e13acb44
+              started: "2026-10-20T03:56:27.037Z"
+              spawned: true
+              bytes: 437362
+              windows:
+                - start: "2026-10-20T03:56:27.037Z"
+                  end: "2026-10-20T11:16:11-07:00"
+            - harness: codex
+              id: 01a15775-fbd5-7101-9ac2-8fbdc812ee2c
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: 8071fc76f40bba1456151fe7bbb8316fd0951386a52f7e96fa838fb3cfd6c63d
+              started: "2026-10-20T03:58:32.65Z"
+              spawned: true
+              bytes: 599209
+              windows:
+                - start: "2026-10-20T03:58:32.65Z"
+                  end: "2026-10-20T11:16:11-07:00"
+            - harness: codex
+              id: 01a15a7c-66b4-7112-a945-614b32b4bdf5
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: e8d805037a9a57cdcb82217628ffe1d0fecfde0a2e07b5c4c764250e7f64a745
+              started: "2026-10-20T18:04:24.804Z"
+              spawned: true
+              bytes: 558075
+              windows:
+                - start: "2026-10-20T18:04:24.804Z"
+                  end: "2026-10-20T11:16:11-07:00"
+            - harness: codex
+              id: 01a15a7c-8cd8-75c1-9218-94721e444c0b
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: dbad3c695f735056d3f92a7ec1c67b9ec5af141ab5ac6d5e9525284c6682d610
+              started: "2026-10-20T18:04:34.548Z"
+              spawned: true
+              bytes: 471235
+              windows:
+                - start: "2026-10-20T18:04:34.548Z"
+                  end: "2026-10-20T11:16:11-07:00"
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 86.39396666666667
+        cuts:
+            - boundary: M1
+              dispatched: "2026-10-20T11:11:37-07:00"
+              finalized: "2026-10-20T11:14:07-07:00"
+              finalizing: false
+      "n": 2
+      timestamp: "2026-10-20T11:19:30-07:00"
+      dispatched: "2026-10-20T11:16:40-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: rclone_folders.go:161-175 reserves capacity after confirmed or uncertain creates; drive_months.go:201,218 applies it to both hierarchy levels. The year-capacity and uncertain month-capacity regressions pass at head. Bypassing the helper in a disposable copy makes all three cases fail; the copy was removed.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: README.md:2009 now documents YYYY/MM uploads, retained legacy pairs, serial physical-folder batches, and the shared 4 GiB budget. The pinned before/after passage agrees with drive_months.go routing and runFolder execution.
+          round: 2
+      boundary: M1
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 686270450d4949ce1738cbaa91c806a7ad8d83ab
+      blocked: false
 ---
 
 # Gate ledger — pair#706 (boundary-review)
@@ -201,7 +383,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-2** [Important] `user-surface-documentation` (kind: defect) README update appears missing for month-folder uploads and per-folder batching
   README.md:2009 still describes one upload batch, while M1 routes new pairs to YYYY/MM and runs a batch per active physical folder. README.md is unchanged in the reviewed range despite this new file-tree convention and the boundary's docs gate. Update the current upload description, legacy behavior, and shared byte budget now; document M2 recovery features when delivered.
 
+## Round 2 — 2026-10-20T11:19:30-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — rclone_folders.go:161-175 reserves capacity after confirmed or uncertain creates; drive_months.go:201,218 applies it to both hierarchy levels. The year-capacity and uncertain month-capacity regressions pass at head. Bypassing the helper in a disposable copy makes all three cases fail; the copy was removed.
+- BR-2 — addressed — README.md:2009 now documents YYYY/MM uploads, retained legacy pairs, serial physical-folder batches, and the shared 4 GiB budget. The pinned before/after passage agrees with drive_months.go routing and runFolder execution.
+
 ## Open findings
 
-- **BR-1** [Critical] `remote-capacity-reservation` (kind: defect) Year creation reuses stale root capacity and can exceed the listing limit
-- **BR-2** [Important] `user-surface-documentation` (kind: defect) README update appears missing for month-folder uploads and per-folder batching
+(none — every finding has been disposed)

@@ -101,3 +101,89 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T11:19:30-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 706 — Drive backup: store bundles in year/month folders instead of one flat folder |
+| repo | pair |
+| issue file | workshop/issues/000706-drive-backup-store-bundles-in-year-month-folders-instead-of-one-flat-folder.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | fc2932e416e5dfb4096e30c8f1ef8baaf355c780..686270450d4949ce1738cbaa91c806a7ad8d83ab |
+| command | sdlc milestone-close --issue 706 --milestone M1 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T11:19:30-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+M1 matches its documented scope. Both prior findings are addressed, with regression evidence for the capacity fix and verified README changes. No new blocking findings were identified. Discovery, recorded-location restore, reporting, and native qualification remain explicitly scheduled for M2.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      rclone_folders.go:161-175 reserves capacity after confirmed or uncertain creates; drive_months.go:201,218 applies it to both hierarchy levels. The year-capacity and uncertain month-capacity regressions pass at head. Bypassing the helper in a disposable copy makes all three cases fail; the copy was removed.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      README.md:2009 now documents YYYY/MM uploads, retained legacy pairs, serial physical-folder batches, and the shared 4 GiB budget. The pinned before/after passage agrees with drive_months.go routing and runFolder execution.
+```
+
+1. **Strengths**
+
+   - Shared layout validation ties destinations to the bundle’s UTC month.
+   - One reservation helper covers both year and month creation, including uncertain outcomes.
+   - Receipt codecs preserve nested unknown fields while retaining strict validation and legacy encoding.
+   - Stateful integration tests cover partial progress, legacy conflicts, shared budgets, and bounded command counts.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed historyarchive, archivetest, artifactpath, and repolint packages, plus focused race checks. BR-1’s regressions failed when the fix was bypassed. `git diff --check` passed; the reviewed checkout remains unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared layout, codecs, verifier, and reservation helper.
+   - **ARCH-PURE — pass:** layout, codecs, and transitions have direct value-based tests; IO remains in adapters.
+   - **ARCH-PURPOSE — pass:** M1 delivers month-aware uploads and legacy reconciliation.
+   - **ARCH-MOCK — pass for M1:** production and stateful fake share `RcloneRunner`; native qualification remains M2.
+   - **ARCH-CONSTRAINTS — pass:** capacity, byte-budget, and command-growth guards are exercised.
+   - **ARCH-SECURE — pass:** paths, identities, receipts, and observations receive boundary validation.
+   - **ARCH-ORDER — pass:** uncertain creates retain reservations without becoming confirmed bindings.
+   - **ARCH-FUNERAL — pass:** staging cleanup and retained archival-directory lifetimes are explicit.
+   - **ARCH-EVOLVE — pass:** nested extension preservation and strict known-field validation are tested.
+
+   M1 core-concept entries match the implementation. The remaining table entries correspond to explicit M2 work.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"8f1d271f-256b-4829-9f93-e5f9102b6dd6","repository":"github.com/xianxu/pair","issue_id":"000706","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/a476782903c4fa4d","reviewed_head":"686270450d4949ce1738cbaa91c806a7ad8d83ab","slot":"pair:6","requested_at":"2026-10-20T18:16:42.654874Z"},"phase":"finished","pid":62068,"started_at":"2026-10-20T18:16:42.771872Z","finished_at":"2026-10-20T18:19:29.296147Z","session_id":"01a15a87-ab35-75f3-a75a-3b74e1b321f9","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.898684s
+head: "686270450d4949ce1738cbaa91c806a7ad8d83ab"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000409
