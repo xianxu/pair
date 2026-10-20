@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: 2143a9f9-2d4d-4bde-ac2d-42f3b10c669f
+        repository: github.com/xianxu/pair
+        issue_id: "000743"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot3/pair
+        reviewed_head: 739d0dc673b6aca2d77ac843882c98862b28fffd
+        slot: pair:3
+        requested_at: "2026-10-20T21:32:09.428984Z"
+      phase: finished
+      pid: 28592
+      started_at: "2026-10-20T21:32:09.599559Z"
+      finished_at: "2026-10-20T21:32:41.693491Z"
+      session_id: 01a15b3a-9b8e-7681-b768-e336d4012d7c
+      outcome: returned
 gate: plan-quality
 issue: 743
 id_prefix: PQ
@@ -65,7 +85,37 @@ rounds:
           note: The canonical named-function strategy table replaces milestone test inventories while retaining stateful ordering and real-VM qualification.
           round: 2
       blocked: false
-content_hash: 64f6cdaaedcb73728f6ce30409b15f381744c65fb4b995302bb95746dcb04f31
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: ba694c2b-64cf-40aa-ae5a-bdb958eaaa8f
+            repository: github.com/xianxu/pair
+            issue_id: "000743"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot3/pair
+            reviewed_head: 739d0dc673b6aca2d77ac843882c98862b28fffd
+            slot: pair:3
+            requested_at: "2026-10-20T21:31:43.70966Z"
+          phase: finished
+          pid: 13339
+          started_at: "2026-10-20T21:31:43.879319Z"
+          finished_at: "2026-10-20T21:32:06.491986Z"
+          session_id: 01a15b3a-36e5-7f83-9e8c-40fc7a574de7
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-20T14:32:06-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Named risky-function strategies and mechanical guards replace duplicated milestone test inventories.
+          round: 3
+      blocked: false
+content_hash: d445d83cbc29dfcdd63367a350d1b2dea63419db5d35b0b8dd1e4bf9a960a940
 ---
 
 # Gate ledger — pair#743 (plan-quality)
@@ -85,6 +135,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - PQ-1 — addressed — The canonical named-function strategy table replaces milestone test inventories while retaining stateful ordering and real-VM qualification.
+
+## Round 3 — 2026-10-20T14:32:06-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Named risky-function strategies and mechanical guards replace duplicated milestone test inventories.
 
 ## Open findings
 
