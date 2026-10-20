@@ -1,0 +1,39 @@
+  What's contributing to your limits usage?
+  Approximate, based on local sessions on this machine — does not include other devices or
+  claude.ai
+
+  Last 24h · these are independent characteristics of your usage, not a breakdown
+
+  87% of your usage came from sessions active for 8+ hours
+   These are often background/loop sessions. Continuous usage can add up quickly
+   so make sure it is intentional.
+
+  85% of your usage was at >150k context
+   Longer sessions are more expensive even when cached. /compact mid-task, /clear
+   when switching to new tasks.
+
+  67% of your usage came from subagent-heavy sessions
+   Each subagent runs its own requests. Be deliberate about spawning them — and
+   consider configuring a cheaper model for simpler subagents.
+
+  43% of your usage was while 4+ sessions ran in parallel
+   All sessions share one limit. If you don't need them all at once, queueing uses
+   it more evenly.
+
+  13% of your usage went to always-on context over 40k tokens
+   CLAUDE.md files, MCP tools, skills and memory are sent with every request. Run
+   /context to see what takes up space, then trim or turn off what you don't need.
+
+  Subagents               % of usage
+  general-purpose                 2%
+  Explore                         1%
+
+  Loops                                      every  runs  tokens  per run last run
+  Fallback check on the #455 change-cod…   dynamic     2  754.4k   377.2k  22h ago
+
+  d to day · w to week
+
+  Usage credits
+  Usage credits are off · /usage-credits to turn them on
+
+  Esc to cancel
