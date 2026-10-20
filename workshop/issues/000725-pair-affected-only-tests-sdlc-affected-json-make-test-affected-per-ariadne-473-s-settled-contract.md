@@ -95,6 +95,8 @@ See [durable plan](../plans/000725-affected-tests-plan.md), one atomic close bou
 
 - 2026-10-20: Fixed guard measured independently at 35.095s wall (PASS, 308 derived knobs preserved, session identities dropped). Updated actual upstream selection for slugcmd/slug.go is the same three Go import paths plus build (install-layout exercises pair-slug). Native make test-affected with that exact selection passed in 86.939s wall, no suite queue: dispatcher 0.265s, slugcmd 0.776s, cmd/pair-go 18.126s, plus all build-group recipes. This supersedes the initial pre-audit 13.396s sample. Full-suite execution/queue comparison pending on final code; no recorded affected status claimed.
 
+- 2026-10-20: Close round 2 REWORK. BR-1 roots addressed (reviewer mutation verified), BR-2 found omitted cross-language inputs: nvim/init.lua and zellij_trace.lua omitted shell suites. Cancelled queued suite before execution. Stopped for a complete coverage re-plan, extending the independent inventory from Go roots to every recursively executed/read/copied file input. Broad nvim ownership is conservative across dynamic Lua imports; shared fixtures retain full unless all consumers covered. Requesting hub approval for this complete rule rather than incremental instance fixes.
+
 ## Revisions
 
 - 2026-10-20: Added executable plan and explicit source-Lua/runtimebundle test exception approved by hub. No upstream schema or environment contract changes. Real recorded affected/train acceptance is pending upstream M2 availability rather than being waived.

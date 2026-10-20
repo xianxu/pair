@@ -100,3 +100,105 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T02:59:29-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 725 — pair affected-only tests: .sdlc/affected.json + make test-affected, per ariadne#473's settled contract |
+| repo | pair |
+| issue file | workshop/issues/000725-pair-affected-only-tests-sdlc-affected-json-make-test-affected-per-ariadne-473-s-settled-contract.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | ab32acea6c97663232623b2881e7e7c91aae8a17..96360dc5d701388f8644d533e2034d465d7a618e |
+| command | sdlc close --issue 725 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T02:59:29-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The runner’s validation, exact Go argv, failure propagation, and private-binary lifecycle are covered and pass. BR-1’s Go-root correction is verified by a failing regression when reverted. A separate gap remains: cross-language file consumers are missing from group selection, allowing affected runs to skip existing regression suites.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The added consumer roots pass the actual upstream planner/Pair graph regression. Removing the lua retentioncmd/gccmd/pairlog and review reviewapply/pairlog roots in a disposable pinned-head copy makes TestActualGroupConsumerCoverage fail with omitted consumer groups.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: affected-consumer-coverage
+    title: |
+      Cross-language source changes omit consuming shell suites
+    detail: |
+      .sdlc/affected.json:137 omits nvim inputs consumed by shell recipes. Against upstream d6309691af55cb39765a55623ed01f5ab31212e2 and Pair's actual graph, both nvim/zellij_trace.lua and nvim/init.lua select Full=false and groups=[lua review], skipping test-zellij-trace and test-term-pane-shortcuts. The former loads zellij_trace.lua at tests/zellij-trace-test.sh:25; the latter asserts init.lua content at tests/term-pane-shortcuts-test.sh:320. ARCH-PURPOSE: This is the 2nd finding in family affected-consumer-coverage. Earlier rounds fixed instances. Do NOT fix only these instances: state and enforce the rule that every grouped recipe's executed or text-read input selects its consuming group or full. Enumerate recursive cross-language inputs across all groups, extend the inventory beyond Go roots, and add actual-planner regressions for that enumeration.
+```
+
+1. **Strengths**
+
+   - Pure selection validation rejects empty, duplicate, foreign, and wildcard inputs before child effects (`scripts/test-affected.py:21`).
+   - Runner tests exercise the real Make entrypoint, preserved output, failure stopping, environment scrub, and private-binary cleanup.
+   - Actual upstream fixtures verify strict parsing, transitive/test importers, embedded Lua, and conservative unknown-path fallbacks.
+   - README and atlas both document the new command and operational ownership.
+
+2. **Critical findings**
+
+   - The finding above blocks shipping. Extend `.sdlc/affected.json:137` and the consumer inventory using a complete file-dependency audit. The existing regression at `tests/affected-config-test.py:204` checks Go dependencies only.
+
+3. **Important findings**
+
+   None.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - All nine runner tests passed.
+   - Explicit upstream qualification passed; automatic discovery reported its documented dependency skip.
+   - BR-1 mutation failed as expected in a disposable copy.
+   - Added review probes failed for both omitted shell consumers.
+   - Existing `tests/zellij-trace-test.sh` passed.
+   - Full suite and timing comparison were not rerun; the tracker still marks that qualification pending. Reviewed checkout remains unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — Pass:** reuses existing Make recipes and upstream planning.
+   - **ARCH-PURE — Pass:** declared pure functions perform no IO; execution remains in the shell layer.
+   - **ARCH-PURPOSE — Flag:** consumer coverage remains incomplete across language boundaries.
+   - **ARCH-MOCK — Pass:** recorder tests exercise the production entrypoint; actual Make/Go qualification supplements them.
+   - **ARCH-CONSTRAINTS — Pass:** sequential work, bounded suite timeout, and invocation-count checks match the declared envelope.
+   - **ARCH-SECURE — Pass:** validated tokens become argv; selection errors remain visible.
+   - **ARCH-ORDER — Pass:** synchronous execution stops on failure; no new durable event state.
+   - **ARCH-FUNERAL — Pass:** temporary fixtures and private binaries have scoped cleanup.
+   - **ARCH-EVOLVE — Pass:** static declaration has no rewrite path; strict refusal protects selection semantics.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry defining consumer coverage to include recursively executed files, fixtures, and source-text reads—not just Go command dependencies—and name the inventory and planner regression enforcing that rule across all five groups.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"e8002f6b-2595-48fb-b895-c15f016a65f0","repository":"github.com/xianxu/pair","issue_id":"000725","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/f208cdb307316362","reviewed_head":"96360dc5d701388f8644d533e2034d465d7a618e","slot":"pair:3","requested_at":"2026-10-20T09:56:23.489877Z"},"phase":"finished","pid":94092,"started_at":"2026-10-20T09:56:23.692563Z","finished_at":"2026-10-20T09:59:28.711231Z","session_id":"01a158bd-9dbb-7323-96cb-7e2ac8cd8369","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.952102542s
+head: "96360dc5d701388f8644d533e2034d465d7a618e"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
