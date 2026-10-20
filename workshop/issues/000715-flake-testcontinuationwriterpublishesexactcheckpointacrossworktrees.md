@@ -1,13 +1,13 @@
 ---
 id: 000715
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-19
 updated: 2026-10-19
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '58a16c403218a835d01f017672aebacffe3232c2' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'c8f9b4dc7cec6d35c986364f8b361aa0012ae147' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-19T18:06:43-07:00
 claimant:
     operator: Xian Xu
@@ -18,6 +18,7 @@ claimant:
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/couchcmd.TestContinuationWriterPublishesExactCheckpointAcrossWorktrees]
 flow: {kind: quick, provenance: inferred, spec: "88f5c36f", done: "433fd673"}
+actual_hours: 0.35
 ---
 
 # flake: TestContinuationWriterPublishesExactCheckpointAcrossWorktrees
