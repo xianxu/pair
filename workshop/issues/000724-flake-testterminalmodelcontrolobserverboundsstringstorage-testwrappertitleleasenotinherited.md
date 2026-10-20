@@ -1,13 +1,13 @@
 ---
 id: 000724
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '4c3a2c99e28b69c8e1d373792d4936dcfdf5c245' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '17abb5977be876458376ec7ea7b8e1a7a6bb69f4' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T03:50:24-07:00
 claimant:
     operator: Xian Xu
@@ -18,6 +18,7 @@ claimant:
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/wrapcmd.TestTerminalModelControlObserverBoundsStringStorage, github.com/xianxu/pair/cmd/internal/wrapcmd.TestWrapperTitleLeaseNotInherited]
 flow: {kind: quick, provenance: inferred, spec: "c166e865", done: "a0bbe98b"}
+actual_hours: 0.28
 ---
 
 # flake: TestTerminalModelControlObserverBoundsStringStorage, TestWrapperTitleLeaseNotInherited
