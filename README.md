@@ -1984,6 +1984,12 @@ SDLC reviews use the pinned commit’s `.sdlc/review-prepare.json` (version 1,
 the ignored runtime embed assets in a disposable checkout before tests run.
 Preparation leaves tracked sources unchanged. See the [runtime bundle map](atlas/go-migration-inventory.md).
 
+Pair's landing-train pilot is configured in `.sdlc/landing.json` with
+`train_interval_minutes: 60`, retaining the existing default car limit. `sdlc merge` reads the setting from main; inspect the landing line and recent trains
+with `sdlc landing status`. Configuration changes require the operator's
+`local-gates-verified` label. The TL owns the first multi-car conformance check;
+see the [pilot map](atlas/index.md#see-also).
+
 When `pair` runs and there's anything to pick — a detached Pair session owned by this repo **or** a tag from this repo used within the last 14 days — it shows an `fzf` picker. Detached rows come first, then historical rows annotated `(Nd ago, no live session)`, then a `+ new <agent> session` sentinel. A historical row whose session has prompts parked in its queue also carries an amber `[⏎ N queued]` badge, so you don't resume a session without remembering the work you queued up in it. Picking a historical row reuses the repo-local tag and any surviving draft / saved agent config (same path as `pair resume <tag>`). Override the 14-day window with `PAIR_HISTORY_DAYS`; `PAIR_DEBUG_HISTORY=1 pair` prints the scan and exits without launching.
 
 When an agent is explicit and no `--` separator was typed, for example
