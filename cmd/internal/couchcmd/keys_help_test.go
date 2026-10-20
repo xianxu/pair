@@ -57,7 +57,7 @@ func TestSkillKeyStepsMatchTheTable(t *testing.T) {
 	if !strings.Contains(couchSkill, "| `couch --keys pair:7 esc` |") {
 		t.Fatal("skill quick table has no close-panel row")
 	}
-	limits := fmt.Sprintf("%d steps, %d KiB aggregate printable text, waits of 0–%d ms each", agentdrive.MaxKeySteps, agentdrive.MaxKeyTextBytes/1024, agentdrive.MaxKeyWaitMS)
+	limits := fmt.Sprintf("%d steps, %d KiB aggregate printable text, waits of 0–%d ms each and %d ms total", agentdrive.MaxKeySteps, agentdrive.MaxKeyTextBytes/1024, agentdrive.MaxKeyWaitMS, agentdrive.MaxKeyTotalWaitMS)
 	if !strings.Contains(strings.Join(strings.Fields(couchSkill), " "), limits) {
 		t.Fatalf("skill limits disagree with the constants; want %q", limits)
 	}
