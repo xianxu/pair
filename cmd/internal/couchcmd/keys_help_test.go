@@ -21,9 +21,21 @@ func TestKeysHelpIsTheVerbsOwnHelp(t *testing.T) {
 	keysUsage(&out)
 	got := out.String()
 	for _, step := range agentdrive.Steps {
-		if !strings.Contains(got, step.Syntax) || !strings.Contains(got, step.Meaning) {
+		name := step.Syntax
+		if step.Group != "" {
+			name = step.Group
+		}
+		if !strings.Contains(got, "  "+name+" ") || !strings.Contains(got, step.Meaning) {
 			t.Errorf("keys help omits %s", step.Syntax)
 		}
+	}
+	for name, reason := range agentdrive.RefusedSteps {
+		if !strings.Contains(got, string(name)) || !strings.Contains(got, reason) {
+			t.Errorf("keys help omits the refused %s", name)
+		}
+	}
+	if strings.Count(got, "\n") > 60 {
+		t.Errorf("keys help prints families member by member: %d lines", strings.Count(got, "\n"))
 	}
 	for _, want := range []string{"couch --keys pair:7 clear-line text:/usage submit", "couch --peek pair:7", "couch --keys pair:7 esc", "64 steps", "8192 bytes"} {
 		if !strings.Contains(got, want) {

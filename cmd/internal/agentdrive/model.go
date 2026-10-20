@@ -76,12 +76,6 @@ func (e DriveEffect) MatchesScreen(agent string, screen Screen) bool {
 	return true
 }
 
-// Internal recipe directions are excluded from ParseKeySequence's caller syntax.
-const (
-	KeyLeft  KeyKind = "recipe-left"
-	KeyRight KeyKind = "recipe-right"
-)
-
 type drivePhase uint8
 
 const (

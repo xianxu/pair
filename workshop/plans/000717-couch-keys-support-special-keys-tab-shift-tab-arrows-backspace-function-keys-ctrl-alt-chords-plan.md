@@ -80,11 +80,11 @@ Not covered: a cooldown across an operator's own Ctrl+C. The wrapper does not se
 
 ## Milestones
 
-- [ ] **M1 — named keys in the one table**
-  - [ ] Write the failing tests: every row's bytes (the table above); every generated family member parses; unknown names refuse with the list and send nothing; `ctrl-c`, `ctrl-d` and `ctrl-z` refuse with their reasons; help lists every row or its group; the skill sentence matches the group syntaxes (#716 test, extended).
-  - [ ] `StepDoc.Bytes`, `Group`; the generated families; `InputBytes` reads the table; recipe directions become caller names.
-  - [ ] `keysUsage` groups families; the skill steps sentence and quick table gain the new names; README and atlas updated.
-  - [ ] Wrapper test: a sequence of new keys written to the harness PTY emits the table bytes, each step separate.
+- [x] **M1 — named keys in the one table**
+  - [x] Write the failing tests: every row's bytes (the table above); every generated family member parses; unknown names refuse with the list and send nothing; `ctrl-c`, `ctrl-d` and `ctrl-z` refuse with their reasons; help lists every row or its group; the skill sentence matches the group syntaxes (#716 test, extended).
+  - [x] `StepDoc.Bytes`, `Group`; the generated families; `InputBytes` reads the table; recipe directions become caller names.
+  - [x] `keysUsage` groups families; the skill steps sentence and quick table gain the new names; README and atlas updated.
+  - [x] Wrapper test: a sequence of new keys written to the harness PTY emits the table bytes, each step separate.
   - [ ] `sdlc milestone-close --milestone M1`.
 - [ ] **M2 — `couch --interrupt`**
   - [ ] Write the failing tests:

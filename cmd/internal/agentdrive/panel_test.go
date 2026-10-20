@@ -215,13 +215,10 @@ func TestStepsTableIsTheParsersAcceptedSet(t *testing.T) {
 			t.Errorf("table step %s refused: %v", step.Syntax, err)
 		}
 	}
-	for _, spec := range []string{"tab", "left", string(KeyLeft), string(KeyRight)} {
+	for _, spec := range []string{"tab-", "f0", "ctrl-c", "alt-", "recipe-left"} {
 		if _, err := ParseKeySequence([]string{spec}); err == nil {
 			t.Errorf("%q accepted but not in the table", spec)
 		}
-	}
-	if err := (KeySequence{{Kind: KeyLeft}}).Validate(); err == nil {
-		t.Error("internal recipe key validated as a caller step")
 	}
 }
 

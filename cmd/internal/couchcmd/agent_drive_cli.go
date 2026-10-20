@@ -3,6 +3,7 @@ package couchcmd
 import (
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/agentdrive"
@@ -84,8 +85,25 @@ func keysUsage(w io.Writer) {
 	fmt.Fprintln(w, "Hub only: types named keys into another slot's agent, which the hub must own.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Steps:")
+	printed := map[string]bool{}
 	for _, step := range agentdrive.Steps {
-		fmt.Fprintf(w, "  %-14s %s\n", step.Syntax, step.Meaning)
+		name := step.Syntax
+		if step.Group != "" {
+			name = step.Group
+		}
+		if !printed[name] {
+			printed[name] = true
+			fmt.Fprintf(w, "  %-14s %s\n", name, step.Meaning)
+		}
+	}
+	fmt.Fprintln(w, "Not steps (refused before anything is sent):")
+	refused := make([]string, 0, len(agentdrive.RefusedSteps))
+	for name := range agentdrive.RefusedSteps {
+		refused = append(refused, string(name))
+	}
+	sort.Strings(refused)
+	for _, name := range refused {
+		fmt.Fprintf(w, "  %-14s %s\n", name, agentdrive.RefusedSteps[agentdrive.KeyKind(name)])
 	}
 	fmt.Fprintf(w, "Limits: %d steps, %d bytes of text, waits of at most %d ms each and %d ms in total.\n",
 		agentdrive.MaxKeySteps, agentdrive.MaxKeyTextBytes, agentdrive.MaxKeyWaitMS, agentdrive.MaxKeyTotalWaitMS)

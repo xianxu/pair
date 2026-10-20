@@ -105,7 +105,11 @@ composer came back. A panel still showing at the deadline is unconfirmed: peek,
 then ask the operator. An unrecognized panel refuses as before.
 
 `--keys repo:N STEP... [--json]` accepts `text:LITERAL`, `enter`, `submit`, `up`,
-`down`, `esc`, `clear-line`, and `wait:MS`. Quote a text step containing spaces.
+`down`, `left`, `right`, `tab`, `shift-tab`, `backspace`, `delete`, `home`, `end`,
+`pageup`, `pagedown`, `esc`, `clear-line`, `wait:MS`, `f1-f12`, `ctrl-LETTER`, and
+`alt-LETTER`. Quote a text step containing spaces. `ctrl-c`, `ctrl-d`, `ctrl-z`,
+`ctrl-s` and `ctrl-q` are refused, as are `ctrl-i`, `ctrl-m` and `ctrl-u` (use `tab`,
+`enter`, `clear-line`); `couch --keys --help` gives each reason.
 `enter` follows Pair's ordinary Return (newline in a composer, select in a
 picker); `submit` follows Alt+Return. Separate `esc` steps stay separate. Limit
 requests to 64 steps, 8 KiB aggregate printable text, waits of 0–1000 ms each
