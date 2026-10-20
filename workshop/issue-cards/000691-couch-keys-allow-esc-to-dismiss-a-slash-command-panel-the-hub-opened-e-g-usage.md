@@ -1,6 +1,6 @@
 ---
 id: 000691
-status: codecomplete
+status: done
 created: 2026-10-18
 updated: 2026-10-19
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 4675381be1ac22635fecf3523b303c7a15f6f433
         evidence_commit: d79cc27baa6846bb709decf2e14ff0e19bdc139f
+        landed_commit: f1c1ee6edd90ca36857da04b1d4818085b886ca9
 ---
 
 # couch --keys: allow Esc to dismiss a slash-command panel the hub opened (e.g. /usage)
