@@ -38,6 +38,25 @@ reviewer_runs:
       finished_at: "2026-10-20T07:51:40.149981Z"
       session_id: 01a1584a-c580-7be1-b9e4-27e176dcf190
       outcome: returned
+    - version: 1
+      intent:
+        id: bc094f72-6026-478c-bdae-2d73156e0d8e
+        repository: github.com/xianxu/pair
+        issue_id: "000722"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot5/pair
+        reviewed_head: 0ffc157683049830e5954347b4202137e56a6493
+        slot: pair:5
+        requested_at: "2026-10-20T21:16:08.550917Z"
+      phase: finished
+      pid: 67227
+      started_at: "2026-10-20T21:16:08.714974Z"
+      finished_at: "2026-10-20T21:16:32.288444Z"
+      session_id: 01a15b2b-f1f7-7eb3-9334-621720781e6a
+      outcome: returned
 gate: plan-quality
 issue: 722
 id_prefix: PQ
@@ -164,7 +183,32 @@ rounds:
           note: Named production functions, adversarial strategies and mechanical guards remain present; the governing revision adds counted lifetime-growth verification.
           round: 4
       blocked: false
-content_hash: 09c568e870c0aa2c04d2bd05603e13fefd57851f43f6aba65b247f65b9f82d86
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: e6eacebe-97f0-4c82-b3b4-a4711b78402f
+            repository: github.com/xianxu/pair
+            issue_id: "000722"
+            recipe: plan-quality
+            round: 5
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot5/pair
+            reviewed_head: 0ffc157683049830e5954347b4202137e56a6493
+            slot: pair:5
+            requested_at: "2026-10-20T21:15:38.325311Z"
+          phase: finished
+          pid: 40891
+          started_at: "2026-10-20T21:15:38.516424Z"
+          finished_at: "2026-10-20T21:16:06.155694Z"
+          session_id: 01a15b2b-7c50-7861-9c99-5530357e94c6
+          outcome: returned
+      "n": 5
+      timestamp: "2026-10-20T14:16:06-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      blocked: false
+content_hash: 6d24203eec155d5a29217b63b4b5e8e54aded039788aaae4753d67c833547a12
 ---
 
 # Gate ledger — pair#722 (plan-quality)
@@ -196,6 +240,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - PQ-1 — addressed — Named production functions, adversarial strategies and mechanical guards remain present; the governing revision adds counted lifetime-growth verification.
+
+## Round 5 — 2026-10-20T14:16:06-07:00 (codex) — passed
 
 ## Open findings
 
