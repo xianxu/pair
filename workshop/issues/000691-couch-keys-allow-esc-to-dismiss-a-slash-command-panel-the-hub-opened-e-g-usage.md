@@ -71,8 +71,44 @@ Not covered: other agents' panels (Codex and others), and a `couch --usage` one-
 
 ARCH-SECURE: the recognizer reads only the current viewport, so scrollback text cannot authorize a key, as with pickers. ARCH-ORDER: no new persistent state; one more admissible screen class through the existing reducer. ARCH-MOCK: tests use the drive fixtures and the service fake; the live check is the conformance step.
 
+### Revised plan (2026-10-19, pair:2): third delta, so a whole plan
+
+The live check failed (parley.nvim:4, Claude 2.1.304, 94x39). Two measured blockers:
+
+- (a) The panel is taller than the screen. The 39-row viewport has no full-width rule, and the recognizer required one.
+- (c) The wrapper counts a turn as active for as long as the panel shows. After the `/usage` submit, Claude sends progress "working" (OSC 9;4;3, offset 29768 of `scrollback-1-parley-nvim-62-claude.raw`) and never "stopped" (9;4;0) while the panel is open. `ObservationWorking` opens a turn with activity seen, so `TurnActive` holds until the 60 s watchdog fires. The panel proof required no active turn, and the drive reducer stops on any active turn. At dismissal, Claude does send 9;4;0 right before its redraw (ariadne:5 recording, about offset 270616). The 250 ms grace then ends the turn.
+
+Simplest alternative, and why it fails: treat a submitted line starting with `/` as a local command that never opens a turn, and recognize the panel by its footer on the last row with no rule. The footer half is kept (step 1). The prefix half does not clear the turn: Claude's own progress signal opens it whatever the submission was. It would also drop turn tracking for prompt-backed slash commands (/compact, skills), which run real turns.
+
+What stays (approved in the original design): exactly `[esc]`, one shared admission rule, done only when the composer returns, unconfirmed at the deadline, no retry.
+
+- [ ] 1. Recognizer: the footer `Esc to cancel` is the last nonblank viewport row. The scope is the rows below the last full-width rule if one is on screen, otherwise the whole viewport. A panel taller than the screen fills it. Within that scope there is no `❯` prompt row and no numbered choice. Both captures are pinned as fixtures: the short one (2.1.304, 39 rows) and the tall live-check one (its last 39 rows).
+- [ ] 2. The panel proof outranks the turn flag, for the lone esc only. The turn flag is an inference from progress OSC. The screen proves the composer is gone and a panel holds the keys. `Dismissable` drops its `!TurnActive` gate and keeps the picker-OSC, complete-frame and no-composer gates. A dismissal drive does not stop on `TurnActive` (the reducer's top-level stop, and the wrapper's turn-active dispatch branch). It still confirms only on `Idle`, which arrives once Claude clears progress and the grace ends. Every other request still stops on an active turn. `Recoverable` keeps its turn gate.
+- [ ] 3. #716 close advisory: the skill's "five seconds total" is asserted against `MaxKeyTotalWaitMS`.
+- [ ] 4. Tests:
+  - Recognizer: positive on both captures. Negatives: composer, closed panel, picker, permission prompt, panel footer followed by other text.
+  - Wrapper: paint the tall capture with `turnActive` true. Expect `Dismissable`, and `[esc]` admitted, written once, then the composer and the turn end, then confirmed.
+  - Reducer: a dismissal started with `TurnActive`; turn-active frames after the write keep observing; `Idle` confirms. A non-dismissal request still stops on `TurnActive`. Esc on an occupied composer with an active turn still refuses.
+- [ ] 5. Live check (hub, after landing): `--keys SLOT clear-line text:/usage submit`, then `--keys SLOT esc`, on a short terminal (the panel taller than the screen) and on a tall one. Expect done and an idle composer.
+
+State design:
+
+Actions: `couch --keys SLOT esc`, operator Esc, `couch --peek`.
+
+| Internal state / failure | Visible state | Recovery action | Possible loss |
+|---|---|---|---|
+| Panel open, turn flag active from the panel's own progress signal | panel; `--keys esc` admitted | `--keys esc` | none |
+| Panel taller than the screen | panel; `--keys esc` admitted | `--keys esc` | none |
+| Panel open over a genuinely working agent turn (if Claude allows /usage mid-turn) | panel; `--keys esc` admitted | `--keys esc`, then peek | unverified: Claude's dialog should consume the Esc; if it reached the turn, the turn would be interrupted |
+| Esc written, composer returns, progress clears | idle composer, done | none | none |
+| Esc written, composer returns, progress never clears | unconfirmed at the deadline, with tail | peek | none |
+| Panel not recognized (new wording) | refused | operator Esc; recognizer update | none |
+
+Not covered: other agents' panels; a `couch --usage` one-shot. Question for the hub: should the live check also try /usage opened during a working turn, to settle the unverified row?
+
 ## Revisions
 
+- 2026-10-19 (pair:2): reopened after the failed live check. This is the third design delta on this mechanism, so a whole revised plan sits above under Plan (Revised plan), instead of another delta. Pending hub approval.
 - 2026-10-19 (pair:2): the hub approved the design and delayed the live capture (the machine crashed; opening /usage live leaves a panel only a human can close until this lands). Delta: build against a provisional fixture, `wrapcmd/testdata/drive/claude/provisional/usage-panel.screen`, shaped from the `Esc to cancel` footer Claude paints on its own dialogs; its metadata and the recognizer's footer table are marked for replacement by the capture.
 - 2026-10-19 (pair:2): close review BR-1. Delta: the Done-when live check is a post-merge step owned by the hub. Fleet rule: workers never drive a live slot, and the hub verifies after landing. This close is gated on the fixture half (the hub's live 2.1.304 capture through recognizer, wrapper and service tests). The hub records the live run (`--keys SLOT clear-line text:/usage submit`, then `--keys SLOT esc`, idle composer) in this Log after merge, and a failure reopens the issue.
 - 2026-10-19 (pair:2): capture in. Delta: the fixture moved to `claude/2.1.304/usage-panel.screen` plus `usage-closed.screen`, the provisional directory was deleted, and the recognizer reads only the rows below the panel rule.
