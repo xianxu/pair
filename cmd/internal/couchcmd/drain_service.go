@@ -137,7 +137,7 @@ func (c *drainCoordinator) publishLocked() {
 		b.State = couchcore.DrainCancelled
 		b.Detail = "no active drain"
 	}
-	if c.record.State.Phase == couchcore.DrainFinished && !c.record.Released {
+	if c.record.State.Phase == couchcore.DrainFinished && !c.record.Released && b.State == couchcore.DrainCancelled {
 		b.State = couchcore.DrainDraining
 		b.Detail = "cancelling (dispatch held)"
 		b.Recovery = "retry cancel"
@@ -168,7 +168,7 @@ func (c *drainCoordinator) saveLocked() error {
 		err = c.opts.Store.Write(c.ctx, raw)
 	}
 	if err != nil {
-		c.record.State.Error = "drain storage unknown: " + err.Error()
+		c.record.State, _ = couchcore.ReduceDrain(c.record.State, couchcore.DrainEvent{ID: c.record.State.ID, Kind: couchcore.DrainFailed, Detail: "drain storage unknown: " + err.Error()})
 	} else {
 		c.raw = raw
 	}
@@ -252,7 +252,7 @@ func (c *drainCoordinator) start(ctx context.Context, id, reason string, fast bo
 		return c.view(), err
 	}
 	if holdErr != nil {
-		c.record.State.Error = holdErr.Error()
+		c.record.State, _ = couchcore.ReduceDrain(c.record.State, couchcore.DrainEvent{ID: c.record.State.ID, Kind: couchcore.DrainFailed, Detail: holdErr.Error()})
 		_ = c.saveLocked()
 		return c.view(), holdErr
 	}
@@ -549,7 +549,7 @@ func (c *drainCoordinator) addMember(workspace string, member drainLiveMember) {
 		return
 	}
 	if len(c.record.Controls) >= couchcore.MaxDrainMembers {
-		c.record.State.Error = "membership exceeds limit"
+		c.record.State, _ = couchcore.ReduceDrain(c.record.State, couchcore.DrainEvent{ID: c.record.State.ID, Kind: couchcore.DrainFailed, Detail: "membership exceeds limit"})
 		_ = c.saveLocked()
 		return
 	}
@@ -809,23 +809,27 @@ func (c *drainCoordinator) recordID() string {
 
 func (c *drainCoordinator) finishRelease(id string) {
 	c.mu.Lock()
-	released := c.record.Released
+	eligible := id == c.record.State.ID && c.record.State.Phase == couchcore.DrainFinished && !c.record.Released
 	c.mu.Unlock()
-	if released {
+	if !eligible {
 		return
 	}
-	if err := c.opts.Broker.ReleaseDrain(id); err != nil {
-		c.mu.Lock()
-		c.record.State.Phase = couchcore.DrainCancelling
-		c.record.State.Error = "cancellation unconfirmed: " + err.Error()
-		_ = c.saveLocked()
-		c.mu.Unlock()
-		return
-	}
+	err := c.opts.Broker.ReleaseDrain(id)
 	c.mu.Lock()
-	c.record.Released = true
+	defer c.mu.Unlock()
+	// Outcomes cannot mutate a replacement intent or reapply after success.
+	if id != c.record.State.ID || c.record.State.Phase != couchcore.DrainFinished || c.record.Released {
+		return
+	}
+	outcome, detail := couchcore.DrainDone, ""
+	if err != nil {
+		outcome, detail = couchcore.DrainUnknown, "cancellation unconfirmed: "+err.Error()
+	}
+	c.record.State, _ = couchcore.ReduceDrain(c.record.State, couchcore.DrainEvent{ID: id, Kind: couchcore.DrainBrokerReleaseResult, Outcome: outcome, Detail: detail})
+	if err == nil {
+		c.record.Released = true
+	}
 	_ = c.saveLocked()
-	c.mu.Unlock()
 }
 func (c *drainCoordinator) observeMember(workspace, identity string, obs couchcore.DrainObservation, revision uint64, generation ...string) {
 	c.mu.Lock()

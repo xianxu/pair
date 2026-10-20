@@ -48,16 +48,17 @@ const (
 type DrainEventKind string
 
 const (
-	DrainQueueObserved   DrainEventKind = "queue"
-	DrainMemberObserved  DrainEventKind = "member"
-	DrainMemberJoined    DrainEventKind = "joined"
-	DrainAcknowledged    DrainEventKind = "ack"
-	DrainNoticeResult    DrainEventKind = "notice_result"
-	DrainInterruptResult DrainEventKind = "interrupt_result"
-	DrainRevoked         DrainEventKind = "revoked"
-	DrainCancel          DrainEventKind = "cancel"
-	DrainRecover         DrainEventKind = "recover"
-	DrainFailed          DrainEventKind = "failed"
+	DrainQueueObserved       DrainEventKind = "queue"
+	DrainMemberObserved      DrainEventKind = "member"
+	DrainMemberJoined        DrainEventKind = "joined"
+	DrainAcknowledged        DrainEventKind = "ack"
+	DrainNoticeResult        DrainEventKind = "notice_result"
+	DrainInterruptResult     DrainEventKind = "interrupt_result"
+	DrainRevoked             DrainEventKind = "revoked"
+	DrainCancel              DrainEventKind = "cancel"
+	DrainRecover             DrainEventKind = "recover"
+	DrainFailed              DrainEventKind = "failed"
+	DrainBrokerReleaseResult DrainEventKind = "broker_release_result"
 )
 
 type DrainStart struct {
@@ -164,12 +165,29 @@ func drainControlTerminal(o DrainOutcome) bool { return o == DrainDone || o == D
 // Zero observation sequences are for already serialized shell observations; a
 // producer capable of reordering must provide strictly increasing sequences.
 func ReduceDrain(before DrainState, e DrainEvent) (DrainState, []DrainEffect) {
-	if e.ID != before.ID || before.ID == "" || before.Phase == DrainFinished {
+	if e.ID != before.ID || before.ID == "" || (before.Phase == DrainFinished && e.Kind != DrainBrokerReleaseResult && e.Kind != DrainFailed) {
 		return before, nil
 	}
 	s := cloneDrain(before)
 	var fx []DrainEffect
 	switch e.Kind {
+	case DrainBrokerReleaseResult:
+		if s.Phase != DrainFinished {
+			return before, nil
+		}
+		if e.Outcome == DrainDone {
+			s.Error = ""
+		} else {
+			s.Phase = DrainCancelling
+			s.Queue = DrainQueueObservation{}
+			s.Error = e.Detail
+			if s.Error == "" {
+				s.Error = "cancellation unconfirmed: broker release"
+			}
+		}
+		// A failed broker release cannot be immediately re-completed by the old
+		// queue snapshot; retry must traverse cancellation's observation boundary.
+		return s, nil
 	case DrainQueueObserved:
 		if e.Queue.Sequence != 0 && e.Queue.Sequence <= s.Queue.Sequence {
 			return before, nil
@@ -205,6 +223,7 @@ func ReduceDrain(before DrainState, e DrainEvent) (DrainState, []DrainEffect) {
 		}
 	case DrainFailed:
 		s.Error = e.Detail
+		return s, nil
 	case DrainMemberJoined:
 		if s.Phase == DrainCancelling || s.Phase == DrainRecovered {
 			return before, nil

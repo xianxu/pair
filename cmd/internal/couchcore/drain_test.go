@@ -3,6 +3,7 @@ package couchcore
 import (
 	"fmt"
 	"math/rand"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -357,5 +358,48 @@ func TestDrainAckUnknownEvidenceAndDuplicateBaseline(t *testing.T) {
 	s, _ = stepDrain(s, DrainEvent{Kind: DrainMemberObserved, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Idle: true, Submission: 12}})
 	if s.Members["pair:1"].Ack {
 		t.Fatal("duplicate ack hid later activity")
+	}
+}
+
+func TestDrainBrokerReleaseFailureRetryAndStaleOutcomes(t *testing.T) {
+	s := drainPaused(drainFixture(t))
+	s, _ = stepDrain(s, DrainEvent{Kind: DrainCancel})
+	s, _ = stepDrain(s, DrainEvent{Kind: DrainRevoked, Workspace: "pair:1", Identity: "binding-session", Outcome: DrainDone})
+	s, _ = stepDrain(s, DrainEvent{Kind: DrainQueueObserved, Queue: DrainQueueObservation{Known: true, Complete: true}})
+	if s.Phase != DrainFinished {
+		t.Fatal("queue release not finished")
+	}
+	result := DrainEvent{Kind: DrainBrokerReleaseResult, Outcome: DrainUnknown, Detail: "cancellation unconfirmed: broker unavailable"}
+	failed, _ := stepDrain(s, result)
+	if failed.Phase != DrainCancelling || failed.Error != result.Detail {
+		t.Fatalf("release failure outside model: %+v", failed)
+	}
+	stale := result
+	stale.ID = "old"
+	if next, fx := ReduceDrain(s, stale); !reflect.DeepEqual(next, s) || len(fx) != 0 {
+		t.Fatal("stale release outcome applied")
+	}
+	active := drainPaused(drainFixture(t))
+	if next, fx := stepDrain(active, result); !reflect.DeepEqual(next, active) || len(fx) != 0 {
+		t.Fatal("unrelated active phase accepted release outcome")
+	}
+	retried, fx := stepDrain(failed, DrainEvent{Kind: DrainCancel})
+	if len(fx) != 1 || fx[0].Kind != DrainResume {
+		t.Fatal("retry did not request owner release")
+	}
+	retried, _ = stepDrain(retried, DrainEvent{Kind: DrainQueueObserved, Queue: DrainQueueObservation{Known: true, Complete: true}})
+	done, _ := stepDrain(retried, DrainEvent{Kind: DrainBrokerReleaseResult, Outcome: DrainDone})
+	if done.Phase != DrainFinished || done.Error != "" {
+		t.Fatalf("retry did not complete: %+v", done)
+	}
+}
+func TestDrainStorageFailureAfterQueueReleaseIsModelled(t *testing.T) {
+	s := drainPaused(drainFixture(t))
+	s, _ = stepDrain(s, DrainEvent{Kind: DrainCancel})
+	s, _ = stepDrain(s, DrainEvent{Kind: DrainRevoked, Workspace: "pair:1", Identity: "binding-session", Outcome: DrainDone})
+	s, _ = stepDrain(s, DrainEvent{Kind: DrainQueueObserved, Queue: DrainQueueObservation{Known: true, Complete: true}})
+	s, _ = stepDrain(s, DrainEvent{Kind: DrainFailed, Detail: "drain storage unknown"})
+	if s.Error != "drain storage unknown" || ProjectDrainBoard(s, time.Now()).State != DrainStuck {
+		t.Fatal("finished intent discarded storage error")
 	}
 }

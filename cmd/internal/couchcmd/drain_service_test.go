@@ -1415,3 +1415,67 @@ func TestDrainServiceFastWaitsForMergeAndLandingRetirement(t *testing.T) {
 		t.Fatalf("all retirement not drained: %+v", b)
 	}
 }
+
+func TestDrainServiceBrokerReleaseFailureRetryAndStaleGeneration(t *testing.T) {
+	c, _, _ := newDrainServiceFixture(t)
+	c.pass.Lock()
+	defer c.pass.Unlock()
+	id := "00000000-0000-4000-8000-000000000001"
+	state, _, err := couchcore.StartDrain(couchcore.DrainStart{ID: id, Deadline: time.Now().Add(time.Minute)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, _ = couchcore.ReduceDrain(state, couchcore.DrainEvent{ID: id, Kind: couchcore.DrainCancel})
+	state, _ = couchcore.ReduceDrain(state, couchcore.DrainEvent{ID: id, Kind: couchcore.DrainQueueObserved, Queue: couchcore.DrainQueueObservation{Known: true, Complete: true}})
+	c.mu.Lock()
+	c.record = drainServiceRecord{SchemaVersion: 2, Namespace: c.namespace, Epoch: 1, State: state}
+	err = c.saveLocked()
+	c.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.opts.Broker.HoldDrain("foreign"); err != nil {
+		t.Fatal(err)
+	}
+	c.finishRelease(id)
+	c.mu.Lock()
+	failed := c.record.State
+	released := c.record.Released
+	c.mu.Unlock()
+	if released || failed.Phase != couchcore.DrainCancelling || !strings.Contains(failed.Error, "cancellation unconfirmed") || failed.Queue.Known {
+		t.Fatalf("failed release not reducer-owned: %+v released=%v", failed, released)
+	}
+	before := failed
+	c.finishRelease("stale")
+	c.mu.Lock()
+	unchanged := reflect.DeepEqual(before, c.record.State) && !c.record.Released
+	c.mu.Unlock()
+	if !unchanged {
+		t.Fatal("stale release outcome mutated current state")
+	}
+	if err := c.opts.Broker.ReleaseDrain("foreign"); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.event(couchcore.DrainEvent{ID: id, Kind: couchcore.DrainCancel}); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.event(couchcore.DrainEvent{ID: id, Kind: couchcore.DrainQueueObserved, Queue: couchcore.DrainQueueObservation{Known: true, Complete: true}}); err != nil {
+		t.Fatal(err)
+	}
+	c.finishRelease(id)
+	c.mu.Lock()
+	done := c.record.State
+	released = c.record.Released
+	c.mu.Unlock()
+	if !released || done.Phase != couchcore.DrainFinished || done.Error != "" || c.view().State != couchcore.DrainCancelled {
+		t.Fatalf("release retry: %+v released=%v board=%+v", done, released, c.view())
+	}
+	// A late failure callback cannot make this successfully released intent active.
+	c.finishRelease("stale")
+	c.mu.Lock()
+	unchanged = reflect.DeepEqual(done, c.record.State) && c.record.Released
+	c.mu.Unlock()
+	if !unchanged {
+		t.Fatal("stale release mutated completed generation")
+	}
+}

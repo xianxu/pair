@@ -72,14 +72,14 @@ func ProjectDrainBoard(s DrainState, now time.Time) DrainBoard {
 		b.Rows = append(b.Rows, r)
 	}
 	switch {
-	case s.Phase == DrainFinished:
-		b.State = DrainCancelled
-		b.Detail = "cancelled"
-		b.Recovery = "inspect status"
-		return b
 	case s.Error != "":
 		b.State = DrainStuck
 		b.Detail = s.Error
+		b.Recovery = "inspect status"
+		return b
+	case s.Phase == DrainFinished:
+		b.State = DrainCancelled
+		b.Detail = "cancelled"
 		b.Recovery = "inspect status"
 		return b
 	case s.Phase == DrainRecovered:

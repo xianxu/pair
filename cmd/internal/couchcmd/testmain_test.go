@@ -1,6 +1,7 @@
 package couchcmd
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
@@ -9,7 +10,14 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	run := func() int { return testpair.Run(m) }
+	run := func() int {
+		code := testpair.Run(m)
+		if err := realDrainQueueLeaseCache.Close(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			code = 1
+		}
+		return code
+	}
 	if os.Getenv("PAIR_CAPTURE_CHILD_HELPER") == "1" || os.Getenv(continuationPublicationFixtureEnv) != "" || os.Getenv("PAIR_PROVISION_SIGNAL_HELPER") == "1" {
 		os.Exit(run())
 	}

@@ -4,16 +4,22 @@ import (
 	"context"
 	"debug/buildinfo"
 	_ "embed"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/internal/testbinary"
 )
 
 //go:embed testdata/drainqueue/lease_helper.go.txt
 var realDrainQueueLeaseHelper []byte
+
+var realDrainQueueLeaseCache testbinary.Cache
+var realDrainQueueLeaseSource string
 
 type realDrainQueueFixture struct {
 	root, cwd, binary, workerTree string
@@ -80,16 +86,51 @@ func newRealDrainQueueFixture(t *testing.T) realDrainQueueFixture {
 	t.Setenv("PAIR722_PROBE_CWD", cwd)
 	// The helper creates real lifetime leases using the same source revision as
 	// the binary. It never executes a suite, merge, landing, or application command.
-	helper := filepath.Join(root, "helper")
-	if err := os.Mkdir(helper, 0700); err != nil {
+	cacheKey := source + "@" + head
+	helper, err := realDrainQueueLeaseCache.Directory(func(dir string) error {
+		buildCtx, cancel := context.WithTimeout(t.Context(), time.Minute)
+		defer cancel()
+		realDrainQueueLeaseSource = cacheKey
+		if err := os.WriteFile(filepath.Join(dir, "main.go"), realDrainQueueLeaseHelper, 0600); err != nil {
+			return err
+		}
+		buildRun := func(args ...string) error {
+			cmd := exec.CommandContext(buildCtx, "go", args...)
+			cmd.Dir = dir
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				return fmt.Errorf("go %v: %w\n%s", args, err, out)
+			}
+			return nil
+		}
+		for _, args := range [][]string{
+			{"mod", "init", "github.com/xianxu/ariadne/cmd/sdlc/pairdrainconformance"},
+			{"mod", "edit", "-replace=github.com/xianxu/ariadne=" + source},
+			{"mod", "edit", "-require=github.com/xianxu/ariadne@v0.0.0"},
+		} {
+			if err := buildRun(args...); err != nil {
+				return err
+			}
+		}
+		//lint:allow test-go-build — the suite-owned cache builds this lease fixture once and retains it until TestMain cleanup
+		cmd := exec.CommandContext(buildCtx, "go", "build", "-mod=mod", "-o", filepath.Join(dir, "lease-helper"), ".")
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("build real queue lease helper: %w\n%s", err, out)
+		}
+		return nil
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(helper, "main.go"), realDrainQueueLeaseHelper, 0600); err != nil {
+	if realDrainQueueLeaseSource != cacheKey {
+		t.Fatal("real queue dependency changed during this test process; rerun with one fixed binary/source revision")
+	}
+	// Each private fixture aliases the suite-owned read-only executable; its
+	// lifetime is not tied to the first consumer's temporary queue directory.
+	if err := os.Symlink(filepath.Join(helper, "lease-helper"), filepath.Join(root, "lease-helper")); err != nil {
 		t.Fatal(err)
 	}
-	run(helper, "go", "mod", "init", "github.com/xianxu/ariadne/cmd/sdlc/pairdrainconformance")
-	run(helper, "go", "mod", "edit", "-replace=github.com/xianxu/ariadne="+source)
-	run(helper, "go", "mod", "edit", "-require=github.com/xianxu/ariadne@v0.0.0")
-	run(helper, "go", "build", "-mod=mod", "-o", filepath.Join(root, "lease-helper"), ".")
+
 	return realDrainQueueFixture{root: root, cwd: cwd, binary: binary, workerTree: workerTree}
 }

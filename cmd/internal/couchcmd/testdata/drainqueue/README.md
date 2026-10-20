@@ -40,8 +40,10 @@ lost replies after successful pause/resume effects. Loss of a reply is injected
 by a private wrapper around the selected real executable; subsequent real status
 must reconcile its effect while preserving other owners.
 
-`lease_helper.go.txt` is built in a disposable Go module against the selected
-Ariadne source revision. Its internal queuegate API creates real lifetime leases
+`lease_helper.go.txt` is built once per test process in a suite-owned disposable
+Go module against the selected Ariadne source revision. Every private fixture
+aliases that read-only executable; `TestMain` removes it after all tests and
+consumer cleanup finish. Its internal queuegate API creates real lifetime leases
 and admission/cancellation/retirement evidence without running a suite, merge or
 landing. It is a fixture driver, not a duplicate queue implementation. An API
 change is expected to fail this build and require updating conformance alongside
