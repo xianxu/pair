@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: 4891b7ad-263f-482f-9301-c7ad4579d2c9
+        repository: github.com/xianxu/pair
+        issue_id: "000727"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot7/pair
+        reviewed_head: d8a300cc92801088a484d3ec6f1d7509f7df4b49
+        slot: pair:7
+        requested_at: "2026-10-20T16:02:19.534058Z"
+      phase: finished
+      pid: 14385
+      started_at: "2026-10-20T16:02:19.652042Z"
+      finished_at: "2026-10-20T16:02:45.01607Z"
+      session_id: 01a15a0c-a319-72c2-99f3-dd301032c08d
+      outcome: returned
 gate: plan-quality
 issue: 727
 id_prefix: PQ
@@ -109,7 +129,32 @@ rounds:
           note: RecoveryTransition defines termination precedence through cleanup, signal-channel closure and shell handoff.
           round: 3
       blocked: false
-content_hash: 9e5447459fa9bbf01baa88a2066fb0d2932691b34b6d9266d50e012e50c5eb4e
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 41408597-f318-4fcd-9fe2-22f7a6ef3cf6
+            repository: github.com/xianxu/pair
+            issue_id: "000727"
+            recipe: plan-quality
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot7/pair
+            reviewed_head: d8a300cc92801088a484d3ec6f1d7509f7df4b49
+            slot: pair:7
+            requested_at: "2026-10-20T16:01:50.752879Z"
+          phase: finished
+          pid: 7704
+          started_at: "2026-10-20T16:01:50.84449Z"
+          finished_at: "2026-10-20T16:02:17.326387Z"
+          session_id: 01a15a0c-31ed-7002-88e3-80248b6d55cf
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-20T09:02:17-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      blocked: false
+content_hash: d52ea2100a7b225a9615198c4c29e1ef1e0d265ab860a18640f2e2de289b2205
 ---
 
 # Gate ledger — pair#727 (plan-quality)
@@ -139,6 +184,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - PQ-1 — addressed — Named-function adversarial strategies replace test inventories and are referenced by execution tasks.
 - PQ-2 — addressed — RecoveryTransition defines termination precedence through cleanup, signal-channel closure and shell handoff.
+
+## Round 4 — 2026-10-20T09:02:17-07:00 (codex) — passed
 
 ## Open findings
 
