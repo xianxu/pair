@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-19
 updated: 2026-10-20
-estimate_hours: 9.6185
+estimate_hours: 14.947
 collaboration-mode: collaboration
-card_mirror: 'e54bad0e5c0b64923d05e8de2ed7061e64cf1270' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '9e994f88396502ed12bdaadc71bea57fc155fd0e' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-19T23:16:03-07:00
 claimant:
     operator: Xian Xu
@@ -65,6 +65,45 @@ Decomposition follows the approved plan: initial spec/coordination uses issue-sp
 Renewed plan-quality round4 passed before this derivation. The original prose and machine block below are retained as provenance; this first block supersedes their total for the approved epoch mechanism. Same v3.1/stale calibration, familiarity1.0 and thorough-plan buffer15%. Add: typed fence/protocol integration design1.5×0.2, impl1.5×0.4; pure generation ownership model design1.5×0.2, impl0.8×0.4; epoch/schema store extension design0.3×0.2, impl0.5×0.4; coordinator propagation/recovery integration design1.0×0.2, impl1.0×0.4; counted-cycle/transport/race/live-conformance execution design1.0×0.2, impl1.5×0.4; second external endpoint discovery impl0.6×0.4. The existing library/IO seams remain reusable; no library supplies this protocol-specific generation authority. These incremental primitives explicitly cover the re-plan rather than hiding it in the original coordinator allowance.
 
 Design3.39×1.15 + impl5.72 =9.6185h cumulative idle-removed ship wall-clock, including agent execution and active verification/review, excluding external #481/operator waits and registered suite-queue waits. The added execution integration allowance includes implementing/adapting the stateful fake and 1000/2000-cycle checks, renewed races/recorded suite and hands-on isolated/live acceptance; discovery is separate. Prior completed transport checks stay evidence, but changed code requires fresh execution. This is a provisional forecast, not measured actual time or a remaining-hours promise.
+
+### 2026-10-20 14:20 PDT — renewed cumulative forecast after approved redesign
+
+Plan-quality round5 is CLEAN. Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`, Method A only; calibration remains stale/provisional. Prior9.6185h is retained as historical scope, including the discarded persisted coordinator; it is not a remaining-work forecast. Add issue-spec design0.5×0.5/impl0.3×0.4 for the re-scope; cross-cutting deletion/regression integration design1.0×0.2/impl2.0×0.4; pure flag helpers design0.3×0.2/impl0.5×0.4; service/CLI integration design1.0×0.2/impl1.5×0.4; compact console design0.5×0.2/impl0.8×0.4; genuine installed-fleet qualification design1.5×0.2/impl3.0×0.4; docs design0.2×0.2/impl0.3×0.4; renewed review design0.2×0.2/impl0.5×0.4; installed-path discovery impl1.0×0.4. Existing Go maps, ordinary Broker.SendSystem, cached liveness and installed PTY helpers replace novel protocol work; no library search or new stack is needed. Thorough approved design receives15% design buffer, familiarity1.0, no parallelism discount. Incremental design1.19 and impl3.96 yield5.3285h; cumulative design4.58×1.15+impl9.68=14.947h. Includes verification and watched-check execution, excludes external capacity/operator waits; not measured actuals.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.5 impl=0.12
+item: greenfield-go-module design=0.2 impl=0.32
+item: api-integration design=0.3 impl=0.48
+item: smaller-go-module design=0.06 impl=0.2
+item: api-integration design=0.4 impl=0.6
+item: api-integration design=0.3 impl=0.48
+item: greenfield-go-module design=0.3 impl=0.32
+item: tui-screen design=0.2 impl=0.32
+item: atlas-docs design=0.03 impl=0.08
+item: milestone-review design=0.04 impl=0.2
+item: real-api-discovery design=0 impl=0.24
+item: api-integration design=0.3 impl=0.6
+item: greenfield-go-module design=0.3 impl=0.32
+item: smaller-go-module design=0.06 impl=0.2
+item: api-integration design=0.2 impl=0.4
+item: api-integration design=0.2 impl=0.6
+item: real-api-discovery design=0 impl=0.24
+item: issue-spec design=0.25 impl=0.12
+item: api-integration design=0.2 impl=0.8
+item: smaller-go-module design=0.06 impl=0.2
+item: api-integration design=0.2 impl=0.6
+item: tui-screen design=0.1 impl=0.32
+item: api-integration design=0.3 impl=1.2
+item: atlas-docs design=0.04 impl=0.12
+item: milestone-review design=0.04 impl=0.2
+item: real-api-discovery design=0 impl=0.4
+design-buffer: 0.15
+total: 14.947
+```
+
+### Previous accepted machine block — historical provenance
 
 ```estimate
 model: estimate-logic-v3.1
