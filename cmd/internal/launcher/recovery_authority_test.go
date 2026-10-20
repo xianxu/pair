@@ -3,8 +3,8 @@ package launcher
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
 	"github.com/xianxu/pair/cmd/internal/threadrecord"
 	"strings"
@@ -100,14 +100,20 @@ func (f *recoveryGateRuntime) ValidateRecoveryAuthority(ctx context.Context, a R
 	return ValidateRecoveryRecord(a, f.record, scope, tag, agent, cwd, 42, "helper", a.Intent.Context.CreatedAt.Add(time.Minute))
 }
 func TestRecoveryLaunchSecondGateRefusesChangedClaimBeforeEffects(t *testing.T) {
-	for _, changed := range []bool{false, true} {
-		t.Run(fmt.Sprint(changed), func(t *testing.T) {
+	for _, scenario := range []string{"capture", "native", "capture changed", "native changed"} {
+		changed := strings.Contains(scenario, "changed")
+		t.Run(scenario, func(t *testing.T) {
 			a := testRecoveryAuthority()
+			if strings.HasPrefix(scenario, "native") {
+				a = nativeOnlyRecoveryAuthority()
+			}
 			opts := baseOpts(LaunchArgs{ForcedTag: "work"})
 			scope, _ := ResolveRepoScope(opts.Env.Cwd)
 			a.Address.RepoScope = scope.Key
 			a.Intent.Context.Address = a.Address
-			a.Intent.Context.ExpiresAt = a.Intent.Context.Capture.CapturedAt.Add(storagegc.CaptureRetentionPeriod)
+			if a.Intent.Context.Version == 1 {
+				a.Intent.Context.ExpiresAt = a.Intent.Context.Capture.CapturedAt.Add(storagegc.CaptureRetentionPeriod)
+			}
 			raw, err := BuildCouchRecoveryLaunchProfile("work", "codex", []string{}, a)
 			if err != nil {
 				t.Fatal(err)
@@ -129,6 +135,9 @@ func TestRecoveryLaunchSecondGateRefusesChangedClaimBeforeEffects(t *testing.T) 
 			if err != nil {
 				t.Fatal(err)
 			}
+			if opts.Args.Prompt != "" {
+				t.Fatal("explicit recovery injected prompt")
+			}
 			if rt.checks != 1 {
 				t.Fatalf("gate calls %d: %s", rt.checks, stderr.String())
 			}
@@ -137,8 +146,8 @@ func TestRecoveryLaunchSecondGateRefusesChangedClaimBeforeEffects(t *testing.T) 
 					t.Fatalf("effects after refusal: code %d launch %d prepared %v", code, rt.launchCount, rt.preparedLaunches)
 				}
 			} else {
-				if code != 0 || rt.launchCount != 1 || rt.env["PAIR_SESSION_ID"] != "native" || rt.env["PAIR_LAUNCH_NONCE"] != a.Attempt {
-					t.Fatalf("explicit exact resume failed: code %d launch %d: %s", code, rt.launchCount, stderr.String())
+				if code != 0 || rt.launchCount != 1 || rt.env["PAIR_SESSION_ID"] != "native" || rt.env["PAIR_LAUNCH_NONCE"] != a.Attempt || launchArgsText(t, rt.env) != "--disable shell_snapshot resume native --no-alt-screen" {
+					t.Fatalf("explicit exact resume failed: code %d launch %d args %q: %s", code, rt.launchCount, launchArgsText(t, rt.env), stderr.String())
 				}
 			}
 		})
@@ -244,6 +253,63 @@ func TestTaggedRecoveryClaimRejectsChangedAuthority(t *testing.T) {
 			change(&a, &record)
 			if ValidateRecoveryRecord(a, record, RepoScope{Key: a.Address.RepoScope}, "work", "codex", "/repo", 42, "helper", a.Intent.CreatedAt.Add(time.Minute)) == nil {
 				t.Fatal("accepted changed tagged authority")
+			}
+		})
+	}
+}
+
+func nativeOnlyRecoveryAuthority() RecoveryAuthority {
+	a := testRecoveryAuthority()
+	c := &a.Intent.Context
+	c.Version = 2
+	c.Source = &threadrecord.NativeRecoverySource{Kind: sessioninventory.RecoverySourceNative, Cutoff: c.CreatedAt, Revision: 3}
+	c.Capture = threadrecord.RecoveryCapture{}
+	c.Generation = ""
+	c.ExpiresAt = c.CreatedAt.Add(threadrecord.NativeRecoverySelectionLifetime)
+	c.Candidates[0].CWD = "/repo"
+	a.Intent.SourceRevision = c.Source.Revision
+	return a
+}
+
+func TestNativeOnlyRecoveryRecordAuthority(t *testing.T) {
+	for _, scenario := range []string{"valid", "at cutoff", "at expiry", "before cutoff", "revision mismatch", "future revision", "changed cutoff", "renewed expiry", "copied address", "changed helper", "changed nonce", "changed claim", "changed cwd"} {
+		t.Run(scenario, func(t *testing.T) {
+			a := nativeOnlyRecoveryAuthority()
+			now := a.Intent.Context.CreatedAt.Add(time.Minute)
+			switch scenario {
+			case "at cutoff":
+				now = a.Intent.Context.CreatedAt
+			case "at expiry":
+				now = a.Intent.Context.ExpiresAt
+			case "before cutoff":
+				now = a.Intent.Context.CreatedAt.Add(-time.Nanosecond)
+			case "revision mismatch":
+				a.Intent.SourceRevision++
+			case "future revision":
+				a.Intent.SourceRevision = a.RecordRevision + 1
+				a.Intent.Context.Source.Revision = a.Intent.SourceRevision
+			case "changed cutoff":
+				a.Intent.Context.Source.Cutoff = now
+			case "renewed expiry":
+				a.Intent.Context.ExpiresAt = a.Intent.Context.ExpiresAt.Add(time.Minute)
+			}
+			r := recoveryAuthorityRecord(a, "/repo", "codex", 42, "helper")
+			switch scenario {
+			case "copied address":
+				r.Address.Tag = "other"
+			case "changed helper":
+				r.Incarnations[0].Identity = "other"
+			case "changed nonce":
+				r.Incarnations[0].Start.Nonce = "other"
+			case "changed claim":
+				r.Incarnations[0].Start.RecoveryIntent.Context.Digest = strings.Repeat("b", 64)
+			case "changed cwd":
+				r.WorkingPath = "/other"
+			}
+			err := ValidateRecoveryRecord(a, r, RepoScope{Key: a.Address.RepoScope}, "work", "codex", "/repo", 42, "helper", now)
+			want := scenario == "valid" || scenario == "at cutoff"
+			if (err == nil) != want {
+				t.Fatalf("authority=%v, want allowed=%v", err, want)
 			}
 		})
 	}

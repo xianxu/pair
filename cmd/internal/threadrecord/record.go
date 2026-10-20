@@ -412,6 +412,11 @@ func rejectLegacyRecoveryFields(envelope map[string]json.RawMessage) error {
 // Schema 3 knows only capture-dependent recovery. Reject newer fields by
 // presence, including null, before the shared decoder can erase their version.
 func rejectTaggedRecoveryFields(envelope map[string]json.RawMessage) error {
+	if raw, ok := envelope["recovery_context"]; ok {
+		if err := rejectNativeRecoveryContext(raw); err != nil {
+			return err
+		}
+	}
 	if _, ok := envelope["recovery_intent"]; ok {
 		return fmt.Errorf("legacy schema cannot contain retained recovery intent")
 	}
@@ -438,10 +443,51 @@ func rejectTaggedRecoveryFields(envelope map[string]json.RawMessage) error {
 		if err := strictjson.Decode(raw, &intent); err != nil {
 			return err
 		}
+		if raw, ok := intent["context"]; ok {
+			if err := rejectNativeRecoveryContext(raw); err != nil {
+				return err
+			}
+		}
 		for _, field := range []string{"mode", "address", "source_revision", "created_at", "agent", "orientation"} {
 			if _, ok := intent[field]; ok {
 				return fmt.Errorf("legacy recovery intent cannot contain %s", field)
 			}
+		}
+	}
+	return nil
+}
+
+// A legacy envelope must not acquire native-only semantics merely because its
+// nested Go type gained a newer context version. Check presence before decode.
+func rejectNativeRecoveryContext(raw json.RawMessage) error {
+	if string(raw) == "null" {
+		return nil
+	}
+	var context map[string]json.RawMessage
+	if err := strictjson.Decode(raw, &context); err != nil {
+		return err
+	}
+	if _, ok := context["source"]; ok {
+		return fmt.Errorf("legacy recovery context cannot contain source")
+	}
+	if raw, ok := context["version"]; ok {
+		var version int
+		if err := strictjson.Decode(raw, &version); err != nil {
+			return err
+		}
+		if version != 1 {
+			return fmt.Errorf("legacy recovery context must be capture-backed version 1")
+		}
+	}
+	var candidates []map[string]json.RawMessage
+	if raw, ok := context["candidates"]; ok {
+		if err := strictjson.Decode(raw, &candidates); err != nil {
+			return err
+		}
+	}
+	for _, candidate := range candidates {
+		if _, ok := candidate["cwd"]; ok {
+			return fmt.Errorf("legacy recovery candidate cannot contain cwd")
 		}
 	}
 	return nil

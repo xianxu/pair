@@ -26,18 +26,21 @@ One atomic implementation and one issue-close review boundary: a native-only pre
 
 | Name | Lives in | Status |
 |------|----------|--------|
-| RecoverySourceKind / NativeRecoverySource | cmd/internal/threadrecord/recovery.go | new |
+| RecoverySourceKind | cmd/internal/sessioninventory/recovery_collect.go | new |
+| NativeRecoverySource | cmd/internal/threadrecord/recovery.go | new |
 | RecoveryContext / RecoveryCandidate / recovery validation and clones | cmd/internal/threadrecord/recovery.go | modified |
 | Recovery source codec | cmd/internal/threadrecord/recovery_source_json.go | new |
+| Frozen record schema recovery guard | cmd/internal/threadrecord/record.go | modified |
 | RecoveryCollectRequest / native ordering | cmd/internal/sessioninventory/recovery_collect.go and recovery_match.go | modified |
 | RecoveryObservationRequest / ScreenAvailability / activity provenance | cmd/internal/couchcore/recovery_preview.go | new |
 | RecoveryObservation / RecoveryPreview / RecoveryChoice / DecideSlotRecovery | cmd/internal/couchcore/recovery_preview.go | modified |
 | RecoveryCandidateSelector | cmd/internal/couchcore/recovery_key.go | modified |
+| RecoveryChoice source-aware JSON | cmd/internal/couchcore/recovery_choice_json.go | new |
 | ValidateRecoveryRecord | cmd/internal/launcher/recovery_authority_os.go | modified |
 
 NativeRecoverySource is owned 1:1 by a v2 context, with source kind native-only, fixed UTC cutoff, nonzero source record revision and optional attributable launch hint. A context owns at most five exact candidate snapshots. Candidate fingerprints reuse existing root, relative path, stable file ID, generation/mutation tokens, size and mtime; add physical CWD to the persisted native-only evidence so a later cwd remap cannot be hidden by display formatting. Native timestamps come from semantic native messages; file mtime is separately labelled capture-file activity. Never infer causal conversation activity from a copy/publication clock.
 
-ScreenAvailability describes available, missing, invalid, over-budget or expired screen evidence with a bounded reason and any independently readable activity. Native completeness describes only the native scan. Neither is launch authority. Incomplete native observations retain diagnostics and already observed facts but offer no unbound actionable candidate keys. Proven and Fresh remain independently available.
+ScreenAvailability describes available or unavailable screen evidence with an exact missing/invalid/over-budget/expired reason and any independently readable activity. Native completeness describes only the native scan. Neither is launch authority. Incomplete native observations retain diagnostics and already observed facts but offer no unbound actionable candidate keys. Proven and Fresh remain independently available.
 
 The selector remains an untrusted reference. V1 fields/wire stay unchanged. V2 adds source kind, cutoff, source revision and expiry so the next request can reproduce the same evidence window. A source digest binds the address, source kind, revision, cutoff, optional launch hint and complete ordered candidate fingerprint/activity evidence; candidate keys and the digest itself are excluded to avoid a cycle. CreatedAt equals the native cutoff and ExpiresAt equals cutoff + five minutes; a rescan never renews either. New listings can produce new keys. Bounded caller-supplied selector fields do not confer provenance: the server reconstructs all evidence, compares the digest and checks the current source revision before any effect.
 
@@ -100,39 +103,40 @@ The preview/key is in-memory or caller-held and expires after five minutes; list
 
 **Files:** modify cmd/internal/threadrecord/recovery.go, recovery_context_test.go; create recovery_source_json.go and recovery_source_json_test.go in that package; modify cmd/internal/couchcore/recovery_key.go and recovery_key_test.go. Classify the new production file in cmd/internal/artifactpath/manifest.go.
 
-- [ ] Write failing pure tests for the codec and selector strategies in the function table below, using literal fixtures and the frozen v1 encoding as the compatibility oracle.
-- [ ] Run `go test ./cmd/internal/threadrecord ./cmd/internal/couchcore -run 'Recovery.*(Context|Key|Selector|Schema|NativeOnly)' -count=1`; require failure from missing behavior before editing production.
-- [ ] Implement the source model, type-owned codec, clone behavior and source-bound selector according to the format and lifetime contracts above. Clock-dependent admission remains a pure helper taking now.
-- [ ] Rerun the tests and `go test ./cmd/internal/artifactpath -count=1`; require PASS, review the v1 golden diff and commit with #721 plus session trailers.
+- [x] Write failing pure tests for the codec and selector strategies in the function table below, using literal fixtures and the frozen v1 encoding as the compatibility oracle.
+- [x] Run `go test ./cmd/internal/threadrecord ./cmd/internal/couchcore -run 'Recovery.*(Context|Key|Selector|Schema|NativeOnly)' -count=1`; require failure from missing behavior before editing production.
+- [x] Implement the source model, type-owned codec, clone behavior and source-bound selector according to the format and lifetime contracts above. Clock-dependent admission remains a pure helper taking now.
+- [x] Rerun the tests and `go test ./cmd/internal/artifactpath -count=1`; require PASS, review the v1 golden diff and commit with #721 plus session trailers.
 
 ## Task 2: independent acquisition and bounded native collection
 
 **Files:** modify cmd/internal/sessioninventory/recovery_collect.go, recovery_match.go and colocated tests; cmd/internal/couchcore/recovery_preview.go, recovery_evidence_os.go, recovery_evidence_os_test.go, recovery_prepared.go; cmd/internal/couchcmd/run.go and evidence-reader fixture assignments. Create cmd/internal/couchcore/recovery_native_only_test.go.
 
-- [ ] Write failing tests for acquisition, collection and production wiring using the existing portable OS and stateful runtime fixtures, following the function strategies below.
-- [ ] Run `go test ./cmd/internal/sessioninventory ./cmd/internal/couchcore -run 'Recovery.*(Collector|Evidence|NativeOnly|Preview)' -count=1`; require the missing behavior to fail.
-- [ ] Pass typed observation requests through RecoveryEvidenceReader, production wiring and callers. Listing uses the injected clock; selection and retained intents reuse their original source. Refactor Read into independent screen/native observation under one deadline and accounting owner, retaining partial facts on errors. Share existing collector parsing, eligibility and budget mechanics; branch only source requirements and ordering.
-- [ ] Add counted scaling and exact-bound tests against the declared operating envelope. Run the targeted tests and `go test ./cmd/internal/artifactpath ./cmd/internal/testpair -count=1`; commit after PASS.
+- [x] Write failing tests for acquisition, collection and production wiring using the existing portable OS and stateful runtime fixtures, following the function strategies below.
+- [x] Run `go test ./cmd/internal/sessioninventory ./cmd/internal/couchcore -run 'Recovery.*(Collector|Evidence|NativeOnly|Preview)' -count=1`; require the missing behavior to fail.
+- [x] Pass typed observation requests through RecoveryEvidenceReader, production wiring and callers. Listing uses the injected clock; selection and retained intents reuse their original source. Refactor Read into independent screen/native observation under one deadline and accounting owner, retaining partial facts on errors. Share existing collector parsing, eligibility and budget mechanics; branch only source requirements and ordering.
+- [x] Add counted scaling and exact-bound tests against the declared operating envelope. Run the targeted tests and `go test ./cmd/internal/artifactpath ./cmd/internal/testpair -count=1`; commit after PASS.
 
 ## Task 3: projection and source-bound selection through retirement
 
 **Files:** modify cmd/internal/couchcore/recovery_preview.go, recovery_preview_test.go, recovery_prepared.go, recovery_resume_integration_test.go, recovery_native_only_test.go; cmd/internal/couchcmd/resume_candidates.go and resume_candidates_test.go; cmd/internal/couchtty/menu_recovery.go and menu_resume_candidates_test.go.
 
-- [ ] Write failing projection and stateful execution tests using the function strategies below and newRecoveryExecutionFixture.
-- [ ] Run `go test ./cmd/internal/couchcore ./cmd/internal/couchcmd ./cmd/internal/couchtty -run 'Recovery|ResumeCandidates|ResumeCandidate' -count=1`; require missing behavior to fail.
-- [ ] Branch DecideSlotRecovery and the CLI/menu projections by source, following the visible-state contracts above. Preserve v1 key/digest behavior; native-only choices never advertise screen matching. Native-only Fresh uses the ordinary honest action.
-- [ ] Carry the original v2 source through executePreparedRecovery, persistence, retirement and launchRecoveryClaim. PreserveRecoveryBeforeRetirement stores native evidence without invoking capture preservation; existing lifecycle/confirmation owners remain authoritative. Native-only success notices describe native activity rather than tail match.
-- [ ] Rerun the command and commit after PASS. Update atlas/couch.md and atlas/session-identity.md with the source/lifetime/compatibility contract; atlas/index.md changes only if a new page is needed.
+- [x] Write failing projection and stateful execution tests using the function strategies below and newRecoveryExecutionFixture.
+- [x] Run `go test ./cmd/internal/couchcore ./cmd/internal/couchcmd ./cmd/internal/couchtty -run 'Recovery|ResumeCandidates|ResumeCandidate' -count=1`; require missing behavior to fail.
+- [x] Branch DecideSlotRecovery and the CLI/menu projections by source, following the visible-state contracts above. Preserve v1 key/digest behavior; native-only choices never advertise screen matching. Native-only Fresh uses the ordinary honest action.
+- [x] Carry the original v2 source through executePreparedRecovery, persistence, retirement and launchRecoveryClaim. PreserveRecoveryBeforeRetirement stores native evidence without invoking capture preservation; existing lifecycle/confirmation owners remain authoritative. Native-only success notices describe native activity rather than tail match.
+- [x] Rerun the command and commit after PASS. Update atlas/couch.md and atlas/session-identity.md with the source/lifetime/compatibility contract; atlas/index.md changes only if a new page is needed.
 
 ## Task 4: independent final authority and conformance
 
 **Files:** modify cmd/internal/launcher/recovery_authority_os.go, recovery_authority.go only if source validation requires it, recovery_authority_test.go, recovery_authority_os_test.go, recovery_authority_home_test.go; extend cmd/internal/couchcore/recovery_native_only_test.go and cmd/internal/couchcmd/recovery_acceptance_test.go.
 
-- [ ] Write failing final-authority tests using the function strategies below, literal pure records and portable native homes for OS integration.
-- [ ] Run `go test ./cmd/internal/launcher -run 'Recovery' -count=1`; require failure from missing native-only support.
-- [ ] Branch ValidateRecoveryRecord's lifetime validation and OSRuntime.ValidateRecoveryAuthority's capture-specific checks by source. Reuse RevalidateRecoveryCandidate and existing argv construction; extract selected-entry conversion if needed rather than duplicating it. Preserve final record-byte reread and current-clock validation.
-- [ ] Run `go test -race ./cmd/internal/couchcore ./cmd/internal/launcher ./cmd/internal/sessioninventory -run 'Recovery|Resume' -count=1` and `go test ./internal/repolint ./cmd/internal/artifactpath ./cmd/internal/testpair -count=1`. Run existing detached/warm/cold resume and lifecycle/binding regressions, recording actual test selectors in the Log. Verify the function-table guards with targeted mutation controls, restoring code before commit.
+- [x] Write failing final-authority tests using the function strategies below, literal pure records and portable native homes for OS integration.
+- [x] Run `go test ./cmd/internal/launcher -run 'Recovery' -count=1`; require failure from missing native-only support.
+- [x] Branch ValidateRecoveryRecord's lifetime validation and OSRuntime.ValidateRecoveryAuthority's capture-specific checks by source. Reuse RevalidateRecoveryCandidate and existing argv construction; extract selected-entry conversion if needed rather than duplicating it. Preserve final record-byte reread and current-clock validation.
+- [x] Run `go test -race ./cmd/internal/couchcore ./cmd/internal/launcher ./cmd/internal/sessioninventory -run 'Recovery|Resume' -count=1` and `go test ./internal/repolint ./cmd/internal/artifactpath ./cmd/internal/testpair -count=1`. Run existing detached/warm/cold resume and lifecycle/binding regressions, recording actual test selectors in the Log. Verify the function-table guards with targeted mutation controls, restoring code before commit.
 - [ ] Ask the hub for a disposable qualification decision on the tested commit before staging. Use the existing acceptance seam; hub owns real-slot actions and decides whether next-natural-recovery qualification suffices for #721. Record the concrete decision and evidence.
+
 
 ## Risky functions: strategy and mechanical guard
 
@@ -159,3 +163,5 @@ The preview/key is in-memory or caller-held and expires after five minutes; list
 - 2026-10-19: Initial #721 plan adapts approved native-only scope to current #695 transcript/codec ownership. Original #714 M2/M3 become one atomic issue boundary; no behavior is deferred. Added explicit selector cutoff propagation, shared retry IO accounting and source-aware compatibility tests after inspecting current owners.
 
 - 2026-10-19: PQ-1 (function-level-test-strategy): compressed Tasks 1–4 to TDD/verification steps and removed duplicated case inventories. The function table is the test-strategy owner; design, state, compatibility and operating-envelope contracts above remain governing. No scope or user-facing tradeoff changed.
+
+- 2026-10-20: Implementation checkpoint: source enum lives in sessioninventory to avoid a dependency cycle; type-owned choice JSON lives in recovery_choice_json.go; legacy record guards widened in record.go to freeze schema≤3. Core concepts rows now name actual owners. OS reader retains Read as a direct convenience around injected ReadRequest. Screen availability uses available/unavailable plus exact reasons. Fresh listing creates a new native source observation after an interrupted attempt; selected keys/pending launch retain their original source and expiry. These clarify approved owners/lifetimes without adding a user-visible state.

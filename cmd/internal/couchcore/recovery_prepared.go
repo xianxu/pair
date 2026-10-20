@@ -29,18 +29,58 @@ func recoverySelectionDigest(record ThreadRecord, selection RecoverySelection, t
 	return hex.EncodeToString(sum[:])
 }
 
-func (c *Couch) recoveryObservation(ctx context.Context, record ThreadRecord) RecoveryObservation {
+func (c *Couch) recoveryObservation(ctx context.Context, record ThreadRecord, requests ...RecoveryObservationRequest) RecoveryObservation {
 	observation := RecoveryObservation{Agent: RecordAgent(record), Incomplete: true, Reasons: []string{"Previous screen or native evidence unavailable; working context may be lost."}}
+	request := RecoveryObservationRequest{ObservedAt: c.Clock.Now()}
+	if len(requests) > 0 {
+		request = requests[0]
+	}
 	if c.RecoveryEvidence != nil {
 		for attempt := 0; attempt < 2; attempt++ {
-			got, err := c.RecoveryEvidence(ctx, record)
+			got, err := c.RecoveryEvidence(ctx, record, request)
+			if err != nil {
+				// A later failed acquisition cannot erase already observed facts.
+				// They remain descriptive: the aggregate is incomplete below.
+				if got.Screen.Availability == "" {
+					got.Screen = observation.Screen
+				}
+				if got.Capture.Raw == "" {
+					got.Capture = observation.Capture
+				}
+				if got.Source == nil {
+					got.Source = observation.Source
+				}
+				if got.Generation == "" {
+					got.Generation = observation.Generation
+				}
+				if got.Agent == "" {
+					got.Agent = observation.Agent
+				}
+				if got.Branch == "" {
+					got.Branch, got.Issue = observation.Branch, observation.Issue
+				}
+				if len(got.Ranked) == 0 {
+					got.Ranked = observation.Ranked
+				}
+				got.Reasons = append(append([]string(nil), observation.Reasons...), got.Reasons...)
+			}
+			if got.BytesRead < request.BytesAlreadyRead {
+				got.BytesRead = request.BytesAlreadyRead
+			}
+			observation = got
+			if got.BytesRead > request.BytesAlreadyRead {
+				request.BytesAlreadyRead = got.BytesRead
+			}
+			if request.Source == nil {
+				request.Source = threadrecord.CloneNativeRecoverySource(got.Source)
+			}
 			if err == nil {
-				observation = got
 				if !got.Incomplete {
 					break
 				}
 			} else {
-				observation.Reasons = []string{rowtext.Sanitize(err.Error()), "Previous screen or native evidence unavailable; working context may be lost."}
+				observation.Incomplete = true
+				observation.Reasons = append(observation.Reasons, rowtext.Sanitize(err.Error()), "Previous screen or native evidence unavailable; working context may be lost.")
 			}
 			if ctx.Err() != nil {
 				break
@@ -93,10 +133,26 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 	}
 	// Resolve an advertised key before mode-specific profile and lifecycle
 	// guards: the candidate route can represent Fresh as well as native resume.
+	request := RecoveryObservationRequest{ObservedAt: c.Clock.Now()}
+	if selection.Kind == RecoveryInferred {
+		selector, err := decodeRecoveryCandidateKey(selection.CandidateKey)
+		if err != nil {
+			return result, err
+		}
+		if selector.Address != record.Address {
+			return result, errors.New("recovery selector belongs to another thread")
+		}
+		if selector.Source != nil {
+			if err := threadrecord.ValidateNativeRecoverySourceAt(selector.Source, c.Clock.Now(), record.Revision); err != nil {
+				return result, err
+			}
+			request.Source = selector.Source
+		}
+	}
 	observe := func() RecoveryObservation {
 		observationCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
-		return c.recoveryObservation(observationCtx, record)
+		return c.recoveryObservation(observationCtx, record, request)
 	}
 	keyedSelection := selection.Kind == RecoveryInferred
 	var observed RecoveryObservation
@@ -233,7 +289,7 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 	}
 	defer func() { retErr = errors.Join(retErr, finish(retErr == nil)) }()
 	orient := &threadrecord.RecoveryOrientation{Branch: observed.Branch, Issue: observed.Issue}
-	if observed.Capture.RawIdentity.Inode != 0 && !observed.Capture.CapturedAt.IsZero() && !c.Clock.Now().Before(observed.Capture.CapturedAt) && c.Clock.Now().Before(observed.Capture.CapturedAt.Add(storagegc.CaptureRetentionPeriod)) {
+	if (observed.Source == nil || selection.Kind == RecoveryFresh && observed.Screen.Availability == ScreenAvailable) && observed.Capture.RawIdentity.Inode != 0 && !observed.Capture.CapturedAt.IsZero() && !c.Clock.Now().Before(observed.Capture.CapturedAt) && c.Clock.Now().Before(observed.Capture.CapturedAt.Add(storagegc.CaptureRetentionPeriod)) {
 		if c.RecoveryPreserve == nil {
 			return result, errors.New("capture preservation unavailable; source was not stopped")
 		}
@@ -375,7 +431,7 @@ func (c *Couch) launchRecoveryClaim(ctx context.Context, record ThreadRecord, no
 		return fail(err)
 	}
 	if selection.Kind == RecoveryInferred {
-		observed, err := c.RecoveryEvidence(ctx, record)
+		observed, err := c.RecoveryEvidence(ctx, record, RecoveryObservationRequest{ObservedAt: c.Clock.Now(), Source: intent.Context.Source})
 		if err != nil {
 			return fail(err)
 		}
@@ -413,7 +469,12 @@ func (c *Couch) launchRecoveryClaim(ctx context.Context, record ThreadRecord, no
 	}
 	orient := intent.Orientation
 	if orient == nil {
-		orient = &threadrecord.RecoveryOrientation{Branch: intent.Context.Branch, Issue: intent.Context.Issue, Capture: &intent.Context.Capture}
+		orient = &threadrecord.RecoveryOrientation{Branch: intent.Context.Branch, Issue: intent.Context.Issue}
+		if intent.Context.Source == nil {
+			orient.Capture = &intent.Context.Capture
+		} else {
+			orient.Unavailable = "Previous screen unavailable; native candidate selected explicitly."
+		}
 	}
 	context := orientation.RecoveryOrientationContext{SlotAddress: selection.Reference, Branch: orient.Branch, Issue: orient.Issue, NativeID: intent.NativeID}
 	if orient.Capture != nil {
@@ -431,7 +492,11 @@ func (c *Couch) launchRecoveryClaim(ctx context.Context, record ThreadRecord, no
 	result.Mode = ResumeDisk
 	result.Notice = fmt.Sprintf("resumed %s", intent.NativeID)
 	if selection.Kind == RecoveryInferred {
-		result.Notice = fmt.Sprintf("resumed %s: last active %s, %.0f%% tail match", intent.NativeID, choice.LastActivity.Local().Format("15:04 MST"), choice.TailMatch)
+		if intent.Context.Source != nil {
+			result.Notice = fmt.Sprintf("resumed %s: unconfirmed native candidate, native last activity %s", intent.NativeID, choice.LastActivity.Local().Format("15:04 MST"))
+		} else {
+			result.Notice = fmt.Sprintf("resumed %s: last active %s, %.0f%% tail match", intent.NativeID, choice.LastActivity.Local().Format("15:04 MST"), choice.TailMatch)
+		}
 	}
 	if selection.Kind == RecoveryFresh {
 		result.Mode = Fresh

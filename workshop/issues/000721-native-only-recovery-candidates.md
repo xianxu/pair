@@ -63,9 +63,11 @@ Files: `launcher/{recovery_authority_os.go,recovery_authority.go}` and tests; `c
 
 ## Plan
 
-- [ ] Start on main after #714 lands; write durable plan from the transferred Spec and run normal change-code gates.
+- [x] Start on main after #714 lands; write durable plan from the transferred Spec and run normal change-code gates.
+- [x] Complete native-only codec/collector/selection/authority implementation and targeted verification from the durable plan.
+- [ ] Obtain hub qualification decision on the tested candidate; run recorded suite, close review and landing.
 
-Durable design: [native-only recovery candidates plan](../plans/000721-native-only-recovery-candidates-plan.md). Start-on-main is complete; plan drafted, hub approval and change-code remain pending. The durable plan uses one atomic issue-close boundary because preview and final launch authority must ship together.
+Durable design: [native-only recovery candidates plan](../plans/000721-native-only-recovery-candidates-plan.md). Hub approval and full-flow change-code passed. The durable plan uses one atomic issue-close boundary because preview and final launch authority must ship together.
 
 ## Log
 
@@ -78,7 +80,14 @@ Durable design: [native-only recovery candidates plan](../plans/000721-native-on
 
 - 2026-10-19: Hub approved the durable plan and single atomic boundary in verified submitted receipt 6657d462-20bb-4bbe-b22b-39507571b925 (ops:0 to current pair:3 incarnation). Live qualification remains a decision on the tested candidate; hub default is production-path regressions plus the next natural recovery, not permission to touch pair:6. Baseline `go test ./cmd/internal/threadrecord ./cmd/internal/sessioninventory -run 'Recovery' -count=1` PASS; issue validation conforms. Entering change-code plan-quality gate, estimate afterward.
 
+- 2026-10-20: Implementation checkpoint after full-flow admission: source codec/selector, bounded collector, independent evidence acquisition, native-only preview/selection, source-aware CLI/menu and final launcher validation are implemented. Core source/acquisition/selection tests observed RED before fixes; codec/collector/launcher workers likewise reported RED→GREEN. Combined targeted Recovery/ResumeCandidate tests pass in threadrecord, sessioninventory, couchcore, couchcmd, couchtty and launcher. The combined race run for Recovery/Resume passed in core (37.644s), launcher (9.694s) and inventory (2.927s), before final partial-fact/Fresh composition refinements; renewed final race and recorded suite remain pending. Artifactpath/testpair/repolint guard run passed; rerun after final test additions underway.
+- 2026-10-20: Portable production constructor test exercises prepareSingleton→NewCouchWith using unchanged run.go evidence wiring, real disposable native home and injected clock one hour from host time; listing→explicit selection confirms exact native ID/saved argv/no prompt and no binding/capture manufacture. Removing the production evidence assignment made that test fail; source restored and targeted acceptance race PASS (1.948s). Cutoff-propagation and pre-retirement-persistence mutation controls also failed as intended, restored afterward. Native counted N=8/16 evidence: metadata 16/32, one listing, stat 16/32, reads 8/16, cwd resolutions 9/17; exact byte/metadata/root bounds covered.
+- 2026-10-20: Integration regressions cover same inode with changed device, oversized/missing screen, absent/invalid witness, stale/copied/expired selection, interrupted retirement with durable reopen, and fresh listing after retained native expiry. No device/inode relaxation or larger scan budget. A failed retry now retains earlier descriptive facts; Fresh separately preserves a genuinely readable screen while native-only resume persists no capture. Known partial evidence remains incomplete and cannot issue unbound native keys.
+
+- 2026-10-20: Final targeted six-package Recovery/ResumeCandidate run PASS, and renewed final race Recovery/Resume PASS: core 44.085s, launcher 7.289s, inventory 2.788s. Final artifactpath/testpair/repolint guard run PASS (10.667s/12.632s/11.294s). Restored mutation-control source and diff checks clean. Remaining: concrete hub qualification decision, pushed-head recorded suite, close review and landing.
+
 ## Revisions
+
 
 - 2026-10-19: Added the concrete durable plan after main-based start and current-owner inspection. Original M2/M3 scope is retained as one atomic #721 review boundary, with unchanged approved behavior and added explicit codec/cutoff/accounting test contracts.
 - 2026-10-19: Plan-quality PQ-1 requires compressed function-level test strategy rather than duplicated case inventories. Revised Tasks 1–4 accordingly; no architecture/scope change. First change-code inferred quick due to design line count; reran with --flow=full to honor TL-approved full flow. No implementation or estimate yet.
