@@ -28,7 +28,25 @@
   - **Excluded aliases and flow control** (plan review PQ): `ctrl-i` is `tab`, `ctrl-m` is `enter`, and `ctrl-u` is `clear-line`. As a plain chord, `ctrl-u` would send clear-line's bytes without its recovery-only rule, and two names for one byte would split the admission rules. `ctrl-s` and `ctrl-q` are XON/XOFF flow control, which can freeze the agent's output on a PTY. Each refuses with its reason and points at the named key where there is one. One table row, one name, one rule.
   - **Recipe directions:** `KeyLeft` and `KeyRight` become the caller names `left` and `right`. The internal-only rule existed because the caller vocabulary had no arrows, and that reason is gone. `TestRecipeDirectionKeysAreInternal` becomes a bytes test.
 - **Request.Interrupt**: a request carries exactly one of keys, model or interrupt. It is never a key step, so no sequence can carry an interrupt by accident. Wire: the new field is additive (ARCH-EVOLVE). An old wrapper decodes a request with none of the three, and its `Validate` refuses.
-- **Admission.Interruptible**: the wrapper's proof that a turn is active, the frame is complete, no picker is open, and the wrapper owns input. In `Admits` the interrupt is checked first and exclusively: `if r.InterruptOnly() { return a.Interruptible }`. Otherwise the existing clauses apply, with `Idle` first. So an interrupt is never admitted on an idle composer (PQ-1), and keys never by `Interruptible`. The wrapper's pre-write recheck (today `RecoveryOnly` only, at `wrapcmd/agent_drive.go`) widens to every non-model request: before the write, `Request.Admits` must hold on the fresh screen. For an interrupt, that is `Interruptible`, so a turn that ended between admission and the write cancels without writing.
+- **Admission.Interruptible**: the wrapper's proof that a turn is active, the frame is complete, no picker is open, and the wrapper owns input. In `Admits` the interrupt is checked first and exclusively: `if r.InterruptOnly() { return a.Interruptible }`. Otherwise the existing clauses apply, with `Idle` first. So an interrupt is never admitted on an idle composer (PQ-1), and keys never by `Interruptible`. See "One proof per request shape" below for the start gate, the turn gate and the pre-write recheck.
+
+### One proof per request shape (plan review PQ-1, PQ-4)
+
+Each request shape defines its admitting proof once, in `agentdrive`, as `Request.shapeProof(Admission)`. Every gate derives from it, and the pre-write recheck covers only the writes that the proof was taken for.
+
+| Shape | Start admission (`Admits`) | Proof stands during a turn | Pre-write recheck (`WriteAdmits`) |
+|---|---|---|---|
+| Generic keys | `Idle` | no: stops on a turn | none after start, as today |
+| Recovery only (esc, clear-line) | `Idle` or `Recoverable` | no | every write: `Recoverable` (as today) |
+| Lone esc on a panel (#691) | `Idle`, `Recoverable` or `Dismissable` | yes | its write: `Recoverable` or `Dismissable` (as today) |
+| Model | `Idle` | no | each effect's picker proof (`MatchesScreen`, as today) |
+| Interrupt | `Interruptible` only, checked first and exclusively | yes | its one Ctrl+C: `Interruptible` |
+
+- `Admits(a)`: `if r.InterruptOnly() { return r.shapeProof(a) }`, otherwise `a.Idle || r.shapeProof(a)`.
+- `WriteAdmits(a)`: `shapeProof(a)` for recovery and interrupt shapes, otherwise true (generic keys and model keep today's guards). The wrapper's recheck calls `WriteAdmits`, replacing today's `RecoveryOnly`-only condition. Generic key drives are unchanged.
+- The turn gate: the reducer's top-level stop and the wrapper's turn-active branch exempt the shapes whose proof stands during a turn. `DriveState.TurnTolerant()` (the dismissal, or an interrupt) replaces today's `Dismissal()` check.
+- What `Interruptible` keeps from the wrapper's start gate: the same `common` conditions (not exited, no image, the observed sequence, no buffered operator input, no reply writes in flight, no reservation, the current message terminal; a hub-sent message is Submitted, which is terminal). For the input lease: Idle, or a residual wait (AwaitingEmpty, Alerted), as a recovery drive may take. An active peer or drive owner refuses, and so does NeedsOperator. It drops `settled` and the empty composer, because a working turn has neither. The screen part: `turnActive && Complete && !picker`.
+- The Ctrl+C is an internal key kind (`interrupt`, bytes `\x03`) that only the interrupt shape emits. It is not a `Steps` row, so `Validate` refuses it inside any key sequence.
 
 ### Integration points
 
