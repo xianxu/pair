@@ -126,6 +126,14 @@ Live peeks for pair:1/5/7/8 and ariadne:0 preserve coherent Claude/Codex/Qoder t
 
 Raw evidence is local-only at /Volumes/TestScratch/tmp/pair-slot5/pair622-live.7rGWDf: resources0/1/2.json, cpu0/1/2.json, peek-start/end.json, server-a/b.sample.txt and derived.json. Profile SHA256s3c75121806ae7905a69aa24c050f0ce2919cb2494a4ac5d3bd8524bc8f646aa8 /811560883ad3a09ae80241d753a55bb553f4f9af7ac0637231c14ef73fcf21ad. Raw tails/profiles are not uploaded.
 
+### 2026-10-20 10:25 PDT — follow-up close SHIP; landing interrupted by fleet pause
+
+Authenticated TL dispatch a57e4713-580a-4ed0-9d15-90b462120b07 authorized this follow-up close after ariadne#483 landed. Mandatory close review returned SHIP with zero findings; the card is codecomplete. The precise `--no-actual` exclusion preserves the previously approved legacy measurement gap: attempts292295564ecd3c67d9068eb4ca0f98e6 and8891def18d42afa41f0cfc838ff1da7f lack recorded queue endpoints, so no hours were invented. PR474 now includes the operator console attestation. The exact close head19fdb122e5608d2130b0be453a402acf8498849f passed its required recorded suite in8m54s, log prefixSHA256c58d241f7749, and all PR checks were green.
+
+The existing merge runner retained its order behind #699. Train183 admitted #622 alone at10:13:22, integrated current main to d84acdbf1bf0de7f6ab44f3ce3adbb32096536f6, passed instance conformance and CI, then queued the authoritative integration suite. After444s waiting for capacity, that suite was interrupted before tests began by queue owner `couch-drain:69bb7fc3-a125-42c6-9900-5814613b8eba`. The runner exited1; PR474 remains OPEN with no merge commit. This is an interruption, not a failed test or a landing. Retry `sdlc merge --branch 000622-live-acceptance --yes` only after the matching pause owner is released and work is resumed.
+
+Evidence gap: attempt848e3cd34e0d640f857d568fbc4700de reported an error renaming its interruption log; the reported source `test-stats/inflight/848e3cd34e0d640f857d568fbc4700de/run.log` is absent and the integrated-head local-check directory is empty. Do not fabricate a retained log or suite result. Read-only Couch board reports the current drain stuck with cancellation unconfirmed; ordinary hub delivery is refused while draining. No authenticated drain notice reached this incarnation, so no drain ack was sent. #722 remains on its separate SHIP branch, staged to pair:0 and held for operator-present live acceptance; this interruption does not satisfy that check.
+
 ## Revisions
 
 ### 2026-10-16 — measurement milestone before optimization design
