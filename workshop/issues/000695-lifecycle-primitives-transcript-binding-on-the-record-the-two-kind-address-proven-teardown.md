@@ -98,6 +98,8 @@ Durable plan: `workshop/plans/000695-lifecycle-primitives-transcript-binding-on-
 
 ## Log
 
+
+- 2026-10-19: closed — main integration 011ccaa4e brought #712 importing procutil in couch_test.go; dropped the branch duplicate (2ac8c028e), fixing the CI build; couchcore env/lease/teardown/spawn/retire tests ok (fixed-then-ship; full suite: sdlc-local/suite success on 2ac8c028 (TestScratch RAM disk)); review verdict: SHIP
 - 2026-10-19: closed — main integration 2e3c72644: couch.go and warm_attach.go conflicts additive (SlotEnvironment/Scratch fields beside the lifetime lease); couchcore launch/env/lease/teardown tests ok (fixed-then-ship; full suite: sdlc-local/suite success on cd3cf1ac (WF_TEST_SCRATCH=off: the registered #715 flake fails on the TestScratch RAM disk, also on plain main)); review verdict: SHIP
 - 2026-10-19: merge integration. Main (88540c4db) conflicted in couch.go and warm_attach.go, both additive: main's SlotEnvironment and Scratch fields sit beside the lifetime lease. The suite on 2e3c72644 then failed in attempt 13c132ae on couchcmd.TestContinuationWriterPublishesExactCheckpointAcrossWorktrees. Its helper (launcher.TestCouchLaunchPromptTransportHelper) hit a TempDir cleanup 'directory not empty', and sdlc mis-attributed it to the launcher package, so it was judged unattributable. The test is the registered flake #715 and is specific to the TestScratch RAM disk: on plain origin/main it failed 4/4 there and passed on the normal TMPDIR. The rerun on 2e3c72644 passed, but the earlier attempt still blocks that head, so this entry lands the explanation on a new head.
 

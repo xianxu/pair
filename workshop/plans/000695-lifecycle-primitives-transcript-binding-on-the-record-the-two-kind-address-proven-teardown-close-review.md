@@ -168,3 +168,68 @@ output: "Both conflict resolutions keep both sides and match `launch_existing.go
 
 truncated: false
 retained-bytes: 0000003987
+
+---
+
+## Re-review — 2026-10-19T20:43:46-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 695 — Lifecycle primitives: transcript binding on the record, the two-kind address, proven teardown |
+| repo | pair |
+| issue file | workshop/issues/000695-lifecycle-primitives-transcript-binding-on-the-record-the-two-kind-address-proven-teardown.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 513d9eac8f0563bace8d0c044bf1fb30d39645bd..2ac8c028e16bae89de44f0749effb18805650f1a |
+| command | sdlc close --issue 695 |
+| reviewer | claude (anthropic; author anthropic) |
+| isolation | fenced |
+| timestamp | 2026-10-19T20:43:46-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+This window has one code change, and it fixes a merge-conflict leftover. After #712 merged from main, the base `cmd/internal/couchcore/couch_test.go` imported `github.com/xianxu/pair/cmd/internal/procutil` twice (lines 9 and 24). Go rejects a duplicate import, so the test package would not compile at the base. The head deletes the out-of-order copy and keeps the one in sorted position (line 23). With that change, `go vet ./cmd/internal/couchcore/` passes, `gofmt -l` reports nothing, and the targeted Teardown/Lease/Orphan tests pass (`ok … 10.050s`). The rest of the window is records: the close-gate and close-review entries, a new card_mirror hash, `actual_hours`, and one closing entry in the issue's `## Log`. `## Spec`, `## Revisions` and `## Done when` are unchanged, so scope did not change. All 22 prior findings were already disposed, and nothing in this window reopens any of them.
+
+1. **Strengths**
+   - `cmd/internal/couchcore/couch_test.go:23`: the fix keeps both sides' intent. Main's #712 import and #695's `procutil` uses (`:220`, `:772`) both survive, with one import line and gofmt ordering intact.
+   - The issue Log entry records the #715 flake and the TestScratch RAM-disk explanation, rather than hiding that the suite failed on that run.
+
+2. **Critical findings:** none.
+
+3. **Important findings:** none.
+
+4. **Minor findings:** none.
+
+5. **Test coverage notes:** I did not re-run the whole package suite. Earlier rounds found that git-dependent tests are refused in this sandbox. The fix is compile-level, so a passing `go vet` plus the targeted run is enough evidence for it.
+
+6. **Architectural notes**
+   - ARCH-DRY: pass. The fix removes a duplicate import.
+   - ARCH-PURE: pass. No logic changes.
+   - ARCH-PURPOSE: pass. The conflict resolution keeps both sides' intent.
+   - ARCH-EVOLVE: pass. No persisted format changes.
+
+7. **Plan revision recommendations:** none.
+
+```findings
+findings: []
+```
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"5d87e073-d9ae-4d91-9203-8dcdb31d7121","repository":"github.com/xianxu/pair","issue_id":"000695","recipe":"fix-review","round":9,"attempt":1,"agent":"claude","root":"/Volumes/TestScratch/review-checkouts/fe3411754d32507e","reviewed_head":"2ac8c028e16bae89de44f0749effb18805650f1a","slot":"pair:1","requested_at":"2026-10-20T03:43:03.37952Z"},"phase":"finished","pid":52158,"started_at":"2026-10-20T03:43:03.624537Z","finished_at":"2026-10-20T03:43:45.64324Z","session_id":"709ef70f-83b7-497e-89a8-827b8de30031","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.185994167s
+head: "2ac8c028e16bae89de44f0749effb18805650f1a"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
