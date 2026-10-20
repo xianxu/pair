@@ -1,6 +1,6 @@
 ---
 id: 000622
-status: codecomplete
+status: done
 created: 2026-10-16
 updated: 2026-10-20
 estimate_hours: 3.55725
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 90384d10782ab96507d6f735d4527f69b28becb1
         evidence_commit: ceb634941ff46c45ad8452ada7436ab7a143b2a4
+        landed_commit: 787735804b56aa99515529f9346545d8d85459a2
 ---
 
 # Couch server spends ~1 core emulating every hosted client's output in a vt parser, visible or not
