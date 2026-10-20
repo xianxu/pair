@@ -53,6 +53,7 @@ func TestOperationDeclarationsAreClosureFreeCompleteAndOwned(t *testing.T) {
 		"recover":               {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart, PresentationTUI},
 		"keys":                  {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultConsole, PresentationTUI},
 		"set-model":             {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultConsole, PresentationTUI},
+		"interrupt":             {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultConsole, PresentationTUI},
 	}
 	for _, op := range Operations() {
 		expected, ok := want[op.Name]

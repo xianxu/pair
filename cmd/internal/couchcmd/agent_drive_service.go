@@ -83,7 +83,9 @@ func (s *messageService) handleAgentDrive(ctx context.Context, r couchmessage.Re
 		return refuse(errors.New("caller wrapper unavailable"))
 	}
 	callerToken := switchSourceToken(callerLive)
-	recoveryOnly := r.Drive.RecoveryOnly()
+	// Recovery and interrupt drives skip the settled check: an occupied
+	// composer or a working turn is exactly what they act on.
+	recoveryOnly := r.Drive.RecoveryOnly() || r.Drive.InterruptOnly()
 	const notIdle = "wait until the agent composer is empty and its turn finishes"
 	targetLive, ok := s.LivenessForThread(target.Scope, target.Tag)
 	if !ok || targetLive.Binding != target {

@@ -126,26 +126,74 @@ func startTitleWrapperFixture(t *testing.T, root, tag string) *titleWrapperFixtu
 func (f *titleWrapperFixture) title(t *testing.T) (string, string) {
 	t.Helper()
 	deadline := time.Now().Add(3 * time.Second)
+	var titleReadErr error
+	var titlePID string
 	for time.Now().Before(deadline) {
-		if f.agentPID == "" {
-			if raw, e := os.ReadFile(filepath.Join(f.root, "agent-"+f.tag)); e == nil {
-				f.agentPID = strings.TrimSpace(string(raw))
-				f.agentIdentity = procutil.Identity(f.agentPID)
-			}
-		}
+		f.observeAgentIdentity(procutil.Identity)
 
-		if raw, e := os.ReadFile(f.titlePID); e == nil {
+		raw, err := os.ReadFile(f.titlePID)
+		titleReadErr = err
+		if err == nil {
 			pid := strings.TrimSpace(string(raw))
-			if identity := liveTitleIdentity(t, pid); identity != "" && f.agentIdentity != "" {
+			titlePID = pid
+			if identity := liveTitleIdentity(t, pid); identity != "" {
 				f.observedPID, f.observedIdentity = pid, identity
-				return pid, identity
+				if f.agentIdentity != "" {
+					return pid, identity
+				}
 			}
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
 	log, _ := os.ReadFile(filepath.Join(f.root, "wrapper-"+f.tag+".log"))
-	t.Fatalf("production wrapper never started its leased title: %s", log)
+	t.Fatalf("leased title readiness incomplete: agent PID=%q identity=%q; title PID=%q identity=%q read=%v; wrapper identity=%q; log: %s", f.agentPID, f.agentIdentity, titlePID, f.observedIdentity, titleReadErr, procutil.Identity(strconv.Itoa(f.cmd.Process.Pid)), log)
 	return "", ""
+}
+
+// observeAgentIdentity samples only this disposable native child's publication.
+func (f *titleWrapperFixture) observeAgentIdentity(identity func(string) string) {
+	if f.agentPID == "" {
+		if raw, err := os.ReadFile(filepath.Join(f.root, "agent-"+f.tag)); err == nil {
+			f.agentPID = strings.TrimSpace(string(raw))
+		}
+	}
+	if f.agentPID != "" && f.agentIdentity == "" {
+		f.agentIdentity = identity(f.agentPID)
+	}
+}
+
+func TestTitleFixtureReobservesUnavailableAgentIdentity(t *testing.T) {
+	root := t.TempDir()
+	f := &titleWrapperFixture{root: root, tag: "unknown-identity"}
+	if err := os.WriteFile(filepath.Join(root, "agent-"+f.tag), []byte("4321\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	identity := func(pid string) string {
+		if pid != "4321" {
+			t.Fatalf("identity PID=%q", pid)
+		}
+		calls++
+		if calls == 1 {
+			return ""
+		}
+		if calls == 2 {
+			return "100.123"
+		}
+		return "different-generation"
+	}
+	f.observeAgentIdentity(identity)
+	if f.agentPID != "4321" || f.agentIdentity != "" {
+		t.Fatalf("unknown sample=%+v", f)
+	}
+	f.observeAgentIdentity(identity)
+	if f.agentIdentity != "100.123" {
+		t.Fatal("unavailable identity became permanently cached")
+	}
+	f.observeAgentIdentity(identity)
+	if calls != 2 || f.agentIdentity != "100.123" {
+		t.Fatal("established generation was replaced")
+	}
 }
 
 func liveTitleIdentity(t *testing.T, pid string) string {

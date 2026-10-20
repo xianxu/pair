@@ -1006,7 +1006,7 @@ func wireResolver(console *couchtty.Console, c *couchcore.Couch, configuredHubs 
 			DiagnosticWarning: func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) },
 			DirectStore:       couchcore.DirectStoreExecutor(c),
 			LiveOwner: func(call couchcore.OperationCall) (any, error) {
-				if call.Name == "keys" || call.Name == "set-model" {
+				if couchmessage.IsDriveOp(call.Name) {
 					return executeAgentDrive(call)
 				}
 				if call.Name == "move-slot" {
@@ -1430,6 +1430,8 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	verbLine(w, "--keys", "       couch --keys repo:N STEP... [--json]")
 	fmt.Fprintf(w, "             Hub only. STEP: %s\n", agentdrive.StepSyntax())
 	fmt.Fprintln(w, "             Steps, rules and the slash-command panel round trip: couch --keys --help.")
+	verbLine(w, "--interrupt", "       couch --interrupt repo:N --confirm [--json]")
+	fmt.Fprintln(w, "             Hub only: one Ctrl+C into the slot's working turn; refused with no turn. Never retried.")
 	verbLine(w, "--set-model", "       couch --set-model repo:N --model NAME --effort LEVEL [--scope session|default] --confirm [--json]")
 	fmt.Fprintln(w, "             Hub only, another idle clean slot: use NAME's last successful path config,")
 	fmt.Fprintln(w, "             then repo default. Missing config: ask the operator to set it in the switch form.")
