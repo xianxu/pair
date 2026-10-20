@@ -12,6 +12,12 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 
 ## What exists today
 
+### Slot scratch (#708)
+
+[Slot scratch](couch-scratch.md) maps optional TestScratch temp settings, the
+24-hour interior cleaner, stable socket namespaces and reboot-only metadata
+routing. Existing panes inherit changes only after relaunch.
+
 ### Per-slot switcher jobs (#576)
 
 `couchtty/menu_operations.go` owns pure target admission, exact attempt matching,
@@ -179,6 +185,30 @@ store; numbered slots use `<environment>/.couch/` with one current conversation
 record, separate preferences, and retained history. Each backend uses the existing
 lock, revision checks and recoverable journal. The supervisor lease still belongs
 to the selected global namespace beneath the account lease.
+
+### Failed-start session cleanup (#712)
+
+After an acknowledged helper dies, owned-session cleanup shares one five-second
+budget across owner observation, revalidation, retries and native deletion.
+Persistent refusal returns SessionCleanupUnconfirmed. Marking its exact binding,
+start nonce and incarnation unknown has a separate five-second persistence
+context covering metadata reads, revision retries and the journal write. If even
+that cannot commit, the original occupied claim stays unchanged, and history and
+the receipt report both cleanup and unknown-state persistence uncertainty. No
+destructive rollback or replacement launch follows unproved absence.
+
+For unconfirmed session cleanup, the maximum deadline budget after helper death
+is **20 seconds**: five for
+session cleanup + five for disposition persistence + the existing ten-second
+diagnostic-publication cap. Ordinary operating-system syscall/scheduling latency
+is outside cooperative context guarantees. Exact helper termination keeps its
+handle until reaped and precedes this envelope; an unreapable helper is never
+abandoned to make the deadline. There is no post-expiry session metadata reread.
+
+History uses the existing phase launch and outcome unproven; the receipt and
+operator line name cleanup uncertainty and retain the diagnostic nonce. Inspect
+with couch --show, then use the existing continue, resume from disk or start fresh
+recovery outcome when fresh evidence permits it. No new recovery state is added.
 
 ### Lifecycle failure evidence (#531, #683)
 

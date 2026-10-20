@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -32,12 +33,9 @@ func (s recoveryLeaseSet) Close() error {
 	return err
 }
 func (o recoveryTerminalOS) Acquire(ctx context.Context, session string, servers []SessionServerIdentity) (io.Closer, error) {
-	root := os.Getenv("ZELLIJ_SOCKET_DIR")
-	if root == "" {
-		root = filepath.Join(os.TempDir(), "zellij-"+strconv.Itoa(os.Getuid()))
-	}
-	if !filepath.IsAbs(root) {
-		return nil, errors.New("terminal socket directory must be absolute")
+	root, err := ResolveZellijSocketRoot(os.Getenv("ZELLIJ_SOCKET_DIR"), os.TempDir(), os.Getenv("XDG_RUNTIME_DIR"), runtime.GOOS, os.Getuid())
+	if err != nil {
+		return nil, err
 	}
 	sockets := []string{filepath.Join(root, "contract_version_1", session)}
 	for _, s := range servers {

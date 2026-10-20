@@ -35,12 +35,19 @@ type Couch struct {
 	RecoveryRetirement    RecoveryRetirementPreparer
 	// SlotWrapper and ProcessTable let a reboot stop the slot's registered
 	// wrapper tree even when terminal attribution fails (pair#607).
-	SlotWrapper            SlotWrapperLookup
-	ProcessTable           func() ([]procutil.Process, error)
-	Identities             IdentityAllocator
-	Slots                  SlotCatalog
-	Workspaces             WorkspaceReadiness
-	WorkspaceProgress      io.Writer
+	SlotWrapper       SlotWrapperLookup
+	ProcessTable      func() ([]procutil.Process, error)
+	Identities        IdentityAllocator
+	Slots             SlotCatalog
+	Workspaces        WorkspaceReadiness
+	WorkspaceProgress io.Writer
+	// SlotEnvironment prepares temp storage from the retained owner even when
+	// a warm attach starts from a neutral working directory.
+	SlotEnvironment func(context.Context, ThreadRecord) []string
+	// ScratchStartup runs quiescent metadata setup and the initial age sweep.
+	ScratchStartup func(context.Context, func(string))
+	// ScratchMaintenance runs the hourly worker until supervisor shutdown.
+	ScratchMaintenance     func(context.Context)
 	ContinuationGeneration func(context.Context, ThreadAddress, string, string) (*checkpoint.TargetGeneration, error)
 	ContinuationSource     func(context.Context, ThreadAddress) (ContinuationSource, error)
 	Namespace              CouchNamespace
@@ -717,6 +724,11 @@ func (c *Couch) applyStartCleanup(shape StartShape, address ThreadAddress, nonce
 	}
 	cleanupErr := c.quiescePostAckStart(address, h, cleanupShape)
 	helperDead := !h.Alive()
+	knowledge := CleanupConfirmed
+	var unconfirmed *SessionCleanupUnconfirmed
+	if errors.As(cleanupErr, &unconfirmed) {
+		knowledge = CleanupUnconfirmed
+	}
 
 	// Observed AFTER the helper is quiet and after any quiesce, because the
 	// state the record's disposition reasons about is the one left behind.
@@ -725,7 +737,7 @@ func (c *Couch) applyStartCleanup(shape StartShape, address ThreadAddress, nonce
 	// phase and a warm live record. A spawn takes the separate reconciliation
 	// path, which probes its proposed terminal binding before retiring a claim.
 	presence := PresenceUnobserved
-	if startCleanupReadsPresence(shape, liveRecord) {
+	if knowledge == CleanupConfirmed && startCleanupReadsPresence(shape, liveRecord) {
 		observed, presenceErr := c.observeSessionPresence(address)
 		presence = observed
 		// The error joins the return: it is the operator's only account of why
@@ -736,7 +748,16 @@ func (c *Couch) applyStartCleanup(shape StartShape, address ThreadAddress, nonce
 
 	action := DecideStartCleanup(StartCleanupInput{
 		Shape: shape, HelperDead: helperDead, Presence: presence, LiveRecord: liveRecord,
+		Cleanup: knowledge,
 	})
+	if action == DurableMarkUnknown && knowledge == CleanupUnconfirmed {
+		// This separate bounded storage phase never grants cleanup authority.
+		if err := c.persistUnconfirmedStart(address, nonce, h, liveRecord); err != nil {
+			return errors.Join(cleanupErr, fmt.Errorf("%w: %w", ErrCleanupPersistenceUnconfirmed, err))
+		}
+		return cleanupErr
+	}
+
 	if action == DurableRollback || action == DurableRetire {
 		current, getErr := c.Threads.GetThread(address)
 		switch {
@@ -921,6 +942,62 @@ func (c *Couch) startStillOwnsThread(start StartResult) bool {
 	return true
 }
 
+// persistUnconfirmedStart keeps the original occupied claim if storage refuses.
+// One independent recovery-scale context covers routing, reads, CAS retries and
+// the journal write. No global reconciliation or native observation is performed.
+func (c *Couch) persistUnconfirmedStart(address ThreadAddress, nonce string, h Handle, liveRecord bool) error {
+	ctx, cancel := context.WithTimeout(context.Background(), recoveryObservationTimeout)
+	defer cancel()
+	expected := ProcessIdentity{PID: h.PID(), Identity: h.Identity()}
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		current, err := c.Threads.PreviewThreadContext(ctx, address)
+		if err != nil {
+			return err
+		}
+		if liveRecord {
+			found := false
+			for _, inc := range current.Incarnations {
+				if inc.PID == expected.PID && inc.Identity == expected.Identity {
+					if inc.State == IncarnationUnknown {
+						return nil
+					}
+					found = inc.State == IncarnationLive
+					break
+				}
+			}
+			if !found {
+				return errors.New("unconfirmed cleanup incarnation changed; ownership preserved")
+			}
+		}
+		_, err = c.Threads.updateExistingThreadContext(ctx, address, current.Revision, func(next *ThreadRecord) error {
+			if !liveRecord {
+				advanced, err := AdvanceStartTransaction(*next, StartEvent{Kind: StartRecoveredUnknown, Nonce: nonce})
+				if err != nil {
+					return err
+				}
+				*next = advanced
+				return nil
+			}
+			for i := range next.Incarnations {
+				inc := &next.Incarnations[i]
+				if inc.PID == expected.PID && inc.Identity == expected.Identity && inc.State == IncarnationLive {
+					inc.State = IncarnationUnknown
+					return nil
+				}
+			}
+			return errors.New("unconfirmed cleanup incarnation changed; ownership preserved")
+		})
+		var conflict *ThreadRevisionError
+		if errors.As(err, &conflict) {
+			continue
+		}
+		return err
+	}
+}
+
 // quiescePostAckStart ends the start's helper and, when the start OWNS the
 // session, the session too.
 //
@@ -929,12 +1006,9 @@ func (c *Couch) startStillOwnsThread(start StartResult) bool {
 // preserve, so ending that session is never this path's business. The helper
 // half runs for every shape -- the helper belongs to this start either way.
 //
-// It retains the live Handle on this call stack and retries every unproven
-// cleanup class. It deliberately has no bounded "give up" path: returning would
-// transfer an error without a supervisor, and the operation caller is allowed
-// to discard handles on error. A persistent external failure therefore leaves
-// the owning start operation blocked and retrying, not a workspace writer
-// merely represented by an occupied durable record.
+// It retains the exact Handle until helper death is proved. Session cleanup
+// then has one five-second budget. Unproved session cleanup returns with its
+// durable ownership retained; it cannot block the caller indefinitely.
 func (c *Couch) quiescePostAckStart(address ThreadAddress, h Handle, shape StartShape) error {
 	var firstErr error
 	// Attachment never committed, so no presenter owns this terminal. Cancel
@@ -956,17 +1030,38 @@ func (c *Couch) quiescePostAckStart(address ThreadAddress, h Handle, shape Start
 			}
 			handleQuiet = true
 		}
-		if !shape.OwnsSession() {
+		break
+	}
+	if !shape.OwnsSession() {
+		return firstErr
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var lastErr error
+	var session string
+	for {
+		if ctx.Err() != nil {
+			return errors.Join(firstErr, &SessionCleanupUnconfirmed{Address: address, Session: session, Cause: errors.Join(ctx.Err(), lastErr)})
+		}
+		name, err := c.quiesceThreadSessionNamed(ctx, address)
+		if name != "" {
+			session = name
+		}
+		lastErr = err
+		if lastErr == nil && ctx.Err() == nil {
 			return firstErr
 		}
-		if err := c.quiesceThreadSession(context.Background(), address); err != nil {
-			if firstErr == nil {
-				firstErr = fmt.Errorf("quiesce durable Pair session %+v: %w", address, err)
-			}
-			c.sleepPostAckRetry()
-			continue
+		if firstErr == nil && lastErr != nil {
+			firstErr = fmt.Errorf("quiesce durable Pair session %+v: %w", address, lastErr)
 		}
-		return firstErr
+		delay := c.postAckRetryDelay
+		if delay <= 0 {
+			delay = 100 * time.Millisecond
+		}
+		select {
+		case <-ctx.Done():
+		case <-time.After(delay):
+		}
 	}
 }
 

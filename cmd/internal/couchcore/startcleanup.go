@@ -1,5 +1,36 @@
 package couchcore
 
+import (
+	"errors"
+	"fmt"
+)
+
+// ErrCleanupPersistenceUnconfirmed reports that the occupied claim could not be marked unknown.
+var ErrCleanupPersistenceUnconfirmed = errors.New("unknown state persistence unconfirmed; original occupied claim retained")
+
+// SessionCleanupUnconfirmed retains ownership when session cleanup cannot be proved.
+type SessionCleanupUnconfirmed struct {
+	Address ThreadAddress
+	Session string
+	Cause   error
+}
+
+func (e *SessionCleanupUnconfirmed) Error() string {
+	return fmt.Sprintf("session cleanup unconfirmed for %q; ownership retained: %v", e.Session, e.Cause)
+}
+func (e *SessionCleanupUnconfirmed) Unwrap() error                       { return e.Cause }
+func (*SessionCleanupUnconfirmed) FailurePhase() string                  { return "launch" }
+func (*SessionCleanupUnconfirmed) FailureOutcome() string                { return "unproven" }
+func (*SessionCleanupUnconfirmed) FailureHolders() []ProcessIdentityLine { return nil }
+
+// CleanupKnowledge distinguishes proved completion from uncertainty.
+type CleanupKnowledge uint8
+
+const (
+	CleanupUnconfirmed CleanupKnowledge = iota
+	CleanupConfirmed
+)
+
 // The cleanup rule for a start that failed AFTER its helper was acknowledged.
 //
 // By then the helper has execed the target, so two things may need undoing: the
@@ -88,6 +119,7 @@ type StartCleanupInput struct {
 	// registry-persist and console-attach failures) from one still holding a
 	// claim (everything before registration was promoted).
 	LiveRecord bool
+	Cleanup    CleanupKnowledge
 }
 
 // DecideStartCleanup answers what happens to the RECORD. The session question
@@ -99,6 +131,9 @@ type StartCleanupInput struct {
 // pair#230 exactly, so the existing spawn and cold-resume tests are what prove
 // they did not change.
 func DecideStartCleanup(in StartCleanupInput) DurableAction {
+	if in.Cleanup != CleanupConfirmed {
+		return DurableMarkUnknown
+	}
 	out := DurableMarkUnknown
 	switch {
 	case in.Shape == StartSpawn:

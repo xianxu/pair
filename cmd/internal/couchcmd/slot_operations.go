@@ -357,9 +357,12 @@ func classifySlotOperationOutcome(value any, err error) couchmessage.ReceiptOutc
 	case err != nil:
 		out := couchmessage.ReceiptOutcome{Status: couchmessage.ReceiptFailed, Detail: couchcore.OperatorError(err), Diagnostic: string(couchcore.ResumeDiagnosticOf(err))}
 		var recoveryUnconfirmed *couchcore.RecoveryLaunchUnconfirmed
+		var cleanupUnconfirmed *couchcore.SessionCleanupUnconfirmed
 		var unconfirmed *couchcore.ReloadUnconfirmed
 		var unready *couchcore.RestartUnready
 		switch {
+		case errors.As(err, &cleanupUnconfirmed):
+			out.Code = "unconfirmed"
 		case errors.As(err, &recoveryUnconfirmed):
 			out.Code = "unconfirmed"
 		case errors.As(err, &unconfirmed):

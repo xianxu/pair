@@ -1,13 +1,21 @@
 ---
 id: 000694
-status: open
+status: punt
 deps: []
 github_issue:
 created: 2026-10-18
-updated: 2026-10-18
+updated: 2026-10-19
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '4576de1461a971fdb3c5716acae09ed8f3bddc20' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'a16d983c3f30862aa818b72bb5d8e08b536fe1b0' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-18T22:48:50-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Couch teams: hubs as team folders, a second address kind beside slots, through the shared lifecycle
@@ -31,4 +39,6 @@ A hub is a second kind of Couch address, `team` (e.g. `devinfra`, `echo`), backe
 
 ## Log
 
+
+- 2026-10-19: abandoned (punt): introduce-team chose one team per repo; Couch needs no team address kind (ops design section 7-8)
 ### 2026-10-18

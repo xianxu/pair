@@ -26,6 +26,7 @@ type ContinuousCommandReport struct {
 	Version        int              `json:"version"`
 	Outcome        string           `json:"outcome"`
 	MaxDatabaseAge time.Duration    `json:"max_database_age_ns"`
+	MaxDriveFiles  int              `json:"max_drive_files,omitempty"`
 	Report         ContinuousReport `json:"report"`
 }
 
@@ -80,6 +81,20 @@ func validateContinuousCommandReport(r ContinuousCommandReport) error {
 		return fmt.Errorf("max database age must be positive")
 	}
 	noPass := r.Outcome == ContinuousNotConfigured || r.Outcome == ContinuousAlreadyRunning
+	if r.MaxDriveFiles < 0 {
+		return fmt.Errorf("max Drive files cannot be negative")
+	}
+	if r.Report.Drive != nil && r.Report.Drive.Inventory != nil {
+		if noPass {
+			return fmt.Errorf("%s cannot carry Drive inventory", r.Outcome)
+		}
+		if r.MaxDriveFiles == 0 {
+			return fmt.Errorf("Drive inventory requires a positive file threshold")
+		}
+		if err := validateDriveInventoryObservation(r.Report.Drive.Inventory); err != nil {
+			return err
+		}
+	}
 	if noPass && len(r.Report.Databases) != 0 {
 		return fmt.Errorf("%s cannot carry database results", r.Outcome)
 	}
@@ -155,6 +170,13 @@ func rejectContinuousScalarNulls(raw []byte, typ reflect.Type) error {
 			for _, key := range []string{"version", "outcome", "max_database_age_ns", "report"} {
 				if _, ok := fields[key]; !ok {
 					return fmt.Errorf("missing required continuous report field %q", key)
+				}
+			}
+		}
+		if typ == reflect.TypeOf(DriveInventoryObservation{}) {
+			for _, key := range []string{"destination", "folder_id", "phase", "files"} {
+				if _, ok := fields[key]; !ok {
+					return fmt.Errorf("missing required Drive inventory field %q", key)
 				}
 			}
 		}

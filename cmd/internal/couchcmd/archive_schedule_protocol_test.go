@@ -118,6 +118,8 @@ func archiveProtocolFixture(t *testing.T, raw []byte, mode string, exit int) (st
 func archiveProtocolReport(t *testing.T, outcome string) (historyarchive.ContinuousCommandReport, []byte) {
 	t.Helper()
 	want := historyarchive.ContinuousCommandReport{Version: historyarchive.ContinuousReportVersion, Outcome: outcome, MaxDatabaseAge: 48 * time.Hour, Report: historyarchive.ContinuousReport{Databases: []historyarchive.DatabaseBackupSummary{{Source: historyarchive.SourceIdentity{Host: "fixture", Root: "/native"}, Kind: "codex-database", Path: "partial.sqlite", Status: historyarchive.DatabaseDeferred, Detail: "busy"}}}}
+	want.MaxDriveFiles = 20000
+	want.Report.Drive = &historyarchive.DriveReport{Inventory: &historyarchive.DriveInventoryObservation{Destination: "remote:configured-root", FolderID: "root-1", Phase: "before", Files: 20001}}
 	raw, err := historyarchive.EncodeContinuousReport(want)
 	if err != nil {
 		t.Fatal(err)

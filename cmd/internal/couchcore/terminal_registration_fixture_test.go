@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/zellijtest"
@@ -11,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/osfs"
@@ -66,10 +68,7 @@ func registrationTerminalFixture() error {
 		if err != nil {
 			return err
 		}
-		if err = (osfs.FS{}).WriteAtomic(os.Getenv("PAIR_AGENT_READY_PATH"), string(raw)); err != nil {
-			return err
-		}
-		if err = (osfs.FS{}).WriteAtomic(os.Getenv("PAIR_TEST_ZELLIJ_READY"), "ready"); err != nil {
+		if err = publishRegistrationFixtureReadiness(osfs.FS{}, os.Getenv("PAIR_TEST_ZELLIJ_READY"), os.Getenv("PAIR_AGENT_READY_PATH"), string(raw)); err != nil {
 			return err
 		}
 		if err := awaitRegistrationFixtureRelease(); err != nil {
@@ -86,7 +85,28 @@ func registrationTerminalFixture() error {
 		if err != nil {
 			return err
 		}
-		defer socket.Close()
+		acceptDone := make(chan struct{})
+		go func() {
+			defer close(acceptDone)
+			for {
+				conn, err := socket.Accept()
+				if err != nil {
+					return
+				}
+				_ = conn.Close()
+			}
+		}()
+		defer func() { _ = socket.Close(); <-acceptDone }()
+		state := registrationFixtureServer{Session: filepath.Base(args[1]), Socket: args[1], PID: os.Getpid(), Identity: procutil.Identity(strconv.Itoa(os.Getpid()))}
+		raw, err := json.Marshal(state)
+		if err != nil {
+			return err
+		}
+		statePath := os.Getenv("PAIR_TEST_ZELLIJ_READY") + ".server"
+		if err := (osfs.FS{}).WriteAtomic(statePath, string(raw)); err != nil {
+			return err
+		}
+		defer os.Remove(statePath)
 		child := exec.Command(filepath.Join(filepath.Dir(os.Args[0]), "pair-wrap"), "--scrollback-log", os.Getenv("PAIR_SCROLLBACK_RAW_PATH"))
 		child.Env, err = registrationFixtureEnvironment()
 		if err != nil {
@@ -146,24 +166,25 @@ func registrationTerminalFixture() error {
 		}
 		return registrationFixtureEmit(reply)
 	case len(args) > 0 && args[0] == "list-sessions":
-		if _, err := os.Stat(os.Getenv("PAIR_TEST_ZELLIJ_READY")); err != nil {
-			if os.IsNotExist(err) {
-				reply, renderErr := registrationFixtureCatalog("couch.registration.no-sessions")
-				if renderErr != nil {
-					return renderErr
-				}
-				return registrationFixtureEmit(reply)
-			}
+		session, err := registrationFixtureLiveSession(os.Getenv("PAIR_TEST_ZELLIJ_READY"))
+		if err != nil {
 			return err
 		}
+		if session == "" {
+			reply, err := registrationFixtureCatalog("couch.registration.no-sessions")
+			if err != nil {
+				return err
+			}
+			return registrationFixtureEmit(reply)
+		}
 		if len(args) == 2 && args[1] == "--short" {
-			reply, err := registrationFixtureReply("sessions-short", []string{os.Getenv("PAIR_SESSION_NAME")})
+			reply, err := registrationFixtureReply("sessions-short", []string{session})
 			if err != nil {
 				return err
 			}
 			return registrationFixtureEmit(reply)
 		} else if len(args) == 2 && args[1] == "--no-formatting" {
-			reply, err := registrationFixtureReply("sessions-full", []string{os.Getenv("PAIR_SESSION_NAME")})
+			reply, err := registrationFixtureReply("sessions-full", []string{session})
 			if err != nil {
 				return err
 			}
@@ -173,6 +194,15 @@ func registrationTerminalFixture() error {
 		}
 	}
 	return nil
+}
+
+func publishRegistrationFixtureReadiness(fs interface{ WriteAtomic(string, string) error }, listingPath, agentPath, record string) error {
+	// Agent readiness permits production admission to query the listing
+	// immediately. Publish its prerequisite before announcing readiness (#698).
+	if err := fs.WriteAtomic(listingPath, "ready"); err != nil {
+		return err
+	}
+	return fs.WriteAtomic(agentPath, record)
 }
 
 // Nested fixture processes run outside testing.M and may have a disposable
@@ -250,4 +280,56 @@ func registrationFixtureEmit(reply zellijtest.ReplyEnvelope) error {
 	}
 	_, err := fmt.Fprint(os.Stderr, reply.Stderr)
 	return err
+}
+
+// Server state is published by the owned server before its wrapper can announce
+// readiness. The old readiness marker alone never grants session lifetime.
+type registrationFixtureServer struct {
+	Session  string `json:"session"`
+	Socket   string `json:"socket"`
+	PID      int    `json:"pid"`
+	Identity string `json:"identity"`
+}
+
+func registrationFixtureLiveSession(ready string) (string, error) {
+	if _, err := os.Stat(ready); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", nil
+		}
+		return "", err
+	}
+	raw, err := os.ReadFile(ready + ".server")
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", nil
+		}
+		return "", err
+	}
+	var server registrationFixtureServer
+	if err := json.Unmarshal(raw, &server); err != nil {
+		return "", fmt.Errorf("invalid fixture server state: %w", err)
+	}
+	if server.Session == "" || server.Socket == "" || filepath.Base(server.Socket) != server.Session || server.PID <= 0 || server.Identity == "" {
+		return "", fmt.Errorf("incomplete fixture server state: %s", raw)
+	}
+	pid := strconv.Itoa(server.PID)
+	if !procutil.Alive(pid) {
+		return "", nil
+	}
+	identity := procutil.Identity(pid)
+	if identity == "" {
+		return "", fmt.Errorf("fixture server identity unavailable for %s", pid)
+	}
+	if identity != server.Identity {
+		return "", nil
+	}
+	conn, err := net.DialTimeout("unix", server.Socket, time.Second)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ECONNREFUSED) {
+			return "", nil
+		}
+		return "", fmt.Errorf("fixture server endpoint: %w", err)
+	}
+	_ = conn.Close()
+	return server.Session, nil
 }

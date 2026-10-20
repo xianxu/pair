@@ -216,7 +216,8 @@ does nothing.
   is a new version. Worktree slots share their repository's git common dir, so
   sdlc data is archived once per repository.
 - **Databases:** snapshotted daily regardless of quiet. `SQLiteSnapshotter`
-  opens the live database through SQLite's read-only WAL-reader protocol,
+  captures an observed cold WAL database as described below; other inputs
+  open through SQLite's read-only WAL-reader protocol,
   pins a read transaction and runs `.backup` into a private directory. DB/WAL
   content is never written by the reader; SQLite may create/update SHM read
   marks. The source reader has a size-scaled 5–30 second budget and a 250ms busy timeout,
@@ -237,9 +238,23 @@ does nothing.
   The read budget is twice the estimated DB+WAL copy time at 190 decimal MB/s,
   rounded up and clamped to 5–30 seconds. The measured approximately 2GB
   history database gets 21 seconds; the context and kernel alarm use the same
-  value, never renewed. macOS system SQLite 3.54 may fail a closed WAL-mode
-  database lacking WAL/SHM sidecars; that diagnosed compatibility limitation
-  is tracked in #701, separately from the active-history backup fix.
+  value, never renewed. For a complete WAL header with no WAL, SHM or rollback
+  journal files, the collector instead makes a private plain copy and checks
+  it against a second complete read through the same held source descriptor.
+  Held database and parent identities, size, mtime and ctime must stay unchanged;
+  the parent check detects even transient sidecars. This is observed quiescence
+  on a reliable local filesystem, not a writer lock. It avoids macOS system
+  SQLite 3.54's closed-WAL readonly failure without opening that native source
+  through SQLite or creating native sidecars. The two reads share one 5–30 second
+  deadline and fixed-size buffers. Changed or unknown capture evidence defers
+  without retry and keeps the previous verified backup; let the next scheduled
+  pass try again. Unrelated directory churn can conservatively defer this path.
+  Proven unsafe paths, size violations and private output failures are rejected;
+  ask the hub to repair the reported source or output configuration.
+  Active databases retain native backup; a failed cold capture never falls
+  through to another acquisition in the same pass. Both paths share private
+  DELETE/integrity validation, atomic staging, opaque schema/rowid preservation
+  and leased cleanup. Later writes do not invalidate a completed cold capture.
 - **Database freshness:** each pass prints archived, unchanged, deferred or
   failed per database, plus its last verified catalog timestamp/age (or never).
   A checked-unchanged source is current even when its stored bundle is old;
@@ -247,6 +262,22 @@ does nothing.
   alone is not a verified backup. These are runtime reports, with no catalog
   or manifest format changes. `continuous.last` still means pass completion,
   not that every database has a fresh bundle.
+- **Drive file count (#705):** the human and version-1 JSON reports reuse the
+  pass's existing listings, counting every non-directory entry, including
+  duplicate names and unrelated files. A successful final listing replaces the
+  explicitly labeled before count; later failure retains the before evidence.
+  Missing, skipped or failed initial listings remain unknown, never zero; no
+  extra remote query fills the gap. `PAIR_ARCHIVE_DRIVE_MAX_FILES` is a positive
+  integer (default `20000`); invalid settings fail before work. A count strictly
+  above the threshold asks the hub to arrange year subfolders on Drive.
+  Couch uses the same notification path and daily gate as database warnings,
+  keyed by the canonical configured destination root, not its physical folder
+  ID. Counts, threshold changes and uncertain output do not rearm that day's
+  attempt; restart allows one fresh warning. The optional JSON observation
+  carries destination, folder ID, before/after phase and count, plus the envelope's
+  `max_drive_files`; legacy reports remain readable with an unknown count.
+  This reports capacity only and never moves files. Future month-folder
+  aggregation can retain the configured-root contract.
 - **Freshness warnings (#700):** `PAIR_ARCHIVE_DATABASE_MAX_AGE` is a positive
   Go duration (default `48h`); malformed or nonpositive settings fail before
   work. Only failed/deferred checks warn when the catalog's last verified
@@ -256,8 +287,8 @@ does nothing.
   and asks the hub to repair its backup.
   Couch reserves one attempt per exact source/kind/path per UTC day, in memory
   for its lifetime. Restart permits a fresh warning; a failed or uncertain
-  delivery consumes the reservation, without retry. Reservations are bounded
-  to 10,000 sources/day with one overflow warning. Warnings use status, desktop
+  delivery consumes the reservation, without retry. Database and Drive reservations share a bound
+  of 10,000 keys/day with one overflow warning. Warnings use status, desktop
   output and attention on the connected primary hub's exact thread, never
   inferred source ownership or broadcast. Without that hub, status and desktop
   output explicitly say it is unavailable; no attention item is raised. The
@@ -290,7 +321,11 @@ storage policy above.
 ### SQLite conformance and native acceptance
 
 The ordinary historyarchive suite uses disposable SQLite writers and kernel-alarm
-owner-death fixtures; it never opens native databases. The opt-in
+owner-death fixtures; it never opens native databases. Closed-WAL conformance
+qualifies the configured CLI and macOS system CLI, preserving the complete native
+fixture image. Controlled real SQLite writers exercise both capture reads,
+including rollback with only transient sidecars. Counted tests bound source reads
+and observations at B/2B bytes and N/2N databases. The opt-in
 `TestSQLiteSnapshotLiveContinuous` requires `PAIR_SQLITE_LIVE_ACCEPTANCE=1` and
 `PAIR_SQLITE_LIVE_LAUNCHER` pointing at the tested pair-go binary. Coordinate it
 with the hub/operator first: it writes normal encrypted bundles to the configured

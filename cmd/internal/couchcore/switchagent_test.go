@@ -104,10 +104,10 @@ func TestFreshExistingCleanupRequiresProvedAbsence(t *testing.T) {
 	if !StartFreshExisting.OwnsSession() {
 		t.Fatal("fresh switch owns the new session")
 	}
-	if got := DecideStartCleanup(StartCleanupInput{Shape: StartFreshExisting, HelperDead: true, Presence: PresenceUnobserved}); got != DurableMarkUnknown {
+	if got := DecideStartCleanup(StartCleanupInput{Shape: StartFreshExisting, HelperDead: true, Presence: PresenceUnobserved, Cleanup: CleanupConfirmed}); got != DurableMarkUnknown {
 		t.Fatal(got)
 	}
-	if got := DecideStartCleanup(StartCleanupInput{Shape: StartFreshExisting, HelperDead: true, Presence: PresenceAbsent}); got != DurableRollback {
+	if got := DecideStartCleanup(StartCleanupInput{Shape: StartFreshExisting, HelperDead: true, Presence: PresenceAbsent, Cleanup: CleanupConfirmed}); got != DurableRollback {
 		t.Fatal(got)
 	}
 }

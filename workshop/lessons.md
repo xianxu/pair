@@ -7,6 +7,10 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- Characterize an external reader on a separate disposable copy when a conforming implementation may create coordination files. Otherwise a diagnostic probe can change the source state before a production preservation test, selecting a different path on another platform. Assert the untouched source image around the production operation only. (#701)
+- Preserve failure provenance across a fallback collector: uncertain source evidence may defer, but established unsafe paths/limits and local output failures must retain their rejected category and repair action. Test the categories independently; a blanket conversion can make an unsafe configuration look temporarily busy. (#701 BR-1)
+- A fixture's readiness publication must follow every prerequisite the production consumer queries immediately. Observe the real reply synchronously between atomic writes, assert final readiness is absent there, and inject each write failure; a later parent wait cannot close a gap the concurrent admission observer already entered. (#698)
+
 - A native signal fixture must control delivery as well as readiness. Python can swallow KeyboardInterrupt in an ignored-exception callback after a ready banner; mask through that phase, prove the signal is pending, and release it at top level. Check an independent expected exit as well as baseline parity, with a callback self-signal regression and no competing parent signal. Preserve wait-error text explicitly: formatting an unexported struct field can hide it behind a pointer. (#703)
 
 - A display decorator must preserve its input collection's empty-versus-unavailable contract. Cloning by append to nil collapses an owned empty slice; run existing inventory tests as well as the new diagnostic-name subset when adding row fields. (#683 suite qualification)
@@ -2370,3 +2374,17 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - A capped subprocess writer must not embed an io.ReaderFrom implementation that bypasses Write: io.Copy uses promoted ReadFrom. Test the actual exec boundary with oversized output, including a valid JSON prefix plus padding; overflow must refuse the whole report, not grant authority to the retained prefix. (#700)
 
 - Qualify runtime evidence through its real encoder using non-UTC clocks, including a mixed healthy/stale pass. A strict UTC codec plus UTC-only fixtures can hide a production local-time mismatch that discards every database result. Normalize at the observation clock owner. (#700 BR-1)
+
+- #708: A current ancestry/FD/environment snapshot cannot prove that a detached job will never reuse a temp path. Use an explicit lifetime owner or a documented conventional age-cleaner contract; do not turn observation into deletion authority.
+- #708: Separate a shared volume/container's permissions from private child permissions. Qualify the real parent with a read-only stat, then fixture its observed mode (TestScratch/tmp is 0755); requiring private 0700 on an existing shared parent silently defeats admission. Keep the parent unchanged and enforce 0700 on owned slot/bookkeeping directories.
+
+- #708 BR-1: Optional maintenance must not become interactive admission's lock owner. Enumerate the full path (mutex, advisory lock, and preflight lookup); acquire opportunistically and check availability before expensive resolution. Pause a sweep and require admission to return before release, with zero resolver calls.
+- #708 BR-2: Constructor callback-presence assertions do not prove production wiring. Inject native observation and scheduling through the real composition, exercise both admission outcomes, and mutate each startup/worker callsite off to verify tests fail. Use a fixture clock whose outcome differs from the host clock; prove cancellation joins a held worker.
+- #708: When adding a slot path or native fixture, run the existing slot-state coverage audit and repository lint catalog alongside feature tests. Reuse EnvName for slot basenames. Native socket fixtures need a derived address budget and a long-TMPDIR regression; use the documented short-root lint exception when inherited temp roots cannot fit. Local feature tests alone do not enforce these repository contracts.
+
+- #712 PQ-1: Before adding a diagnostic phase, exercise the real persisted codec and accepted enum validator. Prefer an existing phase plus typed detail when the operation is a subphase; a pure error test cannot establish storage compatibility.
+- #712: Fixture readiness must derive from the producer generation and lifetime, never a querying process environment or a marker that outlives the producer. Inject a permanent observation refusal through the real cleanup path and verify both a total budget and retained exact ownership.
+
+- #712 BR-1: Enumerate metadata locks as IO in a timeout promise. A context passed to native probes does not bound a blocking GetThread, and rereading identity after expiry can recreate the hang. Use the context-aware read-only route, retain observed identity before expiry, and contend the actual store lock while asserting return before release. Bound disposition persistence separately and report a failed commit without discarding the occupied claim.
+
+- #712 BR-1 disposition: A deadline-safe observation followed by an unbounded state write still hangs. Enumerate routing, metadata reads, CAS retry and journal locking under one persistence context; contend both the pre-read and read/write seams. If durable unknown cannot commit, keep the exact occupied claim and report that uncertainty too.
