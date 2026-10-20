@@ -7,27 +7,29 @@
   "weight": 1,
   "timeout_minutes": 30,
   "full": [
-    "Makefile*",
-    "go.mod",
-    "go.sum",
-    ".sdlc/**",
     ".github/workflows/**",
-    "tests/lib/**",
-    "cmd/pair-go/**",
+    ".sdlc/**",
+    "Makefile*",
     "cmd/couch/**",
-    "cmd/pair-launch-helper/**",
     "cmd/internal/dispatcher/**",
     "cmd/internal/runtimebundle/assets/runtime/manifest.json",
+    "cmd/pair-go/**",
+    "cmd/pair-launch-helper/**",
+    "go.mod",
+    "go.sum",
+    "scripts/build-go-atomic.sh",
     "scripts/test-affected.py",
-    "tests/test-affected-test.py",
     "tests/affected-config-test.py",
-    "tests/affected-consumers.json"
+    "tests/affected-consumers.json",
+    "tests/lib/**",
+    "tests/test-affected-test.py"
   ],
   "groups": [
     {
       "name": "lua",
       "paths": [
         "cmd/internal/runtimebundle/assets/runtime/files/nvim/**",
+        "doctor/fixtures/perf_capture.txt",
         "nvim/**",
         "tests/autopair-test.sh",
         "tests/bang-tag-nvim-test.sh",
@@ -79,7 +81,8 @@
         "tests/review-resume-isolation-test.py",
         "tests/review-resume-test.sh",
         "tests/review-toggle-test.sh",
-        "tests/review-window-test.sh"
+        "tests/review-window-test.sh",
+        "zellij/config.kdl"
       ],
       "go": [
         "./cmd/internal/pairlog",
@@ -109,8 +112,13 @@
       "name": "build",
       "paths": [
         "bin/couch-dev",
+        "bin/lib/adapt-log.sh",
         "bin/lib/dev-rebuild.sh",
         "bin/pair-dev",
+        "doctor/doctor.sh",
+        "doctor/emitter-health.sh",
+        "doctor/perf.sh",
+        "nvim/**",
         "scripts/build-go-atomic.sh",
         "scripts/supervision-labels/**",
         "tests/build-go-atomic-test.py",
@@ -121,7 +129,8 @@
         "tests/pair-go-install-layout-test.sh",
         "tests/run-headless-test.sh",
         "tests/without-ancestors-test.py",
-        "tests/without-ancestors.py"
+        "tests/without-ancestors.py",
+        "zellij/**"
       ],
       "go": [
         "./cmd/internal/entrypoint",
@@ -135,6 +144,7 @@
     {
       "name": "shell",
       "paths": [
+        "nvim/**",
         "tests/changelog-open-test.sh",
         "tests/changelog-session-key-test.sh",
         "tests/copy-on-select-test.sh",

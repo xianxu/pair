@@ -71,6 +71,7 @@ import (
     "path/filepath"
     "reflect"
     "sort"
+    "strings"
     "testing"
 
     "github.com/xianxu/ariadne/cmd/sdlc/internal/affected"
@@ -165,7 +166,7 @@ func TestPathsAndFallbacks(t *testing.T) {
     cfg, _ := config(t)
     g := graph(t)
     exact(t, cfg, g, []string{"scripts/supervision-labels/check.py"}, nil, []string{"build"})
-    exact(t, cfg, g, []string{"nvim/workbench_route.lua"}, nil, []string{"lua", "review"})
+    exact(t, cfg, g, []string{"nvim/workbench_route.lua"}, nil, []string{"build", "lua", "review", "shell"})
     exact(t, cfg, g, []string{"cmd/internal/runtimebundle/assets/runtime/files/nvim/workbench_route.lua"},
         []string{"example.com/fixture/cmd/internal/runtimebundle"}, []string{"build", "lua"})
     for _, path := range []string{"Makefile", "Makefile.local", "tests/lib/helper.sh", "go.mod", "go.sum", ".sdlc/affected.json", ".github/workflows/ci.yml", "tests/webcast/unclaimed.fixture", "tests/broadcast-viewer/unclaimed.fixture", "tests/terminal-oracle/unclaimed.fixture", "tests/new-unowned.fixture", "cmd/internal/absent_platform_package/deleted.go", "probes/absent_platform_package/deleted.go"} {
@@ -199,11 +200,11 @@ func TestActualGroupConsumerCoverage(t *testing.T) {
     if err != nil { t.Fatal(err) }
     data, err := os.ReadFile(filepath.Join(root, "tests", "affected-consumers.json"))
     if err != nil { t.Fatal(err) }
-    var consumers map[string]map[string][]string
+    var consumers map[string]map[string]struct { Go []string `json:"go"`; Files []string `json:"files"` }
     if err := json.Unmarshal(data, &consumers); err != nil { t.Fatal(err) }
     for group, targets := range consumers {
-        for target, packages := range targets {
-            for _, pkg := range packages {
+        for target, consumer := range targets {
+            for _, pkg := range consumer.Go {
                 name := "github.com/xianxu/pair/" + pkg
                 dir, exists := g.Dir[name]
                 if !exists { t.Fatalf("%s/%s: unknown command root %s", group, target, pkg) }
@@ -225,6 +226,55 @@ func TestActualGroupConsumerCoverage(t *testing.T) {
     }
 }
 
+func TestActualFileConsumerCoverage(t *testing.T) {
+    cfg, _ := config(t)
+    root := os.Getenv("PAIR_AFFECTED_ROOT")
+    g, err := affected.LoadGoGraph(context.Background(), root)
+    if err != nil { t.Fatal(err) }
+    data, err := os.ReadFile(filepath.Join(root, "tests", "affected-consumers.json"))
+    if err != nil { t.Fatal(err) }
+    var consumers map[string]map[string]struct { Go []string `json:"go"`; Files []string `json:"files"` }
+    if err := json.Unmarshal(data, &consumers); err != nil { t.Fatal(err) }
+    checked := 0
+    seen := map[string]bool{}
+    for group, targets := range consumers {
+        for target, consumer := range targets {
+            // Runner regressions enforce the unconditional text-inventory guard.
+            if target == "test-make-env" { continue }
+            for _, pattern := range consumer.Files {
+                var files []string
+                if strings.HasSuffix(pattern, "/**") {
+                    err := filepath.WalkDir(filepath.Join(root, strings.TrimSuffix(pattern, "/**")),
+                        func(path string, entry os.DirEntry, err error) error {
+                            if err != nil { return err }
+                            if !entry.IsDir() { files = append(files, path) }
+                            return nil
+                        })
+                    if err != nil { t.Fatal(err) }
+                } else {
+                    files, err = filepath.Glob(filepath.Join(root, pattern))
+                    if err != nil { t.Fatal(err) }
+                }
+                if len(files) == 0 { t.Fatalf("%s/%s stale input pattern %s", group, target, pattern) }
+                for _, file := range files {
+                    relative, err := filepath.Rel(root, file)
+                    if err != nil { t.Fatal(err) }
+                    relative = filepath.ToSlash(relative)
+                    if filepath.Ext(relative) == ".md" { continue } // upstream docs-only exception
+                    key := group+"/"+relative
+                    if seen[key] { continue }
+                    seen[key] = true
+                    checked++
+                    selected := affected.Plan([]string{relative}, g, cfg, nil)
+                    covered := selected.Full
+                    for _, got := range selected.Groups { if got == group { covered = true } }
+                    if !covered { t.Errorf("%s/%s input %s omits consumer; groups=%v", group, target, relative, selected.Groups) }
+                }
+            }
+        }
+    }
+    t.Logf("checked %d distinct group/file inputs", checked)
+}
 '''
 
 

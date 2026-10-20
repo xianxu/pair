@@ -34,7 +34,10 @@
   Makefiles, gate config, executable dispatch and unclaimed non-Go files force
   full coverage. Runner regressions audit the default recipe/group union;
   `tests/affected-consumers.json` records each recipe's actual Pair command
-  roots, tested with their transitive dependencies against the real Go graph.
+  roots and recursive file/fixture/text inputs. Tests expand those inputs and
+  require their consumer group or full through the real planner/Go graph.
+  Editor consumers share broad nvim ownership; build covers runtime bundle
+  inputs. Shared build scripts keep full coverage.
   Source-name inventory is a textual dependency: every valid selection runs
   test-make-env once, as a fixed preflight unless build already owns its run.
   Unowned Go paths keep the full fallback, including absent/platform-excluded packages.

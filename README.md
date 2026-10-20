@@ -1990,8 +1990,11 @@ outside Go import dependencies, so every valid selection runs `test-make-env`
 once (the build group runs it when selected; other runs use a fixed preflight).
 Unknown, deleted or platform-excluded package paths retain the full fallback.
 The independent
-suite-to-command audit lives in `tests/affected-consumers.json`; actual-graph
-regressions check every command dependency and the inventory's recipe coverage.
+per-recipe input audit lives in `tests/affected-consumers.json`: Go command roots
+and recursively executed, copied or text-read file inputs. Actual-planner
+regressions check their coverage and the inventory's recipe completeness.
+Groups loading the editor conservatively share `nvim/**`; the build group also
+covers runtime bundle inputs. Shared build infrastructure forces full coverage.
 `make test` retains every existing check and adds runner
 and declaration regressions; landing still requires the full-suite evidence
 owned by SDLC.

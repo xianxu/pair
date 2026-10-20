@@ -2416,3 +2416,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #721 BR-4: A user-visible command change updates both root README reference and usage passages alongside atlas. Search all command mentions before close.
 
 - #725 BR-1: Affected-test group roots come from every real command and textual consumer exercised by its recipes, not from command-family names. Audit recursive Lua/Python/shell helpers and dispatch routes; pin every recipe's command roots and transitive dependencies with the actual planner/Go graph. Cross-cutting source scans need additive path coverage even when their packages have no Go import relationship.
+
+- #725 BR-2: A Go dependency audit does not cover files loaded, copied or grepped by Lua/shell/Python tests. Inventory both kinds per recipe and qualify all expanded inputs through the actual planner; broad editor-source coverage handles dynamic Lua imports. Measure the non-Go/full split before paying for a selective inventory: here non-Go was 286.506s against a 543.716s recorded full baseline, making selection worthwhile. Keep global textual scans as fixed preflights and shared/unowned inputs conservative.

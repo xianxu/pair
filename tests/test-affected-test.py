@@ -173,6 +173,10 @@ class MakeEntrypoint(unittest.TestCase):
         self.assertEqual(set(consumers), set(groups))
         for name, recipes in groups.items():
             self.assertEqual(set(consumers[name]), set(recipes), f"{name} command audit is stale")
+            for target, inputs in consumers[name].items():
+                self.assertEqual(set(inputs), {"go", "files"}, target)
+                self.assertIsInstance(inputs["go"], list, target)
+                self.assertTrue(inputs["files"], f"{target} has no file-input audit")
         source = (ROOT / "Makefile.local").read_text()
         for group in config["groups"]:
             for target in groups[group["name"]]:
