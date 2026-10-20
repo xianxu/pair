@@ -123,23 +123,42 @@ Image sources and tool downloads use pinned digests/checksums in the lock file. 
 
 ## Milestones and exact verification
 
+### Canonical risky-function test strategy
+
+This table owns test strategy; milestone tasks reference it rather than restating case inventories. Pure rows use literal values/generated inputs, without runtime mocks; IO rows use the stateful runtime or real controlled resources.
+
+| Function | Boundary | Adversarial input / mechanical guard |
+|---|---|---|
+| `ParseRun` | pure, `request.go` | Fuzz arbitrary argv; require a well-formed typed request or descriptive refusal before effects. |
+| `DecodeImageManifest`, `DecodeLaunchClaim` | pure, `image.go`, `claim.go` | Fuzz JSON structure and additive nested members; require strict known fields and lossless unknown-member rewrites. |
+| `Advance` | pure, `state.go` | Generate event sequences with interruptions/late completions; assert ownership, failure preservation and completion invariants independently of transitions. |
+| `PlanSnapshot` | pure, `snapshot.go` | Fuzz admitted file descriptors and root relationships; forbid escape/overlap and count one traversal at N/2N. |
+| `BuildGuestInvocation` | pure, `guest.go` | Generate poisoned ambient environment/path/argv values; compare output with the fixed allowlist and literal argv contract. |
+| `Run` | IO orchestration, `runtime.go` | Stateful Tart fake pauses each effect and injects partial/unknown outcomes; trace that no launch/claim/resource is lost and no pass survives incomplete cleanup. |
+| `AcquirePosition`, `RecoverLaunchClaim` | native resource seam, `positions.go` | Controlled real subprocess barriers, including parent death before running publication; require exclusion and exact positive-death evidence before reuse. |
+| `SnapshotCheckout` | filesystem/Git seam, `snapshot.go` | Fixture independent/linked Git layouts with hostile content; assert isolated usable Git, admitted byte equality, source immutability and bounded copy counts. |
+| `validate_results` | pure event reducer, `tests/conformance-vm.py` | Generate malformed/incomplete Go JSON streams against the required-case set; complete execution is the only accepting result, in one pass. |
+| `nightly_main`, `reserve_nightly_artifacts` | command/filesystem seam, `scripts/vm/nightly.sh` | Stateful local-check fake and private date directories; require one exact-main run, no retries, isolated evidence retention and bounded saturation refusal. |
+
+Real Tart qualification uses the same `Run` adapter with controlled commands and poisoned host sentinels, including deliberate command failure and interrupted startup/cleanup. It checks the fake's ownership/transport model, actual native-case completeness and immutable source, not elapsed timing alone.
+
 ### M1 — Refreshed image and generic isolated runner
 
 **Files:** create `cmd/internal/vmcmd/{request,image,state,claim,guest,positions,snapshot,runtime,runtime_darwin,runtime_other}.go` with colocated tests and `fake_test.go`; `scripts/vm/{provision.sh,image.lock.json,guest-run.sh}`. Modify dispatcher registry, `cmd/internal/dispatcher/{dispatcher,route_coverage,readme}_test.go`, `cmd/pair-go/main.go`, `cmd/pair-go/{main,pty_proxy_route}_test.go`, source inventories when required, README and `atlas/vm.md`/index.
 
-- [ ] Write pure request/manifest/state tests first. Reject empty checkout/argv, invalid lane, nonpositive budget, duplicate/malformed manifest and source/result overlap; preserve additive unknowns. Run `go test ./cmd/internal/vmcmd -run 'Test(ParseRun|ImageManifest|Advance|GuestInvocation)' -count=1` and observe red before implementation.
-- [ ] Add stateful runtime integration tests with controlled completion barriers: concurrent train/nightly exclusion, provisioning admission against occupied lanes, independent ad-hoc position, cancellation at each stage, child created before an error, transport loss, collection failure and stop uncertainty. Kill the runner while child startup is held before running publication and before/after identity recording; require unresolved-start refusal. Assert no release before Wait and no foreign VM mutation; seed broken orderings to prove regressions fail.
+- [ ] Write failing tests for M1's pure functions using the canonical strategy table. Run `go test ./cmd/internal/vmcmd -run 'Test(ParseRun|ImageManifest|LaunchClaim|Advance|GuestInvocation|PlanSnapshot)' -count=1` and observe red before implementation.
+- [ ] Add the table's stateful `Run` and native `AcquirePosition`/`RecoverLaunchClaim` tests. Seed a premature resource release and lost startup claim to prove the controlled ordering guard fails.
 - [ ] Implement the minimal runner/CLI composition behind those seams. Add Linux/unsupported-platform refusal without trying to boot Tart. Run `go test ./cmd/internal/vmcmd ./cmd/internal/dispatcher ./cmd/pair-go -count=1` plus relevant repository/source guards.
 - [ ] Refresh from current Tahoe base into a new qualified image candidate (outside sandbox, headless). Provision exact Go/Node/Python/Neovim/Zellij/agent CLI versions, compiler/terminal tools and guest-agent. Record source digest/checksums and versions; do not activate an unqualified candidate or change the old development VM.
-- [ ] Qualify real Tart transport with a literal argv containing spaces/metacharacters, exit 0 and exit 23, timeout/cancellation and a second clean invocation. Prove failure remains failure after collection/stop, locks exclude two same-lane clients, and train/ad-hoc use at most two guests. Simulate runner death and require safe leftover refusal/recovery.
-- [ ] Poison ambient HOME/XDG/PAIR/COUCH/Zellij/queue variables and plant host sentinels. Assert source bytes unchanged, guest cannot access host sentinels/socket/store, Git metadata is independent and guest HOME is clean. Count snapshot work at N/2N. Retain measured timing/resource evidence.
+- [ ] Execute the table's real Tart qualification strategy and retain native ownership, transport and isolation evidence. Require a subsequent clean invocation after each confirmed cleanup; uncertain outcomes must remain refusals.
+- [ ] Run `SnapshotCheckout` and `BuildGuestInvocation` strategies through the actual VM composition, retaining immutable-source/sentinel evidence and N/2N counts alongside measured timing/resource evidence.
 - [ ] Update issue Log/atlas, commit, then `sdlc milestone-close --issue 743 --milestone M1 --verified '<measured evidence>'`. Fix/dispute any blocking findings before M2.
 
 ### M2 — Strict Pair conformance and runnable named check
 
 **Files:** create `tests/conformance-vm.py`, `tests/conformance-vm-test.py`, `tests/conformance-paths.json`; modify `tests/native-terminal-ci.py` only to share its existing strict evidence checker, `Makefile.local`, `.sdlc/local-checks.json`, workflow path drift/generation guard, `atlas/vm.md` and README.
 
-- [ ] Write failing orchestration tests using controlled Go JSON/result fixtures: both native populations must execute every declared parent/case; failure, skip, missing pass, absent result and truncated streams refuse. Maintain #432's explicit exclusions without silently dropping additional cases.
+- [ ] Write failing `validate_results` tests using the canonical strategy table. The required-case set covers both existing native populations and retains #432's explicit exclusions.
 - [ ] Extract the workflow's existing path list to one source and enforce its workflow consumers. Keep all present PR triggers/required checks; no demotion. Test additions/deletions to the catalog fail the drift guard until generated/updated consumers match.
 - [ ] Add `make conformance-vm` -> generic runner train lane -> strict guest conformance command -> existing terminal/lifecycle cases. Keep command construction in argv and avoid recursive VM invocation in the guest.
 - [ ] Add non-required named `conformance` check only through the supported SDLC contract. ariadne#509 owns external-resource accounting; if not yet landed, obtain that prerequisite before claiming named-check acceptance. No hand-written commit-status publisher or wrapper around merge.
@@ -151,7 +170,7 @@ Image sources and tool downloads use pinned digests/checksums in the lock file. 
 
 **Files:** create `scripts/vm/nightly.sh` and `scripts/vm/nightly.plist`; update README/atlas and issue evidence. `.sdlc/local-checks.json` stays non-blocking for landing; GitHub PR conformance remains required.
 
-- [ ] Write failing nightly wrapper tests with a stateful local-check fake: it selects current main, runs once per scheduled invocation with the train lane, retains failure without retry, and never changes the landing queue. Prove a burst of ordinary runs cannot evict nightly artifacts, sixteen-night saturation refuses without deletion, and selected seven-night evidence survives until review. No catch-up burst after a missed night.
+- [ ] Write failing `nightly_main`/`reserve_nightly_artifacts` tests from the canonical strategy table. Clock/due behavior is superseded by the scheduler revision below.
 - [ ] Implement an off-hours launchd trigger (proposed 03:30 local). It invokes the installed named-check command on main and reserves a caller-owned nightly artifact directory under the separate sixteen-night bound. Pass its destination through documented host-only `PAIR_VM_ARTIFACTS_DIR` to `make conformance-vm`, which turns it into `--artifacts`; qualify that propagation through real SDLC/Make environment handling, never forwarding it into guest authority. Installation/bootstrap happens explicitly after landing, when main contains the declaration, after hub approval; no daemon/service side effect from build/help/run. Before landing, verify the schedule wrapper with its stateful fake and the actual underlying direct VM command; print installation and uninstall instructions.
 - [ ] Preserve image/case identity with each nightly result so seven distinct clean nights can be audited. A failure remains a failure pending root-cause repair. Do not add an automatic streak counter/promotion state; existing retained exact-head results are the evidence.
 - [ ] Review #744 availability at handoff; adopt its genuine agent cases only if independently landed, otherwise name that outstanding coverage explicitly in the promotion issue. No invented agent fixture inside VM code.
@@ -171,8 +190,12 @@ Authenticated receipt 10faa55a-dfce-4057-8d28-9c2edf6912b7 approves the design w
 M3's authoritative files and tasks replace its earlier trigger-specific steps:
 
 - Create `scripts/vm/nightly.sh` (deterministic run command) and `scripts/vm/scheduled-task.md` (ops task declaration/handoff: `30 3 * * *`, machine scope, timeout covering the bounded VM command, skip-if-missed; native Go task adapter calls this command). The scheduler owns executable declaration syntax; adapt the handoff to #737's landed schema before registration rather than inventing a second parser. Ops scheduled-task code follows ops's own worker/SDLC track; no direct code writes to its hub checkout.
-- Test the command through the stateful local-check seam: exact current-main selection, train lane, one run, no retries, visible retained failure, separate capped nightly artifacts, and no change to landing admission. Scheduler clock/due/skip/catch-up policy belongs to #737, so these are declaration fields, not another implementation in this command.
+- Test `nightly_main` and `reserve_nightly_artifacts` using the canonical strategy table. Scheduler clock/due/skip/catch-up policy belongs to #737, so these are declaration fields, not another implementation in this command.
 - After landing, bootstrap the named check on main and hand the exact manual invocation, result path and declaration to the hub. The hub/operator runs it until #737 can register it. No scheduled invocation or machine scheduler installation is claimed as #743 acceptance.
 - Keep M1/M2 and the remaining M3 verification, operator local-gates label and landing steps unchanged. Required hosted PR conformance stays active; #745 owns promotion. Genuine agent cases wait for #744; neither #737 nor #744 is assumed implemented here.
 
 This revision also replaces the request for nightly-service installation approval: no service will be installed. Notify the hub before the already-approved image refresh/provisioning or host tool installation, then continue without asking again.
+
+### 2026-10-20 14:30 — PQ-1, named test strategies
+
+The first plan-quality review accepted the architecture but required compressing procedural case inventories into named risky-function strategies. Added the canonical table and changed milestone test tasks to reference it. This clarifies executable pure/IO surfaces without changing scope, mechanisms, state or approval boundaries. Existing lesson #721 PQ-1 already owns this rule; do not duplicate it.
