@@ -16,6 +16,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "a85081df", done: "05d0bfec"}
 ---
 
 # couch: notifications are ephemeral: a restart starts with an empty list, dismiss and clear-all remove items, old items age out
