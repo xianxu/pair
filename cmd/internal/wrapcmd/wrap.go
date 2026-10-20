@@ -338,9 +338,10 @@ type proxy struct {
 	// turnActive mirrors notificationLifecycle.Active for the settle timer
 	// (#421); only processLifecycleObservation writes it.
 	turnActive atomic.Bool
-	// turnWorking mirrors Active && ActivitySeen: the agent itself reported
-	// work in this turn. An interrupt needs it, because the turn flag alone is
-	// also set by a bare submission or an open Claude panel (pair#717).
+	// turnWorking mirrors notificationLifecycle.Working() for readers off the
+	// master loop; only processLifecycleObservation writes it. An interrupt
+	// needs it, because the turn flag alone is also set by a bare submission,
+	// an open Claude panel or a stop grace (pair#717).
 	turnWorking atomic.Bool
 	// selfBuild is this executable\'s identity, taken at startup (#421).
 	selfBuild           *couchmessage.BuildIdentity

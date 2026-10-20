@@ -2300,10 +2300,14 @@ once (`Request.shapeProof`), and start admission (`Admits`), the pre-write
 recheck (`WriteAdmits`) and the turn gate (`DriveState.TurnTolerant`) all derive
 from it. The interrupt's proof is `Interruptible`: positive evidence of work,
 never the turn flag alone, because a bare submission or an open Claude panel
-also sets that flag. The lifecycle must have seen the agent report work
-(`turnWorking`, Active and ActivitySeen), and the agent's own composer must be
-on screen, which rules out a panel. It also needs a complete frame, no picker,
-and the wrapper owning input. It may take a residual
+also sets that flag. The proof needs three things. First, the lifecycle
+reducer's one `Working()` predicate: open, not completed, activity seen, and no
+stop grace pending. `turnWorking` mirrors that predicate off the master loop.
+Second, the agent's own composer on screen, which rules out a panel. Third, the
+agent's own "esc to interrupt" hint in the bottom viewport rows
+(`agentdrive.AdvertisesInterrupt`), which also covers a turn end the lifecycle
+missed. It also needs a complete frame, no picker, and the wrapper owning
+input. It may take a residual
 automatic-input wait, as recovery does, but never an active owner. `Admits`
 checks the interrupt first and exclusively, so an idle agent never gets
 Ctrl+C. The drive writes one internal `interrupt` key (`\x03`) and is done

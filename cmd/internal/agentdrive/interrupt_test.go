@@ -104,3 +104,27 @@ func TestDriveInterruptOutcomes(t *testing.T) {
 		}
 	})
 }
+
+func TestAdvertisesInterruptReadsTheAgentsOwnHint(t *testing.T) {
+	for _, name := range []string{"working-thinking", "working-after-usage", "working-shell"} {
+		if !AdvertisesInterrupt(claude2304(t, name)) {
+			t.Errorf("%s: working capture lacks the hint", name)
+		}
+	}
+	for _, name := range []string{"usage-panel", "usage-panel-tall", "usage-closed"} {
+		if AdvertisesInterrupt(claude2304(t, name)) {
+			t.Errorf("%s: no working hint expected", name)
+		}
+	}
+	codex := []string{"• Working (5s • esc to interrupt)", "", "› ", "", "  ⏎ send"}
+	if !AdvertisesInterrupt(codex) {
+		t.Error("Codex status-line hint missed")
+	}
+	farUp := append([]string{"press esc to interrupt, the agent said"}, make([]string, 0)...)
+	for i := 0; i < interruptHintRows; i++ {
+		farUp = append(farUp, "  later output")
+	}
+	if AdvertisesInterrupt(farUp) {
+		t.Error("a hint above the bottom rows counted")
+	}
+}

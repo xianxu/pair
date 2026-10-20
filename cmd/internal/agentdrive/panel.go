@@ -60,3 +60,26 @@ func DismissablePanel(agent string, lines []string) bool {
 	}
 	return claudePanelFooters[footer]
 }
+
+// interruptHintRows bounds how far up AdvertisesInterrupt looks: Claude puts
+// the hint in its footer, Codex in the status line above its composer.
+const interruptHintRows = 8
+
+// AdvertisesInterrupt reports whether the agent's own UI says it is working
+// and interruptible: "esc to interrupt" in one of the bottom nonblank viewport
+// rows, as Claude 2.1.304 and Codex 0.152.0 show while they work. lines must be
+// the viewport, never scrollback (pair#717).
+func AdvertisesInterrupt(lines []string) bool {
+	seen := 0
+	for i := len(lines) - 1; i >= 0 && seen < interruptHintRows; i-- {
+		plain := strings.TrimSpace(tailmarkup.Strip(lines[i]))
+		if plain == "" {
+			continue
+		}
+		seen++
+		if strings.Contains(strings.ToLower(plain), "esc to interrupt") {
+			return true
+		}
+	}
+	return false
+}

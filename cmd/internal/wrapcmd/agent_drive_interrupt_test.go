@@ -77,6 +77,17 @@ func TestAgentDriveInterruptRefusesWithoutAWorkingTurn(t *testing.T) {
 			f.output("\x1b[?2026h\x1b[2J" + peerEmptyComposer() + "\x1b[?2026l")
 			f.proxy.turnWorking.Store(false)
 		},
+		// Close review BR-6: a stop report starts the lifecycle's grace; the
+		// turn is still open but no longer working.
+		"stop grace": func(f *harnessSessionFake, d *peerDelivery) {
+			f.proxy.processLifecycleObservation(TurnObservation{Kind: ObservationWorking})
+			f.proxy.processLifecycleObservation(TurnObservation{Kind: ObservationStopped})
+		},
+		// The lifecycle missed the turn's end (flags still set), but the
+		// agent shows an idle composer without its working hint.
+		"missed turn end": func(f *harnessSessionFake, d *peerDelivery) {
+			f.output("\x1b[?2026h\x1b[2J" + peerEmptyComposer() + "\x1b[?2026l")
+		},
 		"idle composer": func(f *harnessSessionFake, d *peerDelivery) {
 			f.proxy.turnActive.Store(false)
 			f.proxy.automaticInput = automaticInputTransaction{}
@@ -93,7 +104,7 @@ func TestAgentDriveInterruptRefusesWithoutAWorkingTurn(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			f, d := workingTurn(t)
 			setup(f, d)
-			if r, err := driveStart(t, d, interruptRequest()); err == nil && !r.Terminal() && (name == "usage panel with the turn flags set" || name == "turn flag with no work seen") {
+			if r, err := driveStart(t, d, interruptRequest()); err == nil && !r.Terminal() && (name == "usage panel with the turn flags set" || name == "turn flag with no work seen" || name == "stop grace" || name == "missed turn end") {
 				t.Fatalf("interrupt admitted with %s: %+v", name, r)
 			}
 			var out bytes.Buffer
@@ -141,6 +152,14 @@ func TestTurnWorkingNeedsReportedActivity(t *testing.T) {
 	p.processLifecycleObservation(TurnObservation{Kind: ObservationWorking})
 	if !p.turnActive.Load() || !p.turnWorking.Load() {
 		t.Fatalf("working: active=%v working=%v", p.turnActive.Load(), p.turnWorking.Load())
+	}
+	p.processLifecycleObservation(TurnObservation{Kind: ObservationStopped})
+	if !p.turnActive.Load() || p.turnWorking.Load() {
+		t.Fatalf("stop grace: active=%v working=%v", p.turnActive.Load(), p.turnWorking.Load())
+	}
+	p.processLifecycleObservation(TurnObservation{Kind: ObservationWorking})
+	if !p.turnWorking.Load() {
+		t.Fatal("work resumed after a stop report but turnWorking stayed false")
 	}
 	p.processLifecycleObservation(TurnObservation{Kind: ObservationNativeCompletion})
 	if p.turnActive.Load() || p.turnWorking.Load() {

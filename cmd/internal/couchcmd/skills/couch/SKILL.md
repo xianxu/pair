@@ -101,8 +101,9 @@ composer still refuses.
 
 `--interrupt repo:N --confirm [--json]` (`couch --interrupt pair:7 --confirm`) is
 the only way to send Ctrl+C. It
-is admitted only while the slot's turn is working (no picker, no other
-automatic input), writes exactly one Ctrl+C, and is done when the turn ends. A
+is admitted only while the slot's agent is working and shows its own "esc to
+interrupt" hint (no picker, no panel, no other automatic input), writes exactly
+one Ctrl+C, and is done when the turn ends. A
 turn still working at the deadline is unconfirmed, and it is never resent. A
 second interrupt after a successful one refuses because no turn is working, so
 two presses cannot exit the agent. With no working turn it refuses and sends
