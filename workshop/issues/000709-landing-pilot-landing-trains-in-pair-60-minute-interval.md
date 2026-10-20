@@ -76,3 +76,7 @@ Original acceptance preserved:
   parley.nvim, each as its own labeled PR (filed by the hub in those repos).
 
 PR https://github.com/xianxu/pair/pull/469 contains configuration head d0b77effdafdcd7874fce0a8acb4384e6deb7edf. Required recorded suite is queued in sdlc-local-1133542116, log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/e5b9ea2dd1d90ef283cd8304af62865e/run.log; preserve and poll session 61967 rather than starting a duplicate. Hub requested the operator label; no label or gate waiver applied by this slot.
+
+### 2026-10-19 — waiting for operator verification
+
+PR469 local-gates-guard and local-gates-guard/verdict fail as expected: landing configuration requires the operator’s local-gates-verified label. The hub has requested it and will notify this slot. No guard bypass or self-applied label. The required suite remains next in the machine FIFO (session61967); the local check runs independently and must be polled before close. After suite PASS: finish Plan ticks, single sdlc close, then merge only after operator verification.
