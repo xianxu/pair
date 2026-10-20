@@ -47,8 +47,8 @@ Target: `ops  :1  ariadne  :1  :2 …  brain  pair  :1 …`, then `ops-echo  ech
 
 ## Plan
 
-- [ ] Add failing two-hub tests for shared projection, switcher order, and tab order, with shuffled input and numeric slots.
-- [ ] Promote the hub repository group in existing pure hubSection (ARCH-DRY, ARCH-PURE); preserve ownership, hub order, and alphabetical remainder.
+- [x] Add failing two-hub tests for shared projection, switcher order, and tab order, with shuffled input and numeric slots.
+- [x] Promote the hub repository group in existing pure hubSection (ARCH-DRY, ARCH-PURE); preserve ownership, hub order, and alphabetical remainder.
 - [ ] Update atlas; run targeted tests and recorded suite; close review and report for next-restart live acceptance.
 
 ## Log
@@ -56,6 +56,9 @@ Target: `ops  :1  ariadne  :1  :2 …  brain  pair  :1 …`, then `ops-echo  ech
 ### 2026-10-20
 
 - Quick plan posted to hub; proceeding unless objected. Both consumers already derive from PresentThreads; changing their shared hubSection avoids a second ordering implementation. No IO, durable state, lifecycle, or format changes. Existing sort remains O(N log N); section promotion is a bounded number of linear passes, with no nested row scans.
+
+- Verification checkpoint: new two-hub regression failed on the old ordering, then passed after the shared fix; targeted ordering/render coverage passed, and `go test ./cmd/internal/couchtty -count=1` passed (50.254s). PR #489 is open.
+- Stopped for Couch drain 69bb7fc3-a125-42c6-9900-5814613b8eba: recorded suite on pushed head 519585c8c56162ad69472afad99ca3736668c8a9 never acquired a machine suite slot; the queue is paused for operator reboot/RAM-disk fix. Cancelled only this checkout’s queued suite with `sdlc local-check cancel --name suite`; no full-suite pass or close review claimed. Resume: run `sdlc local-check run --name suite` on pushed HEAD after queue resumption, finish the remaining Plan checkbox, run `sdlc close --issue 732 --verified ...`, then `sdlc merge --yes` on SHIP. No stage (TL instruction; pair:0 held by #722).
 
 ## Revisions
 
