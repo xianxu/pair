@@ -79,6 +79,8 @@ See [durable plan](../plans/000725-affected-tests-plan.md), one atomic close bou
 
 - 2026-10-20: Plan-quality round 2 CLEAN with PQ-1 addressed. Derived estimate only after acceptance, using v3.1 primitive method (2.205h →2.21h), with stale-calibration caveat. No implementation started.
 
+- 2026-10-20: Full-flow change-code passed: plan-quality round 3 CLEAN (PQ-1 addressed), estimate-quality INFO. Estimate verification allowance is included in each component, not excluded: runner owns recorder/entrypoint/failure/mutation tests, Make integration owns recipe audit, consumer fixture owns strict-parser/graph scenarios. Residual design is exact safe recipe-path ownership and portable upstream-source fixture construction. Suite elapsed execution is covered by component verification/one boundary qualification, counted once across overlap; the Log separately reports runtime and idle queue, and sdlc actual determines adopted attribution rather than this estimate text. No implementation started.
+
 ## Revisions
 
 - 2026-10-20: Added executable plan and explicit source-Lua/runtimebundle test exception approved by hub. No upstream schema or environment contract changes. Real recorded affected/train acceptance is pending upstream M2 availability rather than being waived.
