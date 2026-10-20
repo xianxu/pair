@@ -13,8 +13,9 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 )
 
-// hubRuntime owns one immutable domain snapshot. It exists only for explicit
-// directory launches; nil retains the legacy implicit-cwd path.
+// hubRuntime owns a hub domain snapshot and serializes its process effects.
+// Explicit launches populate ownership; implicit launches use only the effect
+// gate and retain legacy cwd authority separately.
 type hubRuntime struct {
 	drainGuard atomic.Pointer[func(couchcore.OperationCall) error]
 	effectOnce sync.Once

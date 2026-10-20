@@ -56,9 +56,9 @@ The [durable implementation plan](../plans/000722-fleet-drain-plan.md) defines t
 
 ## Plan
 
-- [ ] Approve/checkpoint the design and pass full-flow change-code before implementation.
-- [ ] Implement the pure model/board/notices and owner-scoped queue/store seams with stateful fakes and sequence tests.
-- [ ] Wire steward CLI, authenticated ack, dispatch gate, fast wrapper interrupt and tab/status board.
+- [x] Approve/checkpoint the design and pass full-flow change-code before implementation.
+- [x] Implement the pure model/board/notices and owner-scoped queue/store seams with stateful fakes and sequence tests.
+- [x] Wire steward CLI, authenticated ack, dispatch gate, fast wrapper interrupt and tab/status board.
 - [ ] Verify real ariadne#481 conformance, isolated wrapper integration, races, docs and required recorded suite; stage/live board check with hub authorization.
 - [ ] Close through the mandatory SDLC review, land through the ordinary gates and report the outcome.
 
@@ -129,3 +129,13 @@ Targeted integrated verification returned PASS for couchcmd, couchcore, couchmes
 This is an implementation checkpoint, not close or enablement evidence. Remaining: broader regression/race checks, three-member real-transport headless integration, real ariadne#481 isolated queue conformance, recorded suite, mandatory close review, and hub-authorized staging/operator board acceptance. No real queue pause, fleet drain, Esc, restart or slot relaunch was performed. Same-slot replacement remains conservatively stuck with cancel/inspect recovery while old effects may be unknown; cancellation never discards those effects.
 
 Recovery evidence: `couch --peek pair:5 --previous --all` reports the previous screen unavailable; SDLC state and Git identify this issue branch (not main-slot5). The historical empty issue value was not interpreted as a new issue. Earlier #622/PR474 remains parked on ariadne#483 and #723/PR475 on ariadne#486 until TL signals; historical screen text is not new operator authorization.
+
+### 2026-10-20 — isolated transport and integration verification
+
+Three-member graceful and fast drains now exercise actual Server/RemoteEndpoint framing and retained outcomes over isolated owned sockets. Stateful queue suite/merge/landing work blocks completion; exact ack plus later idle completes it; cancellation preserves another owner. Lost interrupt replies cause one Esc only. Combined coordinator/transport race run passed (14.193s).
+
+Root audit found and reproduced a same-Binding re-exec race: a replacement wrapper's final idle observation could seal the old ack after the earlier control check. The final observation now compares the persisted wrapper instance and exact member identity; mismatch invalidates the ack. The independent regression went RED then GREEN. Global stuck boards now use inspect-status recovery rather than wait.
+
+The broader five-package run passed couchcore (133.304s), couchmessage (26.103s) and couchtty (42.591s). It exposed two deterministic branch defects: missing drain help-cost catalog entry (help panic), and wrapper doc-comment subject mismatch. Both were corrected; targeted help/skill and doc guards pass. CLI lost-ack replies now include the actual checkpoint generation (RED→GREEN). CLI fuzz passed 16,002 executions in 2s; wire-request fuzz passed 50,108 in 2s (two workers each). Repository lint catalog and slot-state coverage audit pass. Final staged-head suite remains required; these are not substituted for it.
+
+Read-only authoritative ariadne#481 evidence at 2026-10-20T07:03:13Z still shows open, unattributed, no issue branch and not-landed. Real queue conformance and operator board acceptance remain outstanding. The earlier estimate is cumulative, not a remaining-work promise; no real fleet effects have been exercised.

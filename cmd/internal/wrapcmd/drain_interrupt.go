@@ -37,7 +37,8 @@ func ReduceDrainInterrupt(want, now couchmessage.DrainObservation) (string, stri
 	}
 }
 
-// inputAdmission then peer.mu is the single input-ownership lock order.
+// observeDrain snapshots evidence with inputAdmission then peer.mu, the
+// single input-ownership lock order.
 func (d *peerDelivery) observeDrain() couchmessage.DrainObservation {
 	p := d.drainProxy
 	if p == nil {
@@ -103,7 +104,7 @@ func (d *peerDelivery) drainInterruptStatus(id string) (couchmessage.DrainInterr
 	return couchmessage.DrainInterruptResult{}, errors.New("unknown drain interruption")
 }
 
-// Called only by the existing stdin writer. The result is retained before
+// executeDrainInterrupt runs only on the existing stdin writer and retains its result before
 // releasing the lease, including short/failed writes; RPC retry never writes.
 func (p *proxy) executeDrainInterrupt(out io.Writer) {
 	d := p.peer
@@ -144,7 +145,7 @@ func (p *proxy) executeDrainInterrupt(out io.Writer) {
 	}
 }
 
-// Revoke shares peer.mu with final PeerPaste and the automatic-input lease.
+// revokeDrain shares peer.mu with final PeerPaste and the automatic-input lease.
 // An accepted but unpasted message is revocable; a PTY handoff is never undone.
 func (d *peerDelivery) revokeDrain(id string) couchmessage.DrainRevokeResult {
 	p := d.drainProxy
@@ -211,7 +212,8 @@ func (d *peerDelivery) revokeDrain(id string) couchmessage.DrainRevokeResult {
 	return r
 }
 
-// peer.mu owns the wrapper instance and immutable delivery membership.
+// validateDrainMessageLocked checks the wrapper instance and immutable delivery
+// membership under peer.mu.
 func (d *peerDelivery) validateDrainMessageLocked(m couchmessage.Message) error {
 	if err := couchmessage.ValidateDrainInstance(m); err != nil {
 		return err

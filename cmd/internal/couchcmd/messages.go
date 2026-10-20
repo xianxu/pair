@@ -107,7 +107,11 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 	var result couchmessage.Response
 	if err := call(ctx, socket, r, &result); err != nil {
 		if r.Op == "drain" && inv.drain.Action != "status" {
-			fmt.Fprintf(stderr, "couch: drain %s outcome uncertain: %s; inspect couch --drain --status; do not retry automatically\n", r.ID, notifyosc.Sanitize([]byte(err.Error())))
+			id := r.ID
+			if inv.drain.Action == "ack" {
+				id = inv.drain.ID
+			}
+			fmt.Fprintf(stderr, "couch: drain %s outcome uncertain: %s; inspect couch --drain --status; do not retry automatically\n", id, notifyosc.Sanitize([]byte(err.Error())))
 		} else if r.Op == "send" {
 			printUncertainMessage(stderr, r.ID, err.Error())
 		} else {

@@ -392,7 +392,12 @@ func (c *drainCoordinator) reconcile(parent context.Context) {
 			ctx, cancel := context.WithTimeout(c.ctx, 5*time.Second)
 			fresh, err := endpoint.ObserveDrain(ctx)
 			cancel()
-			obs.Known = obs.Known && err == nil && fresh.Validate() == nil && fresh.Complete
+			c.mu.Lock()
+			current, present := c.record.Controls[workspace]
+			expectedInstance := current.WrapperInstance
+			sameMember := present && current.Member.Identity() == member.Identity()
+			c.mu.Unlock()
+			obs.Known = obs.Known && err == nil && fresh.Validate() == nil && fresh.Complete && sameMember && expectedInstance != "" && fresh.Instance == expectedInstance
 			obs.Idle = obs.Idle && fresh.Idle
 			obs.Picker = obs.Picker || fresh.Picker
 			obs.Background = obs.Background || fresh.AutomaticInput

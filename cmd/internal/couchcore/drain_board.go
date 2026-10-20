@@ -143,5 +143,8 @@ func ProjectDrainBoard(s DrainState, now time.Time) DrainBoard {
 		b.Detail = "deadline reached"
 		b.Recovery = "inspect status"
 	}
+	if b.State == DrainStuck {
+		b.Recovery = "inspect status"
+	}
 	return b
 }

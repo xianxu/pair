@@ -54,6 +54,19 @@ func TestDrainCLILostMutationReplyNeverRepeats(t *testing.T) {
 	}
 }
 
+func TestDrainCLILostAckReplyNamesCheckpointGeneration(t *testing.T) {
+	const id = "00000000-0000-4000-8000-000000000001"
+	inv, err := ParseCLI([]string{"--drain", "--ack", id}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out, stderr bytes.Buffer
+	code := runMessageCLIWithCall(inv, messageRuntime(), &out, &stderr, func(context.Context, string, any, any) error { return context.DeadlineExceeded })
+	if code == 0 || !strings.Contains(stderr.String(), id) || !strings.Contains(stderr.String(), "--drain --status") {
+		t.Fatalf("lost ack lacks generation/recovery: %d %q", code, stderr.String())
+	}
+}
+
 func TestDrainStewardAuthority(t *testing.T) {
 	r := newHubMoveRig(t)
 	for i, b := range r.callers {

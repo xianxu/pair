@@ -308,3 +308,13 @@ func TestDrainPreparingDeadlineIsBounded(t *testing.T) {
 		t.Fatalf("unconfirmed pause never timed out: %+v", b)
 	}
 }
+
+func TestDrainGlobalStuckRecoveryUsesInspectionAndKeepsRowRecovery(t *testing.T) {
+	s := drainPaused(drainFixture(t))
+	s, _ = stepDrain(s, DrainEvent{Kind: DrainNoticeResult, Workspace: "pair:1", Identity: "binding-session", Outcome: DrainDone})
+	s, _ = stepDrain(s, DrainEvent{Kind: DrainMemberObserved, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Idle: true}})
+	b := ProjectDrainBoard(s, time.Unix(1, 0))
+	if b.State != DrainStuck || b.Recovery != "inspect status" || b.Rows[0].Recovery != "checkpoint and ack" {
+		t.Fatalf("stuck recovery did not distinguish global inspection from row action: %+v", b)
+	}
+}

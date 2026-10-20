@@ -526,3 +526,53 @@ func TestDrainServiceRecordPreservesNestedActivityExtensions(t *testing.T) {
 		t.Fatal("nested activity extension lost", string(rewritten), err)
 	}
 }
+
+type drainReexecBeforeFinalIdle struct {
+	couchmessage.DrainEndpoint
+	observations atomic.Int32
+}
+
+func (e *drainReexecBeforeFinalIdle) ObserveDrain(ctx context.Context) (couchmessage.DrainObservation, error) {
+	o, err := e.DrainEndpoint.ObserveDrain(ctx)
+	if e.observations.Add(1) >= 2 {
+		o.Instance = "same-binding-reexecuted-wrapper"
+	}
+	return o, err
+}
+func TestDrainServiceFinalIdleMustMatchPersistedWrapperInstance(t *testing.T) {
+	c, f, _ := newDrainServiceFixture(t)
+	_, err := c.start(context.Background(), "00000000-0000-4000-8000-000000000001", "", false, time.Minute, f.snapshot()["pair:0"].Binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitDrainService(t, c, func(b couchcore.DrainBoard) bool {
+		for _, r := range b.Rows {
+			if r.Reason != "active turn" {
+				return false
+			}
+		}
+		return true
+	})
+	c.pass.Lock()
+	member := f.snapshot()["pair:1"]
+	original := c.opts.Endpoint
+	swapped := &drainReexecBeforeFinalIdle{DrainEndpoint: original(member.Binding)}
+	c.opts.Endpoint = func(binding couchmessage.Binding) couchmessage.DrainEndpoint {
+		if binding == member.Binding {
+			return swapped
+		}
+		return original(binding)
+	}
+	if _, err := c.ack(context.Background(), c.view().ID, "pair:1", member.Identity()); err != nil {
+		c.pass.Unlock()
+		t.Fatal(err)
+	}
+	f.idle()
+	c.pass.Unlock()
+	waitDrainService(t, c, func(b couchcore.DrainBoard) bool {
+		c.mu.Lock()
+		m := c.record.State.Members["pair:1"]
+		c.mu.Unlock()
+		return b.State == couchcore.DrainStuck && !m.Ack && !m.Observation.Known
+	})
+}
