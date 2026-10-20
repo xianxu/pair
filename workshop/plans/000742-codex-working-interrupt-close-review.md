@@ -164,3 +164,94 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T13:59:51-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 742 — Couch interrupt refuses a working Codex turn |
+| repo | pair |
+| issue file | workshop/issues/000742-codex-working-interrupt.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 65354ae1f7ed9ef6df4a8b909bee29cd87b08e58..3027d14a2cb85212e8a07e65202f416fb8457baa |
+| command | sdlc close --issue 742 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T13:59:51-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+Both prior documentation fixes remain correct, and focused tests pass. However, this window introduces a new recognition contract beyond either prior finding. The fix-review rules require a full `sdlc close` before admission.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Issue line 51 retains the per-agent grace distinction, unchanged from the pinned base and consistent with agent_drive.go:69–83. Retained Codex stop-grace and Claude refusal tests pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Issue line 56 retains the corrected original-capture description. metadata.json distinguishes the original synthetic Waiting evidence from the newly added operator viewport reconstructions.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: post-close-scope-requires-full-review
+    title: |
+      scope changed after close — run a full `sdlc close`
+    detail: |
+      cmd/internal/wrapcmd/codex_working.go:41–44 removes duration and background-summary validation and broadens Waiting recognition to any "Waiting for " prefix; codex_interrupt_test.go:168–174 explicitly accepts formerly rejected metadata and an additional Waiting form. Issue Revisions lines 87–95 authorize this new executable contract, rather than recording either BR-1 or BR-2's documentation correction. The narrow fix review cannot admit this change; run a full sdlc close covering the revised contract and implementation.
+```
+
+1. **Strengths**
+
+   - New operator fixtures exercise production output, admission, exactly one Ctrl+C, and fresh-idle confirmation.
+   - Added negatives cover missing hints and verb lookalikes.
+   - README and atlas both document the changed recognition surface.
+
+2. **Critical findings**
+
+   - The scope change above requires full close review. Approval recorded in the issue does not expand this review’s permitted scope.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   `go test ./cmd/internal/wrapcmd ./cmd/internal/agentdrive -run 'TestCodex|Test.*Interrupt' -count=1` passed. `git diff --check` passed. No mutation checks were performed; the checkout remains unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY: pass.** Both consumers retain the shared recognizer.
+   - **ARCH-PURE: pass.** Recognition remains deterministic; IO stays in adapters.
+   - **ARCH-PURPOSE: pass.** The repair targets the reported native Waiting refusal.
+   - **ARCH-EVOLVE: pass.** No runtime persisted-format change.
+
+7. **Plan revision recommendations**
+
+   Retain the new stable-marker revision and submit it through full `sdlc close`, with the Spec reconciled to the broadened recognition contract.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"fbfce350-482b-4530-b48b-5eea94d53ce9","repository":"github.com/xianxu/pair","issue_id":"000742","recipe":"fix-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/0967515e4150aaf3","reviewed_head":"3027d14a2cb85212e8a07e65202f416fb8457baa","slot":"pair:2","requested_at":"2026-10-20T20:59:09.329269Z"},"phase":"finished","pid":15028,"started_at":"2026-10-20T20:59:09.425581Z","finished_at":"2026-10-20T20:59:50.685766Z","session_id":"01a15b1c-63f2-7821-b066-ad58baae271e","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.68244875s
+head: "3027d14a2cb85212e8a07e65202f416fb8457baa"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000411

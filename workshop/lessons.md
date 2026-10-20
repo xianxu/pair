@@ -2457,3 +2457,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #742 BR-1/BR-2: When proof differs by agent, qualify acceptance criteria by agent as well as the Spec. Completed capture rows distinguish captured native frames from reported text in synthetic fixtures. A later Log qualification does not repair a contradictory Done-when or completed Plan row.
 
 - #742 live miss: Native work authority is the composer-relative allowed status verb plus interrupt hint. Elapsed counters, background counts, truncation and command-detail rows are presentation; parsing them as authority creates false refusals. Pin narrow and wide native viewports, and keep startup/quoted/no-hint cases negative.
+
+- #742 BR-3: An approved post-SHIP change to executable recognition criteria requires a full close review; narrow re-close is for fixes inside the reviewed contract. Reconcile the current Spec as well as appending the revision.

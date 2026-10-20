@@ -150,6 +150,90 @@ rounds:
       isolation: fenced
       reviewed: 69bd42d1ae642733a110eac1d680b042c7abc146
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: fbfce350-482b-4530-b48b-5eea94d53ce9
+            repository: github.com/xianxu/pair
+            issue_id: "000742"
+            recipe: fix-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/0967515e4150aaf3
+            reviewed_head: 3027d14a2cb85212e8a07e65202f416fb8457baa
+            slot: pair:2
+            requested_at: "2026-10-20T20:59:09.329269Z"
+          phase: finished
+          pid: 15028
+          started_at: "2026-10-20T20:59:09.425581Z"
+          finished_at: "2026-10-20T20:59:50.685766Z"
+          session_id: 01a15b1c-63f2-7821-b066-ad58baae271e
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 3027d14a2cb85212e8a07e65202f416fb8457baa
+        tracker_head: 71195a3fdf41b4bdb8fef82c3a981df2d09c524e
+        branch_point: 9c926136d44af5bad734eaef7986e327a06a1965
+        since: "2026-10-20T12:53:03-07:00"
+        until: "2026-10-20T13:58:16-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-20T12:53:03-07:00"
+              end: "2026-10-20T13:58:16-07:00"
+              began: "2026-10-20T12:53:03-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+        sources:
+            - harness: codex
+              id: 01a15a8b-89c9-7e02-a733-8b52dd00ebac
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: f84ab14922db8fd28970c3e7f05f49b6361458910b22f242b067cd0aa8f06cc2
+              started: "2026-10-20T18:21:51.812Z"
+              spawned: false
+              bytes: 9921538
+              windows:
+                - start: "2026-10-20T12:53:03-07:00"
+                  end: "2026-10-20T13:58:16-07:00"
+        cuts:
+            - dispatched: "2026-10-20T13:33:22-07:00"
+              finalized: "2026-10-20T13:35:44-07:00"
+              finalizing: false
+            - dispatched: "2026-10-20T13:38:58-07:00"
+              finalized: "2026-10-20T13:41:02-07:00"
+              finalizing: true
+      "n": 3
+      timestamp: "2026-10-20T13:59:51-07:00"
+      dispatched: "2026-10-20T13:59:07-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Issue line 51 retains the per-agent grace distinction, unchanged from the pinned base and consistent with agent_drive.go:69–83. Retained Codex stop-grace and Claude refusal tests pass.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: Issue line 56 retains the corrected original-capture description. metadata.json distinguishes the original synthetic Waiting evidence from the newly added operator viewport reconstructions.
+          round: 3
+      findings:
+        - kind: defect
+          id: BR-3
+          severity: Critical
+          title: scope changed after close — run a full `sdlc close`
+          detail: cmd/internal/wrapcmd/codex_working.go:41–44 removes duration and background-summary validation and broadens Waiting recognition to any "Waiting for " prefix; codex_interrupt_test.go:168–174 explicitly accepts formerly rejected metadata and an additional Waiting form. Issue Revisions lines 87–95 authorize this new executable contract, rather than recording either BR-1 or BR-2's documentation correction. The narrow fix review cannot admit this change; run a full sdlc close covering the revised contract and implementation.
+          family: post-close-scope-requires-full-review
+          round: 3
+      recipe: fix-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#742 (boundary-review)
@@ -173,6 +257,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-1 — addressed — Issue line 50 now distinguishes Claude grace refusal from Codex current-work override, matching agent_drive.go:69–83. codex_interrupt_test.go:113–139 exercises cached stop grace through admission and the writer; restoring the cached-working requirement makes its stop_grace subtest fail. Existing Claude grace-refusal coverage passes.
 - BR-2 — addressed — Issue line 55 now separates captured Working/running-shell frames from synthetic Waiting fixtures. The pinned before/after correction agrees with metadata.json:6–9 and the synthetic fixture description in codex_interrupt_test.go:38–39.
 
+## Round 3 — 2026-10-20T13:59:51-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Issue line 51 retains the per-agent grace distinction, unchanged from the pinned base and consistent with agent_drive.go:69–83. Retained Codex stop-grace and Claude refusal tests pass.
+- BR-2 — addressed — Issue line 56 retains the corrected original-capture description. metadata.json distinguishes the original synthetic Waiting evidence from the newly added operator viewport reconstructions.
+
+### Raised
+
+- **BR-3** [Critical] `post-close-scope-requires-full-review` (kind: defect) scope changed after close — run a full `sdlc close`
+  cmd/internal/wrapcmd/codex_working.go:41–44 removes duration and background-summary validation and broadens Waiting recognition to any "Waiting for " prefix; codex_interrupt_test.go:168–174 explicitly accepts formerly rejected metadata and an additional Waiting form. Issue Revisions lines 87–95 authorize this new executable contract, rather than recording either BR-1 or BR-2's documentation correction. The narrow fix review cannot admit this change; run a full sdlc close covering the revised contract and implementation.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-3** [Critical] `post-close-scope-requires-full-review` (kind: defect) scope changed after close — run a full `sdlc close`
