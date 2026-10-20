@@ -111,23 +111,30 @@ func TestCodexInterruptUsesRenderedWorkThroughProductionOutput(t *testing.T) {
 }
 
 func TestCodexInterruptCurrentWorkOutranksStaleLifecycleCompletion(t *testing.T) {
-	f, d := codexInterruptFixture(t)
-	f.output(capturedCodexWorking(t))
-	f.proxy.processLifecycleObservation(TurnObservation{Kind: ObservationNativeCompletion})
-	if s := f.proxy.agentDriveScreen(); !s.TurnActive || !s.Interruptible {
-		t.Fatalf("current work lost to stale completion: %+v", s)
-	}
-	if r, err := driveStart(t, d, interruptRequest()); err != nil || r.Terminal() {
-		t.Fatalf("admission %+v %v", r, err)
-	}
-	if got := codexInterruptDispatch(f.proxy); got != "\x03" {
-		t.Fatalf("writes=%q", got)
-	}
-	f.output(syntheticCodexWork("• Working (4s • esc to interrupt)", false))
-	f.proxy.processLifecycleObservation(TurnObservation{Kind: ObservationNativeCompletion})
-	f.proxy.dispatchAgentDrive(&bytes.Buffer{})
-	if r, _ := d.agentDriveResult("test-drive"); r.Terminal() {
-		t.Fatalf("stale lifecycle confirmed working screen %+v", r)
+	for name, observation := range map[string]ObservationKind{"completion": ObservationNativeCompletion, "stop grace": ObservationStopped} {
+		t.Run(name, func(t *testing.T) {
+			f, d := codexInterruptFixture(t)
+			f.output(capturedCodexWorking(t))
+			f.proxy.processLifecycleObservation(TurnObservation{Kind: observation})
+			if observation == ObservationStopped && !f.proxy.notificationLifecycle.GracePending {
+				t.Fatal("fixture did not enter cached stop grace")
+			}
+			if s := f.proxy.agentDriveScreen(); !s.TurnActive || !s.Interruptible {
+				t.Fatalf("current work lost to stale completion: %+v", s)
+			}
+			if r, err := driveStart(t, d, interruptRequest()); err != nil || r.Terminal() {
+				t.Fatalf("admission %+v %v", r, err)
+			}
+			if got := codexInterruptDispatch(f.proxy); got != "\x03" {
+				t.Fatalf("writes=%q", got)
+			}
+			f.output(syntheticCodexWork("• Working (4s • esc to interrupt)", false))
+			f.proxy.processLifecycleObservation(TurnObservation{Kind: observation})
+			f.proxy.dispatchAgentDrive(&bytes.Buffer{})
+			if r, _ := d.agentDriveResult("test-drive"); r.Terminal() {
+				t.Fatalf("stale lifecycle confirmed working screen %+v", r)
+			}
+		})
 	}
 }
 

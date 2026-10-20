@@ -429,7 +429,7 @@
       "cmd/internal/workbenchshortcut/fullscreen_store_test.go": "ffebae268734817f88ccce538d559c4911fab590d709557fec28317b17e55339",
       "cmd/internal/wrapcmd/agent_drive_virtual_conformance_test.go": "710b24f50bc4d3ad26f7528901f1238c0aed83f5fa5e0a8f06fb21ae9e926582",
       "cmd/internal/wrapcmd/agent_restart_test.go": "c29c4dae74d9fd05a1cd549aef1c6db54b61e259f2caf5cbbd231b0b740726e0",
-      "cmd/internal/wrapcmd/codex_interrupt_test.go": "67acbcc2e3eb7d480c470f70fd6a33ef7168baeb875e26dfc71d69099e326a4a",
+      "cmd/internal/wrapcmd/codex_interrupt_test.go": "4a33e8770a3f936c99dc13c0936f201620fb469b71dbfe5aa2ed4d3e2361dcae",
       "cmd/internal/wrapcmd/detach_acceptance_test.go": "120204bec235ba69e483583594a313a7d3fcec6a526f2b852d22634ac0f08e55",
       "cmd/internal/wrapcmd/idle_floor_test.go": "a34fdd40b965a4c9686e55726ca71f1cb57b2e518ae26c1e3286d461f29f274f",
       "cmd/internal/wrapcmd/launch_watcher_test.go": "4ddbed52ddd3fd879c69a721ed374c988a2193a6ad2d48b87c15367b668764f0",

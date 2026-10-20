@@ -47,12 +47,12 @@ ARCH-DRY: Codex's one pure recognizer serves lifecycle and drive proof, reusing 
 
 - Reproduce the reported Codex working-turn refusal with captured evidence and an automated regression that fails before the fix.
 - A current working Codex turn admits exactly one Ctrl+C, then confirms only the observed turn end. A second interrupt after completion refuses and sends nothing.
-- Idle, stop grace, panels, pickers, stale ownership and competing input continue to refuse without a write.
+- Idle, Claude stop grace, panels, pickers, stale ownership and competing input continue to refuse without a write. Current coherent Codex work evidence overrides a stale notification stop/grace report, as it does stale completion.
 - Targeted tests, the recorded local check, boundary review and a hub-coordinated live Codex check pass before landing.
 
 ## Plan
 
-- [x] Capture coherent owned native Codex Working and background-wait evidence; record the failing admission flags and exact composer/status relationship. Do not infer unobserved geometry.
+- [x] Capture coherent owned native Codex Working and running-shell frames; record the failing admission flags and composer/status relationship. Keep the reported Waiting wording in explicitly synthetic fixtures; no native Waiting frame was captured.
 - [x] Add regressions through handleChunk and the production mailbox/writer with no manually set Codex activity flags: top-anchored and tall composer, both status forms, complete/incomplete redraw and stale lifecycle observations. Assert one Ctrl+C, fresh positive idle confirmation, then second-interrupt refusal.
 - [x] Repair the shared recognizer and per-agent admission/confirmation proof. Preserve Claude stop-grace and all negative/ownership cases. Mutate each corrected guard and require its oracle to fail.
 - [ ] Run targeted packages/race and reader inventory; document the per-agent work proof in atlas. Push PR and record affected check; stage the tested head for hub-owned live Codex sleep/interrupt/second-refusal check, then close and merge.
@@ -74,3 +74,9 @@ ARCH-DRY: Codex's one pure recognizer serves lifecycle and drive proof, reusing 
 - 2026-10-20 — ops:0 approved the per-agent proof design (no new state): explicit Working/Waiting whitelist, both observed spinner glyphs, composer-relative location; MCP remains excluded. Waiting fixture is synthetic from the morning live-check text because the owned capture did not show it. change-code inferred quick flow. Native/synthetic production-output/writer tests went red before the Codex fix. Pure reducer test caught unknown-screen false confirmation and now requires fresh positive idle. Captured model-picker and recovery-key regressions caught over-broad screen projection during implementation; unknown is not invented work and recovery authority now derives after current work. Four mutations (composer region, Waiting wording, alternate spinner, cached flags) each fail the intended regression; restored afterward.
 
 - Full captured stream replay additionally qualified native running-shell status: ◦/• Working (3s • esc to interrupt) · 1 background terminal running · /ps to view · /stop to close at row12 above composer15. Added sanitized captured background-prefix fixture; its positive and synthetic Waiting+summary cases failed before recognizing the optional count/singular-plural summary. Long status continuation rows are rejoined within the same bounded composer-relative region. Malformed/zero-count/unknown suffixes refuse. Full wrapcmd passed before this final status grammar refinement (137.581s); final focused race and recorded check follow. Vet and eight reader-inventory checks passed earlier.
+
+- 2026-10-20 — BR-1 accepted: blanket stop-grace refusal in Done when contradicted the approved per-agent Spec. Qualified it as Claude grace refusal and explicit Codex current-work override, and added retained Codex grace coverage alongside the existing Claude refusal test. BR-2 accepted: completed capture row now separates captured Working/running-shell evidence from reported Waiting wording in synthetic fixtures. No production code changes.
+
+### 2026-10-20 — review acceptance clarification (BR-1/BR-2)
+
+The original Done-when phrase “Idle, stop grace, panels…” was too broad: Claude stop grace refuses, while Codex uses its current coherent work proof despite stale notification grace/completion. This clarifies the already-approved Spec; no action or state changes. The completed capture task no longer implies a native Waiting capture: Working/running-shell frames were captured; Waiting is reported text exercised synthetically.
