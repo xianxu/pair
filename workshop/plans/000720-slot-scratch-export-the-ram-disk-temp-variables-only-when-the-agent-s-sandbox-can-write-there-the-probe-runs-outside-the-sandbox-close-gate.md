@@ -275,6 +275,156 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 08deff7e-fb4d-48ab-b77e-415dd333266f
+            repository: github.com/xianxu/pair
+            issue_id: "000720"
+            recipe: milestone-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/f633fdb555998ab7
+            reviewed_head: 5e2686d4bb1354880671ae468a280c9b9383db6c
+            slot: pair:7
+            requested_at: "2026-10-20T04:43:04.269955Z"
+          phase: finished
+          pid: 70706
+          started_at: "2026-10-20T04:43:04.449894Z"
+          finished_at: "2026-10-20T04:46:33.343127Z"
+          session_id: 01a1579e-c313-7242-9991-5bc713c6c8c8
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 5e2686d4bb1354880671ae468a280c9b9383db6c
+        tracker_head: 344b4f90c74e8203476886db116167dc3fdf4e5d
+        branch_point: 7d9ce7ca7988743e3ef201221a19c985c8cecec7
+        since: "2026-10-19T21:04:58-07:00"
+        until: "2026-10-19T21:42:13-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-19T21:04:58-07:00"
+              end: "2026-10-19T21:42:13-07:00"
+              began: "2026-10-19T21:04:58-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot7/pair
+        sources:
+            - harness: codex
+              id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              slot: pair:7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: c0a3d10d528cc91d5eab96bf843b79c5fee266cf769673d8a1f87d5eeebb3c4a
+              started: "2026-10-13T04:50:49.58Z"
+              spawned: false
+              bytes: 182620523
+              windows:
+                - start: "2026-10-19T21:04:58-07:00"
+                  end: "2026-10-19T21:42:13-07:00"
+            - harness: codex
+              id: 01a1577f-ba8d-77e1-b41c-0a7b9dc983bc
+              slot: pair:7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 47db2390379917bdce316583865314d83e32a269f17c715369f93cf06a314ab5
+              started: "2026-10-20T04:09:11.634Z"
+              spawned: false
+              bytes: 597930
+              windows:
+                - start: "2026-10-20T04:09:11.634Z"
+                  end: "2026-10-19T21:42:13-07:00"
+            - harness: codex
+              id: 01a15781-8cdd-7350-8c1d-49943a68f97b
+              slot: pair:7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 9d1ee0673acd7c0ec3bfea98daa94d998e91fe0274a9dc1728994637a2b8b33f
+              started: "2026-10-20T04:11:10.85Z"
+              spawned: false
+              bytes: 431568
+              windows:
+                - start: "2026-10-20T04:11:10.85Z"
+                  end: "2026-10-19T21:42:13-07:00"
+            - harness: codex
+              id: 01a15781-e425-74d3-87d3-12627b51e5fe
+              slot: pair:7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 6b3fcdbaae6f0187def40613f844fee4925c0fb9dd457a32f87ed9061c7c01bf
+              started: "2026-10-20T04:11:33.495Z"
+              spawned: false
+              bytes: 420976
+              windows:
+                - start: "2026-10-20T04:11:33.495Z"
+                  end: "2026-10-19T21:42:13-07:00"
+            - harness: codex
+              id: 01a15782-94b2-71a2-b265-1115743a74de
+              slot: pair:7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              parent_id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              digest: 6d74c80e800cb61589746e4e256f7aac23307a4158a34215086db6c0949a4d0e
+              started: "2026-10-20T04:12:18.165Z"
+              spawned: true
+              bytes: 434925
+              windows:
+                - start: "2026-10-20T04:12:18.165Z"
+                  end: "2026-10-19T21:42:13-07:00"
+            - harness: codex
+              id: 01a15793-8e40-7741-9b17-442d2fa818a3
+              slot: pair:7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 90db1e1c748df235eab95cb6f25679797d32943bfe8c52e547041df9c7f822a7
+              started: "2026-10-20T04:30:51.053Z"
+              spawned: false
+              bytes: 470690
+              windows:
+                - start: "2026-10-20T04:30:51.053Z"
+                  end: "2026-10-19T21:42:13-07:00"
+            - harness: codex
+              id: 01a15793-fcf8-7db0-a372-e38cc8ce464e
+              slot: pair:7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: d76a133c5cbf8acdd01a814d5bf58e2f20f6c82ed54d7aa0a6c1b9c6dd0af9c2
+              started: "2026-10-20T04:31:19.423Z"
+              spawned: false
+              bytes: 374931
+              windows:
+                - start: "2026-10-20T04:31:19.423Z"
+                  end: "2026-10-19T21:42:13-07:00"
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 0.3002666666666667
+        cuts:
+            - dispatched: "2026-10-19T21:23:38-07:00"
+              finalized: "2026-10-19T21:26:39-07:00"
+              finalizing: false
+            - dispatched: "2026-10-19T21:38:59-07:00"
+              finalized: "2026-10-19T21:41:03-07:00"
+              finalizing: false
+      "n": 3
+      timestamp: "2026-10-19T21:46:34-07:00"
+      dispatched: "2026-10-19T21:43:00-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Confirmed native-policy interpretation is absent; persistent declaration admission replaces it under the approved V2 contract.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: Confirmed native settings discovery and TOML dependency are absent; admission no longer depends on resolving native settings locations.
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: operationdispatch.go now projects diagnostics for slot-only targets. TestShowReportsASlotWithoutAThread passes at head and fails with an empty Scratch result when a temporary Go overlay removes this branch.
+          round: 3
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 5e2686d4bb1354880671ae468a280c9b9383db6c
+      blocked: false
 ---
 
 # Gate ledger — pair#720 (boundary-review)
@@ -303,6 +453,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Important] `scratch-diagnostics-cover-show-targets` (kind: defect) Slot-only show omits the promised scratch diagnostic
   cmd/internal/couchcore/operationdispatch.go:251-255 projects scratch status only over matched threads. A valid slot with no thread therefore has no scratch status, contrary to the V2 show contract (ARCH-PURPOSE). Extending TestShowReportsASlotWithoutAThread with an injected ScratchDiagnostic and a nonempty Scratch assertion fails. Project admission for slot-only targets too, and retain that regression.
 
+## Round 3 — 2026-10-19T21:46:34-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Confirmed native-policy interpretation is absent; persistent declaration admission replaces it under the approved V2 contract.
+- BR-2 — addressed — Confirmed native settings discovery and TOML dependency are absent; admission no longer depends on resolving native settings locations.
+- BR-3 — addressed — operationdispatch.go now projects diagnostics for slot-only targets. TestShowReportsASlotWithoutAThread passes at head and fails with an empty Scratch result when a temporary Go overlay removes this branch.
+
 ## Open findings
 
-- **BR-3** [Important] `scratch-diagnostics-cover-show-targets` (kind: defect) Slot-only show omits the promised scratch diagnostic
+(none — every finding has been disposed)

@@ -200,3 +200,91 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-19T21:46:34-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 720 — Slot scratch: export the RAM-disk temp variables only when the agent's sandbox can write there (the probe runs outside the sandbox) |
+| repo | pair |
+| issue file | workshop/issues/000720-slot-scratch-export-the-ram-disk-temp-variables-only-when-the-agent-s-sandbox-can-write-there-the-probe-runs-outside-the-sandbox.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 7d9ce7ca7988743e3ef201221a19c985c8cecec7..5e2686d4bb1354880671ae468a280c9b9383db6c |
+| command | sdlc close --issue 720 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-19T21:46:34-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned diff matches the authoritative V2 opt-in contract. BR-3 is addressed with a reachable fix and a regression verified to fail without it. No new blocking findings. Final recorded-suite/CI qualification remains required before landing.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Confirmed native-policy interpretation is absent; persistent declaration admission replaces it under the approved V2 contract.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Confirmed native settings discovery and TOML dependency are absent; admission no longer depends on resolving native settings locations.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      operationdispatch.go now projects diagnostics for slot-only targets. TestShowReportsASlotWithoutAThread passes at head and fails with an empty Scratch result when a temporary Go overlay removes this branch.
+```
+
+1. **Strengths**
+
+   - Launch and show share admission in `cmd/internal/couchcmd/scratch.go:168`.
+   - Pure path/admission functions have direct table tests; integration fixtures exercise writable-host admission and marker creation/removal.
+   - Slot-only diagnostics have a meaningful regression in `cmd/internal/couchcore/slotreport_test.go:15`.
+   - README and atlas describe setup, removal, relaunch behavior, and the false-declaration limitation.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Full `couchscratch`, `couchcmd`, and `artifactpath` packages passed. Focused `couchcore` fresh/warm launch, thread show, and slot-only show tests passed. The BR-3 mutation test failed as expected. The broader `couchcore` run was stopped before completion; no full-package pass is claimed. `git diff --check` passed, and the checkout remains unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared admission avoids separate launch/show policies.
+   - **ARCH-PURE — pass:** deterministic predicates remain separate from filesystem observation.
+   - **ARCH-PURPOSE — pass:** host writability alone cannot authorize exports; diagnostics cover threads and slots.
+   - **ARCH-MOCK — pass:** portable filesystem fixtures and existing injected runner/probe seams cover this change.
+   - **ARCH-CONSTRAINTS — pass:** fixed metadata checks; no scans, content reads, or new background work.
+   - **ARCH-SECURE — pass:** invalid paths, stat failures, non-files, and isolated-root escapes decline admission.
+   - **ARCH-ORDER — pass:** admission retains no state between calls; marker lifecycle tests exercise changing observations.
+   - **ARCH-FUNERAL — pass:** Couch creates no marker; documented operator removal disables future adoption.
+   - **ARCH-EVOLVE — pass:** no persisted record rewrite or format migration is introduced.
+
+7. **Plan revision recommendations:** None. The authoritative V2 concepts and subsequent basename/BR-3 revisions match the code.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"08deff7e-fb4d-48ab-b77e-415dd333266f","repository":"github.com/xianxu/pair","issue_id":"000720","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/f633fdb555998ab7","reviewed_head":"5e2686d4bb1354880671ae468a280c9b9383db6c","slot":"pair:7","requested_at":"2026-10-20T04:43:04.269955Z"},"phase":"finished","pid":70706,"started_at":"2026-10-20T04:43:04.449894Z","finished_at":"2026-10-20T04:46:33.343127Z","session_id":"01a1579e-c313-7242-9991-5bc713c6c8c8","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.414822583s
+head: "5e2686d4bb1354880671ae468a280c9b9383db6c"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
