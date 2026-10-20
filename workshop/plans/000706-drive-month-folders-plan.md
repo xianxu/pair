@@ -129,12 +129,12 @@ Existing ContinuousPass returns on local collection errors before calling DriveM
 
 Files: new drive_layout.go/drive_layout_test.go, drive_folder_model.go/_test.go, rclone_folders.go/_test.go, drive_receipt_json.go/_test.go, drive_months.go/_test.go; modify drive.go, drive_model.go, archivetest/rclone.go and its tests, drive_external_test.go, drive_count model/report tests. Register every new ordinary Go file in cmd/internal/artifactpath/manifest.go.
 
-- [ ] Write failing tests for the named pure functions in the strategy table below; malformed inputs are fuzzed and compatible values obey independent round-trip invariants.
-- [ ] Implement the shared layout and codecs; make those regressions pass. Exercise MatchReceipt without losing extension fields.
-- [ ] Write generated event-sequence tests for StepDriveFolder using the independent invariants below. Extend the stateful fake to model folder hierarchy and IDs while keeping existing flat fixtures meaningful.
-- [ ] Write failing DriveMirror.Run integration tests using retained fake state, injected effect boundaries, independent receipt/budget invariants and the counted-cost assertions above.
-- [ ] Implement only the minimal folder adapter/coordinator changes. Use one flat staged batch per physical folder and the existing UploadState transitions for receipts.
-- [ ] Add N/2N operation-count assertions; run existing Drive/receipt/staging regressions and fake self-tests. Run the full artifactpath package and repolint before M1 close.
+- [x] Write failing tests for the named pure functions in the strategy table below; malformed inputs are fuzzed and compatible values obey independent round-trip invariants.
+- [x] Implement the shared layout and codecs; make those regressions pass. Exercise MatchReceipt without losing extension fields.
+- [x] Write generated event-sequence tests for StepDriveFolder using the independent invariants below. Extend the stateful fake to model folder hierarchy and IDs while keeping existing flat fixtures meaningful.
+- [x] Write failing DriveMirror.Run integration tests using retained fake state, injected effect boundaries, independent receipt/budget invariants and the counted-cost assertions above.
+- [x] Implement only the minimal folder adapter/coordinator changes. Use one flat staged batch per physical folder and the existing UploadState transitions for receipts.
+- [x] Add N/2N operation-count assertions; run existing Drive/receipt/staging regressions and fake self-tests. Run the full artifactpath package and repolint before M1 close.
 - [ ] Update atlas/history-backup.md and atlas/index.md for physical folder/receipt semantics. Run sdlc milestone-close --issue 706 --milestone M1 with measured behavior evidence; the binary owns its review.
 
 ## M2 — Discovery, restore, reporting and full qualification

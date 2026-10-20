@@ -235,3 +235,15 @@ func TestRcloneEnsureChildCancellationAfterRemoteCreation(t *testing.T) {
 		t.Fatal("cancellation repaired or deleted retained folder")
 	}
 }
+
+func TestRcloneEnsureChildFullParentRefusesBeforeCreate(t *testing.T) {
+	inventory := map[string][]ha.RemoteEntry{}
+	// The decoder admits at most 100000 entries; creation must not push a
+	// full admitted observation past that bound before its confirmation read.
+	inventory["occupied"] = make([]ha.RemoteEntry, 100000)
+	fake := &archivetest.FakeRclone{}
+	_, err := (ha.Rclone{Runner: fake}).EnsureChild(context.Background(), folderParent(), "10", inventory)
+	if err == nil || fake.Invocations != 0 {
+		t.Fatalf("err=%v calls=%d mkdirs=%d", err, fake.Invocations, fake.Mkdirs)
+	}
+}

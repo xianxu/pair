@@ -2,6 +2,7 @@ package historyarchive_test
 
 import (
 	"context"
+	"fmt"
 	ha "github.com/xianxu/pair/cmd/internal/historyarchive"
 	"github.com/xianxu/pair/cmd/internal/historyarchive/archivetest"
 	"os"
@@ -75,5 +76,98 @@ func TestDriveMirrorDoesNotDuplicatePartialLegacyPair(t *testing.T) {
 	got, err := (ha.DriveMirror{Rclone: ha.Rclone{Runner: fake}}).Run(context.Background(), cfg, filepath.Join(root, "archive"))
 	if err == nil || got.Verified != 0 || got.Pending != 1 || fake.Copies != 0 || fake.Mkdirs != 0 {
 		t.Fatalf("partial legacy %+v err=%v copies=%d", got, err, fake.Copies)
+	}
+}
+
+func monthFixtureRemote(year string, months ...string) *archivetest.FakeRclone {
+	fake := &archivetest.FakeRclone{ChildFolders: map[string]map[string][]archivetest.FakeRemoteObject{
+		"folder-1":     {year: {{ID: "year-" + year, IsDir: true}}},
+		"year-" + year: {},
+	}, FolderObjects: map[string]map[string][]archivetest.FakeRemoteObject{}}
+	for _, month := range months {
+		fake.ChildFolders["year-"+year][month] = []archivetest.FakeRemoteObject{{ID: "month-" + month, IsDir: true}}
+	}
+	return fake
+}
+
+func TestDriveMirrorMonthFailurePreservesOtherProgress(t *testing.T) {
+	cfg, _, root := driveFixture(t, 2, time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC))
+	fake := monthFixtureRemote("2025", "01", "02")
+	fake.BeforeFolder = func(_ context.Context, op, folder string) error {
+		if op == "lsjson" && folder == "month-01" {
+			return fmt.Errorf("January unavailable")
+		}
+		return nil
+	}
+	got, err := (ha.DriveMirror{Rclone: ha.Rclone{Runner: fake}, Now: func() time.Time { return time.Date(2025, 2, 2, 0, 0, 0, 0, time.UTC) }}).Run(context.Background(), cfg, filepath.Join(root, "archive"))
+	if err == nil || got.Verified != 1 || got.Pending != 1 || fake.CopyBatches != 1 {
+		t.Fatalf("report=%+v err=%v copies=%d", got, err, fake.CopyBatches)
+	}
+	if fake.FolderLists["year-2025"] != 1 {
+		t.Fatalf("year rescanned: %+v", fake.FolderLists)
+	}
+}
+
+func TestDriveMirrorMonthGroupsShareByteBudget(t *testing.T) {
+	cfg, records, root := driveFixture(t, 2, time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC))
+	var limit int64
+	for _, record := range records {
+		label, err := os.ReadFile(filepath.Join(cfg.Sink, record.LabelKey))
+		if err != nil {
+			t.Fatal(err)
+		}
+		size := record.Label.Bytes + int64(len(label))
+		if size > limit {
+			limit = size
+		}
+	}
+	fake := monthFixtureRemote("2025", "01", "02")
+	got, err := (ha.DriveMirror{Rclone: ha.Rclone{Runner: fake}, BatchByteLimit: limit}).Run(context.Background(), cfg, filepath.Join(root, "archive"))
+	if err != nil || got.Verified != 1 || got.Pending != 1 || got.Deferred != 1 || got.StagedBytes > limit || fake.CopyBatches != 1 {
+		t.Fatalf("report=%+v err=%v limit=%d batches=%d", got, err, limit, fake.CopyBatches)
+	}
+	if fake.FolderLists["month-02"] != 0 {
+		t.Fatalf("deferred month visited: %+v", fake.FolderLists)
+	}
+}
+
+func TestDriveMirrorMonthReceiptUsesConfiguredNamespace(t *testing.T) {
+	cfg, records, root := driveFixture(t, 1, time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC))
+	fake := monthFixtureRemote("2025", "01")
+	got, err := (ha.DriveMirror{Rclone: ha.Rclone{Runner: fake}}).Run(context.Background(), cfg, filepath.Join(root, "archive"))
+	if err != nil || got.Verified != 1 {
+		t.Fatalf("report=%+v err=%v", got, err)
+	}
+	dest, err := ha.ParseDriveDestination(cfg.DriveRemote, cfg.DriveFolder)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(cfg.Catalog+".uploads", dest.Namespace(), records[0].Label.ID+".json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	receipt, err := ha.DecodeUploadReceipt(raw)
+	if err != nil || receipt.Destination != dest.String()+"/2025/01" || receipt.FolderID != "month-01" {
+		t.Fatalf("receipt=%+v err=%v", receipt, err)
+	}
+}
+
+func TestDriveMirrorMonthCommandGrowth(t *testing.T) {
+	for _, months := range []int{1, 2} {
+		t.Run(fmt.Sprint(months), func(t *testing.T) {
+			stamps := []time.Time{time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)}
+			if months == 2 {
+				stamps = append(stamps, time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC))
+			}
+			cfg, _, root := driveFixture(t, months, stamps...)
+			fake := monthFixtureRemote("2025", "01", "02")
+			fake.MissingHashes = true
+			got, err := (ha.DriveMirror{Rclone: ha.Rclone{Runner: fake}, Now: func() time.Time { return stamps[0] }}).Run(context.Background(), cfg, filepath.Join(root, "archive"))
+			// Root resolution + root/year inventories + two inventories, one copy
+			// and one downloaded-checksum batch per active physical month.
+			if err != nil || got.Verified != months || fake.CopyBatches != months || fake.HashBatches != months || fake.Invocations != 3+4*months {
+				t.Fatalf("months=%d report=%+v err=%v calls=%d", months, got, err, fake.Invocations)
+			}
+		})
 	}
 }

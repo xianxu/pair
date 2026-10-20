@@ -97,6 +97,13 @@ func (r Rclone) EnsureChild(ctx context.Context, parent PinnedDrive, name string
 	if state.Phase() == FolderReady {
 		return child, nil
 	}
+	entries := 0
+	for _, matches := range inventory {
+		if len(matches) >= maxFlatInventoryEntries-entries {
+			return PinnedDrive{}, errors.New("Drive parent entry capacity reached; child creation deferred")
+		}
+		entries += len(matches)
+	}
 	var effect DriveFolderEffect
 	state, effect, err = StepDriveFolder(state, DriveFolderEvent{Kind: FolderCreate})
 	if err != nil || effect != FolderMake {
