@@ -139,9 +139,13 @@ func (s *archiveScheduler) tick(ctx context.Context) {
 			s.warnOnce(ctx, now, archiveWarningKey{Source: row.Source, Kind: row.Kind, Path: row.Path}, row.Warning(now, report.MaxDatabaseAge))
 		}
 		if report.Report.Drive != nil && ctx.Err() == nil {
-			observation := report.Report.Drive.Inventory
-			if text := observation.Warning(report.MaxDriveFiles); text != "" {
-				s.warnOnce(ctx, s.now(), archiveWarningKey{Destination: observation.Destination}, text)
+			for _, observation := range historyarchive.LatestDriveInventories(report.Report.Drive) {
+				if ctx.Err() != nil {
+					break
+				}
+				if text := observation.Warning(report.MaxDriveFiles); text != "" {
+					s.warnOnce(ctx, s.now(), archiveWarningKey{Destination: observation.Destination}, text)
+				}
 			}
 		}
 	}

@@ -104,7 +104,8 @@ func TestDriveIndexSyncRemoteOnlyBoundedCalls(t *testing.T) {
 					}
 				}
 			}
-			if fake.Invocations > 4 || fake.Lists != 2 || fake.DownloadBatches != 1 || fake.DownloadedCipherBytes != 0 || fake.HashBatches != 0 {
+			// Final root re-resolution confirms the configured folder binding.
+			if fake.Invocations > 5 || fake.Lists != 2 || fake.DownloadBatches != 1 || fake.DownloadedCipherBytes != 0 || fake.HashBatches != 0 {
 				t.Fatalf("unbounded/network ciphertext work: %+v", fake)
 			}
 			for _, p := range []string{cfg.Catalog, cfg.Sink, cfg.Catalog + ".uploads"} {

@@ -135,21 +135,21 @@ Files: new drive_layout.go/drive_layout_test.go, drive_folder_model.go/_test.go,
 - [x] Write failing DriveMirror.Run integration tests using retained fake state, injected effect boundaries, independent receipt/budget invariants and the counted-cost assertions above.
 - [x] Implement only the minimal folder adapter/coordinator changes. Use one flat staged batch per physical folder and the existing UploadState transitions for receipts.
 - [x] Add N/2N operation-count assertions; run existing Drive/receipt/staging regressions and fake self-tests. Run the full artifactpath package and repolint before M1 close.
-- [ ] Update atlas/history-backup.md and atlas/index.md for physical folder/receipt semantics. Run sdlc milestone-close --issue 706 --milestone M1 with measured behavior evidence; the binary owns its review.
+- [x] Update atlas/history-backup.md and atlas/index.md for physical folder/receipt semantics. Run sdlc milestone-close --issue 706 --milestone M1 with measured behavior evidence; the binary owns its review.
 
 ## M2 — Discovery, restore, reporting and full qualification
 
 Files: label_index_drive.go, label_index_view.go, restore_model.go, restore_input.go and colocated/external tests; drive_count_model.go, continuous_report.go, cmd/internal/archivecmd/continuous.go, cmd/internal/couchcmd/archive_schedule.go and warning/protocol tests; README.md and atlas/history-backup.md; extend restore_live_external_test.go and local-rclone folder conformance.
 
-- [ ] Write failing DriveIndexSync.Run tests through the stateful hierarchy using the atomicity and compatibility strategy below.
-- [ ] Implement bounded two-level discovery, per-physical-folder refreshes and atomic single-snapshot publication without a new index-evidence mechanism. Re-run all #689 receipt precedence tests.
-- [ ] Write failing PlanRestore and Restorer.acquireRestoreInputs tests using the location-validation and publication invariants below.
-- [ ] Wire recorded locations into restore planning/acquisition; leave hashing, decoder isolation, member checks and exclusive publication in their existing owners.
-- [ ] Extend report validation and Couch warning consumption for observed physical folders, retaining the old Inventory field for older reports. Never label a subset count as a total tree count. Update warning guidance now that month layout exists.
-- [ ] Run historyarchive/fake/archivecmd/couch warning tests, targeted race checks, artifactpath/repolint and meaningful RED/GREEN controls for new behavior.
-- [ ] Qualify installed rclone folder resolution/creation with a private local backend; extend the throwaway-key end-to-end round trip to recover one legacy and one month pair after deleting local catalog/receipts/index. No real credentials or operator sessions in automated tests.
+- [x] Write failing DriveIndexSync.Run tests through the stateful hierarchy using the atomicity and compatibility strategy below.
+- [x] Implement bounded two-level discovery, per-physical-folder refreshes and atomic single-snapshot publication without a new index-evidence mechanism. Re-run all #689 receipt precedence tests.
+- [x] Write failing PlanRestore and Restorer.acquireRestoreInputs tests using the location-validation and publication invariants below.
+- [x] Wire recorded locations into restore planning/acquisition; leave hashing, decoder isolation, member checks and exclusive publication in their existing owners.
+- [x] Extend report validation and Couch warning consumption for observed physical folders, retaining the old Inventory field for older reports. Never label a subset count as a total tree count. Update warning guidance now that month layout exists.
+- [x] Run historyarchive/fake/archivecmd/couch warning tests, targeted race checks, artifactpath/repolint and meaningful RED/GREEN controls for new behavior.
+- [x] Qualify installed rclone folder resolution/creation with a private local backend; extend the throwaway-key end-to-end round trip to recover one legacy and one month pair after deleting local catalog/receipts/index. No real credentials or operator sessions in automated tests.
 - [ ] Ask hub to arrange an operator real Drive pass: a fresh month upload, retry without re-copy, legacy restore, month restore, folder IDs and checksum path/counts; normal GPG pinentry, scratch deletion confirmed. No worker-owned real-remote mutation or :0 stage without hub direction.
-- [ ] Update README/atlas with new layout, dual-layout recovery, observed-folder counts, bounds and no automatic migration. Preserve human review markers unless explicitly actionable.
+- [x] Update README/atlas with new layout, dual-layout recovery, observed-folder counts, bounds and no automatic migration. Preserve human review markers unless explicitly actionable.
 - [ ] Push candidate, run the recorded full suite, then M2 close and whole close through SDLC reviews. On SHIP run sdlc merge --yes, verify Git/GitHub/tracker landing and report to hub. TL owns the project file.
 
 ## Planning evidence

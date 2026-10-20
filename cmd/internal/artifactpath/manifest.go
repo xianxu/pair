@@ -759,6 +759,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/historyarchive/label_index_local.go",
 	"cmd/internal/historyarchive/label_index_view.go",
 	"cmd/internal/historyarchive/label_index_drive.go",
+	"cmd/internal/historyarchive/label_index_drive_months.go",
 	"cmd/internal/historyarchive/restore_model.go",
 	"cmd/internal/historyarchive/restore.go",
 	"cmd/internal/historyarchive/restore_input.go",

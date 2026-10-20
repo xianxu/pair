@@ -3,6 +3,9 @@ package historyarchive_test
 import (
 	"context"
 	"errors"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -245,5 +248,83 @@ func TestRcloneEnsureChildFullParentRefusesBeforeCreate(t *testing.T) {
 	_, err := (ha.Rclone{Runner: fake}).EnsureChild(context.Background(), folderParent(), "10", inventory)
 	if err == nil || fake.Invocations != 0 {
 		t.Fatalf("err=%v calls=%d mkdirs=%d", err, fake.Invocations, fake.Mkdirs)
+	}
+}
+
+func TestRcloneChildLocalBackendConformance(t *testing.T) {
+	if os.Getenv("PAIR_RCLONE_LOCAL_CONFORMANCE") != "1" {
+		t.Skip("opt-in installed rclone private local backend")
+	}
+	binary, err := exec.LookPath("rclone")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := filepath.Join(root, "rclone.conf")
+	if err = os.WriteFile(config, []byte("[fixture]\ntype = local\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	folder := filepath.Join(root, "backups", "pair-history")
+	if err = os.MkdirAll(folder, 0700); err != nil {
+		t.Fatal(err)
+	}
+	r := ha.Rclone{Runner: ha.ExecRcloneRunner{Binary: binary, Env: []string{"HOME=" + root, "RCLONE_CONFIG=" + config, "TMPDIR=" + root, "PATH=" + os.Getenv("PATH")}}, LocalConformance: true}
+	ctx := context.Background()
+	pin, err := r.ResolveDestination(ctx, ha.DriveDestination{Remote: "fixture", Folder: folder})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"2025", "01"} {
+		inventory, e := r.ObserveFlatInventory(ctx, pin)
+		if e != nil {
+			t.Fatal(e)
+		}
+		if _, found, e := r.ResolveChild(ctx, pin, name, inventory); e != nil || found {
+			t.Fatalf("unexpected child before create: %v %v", found, e)
+		}
+		child, e := r.EnsureChild(ctx, pin, name, inventory)
+		if e != nil {
+			t.Fatal(e)
+		}
+		after, e := r.ObserveFlatInventory(ctx, pin)
+		if e != nil {
+			t.Fatal(e)
+		}
+		repeated, e := r.EnsureChild(ctx, pin, name, after)
+		if e != nil || repeated != child {
+			t.Fatalf("retry pin=%+v err=%v want=%+v", repeated, e, child)
+		}
+		pin = child
+	}
+	source := filepath.Join(root, "flat-view")
+	if err = os.Mkdir(source, 0700); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"ciphertext.gpg", "label.json"} {
+		if err = os.WriteFile(filepath.Join(source, name), []byte(name), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err = r.CopyBatch(ctx, pin, source); err != nil {
+		t.Fatal(err)
+	}
+	if err = r.CopyBatch(ctx, pin, source); err != nil {
+		t.Fatal(err)
+	}
+	inventory, err := r.ObserveFlatInventory(ctx, pin)
+	if err != nil || len(inventory) != 2 {
+		t.Fatalf("month inventory=%+v err=%v", inventory, err)
+	}
+	for _, name := range []string{"ciphertext.gpg", "label.json"} {
+		raw, e := os.ReadFile(filepath.Join(folder, "2025", "01", name))
+		if e != nil || string(raw) != name {
+			t.Fatalf("nested bytes=%q err=%v", raw, e)
+		}
+		if _, e = os.Stat(filepath.Join(folder, name)); !os.IsNotExist(e) {
+			t.Fatalf("unexpected flat copy: %v", e)
+		}
 	}
 }
