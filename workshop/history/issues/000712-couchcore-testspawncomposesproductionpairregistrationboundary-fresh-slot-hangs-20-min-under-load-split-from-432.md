@@ -1,13 +1,13 @@
 ---
 id: 000712
-status: codecomplete
+status: done
 deps: []
 github_issue:
 created: 2026-10-19
 updated: 2026-10-19
 estimate_hours: 1.9
 collaboration-mode: collaboration
-card_mirror: '3175020942209307c355692212310949ec9a77b1' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '07ffca742f56ee942fdcb9709d01713f9073e0e3' # card fields mirrored from issue-cards; edit via sdlc
 flake_tests: [github.com/xianxu/pair/cmd/internal/couchcore.TestSpawnComposesProductionPairRegistrationBoundary]
 started: 2026-10-19T14:08:10-07:00
 claimant:
