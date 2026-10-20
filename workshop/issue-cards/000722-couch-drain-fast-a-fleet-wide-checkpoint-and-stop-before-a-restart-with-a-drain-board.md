@@ -1,8 +1,8 @@
 ---
 id: 000722
-status: working
+status: blocked
 created: 2026-10-19
-updated: 2026-10-19
+updated: 2026-10-20
 estimate_hours: 9.6185
 github_issue:
 started: 2026-10-19T23:16:03-07:00
