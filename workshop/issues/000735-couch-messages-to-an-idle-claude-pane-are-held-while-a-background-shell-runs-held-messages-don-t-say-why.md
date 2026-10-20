@@ -67,6 +67,7 @@ After verification, SDLC close and merge own review and landing.
 ## Log
 
 ### 2026-10-20
+- 2026-10-20: closed — Recorded full suite PASS on dd811b548f2a218a7fb5ba72b76850bf09dafab1: exit 0 in 9m33s, log 6c500122ddbb; exact native ops recording red/green replay and sanitized 189x39 shell-footer regression; aborted-resize retry, hidden/incomplete waits, batch and head/follower status tested. Hosted checks green; ops:0 approved no staging and operator qualification at next Couch restart. Logger investigation filed separately as #736.; review verdict: SHIP
 
 - Claimed and started in pair:3. Reproduction replayed the operator's raw recording plus resize events through the production terminal model to 11:10: complete 189x39 viewport, empty composer at (2,35), but cursor visibility false, so `peerComposerState` returned Unknown. Changing only snapshot visibility to true returns Empty. Existing background-footer delivery regressions pass on unchanged code.
 - The recording's last show-cursor before the stall is raw offset 2166899. A duplicate 189x39 resize at 2166913 follows it. `terminalResize.resolve` clears visibility on every committed resize, including unchanged geometry. No subsequent repaint restores it during the quiet interval. Hypothesis: a no-op resize invalidates valid composer evidence; the shell footer itself is already supported. Preserve the fail-closed behavior for actual geometry changes and hidden/incomplete preexisting frames (ARCH-PURPOSE, ARCH-DRY).
