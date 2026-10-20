@@ -80,6 +80,8 @@ ARCH-SECURE: the recognizer reads only the current viewport, so scrollback text 
 
 ## Log
 
+- 2026-10-19: reopened — the hub live check failed (parley.nvim:4, Claude 2.1.304, 94x39; /Volumes/AgentScratch/pair691-usage-capture/livecheck-2026-10-19-fail.md). Esc was refused on an open /usage panel for two measured reasons: the panel is taller than the screen, so no rule is in the viewport, and Claude progress stays working while the panel is open, so the wrapper turn is active. A revised plan follows.
+
 ### 2026-10-19
 - 2026-10-19: closed — Full suite green on 28bd9ba86 (sdlc-local/suite); 4675381be adds only a clarity edit and a comment, targeted agentdrive and wrapcmd drive tests green. Recognizer, wrapper and service tests run over the hub live Claude 2.1.304 /usage capture at 94x39; six mutations each turn red. --no-plan-check: the open Plan item is the hub post-merge live check (Revision BR-1). (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 - 2026-10-19: flow upgraded quick → full — 133 added lines in code files (limit 100); an earlier round of this close already ran the full review
