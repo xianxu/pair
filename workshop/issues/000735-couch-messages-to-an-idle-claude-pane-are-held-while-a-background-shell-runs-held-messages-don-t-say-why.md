@@ -1,13 +1,23 @@
 ---
 id: 000735
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'd6a1b1dc108cc86643ebc525fab43243bd39c997' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '160e8d04c150cef26b46573dee0b70c31b4f42c2' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-20T11:54:21-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "07aba62c", done: "0930cf80"}
+actual_hours: 0.43
 ---
 
 # couch: messages to an idle Claude pane are held while a background shell runs; held messages don't say why
@@ -41,14 +51,39 @@ and its pair-diagnostics segment is empty, so there is no record of readiness de
 
 ## Done when
 
-- A recognition test with the background-shell footer fixture passes (and fails on the old matcher).
+- A regression with the recorded 189x39 empty Claude composer and shell footer remains deliverable after a same-size resize (and fails on the old implementation).
 - `--message-status` of a held message shows why it's held.
-- Live: a message to an idle Claude hub with a background shell arrives within seconds.
+- Hidden cursors, incomplete frames, actual geometry changes, drafts and pickers retain their conservative admission behavior.
+- The operator verifies delivery at the next Couch restart; ops:0 waived pre-landing staging on 2026-10-20. Supervision-log recovery is filed separately per the same approval.
 
 ## Plan
 
-- [ ]
+- [x] Regress the recorded empty shell-footer shape through native terminal paint, same-size resize, and actual peer delivery; keep real-resize, hidden, incomplete, occupied and aborted-resize cases conservative.
+- [x] Treat unchanged terminal dimensions as a no-op within the existing serialized resize owner. Keep actual geometry changes invalidating cursor evidence (ARCH-DRY, ARCH-PURE).
+- [x] Name incomplete/hidden/unrecognized composer evidence in the existing receipt Detail, without copying screen or draft text. Verify projection through broker status, including queued followers.
+- [x] Update tests, atlas/README diagnostics and lessons, run focused checks and recorded full suite.
+
+After verification, SDLC close and merge own review and landing.
 
 ## Log
 
 ### 2026-10-20
+- 2026-10-20: closed — Recorded full suite PASS on dd811b548f2a218a7fb5ba72b76850bf09dafab1: exit 0 in 9m33s, log 6c500122ddbb; exact native ops recording red/green replay and sanitized 189x39 shell-footer regression; aborted-resize retry, hidden/incomplete waits, batch and head/follower status tested. Hosted checks green; ops:0 approved no staging and operator qualification at next Couch restart. Logger investigation filed separately as #736.; review verdict: SHIP
+
+- Claimed and started in pair:3. Reproduction replayed the operator's raw recording plus resize events through the production terminal model to 11:10: complete 189x39 viewport, empty composer at (2,35), but cursor visibility false, so `peerComposerState` returned Unknown. Changing only snapshot visibility to true returns Empty. Existing background-footer delivery regressions pass on unchanged code.
+- The recording's last show-cursor before the stall is raw offset 2166899. A duplicate 189x39 resize at 2166913 follows it. `terminalResize.resolve` clears visibility on every committed resize, including unchanged geometry. No subsequent repaint restores it during the quiet interval. Hypothesis: a no-op resize invalidates valid composer evidence; the shell footer itself is already supported. Preserve the fail-closed behavior for actual geometry changes and hidden/incomplete preexisting frames (ARCH-PURPOSE, ARCH-DRY).
+- Logging investigation: `supervision.jsonl` remains the production destination; archived diagnostic segments exist. The current payload is frozen since 10-19 15:56; scratch-copy Open/Write succeeds. Fact logging currently discards Open errors and remains unavailable for the entire supervisor lifetime. The lost historical error prevents attributing this incident yet. Existing facts record slot snapshots and completed hub deliveries, not per-message hold reasons. Investigation ongoing; no live log/state mutated.
+- Filed unclaimed #736 with the logger investigation and health-first next action, per ops:0's approved scope split.
+- Regression red: the sanitized recorded 189x39 frame loses valid composer evidence after duplicate resize; hidden/incomplete/geometry wait receipts and batch preparation omit specific causes. Green after preserving synchronized same-size state and adding bounded metadata-only hold reasons. A separate red/green retry regression caught the need to resynchronize after an aborted actual resize even when the emulator already has the target dimensions; only synchronized geometry qualifies as a no-op.
+- Focused resize/background/delivery checks pass, as does the source-reader inventory check. Full wrapper/broker package verification is running before recorded suite and SDLC close.
+- Broader initial run: couchmessage passed (26.150s); wrapcmd identified `TestHarnessTTYIntegration_SetWinsizeFailureLatchesAuthorization`, the same aborted-resize retry edge caught and fixed during that run. Final focused current-head checks covering that test, peer delivery, terminal resize and snapshot invalidation pass (6.747s); head/follower message-status projection passes (0.168s). Recorded full suite will validate the final compiled implementation before landing.
+- Exact raw recording plus event-sidecar replay to 11:10 also passes on the fixed code: 189x39, cursor (2,35), visible and complete, recognized Empty (0.520s package run). Probe used a temporary Go overlay outside the repository; the committed regression preserves the same sanitized admission shape without private transcript rows. PR #492 is open; recorded suite on dd811b548f2a218a7fb5ba72b76850bf09dafab1 is queued.
+- Recorded full suite PASS on dd811b548f2a218a7fb5ba72b76850bf09dafab1: exit 0 in 9m33s after 1115s machine-queue wait; log SHA256 prefix 6c500122ddbb, recorded sdlc-local/suite. Wrapcmd passes in 54.205s and couchmessage in 25.043s. Hosted native conformance, merge check and local-gates guard are green. Ops:0's approved next-restart operator qualification remains separate from the pre-landing checks.
+
+## Revisions
+
+### 2026-10-20 11:59 — approved root-cause correction and scope split
+
+- ops:0 approved the reproduced no-op resize fix, specific hold reasons and exact recording-shape regression as #735. Background-shell footer matching already works; allowing hidden Claude cursors broadly would weaken admission and would not address the invalidation source. Preserve unchanged geometry instead.
+- Supervision logging moves to a separate issue: expose health/last error first, observe the actual failure, then fix it; no speculative retries. No pre-landing staging is required for #735; operator qualification happens at the next Couch restart.
+- The original Spec's footer hypothesis and logging work are superseded by this revision and the revised Done when. No new persisted fields, statuses or message lifecycle changes are needed; bounded receipt Detail carries the existing wait state. Unknown screen evidence continues waiting without input effects; the operator can finish a draft, close a picker, or allow a repaint.
