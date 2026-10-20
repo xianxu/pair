@@ -5,6 +5,14 @@ created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
 github_issue:
+started: 2026-10-20T14:55:45-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:7
+    worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
+    repository: github.com/xianxu/pair
 ---
 
 # tests: check the affected-reader inventory before close, not only inside the full suite (stale inventory caught after SHIP three times on 10-20)
