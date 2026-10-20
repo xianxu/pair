@@ -1,13 +1,13 @@
 ---
 id: 000735
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '880f8588d212ac0b006af6a94f22413404e8e547' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '160e8d04c150cef26b46573dee0b70c31b4f42c2' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T11:54:21-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "07aba62c", done: "0930cf80"}
+actual_hours: 0.43
 ---
 
 # couch: messages to an idle Claude pane are held while a background shell runs; held messages don't say why
