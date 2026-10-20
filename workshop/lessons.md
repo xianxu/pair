@@ -2429,3 +2429,6 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #724: testing.AllocsPerRun reads process-global Mallocs; GOMAXPROCS(1) does not suspend unrelated goroutines. Isolate strict allocation oracles in a self-exec helper and bind the sample to its actual PID; keep an unbounded-implementation negative control so isolation does not weaken the bound.
 - #724: Publishing a native PID is not simultaneous identity availability. A fixture must re-observe unavailable identity until established, then retain that exact generation; caching the PID must not disable all later identity observations. Report both title publication and agent identity on timeout so a real live title is not misdiagnosed as never started.
+
+- #722 BR-1: Acknowledgement authority must sample activity at the acknowledgement boundary. A cached reconciliation baseline can classify preceding activity as new; discard pre-ack in-flight observations and test both registry and wrapper counters before and after acknowledgement.
+- #722 BR-2: Keep real dependency conformance executable and opt-in with an isolated-root guard and a documented cadence. Historical scratch-probe logs cannot detect subsequent divergence from a stateful fake.
