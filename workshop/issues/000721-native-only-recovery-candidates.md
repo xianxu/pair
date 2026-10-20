@@ -1,13 +1,13 @@
 ---
 id: 000721
-status: working
+status: codecomplete
 deps: [pair#714]
 github_issue:
 created: 2026-10-19
-updated: 2026-10-19
+updated: 2026-10-20
 estimate_hours: 3.47
 collaboration-mode: collaboration
-card_mirror: '5789e1ac026318794f05d1e85aaa9e244254545a' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '1d333de77a56b287320f8e1c76052419bf4c9f5c' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-19T21:10:41-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 2.77
 ---
 
 # Offer unconfirmed native recovery candidates without a usable screen
