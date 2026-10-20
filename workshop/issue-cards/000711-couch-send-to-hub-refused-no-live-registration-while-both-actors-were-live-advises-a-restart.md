@@ -13,14 +13,14 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
-actual_hours: 1.22
+actual_hours: 1.38
 tracker:
     version: 1
     completion:
-        token: close-017a36f0c168
+        token: close-79732de32e7e
         repository: github.com/xianxu/pair
-        reviewed_head: a85138a58b338cdba337fbb4b2e504ebfc5efffe
-        evidence_commit: a64d76a247e8ddd413620b4b96b233f64edf6437
+        reviewed_head: 6231932580842773fd14e5349f4b52a48d34c4cc
+        evidence_commit: c38a0d8a1e6b140b6e22991d5d677d532343433e
 ---
 
 # couch --send-to hub refused 'no live registration' while both actors were live; advises a restart
