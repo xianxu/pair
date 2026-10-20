@@ -191,8 +191,8 @@ func TestResumeCandidatesCLIRetainsPartialScreenActivity(t *testing.T) {
 }
 
 // TestResumeCandidatesCLIIncompleteScanSparesTheConfirmedChoice (pair#726):
-// an incomplete scan says it affects only the inferred choices when the
-// confirmed Resume from disk is offered.
+// when the confirmed Resume from disk is offered, an incomplete scan says that
+// choice comes from the established binding, not from the scan.
 func TestResumeCandidatesCLIIncompleteScanSparesTheConfirmedChoice(t *testing.T) {
 	var out, diagnostic bytes.Buffer
 	code := runMessageCLIWithCall(cliInvocation{kind: cliMessage, messageOp: "resume-candidates", ref: "pair:6"}, messageRuntime(), &out, &diagnostic, func(_ context.Context, _ string, _ any, response any) error {
