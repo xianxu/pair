@@ -1,13 +1,21 @@
 ---
 id: 000717
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-19
-updated: 2026-10-19
+updated: 2026-10-20
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'ec2569fb29141a8b6c65dba2ca0dfc0665592799' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '9453834bef09722d833e2a1e3279899da7c725a2' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-20T01:12:01-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch --keys: support special keys (tab, shift-tab, arrows, backspace, function keys, ctrl/alt chords)
@@ -40,7 +48,10 @@ operator pressed Esc on a `/usage` panel for the TL).
 
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000717-couch-keys-support-special-keys-tab-shift-tab-arrows-backspace-function-keys-ctrl-alt-chords-plan.md` (two milestones; state design table there).
+
+- [ ] M1 — named keys in the one step table (bytes, parser, help, skill)
+- [ ] M2 — `couch --interrupt repo:N --confirm`: one Ctrl+C, only on an active turn
 
 ## Log
 
