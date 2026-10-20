@@ -1,6 +1,6 @@
 ---
 id: 000715
-status: codecomplete
+status: done
 created: 2026-10-19
 updated: 2026-10-19
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 52013e0a58725d63f5dbf3a2496711ada415008b
         evidence_commit: e52bce78a7dc2063238783745404dbbfe792c4a7
+        landed_commit: ad54eecde5829d317d196d6234637b5c696def82
 ---
 
 # flake: TestContinuationWriterPublishesExactCheckpointAcrossWorktrees
