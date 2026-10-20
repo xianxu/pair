@@ -1,6 +1,6 @@
 ---
 id: 000727
-status: working
+status: codecomplete
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours: 1.98
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+actual_hours: 1.69
+tracker:
+    version: 1
+    completion:
+        token: close-52cfcc3b173d
+        repository: github.com/xianxu/pair
+        reviewed_head: 97c32eaad2245af63532d100ac67e53283b268eb
+        evidence_commit: a7690953db28fd0e97ac4551eee12aec1b788fc0
 ---
 
 # term wrapper: one unsafe cell kills the presenter ('unsafe cell 12'), and a 0x0 launch geometry exits: the operator's right pane died
