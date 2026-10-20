@@ -36,7 +36,16 @@ func OperatorError(err error) string {
 	}
 	var failed *launchFailureError
 	if errors.As(err, &failed) {
-		return failed.operatorLine()
+		line := failed.operatorLine()
+		var unconfirmed *RecoveryLaunchUnconfirmed
+		if errors.As(err, &unconfirmed) {
+			line = "Launch unconfirmed; " + line
+		}
+		var recorded *lifecycleFailureError
+		if failed.saveError == nil && errors.As(err, &recorded) && recorded.saveError != nil {
+			line += " (diagnostics could not be saved: " + failureSummary(recorded.saveError.Error()) + ")"
+		}
+		return line
 	}
 	return err.Error()
 }
