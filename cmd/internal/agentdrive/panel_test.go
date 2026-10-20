@@ -7,16 +7,18 @@ import (
 	"time"
 )
 
-// usagePanel is PROVISIONAL until the hub's live /usage capture replaces it
-// (pair#691, testdata/drive/claude/provisional/metadata.json).
-func usagePanel(t *testing.T) []string {
+func claude2304(t *testing.T, name string) []string {
 	t.Helper()
-	b, err := os.ReadFile("../wrapcmd/testdata/drive/claude/provisional/usage-panel.screen")
+	b, err := os.ReadFile("../wrapcmd/testdata/drive/claude/2.1.304/" + name + ".screen")
 	if err != nil {
 		t.Fatal(err)
 	}
 	return strings.Split(string(b), "\n")
 }
+
+// usagePanel is the hub's live /usage capture: 39 rows, the panel below a rule
+// with the earlier prompt row above it.
+func usagePanel(t *testing.T) []string { return claude2304(t, "usage-panel") }
 
 func TestDismissablePanelRecognizesTheUsagePanel(t *testing.T) {
 	if !DismissablePanel("claude", usagePanel(t)) {
@@ -26,21 +28,24 @@ func TestDismissablePanelRecognizesTheUsagePanel(t *testing.T) {
 
 func TestDismissablePanelDeclinesEverythingElse(t *testing.T) {
 	panel := usagePanel(t)
-	composer := []string{"previous answer", "────────", "❯ draft", "────────", "  ? for shortcuts"}
-	permission := []string{"  Bash command", "    rm -rf build", "  Do you want to proceed?", "  ❯ 1. Yes", "    2. No", "", "  Esc to cancel"}
+	rule := strings.Repeat("─", 94)
+	composer := []string{"previous answer", rule, "❯ draft", rule, "  ? for shortcuts"}
+	permission := []string{rule, "  Bash command", "    rm -rf build", "  Do you want to proceed?", "  ❯ 1. Yes", "    2. No", "", "  Esc to cancel"}
 	for name, c := range map[string]struct {
 		agent string
 		lines []string
 	}{
-		"composer":                {"claude", composer},
-		"model picker":            {"claude", claudeCapture(t, "model-picker")},
-		"permission prompt":       {"claude", permission},
-		"numbered row, no cursor": {"claude", append([]string{"    1. Default"}, panel...)},
-		"footer only in history":  {"claude", append(append([]string{}, panel...), composer...)},
-		"footer then other text":  {"claude", append(append([]string{}, panel...), "  thinking…")},
-		"other agent":             {"codex", panel},
-		"unbalanced markup":       {"claude", append([]string{"‹rev›Usage"}, panel...)},
-		"empty":                   {"claude", nil},
+		"composer":               {"claude", composer},
+		"closed panel":           {"claude", claude2304(t, "usage-closed")},
+		"footer with no rule":    {"claude", []string{"  Usage", "  Esc to cancel"}},
+		"model picker":           {"claude", claudeCapture(t, "model-picker")},
+		"permission prompt":      {"claude", permission},
+		"numbered row in panel":  {"claude", append(append([]string{}, panel[:len(panel)-2]...), "    1. Default", "  Esc to cancel")},
+		"footer only in history": {"claude", append(append([]string{}, panel...), composer...)},
+		"footer then other text": {"claude", append(append([]string{}, panel...), "  thinking…")},
+		"other agent":            {"codex", panel},
+		"unbalanced markup":      {"claude", append([]string{"‹rev›Usage"}, panel...)},
+		"empty":                  {"claude", nil},
 	} {
 		if DismissablePanel(c.agent, c.lines) {
 			t.Errorf("%s: recognized as a dismissable panel", name)

@@ -9,9 +9,8 @@ import (
 )
 
 // claudePanelFooters are the closing lines a Claude panel paints to declare
-// that Esc dismisses it. PROVISIONAL (pair#691): shaped from the footer of
-// Claude's own dialogs until the hub's /usage capture replaces the fixture;
-// add a wording here only from a captured screen.
+// that Esc dismisses it, from captured screens only
+// (wrapcmd/testdata/drive/claude/2.1.304/usage-panel.screen).
 var claudePanelFooters = map[string]bool{
 	"Esc to cancel": true,
 }
@@ -20,28 +19,44 @@ var claudePanelFooters = map[string]bool{
 // a permission prompt, where Esc is a decision, not a dismissal.
 var panelChoiceRow = regexp.MustCompile(`^[❯›↓]?\s*\d+\.\s`)
 
-// DismissablePanel reports whether the current viewport is a panel whose own
-// footer declares Esc as its dismissal: the last nonblank line is a known
-// footer, and no line is a composer prompt or a numbered choice. lines must be
-// the viewport only, never scrollback, so old text cannot authorize a key.
+// panelRule is the full-width rule that opens a panel and bounds a composer.
+var panelRule = regexp.MustCompile(`^─{20,}$`)
+
+// DismissablePanel reports whether the current viewport ends in a panel whose
+// own footer declares Esc as its dismissal. The panel is the rows below the
+// last full-width rule: earlier prompt rows stay visible above it. Within it
+// the last nonblank row is a known footer, and no row is a composer prompt or
+// a numbered choice. A composer's closing rule leaves only its status footer
+// below, so a composer never qualifies. lines must be the viewport only, never
+// scrollback, so old text cannot authorize a key.
 func DismissablePanel(agent string, lines []string) bool {
 	if agent != "claude" || len(lines) > 200 {
 		return false
 	}
-	footer := ""
-	for _, line := range lines {
+	panel := -1
+	plain := make([]string, len(lines))
+	for i, line := range lines {
 		if !utf8.ValidString(line) || len(line) > MaxResultTailBytes {
 			return false
 		}
 		if _, ok := checkedMarkup(line); !ok {
 			return false
 		}
-		plain := strings.TrimSpace(tailmarkup.Strip(line))
-		if strings.HasPrefix(plain, "❯") || panelChoiceRow.MatchString(plain) {
+		plain[i] = strings.TrimSpace(tailmarkup.Strip(line))
+		if panelRule.MatchString(plain[i]) {
+			panel = i
+		}
+	}
+	if panel < 0 {
+		return false
+	}
+	footer := ""
+	for _, line := range plain[panel+1:] {
+		if strings.HasPrefix(line, "❯") || panelChoiceRow.MatchString(line) {
 			return false
 		}
-		if plain != "" {
-			footer = plain
+		if line != "" {
+			footer = line
 		}
 	}
 	return claudePanelFooters[footer]

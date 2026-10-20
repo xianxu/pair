@@ -9,16 +9,17 @@ import (
 	"github.com/xianxu/pair/cmd/internal/agentdrive"
 )
 
-// paintUsagePanel paints the PROVISIONAL /usage fixture (pair#691) as a real
-// frame: styled-tail markup becomes the SGR it was rendered from.
+// paintUsagePanel paints the hub's live Claude 2.1.304 /usage capture
+// (pair#691) at the slot's 94x39 size, cursor hidden as Claude leaves it.
 func paintUsagePanel(t *testing.T, f *harnessSessionFake) {
 	t.Helper()
-	raw, err := os.ReadFile("testdata/drive/claude/provisional/usage-panel.screen")
+	raw, err := os.ReadFile("testdata/drive/claude/2.1.304/usage-panel.screen")
 	if err != nil {
 		t.Fatal(err)
 	}
-	frame := strings.NewReplacer("‹rev›", "\x1b[7m", "‹/rev›", "\x1b[27m", "\n", "\r\n").Replace(strings.TrimRight(string(raw), "\n"))
-	f.output("\x1b[?2026h\x1b[2J\x1b[H" + frame + "\x1b[?25l\x1b[?2026l")
+	f.resize(94, 39)
+	frame := strings.ReplaceAll(strings.TrimRight(string(raw), "\n"), "\n", "\r\n")
+	f.output("\x1b[?2026h\x1b[2J\x1b[H" + frame + "\x1b[1;31H\x1b[?25l\x1b[?2026l")
 }
 
 func TestAgentDrivePanelAdmitsOnlyEsc(t *testing.T) {

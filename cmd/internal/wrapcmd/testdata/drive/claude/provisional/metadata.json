@@ -1,8 +1,0 @@
-{
-  "agent": "claude",
-  "version": "provisional",
-  "provisional": true,
-  "replace_with": "hub/TL capture of a live Claude /usage panel (couch --peek after --keys SLOT clear-line text:/usage submit), with its Claude version, as testdata/drive/claude/<version>/usage-panel.screen; then delete this directory",
-  "capture": "none; shaped by pair:2 from the Esc to cancel footer Claude paints on its own dialogs (see claude/2.1.299/model-picker.screen) while the live capture waits on fleet recovery",
-  "isolation": "no slot input; no live Couch"
-}

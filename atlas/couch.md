@@ -2115,9 +2115,10 @@ confirmed only when an empty composer returns. A panel still showing at the
 drive deadline reports unconfirmed with its tail, and nothing retries. A panel
 frame repainted after the write proves nothing, because a usage panel repaints
 when its data loads. One rule, `agentdrive.Request.Admits`, decides admission
-for the service, its pre-input guard, the wrapper and the reducer. The footer
-wording is provisional until a live capture replaces
-`wrapcmd/testdata/drive/claude/provisional/`.
+for the service, its pre-input guard, the wrapper and the reducer. The panel
+is the rows below the viewport's last full-width rule, since earlier prompt
+rows stay visible above it; the footer wording comes from the Claude 2.1.304
+capture in `wrapcmd/testdata/drive/claude/2.1.304/`.
 
 `couchmessage/drive_endpoint.go` provides `drive-observe`, `drive-start`,
 `drive-status` and idempotent `drive-cancel` over the existing authenticated

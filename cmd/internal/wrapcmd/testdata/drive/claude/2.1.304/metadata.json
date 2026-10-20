@@ -1,0 +1,10 @@
+{
+  "agent": "claude",
+  "version": "2.1.304",
+  "version_evidence": "claude --version: 2.1.304 (Claude Code)",
+  "capture": "hub/TL ops:0 with the operator present, 2026-10-19 ~16:58, ariadne:5 (94x39): usage-panel is couch --peek --json after --keys clear-line text:/usage submit, trimmed to the 39-row viewport; usage-closed is the peek after the panel closed",
+  "panel_footer": "Esc to cancel",
+  "panel_rule": "a full-width rule opens the panel; earlier prompt rows stay visible above it",
+  "closed_by": "not the hub --keys esc: the wrapper recording shows the dismissal redraw before 16:58:33 and the hub esc at 16:58:57 on an empty composer (pair#691 Log)",
+  "isolation": "no slot input by the fixture importer"
+}
