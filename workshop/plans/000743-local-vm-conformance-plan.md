@@ -203,3 +203,15 @@ The first plan-quality review accepted the architecture but required compressing
 ### 2026-10-20 14:33 — Native image work held
 
 The hub's authenticated hold supersedes the earlier operator-approved wording for image refresh/installs. Our already-started pull was interrupted; no VM was cloned/booted. Continue code and portable fake/fixture tests only until explicit operator approval. Before any authorized resume/provisioning, notify the hub as originally requested. M1 cannot close without its outstanding real image/VM qualification.
+
+### 2026-10-20 14:53 — Tracked-only snapshot with bounded filesystem fallback
+
+Authenticated hub receipt b59211cc-8cf9-485e-925b-1288d64cd3c2 approves the cross-volume fallback: one tracked-file enumeration, clone each regular file where supported, copy only on EXDEV or unsupported filesystem, and report cloned/copied bytes. This supersedes earlier non-ignored/untracked inclusion and clone-only assumptions: omit untracked files and caches; Pair regenerates runtime inputs in the guest from tracked sources. The snapshot retains independent Git metadata and current tracked worktree bytes/deletions. Its initial content budget is 100,000 paths / 2 GiB, inside the enclosing run timeout; native qualification must measure the real peak. The actual TestScratch and native Tart storage are on different volumes. No VM/image action is authorized by this correction; the 14:33 image hold remains.
+
+The guest bootstrap is embedded at cmd/internal/vmcmd/guest-run.sh rather than scripts/vm/guest-run.sh so an installed generic runner can run any checkout without depending on a Pair source tree. Its paths/environment contract is unchanged.
+
+Hub receipt 95d237ca-495c-4366-8822-ce855fc1433d additionally holds Pair issue filings/publishes to main until train 197 lands. Branch-local code/design checkpoints remain independent; do not publish or file while that hold is active.
+
+### 2026-10-20 14:56 — Main publication hold lifted
+
+Authenticated hub receipt 40831bf5-2c90-4de8-bd36-19f9ba4437ee confirms train 197 landed and Pair main filings/publishes are open again. The image hold is unchanged.
