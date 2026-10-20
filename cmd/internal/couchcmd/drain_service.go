@@ -263,15 +263,37 @@ func (c *drainCoordinator) ack(ctx context.Context, id, workspace, identity stri
 	if err := ctx.Err(); err != nil {
 		return c.view(), err
 	}
+	c.mu.Lock()
+	control, present := c.record.Controls[workspace]
+	epoch := c.record.Epoch
+	c.mu.Unlock()
+	if !present || control.Member.Identity() != identity || control.WrapperInstance == "" {
+		return c.view(), errors.New("ack does not name current drain/member")
+	}
+	endpoint := c.opts.Endpoint(control.Member.Binding)
+	if endpoint == nil {
+		return c.view(), errors.New("ack wrapper observation unavailable")
+	}
+	observeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	fresh, err := endpoint.ObserveDrain(observeCtx)
+	cancel()
+	if err != nil || !c.validDrainObservation(fresh) {
+		return c.view(), errors.New("ack wrapper observation unavailable")
+	}
+	// Registry and wrapper activity are sampled for this acknowledgement, never
+	// borrowed from the last reconciliation. Neither read grants post-ack idle.
 	live := c.opts.Snapshot()[workspace]
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	s := c.record.State
 	m, ok := s.Members[workspace]
-	if id != s.ID || !ok || m.Identity != identity || live.Identity() != identity || s.Phase != couchcore.DrainActive {
+	current, exists := c.record.Controls[workspace]
+	if id != s.ID || !ok || m.Identity != identity || live.Identity() != identity || s.Phase != couchcore.DrainActive || !exists || current.Member.Identity() != identity || c.record.Epoch != epoch || fresh.Epoch != epoch || fresh.Generation != id || fresh.Instance != current.WrapperInstance || fresh.Instance != control.WrapperInstance {
 		return c.view(), errors.New("ack does not name current drain/member")
 	}
-	next, _ := couchcore.ReduceDrain(s, couchcore.DrainEvent{ID: id, Kind: couchcore.DrainAcknowledged, Workspace: workspace, Identity: identity})
+	obs := live.Observation
+	obs.Submission += fresh.Input
+	next, _ := couchcore.ReduceDrain(s, couchcore.DrainEvent{ID: id, Kind: couchcore.DrainAcknowledged, Workspace: workspace, Identity: identity, Observation: obs})
 	if !next.Members[workspace].Ack {
 		return c.view(), errors.New("checkpoint notice not yet submitted")
 	}
@@ -279,7 +301,7 @@ func (c *drainCoordinator) ack(ctx context.Context, id, workspace, identity stri
 		c.ackRevision[workspace]++
 	}
 	c.record.State = next
-	err := c.saveLocked()
+	err = c.saveLocked()
 	c.signal()
 	return c.view(), err
 }
@@ -381,6 +403,14 @@ func (c *drainCoordinator) reconcile(parent context.Context) {
 	if s.Phase != couchcore.DrainActive {
 		return
 	}
+	// Fence the entire observation, including the registry snapshot. Capturing
+	// this after Snapshot would let an older read inherit a newer ack revision.
+	c.mu.Lock()
+	revisions := make(map[string]uint64, len(c.ackRevision))
+	for workspace, revision := range c.ackRevision {
+		revisions[workspace] = revision
+	}
+	c.mu.Unlock()
 	live := c.opts.Snapshot()
 	for workspace, member := range live {
 		old, exists := controls[workspace]
@@ -401,9 +431,7 @@ func (c *drainCoordinator) reconcile(parent context.Context) {
 			return
 		}
 		c.control(workspace, control)
-		c.mu.Lock()
-		revision := c.ackRevision[workspace]
-		c.mu.Unlock()
+		revision := revisions[workspace]
 		endpoint := c.opts.Endpoint(member.Binding)
 		obs := member.Observation
 		if endpoint == nil {
@@ -806,7 +834,9 @@ func (c *drainCoordinator) observeMember(workspace, identity string, obs couchco
 		return
 	}
 	if revision != c.ackRevision[workspace] {
-		obs.Idle = false
+		// An observation started before ack can neither seal it nor invalidate
+		// its newer activity baseline. The next pass supplies ordered evidence.
+		return
 	}
 	c.record.State, _ = couchcore.ReduceDrain(c.record.State, couchcore.DrainEvent{ID: c.record.State.ID, Kind: couchcore.DrainMemberObserved, Workspace: workspace, Identity: identity, Observation: obs})
 	c.publishLocked()

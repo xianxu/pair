@@ -246,13 +246,15 @@ func ReduceDrain(before DrainState, e DrainEvent) (DrainState, []DrainEffect) {
 				m.AckSealed = true
 			}
 		case DrainAcknowledged:
-			if s.Phase != DrainActive || !drainOwnPause(s) || !drainControlTerminal(m.Notice) {
+			if s.Phase != DrainActive || !drainOwnPause(s) || !drainControlTerminal(m.Notice) || !e.Observation.Known || !e.Observation.Connected {
 				return before, nil
 			}
 			if !m.Ack {
 				m.Ack = true
 				m.AckSealed = false
-				m.AckSubmission = m.Observation.Submission
+				// The shell supplies identity-fenced activity sampled for this ack,
+				// independently of the previous reconciliation observation.
+				m.AckSubmission = e.Observation.Submission
 			}
 		case DrainNoticeResult:
 			if m.Notice != DrainPending && m.Notice != DrainUnknown {

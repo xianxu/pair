@@ -51,7 +51,7 @@ func TestDrainAckRequiresSubsequentIdleAndInvalidates(t *testing.T) {
 	if b := ProjectDrainBoard(s, time.Unix(1, 0)); b.State != DrainStuck || b.Rows[0].Reason != "no ack" {
 		t.Fatalf("quiet without ack: %+v", b)
 	}
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainAcknowledged, Workspace: "pair:1", Identity: "binding-session"})
+	s, _ = stepDrain(s, DrainEvent{Kind: DrainAcknowledged, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Submission: s.Members["pair:1"].Observation.Submission}})
 	if ProjectDrainBoard(s, time.Unix(1, 0)).State == DrainDrained {
 		t.Fatal("ack reused pre-ack idle")
 	}
@@ -76,7 +76,7 @@ func TestDrainAuthorityMutations(t *testing.T) {
 	} {
 		s := drainPaused(drainFixture(t))
 		s, _ = stepDrain(s, DrainEvent{Kind: DrainNoticeResult, Workspace: "pair:1", Identity: "binding-session", Outcome: DrainDone})
-		s, _ = stepDrain(s, DrainEvent{Kind: DrainAcknowledged, Workspace: "pair:1", Identity: "binding-session"})
+		s, _ = stepDrain(s, DrainEvent{Kind: DrainAcknowledged, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Submission: s.Members["pair:1"].Observation.Submission}})
 		s, _ = stepDrain(s, DrainEvent{Kind: DrainMemberObserved, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Idle: true}})
 		mutate(&s)
 		if ProjectDrainBoard(s, time.Unix(1, 0)).State == DrainDrained {
@@ -134,7 +134,7 @@ func TestDrainReorderedEvidenceAndReplacement(t *testing.T) {
 	s := drainPaused(drainFixture(t))
 	s, _ = stepDrain(s, DrainEvent{Kind: DrainNoticeResult, Workspace: "pair:1", Identity: "binding-session", Outcome: DrainDone})
 	s, _ = stepDrain(s, DrainEvent{Kind: DrainMemberObserved, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Sequence: 2, Submission: 1}})
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainAcknowledged, Workspace: "pair:1", Identity: "binding-session"})
+	s, _ = stepDrain(s, DrainEvent{Kind: DrainAcknowledged, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Submission: s.Members["pair:1"].Observation.Submission}})
 	s, _ = stepDrain(s, DrainEvent{Kind: DrainMemberObserved, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Idle: true, Sequence: 1}})
 	if ProjectDrainBoard(s, time.Unix(1, 0)).State == DrainDrained {
 		t.Fatal("stale idle sealed ack")
@@ -144,7 +144,7 @@ func TestDrainReorderedEvidenceAndReplacement(t *testing.T) {
 		t.Fatal("fresh idle failed")
 	}
 	s, _ = stepDrain(s, DrainEvent{Kind: DrainMemberJoined, Workspace: "pair:1", Identity: "replacement"})
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainAcknowledged, Workspace: "pair:1", Identity: "binding-session"})
+	s, _ = stepDrain(s, DrainEvent{Kind: DrainAcknowledged, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Submission: s.Members["pair:1"].Observation.Submission}})
 	if s.Members["pair:1"].Ack || ProjectDrainBoard(s, time.Unix(1, 0)).State == DrainDrained {
 		t.Fatal("replacement inherited old ack")
 	}
@@ -179,6 +179,7 @@ func TestDrainCountedFanoutAndIndependentSequenceOracle(t *testing.T) {
 				noticed[key] = true
 			case 1:
 				e.Kind = DrainAcknowledged
+				e.Observation = DrainObservation{Known: true, Connected: true}
 				if noticed[key] {
 					if !acked[key] {
 						idleAfter[key] = false
@@ -231,7 +232,7 @@ func TestDrainSubmissionInvalidatesProvisionalAndSealedAck(t *testing.T) {
 	for _, sealed := range []bool{false, true} {
 		s := drainPaused(drainFixture(t))
 		s, _ = stepDrain(s, DrainEvent{Kind: DrainNoticeResult, Workspace: "pair:1", Identity: "binding-session", Outcome: DrainDone})
-		s, _ = stepDrain(s, DrainEvent{Kind: DrainAcknowledged, Workspace: "pair:1", Identity: "binding-session"})
+		s, _ = stepDrain(s, DrainEvent{Kind: DrainAcknowledged, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Submission: s.Members["pair:1"].Observation.Submission}})
 		if sealed {
 			s, _ = stepDrain(s, DrainEvent{Kind: DrainMemberObserved, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Idle: true}})
 		}
@@ -282,7 +283,7 @@ func FuzzDrainNoticeReason(f *testing.F) {
 func TestDrainUnknownEvidenceInvalidatesProvisionalAck(t *testing.T) {
 	s := drainPaused(drainFixture(t))
 	s, _ = stepDrain(s, DrainEvent{Kind: DrainNoticeResult, Workspace: "pair:1", Identity: "binding-session", Outcome: DrainDone})
-	s, _ = stepDrain(s, DrainEvent{Kind: DrainAcknowledged, Workspace: "pair:1", Identity: "binding-session"})
+	s, _ = stepDrain(s, DrainEvent{Kind: DrainAcknowledged, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Submission: s.Members["pair:1"].Observation.Submission}})
 	s, _ = stepDrain(s, DrainEvent{Kind: DrainMemberObserved, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{}})
 	s, _ = stepDrain(s, DrainEvent{Kind: DrainMemberObserved, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Idle: true}})
 	if s.Members["pair:1"].Ack || ProjectDrainBoard(s, time.Unix(1, 0)).State == DrainDrained {
@@ -316,5 +317,45 @@ func TestDrainGlobalStuckRecoveryUsesInspectionAndKeepsRowRecovery(t *testing.T)
 	b := ProjectDrainBoard(s, time.Unix(1, 0))
 	if b.State != DrainStuck || b.Recovery != "inspect status" || b.Rows[0].Recovery != "checkpoint and ack" {
 		t.Fatalf("stuck recovery did not distinguish global inspection from row action: %+v", b)
+	}
+}
+
+func TestDrainAcknowledgementUsesCurrentActivityBaseline(t *testing.T) {
+	s := drainPaused(drainFixture(t))
+	s, _ = stepDrain(s, DrainEvent{Kind: DrainNoticeResult, Workspace: "pair:1", Identity: "binding-session", Outcome: DrainDone})
+	s, _ = stepDrain(s, DrainEvent{Kind: DrainMemberObserved, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Submission: 10}})
+	s, _ = stepDrain(s, DrainEvent{Kind: DrainAcknowledged, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Submission: 11}})
+	if m := s.Members["pair:1"]; !m.Ack || m.AckSealed || m.AckSubmission != 11 {
+		t.Fatalf("ack baseline: %+v", m)
+	}
+	s, _ = stepDrain(s, DrainEvent{Kind: DrainMemberObserved, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Idle: true, Submission: 11}})
+	if !s.Members["pair:1"].AckSealed {
+		t.Fatal("preceding activity discarded ack")
+	}
+	s, _ = stepDrain(s, DrainEvent{Kind: DrainMemberObserved, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Idle: true, Submission: 12}})
+	if s.Members["pair:1"].Ack {
+		t.Fatal("post-ack activity retained ack")
+	}
+}
+
+func TestDrainAckUnknownEvidenceAndDuplicateBaseline(t *testing.T) {
+	s := drainPaused(drainFixture(t))
+	s, _ = stepDrain(s, DrainEvent{Kind: DrainNoticeResult, Workspace: "pair:1", Identity: "binding-session", Outcome: DrainDone})
+	for _, obs := range []DrainObservation{{}, {Known: true}, {Connected: true}} {
+		next, _ := stepDrain(s, DrainEvent{Kind: DrainAcknowledged, Workspace: "pair:1", Identity: "binding-session", Observation: obs})
+		if next.Members["pair:1"].Ack {
+			t.Fatal("missing ack-time authority accepted")
+		}
+	}
+	ack := DrainEvent{Kind: DrainAcknowledged, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Submission: 11}}
+	s, _ = stepDrain(s, ack)
+	ack.Observation.Submission = 12
+	s, _ = stepDrain(s, ack)
+	if s.Members["pair:1"].AckSubmission != 11 {
+		t.Fatal("duplicate ack silently renewed baseline")
+	}
+	s, _ = stepDrain(s, DrainEvent{Kind: DrainMemberObserved, Workspace: "pair:1", Identity: "binding-session", Observation: DrainObservation{Known: true, Connected: true, Idle: true, Submission: 12}})
+	if s.Members["pair:1"].Ack {
+		t.Fatal("duplicate ack hid later activity")
 	}
 }

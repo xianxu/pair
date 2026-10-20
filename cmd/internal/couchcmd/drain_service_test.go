@@ -28,6 +28,7 @@ type drainServiceEndpoint struct {
 	instance, namespace string
 	authority           couchmessage.DrainGeneration
 	protocol            int
+	input               uint64
 	proof               func(couchmessage.DrainFence) couchmessage.DrainFence
 	receipts            map[string]couchmessage.Receipt
 	results             map[string]couchmessage.DrainInterruptResult
@@ -135,7 +136,7 @@ func (e *drainServiceEndpoint) ObserveDrain(context.Context) (couchmessage.Drain
 	if protocol == 0 {
 		protocol = 2
 	}
-	return couchmessage.DrainObservation{Protocol: protocol, Namespace: view.Namespace, Epoch: view.Epoch, Generation: view.Generation, Instance: view.Instance, Turn: 1, Active: !e.idle, Idle: e.idle, ComposerKnown: true, ComposerEmpty: true, Complete: true}, nil
+	return couchmessage.DrainObservation{Protocol: protocol, Namespace: view.Namespace, Epoch: view.Epoch, Generation: view.Generation, Instance: view.Instance, Input: e.input, Turn: 1, Active: !e.idle, Idle: e.idle, ComposerKnown: true, ComposerEmpty: true, Complete: true}, nil
 }
 func (e *drainServiceEndpoint) InterruptDrain(_ context.Context, id string, fence couchmessage.DrainFence, o couchmessage.DrainObservation) (couchmessage.DrainInterruptResult, error) {
 	e.mu.Lock()
@@ -1100,5 +1101,236 @@ func TestDrainServiceFakeBoundedEpochAuthority(t *testing.T) {
 				t.Fatalf("cycles%d peak%d notices%d interrupts%d", cycles, peak, notices, interrupts)
 			}
 		})
+	}
+}
+
+func TestDrainServiceAckSamplesCurrentActivity(t *testing.T) {
+	for _, tc := range []struct {
+		name              string
+		submission, input uint64
+	}{
+		{"registry", 11, 0}, {"wrapper", 0, 11}, {"both", 6, 5},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, f, _ := newDrainServiceFixture(t)
+			_, err := c.start(context.Background(), "00000000-0000-4000-8000-000000000001", "", false, time.Minute, f.snapshot()["pair:0"].Binding)
+			if err != nil {
+				t.Fatal(err)
+			}
+			waitDrainService(t, c, func(b couchcore.DrainBoard) bool {
+				for _, r := range b.Rows {
+					if r.Reason != "active turn" {
+						return false
+					}
+				}
+				return true
+			})
+			// Freeze reconciliation so the registry/wrapper advance before ack while
+			// persisted member evidence stays at the older counter.
+			c.pass.Lock()
+			defer c.pass.Unlock()
+			member := f.snapshot()["pair:1"]
+			f.mu.Lock()
+			member.Observation.Submission = tc.submission
+			f.members["pair:1"] = member
+			f.mu.Unlock()
+			endpoint := f.endpoints[member.Binding]
+			endpoint.mu.Lock()
+			endpoint.input = tc.input
+			endpoint.mu.Unlock()
+			c.mu.Lock()
+			m := c.record.State.Members["pair:1"]
+			m.Observation.Submission = 10
+			c.record.State.Members["pair:1"] = m
+			oldRevision := c.ackRevision["pair:1"]
+			c.mu.Unlock()
+			if _, err := c.ack(context.Background(), c.view().ID, "pair:1", member.Identity()); err != nil {
+				t.Fatal(err)
+			}
+			c.mu.Lock()
+			m = c.record.State.Members["pair:1"]
+			revision := c.ackRevision["pair:1"]
+			c.mu.Unlock()
+			if !m.Ack || m.AckSubmission != 11 || m.AckSealed {
+				t.Fatalf("ack-time baseline: %+v", m)
+			}
+			c.observeMember("pair:1", member.Identity(), couchcore.DrainObservation{Known: true, Connected: true, Idle: true, Submission: 10}, oldRevision)
+			c.mu.Lock()
+			m = c.record.State.Members["pair:1"]
+			c.mu.Unlock()
+			if !m.Ack || m.AckSealed {
+				t.Fatalf("pre-ack in-flight observation changed ack: %+v", m)
+			}
+			c.observeMember("pair:1", member.Identity(), couchcore.DrainObservation{Known: true, Connected: true, Idle: true, Submission: 11}, revision)
+			c.mu.Lock()
+			m = c.record.State.Members["pair:1"]
+			c.mu.Unlock()
+			if !m.AckSealed {
+				t.Fatalf("preceding activity removed ack: %+v", m)
+			}
+			c.observeMember("pair:1", member.Identity(), couchcore.DrainObservation{Known: true, Connected: true, Idle: true, Submission: 12}, revision)
+			c.mu.Lock()
+			m = c.record.State.Members["pair:1"]
+			c.mu.Unlock()
+			if m.Ack {
+				t.Fatal("post-ack activity retained ack")
+			}
+		})
+	}
+}
+
+// This wrapper injects replacement/failure exactly after the authoritative read,
+// rather than depending on a scheduler race.
+type drainAckEndpoint struct {
+	couchmessage.DrainEndpoint
+	after  func()
+	mutate func(*couchmessage.DrainObservation)
+	err    error
+}
+
+func (e drainAckEndpoint) ObserveDrain(ctx context.Context) (couchmessage.DrainObservation, error) {
+	o, err := e.DrainEndpoint.ObserveDrain(ctx)
+	if e.mutate != nil {
+		e.mutate(&o)
+	}
+	if e.after != nil {
+		e.after()
+	}
+	if e.err != nil {
+		err = e.err
+	}
+	return o, err
+}
+func TestDrainServiceAckRequiresCurrentEvidence(t *testing.T) {
+	for _, name := range []string{"unknown registry", "disconnected registry", "missing wrapper", "wrapper failure", "old instance", "old epoch", "other generation", "old protocol", "registry replacement", "intent replacement"} {
+		t.Run(name, func(t *testing.T) {
+			c, f, _ := newDrainServiceFixture(t)
+			_, err := c.start(context.Background(), "00000000-0000-4000-8000-000000000001", "", false, time.Minute, f.snapshot()["pair:0"].Binding)
+			if err != nil {
+				t.Fatal(err)
+			}
+			waitDrainService(t, c, func(b couchcore.DrainBoard) bool {
+				for _, r := range b.Rows {
+					if r.Reason != "active turn" {
+						return false
+					}
+				}
+				return true
+			})
+			c.pass.Lock()
+			defer c.pass.Unlock()
+			member := f.snapshot()["pair:1"]
+			original := c.opts.Endpoint
+			endpoint := drainAckEndpoint{DrainEndpoint: original(member.Binding)}
+			switch name {
+			case "unknown registry", "disconnected registry":
+				f.mu.Lock()
+				m := f.members["pair:1"]
+				if name == "unknown registry" {
+					m.Observation.Known = false
+				} else {
+					m.Observation.Connected = false
+				}
+				f.members["pair:1"] = m
+				f.mu.Unlock()
+			case "wrapper failure":
+				endpoint.err = errors.New("read unavailable")
+			case "old instance":
+				endpoint.mutate = func(o *couchmessage.DrainObservation) { o.Instance = "replaced" }
+			case "old epoch":
+				endpoint.mutate = func(o *couchmessage.DrainObservation) { o.Epoch--; o.Generation = "" }
+			case "other generation":
+				endpoint.mutate = func(o *couchmessage.DrainObservation) { o.Generation = "00000000-0000-4000-8000-000000000002" }
+			case "old protocol":
+				endpoint.mutate = func(o *couchmessage.DrainObservation) { o.Protocol = 1 }
+			case "registry replacement":
+				endpoint.after = func() {
+					f.mu.Lock()
+					m := f.members["pair:1"]
+					m.Session = "new session"
+					f.members["pair:1"] = m
+					f.mu.Unlock()
+				}
+			case "intent replacement":
+				endpoint.after = func() { c.mu.Lock(); c.record.Epoch++; c.mu.Unlock() }
+			}
+			c.opts.Endpoint = func(b couchmessage.Binding) couchmessage.DrainEndpoint {
+				if b == member.Binding {
+					if name == "missing wrapper" {
+						return nil
+					}
+					return endpoint
+				}
+				return original(b)
+			}
+			if _, err := c.ack(context.Background(), c.view().ID, "pair:1", member.Identity()); err == nil {
+				t.Fatal("accepted missing or replaced ack evidence")
+			}
+			c.mu.Lock()
+			acked := c.record.State.Members["pair:1"].Ack
+			c.mu.Unlock()
+			if acked {
+				t.Fatal("refused ack changed authority")
+			}
+		})
+	}
+}
+
+func TestDrainServiceSnapshotBeforeAckCannotInvalidateIt(t *testing.T) {
+	c, f, _ := newDrainServiceFixture(t)
+	_, err := c.start(context.Background(), "00000000-0000-4000-8000-000000000001", "", false, time.Minute, f.snapshot()["pair:0"].Binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitDrainService(t, c, func(b couchcore.DrainBoard) bool {
+		for _, r := range b.Rows {
+			if r.Reason != "active turn" {
+				return false
+			}
+		}
+		return true
+	})
+	snapshotRead, release := make(chan struct{}), make(chan struct{})
+	var once atomic.Bool
+	c.pass.Lock()
+	c.opts.Snapshot = func() map[string]drainLiveMember {
+		live := f.snapshot()
+		if once.CompareAndSwap(false, true) {
+			close(snapshotRead)
+			<-release
+		}
+		return live
+	}
+	c.pass.Unlock()
+	c.signal()
+	select {
+	case <-snapshotRead:
+	case <-time.After(3 * time.Second):
+		t.Fatal("snapshot not reached")
+	}
+	// Cleanup releases the paused read even if acknowledgement refuses.
+	var released bool
+	defer func() {
+		if !released {
+			close(release)
+		}
+	}()
+	member := f.snapshot()["pair:1"]
+	f.mu.Lock()
+	member.Observation.Submission = 1
+	f.members["pair:1"] = member
+	f.mu.Unlock()
+	if _, err := c.ack(context.Background(), c.view().ID, "pair:1", member.Identity()); err != nil {
+		t.Fatal(err)
+	}
+	close(release)
+	released = true
+	c.pass.Lock()
+	defer c.pass.Unlock()
+	c.mu.Lock()
+	m := c.record.State.Members["pair:1"]
+	c.mu.Unlock()
+	if !m.Ack {
+		t.Fatal("registry read begun before ack invalidated its newer baseline")
 	}
 }

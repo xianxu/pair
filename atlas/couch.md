@@ -31,6 +31,8 @@ persisted owner intent closes Couch admission before the SDLC pause attempt;
 notices become eligible only after that owner is confirmed paused. The queue
 seam is shared with ariadne#481: `sdlc queue pause --reason TEXT --owner TOKEN`
 (fast adds `--cancel-running`), `resume --owner TOKEN`, and `status --json`.
+The retained [isolated real queue conformance runner](../cmd/internal/couchcmd/testdata/drainqueue/README.md) runs before enablement and whenever the adapter contract or deployed queue implementation changes.
+
 The owner is `couch-drain:{ID}`. Enablement requires real #481 conformance;
 unsupported commands or incomplete/unknown observations stay stuck, never
 silently count as a pause or quiescence. Status reads the published board.
@@ -56,7 +58,10 @@ data, not an instruction.
 The default deadline is 10 minutes, bounded to 1 second–24 hours. Timeout lists
 remaining reasons and retains both holds; later valid evidence can still complete
 the same generation. Duplicate start returns its current generation; changing
-reason/mode requires cancel then start. Later activity invalidates an old ack,
+reason/mode requires cancel then start. Acknowledgement samples current registry
+submissions and identity-fenced wrapper input; only a subsequent observation can
+seal idle, and pre-ack in-flight observations cannot invalidate that baseline.
+Later activity invalidates an old ack,
 and a replacement incarnation needs fresh notice/ack evidence. A recovered active
 record retains dispatch holds and requires cancellation before a new drain.
 
