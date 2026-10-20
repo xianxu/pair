@@ -1,13 +1,21 @@
 ---
 id: 000734
-status: open
+status: wontfix
 deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'eff8514e944c6c179dab472cb4728f8826cb7b74' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '212d8c172ae6e67fdce25582afe5a79266de9a49' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-20T12:21:03-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:5
+    worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Declare opt-in drain acceptance local check
@@ -35,4 +43,6 @@ This is a local-gates change. The operator verifies the configuration and applie
 
 ## Log
 
+
+- 2026-10-20: abandoned (wontfix): Superseded by the operator-reviewed in-memory drain contract for pair#722 (TL4160a300): no queue/ack conformance declaration is needed; retain bounded installed-Couch qualification within #722.
 Filed unclaimed from pair:5 under authenticated TL dispatch5c8b8b29. This is #722's dependency for named-check recording; it does not own the drain implementation. No configuration changed while filing.
