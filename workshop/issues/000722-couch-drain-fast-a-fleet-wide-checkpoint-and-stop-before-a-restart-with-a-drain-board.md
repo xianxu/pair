@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-19
 updated: 2026-10-19
-estimate_hours: 6.0395
+estimate_hours: 9.6185
 collaboration-mode: collaboration
-card_mirror: 'f43378955c5ade7a0770c7f1a15d37beb0cb078a' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '89b1bbe51c79149ab669b681556f32a5d85a8217' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-19T23:16:03-07:00
 claimant:
     operator: Xian Xu
@@ -67,6 +67,38 @@ The [durable implementation plan](../plans/000722-fleet-drain-plan.md) defines t
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. Calibration is stale per estimate-source, so this is provisional focused ship-time, not a calendar promise or a prediction of the #481 wait.
 
 Decomposition follows the approved plan: initial spec/coordination uses issue-spec design1.0×0.5 and impl0.3×0.4. The pure drain model and supervisor coordinator are two greenfield Go single concerns (design1.0/1.5×0.2, impl0.8×0.4 each). Queue adapter, broker control authority and wrapper interrupt are three API integrations (design1.5/2.0/1.5×0.2, impl1.2/1.5/1.2×0.4). Portable store extends the existing namespace/atomic-write patterns (design0.3×0.2, impl0.5×0.4). Board UI extends current console rendering (design1.0×0.2, impl0.8×0.4). Docs use design0.15×0.2, impl0.2×0.4; one close review uses design0.2×0.2, impl0.5×0.4; real queue/endpoint conformance uses one discovery budget impl0.6×0.4. Existing Go JSON/context/atomic storage and Couch broker/registry/console seams avoid a novel stack; no library replaces this project-specific generation/ownership protocol. Familiarity1.0, thorough-plan design buffer15%, no parallel execution discount. Design2.33×1.15 + impl3.36 =6.0395h.
+
+### Active cumulative estimate revision — 2026-10-20
+
+Renewed plan-quality round4 passed before this derivation. The original prose and machine block below are retained as provenance; this first block supersedes their total for the approved epoch mechanism. Same v3.1/stale calibration, familiarity1.0 and thorough-plan buffer15%. Add: typed fence/protocol integration design1.5×0.2, impl1.5×0.4; pure generation ownership model design1.5×0.2, impl0.8×0.4; epoch/schema store extension design0.3×0.2, impl0.5×0.4; coordinator propagation/recovery integration design1.0×0.2, impl1.0×0.4; counted-cycle/transport/race/live-conformance execution design1.0×0.2, impl1.5×0.4; second external endpoint discovery impl0.6×0.4. The existing library/IO seams remain reusable; no library supplies this protocol-specific generation authority. These incremental primitives explicitly cover the re-plan rather than hiding it in the original coordinator allowance.
+
+Design3.39×1.15 + impl5.72 =9.6185h cumulative idle-removed ship wall-clock, including agent execution and active verification/review, excluding external #481/operator waits and registered suite-queue waits. The added execution integration allowance includes implementing/adapting the stateful fake and 1000/2000-cycle checks, renewed races/recorded suite and hands-on isolated/live acceptance; discovery is separate. Prior completed transport checks stay evidence, but changed code requires fresh execution. This is a provisional forecast, not measured actual time or a remaining-hours promise.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.5 impl=0.12
+item: greenfield-go-module design=0.2 impl=0.32
+item: api-integration design=0.3 impl=0.48
+item: smaller-go-module design=0.06 impl=0.2
+item: api-integration design=0.4 impl=0.6
+item: api-integration design=0.3 impl=0.48
+item: greenfield-go-module design=0.3 impl=0.32
+item: tui-screen design=0.2 impl=0.32
+item: atlas-docs design=0.03 impl=0.08
+item: milestone-review design=0.04 impl=0.2
+item: real-api-discovery design=0 impl=0.24
+item: api-integration design=0.3 impl=0.6
+item: greenfield-go-module design=0.3 impl=0.32
+item: smaller-go-module design=0.06 impl=0.2
+item: api-integration design=0.2 impl=0.4
+item: api-integration design=0.2 impl=0.6
+item: real-api-discovery design=0 impl=0.24
+design-buffer: 0.15
+total: 9.6185
+```
+
+### Original accepted estimate — retained provenance
 
 ```estimate
 model: estimate-logic-v3.1
@@ -163,3 +195,7 @@ A subsequent residue audit found a separate lifecycle limit before close: wrappe
 The durable plan now contains a full re-plan proposal replacing lifetime ID retention with one persisted monotonic epoch and wrapper input-lease high-water mark/current generation outcomes. It states alternatives, authority, state/recovery, growth and test strategy. This is a new mechanism requiring TL approval and a renewed change-code gate before production edits; no such edits have begun. Shared #481 notice/argv/JSON and operator-facing scope do not change.
 
 Canonical submitted TL receipt68935e6f approves the re-plan and asks for a counted1000-cycle bound test and the simplest rejected alternative. Both are now explicit in the plan (N=1000 and2N=2000; refuse-until-reclaim fails because safe reclamation itself needs the generation fence). Renew change-code and re-derive any revised estimate only after its clean plan-quality verdict. No production code has changed since the passing suite.
+
+### 2026-10-20 — renewed gate and cumulative estimate revision
+
+Renewed change-code passed plan-quality round4 and admitted the approved re-plan. Estimate-quality INFO correctly noted that the original6.0395h decomposition did not allocate the epoch revision or active final integration clearly. Added an explicitly labelled active cumulative9.6185h block while retaining the original6.0395h block and prose unchanged below it. The increment derives from six v3.1 primitives after the clean plan gate; it covers protocol/FSM/store/coordinator plus stateful validation/active acceptance and a second discovery seam. Units are idle-removed ship wall-clock including agent execution, not remaining work or dependency wait. Card setter must match the new active block before production edits.
