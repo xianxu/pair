@@ -210,6 +210,25 @@ operator line name cleanup uncertainty and retain the diagnostic nonce. Inspect
 with couch --show, then use the existing continue, resume from disk or start fresh
 recovery outcome when fresh evidence permits it. No new recovery state is added.
 
+### Failed recovery launch disposition (#714)
+
+An acknowledged recovery launch gets one final registration look before it is
+classified. If registration is still unconfirmed, Couch retains the per-thread
+operation hold while checking the exact recorded helper and proposed terminal.
+Only a reaped direct child, an absent owned process group and an absent exact
+terminal release the failed creating incarnation. `ReconcileStart` owns the pure
+evidence decision; `StartFailedConfirmed` applies its nonce/revision-fenced
+transition and retains the original selection, park and thread for immediate
+retry. It does not signal, delete a session or start a replacement.
+
+Live/unknown group or terminal evidence, changed metadata and failed disposition
+persistence all remain **Launch unconfirmed**; inspect the exact attempt before
+another recovery action. The final disposition has one five-second context for
+observation and metadata admission/write, followed by the existing optional
+ten-second diagnostic-publication cap. Lock contention may refuse immediately.
+The successful-launch path adds no disposition probes. See
+`couchcore/recovery_launch_disposition.go` and `recovery_launch_failure_test.go`.
+
 ### Lifecycle failure evidence (#531, #683)
 
 `launchfailure.go` owns `LifecycleFailure` and the legacy `LaunchFailure` aliases,
@@ -251,6 +270,13 @@ references; preparation can add the actual dispatched thread address without
 resolving or authorizing it for diagnostics. Unreadable records remain recoverable.
 Optional nonce/publication failures preserve the original action result with a
 warning rather than inviting another external effect.
+
+Diagnostic address composition uses `completeFailureAddress`: it copies one
+complete scope/tag pair atomically, falling back to the captured launch address
+when outer dispatch evidence is partial. It never combines components from two
+targets. Unresolved calls retain their reference/path with an empty address, so
+strict record validation stays in force. The concise operator message also
+retains an outer recorder's save-failed warning alongside the launch exit.
 
 Pure `LastLifecycleSuccessAt(record)` is the sole success-time definition: verified
 park time and a committed live incarnation's start time. LastActiveAt is excluded

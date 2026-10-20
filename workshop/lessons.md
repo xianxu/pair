@@ -7,6 +7,9 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #714 PQ-2: Verify persisted compatibility against the real decoder and its adversarial tests before claiming unknown-field preservation. A schema-unchanged bugfix can retain an existing strict refusal contract; a preservation migration is a separate, explicit change.
+
+- #714: Failure diagnostics compose whole identities, never nonzero structs or fieldwise fragments. Test a scope-only outer dispatch through actual normalization and reopened persisted history; a recorded Save call is not proof of a saved failure. Preserve publication warnings at the concise operator boundary too.
 - A configuration-only rollout still needs root README coverage when it introduces an operator-facing setting. Sweep the config path/key, selected value, inspection command and approval owner together; an atlas entry alone leaves the usage contract incomplete. (#709 BR-1)
 
 - #715 BR-1: A local extension to a shared tool updates both its adoption instructions and its rule-maintenance instructions in the existing atlas page. Document the local composition owner, scope, shared error/suppression semantics, and which upstream consumers remain unchanged; updating only the feature's lifecycle map misses the tooling surface.
