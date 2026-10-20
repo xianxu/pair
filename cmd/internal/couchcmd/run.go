@@ -1156,6 +1156,9 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 	case []couchcore.ThreadSummary:
 		renderThreads(w, v)
 	case couchcore.ShowResult:
+		for _, status := range v.Scratch {
+			fmt.Fprintln(w, status+" [current launch selection]")
+		}
 		if len(v.Threads) > 0 {
 			renderThreadDetails(w, v.Threads)
 		}

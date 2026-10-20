@@ -47,6 +47,8 @@ type Couch struct {
 	// SlotEnvironment prepares temp storage from the retained owner even when
 	// a warm attach starts from a neutral working directory.
 	SlotEnvironment func(context.Context, ThreadRecord) []string
+	// ScratchDiagnostic describes current next-launch admission, without writes.
+	ScratchDiagnostic func(context.Context, ThreadRecord) string
 	// ScratchStartup runs quiescent metadata setup and the initial age sweep.
 	ScratchStartup func(context.Context, func(string))
 	// ScratchMaintenance runs the hourly worker until supervisor shutdown.

@@ -898,6 +898,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/terminalcapture/recorder.go",
 	// #708 optional scratch storage and native namespace policy, outside Pair artifacts.
 	"cmd/internal/couchscratch/policy.go",
+	"cmd/internal/couchscratch/optin.go",
 	"cmd/internal/couchscratch/age.go",
 	"cmd/internal/couchscratch/manager.go",
 	"cmd/internal/couchscratch/os.go",
