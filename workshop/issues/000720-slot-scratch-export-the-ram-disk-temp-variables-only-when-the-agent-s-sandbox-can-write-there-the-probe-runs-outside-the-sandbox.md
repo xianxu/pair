@@ -1,13 +1,21 @@
 ---
 id: 000720
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-19
 updated: 2026-10-19
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'b9131c1a4b5abf54fb54b29fce8854075d5b316b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'c579a433e56e76b78f97c4c056bfeb5d0ad5c3e2' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-19T21:04:58-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:7
+    worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Slot scratch: export the RAM-disk temp variables only when the agent's sandbox can write there (the probe runs outside the sandbox)
@@ -40,9 +48,17 @@ normal temp folder) and print one note naming the missing allowance.
 
 ## Plan
 
-- [ ]
+- [ ] Implement the shared pure sandbox predicate and bounded standard settings projection with red-first table/fixture tests.
+- [ ] Gate scratch exports with the actual selected launch profile; share the read-only selection with show diagnostics and update the atlas.
+- [ ] Run focused checks and recorded full suite, close review, land through SDLC and report to the hub.
+
+Durable design: [sandbox-aware slot scratch](../plans/000720-sandbox-scratch-plan.md). One atomic close boundary; full flow because settings and diagnostic plumbing exceed the quick production-line shell.
 
 ## Log
 
 - Sibling: ariadne#477 (landed) makes sdlc override an unwritable inherited temp folder; this issue stops exporting
   one in the first place. Setup step for the allowlist line documented in ops `teams/devinfra/tools/testscratch/README.md`.
+
+### 2026-10-19 — design approved
+
+Claimed in pair:7 and started from fresh main. Root seam: scratchSlotEnvironment delegates to a host write probe with no consumer-policy admission. A read-only research subagent checked official Claude settings/managed-policy semantics and the absence of an existing sandbox reader. Hub approved the conservative Claude projection and narrow Codex TMPDIR check, then the compact full-flow shape (6cfb6a23-fb86-4013-93fd-1047d7a7b73c). Required positive control: enabled Claude user settings with allowWrite containing /Volumes/TestScratch must stay on RAM. No settings/credential writes or native agent startup. Current Codex tool calls are filesystem-unsandboxed (danger-full-access); they are not sandboxed-conformance evidence. Codex's source explicitly defaults TMPDIR exclusion false and adds TMPDIR to workspace-write roots; links and trust envelope are in the durable plan. Live follow-up is the next natural relaunch; no staging on pair:0.
