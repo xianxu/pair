@@ -26,6 +26,22 @@ Follow-up to #717 (landed in PR #483): the morning live check reported couch --i
 
 ## Spec
 
+Use the agent's current coherent work evidence, defined once per agent. For Codex, extend the existing RecognizeCodexWorking pure recognizer to the observed Working and Waiting for background terminal status forms; locate the native status relative to the qualified native composer, not the physical viewport bottom. Both the lifecycle observer and interrupt admission consume this recognizer. Claude keeps reducer-owned Working(), no stop grace, a recognized composer and its current interrupt footer.
+
+An incomplete redraw does not emit a Codex stop transition. At admission and immediately before the one write, Codex's positive current work proof authorizes interrupt without requiring cached notification activity flags. Project a positively recognized working Codex screen as turn-active even if the notification lifecycle missed it. The existing picker, complete-frame, operator/peer/automatic-input ownership and lease fences remain. A later fresh complete *idle composer* must be observed to confirm completion; absence of working evidence on an unknown/picker/panel screen never confirms. There is no retry of a possibly written interrupt.
+
+Actions: interrupt once; inspect a refusal or unconfirmed result; request a new interrupt only on a newly observed working turn.
+
+| Internal state / failure mode | Visible state | Recovery action | Possible loss |
+|---|---|---|---|
+| Recognized working Codex or Claude, exclusive owned input | One Ctrl+C, awaiting turn end | Inspect final result | Current turn is intentionally interrupted |
+| Idle, unknown, partial frame, picker/panel or input ownership conflict | Refused; nothing sent | Inspect current slot | None |
+| Turn ends or ownership changes before dispatch | Refused/cancelled before write | Inspect current slot | None |
+| Ctrl+C written but no fresh idle composer before deadline | Unconfirmed; never resent | Inspect current slot | Work may already have been interrupted |
+| Fresh idle composer after the write | Confirmed | Inspect result; second interrupt refuses | Current turn stopped; conversation remains |
+
+ARCH-DRY: Codex's one pure recognizer serves lifecycle and drive proof, reusing codexComposerBounds. ARCH-PURE: retain native capture/PTY IO in tests and wrapper adapters. ARCH-CONSTRAINTS: one bounded viewport/composer scan per completed observation; no new goroutine, cache, store or growing state. ARCH-STATE: keep the existing drive reducer and one input lease; require positive idle completion rather than infer completion from an absent work signal. Creates nothing durable beyond existing bounded receipts because this repair changes only recognition and confirmation.
+
 ## Done when
 
 - Reproduce the reported Codex working-turn refusal with captured evidence and an automated regression that fails before the fix.
@@ -35,7 +51,11 @@ Follow-up to #717 (landed in PR #483): the morning live check reported couch --i
 
 ## Plan
 
-- [ ]
+- [ ] Capture coherent owned native Codex Working and background-wait frames; record the failing admission flags and exact composer/status relationship. Do not infer unobserved geometry.
+- [ ] Add regressions through handleChunk and the production mailbox/writer with no manually set Codex activity flags: top-anchored and tall composer, both status forms, complete/incomplete redraw and stale lifecycle observations. Assert one Ctrl+C, fresh positive idle confirmation, then second-interrupt refusal.
+- [ ] Repair the shared recognizer and per-agent admission/confirmation proof. Preserve Claude stop-grace and all negative/ownership cases. Mutate each corrected guard and require its oracle to fail.
+- [ ] Run targeted packages/race and reader inventory; document the per-agent work proof in atlas. Push PR and record affected check; stage the tested head for hub-owned live Codex sleep/interrupt/second-refusal check, then close and merge.
+
 
 ## Log
 
