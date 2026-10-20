@@ -1,6 +1,6 @@
 ---
 id: 000717
-status: working
+status: codecomplete
 created: 2026-10-19
 updated: 2026-10-20
 estimate_hours: 1.24
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.97
+tracker:
+    version: 1
+    completion:
+        token: close-5bc4f3926bae
+        repository: github.com/xianxu/pair
+        reviewed_head: 60203319cfd4e0d7fc137c51b151df8986f54377
+        evidence_commit: 7401b2f0cc2ec19bce73922856f47f367192775b
 ---
 
 # couch --keys: support special keys (tab, shift-tab, arrows, backspace, function keys, ctrl/alt chords)
