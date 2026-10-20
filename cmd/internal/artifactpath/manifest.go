@@ -1343,6 +1343,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/hubs.go",
 	"cmd/internal/couchcmd/hub_move.go",
 	"cmd/internal/couchcmd/hub_guards.go",
+	"cmd/internal/couchcmd/hub_target_memo.go",
 	"cmd/internal/couchcmd/console_slot_operations.go",
 	"cmd/internal/couchkeys/couchkeys.go",
 	"cmd/internal/couchcore/actionableinventory.go",

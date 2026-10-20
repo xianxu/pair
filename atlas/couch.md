@@ -1103,6 +1103,22 @@ bounded admission against moves; the ownership mutex is not held across IO.
 Projection generations fence jobs extracted before the drop. Restart collection
 survives the drop, and only genuinely new lifecycle facts follow the new owner.
 
+Hub slot-operation admission (`handleHubSlotOperation`, pair#726) is a cheap
+gate on warm sources, inside its own 1.5 s budget, below the 2 s exchange. The
+caller comes from its connected workspace (`connectedWorkspace`), and the target
+from `hubTargetMemo`. The memo maps a target reference to its `HubSlot`. Only
+the fresh resolver fills it, and every fresh resolution refreshes it. An entry
+is used for 10 minutes. A cold or expired entry starts one single-flight fresh
+resolution under the service lifetime, joined at `Close`, and admission waits
+for it only within the budget. Otherwise it refuses with "slot catalog is
+warming; nothing was queued; retry", and any overrun names its phase. A warm
+admission spawns no `sdlc` or `git`. The queued guard still re-proves authority
+on fresh discovery in prepare and at the effect gate, so a stale memo admits at
+most a job that refuses before any effect. `OSSlotCatalog.Discover` verifies
+slot rows concurrently (bounded by `MaxSlotCandidates`). It keeps each row's
+replacement fence and fails the whole inventory on a fatal row. That cut an
+8-slot discovery from 3 s to 1 s.
+
 `couchmessage.Message.Origin` is immutable: peer is omitted/zero, system is created
 only through internal server admission. External requests cannot carry origin.
 Envelopes, batch matching, deduplication and canonical receipts preserve it.

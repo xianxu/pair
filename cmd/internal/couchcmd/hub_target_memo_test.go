@@ -1,0 +1,90 @@
+package couchcmd
+
+import (
+	"context"
+	"errors"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/xianxu/pair/cmd/internal/couchcore"
+)
+
+func TestHubTargetMemoWarmFreshExpiryAndSingleFlight(t *testing.T) {
+	var calls atomic.Int64
+	release := make(chan struct{})
+	slot := couchcore.HubSlot{Repository: "/repo", Number: 6}
+	now := time.Unix(1000, 0)
+	var clock sync.Mutex
+	m := newHubTargetMemo(t.Context(), func(ctx context.Context, ref string) (couchcore.HubSlot, error) {
+		calls.Add(1)
+		select {
+		case <-release:
+		case <-ctx.Done():
+			return couchcore.HubSlot{}, ctx.Err()
+		}
+		return slot, nil
+	}, func() time.Time { clock.Lock(); defer clock.Unlock(); return now })
+
+	// Cold: two concurrent admissions share one resolution and refuse as
+	// warming when their budget ends first.
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
+	defer cancel()
+	var wg sync.WaitGroup
+	errs := make([]error, 2)
+	for i := range errs {
+		wg.Add(1)
+		go func(i int) { defer wg.Done(); _, errs[i] = m.Warm(ctx, "pair:6") }(i)
+	}
+	wg.Wait()
+	for _, err := range errs {
+		if !errors.Is(err, errSlotCatalogWarming) {
+			t.Fatalf("cold admission: %v", err)
+		}
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("resolutions = %d, want one single flight", calls.Load())
+	}
+	// The resolution finishes after the refusal it caused and fills the memo.
+	close(release)
+	if got, err := m.Warm(t.Context(), "pair:6"); err != nil || got != slot {
+		t.Fatalf("after warming: %v %v", got, err)
+	}
+	before := calls.Load()
+	if got, err := m.Warm(t.Context(), "pair:6"); err != nil || got != slot || calls.Load() != before {
+		t.Fatalf("warm read resolved again: %v %v calls %d", got, err, calls.Load())
+	}
+	// Expiry: an old entry resolves again.
+	clock.Lock()
+	now = now.Add(hubTargetMemoAge)
+	clock.Unlock()
+	if _, err := m.Warm(t.Context(), "pair:6"); err != nil || calls.Load() != before+1 {
+		t.Fatalf("expired entry: %v calls %d", err, calls.Load())
+	}
+	// Fresh always resolves and refreshes the entry.
+	if _, err := m.Fresh(t.Context(), "pair:6"); err != nil || calls.Load() != before+2 {
+		t.Fatalf("fresh: %v calls %d", err, calls.Load())
+	}
+}
+
+func TestHubTargetMemoResolutionEndsWithTheLifetime(t *testing.T) {
+	lifetime, cancel := context.WithCancel(context.Background())
+	m := newHubTargetMemo(lifetime, func(ctx context.Context, _ string) (couchcore.HubSlot, error) {
+		<-ctx.Done()
+		return couchcore.HubSlot{}, ctx.Err()
+	}, nil)
+	short, stop := context.WithTimeout(context.Background(), time.Millisecond)
+	defer stop()
+	if _, err := m.Warm(short, "pair:6"); !errors.Is(err, errSlotCatalogWarming) {
+		t.Fatalf("cold: %v", err)
+	}
+	cancel()
+	done := make(chan struct{})
+	go func() { m.wait(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("an outstanding resolution outlived the supervisor lifetime")
+	}
+}

@@ -2,7 +2,9 @@ package couchcmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
@@ -148,14 +150,86 @@ func (s *messageService) handleHubSlotOperation(ctx context.Context, caller couc
 		}
 		return authorizeHubMutation(origin, target, s.authority.hubs.snapshot())
 	}
-	admission := guard
-	if r.Op == couchcore.OpRecoverPark {
-		admission = func(ctx context.Context) error { return s.authenticateRecoveryCaller(ctx, caller, r) }
+	// Admission is a cheap gate on warm sources (pair#726): the caller's
+	// connected workspace and the remembered target slot. The queued guard
+	// above re-proves authority on fresh discovery in prepare and again at
+	// the effect gate, so a stale memo can only admit a job that refuses
+	// before any effect.
+	admission := func(ctx context.Context) error {
+		if r.Op == "recovery-confirmation" {
+			if err := s.authenticateRecoveryCaller(ctx, caller, r); err != nil {
+				return admissionPhase("caller", err)
+			}
+		} else if _, err := s.liveCaller(ctx, r); err != nil {
+			return admissionPhase("caller", err)
+		}
+		if s.authority.hubs == nil {
+			return nil
+		}
+		origin, err := s.admissionCallerWorkspace(ctx, caller)
+		if err != nil {
+			return admissionPhase("caller workspace", err)
+		}
+		target, err := s.warmHubTarget(ctx, r.Target)
+		if err != nil {
+			return admissionPhase("target", err)
+		}
+		return authorizeHubMutation(origin, target, s.authority.hubs.snapshot())
 	}
-	if err := admission(ctx); err != nil {
+	if r.Op == couchcore.OpRecoverPark {
+		admission = func(ctx context.Context) error {
+			return admissionPhase("caller", s.authenticateRecoveryCaller(ctx, caller, r))
+		}
+	}
+	budget, cancel := context.WithTimeout(ctx, slotAdmissionBudget)
+	err := admission(budget)
+	cancel()
+	if err != nil {
 		return couchmessage.Response{Code: "refused", Error: err.Error()}
 	}
 	return s.slotOps.handle(ctx, caller, r, guard)
+}
+
+// slotAdmissionBudget keeps a hub slot operation's admission below the
+// transport's 2 s exchange, so an overrun answers with a typed refusal
+// instead of a reply the server drops (pair#726).
+const slotAdmissionBudget = 1500 * time.Millisecond
+
+// admissionPhase names the admission step that refused or ran out of time.
+func admissionPhase(phase string, err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return fmt.Errorf("admission ran out of its %s budget in the %s check; nothing was queued; retry", slotAdmissionBudget, phase)
+	}
+	return fmt.Errorf("%s: %w", phase, err)
+}
+
+// admissionCallerWorkspace prefers the connected binding's verified
+// workspace, which costs no IO; a caller without a connected binding (a
+// reconnecting wrapper) falls back to one fresh workspace resolution.
+func (s *messageService) admissionCallerWorkspace(ctx context.Context, caller couchmessage.Binding) (couchcore.WorkspaceIdentity, error) {
+	if origin, err := s.connectedWorkspace(ctx, caller); err == nil {
+		return origin, nil
+	}
+	root, err := s.authority.thread(ctx, caller)
+	if err != nil {
+		return couchcore.WorkspaceIdentity{}, err
+	}
+	return s.authority.workspace(ctx, root)
+}
+
+// warmHubTarget is admission's target source: the memo, or the fresh
+// resolver where no memo exists.
+func (s *messageService) warmHubTarget(ctx context.Context, ref string) (couchcore.HubSlot, error) {
+	if s.hubTargets != nil {
+		return s.hubTargets.Warm(ctx, ref)
+	}
+	if s.authority.hubTarget == nil {
+		return couchcore.HubSlot{}, fmt.Errorf("target slot resolver unavailable")
+	}
+	return s.authority.hubTarget(ctx, ref)
 }
 
 func (s *messageService) hubReceiptFilter(ctx context.Context, identity couchcore.WorkspaceIdentity) func(couchmessage.OperationReceipt) bool {
@@ -163,10 +237,7 @@ func (s *messageService) hubReceiptFilter(ctx context.Context, identity couchcor
 		if s.authority.hubs == nil {
 			return true
 		}
-		if s.authority.hubTarget == nil {
-			return false
-		}
-		target, err := s.authority.hubTarget(ctx, receipt.Target)
+		target, err := s.warmHubTarget(ctx, receipt.Target)
 		return err == nil && authorizeHubMutation(identity, target, s.authority.hubs.snapshot()) == nil
 	}
 }

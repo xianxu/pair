@@ -119,4 +119,6 @@ total: 1.77
 
 ## Log
 
+- 2026-10-20 (pair:2): M1 implemented. Measured live after the concurrent Discover: pair 3.0 s down to 1.0 s, parley.nvim 2.7 s down to 0.85 s (load about 30). Tests: `TestHubSlotAdmissionSpawnsNothingWhenWarm` (zero spawning resolutions when warm; the queued guard re-proves fresh), `TestHubSlotAdmissionColdRefusesWarmingThenAdmits` (typed refusal inside the budget, nothing queued; admits once the late resolution lands), `TestHubSlotAdmissionStaleMemoRefusesBeforeAnyEffect`, the memo tests (single flight, expiry, Fresh refreshes, lifetime join), and `TestDiscoverVerifiesSlotsConcurrently` and `TestDiscoverStillFailsWholeInventoryOnReplacedHost`, under -race. Mutations, each red: admission resolving the target fresh, admission resolving the caller workspace fresh, no admission budget, Fresh answering from the memo, serial Discover, and no SameFile fence. A caller without a connected binding falls back to one fresh workspace resolution; the warm zero-spawn claim is for a connected hub, which is how hub CLI requests arrive.
+
 ### 2026-10-20

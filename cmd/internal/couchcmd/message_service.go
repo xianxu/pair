@@ -174,10 +174,13 @@ type messageService struct {
 	lifetime  context.Context
 	workers   sync.WaitGroup
 	authority messageAuthority
-	panes     *couchmessage.PaneMailbox
-	inbox     chan messageInput
-	admitting chan struct{}
-	connected atomic.Pointer[map[couchmessage.Binding]bool]
+	// hubTargets is admission's warm source for target slots (pair#726); nil
+	// without hub ownership.
+	hubTargets *hubTargetMemo
+	panes      *couchmessage.PaneMailbox
+	inbox      chan messageInput
+	admitting  chan struct{}
+	connected  atomic.Pointer[map[couchmessage.Binding]bool]
 
 	// hostedIngest is installed once the Console is ready; requests take a fresh snapshot.
 	hostedIngest atomic.Pointer[func() couchcore.HostedIngestSnapshot]
@@ -266,6 +269,9 @@ func (s *messageService) Close() {
 	_ = s.sessions.Close()
 	_ = s.broker.Close()
 	s.workers.Wait()
+	if s.hubTargets != nil {
+		s.hubTargets.wait()
+	}
 	if log := s.facts.Load(); log != nil {
 		log.Close()
 	}
@@ -608,6 +614,11 @@ func newMessageService(parent context.Context, brokerSocket, registrySocket stri
 	s.connected.Store(&map[couchmessage.Binding]bool{})
 	if slotOps != nil {
 		slotOps.authorizePark = s.authorizeParkAdmission
+	}
+	if authority.hubTarget != nil {
+		// Every fresh resolution refreshes admission's memo (pair#726).
+		s.hubTargets = newHubTargetMemo(lifetime, authority.hubTarget, authority.now)
+		s.authority.hubTarget = s.hubTargets.Fresh
 	}
 	// Family admission's resting check is on the request path (one git status
 	// per candidate per send); listings read the Console's slot-git cache.
