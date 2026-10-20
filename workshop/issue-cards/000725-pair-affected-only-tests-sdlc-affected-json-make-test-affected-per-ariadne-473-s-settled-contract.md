@@ -1,6 +1,6 @@
 ---
 id: 000725
-status: codecomplete
+status: done
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours: 2.21
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 3b8bcbebec9a8fa74253b781cdf6872644ff49ae
         evidence_commit: 4e37d7ccc661323d050737fedff18658bd1c11cd
+        landed_commit: 9542126260af6ce6ce8161b8a1680b8496fb4a18
 ---
 
 # pair affected-only tests: .sdlc/affected.json + make test-affected, per ariadne#473's settled contract
