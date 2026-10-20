@@ -82,6 +82,87 @@ rounds:
       recipe: small-diff-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 853a4833-c96b-481b-b7bd-6d0f291068dd
+            repository: github.com/xianxu/pair
+            issue_id: "000709"
+            recipe: small-diff-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/6ee736915fb89185
+            reviewed_head: 514a3b237c535ecb618a68b490e4ce3fbdfe5de6
+            slot: pair:5
+            requested_at: "2026-10-20T04:04:56.510534Z"
+          phase: finished
+          pid: 13660
+          started_at: "2026-10-20T04:04:56.732366Z"
+          finished_at: "2026-10-20T04:05:39.535702Z"
+          session_id: 01a1577b-db78-7d72-82ec-e915eb3939cc
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: 514a3b237c535ecb618a68b490e4ce3fbdfe5de6
+        tracker_head: 22e710c4923297332298e703350c1650c1ae7621
+        branch_point: 2106313091e8a16aa8ea5bcc2c19c88856bbdd0c
+        since: "2026-10-19T20:14:40-07:00"
+        until: "2026-10-19T21:04:01-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-19T20:14:40-07:00"
+              end: "2026-10-19T21:04:01-07:00"
+              began: "2026-10-19T20:14:40-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot5/pair
+        sources:
+            - harness: codex
+              id: 01a1574c-1cb1-7e92-adfe-354342364799
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              digest: 731ee382343f46a149ca05e77680c1d08053074bc92e3c066efd2b50b29fd910
+              started: "2026-10-20T03:12:49.04Z"
+              spawned: false
+              bytes: 1625988
+              windows:
+                - start: "2026-10-19T20:14:40-07:00"
+                  end: "2026-10-19T21:04:01-07:00"
+        queue_waits:
+            - attempt_id: e5b9ea2dd1d90ef283cd8304af62865e
+              slot: pair:5
+              record_digest: b156968abcc589f87af8cf9f697f866225df8014e81f3da46b11dea5a69bffef
+              start: "2026-10-20T03:16:52.461874Z"
+              end: "2026-10-20T03:23:57.049846Z"
+              queue_seconds: 424.587972
+              raw_seconds: 424.587972
+              exact: true
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 34.72248333333333
+        cuts:
+            - dispatched: "2026-10-19T21:02:23-07:00"
+              finalized: "2026-10-19T21:03:25-07:00"
+              finalizing: false
+      "n": 2
+      timestamp: "2026-10-19T21:05:41-07:00"
+      dispatched: "2026-10-19T21:04:53-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: README.md:1983–1987 now covers the config path/key, 60-minute value, inherited car limit, status command, operator label and atlas link. These agree with .sdlc/landing.json:2, atlas/index.md:26 and the .sdlc/* protection and label check in .github/workflows/local-gates-guard.yml. This is a prose-only correction; no behavioral regression test is required.
+          round: 2
+      recipe: small-diff-review
+      isolation: fenced
+      reviewed: 514a3b237c535ecb618a68b490e4ce3fbdfe5de6
+      blocked: false
 ---
 
 # Gate ledger — pair#709 (boundary-review)
@@ -96,6 +177,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-1** [Important] `user-surface-readme-coverage` (kind: defect) README update appears missing for the landing-train configuration
   .sdlc/landing.json:2 introduces train_interval_minutes, and atlas/index.md:26 introduces the pilot's operator-facing inspection instructions, but README.md is unchanged and contains no landing-train guidance. The complete family in this window comprises the config path/key and 60-minute setting, the sdlc landing status inspection command, and operator verification through local-gates-verified. Add a concise README passage covering these together and linking to the atlas entry.
 
+## Round 2 — 2026-10-19T21:05:41-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — README.md:1983–1987 now covers the config path/key, 60-minute value, inherited car limit, status command, operator label and atlas link. These agree with .sdlc/landing.json:2, atlas/index.md:26 and the .sdlc/* protection and label check in .github/workflows/local-gates-guard.yml. This is a prose-only correction; no behavioral regression test is required.
+
 ## Open findings
 
-- **BR-1** [Important] `user-surface-readme-coverage` (kind: defect) README update appears missing for the landing-train configuration
+(none — every finding has been disposed)

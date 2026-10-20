@@ -51,6 +51,7 @@ train PR's merge commit, and its `sdlc landing status` line, and record them in 
 ## Log
 
 ### 2026-10-19
+- 2026-10-19: closed — JSON validation and provider config/status/label controls pass. Recorded suite exit0 on d0b77effdafdcd7874fce0a8acb4384e6deb7edf, 8m57s, log sha256 prefix2a00c0f3d785; descendants docs-only. BR-1 corrected across README config path/key/value, default cap, main read, status, operator label and TL owner with atlas link; diff check passes. Operator label confirmed on PR469. TL owns real multi-car follow-up per bd560b95; main status follows merge. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 
 Claimed and started from fresh main. TL dispatch e96c835f approves the one-file 60-minute pilot; #622 remains claimed pending a separate coordinated restart. Startup weave regenerated local-gates-guard.yml and merge-check.yml; reverted only those generated changes per dispatch (#699 pending). Baseline sdlc landing status reports trains off.
 
