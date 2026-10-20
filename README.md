@@ -1995,6 +1995,9 @@ Every valid selection runs the environment-inventory guard `test-make-env` once
 The independent per-recipe audit in `tests/affected-consumers.json` asserts the
 real planner covers command roots, dependencies and file inputs. A separate
 Go-reader inventory refuses new or changed unmapped source readers for re-audit.
+An independent source-walker check requires preflight registration even for a
+reader labelled as a local fixture; a native seeded-violation regression drives
+the actual affected command in a disposable checkout.
 `make test` retains every existing check and adds runner, reader-inventory and
 declaration regressions; landing still requires SDLC's full-suite evidence.
 

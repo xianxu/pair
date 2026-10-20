@@ -308,3 +308,110 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000411
+
+---
+
+## Re-review — 2026-10-20T03:39:57-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 725 — pair affected-only tests: .sdlc/affected.json + make test-affected, per ariadne#473's settled contract |
+| repo | pair |
+| issue file | workshop/issues/000725-pair-affected-only-tests-sdlc-affected-json-make-test-affected-per-ariadne-473-s-settled-contract.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | ab32acea6c97663232623b2881e7e7c91aae8a17..f7a52217447bfc52f67fb2054503a256a8146b37 |
+| command | sdlc close --issue 725 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T03:39:57-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-3’s non-Go fallback correction is verified, including a regression that fails when the correction is reverted. However, the new Go scanner preflight omits repository-wide consumers misclassified as local fixtures. A disposable-checkout mutation demonstrates the resulting coverage gap.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Actual upstream planner/Pair-graph tests pass for audited group command roots and their transitive dependencies.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Actual file-consumer fixtures pass: audited non-Go inputs now conservatively force full coverage, including the previously omitted Lua inputs.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      TestActualNonGoInputsForceFull passes against upstream 113e7767719b5b4b4964ba9a8f5e73fecce825b8. Restoring the pre-fix declaration in a disposable checkout makes it fail for labels.py, workbench_actions.lua, init.lua, adapt-golden.expected and config.kdl, among others.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: affected-consumer-coverage
+    title: |
+      Repository-wide Go scanners are misclassified and omitted from affected runs
+    detail: |
+      tests/affected-go-readers.json:91,183 classifies deletedvocabulary_test.go and couchcore/retire_test.go as local_or_literal_fixture, although their tests scan production files across the repository. Neither TestDeletedVocabularyIsNotDescribedAsLive nor TestOnlyTeardownProofHasNoProductionCaller appears in scripts/test-affected.py's SOURCE_GUARDS. For the planner-verified slugcmd/slug.go selection, neither owning package is selected; the preflight filters out both tests. In a disposable pinned-head checkout, appending "// TreeSummary is the active session model." to slugcmd/slug.go made the deleted-vocabulary test fail while the complete fixed preflight exited 0. ARCH-PURPOSE: This is the 4th finding in family affected-consumer-coverage. Earlier rounds fixed instances. Do not fix only these two registrations: state and enforce the rule for cross-package readers, re-audit all 372 local/fixture dispositions including helper-mediated reads, and add regression evidence that affected execution catches cross-package violations.
+```
+
+1. **Strengths**
+
+   - Selection validation and argv construction remain pure; malformed inputs are rejected before child effects.
+   - Stateful recorder tests exercise the real Make entrypoint, failure propagation and private-binary cleanup.
+   - Configuration fixtures use the actual upstream parser/planner and Pair dependency graph.
+   - README and atlas updates cover the new command, fallbacks and preflights.
+
+2. **Critical findings**
+
+   The finding above blocks shipping. The incorrect classifications are at `tests/affected-go-readers.json:91,183`; the omitted consumers are implemented at `cmd/internal/artifactpath/deletedvocabulary_test.go:65` and `cmd/internal/couchcore/retire_test.go:308`.
+
+   Re-audit reader classifications against their actual input scope, register every cross-package scanner or conservatively select full, and test coverage independently of the registry being checked.
+
+3. **Important findings**
+
+   None additional.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Passed 11 runner tests, six reader-inventory tests, and explicit upstream parser/planner qualification. Reverting BR-3’s declaration correction produced the expected coverage failures. The scanner mutation demonstrated a false-negative preflight. Disposable checkouts were removed; the reviewed checkout remains clean. The full suite was not rerun.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** reuses upstream planning and existing Make recipes.
+   - **ARCH-PURE — pass:** pure selection functions and thin execution shell.
+   - **ARCH-PURPOSE — flag:** scanner coverage remains incomplete, as demonstrated above.
+   - **ARCH-MOCK — pass:** stateful child recorder and native qualification share production boundaries.
+   - **ARCH-CONSTRAINTS — pass:** fixed preflight invocation count and bounded child timeouts.
+   - **ARCH-SECURE — pass:** validated selection becomes argv without shell interpolation.
+   - **ARCH-ORDER — pass:** synchronous execution stops on failure; no background lifetime.
+   - **ARCH-FUNERAL — pass:** temporary artifacts have context-managed cleanup.
+   - **ARCH-EVOLVE — pass:** declaration is not rewritten; upstream strict parsing protects selection semantics.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry defining cross-package readers by actual inputs, including helper-mediated reads. Record the complete disposition re-audit and require an independently seeded violation to fail affected execution. Retain the outstanding full-suite and final timing qualification tasks.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"3aedd0d7-d0dd-4664-8fbf-ded88ba08f27","repository":"github.com/xianxu/pair","issue_id":"000725","recipe":"milestone-review","round":4,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/e63c0cf69697fa42","reviewed_head":"f7a52217447bfc52f67fb2054503a256a8146b37","slot":"pair:3","requested_at":"2026-10-20T10:36:32.958475Z"},"phase":"finished","pid":99974,"started_at":"2026-10-20T10:36:33.120526Z","finished_at":"2026-10-20T10:39:57.360563Z","session_id":"01a158e2-6142-78b2-a733-61a8b1769288","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.581007084s
+head: "f7a52217447bfc52f67fb2054503a256a8146b37"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

@@ -493,6 +493,188 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 3aedd0d7-d0dd-4664-8fbf-ded88ba08f27
+            repository: github.com/xianxu/pair
+            issue_id: "000725"
+            recipe: milestone-review
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/e63c0cf69697fa42
+            reviewed_head: f7a52217447bfc52f67fb2054503a256a8146b37
+            slot: pair:3
+            requested_at: "2026-10-20T10:36:32.958475Z"
+          phase: finished
+          pid: 99974
+          started_at: "2026-10-20T10:36:33.120526Z"
+          finished_at: "2026-10-20T10:39:57.360563Z"
+          session_id: 01a158e2-6142-78b2-a733-61a8b1769288
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: f7a52217447bfc52f67fb2054503a256a8146b37
+        tracker_head: c5b4a9f472243597b12bb2a1a08a3cab0967385f
+        branch_point: ab32acea6c97663232623b2881e7e7c91aae8a17
+        since: "2026-10-20T02:22:02-07:00"
+        until: "2026-10-20T03:35:40-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-20T02:22:02-07:00"
+              end: "2026-10-20T03:35:40-07:00"
+              began: "2026-10-20T02:22:02-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot3/pair
+        sources:
+            - harness: codex
+              id: 01a15810-571b-7123-9206-e124cade8c8a
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: b82ac9e131658ec9848228a1e4025814760aa94b5c35d2887b7247e04234de5d
+              started: "2026-10-20T06:47:08.671Z"
+              spawned: false
+              bytes: 7689555
+              windows:
+                - start: "2026-10-20T02:22:02-07:00"
+                  end: "2026-10-20T03:35:40-07:00"
+            - harness: codex
+              id: 01a1589e-9c30-7462-9d48-d5a266b57dfc
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a15810-571b-7123-9206-e124cade8c8a
+              digest: 68af452e18eec6d65598d57fc3013fc7ea326c27694d5df93192cc20b8a98994
+              started: "2026-10-20T09:22:32.176Z"
+              spawned: true
+              bytes: 528451
+              windows:
+                - start: "2026-10-20T09:22:32.176Z"
+                  end: "2026-10-20T03:35:40-07:00"
+            - harness: codex
+              id: 01a158a2-891f-7bb0-a8bd-099e54105678
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: 0be893ece2612c1e78a1a473d1b5f33a873ab75d9f46a9dd0a705c297f78ecc5
+              started: "2026-10-20T09:26:49.854Z"
+              spawned: false
+              bytes: 487657
+              windows:
+                - start: "2026-10-20T09:26:49.854Z"
+                  end: "2026-10-20T03:35:40-07:00"
+            - harness: codex
+              id: 01a158a4-6d29-7801-b850-eab4f006c584
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: 55af6f00c737256d833f33e1e4f8048f385945d47c12f8b35c97e04505141cc2
+              started: "2026-10-20T09:28:53.658Z"
+              spawned: false
+              bytes: 404580
+              windows:
+                - start: "2026-10-20T09:28:53.658Z"
+                  end: "2026-10-20T03:35:40-07:00"
+            - harness: codex
+              id: 01a158a5-f5e7-78c3-b32d-91c4a8ff4f88
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: 334946c6e69ada73c0855a250a9fdaf0a530afea4b5dcd915868f3cbc34647fd
+              started: "2026-10-20T09:30:34.78Z"
+              spawned: false
+              bytes: 394655
+              windows:
+                - start: "2026-10-20T09:30:34.78Z"
+                  end: "2026-10-20T03:35:40-07:00"
+            - harness: codex
+              id: 01a158a6-687a-7f11-971d-ffdaf3b8500a
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: 456f5a46b433bb2176d35c745440d7c3efb7406aa4ce41fc7c5690342ccafd76
+              started: "2026-10-20T09:31:03.65Z"
+              spawned: false
+              bytes: 401115
+              windows:
+                - start: "2026-10-20T09:31:03.65Z"
+                  end: "2026-10-20T03:35:40-07:00"
+            - harness: codex
+              id: 01a158a8-e5f4-7681-8bd6-2773c44f4444
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: ad2bf15d62a1e892413c00154e72f1e4b080892836926a1154ed228fbd988f7f
+              started: "2026-10-20T09:33:46.808Z"
+              spawned: false
+              bytes: 5031725
+              windows:
+                - start: "2026-10-20T09:33:46.808Z"
+                  end: "2026-10-20T03:35:40-07:00"
+            - harness: codex
+              id: 01a158a9-ac51-76e3-a19e-fadafe8a699a
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a158a8-e5f4-7681-8bd6-2773c44f4444
+              digest: 1c41abcdb300fd1ebd427dca35fa3a291b4bc05f25956d3fc7fcba095b22eef3
+              started: "2026-10-20T09:34:37.346Z"
+              spawned: true
+              bytes: 2534217
+              windows:
+                - start: "2026-10-20T09:34:37.346Z"
+                  end: "2026-10-20T03:35:40-07:00"
+            - harness: codex
+              id: 01a158b4-0751-7763-ae55-45adef642419
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a158a8-e5f4-7681-8bd6-2773c44f4444
+              digest: 318f89fac3468108b48fdf8a75bdf32a1a8aadcc15206e7155b4b32bab7591dd
+              started: "2026-10-20T09:45:55.96Z"
+              spawned: true
+              bytes: 2479248
+              windows:
+                - start: "2026-10-20T09:45:55.96Z"
+                  end: "2026-10-20T03:35:40-07:00"
+        cuts:
+            - dispatched: "2026-10-20T02:42:02-07:00"
+              finalized: "2026-10-20T02:44:33-07:00"
+              finalizing: false
+            - dispatched: "2026-10-20T02:56:20-07:00"
+              finalized: "2026-10-20T02:59:29-07:00"
+              finalizing: false
+            - dispatched: "2026-10-20T03:13:05-07:00"
+              finalized: "2026-10-20T03:15:48-07:00"
+              finalizing: false
+      "n": 4
+      timestamp: "2026-10-20T03:39:58-07:00"
+      dispatched: "2026-10-20T03:36:30-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Actual upstream planner/Pair-graph tests pass for audited group command roots and their transitive dependencies.
+          round: 4
+        - id: BR-2
+          disposition: addressed
+          note: 'Actual file-consumer fixtures pass: audited non-Go inputs now conservatively force full coverage, including the previously omitted Lua inputs.'
+          round: 4
+        - id: BR-3
+          disposition: addressed
+          note: TestActualNonGoInputsForceFull passes against upstream 113e7767719b5b4b4964ba9a8f5e73fecce825b8. Restoring the pre-fix declaration in a disposable checkout makes it fail for labels.py, workbench_actions.lua, init.lua, adapt-golden.expected and config.kdl, among others.
+          round: 4
+      findings:
+        - kind: defect
+          id: BR-4
+          severity: Critical
+          title: Repository-wide Go scanners are misclassified and omitted from affected runs
+          detail: 'tests/affected-go-readers.json:91,183 classifies deletedvocabulary_test.go and couchcore/retire_test.go as local_or_literal_fixture, although their tests scan production files across the repository. Neither TestDeletedVocabularyIsNotDescribedAsLive nor TestOnlyTeardownProofHasNoProductionCaller appears in scripts/test-affected.py''s SOURCE_GUARDS. For the planner-verified slugcmd/slug.go selection, neither owning package is selected; the preflight filters out both tests. In a disposable pinned-head checkout, appending "// TreeSummary is the active session model." to slugcmd/slug.go made the deleted-vocabulary test fail while the complete fixed preflight exited 0. ARCH-PURPOSE: This is the 4th finding in family affected-consumer-coverage. Earlier rounds fixed instances. Do not fix only these two registrations: state and enforce the rule for cross-package readers, re-audit all 372 local/fixture dispositions including helper-mediated reads, and add regression evidence that affected execution catches cross-package violations.'
+          family: affected-consumer-coverage
+          round: 4
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#725 (boundary-review)
@@ -530,6 +712,19 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Critical] `affected-consumer-coverage` (kind: defect) Non-Go changes omit Go tests that execute or read those inputs
   .sdlc/affected.json:33,123 claims inputs without selecting their consuming Go tests. Against upstream d6309691af55cb39765a55623ed01f5ab31212e2 and Pair's actual graph, nvim/workbench_actions.lua selects Full=false, GoPkgs=[], groups=[build lua review shell], omitting workbenchshortcut's TestRenderedLuaGlobalMapsMatchCommittedFile (shortcut_test.go:354). scripts/supervision-labels/labels.py similarly selects only build, omitting couchcmd's real Python integration test (supervision_fact_storage_test.go:50). Additional confirmed inputs are nvim/init.lua, tests/adapt-golden.expected and zellij/config.kdl; all produce empty GoPkgs despite direct Go-test consumers. The runner adds only runtimebundle for lua, so these consumers remain unexecuted. ARCH-PURPOSE: This is the 3rd finding in family affected-consumer-coverage. Earlier rounds fixed instances. Extend the governing rule and inventory to every test consumer, including Go tests' external file reads and subprocess inputs; sweep the class and enforce consumer execution or full fallback through actual-planner and runner regressions. Reconcile the scripts-only selection requirement explicitly rather than leaving its Go integration consumer uncovered.
 
+## Round 4 — 2026-10-20T03:39:58-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Actual upstream planner/Pair-graph tests pass for audited group command roots and their transitive dependencies.
+- BR-2 — addressed — Actual file-consumer fixtures pass: audited non-Go inputs now conservatively force full coverage, including the previously omitted Lua inputs.
+- BR-3 — addressed — TestActualNonGoInputsForceFull passes against upstream 113e7767719b5b4b4964ba9a8f5e73fecce825b8. Restoring the pre-fix declaration in a disposable checkout makes it fail for labels.py, workbench_actions.lua, init.lua, adapt-golden.expected and config.kdl, among others.
+
+### Raised
+
+- **BR-4** [Critical] `affected-consumer-coverage` (kind: defect) Repository-wide Go scanners are misclassified and omitted from affected runs
+  tests/affected-go-readers.json:91,183 classifies deletedvocabulary_test.go and couchcore/retire_test.go as local_or_literal_fixture, although their tests scan production files across the repository. Neither TestDeletedVocabularyIsNotDescribedAsLive nor TestOnlyTeardownProofHasNoProductionCaller appears in scripts/test-affected.py's SOURCE_GUARDS. For the planner-verified slugcmd/slug.go selection, neither owning package is selected; the preflight filters out both tests. In a disposable pinned-head checkout, appending "// TreeSummary is the active session model." to slugcmd/slug.go made the deleted-vocabulary test fail while the complete fixed preflight exited 0. ARCH-PURPOSE: This is the 4th finding in family affected-consumer-coverage. Earlier rounds fixed instances. Do not fix only these two registrations: state and enforce the rule for cross-package readers, re-audit all 372 local/fixture dispositions including helper-mediated reads, and add regression evidence that affected execution catches cross-package violations.
+
 ## Open findings
 
-- **BR-3** [Critical] `affected-consumer-coverage` (kind: defect) Non-Go changes omit Go tests that execute or read those inputs
+- **BR-4** [Critical] `affected-consumer-coverage` (kind: defect) Repository-wide Go scanners are misclassified and omitted from affected runs
