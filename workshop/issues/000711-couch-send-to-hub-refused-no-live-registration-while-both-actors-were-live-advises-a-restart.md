@@ -16,6 +16,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "610cc940", done: "c315e15f"}
 ---
 
 # couch --send-to hub refused 'no live registration' while both actors were live; advises a restart
