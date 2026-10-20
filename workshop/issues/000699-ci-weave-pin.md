@@ -1,13 +1,21 @@
 ---
 id: 000699
-status: open
+status: working
 deps: [ariadne#459]
 github_issue:
 created: 2026-10-19
 updated: 2026-10-19
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'fe23cc072a6bb297ac4389a5543f146d063aa778' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'e1d0f237a439f55cef4dc95b55906efa79c90df3' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-19T21:32:38-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # CI: build weave from a pinned ariadne commit
