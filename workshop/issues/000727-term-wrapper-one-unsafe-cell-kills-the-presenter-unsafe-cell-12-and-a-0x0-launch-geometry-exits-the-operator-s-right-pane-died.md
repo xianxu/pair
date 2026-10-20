@@ -158,3 +158,30 @@ total: 1.98
 The deterministic reconciliation gate caught a summed-design typo: the unchanged
 itemized design values total 0.485, not 0.585. Recomputed the total as 1.97775h
 (1.98 rounded), with no item back-fitting or gate bypass. Plan-quality remained clean.
+
+### 2026-10-20 — implementation checkpoint and semantic regressions
+
+Full change-code passed after clean plan-quality review. Implemented backend-only
+row repair, once-per-endpoint bounded codepoint evidence through the registered
+buffered diagnostic writer, launch-size waiting, pure recovery authority and
+native shell handoff, plus confirmed-absence right-pane recreation. Frame and
+panel safety remain strict. README/atlas describe recovery and evidence location.
+
+Semantic reds: unsafe screen/history snapshots failed presentation and emitted no
+fault observation; oversized evidence scanned the entire supplied content; zero
+launch geometry failed immediately; a closed signal channel incorrectly ended
+sessions; profile setup failure skipped shell handoff while non-TTY pipes wrongly
+qualified; the missing-pane shortcut wrote to stale IDs or accepted unknown
+inventory. Each now has a passing targeted regression. The native fake initially
+misclassified new-pane as requiring a focused target, exposed by the foreign-tab
+negative control; corrected the fixture, retaining explicit invoking-tab checks.
+
+Evidence so far: terminal cell/strict-frame/presenter tests with the xterm oracle
+and race detector passed (8.359s); recovery/geometry/real-PTY handoff and signal
+race tests passed (2.872s); diagnostic admission and shortcut fixture tests passed;
+artifact source inventory passed (29.506s). Worst-case sampled fault evidence is
+1560 bytes against the sink's 4096-byte bound. A broader affected-package run
+started during the production-wiring TDD and recorded its two expected semantic
+reds; the final recovery run is green. Remaining work: final affected-package
+verification, recorded full suite, close review and landing. No live acceptance
+claimed; no pair:0 changes.
