@@ -285,3 +285,67 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T00:09:24-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 691 — couch --keys: allow Esc to dismiss a slash-command panel the hub opened (e.g. /usage) |
+| repo | pair |
+| issue file | workshop/issues/000691-couch-keys-allow-esc-to-dismiss-a-slash-command-panel-the-hub-opened-e-g-usage.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | d5450cd9578396d018b938062b2b3a0841ada13a..a5c7d1cc16da78c133c7ebf4740255058f6d57eb |
+| command | sdlc close --issue 691 |
+| reviewer | claude (anthropic; author anthropic) |
+| isolation | fenced |
+| timestamp | 2026-10-20T00:09:24-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+This window has one code change: the `workingTurnScreens` helper in `cmd/internal/agentdrive/panel_test.go:44-58`. The other changed files are generated ledger and review records for round 3. The fix resolves BR-3. The helper now walks back past the composer's closing rule to its opening rule, puts `"  Esc to cancel"` on the row just above the box, and keeps the screen at 39 rows by dropping the top row. I checked placement by adding a temporary test to this checkout that printed the variant's last rows, then deleted it. For all three working-turn captures (working-thinking, working-after-usage, working-shell), the footer words now sit immediately above the opening `─` rule and the `❯` prompt row, outside the box. The new `Fatalf` guard (`panel_test.go:54`) stops the walk-back from silently landing on the wrong row if a capture changes. `TestDismissablePanel*` passes and `go vet` is clean. The spec, revisions and Done-when are unchanged, and there are no conflict resolutions to judge.
+
+1. **Strengths**
+   - `panel_test.go:46-57` now uses the same walk-back as the correct wrapcmd variant (`agent_drive_panel_test.go:113-123`), so the two packages test the same case.
+   - The new guard at `panel_test.go:54-56` checks the placement rather than assuming it, which closes off the way BR-3 got in.
+2. **Critical:** none.
+3. **Important:** none.
+4. **Minor:** none new.
+5. **Test coverage notes:** The "above the composer" variant now tests the case its name describes, and `TestDismissablePanelRefusesEveryWorkingTurn` still refuses all nine screens.
+   - On the family rule: this is the only finding in `test-variant-fidelity`, not a repeat. Its rule is that a negative variant must assert its own placement. The guard does that here, and the wrapcmd sibling was already correct, so I found no other instance to fix.
+6. **Architecture notes:**
+   - **ARCH-DRY:** pass. The fix copies the wrapcmd walk-back instead of sharing a helper with it. That duplication across two test packages is old code outside this window. It could become a shared testdata helper later.
+   - **ARCH-PURE:** pass. Test-only change, no IO beyond reading the captures.
+   - **ARCH-PURPOSE:** pass. The finding's class was swept: wrapcmd, the only other instance, was already correct.
+   - **ARCH-EVOLVE:** pass. No persisted format changed.
+7. **Plan revision recommendations:** none.
+
+```findings
+dispose:
+  - id: BR-3
+    disposition: addressed
+    note: |
+      panel_test.go:44-58 now walks back to the opening rule (guarded by a prompt-row Fatalf) and inserts above it; probe confirmed footer sits directly above the opening rule on all three captures, length kept at 39; tests pass.
+```
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"325d111e-ee4c-423e-90c7-66a1e4222045","repository":"github.com/xianxu/pair","issue_id":"000691","recipe":"fix-review","round":4,"attempt":1,"agent":"claude","root":"/Volumes/TestScratch/review-checkouts/91f5e0a3336859dd","reviewed_head":"a5c7d1cc16da78c133c7ebf4740255058f6d57eb","slot":"pair:2","requested_at":"2026-10-20T07:08:42.472123Z"},"phase":"finished","pid":67484,"started_at":"2026-10-20T07:08:42.646142Z","finished_at":"2026-10-20T07:09:22.784988Z","session_id":"55c5b588-66df-40cb-8a15-0f87b10439ad","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.238876875s
+head: "a5c7d1cc16da78c133c7ebf4740255058f6d57eb"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

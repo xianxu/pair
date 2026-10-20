@@ -347,6 +347,177 @@ rounds:
       isolation: fenced
       reviewed: 0127de1adbef4af2f798ff5a796d05ab578d8f62
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 325d111e-ee4c-423e-90c7-66a1e4222045
+            repository: github.com/xianxu/pair
+            issue_id: "000691"
+            recipe: fix-review
+            round: 4
+            attempt: 1
+            agent: claude
+            root: /Volumes/TestScratch/review-checkouts/91f5e0a3336859dd
+            reviewed_head: a5c7d1cc16da78c133c7ebf4740255058f6d57eb
+            slot: pair:2
+            requested_at: "2026-10-20T07:08:42.472123Z"
+          phase: finished
+          pid: 67484
+          started_at: "2026-10-20T07:08:42.646142Z"
+          finished_at: "2026-10-20T07:09:22.784988Z"
+          session_id: 55c5b588-66df-40cb-8a15-0f87b10439ad
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: a5c7d1cc16da78c133c7ebf4740255058f6d57eb
+        tracker_head: a18b5f59dd687587cc9aaa33ea96988624f54528
+        branch_point: b98802e09dfa33a77fd723d34948d247a5dd2e34
+        since: "2026-10-19T10:56:26-07:00"
+        until: "2026-10-19T23:46:04-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-19T10:56:26-07:00"
+              end: "2026-10-19T23:46:04-07:00"
+              began: "2026-10-19T10:56:26-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+        sources:
+            - harness: claude
+              id: 7d21d57c-2837-40a9-8da0-3ab6255112f6
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 477aef09988094febffbe0b4369664920b80265d3427398be0025a04b5d530c5
+              started: "2026-10-20T06:17:53.348Z"
+              spawned: false
+              bytes: 529123
+              windows:
+                - start: "2026-10-20T06:17:53.348Z"
+                  end: "2026-10-19T23:46:04-07:00"
+            - harness: claude
+              id: 9073df29-d226-4140-b23c-4f03f2b4c472
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 021a4c84af68f22ec13557618b97bae038fb3600dee82ac5ea1badcf1ab58d7d
+              started: "2026-10-16T03:47:36.231Z"
+              spawned: false
+              bytes: 51622699
+              windows:
+                - start: "2026-10-19T10:56:26-07:00"
+                  end: "2026-10-19T23:46:04-07:00"
+        queue_waits:
+            - attempt_id: cd4ee0b94dcaed3f18e219054115a78f
+              slot: pair:2
+              record_digest: da028b1b028b59f89850af753ac08c92d8920e29802c3d6337d7f993d29b95fb
+              start: "2026-10-20T00:04:54.726784Z"
+              end: "2026-10-20T00:42:58.023022Z"
+              queue_seconds: 2283.296238
+              raw_seconds: 2283.296238
+              exact: true
+            - attempt_id: ce1c1ce18b53f9e7939df11f1e5c5308
+              slot: pair:2
+              record_digest: 9632d6fb691d4dc5b2aa94316ce97ed3758e94c0397155b1d156f761d3d798c8
+              start: "2026-10-20T00:51:50.252789Z"
+              end: "2026-10-20T00:59:53.324764Z"
+              queue_seconds: 483.071975
+              raw_seconds: 483.071975
+              exact: true
+            - attempt_id: 2924851d5401f4a3e7419c21b7a261c7
+              slot: pair:2
+              record_digest: 1d16d8da4a882acacc9ef789a89832f94c3fa8ab6f4185561ef33db96231b4d3
+              start: "2026-10-20T01:33:24.999426Z"
+              end: "2026-10-20T02:00:01.699183Z"
+              queue_seconds: 1596.699757
+              raw_seconds: 1596.699757
+              exact: true
+            - attempt_id: 0bd80ef28c69da0bddfae4d53277a8fb
+              slot: pair:2
+              record_digest: 7449e5fa7be0d5ad88e3a93e9c3fb18b55f6e7b624dda0da50e9ee6af7a04710
+              start: "2026-10-20T02:23:16.713835Z"
+              end: "2026-10-20T02:52:05.489712Z"
+              queue_seconds: 1728.775877
+              raw_seconds: 1728.775877
+              exact: true
+            - attempt_id: 59087d99b62331e30d21a91c60bf6211
+              slot: pair:2
+              record_digest: bfaa9c8b9e977da38866f00e828ab87a63623d1d972cf3284d90252f0700fbc0
+              start: "2026-10-20T03:11:11.77043Z"
+              end: "2026-10-20T03:17:45.145594Z"
+              queue_seconds: 393.375164
+              raw_seconds: 393.375164
+              exact: true
+            - attempt_id: a61f0200798345d1cb12419146c00045
+              slot: pair:2
+              record_digest: a9954a2b36f8eeaf3a0c6f64bd9a2528b21f799d1c6eef1290577f19679cd10d
+              start: "2026-10-20T03:28:55.010894Z"
+              end: "2026-10-20T04:08:23.491694Z"
+              queue_seconds: 2368.4808
+              raw_seconds: 2368.4808
+              exact: true
+            - attempt_id: b2728941baf6ce9b02474a500271d4d8
+              slot: pair:2
+              record_digest: dacb0f5882c7ff0b8b734e6fa7cb1c118046d30e755769aa1623a65165127e3c
+              start: "2026-10-20T04:20:01.74038Z"
+              end: "2026-10-20T04:48:43.275022Z"
+              queue_seconds: 1721.534642
+              raw_seconds: 1721.534642
+              exact: true
+            - attempt_id: d9aeec08cd03228d44e0aaf84f705bd7
+              slot: pair:2
+              record_digest: d5853f65baae00b8bd15bd39b238f0d27c923f08e378789bccbfb12b495b039f
+              start: "2026-10-20T05:17:02.488914Z"
+              end: "2026-10-20T05:51:10.074897Z"
+              queue_seconds: 2047.585983
+              raw_seconds: 2047.585983
+              exact: true
+            - attempt_id: c4a4edcf8f17141b9c95d0bfd85e9cdf
+              slot: pair:2
+              record_digest: da5cda31a0be7a532840e2434bc7b0d5630906697be795b2950fe99cc2b2d543
+              start: "2026-10-20T06:18:58.024967Z"
+              end: "2026-10-20T06:32:09.788805Z"
+              queue_seconds: 791.763838
+              raw_seconds: 791.763838
+              exact: true
+        protected:
+            - issue: "716"
+              slot: pair:2
+              start: "2026-10-20T02:15:05.843Z"
+              end: "2026-10-19T19:23:08-07:00"
+            - issue: "716"
+              slot: pair:2
+              start: "2026-10-19T20:09:42-07:00"
+              end: "2026-10-20T03:11:00.435Z"
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 135.59473333333332
+        cuts:
+            - dispatched: "2026-10-19T18:09:50-07:00"
+              finalized: "2026-10-19T18:13:17-07:00"
+              finalizing: false
+            - dispatched: "2026-10-19T18:14:38-07:00"
+              finalized: "2026-10-19T18:19:53-07:00"
+              finalizing: true
+            - dispatched: "2026-10-19T23:41:44-07:00"
+              finalized: "2026-10-19T23:45:36-07:00"
+              finalizing: true
+      "n": 4
+      timestamp: "2026-10-20T00:09:24-07:00"
+      dispatched: "2026-10-20T00:08:39-07:00"
+      agent: claude
+      reviewer: claude (anthropic; author anthropic)
+      dispose:
+        - id: BR-3
+          disposition: addressed
+          note: panel_test.go:44-58 now walks back to the opening rule (guarded by a prompt-row Fatalf) and inserts above it; probe confirmed footer sits directly above the opening rule on all three captures, length kept at 39; tests pass.
+          round: 4
+      recipe: fix-review
+      isolation: fenced
+      reviewed: a5c7d1cc16da78c133c7ebf4740255058f6d57eb
+      blocked: false
 ---
 
 # Gate ledger — pair#691 (boundary-review)
@@ -383,6 +554,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Minor] `test-variant-fidelity` (kind: defect) agentdrive "footer words above the composer" variant actually inserts inside the composer box
   panel_test.go:47 inserts at closing-rule-index minus 1 (after the opening rule), so the variant passes without testing the case its name describes; walk back to the opening rule as wrapcmd agent_drive_panel_test.go:118-126 does.
 
+## Round 4 — 2026-10-20T00:09:24-07:00 (claude) — passed
+
+### Disposed
+
+- BR-3 — addressed — panel_test.go:44-58 now walks back to the opening rule (guarded by a prompt-row Fatalf) and inserts above it; probe confirmed footer sits directly above the opening rule on all three captures, length kept at 39; tests pass.
+
 ## Open findings
 
-- **BR-3** [Minor] `test-variant-fidelity` (kind: defect) agentdrive "footer words above the composer" variant actually inserts inside the composer box
+(none — every finding has been disposed)
