@@ -1,13 +1,13 @@
 ---
 id: 000730
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'cd62c2f81f7dbb904f85d23a21300154e1e53b42' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '6ec219185c4a9032f308606d8f9e4d19e3672ecb' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T10:08:52-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "694c8393", done: "f65fe438"}
+actual_hours: 0.63
 ---
 
 # couch: switcher draws hub rows underlined, not reversed, so the selection is the only reverse-video row
