@@ -1,12 +1,12 @@
 ---
 id: 000622
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-16
-updated: 2026-10-16
+updated: 2026-10-20
 estimate_hours: 3.55725
-card_mirror: '292820b92517d7e8cac87c0a964a0560c4c86c0f' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '0d1823ed313dd1365cf4745855dfb1cec86605f4' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-16T17:03:46-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: N/A
 ---
 
 # Couch server spends ~1 core emulating every hosted client's output in a vt parser, visible or not
