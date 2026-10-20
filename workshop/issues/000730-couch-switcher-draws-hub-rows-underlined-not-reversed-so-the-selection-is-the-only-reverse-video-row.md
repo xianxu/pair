@@ -16,6 +16,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "694c8393", done: "f65fe438"}
 ---
 
 # couch: switcher draws hub rows underlined, not reversed, so the selection is the only reverse-video row
