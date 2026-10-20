@@ -234,3 +234,7 @@ TL2cfd2adc approves this measurement-only revision and the issue's revised Done 
 - [ ] Append both live and controlled results and operator console attestation. Then whole-issue close review and ordinary publication; TL owns portfolio. Temporary worktrees and test drivers are removed by their owner after results are durable; raw private evidence is retained locally until acceptance, with no product worker or growing store.
 
 This is an offline replay of real wrapper scrollback, not a claim of identical production ingress byte mix or a whole-supervisor A/B. The controlled path measures the production ingest/publication mechanism that changed; the live CPU/profile and consumer checks cover deployment conformance. Candidate and baseline receive the same initial state and payload; no per-byte clock is introduced. A single real source is replicated to fixed20 clients, not represented as20 distinct real clients.
+
+### 2026-10-19 22:21 PDT — experiment transferred to #723
+
+TL44449afb moves every pending controlled-replay task in the preceding revision to newly filed and claimed #723. They are historical scope on this plan, not unfinished #622 implementation. #622's active close boundary is production supervisor/client identity, read-only CPU/profile evidence, live peek/waiting and operator console/selection confirmation. No replay driver or experiment has been made in #622's continuation. The original M1/M2 gates stay intact, and no causal live CPU gain is claimed. The operator console answer remains the only pending deployment observation.

@@ -43,15 +43,15 @@ Couch CPU all the time, whether or not anyone is looking at that slot.
 
 ## Done when
 
-- Controlled offline replay of one retained three-minute real scrollback stream, at fixed client count/geometry/chunking, reduces median CPU per byte over three pre-#622 runs versus three current-build runs; no more than four measurement processes run concurrently.
-- Production CPU and native samples are recorded with workload/identity limits; console, live peek and waiting continue to behave normally after the TL-coordinated restart.
-- M1/M2 semantic, race, recorded-suite and SHIP evidence remain the implementation gates; the controlled replay supplies causal performance acceptance rather than attributing unmatched fleet CPU to #622.
+- The restarted production supervisor is identified as running M1/M2, with its hosted-client census and omission status recorded.
+- Production cumulative CPU and native samples are retained with workload/identity limits; live peek, waiting notices and operator-observed console rendering/selection continue to behave normally.
+- M1/M2 semantic, race, recorded-suite and SHIP evidence remain recorded. Causal controlled CPU/byte acceptance belongs to the separately claimed #723, per TL44449afb; #622 does not claim a live workload-matched CPU reduction.
 
 ## Plan
 
 - [x] M1 — land permanent per-hosted-client ingest-byte diagnostics through read-only resources; no parser-policy change.
 - [x] M2 — after the combined restart, measure natural idle/busy rates and server CPU, choose the smallest correct optimization with TL approval, then implement and verify it.
-- [ ] After M2 lands, verify production CPU/sample and console/peek/waiting at the next TL-coordinated Couch restart before whole-issue close.
+- [ ] Verify restarted supervisor/clients, record production CPU/sample, and confirm console/peek/waiting; hand controlled CPU acceptance to #723 before whole-issue close.
 
 
 ## Log
@@ -226,3 +226,14 @@ TL2cfd2adc explicitly replaces the CPU reduction criterion with controlled A/B: 
   the next TL-coordinated restart; fixture timings do not satisfy live acceptance.
 
 The controlled procedure is appended to the existing durable plan. No new optimization, fleet input, live capture enablement, restart or product state is authorized. Fresh documentation branch000622-live-acceptance is based on main; start-plan ran without an issue argument because the canonical #622 stem already has merged PRs. This avoids reusing those branches.
+
+### 2026-10-19 22:21 PDT — CPU criterion moved to independently claimed #723
+
+TL44449afb directs #622 closure on verified deployment/consumer checks and moves controlled performance acceptance to a new issue because PR406 already landed and SDLC cannot express its follow-up branch cleanly. Filed and claimed #723, “pair#622 CPU acceptance: controlled replay A/B”, with committed revision3a6c39219 as its Spec. No driver code or replay experiment was created on this branch. Existing temporary scratch contains only measurement observations and the new issue body. The SDLC gap belongs to TL, not this issue. Operator console/selection attestation remains pending.
+
+The immediately prior Done when is preserved below, superseded by the active contract above. Its controlled criterion is retained in #723 rather than represented as satisfied:
+
+
+- Controlled offline replay of one retained three-minute real scrollback stream, at fixed client count/geometry/chunking, reduces median CPU per byte over three pre-#622 runs versus three current-build runs; no more than four measurement processes run concurrently.
+- Production CPU and native samples are recorded with workload/identity limits; console, live peek and waiting continue to behave normally after the TL-coordinated restart.
+- M1/M2 semantic, race, recorded-suite and SHIP evidence remain the implementation gates; the controlled replay supplies causal performance acceptance rather than attributing unmatched fleet CPU to #622.
