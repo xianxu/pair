@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-19
 updated: 2026-10-19
-estimate_hours:
+estimate_hours: 6.0395
 collaboration-mode: collaboration
-card_mirror: '69ac046214912d497164675c93e78dd8e22e39db' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'f43378955c5ade7a0770c7f1a15d37beb0cb078a' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-19T23:16:03-07:00
 claimant:
     operator: Xian Xu
@@ -61,6 +61,30 @@ The [durable implementation plan](../plans/000722-fleet-drain-plan.md) defines t
 - [ ] Verify real ariadne#481 conformance, isolated wrapper integration, races, docs and required recorded suite; stage/live board check with hub authorization.
 - [ ] Close through the mandatory SDLC review, land through the ordinary gates and report the outcome.
 
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. Calibration is stale per estimate-source, so this is provisional focused ship-time, not a calendar promise or a prediction of the #481 wait.
+
+Decomposition follows the approved plan: initial spec/coordination uses issue-spec design1.0×0.5 and impl0.3×0.4. The pure drain model and supervisor coordinator are two greenfield Go single concerns (design1.0/1.5×0.2, impl0.8×0.4 each). Queue adapter, broker control authority and wrapper interrupt are three API integrations (design1.5/2.0/1.5×0.2, impl1.2/1.5/1.2×0.4). Portable store extends the existing namespace/atomic-write patterns (design0.3×0.2, impl0.5×0.4). Board UI extends current console rendering (design1.0×0.2, impl0.8×0.4). Docs use design0.15×0.2, impl0.2×0.4; one close review uses design0.2×0.2, impl0.5×0.4; real queue/endpoint conformance uses one discovery budget impl0.6×0.4. Existing Go JSON/context/atomic storage and Couch broker/registry/console seams avoid a novel stack; no library replaces this project-specific generation/ownership protocol. Familiarity1.0, thorough-plan design buffer15%, no parallel execution discount. Design2.33×1.15 + impl3.36 =6.0395h.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.5 impl=0.12
+item: greenfield-go-module design=0.2 impl=0.32
+item: api-integration design=0.3 impl=0.48
+item: smaller-go-module design=0.06 impl=0.2
+item: api-integration design=0.4 impl=0.6
+item: api-integration design=0.3 impl=0.48
+item: greenfield-go-module design=0.3 impl=0.32
+item: tui-screen design=0.2 impl=0.32
+item: atlas-docs design=0.03 impl=0.08
+item: milestone-review design=0.04 impl=0.2
+item: real-api-discovery design=0 impl=0.24
+design-buffer: 0.15
+total: 6.0395
+```
+
 ## Log
 
 ### 2026-10-19
@@ -92,3 +116,5 @@ Canonical submitted receipt 0a9b7377 approves the complete plan, four visible st
 ### 2026-10-19 — PQ-1 test strategy correction
 
 Full-flow change-code round1 refused only Important PQ-1 (function-level-test-strategy). Compressed task test inventories into production-function/adversarial-strategy/mechanical-guard descriptions across the plan. The approved design/seam is unchanged; implementation still waits for change-code admission.
+
+Plan-quality round2 CLEAN disposes PQ-1 with no new findings. Derived the estimate only after that result; calibration stale warning retained. Change-code must still finish estimate admission before implementation.
