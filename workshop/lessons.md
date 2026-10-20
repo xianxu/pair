@@ -2437,3 +2437,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #726 BR-7: Prove concurrency with a rendezvous, never elapsed time. Hold each worker's probe until all expected peers are held at once, counting probes held now, not a running total. A serial pass then never meets it, and a bounded safety release reports the failure. Exclude non-worker calls of the same shape (the primary's own probe matched the filter). Mutate to serial and see the test go red before trusting it: two drafts passed under serial.
 - #726: An admission that resolves authority on the request path must answer inside the exchange from warm sources and re-prove authority fresh before any effect. Where the admitted data is the effect's payload (a move's slots), the queued job must re-resolve it fresh and refuse on any difference.
 
+
+- #726 BR-17: A hub-approved scope extension after close still needs a full close review. The narrow fixed-then-ship recipe only covers fixes to the finalized scope; record the new governing contract in Revisions and route the expanded implementation through full close.
