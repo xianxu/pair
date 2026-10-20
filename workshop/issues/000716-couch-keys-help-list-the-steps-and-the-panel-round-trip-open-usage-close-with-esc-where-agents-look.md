@@ -16,6 +16,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "741c05e9", done: "aac7a684"}
 ---
 
 # couch --keys help: list the steps and the panel round trip (open /usage, close with esc) where agents look
