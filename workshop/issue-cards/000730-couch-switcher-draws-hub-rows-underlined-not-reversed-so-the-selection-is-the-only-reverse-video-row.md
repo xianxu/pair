@@ -1,6 +1,6 @@
 ---
 id: 000730
-status: codecomplete
+status: done
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: e4fd5c1cd2372111d926c0cfddfb4e7faf0b8c83
         evidence_commit: edbf9f62a935a7ec5127663633ac5ea6cd9f88d2
+        landed_commit: 4b1f46b03ca7fc8473805055a61d5f0315dd6370
 ---
 
 # couch: switcher draws hub rows underlined, not reversed, so the selection is the only reverse-video row
