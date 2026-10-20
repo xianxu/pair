@@ -271,3 +271,31 @@ func TestRecoveryNativeOnlyFreshKeepsReadableScreen(t *testing.T) {
 		t.Fatalf("Fresh discarded readable orientation: %+v preserves=%d", result, f.preserved)
 	}
 }
+
+func TestRecoveryNativeOnlyArchiveMetadataSharesReadBudget(t *testing.T) {
+	reader, record := recoveryEvidenceFixture(t, true)
+	observed, err := reader.Read(context.Background(), record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	archived, err := reader.Preserve(context.Background(), record, observed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record.RecoveryContext = &threadrecord.RecoveryContext{Capture: archived.Capture}
+	paths, err := reader.recoveryPaths(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	files, err := paths.ParkedScrollbackArtifacts(archived.Capture.Token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(files.Metadata, []byte("{invalid"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := reader.ReadRequest(context.Background(), record, RecoveryObservationRequest{ObservedAt: time.Now().UTC(), BytesAlreadyRead: sessioninventory.RecoveryTotalReadLimit - 1})
+	if err != nil || !strings.Contains(got.Screen.Reason, "read budget") || got.BytesRead != sessioninventory.RecoveryTotalReadLimit-1 {
+		t.Fatalf("archive metadata bypassed scan budget: %+v %v", got, err)
+	}
+}
