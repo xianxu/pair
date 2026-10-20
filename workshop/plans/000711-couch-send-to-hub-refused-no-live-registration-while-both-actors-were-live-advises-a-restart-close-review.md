@@ -182,3 +182,77 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T06:59:31-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 711 — couch --send-to hub refused 'no live registration' while both actors were live; advises a restart |
+| repo | pair |
+| issue file | workshop/issues/000711-couch-send-to-hub-refused-no-live-registration-while-both-actors-were-live-advises-a-restart.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 1d741616743c5317286b599c5ce8d3b27e4b6380..6231932580842773fd14e5349f4b52a48d34c4cc |
+| command | sdlc close --issue 711 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T06:59:31-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff correctly updates legacy test expectations for the already-approved single-listing behavior. All four affected tests pass independently. No production behavior or new scope is introduced; the added issue revision records the fixture corrections. BR-1, BR-2, and BR-3 remain disposed; there are no open prior findings.
+
+Done-when: current — its single-listing, strict-validation, query-budget, and verification requirements cover these corrections.
+
+```findings
+{}
+```
+
+1. **Strengths**
+
+   - Recovery tests now target the actual query sequence and add malformed/unknown full-listing coverage at `recovery_native_reply_test.go:114`.
+   - Failure tests retain checks for no retries, no launcher effects, unchanged durable records, and unchanged actor registration.
+   - Warm-resume coverage preserves four observation fences and verifies their query budget at two inventory sizes.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   All four affected tests passed with `-count=1` (`couchcore`, 6.263s). Production inspection confirms one full-listing query per observation and the revised recovery ordinals. `git diff --check` passed. The complete suite was not rerun during this review; its recorded gate remains required.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY: pass** — recovery assertions reuse the shared expected query sequence.
+   - **ARCH-PURE: pass** — integration tests exercise production query handling through existing injected fixtures.
+   - **ARCH-PURPOSE: pass** — corrections preserve safety assertions while aligning fixtures with the approved contract.
+   - **ARCH-EVOLVE: pass** — no persisted format or reader/writer behavior changes.
+
+   No new user-facing or architectural surface requires README or atlas updates.
+
+7. **Plan revision recommendations:** None. The appended revision accurately records these test-only corrections.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"2329e34d-9420-4200-94fb-d74c5ad7db20","repository":"github.com/xianxu/pair","issue_id":"000711","recipe":"fix-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/bac572951b144431","reviewed_head":"6231932580842773fd14e5349f4b52a48d34c4cc","slot":"pair:7","requested_at":"2026-10-20T13:58:24.353386Z"},"phase":"finished","pid":47960,"started_at":"2026-10-20T13:58:24.571573Z","finished_at":"2026-10-20T13:59:30.110898Z","session_id":"01a1599b-3044-77c1-8860-b85eeb20eef2","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.23605325s
+head: "6231932580842773fd14e5349f4b52a48d34c4cc"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000411
