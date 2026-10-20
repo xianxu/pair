@@ -215,6 +215,9 @@ func newTestEnv(t *testing.T, trees ...string) *testEnv {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
+	// No process is visible beyond what a fixture adds: teardown (pair#695)
+	// reads the table, and a test that needs rows sets its own.
+	c.ProcessTable = func() ([]procutil.Process, error) { return nil, nil }
 	c.Identities = &legacyFixtureAllocator{c: c}
 	return &testEnv{Couch: c, Runner: r, Git: g, Proc: proc, Artifacts: artifacts, Dir: dir, Now: now}
 }
@@ -320,6 +323,7 @@ func TestSpawnStartsPairAndRecordsTheActor(t *testing.T) {
 		"COUCH_STORE_DIR=" + env.Dir,
 		"COUCH_THREAD_SCOPE=816fc349d3faebf8",
 		"COUCH_THREAD_TAG=couch-0102030405060708",
+		lifetimeLeaseEnvForTest(t, env.Dir, "/repo", ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}),
 		"PAIR_RETENTION_BACKGROUND=",
 		launcher.CouchLaunchProfileEnv + "=" + strings.TrimSpace(profileRaw),
 		"PAIR_USE_REPO_DEFAULT=1",

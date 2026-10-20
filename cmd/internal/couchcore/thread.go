@@ -3,12 +3,13 @@ package couchcore
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/xianxu/pair/cmd/internal/couchidentity"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
+	"github.com/xianxu/pair/cmd/internal/couchidentity"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
+	"github.com/xianxu/pair/cmd/internal/strictjson"
 	"github.com/xianxu/pair/cmd/internal/threadrecord"
 )
 
@@ -93,6 +94,15 @@ type ThreadRecord struct {
 	Park         *ParkTransaction  `json:"park,omitempty"`
 	VerifiedPark *VerifiedPark     `json:"verified_park,omitempty"`
 	ParkHistory  []ParkTransaction `json:"park_history,omitempty"`
+	// Transcript is the agent's exact native conversation; Resume binds by it
+	// (pair#695 P2). See threadrecord.TranscriptBinding.
+	Transcript *threadrecord.TranscriptBinding `json:"transcript,omitempty"`
+	// ProvenDownAt is when a teardown proved the tree gone, stamped as the
+	// record is retired (pair#695); LastLifecycleSuccessAt counts it.
+	ProvenDownAt *time.Time `json:"proven_down_at,omitempty"`
+	// Unknown carries persisted members this build does not own through every
+	// rewrite (pair#695 §2a); see threadrecord.Record.Unknown.
+	Unknown map[string]json.RawMessage `json:"-"`
 }
 
 var threadRecordValidators = threadrecord.Validators{
@@ -135,6 +145,9 @@ func toPersistedThreadRecord(record ThreadRecord) threadrecord.Record {
 		out.LatestLaunchProfile = &threadrecord.LaunchProfile{Agent: profile.Agent, Argv: profile.Argv}
 	}
 	out.LastActiveAt = record.LastActiveAt
+	out.Unknown = strictjson.CloneRaw(record.Unknown)
+	out.Transcript = threadrecord.CloneTranscriptBinding(record.Transcript)
+	out.ProvenDownAt = cloneTimePointer(record.ProvenDownAt)
 	if record.Park != nil {
 		park := toPersistedParkTransaction(*record.Park)
 		out.Park = &park
@@ -209,6 +222,9 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 		out.LatestLaunchProfile = &profile
 	}
 	out.LastActiveAt = record.LastActiveAt
+	out.Unknown = strictjson.CloneRaw(record.Unknown)
+	out.Transcript = threadrecord.CloneTranscriptBinding(record.Transcript)
+	out.ProvenDownAt = cloneTimePointer(record.ProvenDownAt)
 	if record.Park != nil {
 		park := fromPersistedParkTransaction(*record.Park)
 		out.Park = &park
@@ -261,6 +277,19 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 	return out
 }
 
+// encodeThreadRecord is the persisted encoding of a thread record: the owned
+// members, indented, then the preserved members it does not own.
+func encodeThreadRecord(record ThreadRecord) ([]byte, error) {
+	return threadrecord.EncodePersisted(toPersistedThreadRecord(record))
+}
+
+// MarshalJSON makes every JSON encoding of a record the persisted one, so no
+// writer, wherever it marshals, can drop the members this build does not own
+// (pair#695 §2a). A record is never serialized in any other shape.
+func (record ThreadRecord) MarshalJSON() ([]byte, error) {
+	return encodeThreadRecord(record)
+}
+
 func cloneThreadRecord(record ThreadRecord) ThreadRecord {
 	copy := record
 	copy.RecoveryIntent = threadrecord.CloneRecoveryIntent(record.RecoveryIntent)
@@ -272,6 +301,9 @@ func cloneThreadRecord(record ThreadRecord) ThreadRecord {
 		copy.Continuation = &request
 	}
 	copy.ContinuationMissed = cloneMiss(record.ContinuationMissed)
+	copy.Unknown = strictjson.CloneRaw(record.Unknown)
+	copy.Transcript = threadrecord.CloneTranscriptBinding(record.Transcript)
+	copy.ProvenDownAt = cloneTimePointer(record.ProvenDownAt)
 	copy.Incarnations = append([]ThreadIncarnation{}, record.Incarnations...)
 	for i := range copy.Incarnations {
 		if record.Incarnations[i].Start != nil {
@@ -440,4 +472,12 @@ func cloneMiss(m *checkpoint.Miss) *checkpoint.Miss {
 	}
 	copy := *m
 	return &copy
+}
+
+func cloneTimePointer(t *time.Time) *time.Time {
+	if t == nil {
+		return nil
+	}
+	v := *t
+	return &v
 }

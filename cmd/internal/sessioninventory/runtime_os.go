@@ -60,21 +60,42 @@ func (r OSRuntime) DecodeWork(artifact Artifact, bytes int64) {
 
 var _ Runtime = OSRuntime{}
 
-func NewOSRuntime(homeDir, pairDataDir string) OSRuntime {
-	return OSRuntime{
-		roots: map[Agent][]StorageRoot{
-			AgentClaude: {{Agent: AgentClaude, Name: "claude-projects", Path: filepath.Join(homeDir, ".claude", "projects")}},
-			AgentCodex:  {{Agent: AgentCodex, Name: "codex-sessions", Path: filepath.Join(homeDir, ".codex", "sessions")}},
-			AgentAgy: {
-				{Agent: AgentAgy, Name: "agy-conversations", Path: filepath.Join(homeDir, ".gemini", "antigravity-cli", "conversations")},
-				{Agent: AgentAgy, Name: "agy-brain", Path: filepath.Join(homeDir, ".gemini", "antigravity-cli", "brain")},
-			},
-			AgentMuse:  {{Agent: AgentMuse, Name: "muse-sessions", Path: filepath.Join(homeDir, ".local", "share", "muse", "sessions")}},
-			AgentQoder: {{Agent: AgentQoder, Name: "qoder-projects", Path: filepath.Join(homeDir, ".qoder", "projects")}},
-			AgentGrok:  {{Agent: AgentGrok, Name: grokSessionsRoot, Path: filepath.Join(homeDir, ".grok", "sessions")}},
-		},
-		pairRoot: StorageRoot{Name: "pair-data", Path: pairDataDir},
+// nativeRootLayout is each agent's native transcript roots: a stable name and
+// the location under the home directory. The names are what persisted proofs
+// and stored transcript bindings carry; locations come only from here.
+var nativeRootLayout = map[Agent][]struct {
+	name string
+	home []string
+}{
+	AgentClaude: {{"claude-projects", []string{".claude", "projects"}}},
+	AgentCodex:  {{"codex-sessions", []string{".codex", "sessions"}}},
+	AgentAgy: {
+		{"agy-conversations", []string{".gemini", "antigravity-cli", "conversations"}},
+		{"agy-brain", []string{".gemini", "antigravity-cli", "brain"}},
+	},
+	AgentMuse:  {{"muse-sessions", []string{".local", "share", "muse", "sessions"}}},
+	AgentQoder: {{"qoder-projects", []string{".qoder", "projects"}}},
+	AgentGrok:  {{grokSessionsRoot, []string{".grok", "sessions"}}},
+}
+
+// NativeRootNames is the agent's native root names, without touching the
+// filesystem.
+func NativeRootNames(agent Agent) []string {
+	var names []string
+	for _, root := range nativeRootLayout[agent] {
+		names = append(names, root.name)
 	}
+	return names
+}
+
+func NewOSRuntime(homeDir, pairDataDir string) OSRuntime {
+	roots := map[Agent][]StorageRoot{}
+	for agent, layout := range nativeRootLayout {
+		for _, root := range layout {
+			roots[agent] = append(roots[agent], StorageRoot{Agent: agent, Name: root.name, Path: filepath.Join(append([]string{homeDir}, root.home...)...)})
+		}
+	}
+	return OSRuntime{roots: roots, pairRoot: StorageRoot{Name: "pair-data", Path: pairDataDir}}
 }
 
 func DefaultOSRuntime(pairDataDir string) (OSRuntime, error) {

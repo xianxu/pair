@@ -41,7 +41,7 @@ func TestRetentionArchiveGraceIncludesUndecodableRecords(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if err := s.ArchiveThread(r.Address); err != nil {
+			if err := s.ArchiveThread(r.Address, retireAuthorityForTest(t, s, r.Address)); err != nil {
 				t.Fatal(err)
 			}
 			a, err := readTestArchiveGrace(s, r.Address)
@@ -49,7 +49,7 @@ func TestRetentionArchiveGraceIncludesUndecodableRecords(t *testing.T) {
 				t.Fatalf("archive %+v %v", a, err)
 			}
 			c.Now = func() time.Time { return a.ArchivedAt.Add(time.Hour) }
-			if err := s.ArchiveThread(r.Address); !errors.Is(err, ErrThreadNotFound) {
+			if err := s.ArchiveThread(r.Address, retireAuthorityForTest(t, s, r.Address)); !errors.Is(err, ErrThreadNotFound) {
 				t.Fatalf("archive retry %v", err)
 			}
 			again, err := readTestArchiveGrace(s, r.Address)
@@ -99,7 +99,7 @@ func TestRetentionSnapshotProtectsUnreadableAndBlocksPendingRecovery(t *testing.
 		t.Fatal("expired lock accepted")
 	}
 	s.hooks.AfterJournal = func() error { return errors.New("crash") }
-	if err := s.ArchiveThread(r.Address); err == nil {
+	if err := s.ArchiveThread(r.Address, retireAuthorityForTest(t, s, r.Address)); err == nil {
 		t.Fatal("expected fault")
 	}
 	before, err := os.ReadFile(s.journalPath())
@@ -130,7 +130,7 @@ func TestRetentionArchiveAndRestoreRecoverEachJournalStep(t *testing.T) {
 				s, _ := retentionStore(t)
 				r := archivableThread(t, s, "couch-0000000000000001")
 				if operation == "restore" {
-					if err := s.ArchiveThread(r.Address); err != nil {
+					if err := s.ArchiveThread(r.Address, retireAuthorityForTest(t, s, r.Address)); err != nil {
 						t.Fatal(err)
 					}
 				}
@@ -147,7 +147,7 @@ func TestRetentionArchiveAndRestoreRecoverEachJournalStep(t *testing.T) {
 				}
 				var err error
 				if operation == "archive" {
-					err = s.ArchiveThread(r.Address)
+					err = s.ArchiveThread(r.Address, retireAuthorityForTest(t, s, r.Address))
 				} else {
 					err = s.RestoreThread(r.Address)
 				}
@@ -189,7 +189,7 @@ func TestRetentionStrictArchiveClocks(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			s, c := retentionStore(t)
 			r := archivableThread(t, s, "couch-0000000000000001")
-			if err := s.ArchiveThread(r.Address); err != nil {
+			if err := s.ArchiveThread(r.Address, retireAuthorityForTest(t, s, r.Address)); err != nil {
 				t.Fatal(err)
 			}
 			path := s.archiveGracePath(r.Address)
@@ -407,7 +407,7 @@ func TestLegacyArchiveGraceOnboarding(t *testing.T) {
 		t.Run(fmt.Sprint(malformed), func(t *testing.T) {
 			s, c := retentionStore(t)
 			r := archivableThread(t, s, "couch-0000000000000001")
-			if err := s.ArchiveThread(r.Address); err != nil {
+			if err := s.ArchiveThread(r.Address, retireAuthorityForTest(t, s, r.Address)); err != nil {
 				t.Fatal(err)
 			}
 			gracePath := s.archiveGracePath(r.Address)
@@ -485,7 +485,7 @@ func TestLegacyArchiveOnboardingJournalIdentity(t *testing.T) {
 			t.Run(fmt.Sprintf("%v/%d", replacement, fault), func(t *testing.T) {
 				s, c := retentionStore(t)
 				r := archivableThread(t, s, "couch-0000000000000001")
-				if err := s.ArchiveThread(r.Address); err != nil {
+				if err := s.ArchiveThread(r.Address, retireAuthorityForTest(t, s, r.Address)); err != nil {
 					t.Fatal(err)
 				}
 				if err := os.Remove(s.archiveGracePath(r.Address)); err != nil {
@@ -562,7 +562,7 @@ func TestRetentionNestedStoreLocksYieldAndReleaseRoot(t *testing.T) {
 		t.Run(operation, func(t *testing.T) {
 			s, c := retentionStore(t)
 			record := archivableThread(t, s, "couch-0000000000000001")
-			if err := s.ArchiveThread(record.Address); err != nil {
+			if err := s.ArchiveThread(record.Address, retireAuthorityForTest(t, s, record.Address)); err != nil {
 				t.Fatal(err)
 			}
 			grace, err := readTestArchiveGrace(s, record.Address)

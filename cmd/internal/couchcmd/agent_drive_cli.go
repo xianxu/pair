@@ -2,6 +2,7 @@ package couchcmd
 
 import (
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/agentdrive"
@@ -11,6 +12,9 @@ import (
 func parseAgentDriveCLI(args []string) (cliInvocation, error) {
 	bad := func() (cliInvocation, error) {
 		return cliInvocation{}, fmt.Errorf("invalid %s form; use couch --help", args[0])
+	}
+	if args[0] == "--keys" && len(args) == 2 && (args[1] == "--help" || args[1] == "-h") {
+		return cliInvocation{kind: cliKeysHelp}, nil
 	}
 	if len(args) < 3 {
 		return bad()
@@ -70,4 +74,32 @@ func parseAgentDriveCLI(args []string) (cliInvocation, error) {
 		return cliInvocation{}, err
 	}
 	return inv, nil
+}
+
+// keysUsage renders `couch --keys --help` from agentdrive.Steps and its limit
+// constants, so the help cannot list a step the parser refuses (#716).
+func keysUsage(w io.Writer) {
+	fmt.Fprintln(w, "usage: couch --keys repo:N STEP... [--json]")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Hub only: types named keys into another slot's agent, which the hub must own.")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Steps:")
+	for _, step := range agentdrive.Steps {
+		fmt.Fprintf(w, "  %-14s %s\n", step.Syntax, step.Meaning)
+	}
+	fmt.Fprintf(w, "Limits: %d steps, %d bytes of text, waits of at most %d ms each and %d ms in total.\n",
+		agentdrive.MaxKeySteps, agentdrive.MaxKeyTextBytes, agentdrive.MaxKeyWaitMS, agentdrive.MaxKeyTotalWaitMS)
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Admission:")
+	fmt.Fprintln(w, "  Any steps need a settled agent with an empty composer.")
+	fmt.Fprintln(w, "  Only esc and clear-line steps may start on a recognized occupied composer.")
+	fmt.Fprintln(w, "  A lone esc may close a recognized slash-command panel; every other request")
+	fmt.Fprintln(w, "  refuses while one shows. The panel's own footer (Esc to cancel) is the proof.")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Slash-command panel round trip (/usage, /status):")
+	fmt.Fprintln(w, "  couch --keys pair:7 clear-line text:/usage submit   open it")
+	fmt.Fprintln(w, "  couch --peek pair:7 --lines 40                      read it")
+	fmt.Fprintln(w, "  couch --keys pair:7 esc                             close it; done when the empty composer returns")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "An unconfirmed result is never retried for you: peek at the slot before sending more input.")
 }

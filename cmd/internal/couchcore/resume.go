@@ -8,6 +8,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/threadrecord"
 	"github.com/xianxu/pair/cmd/internal/zellijreply"
 )
 
@@ -194,15 +195,21 @@ func (c *Couch) workingPathExists(thread ThreadRecord) bool {
 // the answer -- and, worse, fail outright when that resolver errored, which is a
 // failure mode the warm path never had.
 func (c *Couch) resumeEvidence(ctx context.Context, thread ThreadRecord) (NativeBindingResolution, error) {
-	bindings, ok := c.Artifacts.(NativeBindingResolver)
+	bound, err := c.bindTranscript(ctx, thread)
+	return bound.Resolution, err
+}
+
+// bindTranscript binds by the record's stored transcript (pair#695 P2): one
+// exact ledger read and one stat, never a search once the file is known.
+func (c *Couch) bindTranscript(ctx context.Context, thread ThreadRecord) (TranscriptBind, error) {
+	if binder, ok := c.Artifacts.(TranscriptBinder); ok {
+		return binder.BindTranscript(ctx, thread)
+	}
+	resolver, ok := c.Artifacts.(NativeBindingResolver)
 	if !ok {
-		return NativeBindingResolution{}, errors.New("native binding resolver is unavailable")
+		return TranscriptBind{}, errors.New("transcript binder is unavailable")
 	}
-	agent := ""
-	if thread.LatestLaunchProfile != nil {
-		agent = thread.LatestLaunchProfile.Agent
-	}
-	return bindings.ResolveEstablished(ctx, thread.Address.RepoScope, string(thread.Address.Tag), agent)
+	return bindByResolver(ctx, resolver, thread)
 }
 
 // CheckResumePreconditions is every resume rule that a park cannot change.
@@ -469,17 +476,14 @@ func (c *Couch) resumeContextWith(ctx context.Context, address ThreadAddress, op
 		return ActorRecord{}, nil, err
 	}
 	var binding NativeBindingResolution
-	var bindings NativeBindingResolver
+	var transcript *threadrecord.TranscriptBinding
 	if !detached {
 		if err := continuationGuard(thread); err != nil {
 			return ActorRecord{}, nil, err
 		}
-		var ok bool
-		bindings, ok = c.Artifacts.(NativeBindingResolver)
-		if !ok {
-			return ActorRecord{}, nil, errors.New("resume: native binding resolver is unavailable")
-		}
-		resolved, err := c.resumeEvidence(queryCtx, thread)
+		bound, err := c.bindTranscript(queryCtx, thread)
+		resolved := bound.Resolution
+		transcript = bound.Store
 		// A binding DIAGNOSTIC is evidence, not a verdict, and it travels with
 		// the resolution it describes (every resolver returns both). Bailing on
 		// it here made DecideResume's cold-refusal branch unreachable from the
@@ -516,6 +520,9 @@ func (c *Couch) resumeContextWith(ctx context.Context, address ThreadAddress, op
 		return ActorRecord{}, nil, err
 	}
 	startedAt := c.Clock.Now()
+	if transcript != nil {
+		transcript.BoundAt = startedAt
+	}
 	// The same single write the spawn path uses. Its precondition -- a resolvable
 	// conversation OR proved detachment -- was already checked by DecideResume
 	// above; carrying both authorities forward here is what keeps M4 from
@@ -565,9 +572,10 @@ func (c *Couch) resumeContextWith(ctx context.Context, address ThreadAddress, op
 			}
 			return StartColdResume
 		}(),
-		Kind:  StartClaimed,
-		Nonce: nonce,
-		Owner: SupervisorOwner{PID: owner.PID, Identity: owner.Identity},
+		Kind:       StartClaimed,
+		Nonce:      nonce,
+		Owner:      SupervisorOwner{PID: owner.PID, Identity: owner.Identity},
+		Transcript: transcript,
 		Profile: func() *LaunchProfile {
 			if detached && thread.LatestLaunchProfile == nil {
 				return nil
@@ -595,7 +603,8 @@ func (c *Couch) resumeContextWith(ctx context.Context, address ThreadAddress, op
 			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
 		}
 	} else {
-		currentBinding, err := bindings.ResolveEstablished(queryCtx, address.RepoScope, string(address.Tag), eligible.Profile.Agent)
+		rebound, err := c.bindTranscript(queryCtx, thread)
+		currentBinding := rebound.Resolution
 		if err != nil {
 			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
 		}

@@ -484,9 +484,10 @@ couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
 couch --resources [--json] cached process sample plus fresh hosted-ingest totals
 couch --reap-orphans [--confirm] [--json]
-                         the unattributed embedded nvim --resources named; without --confirm it lists them
-                         and ends nothing, with --confirm it ends each one and its tree, every signal fenced
-                         on the identity the sweep recorded [seconds]
+                         the unattributed embedded nvim --resources named, and the processes a teardown left
+                         running (an agent's setsid'd runner: a background build, test or merge); without
+                         --confirm it lists them and ends nothing, with --confirm it ends each one and its
+                         tree, every signal fenced on the identity the sweep or teardown recorded [seconds]
 couch --broadcast-list [--json]   every link out by kind (screen, web view, web drive) and its viewers, and the
                          recordings shared for replay (pair#477); never a link
 couch --broadcast-web-query DIR dom|events|notes|link ...
@@ -586,7 +587,8 @@ requests and model selection still require an empty composer. A
 slash-command panel the hub opened, such as Claude's `/usage`, admits exactly
 `couch --keys pair:7 esc` when its Esc footer is recognized on the current
 screen. Every other key refuses while it shows, and success means an empty
-composer came back.
+composer came back. `couch --keys --help` lists the steps, the limits, these
+rules and that round trip.
 
 ```sh
 couch --keys pair:7 clear-line text:/model submit wait:200 down enter
@@ -833,9 +835,12 @@ same effect ID. Episodes live in memory, so restarting Couch re-arms them and
 can repeat an advisory alert. History is best-effort and never gates alerts.
 Unattributed candidates are report-only, and the monitor never kills anything.
 The one destructive verb is the operator's: `couch --reap-orphans` names the
-orphaned embedded nvim the sweep found and ends nothing, and
+orphaned embedded nvim the sweep found, and the processes a teardown left
+running (pair#695: an agent's descendant that had left its terminal, such as a
+background build or merge, which teardown never kills; `--resources` lists them
+under "Left running by teardown"), and ends nothing.
 `couch --reap-orphans --confirm` re-classifies from a fresh sample and then ends
-each named tree, every signal fenced on the identity the sweep recorded — a pid
+each named tree, the left-running ones included, every signal fenced on the identity the sweep recorded — a pid
 that has exited or been recycled is skipped with the reason printed, never
 signalled on the strength of a number that still exists.
 See [resource monitoring](atlas/couch.md#resource-monitoring-587) for policy
@@ -1979,6 +1984,12 @@ SDLC reviews use the pinned commit’s `.sdlc/review-prepare.json` (version 1,
 `command: ["make", "runtimebundle-generate"]`, `timeout_minutes: 10`) to generate
 the ignored runtime embed assets in a disposable checkout before tests run.
 Preparation leaves tracked sources unchanged. See the [runtime bundle map](atlas/go-migration-inventory.md).
+
+Pair's landing-train pilot is configured in `.sdlc/landing.json` with
+`train_interval_minutes: 60`, retaining the existing default car limit. `sdlc merge` reads the setting from main; inspect the landing line and recent trains
+with `sdlc landing status`. Configuration changes require the operator's
+`local-gates-verified` label. The TL owns the first multi-car conformance check;
+see the [pilot map](atlas/index.md#see-also).
 
 When `pair` runs and there's anything to pick — a detached Pair session owned by this repo **or** a tag from this repo used within the last 14 days — it shows an `fzf` picker. Detached rows come first, then historical rows annotated `(Nd ago, no live session)`, then a `+ new <agent> session` sentinel. A historical row whose session has prompts parked in its queue also carries an amber `[⏎ N queued]` badge, so you don't resume a session without remembering the work you queued up in it. Picking a historical row reuses the repo-local tag and any surviving draft / saved agent config (same path as `pair resume <tag>`). Override the 14-day window with `PAIR_HISTORY_DAYS`; `PAIR_DEBUG_HISTORY=1 pair` prints the scan and exits without launching.
 

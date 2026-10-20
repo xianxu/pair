@@ -59,6 +59,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/ansi"
 	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
+	"github.com/xianxu/pair/cmd/internal/lifetimelease"
 	"golang.org/x/term"
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
@@ -250,6 +251,7 @@ type proxy struct {
 	agentReadyPath       string
 	readyProcessPID      int
 	readyProcessIdentity string
+	readyProcessTTY      string
 
 	// PTY
 	ptmx                 *os.File
@@ -644,6 +646,12 @@ func (p *proxy) publishAgentReady(pid int) error {
 	if p.readyProcessPID != pid {
 		return errors.New("ready record: agent process changed")
 	}
+	// Under Couch the agent's controlling terminal is published too: Couch's
+	// teardown proves the agent gone when nothing holds it, which it can no
+	// longer read off the agent once the agent is dead (pair#695 P1).
+	if p.readyProcessTTY == "" && lifetimelease.Active(os.Getenv) {
+		p.readyProcessTTY = agentTerminal(pid, p.readyProcessIdentity)
+	}
 	raw, err := readiness.Encode(readiness.ReadyRecord{
 		AgentIdentity: p.readyProcessIdentity,
 		LaunchOrdinal: launchOrdinal,
@@ -652,6 +660,7 @@ func (p *proxy) publishAgentReady(pid int) error {
 		Session:       session,
 		Nonce:         nonce,
 		PID:           pid,
+		TTY:           p.readyProcessTTY,
 	})
 	if err != nil {
 		return err
@@ -661,6 +670,21 @@ func (p *proxy) publishAgentReady(pid int) error {
 		return err
 	}
 	return os.Rename(tmp, p.agentReadyPath)
+}
+
+// agentTerminal is the controlling terminal of the exact agent process, from
+// one process-table read; "" when it is not listed or has none.
+func agentTerminal(pid int, identity string) string {
+	table, err := procutil.Table()
+	if err != nil {
+		return ""
+	}
+	for _, row := range table {
+		if row.PID == pid && row.Identity == identity {
+			return row.TTY
+		}
+	}
+	return ""
 }
 
 // ----- Debug log --------------------------------------------------------------
@@ -2754,6 +2778,13 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "pair-wrap: release storage: %v\n", err)
 		}
 	}()
+	// The slot's lifetime lease (pair#695 P1), retaken by the re-exec'd image
+	// after Shift+Alt+N. Only under Couch; a failure costs teardown one witness.
+	if held, err := lifetimelease.HoldFromEnv(context.Background(), os.Getenv); err != nil {
+		fmt.Fprintf(stderr, "pair-wrap: lifetime lease: %v\n", err)
+	} else if held != nil {
+		defer held.Close()
+	}
 	code, err := run(args, stdin, stdout, stderr)
 	if err != nil {
 		var restart *freshExecRequest
@@ -2840,7 +2871,8 @@ argsDone:
 
 	p.agentBasename = filepath.Base(argv[0])
 	p.notificationRewriter.BellAttention = bellAttentionHarnesses[p.agentBasename]
-	childEnv := os.Environ()
+	// The agent never sees the lifetime lease: nothing it runs can hold the slot.
+	childEnv := lifetimelease.WithoutLease(os.Environ())
 	p.scrollbackEvents = os.Getenv("PAIR_SCROLLBACK_EVENTS_PATH")
 	p.resolvePaths()
 

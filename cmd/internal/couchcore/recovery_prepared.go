@@ -457,6 +457,22 @@ func (c *Couch) launchRecoveryFreshAddress(ctx context.Context, old ThreadRecord
 	if err != nil {
 		return RecoveryResumeResult{}, err
 	}
+	// Why the source may go (pair#695). The confirmed offer already stopped
+	// what the operator agreed to; nothing more is stopped here. A source
+	// proven down leaves by proof, with the park or claim its dead owners
+	// left folded; otherwise Fresh starts beside the remnants, as chosen.
+	var authority RetireAuthority
+	proof, err := c.proveDownAndFold(ctx, old, "recover-fresh")
+	if err == nil {
+		authority = proof
+		if proof.Revision() != old.Revision {
+			if old, err = c.Threads.GetThread(old.Address); err != nil {
+				return RecoveryResumeResult{}, err
+			}
+		}
+	} else if authority, err = newFreshLeavesRemnants(old, err); err != nil {
+		return RecoveryResumeResult{}, err
+	}
 	sourceAbsent := c.confirmRecoveryAbsent(ctx, old) == nil
 	if sourceAbsent {
 		if err := c.repairRetiredRecoveryWorkspace(ctx, old); err != nil {
@@ -494,9 +510,9 @@ func (c *Couch) launchRecoveryFreshAddress(ctx context.Context, old ThreadRecord
 		next.RecoveryIntent = threadrecord.CloneRecoveryIntent(&nextIntent)
 		next.Incarnations[0].Start.RecoveryIntent = threadrecord.CloneRecoveryIntent(&nextIntent)
 		if backend.layout.Local {
-			return backend.replaceSlotCurrent(observed, next)
+			return backend.replaceSlotCurrent(observed, next, authority)
 		}
-		return backend.ReplaceThreadExpected(old.Address, old.Revision, next)
+		return backend.ReplaceThreadExpected(old.Address, old.Revision, next, authority)
 	}})
 	if err != nil {
 		return RecoveryResumeResult{}, err

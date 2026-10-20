@@ -36,6 +36,25 @@ func renderOrphanNvimRows(out io.Writer, rows []couchcore.OrphanNvim) {
 	}
 }
 
+// leftRunningSection heads the registry's rows (pair#695): processes an agent
+// started that had left its terminal when teardown ran. Teardown never kills
+// them; the reap does, by exact identity, once confirmed.
+const leftRunningSection = "Left running by teardown (reap needs --confirm)"
+
+func leftRunningRow(o couchcore.LeftRunningOrphan) string {
+	return fmt.Sprintf("pid=%d %s thread=%s/%s left=%s origin=%s", o.Process.PID, rowtext.Sanitize(o.Command), rowtext.Sanitize(o.Thread.RepoScope), rowtext.Sanitize(string(o.Thread.Tag)), o.LeftAt.Format(time.RFC3339), rowtext.Sanitize(o.Origin))
+}
+
+func renderLeftRunningRows(out io.Writer, rows []couchcore.LeftRunningOrphan) {
+	fmt.Fprintf(out, "%s:\n", leftRunningSection)
+	if len(rows) == 0 {
+		fmt.Fprintln(out, "  none registered")
+	}
+	for _, o := range rows {
+		fmt.Fprintf(out, "  %s\n", leftRunningRow(o))
+	}
+}
+
 func runResourcesCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, call messageCall) int {
 	socket, err := couchmessage.SocketPath(rt.StoreDir(), "broker")
 	if err != nil {
@@ -106,6 +125,7 @@ func renderResources(out io.Writer, v couchcore.ResourceView, now time.Time) {
 		}
 	}
 	renderOrphanNvimRows(out, v.OrphanNvim)
+	renderLeftRunningRows(out, v.LeftRunning)
 	fmt.Fprintf(out, "Observed since sampler start: CPU %.3fs; disk writes %d bytes (sampled, not lifetime billing)\n", float64(v.ObservedCPUTimeNS)/1e9, v.ObservedDiskWriteBytes)
 	cpuCost := "unavailable"
 	if v.Cost.CPUKnown {

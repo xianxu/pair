@@ -7,7 +7,15 @@ created: 2026-10-19
 updated: 2026-10-19
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '218865c895fb17b5ad4705761b5a43812d39e9a2' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '677fe069d5e99349c0beb6fe40c155d873279284' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-19T21:19:09-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 ---
 
 # TestCouchLaunchPromptTransportHelper: TempDir cleanup finds a late write (directory not empty) under load
@@ -42,3 +50,5 @@ Find what writes into the helper's DataDir/Home after `run` returns, and make th
 ## Log
 
 ### 2026-10-19
+
+- Already fixed by pair#715 (ad54eecde, landed 20:02): the released session-watch child wrote into the test temp dir after the wrapper returned. pair:3 measured it as 20 of 20 failing without the join and 0 of 20 with it. The failing head 657e99e1 predates #715. Evidence on main 73cc0403a, which contains #715: `go test ./cmd/internal/couchcmd -run '^TestContinuationWriterPublishesExactCheckpointAcrossWorktrees$' -count=20` passed 20 of 20, with the full #716 suite running alongside (load average 16 to 33). Log: /Users/xianxu/workspace/pair/.git/pair-parklive-evidence/718-main-count20.log. No second writer. Closed wontfix as fixed by #715 (the hub, ops:0, directed this check).

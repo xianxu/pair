@@ -43,6 +43,10 @@ type StartEvent struct {
 	Owner          SupervisorOwner
 	Helper         ProcessIdentity
 	Profile        *LaunchProfile
+	// Transcript, on a claim, stores the conversation this start binds to on
+	// the record in the claim's own write (pair#695 P2): a resume that adopted
+	// a newer ledger root or bound a legacy record keeps it from here on.
+	Transcript *threadrecord.TranscriptBinding
 	// Layout is the couch-wide layout this start was launched in, recorded on
 	// the thread as a witness. A POINTER because "no layout was chosen" is a
 	// real state distinct from any layout value: a warm reattach sends no
@@ -90,6 +94,12 @@ func AdvanceStartTransaction(record ThreadRecord, event StartEvent) (ThreadRecor
 		if event.Profile != nil {
 			profile := cloneLaunchProfile(*event.Profile)
 			incarnation.Start.LaunchProfile = &profile
+		}
+		if event.Transcript != nil {
+			if err := event.Transcript.Validate(); err != nil {
+				return ThreadRecord{}, fmt.Errorf("start claim transcript binding: %w", err)
+			}
+			next.Transcript = threadrecord.CloneTranscriptBinding(event.Transcript)
 		}
 	case StartFailedConfirmed:
 		incarnation, err := exactStartIncarnation(&next, event.Nonce)

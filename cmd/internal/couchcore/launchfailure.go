@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
 
 const LaunchFailureOutputLimit = 16 << 10
@@ -51,8 +53,8 @@ type LaunchFailureHistory = LifecycleFailureHistory
 
 func cloneLaunchFailure(f LaunchFailure) LaunchFailure {
 	f.Output = append([]byte(nil), f.Output...)
-	f.Unknown = cloneFailureUnknown(f.Unknown)
-	f.addressUnknown = cloneFailureUnknown(f.addressUnknown)
+	f.Unknown = strictjson.CloneRaw(f.Unknown)
+	f.addressUnknown = strictjson.CloneRaw(f.addressUnknown)
 	f.Holders = cloneFailureHolders(f.Holders)
 	if f.BeforeExit != nil {
 		v := *f.BeforeExit
@@ -144,8 +146,8 @@ func (h LaunchFailureHistory) Upsert(f LaunchFailure) (LaunchFailureHistory, err
 	for _, old := range h {
 		old = cloneLaunchFailure(old)
 		if old.Address == f.Address && old.Nonce == f.Nonce && lifecycleFailureTargetKey(failureTarget(old)) == lifecycleFailureTargetKey(failureTarget(f)) {
-			old.Unknown = mergeFailureUnknown(old.Unknown, f.Unknown)
-			old.addressUnknown = mergeFailureUnknown(old.addressUnknown, f.addressUnknown)
+			old.Unknown = strictjson.MergeRaw(old.Unknown, f.Unknown)
+			old.addressUnknown = strictjson.MergeRaw(old.addressUnknown, f.addressUnknown)
 			if f.Phase != "" {
 				old.Phase = f.Phase
 			}

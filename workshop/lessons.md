@@ -10,6 +10,7 @@ representative evidence, not an exhaustive index.
 - #714 PQ-2: Verify persisted compatibility against the real decoder and its adversarial tests before claiming unknown-field preservation. A schema-unchanged bugfix can retain an existing strict refusal contract; a preservation migration is a separate, explicit change.
 
 - #714: Failure diagnostics compose whole identities, never nonzero structs or fieldwise fragments. Test a scope-only outer dispatch through actual normalization and reopened persisted history; a recorded Save call is not proof of a saved failure. Preserve publication warnings at the concise operator boundary too.
+- A configuration-only rollout still needs root README coverage when it introduces an operator-facing setting. Sweep the config path/key, selected value, inspection command and approval owner together; an atlas entry alone leaves the usage contract incomplete. (#709 BR-1)
 
 - #715 BR-1: A local extension to a shared tool updates both its adoption instructions and its rule-maintenance instructions in the existing atlas page. Document the local composition owner, scope, shared error/suppression semantics, and which upstream consumers remain unchanged; updating only the feature's lifecycle map misses the tooling surface.
 
@@ -2383,10 +2384,17 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - When changing an encoder’s level or threading policy, search README and all atlas resource descriptions for both the old level and one-thread promises; update the shared resource contract as well as the feature introduction. (#702 BR-2)
 
+- #695 M1 BR-3: A source-text guard such as "no one marshals this type directly" is dodged by the next writer that spells the call differently. Put the invariant on the type: a preserving encoding belongs in the type's own MarshalJSON, so every encoding keeps it, and pin it with a behavior test that fails when the method is removed.
+- #695 M1 BR-5: Tolerant decoding means type-level strictness only. Semantic checks tied to this build's catalogs (root names, path parsers, agent lists) run where the value is used and refuse that use. At decode they refuse the whole record, and they refuse a newer build's values, which defeats additive evolution.
+- #695 M1 BR-4: A field computed for an operator surface that nothing reads is a promise with no consumer. Wire it to the surface and test it there, or remove it and name the issue that owns that surface.
 - A capped subprocess writer must not embed an io.ReaderFrom implementation that bypasses Write: io.Copy uses promoted ReadFrom. Test the actual exec boundary with oversized output, including a valid JSON prefix plus padding; overflow must refuse the whole report, not grant authority to the retained prefix. (#700)
 
 - Qualify runtime evidence through its real encoder using non-UTC clocks, including a mixed healthy/stale pass. A strict UTC codec plus UTC-only fixtures can hide a production local-time mismatch that discards every database result. Normalize at the observation clock owner. (#700 BR-1)
 
+- #695 M2: Before replacing an untyped exemption with a stronger authority, measure the contract the exempted caller keeps. Fresh recovery promises to stop only what the operator confirmed, and to leave a session another slot shares. A forced teardown would have broken both, so the exemption became a typed, named fourth authority rather than disappearing.
+- #695 M2: Anything that kills by a shared key (a lease, a tty, a slot path) must not span records it does not own. Key what a teardown kills by the record being retired, here a per-thread lease, and treat a published device such as a tty as evidence only while its publisher's tree is still up, since the kernel reuses it.
+- #695 M2 BR-11: A proof must witness each process kind it claims to have stopped by that process's own exact identity. Treat a derived witness such as "nothing on its tty" as a supplement only: when the derived input is absent (no tty published), the derived witness silently matches nothing and proves a live process gone.
+- #695 M2 BR-16: At a milestone close, grep every test name and contract in the plan's governing revision against the tree before running the review. Each mismatch gets code or a Revisions line in the same commit, never silence.
 - #708: A current ancestry/FD/environment snapshot cannot prove that a detached job will never reuse a temp path. Use an explicit lifetime owner or a documented conventional age-cleaner contract; do not turn observation into deletion authority.
 - #708: Separate a shared volume/container's permissions from private child permissions. Qualify the real parent with a read-only stat, then fixture its observed mode (TestScratch/tmp is 0755); requiring private 0700 on an existing shared parent silently defeats admission. Keep the parent unchanged and enforce 0700 on owned slot/bookkeeping directories.
 

@@ -65,9 +65,13 @@ func TestRecoveryLaunchFailedTransitionRetainsExactChoice(t *testing.T) {
 			if mode != threadrecord.RecoveryInferred {
 				intent = taggedRecoveryIntent(record, mode)
 			}
-			claimed, err := AdvanceStartTransaction(record, StartEvent{Kind: StartClaimed, Nonce: "failed-attempt", Owner: SupervisorOwner{PID: 7, Identity: "live-owner"}, RecoveryIntent: intent})
+			binding := storedBinding(3)
+			claimed, err := AdvanceStartTransaction(record, StartEvent{Kind: StartClaimed, Nonce: "failed-attempt", Owner: SupervisorOwner{PID: 7, Identity: "live-owner"}, RecoveryIntent: intent, Transcript: binding})
 			if err != nil {
 				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(claimed.Transcript, binding) {
+				t.Fatal("recovery claim lost its transcript binding")
 			}
 			claimed, err = AdvanceStartTransaction(claimed, StartEvent{Kind: StartHelperRecorded, Nonce: "failed-attempt", Helper: ProcessIdentity{PID: 8, Identity: "exited-helper"}})
 			if err != nil {
@@ -78,7 +82,7 @@ func TestRecoveryLaunchFailedTransitionRetainsExactChoice(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !reflect.DeepEqual(before, claimed) || len(next.Incarnations) != 0 || !reflect.DeepEqual(next.RecoveryIntent, intent) || !reflect.DeepEqual(next.VerifiedPark, claimed.VerifiedPark) || next.Address != claimed.Address {
+			if !reflect.DeepEqual(before, claimed) || len(next.Incarnations) != 0 || !reflect.DeepEqual(next.RecoveryIntent, intent) || !reflect.DeepEqual(next.VerifiedPark, claimed.VerifiedPark) || !reflect.DeepEqual(next.Transcript, binding) || next.Address != claimed.Address {
 				t.Fatalf("failure transition changed source or lost recovery: %+v", next)
 			}
 			for _, event := range []StartEvent{{Kind: StartEventKind("failed-confirmed"), Nonce: "failed-attempt"}, {Kind: StartRegistered, Nonce: "failed-attempt"}, {Kind: StartHelperRecorded, Nonce: "failed-attempt", Helper: ProcessIdentity{PID: 9, Identity: "late-helper"}}} {

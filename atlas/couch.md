@@ -247,7 +247,8 @@ Retention trims to 64 entries, then evicts oldest whole entries until at most
 `lifecyclefailure_codec.go` preserves unknown raw values, including nested address
 and holder/process members, through enrichment and rewrite. Known types, required
 identity/time fields and recursive duplicate keys remain strict; legacy rows need
-no new fields. No format version or global strictjson policy changes.
+no new fields. No format version or global strictjson policy changes. Since #695
+the codec sits on the shared `strictjson` object helpers (below).
 
 `operationattempt_record.go` owns `OperationAttempt.Finish`, the sole terminal
 recorder. Synchronous dispatch finishes its attempt directly. Queued actions keep
@@ -300,6 +301,98 @@ postponed for diagnostic IO. A crash before terminal publication can lose that
 attempt's in-memory evidence; older published history remains durable. Private
 service conformance and a disposable-slot display check after an operator Couch
 restart provide separate acceptance; this feature does not stage :0.
+
+### Lifecycle primitives (#695)
+
+**Additive records.** `strictjson/object.go` is the one strict-known,
+preserve-unknown codec: `SplitObject`, `EncodeObject`, `AppendMembers`, `CloneRaw`
+and `MergeRaw`. It refuses duplicate keys at any depth, and it writes preserved
+values verbatim. The failure log and the thread record use it. The thread record
+(`threadrecord.Record.Unknown`) carries top-level members it does not own through
+every rewrite. `ThreadRecord.MarshalJSON` is the persisted encoding, so every
+writer keeps them wherever it marshals. An older couch CLI running a direct-store
+operation therefore cannot erase a newer field. Nested objects stay strict, and
+there is no schema bump. Decode checks the binding's types only, so one bad or
+newer-build binding refuses a resume (`resume-transcript-invalid`) and never hides
+the thread.
+
+**Transcript binding.** `ThreadRecord.Transcript` (`threadrecord/transcript.go`)
+stores the agent's exact conversation. It keeps the native ID plus the root name
+and relative path that the ledger binding's authorization proof names. A native ID
+alone does not locate the file: Claude munges the cwd, and Codex adds a dated
+folder. Resume, relaunch, recovery, startup and preview all go through
+`Couch.bindTranscript` (`couchcore/transcript_bind.go`):
+
+- It reads the tag's ledger by its known name with `ReadCurrentLaunchAt`, never a
+  listing. A newer established root adopts, which covers pair's own context reset.
+- It stats the bound file once. A missing file refuses with
+  `resume-transcript-missing` and is never searched for.
+- An unreadable or missing ledger keeps a located stored binding. The row note for
+  that case belongs to pair#684's row notes.
+- Only when no file is known does the old listing resolver answer, once:
+  `bindByResolver` handles a session before its first turn, a legacy record, or a
+  proofless binding row.
+
+The resume start claim stores the result (`StartEvent.Transcript`) in its own
+revision-checked write. `sessioninventory.RootTranscriptID` and `NativeRootNames`
+are the pure path parsers and root names it validates with. The counted tests run
+the production binder over `sessioninventorytest.FakeRuntime`: 1 ledger read,
+1 stat, 0 listings.
+
+**Lifecycle address.** `couchcore/lifecycleaddress.go`'s `LifecycleAddress` is a
+slot's physical root, built by `NewSlotAddress`. A `:0` primary passes a zero
+`SlotIdentity`. `Key` is `slot:<root>`, the same function as #683's failure slot
+key. It has one kind: the operator chose one team per repository, so a team is an
+ordinary `:0` slot.
+
+**Lifetime lease (M2).** `lifetimelease` holds a shared flock at
+`<namespace>/leases/<digest>.lease`, one per thread tree. The key is
+`Key() + scope/tag`, per thread rather than per slot, because a store from before
+one-thread-per-repository (pair#363) can hold sibling threads at one path.
+- Couch prepares the lease and passes it in `COUCH_LIFETIME_LEASE`.
+- The launcher's pair, `pair wrap` and session-watch each hold it. The wrapper
+  strips it from the agent's env, so nothing the agent runs can hold the slot.
+- Plain pair without Couch opens nothing.
+- The wrapper also publishes the agent's controlling tty in `agent-ready`, read
+  from the kernel process table (`procutil.Process.TTY`).
+- The lease file is created by the launch and removed after any proof.
+  Retirements with no proof leave theirs to `lifetimelease.SweepFree` at Couch
+  start, which unlinks only free files. `Hold` re-checks that it locked the file
+  its path names.
+
+**Teardown (M2).** `couchcore/teardown.go`.
+- `Teardown(thread)` quiesces the session and stops the registered wrapper. It
+  then sweeps the lease holders and the processes on the agent's tty, by exact
+  identity, with SIGTERM then SIGKILL, at most 3 rounds, within a 10s budget.
+- It proves the tree down: the lease is free, the published agent (by exact
+  identity) is dead, nothing is on the tty, and the session is absent twice. #692's listing omission is unproven, never absence.
+- It then folds the park or start claim the dead owners left
+  (`clearLifecycleDebris`).
+- The tty is trusted only while the tree is up (the agent is listed or the lease
+  is held), because a dead agent's device may be reused.
+- `ProveDown` proves without stopping or folding.
+- Failures are `ErrTeardownUnproven`, with a phase and holders, through #683's
+  `LifecycleFailureDetails`.
+- The agent's descendants that left its tty (setsid'd runners) are `LeftRunning`.
+  They are never killed. They are registered in `<namespace>/orphans.json`
+  (`LeftRunningRegistry`, tolerant and preserving, 256 cap). `couch --resources`
+  shows them, and `couch --reap-orphans --confirm` ends them by exact identity.
+  The resource sampler prunes vanished identities.
+
+**Retire authorities (M2).** `couchcore/retire.go`. Every store retirement
+(`archiveThread`, `ReplaceThreadExpected`, `replaceSlotCurrent`) takes a sealed
+`RetireAuthority` and refuses without one:
+- `TeardownProof`: that thread, that lifecycle key, at the proof's revision.
+- `AdoptionAuthority`: survivor adoption, with every other owner proven dead.
+- `UnreadableRecordEscape`: undecodable bytes, exactly those.
+- `FreshLeavesRemnants`: a confirmed Fresh whose source could not be proven down.
+  It stops only what the operator confirmed and starts beside the remnants. It is
+  the only authority that may replace over an open park or claim.
+
+Archive tears down after its quiesce. Reboot's archive-only escape and a fresh
+slot start use `ProveDown`. A record retired by proof is archived with
+`proven_down_at`, which `LastLifecycleSuccessAt` counts, so an emptied slot's
+`--show` hides the unproven attempt before it.
 
 Claude native resume validates an exact session through bounded UUID-leaf
 probes under the authorized project roots, preserving duplicate and root-role
@@ -2174,7 +2267,16 @@ when its data loads. One rule, `agentdrive.Request.Admits`, decides admission
 for the service, its pre-input guard, the wrapper and the reducer. The panel
 is the rows below the viewport's last full-width rule, since earlier prompt
 rows stay visible above it; the footer wording comes from the Claude 2.1.304
-capture in `wrapcmd/testdata/drive/claude/2.1.304/`.
+capture in `wrapcmd/testdata/drive/claude/2.1.304/`. Any other request refused
+while a panel shows says so and names the lone `esc` (`agentdrive.PanelRefusal`).
+For a non-recovery key, the service learns about the panel through one read-only
+observation, made only on the not-settled refusal path (pair#716).
+
+`agentdrive.Steps` is the one table of caller steps (pair#716). `Validate`
+accepts a named key only if it is a row. `couch --keys --help` renders the rows,
+the limit constants, the admission rules and the panel round trip, and
+`couch --help` names them inline. A test holds the skill's step sentence to the
+same table.
 
 `couchmessage/drive_endpoint.go` provides `drive-observe`, `drive-start`,
 `drive-status` and idempotent `drive-cancel` over the existing authenticated

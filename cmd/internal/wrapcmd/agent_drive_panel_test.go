@@ -34,7 +34,7 @@ func TestAgentDrivePanelAdmitsOnlyEsc(t *testing.T) {
 		t.Fatalf("panel observation %+v", o)
 	}
 	for _, keys := range []agentdrive.KeySequence{{{Kind: agentdrive.KeyClearLine}}, {{Kind: agentdrive.KeyEsc}, {Kind: agentdrive.KeyEsc}}, {{Kind: agentdrive.KeyText, Text: "x"}}, {{Kind: agentdrive.KeySubmit}}, {{Kind: agentdrive.KeyEsc}, {Kind: agentdrive.KeyText, Text: "x"}}} {
-		if r, err := driveStart(t, d, agentdrive.Request{Keys: keys}); err != nil || r.Outcome != agentdrive.OutcomeRefused {
+		if r, err := driveStart(t, d, agentdrive.Request{Keys: keys}); err != nil || r.Outcome != agentdrive.OutcomeRefused || r.Detail != agentdrive.PanelRefusal {
 			t.Fatalf("%v on a panel: %+v %v", keys, r, err)
 		}
 		delete(d.drive.receipts, "test-drive")

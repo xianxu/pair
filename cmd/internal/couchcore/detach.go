@@ -260,7 +260,28 @@ func (c *Couch) ArchiveThread(ctx context.Context, address ThreadAddress) (Archi
 		// the operator.
 		return ArchiveResult{Record: r.Record}, nil
 	}
-	if err := c.Threads.ArchiveThreadExpected(address, r.Revision); err != nil {
+	if r.Unreadable {
+		// Nothing an undecodable record names is stopped (prepareRetirement),
+		// so its authority is the escape for exactly its bytes.
+		escape, err := c.Threads.UnreadableRecordEscape(address)
+		if err != nil {
+			return ArchiveResult{}, fmt.Errorf("archive %s: %w", address.Tag, err)
+		}
+		if err := c.Threads.ArchiveThreadExpectedBytes(address, escape.Raw(), escape); err != nil {
+			return ArchiveResult{}, err
+		}
+		return ArchiveResult{Record: r.Record, SessionNotStopped: true}, nil
+	}
+	// The session is stopped; teardown stops what else the thread's tree
+	// left (its lease holders, its agent's terminal) and proves it gone.
+	proof, err := c.Teardown(ctx, r.Record, "archive")
+	if err != nil {
+		return ArchiveResult{}, fmt.Errorf("archive %s: %w", address.Tag, err)
+	}
+	// The revision admission checked, not the proof's: the record is
+	// archivable and its quiesce done, so teardown folds nothing, and a record
+	// that moved anyway must not be archived on an older admission.
+	if err := c.Threads.ArchiveThreadExpected(address, r.Revision, proof); err != nil {
 		return ArchiveResult{}, err
 	}
 	return ArchiveResult{Record: r.Record, SessionNotStopped: r.SessionNotStopped}, nil

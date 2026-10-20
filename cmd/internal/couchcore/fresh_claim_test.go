@@ -55,7 +55,7 @@ func TestRefusedReplaceKeepsTheClaimOnceTheJournalIsDurable(t *testing.T) {
 			Profile: LaunchProfileResolution{Profile: LaunchProfile{Agent: "claude", Argv: []string{}}},
 			Store:   env.Couch.Threads,
 			Commit: func(next ThreadRecord) error {
-				return env.Couch.Threads.ReplaceThreadExpected(old.Address, revision, next)
+				return env.Couch.Threads.ReplaceThreadExpected(old.Address, revision, next, proofForTest(t, old))
 			},
 		})
 		return claims, err
