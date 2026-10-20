@@ -42,7 +42,7 @@ A list that only grows stops being read, which defeats notifications.
 ## Plan
 
 - [x] Pin restart, select/dismiss suppression and re-occurrence, clear-all keyboard/mouse, notification-only 12h expiry, and live expiry wiring with targeted tests.
-- [ ] Remove attention persistence/restore/saver, add pure suppression/expiry transitions and panel clear-all, update README/atlas, run affected verification and close.
+- [x] Remove attention persistence/restore/saver, add pure suppression/expiry transitions and panel clear-all, update README/atlas, queue recorded affected verification and request close review. A recorded pass remains required before landing.
 
 ## Log
 
@@ -76,3 +76,8 @@ Actions: open, dismiss, clear all, wait, resolve live condition.
 | Couch restart / old list.json present | Empty event list; current conditions re-derived | Review current live conditions | Previous ephemeral nudges intentionally lost |
 
 Cost: N listed items, L current live conditions, S suppressed conditions. Expiry is one O(N) pass per existing activity tick. Source-set reconciliation is O(N+L+S); suppression is removed when a condition clears, so it stays bounded by current live conditions. Count the expiry predicate visits at N and 2N in a test if a helper seam is warranted; directly bound scans in the single filter rather than introducing test-only production counters. No IO on these transitions.
+
+### 2026-10-20 — verification/review overlap
+
+- Reason: tl-worker explicitly permits close review during a queued recorded check; code changes from review require fresh verification.
+- Delta: plan row records queueing and review request; completion still requires the recorded pass before landing. Startup regression is in pushed head 09df3e13caf75ac076481a5bb7f84d51d392555a.
