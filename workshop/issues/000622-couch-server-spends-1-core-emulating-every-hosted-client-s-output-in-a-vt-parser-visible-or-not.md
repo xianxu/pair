@@ -51,10 +51,16 @@ Couch CPU all the time, whether or not anyone is looking at that slot.
 
 - [x] M1 — land permanent per-hosted-client ingest-byte diagnostics through read-only resources; no parser-policy change.
 - [x] M2 — after the combined restart, measure natural idle/busy rates and server CPU, choose the smallest correct optimization with TL approval, then implement and verify it.
-- [ ] Verify restarted supervisor/clients, record production CPU/sample, and confirm console/peek/waiting; hand controlled CPU acceptance to #723 before whole-issue close.
+- [x] Verify restarted supervisor/clients, record production CPU/sample, and confirm console/peek/waiting; hand controlled CPU acceptance to #723 before whole-issue close.
 
 
 ## Log
+
+### 2026-10-19 23:00 PDT — operator console attestation completes live acceptance
+
+Canonical submitted TL receipt eef6af5c-d683-4dee-88b9-8988567ef1a7 relays the operator's console attestation: “nothing wrong observed since that restart or since the latest restart just now”. This is operator testimony, not an automated visual check. Together with the identified loaded M1/M2 supervisor, twenty matched hosted clients, retained production CPU/native profiles, coherent live peeks and TL-checked waiting notices recorded below, it completes this issue's deployment/consumer acceptance. No working slot was relaunched or driven for these observations. Controlled CPU/byte acceptance remains exclusively #723; its twelve retained observations do not turn the unmatched live CPU measurements into a causal comparison.
+
+The close records actuals as unavailable because historical suite attempts 292295564ecd3c67d9068eb4ca0f98e6 and 8891def18d42afa41f0cfc838ff1da7f lack exact queue endpoints; elapsed totals cannot recover timestamps that were never recorded. No hours or queue timestamps are synthesized, and this close is excluded from velocity calibration. Runtime code already landed with M1/M2 semantic, race, recorded-suite and SHIP proof; this branch changes workshop acceptance documentation only.
 
 
 
