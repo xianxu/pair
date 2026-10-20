@@ -90,6 +90,10 @@ Focused scratch/launch/switch/show checks passed in couchscratch/couchcmd/couchc
 
 ## Revisions
 
+### 2026-10-19 — qualification checkpoint
+
+Implementation Git-verified at ad1fc8519b2cfb691a8f96030e22f82200bae7c8, published as PR #470. Final focused policy/reader/launch/switch/show checks passed (couchscratch 0.153s, couchcmd 0.468s, couchcore 0.312s); the full couchscratch package including regular/special/oversized read-boundary controls passed 0.382s. Counted settings test fixes reads at three for 8 and 16 allowances. Recorded full-suite attempt 8cffba3e5ad21df2e70eca2667f643f3 is queued on that exact code head, initially position 4; exec session 93238 owns it and must be preserved. Its private checkout is /Volumes/TestScratch/local-checks/sdlc-local-3990507660. No tests have run in that attempt yet. Per tl-worker's explicit overlap rule, close review may run while queued; --no-plan-check acknowledges only the pending recorded qualification, and --no-project preserves TL ownership. A passing final-code suite still precedes landing; any review code correction requeues it. No bypass of CI or recorded evidence is authorized.
+
 ### 2026-10-19 — approved projection envelope
 
 Hub approved standard local Claude settings with conservative unknown-layer fallback, and Codex's narrow TMPDIR rule (b02f4c9f-ac9d-49c5-bcdc-7ff5f673caa9; 6cfb6a23-fb86-4013-93fd-1047d7a7b73c). Profile/CLI config resolution and detected managed policy remain native-owned: use normal temp instead of predicting them. Show labels the current next-launch selection and does not claim to observe an existing child. No pair:0 stage; acceptance uses headless fixtures and source evidence, with live follow-up at the next natural relaunch.
