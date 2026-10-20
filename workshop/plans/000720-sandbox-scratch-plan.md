@@ -4,6 +4,8 @@ collaboration-mode: discussion
 
 # Sandbox-aware slot scratch
 
+**Current contract: V2 persistent opt-in, in the final Revisions entry.** The settings-projection design below is retained as superseded history.
+
 > Follow AGENTS.md §3 for delegation. One atomic close boundary; no milestone tags.
 
 **Goal:** Never opt a slot into optional RAM scratch based solely on Couch's unsandboxed write probe.
@@ -94,3 +96,42 @@ Plan-quality round 1 INFO, no blocking findings. PQ-1 requests concrete projecti
 ### 2026-10-19 — implementation map
 
 Keep the existing callback signature: supply its selected profile through a call-local ThreadRecord copy at launch, leaving the durable last-registered profile unchanged. Warm attach already supplies the retained selected profile and needs no production change. The bounded IO/invocation reader lives separately in sandbox_read.go; scratchAdmission wraps the existing environment preparer so the manager and its generic fixture API stay unchanged. Update the map to actual ownership, not an anticipated signature expansion. Estimate-quality INFO's tight allocations are acknowledged: reader and launch rows include their tests, discovery includes completed research once (not additional research), and the review row includes foreground verification/landing attention; no numbers are backfitted.
+
+### 2026-10-19 21:30 PDT — V2 approved: declare setup, do not emulate native policy
+
+Hub approvals 0e40b3a8-694a-428b-8279-1e0dcc653e65, e84bb6d4-2146-47c0-beaf-48a95227d28c and 53c2a54b-e92a-4bd9-959d-0091c50793e1 replace the prior design and acceptance contract. Close round 1 REWORK identified unmodeled permission denies and native local-settings discovery (BR-1/BR-2); lexical alias handling was another uncertainty. Stop extending that resolver. The simpler alternative is a persistent operator declaration created together with the machine sandbox allowance. No agent resolver, native-config reads or TOML dependency remains.
+
+#### V2 core concepts (authoritative)
+
+| Entity | Location | Kind / status |
+|--------|----------|---------------|
+| ChooseSlotScratch(probe, optedIn) | cmd/internal/couchscratch/optin.go | pure, new; one admission predicate over the existing host probe and explicit opt-in |
+| ScratchOptInPath(home, configHome) | cmd/internal/couchscratch/optin.go | pure, new; XDG path with HOME fallback; invalid path input cannot grant admission |
+| scratchAdmission / configureScratch | cmd/internal/couchcmd/scratch.go | integration, modified; one read-only Lstat of declaration, existing probe/preparer and bounded note |
+| ScratchDiagnostic / show projection | existing couchcore/couchcmd files named above | integration, new; current next-launch selection, no preparation or new stored state |
+
+The declaration is a regular file at XDG_CONFIG_HOME/pair/agent-sandbox-allowed, or HOME/.config/pair/agent-sandbox-allowed when XDG_CONFIG_HOME is empty. Contents are ignored; no file is created, changed or removed by Couch. Missing, inaccessible or non-regular declarations decline optional scratch. HOME/XDG path routing is injected and isolated Couch fixtures cannot consult the operator's marker. The operator/TL owns creation after configuring every agent's sandbox allowance, and removal disables adoption on later launches. It persists on disk across reboot and is not stored on TestScratch.
+
+ChooseSlotScratch requires both declaration and the existing ChooseScratch host checks. Existing slot identity, manager try-lock, owner declaration, write probe and cleanup remain unchanged. Denial returns no overlay (keeps normal inherited values) and one line naming the marker; no automatic retry or settings mutation. Current show reports the same selection without creating scratch. A marker is a declaration, not measured sandbox permission: creating it without the allowance can reproduce the original build refusal, explicitly accepted by the TL; ariadne#477 protects the SDLC temp consumer. This component never claims native-policy inference.
+
+#### V2 visible states and recovery
+
+| Condition | Current selection | One recovery action | Possible loss |
+|-----------|-------------------|---------------------|---------------|
+| Marker absent/unreadable/non-file | normal temp; note names marker | complete machine setup, then create marker and relaunch | optional RAM speed |
+| Marker present, host available | RAM disk | retain setup | temp contents on RAM reboot, as today |
+| Host unavailable despite marker | normal temp; existing fallback | use normal temp | optional RAM speed |
+| Marker created without allowance | admission still says RAM, actual build can refuse | correct the machine setup and relaunch | failed temporary build work |
+
+#### V2 function guards and cost
+
+ChooseSlotScratch: pure cross-product table over declaration and host availability; no native-agent vocabulary. ScratchOptInPath: literal XDG/HOME table, malformed inputs cannot become paths. scratchAdmission: portable real files with marker mutation (missing → regular → removed), host probe success cannot substitute for opt-in, and non-file declaration refuses. Show shares admission and remains effect-free. Full artifactpath guards source inventory. Cost is one marker stat plus existing host probe per launch/show, independent of session count/settings-tree size; no scans, file-content reads, cache, worker, journal or new format. No lint catalog rule can syntactically infer consumer sandbox policy; deleting inference eliminates the semantic mistake class.
+
+#### V2 implementation and acceptance (supersedes old task rows)
+
+- [ ] Delete the native policy/projection files and their tests, TOML dependency and selected-profile plumbing; restore unchanged legacy source expectations rather than leaving unused resolver pieces.
+- [ ] Add red-first pure opt-in tables and writable-host/no-marker composition regression, then the small read-only marker admission. Cover an explicit XDG path and isolated HOME fallback, marker lifecycle and current-selection diagnostics.
+- [ ] Update README/atlas around the declaration and its admitted limitation. Run focused tests/source guards, push the corrected code and queue a new recorded suite; cancel the superseded attempt only through SDLC.
+- [ ] Close with BR-1/BR-2 disposed by eliminating native-policy interpretation, then land only after final-code recorded suite/CI pass. Report Git-verified merge to hub and stop. Hub creates the real marker and updates ops setup README before slot relaunches; worker never creates it on this machine.
+
+No pair:0 staging or native config writes. Existing estimate remains the original forecast, including spent abandoned work; do not backfit it to the smaller remaining implementation. Re-run change-code on this revised design before code. The first suite attempt 8cffba3e5ad21df2e70eca2667f643f3 was cancelled while queued before execution; no result is accepted from it.

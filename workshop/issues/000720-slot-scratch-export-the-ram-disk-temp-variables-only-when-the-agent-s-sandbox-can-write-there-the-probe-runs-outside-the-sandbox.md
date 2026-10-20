@@ -32,6 +32,8 @@ while the consumer can't write proves nothing about the consumer.
 
 ## Spec
 
+**Superseded by the approved V2 persistent-opt-in contract in Revisions below.** The original requested inference is retained here as decision history, not the current implementation target.
+
 Export the scratch variables only when the slot's agent can write there; otherwise leave the variables unset (the
 normal temp folder) and print one note naming the missing allowance.
 - Claude: read the effective `sandbox.filesystem.allowWrite` (user, project and local settings; `sandbox.enabled`) and
@@ -97,3 +99,9 @@ Implementation Git-verified at ad1fc8519b2cfb691a8f96030e22f82200bae7c8, publish
 ### 2026-10-19 — approved projection envelope
 
 Hub approved standard local Claude settings with conservative unknown-layer fallback, and Codex's narrow TMPDIR rule (b02f4c9f-ac9d-49c5-bcdc-7ff5f673caa9; 6cfb6a23-fb86-4013-93fd-1047d7a7b73c). Profile/CLI config resolution and detected managed policy remain native-owned: use normal temp instead of predicting them. Show labels the current next-launch selection and does not claim to observe an existing child. No pair:0 stage; acceptance uses headless fixtures and source evidence, with live follow-up at the next natural relaunch.
+
+### 2026-10-19 21:30 PDT — V2 persistent declaration replaces native inference
+
+Close round 1 returned REWORK, not finalized: BR-1 (permission-deny inputs) and BR-2 (native local-settings locations) expose a resolver-fidelity spiral; alias handling was another uncertainty. Hub explicitly stopped that direction and approved V2 (53c2a54b-e92a-4bd9-959d-0091c50793e1): persistent regular marker XDG_CONFIG_HOME/pair/agent-sandbox-allowed, fallback HOME/.config/pair/agent-sandbox-allowed, contents ignored. No marker/unreadable/non-file means no optional scratch export and one note naming it. Marker plus existing host/owner checks permits all agents, without parsing or claiming to verify their sandbox settings. The operator creates it together with machine allowances, and owns removal; it survives RAM reboot. A stale/false declaration can still produce build refusal, an explicit accepted limitation. Delete native config readers/projections, TOML and selected-profile plumbing rather than extending them. The durable plan's final V2 section is authoritative for its concepts, tasks and Done-when.
+
+Current Done-when: missing declaration despite a passing host write probe produces no three-variable overlay and a named note; regular declaration permits the original overlay; isolated HOME and explicit XDG routing, missing/non-file/error cases and effect-free show diagnostics pass. Full final-code suite and close review precede landing. No real marker or machine settings are changed by this worker. Hub will create the marker and update ops README after landing and before any relaunch. The superseded recorded suite was safely cancelled through local-check cancel before execution, leaving two other checkout runs untouched; reviewer artifacts are retained. V2 waits for revised change-code before code changes.
