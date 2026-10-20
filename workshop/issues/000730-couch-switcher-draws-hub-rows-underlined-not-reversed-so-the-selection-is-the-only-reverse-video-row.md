@@ -51,6 +51,7 @@ which one is selected (operator, 10-20, screenshot in ops's session file).
 - Close round 1 found BR-1: stale README claimed reversed switcher hubs. Swept README and atlas hub/reverse/inversion descriptions; corrected the single stale README paragraph and recorded the prevention rule in lessons. No code changed; recorded suite remains queued.
 
 ### 2026-10-20
+- 2026-10-20: closed — Cell-level TestHub/TestRenderMenu passed for hub underline, selected reverse, glyph reset and blocked color; existing multi-hub tests retain dimming. BR-1 README/atlas style sweep corrected stale README; no code changed. Recorded suite queued and required before landing. TL defers live look until after landing; no stage.; review verdict: SHIP
 
 - Quick-flow design: reuse the existing reset-restoring decorator, underline all hub rows and add reverse only for selection. Tab-chip inversion is separate and stays unchanged. No new state, IO, persistence or growth driver.
 - Automatic start-plan weave refresh produced unrelated CI workflow edits; preserved in stash named pair730 automatic weave workflow refresh preserved.
