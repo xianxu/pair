@@ -1,6 +1,6 @@
 ---
 id: 000732
-status: working
+status: codecomplete
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.49
+tracker:
+    version: 1
+    completion:
+        token: close-cbed34a80b28
+        repository: github.com/xianxu/pair
+        reviewed_head: a93fe02d46530fe7178f5702a15de7d21d908de3
+        evidence_commit: c4bffab400c4fb585d3804f3bf5d89bf4d8025c8
 ---
 
 # couch: tab bar and switcher order: by hub, the hub's own slots right after it, then repos alphabetically
