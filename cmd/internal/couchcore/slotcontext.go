@@ -195,3 +195,28 @@ func (c *Couch) WorkspaceReferencePath(ctx context.Context, ref string) (string,
 	}
 	return identity.PrimaryRoot, true, nil
 }
+
+// RepositoryHubSlots maps every verified slot of one repository to its hub
+// slot identity with a single Discover (pair#726). It agrees with resolving a
+// slot reference one at a time (WorkspaceReferencePath, then the workspace
+// resolver), so a hub admission memo can warm a whole repository at once.
+func (c *Couch) RepositoryHubSlots(ctx context.Context, primary string) (map[int]HubSlot, error) {
+	if c.Slots == nil {
+		return nil, fmt.Errorf("slot catalog unavailable")
+	}
+	repository, err := c.Slots.Discover(ctx, primary)
+	if err != nil {
+		return nil, err
+	}
+	slots := map[int]HubSlot{}
+	for _, row := range repository.Slots {
+		if !row.Verified || row.Err != nil {
+			continue
+		}
+		slot := HubSlot{Repository: row.Identity.PrimaryRoot, Number: row.Identity.Number}
+		if slot.Validate() == nil {
+			slots[slot.Number] = slot
+		}
+	}
+	return slots, nil
+}
