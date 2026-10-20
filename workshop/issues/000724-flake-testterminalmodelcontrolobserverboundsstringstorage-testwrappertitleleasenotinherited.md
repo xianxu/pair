@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/wrapcmd.TestTerminalModelControlObserverBoundsStringStorage, github.com/xianxu/pair/cmd/internal/wrapcmd.TestWrapperTitleLeaseNotInherited]
+flow: {kind: quick, provenance: inferred, spec: "c166e865", done: "a0bbe98b"}
 ---
 
 # flake: TestTerminalModelControlObserverBoundsStringStorage, TestWrapperTitleLeaseNotInherited
