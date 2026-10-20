@@ -327,15 +327,21 @@ func (r OSRuntime) ListSessions() ([]ListRow, error) {
 		return nil, fmt.Errorf("zellij not found on PATH") // shell 231-234
 	}
 	source := ZellijSource{}
-	raw, err := source.run("list-sessions", "--no-formatting")
+	raw, err := source.listings(context.Background())
 	if err != nil {
 		return nil, err
 	}
-	short, err := source.run("list-sessions", "--short")
+	states, err := sessionListingStates(raw)
 	if err != nil {
 		return nil, err
 	}
-	names := pairSessionNames(string(short))
+	var names []string
+	for name := range states {
+		if isPairSessionName(name) {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
 	index, err := r.ReadSessionNameIndex()
 	if err != nil {
 		return nil, fmt.Errorf("read session-name index: %w", err)

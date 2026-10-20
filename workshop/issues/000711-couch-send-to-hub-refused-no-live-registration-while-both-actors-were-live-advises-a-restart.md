@@ -94,9 +94,9 @@ registration-publication order. The 23:40 error exactly matches the listing prob
 ## Plan
 
 - [x] Trace errors and reproduce three deterministic failures using disposable Go overlays.
-- [ ] Retain those probes as permanent regressions and implement one-listing observation,
+- [x] Retain those probes as permanent regressions and implement one-listing observation,
   same-actor busy classification, and phase diagnostics; preserve negative controls.
-- [ ] Run affected launcher, broker and messaging tests plus source/consumer guards;
+- [x] Run affected launcher, broker and messaging tests plus source/consumer guards;
   update atlas/lessons and file any shared lint finding in its owning repo.
 - [ ] Push, record full suite, close on evidence, enter normal merge and report the landing.
 
@@ -154,3 +154,46 @@ registration-publication rewrite. The previous contract is preserved below as su
 > - [ ]
 > 
 </details>
+
+### 2026-10-20 — implementation and focused verification
+
+Permanent broker red: live input failed with ErrUnavailable; sender disconnect, recipient
+disconnect and same-binding reconnect controls passed. All three root regressions now
+pass, with exactly one delivery after queue promotion. The listing suite additionally
+proved malformed refresh must not renew the last-good age, and counts one native query
+at 8/16 sessions with zero calls from repeated cached reads. Focused core packages passed
+(couchmessage 0.178s, launcher 1.263s); the migrated launcher native-reply/empty/cancellation
+selection passed 37.387s. Obsolete paired-list tests now test one complete reply's exact
+presence/state, malformed and duplicate rejection; their old agreement expectation
+encoded the removed race, not a weakened native parser.
+
+Phase tests were red before diagnostics: 28 failure cases lacked side/phase, four healthy
+hub/exact and short/maximum-body controls passed, six legacy CLI cases showed restart
+advice. After error-context changes the entire matrix passed (couchcmd 0.835s), retaining
+response codes, error causes and refusal/no-receipt policy. No message body is diagnostic.
+The initial permanent listing red command briefly failed to compile while the parallel test
+migration already used the new poller API; an overlay restoring only the old poller test
+API then produced semantic red failures for direct/polled churn, 8/16 query budgets and
+malformed-refresh freshness. No compiler failure is counted as causal evidence.
+
+### 2026-10-20 — broader verification and migration audit
+
+Affected packages passed: couchmessage 25.090s, launcher 67.510s, couchcmd 48.813s,
+artifactpath 6.485s, termcmd 2.018s, internal/repolint 6.049s. The first package pass
+found obsolete expectations in recovery-class diagnostic equality, pre-540 compatibility
+restart advice, fleet query-attribution totals and managed-attach native ordinals. Updated
+tests retain the original typed classification plus the new phase, no automatic retry,
+and attribution for two native queries (one full inventory and one client query), not three.
+Managed RunLaunch still has three independent admission/effect fences; exported attach
+still has two. Each now uses one full query; wrong-kind replies at every fence stop all
+attach/cold fallback. Replacement at the last independent fence refuses effects.
+
+Preserved deterministic client-query order by sorting selected exact names before IO;
+otherwise map iteration would add native-order nondeterminism. Listing churn/count/runtime
+and reordered-query checks passed three repetitions (2.539s). The Runtime.ListSessions
+consumer also derives its names from one full observation rather than a second short view.
+Existing parser and empty-reply authority remains unchanged. Full-suite evidence follows.
+
+Filed unclaimed ariadne#496 for a narrow shared lint catalog guard against recognizable
+paired views of a live inventory; no peer code changes. README and atlas now describe
+phase evidence and proportionate inspection rather than blanket restart advice.

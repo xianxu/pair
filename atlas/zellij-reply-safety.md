@@ -162,7 +162,7 @@ not authorize an irreversible action or authenticate a same-kind reply.
 
 | Runtime / caller | Queries | Policy and evidence |
 |---|---|---|
-| `launcher.ZellijSource` / `ListingPoller` | short/full `list-sessions`, per-session `list-clients` | Re-checked inventory; strict rows/headers and exact listing-set agreement. Existing cadence/cache; unknown never proves absence. `zellij_reply_admission_test.go`, `zellij_test.go`. |
+| `launcher.ZellijSource` / `ListingPoller` | one full `list-sessions`, per-session `list-clients` | Re-checked inventory; strict rows/headers, with exact names and state derived from one complete reply (#711). Existing cadence/cache; unknown never proves absence. `zellij_reply_admission_test.go`, `zellij_test.go`. |
 | `OSRuntime.SessionBlocksReuse`, `ProbeSessionNameContext` | full listing; targeted clients | Fail closed against live/unknown independent server identity; exact name-validator diagnostic matrix. `zellij_diagnostic_matrix_test.go`, `query_collection_diagnostic_test.go`. |
 | `OSRuntime.ProbeLiveLayout` | targeted command/state panes | Hardened matching layout projection before recording; `zellij_reply_admission_test.go`. |
 | `SessionOwnerProbe`, retirement/quit/recovery | targeted command panes plus full listing/server checks | Hardened owner projection and exact process generation fences; `session_owner_test.go`, `recovery_terminal_confirmed_test.go`. |

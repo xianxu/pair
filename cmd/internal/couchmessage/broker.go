@@ -653,7 +653,7 @@ func (b *Broker) admit(ctx context.Context, from Binding, id string, route Route
 		to, err := ResolveRecipient(route, candidates, families, b.now(), func(to Binding) bool { return b.eligible(from, to) })
 		if err != nil {
 			b.mu.Unlock()
-			return Receipt{}, families, err
+			return Receipt{}, families, fmt.Errorf("recipient %s lookup: %w", route.Target, err)
 		}
 		a := b.actors[to]
 		if !family && (a.reservation != "" || len(a.inbox) != 0 || actorCandidate(a, b.now()).Pending) {
@@ -709,22 +709,30 @@ func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, fro
 		obs, err = a.endpoint.Observe(ctx)
 	}
 	if err != nil {
-		return Receipt{}, err
+		return Receipt{}, fmt.Errorf("recipient %s observe: %w", to.Slot, err)
 	}
 	if err = a.endpoint.Reserve(ctx, id, obs.Sequence); err != nil {
 		var committed *AlreadyCommittedError
 		if errors.As(err, &committed) {
 			return b.adoptRetained(a, from, id, route, body, committed.Receipt, origin)
 		}
-		return Receipt{}, err
+		return Receipt{}, fmt.Errorf("recipient %s reserve: %w", to.Slot, err)
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if err = ctx.Err(); err != nil {
 		return Receipt{}, err
 	}
-	if b.actors[to] != a || a.reservation != id || !b.caller(to) || a.sequence != seq || !b.caller(from) {
-		return Receipt{}, ErrUnavailable
+	if !b.caller(from) {
+		return Receipt{}, fmt.Errorf("caller %s current: %w", from.Slot, ErrUnavailable)
+	}
+	if b.actors[to] != a || a.reservation != id || !b.caller(to) {
+		return Receipt{}, fmt.Errorf("recipient %s admission: %w", to.Slot, ErrUnavailable)
+	}
+	// Input can invalidate a reservation without changing either registration.
+	// Reuse the exact-target busy queue; actor replacement was refused above.
+	if a.sequence != seq {
+		return Receipt{}, ErrRecipientBusy
 	}
 	if family && !b.eligible(from, to) {
 		return Receipt{}, ErrNoRecipient

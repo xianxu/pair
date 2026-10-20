@@ -126,8 +126,8 @@ func TestMessageCLIPre540SupervisorCompatibility(t *testing.T) {
 			if code := runMessageCLIWithCall(inv, messageRuntime(), &out, &stderr, call); code != 1 {
 				t.Fatalf("missing caller: exit=%d stdout=%s stderr=%s", code, &out, &stderr)
 			}
-			if !strings.Contains(stderr.String(), "restart Couch") {
-				t.Errorf("missing registration lacks recovery: %s", &stderr)
+			if !strings.Contains(stderr.String(), "caller lookup") || strings.Contains(stderr.String(), "restart Couch") {
+				t.Errorf("missing registration lost caller evidence or gained restart advice: %s", &stderr)
 			}
 			if strings.Contains(stderr.String(), "older than") {
 				t.Errorf("registration absence does not prove version skew: %s", &stderr)
