@@ -101,3 +101,102 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000409
+
+---
+
+## Re-review — 2026-10-19T21:41:02-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 720 — Slot scratch: export the RAM-disk temp variables only when the agent's sandbox can write there (the probe runs outside the sandbox) |
+| repo | pair |
+| issue file | workshop/issues/000720-slot-scratch-export-the-ram-disk-temp-variables-only-when-the-agent-s-sandbox-can-write-there-the-probe-runs-outside-the-sandbox.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 7d9ce7ca7988743e3ef201221a19c985c8cecec7..ba3584f4f35642e621411abf34f4cc59badeeee6 |
+| command | sdlc close --issue 720 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-19T21:41:02-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The V2 declaration contract removes the native-policy resolver responsible for both prior findings. Launch admission and marker lifecycle checks pass, and removing the admission guard makes the regression fail. One diagnostic gap remains: showing a slot without a thread omits scratch status.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The authoritative V2 revision replaces policy inference with an explicit declaration. Native-policy readers are absent; the production composition regression rejects exports without the marker and fails when the admission guard is removed.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      V2 removes native local-settings discovery entirely. Admission uses the injected XDG/HOME declaration path; lifecycle, routing, and isolation tests pass through the production admission seam.
+findings:
+  - id: new
+    severity: Important
+    kind: defect
+    family: scratch-diagnostics-cover-show-targets
+    title: |
+      Slot-only show omits the promised scratch diagnostic
+    detail: |
+      cmd/internal/couchcore/operationdispatch.go:251-255 projects scratch status only over matched threads. A valid slot with no thread therefore has no scratch status, contrary to the V2 show contract (ARCH-PURPOSE). Extending TestShowReportsASlotWithoutAThread with an injected ScratchDiagnostic and a nonempty Scratch assertion fails. Project admission for slot-only targets too, and retain that regression.
+```
+
+1. **Strengths**
+
+   - Launch and diagnostics share `scratchAdmission`; show does not invoke scratch preparation.
+   - Pure path/admission tables require no IO. Integration tests exercise real private files and marker creation/removal.
+   - Existing host, ownership, preparation, and cleanup protections remain intact.
+   - README and atlas document the new declaration and its accepted limitation.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** Slot-only diagnostics, detailed above. Fix by supporting admission projection without a matched `ThreadRecord`.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Focused scratch/show checks passed in `couchscratch`, `couchcmd`, and `couchcore`.
+   - Complete `couchscratch` and `artifactpath` packages passed.
+   - In a disposable head copy, removing the refusal return caused the marker regression to fail with all three unwanted exports.
+   - The added slot-only diagnostic assertion failed against the pinned implementation.
+   - Disposable files were removed. The repository-wide suite was not run during this review.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared admission and existing preparation machinery.
+   - **ARCH-PURE — pass:** pure decisions separated from filesystem observation.
+   - **ARCH-PURPOSE — flag:** slot-only show misses the documented diagnostic.
+   - **ARCH-MOCK — pass:** private filesystem fixtures and injected probe use production seams; no new external service.
+   - **ARCH-CONSTRAINTS — pass:** fixed-cost marker observation; no content reads or scans.
+   - **ARCH-SECURE — pass:** invalid paths, nonregular markers, and isolated-path escapes decline admission.
+   - **ARCH-ORDER — pass:** admission retains no state between calls; marker changes are observed on subsequent calls.
+   - **ARCH-FUNERAL — pass:** Couch creates no new durable artifact; operator removal ends declaration adoption.
+   - **ARCH-EVOLVE — pass:** no existing persisted format is rewritten; marker contents are ignored.
+
+7. **Plan revision recommendation**
+
+   Add a `## Revisions` entry specifying that current-selection diagnostics cover both thread targets and valid slots without threads, with the corresponding regression test.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"46562d83-f3fa-4e4b-8971-7013743b2b50","repository":"github.com/xianxu/pair","issue_id":"000720","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/0adfd7a456d01ded","reviewed_head":"ba3584f4f35642e621411abf34f4cc59badeeee6","slot":"pair:7","requested_at":"2026-10-20T04:39:02.17052Z"},"phase":"finished","pid":72773,"started_at":"2026-10-20T04:39:02.465877Z","finished_at":"2026-10-20T04:41:01.645412Z","session_id":"01a1579b-1219-72b2-9457-364cefd2f4c5","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.907557083s
+head: "ba3584f4f35642e621411abf34f4cc59badeeee6"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

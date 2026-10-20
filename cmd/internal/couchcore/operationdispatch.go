@@ -249,6 +249,9 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 			}
 			result := ShowResult{Threads: narrowed, LaunchFailures: failures, LaunchFailureError: failureError}
 			if c.ScratchDiagnostic != nil {
+				if isSlot && len(matches) == 0 {
+					result.Scratch = append(result.Scratch, c.ScratchDiagnostic(call.Context, ThreadRecord{}))
+				}
 				for _, match := range matches {
 					result.Scratch = append(result.Scratch, string(match.Address.Tag)+": "+c.ScratchDiagnostic(call.Context, match))
 				}

@@ -2398,3 +2398,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #712 BR-1 disposition: A deadline-safe observation followed by an unbounded state write still hangs. Enumerate routing, metadata reads, CAS retry and journal locking under one persistence context; contend both the pre-read and read/write seams. If durable unknown cannot commit, keep the exact occupied claim and report that uncertainty too.
 
 - #720 BR-1/BR-2: Do not grow an optional host feature into a native settings resolver. When permission fidelity needs repeated fixes, prefer an explicit persistent operator declaration and name its false-declaration limitation. A host write probe cannot prove sandbox access. Keep opt-in filenames outside reserved artifact families instead of weakening path-use guards.
+
+- #720 BR-3: A diagnostic added to a show command must cover its valid non-thread targets too. Test a slot with no thread through dispatch; iterating matched threads alone silently omits machine-wide selection information.
