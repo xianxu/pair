@@ -81,13 +81,20 @@ func (s *messageService) handleHubMove(ctx context.Context, r couchmessage.Reque
 	}
 	state := s.authority.hubs.snapshot()
 	move := couchcore.HubMove{Caller: identity.WorktreeRoot, Target: target, Revision: state.Revision()}
-	for _, name := range strings.Split(r.Target, ",") {
-		slot, err := s.authority.hubTarget(ctx, name)
+	// Admission names the slots from warm sources inside its budget
+	// (pair#726); the queued job re-resolves each one fresh and refuses if any
+	// moved, so the move's authority is still current before its effect.
+	names := strings.Split(r.Target, ",")
+	budget, cancel := context.WithTimeout(ctx, slotAdmissionBudget)
+	for _, name := range names {
+		slot, err := s.warmHubTarget(budget, name)
 		if err != nil {
-			return refuse(err)
+			cancel()
+			return refuse(admissionPhase("target", err))
 		}
 		move.Slots = append(move.Slots, slot)
 	}
+	cancel()
 	if _, err := state.Apply(move); err != nil {
 		return refuse(err)
 	}
@@ -100,6 +107,15 @@ func (s *messageService) handleHubMove(ctx context.Context, r couchmessage.Reque
 			}
 			if !s.isConnected(caller) {
 				return call, errors.New("hub disconnected; retry from its current session")
+			}
+			for i, name := range names {
+				fresh, err := s.authority.hubTarget(ctx, name)
+				if err != nil {
+					return call, err
+				}
+				if fresh != move.Slots[i] {
+					return call, fmt.Errorf("slot %s resolved differently since admission; nothing was moved; retry", name)
+				}
 			}
 			return call, nil
 		}, started, finished)

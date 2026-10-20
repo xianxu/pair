@@ -149,4 +149,3 @@ func TestHubSlotAdmissionStaleMemoRefusesBeforeAnyEffect(t *testing.T) {
 		t.Fatalf("queued guard on fresh discovery: %v", err)
 	}
 }
-

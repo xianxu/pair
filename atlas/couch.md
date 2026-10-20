@@ -1110,12 +1110,17 @@ from `hubTargetMemo`. The memo maps a target reference to its `HubSlot`. Only
 the fresh resolver fills it, and every fresh resolution refreshes it. An entry
 is used for 10 minutes. A cold or expired entry starts one single-flight fresh
 resolution under the service lifetime, joined at `Close`, and admission waits
-for it only within the budget. Otherwise it refuses with "slot catalog is
-warming; nothing was queued; retry", and any overrun names its phase. A warm
+for it only within the budget. At most eight resolutions run at once, and keys
+are canonical `repo:N`. Otherwise admission refuses with "slot catalog is
+warming; nothing was queued; retry", and any overrun names its phase. A failed
+resolution answers with its own error for 30 s before retrying. Move-slot
+admission (`handleHubMove`) names its slots from the same memo, within the same
+budget. The queued move then re-resolves each slot fresh and refuses if any
+differs, because those slots are the move's payload. A warm
 admission spawns no `sdlc` or `git`. The queued guard still re-proves authority
 on fresh discovery in prepare and at the effect gate, so a stale memo admits at
 most a job that refuses before any effect. `OSSlotCatalog.Discover` verifies
-slot rows concurrently (bounded by `MaxSlotCandidates`). It keeps each row's
+slot rows concurrently, at most eight at a time. It keeps each row's
 replacement fence and fails the whole inventory on a fatal row. That cut an
 8-slot discovery from 3 s to 1 s.
 

@@ -3,6 +3,8 @@ package couchcmd
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -86,5 +88,80 @@ func TestHubTargetMemoResolutionEndsWithTheLifetime(t *testing.T) {
 	case <-done:
 	case <-time.After(5 * time.Second):
 		t.Fatal("an outstanding resolution outlived the supervisor lifetime")
+	}
+}
+
+// TestHubTargetMemoRemembersALateFailure (pair#726 BR-1): a cold resolution
+// that fails after admission's budget answers the next admissions with its
+// own error, then retries once its failure ages out.
+func TestHubTargetMemoRemembersALateFailure(t *testing.T) {
+	var calls atomic.Int64
+	release := make(chan struct{})
+	now := time.Unix(1000, 0)
+	var clock sync.Mutex
+	m := newHubTargetMemo(t.Context(), func(ctx context.Context, _ string) (couchcore.HubSlot, error) {
+		if calls.Add(1) == 1 {
+			<-release
+		}
+		return couchcore.HubSlot{}, errors.New("sdlc workspace: not a slot")
+	}, func() time.Time { clock.Lock(); defer clock.Unlock(); return now })
+	short, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
+	defer cancel()
+	if _, err := m.Warm(short, "pair:6"); !errors.Is(err, errSlotCatalogWarming) {
+		t.Fatalf("cold: %v", err)
+	}
+	close(release)
+	deadline := time.Now().Add(5 * time.Second)
+	var err error
+	for time.Now().Before(deadline) {
+		if _, err = m.Warm(t.Context(), "pair:6"); err != nil && !errors.Is(err, errSlotCatalogWarming) {
+			break
+		}
+	}
+	if err == nil || !strings.Contains(err.Error(), "not a slot") || calls.Load() != 1 {
+		t.Fatalf("after the late failure: %v (calls %d)", err, calls.Load())
+	}
+	if _, err = m.Warm(t.Context(), "pair:6"); !strings.Contains(err.Error(), "not a slot") || calls.Load() != 1 {
+		t.Fatalf("remembered failure: %v (calls %d)", err, calls.Load())
+	}
+	clock.Lock()
+	now = now.Add(hubTargetFailureAge)
+	clock.Unlock()
+	if _, err = m.Warm(t.Context(), "pair:6"); err == nil || calls.Load() != 2 {
+		t.Fatalf("aged failure did not retry: %v (calls %d)", err, calls.Load())
+	}
+}
+
+func TestHubTargetMemoKeysCanonicallyAndCapsFlights(t *testing.T) {
+	block := make(chan struct{})
+	defer close(block)
+	var calls atomic.Int64
+	m := newHubTargetMemo(t.Context(), func(ctx context.Context, ref string) (couchcore.HubSlot, error) {
+		calls.Add(1)
+		select {
+		case <-block:
+		case <-ctx.Done():
+		}
+		return couchcore.HubSlot{}, ctx.Err()
+	}, nil)
+	short, cancel := context.WithTimeout(t.Context(), 5*time.Millisecond)
+	defer cancel()
+	for i := 0; i < hubTargetMaxFlights+4; i++ {
+		_, _ = m.Warm(short, fmt.Sprintf("pair:%d", i))
+	}
+	m.mu.Lock()
+	flights := len(m.inflight)
+	m.mu.Unlock()
+	if flights != hubTargetMaxFlights {
+		t.Fatalf("background resolutions in flight = %d, want the cap %d", flights, hubTargetMaxFlights)
+	}
+	for deadline := time.Now().Add(2 * time.Second); calls.Load() < hubTargetMaxFlights && time.Now().Before(deadline); {
+		time.Sleep(time.Millisecond)
+	}
+	if n := calls.Load(); n != hubTargetMaxFlights {
+		t.Fatalf("resolutions started = %d, want the cap %d", n, hubTargetMaxFlights)
+	}
+	if hubTargetKey("pair:6") != hubTargetKey("pair:6") || hubTargetKey("pair:06") == hubTargetKey("pair:6") {
+		t.Fatal("key canonicalization")
 	}
 }

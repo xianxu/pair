@@ -13,6 +13,10 @@ import (
 
 const MaxSlotCandidates = 128
 
+// slotVerifyConcurrency caps Discover's concurrent per-slot verifications,
+// each of which runs three probe subprocesses (pair#726).
+const slotVerifyConcurrency = 8
+
 type SlotCatalog interface {
 	Discover(context.Context, string) (SlotRepository, error)
 }
@@ -193,15 +197,18 @@ func (c *OSSlotCatalog) Discover(ctx context.Context, path string) (SlotReposito
 	sort.Slice(slots, func(i, j int) bool { return slots[i].Identity.Number < slots[j].Identity.Number })
 	// Each row's subprocess verification is independent, so rows run
 	// concurrently (pair#726: a serial pass cost 3 s on an 8-slot repository,
-	// past the 2 s admission budget). Fan-out is bounded by MaxSlotCandidates,
-	// which caps the rows. A fatal row still fails the whole inventory; the
+	// past the 2 s admission budget). At most slotVerifyConcurrency rows run at
+	// once. A fatal row still fails the whole inventory; the
 	// lowest-numbered fatal error is reported, so the outcome is deterministic.
 	fatal := make([]error, len(slots))
 	var wg sync.WaitGroup
+	gate := make(chan struct{}, slotVerifyConcurrency)
 	for i := range slots {
 		wg.Add(1)
 		go func(row *SlotCandidate, fatal *error) {
 			defer wg.Done()
+			gate <- struct{}{}
+			defer func() { <-gate }()
 			*fatal = p.verifySlotRow(ctx, primary, row)
 		}(&slots[i], &fatal[i])
 	}

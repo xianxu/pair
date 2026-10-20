@@ -122,59 +122,37 @@ func (s *messageService) handleHubSlotOperation(ctx context.Context, caller couc
 	if (s.authority.hubs == nil && r.Op != "recovery-confirmation" && r.Op != couchcore.OpRecoverPark) || r.Op == "operation-status" {
 		return s.slotOps.handle(ctx, caller, r)
 	}
+	// One check, two sources (pair#726). The queued guard proves authority on
+	// fresh discovery in prepare and again at the effect gate. Admission is a
+	// cheap gate on warm sources (the caller's connected workspace, the
+	// remembered target slot), so a stale memo can only admit a job that then
+	// refuses before any effect.
 	guard := func(ctx context.Context) error {
-		if r.Op == "recovery-confirmation" || r.Op == couchcore.OpRecoverPark {
-			if err := s.authenticateRecoveryCaller(ctx, caller, r); err != nil {
-				return err
-			}
-		} else if _, err := s.liveCaller(ctx, r); err != nil {
-			return err
-		}
-		if s.authority.hubs == nil {
-			return nil
-		}
-		root, err := s.authority.thread(ctx, caller)
-		if err != nil {
-			return err
-		}
-		origin, err := s.authority.workspace(ctx, root)
-		if err != nil {
-			return err
-		}
-		if s.authority.hubTarget == nil {
-			return fmt.Errorf("target slot resolver unavailable")
-		}
-		target, err := s.authority.hubTarget(ctx, r.Target)
-		if err != nil {
-			return err
-		}
-		return authorizeHubMutation(origin, target, s.authority.hubs.snapshot())
+		return s.checkHubSlotOperation(ctx, caller, r, hubSlotSources{
+			origin: func(ctx context.Context) (couchcore.WorkspaceIdentity, error) {
+				root, err := s.authority.thread(ctx, caller)
+				if err != nil {
+					return couchcore.WorkspaceIdentity{}, err
+				}
+				return s.authority.workspace(ctx, root)
+			},
+			target: func(ctx context.Context, ref string) (couchcore.HubSlot, error) {
+				if s.authority.hubTarget == nil {
+					return couchcore.HubSlot{}, fmt.Errorf("target slot resolver unavailable")
+				}
+				return s.authority.hubTarget(ctx, ref)
+			},
+			phase: func(_ string, err error) error { return err },
+		})
 	}
-	// Admission is a cheap gate on warm sources (pair#726): the caller's
-	// connected workspace and the remembered target slot. The queued guard
-	// above re-proves authority on fresh discovery in prepare and again at
-	// the effect gate, so a stale memo can only admit a job that refuses
-	// before any effect.
 	admission := func(ctx context.Context) error {
-		if r.Op == "recovery-confirmation" {
-			if err := s.authenticateRecoveryCaller(ctx, caller, r); err != nil {
-				return admissionPhase("caller", err)
-			}
-		} else if _, err := s.liveCaller(ctx, r); err != nil {
-			return admissionPhase("caller", err)
-		}
-		if s.authority.hubs == nil {
-			return nil
-		}
-		origin, err := s.admissionCallerWorkspace(ctx, caller)
-		if err != nil {
-			return admissionPhase("caller workspace", err)
-		}
-		target, err := s.warmHubTarget(ctx, r.Target)
-		if err != nil {
-			return admissionPhase("target", err)
-		}
-		return authorizeHubMutation(origin, target, s.authority.hubs.snapshot())
+		return s.checkHubSlotOperation(ctx, caller, r, hubSlotSources{
+			origin: func(ctx context.Context) (couchcore.WorkspaceIdentity, error) {
+				return s.admissionCallerWorkspace(ctx, caller)
+			},
+			target: s.warmHubTarget,
+			phase:  admissionPhase,
+		})
 	}
 	if r.Op == couchcore.OpRecoverPark {
 		admission = func(ctx context.Context) error {
@@ -188,6 +166,38 @@ func (s *messageService) handleHubSlotOperation(ctx context.Context, caller couc
 		return couchmessage.Response{Code: "refused", Error: err.Error()}
 	}
 	return s.slotOps.handle(ctx, caller, r, guard)
+}
+
+// hubSlotSources are where a hub slot check gets the caller's workspace and
+// the target slot, and how it labels a failing step.
+type hubSlotSources struct {
+	origin func(context.Context) (couchcore.WorkspaceIdentity, error)
+	target func(context.Context, string) (couchcore.HubSlot, error)
+	phase  func(string, error) error
+}
+
+// checkHubSlotOperation is the one hub slot-operation check: a live caller,
+// then the caller's and the target's hub must match.
+func (s *messageService) checkHubSlotOperation(ctx context.Context, caller couchmessage.Binding, r couchmessage.Request, src hubSlotSources) error {
+	if r.Op == "recovery-confirmation" || r.Op == couchcore.OpRecoverPark {
+		if err := s.authenticateRecoveryCaller(ctx, caller, r); err != nil {
+			return src.phase("caller", err)
+		}
+	} else if _, err := s.liveCaller(ctx, r); err != nil {
+		return src.phase("caller", err)
+	}
+	if s.authority.hubs == nil {
+		return nil
+	}
+	origin, err := src.origin(ctx)
+	if err != nil {
+		return src.phase("caller workspace", err)
+	}
+	target, err := src.target(ctx, r.Target)
+	if err != nil {
+		return src.phase("target", err)
+	}
+	return authorizeHubMutation(origin, target, s.authority.hubs.snapshot())
 }
 
 // slotAdmissionBudget keeps a hub slot operation's admission below the

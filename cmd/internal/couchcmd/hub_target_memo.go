@@ -14,13 +14,29 @@ import (
 // effect gate re-prove authority on fresh discovery before any effect.
 const hubTargetMemoAge = 10 * time.Minute
 
+// hubTargetFailureAge is how long a failed resolution answers admission with
+// its own error, so retries learn the cause instead of "warming" forever.
+const hubTargetFailureAge = 30 * time.Second
+
+// hubTargetMaxFlights caps concurrent background resolutions.
+const hubTargetMaxFlights = 8
+
 // errSlotCatalogWarming is admission's refusal when a target's first fresh
 // resolution has not finished inside the admission budget.
 var errSlotCatalogWarming = errors.New("slot catalog is warming; nothing was queued; retry in a few seconds")
 
 type hubTargetEntry struct {
 	slot couchcore.HubSlot
+	err  error
 	at   time.Time
+}
+
+// hubTargetKey canonicalizes a repo:N reference; anything else keys as given.
+func hubTargetKey(ref string) string {
+	if parsed, ok, err := couchcore.ParseWorkspaceReference(ref); ok && err == nil {
+		return parsed.String()
+	}
+	return ref
 }
 
 // hubTargetMemo remembers each target reference's HubSlot for admission
@@ -56,11 +72,12 @@ func newHubTargetMemo(lifetime context.Context, resolve func(context.Context, st
 	return &hubTargetMemo{resolve: resolve, now: now, maxAge: hubTargetMemoAge, lifetime: lifetime, entries: map[string]hubTargetEntry{}, inflight: map[string]*hubTargetFlight{}}
 }
 
-// Fresh resolves now, on the caller's context, and remembers a success.
+// Fresh resolves now, on the caller's context, and remembers the outcome. A
+// cancelled resolution proves nothing about the target, so it is not kept.
 func (m *hubTargetMemo) Fresh(ctx context.Context, ref string) (couchcore.HubSlot, error) {
 	slot, err := m.resolve(ctx, ref)
-	if err == nil {
-		m.remember(ref, slot)
+	if err == nil || ctx.Err() == nil {
+		m.remember(ref, slot, err)
 	}
 	return slot, err
 }
@@ -69,21 +86,33 @@ func (m *hubTargetMemo) Fresh(ctx context.Context, ref string) (couchcore.HubSlo
 // reference's single-flight resolution and waits until ctx ends; an
 // unfinished resolution keeps running and fills the memo for the next caller.
 func (m *hubTargetMemo) Warm(ctx context.Context, ref string) (couchcore.HubSlot, error) {
+	key := hubTargetKey(ref)
 	m.mu.Lock()
-	if e, ok := m.entries[ref]; ok && m.now().Sub(e.at) < m.maxAge {
-		m.mu.Unlock()
-		return e.slot, nil
+	if e, ok := m.entries[key]; ok {
+		age := m.now().Sub(e.at)
+		if e.err == nil && age < m.maxAge {
+			m.mu.Unlock()
+			return e.slot, nil
+		}
+		if e.err != nil && age < hubTargetFailureAge {
+			m.mu.Unlock()
+			return couchcore.HubSlot{}, e.err
+		}
 	}
-	flight, ok := m.inflight[ref]
+	flight, ok := m.inflight[key]
 	if !ok {
+		if len(m.inflight) >= hubTargetMaxFlights {
+			m.mu.Unlock()
+			return couchcore.HubSlot{}, errSlotCatalogWarming
+		}
 		flight = &hubTargetFlight{done: make(chan struct{})}
-		m.inflight[ref] = flight
+		m.inflight[key] = flight
 		m.wg.Add(1)
 		go func() {
 			defer m.wg.Done()
 			flight.slot, flight.err = m.Fresh(m.lifetime, ref)
 			m.mu.Lock()
-			delete(m.inflight, ref)
+			delete(m.inflight, key)
 			m.mu.Unlock()
 			close(flight.done)
 		}()
@@ -97,9 +126,9 @@ func (m *hubTargetMemo) Warm(ctx context.Context, ref string) (couchcore.HubSlot
 	}
 }
 
-func (m *hubTargetMemo) remember(ref string, slot couchcore.HubSlot) {
+func (m *hubTargetMemo) remember(ref string, slot couchcore.HubSlot, err error) {
 	m.mu.Lock()
-	m.entries[ref] = hubTargetEntry{slot: slot, at: m.now()}
+	m.entries[hubTargetKey(ref)] = hubTargetEntry{slot: slot, err: err, at: m.now()}
 	m.mu.Unlock()
 }
 

@@ -68,6 +68,9 @@ func TestDiscoverVerifiesSlotsConcurrently(t *testing.T) {
 	if p2 < 2 || p4 < 4 || p4 > 4 {
 		t.Fatalf("peak concurrency %d at 2 slots, %d at 4 (want one per slot, bounded)", p2, p4)
 	}
+	if _, p10, _, r10 := measure(10); r10 != 10 || p10 > slotVerifyConcurrency {
+		t.Fatalf("10 slots: rows %d, peak concurrency %d over the cap %d", r10, p10, slotVerifyConcurrency)
+	}
 	serial := time.Duration(c4) * delay
 	if w4 >= serial*3/4 {
 		t.Fatalf("4-slot discovery took %v, close to the serial %v (2 slots: %v)", w4, serial, w2)

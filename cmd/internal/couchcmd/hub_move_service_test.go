@@ -281,3 +281,39 @@ func TestHubMoveSocketEphemeralThenNewPersistentRequest(t *testing.T) {
 		t.Fatalf("restart owner %s", owner)
 	}
 }
+
+// TestHubMoveAdmissionUsesWarmSlotsAndRechecksFresh (pair#726 BR-2): move
+// admission names its slots from the memo with no fresh resolution, and the
+// queued job refuses if a fresh resolution no longer matches.
+func TestHubMoveAdmissionUsesWarmSlotsAndRechecksFresh(t *testing.T) {
+	r := newHubMoveRig(t)
+	resolve := r.s.authority.hubTarget
+	var resolutions atomic.Int64
+	shift := atomic.Bool{}
+	r.s.hubTargets = newHubTargetMemo(r.s.lifetime, func(ctx context.Context, ref string) (couchcore.HubSlot, error) {
+		resolutions.Add(1)
+		slot, err := resolve(ctx, ref)
+		if shift.Load() {
+			slot.Number += 2
+		}
+		return slot, err
+	}, nil)
+	r.s.authority.hubTarget = r.s.hubTargets.Fresh
+	if _, err := r.s.hubTargets.Fresh(t.Context(), "pair:7"); err != nil {
+		t.Fatal(err)
+	}
+	resolutions.Store(0)
+	if got := r.call(r.request(1, "take", "pair:7", 1, false)); got.Code != "accepted" {
+		t.Fatalf("warm move admission %+v", got)
+	}
+	if n := resolutions.Load(); n != 0 {
+		t.Fatalf("warm move admission ran %d fresh resolutions", n)
+	}
+	shift.Store(true)
+	if _, err := r.queue.job(0).prepare(t.Context()); err == nil || !strings.Contains(err.Error(), "resolved differently") {
+		t.Fatalf("queued move with a moved slot: %v", err)
+	}
+	if r.owner(7) != r.defs[0].Root {
+		t.Fatal("a refused move changed ownership")
+	}
+}
