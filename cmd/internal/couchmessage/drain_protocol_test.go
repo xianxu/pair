@@ -40,8 +40,9 @@ func TestDrainRequestClosedShape(t *testing.T) {
 // operation's authority: every field outside this explicit set must stay zero.
 func FuzzValidateDrainRequest(f *testing.F) {
 	for _, raw := range []string{
-		`{"Op":"drain","ID":"00000000-0000-4000-8000-000000000001","Scope":"scope","Tag":"tag","Session":"session","Nonce":"nonce","Drain":{"action":"start","timeout_millis":600000}}`,
+		`{"Op":"drain","ID":"00000000-0000-4000-8000-000000000001","Scope":"scope","Tag":"tag","Session":"session","Nonce":"nonce","Drain":{"action":"start","fast":true}}`,
 		`{"Op":"drain","Drain":{"action":"status"}}`,
+		`{"Op":"drain","ID":"lift-request","Scope":"scope","Tag":"tag","Session":"session","Nonce":"nonce","Drain":{"action":"undrain","message":"continue after review"}}`,
 		`{"Op":"drain","Scope":"scope","Tag":"tag","Session":"session","Nonce":"nonce","Drain":{"action":"ack","id":"00000000-0000-4000-8000-000000000001"}}`,
 		`{"Op":"drain","Scope":"scope","Tag":"tag","Session":"session","Nonce":"nonce","Drain":{"action":"cancel"}}`,
 		`{"Op":"drain","Confirmed":true,"Drain":{"action":"status"}}`,

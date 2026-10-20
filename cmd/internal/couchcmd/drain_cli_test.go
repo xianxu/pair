@@ -8,7 +8,7 @@ import (
 )
 
 func FuzzParseDrainCLI(f *testing.F) {
-	for _, seed := range []string{"--drain", "--drain\x00--status", "--drain\x00--fast\x00--reason\x00--layout3", "--drain\x00--ack\x0000000000-0000-4000-8000-000000000001"} {
+	for _, seed := range []string{"--drain", "--drain\x00--status", "--drain\x00--fast\x00--json", "--drain\x00--ack\x0000000000-0000-4000-8000-000000000001"} {
 		f.Add(seed)
 	}
 	f.Fuzz(func(t *testing.T, input string) {

@@ -144,7 +144,16 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 		fmt.Fprintf(stdout, "drain flags: %d slots (requested posture; not checkpoint confirmation)\n", len(result.Drain.Rows))
 		for _, row := range result.Drain.Rows {
 			idle := "idle unavailable"
-			if row.IdleMillis != nil {
+			switch {
+			case !row.Connected:
+				idle = "disconnected; idle unavailable"
+			case row.Settled != nil && !*row.Settled:
+				idle = "active"
+			case row.Picker != nil && *row.Picker:
+				idle = "picker open; idle unavailable"
+			case row.Background != nil && *row.Background:
+				idle = "background work; idle unavailable"
+			case row.IdleMillis != nil:
 				idle = "observed idle " + (time.Duration(*row.IdleMillis) * time.Millisecond).String()
 			}
 			fmt.Fprintf(stdout, "%s: %s\n", notifyosc.Sanitize([]byte(row.Workspace)), idle)
