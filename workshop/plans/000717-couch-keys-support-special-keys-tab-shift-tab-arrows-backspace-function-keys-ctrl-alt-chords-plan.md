@@ -67,6 +67,7 @@ Actions: `couch --interrupt SLOT --confirm`, `couch --peek`, the operator's own 
 |---|---|---|---|
 | Turn active, wrapper owns input | interrupt admitted, one Ctrl+C written | none | the turn's unfinished work (the purpose) |
 | No turn active | refused: "no turn to interrupt" | none | none |
+| Turn flag set without work (a bare submission, or an open Claude panel whose progress report keeps the flag) | refused: no reported work, or no composer on screen (close review BR-4) | `--keys esc` for a panel | none |
 | Turn ends between admission and the write | the pre-write recheck cancels; nothing written | none | none |
 | Ctrl+C written, turn ends | done | none | as above |
 | Ctrl+C written, turn still active at the deadline | unconfirmed with tail; never retried | peek, then decide on a new interrupt | none beyond the turn |

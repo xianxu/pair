@@ -246,6 +246,7 @@ func (p *proxy) processLifecycleObservation(observation TurnObservation) {
 	p.notificationLifecycle = state
 	// The settle check reads turnActive off this goroutine (#421), and a turn
 	// can open or close here with no output to re-arm it.
+	p.turnWorking.Store(state.Active && state.ActivitySeen)
 	if p.turnActive.Swap(state.Active) != state.Active && p.peer != nil {
 		p.peer.lifecycleTurnChanged(state.Active)
 	}

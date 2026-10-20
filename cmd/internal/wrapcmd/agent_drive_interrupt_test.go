@@ -17,6 +17,7 @@ func workingTurn(t *testing.T) (*harnessSessionFake, *peerDelivery) {
 	f, d, _ := driveFixture(t)
 	paintClaude2304(t, f, claude2304Screen(t, "working-shell"))
 	f.proxy.turnActive.Store(true)
+	f.proxy.turnWorking.Store(true)
 	f.proxy.automaticInput = automaticInputTransaction{phase: automaticInputAwaitingEmpty, renderFence: f.proxy.automaticRenderEpoch.Load()}
 	d.settled = false
 	return f, d
@@ -46,6 +47,7 @@ func TestAgentDriveInterruptWritesOneCtrlCAndConfirmsOnTurnEnd(t *testing.T) {
 		t.Fatalf("a working frame ended the interrupt %+v", r)
 	}
 	f.proxy.turnActive.Store(false)
+	f.proxy.turnWorking.Store(false)
 	f.output("\x1b[?2026h\x1b[2J" + peerEmptyComposer() + "\x1b[?2026l")
 	f.proxy.dispatchAgentDrive(&out)
 	if r, _ := d.agentDriveResult("test-drive"); r.Outcome != agentdrive.OutcomeConfirmed {
@@ -63,6 +65,18 @@ func TestAgentDriveInterruptWritesOneCtrlCAndConfirmsOnTurnEnd(t *testing.T) {
 
 func TestAgentDriveInterruptRefusesWithoutAWorkingTurn(t *testing.T) {
 	for name, setup := range map[string]func(*harnessSessionFake, *peerDelivery){
+		// Close review BR-4: Claude keeps the turn flag set, and reports
+		// progress as working, while its /usage panel shows. No composer is
+		// on screen, so there is no turn to interrupt.
+		"usage panel with the turn flags set": func(f *harnessSessionFake, d *peerDelivery) {
+			paintClaude2304(t, f, claude2304Screen(t, "usage-panel-tall"))
+		},
+		// A bare submission opens a turn with no activity; the flag alone
+		// over an idle composer must not admit Ctrl+C.
+		"turn flag with no work seen": func(f *harnessSessionFake, d *peerDelivery) {
+			f.output("\x1b[?2026h\x1b[2J" + peerEmptyComposer() + "\x1b[?2026l")
+			f.proxy.turnWorking.Store(false)
+		},
 		"idle composer": func(f *harnessSessionFake, d *peerDelivery) {
 			f.proxy.turnActive.Store(false)
 			f.proxy.automaticInput = automaticInputTransaction{}
@@ -79,7 +93,9 @@ func TestAgentDriveInterruptRefusesWithoutAWorkingTurn(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			f, d := workingTurn(t)
 			setup(f, d)
-			_, _ = driveStart(t, d, interruptRequest())
+			if r, err := driveStart(t, d, interruptRequest()); err == nil && !r.Terminal() && (name == "usage panel with the turn flags set" || name == "turn flag with no work seen") {
+				t.Fatalf("interrupt admitted with %s: %+v", name, r)
+			}
 			var out bytes.Buffer
 			for i := 0; i < 3; i++ {
 				f.proxy.dispatchAgentDrive(&out)
@@ -99,6 +115,7 @@ func TestAgentDriveInterruptRechecksBeforeTheWrite(t *testing.T) {
 		t.Fatalf("interrupt admission %+v %v", r, err)
 	}
 	f.proxy.turnActive.Store(false)
+	f.proxy.turnWorking.Store(false)
 	f.output("\x1b[?2026h\x1b[2J" + peerEmptyComposer() + "\x1b[?2026l")
 	var out bytes.Buffer
 	for i := 0; i < 3; i++ {
@@ -109,5 +126,24 @@ func TestAgentDriveInterruptRechecksBeforeTheWrite(t *testing.T) {
 	}
 	if r, _ := d.agentDriveResult("test-drive"); !r.Terminal() || r.Outcome == agentdrive.OutcomeConfirmed {
 		t.Fatalf("stale interrupt %+v", r)
+	}
+}
+
+// TestTurnWorkingNeedsReportedActivity: a submission opens a turn but not
+// work; the agent's own working report does; completion clears both.
+func TestTurnWorkingNeedsReportedActivity(t *testing.T) {
+	f, _, _ := driveFixture(t)
+	p := f.proxy
+	p.processLifecycleObservation(TurnObservation{Kind: ObservationUserSubmission})
+	if !p.turnActive.Load() || p.turnWorking.Load() {
+		t.Fatalf("submission: active=%v working=%v", p.turnActive.Load(), p.turnWorking.Load())
+	}
+	p.processLifecycleObservation(TurnObservation{Kind: ObservationWorking})
+	if !p.turnActive.Load() || !p.turnWorking.Load() {
+		t.Fatalf("working: active=%v working=%v", p.turnActive.Load(), p.turnWorking.Load())
+	}
+	p.processLifecycleObservation(TurnObservation{Kind: ObservationNativeCompletion})
+	if p.turnActive.Load() || p.turnWorking.Load() {
+		t.Fatalf("completed: active=%v working=%v", p.turnActive.Load(), p.turnWorking.Load())
 	}
 }

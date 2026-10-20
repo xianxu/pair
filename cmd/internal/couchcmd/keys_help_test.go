@@ -20,13 +20,18 @@ func TestKeysHelpIsTheVerbsOwnHelp(t *testing.T) {
 	var out bytes.Buffer
 	keysUsage(&out)
 	got := out.String()
-	for _, step := range agentdrive.Steps {
-		name := step.Syntax
-		if step.Group != "" {
-			name = step.Group
-		}
-		if !strings.Contains(got, "  "+name+" ") || !strings.Contains(got, step.Meaning) {
+	for _, step := range agentdrive.StepGroups() {
+		if !strings.Contains(got, "  "+step.Syntax+" ") || !strings.Contains(got, step.Meaning) {
 			t.Errorf("keys help omits %s", step.Syntax)
+		}
+	}
+	covered := map[string]bool{}
+	for _, step := range agentdrive.StepGroups() {
+		covered[step.Syntax] = true
+	}
+	for _, step := range agentdrive.Steps {
+		if !covered[step.Syntax] && !covered[step.Group] {
+			t.Errorf("%s is in no help line", step.Syntax)
 		}
 	}
 	for name, reason := range agentdrive.RefusedSteps {

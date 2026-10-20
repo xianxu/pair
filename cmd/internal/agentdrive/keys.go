@@ -104,20 +104,29 @@ func buildSteps() []StepDoc {
 	return steps
 }
 
-// StepSyntax lists every step's syntax, a family once by its group, in table
-// order.
-func StepSyntax() string {
-	var syntax []string
+// StepGroups lists Steps with each family collapsed to one entry whose Syntax
+// is the family's group, in table order. StepSyntax, `couch --keys --help` and
+// its test all read it.
+func StepGroups() []StepDoc {
+	var groups []StepDoc
 	seen := map[string]bool{}
 	for _, step := range Steps {
-		name := step.Syntax
 		if step.Group != "" {
-			name = step.Group
+			step.Syntax = step.Group
 		}
-		if !seen[name] {
-			seen[name] = true
-			syntax = append(syntax, name)
+		if !seen[step.Syntax] {
+			seen[step.Syntax] = true
+			groups = append(groups, step)
 		}
+	}
+	return groups
+}
+
+// StepSyntax lists every step's syntax, a family once by its group.
+func StepSyntax() string {
+	var syntax []string
+	for _, step := range StepGroups() {
+		syntax = append(syntax, step.Syntax)
 	}
 	return strings.Join(syntax, " ")
 }

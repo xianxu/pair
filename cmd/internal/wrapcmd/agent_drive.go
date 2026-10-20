@@ -66,9 +66,11 @@ func (p *proxy) agentDriveScreen() agentdrive.Screen {
 	// panel is open, and the panel proof outranks that inference for a lone
 	// esc only. The picker gate stays.
 	s.Dismissable = !known && s.Complete && !picker && agentdrive.DismissablePanel(p.agentBasename, s.Lines)
-	// An interrupt's proof is a working turn on a coherent frame with no
-	// picker; Esc handles pickers (pair#717).
-	s.Interruptible = s.TurnActive && s.Complete && !picker
+	// An interrupt needs positive evidence of work, never the turn flag alone:
+	// the lifecycle saw the agent working, and the agent's own composer is on
+	// screen, which rules out a panel (whose turn flag Claude keeps set) and a
+	// bare submission that never started work. Esc handles pickers (pair#717).
+	s.Interruptible = s.TurnActive && p.turnWorking.Load() && known && s.Complete && !picker
 	// Cleanup proof is intentionally one acknowledged native command line. A
 	// multiline composer has no captured clearing contract and grants no cleanup.
 	if s.Recoverable && text == "/model" {

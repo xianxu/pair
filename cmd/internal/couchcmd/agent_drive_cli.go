@@ -102,16 +102,8 @@ func keysUsage(w io.Writer) {
 	fmt.Fprintln(w, "Hub only: types named keys into another slot's agent, which the hub must own.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Steps:")
-	printed := map[string]bool{}
-	for _, step := range agentdrive.Steps {
-		name := step.Syntax
-		if step.Group != "" {
-			name = step.Group
-		}
-		if !printed[name] {
-			printed[name] = true
-			fmt.Fprintf(w, "  %-14s %s\n", name, step.Meaning)
-		}
+	for _, step := range agentdrive.StepGroups() {
+		fmt.Fprintf(w, "  %-14s %s\n", step.Syntax, step.Meaning)
 	}
 	fmt.Fprintln(w, "Not steps (refused before anything is sent):")
 	refused := make([]string, 0, len(agentdrive.RefusedSteps))

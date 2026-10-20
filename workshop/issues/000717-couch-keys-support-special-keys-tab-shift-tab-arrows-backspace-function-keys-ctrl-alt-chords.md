@@ -72,6 +72,8 @@ total: 1.24
 
 ## Log
 
+- 2026-10-20 (pair:2): close review REWORK, BR-4 Critical, correct: `Interruptible` came from the turn flag, which an open /usage panel also sets (#691). The reviewer's probe wrote Ctrl+C into a panel and confirmed. The same class covers a bare submission that leaves the flag set over an idle composer, where a second interrupt could double-press and exit the agent. Fix: the proof needs positive evidence of work. That is a new atomic `turnWorking` (lifecycle Active and ActivitySeen, mirrored as `turnActive` is) plus a recognized composer on screen. Tests: the tall usage panel with both flags set refuses, the flag with no work seen refuses, and `TestTurnWorkingNeedsReportedActivity`. Mutations: dropping the composer requirement, dropping `turnWorking`, and mirroring `turnWorking` as plain Active each turn red. Minor (DRY): `agentdrive.StepGroups` is now the one group-collapse, used by `StepSyntax`, keys help and its test.
+
 - 2026-10-20 (pair:2): M2 implemented. Mutations, each red: interrupt not exclusive in Admits (agentdrive); Interruptible ignoring the turn (wrapcmd); any fresh frame confirming (agentdrive, wrapcmd); the service keeping the settled check (couchcmd); the residual lease refused (wrapcmd); the interrupt not turn tolerant (agentdrive, wrapcmd). "Turn ended before the write" is caught by the writer's start recheck: admission and the write share one dispatch and one screen, so `WriteAdmits` for the interrupt is a second line, as with #691's dismissal. M1 advisories folded in: the skill quick table gains shift-tab and interrupt rows, and `couch --interrupt` now exists. The string-literal Steps kinds stay as they are (cosmetic; the table is the source).
 
 
