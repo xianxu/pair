@@ -1,6 +1,6 @@
 ---
 id: 000725
-status: working
+status: codecomplete
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours: 2.21
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+actual_hours: 3.89
+tracker:
+    version: 1
+    completion:
+        token: close-a600b6fa92a5
+        repository: github.com/xianxu/pair
+        reviewed_head: 55d81f74276404be06a6b7ab86e534a4e26bb393
+        evidence_commit: 70d7c719a8df48c6e2e4c1f51163371569c8f38e
 ---
 
 # pair affected-only tests: .sdlc/affected.json + make test-affected, per ariadne#473's settled contract
