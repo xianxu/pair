@@ -197,6 +197,9 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 		}
 	}
 	if !keyedSelection {
+		// A direct selection consumes no native candidates; the scan walks the
+		// whole native store under the hub effect gate (pair#726).
+		request.SkipCandidates = true
 		observed = observe()
 	}
 	if choice.Agent == "" {

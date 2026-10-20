@@ -174,6 +174,7 @@
       "cmd/internal/clipcmd/clipcmd_test.go": "9e37b2b74da9615336649e47ce0845dfc3423233936c7a632130618ca50d3b14",
       "cmd/internal/clipcmd/run_test.go": "73ff0afa14a781acc2a87b6fbd35bbad9a804c2d64f06a128ede94c7532aff2e",
       "cmd/internal/clipcmd/runtime_clipboard_test.go": "e41854617ede8194ccb498aa14db6a9c7e52cbfc448df8722c7356554de1ee35",
+      "cmd/internal/couchcmd/admission_deadline_test.go": "e8d74c12ddc13e8a22658c0647ac0f25fdac17a005fcb4ee93ccdb947cf0f9da",
       "cmd/internal/couchcmd/archive_schedule_protocol_test.go": "277878353c167660595df90a46e409be46ccb48b4894f314be400545b96b871d",
       "cmd/internal/couchcmd/archive_schedule_test.go": "e7079cf66e7a99c3da315fe863b4814851bfd30335e5737757859b1706fc3d08",
       "cmd/internal/couchcmd/broadcast_test.go": "6962512b4ffd1d4527733ef53146cf13d4c88278a2a497a5c074c0f08a6981e4",

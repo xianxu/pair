@@ -40,6 +40,8 @@ func (s *messageService) installHubMoves(console *couchtty.Console, couches ...*
 	}
 }
 func (s *messageService) handleHubMove(ctx context.Context, r couchmessage.Request) couchmessage.Response {
+	ctx, cancel := context.WithTimeout(ctx, slotAdmissionBudget)
+	defer cancel()
 	refuse := func(err error) couchmessage.Response {
 		return couchmessage.Response{Code: "refused", Error: err.Error()}
 	}
@@ -51,10 +53,16 @@ func (s *messageService) handleHubMove(ctx context.Context, r couchmessage.Reque
 		return refuse(errors.New("hub moves unavailable; start Couch with explicit hub directories"))
 	}
 	caller, err := s.switchCaller(ctx, r)
+	if ctx.Err() != nil {
+		return admissionRefusal("caller", ctx.Err())
+	}
 	if err != nil {
 		return refuse(err)
 	}
 	identity, err := s.connectedWorkspace(ctx, caller)
+	if ctx.Err() != nil {
+		return admissionRefusal("caller workspace", ctx.Err())
+	}
 	if err != nil {
 		return refuse(err)
 	}
@@ -81,10 +89,20 @@ func (s *messageService) handleHubMove(ctx context.Context, r couchmessage.Reque
 	}
 	state := s.authority.hubs.snapshot()
 	move := couchcore.HubMove{Caller: identity.WorktreeRoot, Target: target, Revision: state.Revision()}
-	for _, name := range strings.Split(r.Target, ",") {
-		slot, err := s.authority.hubTarget(ctx, name)
+	// Admission names the slots from warm sources inside its budget
+	// (pair#726); the queued job re-resolves each one fresh and refuses if any
+	// moved, so the move's authority is still current before its effect.
+	names := strings.Split(r.Target, ",")
+	for _, name := range names {
+		slot, err := s.warmHubTarget(ctx, name)
+		if errors.Is(err, errSlotCatalogWarming) {
+			return hubAdmissionError(admissionPhase("target", err))
+		}
+		if ctx.Err() != nil {
+			return admissionRefusal("target", ctx.Err())
+		}
 		if err != nil {
-			return refuse(err)
+			return refuse(admissionPhase("target", err))
 		}
 		move.Slots = append(move.Slots, slot)
 	}
@@ -100,6 +118,15 @@ func (s *messageService) handleHubMove(ctx context.Context, r couchmessage.Reque
 			}
 			if !s.isConnected(caller) {
 				return call, errors.New("hub disconnected; retry from its current session")
+			}
+			for i, name := range names {
+				fresh, err := s.authority.hubTarget(ctx, name)
+				if err != nil {
+					return call, err
+				}
+				if fresh != move.Slots[i] {
+					return call, fmt.Errorf("slot %s resolved differently since admission; nothing was moved; retry", name)
+				}
 			}
 			return call, nil
 		}, started, finished)

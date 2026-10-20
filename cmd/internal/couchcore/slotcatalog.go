@@ -8,9 +8,14 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 )
 
 const MaxSlotCandidates = 128
+
+// slotVerifyConcurrency caps Discover's concurrent per-slot verifications,
+// each of which runs three probe subprocesses (pair#726).
+const slotVerifyConcurrency = 8
 
 type SlotCatalog interface {
 	Discover(context.Context, string) (SlotRepository, error)
@@ -190,52 +195,79 @@ func (c *OSSlotCatalog) Discover(ctx context.Context, path string) (SlotReposito
 		seen[n] = true
 	}
 	sort.Slice(slots, func(i, j int) bool { return slots[i].Identity.Number < slots[j].Identity.Number })
+	// Each row's subprocess verification is independent, so rows run
+	// concurrently (pair#726: a serial pass cost 3 s on an 8-slot repository,
+	// past the 2 s admission budget). At most slotVerifyConcurrency rows run at
+	// once. A fatal row still fails the whole inventory; the
+	// lowest-numbered fatal error is reported, so the outcome is deterministic.
+	fatal := make([]error, len(slots))
+	var wg sync.WaitGroup
+	gate := make(chan struct{}, slotVerifyConcurrency)
 	for i := range slots {
-		if err := ctx.Err(); err != nil {
-			return SlotRepository{}, err
-		}
-		row := &slots[i]
-		row.Identity.RepoIdentity = primary.RepoIdentity
-		if row.Err != nil {
-			continue
-		}
-		before, err := os.Stat(row.Identity.WorktreeRoot)
-		if err != nil {
-			row.Err = err
-			continue
-		}
-		host, err := p.verifyHost(ctx, primary, row.Identity.Number, nil)
-		if err != nil {
-			row.Err = err
-			continue
-		}
-		id, err := SlotIdentityFromWorkspace(host.identity)
-		if err != nil {
-			row.Err = err
-			continue
-		}
-		// A physical path replaced during subprocess discovery never becomes authority.
-		checked, err := inspectSlot(id)
+		wg.Add(1)
+		go func(row *SlotCandidate, fatal *error) {
+			defer wg.Done()
+			gate <- struct{}{}
+			defer func() { <-gate }()
+			*fatal = p.verifySlotRow(ctx, primary, row)
+		}(&slots[i], &fatal[i])
+	}
+	wg.Wait()
+	for _, err := range fatal {
 		if err != nil {
 			return SlotRepository{}, err
 		}
-		if checked.Err != nil {
-			row.Err = checked.Err
-			continue
-		}
-		after, err := os.Stat(id.WorktreeRoot)
-		if err != nil {
-			row.Err = err
-			continue
-		}
-		if !os.SameFile(before, after) {
-			return SlotRepository{}, fmt.Errorf("slot host replaced during discovery: %s", id.WorktreeRoot)
-		}
-		row.Identity = id
-		row.Verified = true
 	}
 	if err := ctx.Err(); err != nil {
 		return SlotRepository{}, err
 	}
 	return SlotRepository{Identity: primary, Slots: slots}, nil
+}
+
+// verifySlotRow verifies one discovered row in place. Unverifiable hosts keep
+// a row error; a returned error is fatal to the whole inventory: a redirected
+// slot path, or a host replaced during subprocess discovery.
+func (p *WorkspaceProvisioner) verifySlotRow(ctx context.Context, primary WorkspaceIdentity, row *SlotCandidate) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	row.Identity.RepoIdentity = primary.RepoIdentity
+	if row.Err != nil {
+		return nil
+	}
+	before, err := os.Stat(row.Identity.WorktreeRoot)
+	if err != nil {
+		row.Err = err
+		return nil
+	}
+	host, err := p.verifyHost(ctx, primary, row.Identity.Number, nil)
+	if err != nil {
+		row.Err = err
+		return nil
+	}
+	id, err := SlotIdentityFromWorkspace(host.identity)
+	if err != nil {
+		row.Err = err
+		return nil
+	}
+	// A physical path replaced during subprocess discovery never becomes authority.
+	checked, err := inspectSlot(id)
+	if err != nil {
+		return err
+	}
+	if checked.Err != nil {
+		row.Err = checked.Err
+		return nil
+	}
+	after, err := os.Stat(id.WorktreeRoot)
+	if err != nil {
+		row.Err = err
+		return nil
+	}
+	if !os.SameFile(before, after) {
+		return fmt.Errorf("slot host replaced during discovery: %s", id.WorktreeRoot)
+	}
+	row.Identity = id
+	row.Verified = true
+	return nil
 }

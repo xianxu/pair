@@ -20,6 +20,7 @@
 | `KeyStep.InputBytes` (reads the table) | `cmd/internal/agentdrive/keys.go` | modified |
 | `Request.Interrupt` and `Request.InterruptOnly` | `cmd/internal/agentdrive/recipe.go` | new |
 | `Admission.Interruptible` and `Request.Admits` (adds the interrupt clause) | `cmd/internal/agentdrive/recipe.go` | modified |
+| `AdvertisesInterrupt` (the agent's own "esc to interrupt" hint in the bottom viewport rows; close review BR-6) | `cmd/internal/agentdrive/panel.go` | new |
 | Reducer: interrupt start, its turn exemption, its outcome | `cmd/internal/agentdrive/model.go` | modified |
 
 - **Steps**: one row per caller key, as syntax, meaning and bytes. Families expand to concrete rows when the package initializes: `ctrl-a`…`ctrl-z` except the excluded chords below; `alt-a`…`alt-z`; `f1`…`f12`. Help prints a family once (its `Group` syntax, such as `ctrl-LETTER`). The parser accepts exactly the rows, so an unknown name refuses before anything is sent, listing `StepSyntax()`.
@@ -53,6 +54,7 @@ Each request shape defines its admitting proof once, in `agentdrive`, as `Reques
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
 | `agentDriveScreen` / `agentDriveObservation` (add `Interruptible`) | `cmd/internal/wrapcmd/agent_drive.go` | modified | the agent PTY and screen |
+| `NotificationLifecycle.Working()` and its `turnWorking` mirror (the one "working" predicate; close review BR-4, BR-6) | `cmd/internal/wrapcmd/notification_lifecycle.go`, `wrap.go` | new | the lifecycle reducer's state |
 | `DriveObservation.Interruptible` | `cmd/internal/couchmessage/drive_endpoint.go` | modified | wrapper RPC |
 | `couch --interrupt repo:N --confirm [--json]` | `cmd/internal/couchcmd/agent_drive_cli.go`, `run.go`, `cost.go` | new | CLI |
 | Service admission (an interrupt skips the settled check, as recovery does) | `cmd/internal/couchcmd/agent_drive_service.go` | modified | supervisor |
@@ -66,7 +68,7 @@ Actions: `couch --interrupt SLOT --confirm`, `couch --peek`, the operator's own 
 | Internal state / failure | Visible state | Recovery action | Possible loss |
 |---|---|---|---|
 | Turn active, wrapper owns input | interrupt admitted, one Ctrl+C written | none | the turn's unfinished work (the purpose) |
-| No turn active | refused: "no turn to interrupt" | none | none |
+| No turn active | refused: `InterruptRefusal` ("no working turn to interrupt …") | none | none |
 | Turn flag set without work (a bare submission, or an open Claude panel whose progress report keeps the flag) | refused: no reported work, or no composer on screen (close review BR-4) | `--keys esc` for a panel | none |
 | Stop reported, grace pending, or a turn end the lifecycle missed | refused: `Working()` is false, or the agent shows no "esc to interrupt" hint (close review BR-6) | none | none |
 | Turn ends between admission and the write | the pre-write recheck cancels; nothing written | none | none |
