@@ -1,7 +1,7 @@
 ---
 id: 000722
 status: codecomplete
-deps: [pair#734]
+deps: []
 github_issue:
 created: 2026-10-19
 updated: 2026-10-20
@@ -31,45 +31,28 @@ ops `teams/devinfra/tl-status-xian-xu.side/2026-10-19-15-fleet-drain.md`.
 
 ## Spec
 
-**Governing re-plan proposal:** the 2026-10-20 failed-live-acceptance Revision below and the matching durable-plan Revision supersede the early message hold, all-wrapper cancellation prerequisite and recovery hold. They await TL approval before code. The original contract below is retained as provenance, with prior approved fast-mode corrections still governing suite-only interruption.
+`couch --drain [--fast]` marks slots with an in-memory requested-posture flag, sends an authenticated system notice and keeps delivering ordinary messages. Agents own checkpointing and reply to new work with ordinary acknowledgement text; Couch neither requires nor parses those replies. `--drain --status` lists flagged slots with idle/quiet observations from existing in-memory Couch state. One compact global badge, no per-chip drain label.
 
-`couch --drain [--reason TEXT] [--fast]` and `couch --drain --cancel` (steward hub or operator only):
-- **Graceful (default):** every live slot gets one system notice ("checkpoint and stop: finish the current atomic
-  step, commit, push, write where you stopped in the issue Log, start nothing new, reply drained"). Couch stops
-  delivering dispatches meanwhile.
-- **`--fast`:** for work that can be restarted later. Couch interrupts running agent turns (Esc), and the notice says
-  "stop now: write where you stopped, don't finish the step". Suites and merges are cancelled through sdlc's pause
-  (ariadne counterpart) and recorded as interrupted, and rerun on the same head after the restart. Nothing durable is
-  lost: the working tree and the transcript are on disk; only in-flight turn context goes.
-- **Drain board** (`couch --drain --status`, plus the tab bar): per slot **draining / drained / stuck (why)**. Drained
-  means the agent is idle at its prompt, no running suite, merge or landing is held, and the slot's last report says
-  drained. A timeout (`--timeout`) ends in a list of the stuck slots, never "go anyway".
-- After the restart, "resume the fleet" (ariadne#456) brings back the slots that had work.
+`couch --undrain [--message TEXT]` clears flags and sends the generic “drain lifted; continue your current work” plus the steward's optional note. No drain persistence, formal ack CLI, completion barrier, dispatch/lifecycle hold, automatic Esc, automatic queue pause/resume or automatic recovery. The steward drives SDLC pause/resume and judges restart readiness. Startup safe mode/restart-kind is #739; global park is #740.
 
-The [durable implementation plan](../plans/000722-fleet-drain-plan.md) defines the draft transition model, state/recovery table, exact v1 notice text and shared SDLC argv/JSON/fake contract. TL-approved refinements below supersede the original operator-entry/free-text-report wording; remaining design proposals await TL approval before code.
+TL4160a300 conveys the operator-reviewed contract and explicitly keeps this work in #722 despite the side doc's earlier suggestion of a replacement issue. The matching latest durable-plan Revision is a proposal for operator review before code. #622's train remains first priority; this issue has not reopened or entered renewed change-code.
 
 ## Done when
 
-- The installed-binary disposable-Couch harness (one steward, two throwaway workers, private state and queue roots) passes graceful, fast, stuck-queue refusal, cancellation and reboot-during-drain through actual registration, delivery, CLI acknowledgements and wrapper endpoints. Component fakes alone do not satisfy acceptance.
-- Starting against unknown/incomplete/stuck or already-paused queue evidence refuses before intent, pause, notice, interrupt or delivery suppression. Ordinary coordination remains available until the exact current checkpoints and final quiet barrier are confirmed.
-- Cancel releases local control/delivery authority without old-wrapper observation; only its own SDLC pause is reconciled. Unknown release remains visible and retryable while ordinary messages, quit and detach remain usable, including after supervisor/fleet restart.
-- The tab bar has one bounded global drain indicator, selectable ordinary chips and no repeated reason or per-chip drain suffix. Full reasons remain in status.
-- A renewed full-flow review, recorded suite and successful TL/operator-watched live acceptance follow the disposable matrix before merge. The failed morning run is retained as failure evidence; no former SHIP or interruption result substitutes for these gates.
-
-- A fake fleet of 3 slots (one idle, one mid-turn, one with a running suite) reaches all-drained under graceful and
-  under `--fast`, with the board showing each transition (tests on the stateful fake).
-- `--cancel` restores dispatch delivery and lifts sdlc's pause.
-- A slot that never reports shows as stuck, with its reason, at the timeout.
-- A matching per-drain ack plus fresh exact-incarnation idle and authoritative SDLC quiescence is required for drained; quiet without ack is stuck: no ack. Old incarnations/acks, incomplete queue status and late effects cannot manufacture completion.
-- Steward-only control, dispatch holding/release, owner-isolated queue cancellation, fast interruption identity checks and restart/uncertain-effect recovery pass deterministic sequence tests. The real ariadne#481 queue adapter conforms in an isolated portable state root before production enablement/close.
+- In-memory flags plus ordinary authenticated system notices work through actual steward CLI and admitted slot routing; restart creates no flags and never reads/writes drain.json.
+- Ordinary peer/system messages, receipt inspection, quit and detach remain usable while flagged. Agent acknowledgement text is never parsed into Couch authority or readiness.
+- Status reports current flagged slots and existing idle/quiet evidence without new sampling, queue calls or filesystem IO; unknown/stale/disconnected evidence remains explicit. No safe-to-restart or all-drained verdict.
+- Undrain clears flags regardless of notice outcome, then delivers the generic continuation and optional steward note through ordinary receipts.
+- One width-bounded global badge leaves actor chips and selection intact.
+- Pure/service/parser/renderer regressions and a bounded disposable installed-Couch test qualify actual caller registration, message flow, undrain, quit/detach and restart. Retain exact-head argv/result/log/hash evidence. No real fleet mutation before renewed review and TL/operator-watched acceptance.
+- Remove the obsolete coordinator, store, automatic queue/interrupt/revocation/ack protocol and their dependent hooks/tests. Keep unrelated terminal output draining untouched. #734 is retired, not a dependency.
 
 ## Plan
 
-- [x] Approve/checkpoint the design and pass full-flow change-code before implementation.
-- [x] Implement the pure model/board/notices and owner-scoped queue/store seams with stateful fakes and sequence tests.
-- [x] Wire steward CLI, authenticated ack, dispatch gate, fast wrapper interrupt and tab/status board.
-- [ ] Verify real ariadne#481 conformance, isolated wrapper integration, races, docs and required recorded suite; stage/live board check with hub authorization.
-- [ ] Close through the mandatory SDLC review, land through the ordinary gates and report the outcome.
+- [ ] Operator reviews the re-scoped durable-plan Revision through TL; then reopen and run renewed full-flow change-code from canonical pair:5 after #622's train completes.
+- [ ] Remove the obsolete completion/persistence/control machinery; implement only transient flags, ordinary notices/status and undrain with tests.
+- [ ] Qualify message/lifecycle independence, restart emptiness, truthful idle observations and one compact badge through normal tests and the bounded disposable installed composition.
+- [ ] Run required verification and mandatory close review, then TL-scheduled watched live acceptance before ordinary landing.
 
 ## Estimate
 
@@ -365,3 +348,54 @@ Canonical submitted TL receipt5c8b8b29 directs a separate operator-verified loca
 ### 2026-10-20 11:36 PDT — HOLD pending operator's simpler contour
 
 Canonical submitted TL receipt379c72ba supersedes the earlier permission to reopen/change-code: HOLD #722; do not reopen, enter change-code or implement the approved Revision. The operator is shaping a steward-driven in-memory per-slot flag and ack model with messages remaining available and no persisted drain state. This is a proposal, not an implementation contract; TL will return with what survives and what is dropped. Preserve current code and evidence unchanged meanwhile. The compact badge and ack diagnostics may survive, but are not independently dispatched. No product code changed after the failed live check, and the attempted auxiliary-worktree reopen never changed the card. Pair:0's stage was cleared/rebuilt earlier. #734's recording declaration was filed unclaimed before this hold; its relevance awaits the revised contour. Continue only #622's already-authorized landing in canonical pair:5.
+
+
+### 2026-10-20 12:18 PDT — operator-reviewed in-memory contract; plan awaits operator review
+
+Authenticated TL4160a300 supersedes the earlier hold with a new scoped design task, not permission to code. Read the ten points and settled answers in ops/teams/devinfra/tl-status-xian-xu.side/2026-10-20-17-drain-redesign.md. Keep #722 and its branch; the fresh dispatch overrides the side doc's earlier replacement-issue suggestion. Couch owns only transient slot flags, notices, status and a compact badge. Workers keep receiving messages and answer in ordinary prose; steward owns queue pause/resume and readiness judgment. No persisted drain, formal acknowledgement, barrier, hold or automatic wrapper interruption survives. #739/#740 own startup/global park separately.
+
+#734 was still open/unattributed. The supported abandon command required a claim; claimed narrowly without starting work, then sdlc abandon --issue734 --as wontfix recorded the supersession reason and archived details on main. No gate configuration or label changed. Remove its recording dependency. Retain a bounded installed-Couch qualification inside #722, recording evidence in the issue; no named protected declaration is needed for the removed queue/ack matrix.
+
+The current Spec/Done when/Plan above now describe this contract; previous active text is retained below as superseded provenance. The cumulative estimate and former SHIP remain historical until renewed plan-quality/estimate/code/close gates. No product code changed. Re-scope plan goes through TL to the operator before code; #622's active train has priority.
+
+#### Previous Spec — superseded
+
+**Governing re-plan proposal:** the 2026-10-20 failed-live-acceptance Revision below and the matching durable-plan Revision supersede the early message hold, all-wrapper cancellation prerequisite and recovery hold. They await TL approval before code. The original contract below is retained as provenance, with prior approved fast-mode corrections still governing suite-only interruption.
+
+`couch --drain [--reason TEXT] [--fast]` and `couch --drain --cancel` (steward hub or operator only):
+- **Graceful (default):** every live slot gets one system notice ("checkpoint and stop: finish the current atomic
+  step, commit, push, write where you stopped in the issue Log, start nothing new, reply drained"). Couch stops
+  delivering dispatches meanwhile.
+- **`--fast`:** for work that can be restarted later. Couch interrupts running agent turns (Esc), and the notice says
+  "stop now: write where you stopped, don't finish the step". Suites and merges are cancelled through sdlc's pause
+  (ariadne counterpart) and recorded as interrupted, and rerun on the same head after the restart. Nothing durable is
+  lost: the working tree and the transcript are on disk; only in-flight turn context goes.
+- **Drain board** (`couch --drain --status`, plus the tab bar): per slot **draining / drained / stuck (why)**. Drained
+  means the agent is idle at its prompt, no running suite, merge or landing is held, and the slot's last report says
+  drained. A timeout (`--timeout`) ends in a list of the stuck slots, never "go anyway".
+- After the restart, "resume the fleet" (ariadne#456) brings back the slots that had work.
+
+The [durable implementation plan](../plans/000722-fleet-drain-plan.md) defines the draft transition model, state/recovery table, exact v1 notice text and shared SDLC argv/JSON/fake contract. TL-approved refinements below supersede the original operator-entry/free-text-report wording; remaining design proposals await TL approval before code.
+
+#### Previous Done when — superseded
+
+- The installed-binary disposable-Couch harness (one steward, two throwaway workers, private state and queue roots) passes graceful, fast, stuck-queue refusal, cancellation and reboot-during-drain through actual registration, delivery, CLI acknowledgements and wrapper endpoints. Component fakes alone do not satisfy acceptance.
+- Starting against unknown/incomplete/stuck or already-paused queue evidence refuses before intent, pause, notice, interrupt or delivery suppression. Ordinary coordination remains available until the exact current checkpoints and final quiet barrier are confirmed.
+- Cancel releases local control/delivery authority without old-wrapper observation; only its own SDLC pause is reconciled. Unknown release remains visible and retryable while ordinary messages, quit and detach remain usable, including after supervisor/fleet restart.
+- The tab bar has one bounded global drain indicator, selectable ordinary chips and no repeated reason or per-chip drain suffix. Full reasons remain in status.
+- A renewed full-flow review, recorded suite and successful TL/operator-watched live acceptance follow the disposable matrix before merge. The failed morning run is retained as failure evidence; no former SHIP or interruption result substitutes for these gates.
+
+- A fake fleet of 3 slots (one idle, one mid-turn, one with a running suite) reaches all-drained under graceful and
+  under `--fast`, with the board showing each transition (tests on the stateful fake).
+- `--cancel` restores dispatch delivery and lifts sdlc's pause.
+- A slot that never reports shows as stuck, with its reason, at the timeout.
+- A matching per-drain ack plus fresh exact-incarnation idle and authoritative SDLC quiescence is required for drained; quiet without ack is stuck: no ack. Old incarnations/acks, incomplete queue status and late effects cannot manufacture completion.
+- Steward-only control, dispatch holding/release, owner-isolated queue cancellation, fast interruption identity checks and restart/uncertain-effect recovery pass deterministic sequence tests. The real ariadne#481 queue adapter conforms in an isolated portable state root before production enablement/close.
+
+#### Previous Plan — superseded
+
+- [x] Approve/checkpoint the design and pass full-flow change-code before implementation.
+- [x] Implement the pure model/board/notices and owner-scoped queue/store seams with stateful fakes and sequence tests.
+- [x] Wire steward CLI, authenticated ack, dispatch gate, fast wrapper interrupt and tab/status board.
+- [ ] Verify real ariadne#481 conformance, isolated wrapper integration, races, docs and required recorded suite; stage/live board check with hub authorization.
+- [ ] Close through the mandatory SDLC review, land through the ordinary gates and report the outcome.
