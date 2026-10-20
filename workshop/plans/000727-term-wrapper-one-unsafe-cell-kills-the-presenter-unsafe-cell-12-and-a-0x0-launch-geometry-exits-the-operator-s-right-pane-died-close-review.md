@@ -110,3 +110,95 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T09:32:32-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 727 — term wrapper: one unsafe cell kills the presenter ('unsafe cell 12'), and a 0x0 launch geometry exits: the operator's right pane died |
+| repo | pair |
+| issue file | workshop/issues/000727-term-wrapper-one-unsafe-cell-kills-the-presenter-unsafe-cell-12-and-a-0x0-launch-geometry-exits-the-operator-s-right-pane-died.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 8620374573f7a42310ffe6348d7946d5326dd15f..97c32eaad2245af63532d100ac67e53283b268eb |
+| command | sdlc close --issue 727 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T09:32:32-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range satisfies the revised Spec and Plan. All three prior findings are addressed with executable regression evidence. No new blocking findings emerged. README and atlas updates cover the changed behavior. Operator acceptance remains deferred to the next natural relaunch, as explicitly approved in the tracker.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      run.go:430-432 propagates typed pump failures into recovery. TestRecoveryOwnsInputPumpEnding passes; disabling propagation in a disposable checkout reproduces missing errors and zero handoffs for decoder and non-EOF read failures.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      layoutcmd.go:252 includes --no-focus. Fake and native tests preserve invoking-pane focus; removing the flag makes both fake regression cases fail. The native negative control also demonstrates redirected keyboard input.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      TestTerminalRecoveryZellijConformance passed against Zellij 0.45.1 through production routing, verifying same-tab visible creation, actual client focus and foreign-tab isolation. The scheduled native runner requires its execution; all eight runner proof tests passed.
+```
+
+1. **Strengths**
+
+   - Backend repair covers screen and history snapshots while keeping direct Frame validation strict (`terminal/cell_degrade.go:25`, `terminal/endpoint.go:260`).
+   - Recovery preserves failure causes, requires completed cleanup, and suppresses handoff after termination or transport loss (`termcmd/recovery.go:192`).
+   - Missing-pane creation requires confirmed same-tab absence and preserves focus (`layoutcmd/layoutcmd.go:235`).
+   - Regression tests distinguish real behavior: malformed cells reach the presenter, fallback accepts commands over a PTY, and native focus is checked using keyboard input.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Passed nine affected packages, including terminal, termcmd, layoutcmd, terminalcapture, ptychild, hostty and artifactpath.
+   - Focused recovery and routing tests passed under the race detector.
+   - Both behavior fixes produced semantic failures when disabled in disposable checkouts; those checkouts were removed.
+   - Native conformance passed with `TMPDIR=/tmp`; the default long temporary path exceeded Zellij’s socket-path limit.
+   - The repository-wide recorded suite was not rerun during this review. The reviewed checkout remains unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Shared launch command serves split and recovery; existing conformance checks pin layout agreement.
+   - **ARCH-PURE — pass:** Repair and recovery decisions are directly testable pure logic; IO remains in boundary callers.
+   - **ARCH-PURPOSE — pass:** Cell resilience, geometry waiting, shell fallback and missing-pane recovery are delivered.
+   - **ARCH-MOCK — pass:** Stateful fake coverage is paired with scheduled native conformance.
+   - **ARCH-CONSTRAINTS — pass:** Geometry waiting, evidence sampling and repair work have explicit bounds and tests.
+   - **ARCH-SECURE — pass:** Untrusted cells are repaired before publication; diagnostics exclude raw hyperlinks and control sequences.
+   - **ARCH-ORDER — pass:** Production handoff uses the transition function; controlled tests exercise termination during teardown.
+   - **ARCH-FUNERAL — pass:** Diagnostics reuse managed retention; producers and children are joined before handoff.
+   - **ARCH-EVOLVE — pass:** Existing sidecar formats remain unchanged; diagnostic records introduce no lossy rewrite path.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"101cd5b0-82e0-43eb-8b2a-438e0085f4a9","repository":"github.com/xianxu/pair","issue_id":"000727","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/d84b248216367ff5","reviewed_head":"97c32eaad2245af63532d100ac67e53283b268eb","slot":"pair:7","requested_at":"2026-10-20T16:29:54.970465Z"},"phase":"finished","pid":258,"started_at":"2026-10-20T16:29:55.162863Z","finished_at":"2026-10-20T16:32:32.169783Z","session_id":"01a15a25-e5d3-70a3-9842-f8ebd5f87dbf","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.89223075s
+head: "97c32eaad2245af63532d100ac67e53283b268eb"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000411

@@ -61,6 +61,7 @@ geometry at launch (pane measured before it had a size) refuses outright instead
 ## Log
 
 ### 2026-10-20
+- 2026-10-20: closed — BR-1 decoder/read semantic reds fixed with typed pump outcomes and EOF/cancel/disconnect/overlap controls. BR-2 focus red fixed with no-focus. BR-3 native Zellij conformance passed 0.54s, including actual PTY focus and missing-no-focus negative control; native tab-id/near-current-pane conflict removed. Final complete termcmd/layoutcmd/zellijtest race packages passed 6.892s/7.490s/8.095s; terminal, hostty, ptychild, capture, qualify and artifactpath previously passed. Python scheduled-native execution gate 8 tests passed. Corrected code 97c32eaad2245af63532d100ac67e53283b268eb is pushed; its recorded suite is pending, no full pass claimed. Review overlaps suite per tl-worker; unchecked final checklist awaits suite and landing. TL owns project. Approved live check deferred to next natural relaunch, no pair:0 stage.; review verdict: SHIP
 
 
 ## Revisions
