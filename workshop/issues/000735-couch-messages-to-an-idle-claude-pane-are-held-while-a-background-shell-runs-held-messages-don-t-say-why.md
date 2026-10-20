@@ -16,6 +16,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "07aba62c", done: "0930cf80"}
 ---
 
 # couch: messages to an idle Claude pane are held while a background shell runs; held messages don't say why
