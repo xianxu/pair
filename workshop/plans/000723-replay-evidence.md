@@ -293,3 +293,33 @@ result['improved'] = medians['current'] < medians['baseline']
 (output / 'results.json').write_text(json.dumps(result, indent=2) + '\n')
 print(json.dumps({'medians': medians, 'reduction_percent': result['reduction_percent'], 'improved': result['improved']}), flush=True)
 ```
+
+## Corrected result — 2026-10-19
+
+All six corrected observations completed without retries. Every run delivered1860 batches/7549280 bytes and completed20 timed final frame validations; final frame/reply hashes match the first attempt and each other. Publication and reply queues were joined inside timing. Controls passed for both builds; a deliberate missing-Sink control variant failed with invalid accounting, verifying that the earlier missing stage is now detected. The original driver was restored after this control; measured binaries/results were untouched.
+
+| Run | Build | CPU seconds | Wall seconds (timed) | CPU µs/byte | Deliveries | Validations |
+|---|---|---:|---:|---:|---:|---:|
+| 1 | baseline | 29.148599 | 28.024173 | 3.861110 | 1860 | 20 |
+| 2 | current | 28.804248 | 27.106092 | 3.815496 | 1860 | 20 |
+| 3 | current | 29.291803 | 28.204541 | 3.880079 | 1860 | 20 |
+| 4 | baseline | 29.479283 | 27.506442 | 3.904913 | 1860 | 20 |
+| 5 | baseline | 30.357654 | 30.665584 | 4.021265 | 1860 | 20 |
+| 6 | current | 30.432552 | 33.027379 | 4.031186 | 1860 | 20 |
+
+Median CPU/byte: baseline3.904913µs; current3.880079µs, an observed0.635972% reduction. Baseline range3.861110–4.021265µs/byte; current3.815496–4.031186µs/byte. The ranges overlap: three observations and this one stream establish a small lower sample median, not a robust general speedup or a forecast of live fleet CPU. Contrast the incomplete ingest-only median at+1.105828% CPU/byte. Both outcomes are reported; no unfavorable observation is omitted.
+
+The final validation runs once per client, not once per4096-byte batch, and the counted Sink acknowledges output without rendering a console. The experiment measures exactly that fixed work. Earlier synthetic ASCII/mixed redraw results remain separate evidence and are not substituted for this real-stream comparison.
+
+Local corrected results SHA256: 2358b4ba182ef759f48770017a09c99dd9a9c7c138518580698bae5aa8b24e15. Per-run log hashes (in order):
+
+- 1 baseline: ba36a689007dcb9c184c9b9196c3bc573b2ee8c76fb1cbed01bb71c113ad263e
+- 2 current: 655c433b1317474030dae82743401763eceb3779ae4e5e72c7a19e2a387b89a3
+- 3 current: f9f80215c23b965fb90ddb4a24bbcc35d272ed89fd076d6ba650060bc3a6786a
+- 4 baseline: 550f369fcbf43006e6b759cd10219d9e69de6bddac7099fdfd6256d5bd580510
+- 5 baseline: 74946ee1d9ee4b412e67f4d5a28c5d78b070882a5508161d4c36e63a9fdbcc90
+- 6 current: db04f8fd838693dd090aa7837bf589636d25ff7dadd079a6604f359e7246066c
+
+The result file also retains every load triplet, process wall duration, CPU bracket values, binary/driver/stream hashes and Git heads. No raw terminal payload is present in the committed report.
+
+Both owned detached worktrees were removed after all runs/controls, with tracked source clean and only the known injected driver untracked. Source/binaries/raw and both attempt directories remain in the invocation root; no other worktree or process was touched.
