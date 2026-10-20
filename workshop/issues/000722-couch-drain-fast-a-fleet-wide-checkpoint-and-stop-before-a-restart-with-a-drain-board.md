@@ -271,3 +271,15 @@ Full drain race verification passed couchcmd30.213s, couchmessage4.761s and wrap
 Correct the preceding entry's prematurely written06:31 timestamp: those targeted checks completed before06:28 PDT. During the last class sweep, found missing-member observations still called the generic event door instead of the ack-revision/generation-fenced observation door. Extended the held-snapshot regression to absent-member evidence; missing=true failed on3e745f757. Routed that path through observeMember too. Interrupted only this slot's just-starting review and cancelled only its queued suite before mutation; no verdict was admitted and no test result is being reused for the new code. Both present and absent snapshot paths now share the same baseline ordering rule. Reverify and requeue on the final head before staging.
 
 The complete drain race set passed after the missing-member correction: couchcore1.326s, couchcmd31.843s, couchmessage4.081s, wrapcmd8.731s. The only remaining production member-observation event construction is inside observeMember, so both positive and absent-member evidence share the generation/revision fence.
+
+### 2026-10-20 06:37 PDT — approved fast-mode Spec revision (BR-3)
+
+Canonical submitted TL receipt e881ba7d-158e-4a5a-812f-335f0a0fb030 explicitly approves this revision, superseding the original Spec promise that fast drain cancels merges. Fast cancels running suites and records them interrupted for a later explicit rerun. An admitted merge or landing finishes or retires at its own safe boundary; killing integration or a push is riskier than waiting. The landed #481 admission gate already stops a merge at its next suite boundary. Fast never authorizes killing a merge or landing process. The board remains draining with named active work until authoritative complete active=[] and all member checkpoint/idle conditions hold; timeout remains stuck without release.
+
+| Queue operation | Fast pause | Completion evidence |
+| --- | --- | --- |
+| suite | Request interruption; preserve interrupted outcome; no restart on resume | Suite retires, no active row |
+| merge | Preserve running work; finish/retire at its safe boundary, including the next suite admission boundary | Merge retires, no active row |
+| landing | Preserve running work; finish/retire at its safe boundary | Landing retires, no active row |
+
+The fake must match the real seam across this complete kind enumeration and owner replay/resume; the retained real conformance already asserts the suite-only interruption policy. Add fake and coordinator regressions that require live merge/landing rows to keep the board draining even after every agent has acked/settled and the suite retired. The public CLI, notice text, JSON schema, owner-scoped hold and approved graceful-only live check are unchanged. BR-1 and BR-2 were disposed addressed by round2, including reviewer-run mutation controls and real conformance; only BR-3 remains. Cancelled this slot's still-queued prior-head suite because the fake corrections change the tested head. No stage or live effect occurred.

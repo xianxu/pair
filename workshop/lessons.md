@@ -2432,3 +2432,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #722 BR-1: Acknowledgement authority must sample activity at the acknowledgement boundary. A cached reconciliation baseline can classify preceding activity as new; discard pre-ack in-flight observations and test both registry and wrapper counters before and after acknowledgement.
 - #722 BR-2: Keep real dependency conformance executable and opt-in with an isolated-root guard and a documented cadence. Historical scratch-probe logs cannot detect subsequent divergence from a stateful fake.
+
+- #722 BR-3: Compare the full operation-kind policy of a dependency against both the original Spec and fake before calling conformance complete. A real test that accepts narrower behavior needs an explicit approved scope revision; align suite, merge, landing, owner replay and resume assertions across both seams.
