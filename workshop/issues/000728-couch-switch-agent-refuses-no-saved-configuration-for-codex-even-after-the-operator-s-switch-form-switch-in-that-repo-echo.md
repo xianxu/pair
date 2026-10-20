@@ -46,3 +46,7 @@ agent's last successful launch configuration in that repo. The refusal names exa
   "no saved configuration for codex; the operator must configure it in the switch form first", although the same
   command succeeded on ariadne:0 and ariadne:5 an hour earlier. So the saved configuration looks per slot (or per
   launch history), not per repo: a slot that never ran Codex has none.
+- 10-20 14:15 (TL): third case: the operator's switch-form switch of pair:8 (Qoder → Codex) failed with
+  "switch-agent: source changed or disconnected; retry switch" (launch-diagnostics failures.json, operation
+  2e048ac2508c98354822c8fa342aa0e3). pair:8's Qoder session was a recording only (no live wrapper). The switch should
+  handle a parked or disconnected source (start fresh on the new agent) instead of refusing.
