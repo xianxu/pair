@@ -1,6 +1,6 @@
 ---
 id: 000721
-status: codecomplete
+status: done
 created: 2026-10-19
 updated: 2026-10-20
 estimate_hours: 3.47
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 996864c8913c33f6b3f4a0c93d5ad3201e53d0c1
         evidence_commit: 01eb9529fb87de6fc12df6f25471c63b677e737b
+        landed_commit: a0b7ee338a732e4d6bf36e3e99cf3f1006925275
 ---
 
 # Offer unconfirmed native recovery candidates without a usable screen
