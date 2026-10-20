@@ -1,0 +1,154 @@
+{
+  "version": 1,
+  "command": [
+    "make",
+    "test-affected"
+  ],
+  "weight": 1,
+  "timeout_minutes": 30,
+  "full": [
+    "Makefile*",
+    "go.mod",
+    "go.sum",
+    ".sdlc/**",
+    ".github/workflows/**",
+    "tests/lib/**",
+    "cmd/pair-go/**",
+    "cmd/couch/**",
+    "cmd/pair-launch-helper/**",
+    "cmd/internal/dispatcher/**",
+    "cmd/internal/runtimebundle/assets/runtime/manifest.json",
+    "scripts/test-affected.py",
+    "tests/test-affected-test.py",
+    "tests/affected-config-test.py"
+  ],
+  "groups": [
+    {
+      "name": "lua",
+      "paths": [
+        "cmd/internal/runtimebundle/assets/runtime/files/nvim/**",
+        "nvim/**",
+        "tests/autopair-test.sh",
+        "tests/bang-tag-nvim-test.sh",
+        "tests/changelog-isolation-test.py",
+        "tests/changelog-notify-test.sh",
+        "tests/cr-newline-test.sh",
+        "tests/draft-complete-mode-test.sh",
+        "tests/lifecycle-command-nvim-test.sh",
+        "tests/nvim-pidfile-lifecycle-test.sh",
+        "tests/nvim-route-poke-admission-test.sh",
+        "tests/pair-doctor-test.sh",
+        "tests/queue-send-test.sh",
+        "tests/retention-test.sh",
+        "tests/review-restore-admission-test.lua",
+        "tests/statusline-pos-test.sh",
+        "tests/submission-transaction-nvim-test.sh",
+        "tests/workbench-route-nvim-test.sh",
+        "tests/zellij-observation_test.lua"
+      ],
+      "go": [
+        "./cmd/internal/runtimebundle"
+      ]
+    },
+    {
+      "name": "review",
+      "paths": [
+        "nvim/**",
+        "tests/overlay-return-test.sh",
+        "tests/pair-review-target-test.sh",
+        "tests/review-applied-round-test.sh",
+        "tests/review-apply-test.sh",
+        "tests/review-branch-restore-test.sh",
+        "tests/review-comments-test.sh",
+        "tests/review-controls-test.sh",
+        "tests/review-definition-test.sh",
+        "tests/review-docflow-test.sh",
+        "tests/review-fresh-restore-diagnostics-test.py",
+        "tests/review-fresh-restore-test.sh",
+        "tests/review-indicator-test.sh",
+        "tests/review-observation-diagnostics-test.py",
+        "tests/review-observation-test.sh",
+        "tests/review-poke-test.sh",
+        "tests/review-projection-test.sh",
+        "tests/review-readiness-cli-test.sh",
+        "tests/review-resume-isolation-test.py",
+        "tests/review-resume-test.sh",
+        "tests/review-toggle-test.sh",
+        "tests/review-window-test.sh"
+      ],
+      "go": [
+        "./cmd/internal/reviewcmd"
+      ]
+    },
+    {
+      "name": "doctor",
+      "paths": [
+        "bin/lib/adapt-log.sh",
+        "doctor/**",
+        "nvim/adapt.lua",
+        "nvim/doctor.lua",
+        "tests/adapt-golden.expected",
+        "tests/adapt-schema-test.sh",
+        "tests/emitter-health-test.sh",
+        "tests/perf-key-conformance-test.sh"
+      ],
+      "go": [
+        "./cmd/internal/adapt",
+        "./cmd/internal/diagnosticcmd"
+      ]
+    },
+    {
+      "name": "build",
+      "paths": [
+        "bin/couch-dev",
+        "bin/lib/dev-rebuild.sh",
+        "bin/pair-dev",
+        "scripts/build-go-atomic.sh",
+        "scripts/supervision-labels/**",
+        "tests/build-go-atomic-test.py",
+        "tests/dev-rebuild-test.sh",
+        "tests/host-preflight.sh",
+        "tests/make-test-env-test.sh",
+        "tests/pair-embedded-runtime-test.sh",
+        "tests/pair-go-install-layout-test.sh",
+        "tests/run-headless-test.sh",
+        "tests/without-ancestors-test.py",
+        "tests/without-ancestors.py"
+      ],
+      "go": [
+        "./cmd/internal/runtimebundle",
+        "./cmd/internal/runtimebundlegen",
+        "./cmd/internal/entrypoint"
+      ]
+    },
+    {
+      "name": "shell",
+      "paths": [
+        "tests/changelog-open-test.sh",
+        "tests/changelog-session-key-test.sh",
+        "tests/copy-on-select-test.sh",
+        "tests/paint-gate-consumers-test.sh",
+        "tests/pair-rename.sh",
+        "tests/pair-restart-quit-test.sh",
+        "tests/pair-session-watch-test.sh",
+        "tests/plan-superseded-facts-test.sh",
+        "tests/scrollback-open-test.sh",
+        "tests/term-pane-shortcuts-test.sh",
+        "tests/zellij-trace-test.sh",
+        "zellij/**"
+      ],
+      "go": [
+        "./cmd/internal/sessionwatch",
+        "./cmd/internal/pairlifecycle",
+        "./cmd/internal/launcher",
+        "./cmd/internal/changelogcmd",
+        "./cmd/internal/scrollbackcmd",
+        "./cmd/internal/clipcmd",
+        "./cmd/internal/layoutcmd",
+        "./cmd/internal/termcmd",
+        "./cmd/internal/couchtty",
+        "./cmd/internal/ptychild"
+      ]
+    }
+  ]
+}

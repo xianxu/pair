@@ -62,8 +62,8 @@ The original real-status/train requirement above is qualified by upstream main-o
 
 See [durable plan](../plans/000725-affected-tests-plan.md), one atomic close boundary.
 
-- [ ] Add declaration, selective command and production entrypoint regressions; qualify upstream strict parser/planner fixtures.
-- [ ] Audit current non-Go recipe ownership; document the Lua/runtimebundle exception and full fallbacks.
+- [x] Add declaration, selective command and production entrypoint regressions; qualify upstream strict parser/planner fixtures.
+- [x] Audit current non-Go recipe ownership; document the Lua/runtimebundle exception and full fallbacks.
 - [ ] Record fixtures and native selected-command timing against full suite; note hub-owned post-landing recorded affected/docs-vouch follow-up in the Done when Revision.
 - [ ] Run full suite, close review, request operator local-gates label through hub, then merge and verify outcome.
 
@@ -80,6 +80,12 @@ See [durable plan](../plans/000725-affected-tests-plan.md), one atomic close bou
 - 2026-10-20: Plan-quality round 2 CLEAN with PQ-1 addressed. Derived estimate only after acceptance, using v3.1 primitive method (2.205h →2.21h), with stale-calibration caveat. No implementation started.
 
 - 2026-10-20: Full-flow change-code passed: plan-quality round 3 CLEAN (PQ-1 addressed), estimate-quality INFO. Estimate verification allowance is included in each component, not excluded: runner owns recorder/entrypoint/failure/mutation tests, Make integration owns recipe audit, consumer fixture owns strict-parser/graph scenarios. Residual design is exact safe recipe-path ownership and portable upstream-source fixture construction. Suite elapsed execution is covered by component verification/one boundary qualification, counted once across overlap; the Log separately reports runtime and idle queue, and sdlc actual determines adopted attribution rather than this estimate text. No implementation started.
+
+- 2026-10-20: Implemented validated pure selection/argv functions, thin child runner and five fixed Make group targets. Runner regressions went red before code (missing command/runner), then passed all 8 test methods, including counted N=1/2 selections, zero effects on invalid input, one private binary lifetime, environment scrub, failure propagation and disjoint default-recipe ownership. Added explicit rejection for Go's embedded ... pattern after a failing regression; input never reaches shell evaluation (ARCH-SECURE).
+
+- 2026-10-20: Stateful recorder mutations detected removal of wildcard rejection, Lua/runtimebundle addition, exact-Go argv isolation and recipe ownership. Actual upstream #473 candidate fixture passed strict nested/top-level unknown/duplicate refusal, leaf/transitive/test-importer unions, script-only group selection, editable/generated Lua attribution and full fallbacks; every declared root validated against real Pair graph. Provider read via Git into disposable source module, never modified. Default unavailable-provider check reports a dependency skip; explicit requested source failure refuses. README and atlas document this pending upstream dependency and operator label ownership.
+
+- 2026-10-20: Actual upstream planner selected dispatcher, slugcmd and cmd/pair-go (no groups, Full=false) for cmd/internal/slugcmd/slug.go. Native make test-affected with exactly those three import paths passed in 13.396s wall time (no queue): package outputs 0.243s, 0.692s and 11.604s respectively. This is command qualification, not recorded sdlc-local/affected status; compare against the pending recorded branch full suite before label/landing. Hub retains post-landing real affected/docs-train follow-up per governing Done when Revision.
 
 ## Revisions
 

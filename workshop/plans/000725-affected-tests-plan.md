@@ -75,9 +75,9 @@ This is batch development tooling, not a UI hot path. Per invocation: one valida
 
 ## Tasks — one atomic close boundary
 
-- [ ] Write the runner/config fixture regressions first. Run them red, including invalid and failure paths. Qualify the strict upstream consumer fixture against a disposable #473 candidate while its M2 is pending.
-- [ ] Implement declaration, selected runner and shared Make group lists; run focused tests and native selected command smoke. Audit every group claim and default non-Go target; mutate key runner guards to establish regressions.
-- [ ] Document commands, selection exception for Lua/runtimebundle, fallback/full rules and operator label ownership in README/atlas. Append decisions and evidence to issue Log, preserve unrelated generated workflow stashes.
+- [x] Write the runner/config fixture regressions first. Run them red, including invalid and failure paths. Qualify the strict upstream consumer fixture against a disposable #473 candidate while its M2 is pending.
+- [x] Implement declaration, selected runner and shared Make group lists; run focused tests and native selected command smoke. Audit every group claim and default non-Go target; mutate key runner guards to establish regressions.
+- [x] Document commands, selection exception for Lua/runtimebundle, fallback/full rules and operator label ownership in README/atlas. Append decisions and evidence to issue Log, preserve unrelated generated workflow stashes.
 - [ ] Measure representative native selected-command duration against the full suite before label/landing. Run full suite on #725 pushed head, close through mandatory fresh review, and fix blocking findings. Record hub-owned post-landing affected-status/docs-vouch follow-up in Done when Revision; no early claim of recorded status.
 - [ ] Send the concrete tested PR to hub for operator local-gates-verified label. Wait without self-labelling or waiving CI; after label and SHIP use sdlc merge, verify tracker/archive, report receipt-submitted outcome.
 

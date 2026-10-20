@@ -1967,6 +1967,37 @@ PAIR_REQUIRE_LSOF_CONFORMANCE=1 go test ./cmd/internal/diagnosticlog -count=1 \
 Required mode fails instead of skipping an unavailable/incomplete probe. A complete
 answer with a wrong holder or process identity fails in both modes.
 
+Affected branch checks use `.sdlc/affected.json` and `make test-affected` once the
+installed SDLC supports ariadne#473. SDLC reads the declaration from main and
+supplies `SDLC_AFFECTED_GO_PKGS` (exact import paths) and `SDLC_AFFECTED_GROUPS`.
+For a manual selected run:
+
+```bash
+SDLC_AFFECTED_GO_PKGS=github.com/xianxu/pair/cmd/internal/slugcmd make test-affected
+```
+
+The runner tests only the supplied Go packages and selected `lua`, `review`,
+`doctor`, `build` or `shell` recipes. Go-only runs avoid a suite-owned Pair
+build; selected non-Go groups share one fresh private executable. Lua changes
+regenerate the embedded runtime and add `runtimebundle` to the Go selection
+exactly once. Make retains its usual session-environment scrub. Empty or invalid
+selections refuse; SDLC records docs-only passes without invoking the runner.
+Makefiles, module metadata, shared test helpers, gate configuration and executable
+dispatch force a full suite. Unclaimed non-Go paths also force full, including
+external fixtures under `tests/webcast`, `tests/broadcast-viewer` and
+`tests/terminal-oracle`. `make test` retains every existing check and adds runner
+and declaration regressions; landing still requires the full-suite evidence
+owned by SDLC.
+
+The declaration regression consumes upstream parser/planner source from a sibling
+ariadne checkout or the installed Go module. Until ariadne#473 is available there,
+it reports an explicit dependency skip. Qualify an upstream candidate without
+changing that checkout using `ARIADNE_AFFECTED_SOURCE=/path/to/ariadne` and optional
+`ARIADNE_AFFECTED_REF=<local-git-ref>` with `make test-affected-config`; an explicitly
+requested unavailable source fails. Changes to this declaration require the
+operator's `local-gates-verified` label. The hub owns the first recorded code
+affected check and docs-only train qualification after the declaration lands.
+
 `make test` also runs ariadne's pinned Go lint catalog over tracked Go sources.
 For a focused check, run `go test ./internal/repolint -count=1 -v`. Use a full Git
 checkout with the configured main tracking ref available: the sleep-debt ratchet
