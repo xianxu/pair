@@ -28,11 +28,11 @@ Covered: acknowledged recovery launch exit, failure disposition, durable diagnos
 
 | Name | Lives in | Status |
 |---|---|---|
-| Recovery launch disposition | `cmd/internal/couchcore/recovery_launch_disposition.go` | new |
+| ReconcileStart | `cmd/internal/couchcore/starttransaction.go` | existing policy reused |
 | StartEvent / AdvanceStartTransaction | `cmd/internal/couchcore/starttransaction.go` | modified |
 | Lifecycle failure target composition | `cmd/internal/couchcore/operationattempt_record.go` | modified |
 
-The disposition consumes typed helper/session/registration observations and returns promote, release-failed, or retain-unconfirmed. It performs no probing or storage. StartEvent remains the only owner of creating-incarnation transitions. A release event retains the exact start's selection/context, park and thread, removes only that creating incarnation, and invalidates all later events for that nonce.
+Existing ReconcileStart consumes typed helper/session/registration observations and returns promote, rollback, or keep-occupied. It performs no probing or storage; reuse it rather than introduce a redundant pure decider. StartEvent remains the only owner of creating-incarnation transitions. A release event retains the exact start's selection/context, park and thread, removes only that creating incarnation, and invalidates all later events for that nonce.
 
 Failure target composition uses complete addresses atomically. A partial outer scope never replaces a complete captured address or combines with a tag from another address. A different complete outer target remains the operation target; the captured launch nonce still correlates its child. Scope-only failures use the unresolved reference/path evidence and an empty Address, rather than an invalid half-address. Diagnostic target evidence never grants lifecycle authority.
 
@@ -89,7 +89,7 @@ State/event table for an acknowledged recovery claim:
 
 | Risky function / seam | Adversarial class and mechanical guard |
 |---|---|
-| `DecideRecoveryLaunchDisposition` (new pure function) | Exhaust helper/session/registration knowledge values; independent literal policy asserts only proved failure releases and established registration wins. |
+| `ReconcileStart` (existing pure policy) | Exhaust helper/session/registration knowledge values; independent literal policy asserts only proved failure releases and established registration wins. |
 | `AdvanceStartTransaction` / new terminal failure event | Generate duplicate, stale and reordered nonce/event sequences; assert immutable input, retained exact selection and no removal of a registered/newer incarnation. |
 | `completeFailureAddress` (new pure composition owner) | Table/fuzz partial and conflicting addresses; assert an output is one complete input or zero, never a fieldwise hybrid. |
 | `lifecycleFailureTargetForCall`, `OperationAttempt.ObserveCall`, `lifecycleFailureForAttempt` | Dispatch arbitrary partial target evidence through real recorder normalization; assert complete nested evidence survives and unresolved targets remain persistable. |
@@ -101,13 +101,13 @@ State/event table for an acknowledged recovery claim:
 
 Files: `couchcore/{recovery_launch_disposition.go,starttransaction.go,launch_existing.go,operationattempt_record.go,lifecyclefailure_record.go}` and colocated tests; `couchcmd/lifecyclefailure_service_test.go`; `internal/repolint` local catalog and rule tests; `atlas/couch.md`.
 
-- [ ] Write the production-dispatch immediate-retry and retained-diagnostics regressions using the function strategies above; implement no production changes yet.
-- [ ] Run `go test ./cmd/internal/couchcore ./cmd/internal/couchcmd -run 'RecoveryLaunch|LifecycleFailure|OperationAttempt|StartTransaction' -count=1`; observe the intended failure at the wedge/identity assertions.
-- [ ] Implement `DecideRecoveryLaunchDisposition` and `Couch.finalizeFailedRecoveryLaunch`: after owned exit completion, observe the exact proposed session under the existing operation hold and apply one bounded nonce/revision transition. Retain all uncertain outcomes; ordinary warm/spawn cleanup stays unchanged.
-- [ ] Extend `AdvanceStartTransaction` with the terminal failed-start event, retaining its selection/park/thread while clearing only the matching creating incarnation; execute it through bounded context-aware ThreadStore CAS.
-- [ ] Implement `completeFailureAddress` and use it at call extraction, ObserveCall and terminal failure enrichment. Sweep these composition owners for nonzero-address and fieldwise overwrites; keep normalizeLaunchFailure strict.
-- [ ] Add a Pair-local lint guard for unsafe direct partial-address overrides in the three diagnostic composition owners using the existing local catalog. Exercise bad variants and the centralized complete-address form through rule fixtures.
-- [ ] Run the named function strategies, focused package tests and race checks. Record counted O(1) failure observation/storage work and bounded lock-contention results. Update atlas/lessons and Log; commit with Agent/Co-Authored-By trailers.
+- [x] Write the production-dispatch immediate-retry and retained-diagnostics regressions using the function strategies above; implement no production changes yet.
+- [x] Run `go test ./cmd/internal/couchcore ./cmd/internal/couchcmd -run 'RecoveryLaunch|LifecycleFailure|OperationAttempt|StartTransaction' -count=1`; observe the intended failure at the wedge/identity assertions.
+- [x] Reuse `ReconcileStart` and implement `Couch.finalizeFailedRecoveryLaunch`: after owned exit completion, observe the exact proposed session under the existing operation hold and apply one bounded nonce/revision transition. Retain all uncertain outcomes; ordinary warm/spawn cleanup stays unchanged.
+- [x] Extend `AdvanceStartTransaction` with the terminal failed-start event, retaining its selection/park/thread while clearing only the matching creating incarnation; execute it through bounded context-aware ThreadStore CAS.
+- [x] Implement `completeFailureAddress` and use it at call extraction, ObserveCall and terminal failure enrichment. Sweep these composition owners for nonzero-address and fieldwise overwrites; keep normalizeLaunchFailure strict.
+- [x] Add a Pair-local lint guard for unsafe direct partial-address overrides in the three diagnostic composition owners using the existing local catalog. Exercise bad variants and the centralized complete-address form through rule fixtures.
+- [x] Run the named function strategies, focused package tests and race checks. Record counted O(1) failure observation/storage work and bounded lock-contention results. Update atlas/lessons and Log; commit with Agent/Co-Authored-By trailers.
 - [ ] Request staged disposable live qualification from the hub, push and run the recorded full suite, then close #714 directly through `sdlc close --issue 714 --verified ...`. On SHIP enter `sdlc merge --yes`, report the landing and stop before starting #721.
 
 ## Revisions
@@ -115,3 +115,5 @@ Files: `couchcore/{recovery_launch_disposition.go,starttransaction.go,launch_exi
 - 2026-10-19, TL approval: split original M2/M3 into a new issue. This plan now ends at the former M1 with one issue-close boundary. All failed-disposition uncertainty is displayed as Launch unconfirmed with Inspect; no separate visible disposition state. Original design remains in the prior plan commit and transferred successor Spec.
 
 - 2026-10-19, plan gate PQ-1/PQ-2: replaced prose test inventories with one named-function adversarial strategy/guard table. Corrected unsupported ThreadStore preservation claim after reading DecodePersisted and TestRecoverySchemaRejectsUnknownNestedFields; no schema migration enters this issue.
+
+- 2026-10-19, implementation refinement: ReconcileStart already encodes the approved dead-helper/absent-session policy, so reuse it instead of adding a duplicate pure decider. The new finalizer is IO and stays in Integration points. A direct-child exit with live owned group retains the claim. Final observation and CAS share one five-second context (a stricter combined budget than separate phases); diagnostic save-failure notice is retained at OperatorError. No policy or scope expansion.

@@ -76,8 +76,8 @@ total: 1.24
 
 ## Plan
 
-- [ ] Implement confirmed failure disposition and immediate retry with state/order regressions.
-- [ ] Repair complete-address diagnostic composition and enforce the mechanical class.
+- [x] Implement confirmed failure disposition and immediate retry with state/order regressions.
+- [x] Repair complete-address diagnostic composition and enforce the mechanical class.
 - [ ] Verify focused/race/live behavior, recorded suite and close #714 directly; land and report.
 
 ## Log
@@ -119,3 +119,7 @@ total: 1.24
 - 2026-10-19, TL approval: close #714 after former M1; moved original M2/M3 into #721 (claimed for next, dependency #714). Merged disposition persistence failures into visible Launch unconfirmed. Native-only v2 and five-minute policy are approved for #721; no device/inode relaxation or budget increase. Current Done when and Plan now match the approved narrow contract; original broader requirements remain in the historical plan commit and #721 Spec.
 
 - 2026-10-19, plan gate refinement: PQ-1 names a missing function-level testing contract; plan now gives one adversarial strategy/mechanical guard per risky owner. PQ-2 verified against threadrecord/recovery_context_test.go TestRecoverySchemaRejectsUnknownNestedFields: current ThreadStore rejects unsupported nested fields, so #714 retains that unchanged schema/refusal behavior rather than claiming existing preservation. No implementation started before gate acceptance.
+
+- 2026-10-19: Implementation RED reproduced the actual outer scope-only resume, exit 23, retained creating claim, empty reopened failure store and immediate resume-starting refusal. Reused pure ReconcileStart rather than duplicate its policy; StartFailedConfirmed retains exact recovery choice. Added completed-child/live-group, terminal uncertainty, CAS race, wrong-helper and held-store tests. A separate RED proved outer recorder save refusal was hidden by OperatorError; corrected its concise notice without affecting disposition. Diagnostic subagent independently reproduced partial-identity loss and mutation-tested the repair.
+
+- 2026-10-19: Focused race verification passed (couchcore 13.609s); CLI recovery/lifecycle tests passed (couchcmd 1.049s). Bounded terminal-observation test passed under race (1.343s); complete repolint/artifactpath audits passed (6.735s / 6.008s). Counted 8/16 failures use exactly one terminal observation and one revision increment each. Held real store lock refuses before release while preserving the exact claim. Diagnostics fuzz executed 35069 inputs; controlled direct-address replacement failed persisted-history regression and restored source passed. Added RED/GREEN proof that both save refusal and Launch unconfirmed survive concise operator rendering.

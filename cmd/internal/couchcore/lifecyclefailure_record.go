@@ -51,12 +51,13 @@ func (c *Couch) OperationAttemptForCall(call OperationCall) (*OperationAttempt, 
 // lifecycleFailureTargetForCall copies evidence and never resolves a reference.
 func lifecycleFailureTargetForCall(call OperationCall) LifecycleFailureTarget {
 	target := LifecycleFailureTarget{
-		Address:      ThreadAddress{RepoScope: call.Args["repo-scope"], Tag: ThreadTag(call.Args["tag"])},
+		Address:      completeFailureAddress(ThreadAddress{RepoScope: call.Args["repo-scope"], Tag: ThreadTag(call.Args["tag"])}, ThreadAddress{}),
 		StartingPath: call.Args["path"], ParkNonce: call.Args["park-nonce"], Target: call.Args["ref"],
 	}
 	if call.FailureTarget != nil {
 		target = *call.FailureTarget
 	}
+	target.Address = completeFailureAddress(target.Address, ThreadAddress{})
 	if target.StartingPath == "" && filepath.IsAbs(call.Args["ref"]) {
 		target.StartingPath = call.Args["ref"]
 	}

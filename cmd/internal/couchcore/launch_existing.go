@@ -236,6 +236,13 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		if !recoveryObserved {
 			cause = errors.Join(cause, reobserve())
 		}
+		final, cancel := context.WithTimeout(context.WithoutCancel(ctx), recoveryObservationTimeout)
+		released, dispositionErr := c.finalizeFailedRecoveryLaunch(final, thread, in.Nonce, h)
+		cancel()
+		if released {
+			return fail(h, cause, nil)
+		}
+		cause = errors.Join(cause, dispositionErr)
 		return &RecoveryLaunchUnconfirmed{Address: thread.Address, Nonce: in.Nonce, Cause: fail(h, cause, nil)}
 	}
 	registrationTimeout := pairRegistrationTimeout

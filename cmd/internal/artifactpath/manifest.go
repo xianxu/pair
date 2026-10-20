@@ -1348,6 +1348,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/git_fake.go",
 	"cmd/internal/couchcore/launchhelper.go",
 	"cmd/internal/couchcore/launch_existing.go",
+	"cmd/internal/couchcore/recovery_launch_disposition.go",
+	"cmd/internal/couchcore/lifecyclefailure_address.go",
 	"cmd/internal/couchcore/launchprofile.go",
 	"cmd/internal/couchcore/layout.go",
 	"cmd/internal/couchcore/lifecycledebris.go",
