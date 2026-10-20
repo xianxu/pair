@@ -512,3 +512,94 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T09:09:35-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 725 — pair affected-only tests: .sdlc/affected.json + make test-affected, per ariadne#473's settled contract |
+| repo | pair |
+| issue file | workshop/issues/000725-pair-affected-only-tests-sdlc-affected-json-make-test-affected-per-ariadne-473-s-settled-contract.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 1b4b0064a6d20d5247d499a50e6ebc5ecb17a90b..3b8bcbebec9a8fa74253b781cdf6872644ff49ae |
+| command | sdlc close --issue 725 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T09:09:35-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff refreshes 15 audited reader hashes, conservatively reclassifies six readers, and records the completed review. The updated entries match the pinned source and retain scanner or full-fallback coverage. No scope change or new blocking defect was found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The interdiff preserves the reviewed command-root coverage and dependency fixtures; no regression identified.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Shared fixture inputs remain covered by existing full fallbacks; the inventory refresh does not narrow consumer coverage.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Scanner ordering and exact selected argv remain unchanged; all 11 runner tests pass.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      All eight reader tests pass, including independent registration enforcement and the native affected-command regression requiring both seeded scanner failures.
+```
+
+1. **Strengths**
+
+   - The inventory remains fail-closed: applying the base inventory to pinned-head sources produces exactly 15 changed-reader errors; the updated inventory produces none.
+   - Reclassified readers use conservative full-fallback ownership for shared non-Go inputs.
+   - The plan and tracker changes preserve Spec, Done when, and Revisions without expanding scope.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Runner tests: **11 passed**.
+   - Reader inventory and native regression tests: **8 passed**.
+   - The native regression confirms both seeded cross-package violations stop affected execution before selected groups run.
+   - Diff whitespace checks passed. Full suite and upstream planner qualification were not independently rerun during this narrow review.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** No duplicated execution or planning logic introduced.
+   - **ARCH-PURE — pass:** The refresh leaves the pure core and IO boundaries unchanged.
+   - **ARCH-PURPOSE — pass:** Updated reader inputs retain scanner or conservative fallback coverage.
+   - **ARCH-EVOLVE — pass:** Inventory version, field meanings, and format remain unchanged.
+
+   No new architectural or user-facing surface requires README or atlas changes in this window.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"93c483ae-c156-4a2c-93cd-0fcd89fd05f4","repository":"github.com/xianxu/pair","issue_id":"000725","recipe":"fix-review","round":6,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/4332d5b3299c037c","reviewed_head":"3b8bcbebec9a8fa74253b781cdf6872644ff49ae","slot":"pair:3","requested_at":"2026-10-20T16:07:52.684656Z"},"phase":"finished","pid":42827,"started_at":"2026-10-20T16:07:52.896785Z","finished_at":"2026-10-20T16:09:34.667741Z","session_id":"01a15a11-b935-7ce3-83c1-d3db5ceeef7e","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.858605041s
+head: "3b8bcbebec9a8fa74253b781cdf6872644ff49ae"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
