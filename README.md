@@ -1971,6 +1971,49 @@ PAIR_REQUIRE_LSOF_CONFORMANCE=1 go test ./cmd/internal/diagnosticlog -count=1 \
 Required mode fails instead of skipping an unavailable/incomplete probe. A complete
 answer with a wrong holder or process identity fails in both modes.
 
+Affected branch checks use `.sdlc/affected.json` and `make test-affected` once the
+installed SDLC supports ariadne#473. SDLC reads the declaration from main and
+supplies `SDLC_AFFECTED_GO_PKGS` (exact import paths) and `SDLC_AFFECTED_GROUPS`.
+For a manual selected run:
+
+```bash
+SDLC_AFFECTED_GO_PKGS=github.com/xianxu/pair/cmd/internal/slugcmd make test-affected
+```
+
+The runner executes the supplied Go packages with exact argv and the selected
+`lua`, `review`, `doctor`, `build` or `shell` recipes. Before a Go selection it
+also runs a fixed set of source-scanner tests: import dependencies cannot describe
+tests that read another package's source files. The scanner preflight reports its
+elapsed time and stops the run on failure. Go-only runs avoid a suite-owned Pair
+build; selected groups share one fresh private executable. The Lua group
+regenerates the embedded runtime and tests `runtimebundle` exactly once.
+Make retains its usual session-environment scrub. Empty or invalid selections
+refuse; SDLC records docs-only passes without invoking the runner.
+
+Non-Go source populations with Go file readers (`nvim`, `zellij`, `doctor`,
+`bin`, `scripts`, `tests` and shared `testdata`) conservatively force full coverage.
+Makefiles, module metadata, gate configuration and executable dispatch also force
+full. Unknown, deleted or platform-excluded package paths retain the full fallback.
+Every valid selection runs the environment-inventory guard `test-make-env` once
+(the build group runs it when selected; other runs use a fixed preflight).
+The independent per-recipe audit in `tests/affected-consumers.json` asserts the
+real planner covers command roots, dependencies and file inputs. A separate
+Go-reader inventory refuses new or changed unmapped source readers for re-audit.
+An independent source-walker check requires preflight registration even for a
+reader labelled as a local fixture; a native seeded-violation regression drives
+the actual affected command in a disposable checkout.
+`make test` retains every existing check and adds runner, reader-inventory and
+declaration regressions; landing still requires SDLC's full-suite evidence.
+
+The declaration regression consumes upstream parser/planner source from a sibling
+ariadne checkout or the installed Go module. Until ariadne#473 is available there,
+it reports an explicit dependency skip. Qualify an upstream candidate without
+changing that checkout using `ARIADNE_AFFECTED_SOURCE=/path/to/ariadne` and optional
+`ARIADNE_AFFECTED_REF=<local-git-ref>` with `make test-affected-config`; an explicitly
+requested unavailable source fails. Changes to this declaration require the
+operator's `local-gates-verified` label. The hub owns the first recorded code
+affected check and docs-only train qualification after the declaration lands.
+
 `make test` also runs ariadne's pinned Go lint catalog over tracked Go sources.
 For a focused check, run `go test ./internal/repolint -count=1 -v`. Use a full Git
 checkout with the configured main tracking ref available: the sleep-debt ratchet
