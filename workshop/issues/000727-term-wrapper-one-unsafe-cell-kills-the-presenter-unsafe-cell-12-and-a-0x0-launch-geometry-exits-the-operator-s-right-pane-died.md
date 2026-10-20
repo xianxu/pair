@@ -55,7 +55,7 @@ geometry at launch (pane measured before it had a size) refuses outright instead
 
 ## Plan
 
-- [ ] Execute [the single-pass plan](../plans/000727-term-resilience-plan.md): safe backend-cell projection and bounded diagnostics; geometry/recovery lifecycle; missing-terminal shortcut recovery.
+- [ ] Execute [the single-pass plan](../plans/000727-term-wrapper-one-unsafe-cell-kills-the-presenter-unsafe-cell-12-and-a-0x0-launch-geometry-exits-the-operator-s-right-pane-died-plan.md): safe backend-cell projection and bounded diagnostics; geometry/recovery lifecycle; missing-terminal shortcut recovery.
 - [ ] Run the recorded full suite, close review, coordinated operator acceptance, then land through SDLC.
 
 ## Log
@@ -96,3 +96,13 @@ hex from the first degradation per endpoint, not whole frames or raw link addres
   remain in sidecars, rather than interpret a missing registration as absence.
 - A read-only internal subagent independently traced geometry, teardown and shortcut
   paths; no live process, native pane or pair:0 was touched.
+
+### 2026-10-20 — approved rollout and full-flow checkpoint
+
+Hub approved the full design (delivery 42487af6-bd3c-4a38-91f3-2ef1cdf804d0).
+No staging: pair:0 retains #722 for its live drain check. Land on deterministic
+tests/suite/review, then the operator's next relaunch on rebuilt main is live
+acceptance, with diagnostic evidence to identify the still-unknown original cell.
+This supersedes the plan's coordinated-staging step. Initial change-code inferred
+quick from design length alone; pin full before code because the planned combined
+production changes exceed the 100-line shell. Canonicalized the durable plan filename.
