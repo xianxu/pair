@@ -1014,6 +1014,280 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 92c61180-d287-49f0-8593-8a16b30206ab
+            repository: github.com/xianxu/pair
+            issue_id: "000722"
+            recipe: milestone-review
+            round: 5
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/9dba7c9029955f31
+            reviewed_head: 09140407b75d866a912c26cb32e435de2451e4ee
+            slot: pair:5
+            requested_at: "2026-10-20T14:13:30.028015Z"
+          phase: finished
+          pid: 12602
+          started_at: "2026-10-20T14:13:30.138693Z"
+          finished_at: "2026-10-20T14:17:13.602063Z"
+          session_id: 01a159a9-00b8-7a12-9ef7-e3f55e20bc19
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: 09140407b75d866a912c26cb32e435de2451e4ee
+        tracker_head: 915087a71d33408cd8997bc4158f2eb1fdc4fd45
+        branch_point: 7d4e0c3aba6b39fb12d5125ee967dcde9e5be4be
+        since: "2026-10-19T23:16:03-07:00"
+        until: "2026-10-20T07:12:37-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-19T23:16:03-07:00"
+              end: "2026-10-20T07:12:37-07:00"
+              began: "2026-10-19T23:16:03-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot5/pair
+        sources:
+            - harness: codex
+              id: 01a1574c-1cb1-7e92-adfe-354342364799
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              digest: 860dae9dee80bb4a3a19b78018a355f438d2cbb8ce5152a390a69921e9e8811f
+              started: "2026-10-20T03:12:49.04Z"
+              spawned: false
+              bytes: 21169535
+              windows:
+                - start: "2026-10-19T23:16:03-07:00"
+                  end: "2026-10-20T07:12:37-07:00"
+            - harness: codex
+              id: 01a157f3-f7ac-78f2-acba-b237ce0efc23
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              parent_id: 01a1574c-1cb1-7e92-adfe-354342364799
+              digest: 45aeb07250b6a5e19ede5d9c18cf57c7617545d286dca8dc2cf7354b69600b8d
+              started: "2026-10-20T06:16:08.957Z"
+              spawned: true
+              bytes: 682423
+              windows:
+                - start: "2026-10-20T06:16:08.957Z"
+                  end: "2026-10-20T07:12:37-07:00"
+            - harness: codex
+              id: 01a157fa-d67a-7163-8d4a-4e23922ea04b
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              parent_id: 01a1574c-1cb1-7e92-adfe-354342364799
+              digest: bea9808a30b41948c658eac64f2b7b2ffee6c305ed31f4b1586242847428e520
+              started: "2026-10-20T06:23:39.29Z"
+              spawned: true
+              bytes: 389828
+              windows:
+                - start: "2026-10-20T06:23:39.29Z"
+                  end: "2026-10-20T07:12:37-07:00"
+            - harness: codex
+              id: 01a157fd-beea-77c0-b715-f6ef06489a73
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              digest: b34830b58dbebc6a84742988f995abf18757a4c76c6757b4a69cb0652cae3043
+              started: "2026-10-20T06:26:50.351Z"
+              spawned: false
+              bytes: 657147
+              windows:
+                - start: "2026-10-20T06:26:50.351Z"
+                  end: "2026-10-20T07:12:37-07:00"
+            - harness: codex
+              id: 01a157ff-9966-74e1-9f60-02c9e32b4374
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              digest: 5254611a88d85bb81aec06d486955831bed7ca24fe05e38c0c0a87f62b686b5d
+              started: "2026-10-20T06:28:51.508Z"
+              spawned: false
+              bytes: 469926
+              windows:
+                - start: "2026-10-20T06:28:51.508Z"
+                  end: "2026-10-20T07:12:37-07:00"
+            - harness: codex
+              id: 01a15800-cb97-7662-a421-e3a375c49042
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              digest: b1a82507c714500ebd835dbbc4ae5cd684adb21ce05ca1c3dec833eb4cb2e973
+              started: "2026-10-20T06:30:09.961Z"
+              spawned: false
+              bytes: 425176
+              windows:
+                - start: "2026-10-20T06:30:09.961Z"
+                  end: "2026-10-20T07:12:37-07:00"
+            - harness: codex
+              id: 01a15801-408c-7552-ad19-252d46f54385
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              digest: f1ef77f6c8b33449e2e52539f3f6e17676d1457a425eeb9659af63a6247b5115
+              started: "2026-10-20T06:30:40.044Z"
+              spawned: false
+              bytes: 470596
+              windows:
+                - start: "2026-10-20T06:30:40.044Z"
+                  end: "2026-10-20T07:12:37-07:00"
+            - harness: codex
+              id: 01a15802-26f6-7b30-9815-4edab86b2a53
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              parent_id: 01a1574c-1cb1-7e92-adfe-354342364799
+              digest: 6f876c0ba147081a423cef9e61b1991db62db5cb913c6baa8a8e0dd327bfb74d
+              started: "2026-10-20T06:31:38.563Z"
+              spawned: true
+              bytes: 2990604
+              windows:
+                - start: "2026-10-20T06:31:38.563Z"
+                  end: "2026-10-20T07:12:37-07:00"
+            - harness: codex
+              id: 01a15802-56b5-7543-84a4-a267317bf6ca
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              parent_id: 01a1574c-1cb1-7e92-adfe-354342364799
+              digest: 1ac3c69863dbb1ab5588511237dbd55a5b5d97b21bc0e0b81998334e7241d4ac
+              started: "2026-10-20T06:31:50.769Z"
+              spawned: true
+              bytes: 2817178
+              windows:
+                - start: "2026-10-20T06:31:50.769Z"
+                  end: "2026-10-20T07:12:37-07:00"
+            - harness: codex
+              id: 01a15802-81d6-79c0-9efc-05af0082b5cf
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              parent_id: 01a1574c-1cb1-7e92-adfe-354342364799
+              digest: 1af0419441838788010ed5953b12ed66b3fd8a3f276606fbe3386b8cbebe41c5
+              started: "2026-10-20T06:32:01.794Z"
+              spawned: true
+              bytes: 3047463
+              windows:
+                - start: "2026-10-20T06:32:01.794Z"
+                  end: "2026-10-20T07:12:37-07:00"
+            - harness: codex
+              id: 01a1584a-4077-7770-b374-d76ec32b4fd4
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              digest: 2862f968fb0b05a5a75a73ae5573f82dd931ab99d0430266c3c12774f06d833d
+              started: "2026-10-20T07:50:23.998Z"
+              spawned: false
+              bytes: 497987
+              windows:
+                - start: "2026-10-20T07:50:23.998Z"
+                  end: "2026-10-20T07:12:37-07:00"
+            - harness: codex
+              id: 01a1584a-c580-7be1-b9e4-27e176dcf190
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              digest: 12ddd65f645191f83d5ed6bff2278f106909524cf3544b6d595ad8f58ceb8737
+              started: "2026-10-20T07:50:58.07Z"
+              spawned: false
+              bytes: 497320
+              windows:
+                - start: "2026-10-20T07:50:58.07Z"
+                  end: "2026-10-20T07:12:37-07:00"
+            - harness: codex
+              id: 01a1597a-0380-7c42-8d7c-37bbd31f5e17
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              parent_id: 01a1574c-1cb1-7e92-adfe-354342364799
+              digest: c44b3bbbe45b8cfe5b0620d0f3dbf67438c7a3afd5f40ee740f54cf7b3f4bf81
+              started: "2026-10-20T13:22:11.023Z"
+              spawned: true
+              bytes: 888447
+              windows:
+                - start: "2026-10-20T13:22:11.023Z"
+                  end: "2026-10-20T07:12:37-07:00"
+            - harness: codex
+              id: 01a1598f-f2f6-77c0-8d30-adefdf894c46
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              parent_id: 01a1574c-1cb1-7e92-adfe-354342364799
+              digest: f1852bf841ce01075573f25d61b8b5c31d9d60984522cd8c0d733b004e6ff74a
+              started: "2026-10-20T13:46:08.709Z"
+              spawned: true
+              bytes: 557265
+              windows:
+                - start: "2026-10-20T13:46:08.709Z"
+                  end: "2026-10-20T07:12:37-07:00"
+            - harness: codex
+              id: 01a159a3-30a2-77f0-b8a8-9703137a04d2
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              parent_id: 01a1574c-1cb1-7e92-adfe-354342364799
+              digest: 9c44a4156add5ecc7e7d9373b35bef96b207718b390e2933aa70f1125cbd4fe9
+              started: "2026-10-20T14:07:09.669Z"
+              spawned: true
+              bytes: 839176
+              windows:
+                - start: "2026-10-20T14:07:09.669Z"
+                  end: "2026-10-20T07:12:37-07:00"
+        queue_waits:
+            - attempt_id: df95e0cfbda9be7b41d7893410010f82
+              slot: pair:5
+              record_digest: c928d081991a64af397814568a448b5b3712d8721210b5429e5e82b618c79d08
+              start: "2026-10-20T07:12:10.849393Z"
+              end: "2026-10-20T07:16:23.755121Z"
+              queue_seconds: 252.905728
+              raw_seconds: 252.905728
+              exact: true
+            - attempt_id: 79b1d82b88f87e7c11357772461723b5
+              slot: pair:5
+              record_digest: 23633054f964dd027d90985e2ede1cf91df6bc69e187dd93926edceca73c498c
+              start: "2026-10-20T07:26:06.16617Z"
+              end: "2026-10-20T07:33:48.231009Z"
+              queue_seconds: 462.064839
+              raw_seconds: 462.064839
+              exact: true
+            - attempt_id: c0d394fe9f10eadec7b6b422bda9faf7
+              slot: pair:5
+              record_digest: 6e39d247d66b8767771262aa146fe1ae739597bdf1ed1646272bdd9bf1e68c52
+              start: "2026-10-20T08:09:01.204418Z"
+              end: "2026-10-20T08:18:25.748278Z"
+              queue_seconds: 564.54386
+              raw_seconds: 564.54386
+              exact: true
+            - attempt_id: 6e514d7547f8b78cb5cce642db3567ca
+              slot: pair:5
+              record_digest: b888e82ea06874bcdeaa1f9e83ff4bb42430767ffc27420c5f48d2f159e176a3
+              start: "2026-10-20T11:20:01.955271Z"
+              end: "2026-10-20T12:01:51.958873Z"
+              queue_seconds: 2510.003602
+              raw_seconds: 2510.003602
+              exact: true
+        cuts:
+            - dispatched: "2026-10-20T06:12:54-07:00"
+              finalized: "2026-10-20T06:17:36-07:00"
+              finalizing: false
+            - dispatched: "2026-10-20T06:31:43-07:00"
+              finalized: "2026-10-20T06:35:12-07:00"
+              finalizing: false
+            - dispatched: "2026-10-20T06:41:16-07:00"
+              finalized: "2026-10-20T06:44:43-07:00"
+              finalizing: false
+            - dispatched: "2026-10-20T06:53:15-07:00"
+              finalized: "2026-10-20T07:05:20-07:00"
+              finalizing: false
+      "n": 5
+      timestamp: "2026-10-20T07:17:14-07:00"
+      dispatched: "2026-10-20T07:13:27-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-5
+          disposition: withdrawn
+          note: Verified the retained JSON log against SHA256 e69040f5cc38dd750769b510d24b3de942dbd2ec9b70409531c34c9af82af45f and its head/environment/argv metadata. Both complete packages passed with unchanged caps enforced; changes since measured head 31899be8 are tracker/review records only. A fresh pinned-head run also passed, with couchcore writing 96641024/134217728 bytes. The original differing totals remain unexplained, but the claimed inability to validate is resolved.
+          round: 5
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 09140407b75d866a912c26cb32e435de2451e4ee
+      blocked: false
 disputes:
     - id: BR-5
       rationale: The requested green pinned-head validation now exists with both unchanged native write caps enforced. No drain-source IO addition or justified budget change was found. The original red observation is retained; exact cause of differing physical totals remains unproven because reviewer temp environment/counters at successful base were not captured. This disputes unresolved validation, not the budget or its enforcement.
@@ -1072,6 +1346,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - **BR-5** [Important] `test-write-envelope` (kind: unverifiable) Pinned-head package validation exceeds enforced physical-write budgets
   ARCH-CONSTRAINTS: go test ./cmd/internal/couchcore ./cmd/internal/couchcmd ./cmd/internal/couchmessage ./cmd/internal/couchtty ./cmd/internal/wrapcmd ./internal/repolint fails after behavioral assertions pass: couchcore writes 139386880 bytes against 134217728, and couchtty writes 87937024 against 67108864. Enforcement is at cmd/internal/couchcore/launchhelper_test.go:50 and cmd/internal/couchtty/reattach_testmain_test.go:21. Both packages pass in a Git-backed disposable clone of the pinned base. Provide a measured green pinned-head run with an explanation of the discrepancy, or diagnose and correct the excess before crossing the boundary.
+
+## Round 5 — 2026-10-20T07:17:14-07:00 (codex) — passed
+
+### Disposed
+
+- BR-5 — withdrawn — Verified the retained JSON log against SHA256 e69040f5cc38dd750769b510d24b3de942dbd2ec9b70409531c34c9af82af45f and its head/environment/argv metadata. Both complete packages passed with unchanged caps enforced; changes since measured head 31899be8 are tracker/review records only. A fresh pinned-head run also passed, with couchcore writing 96641024/134217728 bytes. The original differing totals remain unexplained, but the claimed inability to validate is resolved.
 
 ## Disputes
 

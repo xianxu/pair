@@ -401,3 +401,89 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T07:17:14-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 722 — couch --drain [--fast]: a fleet-wide checkpoint-and-stop before a restart, with a drain board |
+| repo | pair |
+| issue file | workshop/issues/000722-couch-drain-fast-a-fleet-wide-checkpoint-and-stop-before-a-restart-with-a-drain-board.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 7d4e0c3aba6b39fb12d5125ee967dcde9e5be4be..09140407b75d866a912c26cb32e435de2451e4ee |
+| command | sdlc close --issue 722 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T07:17:14-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+No new blocking defect found. BR-5’s answering evidence is verified, and fresh pinned-head core/TTY validation passes with unchanged write caps enforced. This review does not waive the recorded full suite or operator-present live acceptance required before merge by the approved review-first plan.
+
+```findings
+dispose:
+  - id: BR-5
+    disposition: withdrawn
+    note: |
+      Verified the retained JSON log against SHA256 e69040f5cc38dd750769b510d24b3de942dbd2ec9b70409531c34c9af82af45f and its head/environment/argv metadata. Both complete packages passed with unchanged caps enforced; changes since measured head 31899be8 are tracker/review records only. A fresh pinned-head run also passed, with couchcore writing 96641024/134217728 bytes. The original differing totals remain unexplained, but the claimed inability to validate is resolved.
+```
+
+1. **Strengths**
+
+   - Completion requires matching acknowledgement, subsequent idle evidence, and authoritative queue quiescence.
+   - Generation retirement requires confirmed revocation; stale callbacks retain no input authority (`cmd/internal/couchmessage/drain_generation.go:239`).
+   - Broker release outcomes are generation-checked and reducer-owned (`cmd/internal/couchcmd/drain_service.go:810`).
+   - README and atlas cover the commands, revised fast policy, timeout, and recovery behavior.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None remaining.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Full uncached couchcore and couchtty packages passed.
+   - Focused drain/queue tests passed across coordinator, messaging, wrapper, and lint packages.
+   - Drain race tests passed across couchcmd, couchmessage, and wrapcmd.
+   - Full repolint and artifactpath checks passed; `git diff --check` passed.
+   - Real queue conformance was inspected but not rerun in this review. The recorded full suite and live acceptance remain outstanding.
+
+6. **Architectural notes**
+
+   | Principle | Result |
+   |---|---|
+   | ARCH-DRY | Pass — shared notice formatter, board projection, and control eligibility helpers. |
+   | ARCH-PURE | Pass — pure transitions/decoders; declared PURE tests use values without IO. |
+   | ARCH-PURPOSE | Pass — both modes, cancellation, timeout, and board delivered under documented revisions. |
+   | ARCH-MOCK | Pass — stateful doubles share production seams; retained real conformance runner has an explicit cadence. |
+   | ARCH-CONSTRAINTS | Pass — bounded membership, fan-out, subprocesses, output, and counted generation residue. |
+   | ARCH-SECURE | Pass — authenticated callers, exact incarnation fences, strict persisted-input validation. |
+   | ARCH-ORDER | Pass — explicit transitions and controllable ordering tests preserve uncertain outcomes. |
+   | ARCH-FUNERAL | Pass — one replacement record, bounded current outcomes, joined coordinator work. |
+   | ARCH-EVOLVE | Pass — nested extensions preserved; unsafe schema downgrade is explicitly refused. |
+
+7. **Plan revision recommendations:** None. Keep existing live-acceptance and landing checkboxes open until their evidence is recorded.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"92c61180-d287-49f0-8593-8a16b30206ab","repository":"github.com/xianxu/pair","issue_id":"000722","recipe":"milestone-review","round":5,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/9dba7c9029955f31","reviewed_head":"09140407b75d866a912c26cb32e435de2451e4ee","slot":"pair:5","requested_at":"2026-10-20T14:13:30.028015Z"},"phase":"finished","pid":12602,"started_at":"2026-10-20T14:13:30.138693Z","finished_at":"2026-10-20T14:17:13.602063Z","session_id":"01a159a9-00b8-7a12-9ef7-e3f55e20bc19","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.138481125s
+head: "09140407b75d866a912c26cb32e435de2451e4ee"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

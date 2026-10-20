@@ -120,6 +120,8 @@ total: 6.0395
 
 ## Log
 
+
+- 2026-10-20: closed — All behavioral findings BR-1/2/3/4 addressed in prior reviews with negative controls, races, real conformance and AST enforcement. BR-5 unverifiable dispute supplies full uncached pinned31899be8 package run: go test ./cmd/internal/couchcore ./cmd/internal/couchtty -count=1 -json PASS exit0, native caps still enforced core96768000/134217728 and tty39788544/67108864, repeats1. JSON log sha256e69040f5cc38dd750769b510d24b3de942dbd2ec9b70409531c34c9af82af45f and exact head/env/argv metadata retained in /Volumes/TestScratch/tmp/pair-slot5/pair722-write-budget.ougil02v. Reviewer temp env was unrecorded, so exact discrepancy cause remains unproven; no budget raise or test filter used. Pending dispute requires explicit reviewer disposition. Code unchanged since31899be8, recorded required suite retains queue position there; current09140407b75d866a912c26cb32e435de2451e4ee adds only measured evidence and review artifacts. TL review-first receipts authorize only --no-plan-check for open live/landing items: stage only after SHIP; operator-present live check and final recorded suite still precede merge.; review verdict: SHIP
 ### 2026-10-19
 
 Claimed by pair:5 under canonical TL dispatch c1f508a1. Read the operator's fleet-drain discussion and ariadne#481's existing Spec. start-plan delivered ARCH principles and created the independent issue branch from main. Its weave refresh regenerated the two CI workflows; reverted only those generated files per the standing #699 instruction, then start-plan succeeded. No implementation code, real pause, interrupt, restart or live drain was performed.
