@@ -103,7 +103,7 @@ class MakeEntrypoint(unittest.TestCase):
                 go = [r for r in rows if r["kind"] == "go"]
                 self.assertEqual([r["args"] for r in go],
                                  [["test", *packages, "-count=1", "-timeout", "20m"]])
-                self.assertEqual([r["args"] for r in rows if r["kind"] == "make"], [["runtimebundle-generate"]])
+                self.assertEqual([r["args"] for r in rows if r["kind"] == "make"], [["test-make-env"], ["runtimebundle-generate"]])
                 self.assertTrue(all(r["identity"] is None and r["knob"] == "preserved" for r in rows))
 
     def test_groups_share_one_private_binary(self):
@@ -123,7 +123,8 @@ class MakeEntrypoint(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         go_tests = [r for r in rows if r["kind"] == "go" and r["args"][0] == "test"]
         self.assertEqual([r["args"] for r in go_tests], [["test", RUNTIME, "-count=1", "-timeout", "20m"]])
-        self.assertEqual(rows[0]["args"], ["runtimebundle-generate"])
+        self.assertEqual(rows[0]["args"], ["test-make-env"])
+        self.assertEqual(rows[1]["args"], ["runtimebundle-generate"])
 
     def test_invalid_before_child_effects(self):
         for packages, groups in (("", ""), ("./...", "lua"), ("", "unknown"), ("", "lua lua")):
@@ -161,6 +162,10 @@ class MakeEntrypoint(unittest.TestCase):
         self.assertEqual(set(flat), expected)
         config = json.loads((ROOT / ".sdlc/affected.json").read_text())
         self.assertEqual({g["name"] for g in config["groups"]}, set(groups))
+        consumers = json.loads((ROOT / "tests/affected-consumers.json").read_text())
+        self.assertEqual(set(consumers), set(groups))
+        for name, recipes in groups.items():
+            self.assertEqual(set(consumers[name]), set(recipes), f"{name} command audit is stale")
         source = (ROOT / "Makefile.local").read_text()
         for group in config["groups"]:
             for target in groups[group["name"]]:

@@ -87,6 +87,10 @@ See [durable plan](../plans/000725-affected-tests-plan.md), one atomic close bou
 
 - 2026-10-20: Actual upstream planner selected dispatcher, slugcmd and cmd/pair-go (no groups, Full=false) for cmd/internal/slugcmd/slug.go. Native make test-affected with exactly those three import paths passed in 13.396s wall time (no queue): package outputs 0.243s, 0.692s and 11.604s respectively. This is command qualification, not recorded sdlc-local/affected status; compare against the pending recorded branch full suite before label/landing. Hub retains post-landing real affected/docs-train follow-up per governing Done when Revision.
 
+- 2026-10-20: Close round 1 REWORK, BR-1: command-family roots missed real integration consumers. Cancelled the queued b44540e1 suite before execution (no pass claimed) and audited every five-group recipe recursively. Added independent per-target command inventory and actual-graph dependency/text-input regressions; both failed before declarations were corrected. All explicit upstream fixtures and 8 runner tests then passed. The class sweep includes reviewapply/retentioncmd/gccmd/pairlog/reviewcmd/hoprttcmd/launcher/slugcmd/generator CLI/opener/wrapcmd/probe, plus Make environment scanner's source-text dependencies. Additive build coverage for cmd/probes Go sources and already-claimed non-Go paths preserves unknown fixture full fallbacks (ARCH-PURPOSE). Original 13.396s timing predates this conservative coverage correction; qualify updated actual selection before comparison. No approval/label or recorded affected/train evidence claimed.
+
+- 2026-10-20: Actual upstream absent-owner probes showed broad cmd/probes .go claims would turn deleted/platform-excluded packages into build-only selection, weakening conservative full fallback. Removed those experimental claims before publication. Proposing fixed environment-inventory preflight (skip when build already owns it), with red recorder tests and restored absent-package full regressions, to hub for approval before runner changes.
+
 ## Revisions
 
 - 2026-10-20: Added executable plan and explicit source-Lua/runtimebundle test exception approved by hub. No upstream schema or environment contract changes. Real recorded affected/train acceptance is pending upstream M2 availability rather than being waived.
@@ -112,3 +116,5 @@ item: issue-spec design=0.10 impl=0.08
 design-buffer: 0.15
 total: 2.21
 ```
+
+- 2026-10-20: BR-1 correction expands group dependencies to all audited real command and source-reading consumers; current selections include additive build coverage for the environment-inventory guard. This supersedes the initial sparse root mapping, with regressions tied to the actual upstream planner and Pair graph.

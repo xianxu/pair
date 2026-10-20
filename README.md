@@ -1985,7 +1985,12 @@ selections refuse; SDLC records docs-only passes without invoking the runner.
 Makefiles, module metadata, shared test helpers, gate configuration and executable
 dispatch force a full suite. Unclaimed non-Go paths also force full, including
 external fixtures under `tests/webcast`, `tests/broadcast-viewer` and
-`tests/terminal-oracle`. `make test` retains every existing check and adds runner
+`tests/terminal-oracle`. The environment-inventory guard reads source text
+outside Go import dependencies, so changes under `cmd/**/*.go`, `probes/**/*.go`
+and the existing claimed script/Lua paths also select `build`. The independent
+suite-to-command audit lives in `tests/affected-consumers.json`; actual-graph
+regressions check every command dependency and the inventory's recipe coverage.
+`make test` retains every existing check and adds runner
 and declaration regressions; landing still requires the full-suite evidence
 owned by SDLC.
 

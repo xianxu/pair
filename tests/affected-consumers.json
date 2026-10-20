@@ -1,0 +1,105 @@
+{
+  "lua": {
+    "test-lua": [
+      "cmd/internal/reviewcmd"
+    ],
+    "test-retention": [
+      "cmd/internal/retentioncmd",
+      "cmd/internal/gccmd"
+    ],
+    "test-nvim-pidfile": [
+      "cmd/internal/reviewcmd"
+    ],
+    "test-lifecycle-command": [],
+    "test-queue": [],
+    "test-submission-transaction": [
+      "cmd/internal/pairlog"
+    ],
+    "test-bang-tag": [],
+    "test-autopair": [],
+    "test-draft-complete": [],
+    "test-pair-doctor": [
+      "cmd/internal/pairlog"
+    ],
+    "test-cr": [],
+    "test-statusline": []
+  },
+  "review": {
+    "test-review": [
+      "cmd/internal/reviewcmd",
+      "cmd/internal/reviewapply",
+      "cmd/internal/pairlog"
+    ]
+  },
+  "doctor": {
+    "test-doctor": [],
+    "test-perf-capture": [
+      "cmd/internal/hoprttcmd"
+    ],
+    "test-perf-key-conformance": [
+      "cmd/internal/hoprttcmd"
+    ],
+    "test-emitter-health": [],
+    "test-adapt-schema": [
+      "cmd/internal/diagnosticcmd",
+      "cmd/internal/adapt"
+    ]
+  },
+  "build": {
+    "test-build-go-atomic": [],
+    "test-supervision-labels": [],
+    "test-dev-rebuild": [],
+    "test-pair-go-install-layout": [
+      "cmd/internal/entrypoint",
+      "cmd/internal/runtimebundlegen",
+      "cmd/internal/runtimebundle/generatecmd",
+      "cmd/internal/launcher",
+      "cmd/internal/slugcmd"
+    ],
+    "test-pair-embedded-runtime": [
+      "cmd/internal/entrypoint",
+      "cmd/internal/runtimebundle",
+      "cmd/internal/runtimebundlegen",
+      "cmd/internal/runtimebundle/generatecmd",
+      "cmd/internal/launcher"
+    ],
+    "test-make-env": [],
+    "test-host-preflight": [],
+    "test-run-headless": []
+  },
+  "shell": {
+    "test-session-watch": [
+      "cmd/internal/sessionwatch"
+    ],
+    "test-pair-restart-quit": [
+      "cmd/internal/pairlifecycle"
+    ],
+    "test-pair-rename": [
+      "cmd/internal/launcher"
+    ],
+    "test-changelog": [
+      "cmd/internal/opener",
+      "cmd/internal/changelogcmd",
+      "cmd/internal/scrollbackcmd"
+    ],
+    "test-copy-on-select": [
+      "cmd/internal/clipcmd",
+      "cmd/internal/layoutcmd"
+    ],
+    "test-term-pane-shortcuts": [
+      "cmd/internal/termcmd",
+      "cmd/internal/layoutcmd",
+      "cmd/internal/wrapcmd"
+    ],
+    "test-zellij-trace": [],
+    "test-plan-superseded": [
+      "cmd/internal/termcmd",
+      "probes/zellijscrollregion"
+    ],
+    "test-paint-gate-consumers": [
+      "cmd/internal/termcmd",
+      "cmd/internal/couchtty",
+      "cmd/internal/ptychild"
+    ]
+  }
+}

@@ -20,7 +20,8 @@
     "cmd/internal/runtimebundle/assets/runtime/manifest.json",
     "scripts/test-affected.py",
     "tests/test-affected-test.py",
-    "tests/affected-config-test.py"
+    "tests/affected-config-test.py",
+    "tests/affected-consumers.json"
   ],
   "groups": [
     {
@@ -47,6 +48,10 @@
         "tests/zellij-observation_test.lua"
       ],
       "go": [
+        "./cmd/internal/gccmd",
+        "./cmd/internal/pairlog",
+        "./cmd/internal/retentioncmd",
+        "./cmd/internal/reviewcmd",
         "./cmd/internal/runtimebundle"
       ]
     },
@@ -77,6 +82,8 @@
         "tests/review-window-test.sh"
       ],
       "go": [
+        "./cmd/internal/pairlog",
+        "./cmd/internal/reviewapply",
         "./cmd/internal/reviewcmd"
       ]
     },
@@ -94,7 +101,8 @@
       ],
       "go": [
         "./cmd/internal/adapt",
-        "./cmd/internal/diagnosticcmd"
+        "./cmd/internal/diagnosticcmd",
+        "./cmd/internal/hoprttcmd"
       ]
     },
     {
@@ -116,9 +124,12 @@
         "tests/without-ancestors.py"
       ],
       "go": [
+        "./cmd/internal/entrypoint",
+        "./cmd/internal/launcher",
         "./cmd/internal/runtimebundle",
+        "./cmd/internal/runtimebundle/generatecmd",
         "./cmd/internal/runtimebundlegen",
-        "./cmd/internal/entrypoint"
+        "./cmd/internal/slugcmd"
       ]
     },
     {
@@ -138,16 +149,19 @@
         "zellij/**"
       ],
       "go": [
-        "./cmd/internal/sessionwatch",
-        "./cmd/internal/pairlifecycle",
-        "./cmd/internal/launcher",
         "./cmd/internal/changelogcmd",
-        "./cmd/internal/scrollbackcmd",
         "./cmd/internal/clipcmd",
-        "./cmd/internal/layoutcmd",
-        "./cmd/internal/termcmd",
         "./cmd/internal/couchtty",
-        "./cmd/internal/ptychild"
+        "./cmd/internal/launcher",
+        "./cmd/internal/layoutcmd",
+        "./cmd/internal/opener",
+        "./cmd/internal/pairlifecycle",
+        "./cmd/internal/ptychild",
+        "./cmd/internal/scrollbackcmd",
+        "./cmd/internal/sessionwatch",
+        "./cmd/internal/termcmd",
+        "./cmd/internal/wrapcmd",
+        "./probes/zellijscrollregion"
       ]
     }
   ]

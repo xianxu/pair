@@ -66,6 +66,7 @@ package fixture
 import (
     "bytes"
     "context"
+    "encoding/json"
     "os"
     "path/filepath"
     "reflect"
@@ -167,7 +168,7 @@ func TestPathsAndFallbacks(t *testing.T) {
     exact(t, cfg, g, []string{"nvim/workbench_route.lua"}, nil, []string{"lua", "review"})
     exact(t, cfg, g, []string{"cmd/internal/runtimebundle/assets/runtime/files/nvim/workbench_route.lua"},
         []string{"example.com/fixture/cmd/internal/runtimebundle"}, []string{"build", "lua"})
-    for _, path := range []string{"Makefile", "Makefile.local", "tests/lib/helper.sh", "go.mod", "go.sum", ".sdlc/affected.json", ".github/workflows/ci.yml", "tests/webcast/unclaimed.fixture", "tests/broadcast-viewer/unclaimed.fixture", "tests/terminal-oracle/unclaimed.fixture", "tests/new-unowned.fixture"} {
+    for _, path := range []string{"Makefile", "Makefile.local", "tests/lib/helper.sh", "go.mod", "go.sum", ".sdlc/affected.json", ".github/workflows/ci.yml", "tests/webcast/unclaimed.fixture", "tests/broadcast-viewer/unclaimed.fixture", "tests/terminal-oracle/unclaimed.fixture", "tests/new-unowned.fixture", "cmd/internal/absent_platform_package/deleted.go", "probes/absent_platform_package/deleted.go"} {
         t.Run(path, func(t *testing.T) {
             selected := affected.Plan([]string{path}, g, cfg, nil)
             if !selected.Full { t.Fatalf("%s must force full; got %+v", path, selected) }
@@ -188,6 +189,42 @@ func TestActualPairRoots(t *testing.T) {
         }
     }
 }
+
+// This independent suite-to-command inventory is audited from real recipes,
+// not generated from the declaration whose dependency completeness it tests.
+func TestActualGroupConsumerCoverage(t *testing.T) {
+    cfg, _ := config(t)
+    root := os.Getenv("PAIR_AFFECTED_ROOT")
+    g, err := affected.LoadGoGraph(context.Background(), root)
+    if err != nil { t.Fatal(err) }
+    data, err := os.ReadFile(filepath.Join(root, "tests", "affected-consumers.json"))
+    if err != nil { t.Fatal(err) }
+    var consumers map[string]map[string][]string
+    if err := json.Unmarshal(data, &consumers); err != nil { t.Fatal(err) }
+    for group, targets := range consumers {
+        for target, packages := range targets {
+            for _, pkg := range packages {
+                name := "github.com/xianxu/pair/" + pkg
+                dir, exists := g.Dir[name]
+                if !exists { t.Fatalf("%s/%s: unknown command root %s", group, target, pkg) }
+                // Every in-module dependency can alter this command too. Go
+                // graph ownership is directory-based, including new Go files.
+                dependencies := map[string]bool{name:true}
+                for dep := range g.Deps[name] { dependencies[dep] = true }
+                for dep := range dependencies {
+                    changed := filepath.ToSlash(filepath.Join(g.Dir[dep], "selection_probe.go"))
+                    selected := affected.Plan([]string{changed}, g, cfg, nil)
+                    covered := selected.Full // explicit full is conservative coverage
+                    for _, got := range selected.Groups { if got == group { covered = true } }
+                    if !covered {
+                        t.Errorf("%s consumer %s dependency %s omits %s; groups=%v", target, dir, dep, group, selected.Groups)
+                    }
+                }
+            }
+        }
+    }
+}
+
 '''
 
 
