@@ -2,8 +2,11 @@
 
 Pair's ordinary repository test `internal/repolint.TestTrackedGoFilesPassCatalog`
 imports `github.com/xianxu/ariadne/pkg/golint` through the pinned Go module in
-`go.mod`. Rules are maintained upstream, not copied by weave. Update the module
-pin to adopt later rules. The initial adoption also advances the runtime
+`go.mod`. Shared rules are maintained upstream, not copied by weave; update the
+module pin to adopt later shared rules. `internal/repolint/local_catalog_test.go`
+copies that catalog slice into `pairCatalog` and appends Pair-specific ownership
+rules. The repository scanner passes the composed catalog to the shared checker.
+The initial adoption also advances the runtime
 `layergraph` dependency; `TestDeclaredDeps*`, `TestRunPrepare*` and
 `TestDeclaredDepsLinkedWorktreePrimaryAnchor` qualify Pair's consumers.
 
@@ -40,6 +43,22 @@ must agree across processes with different TMPDIR, and a suite-owned build is
 not a per-test compile. Ordinary temporary storage respects TMPDIR with a short
 allocation prefix when Unix socket length matters. Do not hide a readiness race
 by increasing its deadline or shortening a sleep below the matcher threshold.
+
+## Wrapper child ownership (#715)
+
+The local single-file rule `wrapper-child-release`, owned by
+`internal/repolint/local_catalog_test.go`, rejects calls through a `Process.Release`
+selector in package `wrapcmd`, including chained and parenthesized receivers.
+Wrapper children must retain direct ownership and be joined before wrapper
+return; a released watcher can otherwise write retention state after its caller
+has begun removing storage. Other packages and unrelated `Release` methods are
+outside this syntax rule's scope.
+
+This rule uses the shared `golint.Check` finding and suppression behavior above.
+`pairCatalog` copies the slice before appending, so it never mutates upstream
+`golint.Catalog`; `sleepSites` still uses the upstream catalog alone to identify
+the exact existing sleep debt. `TestWrapperChildReleaseRule` exercises both
+positive and negative examples through the actual repository scanner.
 
 ## Pair native fixture roots (#666)
 
@@ -105,6 +124,9 @@ Couch, its terminal registration fixture, the startup launch helper and the
 Zellij tracing probe keep their own executable identity. Pair itself continues
 to use `cmd/internal/testpair` and the existing suite-provided binary.
 
-New mechanical mistake classes belong in ariadne's catalog with the incident
+Shared mechanical mistake classes belong in ariadne's catalog with the incident
 and direct matcher tests. Propose cross-repository rules to the hub; changing
-Pair's pin then adopts them without a second rule implementation.
+Pair's pin then adopts them without a second rule implementation. Pair-specific
+package ownership policies belong in the local composed catalog, with the same
+incident and matcher tests plus this atlas mapping; they reuse the shared checker
+and leave the upstream catalog and sleep-debt matching unchanged.
