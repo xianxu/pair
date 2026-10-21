@@ -5,9 +5,9 @@ deps: [pair#750]
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
-estimate_hours:
+estimate_hours: 3.79
 collaboration-mode: collaboration
-card_mirror: '1d824000c2130defa50837decf63b4572f79961a' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'e7d8ec9ba1d74c908363f0c1627a9e021f40c391' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T21:40:18-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     workspace: pair:9
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # cast-sketch: recording model, pressure paths and undo history
@@ -42,6 +43,22 @@ Primary surfaces: cmd/internal/webcast/recording/{sketch.go,sketch_state.go,reco
 - Equal-timestamp source fencing and writer finalization-reserve tests pass; recording/catch-up/history bounds are enforced.
 - Atlas describes the format and compatibility limits. SDLC review/checks pass.
 
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; calibration is flagged stale and provisional. Four single-concern modules cover wire preservation, sketch history, browser port and byte budget; existing strictjson, geometry and producer patterns avoid library discovery. Thorough approved design applies x0.2 design discount, implementation uses the calibrated 40% factor and familiar Go/JS uses familiarity 1.0. Two producer integrations plus catch-up snapshots are grouped cross-cutting work. One close boundary includes review; docs and verification are included, suite queue idle is excluded. Design subtotal 1.24, implementation 2.36, design buffer 15%, total 3.786 rounded to 3.79 hours.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-go-module design=0.80 impl=1.28
+item: smaller-go-module design=0.04 impl=0.20
+item: cross-cutting-refactor design=0.32 impl=0.60
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.04 impl=0.20
+design-buffer: 0.15
+total: 3.79
+```
+
 ## Plan
 
 - [x] Claim/start-plan after dependencies land; write the slice-specific execution plan.
@@ -57,3 +74,5 @@ Execution plan: [000751-cast-sketch-recording-plan.md](../plans/000751-cast-sket
 
 - #750 landed as PR #501; claimed and started #751 from main. ops:0 approved deriving terminal reserve from worst-case encoded label plus envelope and end/interruption, rounding up to at least 8 KiB while preserving the 32 MiB total cap. Plan records the correction and adversarial regression; no further operator round required.
 - Read-only implementation reconnaissance identified existing strictjson preservation helpers, both ordered producers, causal ctl catch-up history and operator module-export constraints; plan covers each without adding UI/transport scope.
+
+- Resume: plan-quality round 1 raised bounded-history and test-strategy findings; ops:0 directed reducer-derived bootstrap snapshots (delivery 432c999b-f034-4fe0-84f3-f36982901ab4). Governing revision committed; round 2 CLEAN with both findings addressed. Derived estimate only after that approval; implementation has not begun.
