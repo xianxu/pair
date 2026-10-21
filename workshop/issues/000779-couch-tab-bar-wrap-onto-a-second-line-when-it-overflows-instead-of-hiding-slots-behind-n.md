@@ -41,10 +41,12 @@ Wrap the tab bar onto a **second line** when it doesn't fit (like text wrapping)
 - Render tests: fits on one line (unchanged), needs two lines (wraps at a group boundary), one oversized group, and
   overflow beyond two lines (+N), at several widths; active tab always visible.
 - Pane geometry accounts for the second line (no overlap), with a test.
+- Attention chips take priority over ordinary chips; any hidden attention is explicit in +N !. At physically impossible widths, the active chip remains clipped but clickable and a non-fitting whole overflow marker is omitted.
+- Both-row input/anchors and broadcast LIVE/privacy/annotation guards derive from the same accepted chrome height, including resize and private switcher frames.
 
 ## Plan
 
-- [ ]
+- [ ] Deliver the approved two-row layout through shared compositor, Console and broadcast geometry, with render/interaction/native pins; see workshop/plans/000779-tab-bar-wrap-plan.md.
 
 ## Log
 
@@ -54,3 +56,6 @@ Claimed and start-plan completed in pair:4 after pair#757 landed (PR532). Includ
 
 Initial read-only audit: one-row assumptions exist in couchtty rendering/geometry/input/anchors, terminal composition/presenter resizing, and broadcast LIVE/pointer checks, private-frame filtering and annotation guards. This leaves the quick-flow code shell; prepare one atomic full-flow plan with pure packing and a shared trusted chrome-height contract before implementation. No product code written. Geometry and packing audits delegated read-only under AGENTS section3; plan approval will go through the hub. Private #757 GOCACHE removed; new Go calls use the repaired machine default on main SSD.
 
+## Revisions
+
+- 2026-10-21: TL c5c04f63 approves full-flow shared trusted chrome height, row1 attention badge, final-row notices and clipped-but-clickable active at absurd widths. Attention must be prioritized over ordinary chips; overflow explicitly marks hidden attention (+N !). Durable plan records the full consumer sweep and awaits TL approval.
