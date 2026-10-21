@@ -113,8 +113,10 @@ Files: cmd/internal/wrapcmd/pty.go, pty_darwin.go, pty_other.go, wrap.go; tests 
 Files: atlas/terminal.md, atlas/architecture.md, atlas/index.md, atlas/go-lint-catalog.md if adding enforcement, individual affected-reader certificates for changed tests.
 
 - [x] Document approved lifecycle, Darwin limits and cleanup ownership; update every touched summary. Evaluate existing #768 lint/enforcement before adding a duplicate rule; an owner-start regression must reject an immediate slave-close mutation.
-- [ ] Audit changed reader tests and production source dispositions. Run test-affected-inventory and targeted artifactpath/repolint preflights.
-- [ ] Push final head and run the required recorded check. Arrange TL-required live qualification for changed operator terminal behavior, then close review, suite/CI gates and retained merge runner. Report landing once confirmed.
+- [x] Audit changed reader tests and production source dispositions. Run test-affected-inventory and targeted artifactpath/repolint preflights.
+- [x] Push final head and enqueue the required recorded check.
+
+The recorded suite pass, TL live-qualification decision, close review and merge/CI remain mandatory gates before landing; report outcome only after confirmed merge.
 
 ## Operating envelope and architectural checks
 
@@ -132,3 +134,5 @@ Files: atlas/terminal.md, atlas/architecture.md, atlas/index.md, atlas/go-lint-c
 
 - 2026-10-21: TL approved wrap-local parent retention, process-exit/explicit-stop lifetime, full flow and unchanged group/start/publication contracts. Reconciled issue Spec/Done when; add exhaustive caller inventory plus native normal-exit/daemonization coverage before code.
 - 2026-10-21: Address plan gate PQ-1/PQ-2/PQ-3: enumerate all production caller families and native composition seams, define function-level adversarial strategies, and specify the encapsulated lease transition plus sole group-reap authority, including removal of the existing direct Process.Wait on initialization failure.
+
+- 2026-10-21: Native implementation and targeted qualification complete. Keep future suite/review/landing gates as explicit prose rather than falsely completed implementation checkboxes; recorded suite is queued, no pass claimed.

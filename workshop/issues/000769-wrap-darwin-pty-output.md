@@ -48,7 +48,9 @@ Durable implementation plan: [wrap Darwin PTY output](../plans/000769-wrap-darwi
 
 - [x] Pin final-output loss and approved lifetime with native child/descriptor barriers; enumerate and qualify every production caller.
 - [x] Implement the wrap-local Darwin slave lease through normal drain and abort, preserving original command, locks, publication and ownedGroup stop/reap.
-- [ ] Document help/atlas behavior; qualify lifecycle, inventory, recorded suite, close review and landing gates.
+- [x] Document help/atlas behavior and qualify native lifecycle/callers and reader inventory; push and enqueue the recorded suite.
+
+The recorded suite must pass, close review must approve, and merge gates must complete before reporting landed.
 
 ## Log
 
@@ -72,6 +74,8 @@ The first deterministic native regression failed on upstream pty.Start for statu
 Caller coverage: public pair/pair-go, pair-wrap compatibility, emitted fresh replacement, and both actual KDL stanzas driven by production createflow all execute the shared candidate with normal, same-group ignored-HUP/TERM descendant, and escaped setsid daemon cases (18 rows). They assert exact raw marker/status7; same-group cleanup escalates, escaped daemon remains independently responsive after wrapper return. Shared pairlifecycletest fixture avoids duplicated protocols. Existing Couch route checks for new/cold resume/recovery/switch/continuation and warm exclusion passed5.587s, proving those callers converge on the qualified launcher/layout boundary.
 
 Combined targeted race command passed wrapcmd33.079s and launcher11.670s; managed actual-Run race scenarios passed3.886s (normal, inherited-slave detached descendant, missing target, closedstdio SIGTERM, closedstdio SIGUSR2). Managed tests assert exact native PID/start/ordinal readiness, final stdout/raw bytes/status7 and one matching native-exit report; failed start publishes none, controlled stop/restart reports no self exit. Full repolint passed18.286s, artifactpath20.133s. Reader audit: launcher caller test reads actual KDL, so register its two tests in SOURCE_GUARDS and fixed_scanner certificate; managed/native owner tests read only private fixtures and are local_or_literal_fixture. No local-gate protected configuration changed. make test-affected-inventory passed after recording the three audited certificates. go vet passed for wrapcmd/launcher. An expanded optional vet run also inspected unchanged pairlifecycletest tests and flagged the intentionally discarded String snapshot at live_zellij_diagnostics_test.go:20; Git confirms the same line on HEAD, and its native race-snapshot unit test passes. No unrelated source edit or gate bypass.
+
+Recorded full suite enqueued on pushed implementation head5434e0f4b (local-check run lease-3140746705, log e4f69c4b0a81d2285f916768dcea91be); normal FIFO position3 behind the current heavy ariadne suite. Review may overlap this queue per tl-worker; no passing suite or landing is claimed yet.
 
 ## Revisions
 
