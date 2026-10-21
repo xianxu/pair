@@ -89,24 +89,28 @@ Proposed ownership: #759 owns the remote HTTP listener/routes, auth/session admi
 
 | Pure entity | Lives in | Status |
 |---|---|---|
-| remoteState, remoteEvent, ReduceRemote | `cmd/internal/remotesession/state.go` | new |
-| AccessIdentity / remotePolicy, validAt and samePrincipal value checks | `cmd/internal/remotesession/policy.go` | new |
-| RemoteAction / DocumentRef / DocumentRequest / DocumentResult | `cmd/internal/remotesession/protocol.go` | new |
-| Remote submit origin and envelope projection | `cmd/internal/couchmessage/model.go`, `batch.go` | modified |
+| remoteState, remoteEvent, remoteEffect, ReduceRemote | `cmd/internal/remotesession/state.go` | delivered M1 |
+| AccessIdentity, remotePolicy; validAt/samePrincipal value checks | `cmd/internal/remotesession/policy.go` | delivered M1 |
+| RemoteAction, DocumentRef, DocumentEdit, NavigationTarget, DocumentRequest | `cmd/internal/remotesession/protocol.go` | delivered M1 |
+| DocumentSummary, DocumentSnapshot, DocumentResult | `cmd/internal/remotesession/documents.go` | delivered M1 |
+| Replay, replayEntry, replayAdmission (value-only sequence decisions) | `cmd/internal/remotesession/replay.go` | delivered M1 |
+| RemoteStatePaths, ResolveCouchRemote, RemotePublicationStage | `cmd/internal/artifactpath/remote.go` | delivered M1 |
+| Remote submit origin and envelope projection | `cmd/internal/couchmessage/model.go`, `batch.go` | planned M3 modification |
 
-The reducer owns legal transitions; policy decides claims, identity, origin, action and bounds from values. One supervisor has one epoch and at most four sessions; each session has many allowed document operations, each tied to current document/editor identity. One action enum is the allowlist shared by decoder, dispatcher and tests. The future phone UI consumes this contract; no general “execute” extension slot.
+The reducer owns legal transitions; policy decides identity, origin and bounds from values. Replay changes owned in-memory values without IO. One supervisor has one epoch and at most four sessions; each session has many allowed document operations, each tied to current document/editor identity. One action enum is the allowlist shared by decoder, dispatcher and tests. The future phone UI consumes this contract; no general “execute” extension slot.
 
 | Integration point | Lives in | Status | Wraps |
 |---|---|---|---|
-| Sessions | `cmd/internal/remotesession/session.go` | new | OS entropy, synchronized cookie/revocation ownership; pure identity predicates remain in policy.go |
-| Remote supervisor | `cmd/internal/remotesession/supervisor.go` | new | lifecycle effects, sessions, joined requests |
-| Latch store, origin evidence and audit | `cmd/internal/remotesession/store.go`, `origin_store.go`, `audit.go` | new | injected private directory, durablefile, lifetime lock |
-| Access verifier / key source | `cmd/internal/remotesession/access.go` | new | JWT library, bounded HTTPS JWKS |
-| Protected named transport | `cmd/internal/broadcast/cloudflared.go`, `host.go`; `couchcmd/remote.go` | modified/new | existing cloudflared handle/guard/lock, strict remote config |
-| Host-TTY security control | `cmd/internal/couchtty/console_remote_session.go`, `terminal_input.go`, `console.go` | new/modified | local decoded key event, status and notices |
-| Trusted remote submit | `cmd/internal/couchcmd/remote_submit.go`, `couchmessage/broker.go` | new/modified | broker, receipt, batching and delivery accounting |
-| Document backend seam | `cmd/internal/remotesession/documents.go` | new | #758's registry/nvim adapter, stateful test backend |
-| Artifact ownership | `cmd/internal/artifactpath/remote.go`, `manifest.go` | new/modified | store paths, latch/audit retention classification |
+| Sessions | `cmd/internal/remotesession/session.go` | delivered M1 | OS entropy, synchronized cookie/revocation ownership; pure identity predicates remain in policy.go |
+| Store | `cmd/internal/remotesession/store.go` | delivered M1 | latch publication and bounded stage recovery |
+| OriginStore | `cmd/internal/remotesession/origin_store.go` | delivered M1 | durable conservative edit evidence |
+| Audit | `cmd/internal/remotesession/audit.go` | delivered M1 | metadata append, durability, rotation/retention |
+| AccessVerifier / accessKeys | `cmd/internal/remotesession/access.go` / `access_keys.go` respectively | delivered M1 | JWT library, bounded HTTPS JWKS |
+| DocumentBackend, admissionGate, Permit | `cmd/internal/remotesession/documents.go` | delivered M1 seam | typed adapter interface and synchronized one-use effect handoff; stateful private backend only |
+| Remote supervisor | `cmd/internal/remotesession/supervisor.go` | planned M2 | lifecycle effects, sessions, joined requests |
+| Protected named transport | `cmd/internal/broadcast/cloudflared.go`, `host.go`; `couchcmd/remote.go` | planned M2 modification/addition | existing cloudflared handle/guard/lock, strict remote config |
+| Host-TTY security control | `cmd/internal/couchtty/console_remote_session.go`, `terminal_input.go`, `console.go` | planned M2 addition/modification | local decoded key event, status and notices |
+| Trusted remote submit | `cmd/internal/couchcmd/remote_submit.go`, `couchmessage/broker.go` | planned M3 addition/modification | broker, receipt, batching and delivery accounting |
 
 Effects receive the pure transition's attempt/epoch identity and return typed outcomes. Store, issuer, clock, tunnel and document adapter are replaceable with portable private-root stateful backends. Reuse FakeTunnel and guarded cleanup; add fake JWKS rotation and fake document revisions/held operations, not function-call-only mocks.
 
@@ -343,3 +347,8 @@ The Go contract now lives in remotesession/documents.go and protocol.go: opaque 
 ### 2026-10-21 — M1 review class corrections
 
 BR-1: the actual Sessions owner is INTEGRATION (OS entropy plus mutex-owned sessions and revocation), not a nonexistent pure SessionState. The Core concepts tables above now name actual types; AccessIdentity.validAt/samePrincipal are pure value checks, while session lifecycle/entropy stays in the integration table. BR-2 retains the planned generated fake-time sequences and controlled admission rendezvous; these now exercise revoke/logout/expiry while entropy completion is held, plus independent capacity and historical-cookie invariants. BR-3 replaces every unique remote publication temp family with one canonical reusable stage per record, resolved by artifactpath. Validated openers reclaim only their exact regular bounded slot, refusing unsafe/oversized stages. Latch/origin stages have the record caps; each of two audit stages has the16MiB segment cap, so published data plus all possible crash-left slots are bounded by66MiB+8KiB. No stage is authority, and no glob or automatic repair of invalid committed evidence runs. The single leased Couch writer owns cleanup before publication/on reopen. These are implementation/lifecycle corrections, not an operator-policy change.
+
+
+### 2026-10-21 — M1 repeated concept-map finding, complete delivered-row audit
+
+BR-4 exposed a second instance in the core-concept-classification family: DocumentResult is declared in documents.go, not protocol.go. Applied the whole rule: every delivered row now names actual declarations at their actual files, with IO/entropy/mutex owners classified as integration and future wiring explicitly marked planned. Split protocol values from document values; included the real pure replay and artifact-path entities; separated Store/OriginStore/Audit; mapped AccessVerifier/accessKeys to their respective files; classified Permit/admissionGate with the integration seam. Verified every delivered row against the declarations and imports. No runtime change; prior BR-1/2/3 were all disposed addressed by round2.

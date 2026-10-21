@@ -7,7 +7,7 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
-- #759 M1: classify actual owner types by their effects, including entropy and mutex-owned revocation; identify real pure predicates instead of naming a pure type the code never implements. Generated lifecycle coverage needs an independent ownership oracle and held admission boundaries; a goroutine wave alone proves no ordering.
+- #759 M1: classify actual owner types by their effects, including entropy and mutex-owned revocation; identify real pure predicates instead of naming a pure type the code never implements. Verify each delivered concept against its actual declaration and file, splitting rows by location. Generated lifecycle coverage needs an independent ownership oracle and held admission boundaries; a goroutine wave alone proves no ordering.
 
 - #761: Classify native replies from the complete stdout, stderr and exit together. A successful process can print a fallback listing after falsely missing its target; retain exact bytes before recovery. Diagnostic observers own their snapshots before calling other observers, and typed evidence must survive context/generation refusal wrappers without becoming ownership authority. Keep diagnostic version reads separate from counted ownership attempts in stateful fakes and budget tests.
 - #763 BR-1: Unknown JSON values must survive decode and rewrite without machine-number conversion. Test precise fractions, over/underflow exponents, negative zero and huge integers nested in arrays/objects; a large-integer-only roundtrip misses float corruption. Reject non-JSON NaN/Infinity before effects, while keeping known-field types strict.
