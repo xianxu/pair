@@ -82,12 +82,13 @@ total: 5.06
 Full-flow durable design: [local VM conformance plan](../plans/000743-local-vm-conformance-plan.md). Awaiting hub approval before implementation.
 
 - [x] M1 — Refreshed image and generic isolated runner.
-- [ ] M2 — Strict Pair conformance.
+- [x] M2 — Strict Pair conformance.
 - [ ] M3 — Nightly burn-in handoff and initial infrastructure landing.
 
 ## Log
 
 ### 2026-10-20
+- 2026-10-20: closed M2 — Approved M3 deferral of supported declaration/bootstrap. Final shared-selection public make conformance-vm passed source04ec9e29e476fb5d312e73e85acd1f6750bc6080,410 events/all28 required cases in5 exact packages,result0/no retained claim; raw final-qualified evidence retained. Deliberate required skip private fixture refused result1; clean train reuse0. Public Make group cancellation after positive launch/guest command cleaned in2.54414775s,result130/no claim,within operator30s grace. BR-4 now enforces hosted/VM package/case and package-specific exclusion equality; both native and lifecycle patterns derive from catalog; independent additions/removals, wrong package and exclusion-move mutants refuse. Portable40 tests pass; prior race/repolint/reader/actual-producer proof retained. Recorded check running on3b665b4b plus new final-code check queued; final-head pass precedes landing. Hosted PR required; activation off.; review verdict: SHIP
 - 2026-10-20: closed M1 — Qualified pinned Tahoe image and official Zellij; real runner success, exit37, positive-launch timeout124 and clean reuse with immutable tracked input/isolation evidence in workshop/evidence/000743. Review corrections: six controlled cancellation points never activate, merged manifest exact65536 accepted/65537 preserves prior bytes, actual plan mapping reconciled. vmcmd race49.768s; dispatcher/main/artifact source pass; repolint10.937s; nine provisioning tests; inventory and syntax pass. Recorded affected check queued on pushed fix head; required pass precedes landing.; review verdict: SHIP
 
 - Claimed in pair:3 and entered planning. Read-only audit confirms Tart 2.32.1; stopped pair-test last accessed 2026-06-09, four CPUs/8 GiB, 50 GiB virtual disk. No VM was started or modified during planning.

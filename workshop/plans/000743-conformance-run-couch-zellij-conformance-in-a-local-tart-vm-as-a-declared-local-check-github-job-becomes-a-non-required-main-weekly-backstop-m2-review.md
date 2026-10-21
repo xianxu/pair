@@ -88,3 +88,86 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T23:07:29-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 743 — conformance: run couch-zellij-conformance in a local Tart VM as a declared local check; GitHub job becomes a non-required main/weekly backstop |
+| repo | pair |
+| issue file | workshop/issues/000743-conformance-run-couch-zellij-conformance-in-a-local-tart-vm-as-a-declared-local-check-github-job-becomes-a-non-required-main-weekly-backstop.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 1fa99626aa4d16425f36cbec1a9cb50359ae8810..3caa035bc45705c445a3e484841c862c31ac2b70 |
+| command | sdlc milestone-close --issue 743 --milestone M2 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T23:07:29-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range delivers M2’s strict VM conformance command and evidence validation. BR-4 is addressed through tested lifecycle-selection equality enforcement. No blocking defects found. The documented revisions explicitly move named-check acceptance to M3 and retain required hosted PR conformance.
+
+```findings
+dispose:
+  - id: BR-4
+    disposition: addressed
+    note: |
+      tests/conformance-command-test.py:77-102 compares hosted packages, top-level cases and package-specific exclusions with the VM catalog. Independent drift mutations fail; disabling equality enforcement in memory produces seven regression failures. Makefile.local includes this guard in standard and affected testing.
+```
+
+1. **Strengths**
+
+   - `tests/conformance-vm.py:19` validates exact package identities, observed execution and completion, rejecting truncated, skipped or failed populations.
+   - `tests/native-terminal-ci.py:29` streams evidence through the shared reducer once while keeping diagnostics separate.
+   - `cmd/internal/couchcmd/shortcut_environment_test.go:11` verifies short socket paths, ambient-environment isolation and cleanup.
+   - README and atlas document the command, artifact destination and rollout limits.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - All 40 portable conformance tests passed.
+   - Targeted Go socket-root and native-fixture lint tests passed.
+   - Independently validated retained native evidence: 410 events prove all 28 required cases; the known-bad stream rejects the deliberate skip.
+   - The native-qualified source differs from pinned head only in evidence/tracker files. No live VM rerun performed during this review.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared reducer/catalogs; drift guards connect maintained consumers.
+   - **ARCH-PURE — pass:** deterministic evidence decisions remain separate from subprocess orchestration.
+   - **ARCH-PURPOSE — pass:** revised M2 scope is delivered; M3 obligations remain explicit.
+   - **ARCH-MOCK — pass:** host invocation uses an executable fixture; production streaming tests exercise controlled child processes; retained native evidence checks real behavior.
+   - **ARCH-CONSTRAINTS — pass:** serial package execution, explicit timeouts and single-pass validation preserve the declared batch envelope.
+   - **ARCH-SECURE — pass:** literal argv, strict event validation and privately owned socket roots.
+   - **ARCH-ORDER — pass:** execution/completion transitions reject missing, duplicate and late events; tests exercise invalid sequences.
+   - **ARCH-FUNERAL — pass:** temporary roots register cleanup; artifact ownership reuses the existing runner.
+   - **ARCH-EVOLVE — pass:** no persisted-format rewrite introduced; additive event members are accepted while known fields remain strict.
+
+7. **Plan revision recommendations:** None; existing revisions reconcile implementation naming, lifecycle enforcement and the M3 dependency reorder.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"7606767f-4da3-4de8-8286-d5086d9d519d","repository":"github.com/xianxu/pair","issue_id":"000743","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/d01fe691bbda1213","reviewed_head":"3caa035bc45705c445a3e484841c862c31ac2b70","slot":"pair:3","requested_at":"2026-10-21T06:05:34.939543Z"},"phase":"finished","pid":76488,"started_at":"2026-10-21T06:05:35.108102Z","finished_at":"2026-10-21T06:07:28.812359Z","session_id":"01a15d10-a99a-7fa0-b4ab-568ddf161014","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.4433065s
+head: "3caa035bc45705c445a3e484841c862c31ac2b70"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000410
