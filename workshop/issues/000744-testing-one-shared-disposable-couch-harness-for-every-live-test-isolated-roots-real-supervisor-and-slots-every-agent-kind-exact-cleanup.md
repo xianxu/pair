@@ -82,6 +82,10 @@ Design 1.98 ×1.15 + impl 4.04 ×1.5 = 8.337 hours. Setup/runtime/cleanup budget
 
 ## Log
 
+### 2026-10-20 — implementation checkpoint before native composition
+
+Full-flow change-code passed at c23595e57 after PQ-1 transport isolation correction and TL3d5e6782 approval. Estimate-quality returned INFO; the 8.337h decomposition includes native debugging/races/required-suite work in the integration adapters, with qualification item covering the consumer itself. Implemented shared root/environment guards, pure owned-generation reconciliation, actual provisioning adapter, candidate/runtime placement and deterministic Claude/Codex fixtures. Focused testcouch packages passed (4.901s helper, 0.893s fixture), and transport full package (26.147s) plus targeted race checks passed. The first installed consumer compiles and correctly opts out without PAIR_NATIVE_COUCH_FLEET; native composition is the next step, with no native/full-suite/close pass claimed. #722 remains parked.
+
 ### 2026-10-20 14:50 PDT — native shared-harness plan ready for TL review
 
 #722 is parked at its pushed checkpoint with claim kept. #744 claim/start-plan created this independent branch at fresh main; no #722 commits were imported. Two bounded read-only explorations verified native environment/agent reuse and real provisioning/public worker startup. The proposed helper uses real provision-workspace and recordless reboot, not extra hubs, fake workspace identities or setup markers. Durable plan records confinement/ownership state table, exact execution/cleanup seams, agent personalities, native qualification/first consumer and limits. Await TL review before change-code or implementation; no estimate derived yet.
