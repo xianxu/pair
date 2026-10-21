@@ -173,3 +173,14 @@ Fast inventory and whitespace checks pass after resolution. Main brings
 #762/#764 code; the earlier suite is not claimed to cover that integration.
 Run the required new recorded suite, then narrow fixed-then-ship close with
 its full-suite receipt before re-entering merge, as the gate requires.
+
+
+### 2026-10-21 — integrated full suite PASS
+
+Attempt4b7476afad2ec562731e223ce7e4f83b on integrated head
+415001017306f4fae8871e738a4198f68f8c556f passed exit0 in10m31s. Log SHA
+prefixeb120773dc2a saved under .git/sdlc/local-checks/<integrated-head>/suite.log.
+Core189.558s, tty38.182s, testdisk8.296s; all scripts/packages completed with
+no failure. This is the required integration evidence, separately from the
+earlier branch suite. Enter narrow fixed-then-ship close for the JSON union,
+then re-enter merge. No code or audited hash changed after this pass.
