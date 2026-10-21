@@ -55,7 +55,7 @@ func scheduledRunID(s couchschedule.TaskState) string {
 	return hex.EncodeToString(h[:16])
 }
 func (a *automaticScheduler) history() operationalrun.Store {
-	return operationalrun.Store{Namespace: filepath.Dir(a.coordinator.store.Dir)}
+	return a.coordinator.runs
 }
 func scheduleRunKey(s couchschedule.TaskState) operationalrun.RunKey {
 	return operationalrun.RunKey{Hub: s.Key.HubID(), Task: s.Key.Task, ID: s.Last.ID}
@@ -180,14 +180,14 @@ func (a *automaticScheduler) recover(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return ensureUncertainRuns(ctx, c.store)
+	return ensureUncertainRuns(ctx, c.store, c.runs)
 }
 
 // recoverExecutionHistory consumes saved evidence without repeating work.
 func (a *automaticScheduler) recoverExecutionHistory(ctx context.Context, s couchschedule.TaskState, startup bool) (couchschedule.TaskState, error) {
 	at := s.Active
 	key := operationalrun.RunKey{Hub: s.Key.HubID(), Task: s.Key.Task, ID: at.ID}
-	record, _, err := a.history().Read(ctx, key)
+	record, _, err := a.history().ReadDurable(ctx, key)
 	if err != nil {
 		if !missingRunBundle(filepath.Dir(a.coordinator.store.Dir), key, err) {
 			return s, err
@@ -236,7 +236,7 @@ func (a *automaticScheduler) reconcileExecution(ctx context.Context, result sche
 	if historyErr != nil {
 		return &taskHistoryError{historyErr}
 	}
-	return ensureUncertainRuns(ctx, c.store)
+	return ensureUncertainRuns(ctx, c.store, c.runs)
 }
 
 func retainedUnknownSummary(s couchschedule.TaskState) bool {
@@ -250,7 +250,7 @@ func (a *automaticScheduler) ensurePassive(ctx context.Context, s couchschedule.
 	last := s.Last
 	passive := last != nil && last.Source == "scheduled" && (last.Outcome == "skipped" || last.Outcome == "refused" || last.Outcome == "completed")
 	if !passive {
-		return s, ensurePassiveRun(ctx, filepath.Dir(a.coordinator.store.Dir), s)
+		return s, ensurePassiveRun(ctx, a.history(), s)
 	}
 	if proof, ok := a.passiveDurable[s.Key.ID()]; ok && proof.ID == last.ID {
 		if s.Active == nil {
@@ -258,10 +258,7 @@ func (a *automaticScheduler) ensurePassive(ctx context.Context, s couchschedule.
 		}
 		return s, nil
 	}
-	if err := ensurePassiveRun(ctx, filepath.Dir(a.coordinator.store.Dir), s); err != nil {
-		return s, err
-	}
-	record, _, err := a.history().Read(ctx, scheduleRunKey(s))
+	record, err := ensureRetainedRun(ctx, a.history(), s, false)
 	if err != nil {
 		return s, err
 	}
@@ -465,7 +462,7 @@ drained:
 							executionSlots++
 						}
 					} else {
-						record, _, err := a.history().Read(ctx, operationalrun.RunKey{Hub: s.Key.HubID(), Task: s.Key.Task, ID: at.ID})
+						record, _, err := a.history().ReadDurable(ctx, operationalrun.RunKey{Hub: s.Key.HubID(), Task: s.Key.Task, ID: at.ID})
 						if err == nil {
 							s, err = adoptScheduledRecord(s, record)
 						} else if missingRunBundle(filepath.Dir(c.store.Dir), operationalrun.RunKey{Hub: s.Key.HubID(), Task: s.Key.Task, ID: at.ID}, err) {
@@ -522,7 +519,7 @@ drained:
 				}
 				// The exact body and binding are frozen once, including known-no-admission retries.
 				if online && at.ReceiptID == "" {
-					_, output, err := a.history().Read(ctx, scheduleRunKey(s))
+					_, output, err := a.history().ReadDurable(ctx, scheduleRunKey(s))
 					if err != nil {
 						if err := quarantineTaskHistory(ctx, l, prior, "occurrence reconciliation", err); err != nil {
 							return err
@@ -553,7 +550,7 @@ drained:
 	if err != nil {
 		return c.blocked(err)
 	}
-	if err := ensureUncertainRuns(ctx, c.store); err != nil {
+	if err := ensureUncertainRuns(ctx, c.store, c.runs); err != nil {
 		return c.blocked(err)
 	}
 	for _, job := range candidates {

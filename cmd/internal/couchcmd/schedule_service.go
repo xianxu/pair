@@ -20,6 +20,7 @@ import (
 type scheduleCoordinator struct {
 	roots         []string
 	store         couchschedule.StateStore
+	runs          operationalrun.Store
 	catalog       couchschedule.Catalog
 	location      *time.Location
 	now           func() time.Time
@@ -29,7 +30,7 @@ type scheduleCoordinator struct {
 }
 
 func newScheduleCoordinator(namespace string, roots []string, location *time.Location, now func() time.Time) *scheduleCoordinator {
-	c := &scheduleCoordinator{roots: append([]string(nil), roots...), store: couchschedule.StateStore{Dir: filepath.Join(namespace, "schedule")}, location: location, now: now}
+	c := &scheduleCoordinator{roots: append([]string(nil), roots...), runs: operationalrun.Store{Namespace: namespace}, store: couchschedule.StateStore{Dir: filepath.Join(namespace, "schedule")}, location: location, now: now}
 	sort.Strings(c.roots)
 	snapshot := couchschedule.BuildStatus(nil, location.String())
 	snapshot.Hubs = append([]string(nil), c.roots...)
@@ -99,7 +100,7 @@ func (c *scheduleCoordinator) refresh(ctx context.Context) error {
 				continue
 			}
 			a := state.Active
-			record, _, err := (operationalrun.Store{Namespace: filepath.Dir(c.store.Dir)}).Read(ctx, operationalrun.RunKey{Hub: state.Key.HubID(), Task: state.Key.Task, ID: a.ID})
+			record, _, err := c.runs.ReadDurable(ctx, operationalrun.RunKey{Hub: state.Key.HubID(), Task: state.Key.Task, ID: a.ID})
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
@@ -142,7 +143,7 @@ func (c *scheduleCoordinator) refresh(ctx context.Context) error {
 				}
 				continue
 			}
-			if err := retainedHistoryQuarantine(ctx, filepath.Dir(c.store.Dir), prior); err != nil {
+			if err := retainedHistoryQuarantine(ctx, c.runs, prior); err != nil {
 				if err := quarantineTaskHistory(ctx, ledger, prior, "catalogue recovery", err); err != nil {
 					return err
 				}
@@ -174,7 +175,7 @@ func (c *scheduleCoordinator) refresh(ctx context.Context) error {
 				}
 				continue
 			}
-			if err := retainedHistoryQuarantine(ctx, filepath.Dir(c.store.Dir), prior); err != nil {
+			if err := retainedHistoryQuarantine(ctx, c.runs, prior); err != nil {
 				if err := quarantineTaskHistory(ctx, ledger, prior, "catalogue recovery", err); err != nil {
 					return err
 				}
@@ -204,7 +205,7 @@ func (c *scheduleCoordinator) refresh(ctx context.Context) error {
 	if err != nil {
 		return c.blocked(err)
 	}
-	if err := ensureUncertainRuns(ctx, c.store); err != nil {
+	if err := ensureUncertainRuns(ctx, c.store, c.runs); err != nil {
 		return c.blocked(err)
 	}
 	for _, owner := range stopped {
@@ -258,5 +259,5 @@ func (c *scheduleCoordinator) finalizeCancelledScheduleNotice(ctx context.Contex
 	if prior.Active == nil || prior.Active.Source != "scheduled" || prior.Last == nil || prior.Last.Notice != "pending" || next.Active != nil || next.Last == nil {
 		return nil
 	}
-	return (operationalrun.Store{Namespace: filepath.Dir(c.store.Dir)}).FinalizeNotice(ctx, scheduleRunKey(prior), prior.Active.Revision, next.Last.Notice)
+	return c.runs.FinalizeNotice(ctx, scheduleRunKey(prior), prior.Active.Revision, next.Last.Notice)
 }

@@ -158,6 +158,12 @@ history is published. Terminal passive history proofs are bounded to current
 tasks and never become cached pending-notice authority.
 Cached and freshly read canonical summaries share adoption through timestamped
 `NewRecoveryEvent` construction, including after failed authority commits.
+History inspection uses `Store.Read`; authority adoption and quarantine release
+use `Store.ReadDurable`, which validates the existing bundle and confirms its
+directories under the task lock without creating missing history. Publication,
+durable adoption and fresh/idempotent notice finalization sync run, runs, task,
+hub, schedule and namespace directories. A sync refusal retains authority and
+quarantines only that task; readability alone cannot release an occurrence.
 Task-history damage quarantines the named task in status while retaining its
 authority and pending completion facts; healthy hubs continue. Shared ledger
 failures still block scheduling. Recovery preserves additive summary metadata

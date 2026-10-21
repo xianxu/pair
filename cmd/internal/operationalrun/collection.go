@@ -176,7 +176,7 @@ func (s Store) recoverCollection(ctx context.Context, task string) error {
 		if e = verifyBundle(dest, j.Identity, false); e != nil {
 			return e
 		}
-		if e = errors.Join(durablefile.SyncDirectory(filepath.Dir(source)), durablefile.SyncDirectory(task)); e != nil {
+		if e = errors.Join(s.syncDirectory(filepath.Dir(source)), s.syncDirectory(task)); e != nil {
 			return e
 		}
 		j.Phase = "detached"
@@ -204,7 +204,7 @@ func (s Store) recoverCollection(ctx context.Context, task string) error {
 				return e
 			}
 		}
-		if e = durablefile.SyncDirectory(dest); e != nil {
+		if e = s.syncDirectory(dest); e != nil {
 			return e
 		}
 		j.Phase = "finalized"
@@ -235,13 +235,13 @@ func (s Store) recoverCollection(ctx context.Context, task string) error {
 	} else if !errors.Is(e, os.ErrNotExist) {
 		return e
 	}
-	if e = durablefile.SyncDirectory(task); e != nil {
+	if e = s.syncDirectory(task); e != nil {
 		return e
 	}
 	if e = os.Remove(filepath.Join(task, ".collection.json")); e != nil {
 		return e
 	}
-	return durablefile.SyncDirectory(task)
+	return s.syncDirectory(task)
 }
 func (s Store) collect(ctx context.Context, key RunKey, task string) error {
 	if e := s.recoverCollection(ctx, task); e != nil {

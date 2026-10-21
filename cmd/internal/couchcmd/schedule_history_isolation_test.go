@@ -77,7 +77,7 @@ func TestScheduleTaskHistoryIsolation(t *testing.T) {
 				a.inFlight[key.ID()] = true
 				err = a.step(t.Context())
 			case "unknown repair":
-				err = ensureUncertainRuns(t.Context(), c.store)
+				err = ensureUncertainRuns(t.Context(), c.store, c.runs)
 			case "catalogue cancellation":
 				if e := os.RemoveAll(filepath.Join(roots[0], "scripts/scheduled/report")); e != nil {
 					t.Fatal(e)

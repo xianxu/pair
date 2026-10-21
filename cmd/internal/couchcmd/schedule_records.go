@@ -53,26 +53,24 @@ func runSummaryForRecord(r operationalrun.Record) couchschedule.RunSummary {
 // ensurePassiveRun is called under the existing state lock before replacing a
 // retained summary. Its input facts must already be in the committed ledger.
 // Native output cannot be reconstructed; only no-execution outcomes are repaired.
-func ensurePassiveRun(ctx context.Context, namespace string, state couchschedule.TaskState) error {
+func ensurePassiveRun(ctx context.Context, history operationalrun.Store, state couchschedule.TaskState) error {
 	if state.Last == nil || state.Last.Source != "scheduled" || (state.Last.Outcome != "skipped" && state.Last.Outcome != "refused" && state.Last.Outcome != "completed") {
 		return nil
 	}
-	_, err := ensureRetainedRun(ctx, namespace, state, false)
+	_, err := ensureRetainedRun(ctx, history, state, false)
 	return err
 }
-func ensureRetainedRun(ctx context.Context, namespace string, state couchschedule.TaskState, unknown bool) (operationalrun.Record, error) {
+func ensureRetainedRun(ctx context.Context, history operationalrun.Store, state couchschedule.TaskState, unknown bool) (operationalrun.Record, error) {
 	last := state.Last
 	if last == nil {
 		return operationalrun.Record{}, errors.New("missing retained run facts")
 	}
-	history := operationalrun.Store{Namespace: namespace}
 	key := operationalrun.RunKey{Hub: state.Key.HubID(), Task: state.Key.Task, ID: last.ID}
-	record, _, err := history.Read(ctx, key)
+	record, _, err := history.ReadDurable(ctx, key)
 	if err == nil {
-		record, _, err = history.PublishOccurrence(ctx, key, record, nil)
-		return record, err
+		return record, nil
 	}
-	if !missingRunBundle(namespace, key, err) {
+	if !missingRunBundle(history.Namespace, key, err) {
 		return record, err
 	}
 	passive := last.Source == "scheduled" && (last.Outcome == "skipped" || last.Outcome == "refused" || last.Outcome == "completed")
@@ -94,7 +92,7 @@ func ensureRetainedRun(ctx context.Context, namespace string, state couchschedul
 // Unknown classification is committed before history publication. This second
 // transaction uses those durable facts and adopts a same-ID canonical record;
 // it never starts work or admits a notice.
-func ensureUncertainRuns(ctx context.Context, store couchschedule.StateStore) error {
+func ensureUncertainRuns(ctx context.Context, store couchschedule.StateStore, history operationalrun.Store) error {
 	ledger, err := store.View(ctx)
 	if err != nil {
 		return err
@@ -114,7 +112,7 @@ func ensureUncertainRuns(ctx context.Context, store couchschedule.StateStore) er
 			if s.Active == nil || s.Active.Stage != "uncertain" || s.Last == nil || s.Last.Outcome != "unknown" {
 				continue
 			}
-			record, err := ensureRetainedRun(ctx, filepath.Dir(store.Dir), s, true)
+			record, err := ensureRetainedRun(ctx, history, s, true)
 			if err == nil && (record.Source != s.Active.Source || record.DeclarationRevision != s.Active.Revision) {
 				err = errors.New("result identity differs from retained authority")
 			}
@@ -125,7 +123,7 @@ func ensureUncertainRuns(ctx context.Context, store couchschedule.StateStore) er
 				continue
 			}
 			if record.Notice == "pending" {
-				if err := (operationalrun.Store{Namespace: filepath.Dir(store.Dir)}).FinalizeNotice(ctx, record.Key, record.DeclarationRevision, "uncertain"); err != nil {
+				if err := history.FinalizeNotice(ctx, record.Key, record.DeclarationRevision, "uncertain"); err != nil {
 					if err := quarantineTaskHistory(ctx, l, s, "unknown notice finalization", err); err != nil {
 						return err
 					}
@@ -164,16 +162,16 @@ func persistTaskHistoryFailure(ctx context.Context, store couchschedule.StateSto
 // Catalogue refresh must not erase a visible history quarantine while the
 // retained evidence is still unreadable. Existing repair rules handle wholly
 // absent passive/unknown bundles; execution output is never reconstructed.
-func retainedHistoryQuarantine(ctx context.Context, namespace string, state couchschedule.TaskState) error {
+func retainedHistoryQuarantine(ctx context.Context, history operationalrun.Store, state couchschedule.TaskState) error {
 	if state.Allowed || !strings.Contains(state.Refusal, " history ") {
 		return nil
 	}
 	if state.Last != nil && (state.Active == nil || state.Last.ID == state.Active.ID) {
-		_, err := ensureRetainedRun(ctx, namespace, state, retainedUnknownSummary(state))
+		_, err := ensureRetainedRun(ctx, history, state, retainedUnknownSummary(state))
 		return err
 	}
 	if state.Active != nil {
-		_, _, err := (operationalrun.Store{Namespace: namespace}).Read(ctx, operationalrun.RunKey{Hub: state.Key.HubID(), Task: state.Key.Task, ID: state.Active.ID})
+		_, _, err := history.ReadDurable(ctx, operationalrun.RunKey{Hub: state.Key.HubID(), Task: state.Key.Task, ID: state.Active.ID})
 		return err
 	}
 	return nil

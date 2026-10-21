@@ -31,7 +31,7 @@ func (s Store) FinalizeNotice(ctx context.Context, key RunKey, revision, notice 
 	if err = s.cleanupStages(ctx, task); err != nil {
 		return err
 	}
-	r, err := s.readMetadata(key)
+	r, _, err := s.read(key)
 	if err != nil {
 		return err
 	}
@@ -40,7 +40,7 @@ func (s Store) FinalizeNotice(ctx context.Context, key RunKey, revision, notice 
 	}
 	run := filepath.Join(task, "runs", key.ID)
 	if r.Notice == notice {
-		return errors.Join(durablefile.SyncDirectory(run), durablefile.SyncDirectory(task))
+		return s.syncRunDirectories(run)
 	}
 	if r.Notice != "pending" {
 		return errors.New("operational notice is not pending")
@@ -107,7 +107,7 @@ func (s Store) FinalizeNotice(ctx context.Context, key RunKey, revision, notice 
 	if err = (Store{}).cleanupCapturedRunStage(ctx, root, rootID, name, stage, id, children, files); err != nil {
 		return err
 	}
-	return errors.Join(durablefile.SyncDirectory(run), durablefile.SyncDirectory(task))
+	return s.syncRunDirectories(run)
 }
 
 func terminalNotice(notice string) bool {

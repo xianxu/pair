@@ -63,6 +63,9 @@ type runOccurrencePublisher interface {
 type runReader interface {
 	Read(context.Context, operationalrun.RunKey) (operationalrun.Record, []byte, error)
 }
+type durableRunReader interface {
+	ReadDurable(context.Context, operationalrun.RunKey) (operationalrun.Record, []byte, error)
+}
 type runNoticeFinalizer interface {
 	FinalizeNotice(context.Context, operationalrun.RunKey, string, string) error
 }
@@ -106,7 +109,7 @@ func (r *manualTaskRunner) run(ctx context.Context, root, task string, args []st
 			return fmt.Errorf("task already active (%s, %s); inspect schedule status/history before repair", state.Active.ID, state.Active.Stage)
 		}
 		state, _ = couchschedule.Advance(state, couchschedule.Event{Kind: couchschedule.CatalogChanged, At: now, Declaration: &declaration, Location: time.Local})
-		if err := ensurePassiveRun(ctx, r.namespace, state); err != nil {
+		if err := ensurePassiveRun(ctx, r.nativeHistory(), state); err != nil {
 			historyErr = err
 			return quarantineTaskHistory(ctx, ledger, state, "manual replacement", err)
 		}
@@ -169,8 +172,13 @@ func (r *manualTaskRunner) runReserved(ctx context.Context, reserved couchschedu
 	current := ledger.Tasks[reserved.Key.ID()]
 	history := r.historyPort()
 	runKey := operationalrun.RunKey{Hub: reserved.Key.HubID(), Task: reserved.Key.Task, ID: attempt.ID}
-	if reader, ok := history.(runReader); ok {
-		record, output, readErr := reader.Read(viewCtx, runKey)
+	reader, durable := history.(durableRunReader)
+	_, readable := history.(runReader)
+	if durable || readable {
+		if !durable {
+			return zero, persistTaskHistoryFailure(viewCtx, store, reserved.Key, "execution evidence", errors.New("existing run reader cannot confirm durability; no replay"))
+		}
+		record, output, readErr := reader.ReadDurable(viewCtx, runKey)
 		if readErr == nil {
 			return r.adoptStoredOccurrence(viewCtx, store, reserved, record, output)
 		}
@@ -455,6 +463,18 @@ func executionNotice(source, outcome string) string {
 		return "uncertain"
 	}
 	return "pending"
+}
+
+// Preserve the native durability hook when manual work repairs retained facts.
+func (r *manualTaskRunner) nativeHistory() operationalrun.Store {
+	switch history := r.historyPort().(type) {
+	case operationalrun.Store:
+		return history
+	case *operationalrun.Store:
+		return *history
+	default:
+		return operationalrun.Store{Namespace: r.namespace}
+	}
 }
 
 func (r *manualTaskRunner) historyPort() runPublisher {

@@ -70,7 +70,7 @@ func TestSchedulePassiveLegacyRevisionNeverInvented(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := store.Update(t.Context(), func(l *couchschedule.Ledger) error {
-		return ensurePassiveRun(context.Background(), runner.namespace, l.Tasks[state.Key.ID()])
+		return ensurePassiveRun(context.Background(), operationalrun.Store{Namespace: runner.namespace}, l.Tasks[state.Key.ID()])
 	}); err == nil {
 		t.Fatal("invented passive revision from current declaration")
 	}

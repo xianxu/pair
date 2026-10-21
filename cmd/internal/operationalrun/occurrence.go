@@ -5,8 +5,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-
-	"github.com/xianxu/pair/cmd/internal/durablefile"
 )
 
 // PublishOccurrence records the first immutable result for a run key. An
@@ -29,6 +27,14 @@ func (s Store) PublishOccurrence(ctx context.Context, key RunKey, proposed Recor
 		return Record{}, nil, errors.Join(publishErr, err)
 	}
 	return record, canonical, nil
+}
+
+// ReadDurable reads an existing immutable bundle under the task lock and
+// confirms its directory durability before permitting consumption. It never
+// creates missing history or repairs damaged payloads. Read is inspection-only.
+func (s Store) ReadDurable(ctx context.Context, key RunKey) (Record, []byte, error) {
+	record, output, _, err := s.readOccurrence(ctx, key)
+	return record, output, err
 }
 
 // absent distinguishes a wholly missing bundle from damage or a failure while
@@ -59,12 +65,12 @@ func (s Store) readOccurrence(ctx context.Context, key RunKey) (record Record, o
 	if err = ctx.Err(); err != nil {
 		return record, output, false, err
 	}
-	// The payloads were synced before their bundle's rename. Sync both parents
-	// as well as the run directory to finish a lost publication/finalization
-	// acknowledgement before reporting durable adoption.
+	// The payloads were synced before their bundle's rename. Confirm the run
+	// and every ancestor link through the namespace before reporting durable
+	// adoption of a lost publication/finalization acknowledgement.
 	if err = s.fail("occurrence-sync"); err != nil {
 		return record, output, false, err
 	}
-	err = errors.Join(durablefile.SyncDirectory(run), durablefile.SyncDirectory(filepath.Dir(run)), durablefile.SyncDirectory(task))
+	err = s.syncRunDirectories(run)
 	return record, output, false, err
 }

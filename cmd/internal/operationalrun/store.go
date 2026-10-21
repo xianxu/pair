@@ -19,8 +19,31 @@ var stageName = regexp.MustCompile(`^\.run-stage-[0-9]+$`)
 var stageFileName = regexp.MustCompile(`^\.(record|output)-[0-9]+$`)
 
 type Store struct {
-	Namespace string
-	fault     func(string) error
+	// SyncDirectory overrides directory durability acknowledgement for fault injection.
+	// A nil hook uses durablefile.SyncDirectory.
+	SyncDirectory func(string) error
+	Namespace     string
+	fault         func(string) error
+}
+
+func (s Store) syncDirectory(path string) error {
+	if s.SyncDirectory != nil {
+		return s.SyncDirectory(path)
+	}
+	return durablefile.SyncDirectory(path)
+}
+
+// syncRunDirectories confirms each bundle/ancestor link up to the existing
+// namespace authority: run, runs, task, hub, schedule, namespace. Never sync
+// outside that boundary. Callers hold the task lock and validated the run key.
+func (s Store) syncRunDirectories(run string) error {
+	var err error
+	dir := run
+	for range 6 {
+		err = errors.Join(err, s.syncDirectory(dir))
+		dir = filepath.Dir(dir)
+	}
+	return err
 }
 
 func (s Store) fail(step string) error {
@@ -76,7 +99,7 @@ func (s Store) Publish(ctx context.Context, key RunKey, r Record, output []byte)
 			return e
 		}
 		if bytes.Equal(encoded, raw) && bytes.Equal(out, output) {
-			return errors.Join(durablefile.SyncDirectory(runs), durablefile.SyncDirectory(task))
+			return s.syncRunDirectories(dest)
 		}
 		return errors.New("immutable operational run already exists")
 	} else if !errors.Is(e, os.ErrNotExist) {
@@ -150,7 +173,7 @@ func (s Store) Publish(ctx context.Context, key RunKey, r Record, output []byte)
 		return e
 	}
 	published = true
-	return errors.Join(durablefile.SyncDirectory(runs), durablefile.SyncDirectory(task))
+	return s.syncRunDirectories(dest)
 }
 func (s Store) readMetadata(key RunKey) (Record, error) {
 	var r Record
