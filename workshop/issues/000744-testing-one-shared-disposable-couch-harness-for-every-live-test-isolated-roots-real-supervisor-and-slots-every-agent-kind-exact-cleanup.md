@@ -213,6 +213,12 @@ After BR-1 through BR-4 repairs, clean pushed bfa769c1dec8ee80eabba775220d7084ae
 
 Retained complete log /Volumes/TestScratch/tmp/pair-slot5/pair-744-native-final.nEqfD0/native.log SHA2561d4b86f5c114a28e372bb025ee7c5eaf30355f05d301802d0f1ecddc420ce7b5. Tool versions match the earlier PASS. This is not a final-head native pass and not a known-flake classification. Verified TL159f625e directs park744, claim761 from main, root-cause/fix/land its product bug, then integrate landed main into744 and rerun final matrix before close/landing. The queued bfa769c1 recorded suite was canceled before running because744 is parked for its prerequisite; other checkouts remained running. Claims retained; PR509 stays open. #722 and #739 wait. Next744 step: integrate only landed761, native matrix, recorded suite, repeat full close, merge.
 
+### 2026-10-21 — resume after landed #761/#763/#764
+
+TL3eba5889 dispatches the final qualification/landing sequence after train232 landed #761 and #766 through PR522. The #761 conductor exited0 and released this checkout to clean main-slot5 before switching. Integrated landed main7fabbeb93589b7c0c44a43fa699e83b09082bd5e, containing the native lookup recovery/raw evidence, per-reader certificates and exact fixture cleanup fix; no candidate override or stacked branch. Sole conflict is main's deletion of the old aggregate. Accepted deletion and regenerated exactly18 previously audited issue-owned reader certificates with make affected-readers, preserving classifications and verifying each merged source still has its audited hash. All other current-main certificates stay intact. New inventory and diff checks pass.
+
+Preflight verification: whole testcouch/agentfixture/native-entrypoint races PASS11.092s/12.847s/3.587s; couchmessage25.174s, testpair11.077s, artifactpath10.516s, repolint8.910s and actual fixture composer conformance0.416s PASS. Commit/push integration before one clean-head make test-couch-fleet run for Claude and Codex, retaining the full log, head/tool versions, receipts/body proof and exact cleanup. Preserve the original143.30s successful #747 post-landing proof and its53cbdc9a79cdcfe4ba579b28f86057494a546b7efa6be342b2deb315fcaf4880 checksum plus the later failed final attempt; the new result does not erase either. Required recorded suite, full close and normal merge follow; #722 remains parked and #739 waits for main.
+
 ## Revisions
 
 ### 2026-10-20 — #747 native-proof sequencing

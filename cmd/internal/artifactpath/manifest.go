@@ -458,6 +458,8 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/workbenchshortcut/shortcut.go", Kind: ResolvedConsumer,
 		Families:     []string{"last-left-pane", "last-terminal-pane", "terminal-panes"},
 		BindingNames: []string{"scoped-wrapper-last-left-pane", "scoped-wrapper-last-terminal-pane", "scoped-wrapper-terminal-panes"}},
+	{Path: "cmd/internal/workbenchshortcut/terminal_owner.go", Kind: ResolvedConsumer,
+		Families: []string{"adapt"}, BindingNames: []string{"scoped-adapt"}},
 	{Path: "cmd/internal/workbenchshortcut/fullscreen_store.go", Kind: ResolvedConsumer,
 		Families:     []string{"fullscreen-return", "fullscreen-lock", "fullscreen-diagnostics"},
 		BindingNames: []string{"scoped-fullscreen-fullscreen-return", "scoped-fullscreen-fullscreen-lock", "scoped-fullscreen-fullscreen-diagnostics"}},
@@ -666,6 +668,12 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	"cmd/internal/mockserve/cli.go",
+	"cmd/internal/mockserve/page.go",
+	"cmd/internal/mockserve/project.go",
+	"cmd/internal/mockserve/revision.go",
+	"cmd/internal/mockserve/scan.go",
+	"cmd/internal/mockserve/server.go",
 	"internal/testbinary/cache.go",
 	"internal/testoracle/run.go",
 	// #649 wiring, contextual runtime delegation, and the pure title reducer
@@ -880,6 +888,7 @@ var NonArtifactSources = []string{
 	// Pair artifact filename families; the remaining files model/render evidence.
 	"cmd/internal/couchcmd/launchfailure.go",
 	"cmd/internal/couchcore/launchfailure.go",
+	"cmd/internal/couchcore/nativequery_failure.go",
 	"cmd/internal/couchcore/launchfailure_capture.go",
 	"cmd/internal/couchcore/launchfailure_show.go",
 	"cmd/internal/couchcore/launchfailure_store.go",
@@ -1120,6 +1129,12 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/recording/internal/fixturegen/main.go",
 	"cmd/internal/webcast/recording/internal/fixturegen/notes.go",
 	"cmd/internal/webcast/recording/record.go",
+	"cmd/internal/webcast/recording/sketch.go",
+	"cmd/internal/webcast/recording/sketch_budget.go",
+	"cmd/internal/webcast/recording/sketch_codec.go",
+	"cmd/internal/webcast/recording/sketch_snapshot.go",
+	"cmd/internal/webcast/recording/sketch_state.go",
+	"cmd/internal/webcast/sketch/geometry.go",
 	"cmd/internal/webcast/recording/reduce.go",
 	"cmd/internal/webcast/recording/validate.go",
 	// #458 recorder: writes records, screenshots and asset bodies into the
@@ -1620,6 +1635,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/launcher/thread_claim.go",
 	"cmd/internal/launcher/zellij.go",
 	"cmd/internal/launcher/zellij_read_recovery.go",
+	"cmd/internal/launcher/zellij_query_evidence.go",
 	"cmd/internal/launcher/zellij_listing_poller.go",
 	"cmd/internal/launcher/zellijparse.go",
 	"cmd/internal/layoutcmd/layoutcmd.go",

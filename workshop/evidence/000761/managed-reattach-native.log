@@ -1,0 +1,53 @@
+=== RUN   TestStartupManagedAttachDetachTimingLive
+    startup_detach_timing_live_test.go:125: native fixture base=/Volumes/TestScratch/tmp/pair-slot5/TestStartupManagedAttachDetachTimingLive2502523534/001
+    startup_detach_timing_live_test.go:188: isolated socket TMPDIR=/private/tmp/p218.4128801851; socket workload excludes co-tenant sessions
+    startup_detach_timing_live_test.go:222: diagnostic real_zellij=/opt/homebrew/Cellar/zellij/0.45.1/bin/zellij pair_bin=/Volumes/TestScratch/tmp/pair-slot5/TestStartupManagedAttachDetachTimingLive2502523534/001/bin config=/Users/xianxu/workspace/worktree/pair-slot5/pair/zellij evidence=/Volumes/TestScratch/tmp/pair-slot5/pair-761-native-reattach.Id4Vb5/run-42636-1792572889889493000
+pair startup snapshot: pid=42636 kind=named table_calls=1 command_calls=64 identity_calls=64 duration_ms=3.170
+    startup_detach_timing_live_test.go:370: managed_resume wall=80.388709ms exclusive_measured=0s residual=80.388709ms
+    startup_detach_timing_live_test.go:371: managed_resume_stages phase[1] attach-prepare=226.583µs
+    startup_detach_timing_live_test.go:371: managed_resume_stages phase[2] attach-admission=20.526667ms
+    startup_detach_timing_live_test.go:371: managed_resume_stages phase[3] attach-spawn=2.897916ms
+    startup_detach_timing_live_test.go:371: managed_resume_stages phase[4] attach-ack=20.225ms
+    startup_detach_timing_live_test.go:371: managed_resume_stages phase[5] attach-live-check=16.67925ms
+    startup_detach_timing_live_test.go:371: managed_resume_stages phase[6] attach-registry+repair=346.084µs
+    startup_detach_timing_live_test.go:371: managed_resume_stages phase[7] attach-cleanup+release=2.709125ms
+    startup_detach_timing_live_test.go:371: managed_resume_stages wall=80.388709ms exclusive_measured=63.610625ms residual=16.778084ms
+    startup_detach_timing_live_test.go:372: owner/proc phases are nested inside launch stages; do not add the two measured totals
+    startup_detach_timing_live_test.go:405: managed_attach_ready after_parent_return=525.03325ms startup_total=605.56ms
+    startup_detach_timing_live_test.go:411: child pair startup: phase=native-entry delta_ms=0.701 elapsed_ms=0.701
+    startup_detach_timing_live_test.go:411: child pair startup: phase=native-resolution delta_ms=10.955 elapsed_ms=11.656
+    startup_detach_timing_live_test.go:411: child pair startup: phase=launch-entry delta_ms=0.016 elapsed_ms=11.671
+    startup_detach_timing_live_test.go:411: child pair startup: phase=migration delta_ms=0.016 elapsed_ms=11.688
+    startup_detach_timing_live_test.go:411: child pair startup: phase=ancestry delta_ms=0.898 elapsed_ms=12.586
+    startup_detach_timing_live_test.go:411: child pair startup: phase=prelude delta_ms=0.006 elapsed_ms=12.592
+    startup_detach_timing_live_test.go:411: child pair startup: phase=discovery delta_ms=0.029 elapsed_ms=12.621
+    startup_detach_timing_live_test.go:411: child pair startup: phase=decision delta_ms=0.003 elapsed_ms=12.624
+    startup_detach_timing_live_test.go:411: child pair startup: phase=attach-verification delta_ms=16.270 elapsed_ms=28.894
+    startup_detach_timing_live_test.go:411: child pair startup: phase=attach-layout delta_ms=0.044 elapsed_ms=28.938
+    startup_detach_timing_live_test.go:411: child pair startup: phase=attach-retention delta_ms=19.468 elapsed_ms=48.405
+    startup_detach_timing_live_test.go:411: child pair startup: phase=attach-setup delta_ms=4.606 elapsed_ms=53.011
+    startup_detach_timing_live_test.go:411: child pair startup: phase=attach-revalidation delta_ms=15.649 elapsed_ms=68.661
+    startup_detach_timing_live_test.go:411: child pair startup: phase=attach-handoff delta_ms=0.012 elapsed_ms=68.672
+    startup_detach_timing_live_test.go:414: child deltas partition startup through blocking handoff entry; elapsed_ms is cumulative; parent registration overlaps child startup
+    startup_detach_timing_live_test.go:418: detach phase[1] proc.Exists=4.209µs
+    startup_detach_timing_live_test.go:418: detach phase[2] proc.Identity=117.125µs
+    startup_detach_timing_live_test.go:418: detach phase[3] proc.SignalGroup=19.375µs
+    startup_detach_timing_live_test.go:418: detach phase[4] proc.Exists=750ns
+    startup_detach_timing_live_test.go:418: detach phase[5] proc.Identity=52.25µs
+    startup_detach_timing_live_test.go:418: detach phase[6] proc.Exists=4.458µs
+    startup_detach_timing_live_test.go:418: detach wall=11.058916ms exclusive_measured=198.167µs residual=10.860749ms
+    startup_detach_timing_live_test.go:419: detach_stages wall=11.058916ms exclusive_measured=0s residual=11.058916ms
+    startup_detach_timing_live_test.go:433: sentinel_survived=true owned_session=pair-perf-bb4741097c3861af retired=true; parent phases exclude child's owner reads; use zellij shim trace and launcher owner timing companion
+    startup_detach_timing_live_test.go:434: first managed attach+detach PASS; beginning retained-session managed client reattach (not supervisor restart)
+    startup_detach_timing_live_test.go:459: second_managed_resume wall=218.2395ms exclusive_measured=0s residual=218.2395ms
+    startup_detach_timing_live_test.go:474: NATIVE_BEHAVIOR_PASS first managed attach/detach + retained-session reattach/detach; same_server=map[42939:1792572890.63797] original_45s_budget=true supervisor_restart=false
+pair startup snapshot: pid=42636 kind=named table_calls=1 command_calls=61 identity_calls=61 duration_ms=3.305
+    startup_detach_timing_live_test.go:278: native fixture cleanup diagnostic: close /dev/ptmx: file already closed
+    startup_detach_timing_live_test.go:292: native server cleanup pid=42939 generation=1792572890.63797 absent=true close_error=close /dev/ptmx: file already closed
+    startup_detach_timing_live_test.go:115: native root removed=/Volumes/TestScratch/tmp/pair-slot5/TestStartupManagedAttachDetachTimingLive2502523534/001
+    startup_detach_timing_live_test.go:115: native root removed=/private/tmp/p218.4128801851
+--- FAIL: TestStartupManagedAttachDetachTimingLive (3.58s)
+FAIL
+write budget couchcore: bytes=73728 cap=134217728 repeats=1
+FAIL	github.com/xianxu/pair/cmd/internal/couchcore	3.834s
+FAIL

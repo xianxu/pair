@@ -22,7 +22,7 @@ import (
 )
 
 func TestRecognizeCodexWorkingCapturedRenderedFrame(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join("testdata", "tty", "codex", "0.152.0", "working.raw"))
+	raw, err := os.ReadFile(filepath.Join("testdata", "drive", "codex", "0.163.0", "working-prefix.raw"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,8 +41,11 @@ func TestRecognizeCodexWorkingCapturedRenderedFrame(t *testing.T) {
 	if !sawWorking {
 		t.Fatal("captured Codex Working frames were not recognized")
 	}
+	if err := model.Feed([]byte(syntheticCodexWork("", false))); err != nil {
+		t.Fatal(err)
+	}
 	if RecognizeCodexWorking(model.Snapshot()) {
-		t.Fatal("captured final frame still recognized as Working")
+		t.Fatal("fresh idle composer still recognized as Working")
 	}
 }
 
@@ -57,7 +60,7 @@ func TestRecognizeCodexWorkingRejectsLookalikes(t *testing.T) {
 	for name, line := range tests {
 		t.Run(name, func(t *testing.T) {
 			model := newTerminalModelForTest(t, 120, 38)
-			if err := model.Feed([]byte("\x1b[32;1H" + line + "\x1b[35;1H› \x1b[?25h")); err != nil {
+			if err := model.Feed([]byte(syntheticCodexWork(line, false))); err != nil {
 				t.Fatal(err)
 			}
 			if RecognizeCodexWorking(model.Snapshot()) {
@@ -69,7 +72,7 @@ func TestRecognizeCodexWorkingRejectsLookalikes(t *testing.T) {
 
 func TestRecognizeCodexWorkingRequiresStatusLocation(t *testing.T) {
 	model := newTerminalModelForTest(t, 120, 38)
-	if err := model.Feed([]byte("\x1b[10;1H• Working (1s • esc to interrupt)\x1b[35;1H› \x1b[?25h")); err != nil {
+	if err := model.Feed([]byte(syntheticCodexWork("", false) + "\x1b[?2026h\x1b[3;1H• Working (1s • esc to interrupt)\x1b[14;3H\x1b[?2026l")); err != nil {
 		t.Fatal(err)
 	}
 	if RecognizeCodexWorking(model.Snapshot()) {
@@ -86,7 +89,7 @@ func TestHandleChunkPublishesCodexWorkingPresenceAndDisappearance(t *testing.T) 
 
 func captureCodexVisualNotification(t *testing.T) []byte {
 	t.Helper()
-	raw, err := os.ReadFile(filepath.Join("testdata", "tty", "codex", "0.152.0", "working.raw"))
+	raw, err := os.ReadFile(filepath.Join("testdata", "drive", "codex", "0.163.0", "working-prefix.raw"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,18 +119,13 @@ func captureCodexVisualNotification(t *testing.T) []byte {
 	if !sawWorking {
 		t.Fatal("production adapter did not observe captured Working presence")
 	}
+	p.handleChunk([]byte(syntheticCodexWork("", false)), &rolling)
 	if !p.notificationLifecycle.GracePending || p.codexWorkingRendered {
 		t.Fatalf("captured final lifecycle = %+v rendered=%t", p.notificationLifecycle, p.codexWorkingRendered)
 	}
 	p.processLifecycleObservation(TurnObservation{
 		Kind: ObservationGraceExpired, Token: p.notificationLifecycle.GraceToken,
 	})
-	// The captured file ends in ESC[3. Completion must wait for a genuine
-	// boundary; append the missing CSI final byte rather than injecting into it.
-	if len(p.stdoutPump.notifications) != 1 {
-		t.Fatal("truncated capture did not hold notification")
-	}
-	p.handleChunk([]byte("m"), &rolling)
 	p.flushStdout("fixture-complete")
 
 	written, err := os.ReadFile(outer)
@@ -331,5 +329,23 @@ func TestCodexCouchRenderOwnsReplyDrain(t *testing.T) {
 				t.Errorf("emulator remains usable after render cleanup: %v", err)
 			}
 		})
+	}
+}
+
+// The old capture was an unframed status-only delta; its text cannot prove
+// current work without the agent's composer in the same coherent viewport.
+func TestCodexWorkingOldStatusFragmentDoesNotProveWork(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("testdata", "tty", "codex", "0.152.0", "working.raw"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := newTerminalModelForTest(t, 120, 38)
+	for _, b := range raw {
+		if err := model.Feed([]byte{b}); err != nil {
+			t.Fatal(err)
+		}
+		if RecognizeCodexWorking(model.Snapshot()) {
+			t.Fatal("unqualified status fragment proved work")
+		}
 	}
 }

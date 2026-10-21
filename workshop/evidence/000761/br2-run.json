@@ -1,0 +1,24 @@
+{
+  "TMPDIR": "/Volumes/TestScratch/tmp/pair-slot5/pair-761-br2-class-n90kxn86/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "TMPDIR_bytes": 219,
+  "red_args": [
+    "go",
+    "test",
+    "./cmd/internal/launcher",
+    "-run",
+    "^TestWorkbenchPerformanceOwnerPassCountsEveryNativeFence$",
+    "-count=1"
+  ],
+  "red_exit": 1,
+  "green_args": [
+    "go",
+    "test",
+    "./cmd/internal/launcher",
+    "-count=1"
+  ],
+  "green_exit": 0,
+  "long_root_removed": true,
+  "green_package_seconds": 63.054,
+  "artifactpath_seconds": 8.372,
+  "repolint_seconds": 9.156
+}

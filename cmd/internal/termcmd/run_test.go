@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/layoutcmd"
 	"github.com/xianxu/pair/cmd/internal/mouseinput"
 	"github.com/xianxu/pair/cmd/internal/terminal"
 	"io"
@@ -57,7 +58,7 @@ func TestRunTestShortcutRightTerminalActions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rt := &fakeRuntime{currentPaneID: "4", panesJSON: panes, lastLeft: tt.last}
+			rt := &fakeRuntime{terminalPaneIDs: []string{"4"}, currentPaneID: "4", panesJSON: panes, lastLeft: tt.last}
 			var stderr bytes.Buffer
 			stdin := ""
 			if tt.chord == "Alt+r" {
@@ -99,7 +100,7 @@ func TestRunTestShortcutRecordsLeftPane(t *testing.T) {
 		{"id":1,"is_focused":true,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua","pane_x":0,"pane_y":0,"pane_columns":75,"pane_rows":39,"tab_id":1,"tab_position":1},
 		{"id":3,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"title":"terminal","terminal_command":"pair term","pane_x":0,"pane_y":0,"pane_columns":75,"pane_rows":39,"tab_id":1,"tab_position":1}
 	]`
-	rt := &fakeRuntime{currentPaneID: "1", panesJSON: panes}
+	rt := &fakeRuntime{terminalPaneIDs: []string{"3"}, currentPaneID: "1", panesJSON: panes}
 	var stderr bytes.Buffer
 	code := RunWithRuntime([]string{"--test-shortcut", "Alt+k"}, strings.NewReader(""), &bytes.Buffer{}, &stderr, rt)
 	if code != 0 {
@@ -119,7 +120,7 @@ func TestRunTestShortcutGlobalLayoutToggle(t *testing.T) {
 		{"id":2,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md","pane_x":0,"pane_y":0,"pane_columns":75,"pane_rows":39,"tab_id":1,"tab_position":1},
 		{"id":3,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"title":"terminal","terminal_command":"pair term","pane_x":0,"pane_y":0,"pane_columns":75,"pane_rows":39,"tab_id":1,"tab_position":1}
 	]`
-	rt := &fakeRuntime{currentPaneID: "1", panesJSON: panes}
+	rt := &fakeRuntime{terminalPaneIDs: []string{"3"}, currentPaneID: "1", panesJSON: panes}
 	var stderr bytes.Buffer
 	code := RunWithRuntime([]string{"--test-shortcut", "Alt+Shift+Enter"}, strings.NewReader(""), &bytes.Buffer{}, &stderr, rt)
 	if code != 0 {
@@ -212,7 +213,7 @@ func TestPumpStdinHandlesTerminalTabActions(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rt := &fakeRuntime{currentPaneID: "4"}
+			rt := &fakeRuntime{terminalPaneIDs: []string{"4"}, currentPaneID: "4"}
 			mux := &fakeMux{appMouse: tt.appMouse}
 			var stdout bytes.Buffer
 			pumpStdinWithTimer(&splitReader{chunks: tt.chunks}, mux, rt, &stdout, beforeDeadline())
@@ -244,7 +245,7 @@ func TestSplitTerminalDownIsNativeTiledSplit(t *testing.T) {
 		{"id":2,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md","pane_y":0,"tab_id":1,"tab_position":1},
 		{"id":4,"is_focused":true,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":75,"pane_columns":75,"pane_rows":51,"title":"terminal","terminal_command":"pair term","pane_y":0,"tab_id":1,"tab_position":1}
 	]`
-	rt := &fakeRuntime{panesJSON: panes, currentPaneID: "4"}
+	rt := &fakeRuntime{terminalPaneIDs: []string{"4"}, panesJSON: panes, currentPaneID: "4"}
 
 	if err := splitTerminalDown(rt); err != nil {
 		t.Fatal(err)
@@ -261,7 +262,7 @@ func TestSplitTerminalDownIsNativeTiledSplit(t *testing.T) {
 }
 
 func TestTerminalAltKRecordsLeavingSplitHalf(t *testing.T) {
-	rt := &fakeRuntime{currentPaneID: "4", lastLeft: "1"}
+	rt := &fakeRuntime{terminalPaneIDs: []string{"4"}, currentPaneID: "4", lastLeft: "1"}
 	var stderr bytes.Buffer
 	code := RunWithRuntime([]string{"--test-shortcut", "Alt+k"}, strings.NewReader(""), &bytes.Buffer{}, &stderr, rt)
 	if code != 0 {
@@ -311,7 +312,7 @@ func TestChordRoleResolvesOwnPaneUnderAmbiguousFocus(t *testing.T) {
 		{"id":4,"is_focused":true,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":75,"pane_columns":75,"pane_rows":51,"title":"terminal","terminal_command":"pair term","pane_y":0,"tab_id":1,"tab_position":1},
 		{"id":2,"is_focused":true,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md","pane_y":0,"tab_id":1,"tab_position":1}
 	]`
-	rt := &fakeRuntime{panesJSON: panes, currentPaneID: "4"}
+	rt := &fakeRuntime{terminalPaneIDs: []string{"4"}, panesJSON: panes, currentPaneID: "4"}
 	var stderr bytes.Buffer
 	code := RunWithRuntime([]string{"--test-shortcut", "Alt+Shift+d"}, strings.NewReader(""), &bytes.Buffer{}, &stderr, rt)
 	if code != 0 {
@@ -979,12 +980,11 @@ func TestEveryHandledTerminalChordIsDocumented(t *testing.T) {
 	}
 }
 
-// The synthesised pane on #220's fast path must classify the way the real
-// report would. If RoleForPane's predicate changes and this constant does not,
-// every chord from the terminal routes as PaneRoleOther — silently.
+// The synthesised pane on #220's fast path must classify like a real report
+// with the same live registration. Startup metadata alone is not ownership.
 func TestRightTerminalClassifierClassifiesAsARightTerminal(t *testing.T) {
 	pane := zellijpane.Pane{ID: "4", TerminalCommand: rightTerminalClassifier}
-	if got := workbenchshortcut.RoleForPaneWith(pane, nil); got != workbenchshortcut.PaneRoleRightTerminal {
+	if got := workbenchshortcut.RoleForPaneWith(pane, []string{"4"}); got != workbenchshortcut.PaneRoleRightTerminal {
 		t.Fatalf("RoleForPaneWith(synthesised) = %v, want PaneRoleRightTerminal", got)
 	}
 }
@@ -1013,8 +1013,8 @@ const workbenchFixturePanes = `[
 
 func TestFocusedWorkbenchPanesFastPathAnswersWhatTheSlowPathWould(t *testing.T) {
 	fast := &fakeRuntime{currentPaneID: "4", terminalPaneIDs: []string{"4"}, cachedDraft: "7", panesJSON: workbenchFixturePanes}
-	// Same world; the gate fails, so this one walks the pane report.
-	slow := &fakeRuntime{currentPaneID: "4", cachedDraft: "7", panesJSON: workbenchFixturePanes}
+	// Same live ownership; no cached draft forces confirmed native observations.
+	slow := &fakeRuntime{currentPaneID: "4", terminalPaneIDs: []string{"4"}, panesJSON: workbenchFixturePanes}
 
 	fastPanes, err := focusedWorkbenchPanes(fast)
 	if err != nil {
@@ -1075,13 +1075,22 @@ func TestFocusedWorkbenchPanesFallsBackWhenTheGateFails(t *testing.T) {
 
 func TestCurrentRightTerminalPaneFastPathAnswersWhatTheSlowPathWould(t *testing.T) {
 	fast := &fakeRuntime{currentPaneID: "4", terminalPaneIDs: []string{"4"}, panesJSON: workbenchFixturePanes}
-	slow := &fakeRuntime{currentPaneID: "4", panesJSON: workbenchFixturePanes}
+	slow := &fakeRuntime{currentPaneID: "4", terminalPaneIDs: []string{"4"}, panesJSON: workbenchFixturePanes}
 
 	fastPane, fastOK, err := currentRightTerminalPane(fast)
 	if err != nil {
 		t.Fatal(err)
 	}
-	slowPane, slowOK, err := currentRightTerminalPane(slow)
+	// Exercise the confirmed native selector directly: the public helper always
+	// takes the fast path when its current ID is registered.
+	slowPanes, _, _, err := layoutcmd.ConfirmWorkbenchPanesContext(context.Background(), slow, "4", slow.terminalPaneIDs)
+	var slowPane zellijpane.Pane
+	slowOK := false
+	for _, pane := range slowPanes {
+		if pane.ID == "4" && workbenchshortcut.RoleForPaneWith(pane, slow.terminalPaneIDs) == workbenchshortcut.PaneRoleRightTerminal {
+			slowPane, slowOK = pane, true
+		}
+	}
 	if err != nil {
 		t.Fatal(err)
 	}

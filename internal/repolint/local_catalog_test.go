@@ -19,10 +19,25 @@ var pairCatalog = append(append([]golint.Rule(nil), golint.Catalog...), golint.R
 	Message:  "compose diagnostic addresses atomically with completeFailureAddress; partial target evidence must not replace an exact captured address",
 	Match:    lifecycleFailureAddressOverrides,
 }, golint.Rule{
+	Name:     "terminal-registry-owner",
+	Incident: "pair#731",
+	Message:  "use LiveOwnerIDs for native terminal ownership; kill-only LiveIDs admits a shell after exec",
+	Match:    terminalRegistryOwnerCalls,
+}, golint.Rule{
 	Name:     "zellij-read-attempt-bypass",
 	Incident: "pair#748",
 	Message:  "call ZellijSource.runContext to preserve bounded read recovery, the shared deadline and per-attempt evidence; runQueryAttempt belongs only to that entry point",
 	Match:    zellijReadAttemptBypasses,
+}, golint.Rule{
+	Name:     "controlled-zellij-close",
+	Incident: "pair#764",
+	Message:  "report or propagate ControlledZellij.Close cleanup errors; discarded cleanup can leave a controlled session alive",
+	Match:    discardedControlledZellijCloses,
+}, golint.Rule{
+	Name:     "scribe-pty-printf",
+	Incident: "pair#766",
+	Message:  "use a terminal-aware producer and acknowledge its readiness before final output; direct printf can fail before producing the test marker",
+	Match:    scribePTYPrintfCalls,
 })
 
 // The bounded entry owns individual native attempts. New callers must not

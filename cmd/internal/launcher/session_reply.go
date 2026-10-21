@@ -93,3 +93,33 @@ func sessionListingState(raw []byte, name string) (present, exited bool, err err
 	exited, present = states[name]
 	return present, exited, nil
 }
+
+// parseColoredSessionListing decodes only print_sessions' native 0.45.1 SGR
+// envelope. It is not an ANSI scrubber: unrelated escapes and partially colored
+// rows remain invalid, and the existing whole-list validator owns names/state.
+func parseColoredSessionListing(raw []byte) (map[string]bool, error) {
+	if len(raw) == 0 || !utf8.Valid(raw) {
+		return nil, fmt.Errorf("invalid colored session listing")
+	}
+	var plain strings.Builder
+	for _, row := range strings.Split(strings.TrimSuffix(string(raw), "\n"), "\n") {
+		name, rest, ok := strings.Cut(strings.TrimPrefix(row, "\x1b[32;1m"), "\x1b[m [Created \x1b[35;1m")
+		if !strings.HasPrefix(row, "\x1b[32;1m") || !ok {
+			return nil, fmt.Errorf("invalid colored session name envelope")
+		}
+		duration, suffix, ok := strings.Cut(rest, "\x1b[m ago]")
+		if !ok {
+			return nil, fmt.Errorf("invalid colored session duration envelope")
+		}
+		// Native exited rows color exactly EXITED; a live/current row has no more SGR.
+		switch suffix {
+		case " ", " (current)":
+		case " (\x1b[31;1mEXITED\x1b[m - attach to resurrect)":
+			suffix = " (EXITED - attach to resurrect)"
+		default:
+			return nil, fmt.Errorf("invalid colored session suffix envelope")
+		}
+		plain.WriteString(name + " [Created " + duration + " ago]" + suffix + "\n")
+	}
+	return sessionListingStates([]byte(plain.String()))
+}

@@ -1,0 +1,214 @@
+package launcher
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
+	"github.com/xianxu/pair/cmd/internal/procutil"
+	"github.com/xianxu/pair/cmd/internal/testpair"
+	"github.com/xianxu/pair/cmd/internal/zellijexec"
+	"github.com/xianxu/pair/cmd/internal/zellijreply"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+)
+
+func TestNativeFinalMixedCapture761(t *testing.T) {
+	evidence := "/Volumes/TestScratch/tmp/pair-slot5/pair-761-final-mixed.fSSjNJ"
+	parent := os.TempDir()
+	if st, e := os.Stat("/Volumes/TestScratch"); e == nil && st.IsDir() {
+		parent = "/Volumes/TestScratch"
+	}
+	root, e := os.MkdirTemp(parent, "p761-")
+	if e != nil {
+		t.Fatal(e)
+	}
+	root, e = filepath.EvalSymlinks(root)
+	if e != nil {
+		t.Fatal(e)
+	}
+	vals := []string{"TMPDIR=" + root, "SHELL=/bin/sh"}
+	for _, key := range []string{"HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_RUNTIME_DIR", "ZELLIJ_SOCKET_DIR", "ZELLIJ_CONFIG_DIR"} {
+		p := filepath.Join(root, key)
+		if e := os.MkdirAll(p, 0700); e != nil {
+			t.Fatal(e)
+		}
+		vals = append(vals, key+"="+p)
+	}
+	testpair.ApplyEnvironment(t, root, vals...)
+	ctx, cancel := context.WithTimeout(t.Context(), 4*time.Minute)
+	defer cancel()
+	var random [8]byte
+	if _, e := rand.Read(random[:]); e != nil {
+		t.Fatal(e)
+	}
+	session := "p761-" + hex.EncodeToString(random[:])
+	t.Logf("root=%s session=%s", root, session)
+	fixtures := []*pairlifecycletest.ControlledZellij{}
+	sessions := []string{}
+	cleaned := false
+	defer func() {
+		if !cleaned {
+			t.Errorf("cleanup not proven; root retained %s", root)
+		}
+	}()
+	for n := 0; n < 3; n++ {
+		name := fmt.Sprintf("%s-%d", session, n)
+		f, e := pairlifecycletest.StartControlledZellij(ctx, name)
+		if e != nil {
+			t.Fatalf("start root retained %s: %v", root, e)
+		}
+		fixtures = append(fixtures, f)
+		sessions = append(sessions, name)
+		if e := f.AddOwnerWrapperPane(ctx, filepath.Join(root, fmt.Sprintf("scrollback-%d.raw", n))); e != nil {
+			t.Error(e)
+		}
+	}
+	rows, e := procutil.SnapshotNamed(ctx, "zellij")
+	if e != nil {
+		t.Fatal(e)
+	}
+	owned := map[int]string{}
+	for _, r := range rows {
+		if len(r.Args) == 3 && r.Args[1] == "--server" && strings.HasPrefix(filepath.Base(r.Args[2]), session+"-") {
+			owned[r.PID] = r.Identity
+		}
+	}
+	if len(owned) != 3 {
+		t.Errorf("exact native server generations=%v", owned)
+	}
+	log, e := os.OpenFile(filepath.Join(evidence, "queries.jsonl"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if e != nil {
+		t.Fatal(e)
+	}
+	var mu sync.Mutex
+	emit := func(v any) {
+		mu.Lock()
+		defer mu.Unlock()
+		if e := json.NewEncoder(log).Encode(v); e != nil {
+			t.Error(e)
+		}
+	}
+	emit(map[string]any{"kind": "ownership", "root": root, "session": session, "servers": owned})
+	var next atomic.Int64
+	var attempts atomic.Int64
+	var finals atomic.Int64
+	var malformed atomic.Int64
+	var wg sync.WaitGroup
+	for worker := 0; worker < 4; worker++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				sample := int(next.Add(1)) - 1
+				if sample >= 1000 || ctx.Err() != nil {
+					return
+				}
+				attempt := 0
+				source := ZellijSource{queryRun: func(cmd *exec.Cmd) error {
+					attempt++
+					attempts.Add(1)
+					stem := fmt.Sprintf("query-%04d-attempt-%d", sample, attempt)
+					out, e := os.OpenFile(filepath.Join(evidence, stem+".stdout"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+					if e != nil {
+						return e
+					}
+					stderr, e := os.OpenFile(filepath.Join(evidence, stem+".stderr"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+					if e != nil {
+						return errors.Join(e, out.Close())
+					}
+					cmd.Stdout = io.MultiWriter(cmd.Stdout, out)
+					cmd.Stderr = io.MultiWriter(cmd.Stderr, stderr)
+					runErr := zellijexec.Run(cmd)
+					closeErr := errors.Join(out.Close(), stderr.Close())
+					if closeErr != nil {
+						return errors.Join(runErr, closeErr)
+					}
+					return runErr
+				}}
+				qctx := WithZellijQueryObserver(ctx, func(event ZellijQueryObservation) {
+					emit(map[string]any{"kind": "attempt", "sample": sample, "attempt": attempt, "event": event, "attempt_error": fmt.Sprint(event.Err), "lookup_miss": errors.Is(event.Err, errZellijSessionLookupMiss), "no_reply": errors.Is(event.Err, ErrZellijNoReply), "crossed_reply": errors.Is(event.Err, errZellijCrossedReply)})
+				})
+				selected := sessions[(sample/4)%len(sessions)]
+				kind := sample % 4
+				args := []string{"--session", selected, "action", "list-panes", "--json", "--command"}
+				switch kind {
+				case 1:
+					args = append(args, "--state")
+				case 2:
+					args = []string{"--session", selected, "action", "list-clients"}
+				case 3:
+					args = []string{"list-sessions", "--no-formatting"}
+				}
+				raw, err := source.runContext(qctx, args...)
+				if err == nil {
+					switch kind {
+					case 0, 1:
+						_, err = zellijreply.ParsePanes(raw, zellijreply.PaneRequirements{Command: true, State: true, Geometry: true, Tab: true})
+						if !json.Valid(raw) {
+							malformed.Add(1)
+						}
+					case 2:
+						_, err = zellijreply.ParseClients(raw)
+					case 3:
+						err = validateSessionListing(raw, false)
+					}
+				}
+				if err != nil {
+					finals.Add(1)
+				}
+				emit(map[string]any{"kind": "final", "sample": sample, "args": args, "error": fmt.Sprint(err), "output": raw, "json_valid": json.Valid(raw)})
+			}
+		}()
+	}
+	wg.Wait()
+	emit(map[string]any{"kind": "summary", "logical": min(next.Load()-4, 1000), "attempts": attempts.Load(), "failed_final": finals.Load(), "malformed_json": malformed.Load(), "context_error": fmt.Sprint(ctx.Err())})
+	var closeErr error
+	for _, f := range fixtures {
+		closeErr = errors.Join(closeErr, f.Close())
+	}
+	rows, e = procutil.SnapshotNamed(context.Background(), "zellij")
+	if e != nil {
+		closeErr = errors.Join(closeErr, e)
+	} else {
+		for _, r := range rows {
+			if id, ok := owned[r.PID]; ok && !r.Zombie && (r.Identity == id || r.Identity == "") {
+				closeErr = errors.Join(closeErr, fmt.Errorf("owned server generation remains pid=%d identity=%s", r.PID, r.Identity))
+			}
+			if strings.Contains(strings.Join(r.Args, " "), root) && !r.Zombie {
+				closeErr = errors.Join(closeErr, fmt.Errorf("private-root process remains %d %v", r.PID, r.Args))
+			}
+		}
+	}
+	if closeErr == nil {
+		closeErr = os.RemoveAll(root)
+		if _, e := os.Stat(root); !os.IsNotExist(e) {
+			closeErr = errors.Join(closeErr, fmt.Errorf("root removal not proven: %v", e))
+		}
+	}
+	emit(map[string]any{"kind": "cleanup", "error": fmt.Sprint(closeErr), "root": root, "servers": owned})
+	if e := log.Close(); e != nil {
+		t.Error(e)
+	}
+	if closeErr != nil {
+		t.Fatalf("cleanup failed root retained %s: %v", root, closeErr)
+	}
+	cleaned = true
+	t.Logf("logical limit=1000 attempts=%d failed_final=%d malformed_json=%d servers_absent=true root_removed=true evidence=%s", attempts.Load(), finals.Load(), malformed.Load(), evidence)
+	if ctx.Err() != nil {
+		t.Error(ctx.Err())
+	}
+	if finals.Load() > 0 {
+		t.Fatal("native query failures captured; no test retry")
+	}
+}

@@ -984,7 +984,9 @@ func runStartupFleetTiming(t *testing.T) {
 			t.Error(err)
 		}
 		for _, pane := range panes {
-			_ = pane.fixture.Close()
+			if err := pane.fixture.Close(); err != nil {
+				t.Errorf("controlled zellij cleanup: %v", err)
+			}
 		}
 		if err := os.RemoveAll(socketRoot); err != nil {
 			t.Error(err)

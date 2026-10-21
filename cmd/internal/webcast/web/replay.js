@@ -7,6 +7,7 @@
 // and who drove.
 
 import { Model } from './model.js';
+import { SKETCH_KINDS } from './sketch-model.js';
 import { strokesAt, paintStrokes, pinLayer, liveNotes } from './annotate.js';
 
 // catchUp is recording.CatchUp (catchup.go), record for record: head and
@@ -17,6 +18,23 @@ import { strokesAt, paintStrokes, pinLayer, liveNotes } from './annotate.js';
 // corpus tests/webcast/catchup_corpus.json holds Go's answers at every cut
 // (TestCatchUpCorpus), and replay.test.mjs holds this port to them.
 export function catchUp(recs) {
+  if (!recs.some(r => SKETCH_KINDS.includes(r.k) || r.k === 'sketch-snapshot')) return catchUpRecords(recs);
+  const model = new Model({allowSketchSnapshot: true});
+  try {
+    for (const r of recs) model.apply(r);
+  } catch {
+    return recs.slice(); // preserve the invalid prefix for ordinary validation
+  }
+  const control = {};
+  if (model.control.driver) control.driver = structuredClone(model.control.driver);
+  if (model.control.pending.length) control.pending = structuredClone(model.control.pending);
+  const out = catchUpRecords(recs).filter(r =>
+    !SKETCH_KINDS.includes(r.k) && r.k !== 'sketch-snapshot');
+  out.push({t: model.t, k: 'sketch-snapshot', control, sketches: model.sketchProjection()});
+  return out;
+}
+
+function catchUpRecords(recs) {
   let last = -1, doc = -1;
   recs.forEach((r, i) => {
     if (r.k !== 'seg') return;
@@ -170,6 +188,7 @@ export const SPEEDS = [0.5, 1, 2, 4];
 // error, keeping the last state it drew.
 export class Player {
   constructor(recs, deps) {
+    if (recs.some(r => r.k === 'sketch-snapshot')) throw new Error('snapshot bootstrap in raw replay source');
     this.recs = recs;
     this.deps = { model: () => new Model(), onRecord: () => {}, ...deps };
     this.tl = timeline(recs);
@@ -230,7 +249,12 @@ export class Player {
     this.rebuilds++;
     const to = this.cut(t);
     this.fresh();
-    for (const r of catchUp(this.recs.slice(0, to))) this.apply(r);
+    this.model.allowSketchSnapshot = true;
+    try {
+      for (const r of catchUp(this.recs.slice(0, to))) this.apply(r);
+    } finally {
+      this.model.allowSketchSnapshot = false;
+    }
     this.next = to;
     this.t = t;
   }

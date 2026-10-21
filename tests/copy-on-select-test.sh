@@ -85,15 +85,16 @@ export XDG_CACHE_HOME="$tmp/cache"
 quote="$PAIR_DATA_DIR/quote-t"
 run() {
   rm -f "$quote" "$tmp/clipboard"
-  python3 - "$PAIR_TEST_COPY_BINARY" "$PAIR_TEST_COPY_DONE" <<'PYTHON'
+  python3 - "$PAIR_TEST_COPY_BINARY" "$PAIR_TEST_COPY_DONE" "${1:-0}" <<'PYTHON'
 import os, select, subprocess, sys
 fd = os.open(sys.argv[2], os.O_RDONLY | os.O_NONBLOCK)
 try:
     subprocess.run([sys.argv[1], 'clip', 'copy-on-select'], input=b'selected text', check=True, timeout=3)
     if not select.select([fd], [], [], 3)[0]:
         raise SystemExit('detached copy orchestrator did not finish')
-    if os.read(fd, 32).strip() != b'0':
-        raise SystemExit('detached copy orchestrator refused a healthy fixture')
+    result = os.read(fd, 32).strip()
+    if result != sys.argv[3].encode():
+        raise SystemExit(f'detached copy orchestrator returned {result!r}, wanted {sys.argv[3]}')
 finally:
     os.close(fd)
 PYTHON
@@ -116,10 +117,12 @@ python3 "$PAIR_TEST_ZELLIJ_REPLIES" --case copy-on-select.draft > "$tmp/panes.js
 run
 [ -f "$quote" ] && { echo "FAIL (b) draft-pane selection handed off (would self-insert)"; fail=1; }
 
-# (c) #125: selection in the RIGHT TERMINAL → must NOT hand off, while the
-#     clipboard mirror still happens. This is the distraction that was removed.
+# (c) #731: this fixture supplies a Pair-looking terminal template but starts
+#     no registered wrapper owner. Refuse auto-quote without staging anything;
+#     the clipboard mirror still succeeds. Registered-terminal copy-only
+#     behavior is covered by TestCopyOnSelectOrchestrateSkipsRightTerminal.
 python3 "$PAIR_TEST_ZELLIJ_REPLIES" --case copy-on-select.terminal > "$tmp/panes.json"
-run
+run 1
 [ -f "$quote" ] && { echo "FAIL (c) right-terminal selection auto-pasted into the draft (#125)"; fail=1; }
 [ "$(pbpaste 2>/dev/null)" = "selected text" ] || { echo "FAIL (c) right-terminal selection did not reach the clipboard"; fail=1; }
 
