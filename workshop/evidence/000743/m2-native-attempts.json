@@ -32,5 +32,14 @@
     "input_mutation": "m2-known-bad-input.diff",
     "observed_refusal": "conformance skip: TestLiveConsoleNvimPreservesContentAndChrome",
     "events": 6
+  },
+  {
+    "nonce": "727e948abb68c357ea505ba81b18fb3b",
+    "head": "04ec9e29e476fb5d312e73e85acd1f6750bc6080",
+    "exit_code": 0,
+    "lane_claim_retained": false,
+    "events": 410,
+    "required_cases": 28,
+    "purpose": "Final shared-selection code qualification after BR-4 correction"
   }
 ]
