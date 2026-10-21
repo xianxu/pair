@@ -318,6 +318,119 @@ rounds:
       isolation: fenced
       reviewed: f684f972951b18ec530dd8acdc012bd6b1031680
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: fd40622f-0b21-4e1d-b394-21e0487cd50a
+            repository: github.com/xianxu/pair
+            issue_id: "000742"
+            recipe: small-diff-review
+            round: 5
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/b36bd268d5a271aa
+            reviewed_head: e767dc64d4e161b2539ae87251d276872b9a7bee
+            slot: pair:2
+            requested_at: "2026-10-21T05:01:21.806889Z"
+          phase: finished
+          pid: 79235
+          started_at: "2026-10-21T05:01:21.956019Z"
+          finished_at: "2026-10-21T05:03:59.425099Z"
+          session_id: 01a15cd5-de2d-73a1-83d8-8aec90206479
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: e767dc64d4e161b2539ae87251d276872b9a7bee
+        tracker_head: 0b5e7b24c3712a0438f5b7374d9d9d10541e5d84
+        branch_point: 9c926136d44af5bad734eaef7986e327a06a1965
+        since: "2026-10-20T12:53:03-07:00"
+        until: "2026-10-20T21:59:41-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-20T12:53:03-07:00"
+              end: "2026-10-20T21:59:41-07:00"
+              began: "2026-10-20T12:53:03-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+        sources:
+            - harness: codex
+              id: 01a15a8b-89c9-7e02-a733-8b52dd00ebac
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 9feba2d29bebaf6a9a9fcdcebe780f1e5cb1c1acde77d16831943ee5b4e1cad8
+              started: "2026-10-20T18:21:51.812Z"
+              spawned: false
+              bytes: 12993345
+              windows:
+                - start: "2026-10-20T12:53:03-07:00"
+                  end: "2026-10-20T21:59:41-07:00"
+        queue_waits:
+            - attempt_id: 4a78a2fed7679560399354cfd444be20
+              slot: pair:2
+              record_digest: 7cc684da4a220bb8ffb09b7179ae8f55f0e7f63fe751d56293b45f85ad4c8a0f
+              start: "2026-10-20T20:58:41.784882Z"
+              end: "2026-10-20T21:34:03.641174Z"
+              queue_seconds: 2121.856292
+              raw_seconds: 2121.856292
+              exact: true
+            - attempt_id: 0c95a86908017d63507e53cbcca33890
+              slot: pair:2
+              record_digest: a96f4cc66859b8e583128d0841cefc6c97febf75751e99b2346e3b68298c2897
+              start: "2026-10-21T00:28:14.660992Z"
+              end: "2026-10-21T01:14:31.217061Z"
+              queue_seconds: 2776.556069
+              raw_seconds: 2776.556069
+              exact: true
+        protected:
+            - issue: "747"
+              slot: pair:2
+              start: "2026-10-21T00:17:35.562Z"
+              end: "2026-10-21T00:28:29.956Z"
+            - issue: "747"
+              slot: pair:2
+              start: "2026-10-21T00:17:51.072Z"
+              end: "2026-10-21T00:25:47.052Z"
+        cuts:
+            - dispatched: "2026-10-20T13:33:22-07:00"
+              finalized: "2026-10-20T13:35:44-07:00"
+              finalizing: false
+            - dispatched: "2026-10-20T13:38:58-07:00"
+              finalized: "2026-10-20T13:41:02-07:00"
+              finalizing: true
+            - dispatched: "2026-10-20T13:59:07-07:00"
+              finalized: "2026-10-20T13:59:51-07:00"
+              finalizing: false
+            - dispatched: "2026-10-20T14:00:51-07:00"
+              finalized: "2026-10-20T14:02:56-07:00"
+              finalizing: true
+      "n": 5
+      timestamp: "2026-10-20T22:04:00-07:00"
+      dispatched: "2026-10-20T22:01:18-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Issue line 51 distinguishes Claude grace refusal from Codex current-work override. Both are tested; restoring cached-working dependence makes the Codex stop-grace regression fail.
+          round: 5
+        - id: BR-2
+          disposition: addressed
+          note: Issue line 56 distinguishes the original captured Working/running-shell evidence from synthetic Waiting fixtures, consistent with testdata/drive/codex/0.163.0/metadata.json and the fixture descriptions.
+          round: 5
+        - id: BR-3
+          disposition: addressed
+          note: This full whole-issue review covers the pinned base-to-head range and reconciled Spec. Restoring the base recognizer makes the operator truncated-Waiting regression fail.
+          round: 5
+      recipe: small-diff-review
+      isolation: fenced
+      reviewed: e767dc64d4e161b2539ae87251d276872b9a7bee
+      blocked: false
 ---
 
 # Gate ledger — pair#742 (boundary-review)
@@ -360,6 +473,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-1 — addressed — Issue line 51 distinguishes Claude grace refusal from Codex current-work override, matching agent_drive.go:69–83. The retained stop-grace test passes; restoring cached-working dependence makes it fail.
 - BR-2 — addressed — Issue line 56 correctly separates original native Working/running-shell captures from synthetic Waiting evidence, consistent with metadata.json:6–9 and syntheticCodexWork's description.
 - BR-3 — addressed — This whole-issue review inspects the full pinned base-to-head range against the reconciled Spec, including broadened status recognition. Restoring the earlier parser makes the operator truncated-Waiting regression fail.
+
+## Round 5 — 2026-10-20T22:04:00-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Issue line 51 distinguishes Claude grace refusal from Codex current-work override. Both are tested; restoring cached-working dependence makes the Codex stop-grace regression fail.
+- BR-2 — addressed — Issue line 56 distinguishes the original captured Working/running-shell evidence from synthetic Waiting fixtures, consistent with testdata/drive/codex/0.163.0/metadata.json and the fixture descriptions.
+- BR-3 — addressed — This full whole-issue review covers the pinned base-to-head range and reconciled Spec. Restoring the base recognizer makes the operator truncated-Waiting regression fail.
 
 ## Open findings
 

@@ -337,3 +337,90 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T22:04:00-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 742 — Couch interrupt refuses a working Codex turn |
+| repo | pair |
+| issue file | workshop/issues/000742-codex-working-interrupt.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 9c926136d44af5bad734eaef7986e327a06a1965..e767dc64d4e161b2539ae87251d276872b9a7bee |
+| command | sdlc close --issue 742 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T22:04:00-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+No new defects found. The implementation matches the revised Spec, preserves input and ownership fences, and has meaningful regression coverage. The pinned tracker still requires the new recorded suite, CI, and hub live acceptance before landing; this review does not establish those results.
+
+Done-when: current — working-turn admission, refusal safeguards, positive completion, and pre-landing validation still cover the revised redraw-tolerant contract.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Issue line 51 distinguishes Claude grace refusal from Codex current-work override. Both are tested; restoring cached-working dependence makes the Codex stop-grace regression fail.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Issue line 56 distinguishes the original captured Working/running-shell evidence from synthetic Waiting fixtures, consistent with testdata/drive/codex/0.163.0/metadata.json and the fixture descriptions.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      This full whole-issue review covers the pinned base-to-head range and reconciled Spec. Restoring the base recognizer makes the operator truncated-Waiting regression fail.
+```
+
+1. **Strengths**
+
+   - Lifecycle and interrupt admission share `RecognizeCodexWorking`.
+   - One sequence selector serves observation, start admission, and writer admission.
+   - Production-order tests cover redraws, input invalidation, unparsed output, exactly one Ctrl+C, fresh-idle confirmation, and second refusal.
+   - README and atlas describe the changed behavior.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed focused tests and race checks across wrapcmd, agentdrive, couchcmd, and couchmessage; broader wrapper/reducer drive tests; vet; all eight reader-inventory checks; and diff whitespace checks.
+
+   Temporary overlays produced expected regression failures for cached-grace dependence, output-sequence fencing, missing input-generation stamps, missing unparsed-output protection, missing positive-idle confirmation, and the base recognizer. The checkout remains unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY: pass.** Shared recognizer and sequence selector cover their consumers.
+   - **ARCH-PURE: pass.** Recognition and reduction remain deterministic; IO stays in adapters.
+   - **ARCH-PURPOSE: pass.** The repair covers recognition, redraw-tolerant rechecks, and safe completion.
+   - **ARCH-EVOLVE: pass.** No persisted runtime format changes; sequence remains an opaque token.
+
+7. **Plan revision recommendations:** None. Remaining landing checks are explicitly pending.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"fd40622f-0b21-4e1d-b394-21e0487cd50a","repository":"github.com/xianxu/pair","issue_id":"000742","recipe":"small-diff-review","round":5,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/b36bd268d5a271aa","reviewed_head":"e767dc64d4e161b2539ae87251d276872b9a7bee","slot":"pair:2","requested_at":"2026-10-21T05:01:21.806889Z"},"phase":"finished","pid":79235,"started_at":"2026-10-21T05:01:21.956019Z","finished_at":"2026-10-21T05:03:59.425099Z","session_id":"01a15cd5-de2d-73a1-83d8-8aec90206479","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.863449875s
+head: "e767dc64d4e161b2539ae87251d276872b9a7bee"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
