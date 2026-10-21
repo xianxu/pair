@@ -69,12 +69,26 @@ func TestProvisionGroupCancellationConfirmsGroupExit(t *testing.T) {
 			// A ready grace cannot justify signaling a confirmed absent group.
 			grace := make(chan time.Time, 1)
 			grace <- time.Time{}
-			err := cancelProvisionGroup(41, tt.world.signal, grace, nil)
+			starts, stops := 0, 0
+			err := cancelProvisionGroup(41, tt.world.signal, func() provisionGroupClock {
+				starts++
+				if !slices.Equal(tt.world.signals, term) {
+					t.Fatalf("grace started before TERM: signals=%v", tt.world.signals)
+				}
+				return provisionGroupClock{grace: grace, stop: func() { stops++ }}
+			})
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("error=%v want %v", err, tt.wantErr)
 			}
 			if !slices.Equal(tt.world.signals, tt.want) {
 				t.Fatalf("signals=%v want %v", tt.world.signals, tt.want)
+			}
+			wantStarts := 1
+			if errors.Is(tt.world.termErr, syscall.ESRCH) {
+				wantStarts = 0
+			}
+			if starts != wantStarts || stops != wantStarts {
+				t.Fatalf("clock starts=%d stops=%d want %d", starts, stops, wantStarts)
 			}
 		})
 	}
@@ -86,7 +100,9 @@ func TestProvisionGroupCancellationCompletesBeforeGrace(t *testing.T) {
 	w := &provisionCancelWorld{present: true, disappearOnProbe: 2}
 	poll := make(chan time.Time, 1)
 	poll <- time.Time{}
-	if err := cancelProvisionGroup(41, w.signal, nil, poll); err != nil {
+	if err := cancelProvisionGroup(41, w.signal, func() provisionGroupClock {
+		return provisionGroupClock{poll: poll, stop: func() {}}
+	}); err != nil {
 		t.Fatal(err)
 	}
 	if w.probes != 2 || !slices.Equal(w.signals, []syscall.Signal{syscall.SIGTERM}) {

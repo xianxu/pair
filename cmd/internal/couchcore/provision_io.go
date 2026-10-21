@@ -73,11 +73,11 @@ func (runner OSProvisionIO) Run(ctx context.Context, request ProvisionCommand) (
 	// CommandContext owns and joins this cancellation callback. Leader exit is
 	// insufficient: descendants may retain the lease throughout the TERM grace.
 	cmd.Cancel = func() error {
-		timer := time.NewTimer(2 * time.Second)
-		defer timer.Stop()
-		poll := time.NewTicker(10 * time.Millisecond)
-		defer poll.Stop()
-		return cancelProvisionGroup(cmd.Process.Pid, syscall.Kill, timer.C, poll.C)
+		return cancelProvisionGroup(cmd.Process.Pid, syscall.Kill, func() provisionGroupClock {
+			timer := time.NewTimer(2 * time.Second)
+			poll := time.NewTicker(10 * time.Millisecond)
+			return provisionGroupClock{timer.C, poll.C, func() { timer.Stop(); poll.Stop() }}
+		})
 	}
 	diagnostics := &provisionOutput{limit: 64 << 10, tail: true, progress: request.Progress}
 	stdout := &provisionOutput{limit: 1 << 20, onOverflow: cancel}
@@ -104,13 +104,20 @@ func (runner OSProvisionIO) Run(ctx context.Context, request ProvisionCommand) (
 	return stdout.data, err
 }
 
-// cancelProvisionGroup owns the TERM grace and whole-group escalation. Clock
-// channels make completion ordering reproducible without changing the grace.
-func cancelProvisionGroup(pid int, signal func(int, syscall.Signal) error, grace, poll <-chan time.Time) error {
+type provisionGroupClock struct {
+	grace, poll <-chan time.Time
+	stop        func()
+}
+
+// cancelProvisionGroup owns the TERM grace and whole-group escalation. The clock
+// factory makes the start of that grace observable in deterministic tests.
+func cancelProvisionGroup(pid int, signal func(int, syscall.Signal) error, startClock func() provisionGroupClock) error {
 	err := signal(-pid, syscall.SIGTERM)
 	if errors.Is(err, syscall.ESRCH) {
 		return os.ErrProcessDone
 	}
+	clock := startClock()
+	defer clock.stop()
 	for {
 		// Only ESRCH confirms that the whole owned group is gone. Permission or
 		// inspection failures must not release a descendant's inherited lease.
@@ -118,9 +125,9 @@ func cancelProvisionGroup(pid int, signal func(int, syscall.Signal) error, grace
 			return err
 		}
 		select {
-		case <-poll:
+		case <-clock.poll:
 			continue
-		case <-grace:
+		case <-clock.grace:
 		}
 		break
 	}

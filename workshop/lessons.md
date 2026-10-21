@@ -7,6 +7,10 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- Start a shutdown grace clock after delivering its triggering signal; allocating it earlier silently spends the grace under preemption. Pin signal/clock order and exactly-once cleanup through a deterministic clock factory. (#776)
+
+- Read the current gate evidence-reuse contract before canceling a queued check: a passing ancestor suite can serve a docs-only descendant. Cancel by exact run only when necessary; executable changes require new verification. (#776)
+
 - When profiling changes the approved mechanism, reconcile Done when with the specific regression that proves that mechanism; an old timing or parallelism requirement does not become satisfied by a different cancellation test. Preserve the approval and old clause in Revisions. (#776 BR-1)
 
 - A child TERM marker is not proof that cleanup is still in progress when the test resumes. Prove an inherited lease before cancellation and its release after the owned join; an intermediate busy assertion can reject correctly completed cleanup under race instrumentation. (#776)
