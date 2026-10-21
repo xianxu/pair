@@ -136,3 +136,4 @@ The recorded suite pass, TL live-qualification decision, close review and merge/
 - 2026-10-21: Address plan gate PQ-1/PQ-2/PQ-3: enumerate all production caller families and native composition seams, define function-level adversarial strategies, and specify the encapsulated lease transition plus sole group-reap authority, including removal of the existing direct Process.Wait on initialization failure.
 
 - 2026-10-21: Native implementation and targeted qualification complete. Keep future suite/review/landing gates as explicit prose rather than falsely completed implementation checkboxes; recorded suite is queued, no pass claimed.
+- 2026-10-21: Close BR-1: extend documentation task to README's public command entry as well as help, terminal map, architecture summary and atlas index. Add the missing help/lifetime entry; no code change or suite restart.

@@ -79,6 +79,8 @@ Recorded full suite enqueued on pushed implementation head5434e0f4b (local-check
 
 ## Revisions
 
+- 2026-10-21: Close round1 found only BR-1 (README help/lifetime coverage), with the implementation/native tests and all architecture lenses passing. Added a concise README entry using its existing agent-edit convention and swept help/atlas/index summaries. Full suite stays queued on unchanged code. Additional actual-host check: candidate wrap ran locally installed Codex0.163.0 and Claude Code2.1.306 --version in a private PTY; each matched direct status0 and printed the version once with empty stderr.
+
 - 2026-10-21: Added a gated design checkpoint after the native live-target counterexample. Existing Spec and Done when remain authoritative and unchanged pending TL decision; conditional plan is not implementation approval.
 
 - 2026-10-21: TL approved the live closed-stdio behavior change (receipt 7829dd7f-d4d5-4cae-b69b-b06f40e2a7f2): keep target owned until exit/explicit stop. Reconciled Spec and Done when; require help/atlas documentation and exhaustive production-caller native normal-exit/daemonization pins. Preserve original argv/PID/start errors/publication and ownedGroup stop/reap; full flow, no new polling or deadlines.
