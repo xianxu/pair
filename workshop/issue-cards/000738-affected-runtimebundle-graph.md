@@ -1,6 +1,6 @@
 ---
 id: 000738
-status: working
+status: blocked
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
