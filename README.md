@@ -2075,6 +2075,15 @@ entry when replacing its sleep, and never add entries or inline sleep exemptions
 See the [Go lint catalog](atlas/go-lint-catalog.md) for scanner scope, module
 updates and the temporary debt contract.
 
+Ordinary Darwin+cgo package tests using `testdisk.RunWithWriteBudget` disable
+Go test-result caching before the measured callback. This avoids charging Go's
+filesystem-access trace to the fixture-write cap; build caching remains enabled.
+Plain `go test` therefore executes these measured packages again on a warm cache,
+just as `-count=1` does, while explicit repetition counts keep their meaning.
+The diagnostic says `test-result cache disabled` when a trace was requested.
+Real payload writes remain subject to the same caps. Benchmark/fuzz workloads
+and unsupported native counters keep their existing coverage policy.
+
 Pair and wrapper subprocess fixtures use `testpair.Environment(t, disposableRoot,
 explicitEntries...)`. It delegates to `tests/lib/pair-test-env.sh`, the shared
 empty-environment owner for Go, shell and Python tests: only host PATH, disposable

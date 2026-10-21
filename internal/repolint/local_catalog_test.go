@@ -2,6 +2,9 @@ package repolint
 
 import (
 	"go/ast"
+	"go/token"
+	"regexp"
+	"strconv"
 
 	"github.com/xianxu/ariadne/pkg/golint"
 )
@@ -39,11 +42,35 @@ var pairCatalog = append(append([]golint.Rule(nil), golint.Catalog...), golint.R
 	Message:  "report or propagate ControlledZellij.Close cleanup errors; discarded cleanup can leave a controlled session alive",
 	Match:    discardedControlledZellijCloses,
 }, golint.Rule{
+	Name:     "fd-path-permission",
+	Incident: "pair#767",
+	Message:  "prove inherited descriptor usability directly (read/fstat/fcntl), not through a /dev/fd pathname permission check; macOS can report a false negative",
+	Match:    fdPathPermissionChecks,
+}, golint.Rule{
 	Name:     "scribe-pty-printf",
 	Incident: "pair#766",
 	Message:  "use a terminal-aware producer and acknowledge its readiness before final output; direct printf can fail before producing the test marker",
 	Match:    scribePTYPrintfCalls,
 })
+
+// This lexical guard covers literal shell test/[ /[[ permission probes. It
+// intentionally does not infer dynamically assembled shell commands.
+var fdPathPermission = regexp.MustCompile(`(?:\btest|\[\[?)\s+-[rwx]\s+["']?/dev/fd/[0-9]+`)
+
+func fdPathPermissionChecks(file *ast.File) []ast.Node {
+	var matches []ast.Node
+	ast.Inspect(file, func(node ast.Node) bool {
+		literal, ok := node.(*ast.BasicLit)
+		if ok && literal.Kind == token.STRING {
+			value, err := strconv.Unquote(literal.Value)
+			if err == nil && fdPathPermission.MatchString(value) {
+				matches = append(matches, literal)
+			}
+		}
+		return true
+	})
+	return matches
+}
 
 // The bounded entry owns individual native attempts. New callers must not
 // independently recreate its attempt budget, deadline or observation policy.

@@ -92,7 +92,7 @@ func TestProvisionFixtureIdentityUsesOneGitProcess(t *testing.T) {
 		t.Fatal(err)
 	}
 	bin, log := t.TempDir(), filepath.Join(t.TempDir(), "git-calls")
-	script := "#!/bin/sh\ntest -r /dev/fd/3 || exit 42\nprintf '%s\\n' call >> \"$PAIR_FIXTURE_GIT_TRACE\"\nexec \"$PAIR_FIXTURE_REAL_GIT\" \"$@\"\n"
+	script := "#!/bin/sh\nIFS= read -r token <&3 && test \"$token\" = \"$PAIR_FIXTURE_LEASE_TOKEN\" || exit 42\nprintf '%s\\n' call >> \"$PAIR_FIXTURE_GIT_TRACE\"\nexec \"$PAIR_FIXTURE_REAL_GIT\" \"$@\"\n"
 	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -103,15 +103,59 @@ func TestProvisionFixtureIdentityUsesOneGitProcess(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = lease.Close() })
-	if _, err := f.Run(context.Background(), ProvisionCommand{Program: "sdlc", Dir: f.Primary, Lease: lease}); err != nil {
+	// An inherited descriptor remains readable after its pathname loses read
+	// permission. Permission inspection is not proof of descriptor usability.
+	token := lease.Name()
+	if _, err := lease.WriteString(token + "\n"); err != nil {
 		t.Fatal(err)
 	}
-	raw, err := os.ReadFile(log)
+	f.IO.Env = append(f.IO.Env, "PAIR_FIXTURE_LEASE_TOKEN="+token)
+	wrong, err := os.CreateTemp(t.TempDir(), "wrong-lease")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := strings.Count(string(raw), "call\n"); got != 1 {
-		t.Fatalf("identity git processes = %d, want 1", got)
+	t.Cleanup(func() { _ = wrong.Close() })
+	if _, err := wrong.WriteString("wrong-token\n"); err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	for _, tc := range []struct {
+		name   string
+		file   *os.File
+		mode   os.FileMode
+		accept bool
+	}{
+		{"readable", lease, 0600, true},
+		{"no-path-permission", lease, 0, true},
+		{"absent", nil, 0, false},
+		{"wrong-token", wrong, 0600, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.file != nil {
+				if err := tc.file.Chmod(tc.mode); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := tc.file.Seek(0, 0); err != nil {
+					t.Fatal(err)
+				}
+			}
+			_, err := f.Run(context.Background(), ProvisionCommand{Program: "sdlc", Dir: f.Primary, Lease: tc.file})
+			if tc.accept {
+				if err != nil {
+					t.Fatal(err)
+				}
+				calls++
+			} else if err == nil || !strings.Contains(err.Error(), "exit status 42") {
+				t.Fatalf("invalid inherited lease: got %v, want exit42", err)
+			}
+			raw, err := os.ReadFile(log)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := strings.Count(string(raw), "call\n"); got != calls {
+				t.Fatalf("identity git processes = %d, want %d", got, calls)
+			}
+		})
 	}
 }
 
