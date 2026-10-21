@@ -1,6 +1,6 @@
 ---
 id: 000765
-status: codecomplete
+status: done
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 991599da3c42aba8eac2fa7fd9c6ac28572b50fe
         evidence_commit: 93cd418a2e52a99df971ed42efd676835d5d4fec
+        landed_commit: feb1d595834706d2f785214c4e3ea003f980559d
 ---
 
 # Cache-enabled Go tests exceed physical write envelopes
