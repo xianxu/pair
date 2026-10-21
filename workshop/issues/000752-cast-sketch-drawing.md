@@ -37,7 +37,7 @@ Casting Chrome controls use the privileged excluded isolated-world host and reco
 
 Support pen Pointer Events and normalized pressure, coalesced samples, pointer capture, hover exclusion, release/cancel handling and deterministic mouse/touch fallback. Stream partial strokes to observers before pointer-up. Grant/revoke/release/leave/reset must seal prior accepted work and fence old-generation queued writes before enabling the next drawer. Pause/end/reconnect/expiry, backpressure, limits and failure UI follow the approved state model.
 
-Primary surfaces: board/{sketch.go,sketch_authority.go,sketch_wire.go,writer.go,operator.go,operator_view.go}, recorder/{sketch.go,operator.go}, server_sketch.go, cast.go, browser.go, operator.js, operator_script.go, web/{sketch.js,sketch-policy.js,sketch-scene.js,sketch.css,viewer.js,annotate.js,annotation-placement.js}.
+Primary surfaces: board/{sketch.go,sketch_wire.go,sketch_delivery.go,writer_sketch.go,operator_view.go}, recorder/{sketch.go,exclusion.go,operator_original.go}, recording/{sketch_source.go,sketch_anchors.go}, server_sketch.go, cast_sketch.go, cast.go, chrome_operator_sketch*.go, chrome_sketch_scene.go, operator-sketch.js, operator.js, operator_script.go and web/{sketch.js,sketch-policy.js,sketch-scene.js,sketch.css,viewer.js,annotate.js,render.js}. Existing browser and placement interfaces are reused.
 
 ## Done when
 
@@ -178,3 +178,7 @@ total: 10.63
 ### 2026-10-21 — TL-directed pre-smoke close review
 
 Implementation and automated verification can close locally before the deferred real console smoke, per ops:0 delivery b1d858cd-0dfc-445b-a623-c3e78b62a282. The Done-when requirement for smoke before landing is unchanged. The operator restart owns staging admission; stage and landing remain held.
+
+### 2026-10-21 — implementation-location correction
+
+BR-4 also corrects the Spec entry-point list to actual implemented files and marks existing browser/placement interfaces as reused. This changes locations, not required behavior.
