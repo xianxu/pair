@@ -489,6 +489,9 @@ func primaryFreshStep(held ActionableThreadSummary) string {
 // in rather than re-derived so an interactive startup does not pay for a second
 // zellij snapshot on the path it just inventoried.
 func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, rows []ActionableThreadSummary) (ActorRecord, Handle, error) {
+	if err := launcher.ValidateFreshAgentArgs(resolution.Profile.Agent, resolution.Profile.Argv); err != nil {
+		return ActorRecord{}, nil, fmt.Errorf("start: invalid startup parameters: %w", err)
+	}
 	args := StartArgs{
 		Worktree: resolution.Worktree, Cwd: resolution.CanonicalPath,
 		Stack: resolution.Profile.Agent, ExtraArgs: cloneArgv(resolution.Profile.Argv), Issue: resolution.Issue,

@@ -277,6 +277,9 @@ func (c *Couch) spawnManagedResolution(ctx context.Context, resolution StartReso
 		start, err := c.OpenSlot(ctx, slot.WorktreeRoot, resolution.RequestedAgent)
 		return start, withRebootAdvice(err)
 	case StartCreate:
+		if err := launcher.ValidateFreshAgentArgs(resolution.Profile.Agent, resolution.Profile.Argv); err != nil {
+			return StartResult{}, fmt.Errorf("start: invalid startup parameters: %w", err)
+		}
 		if resolution.ReuseSlot {
 			return c.startFreshSlot(ctx, slot.WorktreeRoot, resolution.RequestedAgent, true, &resolution, nil)
 		}

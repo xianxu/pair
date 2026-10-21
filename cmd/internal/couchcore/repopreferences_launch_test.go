@@ -2,8 +2,10 @@ package couchcore
 
 import (
 	"context"
+	"errors"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -27,6 +29,63 @@ func TestRepositoryArgumentsExplicitProfileSurvivesUnreadableSettings(t *testing
 	}
 	if _, err := env.Couch.PrepareKnownAgentSwitch(context.Background(), source.Address, "codex"); err == nil {
 		t.Fatal("unreadable settings silently treated as saved")
+	}
+}
+
+func TestRepositoryArgumentsNewThreadRejectsNativeSelectorsBeforeClaim(t *testing.T) {
+	for _, agent := range []string{"claude", "codex"} {
+		for _, explicit := range []bool{false, true} {
+			t.Run(agent+map[bool]string{false: "/legacy", true: "/explicit"}[explicit], func(t *testing.T) {
+				f := newProvisionFixture(t)
+				env := newTestEnv(t, f.Primary)
+				env.Couch.Git, env.Couch.Path = ExecGit{}, OSPathOps{}
+				argv := []string{"resume", "old-native"}
+				if agent == "claude" {
+					argv = []string{"--resume", "old-native"}
+				}
+				args := StartArgs{Worktree: Worktree(f.Primary), Stack: agent}
+				if explicit {
+					args.ExtraArgs = argv
+				} else {
+					if err := env.Couch.Threads.RecoverStoreJournal(); err != nil {
+						t.Fatal(err)
+					}
+					id, err := env.Couch.resolveRepoIdentity(context.Background(), f.Primary)
+					if err != nil {
+						t.Fatal(err)
+					}
+					legacy := PathLaunchPreference{SchemaVersion: 1, RepoIdentity: id, PhysicalPath: f.Primary, LastAgent: agent, ArgvByAgent: map[string][]string{agent: argv}, Revision: 1}
+					if err := writePathLaunchPreferenceForTest(env.Couch.Threads, legacy); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if _, _, err := env.Couch.Spawn(args); err == nil {
+					t.Fatal("new thread implicitly resumed native context from startup arguments")
+				} else if !strings.Contains(err.Error(), "start: invalid startup parameters") {
+					t.Fatalf("refused for an unrelated reason: %v", err)
+				}
+				if len(env.Runner.Ops) != 0 {
+					t.Fatalf("invalid arguments launched: %v", env.Runner.Ops)
+				}
+				snapshot, err := env.Couch.Threads.Snapshot()
+				if err != nil || len(snapshot.Records) != 0 {
+					t.Fatalf("invalid arguments claimed a thread: %+v %v", snapshot, err)
+				}
+			})
+		}
+	}
+}
+
+func TestRepositoryArgumentsInvalidCreateDoesNotProvisionSlot(t *testing.T) {
+	f := newProvisionFixture(t)
+	env := newTestEnv(t, f.Primary)
+	env.Couch.Git, env.Couch.Path = ExecGit{}, OSPathOps{}
+	env.Couch.Slots, env.Couch.Workspaces = NewOSSlotCatalog(f), NewWorkspaceProvisioner(f)
+	if _, _, err := env.Couch.Spawn(StartArgs{Cwd: f.Primary, Action: StartCreate, Stack: "codex", ExtraArgs: []string{"resume", "old-native"}}); err == nil {
+		t.Fatal("create accepted native context selector")
+	}
+	if _, err := os.Lstat(f.host(1)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("invalid startup arguments provisioned a slot: %v", err)
 	}
 }
 
