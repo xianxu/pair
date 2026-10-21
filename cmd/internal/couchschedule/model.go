@@ -468,6 +468,11 @@ func advance(state TaskState, event Event) (TaskState, []Effect) {
 		a.Stage = "uncertain"
 		state.Last = summary(a, event.At, nil, "unknown", "execution owner unavailable; no replay")
 	case CancelRequested:
+		if a.Source == "manual" && a.Stage == "reserved" {
+			state.Last = summary(a, event.At, nil, "cancelled", "manual")
+			state.Active = nil
+			return state, nil
+		}
 		return cancelActive(state)
 	}
 	return state, nil

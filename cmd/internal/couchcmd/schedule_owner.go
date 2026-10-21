@@ -16,11 +16,54 @@ type scheduleOwner struct {
 	coordinator *scheduleCoordinator
 	state       *couchschedule.StateOwner
 	busy        map[string]string
+	intents     map[string]couchschedule.ManualIntent
+	operations  map[string]*scheduleOwnerOperation
+	loop        *scheduleOwnerLoop
+	recovered   bool
 }
 
 func newScheduleOwner(c *scheduleCoordinator) *scheduleOwner {
-	return &scheduleOwner{coordinator: c, busy: map[string]string{}}
+	return &scheduleOwner{coordinator: c, busy: map[string]string{}, intents: map[string]couchschedule.ManualIntent{}, operations: map[string]*scheduleOwnerOperation{}}
 }
+
+type scheduleOwnerOperation struct {
+	id     string
+	cancel context.CancelFunc
+}
+
+func (o *scheduleOwner) cancelExecution(key couchschedule.TaskKey, id string) {
+	if op := o.operations[key.ID()]; op != nil && op.id == id && op.cancel != nil {
+		op.cancel()
+	}
+}
+
+func (o *scheduleOwner) authorize(ctx context.Context, state couchschedule.TaskState, identity couchschedule.OwnerIdentity, declaration couchschedule.Declaration) error {
+	if state.Active == nil || !declaration.Allowed || declaration.Key != state.Key || declaration.Revision != state.Active.Revision || declaration.Spec != state.Spec {
+		return errors.New("execution declaration changed")
+	}
+	ledger, err := o.state.ViewDurable(ctx)
+	if err != nil {
+		return err
+	}
+	current := ledger.Tasks[state.Key.ID()]
+	if !sameReservedAttempt(current, state) || !current.Allowed || !o.coordinator.now().Before(state.Active.Deadline) {
+		return errors.New("execution authority changed or expired")
+	}
+	event := couchschedule.Event{Kind: couchschedule.OwnerRecorded, At: o.coordinator.now(), Attempt: state.Active.ID, Revision: state.Active.Revision, Owner: &identity}
+	if _, err := o.apply(ctx, state.Key, event, nil); err != nil {
+		return err
+	}
+	event.Kind = couchschedule.ReservationDurable
+	decision, err := o.apply(ctx, state.Key, event, nil)
+	if err != nil {
+		return err
+	}
+	if len(decision.Effects) != 1 || decision.Effects[0].Kind != couchschedule.StartTask {
+		return errors.New("execution start authorization refused")
+	}
+	return nil
+}
+
 func (o *scheduleOwner) open(ctx context.Context) error {
 	state, err := o.coordinator.store.Own(ctx)
 	if err != nil {
@@ -39,6 +82,12 @@ func (o *scheduleOwner) apply(ctx context.Context, key couchschedule.TaskKey, ev
 	}
 	err := o.state.Update(ctx, func(ledger *couchschedule.Ledger) error {
 		prior := ledger.Tasks[key.ID()]
+		if event.Kind == couchschedule.ManualRequested || event.Kind == couchschedule.ClockObserved {
+			if err := ensurePassiveRun(ctx, o.coordinator.runs, prior); err != nil {
+				localErr = err
+				return quarantineTaskHistory(ctx, ledger, prior, "prior passive history", err)
+			}
+		}
 		canonical, err := o.canonical(ctx, prior)
 		if err != nil {
 			localErr = err
@@ -95,6 +144,33 @@ func (o *scheduleOwner) apply(ctx context.Context, key couchschedule.TaskKey, ev
 	}
 	if localErr != nil {
 		return decision, &taskHistoryError{cause: localErr}
+	}
+	// Passive consumption and unknown classification are durable before their
+	// diagnostic/no-execution bundles can be published. Never reconstruct native
+	// execution completion here.
+	if (event.Kind == couchschedule.ClockObserved && decision.Next == couchschedule.SettlementPublishHistory) || (decision.State.Active != nil && decision.State.Active.Stage == "uncertain" && decision.State.Last != nil && decision.State.Last.Outcome == "unknown") {
+		state := decision.State
+		record, err := ensureRetainedRun(ctx, o.coordinator.runs, state, state.Active != nil && state.Active.Stage == "uncertain")
+		if err != nil {
+			if commitErr := o.state.Update(ctx, func(l *couchschedule.Ledger) error {
+				return quarantineTaskHistory(ctx, l, l.Tasks[key.ID()], "passive publication", err)
+			}); commitErr != nil {
+				return decision, commitErr
+			}
+			return decision, &taskHistoryError{cause: err}
+		}
+		summary := runSummaryForRecord(record)
+		err = o.state.Update(ctx, func(l *couchschedule.Ledger) error {
+			decision = couchschedule.PlanSettlement(l.Tasks[key.ID()], &summary, couchschedule.Event{At: event.At})
+			if decision.Kind == couchschedule.SettlementQuarantined {
+				return errors.New(decision.Reason)
+			}
+			l.Tasks[key.ID()] = decision.State
+			return nil
+		})
+		if err != nil {
+			return decision, err
+		}
 	}
 	return decision, nil
 }

@@ -168,6 +168,7 @@ const (
 // only the published snapshot of connected bindings.
 type messageService struct {
 	schedule  atomic.Pointer[scheduleCoordinator]
+	scheduler atomic.Pointer[scheduleOwner]
 	lifecycle atomic.Pointer[lifecyclePublisher]
 	resources atomic.Pointer[resourceSampler]
 	hubMoves  atomic.Pointer[hubMoveService]
@@ -604,9 +605,10 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 		return nil, fmt.Errorf("scheduler machine permits: %w", err)
 	}
 	coordinator := newScheduleCoordinator(namespace, scheduleRoots, time.Local, time.Now)
-	runner := &manualTaskRunner{namespace: namespace, permitsDir: permits, executor: couchschedule.Executor{}, now: time.Now}
-	scheduler := newAutomaticScheduler(coordinator, runner, scheduleNotice{service: service})
+	scheduler := newScheduleOwner(coordinator)
+	scheduler.configure(scheduleExecutionWorker{namespace: namespace, permitsDir: permits, executor: couchschedule.Executor{}, now: time.Now}, scheduleNotice{service: service})
 	service.schedule.Store(coordinator)
+	service.scheduler.Store(scheduler)
 	service.workers.Add(1)
 	go func() {
 		defer service.workers.Done()
@@ -960,6 +962,11 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 		defer cancel()
 	}
 	switch {
+	case couchmessage.IsScheduleRunOp(request.Op):
+		if scheduler := s.scheduler.Load(); scheduler != nil {
+			return handleScheduleRun(ctx, request, scheduler.coordinator.roots, scheduler)
+		}
+		return couchmessage.Response{Code: "unavailable", Error: "scheduler owner unavailable"}
 	case request.Op == "schedule-status":
 		if err := couchmessage.ValidateRequest(request); err != nil {
 			return couchmessage.Response{Code: "invalid-request", Error: err.Error()}

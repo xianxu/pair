@@ -84,7 +84,7 @@ func ensureRetainedRun(ctx context.Context, history operationalrun.Store, state 
 	if revision == "" {
 		return record, errors.New("retained passive occurrence has no declaration revision; inspect history before repair")
 	}
-	proposed := operationalrun.Record{Version: 1, Key: key, DeclarationRevision: revision, Source: last.Source, ScheduledAt: last.DueAt, StartedAt: last.StartedAt, EndedAt: last.EndedAt, Exit: last.Exit, Outcome: last.Outcome, Notice: last.Notice}
+	proposed := operationalrun.Record{Version: 1, Key: key, DeclarationRevision: revision, Source: last.Source, ScheduledAt: last.DueAt, StartedAt: last.StartedAt, EndedAt: last.EndedAt, Exit: last.Exit, Outcome: last.Outcome, Notice: last.Notice, ManualIntentDigest: last.ManualIntentDigest}
 	record, _, err = history.PublishOccurrence(ctx, key, proposed, nil)
 	return record, err
 }

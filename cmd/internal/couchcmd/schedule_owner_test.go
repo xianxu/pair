@@ -142,3 +142,207 @@ func TestScheduleOwnerCompletionPublishesCanonicalFactsBeforeAuthority(t *testin
 		t.Fatalf("completion not canonical: %+v", got)
 	}
 }
+
+func TestScheduleOwnerDueConsumptionCommitsBeforePassiveHistory(t *testing.T) {
+	c, _, now := scheduleServiceFixture(t)
+	owner := newScheduleOwner(c)
+	if err := owner.open(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	defer owner.close()
+	if err := owner.refresh(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	l, err := c.store.View(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var state couchschedule.TaskState
+	for _, state = range l.Tasks {
+		break
+	}
+	*now = state.NextDue.Add(2 * time.Minute)
+	event := couchschedule.Event{Kind: couchschedule.ClockObserved, At: *now, RunID: "missed-occurrence", HubOnline: true, Location: c.location}
+	if _, err = owner.apply(t.Context(), state.Key, event, nil); err != nil {
+		t.Fatal(err)
+	}
+	l, err = c.store.View(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	state = l.Tasks[state.Key.ID()]
+	if state.Last == nil || state.Last.Outcome != "skipped" {
+		t.Fatalf("due not consumed: %+v", state)
+	}
+	if _, _, err := c.runs.Read(t.Context(), scheduleRunKey(state)); err != nil {
+		t.Fatalf("committed passive facts lack history: %v", err)
+	}
+}
+
+func TestScheduleOwnerAuthorizesOnlyAfterDurableController(t *testing.T) {
+	runner, _, reserved, store := reservedExecutionFixture(t)
+	c := newScheduleCoordinator(runner.namespace, []string{reserved.Key.Hub}, time.UTC, runner.now)
+	fail := true
+	c.store.BeforePersist = func() error {
+		if fail {
+			return errors.New("no authority commit")
+		}
+		return nil
+	}
+	o := newScheduleOwner(c)
+	if err := o.open(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	defer o.close()
+	d, err := manualDeclaration(t.Context(), reserved.Key.Hub, reserved.Key.Task)
+	if err != nil {
+		t.Fatal(err)
+	}
+	identity := couchschedule.OwnerIdentity{PID: 7474, Start: "controller"}
+	if err := o.authorize(t.Context(), reserved, identity, d); err == nil {
+		t.Fatal("failed commit authorized script")
+	}
+	l, err := store.View(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := l.Tasks[reserved.Key.ID()]; got.Active.Stage != "reserved" || got.Active.ControllerPID != 0 {
+		t.Fatalf("failed ready changed authority: %+v", got)
+	}
+	fail = false
+	if err := o.authorize(t.Context(), reserved, identity, d); err != nil {
+		t.Fatal(err)
+	}
+	l, err = store.View(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := l.Tasks[reserved.Key.ID()]; got.Active.Stage != "running" || got.Active.ControllerPID != identity.PID {
+		t.Fatalf("ready facts not durable: %+v", got)
+	}
+}
+
+func TestScheduleOwnerDispatchTickAndWorkerCompletion(t *testing.T) {
+	c, _, now := scheduleServiceFixture(t)
+	o := newScheduleOwner(c)
+	notices := &resultScheduleNotices{}
+	o.configure(scheduleExecutionWorker{}, notices)
+	clock := newSchedulerClockFake(*now)
+	if err := o.open(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	defer o.close()
+	if err := o.refresh(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	l, err := c.store.View(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range l.Tasks {
+		*now = s.NextDue
+		break
+	}
+	clock.advance(t, *now)
+	if err := o.tick(t.Context(), clock); err != nil {
+		t.Fatal(err)
+	}
+	if len(o.loop.notices) != 2 {
+		t.Fatalf("due notices not dispatched: %d", len(o.loop.notices))
+	}
+
+	a, _, state, _ := scheduledResultFixture(t)
+	executionOwner := newScheduleOwner(a.coordinator)
+	if err := executionOwner.open(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	defer executionOwner.close()
+	facts := scheduleExecutionFacts{result: couchschedule.ExecutionResult{Exit: 0, Outcome: "quiet", Output: []byte("quiet output")}, ended: a.coordinator.now()}
+	if err := executionOwner.complete(t.Context(), state, facts); err != nil {
+		t.Fatal(err)
+	}
+	l, err = a.coordinator.store.View(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := l.Tasks[state.Key.ID()]; got.Active != nil || got.Last == nil || got.Last.Outcome != "quiet" {
+		t.Fatalf("worker facts not completed: %+v", got)
+	}
+}
+
+func TestScheduleOwnerNoticeCapacityDoesNotCreateUnsentDelivery(t *testing.T) {
+	c, roots, now := scheduleServiceFixture(t)
+	dir := filepath.Join(roots[0], "scripts/scheduled/another")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "schedule"), []byte(`{"version":1,"cron":"* * * * *","timeout":"1m"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main\nfunc main(){}\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	o := newScheduleOwner(c)
+	o.configure(scheduleExecutionWorker{}, &resultScheduleNotices{})
+	if err := o.open(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	defer o.close()
+	if err := o.refresh(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	l, err := c.store.View(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range l.Tasks {
+		*now = s.NextDue
+		break
+	}
+	clock := newSchedulerClockFake(*now)
+	if err := o.tick(t.Context(), clock); err != nil {
+		t.Fatal(err)
+	}
+	l, err = c.store.View(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	delivery, waiting := 0, 0
+	for _, s := range l.Tasks {
+		if s.Active != nil {
+			if s.Active.Stage == "delivery" {
+				delivery++
+			}
+			if s.Active.Stage == "notifying" || s.Active.Stage == "reserved" {
+				waiting++
+			}
+		}
+	}
+	if delivery != 2 || waiting != 1 {
+		t.Fatalf("capacity fabricated unsent delivery: delivery=%d waiting=%d", delivery, waiting)
+	}
+}
+
+func TestScheduleOwnerPendingEditBlocksNextOccurrenceAfterSettlement(t *testing.T) {
+	a, _, state, _ := scheduledResultFixture(t)
+	o := newScheduleOwner(a.coordinator)
+	if err := o.open(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	defer o.close()
+	o.busy[state.Key.ID()] = "catalogue change pending: task busy"
+	facts := scheduleExecutionFacts{result: couchschedule.ExecutionResult{Exit: 0, Outcome: "quiet"}, ended: a.coordinator.now()}
+	if err := o.complete(t.Context(), state, facts); err != nil {
+		t.Fatal(err)
+	}
+	if err := o.reserveDueBatch(t.Context(), newSchedulerClockFake(state.NextDue), map[string]bool{state.Key.Hub: true}); err != nil {
+		t.Fatal(err)
+	}
+	l, err := a.coordinator.store.View(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := l.Tasks[state.Key.ID()]; got.Active != nil {
+		t.Fatalf("pending edit admitted another old-revision occurrence: %+v", got)
+	}
+}
