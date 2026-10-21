@@ -29,7 +29,7 @@ XNU's last-slave-close path can discard unread output without a controlling-term
 
 ## Spec
 
-Preserve final output for admitted short-lived non-terminal-aware commands under scribe. Audit other generic Pair PTY entrypoints before generalizing. Consider an exec helper that establishes the child's /dev/tty reference before exec, versus an explicitly owned retained-slave/drain lifecycle. Preserve argv, child exit status, signal delivery and terminal behavior; no timeout increase or blind retry.
+On Darwin, preserve final output for admitted short-lived non-terminal-aware scribe commands by retaining one parent slave through master drain, releasing it before the sole child wait. Keep direct exec, argv, child status, signals and terminal behavior; other platforms retain upstream startup. Initialization abort kills the owned direct child and closes master/slave before waiting, preserving the initialization error. Darwin session-leader exit must end the drain even with a descendant holding the slave and ignoring SIGHUP; scribe returns its direct child's result without waiting for descendants. No timeout increase or blind retry. Scope is scribe only; wrap and ptychild were audited and their different termination semantics are tracked in #769/#770.
 
 ## Done when
 
@@ -40,12 +40,12 @@ Preserve final output for admitted short-lived non-terminal-aware commands under
 
 ## Plan
 
-Proposed design: [durable plan](../plans/000768-darwin-pty-final-output-plan.md). Await TL approval before change-code. Recommend full flow for launch/lifetime risk, with one atomic review boundary.
+Approved design: [durable plan](../plans/000768-darwin-pty-final-output-plan.md). TL approved full flow; change-code passed. One atomic review boundary.
 
-- [ ] Approve Darwin-only retained slave for scribe, scope, native acceptance clarification and full flow.
-- [ ] Pin delayed-first-read loss with an out-of-band child stdio-close barrier; implement scribe-local start/lease ownership.
-- [ ] Qualify normal drain, abort cleanup, interactive behavior, exit/signals and resource lifetimes.
-- [ ] Document audited remaining exposures, qualify the public built command, run recorded suite, close/review and land.
+- [x] Approve Darwin-only retained slave for scribe, scope, native acceptance clarification and full flow.
+- [x] Pin delayed-first-read loss with an out-of-band child stdio-close barrier; implement scribe-local start/lease ownership.
+- [x] Qualify normal drain, abort cleanup, interactive behavior, exit/signals and resource lifetimes.
+- [ ] Document audited remaining exposures, qualify the public built command, run the recorded suite and submit the verified branch to close review. SDLC then owns review and landing.
 
 ## Log
 
@@ -101,3 +101,7 @@ Targeted verification: go test ./cmd/internal/scribecmd ./cmd/internal/artifactp
 Public binary smoke passed on clean source revision4f4cdc15f34ef737628ebd207869c739cb489942 (build metadata checked; binary SHA256 f21d65d5891e145aed90e907a3eb5ab742b3a4847041ce01ee4f37f9e45e2e02): short/nonzero/empty/literal argv cases preserve exact stdout/log/status and outer tty; terminal Ctrl+C reaches a shell trap, returns23, logs exact bytes and restores tty. Transcript /tmp/pair-768-public-smoke.log. Non-Darwin branch cross-compiles for Linux; this is compile coverage, not native Linux qualification.
 
 Second mutation removed direct-child kill on initialization abort: the blocked HUP-ignoring target failed the native watchdog oracle after master close alone; exact owned child/master were cleaned, source restored byte-for-byte. Transcript /tmp/pair-768-abort-mutation.log. No native helpers remained. PR521 open; local-gates guard reports no guarded paths touched. Recorded full suite on4f4cdc15 is queued, retained runner lease-1672737506/session62442; do not duplicate it.
+
+### 2026-10-21 — contract reconciliation
+
+Reconciled current Spec and Plan with the TL-approved retained-slave design and clarified acceptance; original alternatives remain recorded in prior planning history/Revisions. CI on the code head is green, including macOS conformance and the local-gates guard (no guarded paths touched). The recorded full-suite runner is still queued; no replacement or duplicate run.

@@ -4,7 +4,7 @@ collaboration-mode: discussion
 
 # Preserve scribe Darwin PTY final output — implementation plan
 
-> **For agentic workers:** Consult AGENTS.md Section3. Keep this lifetime correction in one implementation context. Await TL approval and change-code before implementation.
+> **For agentic workers:** Consult AGENTS.md Section3. Keep this lifetime correction in one implementation context. TL approval and full-flow change-code are recorded; implementation follows the approved design.
 
 **Goal:** Preserve exact final stdout/log bytes when a scribe child closes its slave descriptors before the first master read.
 
@@ -12,7 +12,7 @@ collaboration-mode: discussion
 
 **Tech stack:** Go, pinned creack/pty v1.1.24, native Darwin PTYs, existing scribe raw-mode/signal handling.
 
-**Flow:** Full flow recommended for launch/lifetime risk, even if the final patch fits the quick shell; TL approval requested for this choice. One atomic issue boundary, no Mx split. After approval run change-code --flow full; derive estimate only after plan-quality passes.
+**Flow:** Full flow approved by TL for launch/lifetime risk, even if the final patch fits the quick shell. One atomic issue boundary, no Mx split. change-code --flow full passed after plan-quality and derived estimate gates.
 
 ## Evidence and alternatives
 
@@ -98,25 +98,25 @@ ARCH-DRY/PURE: scribe-local adapter/lease, no premature all-Pair framework. Stat
 
 Files: pty.go, pty_darwin.go, pty_other.go and tests under cmd/internal/scribecmd/. Native writer stays test-only.
 
-- [ ] startPTY(cmd): adversarial command/start configurations → native helper with out-of-band stdio-close acknowledgement before starter returns; require exact stdout/log, EOF/status. Upstream immediate-close baseline and disposable immediate-release mutation must both be RED. Stateful allocation failures assert no owned fd/child remains; target exec identity stays unchanged.
-- [ ] (*startedPTY).releaseSlave(): adversarial repeated/concurrent release and revoked descriptors → stateful closeable resource asserts exactly one close and stable error; native N/2N lease counts assert one extra fd/live Darwin start, zero after cleanup or failed start.
+- [x] startPTY(cmd): adversarial command/start configurations → native helper with out-of-band stdio-close acknowledgement before starter returns; require exact stdout/log, EOF/status. Upstream immediate-close baseline and disposable immediate-release mutation must both be RED. Stateful allocation failures assert no owned fd/child remains; target exec identity stays unchanged.
+- [x] (*startedPTY).releaseSlave(): adversarial repeated/concurrent release and revoked descriptors → stateful closeable resource asserts exactly one close and stable error; native N/2N lease counts assert one extra fd/live Darwin start, zero after cleanup or failed start.
 
 ### 2. Integrate normal and abort ownership
 
 Files: scribecmd.go, scribecmd_test.go and Darwin lifecycle tests.
 
-- [ ] run(args, stdin, stdout, stderr, starter): adversarial terminal/byte/process lifetimes → native read barrier and interactive driver assert stream/log separation, terminal behavior, child result and exact resource ownership. Descendant-ready barrier holds inherited slave (including ignored SIGHUP) past run return; require exact final output, EOF and direct status. Live closed-stdio target stays owned until its own exit. Backpressure runs concurrently with reading, never behind the small-payload barrier.
-- [ ] abortPTY(cmd, started): hostile live child ignores HUP and keeps slave/exit-drain active → direct SIGKILL, master/lease close before sole Wait; already-exited child is benign, original initialization error wins. Assert return, reaped direct child and released resources; never add a timeout to production termination policy.
-- [ ] Integrate the starter and ownership after observing native RED. Preserve original public Run and platform behavior. Run targeted package tests, race and vet.
+- [x] run(args, stdin, stdout, stderr, starter): adversarial terminal/byte/process lifetimes → native read barrier and interactive driver assert stream/log separation, terminal behavior, child result and exact resource ownership. Descendant-ready barrier holds inherited slave (including ignored SIGHUP) past run return; require exact final output, EOF and direct status. Live closed-stdio target stays owned until its own exit. Backpressure runs concurrently with reading, never behind the small-payload barrier.
+- [x] abortPTY(cmd, started): hostile live child ignores HUP and keeps slave/exit-drain active → direct SIGKILL, master/lease close before sole Wait; already-exited child is benign, original initialization error wins. Assert return, reaped direct child and released resources; never add a timeout to production termination policy.
+- [x] Integrate the starter and ownership after observing native RED. Preserve original public Run and platform behavior. Run targeted package tests, race and vet.
 
 ### 3. Document, qualify public route and land
 
 Files: docs/pair-scribe.md, README/atlas, changed/new test-reader certificates.
 
-- [ ] Document Darwin ownership, controlled-abort limits, unchanged other-platform behavior and remaining exposures. Correct touched stale standalone-scribe packaging comment.
-- [ ] Public built-pair scribe smoke: short commands, exact stdout/log and status. Distinguish it from the internal deterministic barrier. Coordinate staging/live check with hub before touching pair:0.
-- [ ] Audit changed/new repository readers, register scanners, regenerate individual certificates; run make test-affected-inventory.
-- [ ] Push, recorded suite, SDLC close/review, merge with required integrated evidence/CI, report landing. No blind flaky rerun or timeout adjustment.
+- [x] Document Darwin ownership, controlled-abort limits, unchanged other-platform behavior and remaining exposures. Correct touched stale standalone-scribe packaging comment.
+- [x] Public built-pair scribe smoke: short commands, exact stdout/log and status. Distinguish it from the internal deterministic barrier. Coordinate staging/live check with hub before touching pair:0.
+- [x] Audit changed/new repository readers, register scanners, regenerate individual certificates; run make test-affected-inventory.
+- [ ] Push and pass the recorded suite. Then close/review and merge through SDLC with required integrated evidence/CI; report landing. No blind flaky rerun or timeout adjustment.
 
 ## Acceptance clarification requiring approval
 
@@ -137,3 +137,5 @@ TL approved retained-slave choice, scribe-only scope, acceptance clarification a
 - 2026-10-21: TL approved full flow and required deterministic completion with descendant-held slave. Added explicit Darwin revoke/EOF contract and native feasibility result; no child-wait-before-read.
 
 - 2026-10-21: Plan review PQ-1/PQ-2: specify direct SIGKILL on initialization abort, benign already-exited result, descriptor-close-before-sole-Wait and original-error precedence. Compress tests to named risky functions with adversarial strategies and mechanical oracles. Normal EOF/live-child behavior remains separate.
+
+- 2026-10-21: Reconciled approval status and implementation ticks. Native, mutation, public-command, race/vet and inventory evidence is in the issue Log. CI passed; recorded full suite remains queued.
