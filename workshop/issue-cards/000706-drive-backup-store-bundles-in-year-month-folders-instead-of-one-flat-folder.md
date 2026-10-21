@@ -1,6 +1,6 @@
 ---
 id: 000706
-status: codecomplete
+status: done
 created: 2026-10-19
 updated: 2026-10-20
 estimate_hours: 4.73
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 2e938cdceac80d01c0e93f4ab6045fe8d6bdca3e
         evidence_commit: 081bc3f25e7dfc392daed635bcfee71d0c8695c7
+        landed_commit: 6b9f56446b0f96e6485d9d1df21326422f0a8aa0
 ---
 
 # Drive backup: store bundles in year/month folders instead of one flat folder
