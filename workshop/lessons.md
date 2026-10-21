@@ -2540,3 +2540,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #774: distinguish persisted file checkpoints from observations within a single operation. Remount equivalence belongs only at the persisted boundary; after capturing/rebinding a live identity, revalidation must stay strict. Never reuse a tolerant checkpoint matcher at every call site. Keep the original mismatch cause when an older intent cannot certify recovery.
 
 - #774 BR-1: preserving a strict matcher is insufficient if the caller discards the first observation. Carry its snapshot across phases and exercise the real preview-to-effect transition; a direct matcher unit test cannot prove the caller uses the right baseline.
+
+- #774: a new production helper must appear in both applicable inventories: affected-reader certificates cover readers, while artifactpath's exhaustive source inventory covers every production file, including pure metadata helpers. Classify the concrete source; never grow the known-violation quarantine for a new file.
