@@ -256,7 +256,8 @@ Each task uses the named function-verification strategy above. A checked task re
 - [x] Update README, webcast/format atlas and index, including the invariant that the casting page never reaches the recorded scene, bindings or assets. Add only measured lessons.
 - [x] Audit production artifact dispositions and source-reader inputs; pass `make test-affected-inventory`, artifactpath/repolint and targeted webcast/Node checks.
 - [x] Open PR512 and pass the recorded local-check full fallback on the initial implementation.
-- [ ] Push corrected code, rerun the recorded check and `make test-affected-inventory`, then close with evidence and `--no-project` because TL owns ops project. The close gate owns the mandatory fresh review; resolve its findings.
+- [x] Push corrected code, pass `make test-affected-inventory`, and finalize local close with evidence and `--no-project` because TL owns ops project. Resolve the binary-owned review findings; FIX-THEN-SHIP correction is reconciled.
+- [ ] Retain the recorded final-head check through the queue and require its pass before landing (current lease-2496662231 on607f31bf; existing graph/embed gap selects full suite).
 - [ ] After TL staging go, stage/build and send verified revisions for the real console smoke. No landing until smoke succeeds; #754 retains wider iPad/echo acceptance.
 - [ ] On SHIP and release of the smoke hold, run `sdlc merge --yes`, retain its runner, report the landed PR to the hub and continue #756→#753→#754.
 
@@ -418,3 +419,7 @@ The final real Chrome fixture measures actual createSketchGesture end→anchor�
 ### 2026-10-21 — BR-10 approved Enter-to-save parity
 
 The next close verified BR-9 and disposed all prior criticals, returning FIX-THEN-SHIP for the missing approved keyboard action. #750 explicitly requires Enter to save a nonblank label and return to the requested tool. Delegate label-input Enter to the existing guarded saveLabel path, preserve IME composition, and test blank/repeated Enter and held acknowledgment on both adapters. Tool selection/source release still waits for accepted label persistence. This restores the approved control without introducing a state or mechanism. Follow the binary's post-verdict path: one bundled fix/review-artifact commit, then issue recovery reconcile, without a duplicate close review.
+
+### 2026-10-21 — local acceptance finalized, final record retained
+
+BR-10 fix and evidence were bundled once, then issue recovery reconcile finalized the FIX-THEN-SHIP close. Cardcodecomplete and completion binding are confirmed. Split Task6 local acceptance from the still-pending final-head recorded pass so the checklist reflects the actual remaining gate; no repeated close review is needed for that record. TL staging/real console smoke still precedes landing.
