@@ -2194,8 +2194,8 @@ func TestSpawnRefusesAnEmptyPath(t *testing.T) {
 	}
 }
 
-// A fresh hub receives a new name and leaves its orphaned predecessor alone.
-func TestStartupBesideAnOrphanedPrimaryUsesANewName(t *testing.T) {
+// An implicit hub startup leaves an orphan alone without launching another agent.
+func TestStartupBesideAnOrphanedPrimaryStaysIdle(t *testing.T) {
 	t.Parallel()
 
 	env := newTestEnv(t, "/repo")
@@ -2222,10 +2222,11 @@ func TestStartupBesideAnOrphanedPrimaryUsesANewName(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Handle == nil || result.Record.Thread == first.Thread {
-		t.Fatal("hub did not start under a fresh name beside remnant")
+	// An orphan is uncertainty, never implicit permission for a fresh agent.
+	if result.Handle != nil {
+		t.Fatal("startup launched a new hub beside an orphan")
 	}
-	if len(env.Runner.Ops) != opsBefore+2 {
+	if len(env.Runner.Ops) != opsBefore {
 		t.Fatalf("startup had unexpected effects: %q", env.Runner.Ops[opsBefore:])
 	}
 	retained, err = env.Couch.Threads.GetThread(first.Thread)
