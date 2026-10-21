@@ -1,13 +1,13 @@
 ---
 id: 000764
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '7eaf58f747d972eb006d96da963ab7e99eb98b7f' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'b20e8e647078b888e6f29ab354a779d2c54ca68d' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-21T03:15:27-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: operator, spec: "813f0cf7", done: "34a6f408"}
+actual_hours: 0.26
 ---
 
 # Controlled Zellij fixture closes its PTY twice and hides cleanup errors
