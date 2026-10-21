@@ -68,3 +68,7 @@ Do not generalize this patch: wrap uses EOF to stop a still-live process group, 
 TL approved full flow, scribe-only retention and acceptance clarification (receipt a711dfa3-61f8-4c22-847e-25caf4a69a63). Added explicit descendant-held-slave contract to the plan: Darwin session-leader exit revokes the terminal, scribe drains to EOF and reaps its direct child without waiting for descendants. Native planning probe observed exact final-marker and EOF while an ignored-SIGHUP descendant still held the slave; direct child exited7. Qualification must prove this through production Run; failure is a stop/re-plan, not a new timeout. Separate unclaimed wrap/ptychild issues requested.
 
 Filed unclaimed follow-ups #769 (wrap) and #770 (ptychild), each preserving probe provenance and the owner-specific termination-semantics risk.
+
+### 2026-10-21 — plan review round1
+
+PQ-1/PQ-2 addressed: initialization abort explicitly kills the owned direct child, closes master/slave before the sole wait, treats already-exited as benign and preserves the initialization error. The plan names startPTY, releaseSlave, run and abortPTY with adversarial test strategies rather than case inventories. Normal completion still waits for the direct child without stopping live closed-stdio targets.

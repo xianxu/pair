@@ -69,7 +69,7 @@ Inject an internal starter into the production run body for tests. A test closur
 | Started | Run owns master, optional slave and sole wait authority |
 | Read returns bytes and error | Forward n>0 to stdout/unpaused log before handling error |
 | Terminal EOF/read failure | Release slave, then one cmd.Wait; restore raw mode and stop/join signal watchers |
-| Initialization abort/controlled failure | Signal child as needed; CLOSE MASTER and release slave BEFORE joining Wait, so exit-drain cannot wait on unread master |
+| Initialization abort/controlled failure | abortPTY sends SIGKILL to the owned direct child (os.ErrProcessDone is benign); CLOSE MASTER and release slave BEFORE the sole cmd.Wait, so exit-drain cannot wait on unread master; preserve original initialization error and diagnose other cleanup failures |
 | Repeated cleanup | Idempotent release, exactly one reap, no competing waiter |
 
 Close can follow kernel revoke: test it and report cleanup errors without replacing child exit status. Preserve exec.ExitError.ExitCode(), including signal deaths. No new waiter, exit polling, retry or timer. Pre-existing arbitrary-io.Reader stdin-copy cancellation is outside this output fix; add no unjoined worker. New resources end on every controlled return. Wrapper SIGKILL cannot promise complete logging; kernel fd cleanup remains.
@@ -96,22 +96,18 @@ ARCH-DRY/PURE: scribe-local adapter/lease, no premature all-Pair framework. Stat
 
 ### 1. Pin failure and implement lease
 
-Files: pty.go, pty_darwin.go, pty_other.go and corresponding tests under cmd/internal/scribecmd/; native writer remains test-only.
+Files: pty.go, pty_darwin.go, pty_other.go and tests under cmd/internal/scribecmd/. Native writer stays test-only.
 
-- [ ] Add non-terminal-aware writer: small exact payload, close0/1/2, acknowledge out-of-band; no /dev/tty or protective extra slave.
-- [ ] Gate starter return on acknowledgement. Old upstream start must fail exact stdout/log on Darwin (RED). Safety timeout diagnoses/cleans only; it establishes no ordering.
-- [ ] Implement minimal adapter/lease. Require exact stdout AND unpaused log bytes, EOF and exit0/7. Mutate to immediate slave close in a disposable copy and require RED; restore source.
-- [ ] Cover failed open/start, nil/provided stdio, attrs, close-after-revoke, repeated/concurrent release and N/2N resource counts using stateful resources and native tests.
+- [ ] startPTY(cmd): adversarial command/start configurations → native helper with out-of-band stdio-close acknowledgement before starter returns; require exact stdout/log, EOF/status. Upstream immediate-close baseline and disposable immediate-release mutation must both be RED. Stateful allocation failures assert no owned fd/child remains; target exec identity stays unchanged.
+- [ ] (*startedPTY).releaseSlave(): adversarial repeated/concurrent release and revoked descriptors → stateful closeable resource asserts exactly one close and stable error; native N/2N lease counts assert one extra fd/live Darwin start, zero after cleanup or failed start.
 
 ### 2. Integrate normal and abort ownership
 
-Files: scribecmd.go, scribecmd_test.go, new Darwin lifecycle tests.
+Files: scribecmd.go, scribecmd_test.go and Darwin lifecycle tests.
 
-- [ ] Add initialization-failure/abort tests while child exit drains: master closes before wait/join, no unreaped child/slave.
-- [ ] Adopt starter without public CLI change; release slave after output loop, before sole wait. Every post-start return owns cleanup/reaping.
-- [ ] Preserve pause/resume, resize/raw-mode restore, argv empty/spaces/metacharacters, PATH/env and existing exit/signal results.
-- [ ] Native cases: interactive input/resize/terminal interrupt, SIGTERM/SIGHUP, leader exit with inherited-slave descendant including ignored SIGHUP, empty output, closed-stdio-but-live target, concurrent large backpressure. Clean exact owned processes/fds.
-- [ ] Run go test ./cmd/internal/scribecmd -count=1, targeted race and vet. Never demand a larger-than-PTY-buffer write complete before reading.
+- [ ] run(args, stdin, stdout, stderr, starter): adversarial terminal/byte/process lifetimes → native read barrier and interactive driver assert stream/log separation, terminal behavior, child result and exact resource ownership. Descendant-ready barrier holds inherited slave (including ignored SIGHUP) past run return; require exact final output, EOF and direct status. Live closed-stdio target stays owned until its own exit. Backpressure runs concurrently with reading, never behind the small-payload barrier.
+- [ ] abortPTY(cmd, started): hostile live child ignores HUP and keeps slave/exit-drain active → direct SIGKILL, master/lease close before sole Wait; already-exited child is benign, original initialization error wins. Assert return, reaped direct child and released resources; never add a timeout to production termination policy.
+- [ ] Integrate the starter and ownership after observing native RED. Preserve original public Run and platform behavior. Run targeted package tests, race and vet.
 
 ### 3. Document, qualify public route and land
 
@@ -139,3 +135,5 @@ On Darwin, exit of scribe's session-leader child drains and revokes its controll
 TL approved retained-slave choice, scribe-only scope, acceptance clarification and full flow on 2026-10-21 (receipt a711dfa3-61f8-4c22-847e-25caf4a69a63). Required descendant-held-slave contract is explicit above and will be tested. Proceed to change-code; no production/test edits yet.
 
 - 2026-10-21: TL approved full flow and required deterministic completion with descendant-held slave. Added explicit Darwin revoke/EOF contract and native feasibility result; no child-wait-before-read.
+
+- 2026-10-21: Plan review PQ-1/PQ-2: specify direct SIGKILL on initialization abort, benign already-exited result, descriptor-close-before-sole-Wait and original-error precedence. Compress tests to named risky functions with adversarial strategies and mechanical oracles. Normal EOF/live-child behavior remains separate.
