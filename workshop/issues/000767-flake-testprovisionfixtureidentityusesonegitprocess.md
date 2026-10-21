@@ -45,7 +45,9 @@ Investigate the inherited lease through OSProvisionIO and the identity fixture�
 
 - [x] Reproduce with child-side descriptor diagnostics and identify the failing boundary.
 - [x] Add a controlled regression, correct the root cause and encode the mistake class in Pair’s composed golint catalog.
-- [ ] Verify repetitions, inventory and recorded affected check; close/review, retire registration and land.
+- [x] Verify native repetitions, the identity test family, lint and audited reader inventory.
+
+Recorded-suite completion, close review and landing remain gates tracked in Log; the final recorded pass precedes landing.
 
 ## Log
 
@@ -63,3 +65,9 @@ Investigate the inherited lease through OSProvisionIO and the identity fixture�
 ### 2026-10-21 — root-cause refinement
 
 Native evidence narrowed the fix from possible FD lifetime repair to the test’s pathname-permission oracle. Added direct inherited-token proof, deterministic mode000 and absent/wrong-token controls, a local catalog rule and a retained native probe. Scope remains the original flake; #752 staging has priority when released.
+
+- 2026-10-21: Retained counter-enforcing native probe passes attempts=16000 failures=0, exit0 (second corrected16000-start run). PR520 opened. Recorded affected check started on committed681c7986e; retain its runner while it qualifies. No code changed after that source checkpoint.
+
+### 2026-10-21 — verification sequencing
+
+Split the original combined verify/close/land checklist row at the actual local-acceptance boundary: the implemented targeted checks are complete; the recorded suite may overlap close review under tl-worker’s contract, but its final pass still precedes landing. Its retained lease is lease-1363786489 on681c7986, attemptc69f744252fbee1128c07e1f8fbf551a, exec12716, detached checkout sdlc-local-3724971426. The existing graph/embed gap selects a full suite, queued fourth. No gate waived.
