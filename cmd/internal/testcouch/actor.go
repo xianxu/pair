@@ -43,7 +43,7 @@ func (f *Fleet) Agent(n int) (agentfixture.Ready, error) {
 	if err = json.Unmarshal(raw, &ready); err != nil {
 		return ready, err
 	}
-	if ready.RunID != f.RunID || ready.PID <= 0 || !procutil.Alive(fmt.Sprint(ready.PID)) {
+	if ready.RunID != f.RunID || ready.PID <= 0 || ready.Generation == "" || procutil.Identity(fmt.Sprint(ready.PID)) != ready.Generation {
 		return ready, fmt.Errorf("stale fixture readiness")
 	}
 	return ready, nil

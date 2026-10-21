@@ -82,6 +82,10 @@ Design 1.98 ×1.15 + impl 4.04 ×1.5 = 8.337 hours. Setup/runtime/cleanup budget
 
 ## Log
 
+### 2026-10-20 — first native attempt and cleanup review corrections
+
+The first native consumer failed at genuine provisioning before any slot launch: the public provisioning route reads the singleton selection, and a fresh store had not been adopted. Both Claude/Codex roots were removed successfully; no native qualification claimed. Added the real public adoption preview/validated digest/apply route before provisioning, with stateful refusal tests. A bounded cleanup review found marker-only census missed platform-binary descendants, Stop was not joined, and blanket late resource removal could erase unobserved generations. Fixed those classes with indexed ancestry/private-TTY closure, fixture generation publication, actual supervisor/agent shutdown joins, exact observed absence updates and a quiescent-before-root-removal reducer state. All testcouch/fixture race tests passed (10.723s/3.125s). Next: rerun native consumer and retain full log evidence; no full suite/close yet.
+
 ### 2026-10-20 — implementation checkpoint before native composition
 
 Full-flow change-code passed at c23595e57 after PQ-1 transport isolation correction and TL3d5e6782 approval. Estimate-quality returned INFO; the 8.337h decomposition includes native debugging/races/required-suite work in the integration adapters, with qualification item covering the consumer itself. Implemented shared root/environment guards, pure owned-generation reconciliation, actual provisioning adapter, candidate/runtime placement and deterministic Claude/Codex fixtures. Focused testcouch packages passed (4.901s helper, 0.893s fixture), and transport full package (26.147s) plus targeted race checks passed. The first installed consumer compiles and correctly opts out without PAIR_NATIVE_COUCH_FLEET; native composition is the next step, with no native/full-suite/close pass claimed. #722 remains parked.

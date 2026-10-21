@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"syscall"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/procutil"
+	"github.com/xianxu/pair/cmd/internal/testcouch/agentfixture"
 )
 
 // captureOwned observes one complete table and retains only the private run's
@@ -19,6 +21,7 @@ func (f *Fleet) captureOwned(ctx context.Context) error {
 		f.record(RunEvent{Kind: "unknown", Error: err.Error()})
 		return err
 	}
+	marked := map[int]bool{}
 	for _, p := range rows {
 		if p.Zombie || p.Identity == "" {
 			continue
@@ -30,10 +33,49 @@ func (f *Fleet) captureOwned(ctx context.Context) error {
 			continue
 		}
 		if env["PAIR_TESTCOUCH_RUN_ID"] == f.RunID {
-			f.record(RunEvent{Kind: "own", Resource: resourceFor(p)})
+			marked[p.PID] = true
 		}
 	}
+	f.mu.Lock()
+	known := f.model
+	f.mu.Unlock()
+	owned, err := selectOwnedCohort(rows, known, marked)
+	if err != nil {
+		f.record(RunEvent{Kind: "unknown", Error: err.Error()})
+		return err
+	}
+	for _, r := range owned {
+		f.record(RunEvent{Kind: "own", Resource: r})
+	}
 	return nil
+}
+
+func (f *Fleet) stopAgents(ctx context.Context) error {
+	pending := OwnedRun{}
+	for n := 0; n <= f.Options.Workers; n++ {
+		dir, dirErr := f.actorDirectory(n)
+		if dirErr != nil {
+			continue
+		}
+		ready, err := f.Agent(n)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil && (ready.RunID != f.RunID || ready.PID <= 0 || ready.Generation == "") {
+			return err
+		}
+		pending = ReduceRun(pending, RunEvent{Kind: "own", Resource: Resource{ID: fmt.Sprint(ready.PID), Generation: ready.Generation, Kind: "agent"}})
+		if err == nil {
+			if err = agentfixture.WriteCommand(dir, agentfixture.Command{ID: "close-" + f.RunID, Kind: agentfixture.Stop}); err != nil {
+				return err
+			}
+		}
+	}
+	return waitUntil(ctx, func() (bool, error) {
+		next, err := stopOwned(ctx, nativeProcesses{}, pending, 0)
+		pending = next
+		return len(pending.Resources) == 0, err
+	})
 }
 
 func (f *Fleet) reconcileProcesses(ctx context.Context) error {
@@ -41,7 +83,13 @@ func (f *Fleet) reconcileProcesses(ctx context.Context) error {
 	state := f.model
 	f.mu.Unlock()
 	var err error
+	previous := state
 	state, err = stopOwned(ctx, nativeProcesses{}, state, syscall.SIGTERM)
+	for key, r := range previous.Resources {
+		if _, exists := state.Resources[key]; !exists {
+			f.record(RunEvent{Kind: "gone", Resource: r})
+		}
+	}
 	if err != nil {
 		f.record(RunEvent{Kind: "unknown", Error: err.Error()})
 		return err
@@ -75,16 +123,8 @@ func (f *Fleet) reconcileProcesses(ctx context.Context) error {
 			}
 		}
 	}
-	// Adopt absence from the initial stop pass too, including already-exited
-	// direct children and re-used numeric PIDs that must never be signalled.
 	f.mu.Lock()
-	remaining := f.model.Resources
-	f.mu.Unlock()
-	for _, r := range remaining {
-		f.record(RunEvent{Kind: "gone", Resource: r})
-	}
-	f.mu.Lock()
-	cleaned := f.model.Phase == "cleaned"
+	cleaned := f.model.Phase == "quiescent"
 	f.mu.Unlock()
 	if !cleaned {
 		return errors.New("native ownership did not converge to cleaned")

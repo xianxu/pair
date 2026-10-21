@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -48,6 +49,7 @@ type Fleet struct {
 	mu          sync.Mutex
 	closeMu     sync.Mutex
 	closing     bool
+	starting    bool
 	active      int
 	idle        chan struct{}
 	ctx         context.Context
@@ -123,6 +125,9 @@ func New(t testing.TB, b Binaries, o Options) *Fleet {
 func (f *Fleet) begin(ctx context.Context) (context.Context, func(), error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return nil, nil, err
+	}
 	if f.closing {
 		return nil, nil, fmt.Errorf("fleet is closing")
 	}
@@ -173,10 +178,17 @@ func (f *Fleet) Start(ctx context.Context) error {
 		return fmt.Errorf("prepare genuine workspaces first")
 	}
 	f.mu.Lock()
-	already := f.console != nil
+	already := f.console != nil || f.starting
+	if !already {
+		f.starting = true
+	}
 	f.mu.Unlock()
 	if already {
 		return fmt.Errorf("supervisor already started")
+	}
+	defer func() { f.mu.Lock(); f.starting = false; f.mu.Unlock() }()
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	cmd := exec.Command(filepath.Join(f.Roots.Mutable["bin"], "couch"))
 	cmd.Dir = f.Workspaces.Primary
@@ -289,18 +301,37 @@ func (f *Fleet) Close(ctx context.Context) error {
 	f.mu.Unlock()
 	f.cancel()
 	f.record(RunEvent{Kind: "closing"})
-	// Fixture shutdown revokes its CLI creation gate and joins children before
-	// native teardown. It is control of our test executable, never Couch input.
-	for n := 0; n <= f.Options.Workers; n++ {
-		control, e := f.actorDirectory(n)
-		if e == nil {
-			_ = agentfixture.WriteCommand(control, agentfixture.Command{ID: "close-" + f.RunID, Kind: agentfixture.Stop})
-		}
-	}
 	select {
 	case <-idle:
 	case <-ctx.Done():
 		return ctx.Err()
+	}
+	if err := f.captureOwned(ctx); err != nil {
+		return err
+	}
+	// End the real supervisor's native operation producers before a final
+	// census; a canceled CLI alone cannot join an admitted recovery operation.
+	f.mu.Lock()
+	console := f.console
+	f.mu.Unlock()
+	if console != nil {
+		stop, cancel := context.WithTimeout(ctx, 2*time.Second)
+		err := console.Close(stop)
+		cancel()
+		if err != nil {
+			if e := (nativeProcesses{}).Signal(console.cmd.Process.Pid, console.generation, syscall.SIGKILL); e != nil {
+				return e
+			}
+			select {
+			case <-console.done:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+	}
+	if err := f.stopAgents(ctx); err != nil {
+		f.record(RunEvent{Kind: "unknown", Error: err.Error()})
+		return err
 	}
 	if err := f.captureOwned(ctx); err != nil {
 		return err
@@ -321,6 +352,9 @@ func (f *Fleet) Close(ctx context.Context) error {
 	if err := os.RemoveAll(f.Roots.Root); err != nil {
 		return err
 	}
+	f.mu.Lock()
+	f.model = ReduceRun(f.model, RunEvent{Kind: "roots-removed"})
+	f.mu.Unlock()
 	f.t.Logf("native fleet cleaned: root=%s all owned generations absent; direct child and IO joined", f.Roots.Root)
 	return nil
 }

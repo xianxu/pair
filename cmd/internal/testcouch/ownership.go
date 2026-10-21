@@ -40,9 +40,13 @@ func ReduceRun(s OwnedRun, e RunEvent) OwnedRun {
 	case "unknown":
 		next.Phase = "stuck"
 		next.Error = e.Error
+	case "roots-removed":
+		if next.Phase == "quiescent" && len(next.Resources) == 0 {
+			next.Phase = "cleaned"
+		}
 	}
 	if (next.Phase == "closing" || next.Phase == "stuck") && e.Kind != "unknown" && len(next.Resources) == 0 {
-		next.Phase = "cleaned"
+		next.Phase = "quiescent"
 		next.Error = ""
 	}
 	return next

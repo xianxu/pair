@@ -20,9 +20,10 @@ func TestOwnershipReconcilesLateStartAndStaleOutcome(t *testing.T) {
 	}
 	s = ReduceRun(s, RunEvent{Kind: "gone", Resource: Resource{ID: "child", Generation: "old"}})
 	s = ReduceRun(s, RunEvent{Kind: "gone", Resource: Resource{ID: "late", Generation: "new"}})
-	if s.Phase != "cleaned" || len(s.Resources) != 0 {
+	if s.Phase != "quiescent" || len(s.Resources) != 0 {
 		t.Fatalf("owned work not joined: %+v", s)
 	}
+	s = ReduceRun(s, RunEvent{Kind: "roots-removed"})
 	late := ReduceRun(s, RunEvent{Kind: "gone", Resource: Resource{ID: "child", Generation: "old"}})
 	if late.Phase != "cleaned" {
 		t.Fatal("stale completion reopened cleaned run")
@@ -43,7 +44,7 @@ func TestOwnershipBoundedEffects(t *testing.T) {
 		for i := 0; i < n; i++ {
 			s = ReduceRun(s, RunEvent{Kind: "gone", Resource: Resource{ID: fmt.Sprint(i), Generation: "one"}})
 		}
-		if len(s.Resources) != 0 || s.Phase != "cleaned" {
+		if len(s.Resources) != 0 || s.Phase != "quiescent" {
 			t.Fatalf("n=%d: %+v", n, s)
 		}
 	}

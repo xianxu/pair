@@ -12,18 +12,21 @@ import (
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchsingleton"
 )
 
 type provisionFixture struct {
-	t           *testing.T
-	b           Binaries
-	p           RootsPlan
-	env         []string
-	commands    []string
-	failSlot    int
-	badIdentity bool
-	badMarker   bool
-	cancel      context.CancelFunc
+	t               *testing.T
+	b               Binaries
+	p               RootsPlan
+	env             []string
+	commands        []string
+	failSlot        int
+	badIdentity     bool
+	badMarker       bool
+	cancel          context.CancelFunc
+	adopted         bool
+	adoptionFailure string
 }
 
 func newWorkspaceFixture(t *testing.T) *provisionFixture {
@@ -36,7 +39,7 @@ func newWorkspaceFixture(t *testing.T) *provisionFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &provisionFixture{t: t, b: Binaries{Git: git, Couch: "/candidate/couch", SDLC: "/installed/sdlc"}, p: RootsPlan{Root: root, Mutable: map[string]string{"fleet": filepath.Join(root, "fleet")}}, env: []string{"PATH=/usr/bin:/bin", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_TERMINAL_PROMPT=0", "GIT_AUTHOR_NAME=Fixture", "GIT_AUTHOR_EMAIL=fixture@example.invalid", "GIT_COMMITTER_NAME=Fixture", "GIT_COMMITTER_EMAIL=fixture@example.invalid"}}
+	return &provisionFixture{t: t, b: Binaries{Git: git, Couch: "/candidate/couch", SDLC: "/installed/sdlc"}, p: RootsPlan{Root: root, Mutable: map[string]string{"fleet": filepath.Join(root, "fleet"), "store": filepath.Join(root, "store"), "data": filepath.Join(root, "data"), "identity": filepath.Join(root, "identity")}}, env: []string{"PATH=/usr/bin:/bin", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_TERMINAL_PROMPT=0", "GIT_AUTHOR_NAME=Fixture", "GIT_AUTHOR_EMAIL=fixture@example.invalid", "GIT_COMMITTER_NAME=Fixture", "GIT_COMMITTER_EMAIL=fixture@example.invalid"}}
 }
 func (f *provisionFixture) git(ctx context.Context, dir string, args ...string) string {
 	f.t.Helper()
@@ -53,6 +56,47 @@ func (f *provisionFixture) run(ctx context.Context, dir string, env []string, pr
 	f.commands = append(f.commands, filepath.Base(program)+" "+strings.Join(args, " "))
 	switch program {
 	case f.b.Couch:
+		if args[0] == "--adopt-store" {
+			roots := couchsingleton.Roots{StoreDir: f.p.Mutable["store"], PairDataDir: filepath.Join(f.p.Mutable["data"], "pair"), IdentityDir: f.p.Mutable["identity"]}
+			want := []string{"--adopt-store", roots.StoreDir, "--pair-data", roots.PairDataDir, "--identity-dir", roots.IdentityDir}
+			if len(args) < 6 || strings.Join(args[:6], "\x00") != strings.Join(want, "\x00") {
+				return "", errors.New("adoption roots mismatch")
+			}
+			digest := strings.Repeat("a", 64)
+			if len(args) == 6 {
+				report := couchsingleton.Report{Digest: digest, Selection: couchsingleton.Selection{Version: 1, Roots: roots}, Status: "ADOPTABLE"}
+				if f.adoptionFailure == "blocker" {
+					report.Blockers = []string{"fixture ambiguity"}
+				}
+				if f.adoptionFailure == "digest" {
+					report.Digest = "invalid"
+				}
+				raw, _ := json.Marshal(report)
+				if len(report.Blockers) > 0 {
+					return string(raw), errors.New("UNMIGRATED")
+				}
+				return string(raw), nil
+			}
+			if len(args) != 8 || args[6] != "--apply" || args[7] != digest {
+				return "", errors.New("wrong preview digest applied")
+			}
+			if f.adoptionFailure == "apply" {
+				return "", errors.New("adoption failed")
+			}
+			selected := couchsingleton.Selection{Version: 1, Roots: roots}
+			if f.adoptionFailure == "selection" {
+				selected.Roots.StoreDir = filepath.Join(f.p.Root, "other")
+			}
+			raw, _ := json.Marshal(struct {
+				Status    string                   `json:"status"`
+				Selection couchsingleton.Selection `json:"selection"`
+			}{"SELECTED", selected})
+			f.adopted = true
+			return string(raw), nil
+		}
+		if !f.adopted {
+			return "", errors.New("Couch is UNMIGRATED: adoption required")
+		}
 		n, _ := strconv.Atoi(strings.TrimPrefix(args[3], "--slot="))
 		if n == f.failSlot {
 			return "", errors.New("fixture setup failed")
@@ -226,6 +270,44 @@ func TestPrepareWorkspacesRefusesSymlinkEscapeAndExistingDestinations(t *testing
 			}
 			if len(f.commands) != 0 {
 				t.Fatalf("unsafe destination started commands: %v", f.commands)
+			}
+		})
+	}
+}
+
+func TestPrepareWorkspacesBootstrapsOnlyThroughPublicAdoption(t *testing.T) {
+	f := newWorkspaceFixture(t)
+	w, err := prepareWorkspaces(context.Background(), f.b, f.p, f.env, 1, f.run)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !f.adopted || w.Evidence["adoption-digest"] != strings.Repeat("a", 64) {
+		t.Fatalf("missing adoption evidence: %+v", w)
+	}
+	all := strings.Join(f.commands, "\n")
+	preview := strings.Index(all, "couch --adopt-store")
+	apply := strings.Index(all, "--apply "+strings.Repeat("a", 64))
+	provision := strings.Index(all, "couch --internal provision-workspace")
+	if preview < 0 || apply < preview || provision < apply || strings.Count(all, "couch --adopt-store") != 2 || strings.Contains(all, "--json --apply") {
+		t.Fatalf("bootstrap order: %s", all)
+	}
+}
+func TestPrepareWorkspacesAdoptionFailureStartsNoSlots(t *testing.T) {
+	for _, failure := range []string{"blocker", "digest", "apply", "selection"} {
+		t.Run(failure, func(t *testing.T) {
+			f := newWorkspaceFixture(t)
+			f.adoptionFailure = failure
+			w, err := prepareWorkspaces(context.Background(), f.b, f.p, f.env, 2, f.run)
+			if err == nil || len(w.Workers) != 0 {
+				t.Fatalf("adoption failure accepted: %+v %v", w, err)
+			}
+			for _, command := range f.commands {
+				if strings.Contains(command, "--internal provision-workspace") {
+					t.Fatalf("slot started before adoption: %v", f.commands)
+				}
+				if (failure == "blocker" || failure == "digest") && strings.Contains(command, "--apply") {
+					t.Fatalf("invalid preview applied: %v", f.commands)
+				}
 			}
 		})
 	}

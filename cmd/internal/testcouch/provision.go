@@ -2,6 +2,7 @@ package testcouch
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchsingleton"
 	"github.com/xianxu/pair/cmd/internal/pathscope"
 	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
@@ -54,6 +56,12 @@ func prepareWorkspaces(ctx context.Context, b Binaries, p RootsPlan, env []strin
 	if fleet == "" {
 		return w, fmt.Errorf("owned fleet root required")
 	}
+	for _, key := range []string{"store", "data", "identity"} {
+		if physical.Mutable[key] == "" {
+			return w, fmt.Errorf("owned %s root required for public store adoption", key)
+		}
+	}
+	adoptRoots := couchsingleton.Roots{StoreDir: physical.Mutable["store"], PairDataDir: filepath.Join(physical.Mutable["data"], "pair"), IdentityDir: physical.Mutable["identity"]}
 	primary := filepath.Join(fleet, "fixture")
 	remote := filepath.Join(fleet, "upstream.git")
 	for _, path := range []string{primary, remote} {
@@ -121,6 +129,42 @@ func prepareWorkspaces(ctx context.Context, b Binaries, p RootsPlan, env []strin
 	}
 	w.Evidence["baseline"] = baseline
 	w.Evidence["primary-admin"] = common
+	// A fresh public provision invocation reads singleton selection; initialize
+	// it through the same preview/digest/apply contract available to an operator.
+	// Adoption already emits JSON and deliberately accepts no --json option.
+	adoptArgs := []string{"--adopt-store", adoptRoots.StoreDir, "--pair-data", adoptRoots.PairDataDir, "--identity-dir", adoptRoots.IdentityDir}
+	preview, previewErr := command(primary, b.Couch, adoptArgs...)
+	var report couchsingleton.Report
+	if err := strictjson.Decode([]byte(preview), &report); err != nil {
+		return w, fmt.Errorf("public adoption preview: %v; decode: %w", previewErr, err)
+	}
+	if len(report.Blockers) > 0 {
+		return w, fmt.Errorf("public adoption blocked: %s", strings.Join(report.Blockers, "; "))
+	}
+	if previewErr != nil {
+		return w, fmt.Errorf("public adoption preview: %w", previewErr)
+	}
+	_, digestErr := hex.DecodeString(report.Digest)
+	if digestErr != nil || len(report.Digest) != 64 || strings.ToLower(report.Digest) != report.Digest || report.Selection.Version != 1 || report.Selection.Roots != adoptRoots || len(report.Selection.Excluded) != 0 {
+		return w, fmt.Errorf("public adoption preview does not select exact owned roots with a valid digest")
+	}
+	selectedRaw, err := command(primary, b.Couch, append(append([]string{}, adoptArgs...), "--apply", report.Digest)...)
+	if err != nil {
+		return w, fmt.Errorf("public adoption apply: %w", err)
+	}
+	var selected struct {
+		Status    string                   `json:"status"`
+		Selection couchsingleton.Selection `json:"selection"`
+	}
+	if err := strictjson.Decode([]byte(selectedRaw), &selected); err != nil {
+		return w, fmt.Errorf("public adoption apply output: %w", err)
+	}
+	if selected.Status != "SELECTED" || selected.Selection.Version != 1 || selected.Selection.Roots != adoptRoots || len(selected.Selection.Excluded) != 0 {
+		return w, fmt.Errorf("public adoption did not confirm exact owned selection")
+	}
+	w.Evidence["adoption-digest"] = report.Digest
+	w.Evidence["adoption-preview"] = preview
+	w.Evidence["adoption-selection"] = selectedRaw
 	for n := 1; n <= workers; n++ {
 		raw, err := command(fleet, b.Couch, "--internal", "provision-workspace", primary, fmt.Sprintf("--slot=%d", n), "--remote=upstream")
 		if err != nil {
@@ -199,7 +243,7 @@ func runProvisionCommand(ctx context.Context, dir string, env []string, tool str
 	cmd.Stdout = &out
 	cmd.Stderr = &diag
 	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("%s %v: %w\n%s\n%s", filepath.Base(tool), args, err, out.String(), diag.String())
+		return out.String(), fmt.Errorf("%s %v: %w\n%s\n%s", filepath.Base(tool), args, err, out.String(), diag.String())
 	}
 	return out.String(), nil
 }

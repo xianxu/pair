@@ -35,6 +35,7 @@ type Ready struct {
 	Agent      string `json:"agent"`
 	Version    string `json:"version"`
 	PID        int    `json:"pid"`
+	Generation string `json:"generation"`
 	NativeID   string `json:"native_id"`
 	Transcript string `json:"transcript"`
 	CWD        string `json:"cwd"`
@@ -148,7 +149,7 @@ func Run(parent context.Context, c Config, stdin io.Reader, stdout io.Writer) (r
 	if _, err = stdout.Write(append(capture, []byte(Paint(state, c.Width, c.Height))...)); err != nil {
 		return err
 	}
-	ready := Ready{RunID: c.RunID, Agent: c.Agent, Version: Version(c.Agent), PID: os.Getpid(), NativeID: cv.id, Transcript: cv.path, CWD: cv.cwd}
+	ready := Ready{RunID: c.RunID, Agent: c.Agent, Version: Version(c.Agent), PID: os.Getpid(), Generation: procutil.Identity(strconv.Itoa(os.Getpid())), NativeID: cv.id, Transcript: cv.path, CWD: cv.cwd}
 	if err := atomicJSON(filepath.Join(c.ControlDir, "ready.json"), ready, false); err != nil {
 		return err
 	}
