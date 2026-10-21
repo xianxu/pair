@@ -1239,8 +1239,24 @@ historical. Closed absorbs late IO completions. Counters report offers, complete
 sink acknowledgments and existing drops, not power-loss durability or a drained
 queue. The fact file's default location is `~/.local/share/pair/couch/supervision.jsonl`.
 Retained `couch --message-status ID --json` receipts, rather than this fact stream,
-explain per-message waiting decisions. The historical freeze still awaits the
-coordinated restart's measured error and a cause-specific M2 repair.
+explain per-message waiting decisions. The 2026-10-21 readout exposed an open
+failure: persisted device16777232 versus observed16777229 with identical inode,
+size and nanosecond mtime. #736 closes around health instrumentation; #774 owns
+this measured repair and the hub-coordinated fresh-write acceptance.
+
+`diagnosticlog/checkpoint_identity.go` classifies persisted generations as exact,
+device-only or mismatched. Under the existing log flock, a current checkpoint
+without a pending intent is durably rebound before append admission; the old
+reservation is untouched. Preview uses the same persisted comparison read-only.
+Collection carries preview's first observed generation privately through strict
+revalidation, then may rebind retained metadata before a new deletion intent;
+current rows and all already-pending transaction recovery keep strict identity.
+A device change between observations within one operation is refused. Inode,
+size, nanosecond-time and uncertain-tail mismatches never authorize a reset,
+truncation or new append. Errors identify the mismatched component and recovery
+stage. There is no new format, retry loop, payload reread or durable artifact.
+A rebind adds one bounded existing atomic metadata publication per touched
+current/retained generation; normal append and page bounds are unchanged.
 
 The optional health field requires the rebuilt CLI with the new supervisor;
 older strict resource decoders reject it. A new CLI accepts an older server's
