@@ -2540,3 +2540,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #766: A PTY consumer cannot recover bytes the kernel discarded at last slave close. Native tee fixtures must own producer lifetime through an output/input acknowledgement and establish the controlling-terminal reference on Darwin; distinguish first-read EOF from a wrapper closing its master early. Audit public generic-command exposure and file that product defect separately from a fixture repair.
 
 - #744 BR-2: a reaped command leader and drained pipes do not prove its process group is quiescent. Check descendants on every completion path; retain explicit uncertainty and correlated evidence when incarnation-safe cleanup cannot be proved.
+
+- #744 BR-2 round3: once asynchronous work is admitted, every return must resolve the same lifetime owner. Result-content checks miss publication, read, timeout and partial-retirement failures; arm a single default-uncertain outcome until joined acknowledgment and retirement prove completion.

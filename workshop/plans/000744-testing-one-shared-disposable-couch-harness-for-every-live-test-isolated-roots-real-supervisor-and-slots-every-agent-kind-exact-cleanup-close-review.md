@@ -231,3 +231,116 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000411
+
+---
+
+## Re-review — 2026-10-21T07:30:07-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 744 — testing: one shared disposable-Couch harness for every live test (isolated roots, real supervisor and slots, every agent kind, exact cleanup) |
+| repo | pair |
+| issue file | workshop/issues/000744-testing-one-shared-disposable-couch-harness-for-every-live-test-isolated-roots-real-supervisor-and-slots-every-agent-kind-exact-cleanup.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 7fabbeb93589b7c0c44a43fa699e83b09082bd5e..23a5b119d111b985de0cc18bb5cedb42c1cf838c |
+| command | sdlc close --issue 744 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T07:30:07-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The shared harness, transport confinement, and leader-exit correction are well supported by tests. BR-2 remains blocking: cancellation-publication and acknowledgment failures bypass the sticky uncertainty state, allowing further fleet work while an abandoned child remains alive. Native qualification also failed once before passing unchanged.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Real isolated consumers now use owned short roots. Short-root, shell-wrapper, transport-confinement and targeted couchcmd tests pass.
+  - id: BR-2
+    disposition: not-addressed
+    note: |
+      cmd/internal/testcouch/actor.go:97-109 returns on cancellation-publication or acknowledgment failure without recording unknown ownership or returning typed ErrCleanupUncertain. A disposable-checkout regression made cancellations/ read-only after a CLI child started, then canceled its caller: ActorCLI returned a publication error with the child still alive, and a subsequent ActorCLI executed successfully. ARCH-ORDER/ARCH-PURPOSE: apply the request-cancellation-joins-effects rule to every completion-uncertain exit, latch fleet uncertainty before returning, retain correlated evidence for Close, and cover publication failure, acknowledgment failure and cleanup-budget exhaustion.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      The Core concepts tables correctly separate deterministic validation/address selection from filesystem-backed publication, correlation, cancellation and retirement. Listed entities exist at their stated paths.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Fleet.record atomically publishes ownership snapshots, retains the first publication error, and preserves in-memory cleanup authority. Snapshot-reader, real publication-failure and exact-owned-process cleanup regressions pass.
+findings:
+  - id: new
+    severity: Important
+    kind: defect
+    family: native-qualification-failure-classification
+    title: |
+      Classify the native worker-startup failure before accepting qualification
+    detail: |
+      cmd/couch/fleet_acceptance_test.go:43 failed on pinned head 23a5b119 during Codex worker 3 startup: “attach terminal input has ended,” failure nonce operation-730874d8fa66046c985836b933151494; the matrix exited 1 after 103.75s. An unchanged-head rerun passed in 107.43s. Preserve and investigate this failure under the plan’s same-head flake rule rather than treating the successful rerun as its disposition; cleanup succeeded on both attempts.
+```
+
+1. **Strengths**
+
+   - Messaging isolation changes the listener parent and confines its sweep; real-listener tests verify foreign socket inodes survive.
+   - `ActorCLI` executes through the registered fixture’s inherited environment, preserving genuine caller identity.
+   - The leader-exit regression covers both inherited and closed pipes. Disabling quiescence classification made both cases fail.
+   - README and atlas document the new target, ownership model, isolation, and recovery limits.
+
+2. **Critical findings**
+
+   **BR-2 — [actor.go:97](/Volumes/TestScratch/review-checkouts/0e10ade396eb70bd/cmd/internal/testcouch/actor.go:97).** Publication and acknowledgment errors return without closing admission. The reproduction observed `child_alive=true`, followed by successful output `new-work-executed`.
+
+   Consolidate uncertain request outcomes into one transition that records sticky uncertainty and returns `ErrCleanupUncertain`. Sweep every exit lacking joined terminal proof; fixing only the publication branch would leave the acknowledgment branch exposed.
+
+3. **Important findings**
+
+   Native acceptance needs the failure classification described above. The passing rerun establishes successful execution, but does not explain the preceding startup failure.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Passed portable helper tests, helper races, couchmessage, testpair, targeted couchcmd tests, fixture composer conformance, artifactpath, repolint, and `make test-affected-inventory`.
+
+   Existing tests miss cancellation-publication failure followed by attempted new work. The reviewer regression demonstrated that failure in a disposable checkout. That checkout was removed; the reviewed checkout remains clean at the pinned head.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared path confinement and existing process/provisioning owners are reused.
+   - **ARCH-PURE — pass:** documented pure entities match deterministic implementations.
+   - **ARCH-PURPOSE — flag:** BR-2 leaves the cancellation contract incomplete.
+   - **ARCH-MOCK — pass:** stateful filesystem/process seams accompany native qualification.
+   - **ARCH-CONSTRAINTS — pass:** worker, mailbox, concurrency, output and timeout bounds are explicit and exercised.
+   - **ARCH-SECURE — pass:** empty environments, private roots and generation-qualified authority are tested.
+   - **ARCH-ORDER — flag:** unacknowledged cancellation bypasses the uncertainty transition.
+   - **ARCH-FUNERAL — pass:** normal and explicitly uncertain completion paths retain cleanup ownership; BR-2 needs the same handoff.
+   - **ARCH-EVOLVE — pass:** no existing persisted-format compatibility regression identified.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry covering cancellation-publication failure, acknowledgment-read failure, and acknowledgment timeout: each retains evidence, fences new mutations, and delegates reconciliation to `Close`. Map each outcome to a regression. Record and classify the native startup failure alongside the unchanged-head passing rerun.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"6ddb1318-3360-4d98-b36d-85ab7240fd8c","repository":"github.com/xianxu/pair","issue_id":"000744","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/0e10ade396eb70bd","reviewed_head":"23a5b119d111b985de0cc18bb5cedb42c1cf838c","slot":"pair:5","requested_at":"2026-10-21T14:24:07.857862Z"},"phase":"finished","pid":21173,"started_at":"2026-10-21T14:24:08.055642Z","finished_at":"2026-10-21T14:30:06.84975Z","session_id":"01a15ed9-1912-7043-8dcd-cc74e7537546","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.917762417s
+head: "23a5b119d111b985de0cc18bb5cedb42c1cf838c"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
