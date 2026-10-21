@@ -1,13 +1,21 @@
 ---
 id: 000736
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'c7a2c631ab90b441855fc55a3c12911a04ac47b1' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '17f9ff00b1326f7605c0065cae8f54fc65b9c7be' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-20T20:02:41-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:7
+    worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Couch supervision logger health and frozen fact stream
@@ -30,11 +38,34 @@ Expose logger health and a bounded last error through an existing Couch status s
 
 ## Plan
 
-- Inspect and expose logger health before changing recovery behavior.
-- Reproduce the observed live failure and apply a tested cause-specific fix.
+- [ ] M1 — Expose memory-only logger health in resources; test, review and land instrumentation without staging.
+- [ ] M2 — Observe the actual refusal after the hub's coordinated restart; approve a cause-specific revision, reproduce it, fix it and verify fresh live facts.
+
+Durable plan: [implementation plan](../plans/000736-supervision-logger-health-plan.md).
 
 ## Log
 
 ### 2026-10-20
 
 - Split from pair#735 by ops:0 approval. Start after #735 lands. Investigation scratch probe used a Go overlay in /Volumes/TestScratch/pair735-log-probe-75gnrui4; ephemeral evidence only, not required for future reproduction.
+
+### 2026-10-20 — health-first investigation
+
+Read-only stat confirms supervision.jsonl still has 26,061,670 bytes and the
+2026-10-19 15:56:04.739652 timestamp. Metadata names the running Couch PID10525;
+resources identifies its start as 2026-10-20 10:32:08.391981. No live storage was
+changed. Source confirms one unbuffered diagnosticlog.Open on the existing fact
+worker; Open errors disappear, and factLogWriteFailed is a lifecycle no-op.
+A bounded read-only subagent review confirmed resources as the existing fresh,
+request-time status seam. Historical cause remains unknown.
+
+## Revisions
+
+### 2026-10-20 — separately land health before measured repair
+
+The hub approved two landing boundaries: M1 health instrumentation lands through
+normal review and merge, no pair:0 stage. At its coordinated restart after #742,
+the hub reads couch --resources and supplies the observed failure. M2's precise
+cause-specific implementation is revised only after that evidence, never guessed.
+M1 does not close the issue or claim the historical logging failure is repaired.
+The hub owns rebuilding pair:0, the restart and the project file.
