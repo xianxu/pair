@@ -2538,3 +2538,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #766: A PTY consumer cannot recover bytes the kernel discarded at last slave close. Native tee fixtures must own producer lifetime through an output/input acknowledgement and establish the controlling-terminal reference on Darwin; distinguish first-read EOF from a wrapper closing its master early. Audit public generic-command exposure and file that product defect separately from a fixture repair.
 
 - #774: distinguish persisted file checkpoints from observations within a single operation. Remount equivalence belongs only at the persisted boundary; after capturing/rebinding a live identity, revalidation must stay strict. Never reuse a tolerant checkpoint matcher at every call site. Keep the original mismatch cause when an older intent cannot certify recovery.
+
+- #774 BR-1: preserving a strict matcher is insufficient if the caller discards the first observation. Carry its snapshot across phases and exercise the real preview-to-effect transition; a direct matcher unit test cannot prove the caller uses the right baseline.

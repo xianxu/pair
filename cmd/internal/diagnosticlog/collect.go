@@ -11,6 +11,8 @@ import (
 )
 
 type Segment struct {
+	// Private first observation; never persisted or exposed in the JSON view.
+	observed   generation
 	Path       string    `json:"path"`
 	Bytes      int64     `json:"bytes"`
 	LastWrite  time.Time `json:"last_write"`
@@ -156,6 +158,11 @@ func collectManagedPage(path string, options Options, cursor string, limit int) 
 			}
 			st, err := regular(r.Path)
 			if err != nil {
+				return err
+			}
+			// Preview already observed this generation in this locked operation.
+			// Persisted equivalence cannot replace that live baseline.
+			if err := matches(st, r.observed); err != nil {
 				return err
 			}
 			if r.Path == p {

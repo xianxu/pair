@@ -2,6 +2,7 @@ package diagnosticlog
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -316,5 +317,67 @@ func TestDeviceRebindCreationIntentStaysStrict(t *testing.T) {
 	st, err := os.Stat(path)
 	if err != nil || st.Size() != 0 {
 		t.Fatal("creation changed payload", err)
+	}
+}
+
+// Exercise the real preview -> prepare -> delete path. The first reader proof
+// replaces the file and presents matching newer metadata with an old device.
+// The second observation must remain bound to the first, not accept that record.
+func TestDeviceRebindCollectionKeepsFirstObservation(t *testing.T) {
+	path, now, opts := fixture(t)
+	w, err := Open(path, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.Close()
+	name := fmt.Sprintf("segment-%032x.log", 1)
+	fixtureSegment(t, path, name, now.Add(-RetentionPeriod-24*time.Hour))
+	p := segmentPath(path, name)
+	var g generation
+	if err = readJSON(p+".json", &g); err != nil {
+		t.Fatal(err)
+	}
+	changed := false
+	opts.ReaderProof = func(_ context.Context, candidate string) error {
+		if candidate != p || changed {
+			return nil
+		}
+		changed = true
+		body, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		if err = os.Rename(p, p+".previous"); err != nil {
+			return err
+		}
+		if err = os.WriteFile(p, body, 0600); err != nil {
+			return err
+		}
+		if err = os.Chtimes(p, g.ModTime, g.ModTime); err != nil {
+			return err
+		}
+		st, err := os.Stat(p)
+		if err != nil {
+			return err
+		}
+		g.Identity = fileIdentity(st)
+		g.Identity.Device++
+		return writeJSON(directory(path), p+".json", g, true, opts)
+	}
+	if _, err = Collect(path, opts, 10); err == nil {
+		t.Fatal("collector discarded preview observation and deleted replacement")
+	}
+	if !changed {
+		t.Fatal("first observation hook not reached")
+	}
+	if _, err = os.Stat(p); err != nil {
+		t.Fatalf("replacement was not preserved: %v", err)
+	}
+	s, err := load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Deleting != nil {
+		t.Fatal("admitted deletion after live identity changed")
 	}
 }

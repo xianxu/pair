@@ -1242,7 +1242,8 @@ this measured repair and the hub-coordinated fresh-write acceptance.
 device-only or mismatched. Under the existing log flock, a current checkpoint
 without a pending intent is durably rebound before append admission; the old
 reservation is untouched. Preview uses the same persisted comparison read-only.
-Collection may rebind retained metadata before admitting a new deletion intent;
+Collection carries preview's first observed generation privately through strict
+revalidation, then may rebind retained metadata before a new deletion intent;
 current rows and all already-pending transaction recovery keep strict identity.
 A device change between observations within one operation is refused. Inode,
 size, nanosecond-time and uncertain-tail mismatches never authorize a reset,
