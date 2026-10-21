@@ -36,9 +36,15 @@ Add scripts/repro/zellij-false-miss.sh and a ten-line README section. Bash plus 
 
 ## Plan
 
-- [ ] Extract private native stimulus and strict raw signature counts; document invocation and liveness limits.
-- [ ] Run syntax/refusal checks and one real1000-query/four-worker experiment, retain result in Log, then close and prepare PR independently of #744.
+- [x] Extract private native stimulus and strict raw signature counts; document invocation and liveness limits.
+- [x] Run syntax/refusal checks and one real1000-query/four-worker experiment, retain result in Log, then close and prepare PR independently of #744.
 
 ## Log
 
 TL c4915544 dispatches this tiny tooling side task while #744 integration suite waits. Use a separate checkout so the retained #744 merge runner sees no branch or working-tree changes. Quick plan follows the exact dispatched contract; proceeding under tl-worker quick-flow authority.
+
+### 2026-10-21 — standalone native result and slot-only continuation
+
+Measured from /tmp with Bash plus installed Zellij0.45.1 and stock utilities only, three fresh background shell sessions,1000 raw reads/four workers: exit0_target_listed=7, exit1_alive_confirmed=0, exit1_liveness_unconfirmed=0, other_nonzero=0. Independent raw-output classification agrees. Exit1 was not reproduced in this sample; zero is not evidence of absence. Cleanup passed (private sockets absent/root removed); a subsequent exact session-prefix process search found no server. LogSHA256a3a178d1c8660b2ce94a2e2e067d5de1b5700ee9795950f1172e0e432b49d9a9. The run manifest pins the measured script hash; source is unchanged from that run. Syntax and invalid-input refusal pass.
+
+Initial draft setup refused before measured queries because the native socket directory is contract_version_1 rather than the release version; initial-setup-failure.log preserves it and its passing cleanup. No query failure was retried or erased. Corrected native run and ten-line README are retained. Temporary clone planning was stopped on TLbee5ced4's correction; its record was copied to scratch and the clone deleted, with no code there. After #744 landed PR509, this issue resumed through start-plan/change-code in canonical pair:5 on landed main. TL reported the draft counts received. Required suite and close/landing gates remain due; no product or local-gates configuration changed.
