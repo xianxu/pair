@@ -176,7 +176,7 @@ The pure core owns these transitions; caller UI cannot alter its history. The UI
 
 **Files:** atlas/{webcast-format.md,webcast.md,index.md if needed}, issue, this plan, workshop/lessons.md for review lessons.
 
-- [ ] Document model/format/compatibility and snapshot contract. Run all four feature packages, webcast TestNode/CatchUpCorpus/OperatorScript, focused Node tests, reader/artifact inventories and `git diff --check`.
+- [x] Document model/format/compatibility and snapshot contract. Run all four feature packages, webcast TestNode/CatchUpCorpus/OperatorScript, focused Node tests, reader/artifact inventories and `git diff --check`.
 - [ ] Push and run recorded affected check; use full suite for known pair#738 graph failure without bypass. Run `make test-affected-inventory` before close.
 - [ ] Close once with measured evidence; gates own fresh review. Fix findings, land through sdlc, report the outcome to ops:0, and start #752 only from landed main. TL owns project edits.
 

@@ -64,7 +64,7 @@ total: 3.79
 - [x] Claim/start-plan after dependencies land; write the slice-specific execution plan.
 
 Execution plan: [000751-cast-sketch-recording-plan.md](../plans/000751-cast-sketch-recording-plan.md).
-- [ ] Implement and verify the Spec and Done when through the normal SDLC gates.
+- [x] Implement and verify the Spec and Done when through the normal SDLC gates.
 
 ## Log
 
@@ -81,3 +81,5 @@ Execution plan: [000751-cast-sketch-recording-plan.md](../plans/000751-cast-sket
 - ops:0 snapshot direction is implemented through ephemeral catch-up-only sketch/control frames; repeated Hub compaction and replay seek restore the same validated history. Raw disk readers and ordered writers cannot install/persist bootstrap frames. Snapshot receipt verification reuses the transition core, with contextual interruption/seal facts, and rejects cross-field identity/digest/path/stack inconsistencies before mutation (ARCH-DRY/ORDER/SECURE).
 - Ad-hoc fresh-eyes review found and fixed post-end labels, uncertain sink retries, unknown-field byte-accounting drift and bootstrap cross-field inconsistencies. Producer budget charges preserved wire bytes; the shared model counts known-field encoding, keeping additive unknown values outside authoritative projection. Exact retries retain unknown persistence outcomes instead of inventing a durable acknowledgment.
 - Targeted verification PASS: all recording/sketch/board/recorder package tests; webcast TestNode/OperatorScript; focused browser model/replay tests; artifact-source classification; bounded codec fuzz run. Shared corpus pins every prefix including driver reset, pause/resume, navigation, clear-open, end and nested unknown fields. Audited the new corpus reader: its only repository input is tests/webcast/sketch-corpus.json; recorded non_go_full_fallback inventory entry. Atlas maps final contracts. Recorded full/affected check and close remain next.
+
+- Published PR #505. Recorded affected check on code head 4ff8fe47eed59303bb9b3b82f4fc74786f23d189 selected the full suite because the detached package graph lacks generated runtime assets (known pair#738/ariadne#517). Full suite is queued under the machine-wide FIFO; no bypass or unrelated fix. Targeted final checks and repolint pass. Boundary review may overlap the queued recorded suite under tl-worker; landing still requires its recorded pass. ops:0 owns the external project update.
