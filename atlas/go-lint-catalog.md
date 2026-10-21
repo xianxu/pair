@@ -173,6 +173,19 @@ Close: consume the PTY and client before closing/signalling/reaping, and retain
 real failures. Startup refusal joins cleanup errors; final cleanup still requires
 exact server-generation exit evidence before removing its owned cache root.
 
+
+## Inherited descriptor proof (#767)
+
+The local `fd-path-permission` rule is registered and implemented in
+`internal/repolint/local_catalog_test.go`. It flags literal shell `test`, `[` and
+`[[` permission probes (`-r`, `-w`, `-x`) of numeric `/dev/fd/N` paths. The identity
+fixture exposed a macOS false negative while its inherited descriptor remained
+readable. Check the descriptor itself (read, fstat or fcntl); a pathname's access
+permission is a separate observation. The rule is lexical and does not resolve
+dynamically assembled shell commands. Its fixture cases live in
+`internal/repolint/fd_path_permission_test.go`; finding/suppression behavior is
+shared with the catalog above. Other consumers' shared catalog is unchanged.
+
 ## Scribe terminal-aware output producer (#766)
 
 The Pair-local `scribe-pty-printf` rule, owned by
