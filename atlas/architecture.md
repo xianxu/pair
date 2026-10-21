@@ -8,6 +8,12 @@ The whole thing is deliberately small — a handful of shell scripts, one nvim i
 
 ## Pieces
 
+### Pair and Couch state ownership
+
+pair is a thin, standalone, per-folder launcher of a coding agent; Couch is the integrated environment that configures pair and owns Couch-level state (e.g. per-repo remembered agent arguments). pair reads nothing of Couch's.
+
+Couch resolves repository-wide startup arguments and passes the accepted argv explicitly to Pair. Pair's standalone folder configuration remains independent. A shared Pair/Couch preference store, or a Pair fallback into Couch's preferences, would reverse this ownership boundary. Couch's repository identity joins its slots; it does not change Pair's folder identity. Cross-repository borrowed arguments are a Couch suggestion that requires acceptance, not an implicit Pair default. This layering is the operator's governing direction for #728; its implementation plan is [Couch startup preferences](../workshop/plans/000728-shared-agent-startup-preferences-plan.md#2026-10-21-0004--governing-couch-only-repository-preference-design).
+
 ### Verified park/resume authority
 
 `pairlifecycle` owns versioned quit requests/completions and the one ordered

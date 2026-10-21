@@ -188,3 +188,72 @@ Recommend a third review boundary for edited resume after M1 preferences and M2 
 | Additional boundary review/evidence; milestone review | 0–0.04 (×0.2) | 0.08–0.20 (0.2–0.5 ×0.40) |
 
 Design subtotal 0.64–1.36 h; with thorough-design 15% buffer, 0.736–1.564 h. Implementation subtotal 0.82–2.10 h. Derived range 1.556–3.664 h, rounded to 2–4 for the operator. Assumes existing native binding and resume mechanisms are reused, two agent kinds, and no discovery that a selected startup flag is incompatible with that agent's resume command. Such a discovery is a scope decision, never grounds to silently start fresh. No changes to estimate_hours or the gated issue Estimate block before the design clears plan-quality.
+
+### 2026-10-21 00:04 — Governing Couch-only repository preference design
+
+**Authority:** authenticated operator directions relayed by ops:0 in64b4b0ac-bf04-425e-857e-8ee9a9c2ef1e andbd0eb7a0-818e-45d5-8436-f4f951ab5183. This section replaces the initial shared-store architecture, all launchprefs package/Pair-store work, exact-path override policy and corresponding M1 tasks. Earlier sections are retained only as design history under the append-only revision rule. Restart Resume/Fresh semantics remain open; the marginal option analysis above is not approval. Code stays held until the hub relays the operator decision.
+
+#### Architecture
+
+[Pair/Couch ownership](../../atlas/architecture.md#pair-and-couch-state-ownership), also in AGENTS.local.md: **pair is a thin, standalone, per-folder launcher of a coding agent; Couch is the integrated environment that configures pair and owns Couch-level state (e.g. per-repo remembered agent arguments). pair reads nothing of Couch's.**
+
+Couch alone owns remembered startup argv keyed by verified repository identity and agent, shared by every slot of that repository. Couch passes accepted arguments explicitly to Pair on launch/restart. Pair's per-folder configuration, standalone reads/writes and defaults are unchanged. No shared preferences package, no Pair migration, no Couch reads of Pair agent-default files, and no change to launcher's defaultReady persistence behavior. Existing Pair argument parser/trusted launch-profile transport remain reusable protocol utilities; using them must not confer Couch-store knowledge on Pair (ARCH-DRY/PURPOSE/SECURE).
+
+#### Revised conceptual core and IO seams
+
+| Entity / function | Location | Status and role |
+| --- | --- | --- |
+| `RepoLaunchPreference` | `cmd/internal/couchcore/repopreferences.go` | new: verified repository identity, per-agent argv, revision and import/conflict provenance; no per-folder overrides |
+| `ResolveRepoArguments`, `RememberRepoArguments`, `FoldPathPreferences` | same file | new pure precedence/update/migration decisions; explicit empty differs from absent |
+| `BorrowedArguments`, `ChooseBorrowedArguments` | same file | new pure suggestion with donor repository and selected agent; never launch authority |
+| Existing `ResolveLaunchProfile` facade | `cmd/internal/couchcore/launchprofile.go` | modified to consume Couch repository arguments; keep explicit/thread/root agent selection, never borrow an agent identity |
+| Repository preference read/write/codec | `cmd/internal/couchcore/repopreferences_store.go` | new bounded canonical file owned by the global Couch ThreadStore namespace, keyed by repository identity |
+| Legacy fold adapters | `cmd/internal/couchcore/repopreferences_migration.go`, threadstore/preview/location/slotmigration | modified: import only Couch path-preferences into repository records once |
+| Successful configuration publisher | `couchcore/launch_existing.go`, reconciliation in `couch.go` | modified: final adopted launch publishes selector-free accepted profile with warning on write failure |
+| Typed live/vacant switch evidence, CLI intent and form | original M2 files above | retained, subject to the final Restart-mode decision |
+
+Couch can use one bounded `repo-preferences.json` document with a repository-keyed map in its existing global ThreadStore backend. Centralize this path in its storage/artifact model; numbered-slot routing must not redirect this repository document into slot-local singleton preferences. One existing namespace/store lock and atomic replacement protect updates, preserving unrelated repositories/agents. Do not add a cross-root thread/preference journal. Preserve local thread registration; release its lock, complete actor registry/adoption, then publish repository arguments without nested store locks. Keep all new readers/writers on this Couch seam; no launcher preference API changes.
+
+#### Resolution and borrowed suggestions
+
+1. Explicit accepted argv (including an empty array) wins. Otherwise use the selected agent's accepted configuration in this repository. Folder/slot name never changes that key.
+2. If that repository has no configuration for the selected agent, the form offers a value successfully used for that same agent in another repository in this machine's Couch store. Show the source repository and **Borrowed — not saved for this repository** beside the pre-filled value. Empty borrowed argv is a real configured empty value. A conflicting/unconfirmed legacy donor is ineligible.
+3. Deterministically choose one eligible donor by stable repository identity order; do not fabricate comparable timestamps from unrelated legacy revisions or scan Pair data. This is a suggestion, not an automatic fallback launch. Editing changes the draft; confirmation accepts the exact displayed argv, with relevant source revision/provenance in preview intent. Cancelling or failed/stale confirmation saves nothing.
+4. On successful adopted launch after acceptance, save the argv as this repository's own record; subsequent slots use it without a borrowed label. Donor changes cannot overwrite an accepted local record.
+5. A noninteractive CLI with no repository configuration and no explicit --agent-args must not silently accept a borrowed value. Return an actionable message pointing to the form's marked offer or explicit --agent-args. With explicit args, CLI confirmation is acceptance. This is the proposed CLI interpretation of the operator's offer/accept requirement, called out for hub review.
+6. A repository-level conflict from migration is not absence. Expose it and require accepted explicit args; do not borrow another repository to conceal it. No donor is required for a new empty form: the field remains editable and explicit empty can be accepted.
+
+#### Couch-only migration, limits and compatibility
+
+Fold existing global Couch path-preference records and enrolled slot `.couch/preferences.json` through existing ThreadStore routing/SlotLayout accessors. Verify every source's repository identity. Equal argv for the same repository/agent folds to one value; differing old folder values become an explicit repository conflict until the operator accepts one configuration. There are no surviving path overrides after migration. Preserve source identity/digest and unknown raw members; original source files remain untouched as compatibility history, with no new preference writes to them.
+
+Imported repository values are provisional until an explicit configuration succeeds: a newly discovered differing old source invalidates a provisional value in either discovery order. Confirmed values cannot be overwritten by late legacy discovery. Reject ambiguous same-source/path input rather than using mtime or an unrelated revision. Bounded reads can resolve migration in memory during preview; commit fold markers only at authorized successful configuration publication. Preview/open/edit/cancel must remain byte-for-byte read-only, including no lock-file/directory creation, retention enrollment or journal recovery.
+
+Retire Couch's `RepoAgentDefault` callback that reads Pair's agent-default files. Sweep Couch start/preview, slot fresh/preparation, switch, recovery preflight and StartResolution fingerprints to use this Couch repository argument seam. Recovery/native resume retain their historical invocation/binding authority and do not learn a new preference merely because they ran. `getPathLaunchPreference`/`PreviewPathLaunchPreference` become bounded migration adapters or are removed after callers move; they cannot remain a competing current-preference authority. Keep Pair's `AgentDefault`, OSRuntime, createflow default lookup/readiness learning, per-tag configs and watcher unchanged. Existing independent Pair tests stay as regression coverage, not a new shared-store integration.
+
+Bound the Couch document to4 MiB and256 repository records, each per-agent formatted argv to4096 bytes, and migration discovery to256 verified legacy records per fold. Exact/one-over bounds apply on final encoded writes including unknown fields, with old bytes unchanged on refusal. Unknown fields survive all envelope/repository/agent/provenance rewrites with strict known types/duplicates via strictjson raw-preserving codecs (ARCH-EVOLVE). One replaced document and stable lock have no append-only growth; repository settings follow existing Couch namespace/data retention, independent of per-thread history pruning. At a bound, refuse/warn and name inspection/archive; never evict accepted settings. Borrowing scans the already-decoded bounded map once, O(R), picks the minimal eligible key without sorting, and never performs IO per keystroke. Count file decodes/scans and writes at N/2N; migration reads scale with source count L and cease for unchanged committed source digests.
+
+#### Revised visible states and learning contract
+
+The earlier live/vacant/stale/park/unknown-process state table remains. Add these configuration states:
+
+| Internal state | Visible state | Action / recovery | Possible loss |
+| --- | --- | --- | --- |
+| Repository configured | own saved parameters | edit/confirm or cancel | cancelled draft only |
+| Repository absent, donor found | pre-filled, marked Borrowed from repository X | accept/edit/confirm or cancel | no setting changes on cancel |
+| No repository config or donor | editable empty field | type args or explicitly accept empty | no implicit borrowed launch |
+| Migrated values conflict | configuration conflict with source identities | explicitly accept chosen args | original sources retained |
+| Accepted target fails launch/final adoption | switch/restart failure, previous setting retained | existing lifecycle recovery | previous conversation remains recoverable |
+| Target adopted, Couch preference publication fails | Started; parameters were not remembered | repair Couch storage, then explicit configuration/restart | repo value may remain old; executed args stay in thread history |
+
+The operator accepted the last tradeoff: do not stop a successfully started agent to roll back a preference error. Pair's defaultReady path is outside this scope. Couch must explicitly bridge StartResult and SwitchAgentResult warnings into visible console/CLI output and succeeded-with-warning receipts, preserving cleanup warnings. Final adoption/registry failure still cannot publish rejected settings. A crash in the disclosed adoption/publication gap is not promised automatic repair.
+
+#### Revised execution contract
+
+**M1 — Couch repository arguments and marked borrowing.** Replace the original shared-authority M1. Write pure resolution/fold/borrow/codec red tests, then actual private-file concurrent store tests. Prove one configured slot seeds another slot of the same repository, another repository yields only a marked suggestion, acceptance saves locally, cancellation/read-only preview writes nothing, empty differs from absent, migration conflicts are discovery-order independent, and unrelated records/unknown fields survive. Wire all enumerated Couch consumers and both successful-adoption paths; test no learning on failed adoption/automatic resume/warm/recovery and visible warning with a live adopted agent on publication failure. Keep Pair's store bytes and standalone behavior unchanged, with a negative dependency/source guard preventing launcher preference reads from Couch storage. Run targeted couchcore preference/start/slot/recovery tests plus launcher isolation regression, artifact/reader inventories and counted bounds; update atlas, commit, push and close M1 with its binary-owned review.
+
+**M2 — Parameter field, explicit CLI args, guarded switch/restart.** Keep the original field/input/generation, --agent-args optional typed-array/receipt intent, same/different agent and live/proven-vacant service-guard work. Update form wording and provenance for own/borrowed/empty/conflict states. Validate at the real guard+dispatcher/terminal/socket seams, with race barriers and strict unknown ownership refusal. Move current-directory-only argument reading out of these paths. Final Restart mode and possible separate edited-resume boundary await the operator; do not implement fresh as a hidden default while that row is open. Real acceptance includes one Couch repo's form→another slot's CLI, marked other-repo borrowing→accept→own value, cancellation, explicit empty/nonempty argv, parked recording and the selected Restart semantics. Operator live smoke still needs the hub's explicit staging/idle-target authorization.
+
+**Documentation now authorized:** the ownership rule is added to atlas/architecture.md and AGENTS.local.md and linked from the atlas index. This is durable architecture direction, not implementation approval. Planned code gates remain held. Update README/embedded Couch help after the final UI choice, then recorded affected verification, mandatory M1/M2/(optional edited-resume) reviews and issue close/PR/merge as previously specified.
+
+**Open operator row:** same-agent restart retains current native conversation vs starts fresh, and the UI/CLI Fresh selection if resume is chosen. The earlier2–4 h marginal estimate covered adding edited resume on top of the initial fresh design; it is not a total estimate of this revised, smaller Couch-only persistence scope. The full issue estimate is still deferred until approved plan-quality succeeds.
