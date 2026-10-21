@@ -1,6 +1,6 @@
 ---
 id: 000766
-status: codecomplete
+status: done
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 1dfc48d5c387881c796f19a784ff7cd72178405a
         evidence_commit: 1033e89cf18ceb04ede396333bb2b219e9f290b1
+        landed_commit: e5fdd5d2346067da50d9bfcb2fa1bfc5d4b17bf7
 ---
 
 # flake: TestRunTeesChildOutputToStdoutAndLog
