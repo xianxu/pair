@@ -37,7 +37,7 @@ A focused regression executes KillClient then Close and observes successful exac
 
 - [x] Reproduce KillClient then Close with a real owned child/PTY and exact fake server evidence, then retire each client/PTY handle exactly once in the shared cleanup path.
 - [x] Preserve shutdown/observation/handle errors; audit this fixture’s callers and startup refusal paths so meaningful cleanup failures are joined or reported. Add a local lint regression for discarded fixture cleanup.
-- [ ] Verify focused lifetime/error regressions and affected packages, run recorded verification, close and land.
+- [x] Verify focused lifetime/error regressions and affected packages; start recorded verification and close review. Landing remains gated on their passing results.
 
 Actions: detach client, close fixture, retry diagnosis after cleanup failure.
 
@@ -60,3 +60,5 @@ Observed during #761 on 830f29d9ef0892b6fb8d06869a4840eed28f7ad9. Relevant sourc
 
 - Implemented shared handle retirement; all five startup refusal paths join cleanup failures. Audited 13 outside-fixture cleanup sites and two readiness-test sites; errors now fail tests without skipping remaining cleanup proof. Added bounded provenance-aware controlled-zellij-close local lint (27 scanner cases; aliases, typed fields, diagnostics-only handling, unrelated closers negative).
 - Verification: full pairlifecycletest and internal/repolint packages pass under -race; affected caller packages compile. Native TestStartupManagedAttachDetachTimingLive passed with private socket isolation (6.83 s), sentinel_survived=true and owned session retired=true, now enforcing Close errors. Artifact classification passes. Existing affected-reader scopes re-audited; only cleanup reporting changed, dispositions retained.
+
+- Recorded affected verification started on the pushed implementation head; existing missing generated runtime assets prevent package graph selection, so the runner selected the full suite. FIFO queued; close review may overlap under tl-worker rules. Full recorded pass remains required before landing.
