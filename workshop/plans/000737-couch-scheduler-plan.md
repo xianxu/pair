@@ -30,11 +30,12 @@ collaboration-mode: discussion
 
 | Name | Lives in | Status | Responsibility and relationships |
 |---|---|---|---|
-| `TaskSpec`, `TaskKey`, `OwnerAdmission` | `cmd/internal/couchschedule/spec.go` | new | One validated declaration per `(canonical hub root, task slug)`; owner check consumes parsed Operators and an injected operator slug. |
-| `Calendar` | `cmd/internal/couchschedule/calendar.go` | new | Five-field cron parsing and strictly-future `Next(time.Time)` in an injected machine location; no timer or IO. |
-| `ScheduleState`, `TaskState`, `Occurrence`, `Advance` | `cmd/internal/couchschedule/model.go` | new | Sole transition owner for scheduled/manual attempts, next due, history, cancellation, and notice outcomes. |
-| `BuildKey`, `BuildManifest` | `cmd/internal/couchschedule/build_manifest.go` | new | Hash a captured build-input manifest; source/dependency/embed/toolchain changes invalidate a binary independently of task arguments. |
-| `StatusSnapshot`, `TaskStatus` | `cmd/internal/couchschedule/status.go` | new | Projection shared by JSON/text status and notices; distinguish queued, running, quiet, wake, failed, skipped, refused, and uncertain. |
+| `TaskSpec`, `OwnerAdmission` | `cmd/internal/couchschedule/spec.go` | delivered M1 | Validated declaration and deterministic team owner admission. |
+| `TaskKey`, `Declaration`, `TaskState`, `Attempt`, `RunSummary`, `Event`, `Effect`, `Advance` | `cmd/internal/couchschedule/model.go` | delivered M1 | Per-task transition authority; attempts represent occurrences, with scheduled due instants or manual nonces. |
+| `Calendar` | `cmd/internal/couchschedule/calendar.go` | delivered M1 | Five-field cron and strictly-future `Next` in an injected location. |
+| `BuildManifest`, `BuildInputDigest`, `buildContentKey` | `cmd/internal/couchschedule/build_manifest.go` | delivered M1 | Captured input digests and content key, independently of task arguments. |
+| `StatusSnapshot`, `TaskStatus`, `BuildStatus` | `cmd/internal/couchschedule/status.go` | delivered M1 | Immutable status projection with per-task refusals. |
+| `Record`, `RunKey`, `OutputBuffer` | `cmd/internal/operationalrun/record.go`, `output.go` | delivered M1 | Run execution metadata, durable identity, and capped head/tail output. |
 
 The key is rooted in the **hub checkout**, never its claimed product repositories. One task has many occurrences; a scheduled occurrence is keyed by task, declaration revision, and due UTC instant. Manual attempts have a separate nonce and never consume or advance a scheduled occurrence. One state snapshot owns current task authority; immutable per-run records and bounded output live separately under the Couch data folder. The reducer owns scheduling decisions (ARCH-PURE/ARCH-ORDER); adapters must not implement competing catch-up or exit-code rules (ARCH-DRY).
 
@@ -42,14 +43,18 @@ The key is rooted in the **hub checkout**, never its claimed product repositorie
 
 | Name | Lives in | Status | Wraps |
 |---|---|---|---|
-| `TaskCatalog` | `cmd/internal/couchschedule/catalog.go` | new | Bounded repository-local discovery, declaration bytes, Operators, effective Git identity, and source revision observations. |
-| `StateStore` | `cmd/internal/couchschedule/store.go`, `store_unix.go`, `state_json.go` | new | Context-bounded flock transactions, additive JSON, `durablefile` atomic writes, plus separate per-run records integrated with Couch operational-data retention. |
-| `TaskBuilder` | `cmd/internal/couchschedule/build.go` | new | Go package metadata/build commands, complete build manifests, atomic executable cache publication. |
-| `TaskExecutor`, `TaskAdmission` | `cmd/internal/couchschedule/execute.go`, `execute_unix.go`, `admission.go` | new | Owned process groups, timeout, parent lifetime, output capture, per-task lease, machine-wide execution permits, and optional machine admission. |
-| `FakeTaskRuntime` | `cmd/internal/couchschedule/runtime_fake.go` | new | Stateful build cache/process/admission/clock double with held operations, exits, cancellation and crash/reopen observations. |
-| `scheduleService` | `cmd/internal/couchcmd/schedule_service.go` | new | Existing message-service lifetime, hub definitions, fake ticks, store snapshots, bounded workers and broker outcomes. |
-| `scheduleNotice` | `cmd/internal/couchcmd/schedule_notice.go` | new | Exact hub binding, `Broker.SendSystem`, canonical receipt observation and frozen bounded notice body. |
-| Schedule CLI/protocol | `cmd/internal/couchcmd/schedule_cli.go`; existing `cli.go`, `messages.go`, `run.go`, `cmd/internal/couchmessage/protocol.go` | new/modified | Strict CLI forms, existing private socket for status/hub resolution, shared local execution helper for manual runs. |
+| `Catalog` | `cmd/internal/couchschedule/catalog.go` | delivered M1 | Bounded repository discovery, Operators, Git identity and declaration revision. |
+| `Ledger`, `StateStore` | `cmd/internal/couchschedule/store.go`, `store_unix.go`, `state_json.go` | delivered M1 | Locked, atomic additive authority snapshots; separate from run history. |
+| `Builder`, `Artifact` | `cmd/internal/couchschedule/build.go`; cache in `cache.go` | delivered M1 | Captured Go builds, cache publication, lifetime leases and retention. |
+| `TaskExecutor`, `Executor`, `ExecutionRequest`, `ExecutionResult` | `cmd/internal/couchschedule/execute.go`, `execute_unix.go` | delivered M1 | Controller/process ownership, timeout and bounded output. |
+| `acquireExecutionPermits`, `executionLease` | `cmd/internal/couchschedule/admission.go` | delivered M1 | Per-task lease and two machine permits; declared heavy uses existing test-lock helper. |
+| `FakeTaskRuntime` | `cmd/internal/couchschedule/runtime_fake.go` | delivered M1 | Stateful execution double with held starts, exits and cancellation. |
+| `Store.Publish`, `Store.List`, `Store.Read`, `Store.SweepPage` | `cmd/internal/operationalrun/store.go`, `retention.go` | delivered M1 | Immutable execution bundles and shared operational retention. |
+| `scheduleService` | `cmd/internal/couchcmd/schedule_service.go` | delivered M1 catalogue/status; automatic effects planned M2 | Joined service lifetime, declaration refresh, recovery and published snapshots. |
+| `manualTaskRunner` | `cmd/internal/couchcmd/schedule_manual.go` | delivered M1 | Durable manual reservation, shared execution and run publication. |
+| `scheduleNotice` | `cmd/internal/couchcmd/schedule_notice.go` | planned M2, not implemented | Exact hub binding, broker admission and canonical receipt observation. |
+| `parseScheduleCLI`, `runScheduleCLI` | `cmd/internal/couchcmd/schedule_cli.go`, `schedule_status.go` | delivered M1 | Closed CLI grammar, status exchange, manual run and retained history. |
+| `Store.FinalizeNotice` | `cmd/internal/operationalrun/store.go` | planned M2, not implemented | Monotonic pending delivery finalization under the existing task lock. |
 
 Reuse `couchcore.Runner`/`FakeRunner` for process identity and group lifetime where their contract fits. They inherit output today; do not pretend they already capture scheduled stdout. Add a focused scheduled-execution adapter and reuse `procutil` group/identity primitives rather than changing terminal/PTY execution semantics. `zellijexec.Run` is explicitly a read-only Zellij boundary and must not be reused unchanged for arbitrary tasks.
 
@@ -113,16 +118,16 @@ The manual process owns cancellation, streams/captures bounded task output, and 
 type Event struct {
     Kind EventKind
     At time.Time
-    Task TaskKey
+    Declaration *Declaration
     Revision string
     Attempt string
     // Typed payload for catalog, persistence, admission, build, process,
     // receipt or cancellation observation; no ambient reads here.
 }
-func Advance(state ScheduleState, event Event) (ScheduleState, []Effect)
+func Advance(state TaskState, event Event) (TaskState, []Effect)
 ```
 
-`TaskState` holds an immutable current declaration and `NextDue`, plus an optional tagged active attempt. The attempt stage is one of reserved, queued, building, running, notifying, or recovering. Process attempts retain source (manual/scheduled), controller PID/start token, work-group identity, owning parent, and absolute deadline. Final records carry quiet/wake/failed/skipped/refused/uncertain outcomes. Typed event/stage/attempt checks ignore stale or duplicate completions; callers cannot mutate authoritative phase fields directly.
+`TaskState` holds an immutable current declaration and `NextDue`, plus an optional tagged active attempt. Persisted attempt stages are reserved, running, notifying, delivery, stopping, and uncertain. Admission/build are execution-owner work within the running stage; visible projections may name that work without adding a second phase authority. Process attempts retain source (manual/scheduled), controller PID/start token, work-group identity, owning parent, and absolute deadline. Final records carry quiet/wake/failed/skipped/refused/uncertain outcomes. Typed event/stage/attempt checks ignore stale or duplicate completions; callers cannot mutate authoritative phase fields directly.
 
 | State/event | Decision/effect | Next visible state |
 |---|---|---|
@@ -173,10 +178,10 @@ Choose a **private captured-source build view**, not before/after hashes around 
 1. Resolve the installed local Go toolchain and native target once per build admission. Use explicit `GOWORK=off`, `GOTOOLCHAIN=local`, cleared ambient `GOFLAGS`, and fixed `-trimpath -buildvcs=false` options for graph/build commands. Module graph resolution may fetch normal pinned dependencies; it must not rewrite the hub's go.mod/go.sum.
 2. Run bounded `go list -deps -json` and module metadata queries against the selected task. Reject incomplete graphs, unsupported cgo/SWIG/foreign-object inputs and escaping local replacements. Capture all selected non-standard Go/assembly/header/embed inputs and module manifests as bytes; relative local replacements stay inside the captured hub tree. Preserve original module identities and selected versions. A dependency edit or missing/generated embed input cannot disappear from the hash.
 3. Materialize those captured inputs into a private staging view, with deterministic module-to-directory mapping. Generate a private root modfile whose replacements point **every captured non-standard module** at its captured copy; include the selected module-manifest graph so the build need not read dependency sources from the live checkout/cache. Reject absolute/escaping local replace paths; do not copy or mutate the live modfiles. Standard-library/compiler inputs belong to the trusted, version/fingerprint-pinned local toolchain.
-4. `BuildKey` hashes canonical module/path labels, captured file bytes, original module metadata, normalized private-view recipe, toolchain fingerprint, target and fixed options. Build only that view, with proxy/module fetching disabled during the actual compile. An import added during graph capture that was not captured makes the build fail; it never gets fetched behind the manifest's back. Bound capture to 64 MiB/10,000 files and reject unsafe/symlinked inputs.
+4. `buildContentKey` hashes canonical module/path labels, captured file bytes, original module metadata, normalized private-view recipe, toolchain fingerprint, target and fixed options. Build only that view, with proxy/module fetching disabled during the actual compile. An import added during graph capture that was not captured makes the build fail; it never gets fetched behind the manifest's back. Bound capture to 64 MiB/10,000 files and reject unsafe/symlinked inputs.
 5. Reuse a validated cached executable for that key. Otherwise build a temporary executable, hash it, and atomically publish binary plus manifest while holding the same-key build lease. Recheck the declaration/owner revision before task execution; a completed stale build may be cached but cannot execute a superseded task. Never publish a partial file or claim an unverified artifact matches its manifest.
 
-`TaskBuilder` must not call arbitrary `go generate`, execute a task to detect capabilities, or write a binary into the hub repository. Go's ordinary module fetches and toolchain selection are operator-level IO, not sandbox isolation. Discovery/status never compile packages. Automatic notice-only tasks build only when the hub uses the manual helper. Complete snapshots die when the build adapter returns; cached binaries have the separate retention budget below.
+`Builder` must not call arbitrary `go generate`, execute a task to detect capabilities, or write a binary into the hub repository. Go's ordinary module fetches and toolchain selection are operator-level IO, not sandbox isolation. Discovery/status never compile packages. Automatic notice-only tasks build only when the hub uses the manual helper. Complete snapshots die when the build adapter returns; cached binaries have the separate retention budget below.
 
 ### Process and heavy admission ownership
 
@@ -204,7 +209,7 @@ The same end-to-end timeout bounds manual and automatic admission/build/task wor
 
 Existing `diagnosticlog` owns exact log generations, while `storagegc` transactions require session/capture owners; neither is a run-directory API. Add a focused `cmd/internal/operationalrun/` package with `store.go`, `record.go`, `retention.go`, `collection.go` and `store_unix.go`. `Store{Namespace}` owns publication, bounded List/Read and `SweepPage(ctx, now, cursor, apply, limit)`. Scheduler authority remains in couchschedule; result envelopes belong to operationalrun, avoiding a retention dependency on the scheduler service. Its independent operational policy is 30 days/300 completed runs per task, not the diagnostic seven-day setting or obsolete generation-count fields.
 
-Publication, history reads and collection acquire the same permanent per-task flock outside run folders, using the existing no-follow/close-on-exec pattern in `couchidentity/store_unix.go`. Only a finalized immutable bundle containing exactly record.json plus output is eligible; live/incomplete/uncertain records stay protected. Publish output and metadata in a private staging directory, sync and atomically rename it into runs before clearing completed scheduler authority. Retrying that publication checks the same immutable run identity and never repeats a task.
+Publication, history reads and collection acquire the same permanent per-task flock outside run folders, using the existing no-follow/close-on-exec pattern in `couchidentity/store_unix.go`. Only a finalized bundle containing exactly record.json plus output is eligible; live/incomplete/unknown-execution records stay protected. In M2, pending notice delivery also protects a record; known execution with terminal uncertain delivery follows ordinary retention. Execution fields and output stay immutable, with only the approved pending-to-terminal delivery finalization permitted. Publish output and metadata in a private staging directory, sync and atomically rename it into runs before clearing completed scheduler authority. Retrying that publication checks the same immutable run identity and never repeats a task.
 
 `operationalrun/collection.go` persists a narrow deletion journal with exact source-relative name, directory/member identities and unique quarantine target before moving a bundle. Under the task lock, rename the whole run folder, sync both parents, mark detached, and dispose only its certified contents. Recovery follows the frozen identities; after detachment it never revisits the source name. Unknown members, symlinks or substituted identity block that run. This reuses durablefile publication and the prepared/detached/finalized ordering from `storagegc/transaction_model.go`, without importing session owner semantics or broadening diagnostic generation retention.
 
@@ -231,13 +236,13 @@ Count operations, not wall-clock speed: fixtures at N=8 and 16 reject more than 
 | `ParseTaskSpec`, `ParseOperators`, `OwnerAdmission` | Duplicate keys/slugs, missing Operators, invalid owner, foreign current operator, symlink/traversal | Pure fixture table; wrong owner never emits an execution/notice effect. |
 | `Calendar.Next`, `Advance` | DST, backward clock, startup late, sleep gap, 1,000 missed slots | Explicit instants/expected next due; effect count bounded independently of elapsed slots. |
 | `Advance` | Exit 0/10/other, duplicate/stale completion, config change during build/run, overlapping manual call | Attempt/revision guards; output-10 produces exactly one notice, zero repeat executions. |
-| `TaskCatalog` | Untrusted declaration trees and replacement | Bounded no-follow folder fixtures; refusal stays local; N/2N read counts reject repeated scans. |
+| `Catalog` | Untrusted declaration trees and replacement | Bounded no-follow folder fixtures; refusal stays local; N/2N read counts reject repeated scans. |
 | `operationalrun.Store.Publish/List/Read` | Concurrent publication/history and partial persistence | Shared task lock, bounded no-follow reads, immutable run identity; faults never expose partial bundles. |
 | `operationalrun.SweepPage` | Retention-boundary and crash/replacement uncertainty | Pure age/count classifier and certified bundle detachment/recovery; active/unknown protection and cursor progress through faults. |
 | `gcruntime.Service.Batch/Preview/Apply` | Empty diagnostics, blocked run, session migration incomplete | Registered namespaces observe operational phase/report independently of diagnostic/session policy. |
 | `StateStore` | Truncation, unknown nested fields, write/rename/sync refusal, concurrent manual completion | Reopen real folder-backed state; unknown bytes survive and no effect precedes durable reservation. |
-| `TaskBuilder` | Local dependency/embed/module/toolchain changes, dirty input during capture/build, unsupported module inputs, concurrent same key, failed build | Captured manifests and held stateful builder; compile reads only captured sources; unsupported inputs refuse; no stale-key executable or partial publication. |
-| `TaskExecutor`, `TaskAdmission` | Paused/unknown/skipped helper outcome, forged inherited bypass, timeout, parent death, lingering descendant, three mixed manual/automatic callers | No pre-admission task code; actual machine lease survives owned cleanup; controller outside killed group; machine-wide permits cap callers across supervisor namespaces at two. |
+| `Builder` | Local dependency/embed/module/toolchain changes, dirty input during capture/build, unsupported module inputs, concurrent same key, failed build | Captured manifests and held stateful builder; compile reads only captured sources; unsupported inputs refuse; no stale-key executable or partial publication. |
+| `TaskExecutor`, `acquireExecutionPermits` | Paused/unknown/skipped helper outcome, forged inherited bypass, timeout, parent death, lingering descendant, three mixed manual/automatic callers | No pre-admission task code; actual machine lease survives owned cleanup; controller outside killed group; machine-wide permits cap callers across supervisor namespaces at two. |
 | `scheduleNotice` | Offline notify-only skip/direct execution/exit-10 drop, timeout-result admission window, busy/replaced hub, exhausted allowance, commit uncertainty, broker restart/expiry | Actual fake-backed broker path; same frozen receipt/body; timeout still reports; no resend on lost system receipt, no second paste/script, no claimed absolute queue expiry. |
 | CLI/protocol/status | Cross-hub task reference, argument separator, malformed status, large/controlled output | Exact parser/socket assertions; JSON/text project same snapshot and status performs zero build/probe IO. |
 
@@ -259,7 +264,7 @@ Count operations, not wall-clock speed: fixtures at N=8 and 16 reject more than 
 
 **Create:** `cmd/internal/couchschedule/{catalog,store,store_unix,state_json}.go`, `cmd/internal/operationalrun/{record,store,store_unix,retention,collection}.go`, and tests; `cmd/internal/gcruntime/operational.go`. **Modify:** `gcruntime/{runtime,schedule}.go` for the explicit operational report/phase described above. **Reuse:** `cmd/internal/durablefile/write.go`, `cmd/internal/strictjson/object.go`.
 
-- [x] Write failing folder-backed tests for TaskCatalog, StateStore and operationalrun methods using the strategy matrix, through real bounded files and controlled publication faults.
+- [x] Write failing folder-backed tests for Catalog, StateStore and operationalrun methods using the strategy matrix, through real bounded files and controlled publication faults.
 - [x] Run `go test ./cmd/internal/couchschedule -run 'Test(Catalog|Store|StateJSON)' -count=1`; confirm the intended red failures.
 - [x] Implement bounded discovery and context-aware store transactions. Keep task refusal local; state-store corruption blocks effects. Publish per-run records and 256 KiB head/tail output; register operational data with shared diagnostic retention (30 days/300 runs per task). Test preview/delete fencing and partial publication recovery.
 - [x] Run the focused tests green and the counted catalog-growth check; all fixtures use disposable folders.
@@ -269,7 +274,7 @@ Count operations, not wall-clock speed: fixtures at N=8 and 16 reject more than 
 
 **Create:** `cmd/internal/couchschedule/{build_manifest,build,execute,execute_unix,admission,runtime_fake}.go` and tests; a dedicated native fixture under `cmd/internal/couchschedule/testdata/`. **Modify:** internal command dispatch in `cmd/internal/couchcmd/{cli,run}.go` only as needed for the task-lifetime owner.
 
-- [x] Write failing stateful tests for TaskBuilder, TaskExecutor and TaskAdmission using their matrix strategies.
+- [x] Write failing stateful tests for Builder, TaskExecutor and execution admission using their matrix strategies.
 - [x] Run `go test ./cmd/internal/couchschedule -run 'Test(Build|Execute|Admission|Output)' -count=1`; verify red. Pin the specified captured-source build view with fixtures for module replacements, embeds, unsupported inputs and changes after capture; no mtime-only shortcut.
 - [x] Implement the captured manifest/build cache and parent-owned subprocess wrapper. Use argv, the verified hub cwd, reviewed operator-level environment, and positive heavy admission. Never watch Couch's PID or accept `WF_TEST_LOCK=off` as acquired.
 - [x] Run fake tests green and qualify the runtime seams against native disposable Go/process fixtures using the same matrix guards. Document deliberate process-group escape as outside the supported task contract.
@@ -352,3 +357,9 @@ Advance operates on one TaskState per event; StateStore composes these into the 
 ### 2026-10-20 — M1 verification checkpoint
 
 Manual execution, immutable operational results, shared retention, captured cached builds, live artifact leases, controller ownership, status/history CLI and the catalogue worker are implemented. Native acceptance reproduced the matching-parent-deadline EOF race and pinned the correction: declared timeout remains timeout, earlier cancellation remains cancellation. Nonblocking FD3 output streams a bounded prefix and retained suffix without delaying group cleanup; uncertainty closes output before the controller keeps its resource leases. Saved manual results recover interrupted authority publication without replay. Automatic due execution and broker notices remain M2. Recorded affected/full selection and the mandatory M1 review are next; M1 is not closed yet.
+
+### 2026-10-20 — M1 review reconciliation and approved M2 notice finalization
+
+M1 review returned REWORK (BR-1 through BR-6); M1 remains open. Reconcile the core-concept inventory against actual declarations and paths, replacing design-only ScheduleState/Occurrence/BuildKey/TaskCatalog/TaskBuilder/TaskAdmission names with implemented owners. Explicitly label automatic notice delivery and its finalization API as planned M2. Fix malformed declaration isolation, interrupted cache mutation recovery, persisted state combinations, executable skill examples and additive manifest metadata before re-review.
+
+TL approved the M2 notice revision after the M1 review: execution facts and output remain immutable. Publish the execution record before notice admission, with pending notice state when delivery remains outstanding. One `FinalizeNotice` operation under the existing task lock atomically replaces only delivery metadata, moving pending to submitted, expired, dropped with a reason, or uncertain. Repeating the same terminal value succeeds idempotently; a different terminal value refuses. Uncertain is terminal and never authorizes a retry. Retention protects pending records; terminal delivery uncertainty does not turn known execution into unknown execution. Preserve additive metadata and output bytes. No new retention loop or notice sidecar is introduced. This supersedes blanket metadata immutability for this one monotonic delivery field; the approved execution and no-replay contracts remain intact.

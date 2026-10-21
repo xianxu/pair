@@ -83,15 +83,16 @@ run heavy verbs one at a time, after checking uptime's load.
 
 ## Scheduled hub tasks
 
-`couch --schedule --status [--json]` reads the published task snapshot. From the
-configured hub checkout, use `couch --schedule run TASK -- --help` for task help
-or `couch --schedule run TASK -- script-run` for direct execution. Task flags
+`couch --schedule --status` reads the published task snapshot. From the
+configured hub checkout, use `couch --schedule run landing-plan -- --help` for task help
+or `couch --schedule run landing-plan -- script-run` for direct execution. Task flags
 after the separator pass through literally. This helper builds the reviewed Go
 package into a content cache and returns its actual exit, including 10; manual
 runs do not wake the hub or advance scheduled due time.
 
-`couch --schedule history TASK [--json]` lists retained runs; add `--run ID` for
-one run's metadata and capped output. Run data is private operational data,
+`couch --schedule history landing-plan` lists retained runs; add `--run ID` for
+one run's metadata and capped output. Add `--json` to status or history for JSON.
+Replace landing-plan with the task slug and ID with a listed run ID. Run data is private operational data,
 retained for 30 days and up to 300 completed runs per task. Unknown outcomes
 remain unknown and are never silently replayed. Tasks run as the operator with
 network access, timeout, process-group cleanup and bounded output; there is no
