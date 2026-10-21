@@ -112,3 +112,92 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T03:32:34-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 743 — conformance: run couch-zellij-conformance in a local Tart VM as a declared local check; GitHub job becomes a non-required main/weekly backstop |
+| repo | pair |
+| issue file | workshop/issues/000743-conformance-run-couch-zellij-conformance-in-a-local-tart-vm-as-a-declared-local-check-github-job-becomes-a-non-required-main-weekly-backstop.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | e30ea629818a733f65741bfc95c11de8e1868f34..b267e07012e29425ca77f8ba158b125111a64c4b |
+| command | sdlc close --issue 743 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T03:32:34-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range matches the revised infrastructure and burn-in scope. BR-7 is addressed with a reachable regression that fails when the fix is removed. No new blocking findings emerged. Hosted PR conformance remains enabled; production named-check bootstrap and later promotion remain explicitly assigned to post-landing work.
+
+```findings
+dispose:
+  - id: BR-7
+    disposition: addressed
+    note: |
+      provision.go:227-230 preserves existing top-level and nested tool metadata through strictjson.MergeRaw; final size validation follows at lines 240-245. TestPublishProvisionPreservesNestedMetadataAcrossRefresh passes on head and fails in both version cases when the nested merge is removed through a temporary Go overlay. Exact-65536/65537 publication tests also pass. Swept claim rewrites, image encoding, result publication and raw result-manifest export for the same preservation rule.
+```
+
+1. **Strengths**
+
+   - Image publication preserves additive metadata and checks the fully merged manifest before replacement (`cmd/internal/vmcmd/provision.go:227`).
+   - Cancellation and cleanup use the production reducer and controlled barriers; uncertain cleanup retains durable occupancy.
+   - Hosted and VM case selections have executable drift checks, including package identity and exclusions.
+   - README and atlas document the new commands, isolation, resource budgets and recovery paths.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed:
+
+   - Full `vmcmd` tests, both ordinary and race-enabled.
+   - Dispatcher, public CLI, artifact-path and repository-lint packages.
+   - All 68 Python conformance, provisioning and nightly checks.
+   - BR-7 mutation check: removing the nested merge makes both regression cases fail.
+
+   Independently replayed the retained native stdout through the current validator: clean evidence validates 413 events and 28 cases; the known-bad evidence rejects the required skipped case. Live Tart execution was not repeated during this read-only review. The runner and conformance execution code is unchanged since that native qualification; subsequent relevant changes concern provisioning metadata preservation.
+
+6. **Architectural notes for upcoming work**
+
+   | Principle | Result | Evidence |
+   |---|---|---|
+   | ARCH-DRY | Pass | Shared strict JSON helpers and enforced conformance catalogs. |
+   | ARCH-PURE | Pass | Request, codec, transition and validation logic have direct tests; effects use runtime/driver seams. |
+   | ARCH-PURPOSE | Pass | Revised runner/burn-in scope delivered; activation and promotion remain explicit follow-up boundaries. |
+   | ARCH-MOCK | Pass | Stateful runtime and native-driver fixtures exercise production seams; retained native evidence checks real behavior. |
+   | ARCH-CONSTRAINTS | Pass | Snapshot, export, log, retention and cleanup limits are enforced and exercised. |
+   | ARCH-SECURE | Pass | Clean guest environment, private snapshots, read-only sharing and bounded result admission. |
+   | ARCH-ORDER | Pass | Explicit reducer, controlled cancellation ordering and retained uncertainty govern release. |
+   | ARCH-FUNERAL | Pass | Scratch/VM cleanup, bounded retained evidence and explicit archive/disposal paths are documented. |
+   | ARCH-EVOLVE | Pass | Unknown metadata survives refresh and rewrites; final reader/writer bounds remain enforced. |
+
+7. **Plan revision recommendations:** None. Core-concept locations match the implementation; existing revisions explain the scope and post-landing acceptance sequence.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"c63aa7d1-ea91-4fef-85ed-a3277d13b827","repository":"github.com/xianxu/pair","issue_id":"000743","recipe":"milestone-review","round":9,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/569ad53622da47a7","reviewed_head":"b267e07012e29425ca77f8ba158b125111a64c4b","slot":"pair:3","requested_at":"2026-10-21T10:29:29.865954Z"},"phase":"finished","pid":68731,"started_at":"2026-10-21T10:29:30.039186Z","finished_at":"2026-10-21T10:32:33.984385Z","session_id":"01a15e02-488b-7893-9735-e70380d46a44","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.705438834s
+head: "b267e07012e29425ca77f8ba158b125111a64c4b"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
