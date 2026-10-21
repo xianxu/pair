@@ -1,6 +1,6 @@
 ---
 id: 000749
-status: working
+status: codecomplete
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
@@ -14,6 +14,14 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.23
+tracker:
+    version: 1
+    completion:
+        token: close-006e19a0a20a
+        repository: github.com/xianxu/pair
+        reviewed_head: 0f7a69d46759f31e0b3944ae30149f05dbb932ec
+        evidence_commit: be4923ced56cd324d3f0cc4dd32a6a7543a206cf
 ---
 
 # flake: TestCopyOnSelectShellFixture
