@@ -41,7 +41,7 @@ Measure the native metadata across a wrapper-to-shell exec in a disposable sessi
 ## Done when
 
 - A disposable native regression captures the PID, initial command, title and actual pane_command before/after the handoff and proves the selected classification behavior.
-- After fallback, LiveIDs and RoleForPaneWith no longer grant that pane a Pair-terminal role; ordinary active Pair terminals still work.
+- LiveOwnerIDs and RoleForPaneWith reject confirmed shell argv and identity replacement after fallback; ordinary active Pair terminals retain ownership. Unavailable identity/argv inspection preserves the live registry answer and records bounded reason counts; a diagnostic-write failure does not alter classification.
 - Another pane's registration survives, including concurrent registration/retirement if the chosen design mutates that registry; unknown records remain intact.
 - A bookkeeping failure is visible and leaves the native shell usable.
 
@@ -57,7 +57,7 @@ Deferred from pair#727 by the hub on 2026-10-20 (delivery 7225aa16-eefc-46c0-97b
 ### 2026-10-20 — claim, native measurement and proposed plan
 
 - Hub dispatched #731 after #706 landed; verified unowned, claimed, and ran start-plan from main. No #706 work remains in flight. Bare start-plan caught up the sibling Ariadne build, as required by the fleet tool rule.
-- Hub d78ab148-d0d9-49e4-9255-f5983c3ee9a6 approved bounded disposable native diagnosis. Installed Zellij0.45.1 private session p731-31448 used private HOME, config/data/cache/runtime and ZELLIJ_SOCKET_DIR. A controlled registered pair term executable gated syscall.Exec into /bin/sh. PID31490 and birth remained unchanged; startup command and terminal title survived; pane_command changed to sh -i. LiveIDs and both existing role projections still granted RightTerminal. A command executed by the interactive shell acknowledged the same PID. Cleanup closed the exact session/client; private list-sessions reported none, and the exact owned PIDs were gone. Capture: [metadata-capture.json](000731-a-pane-that-fell-back-to-a-native-shell-still-classifies-as-a-pair-terminal.side/metadata-capture.json). This is native metadata evidence, not a production fault-recovery test. Temporary probe source was removed from cmd; retained owned diagnostic source/binary are under /Volumes/TestScratch/tmp/pair731.p79ksE.
+- Hub d78ab148-d0d9-49e4-9255-f5983c3ee9a6 approved bounded disposable native diagnosis. Installed Zellij0.45.1 private session p731-31448 used private HOME, config/data/cache/runtime and ZELLIJ_SOCKET_DIR. A controlled registered pair term executable gated syscall.Exec into /bin/sh. PID31490 and birth remained unchanged; startup command and terminal title survived; pane_command changed to sh -i. LiveIDs and both existing role projections still granted RightTerminal. A command executed by the interactive shell acknowledged the same PID. Cleanup closed the exact session/client; private list-sessions reported none, and the exact owned PIDs were gone. Capture: the inline native metadata capture below. This is native metadata evidence, not a production fault-recovery test. Temporary probe source was removed from cmd; retained owned diagnostic source/binary are under /Volumes/TestScratch/tmp/pair731.p79ksE.
 - Found a registry-only cached-draft fast path in termcmd and a direct registry reader in Couch focus admission, alongside layout/clipboard consumers. A pane-command-only fix misses that path. Proposed plan uses existing identity-fenced native per-PID argv evidence plus mandatory registered ownership in RoleForPaneWith. It leaves the append-only registry format and all unknown rows intact, avoiding retirement rewrites/new locks and new lifetime artifacts (ARCH-DRY, ARCH-EVOLVE, ARCH-FUNERAL). No production/test implementation has begun; awaiting hub plan approval before change-code.
 - Hub d495d55d-e94e-4033-8b07-6095ee2c618a approved the plan with one compatibility requirement: confirmed shell argv denies; unavailable/unreadable native inspection retains today's liveness-based registry result and records why. Revised the current design/state/test tables and appended its history under Revisions; both policies and diagnostic failure are mandatory tests. No implementation yet; entering change-code next.
 
@@ -82,3 +82,130 @@ The original native owner proposal denied unavailable inspection. The hub's appr
 - Updated architecture and local lint documentation. The previous recovery screen is unavailable; workflow state, approved plan, current branch and implementation checkpoint are recovered from SDLC/Git and this Log. No stale screen instruction was used as new authorization.
 
 - Committed-head reader qualification passed all13 tests, including seeded violations through the real detached-checkout affected runner. PR503 is open. Recorded suite attempt0aa0002014a10c3ebaddb3b1fe334597 is queued on code head32ef80aa856c51b5d1a9523a953ac202937a84ea; no duplicate check is queued. Entering the permitted close-review overlap; a recorded pass still precedes landing.
+
+### 2026-10-20 — BR-1 contract alignment
+
+The full close review passed implementation and native behavior but blocked on BR-1: Done when still named generic LiveIDs and implied unconditional rejection. Reconciled the acceptance criteria with the already approved LiveOwnerIDs contract: confirmed mismatch/replacement denies; unavailable inspection retains and logs, with logging failure unable to change classification. No code or policy change. CI run39542144320 also misclassified the .side capture directory as another issue731; preserving that small text-only capture inline below avoids an attachment dependency without weakening the gate.
+
+## Native metadata capture
+
+```json
+{
+  "scope": "Controlled registered executable named pair term using production registry/projection and gated syscall.Exec; this measures native exec metadata, not the full production recovery path.",
+  "result": {
+    "version": "zellij 0.45.1",
+    "session": "p731-31448",
+    "pid_before": 31490,
+    "pid_after": 31490,
+    "ps_before": "31490 31485 Tue Oct 20 20:35:00 2026     /Volumes/TestScratch/tmp/pair731.p79ksE/pair term\n",
+    "ps_after": "31490 31485 Tue Oct 20 20:35:00 2026     sh -i\n",
+    "before": [
+      {
+        "live_ids": [
+          "0"
+        ],
+        "pane": {
+          "ID": "0",
+          "TabID": 0,
+          "TabPosition": 0,
+          "TerminalCommand": "",
+          "PaneCommand": "",
+          "PaneCwd": "",
+          "Title": "(.) - zellij:link",
+          "IsFocused": false,
+          "IsPlugin": true,
+          "IsFloating": false,
+          "IsFullscreen": false,
+          "X": 25,
+          "Y": 8,
+          "Columns": 50,
+          "Rows": 15
+        },
+        "role_with_registry": 0,
+        "role_without_registry": 0
+      },
+      {
+        "live_ids": [
+          "0"
+        ],
+        "pane": {
+          "ID": "0",
+          "TabID": 0,
+          "TabPosition": 0,
+          "TerminalCommand": "/Volumes/TestScratch/tmp/pair731.p79ksE/pair term",
+          "PaneCommand": "/Volumes/TestScratch/tmp/pair731.p79ksE/pair term",
+          "PaneCwd": "/Users/xianxu/workspace/worktree/pair-slot6/pair",
+          "Title": "terminal",
+          "IsFocused": true,
+          "IsPlugin": false,
+          "IsFloating": false,
+          "IsFullscreen": false,
+          "X": 0,
+          "Y": 0,
+          "Columns": 100,
+          "Rows": 30
+        },
+        "role_with_registry": 3,
+        "role_without_registry": 3
+      }
+    ],
+    "after": [
+      {
+        "live_ids": [
+          "0"
+        ],
+        "pane": {
+          "ID": "0",
+          "TabID": 0,
+          "TabPosition": 0,
+          "TerminalCommand": "",
+          "PaneCommand": "",
+          "PaneCwd": "",
+          "Title": "(.) - zellij:link",
+          "IsFocused": false,
+          "IsPlugin": true,
+          "IsFloating": false,
+          "IsFullscreen": false,
+          "X": 25,
+          "Y": 8,
+          "Columns": 50,
+          "Rows": 15
+        },
+        "role_with_registry": 0,
+        "role_without_registry": 0
+      },
+      {
+        "live_ids": [
+          "0"
+        ],
+        "pane": {
+          "ID": "0",
+          "TabID": 0,
+          "TabPosition": 0,
+          "TerminalCommand": "/Volumes/TestScratch/tmp/pair731.p79ksE/pair term",
+          "PaneCommand": "sh -i",
+          "PaneCwd": "/Users/xianxu/workspace/worktree/pair-slot6/pair",
+          "Title": "terminal",
+          "IsFocused": true,
+          "IsPlugin": false,
+          "IsFloating": false,
+          "IsFullscreen": false,
+          "X": 0,
+          "Y": 0,
+          "Columns": 100,
+          "Rows": 30
+        },
+        "role_with_registry": 3,
+        "role_without_registry": 3
+      }
+    ]
+  },
+  "cleanup": {
+    "client_returncode": 0,
+    "list_returncode": 1,
+    "stdout": "",
+    "stderr": "No active zellij sessions found.\n"
+  },
+  "probe_sha256": "1dac624b0b5c9413f9d24ff5a747697d50be346dae355fdc88fa2255f5e61474"
+}
+```

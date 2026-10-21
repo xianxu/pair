@@ -2477,3 +2477,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #746 BR-1: A generated repair command must satisfy the same current constraints as its executor, ahead of historical classification. Execute emitted commands in private fixtures for each classification transition; checking only their text or the manual command misses advice that cannot work.
 - #749: Acceptance fixtures must execute the one shared Pair image through testpair.At or tests/lib/pair-test-binary.sh, preserving inode identity even across volumes. A raw executable copy triggers another AMFI assessment before the CLI starts and can consume a fixture deadline; verify file identity rather than extending the timeout. Resolve the shared binary before installing a hermetic fixture environment.
+
+- #731 BR-1: When an approved plan revision changes an acceptance policy or introduces a replacement API, reconcile Done when in the same checkpoint. A Revisions entry alone leaves an executable contract contradiction for close review.
