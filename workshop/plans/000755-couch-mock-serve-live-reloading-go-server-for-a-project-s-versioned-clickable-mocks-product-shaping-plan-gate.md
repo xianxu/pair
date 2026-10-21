@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: bbcd634a-1b4f-464c-94ce-691720213c93
+        repository: github.com/xianxu/pair
+        issue_id: "000755"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot4/pair
+        reviewed_head: dfb12eaf7a0a763f1b4fc27f11897438823a092c
+        slot: pair:4
+        requested_at: "2026-10-21T06:00:49.870134Z"
+      phase: finished
+      pid: 22190
+      started_at: "2026-10-21T06:00:49.970118Z"
+      finished_at: "2026-10-21T06:01:24.865911Z"
+      session_id: 01a15d0c-4f3e-7c23-9eb6-c0e3bfaee8ee
+      outcome: returned
 gate: plan-quality
 issue: 755
 id_prefix: PQ
@@ -85,7 +105,32 @@ rounds:
           note: Caps every visited entry, requires incremental traversal, and counts entries in the scanner oracle with visible refusal and recovery.
           round: 2
       blocked: false
-content_hash: 10e9912df7d1fd777a01e648f8600310eb87e28ba882452c81b64012e90c37f1
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: e6449919-b2c9-4fb7-9e51-4573b3f3fe15
+            repository: github.com/xianxu/pair
+            issue_id: "000755"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot4/pair
+            reviewed_head: dfb12eaf7a0a763f1b4fc27f11897438823a092c
+            slot: pair:4
+            requested_at: "2026-10-21T06:00:15.221594Z"
+          phase: finished
+          pid: 19076
+          started_at: "2026-10-21T06:00:15.334699Z"
+          finished_at: "2026-10-21T06:00:47.688878Z"
+          session_id: 01a15d0b-c808-77a0-8a74-b058604cf1e8
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-20T23:00:47-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      blocked: false
+content_hash: ab80fc017021e50ad93d79c78f798adfec9fe2c661f63bbb09bc73cc04377a30
 ---
 
 # Gate ledger — pair#755 (plan-quality)
@@ -111,6 +156,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - PQ-1 — addressed — Defines pre-read revision bootstrap, first-poll comparison, restart identity, and controllable ordering verification.
 - PQ-2 — addressed — Supersedes the case checklist with production-function strategy owners and separates integration qualification.
 - PQ-3 — addressed — Caps every visited entry, requires incremental traversal, and counts entries in the scanner oracle with visible refusal and recovery.
+
+## Round 3 — 2026-10-20T23:00:47-07:00 (codex) — passed
 
 ## Open findings
 
