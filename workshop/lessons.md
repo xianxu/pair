@@ -2564,3 +2564,12 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #757 close review: test proxy Location rewrites by resolving each returned reference against a non-root front URL; comparing Location strings alone misses empty-root, query-only and network-path authority changes. Endpoint self-target checks must use the same pinned address and port as the dialer.
 - #757 close review: a function consuming io.Reader belongs to the integration shell even when its only work is decoding; classify the actual API in Core concepts and keep compiler execution behind a stateful fake plus real-tool conformance.
+- #775: For an exact external diagnostic, compare the complete stderr stream, including newline boundaries. grep -Fxq proves one line exists and accepts unrelated errors around it; cover both positive signatures and extra-line negatives through the actual worker. Standalone tooling also needs a discoverable README/atlas pointer.
+
+- #775 BR-4/5: Bound and canonicalize the entire numeric string before shell arithmetic; leading zeros invoke octal and large integers can wrap. Exercise both CLI arguments through the actual main path, including no-effect refusal and exact work counts. Documentation must name the implemented observation predicate rather than imply a stronger parser or liveness proof.
+
+- #775: A new default Make recipe also creates affected-runner ownership obligations. Keep real native diagnostic experiments explicitly opt-in; verify MakeEntrypoint.test_recipe_ownership when changing the default recipe set.
+
+- #775 BR-6/7: After SHIP, a newly combined runnable entry point requires a full close rather than a fix-only review. Every added runnable command must be named in the top-level README as well as its guide and atlas owner; a prior invocation of the underlying script does not document a later Make command.
+
+- #775: A new executable Zellij double must use the shared reply serializer and producer-specific catalog, including malformed/non-query envelopes as explicit classified faults. Run TestEveryZellijFixtureReplyUsesProductionDecoder and the reader-inventory preflight before queuing the full suite; source registration alone cannot certify independent wire serialization.

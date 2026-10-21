@@ -1,0 +1,271 @@
+test_exact_exit_one_absent_socket_skips_liveness (reprotests.WorkerTest.test_exact_exit_one_absent_socket_skips_liveness) ... ok
+test_exact_exit_one_confirmed_alive (reprotests.WorkerTest.test_exact_exit_one_confirmed_alive) ... ok
+test_exact_exit_one_liveness_command_fails (reprotests.WorkerTest.test_exact_exit_one_liveness_command_fails) ... ok
+test_exact_exit_one_malformed_layout_is_unconfirmed (reprotests.WorkerTest.test_exact_exit_one_malformed_layout_is_unconfirmed) ... ok
+test_exact_exit_zero_with_ansi_target_listing (reprotests.WorkerTest.test_exact_exit_zero_with_ansi_target_listing) ... ok
+test_exit_one_nonempty_stdout_skips_liveness (reprotests.WorkerTest.test_exit_one_nonempty_stdout_skips_liveness) ... ok
+test_exit_one_rejects_extra_stderr_without_liveness (reprotests.WorkerTest.test_exit_one_rejects_extra_stderr_without_liveness) ... 
+  test_exit_one_rejects_extra_stderr_without_liveness (reprotests.WorkerTest.test_exit_one_rejects_extra_stderr_without_liveness) (stderr="'diagnostic\\nThere is no active session!\\n'") ... FAIL
+  test_exit_one_rejects_extra_stderr_without_liveness (reprotests.WorkerTest.test_exit_one_rejects_extra_stderr_without_liveness) (stderr="'There is no active session!\\ndiagnostic\\n'") ... FAIL
+  test_exit_one_rejects_extra_stderr_without_liveness (reprotests.WorkerTest.test_exit_one_rejects_extra_stderr_without_liveness) (stderr="'There is no active session!\\n\\n'") ... FAIL
+  test_exit_one_rejects_extra_stderr_without_liveness (reprotests.WorkerTest.test_exit_one_rejects_extra_stderr_without_liveness) (stderr="'There is no active session!'") ... FAIL
+test_exit_zero_rejects_extra_stderr (reprotests.WorkerTest.test_exit_zero_rejects_extra_stderr) ... 
+  test_exit_zero_rejects_extra_stderr (reprotests.WorkerTest.test_exit_zero_rejects_extra_stderr) (stderr='"diagnostic\\nSession \'TARGET\' not found. The following sessions are active:\\n"') ... FAIL
+  test_exit_zero_rejects_extra_stderr (reprotests.WorkerTest.test_exit_zero_rejects_extra_stderr) (stderr='"Session \'TARGET\' not found. The following sessions are active:\\ndiagnostic\\n"') ... FAIL
+  test_exit_zero_rejects_extra_stderr (reprotests.WorkerTest.test_exit_zero_rejects_extra_stderr) (stderr='"Session \'TARGET\' not found. The following sessions are active:\\n\\n"') ... FAIL
+  test_exit_zero_rejects_extra_stderr (reprotests.WorkerTest.test_exit_zero_rejects_extra_stderr) (stderr='"Session \'TARGET\' not found. The following sessions are active:"') ... FAIL
+test_exit_zero_requires_exact_target (reprotests.WorkerTest.test_exit_zero_requires_exact_target) ... ok
+test_source_has_no_side_effects (reprotests.WorkerTest.test_source_has_no_side_effects) ... ok
+
+======================================================================
+FAIL: test_exit_one_rejects_extra_stderr_without_liveness (reprotests.WorkerTest.test_exit_one_rejects_extra_stderr_without_liveness) (stderr="'diagnostic\\nThere is no active session!\\n'")
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/xianxu/workspace/worktree/pair-slot5/pair/tests/zellij-false-miss-test.py", line 131, in test_exit_one_rejects_extra_stderr_without_liveness
+    self.check_worker(stderr=stderr, expected=(0, 0, 0, 1))
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/xianxu/workspace/worktree/pair-slot5/pair/tests/zellij-false-miss-test.py", line 83, in check_worker
+    self.assertEqual(((self.root / "count.0").read_text(), calls),
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                     (" ".join(map(str, expected)) + "\n",
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                      [reply["argv"] for reply in replies]))
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: ('0 0 1 0\n', [['--session', 'TARGET', 'action'[85 chars]t']]) != ('0 0 0 1\n', [['--session', 'TARGET', 'action'[35 chars]d']])
+
+First differing element 0:
+'0 0 1 0\n'
+'0 0 0 1\n'
+
+- ('0 0 1 0\n',
+?        --
+
++ ('0 0 0 1\n',
+?       ++
+
+-  [['--session', 'TARGET', 'action', 'list-panes', '--json', '--command'],
+?                                                                         ^
+
++  [['--session', 'TARGET', 'action', 'list-panes', '--json', '--command']])
+?                                                                         ^^
+
+-   ['--session', 'TARGET', 'action', 'dump-layout']])
+
+======================================================================
+FAIL: test_exit_one_rejects_extra_stderr_without_liveness (reprotests.WorkerTest.test_exit_one_rejects_extra_stderr_without_liveness) (stderr="'There is no active session!\\ndiagnostic\\n'")
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/xianxu/workspace/worktree/pair-slot5/pair/tests/zellij-false-miss-test.py", line 131, in test_exit_one_rejects_extra_stderr_without_liveness
+    self.check_worker(stderr=stderr, expected=(0, 0, 0, 1))
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/xianxu/workspace/worktree/pair-slot5/pair/tests/zellij-false-miss-test.py", line 83, in check_worker
+    self.assertEqual(((self.root / "count.0").read_text(), calls),
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                     (" ".join(map(str, expected)) + "\n",
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                      [reply["argv"] for reply in replies]))
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: ('0 0 1 0\n', [['--session', 'TARGET', 'action'[85 chars]t']]) != ('0 0 0 1\n', [['--session', 'TARGET', 'action'[35 chars]d']])
+
+First differing element 0:
+'0 0 1 0\n'
+'0 0 0 1\n'
+
+- ('0 0 1 0\n',
+?        --
+
++ ('0 0 0 1\n',
+?       ++
+
+-  [['--session', 'TARGET', 'action', 'list-panes', '--json', '--command'],
+?                                                                         ^
+
++  [['--session', 'TARGET', 'action', 'list-panes', '--json', '--command']])
+?                                                                         ^^
+
+-   ['--session', 'TARGET', 'action', 'dump-layout']])
+
+======================================================================
+FAIL: test_exit_one_rejects_extra_stderr_without_liveness (reprotests.WorkerTest.test_exit_one_rejects_extra_stderr_without_liveness) (stderr="'There is no active session!\\n\\n'")
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/xianxu/workspace/worktree/pair-slot5/pair/tests/zellij-false-miss-test.py", line 131, in test_exit_one_rejects_extra_stderr_without_liveness
+    self.check_worker(stderr=stderr, expected=(0, 0, 0, 1))
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/xianxu/workspace/worktree/pair-slot5/pair/tests/zellij-false-miss-test.py", line 83, in check_worker
+    self.assertEqual(((self.root / "count.0").read_text(), calls),
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                     (" ".join(map(str, expected)) + "\n",
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                      [reply["argv"] for reply in replies]))
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: ('0 0 1 0\n', [['--session', 'TARGET', 'action'[85 chars]t']]) != ('0 0 0 1\n', [['--session', 'TARGET', 'action'[35 chars]d']])
+
+First differing element 0:
+'0 0 1 0\n'
+'0 0 0 1\n'
+
+- ('0 0 1 0\n',
+?        --
+
++ ('0 0 0 1\n',
+?       ++
+
+-  [['--session', 'TARGET', 'action', 'list-panes', '--json', '--command'],
+?                                                                         ^
+
++  [['--session', 'TARGET', 'action', 'list-panes', '--json', '--command']])
+?                                                                         ^^
+
+-   ['--session', 'TARGET', 'action', 'dump-layout']])
+
+======================================================================
+FAIL: test_exit_one_rejects_extra_stderr_without_liveness (reprotests.WorkerTest.test_exit_one_rejects_extra_stderr_without_liveness) (stderr="'There is no active session!'")
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/xianxu/workspace/worktree/pair-slot5/pair/tests/zellij-false-miss-test.py", line 131, in test_exit_one_rejects_extra_stderr_without_liveness
+    self.check_worker(stderr=stderr, expected=(0, 0, 0, 1))
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/xianxu/workspace/worktree/pair-slot5/pair/tests/zellij-false-miss-test.py", line 83, in check_worker
+    self.assertEqual(((self.root / "count.0").read_text(), calls),
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                     (" ".join(map(str, expected)) + "\n",
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                      [reply["argv"] for reply in replies]))
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: ('0 0 1 0\n', [['--session', 'TARGET', 'action'[85 chars]t']]) != ('0 0 0 1\n', [['--session', 'TARGET', 'action'[35 chars]d']])
+
+First differing element 0:
+'0 0 1 0\n'
+'0 0 0 1\n'
+
+- ('0 0 1 0\n',
+?        --
+
++ ('0 0 0 1\n',
+?       ++
+
+-  [['--session', 'TARGET', 'action', 'list-panes', '--json', '--command'],
+?                                                                         ^
+
++  [['--session', 'TARGET', 'action', 'list-panes', '--json', '--command']])
+?                                                                         ^^
+
+-   ['--session', 'TARGET', 'action', 'dump-layout']])
+
+======================================================================
+FAIL: test_exit_zero_rejects_extra_stderr (reprotests.WorkerTest.test_exit_zero_rejects_extra_stderr) (stderr='"diagnostic\\nSession \'TARGET\' not found. The following sessions are active:\\n"')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/xianxu/workspace/worktree/pair-slot5/pair/tests/zellij-false-miss-test.py", line 107, in test_exit_zero_rejects_extra_stderr
+    self.check_worker(stdout="TARGET [Created now]\n", stderr=stderr, rc=0)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/xianxu/workspace/worktree/pair-slot5/pair/tests/zellij-false-miss-test.py", line 83, in check_worker
+    self.assertEqual(((self.root / "count.0").read_text(), calls),
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                     (" ".join(map(str, expected)) + "\n",
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                      [reply["argv"] for reply in replies]))
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: ('1 0 0 0\n', [['--session', 'TARGET', 'act[39 chars]d']]) != ('0 0 0 0\n', [['--session', 'TARGET', 'act[39 chars]d']])
+
+First differing element 0:
+'1 0 0 0\n'
+'0 0 0 0\n'
+
+- ('1 0 0 0\n',
+?   --
+
++ ('0 0 0 0\n',
+?      ++
+
+   [['--session', 'TARGET', 'action', 'list-panes', '--json', '--command']])
+
+======================================================================
+FAIL: test_exit_zero_rejects_extra_stderr (reprotests.WorkerTest.test_exit_zero_rejects_extra_stderr) (stderr='"Session \'TARGET\' not found. The following sessions are active:\\ndiagnostic\\n"')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/xianxu/workspace/worktree/pair-slot5/pair/tests/zellij-false-miss-test.py", line 107, in test_exit_zero_rejects_extra_stderr
+    self.check_worker(stdout="TARGET [Created now]\n", stderr=stderr, rc=0)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/xianxu/workspace/worktree/pair-slot5/pair/tests/zellij-false-miss-test.py", line 83, in check_worker
+    self.assertEqual(((self.root / "count.0").read_text(), calls),
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                     (" ".join(map(str, expected)) + "\n",
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                      [reply["argv"] for reply in replies]))
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: ('1 0 0 0\n', [['--session', 'TARGET', 'act[39 chars]d']]) != ('0 0 0 0\n', [['--session', 'TARGET', 'act[39 chars]d']])
+
+First differing element 0:
+'1 0 0 0\n'
+'0 0 0 0\n'
+
+- ('1 0 0 0\n',
+?   --
+
++ ('0 0 0 0\n',
+?      ++
+
+   [['--session', 'TARGET', 'action', 'list-panes', '--json', '--command']])
+
+======================================================================
+FAIL: test_exit_zero_rejects_extra_stderr (reprotests.WorkerTest.test_exit_zero_rejects_extra_stderr) (stderr='"Session \'TARGET\' not found. The following sessions are active:\\n\\n"')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/xianxu/workspace/worktree/pair-slot5/pair/tests/zellij-false-miss-test.py", line 107, in test_exit_zero_rejects_extra_stderr
+    self.check_worker(stdout="TARGET [Created now]\n", stderr=stderr, rc=0)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/xianxu/workspace/worktree/pair-slot5/pair/tests/zellij-false-miss-test.py", line 83, in check_worker
+    self.assertEqual(((self.root / "count.0").read_text(), calls),
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                     (" ".join(map(str, expected)) + "\n",
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                      [reply["argv"] for reply in replies]))
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: ('1 0 0 0\n', [['--session', 'TARGET', 'act[39 chars]d']]) != ('0 0 0 0\n', [['--session', 'TARGET', 'act[39 chars]d']])
+
+First differing element 0:
+'1 0 0 0\n'
+'0 0 0 0\n'
+
+- ('1 0 0 0\n',
+?   --
+
++ ('0 0 0 0\n',
+?      ++
+
+   [['--session', 'TARGET', 'action', 'list-panes', '--json', '--command']])
+
+======================================================================
+FAIL: test_exit_zero_rejects_extra_stderr (reprotests.WorkerTest.test_exit_zero_rejects_extra_stderr) (stderr='"Session \'TARGET\' not found. The following sessions are active:"')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/xianxu/workspace/worktree/pair-slot5/pair/tests/zellij-false-miss-test.py", line 107, in test_exit_zero_rejects_extra_stderr
+    self.check_worker(stdout="TARGET [Created now]\n", stderr=stderr, rc=0)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/xianxu/workspace/worktree/pair-slot5/pair/tests/zellij-false-miss-test.py", line 83, in check_worker
+    self.assertEqual(((self.root / "count.0").read_text(), calls),
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                     (" ".join(map(str, expected)) + "\n",
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                      [reply["argv"] for reply in replies]))
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: ('1 0 0 0\n', [['--session', 'TARGET', 'act[39 chars]d']]) != ('0 0 0 0\n', [['--session', 'TARGET', 'act[39 chars]d']])
+
+First differing element 0:
+'1 0 0 0\n'
+'0 0 0 0\n'
+
+- ('1 0 0 0\n',
+?   --
+
++ ('0 0 0 0\n',
+?      ++
+
+   [['--session', 'TARGET', 'action', 'list-panes', '--json', '--command']])
+
+----------------------------------------------------------------------
+Ran 10 tests in 3.200s
+
+FAILED (failures=8)
