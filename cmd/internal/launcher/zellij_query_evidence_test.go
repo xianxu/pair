@@ -11,7 +11,16 @@ import (
 	"testing"
 	"time"
 	"unicode/utf8"
+
+	"github.com/xianxu/pair/cmd/internal/zellijtest"
 )
+
+func evidenceVersionShell(t *testing.T) string {
+	t.Helper()
+	// A version reply is deliberately rejected by the panes decoder in the
+	// producer catalog; it must never become pane ownership evidence.
+	return zellijtest.ShellCase(t, "launcher-evidence-version")
+}
 
 func TestNativeQueryEvidenceBoundedClones(t *testing.T) {
 	exit := 7
@@ -71,7 +80,7 @@ func FuzzNativeQueryEvidenceBounded(f *testing.F) {
 func TestSessionOwnerFailureEvidenceChainsObserver(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "zellij")
-	script := "#!/bin/sh\ncase \"$1\" in --version) printf 'zellij 0.45.1';; *) printf '{bad'; printf 'native stderr' >&2;; esac\n"
+	script := "#!/bin/sh\ncase \"$1\" in --version) " + evidenceVersionShell(t) + ";; *) " + zellijtest.ShellCase(t, "launcher-evidence-chain-malformed") + ";; esac\n"
 	if err := os.WriteFile(path, []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +115,8 @@ func TestSessionOwnerLargeValidReplyDoesNotCapturePrefix(t *testing.T) {
 	path := filepath.Join(dir, "zellij")
 	output := filepath.Join(dir, "panes")
 	marker := filepath.Join(dir, "version-spawned")
-	raw := `[{"id":1,"is_plugin":false,"pane_command":"nvim /tmp/data/repos/0123456789abcdef/draft-1-repo-1.md","extra":"` + strings.Repeat("x", 70<<10) + `"}]`
+	// Use the same semantic pane serializer as the registered producer seed.
+	raw := zellijtest.Reply(t, "panes", []map[string]any{{"id": 1, "pane_command": "nvim /tmp/data/repos/0123456789abcdef/draft-1-repo-1.md", "extra": strings.Repeat("x", 70<<10)}}).Stdout
 	if err := os.WriteFile(output, []byte(raw), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +178,7 @@ func TestNativeQueryVersionFailureUsesOriginalDeadline(t *testing.T) {
 func TestSessionOwnerExhaustedQueryPreservesCauseAndEvidence(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "zellij")
-	if err := os.WriteFile(path, []byte("#!/bin/sh\nif [ \"$1\" = --version ]; then printf 'zellij 0.45.1'; fi\n"), 0700); err != nil {
+	if err := os.WriteFile(path, []byte("#!/bin/sh\ncase \"$1\" in --version) "+evidenceVersionShell(t)+";; *) "+zellijtest.ShellCase(t, "launcher-evidence-empty")+";; esac\n"), 0700); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
@@ -187,11 +197,12 @@ func TestSessionOwnerExhaustedQueryPreservesCauseAndEvidence(t *testing.T) {
 type cancelledEvidenceOwnerWorld struct {
 	*ownerWorld
 	cancel context.CancelFunc
+	reply  []byte
 }
 
 func (w *cancelledEvidenceOwnerWorld) SessionPanes(ctx context.Context, name string) ([]byte, error) {
 	return (ZellijSource{queryRun: func(cmd *exec.Cmd) error {
-		_, _ = cmd.Stdout.Write([]byte("{unfinished"))
+		_, _ = cmd.Stdout.Write(w.reply)
 		w.cancel()
 		return context.Canceled
 	}}).runContext(ctx, "--session", name, "action", "list-panes", "--json", "--command")
@@ -199,7 +210,7 @@ func (w *cancelledEvidenceOwnerWorld) SessionPanes(ctx context.Context, name str
 func TestSessionOwnerCancelledQueryRetainsEvidence(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	world := &cancelledEvidenceOwnerWorld{ownerWorld: &ownerWorld{present: true, generation: SessionServerIdentity{PID: 11, Identity: "original", Session: "pair-fixture", Socket: "/fixture/socket"}}, cancel: cancel}
+	world := &cancelledEvidenceOwnerWorld{ownerWorld: &ownerWorld{present: true, generation: SessionServerIdentity{PID: 11, Identity: "original", Session: "pair-fixture", Socket: "/fixture/socket"}}, cancel: cancel, reply: []byte(zellijtest.Case(t, "launcher-evidence-cancelled").Stdout)}
 	_, err := (SessionOwnerProbe{IO: world}).Probe(ctx, "pair-fixture", "/tmp/data", "0123456789abcdef", "1-repo-1")
 	var carrier interface{ NativeQueryEvidence() NativeQueryEvidence }
 	if err == nil || err.Error() != context.Canceled.Error() || !errors.Is(err, context.Canceled) || !errors.As(err, &carrier) {
@@ -214,7 +225,7 @@ func TestSessionOwnerCancelledQueryRetainsEvidence(t *testing.T) {
 func TestSessionOwnerPassCancelledQueryRetainsEvidence(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	world := &cancelledEvidenceOwnerWorld{ownerWorld: &ownerWorld{present: true, generation: SessionServerIdentity{PID: 11, Identity: "original", Session: "pair-fixture", Socket: "/fixture/socket"}}, cancel: cancel}
+	world := &cancelledEvidenceOwnerWorld{ownerWorld: &ownerWorld{present: true, generation: SessionServerIdentity{PID: 11, Identity: "original", Session: "pair-fixture", Socket: "/fixture/socket"}}, cancel: cancel, reply: []byte(zellijtest.Case(t, "launcher-evidence-cancelled").Stdout)}
 	pass := NewSessionOwnerPass(t.Context(), ownerPassSourceFunc(func(context.Context) (map[string]ServerState, error) {
 		return map[string]ServerState{"pair-fixture": {Server: world.generation, Verdict: ServerReachable}}, nil
 	}), SessionOwnerProbe{IO: world})
@@ -250,7 +261,7 @@ func TestCouchSessionCreateCancellationRetainsOwnerEvidence(t *testing.T) {
 func TestSessionOwnerEvidenceOwnsObserverBytes(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "zellij")
-	if err := os.WriteFile(path, []byte("#!/bin/sh\ncase \"$1\" in --version) printf 'zellij 0.45.1';; *) printf '{bad'; printf 'stderr' >&2;; esac\n"), 0700); err != nil {
+	if err := os.WriteFile(path, []byte("#!/bin/sh\ncase \"$1\" in --version) "+evidenceVersionShell(t)+";; *) "+zellijtest.ShellCase(t, "launcher-evidence-observer-malformed")+";; esac\n"), 0700); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
@@ -268,7 +279,7 @@ func TestSessionOwnerEvidenceOwnsObserverBytes(t *testing.T) {
 }
 
 func TestSessionOwnerCustomIORetainsRawWithoutInventingExit(t *testing.T) {
-	world := &ownerWorld{present: true, generation: SessionServerIdentity{PID: 11, Identity: "original", Session: "pair-fixture", Socket: "/fixture/socket"}, panes: []byte("{custom raw")}
+	world := &ownerWorld{present: true, generation: SessionServerIdentity{PID: 11, Identity: "original", Session: "pair-fixture", Socket: "/fixture/socket"}, panes: []byte(zellijtest.Case(t, "launcher-evidence-custom-raw").Stdout)}
 	got, err := (SessionOwnerProbe{IO: world}).Probe(t.Context(), "pair-fixture", "/tmp/data", "0123456789abcdef", "1-repo-1")
 	var carrier interface{ NativeQueryEvidence() NativeQueryEvidence }
 	if err != nil || got.State != SessionOwnerUnknown || !errors.As(got.DiagnosticCause, &carrier) {
@@ -296,7 +307,7 @@ func (w *failedGenerationEvidenceWorld) SessionServers(ctx context.Context, name
 func TestSessionOwnerGenerationFenceRetainsInvalidReply(t *testing.T) {
 	for _, changed := range []bool{false, true} {
 		t.Run(fmt.Sprint(changed), func(t *testing.T) {
-			base := &ownerWorld{present: true, generation: SessionServerIdentity{PID: 11, Identity: "original", Session: "pair-fixture", Socket: "/fixture/socket"}, panes: []byte("{invalid"), changeOnQuery: changed}
+			base := &ownerWorld{present: true, generation: SessionServerIdentity{PID: 11, Identity: "original", Session: "pair-fixture", Socket: "/fixture/socket"}, panes: []byte(zellijtest.Case(t, "launcher-evidence-generation-malformed").Stdout), changeOnQuery: changed}
 			var world SessionOwnerIO = base
 			generationErr := errors.New("generation read unavailable")
 			if !changed {

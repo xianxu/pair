@@ -2508,3 +2508,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #742 BR-3: An approved post-SHIP change to executable recognition criteria requires a full close review; narrow re-close is for fixes inside the reviewed contract. Reconcile the current Spec as well as appending the revision.
 
 - #742 live recheck: Exercise the reader's observeOutput before handleChunk in drive regressions. A render-only harness bypasses the activity-sequence fence and can pass while every native timer tick revokes admission. Interrupt proof uses operator-input generation plus freshly parsed work/composer/ownership; queued unparsed output cannot attest the old complete frame. Keep ordinary drives on their activity fence.
+
+- #761 suite: A new executable native-query fixture must use registered producer-specific shared reply cases and pass the complete zellijtest package before a suite. A focused fake-version test does not exercise TestEveryZellijFixtureReplyUsesProductionDecoder; run that contract with artifact/source-reader preflights whenever a test adds a shell or Python query producer.

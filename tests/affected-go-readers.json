@@ -153,7 +153,8 @@
       "cmd/internal/webcast/sketch/geometry_test.go": "10213e9ec3f3ab537e9e65633b25ec48ecba88644890b55d86900acfbda42a09",
       "cmd/internal/webcast/recording/sketch_corpus_test.go": "71affe4fe29adc0ed0f66f24e8e6a1972c362f27a24ce19af95bedc5cb956e30",
       "cmd/internal/launcher/zellij_empty_reply_test.go": "6af76f9b170f3e27aa393ef7485f9e00a512b8c317bafb3552f2c788d79ae048",
-      "cmd/internal/zellijtest/fake_test.go": "bdf8071de55833edf880470fea4031c2a1e2b1f425142b3ab4e8590905eccbbd"
+      "cmd/internal/zellijtest/fake_test.go": "bdf8071de55833edf880470fea4031c2a1e2b1f425142b3ab4e8590905eccbbd",
+      "cmd/internal/launcher/zellij_query_evidence_test.go": "642494668001bcf483b15398b4a6ef6f8ef122773899a5d4207f29683554a56a"
     },
     "local_or_literal_fixture": {
       "cmd/couch/binary_test.go": "43767cf88cd38b404edd7df16cc7a646359171649eaf63adfbe4952f68fc4aa6",
@@ -467,8 +468,7 @@
       "probes/zellijprobe/reporoot_test.go": "de13aef753c6fc958f01e4a04ec9963672a58a76f5e63d08d6e2ea32de825018",
       "cmd/internal/couchcore/nativequery_failure_test.go": "70e6d57ebd506b878b716c7338205a7c159baf307825e28689b37349130c5686",
       "cmd/internal/launcher/zellij_lookup_miss_test.go": "067d90e398564713a006e9805a3be9260ad40a840554e2289f062fe7e64c0e2f",
-      "cmd/internal/couchcore/recovery_native_reply_test.go": "f15eaa5f77664006ea46e753b670ffa15523c82e4c7a5816280b732ae9ff8603",
-      "cmd/internal/launcher/zellij_query_evidence_test.go": "1d354980a68a0502371d5ff414adbe813ab47f6b0b7b267b1826b688943167b8"
+      "cmd/internal/couchcore/recovery_native_reply_test.go": "f15eaa5f77664006ea46e753b670ffa15523c82e4c7a5816280b732ae9ff8603"
     }
   }
 }
