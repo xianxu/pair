@@ -19,6 +19,25 @@ reviewer_runs:
       finished_at: "2026-10-20T21:32:41.693491Z"
       session_id: 01a15b3a-9b8e-7681-b768-e336d4012d7c
       outcome: returned
+    - version: 1
+      intent:
+        id: 37ceb263-9c03-45c1-943f-bb7d1e311bae
+        repository: github.com/xianxu/pair
+        issue_id: "000743"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot3/pair
+        reviewed_head: fbbe2954f0ac171b2c2e8aa2948ffa28f2037b30
+        slot: pair:3
+        requested_at: "2026-10-21T00:05:38.770429Z"
+      phase: finished
+      pid: 47073
+      started_at: "2026-10-21T00:05:38.885602Z"
+      finished_at: "2026-10-21T00:06:17.60423Z"
+      session_id: 01a15bc7-2132-7471-8253-5860ca9d63b1
+      outcome: returned
 gate: plan-quality
 issue: 743
 id_prefix: PQ
@@ -115,7 +134,37 @@ rounds:
           note: Named risky-function strategies and mechanical guards replace duplicated milestone test inventories.
           round: 3
       blocked: false
-content_hash: d445d83cbc29dfcdd63367a350d1b2dea63419db5d35b0b8dd1e4bf9a960a940
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 06e3e96e-799c-4744-ba58-badeda5a5953
+            repository: github.com/xianxu/pair
+            issue_id: "000743"
+            recipe: plan-quality
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot3/pair
+            reviewed_head: fbbe2954f0ac171b2c2e8aa2948ffa28f2037b30
+            slot: pair:3
+            requested_at: "2026-10-21T00:05:03.299323Z"
+          phase: finished
+          pid: 37571
+          started_at: "2026-10-21T00:05:03.419692Z"
+          finished_at: "2026-10-21T00:05:36.386297Z"
+          session_id: 01a15bc6-97c6-7611-b87a-1303bbc97e1b
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-20T17:05:36-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Named risky functions and their adversarial strategies remain explicit, including the approved lifecycle revision.
+          round: 4
+      blocked: false
+content_hash: 2792b5eecc4dd44a385f9ea1daeaf8fadb4e2dba4702aa4638f114e365c5f20a
 ---
 
 # Gate ledger — pair#743 (plan-quality)
@@ -141,6 +190,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - PQ-1 — addressed — Named risky-function strategies and mechanical guards replace duplicated milestone test inventories.
+
+## Round 4 — 2026-10-20T17:05:36-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Named risky functions and their adversarial strategies remain explicit, including the approved lifecycle revision.
 
 ## Open findings
 
