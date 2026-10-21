@@ -781,6 +781,17 @@ run it again only when something else was running. Otherwise it hands the slot t
 the repository's `:0` agent, and a failed `--reconcile` also prints the resources
 it observed.
 
+A terminal start uses one startup deadline across helper acknowledgement, pane
+birth, agent readiness and registration. An explicit caller deadline owns the
+whole attempt; without one, the existing two-minute hang ceiling applies. The
+progress notice names the current stage and its elapsed time; a failed start
+keeps that stage, elapsed time and the underlying reason. Native observations
+still have their shorter bounds inside the remaining startup window. The
+initial ten-second birth probe is diagnostic, not a readiness cutoff. Once
+admitted, a working interactive client is independent of the startup deadline.
+Inspect an unconfirmed attempt with its existing recovery action before starting
+another one; expiration alone does not prove that the native agent is absent.
+
 `couch --resume repo:N` and `couch --reboot repo:N --confirm` run one slot's step
 through the running Couch. Only an agent in a live Couch slot may call them: Couch
 checks its own records (the calling thread has a live pane, and its recorded launch

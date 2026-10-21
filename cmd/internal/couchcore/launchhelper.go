@@ -8,11 +8,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/startupbudget"
 )
 
 const launchAckByte byte = 0x1
@@ -77,6 +79,30 @@ func RunLaunchHelper(ack io.ReadCloser, timeout time.Duration, argv, env []strin
 		_ = ack.Close()
 		return errors.New("launch helper: nil target exec")
 	}
+	var deadline time.Time
+	for _, entry := range env {
+		if !strings.HasPrefix(entry, startupbudget.DeadlineEnv+"=") {
+			continue
+		}
+		if !deadline.IsZero() {
+			_ = ack.Close()
+			return errors.New("launch helper: duplicate startup deadline")
+		}
+		var err error
+		deadline, err = startupbudget.Decode(strings.TrimPrefix(entry, startupbudget.DeadlineEnv+"="))
+		if err != nil {
+			_ = ack.Close()
+			return fmt.Errorf("launch helper: %w", err)
+		}
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			_ = ack.Close()
+			return fmt.Errorf("launch helper: acknowledgement startup deadline: %w", context.DeadlineExceeded)
+		}
+		if remaining < timeout {
+			timeout = remaining
+		}
+	}
 
 	type readResult struct {
 		byte byte
@@ -89,6 +115,8 @@ func RunLaunchHelper(ack io.ReadCloser, timeout time.Duration, argv, env []strin
 		result <- readResult{byte: one[0], err: err}
 	}()
 
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
 	select {
 	case got := <-result:
 		if err := ack.Close(); err != nil {
@@ -100,11 +128,17 @@ func RunLaunchHelper(ack io.ReadCloser, timeout time.Duration, argv, env []strin
 		if got.byte != launchAckByte {
 			return fmt.Errorf("launch helper: invalid acknowledgement byte 0x%x", got.byte)
 		}
-	case <-time.After(timeout):
+	case <-timer.C:
 		_ = ack.Close()
+		// Closing the owned acknowledgement descriptor unblocks its reader.
+		// Join it before returning so a failed start leaves no read behind.
+		<-result
 		return fmt.Errorf("launch helper: acknowledgement timed out after %s", timeout)
 	}
 
+	if !deadline.IsZero() && !time.Now().Before(deadline) {
+		return fmt.Errorf("launch helper: pre-exec startup deadline: %w", context.DeadlineExceeded)
+	}
 	if err := execTarget(argv, env); err != nil {
 		return fmt.Errorf("launch helper: exec target: %w", err)
 	}

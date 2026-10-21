@@ -29,6 +29,8 @@ The original #744 missing-readiness incident is retained as evidence, not proof 
 | Name | Lives in | Status |
 |---|---|---|
 | Startup deadline selection / encoding | `cmd/internal/startupbudget/budget.go` | new |
+| OperationProgress | `cmd/internal/couchmessage/operation.go` | new |
+| OperationReceipt / ReceiptEvent | `cmd/internal/couchmessage/operation.go` | modified |
 | LaunchOptions startup context | `cmd/internal/launcher/runtime.go` | modified |
 
 The selector takes explicit current time, an optional caller deadline, and a fallback duration; it returns the original deadline when present, otherwise now plus the fallback. A supplied child deadline is capped by an earlier local caller deadline and never renewed. Reject invalid/expired serialized deadlines before launch effects. Share the existing two-minute registration hang ceiling as the fallback; move its declaration to startupbudget rather than inventing a second default. Test selection, strict bounded timestamp parsing/encoding, expiration and earlier-parent composition directly.
@@ -116,3 +118,7 @@ The native harness's landed command and current API will be read before use; its
 ### 2026-10-21 — approved budget and required progress
 
 Hub approved the absolute deadline/default/exec/lifetime contract and added stage plus elapsed-time progress and final failure attribution because an actually broken agent may now consume the existing two-minute ceiling. Implement this on the existing operation progress seam, with deterministic tests, before close. Native acceptance still waits for landed #744.
+
+### 2026-10-21 — progress seam as implemented
+
+The existing per-operation context reporter feeds an explicit per-request callback into the receipt reducer. Added optional immutable stage/start time there, preserving same-stage age and rejecting terminal or retired-incarnation updates; existing CLI cadence formats it. No launcher stdout parsing, new polling loop or persisted format. Native settled-composer waiting after adoption remains its existing distinct post-restart confirmation contract; terminal birth/readiness/registration use the shared startup budget.

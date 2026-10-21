@@ -3,6 +3,7 @@ package couchmessage
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 )
@@ -191,5 +192,38 @@ func TestReceiptFinishNeedsATerminalOutcome(t *testing.T) {
 	}
 	if _, err := ApplyReceiptEvent(receiptIn(ReceiptRunning, at), ReceiptEvent{Kind: ReceiptStart, ID: "other", At: at}); err == nil {
 		t.Error("an event for another ID was applied")
+	}
+}
+
+func TestReceiptProgressRetainsStageAgeAndRejectsLateOrUnsafeUpdates(t *testing.T) {
+	at := time.Unix(5000, 0)
+	running := receiptIn(ReceiptRunning, at)
+	report := func(r OperationReceipt, stage string, when time.Time) (OperationReceipt, error) {
+		return ApplyReceiptEvent(r, ReceiptEvent{Kind: ReceiptProgress, ID: r.ID, Stage: stage, At: when})
+	}
+	first, err := report(running, "waiting for agent readiness", at)
+	if err != nil || first.Progress == nil || first.Progress.Stage != "waiting for agent readiness" || !first.Progress.Started.Equal(at) {
+		t.Fatalf("first=%+v err=%v", first, err)
+	}
+	again, err := report(first, "waiting for agent readiness", at.Add(time.Minute))
+	if err != nil || !again.Progress.Started.Equal(at) {
+		t.Fatalf("same stage renewed: %+v err=%v", again.Progress, err)
+	}
+	next, err := report(again, "verifying terminal registration", at.Add(time.Minute))
+	if err != nil || !next.Progress.Started.Equal(at.Add(time.Minute)) || first.Progress.Stage != "waiting for agent readiness" {
+		t.Fatalf("new stage=%+v prior=%+v err=%v", next.Progress, first.Progress, err)
+	}
+	for _, status := range []ReceiptStatus{ReceiptNone, ReceiptQueued, ReceiptSucceeded, ReceiptFailed, ReceiptRefused} {
+		if _, err := report(receiptIn(status, at), "late", at); err == nil {
+			t.Errorf("accepted progress on %s", status)
+		}
+	}
+	for _, stage := range []string{"", "bad\nline", "bad\x1bcontrol", "bad\tcontrol", "bad\x00control", "bad\u009bcontrol", string([]byte{255}), strings.Repeat("x", 257)} {
+		if _, err := report(running, stage, at); err == nil {
+			t.Errorf("accepted unsafe stage %q", stage)
+		}
+	}
+	if _, err := ApplyReceiptEvent(first, ReceiptEvent{Kind: ReceiptProgress, ID: "another", Stage: "late", At: at}); err == nil {
+		t.Fatal("accepted another operation's progress")
 	}
 }

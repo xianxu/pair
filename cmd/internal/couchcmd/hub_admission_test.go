@@ -50,9 +50,9 @@ func newHubAdmissionRig(t *testing.T) *hubAdmissionRig {
 		return (*h.resolve.Load())(ctx, ref)
 	}, nil)
 	r.s.authority.hubTarget = r.s.hubTargets.Fresh
-	r.slotOps.guardedRun = func(key, op, target string, opts couchcore.LiveRestartOptions, guard func(context.Context) error, started func(), finished func(any, error)) error {
+	r.slotOps.guardedRun = func(key, op, target string, opts couchcore.LiveRestartOptions, guard func(context.Context) error, started func(), progress couchcore.OperationProgress, finished func(any, error)) error {
 		h.guardSeen = guard
-		return runner.run(key, op, target, opts, started, finished)
+		return runner.run(key, op, target, opts, started, progress, finished)
 	}
 	return h
 }

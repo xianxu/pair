@@ -167,6 +167,27 @@ capture generation and producing launch ordinal/nonce. Archive metadata v2
 preserves that witness; v1 remains readable. Certification additionally needs
 a native binding for the same launch ordinal. A capture witness alone is not
 conversation proof, and historical files are never retroactively certified.
+Terminal startup budget (#773): `startupbudget` owns the absolute deadline and
+its consumed exec representation. `launchTrackedThread` chooses it before the
+blocked helper starts; helper acknowledgement, pane birth, exact readiness and
+registration consume that same window. Explicit caller deadlines are preserved;
+no-deadline calls reuse the two-minute ceiling. Runtime handoffs carry startup,
+short observation and interactive contexts separately. Native precreation and
+postbirth queries retain their five-second observation bounds, capped by startup;
+the initial ten-second birth probe remains diagnostic. Admission joins observers
+and its failed client before releasing the terminal lease; startup expiry after
+admission cannot end the interactive client. Final exact recovery observations
+retain their separate bounded reconciliation contract and never retry launch.
+
+Existing operation progress flows through context reporters into the console or
+the exact remote receipt's pure transition function. Optional immutable
+`OperationProgress` gives stage/start time; repeated observations preserve its
+age and terminal/retired request updates refuse. The CLI's existing 15-second
+status cadence displays stage and elapsed time. Launch failure diagnostics name
+the consuming stage and its elapsed duration. This additive ephemeral receipt
+field deploys with the coordinated supervisor/CLI rebuild; it is no persisted
+format migration and does not promise old strict clients can read new fields.
+
 Implementation: launcher/session_handoff*.go, launcher/session_lease.go,
 couchcore/startup.go, couchcore/sessionevidence.go and
 artifactpath/capture_witness.go.
