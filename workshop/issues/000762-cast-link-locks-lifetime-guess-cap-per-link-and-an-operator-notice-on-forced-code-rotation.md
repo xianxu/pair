@@ -16,6 +16,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: operator, spec: "71129b84", done: "de31820a"}
 ---
 
 # cast link locks: lifetime guess cap per link and an operator notice on forced code rotation
