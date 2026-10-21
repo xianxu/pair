@@ -198,3 +198,96 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T02:49:06-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 761 — Couch native detach intermittently loses post-client ownership proof |
+| repo | pair |
+| issue file | workshop/issues/000761-native-detach-owner-refusal.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | bc79cbaeae75b518dcfa789fc2bd0e40ccf06f97..e26e24b0dc25a58f90a8f91beb9990b155631397 |
+| command | sdlc close --issue 761 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T02:49:06-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation matches the approved recovery and evidence contracts. BR-1 is verified addressed, with regression tests that fail when path cleaning is restored. No new blocking findings. The separately required recorded suite remains a landing prerequisite.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      zellij_socket.go:22,28 and zellij_read_recovery.go:120 share the spelling-preserving append helper. All six positive/negative filesystem cases pass; restoring filepath.Join through a disposable Go overlay makes all six fail, including actual retry-count assertions.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Remains addressed. The shared socket-fixture allocator and long-TMPDIR regression pass in the full launcher run.
+```
+
+1. **Strengths**
+
+   - Recovery remains restricted to exact signatures, allowlisted reads, three attempts, and the original deadline (`zellij_read_recovery.go:85`, `zellij.go:199`).
+   - Full parser results select diagnostic captures; cancellation and generation failures retain evidence without granting ownership (`session_owner_os.go:117`).
+   - Persistence tests exercise refusal → operation recorder → save → reopen, checking exact raw bytes and concise operator text (`nativequery_failure_test.go:115`).
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed:
+
+   - Full launcher, zellijtest, artifactpath, and repolint packages.
+   - Focused couchcore native-evidence, recovery, and lifecycle-failure tests.
+   - Focused launcher race tests.
+   - `make test-affected-inventory`.
+   - BR-1 mutation verification: restoring cleaning produces the expected failures.
+
+   Native controls were inspected as retained evidence, not rerun. Full Couch supervisor qualification remains explicitly assigned to #744. Whitespace-check warnings are confined to exact captured native stdout.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** One helper preserves spelling across all retry-root sources and final socket assembly.
+   - **ARCH-PURE — pass:** Classification and evidence bounding remain pure; subprocess and filesystem work stay in adapters. Core-concept classifications match the implementation.
+   - **ARCH-PURPOSE — pass:** Both approved signatures and operation-owned evidence are delivered.
+   - **ARCH-MOCK — pass:** Stateful fixtures exercise production boundaries; native conformance infrastructure remains present.
+   - **ARCH-CONSTRAINTS — pass:** Retry, deadline, metadata, stream, and history bounds are enforced and tested.
+   - **ARCH-SECURE — pass:** Exact socket identity gates only another read; unknown evidence retains refusal.
+   - **ARCH-ORDER — pass:** Cancellation, generation changes, collector failures, and exhaustion preserve existing authority fences.
+   - **ARCH-FUNERAL — pass:** Evidence uses existing bounded history; fixture resources have explicit cleanup.
+   - **ARCH-EVOLVE — pass:** Additive fields use the preserving codec, with strict known-field validation.
+
+   Atlas updates cover the new diagnostic surface. No new command, flag, keybinding, or configuration surface requires a README update.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"83b2a3fe-ae96-4ea3-8c89-4f93fbc0195e","repository":"github.com/xianxu/pair","issue_id":"000761","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/64d818a8f6a0f26a","reviewed_head":"e26e24b0dc25a58f90a8f91beb9990b155631397","slot":"pair:5","requested_at":"2026-10-21T09:46:06.548921Z"},"phase":"finished","pid":90621,"started_at":"2026-10-21T09:46:06.713372Z","finished_at":"2026-10-21T09:49:05.243533Z","session_id":"01a15dda-8fc1-7931-acc6-c48beed95590","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.835234042s
+head: "e26e24b0dc25a58f90a8f91beb9990b155631397"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
