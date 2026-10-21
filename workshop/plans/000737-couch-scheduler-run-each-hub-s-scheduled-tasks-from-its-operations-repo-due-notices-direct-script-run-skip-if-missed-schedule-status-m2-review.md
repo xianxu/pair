@@ -115,3 +115,110 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000409
+
+---
+
+## Re-review — 2026-10-21T08:53:10-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 737 — couch: scheduler: run each hub's scheduled tasks from its operations repo (due notices, direct script-run, skip-if-missed, --schedule --status) |
+| repo | pair |
+| issue file | workshop/issues/000737-couch-scheduler-run-each-hub-s-scheduled-tasks-from-its-operations-repo-due-notices-direct-script-run-skip-if-missed-schedule-status.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 369451d79fe2072aa39ee8b3928bfbf9e6f40132..8e26782e53cbabcf4eb7c86d81803045582dc4c0 |
+| command | sdlc milestone-close --issue 737 --milestone M2 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T08:53:10-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-9, BR-10 and BR-11 are addressed, with regressions that fail when their fixes are removed. One new fault probe exposes a blocking recovery defect: cached canonical history is silently ignored after a failed ledger commit. README and atlas updates are present. Live acceptance remains outstanding under the documented TL sequencing revision.
+
+```findings
+dispose:
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Held-gate deadline and cancellation regressions pass and fail when the admission fence is removed; additional tests cover deadline-bounded gate and broker waits.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      Seven history-consumer isolation cases pass and fail without local quarantine; manual refusal, pending-evidence retry, and shared-store failure tests also pass.
+  - id: BR-11
+    disposition: addressed
+    note: |
+      Manual and scheduled recovery regressions pass and lose persisted summary metadata when the central same-identity merge is removed; broader rewrite tests cover passive and uncertain paths.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: durable-artifact-crash-recovery
+    title: |
+      Cached canonical recovery is ignored after a failed authority commit
+    detail: |
+      cmd/internal/couchcmd/schedule_automatic.go:250 constructs ResultRecovered without At, so model.go:162-163 silently ignores it. A production-path overlay probe published canonical passive history with different timestamps, failed the following ledger commit, and retried: the ledger retained EndedAt=12:00:00 instead of canonical 11:59:50. ARCH-ORDER: cached and freshly read evidence must produce equivalent recovery transitions, including after failed persistence. This is the 4th finding in family durable-artifact-crash-recovery. Earlier rounds fixed instances; state and enforce that rule across cached/direct adoption and failed-commit retries, rather than patching only this call. Supply the canonical event time and add a permanent regression asserting the reopened ledger matches canonical history.
+```
+
+1. **Strengths**
+
+   - Admission now acquires the hub gate before authority and retains authority through bounded broker admission.
+   - History quarantine preserves task authority while healthy hubs continue.
+   - Same-occurrence rewrites preserve summary metadata without importing operational-record metadata.
+   - Notice finalization preserves execution/output and uses existing retention and recovery mechanisms.
+
+2. **Critical findings**
+
+   - Cached recovery event lacks its required timestamp; see the finding above.
+
+3. **Important findings**
+
+   None.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Passed scheduler race tests, full `couchschedule`, `operationalrun`, and `artifactpath` tests, plus pinned-range whitespace checks. Removing the prior fixes made their regressions fail. The new failed-commit probe fails at the pinned head. Temporary overlays were removed; the checkout is unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared execution and occurrence publication.
+   - **ARCH-PURE — pass:** deterministic reducer; IO remains behind integration seams.
+   - **ARCH-PURPOSE — pass:** automatic scheduling is delivered; live acceptance remains explicitly open.
+   - **ARCH-MOCK — pass:** stateful doubles and portable stores exercise production boundaries.
+   - **ARCH-CONSTRAINTS — pass:** bounded worker capacity and admission deadlines.
+   - **ARCH-SECURE — pass:** persisted input and frozen bindings are validated.
+   - **ARCH-ORDER — flag:** cached recovery silently produces no transition.
+   - **ARCH-FUNERAL — pass:** new artifacts reuse existing cleanup and retention.
+   - **ARCH-EVOLVE — pass:** reviewed same-identity metadata preservation is enforced and tested.
+
+   Core-concept locations match the listed entities; inspected PURE tests require no IO.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry defining equivalent cached/direct canonical adoption, enumerating failed-commit retry paths, and requiring ledger-to-history equality assertions alongside history immutability checks.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"d5538866-60e8-4bb3-84a5-4ffa0b7360fe","repository":"github.com/xianxu/pair","issue_id":"000737","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/f4da20a12c709819","reviewed_head":"8e26782e53cbabcf4eb7c86d81803045582dc4c0","slot":"pair:1","requested_at":"2026-10-21T15:48:31.12272Z"},"phase":"finished","pid":68627,"started_at":"2026-10-21T15:48:31.224053Z","finished_at":"2026-10-21T15:53:10.190743Z","session_id":"01a15f26-5a7b-7ac3-aea5-4a432178e00d","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.58914175s
+head: "8e26782e53cbabcf4eb7c86d81803045582dc4c0"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000411

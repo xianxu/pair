@@ -863,6 +863,213 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: d5538866-60e8-4bb3-84a5-4ffa0b7360fe
+            repository: github.com/xianxu/pair
+            issue_id: "000737"
+            recipe: milestone-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/f4da20a12c709819
+            reviewed_head: 8e26782e53cbabcf4eb7c86d81803045582dc4c0
+            slot: pair:1
+            requested_at: "2026-10-21T15:48:31.12272Z"
+          phase: finished
+          pid: 68627
+          started_at: "2026-10-21T15:48:31.224053Z"
+          finished_at: "2026-10-21T15:53:10.190743Z"
+          session_id: 01a15f26-5a7b-7ac3-aea5-4a432178e00d
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 8e26782e53cbabcf4eb7c86d81803045582dc4c0
+        tracker_head: 54bd775ea278d1bb2427b420f998b19134cc3fce
+        branch_point: 2d298efea85f7a623d0a8d4a65b3260e0c626f18
+        since: "2026-10-20T17:17:42-07:00"
+        until: "2026-10-21T08:47:29-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-20T17:17:42-07:00"
+              end: "2026-10-21T08:47:29-07:00"
+              began: "2026-10-20T17:17:42-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot1/pair
+        sources:
+            - harness: codex
+              id: 01a15a4d-a5f6-7e32-9f09-082ad1e172f0
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 6410f914ba87b4de52933ce4e09be3bbfba7fb38d3ed3d42425714389d9d2bc2
+              started: "2026-10-20T17:14:55.765Z"
+              spawned: false
+              bytes: 20289941
+              windows:
+                - start: "2026-10-20T17:17:42-07:00"
+                  end: "2026-10-21T08:47:29-07:00"
+            - harness: codex
+              id: 01a15bd2-f5c9-7251-9c7e-cba357006b38
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a15a4d-a5f6-7e32-9f09-082ad1e172f0
+              digest: 56cb851cc0c000731264aea96f8cdb07ca78ed6fd637908f32e482409f1ea486
+              started: "2026-10-21T00:18:34.683Z"
+              spawned: true
+              bytes: 6217909
+              windows:
+                - start: "2026-10-21T00:18:34.683Z"
+                  end: "2026-10-21T08:47:29-07:00"
+            - harness: codex
+              id: 01a15bd3-91ad-7770-8227-419b821d5986
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a15a4d-a5f6-7e32-9f09-082ad1e172f0
+              digest: c5a168bbfda1a53fd7eda6ec03ea3ecc08dca8852bda4f1868992570919a4e85
+              started: "2026-10-21T00:19:14.859Z"
+              spawned: true
+              bytes: 6803546
+              windows:
+                - start: "2026-10-21T00:19:14.859Z"
+                  end: "2026-10-21T08:47:29-07:00"
+            - harness: codex
+              id: 01a15be0-4dec-70a0-a17e-61b630b10dca
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a15a4d-a5f6-7e32-9f09-082ad1e172f0
+              digest: e3452498ecaeb9c010124a71304f43b0f3a8abbd469e3eca0f7dcebd2bb76bdd
+              started: "2026-10-21T00:33:09.272Z"
+              spawned: true
+              bytes: 4829922
+              windows:
+                - start: "2026-10-21T00:33:09.272Z"
+                  end: "2026-10-21T08:47:29-07:00"
+            - harness: codex
+              id: 01a15c40-c87b-7d42-8375-bfd5ecbd7a53
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: a3b269236061b4495ff4f5eb5c065aa81cd5d6dfbaf9222bc67300f4a25c3bfc
+              started: "2026-10-21T02:18:32.36Z"
+              spawned: false
+              bytes: 731519
+              windows:
+                - start: "2026-10-21T02:18:32.36Z"
+                  end: "2026-10-21T08:47:29-07:00"
+            - harness: codex
+              id: 01a15c43-ba56-74b0-90bf-eba6239eef02
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: c535f95d699a28f090a389e2df5a02d209b9a7922aa84ff5c20e32475399b95b
+              started: "2026-10-21T02:21:45.369Z"
+              spawned: false
+              bytes: 518971
+              windows:
+                - start: "2026-10-21T02:21:45.369Z"
+                  end: "2026-10-21T08:47:29-07:00"
+            - harness: codex
+              id: 01a15c45-809b-7fb3-a021-892d99ec3b1d
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: b261c2a1db7e2401a2a58ce9c12df197749550821c9655313b509884af09b668
+              started: "2026-10-21T02:23:41.668Z"
+              spawned: false
+              bytes: 487844
+              windows:
+                - start: "2026-10-21T02:23:41.668Z"
+                  end: "2026-10-21T08:47:29-07:00"
+            - harness: codex
+              id: 01a15c45-e52f-7763-8852-144173152199
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: b766e2ab9af6806b5e6afb3df7c118c516bfaf10ab272731bdcc89753d815897
+              started: "2026-10-21T02:24:07.329Z"
+              spawned: false
+              bytes: 520797
+              windows:
+                - start: "2026-10-21T02:24:07.329Z"
+                  end: "2026-10-21T08:47:29-07:00"
+            - harness: codex
+              id: 01a15d4c-2f70-7da2-8ce7-e8b02379a07a
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a15a4d-a5f6-7e32-9f09-082ad1e172f0
+              digest: 0984d57d1df7801854c004570922c87fb4f68469dfc5a8622686fa9b5e7dd98f
+              started: "2026-10-21T07:10:36.509Z"
+              spawned: true
+              bytes: 745859
+              windows:
+                - start: "2026-10-21T07:10:36.509Z"
+                  end: "2026-10-21T08:47:29-07:00"
+            - harness: codex
+              id: 01a15d4c-6139-7bf1-b67d-d736f64e6185
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a15a4d-a5f6-7e32-9f09-082ad1e172f0
+              digest: ccecb51b8872a94a020713567a54630ef240d9653610185a1f3d7e6c17900c63
+              started: "2026-10-21T07:10:49.26Z"
+              spawned: true
+              bytes: 1130310
+              windows:
+                - start: "2026-10-21T07:10:49.26Z"
+                  end: "2026-10-21T08:47:29-07:00"
+        cuts:
+            - boundary: M1
+              dispatched: "2026-10-20T20:08:11-07:00"
+              finalized: "2026-10-20T20:12:31-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-20T20:36:36-07:00"
+              finalized: "2026-10-20T20:40:39-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-20T21:10:12-07:00"
+              finalized: "2026-10-20T21:12:59-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-20T21:21:32-07:00"
+              finalized: "2026-10-20T21:23:47-07:00"
+              finalizing: true
+            - boundary: M2
+              dispatched: "2026-10-21T00:01:03-07:00"
+              finalized: "2026-10-21T00:07:19-07:00"
+              finalizing: false
+      "n": 6
+      timestamp: "2026-10-21T08:53:10-07:00"
+      dispatched: "2026-10-21T08:48:29-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-9
+          disposition: addressed
+          note: Held-gate deadline and cancellation regressions pass and fail when the admission fence is removed; additional tests cover deadline-bounded gate and broker waits.
+          round: 6
+        - id: BR-10
+          disposition: addressed
+          note: Seven history-consumer isolation cases pass and fail without local quarantine; manual refusal, pending-evidence retry, and shared-store failure tests also pass.
+          round: 6
+        - id: BR-11
+          disposition: addressed
+          note: Manual and scheduled recovery regressions pass and lose persisted summary metadata when the central same-identity merge is removed; broader rewrite tests cover passive and uncertain paths.
+          round: 6
+      findings:
+        - kind: defect
+          id: BR-12
+          severity: Critical
+          title: Cached canonical recovery is ignored after a failed authority commit
+          detail: 'cmd/internal/couchcmd/schedule_automatic.go:250 constructs ResultRecovered without At, so model.go:162-163 silently ignores it. A production-path overlay probe published canonical passive history with different timestamps, failed the following ledger commit, and retried: the ledger retained EndedAt=12:00:00 instead of canonical 11:59:50. ARCH-ORDER: cached and freshly read evidence must produce equivalent recovery transitions, including after failed persistence. This is the 4th finding in family durable-artifact-crash-recovery. Earlier rounds fixed instances; state and enforce that rule across cached/direct adoption and failed-commit retries, rather than patching only this call. Supply the canonical event time and add a permanent regression asserting the reopened ledger matches canonical history.'
+          family: durable-artifact-crash-recovery
+          round: 6
+      boundary: M2
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#737 (boundary-review)
@@ -931,8 +1138,19 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-11** [Critical] `additive-persisted-format-compatibility` (kind: defect) Same-occurrence recovery silently deletes unknown summary fields
   cmd/internal/couchschedule/model.go:235 and :260 replace Last with the recovered summary, while cmd/internal/couchcmd/schedule_records.go:14-15 constructs that summary without the existing Last.Unknown members. A persisted scheduled-delivery summary containing future_summary_field={"value":42} lost that field after automaticScheduler.recover processed the same occurrence. Codec preservation tests do not cover this rewrite. This is the 2nd finding in family additive-persisted-format-compatibility. Do not fix only this caller: enforce preservation of unknown members whenever an existing persisted object is updated for the same identity, keeping distinct schema namespaces separate. Sweep manual, scheduled, passive, and uncertain canonical-adoption paths, with reopen-and-rewrite regressions. ARCH-EVOLVE.
 
+## Round 6 — 2026-10-21T08:53:10-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-9 — addressed — Held-gate deadline and cancellation regressions pass and fail when the admission fence is removed; additional tests cover deadline-bounded gate and broker waits.
+- BR-10 — addressed — Seven history-consumer isolation cases pass and fail without local quarantine; manual refusal, pending-evidence retry, and shared-store failure tests also pass.
+- BR-11 — addressed — Manual and scheduled recovery regressions pass and lose persisted summary metadata when the central same-identity merge is removed; broader rewrite tests cover passive and uncertain paths.
+
+### Raised
+
+- **BR-12** [Critical] `durable-artifact-crash-recovery` (kind: defect) Cached canonical recovery is ignored after a failed authority commit
+  cmd/internal/couchcmd/schedule_automatic.go:250 constructs ResultRecovered without At, so model.go:162-163 silently ignores it. A production-path overlay probe published canonical passive history with different timestamps, failed the following ledger commit, and retried: the ledger retained EndedAt=12:00:00 instead of canonical 11:59:50. ARCH-ORDER: cached and freshly read evidence must produce equivalent recovery transitions, including after failed persistence. This is the 4th finding in family durable-artifact-crash-recovery. Earlier rounds fixed instances; state and enforce that rule across cached/direct adoption and failed-commit retries, rather than patching only this call. Supply the canonical event time and add a permanent regression asserting the reopened ledger matches canonical history.
+
 ## Open findings
 
-- **BR-9** [Critical] `effect-authorization-fencing` (kind: defect) Notice admission can proceed after its deadline or committed cancellation
-- **BR-10** [Critical] `task-refusal-isolation` (kind: defect) One damaged task history prevents every scheduler worker from starting
-- **BR-11** [Critical] `additive-persisted-format-compatibility` (kind: defect) Same-occurrence recovery silently deletes unknown summary fields
+- **BR-12** [Critical] `durable-artifact-crash-recovery` (kind: defect) Cached canonical recovery is ignored after a failed authority commit
