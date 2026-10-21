@@ -464,13 +464,13 @@
       "internal/testoracle/run_test.go": "1818f066cd7ced34648679d42604536da83642c7a40d1800e8ae1f9cfc6a3d36",
       "probes/zellijcalls/main_test.go": "382f78fb48fc70e5b522a8e5e38bc0fc8da82ebc75ec9c2f367c9ddfa7417693",
       "probes/zellijprobe/reporoot_test.go": "de13aef753c6fc958f01e4a04ec9963672a58a76f5e63d08d6e2ea32de825018",
-      "cmd/internal/vmcmd/driver_darwin_test.go": "b0965d81c77d9ae1e545b4382c028a29ae1a8479e6da9e7c3418aa65762d5a1f",
       "cmd/internal/vmcmd/snapshot_process_unix_test.go": "c1d0a44cc2d2fa19df6e7948371ad73426120c4e17089d1aa612cba5687759a9",
       "cmd/internal/vmcmd/process_owner_unix_test.go": "8adf216bec51c295b1ce89fdfad6000d59f670d9e4226b8080e37b9c0f848fa6",
       "cmd/internal/vmcmd/results_test.go": "ae2f75ce600e3b200cfe06059ed4667a67220ff5e317af451e347bdc884a4665",
       "cmd/internal/vmcmd/provision_test.go": "e2cf28aaa286a381bb8047ec30ccd75ac94b2cf43f4db9b234420eb3be91d1a4",
       "cmd/internal/vmcmd/guest_test.go": "899b0e7856bc6fbf878e3e68f2e3fc184d7933aca809e35b7771d1a05eae640e",
-      "cmd/internal/vmcmd/host_test.go": "29bf99f6a08e43710fbc584a43031859a023e5cfdc288b9f29d516a608590144"
+      "cmd/internal/vmcmd/host_test.go": "29bf99f6a08e43710fbc584a43031859a023e5cfdc288b9f29d516a608590144",
+      "cmd/internal/vmcmd/driver_darwin_test.go": "029d9723bc410b8b94dd70ee5b3f06dd0f1e524d33c65b6790a8d867ce16918a"
     }
   }
 }

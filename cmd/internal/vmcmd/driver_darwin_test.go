@@ -460,3 +460,44 @@ func TestNativeProvisionCountsUnpublishedCandidates(t *testing.T) {
 		t.Fatal("cloned above image cap")
 	}
 }
+
+func TestNativeReadinessRunCancellationRetainsCleanupAuthority(t *testing.T) {
+	d := fakeNativeDriver(t)
+	for _, name := range []string{"running", "hold-first-probe"} {
+		if err := os.WriteFile(filepath.Join(d.home, name), nil, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	scope := &cleanupScope{base: context.Background()}
+	defer scope.close()
+	ctx = context.WithValue(ctx, cleanupScopeKey{}, scope)
+	done := make(chan error, 1)
+	go func() { done <- d.AwaitGuest(ctx, ManagedVMName(AdhocLane)) }()
+	// The fake removes its hold marker immediately before entering the blocked
+	// probe. Cancel only after that barrier, independent of startup timing.
+	deadline := time.NewTimer(5 * time.Second)
+	defer deadline.Stop()
+	for {
+		_, err := os.Stat(filepath.Join(d.home, "hold-first-probe"))
+		if os.IsNotExist(err) {
+			break
+		}
+		select {
+		case <-deadline.C:
+			cancel()
+			<-done
+			t.Fatal("probe did not enter")
+		case <-time.After(time.Millisecond):
+		}
+	}
+	cancel()
+	err := <-done
+	if errors.Is(err, ErrUnconfirmedProcessCleanup) {
+		t.Fatalf("execution cancellation discarded cleanup authority: %v", err)
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancellation not preserved: %v", err)
+	}
+}

@@ -77,6 +77,14 @@ func (d *nativeDriver) runOwned(ctx, cleanupBound context.Context, out, stderr i
 	stopCleanup := func() {}
 	if cleanupBound != nil {
 		cleanupCtx = cleanupBound
+		// A readiness probe uses the live boot budget for ordinary polling.
+		// When that enclosing budget expires, an existing Run still owns one
+		// detached cleanup scope. Reuse it; an already-started scope never renews.
+		if cleanupBound.Err() != nil {
+			if scope, ok := ctx.Value(cleanupScopeKey{}).(*cleanupScope); ok {
+				cleanupCtx = scope.context()
+			}
+		}
 	} else if ctx.Err() != nil {
 		cleanupCtx, stopCleanup = cleanupContext(ctx)
 	}
