@@ -207,6 +207,12 @@ BR-2 reproduced active ActorCLI returning while its actual child remained alive,
 
 BR-3 corrects implemented value/function names, paint location and filesystem correlation classification in the current Core concepts tables with a dated Revision. BR-4 uses durablefile atomic snapshots, reports the first publication failure while retaining in-memory ownership, and still completes proved-clean teardown. Held-reader, failed-write/prior-evidence, and actual owned-process cleanup regressions passed; independent ownership race2.316s. Newly tracked fixture-local tests were individually audited as local_or_literal_fixture; no repository scanners or native-build inputs are hidden by those dispositions. A newly tracked short-root file exposed a stale suppression, removed before the final lint pass. Native final-head rerun, recorded suite and close remain next.
 
+### 2026-10-21 — final native rerun blocked; parked for #761
+
+After BR-1 through BR-4 repairs, clean pushed bfa769c1dec8ee80eabba775220d7084ae1c4983 failed make test-couch-fleet in48.08s during Claude detach. The genuine four-actor cohort and submitted receipt1b2825eb-0193-4b89-84f9-0fcce43274f8 with independent accepted body passed first. Public detach refused: observe Pair session before detach, session 📁1-3 ownership unresolved: invalid live pane JSON, failure operation-392b33c981ed0bbda69e1a8a9d6763ed. New bounded diagnostics preserved that precise product refusal before cleanup. All exact owned generations were absent, direct child/IO joined and root /Volumes/TestScratch/pc-1539241296 removed. Codex was not attempted after this failure.
+
+Retained complete log /Volumes/TestScratch/tmp/pair-slot5/pair-744-native-final.nEqfD0/native.log SHA2561d4b86f5c114a28e372bb025ee7c5eaf30355f05d301802d0f1ecddc420ce7b5. Tool versions match the earlier PASS. This is not a final-head native pass and not a known-flake classification. Verified TL159f625e directs park744, claim761 from main, root-cause/fix/land its product bug, then integrate landed main into744 and rerun final matrix before close/landing. The queued bfa769c1 recorded suite was canceled before running because744 is parked for its prerequisite; other checkouts remained running. Claims retained; PR509 stays open. #722 and #739 wait. Next744 step: integrate only landed761, native matrix, recorded suite, repeat full close, merge.
+
 ## Revisions
 
 ### 2026-10-20 — #747 native-proof sequencing
