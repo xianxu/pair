@@ -49,6 +49,9 @@ func TestScheduledBatchBeforeMigrationInitializesGraceThenDiagnostics(t *testing
 	if ran, err := scheduler.RunOnce(context.Background()); err != nil || !ran {
 		t.Fatalf("diagnostic phase did not run: %v %v", ran, err)
 	}
+	if ran, err := scheduler.RunOnce(context.Background()); err != nil || !ran {
+		t.Fatalf("operational phase did not run: %v %v", ran, err)
+	}
 	if ran, err := scheduler.RunOnce(context.Background()); err != nil || ran {
 		t.Fatalf("completed run did not rate limit: %v %v", ran, err)
 	}

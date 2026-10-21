@@ -63,15 +63,16 @@ type Attempt struct {
 // TaskState is the pure transition unit. A ledger composes tasks without
 // copying or traversing all other tasks on each event.
 type TaskState struct {
-	Key      TaskKey                    `json:"key"`
-	Revision string                     `json:"revision"`
-	Spec     TaskSpec                   `json:"spec"`
-	Allowed  bool                       `json:"allowed"`
-	Refusal  string                     `json:"refusal"`
-	NextDue  time.Time                  `json:"next_due"`
-	Active   *Attempt                   `json:"active"`
-	Last     *RunSummary                `json:"last"`
-	Unknown  map[string]json.RawMessage `json:"-"`
+	Key       TaskKey                    `json:"key"`
+	Revision  string                     `json:"revision"`
+	Spec      TaskSpec                   `json:"spec"`
+	Allowed   bool                       `json:"allowed"`
+	Refusal   string                     `json:"refusal"`
+	NextDue   time.Time                  `json:"next_due"`
+	RemovedAt time.Time                  `json:"removed_at"`
+	Active    *Attempt                   `json:"active"`
+	Last      *RunSummary                `json:"last"`
+	Unknown   map[string]json.RawMessage `json:"-"`
 }
 
 type EventKind string
@@ -86,6 +87,8 @@ const (
 	NoticeObserved      EventKind = "notice-observed"
 	OwnerUnknown        EventKind = "owner-unknown"
 	CancelRequested     EventKind = "cancel-requested"
+	ExecutionRefused    EventKind = "execution-refused"
+	ResultRecovered     EventKind = "result-recovered"
 )
 
 type Event struct {
@@ -137,9 +140,14 @@ func Advance(state TaskState, event Event) (TaskState, []Effect) {
 		if d == nil {
 			state.Allowed = false
 			state.Refusal = "task removed"
+			state.NextDue = time.Time{}
+			if state.RemovedAt.IsZero() {
+				state.RemovedAt = event.At
+			}
 			return cancelActive(state)
 		}
-		changed := state.Revision != d.Revision || state.Key != d.Key
+		changed := state.Revision != d.Revision || state.Key != d.Key || !state.RemovedAt.IsZero()
+		state.RemovedAt = time.Time{}
 		state.Key = d.Key
 		state.Revision = d.Revision
 		state.Spec = d.Spec
@@ -194,6 +202,22 @@ func Advance(state TaskState, event Event) (TaskState, []Effect) {
 		return state, nil
 	}
 	switch event.Kind {
+	case ResultRecovered:
+		if a.Source != "manual" {
+			break
+		}
+		var exit *int
+		if event.Exit >= 0 {
+			code := event.Exit
+			exit = &code
+		}
+		state.Last = summary(a, event.At, exit, event.Outcome, event.Notice)
+		state.Active = nil
+	case ExecutionRefused:
+		// Only a controller's positively known pre-authorization refusal may
+		// clear reservation authority without a task-completion observation.
+		state.Last = summary(a, event.At, nil, "refused", event.Notice)
+		state.Active = nil
 	case ReservationDurable:
 		if a.Stage != "reserved" {
 			break
@@ -231,7 +255,11 @@ func Advance(state TaskState, event Event) (TaskState, []Effect) {
 			}
 		}
 		exit := event.Exit
-		state.Last = summary(a, event.At, &exit, outcome, "")
+		var exitStatus *int
+		if exit >= 0 {
+			exitStatus = &exit
+		}
+		state.Last = summary(a, event.At, exitStatus, outcome, "")
 		if a.Source == "manual" || outcome == "quiet" || a.Revision != state.Revision || a.Stage == "stopping" {
 			state.Active = nil
 			break

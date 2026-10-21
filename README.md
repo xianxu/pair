@@ -456,6 +456,25 @@ elsewhere prevents its eventual completion from pulling focus back. On a failed
 row, `Ctrl+Y` copies its retained diagnostic; otherwise it copies the last notice.
 Recovery confirmations stay on their row until you select it to review them.
 
+Hub task packages live in the operations checkout at
+`scripts/scheduled/<task>/`, with a JSON `schedule` declaration beside `main.go`.
+From that configured hub, use the shared helper for task help or a manual run:
+
+```sh
+couch --schedule --status
+couch --schedule run landing-plan -- --help
+couch --schedule run landing-plan -- script-run
+couch --schedule history landing-plan --run RUN_ID
+```
+
+Manual runs, history and cached status are available in #737 M1; automatic due
+runs and hub notices are the next milestone. Tasks run with your account's
+filesystem and network access. Two machine-wide permits bound task execution;
+`heavy: true` also joins the existing full-suite test queue. Run output retains a
+256 KiB head/tail, with completed history kept for 30 days or the newest 300 runs
+per task. See [hub task declarations and ownership](atlas/couch.md#hub-tasks-737-m1)
+for the JSON format, team owner rules, build envelope and recurrence contract.
+
 Couch keeps agent-pane context titles and cmux activity heat titles current from
 its existing inventory and minute activity refreshes. Hosted Pair starts no
 separate title poller. Idle fading keeps using prompt and agent activity plus

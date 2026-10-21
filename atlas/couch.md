@@ -12,6 +12,118 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 
 ## What exists today
 
+### Teams, hubs and technical leads
+
+| Term | Meaning in Couch |
+|---|---|
+| Team | The operators and work supervised through one operations repository. `team.md` describes the team; `.hub` declares the repository/slot claims. |
+| Hub | A configured operations checkout and its `:0` slot. Explicit Couch hub arguments, or the implicit cwd hub, select scheduler roots; claiming a product repository does not make that repository a task root. |
+| TL | The technical lead working in a hub's `:0` slot. Couch routes team messages to that live slot; the TL is the agent role, not the operations repository or the supervisor process. |
+
+### Hub tasks (#737 M1)
+
+M1 provides declaration discovery, durable task authority, manual execution,
+retained run history and a cached status projection. **Automatic due dispatch and
+hub-notice delivery remain M2 work in [#737](../workshop/issues/000737-couch-scheduler-run-each-hub-s-scheduled-tasks-from-its-operations-repo-due-notices-direct-script-run-skip-if-missed-schedule-status.md).** A displayed next due time in M1 is not evidence of an armed automatic runner.
+
+Put a Go `package main` in the hub's `scripts/scheduled/<task>/`, with a UTF-8
+JSON file named `schedule` beside it:
+
+```json
+{
+  "version": 1,
+  "cron": "0 7 * * *",
+  "timeout": "10m",
+  "scope": "machine",
+  "missed": "skip",
+  "script_run": true,
+  "heavy": false
+}
+```
+
+Version, five-field cron and a positive timeout of at most 24 hours are required.
+The other fields default to the values above except `script_run`, which defaults
+to false. `scope: "team"` additionally requires an `owner` slug listed beneath
+`## Operators` in the hub's `team.md`, using `- xian-xu (Xian Xu): ...`.
+The owner must match the slug of the hub checkout's effective Git `user.name`.
+Missing Operators is tolerated for machine tasks; it cannot authorize a team
+owner. Invalid, oversized, symlinked or changed declarations refuse that task
+and remain visible rather than silently running an old definition.
+
+From the configured hub checkout:
+
+```sh
+couch --schedule --status --json
+couch --schedule run landing-plan -- --help
+couch --schedule run landing-plan -- script-run
+couch --schedule history landing-plan --json
+couch --schedule history landing-plan --run RUN_ID
+```
+
+The manual helper builds the selected task and forwards the argument tail as
+argv, including `--help`; tasks own their flags and help text. Product checkouts
+cannot select a hub's tasks through claims or arbitrary paths. Manual attempts
+use the same execution lease and run store as scheduled attempts, but do not
+consume the next scheduled occurrence. Status reads the existing private socket's
+immutable snapshot; it does not compile, scan declarations or start work. The
+service refreshes the catalog at startup and every 30 seconds. History
+is a separate bounded read of retained records and output.
+
+Execution is trusted operator-level code, with the current account's filesystem
+permissions and network access; Couch supplies no task sandbox. The builder uses
+`CGO_ENABLED=0`, captures the module/package graph, source and embed inputs, and
+keys the executable cache by those bytes and the selected Go toolchain. It
+refuses `vendor`, `go.work`, foreign/CGo inputs and local module replacements
+outside the hub. It does not invoke `go generate` or write executables into the
+hub checkout. The 256 MiB cache evicts unused keys by LRU; held artifact leases
+protect executing binaries, and full live capacity refuses additional admission.
+
+Two execution permits are shared machine-wide by manual and scheduled tasks.
+One held per-task lease excludes overlap. `heavy: true` additionally acquires a
+machine full-suite slot through the existing workflow test-lock helper before
+building/running; light tasks do not join that queue. The controller owns the
+lease until its process groups and output workers finish. Tasks must wait for
+their work to finish; deliberately daemonized or escaped descendants are outside
+this execution contract. Missing or refused heavy admission never starts task
+work. The timeout covers
+admission, build and execution; cancellation and owner EOF stop and join owned
+work. A paused heavy queue does not pause light tasks.
+
+The approved M2 recurrence contract is minute/hour/day/month/weekday in the
+machine timezone, with UTC occurrence identities. Spring-forward missing local
+times skip; a fall-back repeated local minute runs once, at its first matching
+instant. First discovery or a new declaration revision arms the next future
+occurrence. Default `missed: "skip"` advances after sleep/restart without a
+backlog; `"once"` permits one catch-up. Overlap skips a due slot and advances.
+Direct `script_run` tasks run even with an offline hub. Offline notify-only tasks
+skip immediately; exit-10/failure notices to an offline hub are dropped and
+recorded, without a reconnect retry. Exit 0 is quiet, exit 10 requests a hub
+notice, and other exits fail. An uncertain process or notice outcome is retained
+for inspection and never automatically re-executes or resends the occurrence.
+There is no waiting-hub state.
+
+Run bundles live under the Couch namespace at
+`schedule/<hub-id>/<task>/runs/<run-id>/{record.json,output}`; hub IDs derive from
+canonical roots, so same-name tasks in different hubs stay separate. Records
+include declaration revision, source, scheduled/start/end instants, exit/outcome
+and notice result. Output keeps a 256 KiB head/tail with a truncation marker.
+The separate operational retention policy removes whole certified bundles after
+30 days or outside the newest 300 completed runs per task. Active, incomplete and
+uncertain runs remain protected; retained history never authorizes replay.
+Publication refuses before exceeding its bounded 4096-entry inventory. GC owns
+cleanup through its existing preview/apply/background phases, independently of
+session migration and diagnostic-log retention.
+
+The implementation map is `couchschedule/{spec,calendar,model,status}` for pure
+rules and projection, `catalog`/`store`/`state_json` for observed declarations and
+preserving authority, `build`/`build_manifest`/`cache` for captured artifacts, and
+`admission`/`execute`/`execute_unix` for the owned controller. `couchcmd/schedule_*`
+provides the message-service catalog/status lifetime, CLI and history boundary.
+`operationalrun` owns immutable bundles and identity-fenced collection;
+`gcruntime/operational.go` adds registered Couch namespaces to GC and
+`gcruntime/schedule.go` persists its bounded maintenance cursor. Automatic timer,
+worker fairness and broker-notice wiring belong to M2, not these M1 status paths.
+
 ### Slot scratch (#708)
 
 [Slot scratch](couch-scratch.md) maps optional TestScratch temp settings, the

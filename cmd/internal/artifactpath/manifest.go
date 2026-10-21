@@ -666,6 +666,38 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+
+	// #737 declarations/build inputs belong to configured operations repositories;
+	// scheduler ledgers, executable cache and leases belong to the Couch namespace
+	// or machine admission directory, not the Pair tag-artifact vocabulary.
+	"cmd/internal/couchschedule/admission.go",
+	"cmd/internal/couchschedule/build.go",
+	"cmd/internal/couchschedule/build_manifest.go",
+	"cmd/internal/couchschedule/cache.go",
+	"cmd/internal/couchschedule/catalog.go",
+	"cmd/internal/couchschedule/execute.go",
+	"cmd/internal/couchschedule/execute_unix.go",
+	"cmd/internal/couchschedule/runtime_fake.go",
+	"cmd/internal/couchschedule/state_json.go",
+	"cmd/internal/couchschedule/store.go",
+	"cmd/internal/couchschedule/store_unix.go",
+	// #737 CLI/projection/history route the existing private message transport
+	// and explicit Couch namespaces; these sources introduce no Pair tag paths.
+	"cmd/internal/couchcmd/schedule_cli.go",
+	"cmd/internal/couchcmd/schedule_history.go",
+	"cmd/internal/couchcmd/schedule_manual.go",
+	"cmd/internal/couchcmd/schedule_service.go",
+	"cmd/internal/couchcmd/schedule_status.go",
+	// #737 operational bundles and their certified deletion journal are under
+	// Couch schedule/<hub>/<task>/runs; the adapter visits registered namespaces.
+	// They have their own bounded retention class, never a Pair session owner.
+	"cmd/internal/operationalrun/collection.go",
+	"cmd/internal/operationalrun/output.go",
+	"cmd/internal/operationalrun/record.go",
+	"cmd/internal/operationalrun/retention.go",
+	"cmd/internal/operationalrun/store.go",
+	"cmd/internal/operationalrun/store_unix.go",
+	"cmd/internal/gcruntime/operational.go",
 	"cmd/internal/couchschedule/spec.go",
 	"cmd/internal/couchschedule/calendar.go",
 	"cmd/internal/couchschedule/model.go",

@@ -166,6 +166,7 @@ const (
 // timers in arrival order. Request goroutines read
 // only the published snapshot of connected bindings.
 type messageService struct {
+	schedule  atomic.Pointer[scheduleCoordinator]
 	lifecycle atomic.Pointer[lifecyclePublisher]
 	resources atomic.Pointer[resourceSampler]
 	hubMoves  atomic.Pointer[hubMoveService]
@@ -588,6 +589,23 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	}
 	service.workers.Add(1)
 	go func() { defer service.workers.Done(); archive.run(service.lifetime, archiveCheckEvery) }()
+	var scheduleRoots []string
+	if authority.hubs != nil {
+		for _, hub := range authority.hubs.snapshot().Hubs() {
+			scheduleRoots = append(scheduleRoots, hub.Root)
+		}
+	} else if authority.hub != "" {
+		scheduleRoots = []string{authority.hub}
+	}
+	coordinator := newScheduleCoordinator(namespace, scheduleRoots, time.Local, time.Now)
+	service.schedule.Store(coordinator)
+	service.workers.Add(1)
+	go func() {
+		defer service.workers.Done()
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		coordinator.run(service.lifetime, ticker.C)
+	}()
 	return service, nil
 }
 
@@ -936,6 +954,15 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 		defer cancel()
 	}
 	switch {
+	case request.Op == "schedule-status":
+		if err := couchmessage.ValidateRequest(request); err != nil {
+			return couchmessage.Response{Code: "invalid-request", Error: err.Error()}
+		}
+		if coordinator := s.schedule.Load(); coordinator != nil {
+			snapshot := coordinator.view()
+			return couchmessage.Response{Code: "ok", Schedule: &snapshot}
+		}
+		return couchmessage.Response{Code: "unsupported", Error: "scheduler unavailable"}
 	case request.Op == "resources":
 		if err := couchmessage.ValidateRequest(request); err != nil {
 			return couchmessage.Response{Code: "invalid-request", Error: err.Error()}

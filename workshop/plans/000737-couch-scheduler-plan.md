@@ -259,31 +259,32 @@ Count operations, not wall-clock speed: fixtures at N=8 and 16 reject more than 
 
 **Create:** `cmd/internal/couchschedule/{catalog,store,store_unix,state_json}.go`, `cmd/internal/operationalrun/{record,store,store_unix,retention,collection}.go`, and tests; `cmd/internal/gcruntime/operational.go`. **Modify:** `gcruntime/{runtime,schedule}.go` for the explicit operational report/phase described above. **Reuse:** `cmd/internal/durablefile/write.go`, `cmd/internal/strictjson/object.go`.
 
-- [ ] Write failing folder-backed tests for TaskCatalog, StateStore and operationalrun methods using the strategy matrix, through real bounded files and controlled publication faults.
-- [ ] Run `go test ./cmd/internal/couchschedule -run 'Test(Catalog|Store|StateJSON)' -count=1`; confirm the intended red failures.
-- [ ] Implement bounded discovery and context-aware store transactions. Keep task refusal local; state-store corruption blocks effects. Publish per-run records and 256 KiB head/tail output; register operational data with shared diagnostic retention (30 days/300 runs per task). Test preview/delete fencing and partial publication recovery.
-- [ ] Run the focused tests green and the counted catalog-growth check; all fixtures use disposable folders.
-- [ ] Commit `#737 M1: persist scheduled occurrences and bounded history` with trailers.
+- [x] Write failing folder-backed tests for TaskCatalog, StateStore and operationalrun methods using the strategy matrix, through real bounded files and controlled publication faults.
+- [x] Run `go test ./cmd/internal/couchschedule -run 'Test(Catalog|Store|StateJSON)' -count=1`; confirm the intended red failures.
+- [x] Implement bounded discovery and context-aware store transactions. Keep task refusal local; state-store corruption blocks effects. Publish per-run records and 256 KiB head/tail output; register operational data with shared diagnostic retention (30 days/300 runs per task). Test preview/delete fencing and partial publication recovery.
+- [x] Run the focused tests green and the counted catalog-growth check; all fixtures use disposable folders.
+- [x] Commit `#737 M1: persist scheduled occurrences and bounded history` with trailers.
 
 ### Task 3: Cached Go entrypoint and owned execution/admission
 
 **Create:** `cmd/internal/couchschedule/{build_manifest,build,execute,execute_unix,admission,runtime_fake}.go` and tests; a dedicated native fixture under `cmd/internal/couchschedule/testdata/`. **Modify:** internal command dispatch in `cmd/internal/couchcmd/{cli,run}.go` only as needed for the task-lifetime owner.
 
-- [ ] Write failing stateful tests for TaskBuilder, TaskExecutor and TaskAdmission using their matrix strategies.
-- [ ] Run `go test ./cmd/internal/couchschedule -run 'Test(Build|Execute|Admission|Output)' -count=1`; verify red. Pin the specified captured-source build view with fixtures for module replacements, embeds, unsupported inputs and changes after capture; no mtime-only shortcut.
-- [ ] Implement the captured manifest/build cache and parent-owned subprocess wrapper. Use argv, the verified hub cwd, reviewed operator-level environment, and positive heavy admission. Never watch Couch's PID or accept `WF_TEST_LOCK=off` as acquired.
-- [ ] Run fake tests green and qualify the runtime seams against native disposable Go/process fixtures using the same matrix guards. Document deliberate process-group escape as outside the supported task contract.
-- [ ] Commit `#737 M1: own scheduled task builds and process lifetimes` with trailers.
+- [x] Write failing stateful tests for TaskBuilder, TaskExecutor and TaskAdmission using their matrix strategies.
+- [x] Run `go test ./cmd/internal/couchschedule -run 'Test(Build|Execute|Admission|Output)' -count=1`; verify red. Pin the specified captured-source build view with fixtures for module replacements, embeds, unsupported inputs and changes after capture; no mtime-only shortcut.
+- [x] Implement the captured manifest/build cache and parent-owned subprocess wrapper. Use argv, the verified hub cwd, reviewed operator-level environment, and positive heavy admission. Never watch Couch's PID or accept `WF_TEST_LOCK=off` as acquired.
+- [x] Run fake tests green and qualify the runtime seams against native disposable Go/process fixtures using the same matrix guards. Document deliberate process-group escape as outside the supported task contract.
+- [x] Commit `#737 M1: own scheduled task builds and process lifetimes` with trailers.
 
 ### Task 4: Manual helper and read-only status
 
 **Create:** `cmd/internal/couchcmd/{schedule_cli,schedule_status}.go` and tests. **Modify:** `cmd/internal/couchcmd/{cli,messages,run}.go`, `cmd/internal/couchmessage/protocol.go` and protocol tests; `README.md`, `atlas/couch.md`, `atlas/index.md`, `cmd/internal/artifactpath/manifest.go`.
 
-- [ ] Write failing CLI/socket tests for the proposed command forms using the CLI/protocol/status matrix strategy.
-- [ ] Run `go test ./cmd/internal/couchcmd ./cmd/internal/couchmessage -run 'TestSchedule' -count=1`; confirm red.
-- [ ] Wire the helper to the shared builder/executor/store and status to the existing private socket. Add team/hub/TL glossary to Pair atlas; leave `tl-lead --help` changes to the Ariadne project item.
-- [ ] Run targeted tests, source inventory guard, and the required recorded affected/full selection on the pushed head. Verify a native temporary hub task's `--help`, script-run and status without driving the operator's live Couch.
+- [x] Write failing CLI/socket tests for the proposed command forms using the CLI/protocol/status matrix strategy.
+- [x] Run `go test ./cmd/internal/couchcmd ./cmd/internal/couchmessage -run 'TestSchedule' -count=1`; confirm red.
+- [x] Wire the helper to the shared builder/executor/store and status to the existing private socket. Add team/hub/TL glossary to Pair atlas; leave `tl-lead --help` changes to the Ariadne project item.
+- [x] Run targeted tests, source inventory guard, and the required recorded affected/full selection on the pushed head. Verify a native temporary hub task's `--help`, script-run and status without driving the operator's live Couch.
 - [ ] Update atlas and issue Log, then run `sdlc milestone-close --issue 737 --milestone M1 --verified '<specific manual/helper/status evidence>'`; resolve gate findings before M2.
+
 
 ### M2 — Automatic per-hub scheduling, delivery, recovery, and live acceptance
 
@@ -347,3 +348,7 @@ PQ-1: specify the operationalrun store/collector and gcruntime report/bounded-ph
 ### 2026-10-20 — M1 kernel implementation checkpoint
 
 Advance operates on one TaskState per event; StateStore composes these into the ledger. This avoids cloning/scanning the whole task map per due event while preserving the approved single transition owner. A caller may supply its pre-parsed pure Next function; counted tests at 8/16 tasks show one recurrence evaluation per task even after 1,000 missed slots.
+
+### 2026-10-20 — M1 verification checkpoint
+
+Manual execution, immutable operational results, shared retention, captured cached builds, live artifact leases, controller ownership, status/history CLI and the catalogue worker are implemented. Native acceptance reproduced the matching-parent-deadline EOF race and pinned the correction: declared timeout remains timeout, earlier cancellation remains cancellation. Nonblocking FD3 output streams a bounded prefix and retained suffix without delaying group cleanup; uncertainty closes output before the controller keeps its resource leases. Saved manual results recover interrupted authority publication without replay. Automatic due execution and broker notices remain M2. Recorded affected/full selection and the mandatory M1 review are next; M1 is not closed yet.

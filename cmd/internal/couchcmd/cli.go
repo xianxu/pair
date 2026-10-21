@@ -41,6 +41,7 @@ const (
 	// (#478); args holds the argv after the flag.
 	cliWebFidelity
 	cliSubmission
+	cliSchedule
 )
 
 type adoptionArgs struct {
@@ -49,6 +50,7 @@ type adoptionArgs struct {
 }
 
 type cliInvocation struct {
+	schedule   *scheduleArgs
 	drive      *agentdrive.Request
 	hubPaths   []string
 	toHub      string
@@ -116,6 +118,8 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 	// scanning layout flags, which could otherwise consume a literal body.
 	if len(args) > 0 {
 		switch args[0] {
+		case "--schedule":
+			return parseScheduleCLI(args)
 		case "--keys", "--set-model", "--interrupt":
 			return parseAgentDriveCLI(args)
 		case "--move-slot":

@@ -68,13 +68,17 @@ func TestMaintenancePreMigrationVisitsEveryOwnerWithinBatchLimit(t *testing.T) {
 			t.Fatal("owner cursor did not advance")
 		}
 	}
-	if !complete {
+	for attempt := 0; !complete && attempt < 2; attempt++ {
 		var err error
 		cursor, complete, err = s.Batch(context.Background(), cursor, 2)
-		if err != nil || !complete {
-			t.Fatal("pre-migration diagnostic phase did not finish", err)
+		if err != nil {
+			t.Fatal(err)
 		}
 	}
+	if !complete {
+		t.Fatal("diagnostic/operational phases did not finish")
+	}
+
 }
 
 func TestMaintenanceBusyRootReturnsWithoutWaitingForForeground(t *testing.T) {

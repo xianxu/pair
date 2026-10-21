@@ -11,6 +11,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/agentdrive"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchschedule"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/notifyosc"
 	core "github.com/xianxu/pair/cmd/internal/submission"
@@ -49,6 +50,7 @@ type Request struct {
 const CodeWarming = "warming"
 
 type Response struct {
+	Schedule *couchschedule.StatusSnapshot `json:",omitempty"`
 	// RetryAfterMillis is a transient admission hint, only for CodeWarming.
 	RetryAfterMillis int                     `json:",omitempty"`
 	Resources        *couchcore.ResourceView `json:",omitempty"`
@@ -273,7 +275,7 @@ func ValidateRequest(r Request) error {
 		}
 		return nil
 	}
-	if r.Op == "resources" || r.Op == "refusals" {
+	if r.Op == "resources" || r.Op == "refusals" || r.Op == "schedule-status" {
 		if r != (Request{Op: r.Op}) {
 			return errors.New(r.Op + " takes no fields")
 		}

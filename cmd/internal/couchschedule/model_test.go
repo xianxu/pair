@@ -157,3 +157,30 @@ func TestAdvanceCalendarWorkIsLinearAndIndependentOfMissedSlots(t *testing.T) {
 		}
 	}
 }
+
+func TestAdvanceRemovedTaskDisarmsAndSameRevisionRestorationRearms(t *testing.T) {
+	s, due := taskFixture(t, true)
+	declaration := Declaration{Key: s.Key, Revision: s.Revision, Spec: s.Spec, Allowed: true}
+	s, _ = Advance(s, Event{Kind: CatalogChanged, At: due})
+	if !s.NextDue.IsZero() || !s.RemovedAt.Equal(due) || s.Allowed {
+		t.Fatalf("removed task remains armed: %+v", s)
+	}
+	s, _ = Advance(s, Event{Kind: CatalogChanged, At: due.Add(time.Minute)})
+	if !s.RemovedAt.Equal(due) {
+		t.Fatal("catalog scans extended removal retention")
+	}
+	s, _ = Advance(s, Event{Kind: CatalogChanged, At: due.Add(2 * time.Minute), Declaration: &declaration})
+	if !s.NextDue.After(due.Add(2*time.Minute)) || !s.RemovedAt.IsZero() || !s.Allowed {
+		t.Fatalf("restored task did not rearm: %+v", s)
+	}
+}
+
+func TestAdvanceMissingNativeExitIsNullable(t *testing.T) {
+	s, due := taskFixture(t, true)
+	s, _ = Advance(s, Event{Kind: ManualRequested, At: due, RunID: "manual"})
+	s, _ = Advance(s, Event{Kind: ReservationDurable, At: due, Attempt: "manual", Revision: "r1"})
+	s, _ = Advance(s, Event{Kind: TaskFinished, At: due.Add(time.Second), Attempt: "manual", Revision: "r1", Exit: -1, Outcome: "cancelled"})
+	if s.Last == nil || s.Last.Exit != nil {
+		t.Fatalf("no native exit was invented as a number: %+v", s.Last)
+	}
+}

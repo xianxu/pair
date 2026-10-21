@@ -13,11 +13,12 @@ import (
 // maintenanceCursor resumes one bounded collection phase. A diagnostic path
 // cursor is lexical, so deleting a completed path cannot shift the next page.
 type maintenanceCursor struct {
-	Phase   string `json:"phase"`
-	Owner   string `json:"owner,omitempty"`
-	Path    string `json:"path,omitempty"`
-	Segment string `json:"segment,omitempty"`
-	After   bool   `json:"after,omitempty"`
+	Phase       string            `json:"phase"`
+	Operational operationalCursor `json:"operational,omitempty"`
+	Owner       string            `json:"owner,omitempty"`
+	Path        string            `json:"path,omitempty"`
+	Segment     string            `json:"segment,omitempty"`
+	After       bool              `json:"after,omitempty"`
 }
 
 func nextMaintenance(state maintenanceCursor) (string, bool, error) {
@@ -40,8 +41,18 @@ func (s *Service) Batch(ctx context.Context, cursor string, limit int) (string, 
 			return "", false, err
 		}
 	}
-	if state.Phase != "sessions" && state.Phase != "diagnostics" {
+	if state.Phase != "sessions" && state.Phase != "diagnostics" && state.Phase != "operational" {
 		return "", false, errors.New("invalid maintenance cursor phase")
+	}
+	if state.Phase == "operational" {
+		_, next, done, err := s.operationalPage(ctx, state.Operational, true, limit)
+		if err != nil {
+			return "", false, err
+		}
+		if done {
+			return "", true, nil
+		}
+		return nextMaintenance(maintenanceCursor{Phase: "operational", Operational: next})
 	}
 	if err := diagnosticlog.RecoverRegistry(ctx, s.Collector.Coordinator.Root); err != nil {
 		if errors.Is(err, diagnosticlog.ErrBusy) {
@@ -74,7 +85,7 @@ func (s *Service) Batch(ctx context.Context, cursor string, limit int) (string, 
 		index++
 	}
 	if index == len(paths) {
-		return "", true, nil
+		return nextMaintenance(maintenanceCursor{Phase: "operational"})
 	}
 	path := paths[index]
 	ctx = diagnosticlog.SweepContext(ctx, []string{path})
@@ -138,7 +149,7 @@ func (s *Service) Batch(ctx context.Context, cursor string, limit int) (string, 
 		return "", false, err
 	}
 	if complete && index+1 == len(paths) {
-		return "", true, nil
+		return nextMaintenance(maintenanceCursor{Phase: "operational"})
 	}
 	return nextMaintenance(maintenanceCursor{Phase: "diagnostics", Path: path, Segment: next, After: complete})
 }

@@ -32,6 +32,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchkeys"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/couchschedule"
 	"github.com/xianxu/pair/cmd/internal/couchscratch"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/crashreport"
@@ -295,6 +296,9 @@ func Dispatch() map[string]couchcore.Operation {
 }
 
 func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt Runtime) int {
+	if len(args) == 1 && args[0] == "--internal-schedule-owner" {
+		return couchschedule.RunOwner(stdin, stdout, stderr)
+	}
 	// The broadcast guard (#395) runs a tunnel on Couch's behalf and touches
 	// none of Couch's state; it is not an operation and never reaches the CLI.
 	if len(args) > 0 && args[0] == broadcast.GuardSubcommand {
@@ -389,6 +393,15 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		defer lease.Close()
 		rt = prepared
 		return runMessageCLI(invocation, rt, stdout, stderr)
+	}
+	if invocation.kind == cliSchedule {
+		prepared, lease, err := prepareRuntime(rt, false)
+		if err != nil {
+			fmt.Fprintln(stderr, "couch:", err)
+			return 1
+		}
+		defer lease.Close()
+		return runScheduleCLI(invocation.schedule, prepared, stdout, stderr, couchmessage.Call)
 	}
 	if invocation.kind == cliLaunch {
 		inFile, outFile, ok := terminalFiles(stdin, stdout)
@@ -1459,6 +1472,9 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "             the report again; an uncertain outcome means read it before resending.")
 	verbLine(w, "--actors", "       couch --actors [--json]")
 	verbLine(w, "--resources", "       couch --resources [--json]")
+	verbLine(w, "--schedule", "       couch --schedule --status [--json]")
+	fmt.Fprintln(w, "             Also: --schedule run TASK -- [ARGS...]")
+	fmt.Fprintln(w, "             History: --schedule history TASK [--run ID] [--json]")
 	verbLine(w, "--reap-orphans", "       couch --reap-orphans [--confirm] [--json]")
 	fmt.Fprintln(w, "             The unattributed embedded nvim --resources named. Without --confirm it")
 	fmt.Fprintln(w, "             re-classifies and lists them, ending nothing. With --confirm it ends each")

@@ -39,6 +39,7 @@ var verbCosts = map[string]verbCost{
 	"--interrupt":              costSeconds,
 	"--peek":                   costLight,
 	"--resources":              costLight,
+	"--schedule":               costHeavy, // run builds/executes; --status/history are bounded reads
 	"--broadcast-list":         costLight,
 	"--session-sync":           costLight,
 	"--archived":               costLight,

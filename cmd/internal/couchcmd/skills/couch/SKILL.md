@@ -75,11 +75,27 @@ queue, or cross-supervisor delivery.
 
 - **light:** `--notify`, `--help`, `--skill`, `--actors`, `--send-to`, `--message-status`, `--operation-status`, `--peek` (its --transcripts option costs seconds), `--broadcast-list`, `--resources`, `--session-sync`, `--archived`, `--adopt-store`, `--broadcast-web-query`, `--broadcast-web-submit`, `--broadcast-web-replay` (then serves until stopped)
 - **seconds:** `--keys`, `--set-model`, `--interrupt`, `--resume-candidates`, `--move-slot`, `--list`, `--show`, `--reconcile`, `--reap`, `--reap-orphans` (it holds the console for SIGTERM's grace period), `--broadcast-web-fidelity` (a headless Chrome)
-- **heavy:** `couch` (launch), `--recover-plan-from-sdlc`, `--resume`, `--reboot`, `--relaunch`, `--reload-context`, `--prepare`, `--recover`, `--recover-park`, `--switch-agent`, `--recovery-confirmation`
+- **heavy:** `couch` (launch), `--recover-plan-from-sdlc`, `--resume`, `--reboot`, `--relaunch`, `--reload-context`, `--prepare`, `--recover`, `--recover-park`, `--switch-agent`, `--recovery-confirmation`, `--schedule` (run builds/executes; status and history are bounded reads)
 
 Cost: light is under a second, seconds is a few seconds, heavy is tens of
 seconds of CPU (it stops or boots agents, or runs sdlc across the fleet);
 run heavy verbs one at a time, after checking uptime's load.
+
+## Scheduled hub tasks
+
+`couch --schedule --status [--json]` reads the published task snapshot. From the
+configured hub checkout, use `couch --schedule run TASK -- --help` for task help
+or `couch --schedule run TASK -- script-run` for direct execution. Task flags
+after the separator pass through literally. This helper builds the reviewed Go
+package into a content cache and returns its actual exit, including 10; manual
+runs do not wake the hub or advance scheduled due time.
+
+`couch --schedule history TASK [--json]` lists retained runs; add `--run ID` for
+one run's metadata and capped output. Run data is private operational data,
+retained for 30 days and up to 300 completed runs per task. Unknown outcomes
+remain unknown and are never silently replayed. Tasks run as the operator with
+network access, timeout, process-group cleanup and bounded output; there is no
+general sandbox. Declared heavy tasks take the existing machine test lock.
 
 ## Driving an idle agent's keys or model
 

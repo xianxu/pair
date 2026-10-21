@@ -12,6 +12,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/crashreport"
 	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/operationalrun"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
 )
@@ -21,10 +22,12 @@ type Service struct {
 	DiagnosticOptions diagnosticlog.Options
 }
 type Report struct {
-	DiagnosticRetentionDays  int                        `json:"diagnostic_retention_days"`
-	Storage                  storagegc.CollectionReport `json:"storage"`
-	Diagnostics              []diagnosticlog.Segment    `json:"diagnostics"`
-	DiagnosticCollectedBytes int64                      `json:"diagnostic_collected_bytes"`
+	Operational               []operationalrun.Row       `json:"operational"`
+	OperationalCollectedBytes int64                      `json:"operational_collected_bytes"`
+	DiagnosticRetentionDays   int                        `json:"diagnostic_retention_days"`
+	Storage                   storagegc.CollectionReport `json:"storage"`
+	Diagnostics               []diagnosticlog.Segment    `json:"diagnostics"`
+	DiagnosticCollectedBytes  int64                      `json:"diagnostic_collected_bytes"`
 }
 
 func New(root string) (*Service, error) {
@@ -205,7 +208,8 @@ func (s *Service) Preview(ctx context.Context) (r Report, err error) {
 		r.Diagnostics = append(r.Diagnostics, rows...)
 	}
 	r.Diagnostics = append(r.Diagnostics, s.crashRows(false, crashreport.MaxEntries)...)
-	return r, nil
+	err = s.addOperational(ctx, &r, false, 100)
+	return r, err
 }
 func (s *Service) Apply(ctx context.Context, limit int) (r Report, err error) {
 	r.DiagnosticRetentionDays = s.retentionDays()
@@ -239,6 +243,9 @@ func (s *Service) Apply(ctx context.Context, limit int) (r Report, err error) {
 			}
 		}
 		r.Diagnostics = append(r.Diagnostics, rows...)
+	}
+	if err = s.addOperational(ctx, &r, true, limit); err != nil {
+		return r, err
 	}
 	if !r.Storage.MigrationComplete {
 		return r, nil
