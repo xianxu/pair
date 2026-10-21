@@ -2546,6 +2546,9 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #764 BR-1: A fixture-only change can still add a repository enforcement surface. Every new Pair-local lint rule needs its owner, rejected and accepted patterns, and syntax-analysis limits mapped in atlas/go-lint-catalog.md; include that surface in the close atlas decision.
 
+- #768 PQ-1: A PTY initialization abort must terminate its owned child explicitly; master hangup cannot stop an arbitrary HUP-ignoring command. Close master/slave before the sole wait because the child can already be blocked in kernel exit-drain. Preserve the initialization error and keep normal EOF/live-child ownership distinct.
+
+- #768 cwd oracle: A shell may print the physical spelling of a symlinked working directory. Pin a symlink in the fixture and compare filesystem identity when checking cwd behavior; retain lexical equality only when testing that a supplied command field itself was preserved.
 - #767: Prove inherited descriptor usability by operating on the descriptor, with an exact token or identity and absent/wrong-descriptor controls. On macOS a shell permission probe of /dev/fd/3 returned false while builtin read immediately recovered the correct token. Permission inspection is a separate pathname observation, not inheritance proof; an already-open descriptor also remains usable after chmod000. The Pair golint catalog rejects literal shell permission gates on /dev/fd/N.
 - #766: A PTY consumer cannot recover bytes the kernel discarded at last slave close. Native tee fixtures must own producer lifetime through an output/input acknowledgement and establish the controlling-terminal reference on Darwin; distinguish first-read EOF from a wrapper closing its master early. Audit public generic-command exposure and file that product defect separately from a fixture repair.
 
@@ -2556,3 +2559,8 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #744 BR-6: test provisioning observations are production consumers of slot layout. Derive host, resting branch and setup markers through SlotLayout/SetupMarkerPath, and run TestEverySlotStateSiteIsAResource with provisioning preflights; an independent hand-written expected topology still duplicates policy.
 
 - #744: Native transcript fixture producers must derive storage roots through sessioninventory.OSRuntime.NativeRoots (and WithCodexHome), just like consumers; run the native-authority shadow guard before the recorded suite. Do not exempt test helper production files from the guard.
+
+- #757: A generic HTTP front must own active uploads, writes and hijacked sockets through cancellation and join; cancelling only the upstream request does not unblock an unfinished downstream upload. Preserve this with a causally ready incomplete-upload regression. Nested Go modules need explicit root-suite and fixed-preflight ownership; root go test ./... alone omits them.
+
+- #757 close review: test proxy Location rewrites by resolving each returned reference against a non-root front URL; comparing Location strings alone misses empty-root, query-only and network-path authority changes. Endpoint self-target checks must use the same pinned address and port as the dialer.
+- #757 close review: a function consuming io.Reader belongs to the integration shell even when its only work is decoding; classify the actual API in Core concepts and keep compiler execution behind a stateful fake plus real-tool conformance.

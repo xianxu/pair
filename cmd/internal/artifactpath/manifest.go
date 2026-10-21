@@ -670,6 +670,12 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #757 catalogue, report and HTTP front introduce no Pair artifact families.
+	"cmd/internal/mockserve/screens.go",
+	"cmd/internal/mockserve/check.go",
+	"cmd/internal/mockserve/front.go",
+	"cmd/internal/mockserve/front_origin.go",
+	"cmd/internal/mockserve/front_route.go",
 	"cmd/internal/mockserve/cli.go",
 	"cmd/internal/mockserve/page.go",
 	"cmd/internal/mockserve/project.go",
@@ -1682,6 +1688,9 @@ var NonArtifactSources = []string{
 	"cmd/internal/runtimebundle/plan.go",
 	"cmd/internal/runtimebundle/store.go",
 	"cmd/internal/runtimebundlegen/generate.go",
+	"cmd/internal/scribecmd/pty.go",
+	"cmd/internal/scribecmd/pty_darwin.go",
+	"cmd/internal/scribecmd/pty_other.go",
 	"cmd/internal/scribecmd/scribecmd.go",
 	"cmd/internal/sessioninventory/conformance.go",
 	"cmd/internal/sessioninventory/activity.go",
