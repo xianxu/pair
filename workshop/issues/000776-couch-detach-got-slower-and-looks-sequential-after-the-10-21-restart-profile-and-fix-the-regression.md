@@ -102,3 +102,10 @@ All-window84 coordinator calls include background supervisor work: root-sync186.
 Important remaining gap: physical gesture minus core is2099.073ms. Retained timestamps put about27ms before core and2072ms after core. Leave began19:12:19.053901Z, ended19:12:19.655754Z; trace footer mtime19:12:19.666135705Z, driver return stamp19:12:21.727759Z. The post-core interval can include footer sync/close, console teardown and process/PTY join plus helper25ms polling; it is NOT measured retirement time, and exact attribution remains unknown. Do not name a culprit or raise fan-out on this evidence. Next useful measurement is the post-Leave completion path and attribution of a genuinely slow retirement sample. Hub report sent; no further native run started.
 
 #773 owner pair:7 authenticated the cross-reference and will append it when safely back from #774's active merge; no branch switch was requested under that runner. This is reproduction evidence, not #773 guarded acceptance.
+
+
+## Revisions
+
+### 2026-10-21 12:15 PDT — measure completion after Leave
+
+Authenticated TL7308a242 directs a bounded post-Leave observer (console teardown, PTY join, footer sync) plus one further retirement sample with the existing timers, then a fix to the measured dominant work; no fan-out change. Capture console worker join, presenter/child disposal, message-service and runtime/lease cleanup, private recorder IO, and the harness process/PTY completion boundaries where practical. One four-slot run is the next sample; do not loop until a preferred slow result. Keep incomplete or fast samples explicit. Fix design and change-code follow measured attribution; no product change approved by inference alone.
