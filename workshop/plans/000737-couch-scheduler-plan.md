@@ -538,3 +538,54 @@ Final combined `Test(Schedule|Skill|HelpAndSkill|MessageSkill)` race selection p
 Second M2 review disposed BR-9/10/11 and raised BR-12: cached passive proof recovery omits Event.At, so the reducer ignores canonical history after a failed ledger commit. TL explicitly classifies this as a missing required producer field within the existing model, not the third concurrency trigger. No lock/interleaving/model change is approved or needed. Direct and cached scheduled adoption must use one shared constructor/transition path. All production recovery producers (scheduled direct, scheduled cached, manual canonical, catalogue manual recovery, unknown repair) use a recovery-event constructor requiring the observation time as a positional argument. Failed-commit retries must assert reopened ledger-to-history equality, not only history immutability: due/start/end, ID/revision/source, exit, outcome and notice; preserved summary metadata remains in its own namespace. Qualify direct/cache equivalence and retained output/no replay, then recorded final-head check and the remaining M2 review round.
 
 Implemented `NewRecoveryEvent` for all production producers and shared `adoptScheduledSummary` for record/cache paths, with all canonical known facts checked after the transition. The three-case failed-commit regression now compares reopened ledger facts, direct/cache equivalence, immutable record/output and unchanged due/no effects. Restoring the missing-At cached producer with a disposable overlay fails all three cases (0.501s); current full scheduling/skill/help/message-skill race selection passes (22.953s), and full couchschedule passes (45.565s). Test fixture comparisons normalize absent versus empty unknown maps while retaining all known-fact checks. Diff check clean; commit/push, fresh recorded check and M2 third review follow. No stage/live acceptance claimed.
+
+### 2026-10-21 — Third M2 ordering gap: whole concurrency/evidence re-plan, code stopped
+
+Third M2 review disposed BR-12 and raised BR-13. A run publication can rename its bundle and then fail a required directory sync. The bundle is readable, but startup recovery, reserved execution and catalogue manual recovery currently clear authority using `Store.Read`; notify-only adoption also bypasses confirmation. The review's fault probes fail in those three native consumers. This is a real missing history-before-authority fence, not another omitted event argument. Per TL's explicit third-ordering-correction instruction, **stop production edits and bring this whole model for decision**. All three default M2 review rounds are used; any further boundary needs an authorized continuation, never a cap change by the worker.
+
+#### One authority model across all concurrent owners
+
+The scheduler owns **occurrence facts** in Active/Last. Native execution owns **whether an external script may have run**, through the retained process identity and lifetime leases. The broker owns **whether a frozen notice was accepted/delivered**, through its canonical receipt. Operational history owns **durable completed execution/output and monotonic notice facts**. Readability is an observation of history, not durable completion evidence. An authority transition may consume history only after the task-locked boundary has read/validated it and completed required directory syncs. Failed confirmation leaves prior occurrence authority/facts, visible task quarantine, pending evidence and no-replay policy intact. A later successful confirmation permits exactly the same canonical adoption, with no regenerated facts.
+
+| Resource | Owner/lifetime | Consumers/order | What it proves |
+|---|---|---|---|
+| Hub-effect gate | Ownership mutation or one bounded notice admission | Acquire before scheduler authority; native lifecycle/ownership callers never acquire scheduler authority | Exact hub ownership cannot move across notice admission |
+| Scheduler authority lock | One ledger transaction or bounded broker admission | Hub gate -> authority -> broker -> automation; history operations under authority take task-history lock, release it before any broker call | Occurrence facts/cancellation and admission serialize |
+| Permanent task-history lock | Bundle publication, durable adoption, finalization or collection | Authority -> task-history; GC takes task-history alone and never takes scheduler authority | One canonical bundle; durability confirmation before authority consumption |
+| Broker mutex / automation mutex | Native broker admission and brief in-memory automation commit | Hub gate -> authority -> broker -> automation; no earlier resource acquired while held | Canonical accepted/uncertain receipt and current automation policy |
+| Task execution lifetime / two machine permits / optional heavy lock | Existing controller and inherited leases | Acquired before native owner acknowledgment; no authority callback waits to acquire them; dispatch occurs after authority commit | No overlap/replay and bounded machine execution capacity |
+| Build/cache leases | Existing M1 captured-input builder and controller | Outside due/status/notice paths; M1 recovery model remains closed | Reproducible held executable, independent of completion authority |
+| Bounded passive proof / pending worker result | Existing coordinator lifetime, pruned by current ledger identities | Proof populated only after confirmed durable adoption; pending facts retained until history+ledger reconciliation succeeds | A prior completed durability proof, never new execution/notice authority |
+
+No new resource, queue, journal, worker, retry phase or election is proposed. Existing resource lifetimes already suffice; the missing consumer contract must be made explicit and shared.
+
+#### Complete history-to-authority consumer inventory
+
+| Consumer | Current evidence | Required boundary before its authority action |
+|---|---|---|
+| Automatic startup and later execution reconciliation (`recoverExecutionHistory`) | Direct `Store.Read` | Confirm existing canonical bundle under task lock before adopting/clearing Active; sync failure quarantines only task |
+| Reserved manual/scheduled runner pre-execution existing-result check | `runReader.Read` | Durable existing-result adoption before skipping executor and clearing retained authority; absent remains absent, damage never reconstructs output |
+| Catalogue manual-owner recovery | Direct `Store.Read` | Same durable existing-result boundary before replacing Last/clearing Active |
+| Notify-only reserved result adoption | Direct `Store.Read` | Same durable boundary before completion/admission authority |
+| Passive summary repair and proof cache | Read then `PublishOccurrence` | Already confirms durability, but converge on same shared adoption boundary; cache only its successful proof |
+| Unknown repair | `ensureRetainedRun` then `PublishOccurrence` | Already confirms existing/new history; preserve unknown and no replay on failure |
+| Newly published native/prelaunch/notify completion | `PublishOccurrence` result | Already durable; consume canonical returned facts, never fall back to mere Read after an error |
+| Pending-to-terminal finalization and retry | Task-locked `FinalizeNotice`; same terminal repeats sync | Initial bundle must be durably adopted before finalization; terminal metadata must be confirmed before clearing ledger. Inventory run, runs-parent and task sync obligations together |
+| Quarantine repair before allowing a task again | Passive helper or direct active `Read` | Durable boundary before lifting quarantine or later consuming that evidence |
+| CLI history/status/output inspection | Read / published snapshot | No authority action: retain read-only APIs and do not add sync or recreation here |
+
+#### Recovery outcomes and scope of possible loss
+
+| Reachable state/failure | Visible state | Recovery action | Possible loss |
+|---|---|---|---|
+| Bundle renamed, directory sync fails, Active retained | Named task refusal; other hubs continue | Inspect/repair storage; existing scan retries durable confirmation | That occurrence may remain unknown; never replay script |
+| Bundle confirmation succeeds, ledger commit fails | Prior authority plus immutable canonical history | Existing reconciliation adopts exactly that durable record | No regenerated execution/output facts |
+| Broker accepted before cancellation/finalization failure | Pending/uncertain canonical receipt; immutable output | Observe existing receipt and retry monotonic finalization | Delivery may be uncertain; no duplicate send |
+| History collected after an earlier confirmed terminal passive proof | Completed retained summary | Existing bounded proof, no resurrection on every wake | Retained output may be gone by policy; known completion remains |
+| Shared ledger unavailable | Scheduler-wide blocked status | Repair shared authority store | No new effects until authority is available |
+
+#### Decision proposal for TL
+
+Prefer one explicit **durable existing-record read** alongside `PublishOccurrence`, reusing its existing `readOccurrence` task-lock/read/sync implementation and refusing absence rather than creating a record. Every authority consumer uses that boundary; inspection keeps `Read`. Publication and monotonic finalization continue to return only after their required syncs. Test publishers must model durability or refuse adoption, never inherit a false guarantee from a read-only interface. A single table-driven regression injects failure after rename and during repeated durable confirmation through every consumer above, asserting unchanged prior authority, named quarantine, no replay and healthy second-hub progress; then repair sync and assert reopened ledger/history equality. Include finalizer idempotent retry, canonical concurrent winner and cached proof reuse.
+
+Alternatives: changing all `Store.Read` calls to sync would obscure the authority boundary and give inspection unwanted write obligations; adding a journal/worker would duplicate already held resources without solving consumer misuse. Neither is proposed. This is a **proposal awaiting TL approval**, not implemented. Keep current queued suite as evidence for its exact pre-correction head unless code is authorized; no staging or landing.

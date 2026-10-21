@@ -1070,6 +1070,221 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: a0fddd69-28c0-484d-95d6-6e386f230e12
+            repository: github.com/xianxu/pair
+            issue_id: "000737"
+            recipe: milestone-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/9f972f0a3a987cb9
+            reviewed_head: e72bfd54f67bed8dd8b2947281286bfa61fb008e
+            slot: pair:1
+            requested_at: "2026-10-21T16:01:26.215877Z"
+          phase: finished
+          pid: 48930
+          started_at: "2026-10-21T16:01:26.350844Z"
+          finished_at: "2026-10-21T16:06:34.248954Z"
+          session_id: 01a15f32-2ea4-72d3-a489-82499f39ec34
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: e72bfd54f67bed8dd8b2947281286bfa61fb008e
+        tracker_head: 0bea86a43ab871e67ded085e0ef7244baeacdeb9
+        branch_point: 2d298efea85f7a623d0a8d4a65b3260e0c626f18
+        since: "2026-10-20T17:17:42-07:00"
+        until: "2026-10-21T09:00:10-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-20T17:17:42-07:00"
+              end: "2026-10-21T09:00:10-07:00"
+              began: "2026-10-20T17:17:42-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot1/pair
+        sources:
+            - harness: codex
+              id: 01a15a4d-a5f6-7e32-9f09-082ad1e172f0
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 90e4c9c496d04b98413dc03a80c76c60c190e3639c952b61dbc406cd07078ebe
+              started: "2026-10-20T17:14:55.765Z"
+              spawned: false
+              bytes: 20823778
+              windows:
+                - start: "2026-10-20T17:17:42-07:00"
+                  end: "2026-10-21T09:00:10-07:00"
+            - harness: codex
+              id: 01a15bd2-f5c9-7251-9c7e-cba357006b38
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a15a4d-a5f6-7e32-9f09-082ad1e172f0
+              digest: 56cb851cc0c000731264aea96f8cdb07ca78ed6fd637908f32e482409f1ea486
+              started: "2026-10-21T00:18:34.683Z"
+              spawned: true
+              bytes: 6217909
+              windows:
+                - start: "2026-10-21T00:18:34.683Z"
+                  end: "2026-10-21T09:00:10-07:00"
+            - harness: codex
+              id: 01a15bd3-91ad-7770-8227-419b821d5986
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a15a4d-a5f6-7e32-9f09-082ad1e172f0
+              digest: c5a168bbfda1a53fd7eda6ec03ea3ecc08dca8852bda4f1868992570919a4e85
+              started: "2026-10-21T00:19:14.859Z"
+              spawned: true
+              bytes: 6803546
+              windows:
+                - start: "2026-10-21T00:19:14.859Z"
+                  end: "2026-10-21T09:00:10-07:00"
+            - harness: codex
+              id: 01a15be0-4dec-70a0-a17e-61b630b10dca
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a15a4d-a5f6-7e32-9f09-082ad1e172f0
+              digest: e3452498ecaeb9c010124a71304f43b0f3a8abbd469e3eca0f7dcebd2bb76bdd
+              started: "2026-10-21T00:33:09.272Z"
+              spawned: true
+              bytes: 4829922
+              windows:
+                - start: "2026-10-21T00:33:09.272Z"
+                  end: "2026-10-21T09:00:10-07:00"
+            - harness: codex
+              id: 01a15c40-c87b-7d42-8375-bfd5ecbd7a53
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: a3b269236061b4495ff4f5eb5c065aa81cd5d6dfbaf9222bc67300f4a25c3bfc
+              started: "2026-10-21T02:18:32.36Z"
+              spawned: false
+              bytes: 731519
+              windows:
+                - start: "2026-10-21T02:18:32.36Z"
+                  end: "2026-10-21T09:00:10-07:00"
+            - harness: codex
+              id: 01a15c43-ba56-74b0-90bf-eba6239eef02
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: c535f95d699a28f090a389e2df5a02d209b9a7922aa84ff5c20e32475399b95b
+              started: "2026-10-21T02:21:45.369Z"
+              spawned: false
+              bytes: 518971
+              windows:
+                - start: "2026-10-21T02:21:45.369Z"
+                  end: "2026-10-21T09:00:10-07:00"
+            - harness: codex
+              id: 01a15c45-809b-7fb3-a021-892d99ec3b1d
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: b261c2a1db7e2401a2a58ce9c12df197749550821c9655313b509884af09b668
+              started: "2026-10-21T02:23:41.668Z"
+              spawned: false
+              bytes: 487844
+              windows:
+                - start: "2026-10-21T02:23:41.668Z"
+                  end: "2026-10-21T09:00:10-07:00"
+            - harness: codex
+              id: 01a15c45-e52f-7763-8852-144173152199
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: b766e2ab9af6806b5e6afb3df7c118c516bfaf10ab272731bdcc89753d815897
+              started: "2026-10-21T02:24:07.329Z"
+              spawned: false
+              bytes: 520797
+              windows:
+                - start: "2026-10-21T02:24:07.329Z"
+                  end: "2026-10-21T09:00:10-07:00"
+            - harness: codex
+              id: 01a15d4c-2f70-7da2-8ce7-e8b02379a07a
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a15a4d-a5f6-7e32-9f09-082ad1e172f0
+              digest: 0984d57d1df7801854c004570922c87fb4f68469dfc5a8622686fa9b5e7dd98f
+              started: "2026-10-21T07:10:36.509Z"
+              spawned: true
+              bytes: 745859
+              windows:
+                - start: "2026-10-21T07:10:36.509Z"
+                  end: "2026-10-21T09:00:10-07:00"
+            - harness: codex
+              id: 01a15d4c-6139-7bf1-b67d-d736f64e6185
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a15a4d-a5f6-7e32-9f09-082ad1e172f0
+              digest: ccecb51b8872a94a020713567a54630ef240d9653610185a1f3d7e6c17900c63
+              started: "2026-10-21T07:10:49.26Z"
+              spawned: true
+              bytes: 1130310
+              windows:
+                - start: "2026-10-21T07:10:49.26Z"
+                  end: "2026-10-21T09:00:10-07:00"
+        cuts:
+            - boundary: M1
+              dispatched: "2026-10-20T20:08:11-07:00"
+              finalized: "2026-10-20T20:12:31-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-20T20:36:36-07:00"
+              finalized: "2026-10-20T20:40:39-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-20T21:10:12-07:00"
+              finalized: "2026-10-20T21:12:59-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-20T21:21:32-07:00"
+              finalized: "2026-10-20T21:23:47-07:00"
+              finalizing: true
+            - boundary: M2
+              dispatched: "2026-10-21T00:01:03-07:00"
+              finalized: "2026-10-21T00:07:19-07:00"
+              finalizing: false
+            - boundary: M2
+              dispatched: "2026-10-21T08:48:29-07:00"
+              finalized: "2026-10-21T08:53:10-07:00"
+              finalizing: false
+      "n": 7
+      timestamp: "2026-10-21T09:06:35-07:00"
+      dispatched: "2026-10-21T09:01:23-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-12
+          disposition: addressed
+          note: TestScheduleCachedCanonicalRecoveryAfterFailedCommit passes at head and fails for skipped, refused, and completed outcomes with the old missing-At producer restored through a disposable overlay. All production recovery producers use NewRecoveryEvent; direct and cached scheduled adoption share adoptScheduledSummary.
+          round: 7
+        - id: BR-9
+          disposition: addressed
+          note: Admission retains authority through bounded broker admission after acquiring the hub gate. Deadline/cancellation regression tests pass under race.
+          round: 7
+        - id: BR-10
+          disposition: addressed
+          note: Shared quarantine handling preserves task authority and isolates history failures. Startup, consumer-isolation, and pending-evidence regressions pass under race.
+          round: 7
+        - id: BR-11
+          disposition: addressed
+          note: Same-ID reducer rewrites preserve summary unknown members separately from operational-record metadata. Codec, consumer, and detached-snapshot regressions pass under race.
+          round: 7
+      findings:
+        - kind: defect
+          id: BR-13
+          severity: Critical
+          title: Recovery clears authority using history whose durability remains unconfirmed
+          detail: 'schedule_automatic.go:190 reads history through Store.Read and adopts it at line 213 without completing publication durability. A disposable regression injected directory-sync failure after bundle rename: Publish returned an error, the bundle remained readable, and startup recovery nevertheless cleared Active while the same sync still failed. The same regression failed through schedule_manual.go:173 and schedule_service.go:102. The notify-only adoption path at schedule_automatic.go:468 also bypasses durable confirmation. This violates the history-before-authority-release contract and can leave committed completion authority referring to output whose publication was never confirmed durable (ARCH-ORDER, ARCH-PURPOSE). This is the 5th finding in family durable-artifact-crash-recovery. Earlier rounds fixed instances; do NOT fix only this instance. Enforce one rule across every adoption consumer: readable history becomes authoritative only after its publication/finalization durability is confirmed under the task lock. Reuse a shared durable adoption boundary, retain authority on failure, and add permanent regressions across the consumer inventory.'
+          family: durable-artifact-crash-recovery
+          round: 7
+      boundary: M2
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#737 (boundary-review)
@@ -1151,6 +1366,20 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-12** [Critical] `durable-artifact-crash-recovery` (kind: defect) Cached canonical recovery is ignored after a failed authority commit
   cmd/internal/couchcmd/schedule_automatic.go:250 constructs ResultRecovered without At, so model.go:162-163 silently ignores it. A production-path overlay probe published canonical passive history with different timestamps, failed the following ledger commit, and retried: the ledger retained EndedAt=12:00:00 instead of canonical 11:59:50. ARCH-ORDER: cached and freshly read evidence must produce equivalent recovery transitions, including after failed persistence. This is the 4th finding in family durable-artifact-crash-recovery. Earlier rounds fixed instances; state and enforce that rule across cached/direct adoption and failed-commit retries, rather than patching only this call. Supply the canonical event time and add a permanent regression asserting the reopened ledger matches canonical history.
 
+## Round 7 — 2026-10-21T09:06:35-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-12 — addressed — TestScheduleCachedCanonicalRecoveryAfterFailedCommit passes at head and fails for skipped, refused, and completed outcomes with the old missing-At producer restored through a disposable overlay. All production recovery producers use NewRecoveryEvent; direct and cached scheduled adoption share adoptScheduledSummary.
+- BR-9 — addressed — Admission retains authority through bounded broker admission after acquiring the hub gate. Deadline/cancellation regression tests pass under race.
+- BR-10 — addressed — Shared quarantine handling preserves task authority and isolates history failures. Startup, consumer-isolation, and pending-evidence regressions pass under race.
+- BR-11 — addressed — Same-ID reducer rewrites preserve summary unknown members separately from operational-record metadata. Codec, consumer, and detached-snapshot regressions pass under race.
+
+### Raised
+
+- **BR-13** [Critical] `durable-artifact-crash-recovery` (kind: defect) Recovery clears authority using history whose durability remains unconfirmed
+  schedule_automatic.go:190 reads history through Store.Read and adopts it at line 213 without completing publication durability. A disposable regression injected directory-sync failure after bundle rename: Publish returned an error, the bundle remained readable, and startup recovery nevertheless cleared Active while the same sync still failed. The same regression failed through schedule_manual.go:173 and schedule_service.go:102. The notify-only adoption path at schedule_automatic.go:468 also bypasses durable confirmation. This violates the history-before-authority-release contract and can leave committed completion authority referring to output whose publication was never confirmed durable (ARCH-ORDER, ARCH-PURPOSE). This is the 5th finding in family durable-artifact-crash-recovery. Earlier rounds fixed instances; do NOT fix only this instance. Enforce one rule across every adoption consumer: readable history becomes authoritative only after its publication/finalization durability is confirmed under the task lock. Reuse a shared durable adoption boundary, retain authority on failure, and add permanent regressions across the consumer inventory.
+
 ## Open findings
 
-- **BR-12** [Critical] `durable-artifact-crash-recovery` (kind: defect) Cached canonical recovery is ignored after a failed authority commit
+- **BR-13** [Critical] `durable-artifact-crash-recovery` (kind: defect) Recovery clears authority using history whose durability remains unconfirmed

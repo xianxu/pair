@@ -222,3 +222,121 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000411
+
+---
+
+## Re-review — 2026-10-21T09:06:35-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 737 — couch: scheduler: run each hub's scheduled tasks from its operations repo (due notices, direct script-run, skip-if-missed, --schedule --status) |
+| repo | pair |
+| issue file | workshop/issues/000737-couch-scheduler-run-each-hub-s-scheduled-tasks-from-its-operations-repo-due-notices-direct-script-run-skip-if-missed-schedule-status.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 369451d79fe2072aa39ee8b3928bfbf9e6f40132..e72bfd54f67bed8dd8b2947281286bfa61fb008e |
+| command | sdlc milestone-close --issue 737 --milestone M2 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T09:06:35-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-12 is addressed: its regression fails with the old cached producer restored and passes at the pinned head. The normal race suites pass. One new blocking defect remains: several recovery consumers treat readable history as durable evidence even after publication directory sync fails.
+
+```findings
+dispose:
+  - id: BR-12
+    disposition: addressed
+    note: |
+      TestScheduleCachedCanonicalRecoveryAfterFailedCommit passes at head and fails for skipped, refused, and completed outcomes with the old missing-At producer restored through a disposable overlay. All production recovery producers use NewRecoveryEvent; direct and cached scheduled adoption share adoptScheduledSummary.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Admission retains authority through bounded broker admission after acquiring the hub gate. Deadline/cancellation regression tests pass under race.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      Shared quarantine handling preserves task authority and isolates history failures. Startup, consumer-isolation, and pending-evidence regressions pass under race.
+  - id: BR-11
+    disposition: addressed
+    note: |
+      Same-ID reducer rewrites preserve summary unknown members separately from operational-record metadata. Codec, consumer, and detached-snapshot regressions pass under race.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: durable-artifact-crash-recovery
+    title: |
+      Recovery clears authority using history whose durability remains unconfirmed
+    detail: |
+      schedule_automatic.go:190 reads history through Store.Read and adopts it at line 213 without completing publication durability. A disposable regression injected directory-sync failure after bundle rename: Publish returned an error, the bundle remained readable, and startup recovery nevertheless cleared Active while the same sync still failed. The same regression failed through schedule_manual.go:173 and schedule_service.go:102. The notify-only adoption path at schedule_automatic.go:468 also bypasses durable confirmation. This violates the history-before-authority-release contract and can leave committed completion authority referring to output whose publication was never confirmed durable (ARCH-ORDER, ARCH-PURPOSE). This is the 5th finding in family durable-artifact-crash-recovery. Earlier rounds fixed instances; do NOT fix only this instance. Enforce one rule across every adoption consumer: readable history becomes authoritative only after its publication/finalization durability is confirmed under the task lock. Reuse a shared durable adoption boundary, retain authority on failure, and add permanent regressions across the consumer inventory.
+```
+
+1. **Strengths**
+
+   - Cached and direct canonical recovery now share `adoptScheduledSummary`, with checks covering canonical timestamps and other known facts.
+   - Notice admission explicitly orders the hub gate before scheduler authority and preserves the original deadline.
+   - Same-occurrence unknown metadata survives recovery without mixing record and summary namespaces.
+   - README, atlas, and artifact-source inventory cover the new automatic scheduling surface.
+
+2. **Critical findings**
+
+   The finding above blocks shipment. `Store.Read` establishes readability, while `PublishOccurrence` explicitly completes directory durability. Recovery currently bypasses that distinction.
+
+   In the disposable probe, routing startup adoption through `PublishOccurrence` made the regression pass: failed sync preserved authority. Sweep startup/reconciliation, reserved execution, manual refresh, and notify-only adoption together.
+
+3. **Important findings**
+
+   None additional.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - Full `couchschedule` and `operationalrun` packages passed under race.
+   - `Test(Schedule|Skill|HelpAndSkill|MessageSkill)` passed under race.
+   - BR-12 mutation failed all three regression cases as required.
+   - New durability probes failed in three production consumers; the startup correction probe passed.
+   - Diff whitespace check passed; checkout remains unchanged.
+   - Day-long live acceptance remains outstanding under the plan’s TL acceptance sequence.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared executor, reducer, and broker seams.
+   - **ARCH-PURE — pass:** core transitions remain deterministic; IO stays in integration adapters.
+   - **ARCH-PURPOSE — flag:** recovery must enforce durability across the complete consumer class.
+   - **ARCH-MOCK — pass:** stateful runtime and clock doubles support controlled ordering; native tests qualify boundaries.
+   - **ARCH-CONSTRAINTS — pass:** bounded workers, deadlines, output, and counted hub lookups.
+   - **ARCH-SECURE — pass:** private storage, validated routing, argv execution, and explicit trusted-task envelope.
+   - **ARCH-ORDER — flag:** readable evidence is incorrectly promoted to durable completion.
+   - **ARCH-FUNERAL — pass:** retention, pending protection, and cache pruning cover new residue.
+   - **ARCH-EVOLVE — pass:** additive codecs and same-ID metadata preservation are tested.
+
+   Core-concept locations and PURE/INTEGRATION classifications match the inspected implementation.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry defining the durable-adoption rule and enumerating every history-to-authority consumer. Record regression evidence that sync failure preserves authority in each consumer, alongside successful canonical adoption.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"a0fddd69-28c0-484d-95d6-6e386f230e12","repository":"github.com/xianxu/pair","issue_id":"000737","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/9f972f0a3a987cb9","reviewed_head":"e72bfd54f67bed8dd8b2947281286bfa61fb008e","slot":"pair:1","requested_at":"2026-10-21T16:01:26.215877Z"},"phase":"finished","pid":48930,"started_at":"2026-10-21T16:01:26.350844Z","finished_at":"2026-10-21T16:06:34.248954Z","session_id":"01a15f32-2ea4-72d3-a489-82499f39ec34","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.23731125s
+head: "e72bfd54f67bed8dd8b2947281286bfa61fb008e"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000411
