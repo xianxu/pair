@@ -2483,3 +2483,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #737 BR-4/BR-5: At a boundary, reconcile conceptual names and paths against real declarations and mark future entities explicitly. Run existing executable-documentation tests after adding command examples; optional notation and uppercase placeholders inside extracted commands are invalid examples.
 
 - #737 BR-2 sweep: Byte count is capacity accounting, not existence. A zero-byte partial cache entry still occupies its name and prevents directory replacement. Track presence independently and test task-only, manifest-only and paired zero-byte residue through rebuild.
+
+- #737 BR-7: A crash-cleanup class spans all writers, not only the first cache failure. Enumerate build views, authority snapshots, cache stages, run publication stages and journal stages, including interruption before the first authoritative file exists. Every temporary family needs a lifetime resource, bounded recovery and abrupt-death/live-owner/replacement evidence. A parent's lease alone cannot protect a surviving tool writer; keep the resource held across the command boundary.
