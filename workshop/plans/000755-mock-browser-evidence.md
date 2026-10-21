@@ -28,3 +28,24 @@ ok  github.com/xianxu/pair/cmd/internal/mockserve 7.686s
 ```
 
 The package race run also passed after the BR-2/BR-3 fixes: `go test -race ./cmd/internal/mockserve -count=1` (1.910s). It includes the deterministic client lifecycle regressions through Node and the concurrent selection identity tests. Browser tests cover reload, navigation, shared fixtures, repair, the first-poll race and the actual sample. The JavaScript lifecycle tests separately cover repeated BFCache restore and delayed callbacks.
+
+## Requalification after BR-5
+
+Committed code head: 584a03cf62abf80bad6e7041f5426a6fbd1cf906. Same sandbox-enabled host command and private-profile ownership as above. Returned exit 0:
+
+```text
+=== RUN   TestMockBrowserReload
+=== RUN   TestMockBrowserReload/edits_navigation_and_repair
+=== RUN   TestMockBrowserReload/change_before_first_poll/switch=false
+=== RUN   TestMockBrowserReload/change_before_first_poll/switch=true
+--- PASS: TestMockBrowserReload (7.62s)
+    --- PASS: TestMockBrowserReload/edits_navigation_and_repair (5.01s)
+    --- PASS: TestMockBrowserReload/change_before_first_poll/switch=false (1.34s)
+    --- PASS: TestMockBrowserReload/change_before_first_poll/switch=true (1.28s)
+=== RUN   TestSampleBrowser
+--- PASS: TestSampleBrowser (1.50s)
+PASS
+ok  github.com/xianxu/pair/cmd/internal/mockserve 9.316s
+```
+
+Final package race verification, including the unconditional helper/stdout/writer joins: `go test -race ./cmd/internal/mockserve -count=1` passed (2.824s). Reader inventory and diff whitespace checks also passed before the committed code head.

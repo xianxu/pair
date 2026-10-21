@@ -89,6 +89,8 @@ Implementation details: [durable plan](../plans/000755-mock-server-plan.md).
 
 - BR-5 implementation passes package race (2.090s): a real killed helper leaves one stage, OS-confirmed lock contention preserves the live stage/pointer, and the next writer reclaims residue after owner death. Removing flock makes that regression fail. Reserved-file content/caps regressions failed before the fix; after it, exactly MaxEntries public entries plus both reserved names preserve snapshot/digest/bytes while counting only two extra directory observations. Nested names remain ordinary content; unsafe lock/stage replacements refuse.
 
+- BR-5 final race run passed (2.824s) with every helper/pump/writer joined. Sandboxed Chrome requalification passed both reload/sample tests on committed code head 584a03cf62abf80bad6e7041f5426a6fbd1cf906 (9.316s); raw output appended to the browser evidence artifact. Reader inventory passed. Requeueing recorded suite and ordinary close.
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. The source is marked stale by estimate-source; values remain provisional. Derived after plan-quality cleared.
