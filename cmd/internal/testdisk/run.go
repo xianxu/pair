@@ -84,5 +84,18 @@ func RunWithWriteBudget(name string, perRun uint64, run func() int) int {
 	if value("test.fuzz") != "" || value("test.fuzzworker") == "true" {
 		opts.uncovered = "fuzz"
 	}
+	if opts.supported && opts.uncovered == "" {
+		// Go's cache-access trace measures observation traffic, not fixture
+		// writes. Omit it entirely: cmd/go refuses result-cache publication
+		// without this log. An empty valid log would cache unobserved inputs.
+		tracing := value("test.testlogfile") != ""
+		if err := flag.Set("test.testlogfile", ""); err != nil {
+			fmt.Fprintf(os.Stderr, "write budget %s: disable test-result cache: %v\n", name, err)
+			return 1
+		}
+		if tracing {
+			fmt.Fprintf(os.Stderr, "write budget %s: test-result cache disabled; build cache unchanged\n", name)
+		}
+	}
 	return runMeasured(opts, selfWriteReader(), run, os.Stderr)
 }

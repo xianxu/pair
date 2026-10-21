@@ -668,6 +668,12 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	"cmd/internal/mockserve/cli.go",
+	"cmd/internal/mockserve/page.go",
+	"cmd/internal/mockserve/project.go",
+	"cmd/internal/mockserve/revision.go",
+	"cmd/internal/mockserve/scan.go",
+	"cmd/internal/mockserve/server.go",
 	"internal/testbinary/cache.go",
 	"internal/testoracle/run.go",
 	// #649 wiring, contextual runtime delegation, and the pure title reducer
@@ -882,6 +888,7 @@ var NonArtifactSources = []string{
 	// Pair artifact filename families; the remaining files model/render evidence.
 	"cmd/internal/couchcmd/launchfailure.go",
 	"cmd/internal/couchcore/launchfailure.go",
+	"cmd/internal/couchcore/nativequery_failure.go",
 	"cmd/internal/couchcore/launchfailure_capture.go",
 	"cmd/internal/couchcore/launchfailure_show.go",
 	"cmd/internal/couchcore/launchfailure_store.go",
@@ -1605,6 +1612,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/launcher/thread_claim.go",
 	"cmd/internal/launcher/zellij.go",
 	"cmd/internal/launcher/zellij_read_recovery.go",
+	"cmd/internal/launcher/zellij_query_evidence.go",
 	"cmd/internal/launcher/zellij_listing_poller.go",
 	"cmd/internal/launcher/zellijparse.go",
 	"cmd/internal/layoutcmd/layoutcmd.go",

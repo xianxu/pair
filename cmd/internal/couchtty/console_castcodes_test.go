@@ -87,7 +87,7 @@ func TestCodesMenuRotatesAndDisconnects(t *testing.T) {
 	}
 }
 
-// A guessing rotation is told without its code, coalesced per link, and its
+// Every guessing rotation is told without its code, and its
 // new code flashes in the operator-only layer; a late, older rotation never
 // replaces a newer one.
 func TestGuessRotationAlertAndFlash(t *testing.T) {
@@ -106,15 +106,96 @@ func TestGuessRotationAlertAndFlash(t *testing.T) {
 		t.Fatalf("an older rotation replaced the newer: %+v", fl)
 	}
 	f.con.codes.mu.Unlock()
+	f.con.setNotice("waiting for the second rotation")
 	f.con.onCodeRotated(castScreen, attempt, broadcast.LinkView, castlock.Rotation{Code: "2222", Reason: castlock.ReasonGuessing, Gen: 3})
-	f.con.codes.mu.Lock()
-	quiet := f.con.codes.quiet[linkKey(castScreen, attempt, broadcast.LinkView)]
-	f.con.codes.mu.Unlock()
-	if quiet != 1 {
-		t.Fatalf("a second alert within the quiet window was not coalesced: %d", quiet)
-	}
+	waitFor(t, "the second immediate alert", func() bool {
+		f.con.mu.Lock()
+		defer f.con.mu.Unlock()
+		return strings.Contains(f.con.feed.Row().Body, "Too many wrong codes on the LIVE view link")
+	})
 	waitFor(t, "the newest flash", func() bool { return strings.Contains(f.screenText(), "LIVE view 2222") })
 	waitFor(t, "the flash over", func() bool { return !strings.Contains(f.screenText(), "LIVE view 2222") })
+}
+
+func TestEveryGuessRotationNotifiesIncludingCap(t *testing.T) {
+	for _, kind := range []castKind{castScreen, castWeb} {
+		t.Run(kind.name(), func(t *testing.T) {
+			var con *Console
+			var attempt uint64
+			links := []string{broadcast.LinkView, broadcast.LinkPointer}
+			if kind == castScreen {
+				f := broadcastFixture(t, &broadcast.FakeTunnel{}, nil)
+				f.startLive(t)
+				con, attempt = f.con, f.screenAttempt()
+			} else {
+				r := newWebcastRig(t, nil)
+				r.open(t)
+				con = r.con
+				con.mu.Lock()
+				attempt = con.wcast.attempt
+				con.mu.Unlock()
+				links = append(links, broadcast.LinkDrive)
+			}
+			for _, link := range links {
+				t.Run(link, func(t *testing.T) {
+					for i, code := range []string{"519351", "222222", "838383"} {
+						con.setNotice("waiting for the next rotation")
+						capped := i == 2
+						con.onCodeRotated(kind, attempt, link, castlock.Rotation{Code: code, Reason: castlock.ReasonGuessing, Gen: uint64(i + 2), Capped: capped})
+						want := fmt.Sprintf("Too many wrong codes on the %s %s link: its code changed. Hover %s to see it.", kind.name(), link, kind.name())
+						if capped {
+							want = fmt.Sprintf("Too many wrong codes on the %s %s link: its code changed; the link is locked until you rotate its code.", kind.name(), link)
+						}
+						waitFor(t, fmt.Sprintf("rotation %d notice", i+1), func() bool {
+							con.mu.Lock()
+							defer con.mu.Unlock()
+							return con.feed.Row().Body == want
+						})
+						con.mu.Lock()
+						notice := con.feed.Row().Body
+						con.mu.Unlock()
+						for _, secret := range []string{"519351", "222222", "838383"} {
+							if strings.Contains(notice, secret) {
+								t.Fatalf("rotation notice exposed a code: %q", notice)
+							}
+						}
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestRapidGuessRotationsLeaveCapNotice(t *testing.T) {
+	f := broadcastFixture(t, &broadcast.FakeTunnel{}, nil)
+	f.startLive(t)
+	attempt := f.screenAttempt()
+	for i := uint64(1); i <= 3; i++ {
+		f.con.onCodeRotated(castScreen, attempt, broadcast.LinkView, castlock.Rotation{Code: "519351", Reason: castlock.ReasonGuessing, Gen: i + 1, Capped: i == 3})
+	}
+	f.con.mu.Lock()
+	notice := f.con.feed.Row().Body
+	f.con.mu.Unlock()
+	want := "Too many wrong codes on the LIVE view link: its code changed; the link is locked until you rotate its code."
+	if notice != want {
+		t.Fatalf("rapid rotations left notice %q, want %q", notice, want)
+	}
+	var callbacks sync.WaitGroup
+	start := make(chan struct{})
+	for gen := uint64(5); gen <= 34; gen++ {
+		callbacks.Go(func() {
+			<-start
+			f.con.onCodeRotated(castScreen, attempt, broadcast.LinkView, castlock.Rotation{Code: "838383", Reason: castlock.ReasonGuessing, Gen: gen, Capped: gen == 34})
+		})
+	}
+	close(start)
+	callbacks.Wait()
+	f.con.mu.Lock()
+	notice = f.con.feed.Row().Body
+	f.con.mu.Unlock()
+	if notice != want {
+		t.Fatalf("concurrent callbacks overwrote the newest cap notice: %q", notice)
+	}
 }
 
 // The cast row's rule on the web cast (pair#495 smoke): hovering Chrome ⏸

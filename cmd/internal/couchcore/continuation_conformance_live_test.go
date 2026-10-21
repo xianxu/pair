@@ -40,7 +40,11 @@ func TestContinuationZellijSeedTransportLive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = fixture.Close() })
+	t.Cleanup(func() {
+		if err := fixture.Close(); err != nil {
+			t.Errorf("controlled zellij cleanup: %v", err)
+		}
+	})
 
 	env, source := switchEnvWithLiveThread(t)
 	proof := ContinuationSource{Agent: "claude", Session: session, LaunchOrdinal: 2}

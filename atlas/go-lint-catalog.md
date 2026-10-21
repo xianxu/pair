@@ -151,3 +151,53 @@ The local `zellij-read-attempt-bypass` rule rejects direct `runQueryAttempt`
 calls in package launcher outside `ZellijSource.runContext`. Callers use the
 bounded entry to share its deadline, exact read allowlist and attempt evidence.
 It checks call-site syntax, not arbitrary function-value alias dataflow.
+
+## Controlled Zellij cleanup (#764)
+
+The local `controlled-zellij-close` rule is owned by
+`internal/repolint/controlled_zellij_close_rule_test.go` and registered in
+`pairCatalog`. It rejects discarded `ControlledZellij.Close` results (blank,
+bare, deferred or goroutine calls) and checked errors that only emit diagnostics.
+Cleanup must fail the test through t/tb Error, Fatal or Fail, or propagate the
+error through return or a retained errors.Join result. Nonfatal errors preserve
+subsequent exact-server and private-root cleanup checks.
+
+The syntax guard follows the actual fixture import, direct constructors, local
+aliases, explicit types and same-file fields, including range elements. It does
+not prove arbitrary control flow, reassignments, cross-file declarations, dot
+imports, method values or function-return aliases. Unrelated closers stay outside
+its scope. Scanner regressions exercise both rejected and accepted patterns.
+
+The fixture itself shares one handle-retirement path between KillClient and
+Close: consume the PTY and client before closing/signalling/reaping, and retain
+real failures. Startup refusal joins cleanup errors; final cleanup still requires
+exact server-generation exit evidence before removing its owned cache root.
+
+
+## Inherited descriptor proof (#767)
+
+The local `fd-path-permission` rule is registered and implemented in
+`internal/repolint/local_catalog_test.go`. It flags literal shell `test`, `[` and
+`[[` permission probes (`-r`, `-w`, `-x`) of numeric `/dev/fd/N` paths. The identity
+fixture exposed a macOS false negative while its inherited descriptor remained
+readable. Check the descriptor itself (read, fstat or fcntl); a pathname's access
+permission is a separate observation. The rule is lexical and does not resolve
+dynamically assembled shell commands. Its fixture cases live in
+`internal/repolint/fd_path_permission_test.go`; finding/suppression behavior is
+shared with the catalog above. Other consumers' shared catalog is unchanged.
+
+## Scribe terminal-aware output producer (#766)
+
+The Pair-local `scribe-pty-printf` rule, owned by
+`internal/repolint/scribe_pty_printf_rule_test.go`, rejects a bare or absolute
+`printf` executable after `--` in inline string arguments to scribecmd's
+`runWithPTY` and `runWithPTYReply` test helpers. A short-lived producer can lose
+unread output at Darwin's last slave close. The tee fixture instead opens
+`/dev/tty`, exchanges a readiness/acknowledgement through the real PTYs, then
+emits its final marker. Its native stress regression checks the actual stdout
+and log bytes.
+
+This guard checks direct syntax only; argv variables, aliases, computed arguments
+and shell protocol correctness are outside its scope. Other commands and helpers
+are unaffected. Public scribe's generic-command exposure is tracked separately
+in #768; this fixture rule does not claim a production launch-policy fix.

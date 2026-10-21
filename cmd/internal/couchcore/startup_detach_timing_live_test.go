@@ -253,7 +253,11 @@ func TestStartupManagedAttachDetachTimingLive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = fixture.Close() })
+	t.Cleanup(func() {
+		if err := fixture.Close(); err != nil {
+			t.Errorf("controlled zellij cleanup: %v", err)
+		}
+	})
 	record := warmDetachedRecord(t)
 	record.Address.RepoScope = scope.Key
 	record.StartingPath, record.WorkingPath = repo, repo
