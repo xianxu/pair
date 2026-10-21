@@ -46,7 +46,7 @@ Actions: restart on the landed repair; inspect the named refusal if metadata gen
 | IO/checkpoint save fails | unavailable, exact cause | correct named storage fault, restart | new facts are dropped |
 | Inode/size/time/tail or transaction uncertainty | unavailable, specific refusal | inspect named store inconsistency before restart | no payload deleted or certified |
 
-Cost: O(1) metadata comparison per touched generation, no payload reread for device-only recovery; at most one existing bounded checkpoint write on current rebind. Preview/collection keep existing bounded page traversal; N/2N classifier tests count one decision per generation. Existing flock is the single authority; no new executor/cache/store/format or machine change.
+Cost: O(1) metadata comparison per touched generation, no payload reread for device-only recovery; at most one existing bounded checkpoint write on current rebind. Preview/collection keep existing bounded page traversal; The pure comparison checks a fixed set of metadata fields; existing paged tests defend bounded traversal. Existing flock is the single authority; no new executor/cache/store/format or machine change.
 
 Covered: measured current failure, retained same-class reads/collection, strict live identity and unknown tails. Not broadened: recovery of an interrupted transaction across a remount; conservative refusal is explicit, not a new reset mechanism.
 
@@ -58,3 +58,7 @@ Covered: measured current failure, retained same-class reads/collection, strict 
 - [ ] Add retained preview/collection RED controls, apply the shared persisted comparison, then run GREEN. Keep live matches and in-flight recovery strict.
 - [ ] Add save-failure, unsafe-path, uncertain-tail and pending-intent negatives; run all diagnosticlog tests and targeted race tests.
 - [ ] Update README/atlas, run make test-affected-inventory, push and record affected check. Close once with binary-owned review, land through sdlc merge --yes, report PR/merge to hub. Hub owns live fresh-write acceptance.
+
+## Revisions
+
+2026-10-21 — Implementation detail: retained collection publishes the same generation metadata with observed device BEFORE admitting a new deletion intent, so already-pending deletion stays strict across remount. This costs one bounded metadata publication per device-only retained generation, not just current. Current collection rows stay strict after their earlier recovery in the same invocation. Ad hoc audit independently caught that boundary and the need to preserve mismatch reasons on final reservation refusals. No new state/format or expanded transaction recovery.

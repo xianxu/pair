@@ -1248,7 +1248,10 @@ default fact file is `~/.local/share/pair/couch/supervision.jsonl` (under the ac
 Pair data directory if configured). It records completed observations, not every
 message hold: inspect `couch --message-status ID --json` for a retained delivery's
 current waiting reason. Logger health instrumentation alone does not repair a
-historically frozen stream; #736's measured cause fix follows its live observation.
+historically frozen stream. The measured startup failure was a persisted device
+number changing after remount; #774 rebinds a fully checkpointed file only when
+inode, size and nanosecond mtime still match. Unknown tails and interrupted
+transactions remain refused with their cause; no lost facts are replayed.
 
 Wrapper diagnostics batch at64KiB or every five seconds while dirty; raw capture
 and its offset sidecar flush every250ms. Orderly shutdown drains both. A process

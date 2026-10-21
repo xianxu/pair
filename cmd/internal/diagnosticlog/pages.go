@@ -312,7 +312,7 @@ func previewPageLocked(path string, o Options, cursor string, limit int, cleanup
 		if e != nil {
 			return e
 		}
-		if e = matches(st, g); e != nil {
+		if e = matchesPersisted(st, g); e != nil {
 			return e
 		}
 		rowReason := reason

@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"os"
@@ -151,7 +152,7 @@ func readReservation(path string) (appendReservation, error) {
 func recoverReservedAppend(path string, s *diskState, o Options, durable bool) error {
 	// These durable transactions own paths that can legitimately be absent or
 	// renamed. Their recovery, not an obsolete append reservation, validates them.
-	if s.Pending != nil || s.Deleting != nil || s.Creating != nil {
+	if s.Pending != nil || s.Deleting != nil || s.Creating != nil || s.Appending != nil {
 		return nil
 	}
 	if s.Current.Identity == (identity{}) {
@@ -161,12 +162,21 @@ func recoverReservedAppend(path string, s *diskState, o Options, durable bool) e
 	if e != nil {
 		return e
 	}
-	if matches(st, s.Current) == nil {
+	match, checkpointErr := compareCheckpoint(observedGeneration(st), s.Current)
+	if checkpointErr == nil {
+		if match == checkpointDeviceOnly {
+			next := *s
+			next.Current.Identity = fileIdentity(st)
+			if err := save(path, next, true, o); err != nil {
+				return fmt.Errorf("diagnostic device rebind checkpoint: %w", err)
+			}
+			*s = next
+		}
 		return nil
 	} // no uncheckpointed effect; stale/torn headers confer no authority
 	r, e := readReservation(path)
 	if e != nil {
-		return e
+		return errors.Join(checkpointErr, e)
 	}
 	if e = o.checkContext(); e != nil {
 		return e
@@ -188,7 +198,7 @@ func recoverReservedAppend(path string, s *diskState, o Options, durable bool) e
 		return ensureCurrent(path, s, o)
 	}
 	if !sameGeneration(r.Before, s.Current) || fileIdentity(st) != s.Current.Identity || st.Size()-s.Current.Size != int64(r.Length) {
-		return errors.New("diagnostic reservation identity or size changed")
+		return errors.Join(errors.New("diagnostic reservation cannot recover checkpoint"), checkpointErr)
 	}
 	f, e := openRegular(path, syscall.O_RDWR)
 	if e != nil {
