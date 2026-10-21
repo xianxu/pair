@@ -44,7 +44,7 @@ fixture file) and pair#706 (eight test files).
 
 - [x] Add fast check and explicit per-file record modes around the existing audit; pin stale diagnostics and repair with private tracked fixtures.
 - [x] Add the Make target, affected-runner first step and local before-close instruction; verify fail-before-work ordering.
-- [ ] Run the fast guard and recorded affected check, close and land through SDLC.
+- [x] Run the fast guard and recorded affected check; close and landing are subsequent SDLC gates.
 
 Design: ARCH-DRY reuses audit/tracked_readers/SOURCE_GUARDS without a new scanner.
 The check scans tracked test sources once and starts no Go tools. A named record
@@ -69,3 +69,16 @@ The real make test-affected-inventory passed in2.922s, with no Go/Make invocatio
 from check mode. README/atlas and Pair's generated-instruction source require
 this target before every close, including narrow re-close. No close bypass or
 schema change. Recorded affected verification follows on the pushed head.
+
+### 2026-10-20 — recorded verification
+
+Recorded affected check fell back to the full suite because the fresh graph
+lacks generated runtime assets (the independently assigned #738). Attempt
+3ce9ad3e006d17e6cfd338a8749fde5e on pushed44c4e7ee9f9606767dcf69f587118a9ee0057650
+passed exit0 in13m21s after542s queue wait; log hash22f10d196178. All scripts,
+editor checks and Go packages passed, including twelve runner tests and twelve
+inventory tests with the seeded source-guard negative control. The existing
+upstream affected-config qualification explicitly skipped for unavailable source;
+no new skip or waiver. make test-affected-inventory passed again immediately
+before close. The final checklist records pre-close verification; close and
+landing remain the binary's subsequent gates, not a premature landing claim.
