@@ -58,6 +58,7 @@ Recorded full-suite pass, mandatory close review, final-head CI and landing rema
 ### 2026-10-20
 
 ### 2026-10-21 — design proposal
+- 2026-10-21: closed — Review fixes: redirect and complete-endpoint behavioral RED then race GREEN; stateful compiler failure/validation/cancellation pins and real compiler conformance GREEN; mockserve/root mocktemplate race PASS2.832s/3.895s; buildsample race PASS2.882s; artifactpath/repolint PASS18.815s/13.998s; affected runner13 tests and inventory PASS. Pinned code-head cc545350b41e2a531dee9de2faef8e04cf1c195c host browser full navigation PASS2.479s; delivered-progress suppression negative control fails intended assertion, raw evidence in plan side folder. Replacement recorded suite runs on pushed final code; pass required before landing.; review verdict: SHIP
 
 Claimed and started after #755 landed as PR507. Read the product-shaping design and surveyed integration constraints. The host is Go-internal and owns its watcher only in the standalone serve lifecycle; direct template import cannot reuse it. Proposed a self-contained nested Go module with a thin development HTTP fallback to the existing host, one screen list and guarded production build; root integration test explicitly runs the nested module. Proposed strict build refusal without partial release, prototype-based fixture contracts, and bounded/owned effects. Detailed alternatives, state table and costs are in the durable plan. Awaiting hub/operator design approval; no implementation started and no estimate derived.
 
