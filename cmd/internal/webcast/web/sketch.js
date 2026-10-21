@@ -111,7 +111,7 @@ export function mountSketch(doc, win, view, options) {
     continueButton.hidden = !canContinue();
     sketchButton.disabled = !s.allowed || !s.live || s.ended;
     const status = statuses.get(s.active),
-      busy = !!contact || s.slots.some((x) => x.sketch === s.active && (x.inflight || x.queued));
+      busy = !!contact || !!gesture.snapshot().active || s.slots.some((x) => x.sketch === s.active && (x.inflight || x.queued));
     undoButton.disabled = !drawing || busy || !status?.visible_top;
     redoButton.disabled = !drawing || busy || !status?.redo_top;
     notice.textContent =
@@ -261,16 +261,25 @@ export function mountSketch(doc, win, view, options) {
           ),
       );
     } else if (e.type === 'confirmation-pending') {
-      if (contact) {
-        recoveryEnd = { sketch: active(), id: contact.stroke };
+      const owner = gesture.snapshot();
+      if (contact || owner.waitingAnchor) {
+        const stroke = contact?.stroke || owner.active;
+        recoveryEnd = owner.waitingAnchor ? null : { sketch: active(), id: stroke };
+        if (owner.waitingAnchor) {
+          message = "Couldn't save this stroke; accepted strokes kept. Check confirmation.";
+          optimistic.delete(stroke);
+          generation++;
+        }
         if (timer !== null) win.clearTimeout(timer);
         timer = null;
         samples = [];
         gesture.cancel();
-        const local = optimistic.get(contact.stroke);
+        const local = optimistic.get(stroke);
         if (local) local.ended = true;
-        if (layer.hasPointerCapture?.(contact.pointer)) layer.releasePointerCapture(contact.pointer);
+        if (contact && layer.hasPointerCapture?.(contact.pointer)) layer.releasePointerCapture(contact.pointer);
         contact = null;
+        if (owner.waitingAnchor)
+          dispatch({ type: 'gesture-finished', sketch: active(), stroke });
       }
     } else if (e.type === 'stop-gesture') {
       if (finishDeadline && ['authority','paused','ended','clear','end'].includes(e.reason))
@@ -364,19 +373,53 @@ export function mountSketch(doc, win, view, options) {
     const p = scene.toPage(e.clientX, e.clientY);
     return [p[0], p[1], pressure];
   }
+  function consumePointer(e) {
+    e.preventDefault?.();
+    e.stopPropagation?.();
+  }
   function down(e) {
+    consumePointer(e);
     if (state().phase !== 'drawing' || contact || e.isPrimary === false || e.button !== 0 || !e.buttons)
       return;
-    e.preventDefault();
-    const pressure = e.pointerType === 'pen' ? Math.max(0, Math.min(1, e.pressure)) : 1;
-    contact = { pointer: e.pointerId, pressure, count: 1, stroke: id() };
-    layer.setPointerCapture?.(e.pointerId);
-    const stroke = contact.stroke,
-      first = point(e, pressure),
-      hit = gesture.start(stroke, [first]),
-      sketch = active(),
+    // Physical release does not release the accumulator's logical ownership.
+    // A refused successor never allocates a contact, capture, ID or hit-test.
+    if (gesture.snapshot().active) {
+      const waiting = 'Finishing the previous stroke. Wait before drawing again.';
+      if (message !== waiting) {
+        message = waiting;
+        show();
+      }
+      return;
+    }
+    let stroke, first, hit, candidate;
+    let ownsCandidate = false;
+    try {
+      const pressure = e.pointerType === 'pen' ? Math.max(0, Math.min(1, e.pressure)) : 1;
+      first = point(e, pressure);
+      if (!first.every(Number.isFinite) || first.some((n) => Math.abs(n) > 1e7))
+        throw Error('Invalid contact coordinates.');
+      stroke = id();
+      candidate = {
+        pointer: e.pointerId,
+        pressure,
+        count: 1,
+        stroke,
+        last: first.slice(0, 2),
+      };
+      hit = gesture.start(stroke, [first]);
+      ownsCandidate = true;
+      layer.setPointerCapture?.(e.pointerId);
+    } catch {
+      if (ownsCandidate) gesture.cancel();
+      if (layer.hasPointerCapture?.(e.pointerId)) layer.releasePointerCapture(e.pointerId);
+      message = 'Could not start this stroke. Try again.';
+      show();
+      return;
+    }
+    contact = candidate;
+    message = '';
+    const sketch = active(),
       stamp = generation;
-    contact.last = first.slice(0, 2);
     optimistic.set(stroke, {
       sketch: active(),
       id: stroke,
@@ -389,16 +432,19 @@ export function mountSketch(doc, win, view, options) {
     scheduler.invalidate();
     track(
       Promise.resolve()
-        .then(() => scene.hitTest(hit.point.slice(0, 2)))
+        .then(() => observeRequest(() => scene.hitTest(hit.point.slice(0, 2))))
         .then((at) => {
-          if (!disposed && stamp === generation) {
+          if (!disposed && stamp === generation && gesture.snapshot().active === stroke) {
             gestureEffects(gesture.anchor(at, stroke));
-            if (!gesture.snapshot().active) dispatch({ type: 'gesture-finished', sketch, stroke });
+            if (!gesture.snapshot().active) {
+              if (message.startsWith('Finishing the previous stroke.')) message = '';
+              dispatch({ type: 'gesture-finished', sketch, stroke });
+            }
           }
         })
         .catch(() => {
-          if (stamp === generation) {
-            if (!message.startsWith("Couldn't save")) message = 'This stroke has no usable anchor.';
+          if (stamp === generation && gesture.snapshot().active === stroke) {
+            if (!message.startsWith("Couldn't save")) message = 'This stroke has no usable anchor; accepted strokes kept.';
             cancel();
             dispatch({ type: 'gesture-finished', sketch, stroke });
             show();
@@ -407,6 +453,7 @@ export function mountSketch(doc, win, view, options) {
     );
   }
   function move(e) {
+    consumePointer(e);
     if (!contact || contact.pointer !== e.pointerId || !e.buttons || state().phase !== 'drawing') return;
     e.preventDefault();
     const coalesced = e.getCoalescedEvents?.();
@@ -434,12 +481,15 @@ export function mountSketch(doc, win, view, options) {
   on(layer, 'pointerdown', down);
   on(layer, 'pointermove', move);
   on(layer, 'pointerup', (e) => {
+    consumePointer(e);
     if (contact?.pointer === e.pointerId) finish(false, e);
   });
   on(layer, 'pointercancel', (e) => {
+    consumePointer(e);
     if (contact?.pointer === e.pointerId) finish(true);
   });
   on(layer, 'lostpointercapture', (e) => {
+    consumePointer(e);
     if (contact?.pointer === e.pointerId) finish(true);
   });
   on(
@@ -584,11 +634,13 @@ export function mountSketch(doc, win, view, options) {
     await idle();
   }
   async function undo() {
+    if (gesture.snapshot().active) return;
     const top = statuses.get(active())?.visible_top;
     if (top) queue('undo', { id: top });
     await idle();
   }
   async function redo() {
+    if (gesture.snapshot().active) return;
     const top = statuses.get(active())?.redo_top;
     if (top) queue('redo', { id: top });
     await idle();

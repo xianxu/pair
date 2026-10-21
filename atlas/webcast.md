@@ -199,7 +199,11 @@ generation and drawing epoch on ingress; client availability is only an affordan
 and recording replay, render accepted paths without drawing permission or a palette endpoint.
 
 Choose a fixed colour, then Sketch, and wait for its held recorded scene. Pressure samples stream before pointer-up;
-mouse/touch use pressure 1, pen hover is ignored, and cancellation seals a truncated partial stroke. Undo/Redo wait
+mouse/touch use pressure 1, pen hover is ignored, and cancellation seals a truncated partial stroke. Physical release
+does not release a pending logical gesture: the accumulator token stays owned until its anchor and terminal drain
+into the FIFO or retirement fences its callback. Successor contacts are visibly consumed without buffering or
+allocation; a fresh down is required after readiness. The shared five-second anchor observer bounds this wait.
+Undo/Redo also wait for logical gesture release, then wait
 for confirmation and affect only the current unfinished sketch. Done, Escape or a tool change first shows
 “Saving…” and stops new input while the existing gesture is finished, including an anchor still being resolved
 after pointer-up. The required-label prompt opens after that work is confirmed; Escape there resumes the same

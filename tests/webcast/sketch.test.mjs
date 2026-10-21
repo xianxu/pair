@@ -841,3 +841,73 @@ test('dispose retires finishing deadline and bounded request observer timers',as
  const ui=mountSketch(h.doc,h.win,h.view,h.options);await ui.enter();h.event(ui.layer,'pointerdown');await h.flush();const leaving=ui.leave('watch');assert.ok(h.timerCount()>0);
  ui.dispose();assert.equal(h.timerCount(),0);await leaving;late({outcome:'unknown'});await h.flush();assert.equal(h.timerCount(),0);
 });
+
+// Canonical logical-owner table: physical release retains pending accumulator.
+for (const ending of ['pointerup', 'pointercancel', 'lostpointercapture', 'buffer-limit'])
+ test(`viewer logical owner survives ${ending} and consumes successor until fresh down`, async () => {
+  const {mountSketch}=await mod();const h=harness();let anchor;
+  h.scene.hitTest=()=>new Promise(resolve=>anchor=resolve);
+  const ui=mountSketch(h.doc,h.win,h.view,h.options);await ui.enter();h.event(ui.layer,'pointerdown');await h.flush();
+  if(ending==='buffer-limit'){
+   h.event(ui.layer,'pointermove',{getCoalescedEvents:()=>Array.from({length:1023},(_,i)=>({clientX:10+i/100,clientY:10,pressure:.4}))});h.tick(50);
+   h.event(ui.layer,'pointermove',{clientX:30});h.tick(50);
+  }else h.event(ui.layer,ending,{buttons:0});
+  try {
+   assert.equal(ui.layer.hasPointerCapture(1),false);
+   let prevented=0,stopped=0;
+   assert.doesNotThrow(()=>h.event(ui.layer,'pointerdown',{pointerId:2,preventDefault(){prevented++;},stopPropagation(){stopped++;}}));
+   assert.equal(prevented,1);assert.ok(stopped>0);assert.equal(ui.layer.hasPointerCapture(2),false);
+   assert.match(h.root.children.find(n=>n.className==='sketch-status').textContent,/previous stroke.*wait|wait.*previous stroke/i);
+   anchor({node:7,box:[0,0,100,100]});await h.flush();
+   assert.doesNotThrow(()=>h.event(ui.layer,'pointermove',{pointerId:2,clientX:80}));
+   assert.doesNotThrow(()=>h.event(ui.layer,'pointerup',{pointerId:2,buttons:0,clientX:80}));
+   assert.equal(h.model.sketchProjection().sketches[0].strokes.length,1);
+   h.scene.hitTest=async()=>({node:7,box:[0,0,100,100]});h.event(ui.layer,'pointerdown',{pointerId:3});h.event(ui.layer,'pointerup',{pointerId:3,buttons:0});await h.flush();
+   assert.equal(h.model.sketchProjection().sketches[0].strokes.length,2);
+  }finally{anchor({node:7,box:[0,0,100,100]});await h.flush();ui.dispose();}
+ });
+
+for(const failure of ['coordinates','capture'])test(`viewer ${failure} admission failure never publishes half-contact`,async()=>{
+ const {mountSketch}=await mod();const h=harness();const ui=mountSketch(h.doc,h.win,h.view,h.options);await ui.enter();
+ const capture=ui.layer.setPointerCapture.bind(ui.layer),toPage=h.scene.toPage;
+ if(failure==='coordinates')h.scene.toPage=()=>[NaN,1];else ui.layer.setPointerCapture=id=>{capture(id);throw Error('capture failed');};
+ assert.doesNotThrow(()=>h.event(ui.layer,'pointerdown'));assert.doesNotThrow(()=>h.event(ui.layer,'pointerup',{buttons:0}));assert.equal(ui.layer.hasPointerCapture(1),false);assert.equal(h.sent.length,1);
+ h.scene.toPage=toPage;ui.layer.setPointerCapture=capture;h.event(ui.layer,'pointerdown');h.event(ui.layer,'pointerup',{buttons:0});await h.flush();assert.equal(h.model.sketchProjection().sketches[0].strokes.length,1);ui.dispose();
+});
+test('viewer rejected N/2N downs allocate no IDs capture hit-tests timers or points',async()=>{
+ const {mountSketch}=await mod();
+ for(const n of [8,16]){const h=harness();let anchor,ids=0,hits=0,captures=0;h.options.id=()=>`count-${++ids}`;h.scene.hitTest=()=>{hits++;return new Promise(r=>anchor=r);};
+ const ui=mountSketch(h.doc,h.win,h.view,h.options);const capture=ui.layer.setPointerCapture.bind(ui.layer);ui.layer.setPointerCapture=id=>{captures++;capture(id);};await ui.enter();h.event(ui.layer,'pointerdown');h.event(ui.layer,'pointerup',{buttons:0});await h.flush();const before=[ids,hits,captures,h.timerCount(),h.sent.length];
+ for(let i=0;i<n;i++){h.event(ui.layer,'pointerdown',{pointerId:i%2?1:2});h.event(ui.layer,'pointermove',{pointerId:i%2?1:2,clientX:80});h.event(ui.layer,'pointerup',{pointerId:i%2?1:2,buttons:0});}
+ assert.deepEqual([ids,hits,captures,h.timerCount(),h.sent.length],before);anchor({node:7,box:[0,0,100,100]});await h.flush();assert.deepEqual(h.model.sketchProjection().sketches[0].strokes[0].pts,[[10,10,.25]]);ui.dispose();}
+});
+test('viewer ordinary anchor timeout releases logical owner and fences late callback',async()=>{
+ const {mountSketch}=await mod();const h=harness();let anchor;h.scene.hitTest=()=>new Promise(r=>anchor=r);const ui=mountSketch(h.doc,h.win,h.view,h.options);await ui.enter();h.event(ui.layer,'pointerdown');h.event(ui.layer,'pointerup',{buttons:0});await h.flush();h.tick(5000);await h.flush();assert.match(h.root.children.find(n=>n.className==='sketch-status').textContent,/no usable anchor; accepted strokes kept/);
+ h.scene.hitTest=async()=>({node:7,box:[0,0,100,100]});h.event(ui.layer,'pointerdown');h.event(ui.layer,'pointerup',{buttons:0});await h.flush();anchor({node:7,box:[0,0,100,100]});await h.flush();assert.equal(h.model.sketchProjection().sketches[0].strokes.length,1);ui.dispose();
+});
+test('viewer 4096 point end releases accumulator but FIFO keeps terminal before successor begin',async()=>{
+ const {mountSketch}=await mod();const h=harness(),send=h.options.send;let endACK,held=false;
+ h.options.send=async(k,b)=>{const reply=await send(k,b);if(k==='sketch-stroke-end'&&!held){held=true;return new Promise(r=>endACK=()=>r(reply));}return reply;};
+ const ui=mountSketch(h.doc,h.win,h.view,h.options);await ui.enter();h.event(ui.layer,'pointerdown');await h.flush();
+ for(let at=0;at<4095;at+=64){h.event(ui.layer,'pointermove',{getCoalescedEvents:()=>Array.from({length:Math.min(64,4095-at)},(_,i)=>({clientX:10+(at+i)/100,clientY:10,pressure:.5}))});h.tick(50);await h.flush();}
+ h.event(ui.layer,'pointermove',{clientX:90});await h.flush();assert.equal(ui.layer.hasPointerCapture(1),false);h.event(ui.layer,'pointerdown',{pointerId:2});h.event(ui.layer,'pointerup',{pointerId:2,buttons:0});await h.flush();assert.equal(h.sent.filter(r=>r.kind==='sketch-stroke-begin').length,1);
+ endACK();await h.flush();const strokes=h.model.sketchProjection().sketches[0].strokes;assert.equal(strokes.length,2);assert.equal(strokes[0].pts.length,4096);const order=h.sent.map(r=>r.kind);assert.ok(order.indexOf('sketch-stroke-end')<order.lastIndexOf('sketch-stroke-begin'));ui.dispose();
+});
+
+test('Undo and Redo cannot pass logical owner while new stroke awaits anchor',async()=>{
+ const {mountSketch}=await mod();const h=harness();const ui=mountSketch(h.doc,h.win,h.view,h.options);await ui.enter();h.event(ui.layer,'pointerdown');h.event(ui.layer,'pointerup',{buttons:0});await h.flush();
+ let anchor;h.scene.hitTest=()=>new Promise(r=>anchor=r);h.event(ui.layer,'pointerdown');h.event(ui.layer,'pointerup',{buttons:0});await h.flush();const count=h.sent.length;await ui.undo();await ui.redo();assert.equal(h.sent.length,count);
+ const toolbar=h.root.children.find(n=>n.className==='sketch-toolbar');assert.equal(toolbar.children.find(n=>n.textContent==='Undo').disabled,true);assert.equal(toolbar.children.find(n=>n.textContent==='Redo').disabled,true);
+ anchor({node:7,box:[0,0,100,100]});await h.flush();await ui.undo();assert.equal(h.sent.at(-1).kind,'sketch-undo');ui.dispose();
+});
+for(const completion of ['reject','timeout'])for(const released of [false,true])test(`retired ${released?'released':'open'} pending anchor ${completion} cannot cancel successor after prior terminal confirmation`,async()=>{
+ const {mountSketch}=await mod();const h=harness(),send=h.options.send;let firstEnd=true,endResult,lateEnd,oldReject,oldResolve;
+ h.options.send=async(k,b)=>{const value=await send(k,b);if(k==='sketch-stroke-end'&&firstEnd){firstEnd=false;endResult=value;return new Promise(r=>lateEnd=r);}return value;};
+ h.options.status=async()=>endResult;
+ const ui=mountSketch(h.doc,h.win,h.view,h.options);await ui.enter();h.event(ui.layer,'pointerdown');h.event(ui.layer,'pointerup',{buttons:0});await h.flush();h.tick(1000);
+ h.scene.hitTest=()=>new Promise((resolve,reject)=>{oldResolve=resolve;oldReject=reject;});h.event(ui.layer,'pointerdown',{pointerId:2});if(released)h.event(ui.layer,'pointerup',{pointerId:2,buttons:0});await h.flush();h.context.fills=[];h.tick(4000);await h.flush();assert.equal(ui.state().phase,'reconciling');assert.equal(h.context.fills.some(a=>a<1),false);assert.match(h.root.children.find(n=>n.className==='sketch-status').textContent,/Couldn't save this stroke; accepted strokes kept/);ui.retry();await h.flush();assert.equal(ui.state().phase,'drawing');
+ let freshResolve;h.scene.hitTest=()=>new Promise(r=>freshResolve=r);h.event(ui.layer,'pointerdown',{pointerId:3});await h.flush();
+ if(completion==='reject')oldReject(Error('retired anchor'));else h.tick(1000);await h.flush();assert.equal(ui.layer.hasPointerCapture(3),true);
+ h.event(ui.layer,'pointerup',{pointerId:3,buttons:0});freshResolve({node:7,box:[0,0,100,100]});await h.flush();assert.equal(h.model.sketchProjection().sketches[0].strokes.length,2);
+ oldResolve({node:7,box:[0,0,100,100]});lateEnd(endResult);await h.flush();assert.equal(h.model.sketchProjection().sketches[0].strokes.length,2);ui.dispose();
+});

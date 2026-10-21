@@ -246,7 +246,7 @@ Each task uses the named function-verification strategy above. A checked task re
 ### Task 5 — shared tool, held scene and painter
 
 - [x] Use pointer/painter, FIFO-policy and independent-scene strategies; mount the same tool in viewer and console. Required-label transitions and source-document identity are enforced on both adapters. Count new samples/segments, not wall-clock speed.
-- [ ] Requalify logical gesture ownership and pass `node --test tests/webcast/sketch-*.test.mjs tests/webcast/viewer.test.mjs tests/webcast/operator*.test.mjs tests/webcast/annotation-placement.test.mjs`, Go assembly tests, N/2N guards and owned browser fixtures, then commit.
+- [x] Requalify logical gesture ownership and pass `node --test tests/webcast/sketch-*.test.mjs tests/webcast/viewer.test.mjs tests/webcast/operator*.test.mjs tests/webcast/annotation-placement.test.mjs`, Go assembly tests, N/2N guards and owned browser fixtures, then commit.
 - [x] Resolve round1 BR-2/BR-3 with red/green regressions for authoritative console lifecycle metadata and queue-full terminal recovery, covering move and pointer-up.
 
 ### Task 6 — conformance, review and landing
@@ -406,3 +406,7 @@ TL approved BR-9 (delivery50744457-9fa4-450d-9421-52f62ea94a44), requiring the c
 ### 2026-10-21 — complete-table independent audit
 
 The read-only table audit added foreign-pointer no-ops, transactional setup rollback, Undo/Redo token admission and a separate finishing deadline event. It clarified precedence and changed premature every-cell coverage wording into an explicit verification requirement. Existing tests map normal sampling, voluntary exit, unknown/refusal, finish deadline and retirement families; BR-9 adds same/different rejected pointers, N/2N zero allocations, separate pending-sample/accumulator bounds, setup/capture failure and4096-point FIFO ordering. Root also identified stale anchor rejection after prior-terminal uncertainty: both success and failure callbacks must prove the original token identity, so a retired predecessor cannot cancel a new gesture. These enforce the approved single ownership rule.
+
+### 2026-10-21 — BR-9 implementation and first latency qualification
+
+The canonical table now drives both-adapter regressions for physical endings, successor tails/admission failure, bounded wait, controls, retirement and stale success/failure. Source uses the existing accumulator token, not a successor queue or duplicate ownership state. The released-contact/unknown-prior-terminal combination is covered explicitly; only unanchored unaccepted work is canceled and no nonexistent end command is manufactured. Root Node/operator, host live4 and inventory checks pass (issue Log contains exact evidence). The first actual local/tunnel anchor series has zero >150ms among1600 samples; console p95 is0.5ms both idle and with journal traffic. This supports retaining the approved simple admission rule for the measured desktop fixtures, with device/echo acceptance left to #754.

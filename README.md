@@ -1576,7 +1576,9 @@ Choose a colour before starting; it stays fixed for that sketch. The tool holds
 the acknowledged recorded moment while the live cast continues. Pen pressure
 is preserved, mouse and touch use full pressure, and paths stream to observers
 before the pointer is released. Normal page input pauses without giving up the
-driving seat.
+driving seat. If you try another stroke while the previous anchor is pending,
+Sketch shows **Finishing the previous stroke** and consumes that contact;
+start a fresh stroke after that wait. Anchor lookup has a five-second deadline.
 
 **Undo** and **Redo** affect the current unfinished sketch after its stroke is
 confirmed. **Done**, Escape, or choosing another tool shows **Saving…** while
