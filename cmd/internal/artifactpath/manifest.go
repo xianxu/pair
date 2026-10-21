@@ -1226,6 +1226,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/sessionsync/ledger.go",
 	"cmd/internal/sessionsync/linediff.go",
 	"cmd/internal/sessionsync/marker.go",
+	"cmd/internal/sessionsync/operator_lock.go",
+	"cmd/internal/sessionsync/operator_lock_model.go",
 	"cmd/internal/sessionsync/owed.go",
 	"cmd/internal/sessionsync/propose.go",
 	"cmd/internal/sessionsync/registry.go",

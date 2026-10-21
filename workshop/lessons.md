@@ -2554,3 +2554,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #744 BR-6: test provisioning observations are production consumers of slot layout. Derive host, resting branch and setup markers through SlotLayout/SetupMarkerPath, and run TestEverySlotStateSiteIsAResource with provisioning preflights; an independent hand-written expected topology still duplicates policy.
 
 - #744: Native transcript fixture producers must derive storage roots through sessioninventory.OSRuntime.NativeRoots (and WithCodexHome), just like consumers; run the native-authority shadow guard before the recorded suite. Do not exempt test helper production files from the guard.
+
+- #777: New production Go files need the exhaustive artifact-source classification even when they contain no Pair artifact paths. Run the artifactpath package before queuing the recorded suite; add non-artifact sources to NonArtifactSources rather than the legacy violation quarantine.
