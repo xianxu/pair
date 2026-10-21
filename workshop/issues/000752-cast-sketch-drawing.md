@@ -254,3 +254,7 @@ BR-4 also corrects the Spec entry-point list to actual implemented files and mar
 ### 2026-10-21 — staging released after restart
 
 TL delivery1a61c2c4-9b66-4b57-bc40-416fef0b2cd0 releases the restart/staging hold and prioritizes this item. Stage/build waits only for operator-owned Go-cache reclamation. TL must still perform and accept the real console smoke before landing; this revision changes admission timing, not behavior or acceptance scope.
+
+### 2026-10-21 — operator-smoke disabled controls
+
+Authenticated TL delivery d446a25b-56c0-471e-b371-92b2ee676110 adds visible recovery guidance for disabled Sketch and disables Done when no sketch/preparation can finish. Operator was blocked with annotation off; Chrome's 👆 is in Couch's bottom status row after Chrome's ↗, distinct from LIVE's earlier screen-broadcast 👆; it has no dedicated keyboard shortcut. Shared toolbar currently binds Sketch disabled but supplies no reason, and Done has no disabled binding. Derive both from existing authority/lifetime, with console-specific recovery text; no new authority or persistence state. The plan revision records regression and revalidation requirements. Existing staged revision stays available while this acceptance fix is prepared; prior smoke is not accepted.
