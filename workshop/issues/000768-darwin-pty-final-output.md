@@ -113,3 +113,9 @@ Final documentation sweep removed the remaining package-comment reference to the
 ### 2026-10-21 — queued-suite review overlap
 
 Current tl-worker contract explicitly permits close review to overlap a queued recorded suite, with a final-code pass before landing and requeue on review code fixes. Entering close on that basis while retaining lease-1672737506. Suite has not passed yet. Public native smoke is complete; requesting hub coordination for a staged real-shell check per LIVE CHECKS/PERMISSIONS before touching pair:0.
+
+### 2026-10-21 — live acceptance and SHIP
+
+TL accepted native smoke as sufficient live acceptance for scribe-only scope and explicitly forbade staging pair:0 (receipt831cd1bc-0878-49e8-bc89-b827e7d0659a); pair:0 was not touched. Added built public-command descendant smoke: target forks a descendant that ignores SIGHUP and holds slave stdio behind a private FIFO; scribe returns exact public-descendant-marker stdout/log and exit7 while that descendant remains alive, and restores outer tty. Exact owned descendant cleaned afterwards. Transcript /tmp/pair-768-public-descendant.log. This public smoke does not force the internal first-read barrier; the native production-run unit regression separately does.
+
+Full close review returned SHIP with zero findings (round1); independent reviewer reran native/race/vet/artifact/lint/inventory checks. Recorded full suite remains queued on4f4cdc15; enter landing flow promptly per tl-worker, with final-code/integration pass still required before merge.

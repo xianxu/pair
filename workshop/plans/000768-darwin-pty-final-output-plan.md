@@ -116,7 +116,7 @@ Files: docs/pair-scribe.md, README/atlas, changed/new test-reader certificates.
 - [x] Document Darwin ownership, controlled-abort limits, unchanged other-platform behavior and remaining exposures. Correct touched stale standalone-scribe packaging comment.
 - [x] Public built-pair scribe smoke: short commands, exact stdout/log and status. Distinguish it from the internal deterministic barrier. Coordinate staging/live check with hub before touching pair:0.
 - [x] Audit changed/new repository readers, register scanners, regenerate individual certificates; run make test-affected-inventory.
-- [ ] Push and pass the recorded suite. Then close/review and merge through SDLC with required integrated evidence/CI; report landing. No blind flaky rerun or timeout adjustment.
+- [x] Push and enqueue the recorded suite; submit to SDLC close review (SHIP, zero findings). The passing final-code suite and CI remain enforced landing gates; report landing after they clear. No blind flaky rerun or timeout adjustment.
 
 ## Acceptance clarification requiring approval
 
