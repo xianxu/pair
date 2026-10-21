@@ -146,6 +146,13 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+disputes:
+    - id: BR-5
+      rationale: The review checkout could not start Chrome before its assertions ran; the same required tests execute successfully on this host. Corrected implementation is committed and host conformance is measured; TL operator console smoke remains a separate pre-landing hold.
+      evidence: 'On committed8be34c6fab5b1cc1c2431a7cadb1da915b2e793d: WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run SketchLive\|OperatorSketchLive -count=1 -v exited0, package9.541s. ScenePrivacy2.16s; actualConsoleDrawing2.51s; OpenContactHandoffLabel1.80s; TwoViewers2.91s. Pressure beforeup, Undo/Redo/replay, named-target/blob denial, moved-original/replacement and old-label/new-holder source continuity assertions all executed and passed.'
+      after: 2
+      timestamp: "2026-10-21T10:12:38Z"
+      by: Xian Xu on Xian’s MacBook Pro at pair:9 (/Users/xianxu/workspace/worktree/pair-slot9/pair)
 ---
 
 # Gate ledger — pair#752 (boundary-review)
@@ -174,10 +181,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-5** [Important] `live-conformance-evidence` (kind: unverifiable) Required Chrome conformance assertions could not execute
   Attempted WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run 'SketchLive|OperatorSketchLive' -count=1 -v. Both operator tests failed before opening their page with GPU-process/sandbox initialization failures, and TestSketchLiveTwoViewers failed with CDP EOF. Supply successful host results for these tests on the reviewed implementation, or provide an environment where Chrome starts, to verify private-scene isolation and real two-viewer/console behavior.
 
+## Disputes
+
+Findings the implementer declined (`sdlc finding dispute`), each answered by the
+next review round.
+
+- **BR-5** — after round 2 (2026-10-21T10:12:38Z, Xian Xu on Xian’s MacBook Pro at pair:9 (/Users/xianxu/workspace/worktree/pair-slot9/pair))
+  rationale: The review checkout could not start Chrome before its assertions ran; the same required tests execute successfully on this host. Corrected implementation is committed and host conformance is measured; TL operator console smoke remains a separate pre-landing hold.
+  evidence: On committed8be34c6fab5b1cc1c2431a7cadb1da915b2e793d: WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run SketchLive\|OperatorSketchLive -count=1 -v exited0, package9.541s. ScenePrivacy2.16s; actualConsoleDrawing2.51s; OpenContactHandoffLabel1.80s; TwoViewers2.91s. Pressure beforeup, Undo/Redo/replay, named-target/blob denial, moved-original/replacement and old-label/new-holder source continuity assertions all executed and passed.
+
 ## Open findings
 
 - **BR-1** [Minor] `strategy-over-case-inventory` Compress repeated prose test-case inventories
 - **BR-2** [Critical] `authoritative-state-reaches-ui` Console handoff leaves partial-stroke label saving permanently blocked
 - **BR-3** [Critical] `bounded-input-retains-terminal-work` Queue saturation cancels the gesture without sealing it and can crash pointer-up
 - **BR-4** [Critical] `core-concept-map-matches-code` The Core concepts table names nonexistent and unchanged implementation locations
-- **BR-5** [Important] `live-conformance-evidence` (kind: unverifiable) Required Chrome conformance assertions could not execute
