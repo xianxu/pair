@@ -178,3 +178,79 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T22:00:33-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 731 — A pane that fell back to a native shell still classifies as a Pair terminal |
+| repo | pair |
+| issue file | workshop/issues/000731-a-pane-that-fell-back-to-a-native-shell-still-classifies-as-a-pair-terminal.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | b18349669dbe40da3f3733e2eb87aadfec156dc0..0a39c83dfb76db35e62f74780f077db6ccff02cc |
+| command | sdlc close --issue 731 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T22:00:33-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff repairs the shell integration fixture without changing production behavior or the approved acceptance policy. Healthy-owner assertions and new stale-metadata refusal checks pass. BR-1 remains addressed; no new blocking defects were found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The pinned issue’s Done when names LiveOwnerIDs and covers confirmed mismatch/replacement denial, unavailable-inspection retention, bounded diagnostics, and diagnostic-write failure. This agrees with terminal_owner.go:32–80; the interdiff preserves that corrected contract.
+```
+
+1. **Strengths**
+
+   - `tests/term-pane-shortcuts-test.sh:145` establishes ownership through the production wrapper on a private PTY.
+   - `tests/term-pane-shortcuts-test.sh:305` verifies that removing registration prevents split, tab delivery, and focus while retaining the same pane metadata.
+   - Existing healthy-owner assertions remain intact.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   `bash tests/term-pane-shortcuts-test.sh`, `make test-affected-inventory`, and `git diff --check` passed. The fixture completed with successful joined teardown. No production behavior fix in this window requires a revert-to-red check.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** fixture reuses the shared production image and registration seam.
+   - **ARCH-PURE — pass:** added IO remains in the integration fixture.
+   - **ARCH-PURPOSE — pass:** healthy and unregistered cases exercise the ownership contract without weakening assertions.
+   - **ARCH-EVOLVE — pass:** no persisted format changes.
+
+   No new architectural or user-facing surface requires atlas or README changes.
+
+7. **Plan revision recommendations:** None. The added revision records fixture qualification without expanding scope.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"a8bc2719-1e2e-4467-b6ee-e6b737ceb05c","repository":"github.com/xianxu/pair","issue_id":"000731","recipe":"fix-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/1cdad44fa2e0a73d","reviewed_head":"0a39c83dfb76db35e62f74780f077db6ccff02cc","slot":"pair:6","requested_at":"2026-10-21T04:59:28.314155Z"},"phase":"finished","pid":4254,"started_at":"2026-10-21T04:59:28.471163Z","finished_at":"2026-10-21T05:00:32.395344Z","session_id":"01a15cd4-22be-7880-b37f-82c129893247","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.734411s
+head: "0a39c83dfb76db35e62f74780f077db6ccff02cc"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000409
