@@ -1,6 +1,6 @@
 ---
 id: 000767
-status: codecomplete
+status: done
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 458897c5274b5313c32017e02f4effb6b73024cf
         evidence_commit: 0c73fd04a3e02e01e108a0b72de0e042be3410fb
+        landed_commit: 7450f225091d6012112d1cc1fe3fabb5f86b8631
 ---
 
 # flake: TestProvisionFixtureIdentityUsesOneGitProcess
