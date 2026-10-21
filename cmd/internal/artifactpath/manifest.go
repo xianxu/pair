@@ -1375,6 +1375,11 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/recovery_launch_disposition.go",
 	"cmd/internal/couchcore/lifecyclefailure_address.go",
 	"cmd/internal/couchcore/launchprofile.go",
+	// #728 Couch-owned repository settings and pure codec; these are namespace
+	// control metadata, not Pair invocation/history artifacts or per-tag paths.
+	"cmd/internal/couchcore/repopreferences.go",
+	"cmd/internal/couchcore/repopreferences_codec.go",
+	"cmd/internal/couchcore/repopreferences_store.go",
 	"cmd/internal/couchcore/layout.go",
 	"cmd/internal/couchcore/lifecycledebris.go",
 	"cmd/internal/couchcore/mailbox.go",
