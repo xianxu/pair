@@ -16,7 +16,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "ee9468cb", done: "d65ab303"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # flake: TestRecoveryRealHelperAndSessionConformanceLive/warm (zellij list-panes no reply after helper exit) holds the pair landing line
@@ -55,6 +55,8 @@ Verification: recorded affected/suite and boundary review precede landing.
 ## Log
 
 ### 2026-10-20
+- 2026-10-20: closed — BR-1 fixed: count every child before schedule validation; exact typed error/output assertions; unsafe retry gate mutant deterministically fails nonzero/mutation/unknown-flags; all frame-fake consumers swept and targeted launcher27.422s passes. BR-2 corrected native control validates all2000 final pane payloads with production required command/state/geometry/tab fields and nonempty inventory:2003 attempts,3 empty-attempt errors recovered,0 invalid/error finals in46.28s. BR-3 comments distinguish logical reads/attempts/attempt-local observer errors.20 consecutive native warm cases and final exact park-warm pass; changed-contract race23.976s/15.040s; source-reader audit passes; recorded final-head full suite required before landing. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
+- 2026-10-20: flow upgraded quick → full — 103 added lines in code files (limit 100)
 
 ### 2026-10-20 — native cause investigation checkpoint
 

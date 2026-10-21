@@ -97,6 +97,96 @@ rounds:
       recipe: small-diff-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 54f24f66-54f2-4de5-9fd6-98d52251edfb
+            repository: github.com/xianxu/pair
+            issue_id: "000748"
+            recipe: milestone-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/b1cf8b85ec2d9523
+            reviewed_head: fb794ec500174a160dd447ac51b4695972c48cb0
+            slot: pair:3
+            requested_at: "2026-10-21T02:30:13.228808Z"
+          phase: finished
+          pid: 87844
+          started_at: "2026-10-21T02:30:13.459682Z"
+          finished_at: "2026-10-21T02:35:30.758634Z"
+          session_id: 01a15c4b-7e8b-70d3-a4b1-bc9aeba716a4
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: fb794ec500174a160dd447ac51b4695972c48cb0
+        tracker_head: 04388404c96e369dbf7e7268f8532b126dfa1edb
+        branch_point: 127001eae6379ce571b6097f4573deb57ca90416
+        since: "2026-10-20T17:33:54-07:00"
+        until: "2026-10-20T19:29:24-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-20T17:33:54-07:00"
+              end: "2026-10-20T19:29:24-07:00"
+              began: "2026-10-20T17:33:54-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot3/pair
+        sources:
+            - harness: codex
+              id: 01a15b4f-8616-7e93-b16c-446f5ace13a6
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: 2062611e49742333c7dbec947cefda25a0e0e36cd428fba06fdb7f7cc16ef51d
+              started: "2026-10-20T21:55:01.064Z"
+              spawned: false
+              bytes: 6414108
+              windows:
+                - start: "2026-10-20T17:33:54-07:00"
+                  end: "2026-10-20T19:29:24-07:00"
+            - harness: codex
+              id: 01a15be1-7f3d-7fe1-b320-918261b6457c
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a15b4f-8616-7e93-b16c-446f5ace13a6
+              digest: 76a1ff22ff8cb95fdd5df9b723673acfc0c715abfc6886bf7a39a144b5be06f6
+              started: "2026-10-21T00:34:27.441Z"
+              spawned: true
+              bytes: 1551049
+              windows:
+                - start: "2026-10-21T00:34:27.441Z"
+                  end: "2026-10-20T19:29:24-07:00"
+        cuts:
+            - dispatched: "2026-10-20T19:20:01-07:00"
+              finalized: "2026-10-20T19:23:21-07:00"
+              finalizing: false
+      "n": 2
+      timestamp: "2026-10-20T19:35:32-07:00"
+      dispatched: "2026-10-20T19:30:10-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: zellij_empty_reply_test.go:98 counts children before frame validation, and the regression asserts counts and final errors. An independently applied unsafe retry mutation fails nonzero, mutation, and unknown-flags cases with three calls instead of one.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: native-production-query-diagnostic.go.txt:13 validates returned panes using production requirements and rejects empty inventory. Injected malformed output fails this oracle while the former error-only oracle passes. Retained results and associated claims were refreshed; independent native runs produced both a failure and a pass, as reported here.
+          round: 2
+        - id: BR-3
+          disposition: addressed
+          note: The pinned correction updates zellij.go timeout, inventory-cost, ClientCountContext, and observer comments to describe bounded logical reads and attempt-local errors, consistent with runContext:197 and runQueryAttempt:215.
+          round: 2
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: fb794ec500174a160dd447ac51b4695972c48cb0
+      blocked: false
 ---
 
 # Gate ledger — pair#748 (boundary-review)
@@ -115,8 +205,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Minor] `comments-track-query-attempt-semantics` (kind: defect) Query comments still describe the former one-attempt contract
   In cmd/internal/launcher/zellij.go, line 28 says the boundary never retries, line 149 promises no automatic retries, lines 51–52, 60–61 and 72–74 describe subprocess costs as one run, and lines 168–169 call the observer error caller-visible even when a later attempt succeeds. These are all instances of the changed logical-read versus subprocess-attempt distinction. Describe bounded attempts and attempt-local observer errors consistently.
 
+## Round 2 — 2026-10-20T19:35:32-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — zellij_empty_reply_test.go:98 counts children before frame validation, and the regression asserts counts and final errors. An independently applied unsafe retry mutation fails nonzero, mutation, and unknown-flags cases with three calls instead of one.
+- BR-2 — addressed — native-production-query-diagnostic.go.txt:13 validates returned panes using production requirements and rejects empty inventory. Injected malformed output fails this oracle while the former error-only oracle passes. Retained results and associated claims were refreshed; independent native runs produced both a failure and a pass, as reported here.
+- BR-3 — addressed — The pinned correction updates zellij.go timeout, inventory-cost, ClientCountContext, and observer comments to describe bounded logical reads and attempt-local errors, consistent with runContext:197 and runQueryAttempt:215.
+
 ## Open findings
 
-- **BR-1** [Important] `subprocess-policy-tests-count-every-attempt` (kind: defect) The non-retryable-result regression passes when forbidden retries are enabled
-- **BR-2** [Important] `qualification-validates-returned-evidence` (kind: defect) The native qualification counts query errors rather than bad final answers
-- **BR-3** [Minor] `comments-track-query-attempt-semantics` (kind: defect) Query comments still describe the former one-attempt contract
+(none — every finding has been disposed)

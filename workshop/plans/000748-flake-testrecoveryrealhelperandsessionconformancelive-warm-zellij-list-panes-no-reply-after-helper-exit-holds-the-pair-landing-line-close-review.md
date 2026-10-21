@@ -85,3 +85,103 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T19:35:31-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 748 — flake: TestRecoveryRealHelperAndSessionConformanceLive/warm (zellij list-panes no reply after helper exit) holds the pair landing line |
+| repo | pair |
+| issue file | workshop/issues/000748-flake-testrecoveryrealhelperandsessionconformancelive-warm-zellij-list-panes-no-reply-after-helper-exit-holds-the-pair-landing-line.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 127001eae6379ce571b6097f4573deb57ca90416..fb794ec500174a160dd447ac51b4695972c48cb0 |
+| command | sdlc close --issue 748 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T19:35:31-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+The implementation matches the revised bounded-mitigation contract, and all three prior findings are addressed. Deterministic regressions, refusal checks, exact park→warm, and 20 consecutive warm runs passed. Native stress results remain mixed: one 2,000-read run reported one bad final answer; a subsequent isolated run reported zero. The revision explicitly permits final refusal, so this limits reliability claims without demonstrating a contract violation.
+
+Done-when: current — deterministic red/green evidence, 20 consecutive warm passes, and the #636 cause follow-through still cover the revised mitigation.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      zellij_empty_reply_test.go:98 counts children before frame validation, and the regression asserts counts and final errors. An independently applied unsafe retry mutation fails nonzero, mutation, and unknown-flags cases with three calls instead of one.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      native-production-query-diagnostic.go.txt:13 validates returned panes using production requirements and rejects empty inventory. Injected malformed output fails this oracle while the former error-only oracle passes. Retained results and associated claims were refreshed; independent native runs produced both a failure and a pass, as reported here.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      The pinned correction updates zellij.go timeout, inventory-cost, ClientCountContext, and observer comments to describe bounded logical reads and attempt-local errors, consistent with runContext:197 and runQueryAttempt:215.
+```
+
+1. **Strengths**
+
+   - One deadline surrounds all attempts, and cancellation is checked before another child starts (`cmd/internal/launcher/zellij.go:197`).
+   - Exact argv classification and existing strict parsers constrain replay (`cmd/internal/launcher/zellij_read_recovery.go:27`).
+   - Recovery tests preserve durable-state and no-effects assertions after exhaustion.
+   - Atlas documentation records ownership, bounds, and the workaround’s removal condition.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Focused launcher, couchcore, and lint checks passed.
+   - The recovery regression fails against the base implementation.
+   - The unsafe retry mutation fails the corrected regression.
+   - The corrected diagnostic rejects malformed successful output; the previous oracle accepts it.
+   - Exact park→warm passed; 20 consecutive warm runs passed.
+   - Native stress: first run had 2,016 attempts, 17 attempt errors, and one bad final answer; isolated second run had 2,007 attempts, seven attempt errors, and zero bad final answers. These samples do not establish failure-free native operation.
+   - Temporary overlays were removed; tracked files remain unchanged.
+
+6. **Architectural notes for upcoming work**
+
+   | Principle | Assessment |
+   |---|---|
+   | ARCH-DRY | Pass — centralized attempt ownership and parser reuse. |
+   | ARCH-PURE | Pass — pure classification; injected process boundary. |
+   | ARCH-PURPOSE | Pass — implements the expressly revised mitigation and qualification controls. |
+   | ARCH-MOCK | Pass — production boundary is exercised through stateful fixtures and native controls. |
+   | ARCH-CONSTRAINTS | Pass — three sequential attempts, shared deadline, counted 8/16-read bounds. |
+   | ARCH-SECURE | Pass — external replies retain strict validation; native fixtures use private roots. |
+   | ARCH-ORDER | Pass — bounded sequential attempts, controllable fault schedules, cancellation and exhaustion checks. |
+   | ARCH-FUNERAL | Pass — no new persistent runtime artifact; fixture cleanup owns temporary resources. |
+   | ARCH-EVOLVE | Pass — no persisted-format reader or rewrite changes. |
+
+   Atlas coverage is present. No new user command, flag, or configuration requires a README update. No Core concepts table was supplied.
+
+7. **Plan revision recommendations:** None required. Preserve the mixed native stress outcomes when reporting qualification; the evidence supports bounded mitigation, not elimination of native failures.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"54f24f66-54f2-4de5-9fd6-98d52251edfb","repository":"github.com/xianxu/pair","issue_id":"000748","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/b1cf8b85ec2d9523","reviewed_head":"fb794ec500174a160dd447ac51b4695972c48cb0","slot":"pair:3","requested_at":"2026-10-21T02:30:13.228808Z"},"phase":"finished","pid":87844,"started_at":"2026-10-21T02:30:13.459682Z","finished_at":"2026-10-21T02:35:30.758634Z","session_id":"01a15c4b-7e8b-70d3-a4b1-bc9aeba716a4","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.029232542s
+head: "fb794ec500174a160dd447ac51b4695972c48cb0"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
