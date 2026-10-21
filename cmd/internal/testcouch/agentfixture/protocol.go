@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
@@ -19,6 +20,8 @@ const MaxCommandBytes = 16 << 10
 const MaxOutputBytes = 32 << 10
 const MaxRequests = 128
 const MaxConcurrentCLI = 4
+const DefaultCLITimeout = 15 * time.Second
+const MaxCLITimeout = 24 * time.Hour
 const OwnershipFile = ".testcouch-owner"
 
 // A reserved single-slot shutdown channel cannot be exhausted by ordinary work.
@@ -34,12 +37,13 @@ const (
 )
 
 type Command struct {
-	PID   int         `json:"pid,omitempty"`
-	RunID string      `json:"run_id,omitempty"`
-	ID    string      `json:"id"`
-	Kind  CommandKind `json:"kind"`
-	Args  []string    `json:"args,omitempty"`
-	State Phase       `json:"state,omitempty"`
+	Timeout time.Duration `json:"timeout_ns,omitempty"`
+	PID     int           `json:"pid,omitempty"`
+	RunID   string        `json:"run_id,omitempty"`
+	ID      string        `json:"id"`
+	Kind    CommandKind   `json:"kind"`
+	Args    []string      `json:"args,omitempty"`
+	State   Phase         `json:"state,omitempty"`
 }
 type Result struct {
 	ID        string `json:"id"`
@@ -53,6 +57,9 @@ type Result struct {
 var requestID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$`)
 
 func ValidateCommand(c Command) error {
+	if c.Timeout < 0 || c.Timeout > MaxCLITimeout || (c.Timeout != 0 && c.Kind != Exec) {
+		return errors.New("invalid fixture CLI timeout")
+	}
 	if c.PID < 0 || len(c.RunID) > 128 {
 		return errors.New("invalid fixture actor generation")
 	}

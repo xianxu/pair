@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync/atomic"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/procutil"
@@ -65,8 +66,12 @@ func (f *Fleet) ActorCLI(ctx context.Context, n int, args ...string) (agentfixtu
 	if err != nil {
 		return agentfixture.Result{}, err
 	}
+	timeout, err := actorCLITimeout(ctx, time.Now(), f.Options.RuntimeBudget)
+	if err != nil {
+		return agentfixture.Result{}, err
+	}
 	id := fmt.Sprintf("cli-%d", nextCommand.Add(1))
-	if err = agentfixture.WriteCommand(dir, agentfixture.Command{ID: id, Kind: agentfixture.Exec, Args: append([]string(nil), args...)}); err != nil {
+	if err = agentfixture.WriteCommand(dir, agentfixture.Command{ID: id, Kind: agentfixture.Exec, Timeout: timeout, Args: append([]string(nil), args...)}); err != nil {
 		return agentfixture.Result{}, err
 	}
 	var result agentfixture.Result
@@ -82,6 +87,31 @@ func (f *Fleet) ActorCLI(ctx context.Context, n int, args ...string) (agentfixtu
 		err = fmt.Errorf("fixture CLI: %s", result.Error)
 	}
 	return result, err
+}
+
+// The actor child shares the caller's remaining bound rather than imposing a
+// shorter hidden timeout on real recovery operations.
+func actorCLITimeout(ctx context.Context, now time.Time, fallback time.Duration) (time.Duration, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	budget := fallback
+	if deadline, ok := ctx.Deadline(); ok {
+		budget = deadline.Sub(now)
+		if budget <= 0 {
+			return 0, context.DeadlineExceeded
+		}
+	}
+	if budget == 0 {
+		budget = agentfixture.DefaultCLITimeout
+	}
+	if budget < 0 {
+		return 0, errors.New("negative fixture CLI budget")
+	}
+	if budget > agentfixture.MaxCLITimeout {
+		budget = agentfixture.MaxCLITimeout
+	}
+	return budget, nil
 }
 
 func (f *Fleet) Actors(ctx context.Context) (couchmessage.Response, error) {
@@ -100,20 +130,29 @@ func (f *Fleet) Actors(ctx context.Context) (couchmessage.Response, error) {
 	return response, err
 }
 
+// WaitActors waits for at least count registrations. Restarting a supervisor
+// may reconnect workers before its first steward-readiness observation.
 func (f *Fleet) WaitActors(ctx context.Context, count int) error {
+	if err := waitActorCount(ctx, count, f.Actors); err != nil {
+		return err
+	}
+	return f.captureOwned(ctx)
+}
+
+func waitActorCount(ctx context.Context, count int, observe func(context.Context) (couchmessage.Response, error)) error {
 	var last error
 	err := waitUntil(ctx, func() (bool, error) {
-		response, err := f.Actors(ctx)
+		response, err := observe(ctx)
 		last = err
 		if err != nil {
 			return false, nil
 		}
-		return len(response.Actors) == count, nil
+		return len(response.Actors) >= count, nil
 	})
 	if err != nil {
-		return fmt.Errorf("expected %d registered actors: %w; last=%v", count, err, last)
+		return fmt.Errorf("expected at least %d registered actors: %w; last=%v", count, err, last)
 	}
-	return f.captureOwned(ctx)
+	return nil
 }
 
 func (f *Fleet) Accepted(n int) ([]agentfixture.AcceptedInput, error) {

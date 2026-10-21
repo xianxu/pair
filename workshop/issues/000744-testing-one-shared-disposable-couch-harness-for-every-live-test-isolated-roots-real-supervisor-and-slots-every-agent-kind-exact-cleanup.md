@@ -126,6 +126,12 @@ The pinned Claude composer capture itself contains XTVERSION ESC[>0q at byte59, 
 
 DCS whole/split framing and counted shutdown regressions pass, including 128 completed ordinary requests followed by Stop, sixteen stale shutdowns without actor exit or retained-result growth, and unrelated pending-result absence. Shutdown owns one reserved request/result slot; the ordinary quota stays128. Independent full fixture race run passed agentfixture2.229s and native entrypoint3.442s. Audited model_test.go and run_test.go changes read only their existing private fixtures; refreshed those two local_or_literal_fixture hashes individually. Next: commit these corrections and rerun native matrix from that clean head.
 
+### 2026-10-20 — caller deadline correction after bounded CLI failure
+
+Native rerun79a7f25ea072b3ec47218fa6b74bef45fa902242 failed worker3 after fixture runCLI killed its recovery subprocess at its fixed15s inner deadline; public slot recovery permits30s admission plus5m operation polling. Full log /Volumes/TestScratch/tmp/pair-slot5/pair-744-native-f6oqf28t/native.log SHA256b0fa89ae4f1b3aaf9b70c121f1d8b5ff8f8e4e54fae9a6507d8c2f464a9ed474. Cleanup succeeded with all owned generations absent, direct child/IO joined and root removed. No ordinary-message/restart matrix pass claimed.
+
+ActorCLI now transports its caller's remaining bounded deadline to the fixture command; no arbitrary increased inner constant. Direct fixture tests retain a15s default; explicit requests are validated through24h and parent cancellation still joins native children. A readiness audit also found that RestartSupervisor could observe all four reconnected actors before Start's exact-one snapshot; readiness now accepts at least its requested count, while native qualification still asserts exact membership. Stateful observer regression failed on the prior exact comparison and passes after correction. Portable helper5.453s, fixture1.479s/native entrypoint0.512s, artifactpath5.776s and repolint12.863s passed on the preceding correction; current combined races and inventory are in progress before the next clean-head native run.
+
 ## Revisions
 
 ### 2026-10-20 — #747 native-proof sequencing

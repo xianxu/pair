@@ -232,7 +232,7 @@ func TestRunBoundsOutputAndJoinsCanceledCLI(t *testing.T) {
 		t.Fatal("output cap failed", len(result.Stdout), result.Truncated)
 	}
 	marker := filepath.Join(config.Root, "child.started")
-	if e := WriteCommand(config.ControlDir, Command{ID: "cancel", Kind: Exec, Args: []string{"-c", "printf started > \"$1\"; sleep 30", "fixture", marker}}); e != nil {
+	if e := WriteCommand(config.ControlDir, Command{ID: "cancel", Kind: Exec, Timeout: time.Hour, Args: []string{"-c", "printf started > \"$1\"; sleep 30", "fixture", marker}}); e != nil {
 		t.Fatal(e)
 	}
 	waitFixture(t, func() bool { _, e := os.Stat(marker); return e == nil })
@@ -393,5 +393,43 @@ func TestRunStaleShutdownDoesNotStopCurrentActor(t *testing.T) {
 		}
 	case <-time.After(4 * time.Second):
 		t.Fatal("current shutdown did not join")
+	}
+}
+
+func TestDecodeCommandCarriesBoundedCLITimeout(t *testing.T) {
+	command, err := DecodeCommand([]byte(`{"id":"long-recovery","kind":"exec","timeout_ns":90000000000}`))
+	if err != nil {
+		t.Fatalf("caller deadline refused: %v", err)
+	}
+	encoded, err := json.Marshal(command)
+	if err != nil || !bytes.Contains(encoded, []byte(`"timeout_ns":90000000000`)) {
+		t.Fatalf("deadline lost: %s %v", encoded, err)
+	}
+	for _, raw := range []string{
+		`{"id":"negative","kind":"exec","timeout_ns":-1}`,
+		`{"id":"unbounded","kind":"exec","timeout_ns":86400000000001}`,
+		`{"id":"state","kind":"state","state":"idle","timeout_ns":1}`,
+		`{"id":"stop","kind":"stop","timeout_ns":1}`,
+	} {
+		if _, err := DecodeCommand([]byte(raw)); err == nil {
+			t.Fatalf("accepted invalid budget: %s", raw)
+		}
+	}
+}
+
+func TestRunCLIUsesPerRequestBudget(t *testing.T) {
+	if got := commandCLITimeout(Command{}); got != 15*time.Second {
+		t.Fatalf("default=%v", got)
+	}
+	if got := commandCLITimeout(Command{Timeout: 90 * time.Second}); got != 90*time.Second {
+		t.Fatalf("caller budget shortened: %v", got)
+	}
+	started := time.Now()
+	result := runCLI(context.Background(), "/bin/sh", Command{ID: "bounded", Kind: Exec, Timeout: 100 * time.Millisecond, Args: []string{"-c", "printf started; exec sleep 30"}})
+	if result.Error == "" || result.Stdout != "started" {
+		t.Fatalf("budget failed to cancel started child: %+v", result)
+	}
+	if elapsed := time.Since(started); elapsed > 2*time.Second {
+		t.Fatalf("budget cancellation did not join promptly: %v", elapsed)
 	}
 }

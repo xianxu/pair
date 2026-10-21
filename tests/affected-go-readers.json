@@ -420,7 +420,6 @@
       "cmd/internal/termcmd/strip_test.go": "706d1f78fbe856ed2dececd91565fb833e92a7aafcf919f21a368ebf25c1fa5f",
       "cmd/internal/termcmd/writer_test.go": "43355691243d784157686def48d93cdefe26f8f5d8bb571cff43214461fbe071",
       "cmd/internal/testcouch/binaries_test.go": "b07d47bc9bc63c20757de764da994025fcf898697db3d950a0dc93dd9b9515d2",
-      "cmd/internal/testcouch/fleet_test.go": "502ded274a02edcb84a57758d1cc1b0e1dfd354c7567cdd85521687efc56d344",
       "cmd/internal/testcouch/provision_test.go": "135abbb0ea802cf1c7c73a7a9a0c2ca4eada0013883460009e7962e4e8cb16b2",
       "cmd/internal/testcouch/runtime_files_test.go": "0d9db94f18690db825f95e1450af8dbd9e3b22ba84805c1d4550eba9ff76b847",
       "cmd/internal/testcouch/terminal_test.go": "6589e64c2014f16c1c18625755de1edfd2b98ca7d462cb4ab6a8fcb42acc02cf",
@@ -472,7 +471,8 @@
       "probes/zellijcalls/main_test.go": "382f78fb48fc70e5b522a8e5e38bc0fc8da82ebc75ec9c2f367c9ddfa7417693",
       "probes/zellijprobe/reporoot_test.go": "de13aef753c6fc958f01e4a04ec9963672a58a76f5e63d08d6e2ea32de825018",
       "cmd/internal/testcouch/agentfixture/model_test.go": "15c01e25c83df4d3281a02a7755270a8c287f28906379ff2fbe37c246a9d3907",
-      "cmd/internal/testcouch/agentfixture/run_test.go": "87595a5bcacbd1cbcf382fb1ee9e7aa42f5db04c9f36072934a5f4f6b2ca4dac"
+      "cmd/internal/testcouch/agentfixture/run_test.go": "ddda6505b03141895feb1d9063ad1e6ef3e13481f041c5edfc0bbed782de6585",
+      "cmd/internal/testcouch/fleet_test.go": "ff7acebbf09a236359274a47969a21a209ebd3110abd4af4721e931b243dbd57"
     }
   }
 }

@@ -392,8 +392,15 @@ func (w *boundedOutput) Write(p []byte) (int, error) {
 	return n, nil
 }
 func (w *boundedOutput) String() string { return w.buffer.String() }
+func commandCLITimeout(c Command) time.Duration {
+	if c.Timeout == 0 {
+		return DefaultCLITimeout
+	}
+	return c.Timeout
+}
+
 func runCLI(parent context.Context, executable string, c Command) Result {
-	ctx, cancel := context.WithTimeout(parent, 15*time.Second)
+	ctx, cancel := context.WithTimeout(parent, commandCLITimeout(c))
 	defer cancel()
 	out, errout := &boundedOutput{}, &boundedOutput{}
 	cmd := exec.CommandContext(ctx, executable, c.Args...)
