@@ -59,6 +59,7 @@ Approved design: [cast-sketch plan](../plans/000750-cast-sketch-plan.md). Drawin
 ## Log
 
 ### 2026-10-20
+- 2026-10-20: closed — Operator approved detailed design via ops:0; revision includes driving-derived single drawer, casting-Chrome controls and pressure. Published unclaimed dependent slices #751-#754 verified against origin/main; issue schema and git diff checks pass. Docs-only design; no feature implementation claimed.; review verdict: SHIP
 
 - Claimed in pair:9 and ran start-plan. Read current cast/recording/Board/renderer/query code and the cast-sketch project in ops; no project file edited.
 - Operator direction relayed by ops:0 supersedes the TL's initial local-draft/atomic-save choice: stream strokes immediately, Undo/Redo, pointer colour; finish the design without further questions and collect decisions in the plan.
