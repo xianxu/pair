@@ -82,3 +82,18 @@ upstream affected-config qualification explicitly skipped for unavailable source
 no new skip or waiver. make test-affected-inventory passed again immediately
 before close. The final checklist records pre-close verification; close and
 landing remain the binary's subsequent gates, not a premature landing claim.
+
+## Revisions
+
+### 2026-10-20 — BR-1 current classification before historical disposition
+
+The first close returned REWORK: both fixture-to-source-reader transitions
+printed the historical disposition, which the record validator rightly refused.
+Private Git regressions reproduced each red. Generated commands now prefer
+required fixed_scanner classification over the historical disposition; each
+regression executes the printed command and then passes the check, with all
+reader tests already registered. No guard is relaxed. Five CLI tests pass;
+make test-affected-inventory passes again. The prior recorded full-suite pass
+covers the preceding head only; a new recorded check is required on the fix.
+Review may overlap that queued check per tl-worker; landing still requires its
+pass. This corrects the existing exact-command contract, not new scope.

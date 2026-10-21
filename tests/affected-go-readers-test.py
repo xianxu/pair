@@ -149,7 +149,7 @@ def command_line():
                 if kind == "stale reader":
                     print("After auditing removal: " + command + "--remove " + shlex.quote(name), file=sys.stderr)
                 elif kind in ("changed reader", "unmapped reader"):
-                    disposition = known.get(name, "fixed_scanner" if repository_source_scan(actual[name].decode()) else "non_go_full_fallback")
+                    disposition = "fixed_scanner" if repository_source_scan(actual[name].decode()) else known.get(name, "non_go_full_fallback")
                     print("After auditing inputs: " + command + "--record " + shlex.quote(name)
                           + " --disposition " + disposition, file=sys.stderr)
             return bool(errors)
@@ -236,6 +236,24 @@ class FastInventoryCLI(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("duplicate inventory key", result.stderr)
         self.assertEqual(self.inventory.read_bytes(), before)
+
+    def test_changed_source_reader_prints_executable_required_disposition(self):
+        old_digest = hashlib.sha256(self.reader.read_bytes()).hexdigest()
+        (self.root / "scripts/test-affected.py").write_text("SOURCE_GUARDS = {'cmd/leaf': ('TestScan',)}\n")
+        self.reader.write_text('func TestScan(t *testing.T) { os.ReadFile("../source.go") }')
+        for previous in ("local_or_literal_fixture", "non_go_full_fallback"):
+            with self.subTest(previous=previous):
+                self.inventory.write_text(json.dumps({"version": 1, "readers": {
+                    previous: {self.name: old_digest}
+                }}))
+                result = self.cli("--check")
+                self.assertNotEqual(result.returncode, 0)
+                command = next(line.removeprefix("After auditing inputs: ")
+                               for line in result.stderr.splitlines() if line.startswith("After auditing inputs: "))
+                self.assertIn("--disposition fixed_scanner", command)
+                recorded = self.cli(*shlex.split(command)[3:])
+                self.assertEqual(recorded.returncode, 0, recorded.stderr)
+                self.assertEqual(self.cli("--check").returncode, 0)
 
 
 class ReaderInventoryTest(unittest.TestCase):
