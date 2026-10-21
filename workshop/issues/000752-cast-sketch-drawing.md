@@ -56,6 +56,8 @@ Primary surfaces: board/{sketch.go,sketch_wire.go,sketch_delivery.go,writer_sket
 
 ## Log
 
+- 2026-10-21: Third close review on 636d1e1a accepted BR-6/BR-7 and returned REWORK for BR-8 (Critical, bounded-input-retains-terminal-work): Done/Escape/tool change before asynchronous anchor resolution enters label-required too early and rejects the buffered stroke. Stopped implementation for a whole voluntary-exit state re-plan and independent adapter audit. Recorded runner lease-3778018252 is retained; staging remains held by TL.
+
 ### 2026-10-20
 
 - Filed from operator-approved #750 design via ops:0. Left unclaimed for TL dispatch.

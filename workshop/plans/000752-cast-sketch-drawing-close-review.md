@@ -253,3 +253,129 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T04:03:18-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 752 — cast-sketch: live console and driver drawing with pen pressure |
+| repo | pair |
+| issue file | workshop/issues/000752-cast-sketch-drawing.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | bc79cbaeae75b518dcfa789fc2bd0e40ccf06f97..636d1e1a19a65fb3f5897cee9f3b15df2f51bd7a |
+| command | sdlc close --issue 752 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T04:03:18-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-6 and BR-7 are addressed. The approved width regressions fail when their fixes are removed, and the revised Core concepts classifications match the inspected effects. One new blocking ordering defect remains: leaving while an anchor lookup is pending discards the buffered stroke and allows an empty sketch to complete.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The plan retains one function-verification strategy table; task checklists reference it instead of repeating case inventories.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Retain the accepted disposition. Authoritative metadata reaches shared policy; lifecycle and pending-label Node regressions pass.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Queue-saturation regressions pass for movement, pointer-up, unknown confirmation and explicit refusal recovery, retaining one truncated terminal.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      The corrected Core concepts locations and modification statuses match the inspected pinned range.
+  - id: BR-5
+    disposition: withdrawn
+    note: |
+      Retain the prior evidence-based withdrawal. This environment again failed Chrome startup with GPU-process errors/CDP EOF; that repeats the disposed environment limitation.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Both producers use base width 3. In a disposable pinned-head copy, restoring width 4 independently failed TestSketchServiceFrozenAnchorAndExactRetry and the optimistic-contact pressure regression. Both pass at head.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Plan lines 29–44 restrict PURE to named deterministic entities; lines 59 and 65–68 explicitly classify random journal ownership, policy callbacks, canvas/scheduling and delivery callbacks as INTEGRATION. Supporting implementations include journal init(), paintSketchPaths() and createSketchDelivery(); Revisions records the complete classification sweep.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: bounded-input-retains-terminal-work
+    title: |
+      Leaving before the asynchronous anchor resolves discards the stroke
+    detail: |
+      cmd/internal/webcast/web/sketch.js:461–464 calls finish(), immediately dispatches leave, then awaits pending work. If scene.hitTest is unresolved, finish only buffers the terminal; the later anchor callback at lines 363–365 emits stroke-begin/points/end after sketch-policy.js:173 has entered label-required, so the guard at lines 190–201 rejects every command. Using the existing mount harness, all six combinations of Done/Escape/tool change and open/released contact completed with zero strokes and only sketch-begin plus sketch-label sent. ARCH-ORDER/ARCH-PURPOSE: introduce an explicit finishing transition that blocks new input and label submission while admitting and settling the existing gesture. This is the 2nd finding in family bounded-input-retains-terminal-work: state the preservation rule and sweep every voluntary exit across pending-anchor, queued and uncertain-work states on both adapters, with controlled-order regression tests.
+```
+
+1. **Strengths**
+
+   - Approved pressure widths now have independent producer and optimistic-painter assertions, verified by removing each fix.
+   - Writer seams distinguish confirmed persistence from unknown outcomes and retain exact operation identities.
+   - README and atlas document controls, recovery, limits and private-scene ownership.
+   - Core concepts now distinguish pure helpers from effectful wrappers in mixed files.
+
+2. **Critical findings**
+
+   The delayed-anchor exit defect above blocks shipping. Preserve the gesture through an explicit finishing state before allowing label completion.
+
+3. **Important findings**
+
+   None newly raised.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - Passed all webcast Go packages, strictjson and artifactpath checks.
+   - Passed all **415** browser tests.
+   - Passed focused race checks for Board, driving and recorder sketch behavior.
+   - Both BR-6 regression tests failed with their respective fixes removed.
+   - The existing suite misses pending-anchor completion after voluntary exit; the controlled reproduction exposed it in all six tested combinations.
+   - Chrome conformance failed before assertions during GPU startup/CDP connection. TL console smoke and the recorded-check hold remain pending as documented.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared tool, renderer and writer preflight.
+   - **ARCH-PURE — pass:** revised entity classifications match inspected effects.
+   - **ARCH-PURPOSE — flag:** ordinary exit can complete without the user’s buffered stroke.
+   - **ARCH-MOCK — pass:** stateful writer/browser seams support controlled integration checks; live execution has the limitation above.
+   - **ARCH-CONSTRAINTS — pass:** bounded queues, transfers, history and counted work checks.
+   - **ARCH-SECURE — pass:** inspected ingress authenticates authority and scopes source/asset access.
+   - **ARCH-ORDER — flag:** label-required is entered before pending gesture effects can drain.
+   - **ARCH-FUNERAL — pass:** source, scene, transfer and timer ownership have retirement paths.
+   - **ARCH-EVOLVE — pass:** optional truncation preserves absent/false semantics and unknown-field round trips.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry defining the voluntary-exit invariant: stop new capture, preserve and settle the current gesture, then permit label completion. Enumerate Done, Escape and tool changes against pending-anchor, queued and uncertain work, and retain controlled-order tests for both adapters.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"a750da2d-99ae-4c0b-a4c5-a2e26088d435","repository":"github.com/xianxu/pair","issue_id":"000752","recipe":"milestone-review","round":4,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/a980fba124a9a86a","reviewed_head":"636d1e1a19a65fb3f5897cee9f3b15df2f51bd7a","slot":"pair:9","requested_at":"2026-10-21T10:59:31.671278Z"},"phase":"finished","pid":52529,"started_at":"2026-10-21T10:59:31.765548Z","finished_at":"2026-10-21T11:03:17.495705Z","session_id":"01a15e1d-c635-7962-b2e9-6c2b7e72831a","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.555164666s
+head: "636d1e1a19a65fb3f5897cee9f3b15df2f51bd7a"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

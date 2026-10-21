@@ -294,6 +294,160 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: a750da2d-99ae-4c0b-a4c5-a2e26088d435
+            repository: github.com/xianxu/pair
+            issue_id: "000752"
+            recipe: milestone-review
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/a980fba124a9a86a
+            reviewed_head: 636d1e1a19a65fb3f5897cee9f3b15df2f51bd7a
+            slot: pair:9
+            requested_at: "2026-10-21T10:59:31.671278Z"
+          phase: finished
+          pid: 52529
+          started_at: "2026-10-21T10:59:31.765548Z"
+          finished_at: "2026-10-21T11:03:17.495705Z"
+          session_id: 01a15e1d-c635-7962-b2e9-6c2b7e72831a
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: 636d1e1a19a65fb3f5897cee9f3b15df2f51bd7a
+        tracker_head: f4da4d3ef2cddf52c77db0bde616741c314b4fa0
+        branch_point: bc79cbaeae75b518dcfa789fc2bd0e40ccf06f97
+        since: "2026-10-21T00:30:29-07:00"
+        until: "2026-10-21T03:58:55-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-21T00:30:29-07:00"
+              end: "2026-10-21T03:58:55-07:00"
+              began: "2026-10-21T00:30:29-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot9/pair
+        sources:
+            - harness: codex
+              id: 01a15cc4-b370-7d60-9efa-989c5b30869b
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: 45124c48421ccd34a6e84b9eb08cb0d41906c925eed0e814acb94f1df5998b02
+              started: "2026-10-21T04:42:37.82Z"
+              spawned: false
+              bytes: 17977875
+              windows:
+                - start: "2026-10-21T00:30:29-07:00"
+                  end: "2026-10-21T03:58:55-07:00"
+            - harness: codex
+              id: 01a15d72-f362-71f2-ac46-571622add1dd
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: 21e6662300c1bed4a15a4792083ab14d80a05c66377f7b4994ab4ba521841f36
+              started: "2026-10-21T07:52:57.643Z"
+              spawned: false
+              bytes: 801571
+              windows:
+                - start: "2026-10-21T07:52:57.643Z"
+                  end: "2026-10-21T03:58:55-07:00"
+            - harness: codex
+              id: 01a15d78-07d8-7e30-b172-25de09195a37
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: c6881ead8ac3f533d352dd6c63982205c1fd552b98e8bb53bd78a6c051b1549f
+              started: "2026-10-21T07:58:30.132Z"
+              spawned: false
+              bytes: 507194
+              windows:
+                - start: "2026-10-21T07:58:30.132Z"
+                  end: "2026-10-21T03:58:55-07:00"
+            - harness: codex
+              id: 01a15d78-9f81-7ee3-bed1-6016d32c5c39
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: fd4a263d9b10335f2bb096cfaa2510a3be42c97276d0db2b453e1d80fd5ec242
+              started: "2026-10-21T07:59:08.967Z"
+              spawned: false
+              bytes: 485363
+              windows:
+                - start: "2026-10-21T07:59:08.967Z"
+                  end: "2026-10-21T03:58:55-07:00"
+        queue_waits:
+            - attempt_id: d33c24095b0e99efb97794a1065963d6
+              slot: pair:9
+              record_digest: cd51443b21b75b0eb664f444fd77c71f6f5f0f027620d25753056067f5b68556
+              start: "2026-10-21T09:32:04.598544Z"
+              end: "2026-10-21T09:38:11.880148Z"
+              queue_seconds: 367.281604
+              raw_seconds: 367.281604
+              exact: true
+            - attempt_id: 53424823b0e2ed3099f5dab5c5a415b2
+              slot: pair:9
+              record_digest: a978dd3d291fdae1b9bc1ebcc7c7efd0d01c6dcbd09aa84438f6030c86facb5d
+              start: "2026-10-21T10:14:41.500881Z"
+              end: "2026-10-21T10:35:20.504649Z"
+              queue_seconds: 1239.003768
+              raw_seconds: 1239.003768
+              exact: true
+        cuts:
+            - dispatched: "2026-10-21T02:50:12-07:00"
+              finalized: "2026-10-21T02:55:07-07:00"
+              finalizing: false
+            - dispatched: "2026-10-21T03:49:07-07:00"
+              finalized: "2026-10-21T03:53:20-07:00"
+              finalizing: false
+      "n": 4
+      timestamp: "2026-10-21T04:03:18-07:00"
+      dispatched: "2026-10-21T03:59:30-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: The plan retains one function-verification strategy table; task checklists reference it instead of repeating case inventories.
+          round: 4
+        - id: BR-2
+          disposition: addressed
+          note: Retain the accepted disposition. Authoritative metadata reaches shared policy; lifecycle and pending-label Node regressions pass.
+          round: 4
+        - id: BR-3
+          disposition: addressed
+          note: Queue-saturation regressions pass for movement, pointer-up, unknown confirmation and explicit refusal recovery, retaining one truncated terminal.
+          round: 4
+        - id: BR-4
+          disposition: addressed
+          note: The corrected Core concepts locations and modification statuses match the inspected pinned range.
+          round: 4
+        - id: BR-5
+          disposition: withdrawn
+          note: Retain the prior evidence-based withdrawal. This environment again failed Chrome startup with GPU-process errors/CDP EOF; that repeats the disposed environment limitation.
+          round: 4
+        - id: BR-6
+          disposition: addressed
+          note: Both producers use base width 3. In a disposable pinned-head copy, restoring width 4 independently failed TestSketchServiceFrozenAnchorAndExactRetry and the optimistic-contact pressure regression. Both pass at head.
+          round: 4
+        - id: BR-7
+          disposition: addressed
+          note: Plan lines 29–44 restrict PURE to named deterministic entities; lines 59 and 65–68 explicitly classify random journal ownership, policy callbacks, canvas/scheduling and delivery callbacks as INTEGRATION. Supporting implementations include journal init(), paintSketchPaths() and createSketchDelivery(); Revisions records the complete classification sweep.
+          round: 4
+      findings:
+        - kind: defect
+          id: BR-8
+          severity: Critical
+          title: Leaving before the asynchronous anchor resolves discards the stroke
+          detail: 'cmd/internal/webcast/web/sketch.js:461–464 calls finish(), immediately dispatches leave, then awaits pending work. If scene.hitTest is unresolved, finish only buffers the terminal; the later anchor callback at lines 363–365 emits stroke-begin/points/end after sketch-policy.js:173 has entered label-required, so the guard at lines 190–201 rejects every command. Using the existing mount harness, all six combinations of Done/Escape/tool change and open/released contact completed with zero strokes and only sketch-begin plus sketch-label sent. ARCH-ORDER/ARCH-PURPOSE: introduce an explicit finishing transition that blocks new input and label submission while admitting and settling the existing gesture. This is the 2nd finding in family bounded-input-retains-terminal-work: state the preservation rule and sweep every voluntary exit across pending-anchor, queued and uncertain-work states on both adapters, with controlled-order regression tests.'
+          family: bounded-input-retains-terminal-work
+          round: 4
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 disputes:
     - id: BR-5
       rationale: The review checkout could not start Chrome before its assertions ran; the same required tests execute successfully on this host. Corrected implementation is committed and host conformance is measured; TL operator console smoke remains a separate pre-landing hold.
@@ -346,6 +500,23 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-7** [Critical] `core-concept-map-matches-code` The Core concepts table still labels effectful components as PURE
   workshop/plans/000752-cast-sketch-drawing-plan.md:38 classifies the painter as PURE, but web/sketch-render.js:343 mutates an injected canvas context, and tests/webcast/sketch-render.test.mjs:92 supplies a canvas double. Row 40 also classifies the journal as PURE although board/sketch_delivery.go:136 obtains a random epoch through randomID(). ARCH-PURE: distinguish the pure geometry/projection entities from the INTEGRATION canvas and random-initialization adapters, and record the correction under Revisions. This is the 2nd finding in family core-concept-map-matches-code. State and apply the rule across every table row: classification must follow actual effects and test dependencies, not merely file placement; sweep the complete table rather than correcting only these examples.
 
+## Round 4 — 2026-10-21T04:03:18-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — The plan retains one function-verification strategy table; task checklists reference it instead of repeating case inventories.
+- BR-2 — addressed — Retain the accepted disposition. Authoritative metadata reaches shared policy; lifecycle and pending-label Node regressions pass.
+- BR-3 — addressed — Queue-saturation regressions pass for movement, pointer-up, unknown confirmation and explicit refusal recovery, retaining one truncated terminal.
+- BR-4 — addressed — The corrected Core concepts locations and modification statuses match the inspected pinned range.
+- BR-5 — withdrawn — Retain the prior evidence-based withdrawal. This environment again failed Chrome startup with GPU-process errors/CDP EOF; that repeats the disposed environment limitation.
+- BR-6 — addressed — Both producers use base width 3. In a disposable pinned-head copy, restoring width 4 independently failed TestSketchServiceFrozenAnchorAndExactRetry and the optimistic-contact pressure regression. Both pass at head.
+- BR-7 — addressed — Plan lines 29–44 restrict PURE to named deterministic entities; lines 59 and 65–68 explicitly classify random journal ownership, policy callbacks, canvas/scheduling and delivery callbacks as INTEGRATION. Supporting implementations include journal init(), paintSketchPaths() and createSketchDelivery(); Revisions records the complete classification sweep.
+
+### Raised
+
+- **BR-8** [Critical] `bounded-input-retains-terminal-work` (kind: defect) Leaving before the asynchronous anchor resolves discards the stroke
+  cmd/internal/webcast/web/sketch.js:461–464 calls finish(), immediately dispatches leave, then awaits pending work. If scene.hitTest is unresolved, finish only buffers the terminal; the later anchor callback at lines 363–365 emits stroke-begin/points/end after sketch-policy.js:173 has entered label-required, so the guard at lines 190–201 rejects every command. Using the existing mount harness, all six combinations of Done/Escape/tool change and open/released contact completed with zero strokes and only sketch-begin plus sketch-label sent. ARCH-ORDER/ARCH-PURPOSE: introduce an explicit finishing transition that blocks new input and label submission while admitting and settling the existing gesture. This is the 2nd finding in family bounded-input-retains-terminal-work: state the preservation rule and sweep every voluntary exit across pending-anchor, queued and uncertain-work states on both adapters, with controlled-order regression tests.
+
 ## Disputes
 
 Findings the implementer declined (`sdlc finding dispute`), each answered by the
@@ -357,5 +528,4 @@ next review round.
 
 ## Open findings
 
-- **BR-6** [Critical] `approved-rendering-contract` Both live and persisted strokes violate the approved 3 px width contract
-- **BR-7** [Critical] `core-concept-map-matches-code` The Core concepts table still labels effectful components as PURE
+- **BR-8** [Critical] `bounded-input-retains-terminal-work` (kind: defect) Leaving before the asynchronous anchor resolves discards the stroke
