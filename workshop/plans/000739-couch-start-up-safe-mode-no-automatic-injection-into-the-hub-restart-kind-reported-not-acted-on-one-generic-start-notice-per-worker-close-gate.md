@@ -766,6 +766,231 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 83a8240e-c9d9-4f4c-a5eb-5ccbec48ffa7
+            repository: github.com/xianxu/pair
+            issue_id: "000739"
+            recipe: milestone-review
+            round: 5
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/ad715e43bd426244
+            reviewed_head: 6792c49527b9cb76acd7efb4dbe53b717bbd9b33
+            slot: pair:7
+            requested_at: "2026-10-21T10:05:00.947599Z"
+          phase: finished
+          pid: 79916
+          started_at: "2026-10-21T10:05:01.041435Z"
+          finished_at: "2026-10-21T10:07:32.34469Z"
+          session_id: 01a15deb-ddf9-7f12-9485-7977cbe8b36f
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: 6792c49527b9cb76acd7efb4dbe53b717bbd9b33
+        tracker_head: 7dfda1d5b371d98f7a1eabebcd6ba5a639183211
+        branch_point: 79ea4ca9e5be10c67c5c356b7f7d4067ebd79a92
+        since: "2026-10-20T22:40:29-07:00"
+        until: "2026-10-21T03:04:15-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-20T22:40:29-07:00"
+              end: "2026-10-21T03:04:15-07:00"
+              began: "2026-10-20T22:40:29-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot7/pair
+        sources:
+            - harness: codex
+              id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              slot: pair:7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 3535bc90a6a02d8d8eea9bd96c8ef80629f2fcade64bbb4886b4566dc21916b0
+              started: "2026-10-13T04:50:49.58Z"
+              spawned: false
+              bytes: 226633224
+              windows:
+                - start: "2026-10-20T22:40:29-07:00"
+                  end: "2026-10-21T03:04:15-07:00"
+            - harness: codex
+              id: 01a15d9a-21c8-7ff3-b108-9d6916a0fb23
+              slot: pair:7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              parent_id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              digest: 1c05b6032a572e3122d0591a461006b2be0f0b7a42105d89e03e126a1d570b50
+              started: "2026-10-21T08:35:44.789Z"
+              spawned: true
+              bytes: 1888824
+              windows:
+                - start: "2026-10-21T08:35:44.789Z"
+                  end: "2026-10-21T03:04:15-07:00"
+        queue_waits:
+            - attempt_id: 1b71544c093cf5636404605c1bac6c19
+              slot: pair:7
+              record_digest: 3a15d786e3cfe20057cdc8c062656e4ed5d841dc67ce1fa81ae63753f19fbb3c
+              start: "2026-10-21T09:14:54.28803Z"
+              end: "2026-10-21T09:15:09.744981Z"
+              queue_seconds: 15.456951
+              raw_seconds: 15.456951
+              exact: true
+            - attempt_id: 080a8de027740459d8a9639a4d4f603f
+              slot: pair:7
+              record_digest: b86081fb8b23e9657d163b8726f8c3b84b3200a193365bed9c7ffdc904f9e14a
+              start: "2026-10-21T09:29:37.953253Z"
+              end: "2026-10-21T09:38:11.291713Z"
+              queue_seconds: 513.33846
+              raw_seconds: 513.33846
+              exact: true
+            - attempt_id: 80323f0ee9a2368b32f90e3fdc3bff3b
+              slot: pair:7
+              record_digest: a365b4622942cffae0970272e87fc0565722997e23bb9aa9bca5b0307c824bb5
+              start: "2026-10-21T09:41:39.436172Z"
+              end: "2026-10-21T09:49:14.587195Z"
+              queue_seconds: 455.151023
+              raw_seconds: 455.151023
+              exact: true
+        protected:
+            - issue: "738"
+              slot: pair:7
+              start: "2026-10-20T22:40:29-07:00"
+              end: "2026-10-21T06:11:05.175Z"
+            - issue: "738"
+              slot: pair:7
+              start: "2026-10-21T05:41:02.469Z"
+              end: "2026-10-21T05:51:42.387Z"
+            - issue: "738"
+              slot: pair:7
+              start: "2026-10-21T06:42:13.132Z"
+              end: "2026-10-21T09:14:54.28803Z"
+            - issue: "738"
+              slot: pair:7
+              start: "2026-10-21T06:44:53.893Z"
+              end: "2026-10-21T06:46:23.391Z"
+            - issue: "738"
+              slot: pair:7
+              start: "2026-10-21T06:53:00.882Z"
+              end: "2026-10-21T06:53:22.878Z"
+            - issue: "738"
+              slot: pair:7
+              start: "2026-10-21T06:53:14.339Z"
+              end: "2026-10-21T07:45:44.528Z"
+            - issue: "738"
+              slot: pair:7
+              start: "2026-10-21T06:55:04.439Z"
+              end: "2026-10-21T06:55:37.577Z"
+            - issue: "738"
+              slot: pair:7
+              start: "2026-10-21T06:55:41.693Z"
+              end: "2026-10-21T06:56:16.83Z"
+            - issue: "738"
+              slot: pair:7
+              start: "2026-10-21T06:57:13.27Z"
+              end: "2026-10-21T07:52:14.634Z"
+            - issue: "738"
+              slot: pair:7
+              start: "2026-10-21T07:00:17.613Z"
+              end: "2026-10-21T07:57:22.032Z"
+            - issue: "738"
+              slot: pair:7
+              start: "2026-10-21T07:50:46.186Z"
+              end: "2026-10-21T07:56:48.502Z"
+            - issue: "738"
+              slot: pair:7
+              start: "2026-10-21T08:35:34.309Z"
+              end: "2026-10-21T08:53:32.951Z"
+            - issue: "738"
+              slot: pair:7
+              start: "2026-10-21T08:35:41.997Z"
+              end: "2026-10-21T08:53:45.811Z"
+            - issue: "738"
+              slot: pair:7
+              start: "2026-10-21T08:35:45.991Z"
+              end: "2026-10-21T08:58:14.874Z"
+            - issue: "738"
+              slot: pair:7
+              start: "2026-10-21T09:02:35.67Z"
+              end: "2026-10-21T09:06:54.339Z"
+            - issue: "738"
+              slot: pair:7
+              start: "2026-10-21T09:03:42.467Z"
+              end: "2026-10-21T09:12:49.32Z"
+            - issue: "738"
+              slot: pair:7
+              start: "2026-10-21T09:15:09.744981Z"
+              end: "2026-10-21T09:29:37.953253Z"
+            - issue: "738"
+              slot: pair:7
+              start: "2026-10-21T09:22:43.131Z"
+              end: "2026-10-21T09:26:26.241Z"
+            - issue: "738"
+              slot: pair:7
+              start: "2026-10-21T09:26:29.919Z"
+              end: "2026-10-21T09:29:37.953253Z"
+            - issue: "738"
+              slot: pair:7
+              start: "2026-10-21T09:38:11.291713Z"
+              end: "2026-10-21T02:43:35-07:00"
+            - issue: "738"
+              slot: pair:7
+              start: "2026-10-21T02:43:35-07:00"
+              end: "2026-10-21T09:52:37.782Z"
+            - issue: "738"
+              slot: pair:7
+              start: "2026-10-21T09:38:11.291713Z"
+              end: "2026-10-21T02:43:35-07:00"
+            - issue: "738"
+              slot: pair:7
+              start: "2026-10-21T02:43:35-07:00"
+              end: "2026-10-21T09:52:32.023Z"
+        cuts:
+            - dispatched: "2026-10-21T01:28:23-07:00"
+              finalized: "2026-10-21T01:34:02-07:00"
+              finalizing: false
+            - dispatched: "2026-10-21T01:44:28-07:00"
+              finalized: "2026-10-21T01:51:09-07:00"
+              finalizing: false
+            - dispatched: "2026-10-21T01:53:46-07:00"
+              finalized: "2026-10-21T01:59:10-07:00"
+              finalizing: false
+            - dispatched: "2026-10-21T02:15:22-07:00"
+              finalized: "2026-10-21T02:21:57-07:00"
+              finalizing: false
+      "n": 5
+      timestamp: "2026-10-21T03:07:33-07:00"
+      dispatched: "2026-10-21T03:04:59-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: The plan now separates pure lifecycle transitions in couchcore/lifecycle_notice.go from publisher IO in couchcmd/lifecycle_notices.go, and identifies startup classification versus observation correctly. The referenced entities exist at those paths.
+          round: 5
+        - id: BR-2
+          disposition: addressed
+          note: TestBareCouchInstalledCommand now asserts an empty switcher and zero automatic launch before explicitly submitting Start. The installed-command test passed in this review.
+          round: 5
+        - id: BR-4
+          disposition: addressed
+          note: SelectStartupHub is removed; candidate assertions exercise ClassifyStartup. TestTrackedGoFilesPassCatalog passed.
+          round: 5
+        - id: BR-5
+          disposition: addressed
+          note: Original permits reach the shared mailbox commit guard, including resource recipient resolution. Controlled routing, reservation and queue-path regressions exist and passed; focused race checks also passed.
+          round: 5
+        - id: BR-3
+          disposition: withdrawn
+          note: 'Independently verified retained log and trace SHA256 hashes, trace sizes and operation counts. Baseline cold/warm runs already exceed both unchanged caps. The paired full-core control measures 137310208 baseline versus 134885376 branch bytes; neither changed nor unchanged test cohort grows. The traces substantiate Go cache access logging as the bulk source. This supports withdrawing branch attribution, while the existing envelope defect remains tracked by #765. No full measurement rerun or zero-incremental-cost claim is made.'
+          round: 5
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 6792c49527b9cb76acd7efb4dbe53b717bbd9b33
+      blocked: false
 disputes:
     - id: BR-3
       rationale: 'Cache-enabled write-budget failure predates #739 and belongs to unclaimed #765. Matched cold/warm main already fails both unchanged caps. The initial branch increment is not stable: changed and unchanged test cohorts are each cheaper on branch, and a retained-trace full control reverses the delta. The measured bulk source is Go test-cache access logging rather than demonstrated new production writes. No cap increase or runner-policy scope growth; no claim of zero incremental production cost.'
@@ -827,6 +1052,16 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-3 — not-addressed — Family test-operating-envelope remains open (Important; ARCH-CONSTRAINTS). Plain go test across couchmessage, couchcmd, couchcore, couchtty and wrapcmd exits 1: couchcore writes 157257728 bytes against 134217728, and couchtty writes 88002560 against 67108864. Both suites pass with -count=1, which disables Go's cache-access logging; that control does not establish the failing ordinary invocation meets its envelope. Define and enforce the supported invocation across test callers, or bring cache-enabled execution within the existing caps.
 - BR-4 — addressed — The unused SelectStartupHub helper is removed. TestNoProductionSymbolIsReferencedOnlyByTests passes on the pinned head.
 - BR-5 — addressed — Broker direct admission and both enqueue paths enforce the original hub/epoch permit under broker then automation locks. Resource dispatch transports its original permit through recipient resolution. Both named regressions pass; removing the guard or recapturing the resource permit independently makes the corresponding regression fail. The six-producer sweep and focused race tests pass.
+
+## Round 5 — 2026-10-21T03:07:33-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — The plan now separates pure lifecycle transitions in couchcore/lifecycle_notice.go from publisher IO in couchcmd/lifecycle_notices.go, and identifies startup classification versus observation correctly. The referenced entities exist at those paths.
+- BR-2 — addressed — TestBareCouchInstalledCommand now asserts an empty switcher and zero automatic launch before explicitly submitting Start. The installed-command test passed in this review.
+- BR-4 — addressed — SelectStartupHub is removed; candidate assertions exercise ClassifyStartup. TestTrackedGoFilesPassCatalog passed.
+- BR-5 — addressed — Original permits reach the shared mailbox commit guard, including resource recipient resolution. Controlled routing, reservation and queue-path regressions exist and passed; focused race checks also passed.
+- BR-3 — withdrawn — Independently verified retained log and trace SHA256 hashes, trace sizes and operation counts. Baseline cold/warm runs already exceed both unchanged caps. The paired full-core control measures 137310208 baseline versus 134885376 branch bytes; neither changed nor unchanged test cohort grows. The traces substantiate Go cache access logging as the bulk source. This supports withdrawing branch attribution, while the existing envelope defect remains tracked by #765. No full measurement rerun or zero-incremental-cost claim is made.
 
 ## Disputes
 

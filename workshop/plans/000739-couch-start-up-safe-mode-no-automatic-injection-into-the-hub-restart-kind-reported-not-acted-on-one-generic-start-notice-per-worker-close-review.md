@@ -436,3 +436,99 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000409
+
+---
+
+## Re-review — 2026-10-21T03:07:32-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 739 — couch: start-up safe mode: no automatic injection into the hub, restart kind reported not acted on, one generic start notice per worker |
+| repo | pair |
+| issue file | workshop/issues/000739-couch-start-up-safe-mode-no-automatic-injection-into-the-hub-restart-kind-reported-not-acted-on-one-generic-start-notice-per-worker.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 79ea4ca9e5be10c67c5c356b7f7d4067ebd79a92..6792c49527b9cb76acd7efb4dbe53b717bbd9b33 |
+| command | sdlc close --issue 739 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T03:07:32-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+The implementation matches the approved startup and automation contract. Focused tests, race checks, the installed-command regression, repository lint and source-reader inventory passed. No new blocking findings. The disputed write-budget failure is pre-existing; verified artifacts do not establish a regression attributable to this change. Private-fleet acceptance and second-lander scheduler integration remain explicitly pending under the documented boundary agreement.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The plan now separates pure lifecycle transitions in couchcore/lifecycle_notice.go from publisher IO in couchcmd/lifecycle_notices.go, and identifies startup classification versus observation correctly. The referenced entities exist at those paths.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      TestBareCouchInstalledCommand now asserts an empty switcher and zero automatic launch before explicitly submitting Start. The installed-command test passed in this review.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      SelectStartupHub is removed; candidate assertions exercise ClassifyStartup. TestTrackedGoFilesPassCatalog passed.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Original permits reach the shared mailbox commit guard, including resource recipient resolution. Controlled routing, reservation and queue-path regressions exist and passed; focused race checks also passed.
+  - id: BR-3
+    disposition: withdrawn
+    note: |
+      Independently verified retained log and trace SHA256 hashes, trace sizes and operation counts. Baseline cold/warm runs already exceed both unchanged caps. The paired full-core control measures 137310208 baseline versus 134885376 branch bytes; neither changed nor unchanged test cohort grows. The traces substantiate Go cache access logging as the bulk source. This supports withdrawing branch attribution, while the existing envelope defect remains tracked by #765. No full measurement rerun or zero-incremental-cost claim is made.
+```
+
+1. **Strengths**
+
+   - Implicit startup removes cold/Fresh fallback while preserving explicit lifecycle operations.
+   - Generated input shares one admission boundary. The guard covers direct admission and both queue paths, while preserving previously admitted receipts.
+   - Wrapper-owned cue evidence distinguishes launch incarnations and survives ordinary receipt eviction.
+   - README, atlas and shipped help explain controls, suppression loss and the two notice lifetimes.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Focused behavioral tests passed across couchcore, couchmessage, couchcmd, couchtty and wrapcmd. Focused race tests passed for automation, admission, resource/lifecycle publication and worker cues. The installed-command test, dead-symbol catalog, reader inventory and range whitespace check passed. This review did not rerun the complete repository suite or private live acceptance.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared generated-send policy and negotiation version gates.
+   - **ARCH-PURE — pass:** pure classifiers/reducers are distinct from observation and delivery IO.
+   - **ARCH-PURPOSE — pass:** startup and existing producer families are covered; scheduler handoff is explicitly documented.
+   - **ARCH-MOCK — pass:** affected behavior uses stateful fakes and private sockets; live qualification remains pending.
+   - **ARCH-CONSTRAINTS — pass:** bounded ownership and counted 20/40-worker/startup tests; BR-3 attribution withdrawn.
+   - **ARCH-SECURE — pass:** exact bindings, authenticated own-hub control and conservative unknown handling.
+   - **ARCH-ORDER — pass:** original epochs survive delayed work; commit ordering and uncertainty have controlled regressions.
+   - **ARCH-FUNERAL — pass:** bounded volatile owners and a constant-size wrapper witness introduce no durable artifact family.
+   - **ARCH-EVOLVE — pass:** hello-v5 negotiates new fields while older sessions omit them; no persisted-format migration introduced.
+
+7. **Plan revision recommendations:** None. Preserve the recorded pending acceptance and scheduler integration obligations.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"83a8240e-c9d9-4f4c-a5eb-5ccbec48ffa7","repository":"github.com/xianxu/pair","issue_id":"000739","recipe":"milestone-review","round":5,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/ad715e43bd426244","reviewed_head":"6792c49527b9cb76acd7efb4dbe53b717bbd9b33","slot":"pair:7","requested_at":"2026-10-21T10:05:00.947599Z"},"phase":"finished","pid":79916,"started_at":"2026-10-21T10:05:01.041435Z","finished_at":"2026-10-21T10:07:32.34469Z","session_id":"01a15deb-ddf9-7f12-9485-7977cbe8b36f","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.51328475s
+head: "6792c49527b9cb76acd7efb4dbe53b717bbd9b33"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000411
