@@ -239,6 +239,7 @@ type Console struct {
 	activityRowsGeneration uint64
 	activityRowsKnown      bool
 	wrapperActivity        func(couchcore.ActionableThreadSummary) time.Time
+	automationControl      func(string, string) (bool, error)
 	copyObserver           func(CopyObservation)
 	copyKeyObserver        func(CopyKeyObservation)
 	activityRequests       chan struct{}

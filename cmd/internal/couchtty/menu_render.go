@@ -545,7 +545,7 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 	for _, entry := range presentations {
 		labels[menuRowKey(entry.Row)] = entry
 	}
-	lines := []string{"threads", clipMenuLine("Ctrl+Y copy last notice / selected error", width)}
+	lines := []string{"threads", clipMenuLine("Ctrl+Y copy last notice / selected error · Ctrl+G hub automation on/off", width)}
 	rowBudget := height - len(lines)
 	if frame.Filter != "" {
 		rowBudget--
