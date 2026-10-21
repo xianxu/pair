@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #759 M1: classify actual owner types by their effects, including entropy and mutex-owned revocation; identify real pure predicates instead of naming a pure type the code never implements. Generated lifecycle coverage needs an independent ownership oracle and held admission boundaries; a goroutine wave alone proves no ordering.
+
 - #761: Classify native replies from the complete stdout, stderr and exit together. A successful process can print a fallback listing after falsely missing its target; retain exact bytes before recovery. Diagnostic observers own their snapshots before calling other observers, and typed evidence must survive context/generation refusal wrappers without becoming ownership authority. Keep diagnostic version reads separate from counted ownership attempts in stateful fakes and budget tests.
 - #763 BR-1: Unknown JSON values must survive decode and rewrite without machine-number conversion. Test precise fractions, over/underflow exponents, negative zero and huge integers nested in arrays/objects; a large-integer-only roundtrip misses float corruption. Reject non-JSON NaN/Infinity before effects, while keeping known-field types strict.
 
@@ -2498,7 +2500,7 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #755 BR-2/BR-3: Pagehide can suspend a document rather than destroy it. Handle persisted pageshow, preserve the document baseline, and fence old fetch/body/error/finally/timer callbacks with generation plus request ownership across repeated restores. When an identity guard intentionally refuses concurrent replacement, the fixture must admit that typed outcome and always join writers before cleanup; separately force refusal and confirm a whole settled value.
 
-- #755 BR-5: A defer cannot reclaim a staging file after process death. Selection publication needs a bounded staging name protected for the whole write by a persistent OS advisory lock; the next owner recovers residue after death. Exclude only exact private root coordination names from content scans and git, and force OS-confirmed contention plus killed-owner recovery in tests. Join helper processes, pipe readers and waiting writers on every failure path.
+- #755 BR-5: A defer cannot reclaim a staging file after process death. Apply the same bounded-stage ownership rule to every new durable record family; test all owner reopeners, not only successful publication (#759 M1). Selection publication needs a bounded staging name protected for the whole write by a persistent OS advisory lock; the next owner recovers residue after death. Exclude only exact private root coordination names from content scans and git, and force OS-confirmed contention plus killed-owner recovery in tests. Join helper processes, pipe readers and waiting writers on every failure path.
 - #731 BR-1: When an approved plan revision changes an acceptance policy or introduces a replacement API, reconcile Done when in the same checkpoint. A Revisions entry alone leaves an executable contract contradiction for close review.
 
 - #731 suite: When strengthening a shared admission predicate, enumerate both Go and shell entrypoints that execute the real CLI. Healthy fixtures must establish the new authority through the production seam; keep a separate stale-metadata negative control rather than merely changing expected effects.

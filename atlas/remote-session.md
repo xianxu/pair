@@ -54,3 +54,12 @@ is a nonblocking owned-queue handoff; workers call EffectDoor afterward, never
 recursively under the caller's admission lock. Join quiesces remote work rather
 than ending nvim. `protocol.go` accepts only read/edit/submit/navigation, opaque
 registered IDs and bounded typed fields; it has no path, command or reset input.
+
+M1 review clarified that Sessions is an integration owner (entropy and mutex),
+with pure identity checks in policy.go. Publication uses one reusable stage per
+record, derived by artifactpath.RemotePublicationStage. Openers first validate
+committed authority, then reclaim only exact bounded regular stages; symlink,
+nonregular and oversized slots refuse. Stages never grant authority. Across the
+latch, origin store and two audit segments, published files plus all staging
+slots have a fixed aggregate maximum66MiB+8KiB; normal successful writes remove
+their stages. The leased Couch namespace supplies sole-writer ownership.

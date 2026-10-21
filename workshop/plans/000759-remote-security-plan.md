@@ -89,16 +89,16 @@ Proposed ownership: #759 owns the remote HTTP listener/routes, auth/session admi
 
 | Pure entity | Lives in | Status |
 |---|---|---|
-| RemoteState, RemoteEvent, ReduceRemote | `cmd/internal/remotesession/state.go` | new |
-| AccessIdentity / RemotePolicy | `cmd/internal/remotesession/policy.go` | new |
-| SessionState and mutation admission values | `cmd/internal/remotesession/session.go` | new |
-| RemoteAction / DocumentRef / RemoteResult | `cmd/internal/remotesession/protocol.go` | new |
+| remoteState, remoteEvent, ReduceRemote | `cmd/internal/remotesession/state.go` | new |
+| AccessIdentity / remotePolicy, validAt and samePrincipal value checks | `cmd/internal/remotesession/policy.go` | new |
+| RemoteAction / DocumentRef / DocumentRequest / DocumentResult | `cmd/internal/remotesession/protocol.go` | new |
 | Remote submit origin and envelope projection | `cmd/internal/couchmessage/model.go`, `batch.go` | modified |
 
 The reducer owns legal transitions; policy decides claims, identity, origin, action and bounds from values. One supervisor has one epoch and at most four sessions; each session has many allowed document operations, each tied to current document/editor identity. One action enum is the allowlist shared by decoder, dispatcher and tests. The future phone UI consumes this contract; no general “execute” extension slot.
 
 | Integration point | Lives in | Status | Wraps |
 |---|---|---|---|
+| Sessions | `cmd/internal/remotesession/session.go` | new | OS entropy, synchronized cookie/revocation ownership; pure identity predicates remain in policy.go |
 | Remote supervisor | `cmd/internal/remotesession/supervisor.go` | new | lifecycle effects, sessions, joined requests |
 | Latch store, origin evidence and audit | `cmd/internal/remotesession/store.go`, `origin_store.go`, `audit.go` | new | injected private directory, durablefile, lifetime lock |
 | Access verifier / key source | `cmd/internal/remotesession/access.go` | new | JWT library, bounded HTTPS JWKS |
@@ -338,3 +338,8 @@ TL87a8195f approved a shared preserve-number duplicate-validation entrypoint use
 ### 2026-10-21 — M1 document seam checkpoint
 
 The Go contract now lives in remotesession/documents.go and protocol.go: opaque registration/editor references, typed read/edit/submit/navigation, destination resolution before navigation, nonblocking owned-queue Dispatch and one-use Permit.EffectDoor sharing the supervisor's lifecycle mutex. The stateful private backend qualifies rebind/kill/forgotten-target ordering; it is not exposed and does not represent real-nvim acceptance. Join quiesces remote work, not the editor process. M1 foundation and seam are implemented, boundary review pending; all console/CLI/transport/runtime wiring stays in M2. The earlier approval checkpoint's “no implementation” statement describes that historical moment, not this progress.
+
+
+### 2026-10-21 — M1 review class corrections
+
+BR-1: the actual Sessions owner is INTEGRATION (OS entropy plus mutex-owned sessions and revocation), not a nonexistent pure SessionState. The Core concepts tables above now name actual types; AccessIdentity.validAt/samePrincipal are pure value checks, while session lifecycle/entropy stays in the integration table. BR-2 retains the planned generated fake-time sequences and controlled admission rendezvous; these now exercise revoke/logout/expiry while entropy completion is held, plus independent capacity and historical-cookie invariants. BR-3 replaces every unique remote publication temp family with one canonical reusable stage per record, resolved by artifactpath. Validated openers reclaim only their exact regular bounded slot, refusing unsafe/oversized stages. Latch/origin stages have the record caps; each of two audit stages has the16MiB segment cap, so published data plus all possible crash-left slots are bounded by66MiB+8KiB. No stage is authority, and no glob or automatic repair of invalid committed evidence runs. The single leased Couch writer owns cleanup before publication/on reopen. These are implementation/lifecycle corrections, not an operator-policy change.

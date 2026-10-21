@@ -3,13 +3,12 @@ package remotesession
 import (
 	"bytes"
 	"errors"
+	"github.com/xianxu/pair/cmd/internal/durablefile"
 	"io"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
-
-	"github.com/xianxu/pair/cmd/internal/durablefile"
 )
 
 const maxAuditSegmentBytes = 16 << 20
@@ -34,7 +33,7 @@ func OpenAudit(activePath, previousPath string, now func() time.Time) (*Audit, e
 	if now == nil || filepath.Clean(activePath) == filepath.Clean(previousPath) {
 		return nil, errors.New("invalid audit configuration")
 	}
-	a := &Audit{activePath: activePath, previousPath: previousPath, now: now, segmentLimit: maxAuditSegmentBytes, publish: func(p string, b []byte) error { return durablefile.WriteAtomic(p, b, ".remote-audit-*") }, appendLine: appendAuditLine}
+	a := &Audit{activePath: activePath, previousPath: previousPath, now: now, segmentLimit: maxAuditSegmentBytes, publish: func(p string, b []byte) error { return writeRemoteAtomic(p, b, maxAuditSegmentBytes) }, appendLine: appendAuditLine}
 	// Validate both segments completely before publishing a retention sweep.
 	if err := a.sweep(); err != nil {
 		return nil, err
@@ -92,6 +91,11 @@ func (a *Audit) sweep() error {
 			}
 			kept[i] = append(kept[i], encoded...)
 			kept[i] = append(kept[i], '\n')
+		}
+	}
+	for _, p := range paths {
+		if err := reclaimRemoteStage(p, maxAuditSegmentBytes); err != nil {
+			return err
 		}
 	}
 	for i, p := range paths {
@@ -161,6 +165,9 @@ func (a *Audit) append(r AuditRecord) error {
 	return nil
 }
 func appendAuditLine(path string, line []byte) error {
+	if err := durablefile.EnsureDirectory(filepath.Dir(path)); err != nil {
+		return err
+	}
 	info, err := os.Lstat(path)
 	exists := err == nil
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -199,12 +206,7 @@ func appendAuditLine(path string, line []byte) error {
 		return err
 	}
 	if !exists {
-		d, err := os.Open(filepath.Dir(path))
-		if err != nil {
-			return err
-		}
-		defer d.Close()
-		return d.Sync()
+		return durablefile.SyncDirectory(filepath.Dir(path))
 	}
 	return nil
 }

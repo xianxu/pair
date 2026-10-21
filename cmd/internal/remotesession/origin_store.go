@@ -6,8 +6,6 @@ import (
 	"io"
 	"os"
 	"sync"
-
-	"github.com/xianxu/pair/cmd/internal/durablefile"
 )
 
 // OriginStore retains conservative edit evidence across editor/supervisor
@@ -50,9 +48,12 @@ func readRemotePrivate(path string, limit int) ([]byte, error) {
 	return raw, nil
 }
 func OpenOriginStore(path string) (*OriginStore, error) {
-	s := &OriginStore{path: path, record: originRecord{documents: make(map[string]map[string]json.RawMessage)}, publish: func(path string, raw []byte) error { return durablefile.WriteAtomic(path, raw, ".remote-origin-*") }}
+	s := &OriginStore{path: path, record: originRecord{documents: make(map[string]map[string]json.RawMessage)}, publish: func(path string, raw []byte) error { return writeRemoteAtomic(path, raw, maxOriginsBytes) }}
 	raw, err := readRemotePrivate(path, maxOriginsBytes)
 	if errors.Is(err, os.ErrNotExist) {
+		if err := reclaimRemoteStage(path, maxOriginsBytes); err != nil {
+			return nil, err
+		}
 		return s, nil
 	}
 	if err != nil {
@@ -60,6 +61,9 @@ func OpenOriginStore(path string) (*OriginStore, error) {
 	}
 	s.record, err = decodeOrigins(raw)
 	if err != nil {
+		return nil, err
+	}
+	if err := reclaimRemoteStage(path, maxOriginsBytes); err != nil {
 		return nil, err
 	}
 	return s, nil

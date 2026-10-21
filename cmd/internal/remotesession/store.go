@@ -7,8 +7,6 @@ import (
 	"math"
 	"os"
 	"sync"
-
-	"github.com/xianxu/pair/cmd/internal/durablefile"
 )
 
 // Store is the single supervisor's writer for its private authority latch.
@@ -27,6 +25,9 @@ func OpenStore(path string) (*Store, error) {
 	s := &Store{path: path, record: latchRecord{Version: 1, Phase: latchOff}, publish: writeLatch}
 	info, err := os.Lstat(path)
 	if errors.Is(err, os.ErrNotExist) {
+		if err := reclaimRemoteStage(path, maxLatchBytes); err != nil {
+			return nil, err
+		}
 		return s, nil
 	}
 	if err != nil {
@@ -60,11 +61,14 @@ func OpenStore(path string) (*Store, error) {
 		record.Phase = latchKilled
 	}
 	s.record = record
+	if err := reclaimRemoteStage(path, maxLatchBytes); err != nil {
+		return nil, err
+	}
 	return s, nil
 }
 
 func writeLatch(path string, raw []byte) error {
-	return durablefile.WriteAtomic(path, raw, ".remote-latch-*")
+	return writeRemoteAtomic(path, raw, maxLatchBytes)
 }
 
 func (s *Store) Snapshot() (latchPhase, uint64) {

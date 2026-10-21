@@ -31,14 +31,15 @@ type sessionEntry struct {
 // Sessions owns at most four cookie hashes and their stream revocation signals.
 // Time is a value supplied by the owner; there is no independent idle timer.
 type Sessions struct {
-	mu      sync.Mutex
-	epoch   uint64
-	revoked bool
-	entries map[[32]byte]*sessionEntry
+	credential func() (string, error)
+	mu         sync.Mutex
+	epoch      uint64
+	revoked    bool
+	entries    map[[32]byte]*sessionEntry
 }
 
 func newSessions(epoch uint64) *Sessions {
-	return &Sessions{epoch: epoch, revoked: epoch == 0, entries: make(map[[32]byte]*sessionEntry)}
+	return &Sessions{credential: randomCredential, epoch: epoch, revoked: epoch == 0, entries: make(map[[32]byte]*sessionEntry)}
 }
 func randomCredential() (string, error) {
 	var raw [32]byte
@@ -64,11 +65,11 @@ func (s *Sessions) Handshake(id AccessIdentity, now time.Time) (sessionCredentia
 	if !id.validAt(now) {
 		return sessionCredentials{}, errSession
 	}
-	cookie, err := randomCredential()
+	cookie, err := s.credential()
 	if err != nil {
 		return sessionCredentials{}, err
 	}
-	csrf, err := randomCredential()
+	csrf, err := s.credential()
 	if err != nil {
 		return sessionCredentials{}, err
 	}

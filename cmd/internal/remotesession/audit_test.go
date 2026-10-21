@@ -266,3 +266,19 @@ func TestAuditRetentionRewritePreservesFutureFields(t *testing.T) {
 		t.Fatal("retention changed unknown")
 	}
 }
+
+func TestAuditFirstIntentCreatesPrivateOwnedDirectory(t *testing.T) {
+	now := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
+	dir := filepath.Join(t.TempDir(), "remote")
+	a, err := OpenAudit(filepath.Join(dir, "active"), filepath.Join(dir, "previous"), func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.AppendIntent(auditFixture(now)); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(dir)
+	if err != nil || info.Mode().Perm() != 0700 {
+		t.Fatal("audit parent not private", err)
+	}
+}

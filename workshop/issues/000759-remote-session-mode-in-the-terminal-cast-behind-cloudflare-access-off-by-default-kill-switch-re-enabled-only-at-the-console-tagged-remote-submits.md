@@ -137,3 +137,10 @@ Plan-quality CLEAN through round4; estimate-quality INFO accepted, central chang
 ### 2026-10-21 — M1 ready for boundary review
 
 Added the typed document backend contract and opaque one-use effect permit. Generated/strict request tests reject forged source fields, paths as generations, case aliases, missing/null typed members and non-allowlisted operations. Stateful held backends refuse a rebind, queued work after kill, and navigation to a target forgotten after resolution. They do not open nvim or any public tunnel. Root final package race cohort PASS2.478s (remotesession),1.155s (strictjson); complete artifactpath PASS10.723s; tracked Go catalog PASS2.770s. M1 review follows committed/pushed evidence; M2 runtime owner and protected exposure are not claimed complete.
+
+
+### 2026-10-21 — M1 review round1 REWORK addressed by class
+
+Accepted BR-1/BR-2/BR-3. The plan/atlas now classify the real Sessions entropy/mutex owner as integration and identify actual pure identity predicates; no fictional SessionState remains. Added a private entropy seam plus24 reproducible128-event session models, independent ownership/revocation oracles, controlled revoke/logout/expiry handshakes and8/16 held capacity waves. Focused race repetition PASS20 runs/6.756s; no sleeps or shortened deadlines.
+
+Every remote durable publication now reuses one exact artifactpath-resolved stage per record. Validated reopeners reclaim bounded regular stages, refuse unsafe/oversized slots, and never adopt uncommitted bytes. Tests seed16 interrupted cycles across all four records, preserve a foreign sibling and refuse symlink/directory/oversized slots through every opener. Published+staged maximum66MiB+8KiB is explicit. No glob cleanup or second filesystem framework was introduced. A first-audit-intent nested-root RED also exposed missing durable parent creation; now uses durablefile.EnsureDirectory/SyncDirectory and passes. Current class tests PASS0.244s; final package race after main fixes PASS4.200s, strictjson PASS1.191s; full artifactpath PASS23.138s. Re-run M1 review after the committed evidence.

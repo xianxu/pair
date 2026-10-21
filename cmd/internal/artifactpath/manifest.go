@@ -57,6 +57,7 @@ type ResolvedBinding struct {
 
 // pair:m5-concept pure
 var ResolvedBindings = append([]ResolvedBinding{
+	{Name: "remote-publication-stage", Family: "remote-security", Resolver: "RemotePublicationStage"},
 	{Name: "cache-session-lock", Family: "session-lock", Resolver: "ResolvePairCache", Member: "TerminalLease"},
 	{Name: "matched-changelog-family", Family: "changelog", Resolver: "MatchArtifact"},
 	{Name: "parsed-parked-capture", Family: "parked", Resolver: "ParseParkedCapture"},
@@ -238,6 +239,7 @@ var Families = []Family{
 // shell, Lua, and KDL sources.
 // pair:m5-concept pure
 var SourceClassifications = []SourceClassification{
+	{Path: "cmd/internal/remotesession/publication.go", Kind: ResolvedConsumer, Families: []string{"remote-security"}, BindingNames: []string{"remote-publication-stage"}},
 	{Path: "cmd/internal/artifactpath/remote.go", Kind: Constructor, Families: []string{"remote-security"}},
 	// #649 title adapters resolve scoped roots and storage ownership through
 	// artifactpath; neither constructs a tracked artifact filename family.
