@@ -12,8 +12,9 @@ import (
 type ClaimStage string
 
 const (
-	ClaimLaunching ClaimStage = "launching"
-	ClaimLaunched  ClaimStage = "launched"
+	ClaimLaunching      ClaimStage = "launching"
+	ClaimLaunched       ClaimStage = "launched"
+	ClaimCleanupUnknown ClaimStage = "cleanup-unknown"
 )
 
 // LaunchClaim survives the gap between spawning Tart and observing its child
@@ -74,6 +75,10 @@ func validateLaunchClaim(c LaunchClaim) error {
 		if c.PID != 0 || c.StartIdentity != "" {
 			return fmt.Errorf("launching claim cannot contain an observed child")
 		}
+	case ClaimCleanupUnknown:
+		if c.PID < 0 || (c.PID == 0 && c.StartIdentity != "") {
+			return fmt.Errorf("invalid retained cleanup identity")
+		}
 	case ClaimLaunched:
 		if c.PID <= 0 {
 			return fmt.Errorf("launched claim needs its child PID")
@@ -106,6 +111,7 @@ type RecoveryEvidence struct {
 	PID      int
 	Identity string
 	Process  ProcessObservation
+	Group    ProcessObservation
 	VM       VMObservation
 }
 
@@ -115,7 +121,7 @@ func RecoverLaunchClaim(c LaunchClaim, proof RecoveryEvidence) error {
 	if err := validateLaunchClaim(c); err != nil {
 		return err
 	}
-	if c.Stage != ClaimLaunched || c.StartIdentity == "" || proof.PID != c.PID || proof.Identity != c.StartIdentity || proof.Process != ProcessGone || proof.VM != VMStopped {
+	if c.Stage != ClaimLaunched || c.StartIdentity == "" || proof.PID != c.PID || proof.Identity != c.StartIdentity || proof.Process != ProcessGone || proof.Group != ProcessGone || proof.VM != VMStopped {
 		return fmt.Errorf("VM position has unresolved startup; inspect managed VM %s and its launch claim before reuse", c.VM)
 	}
 	return nil

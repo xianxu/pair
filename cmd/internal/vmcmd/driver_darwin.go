@@ -26,6 +26,7 @@ type nativeDriver struct {
 	executable, home string
 	env              []string
 	identity         func(string) string
+	own              func(*exec.Cmd) *ownedProcess
 }
 
 func NewNativeDriver() (VMDriver, error) {
@@ -48,7 +49,7 @@ func NewNativeDriver() (VMDriver, error) {
 }
 
 func newNativeDriver(executable, home, path string) *nativeDriver {
-	return &nativeDriver{executable: executable, home: home, env: []string{"HOME=" + home, "PATH=" + path, "LANG=C", "LC_ALL=C"}, identity: procutil.Identity}
+	return &nativeDriver{executable: executable, home: home, env: []string{"HOME=" + home, "PATH=" + path, "LANG=C", "LC_ALL=C"}, identity: procutil.Identity, own: configureSnapshotCommand}
 }
 
 func managedVM(name string) bool {
@@ -58,50 +59,54 @@ func (d *nativeDriver) command(ctx context.Context, args ...string) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, d.executable, args...)
 	cmd.Env = append([]string(nil), d.env...)
 	cmd.Dir = d.home
-	configureSnapshotCommand(cmd)
-	cmd.WaitDelay = 100 * time.Millisecond
 	return cmd
 }
 
-// Reuse the snapshot subprocess owner's process-group setup and signal path,
-// but confirm group disappearance against the caller's cleanup deadline.
-func nativeGroupCleanup(ctx context.Context, cmd *exec.Cmd) error {
-	if cmd.Process == nil {
-		return nil
-	}
-	return confirmOwnedGroupCleanup(ctx, cmd.Cancel, func() (bool, error) { return procutil.ProcessGroupMembers(cmd.Process.Pid) })
-}
-
 func (d *nativeDriver) run(ctx context.Context, out, stderr io.Writer, args ...string) (int, error) {
+	return d.runOwned(ctx, nil, out, stderr, args...)
+}
+func (d *nativeDriver) runOwned(ctx, cleanupBound context.Context, out, stderr io.Writer, args ...string) (int, error) {
 	cmd := d.command(ctx, args...)
-	cmd.Stdout, cmd.Stderr = out, stderr
-	err := cmd.Run()
-	cleanupErr := nativeGroupCleanup(ctx, cmd)
+	owner := d.own(cmd)
+	cmd.Stdout, cmd.Stderr = owner.Writer(out), owner.Writer(stderr)
+	if err := cmd.Start(); err != nil {
+		return -1, err
+	}
+	observeErr := owner.AwaitTerminal(ctx)
+	cleanupCtx := ctx
+	stopCleanup := func() {}
+	if cleanupBound != nil {
+		cleanupCtx = cleanupBound
+	} else if ctx.Err() != nil {
+		cleanupCtx, stopCleanup = cleanupContext(ctx)
+	}
+	waitErr, cleanupErr := owner.Finish(cleanupCtx)
+	stopCleanup()
 	if cleanupErr != nil {
-		cleanupErr = errors.Join(ErrUnconfirmedProcessCleanup, cleanupErr)
+		return -1, errors.Join(observeErr, cleanupErr)
 	}
-	if ctx.Err() != nil {
-		return -1, errors.Join(ctx.Err(), cleanupErr)
+	if observeErr != nil {
+		return -1, observeErr
 	}
-	if cleanupErr != nil {
-		return -1, cleanupErr
-	}
-	if err == nil {
+	if waitErr == nil {
 		return 0, nil
 	}
 	var exit *exec.ExitError
-	if errors.As(err, &exit) && exit.ExitCode() >= 0 {
+	if errors.As(waitErr, &exit) && exit.ExitCode() >= 0 {
 		return exit.ExitCode(), nil
 	}
-	return -1, err
+	return -1, waitErr
 }
 
 func (d *nativeDriver) operation(ctx context.Context, args ...string) error {
+	return d.operationOwned(ctx, nil, args...)
+}
+func (d *nativeDriver) operationOwned(ctx, cleanupBound context.Context, args ...string) error {
 	// Bound external diagnostics; never retain an unlimited Tart list/error log.
 	inner, cancel := context.WithCancel(ctx)
 	defer cancel()
 	out := &snapshotOutput{remaining: 4 << 20, cancel: cancel}
-	code, err := d.run(inner, out, out, args...)
+	code, err := d.runOwned(inner, cleanupBound, out, out, args...)
 	if err != nil || code != 0 {
 		return fmt.Errorf("Tart %s failed (exit %d): %w", args[0], code, errors.Join(err, fmt.Errorf("%s", out.buffer.String())))
 	}
@@ -109,11 +114,14 @@ func (d *nativeDriver) operation(ctx context.Context, args ...string) error {
 }
 
 func (d *nativeDriver) Inspect(ctx context.Context, name string) (VMStatus, error) {
+	return d.inspectOwned(ctx, nil, name)
+}
+func (d *nativeDriver) inspectOwned(ctx, cleanupBound context.Context, name string) (VMStatus, error) {
 	inner, cancel := context.WithCancel(ctx)
 	defer cancel()
 	out := &snapshotOutput{remaining: 4 << 20, cancel: cancel}
 	var stderr bytes.Buffer
-	code, err := d.run(inner, out, &snapshotLimitedWriter{writer: &stderr, remaining: 65536}, "list", "--format", "json")
+	code, err := d.runOwned(inner, cleanupBound, out, &snapshotLimitedWriter{writer: &stderr, remaining: 65536}, "list", "--format", "json")
 	if err != nil || code != 0 {
 		return VMStatus{}, fmt.Errorf("Tart list unavailable (exit %d): %w", code, errors.Join(err, fmt.Errorf("%s", stderr.String())))
 	}
@@ -172,6 +180,7 @@ func (d *nativeDriver) Clone(ctx context.Context, image, name string) error {
 }
 
 type nativeChild struct {
+	process  *ownedProcess
 	owner    *nativeDriver
 	vm       string
 	cmd      *exec.Cmd
@@ -182,45 +191,26 @@ type nativeChild struct {
 func (c *nativeChild) PID() int         { return c.cmd.Process.Pid }
 func (c *nativeChild) Identity() string { return c.identity }
 
-// A failed boot sink must not strand Tart behind a pipe nobody reads. The
-// owner still retains the child handle and confirms stop/join separately.
-type launchBootWriter struct {
-	writer io.Writer
-	stop   func() error
-}
-
-func (w launchBootWriter) Write(p []byte) (int, error) {
-	n, err := w.writer.Write(p)
-	if err == nil && n != len(p) {
-		err = io.ErrShortWrite
-	}
-	if err != nil {
-		return n, errors.Join(err, w.stop())
-	}
-	return n, nil
-}
-
-func (d *nativeDriver) Launch(ctx context.Context, name, input, results string, boot io.Writer) (VMChild, error) {
+func (d *nativeDriver) Launch(ctx context.Context, name, input string, boot io.Writer) (VMChild, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	if !managedVM(name) {
 		return nil, fmt.Errorf("refusing unmanaged VM launch")
 	}
-	for _, path := range []string{input, results} {
+	for _, path := range []string{input} {
 		if !filepath.IsAbs(path) || strings.ContainsAny(path, ":\x00") {
 			return nil, fmt.Errorf("invalid Tart share path")
 		}
 	}
 	// Caller cancellation must not abandon the VM before host-owned Stop joins it.
-	cmd := d.command(context.Background(), "run", "--no-graphics", "--no-audio", "--no-clipboard", "--dir", "input:"+input+":ro", "--dir", "results:"+results, name)
-	bootOutput := launchBootWriter{writer: boot, stop: cmd.Cancel}
-	cmd.Stdout, cmd.Stderr = bootOutput, bootOutput
+	cmd := d.command(context.Background(), "run", "--no-graphics", "--no-audio", "--no-clipboard", "--dir", "input:"+input+":ro", name)
+	process := d.own(cmd)
+	cmd.Stdout, cmd.Stderr = process.Writer(boot), process.Writer(boot)
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
-	child := &nativeChild{owner: d, vm: name, cmd: cmd, identity: d.identity(strconv.Itoa(cmd.Process.Pid)), done: make(chan struct{})}
-	go func() { _ = cmd.Wait(); close(child.done) }()
+	child := &nativeChild{owner: d, vm: name, cmd: cmd, identity: d.identity(strconv.Itoa(cmd.Process.Pid)), process: process, done: process.done}
 	if child.identity == "" {
 		return child, fmt.Errorf("Tart child %d started without observable start identity", child.PID())
 	}
@@ -228,12 +218,18 @@ func (d *nativeDriver) Launch(ctx context.Context, name, input, results string, 
 }
 
 func (d *nativeDriver) AwaitGuest(ctx context.Context, name string) error {
+	if !managedVM(name) {
+		return fmt.Errorf("invalid VM readiness query")
+	}
 	bound, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	for {
 		probe, stop := context.WithTimeout(bound, time.Second)
-		code, err := d.Execute(probe, name, []string{"/usr/bin/true"}, io.Discard, io.Discard)
+		code, err := d.runOwned(probe, bound, io.Discard, io.Discard, "exec", name, "/usr/bin/true")
 		stop()
+		if errors.Is(err, ErrUnconfirmedProcessCleanup) {
+			return err
+		}
 		if code == 0 && err == nil {
 			return nil
 		}
@@ -256,7 +252,7 @@ func (d *nativeDriver) Stop(ctx context.Context, name string, handle VMChild) er
 		return fmt.Errorf("refusing unmanaged VM stop")
 	}
 	if handle == nil {
-		status, err := d.Inspect(ctx, name)
+		status, err := d.inspectOwned(ctx, ctx, name)
 		if err != nil {
 			return err
 		}
@@ -271,22 +267,21 @@ func (d *nativeDriver) Stop(ctx context.Context, name string, handle VMChild) er
 	}
 	// Leave part of the caller's bounded cleanup time for forced join/inspection.
 	grace, cancel := context.WithTimeout(ctx, time.Second)
-	stopErr := d.operation(grace, "stop", name)
+	stopErr := d.operationOwned(grace, ctx, "stop", name)
 	cancel()
-	if err := nativeGroupCleanup(ctx, child.cmd); err != nil {
-		return errors.Join(stopErr, err)
+	_, cleanupErr := child.process.Finish(ctx)
+	if cleanupErr != nil {
+		return errors.Join(stopErr, cleanupErr)
 	}
-	select {
-	case <-child.done:
-	case <-ctx.Done():
-		return errors.Join(stopErr, ctx.Err())
-	}
-	status, err := d.Inspect(ctx, name)
+	status, err := d.inspectOwned(ctx, ctx, name)
 	if err != nil {
 		return errors.Join(stopErr, err)
 	}
 	if status.Exists && status.State != VMStopped {
 		return errors.Join(stopErr, fmt.Errorf("VM %s stop unconfirmed", name))
+	}
+	if errors.Is(stopErr, ErrUnconfirmedProcessCleanup) {
+		return stopErr
 	}
 	return nil
 }
@@ -294,7 +289,7 @@ func (d *nativeDriver) Delete(ctx context.Context, name string) error {
 	if !managedVM(name) {
 		return fmt.Errorf("refusing unmanaged VM delete")
 	}
-	return d.operation(ctx, "delete", name)
+	return d.operationOwned(ctx, ctx, "delete", name)
 }
 func (d *nativeDriver) Recover(ctx context.Context, claim LaunchClaim) (RecoveryEvidence, error) {
 	proof := RecoveryEvidence{PID: claim.PID, Identity: claim.StartIdentity}
@@ -308,6 +303,15 @@ func (d *nativeDriver) Recover(ctx context.Context, claim LaunchClaim) (Recovery
 		} else if err == nil && d.identity(strconv.Itoa(claim.PID)) == claim.StartIdentity {
 			proof.Process = ProcessAlive
 		}
+		present, groupErr := nativeGroupPresent(claim.PID)
+		if groupErr != nil {
+			return proof, groupErr
+		}
+		if present {
+			proof.Group = ProcessAlive
+		} else {
+			proof.Group = ProcessGone
+		}
 	}
 	status, err := d.Inspect(ctx, claim.VM)
 	if err != nil {
@@ -318,4 +322,39 @@ func (d *nativeDriver) Recover(ctx context.Context, claim LaunchClaim) (Recovery
 		proof.VM = VMStopped
 	}
 	return proof, nil
+}
+
+func (d *nativeDriver) ExportResults(ctx context.Context, name, guestRoot, destination string, remaining int64) error {
+	if !managedVM(name) {
+		return fmt.Errorf("refusing unmanaged VM results export")
+	}
+	return exportGuestResults(ctx, guestRoot, destination, remaining, func(ctx context.Context, path string, limit int64) ([]byte, bool, error) {
+		inner, cancel := context.WithCancel(ctx)
+		defer cancel()
+		out := &snapshotOutput{remaining: int(limit + 1), cancel: cancel}
+		var stderr bytes.Buffer
+		code, err := d.runOwned(inner, ctx, out, &snapshotLimitedWriter{writer: &stderr, remaining: 65536}, "exec", name, "/bin/sh", "-c", `path=$1
+case "$path" in /*) ;; *) exit 45;; esac
+rest=${path#/}
+current=
+while [ -n "$rest" ]; do
+ component=${rest%%/*}
+ case "$component" in ''|.|..) exit 45;; esac
+ case "$rest" in */*) rest=${rest#*/};; *) rest=;; esac
+ current=$current/$component
+ if [ -L "$current" ]; then exit 45; fi
+done
+if [ ! -f "$path" ]; then exit 44; fi
+/usr/bin/head -c "$2" "$path"`, "sh", path, strconv.FormatInt(limit+1, 10))
+		if err != nil {
+			return nil, false, err
+		}
+		if code == 44 {
+			return nil, false, nil
+		}
+		if code != 0 {
+			return nil, false, fmt.Errorf("guest results fetch exit %d: %s", code, stderr.String())
+		}
+		return append([]byte(nil), out.buffer.Bytes()...), true, nil
+	})
 }

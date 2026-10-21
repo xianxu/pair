@@ -42,16 +42,16 @@ func TestRecoverLaunchClaimRequiresPositiveDeathAndStoppedVM(t *testing.T) {
 	for _, proof := range []RecoveryEvidence{
 		{PID: 12, Identity: c.StartIdentity, Process: ProcessUnknown, VM: VMStopped},
 		{PID: 12, Identity: c.StartIdentity, Process: ProcessAlive, VM: VMStopped},
-		{PID: 13, Identity: c.StartIdentity, Process: ProcessGone, VM: VMStopped},
-		{PID: 12, Identity: "darwin:other", Process: ProcessGone, VM: VMStopped},
-		{PID: 12, Identity: c.StartIdentity, Process: ProcessGone, VM: VMUnknown},
-		{PID: 12, Identity: c.StartIdentity, Process: ProcessGone, VM: VMRunning},
+		{PID: 13, Identity: c.StartIdentity, Process: ProcessGone, Group: ProcessGone, VM: VMStopped},
+		{PID: 12, Identity: "darwin:other", Process: ProcessGone, Group: ProcessGone, VM: VMStopped},
+		{PID: 12, Identity: c.StartIdentity, Process: ProcessGone, Group: ProcessGone, VM: VMUnknown},
+		{PID: 12, Identity: c.StartIdentity, Process: ProcessGone, Group: ProcessGone, VM: VMRunning},
 	} {
 		if err := RecoverLaunchClaim(c, proof); err == nil {
 			t.Fatalf("uncertain/foreign proof admitted: %+v", proof)
 		}
 	}
-	proof := RecoveryEvidence{PID: c.PID, Identity: c.StartIdentity, Process: ProcessGone, VM: VMStopped}
+	proof := RecoveryEvidence{PID: c.PID, Identity: c.StartIdentity, Process: ProcessGone, Group: ProcessGone, VM: VMStopped}
 	if err := RecoverLaunchClaim(c, proof); err != nil {
 		t.Fatal(err)
 	}
@@ -79,4 +79,29 @@ func FuzzLaunchClaim(f *testing.F) {
 			t.Fatal(err)
 		}
 	})
+}
+
+func TestCleanupUnknownClaimKeepsExactIdentityAndRefusesRecovery(t *testing.T) {
+	c := LaunchClaim{Version: 1, Lane: AdhocLane, VM: ManagedVMName(AdhocLane), Nonce: strings.Repeat("c", 32), Stage: ClaimCleanupUnknown, PID: 23, StartIdentity: "exact-original"}
+	raw, err := EncodeLaunchClaim(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := DecodeLaunchClaim(raw)
+	if err != nil || decoded.PID != 23 || decoded.StartIdentity != c.StartIdentity {
+		t.Fatal(decoded, err)
+	}
+	proof := RecoveryEvidence{PID: c.PID, Identity: c.StartIdentity, Process: ProcessGone, Group: ProcessGone, VM: VMStopped}
+	if err := RecoverLaunchClaim(decoded, proof); err == nil {
+		t.Fatal("secondary uncertainty automatically recovered from only main-group proof")
+	}
+	c.Stage = ClaimLaunched
+	proof.Group = ProcessAlive
+	if err := RecoverLaunchClaim(c, proof); err == nil {
+		t.Fatal("leader absence hid live group")
+	}
+	proof.Group = ProcessUnknown
+	if err := RecoverLaunchClaim(c, proof); err == nil {
+		t.Fatal("leader absence hid unknown group")
+	}
 }

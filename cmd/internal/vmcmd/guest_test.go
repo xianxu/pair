@@ -49,7 +49,7 @@ func guestFixture(t *testing.T) (string, string, string, string) {
 	source := filepath.Join(root, "input", "checkout")
 	results := filepath.Join(root, "results")
 	work := filepath.Join(root, "work")
-	for _, d := range []string{filepath.Join(source, ".git"), results} {
+	for _, d := range []string{filepath.Join(source, ".git")} {
 		if err := os.MkdirAll(d, 0700); err != nil {
 			t.Fatal(err)
 		}
@@ -123,8 +123,7 @@ func TestGuestScriptRefusesUnsafeRoots(t *testing.T) {
 }
 func TestGuestScriptCollectionFailureCannotSucceed(t *testing.T) {
 	source, work, results, script := guestFixture(t)
-	os.Mkdir(filepath.Join(results, "diagnostics"), 0700)
-	if out, err := executeGuest(source, work, results, script, "/usr/bin/true"); err == nil {
+	if out, err := executeGuest(source, work, results, script, "/bin/bash", "-c", `mkdir "$1/diagnostics"`, "test", results); err == nil {
 		t.Fatalf("collection failure hidden: %s", out)
 	}
 }
@@ -193,5 +192,22 @@ func TestGuestScriptDiagnosticDiscoveryIsBounded(t *testing.T) {
 	}
 	if string(status) != "exit_code=0\ncollection_error=1\n" {
 		t.Fatalf("overflow status %q", status)
+	}
+}
+
+func TestGuestScriptCreatesFreshGuestLocalResultsAndManifest(t *testing.T) {
+	source, work, results, script := guestFixture(t)
+	if err := os.Remove(results); err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	if out, err := executeGuest(source, work, results, script, "/usr/bin/true"); err != nil {
+		t.Fatalf("fresh private results: %v %s", err, out)
+	}
+	raw, err := os.ReadFile(filepath.Join(results, "manifest.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := decodeResultManifest(raw, maxGuestExport); err != nil {
+		t.Fatal(err, string(raw))
 	}
 }

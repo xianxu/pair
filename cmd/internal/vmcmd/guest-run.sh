@@ -26,12 +26,12 @@ for root in "$source" "$work" "$results"; do safe_root "$root" || fail; done
 overlaps "$source" "$work" && fail
 overlaps "$source" "$results" && fail
 overlaps "$work" "$results" && fail
-[ -d "$source" ] && [ -d "$results" ] || fail
+[ -d "$source" ] && [ ! -e "$results" ] && [ ! -L "$results" ] && [ ! -e "$work" ] && [ ! -L "$work" ] || fail
 [ ! -e "$source/.git" ] || { [ -d "$source/.git" ] && [ ! -L "$source/.git" ]; } || fail
 [ ! -e "$results/status" ] && [ ! -L "$results/status" ] || fail
 # Atomic creation prevents reusing any previous run, including symlink roots.
 umask 077
-mkdir "$work" || fail
+mkdir "$work" "$results" || fail
 export HOME="$work/home" TMPDIR="$work/tmp"
 export XDG_CONFIG_HOME="$work/config" XDG_DATA_HOME="$work/data"
 export XDG_CACHE_HOME="$work/cache" XDG_STATE_HOME="$work/state"
@@ -62,6 +62,21 @@ else
 fi
 # No command arguments or environment are persisted in the bounded status.
 (set -C; printf 'exit_code=%s\ncollection_error=%s\n' "$command_exit" "$collection_error" > "$results/status") || collection_error=1
+# The fixed catalog is bounded independently of command-created guest files.
+# No writable host share exists; the host pulls only this validated population.
+(
+    set -C
+    {
+    printf '{"version":1,"files":[{"path":"status","size":%s}' "$(/usr/bin/wc -c < "$results/status")"
+    for ((i=0; i<8; i++)); do
+        log="$results/diagnostics/zellij-$i.log"
+        if [ -f "$log" ] && [ ! -L "$log" ]; then
+            printf ',{"path":"diagnostics/zellij-%s.log","size":%s}' "$i" "$(/usr/bin/wc -c < "$log")"
+        fi
+    done
+    printf ']}\n'
+    } > "$results/manifest.json"
+) || collection_error=1
 [ "$command_exit" -ne 0 ] && exit "$command_exit"
 [ "$collection_error" -eq 0 ] || exit 125
 exit 0

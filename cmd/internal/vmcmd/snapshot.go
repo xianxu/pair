@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 )
 
 type SnapshotPlan struct{ Files []string }
@@ -367,17 +366,24 @@ func snapshotGitInput(ctx context.Context, root string, input io.Reader, output 
 	argv := []string{"-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-C", root}
 	cmd := exec.CommandContext(ctx, "git", append(argv, args...)...)
 	cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "LANG=C", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null", "GIT_TERMINAL_PROMPT=0", "GIT_OPTIONAL_LOCKS=0", "GIT_NO_REPLACE_OBJECTS=1", "GIT_NO_LAZY_FETCH=1"}
-	collect := configureSnapshotCommand(cmd)
-	cmd.WaitDelay = 5 * time.Second
+	owner := configureSnapshotCommand(cmd)
 	out := &snapshotOutput{remaining: 16 << 20, cancel: cancel}
 	cmd.Stdin = input
-	cmd.Stdout, cmd.Stderr = out, out
+	cmd.Stdout, cmd.Stderr = owner.Writer(out), owner.Writer(out)
 	if output != nil {
-		cmd.Stdout = output
+		cmd.Stdout = owner.Writer(output)
 	}
-	err := cmd.Run()
-	if cleanupErr := collect(); cleanupErr != nil {
-		err = errors.Join(err, fmt.Errorf("%w: collect Git process group: %v", ErrUnconfirmedProcessCleanup, cleanupErr))
+	err := cmd.Start()
+	if err == nil {
+		observeErr := owner.AwaitTerminal(ctx)
+		cleanupCtx := ctx
+		stopCleanup := func() {}
+		if ctx.Err() != nil {
+			cleanupCtx, stopCleanup = cleanupContext(ctx)
+		}
+		waitErr, cleanupErr := owner.Finish(cleanupCtx)
+		stopCleanup()
+		err = errors.Join(observeErr, waitErr, cleanupErr)
 	}
 	if out.overflow {
 		return nil, errors.Join(fmt.Errorf("Git snapshot output exceeded 16 MiB"), err)

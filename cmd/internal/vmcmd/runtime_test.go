@@ -226,3 +226,26 @@ func TestRunCleanupBudgetExpiresWithoutReleasingLiveVM(t *testing.T) {
 		t.Fatalf("cleanup did not finish once: %v", f.calls)
 	}
 }
+
+type nestedCleanupRuntime struct {
+	*fakeRuntime
+	nested context.Context
+}
+
+func (f *nestedCleanupRuntime) Execute(ctx context.Context) (int, error) {
+	f.nested, _ = cleanupContext(ctx)
+	return f.fakeRuntime.Execute(ctx)
+}
+func TestRunNestedProcessCleanupSharesFinalBudget(t *testing.T) {
+	f := &nestedCleanupRuntime{fakeRuntime: newFakeRuntime()}
+	state := Run(context.Background(), RunRequest{Timeout: time.Second}, f)
+	if state.ExitCode() != 0 {
+		t.Fatal(state)
+	}
+	if f.nested != f.contexts[Collect] || f.nested != f.contexts[Stop] || f.nested != f.contexts[Release] {
+		t.Fatal("nested cleanup renewed the final ten-second budget")
+	}
+	if f.nested.Err() != context.Canceled {
+		t.Fatal("terminal run leaked cleanup context", f.nested.Err())
+	}
+}

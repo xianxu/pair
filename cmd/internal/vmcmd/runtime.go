@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -36,6 +37,9 @@ const cleanupTimeout = 10 * time.Second
 func Run(ctx context.Context, r RunRequest, rt Runtime) RunState {
 	runCtx, cancelRun := context.WithTimeout(ctx, r.Timeout)
 	defer cancelRun()
+	scope := &cleanupScope{base: ctx}
+	runCtx = context.WithValue(runCtx, cleanupScopeKey{}, scope)
+	defer scope.close()
 	var cleanupCtx context.Context
 	var cancelCleanup context.CancelFunc
 	defer func() {
@@ -68,7 +72,7 @@ func Run(ctx context.Context, r RunRequest, rt Runtime) RunState {
 		opCtx := runCtx
 		if cleanup {
 			if cleanupCtx == nil {
-				cleanupCtx, cancelCleanup = context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
+				cleanupCtx, cancelCleanup = cleanupContext(runCtx)
 			}
 			opCtx = cleanupCtx
 		} else if err := runCtx.Err(); err != nil {
@@ -143,4 +147,38 @@ func Run(ctx context.Context, r RunRequest, rt Runtime) RunState {
 		advance(event)
 	}
 	return state
+}
+
+type cleanupScopeKey struct{}
+type cleanupScope struct {
+	mu     sync.Mutex
+	base   context.Context
+	ctx    context.Context
+	cancel context.CancelFunc
+}
+
+func (s *cleanupScope) context() context.Context {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.ctx == nil {
+		base := context.WithValue(context.WithoutCancel(s.base), cleanupScopeKey{}, s)
+		s.ctx, s.cancel = context.WithTimeout(base, cleanupTimeout)
+	}
+	return s.ctx
+}
+func (s *cleanupScope) close() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.cancel != nil {
+		s.cancel()
+	}
+}
+
+// Nested subprocess cleanup and final VM cleanup consume the same lifetime.
+// Standalone adapters retain a bounded fallback without creating a global pool.
+func cleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if scope, ok := ctx.Value(cleanupScopeKey{}).(*cleanupScope); ok {
+		return scope.context(), func() {}
+	}
+	return context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
 }

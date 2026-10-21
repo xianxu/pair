@@ -8,9 +8,9 @@ import (
 	"errors"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 )
@@ -18,6 +18,11 @@ import (
 func fakeNativeDriver(t *testing.T) *nativeDriver {
 	t.Helper()
 	home := t.TempDir()
+	var err error
+	home, err = filepath.EvalSymlinks(home)
+	if err != nil {
+		t.Fatal(err)
+	}
 	executable := filepath.Join(home, "tart")
 	script := `#!/bin/sh
 set -eu
@@ -29,7 +34,7 @@ case "$1" in
   if test -f "$HOME/list"; then cat "$HOME/list"; elif test -f "$HOME/running"; then printf '[{"Name":"pair-conformance-run-adhoc","Running":true,"State":"running"}]'; else printf '[{"Name":"pair-conformance-run-adhoc","Running":false,"State":"stopped","Other":12}]'; fi;;
  clone) touch "$HOME/cloned"; if test -f "$HOME/block"; then sleep 30; fi;;
  run) touch "$HOME/running"; if test -f "$HOME/boot-output"; then printf boot-output; fi; while test -f "$HOME/running"; do if test -f "$HOME/no-descendants"; then :; else sleep 0.01; fi; done;;
- exec) test -f "$HOME/running" || exit 3; printf '%s\n' "$HOME"; test "$3" != fail || exit 7;;
+ exec) test -f "$HOME/running" || exit 3; if test -f "$HOME/hold-first-probe"; then rm "$HOME/hold-first-probe"; sleep 30; fi; if test -f "$HOME/guest-script-enabled"; then shift 2; exec "$@"; fi; printf '%s\n' "$HOME"; test "$3" != fail || exit 7;;
  stop) rm -f "$HOME/running";;
  delete) touch "$HOME/deleted";;
  *) exit 9;;
@@ -76,7 +81,7 @@ func TestNativeLifecycleOwnsChildAndSanitizesTransport(t *testing.T) {
 	if err := d.Clone(ctx, "pair-conformance-image", vm); err != nil {
 		t.Fatal(err)
 	}
-	child, err := d.Launch(ctx, vm, "/input with space", "/results", &bytes.Buffer{})
+	child, err := d.Launch(ctx, vm, "/input with space", &bytes.Buffer{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +113,10 @@ func TestNativeLifecycleOwnsChildAndSanitizesTransport(t *testing.T) {
 		t.Fatal(err)
 	}
 	raw, _ := os.ReadFile(filepath.Join(d.home, "argv"))
-	if !strings.Contains(string(raw), "--no-graphics\n--no-audio\n--no-clipboard\n--dir\ninput:/input with space:ro\n--dir\nresults:/results\n") {
+	if strings.Contains(string(raw), "results:") {
+		t.Fatalf("writable host results share: %s", raw)
+	}
+	if !strings.Contains(string(raw), "--no-graphics\n--no-audio\n--no-clipboard\n--dir\ninput:/input with space:ro\n") {
 		t.Fatalf("bad shares: %s", raw)
 	}
 }
@@ -118,7 +126,7 @@ func TestNativeLaunchReturnsHandleWhenIdentityUnknown(t *testing.T) {
 	d.identity = func(string) string { return "" }
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	child, err := d.Launch(ctx, ManagedVMName(AdhocLane), "/input", "/results", &bytes.Buffer{})
+	child, err := d.Launch(ctx, ManagedVMName(AdhocLane), "/input", &bytes.Buffer{})
 	if err == nil || child == nil || child.PID() == 0 {
 		t.Fatalf("lost started child: %v %v", child, err)
 	}
@@ -153,7 +161,7 @@ func TestNativePreservesUnknownRecoveryAndRefusesUnownedStop(t *testing.T) {
 func TestNativeLaunchStartFailureHasNoHandle(t *testing.T) {
 	d := fakeNativeDriver(t)
 	d.executable = filepath.Join(d.home, "missing")
-	child, err := d.Launch(context.Background(), ManagedVMName(AdhocLane), "/input", "/results", &bytes.Buffer{})
+	child, err := d.Launch(context.Background(), ManagedVMName(AdhocLane), "/input", &bytes.Buffer{})
 	if err == nil || child != nil {
 		t.Fatalf("start failure: %v %v", child, err)
 	}
@@ -180,7 +188,7 @@ func TestNativeStopRejectsOtherDriversChild(t *testing.T) {
 	vm := ManagedVMName(AdhocLane)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	child, err := d.Launch(ctx, vm, "/input", "/results", &bytes.Buffer{})
+	child, err := d.Launch(ctx, vm, "/input", &bytes.Buffer{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +201,7 @@ func TestNativeStopRejectsOtherDriversChild(t *testing.T) {
 	}
 }
 
-func TestNativeClonePreservesUnconfirmedProcessCleanup(t *testing.T) {
+func TestNativeCloneCancellationConfirmsProcessCleanup(t *testing.T) {
 	d := fakeNativeDriver(t)
 	if err := os.WriteFile(filepath.Join(d.home, "block"), nil, 0600); err != nil {
 		t.Fatal(err)
@@ -201,8 +209,8 @@ func TestNativeClonePreservesUnconfirmedProcessCleanup(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 	err := d.Clone(ctx, "pair-conformance-image", ManagedVMName(AdhocLane))
-	if !errors.Is(err, ErrUnconfirmedProcessCleanup) {
-		t.Fatalf("cleanup uncertainty not preserved: %v", err)
+	if !errors.Is(err, context.DeadlineExceeded) || errors.Is(err, ErrUnconfirmedProcessCleanup) {
+		t.Fatalf("cancellation failed to confirm cleanup: %v", err)
 	}
 }
 
@@ -222,7 +230,7 @@ func TestNativeBootWriterErrorSignalsAndJoinsOwnedGroup(t *testing.T) {
 		t.Fatal(err)
 	}
 	writer := rejectingBootWriter{seen: make(chan struct{}, 1)}
-	handle, err := d.Launch(context.Background(), ManagedVMName(AdhocLane), "/input", "/results", writer)
+	handle, err := d.Launch(context.Background(), ManagedVMName(AdhocLane), "/input", writer)
 	if handle == nil {
 		t.Fatalf("lost launch handle: %v", err)
 	}
@@ -238,80 +246,173 @@ func TestNativeBootWriterErrorSignalsAndJoinsOwnedGroup(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("boot output never reached writer")
 	}
-	select {
-	case <-child.done:
-	case <-ctx.Done():
-		t.Fatal("writer error left owned launch blocked")
+	if err := child.process.AwaitTerminal(ctx); !errors.Is(err, io.ErrShortWrite) {
+		t.Fatalf("boot failure did not stop pinned child: %v", err)
 	}
-	if err := nativeGroupCleanup(ctx, child.cmd); err != nil {
-		t.Fatalf("owned group survived boot failure: %v", err)
+	terminal, observeErr := nativeChildTerminal(child.PID())
+	for !terminal && observeErr == nil && ctx.Err() == nil {
+		time.Sleep(time.Millisecond)
+		terminal, observeErr = nativeChildTerminal(child.PID())
+	}
+	if !terminal || observeErr != nil {
+		t.Fatalf("owned launch survived output failure: %v", observeErr)
+	}
+	if child.cmd.ProcessState != nil {
+		t.Fatal("boot error reaped PID generation before Stop")
+	}
+
+}
+
+func TestNativeReadinessDoesNotRetryUnconfirmedTransportCleanup(t *testing.T) {
+	d := fakeNativeDriver(t)
+	if err := os.WriteFile(filepath.Join(d.home, "running"), nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	d.own = func(cmd *exec.Cmd) *ownedProcess {
+		owner := configureSnapshotCommand(cmd)
+		owner.groupPresent = func(int) (bool, error) { return false, errors.New("unavailable process group observation") }
+		return owner
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	err := d.AwaitGuest(ctx, ManagedVMName(AdhocLane))
+	if !errors.Is(err, ErrUnconfirmedProcessCleanup) {
+		t.Fatalf("lost readiness uncertainty: %v", err)
+	}
+	raw, _ := os.ReadFile(filepath.Join(d.home, "argv"))
+	if strings.Count(string(raw), "exec\n") != 1 {
+		t.Fatalf("retried uncertain readiness: %s", raw)
 	}
 }
 
-// Darwin can return EPERM for a group containing only non-signalable zombies.
-// The signal result is ambiguous; the owned process table is the proof.
-func TestNativeGroupCleanupConfirmsGoneAfterAmbiguousSignal(t *testing.T) {
+func TestNativeClonePreservesUnknownTransportCleanup(t *testing.T) {
 	d := fakeNativeDriver(t)
-	if err := os.WriteFile(filepath.Join(d.home, "no-descendants"), nil, 0600); err != nil {
-		t.Fatal(err)
+	d.own = func(cmd *exec.Cmd) *ownedProcess {
+		owner := configureSnapshotCommand(cmd)
+		owner.groupPresent = func(int) (bool, error) { return false, errors.New("unavailable process group observation") }
+		return owner
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	handle, err := d.Launch(ctx, ManagedVMName(AdhocLane), "/input", "/results", io.Discard)
-	if handle == nil {
-		t.Fatalf("launch: %v", err)
-	}
-	child := handle.(*nativeChild)
-	signal := child.cmd.Cancel
-	defer func() {
-		child.cmd.Cancel = signal
-		_ = os.Remove(filepath.Join(d.home, "running"))
-		_ = d.Stop(ctx, ManagedVMName(AdhocLane), child)
-	}()
-	if err := d.AwaitGuest(ctx, ManagedVMName(AdhocLane)); err != nil {
-		t.Fatal(err)
-	}
-	child.cmd.Cancel = func() error { _ = signal(); return syscall.EPERM }
-	if err := nativeGroupCleanup(ctx, child.cmd); err != nil {
-		t.Fatalf("did not confirm disappearance after ambiguous signal: %v", err)
-	}
-	select {
-	case <-child.done:
-	case <-ctx.Done():
-		t.Fatal("owned child not joined")
+	if err := d.Clone(ctx, "pair-conformance-image", ManagedVMName(AdhocLane)); !errors.Is(err, ErrUnconfirmedProcessCleanup) {
+		t.Fatalf("clone lost cleanup uncertainty: %v", err)
 	}
 }
 
-func TestNativeGroupCleanupRetainsUnconfirmedPresentGroup(t *testing.T) {
+func TestNativeResultsExportUsesBoundedLiteralTransport(t *testing.T) {
 	d := fakeNativeDriver(t)
-	if err := os.WriteFile(filepath.Join(d.home, "no-descendants"), nil, 0600); err != nil {
+	guest := filepath.Join(d.home, "guest with space; literal")
+	if err := os.Mkdir(guest, 0700); err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	handle, err := d.Launch(ctx, ManagedVMName(AdhocLane), "/input", "/results", io.Discard)
-	if handle == nil {
-		t.Fatalf("launch: %v", err)
+	for path, contents := range map[string]string{"running": "", "guest-script-enabled": "", "guest with space; literal/manifest.json": `{"version":1,"files":[{"path":"status","size":2}]}`, "guest with space; literal/status": "ok"} {
+		if err := os.WriteFile(filepath.Join(d.home, path), []byte(contents), 0600); err != nil {
+			t.Fatal(err)
+		}
 	}
-	child := handle.(*nativeChild)
-	signal := child.cmd.Cancel
-	defer func() {
-		child.cmd.Cancel = signal
-		_ = os.Remove(filepath.Join(d.home, "running"))
-		_ = d.Stop(ctx, ManagedVMName(AdhocLane), child)
-	}()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	dest := t.TempDir()
+	if err := d.ExportResults(ctx, ManagedVMName(AdhocLane), guest, dest, 1024); err != nil {
+		t.Fatal(err)
+	}
+	status, err := os.ReadFile(filepath.Join(dest, "status"))
+	if err != nil || string(status) != "ok" {
+		t.Fatalf("export %q %v", status, err)
+	}
+	if err := os.WriteFile(filepath.Join(guest, "status"), []byte("oversized"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	overflowDest := t.TempDir()
+	if err := d.ExportResults(ctx, ManagedVMName(AdhocLane), guest, overflowDest, 1024); err == nil {
+		t.Fatal("oversized guest result accepted")
+	}
+	if _, err := os.Stat(filepath.Join(overflowDest, "status")); !os.IsNotExist(err) {
+		t.Fatal("oversized status written to host")
+	}
+}
+
+func TestNativeSlowReadinessProbeDoesNotStartFinalCleanupBudget(t *testing.T) {
+	d := fakeNativeDriver(t)
+	for _, name := range []string{"running", "hold-first-probe"} {
+		if err := os.WriteFile(filepath.Join(d.home, name), nil, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	bound, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+	scope := &cleanupScope{base: bound}
+	defer scope.close()
+	ctx := context.WithValue(bound, cleanupScopeKey{}, scope)
 	if err := d.AwaitGuest(ctx, ManagedVMName(AdhocLane)); err != nil {
 		t.Fatal(err)
 	}
-	child.cmd.Cancel = func() error { return syscall.EPERM }
-	short, done := context.WithTimeout(ctx, 30*time.Millisecond)
-	defer done()
-	if err := nativeGroupCleanup(short, child.cmd); !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("did not wait boundedly for positive absence: %v", err)
+	scope.mu.Lock()
+	started := scope.ctx != nil
+	scope.mu.Unlock()
+	if started {
+		t.Fatal("short readiness probe started final Run cleanup clock")
 	}
-	select {
-	case <-child.done:
-		t.Fatal("claimed absence of live child")
-	default:
+	raw, _ := os.ReadFile(filepath.Join(d.home, "argv"))
+	if strings.Count(string(raw), "exec\n") != 2 {
+		t.Fatalf("expected one expired probe and one successful probe: %s", raw)
+	}
+}
+
+func TestNativeResultsExportRejectsSymlinkCatalogPaths(t *testing.T) {
+	for _, kind := range []string{"root", "ancestor", "leaf"} {
+		t.Run(kind, func(t *testing.T) {
+			d := fakeNativeDriver(t)
+			guest := filepath.Join(d.home, "guest")
+			if err := os.Mkdir(guest, 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(d.home, "running"), nil, 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(d.home, "guest-script-enabled"), nil, 0600); err != nil {
+				t.Fatal(err)
+			}
+			outside := t.TempDir()
+			if err := os.WriteFile(filepath.Join(outside, "sentinel"), []byte("ok"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			manifest := `{"version":1,"files":[{"path":"status","size":2}]}`
+			if kind == "ancestor" {
+				manifest = `{"version":1,"files":[{"path":"status","size":2},{"path":"diagnostics/zellij-0.log","size":2}]}`
+			}
+			if err := os.WriteFile(filepath.Join(guest, "manifest.json"), []byte(manifest), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if kind == "leaf" {
+				if err := os.Symlink(filepath.Join(outside, "sentinel"), filepath.Join(guest, "status")); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				if err := os.WriteFile(filepath.Join(guest, "status"), []byte("ok"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if kind == "ancestor" {
+				if err := os.WriteFile(filepath.Join(outside, "zellij-0.log"), []byte("ok"), 0600); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(outside, filepath.Join(guest, "diagnostics")); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if kind == "root" {
+				alias := filepath.Join(d.home, "guest-alias")
+				if err := os.Symlink(guest, alias); err != nil {
+					t.Fatal(err)
+				}
+				guest = alias
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			if err := d.ExportResults(ctx, ManagedVMName(AdhocLane), guest, t.TempDir(), 4096); err == nil {
+				t.Fatal("guest symlink catalog path admitted")
+			}
+		})
 	}
 }

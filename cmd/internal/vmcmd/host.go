@@ -21,6 +21,8 @@ const maxLaneArtifacts int64 = 4 << 30
 // hostRuntime owns one lane's host files and durable launch uncertainty. The
 // injected driver owns native child handles; Run owns the ordering of effects.
 type hostRuntime struct {
+	guestResults                                     string
+	stdoutLog, stderrLog                             *runLog
 	inputsUnconfirmed                                bool
 	artifactsOwned                                   bool
 	root                                             string
@@ -99,21 +101,30 @@ func (h *hostRuntime) Acquire(ctx context.Context, r RunRequest) (err error) {
 		return err
 	}
 	if exists {
-		proof, err := h.driver.Recover(ctx, old)
-		if err != nil {
-			return err
+		if old.Stage != ClaimLaunched {
+			return fmt.Errorf("VM lane has unresolved startup/cleanup; inspect %s", old.VM)
 		}
-		if err := RecoverLaunchClaim(old, proof); err != nil {
-			return err
-		}
-		status, err := h.driver.Inspect(ctx, old.VM)
-		if err != nil {
-			return err
-		}
-		if status.Exists {
-			if err := h.driver.Delete(ctx, old.VM); err != nil {
+		h.claim = old
+		h.claimed = true
+		err := h.secondary(ctx, func() error {
+			proof, err := h.driver.Recover(ctx, old)
+			if err != nil {
 				return err
 			}
+			if err := RecoverLaunchClaim(old, proof); err != nil {
+				return err
+			}
+			status, err := h.driver.Inspect(ctx, old.VM)
+			if err != nil {
+				return err
+			}
+			if status.Exists {
+				return h.driver.Delete(ctx, old.VM)
+			}
+			return nil
+		})
+		if err != nil {
+			return err
 		}
 		if err := os.RemoveAll(h.scratch); err != nil {
 			return err
@@ -121,13 +132,31 @@ func (h *hostRuntime) Acquire(ctx context.Context, r RunRequest) (err error) {
 		if err := h.position.ClearClaim(old.Nonce); err != nil {
 			return err
 		}
+		h.claimed = false
 	} else {
-		status, err := h.driver.Inspect(ctx, ManagedVMName(r.Lane))
-		if err != nil {
+		var nonce [16]byte
+		if _, err := rand.Read(nonce[:]); err != nil {
 			return err
 		}
-		if status.Exists {
-			return fmt.Errorf("managed VM %s exists without an ownership claim; inspect before reuse", ManagedVMName(r.Lane))
+		h.claim = LaunchClaim{Version: 1, Lane: r.Lane, VM: ManagedVMName(r.Lane), Nonce: hex.EncodeToString(nonce[:]), Stage: ClaimLaunching}
+		h.claimed = true
+		err := h.secondary(ctx, func() error {
+			status, err := h.driver.Inspect(ctx, h.claim.VM)
+			if err != nil {
+				return err
+			}
+			if status.Exists {
+				return fmt.Errorf("managed VM %s exists without ownership; inspect before reuse", h.claim.VM)
+			}
+			return nil
+		})
+		if !h.inputsUnconfirmed {
+			clearErr := h.position.ClearClaim(h.claim.Nonce)
+			h.claimed = clearErr != nil
+			err = errors.Join(err, clearErr)
+		}
+		if err != nil {
+			return err
 		}
 		if _, err := os.Lstat(h.scratch); !os.IsNotExist(err) {
 			return fmt.Errorf("unclaimed VM scratch exists; inspect before reuse")
@@ -184,13 +213,28 @@ func (h *hostRuntime) Prepare(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	h.logs = &runLog{file: log, remaining: maxRunArtifacts}
+	budget := &artifactBudget{remaining: maxRunArtifacts - maxGuestExport - maxResultRecord}
+	h.logs = &runLog{file: log, budget: budget}
+	for _, item := range []struct {
+		name   string
+		target **runLog
+	}{{"stdout.log", &h.stdoutLog}, {"stderr.log", &h.stderrLog}} {
+		file, err := os.OpenFile(filepath.Join(h.artifacts, item.name), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+		if err != nil {
+			return err
+		}
+		*item.target = &runLog{file: file, budget: budget}
+	}
 	fmt.Fprintf(h.stderr, "VM artifacts: %s\n", h.artifacts)
 	if err := os.Mkdir(h.scratch, 0700); err != nil {
 		return err
 	}
 	h.input = filepath.Join(h.scratch, "input")
 	if err := os.Mkdir(h.input, 0700); err != nil {
+		return err
+	}
+	h.claimed = true
+	if err := h.position.WriteClaim(h.claim); err != nil {
 		return err
 	}
 	h.snapshot, err = SnapshotCheckout(ctx, h.request.Checkout, filepath.Join(h.input, "checkout"))
@@ -204,18 +248,13 @@ func (h *hostRuntime) Prepare(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	h.claimed = true
-	if err := h.position.WriteClaim(h.claim); err != nil {
-		return err
-	}
-	h.claimed = true
 	h.cloneAttempted = true
 	err = h.driver.Clone(ctx, h.image.Image, h.claim.VM)
 	h.inputsUnconfirmed = errors.Is(err, ErrUnconfirmedProcessCleanup)
 	return err
 }
 func (h *hostRuntime) Start(ctx context.Context) error {
-	child, launchErr := h.driver.Launch(ctx, h.claim.VM, h.input, h.results, h.logs)
+	child, launchErr := h.driver.Launch(ctx, h.claim.VM, h.input, h.logs)
 	h.child = child
 	if child != nil {
 		h.claim.Stage = ClaimLaunched
@@ -226,32 +265,41 @@ func (h *hostRuntime) Start(ctx context.Context) error {
 	return launchErr
 }
 func (h *hostRuntime) AwaitGuest(ctx context.Context) error {
-	return h.driver.AwaitGuest(ctx, h.claim.VM)
+	return h.secondary(ctx, func() error { return h.driver.AwaitGuest(ctx, h.claim.VM) })
 }
 func (h *hostRuntime) Execute(ctx context.Context) (int, error) {
-	invocation, err := BuildGuestInvocation(h.request, GuestPaths{Input: "/Volumes/My Shared Files/input", Results: "/Volumes/My Shared Files/results", WorkRoot: "/private/tmp/pair-vm-" + h.claim.Nonce})
+	h.guestResults = "/private/tmp/pair-vm-results-" + h.claim.Nonce
+	invocation, err := BuildGuestInvocation(h.request, GuestPaths{Input: "/Volumes/My Shared Files/input", Results: h.guestResults, WorkRoot: "/private/tmp/pair-vm-" + h.claim.Nonce})
 	if err != nil {
 		return -1, err
 	}
 	h.executed = true
-	h.executeExit, err = h.driver.Execute(ctx, h.claim.VM, invocation.Args, h.logs, h.logs)
+	err = h.secondary(ctx, func() error {
+		var operationErr error
+		h.executeExit, operationErr = h.driver.Execute(ctx, h.claim.VM, invocation.Args, h.stdoutLog, h.stderrLog)
+		return operationErr
+	})
 	return h.executeExit, err
 }
 func (h *hostRuntime) Collect(ctx context.Context) error {
-	if h.logs != nil {
-		if err := h.logs.Err(); err != nil {
-			return err
+	for _, log := range []*runLog{h.logs, h.stdoutLog, h.stderrLog} {
+		if log != nil {
+			if err := log.Err(); err != nil {
+				return err
+			}
 		}
-	}
-	if h.artifacts == "" {
-		return nil
-	}
-	if _, err := boundedArtifactSize(ctx, h.artifacts, maxRunArtifacts); err != nil {
-		return err
 	}
 	if !h.executed {
 		return nil
 	}
+	if err := h.secondary(ctx, func() error {
+		return h.driver.ExportResults(ctx, h.claim.VM, h.guestResults, h.results, maxGuestExport)
+	}); err != nil {
+		return err
+	}
+	return h.validateGuestStatus()
+}
+func (h *hostRuntime) validateGuestStatus() error {
 	root, err := os.OpenRoot(h.results)
 	if err != nil {
 		return err
@@ -273,14 +321,11 @@ func (h *hostRuntime) Collect(ctx context.Context) error {
 	return nil
 }
 func (h *hostRuntime) Stop(ctx context.Context) error {
-	if h.inputsUnconfirmed {
-		return fmt.Errorf("preparation process cleanup unconfirmed; retain lane inputs for inspection")
-	}
 	if !h.cloneAttempted {
 		h.stopConfirmed = true
 		return nil
 	}
-	err := h.driver.Stop(ctx, h.claim.VM, h.child)
+	err := h.secondary(ctx, func() error { return h.driver.Stop(ctx, h.claim.VM, h.child) })
 	h.stopConfirmed = err == nil
 	return err
 }
@@ -290,8 +335,10 @@ func (h *hostRuntime) Release(ctx context.Context) (err error) {
 	}
 	defer func() { err = errors.Join(err, h.position.Close()); h.position = nil }()
 	defer func() {
-		if h.logs != nil {
-			err = errors.Join(err, h.logs.Close())
+		for _, log := range []*runLog{h.logs, h.stdoutLog, h.stderrLog} {
+			if log != nil {
+				err = errors.Join(err, log.Close())
+			}
 		}
 	}()
 	if h.inputsUnconfirmed || (h.claimed && !h.stopConfirmed) {
@@ -301,9 +348,22 @@ func (h *hostRuntime) Release(ctx context.Context) (err error) {
 		return fmt.Errorf("cleanup expired; lane remains claimed: inspect %s: %w", h.claim.VM, err)
 	}
 	if h.cloneAttempted {
-		if err := h.driver.Delete(ctx, h.claim.VM); err != nil {
+		if err := h.secondary(ctx, func() error { return h.driver.Delete(ctx, h.claim.VM) }); err != nil {
 			return fmt.Errorf("VM removal failed; lane remains claimed: %w", err)
 		}
+	}
+	var validationErr error
+	for _, log := range []*runLog{h.logs, h.stdoutLog, h.stderrLog} {
+		if log != nil {
+			validationErr = errors.Join(validationErr, log.Err())
+		}
+	}
+	if h.artifactsOwned {
+		_, err := boundedArtifactSize(ctx, h.artifacts, maxRunArtifacts-maxResultRecord)
+		validationErr = errors.Join(validationErr, err)
+	}
+	if h.executed {
+		validationErr = errors.Join(validationErr, h.validateGuestStatus())
 	}
 	if h.scratch != "" {
 		if err := os.RemoveAll(h.scratch); err != nil {
@@ -316,7 +376,7 @@ func (h *hostRuntime) Release(ctx context.Context) (err error) {
 		}
 		h.claimed = false
 	}
-	return nil
+	return validationErr
 }
 
 // WriteResult runs after the reducer's terminal state, when the native lifetime
@@ -350,11 +410,15 @@ func (h *hostRuntime) WriteResult(state RunState) error {
 	return errors.Join(writeErr, file.Close())
 }
 
-type runLog struct {
+type artifactBudget struct {
 	mu        sync.Mutex
-	file      *os.File
 	remaining int64
-	err       error
+}
+type runLog struct {
+	mu     sync.Mutex
+	file   *os.File
+	budget *artifactBudget
+	err    error
 }
 
 func (w *runLog) Write(p []byte) (int, error) {
@@ -363,12 +427,14 @@ func (w *runLog) Write(p []byte) (int, error) {
 	if w.err != nil {
 		return 0, w.err
 	}
-	if int64(len(p)) > w.remaining {
-		w.err = fmt.Errorf("VM logs exceed 256 MiB")
+	w.budget.mu.Lock()
+	defer w.budget.mu.Unlock()
+	if int64(len(p)) > w.budget.remaining {
+		w.err = fmt.Errorf("VM artifact byte budget exceeded")
 		return 0, w.err
 	}
 	n, err := w.file.Write(p)
-	w.remaining -= int64(n)
+	w.budget.remaining -= int64(n)
 	w.err = err
 	return n, err
 }
@@ -465,4 +531,32 @@ func reserveOrdinaryArtifacts(ctx context.Context, parent string) error {
 		return fmt.Errorf("VM artifact retention saturated; inspect/archive %s", parent)
 	}
 	return nil
+}
+
+// Persist uncertainty before every secondary process, including the crash gap.
+// Only confirmed completion restores the prior recovery authority.
+func (h *hostRuntime) secondary(ctx context.Context, operation func() error) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	previous := h.claim.Stage
+	h.claim.Stage = ClaimCleanupUnknown
+	if err := h.position.WriteClaim(h.claim); err != nil {
+		h.inputsUnconfirmed = true
+		return err
+	}
+	err := operation()
+	if errors.Is(err, ErrUnconfirmedProcessCleanup) {
+		h.inputsUnconfirmed = true
+	}
+	if h.inputsUnconfirmed {
+		return err
+	}
+	h.claim.Stage = previous
+	if writeErr := h.position.WriteClaim(h.claim); writeErr != nil {
+		h.inputsUnconfirmed = true
+		h.claim.Stage = ClaimCleanupUnknown
+		return errors.Join(err, writeErr)
+	}
+	return err
 }

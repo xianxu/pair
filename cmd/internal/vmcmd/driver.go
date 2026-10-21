@@ -25,7 +25,8 @@ type VMChild interface {
 type VMDriver interface {
 	Inspect(context.Context, string) (VMStatus, error)
 	Clone(context.Context, string, string) error
-	Launch(context.Context, string, string, string, io.Writer) (VMChild, error)
+	Launch(context.Context, string, string, io.Writer) (VMChild, error)
+	ExportResults(context.Context, string, string, string, int64) error
 	AwaitGuest(context.Context, string) error
 	Execute(context.Context, string, []string, io.Writer, io.Writer) (int, error)
 	Stop(context.Context, string, VMChild) error
