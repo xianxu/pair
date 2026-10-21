@@ -328,3 +328,99 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000410
+
+---
+
+## Re-review — 2026-10-21T00:03:00-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 755 — couch mock serve: live-reloading Go server for a project's versioned, clickable mocks (product-shaping) |
+| repo | pair |
+| issue file | workshop/issues/000755-couch-mock-serve-live-reloading-go-server-for-a-project-s-versioned-clickable-mocks-product-shaping.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 79ea4ca9e5be10c67c5c356b7f7d4067ebd79a92..1a41927bc3d9689c62c58d032a8c7bef9b6c69a9 |
+| command | sdlc close --issue 755 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T00:03:00-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation delivers the documented versioned mock server, shared fixtures, page identity, reload behavior and sample. BR-5 is addressed with bounded staging and meaningful interruption/recovery coverage. No new blocking findings were identified.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Identity-checked directory/file reads remain shared by HTTP and scanner paths; ancestor-link and replacement regressions pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Generation/request ownership fencing remains reachable; repeated restoration and stale response, body, rejection and timer tests pass.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Concurrent readers accept only complete values or ErrPathChanged, verify the settled value, and join writers; package race tests pass.
+  - id: BR-4
+    disposition: withdrawn
+    note: |
+      Retain the prior withdrawal. Recorded sandboxed browser qualification targets 584a03cf62abf80bad6e7041f5426a6fbd1cf906; its diff to the reviewed head changes documentation only.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Fixed staging is reclaimed only under the persistent OS lock and excluded from scan content/caps. The killed-writer recovery regression passes; disabling locking makes it fail. Removing reserved-name scan exclusion independently fails its regression. Both negative controls ran in a disposable copy, subsequently removed.
+```
+
+1. **Strengths**
+
+   - Selection publication preserves the previous pointer until atomic rename; interruption leaves at most one recoverable stage (`project.go:277`).
+   - HTTP routes and scanner reads share directory/file identity checks.
+   - Cached observations keep browser polling independent of filesystem scans.
+   - README, atlas and the sample document commands, limits, fixtures and version conventions.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed mockserve, couchcmd and artifactpath package tests; mockserve race tests; all 11 JavaScript tests; affected-reader inventory; and diff whitespace checks. Both BR-5 negative controls failed as expected. Real-browser qualification was assessed through the previously accepted host evidence and the documentation-only delta to this head.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Shared version parsing, read boundary and scan publisher.
+   - **ARCH-PURE — pass:** Parsing, HTML transformation and revision decisions have direct deterministic tests.
+   - **ARCH-PURPOSE — pass:** Commands, clickable sample, shared fixtures, identity and reload cover the stated purpose.
+   - **ARCH-MOCK — pass:** Portable project folders support isolated integration tests; browser conformance uses private profiles.
+   - **ARCH-CONSTRAINTS — pass:** Entry, byte and HTML bounds have counted-work and overflow coverage.
+   - **ARCH-SECURE — pass:** Explicit public routes, identity-checked reads and unsafe coordination-file refusal.
+   - **ARCH-ORDER — pass:** Serialized selection ownership and fenced browser completions have controlled-order regressions.
+   - **ARCH-FUNERAL — pass:** Fixed staging bounds residue; owner death releases locking and the next writer reclaims staging.
+   - **ARCH-EVOLVE — pass:** Fixture bytes are preserved; the selection pointer remains a strict single-value format.
+
+7. **Plan revision recommendations:** None. The BR-5 revision accurately supersedes the original temporary-file lifecycle.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"99fb5c24-3b89-4f75-8065-11e1da34a1aa","repository":"github.com/xianxu/pair","issue_id":"000755","recipe":"milestone-review","round":4,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/f6904dd752437243","reviewed_head":"1a41927bc3d9689c62c58d032a8c7bef9b6c69a9","slot":"pair:4","requested_at":"2026-10-21T07:00:00.660471Z"},"phase":"finished","pid":84688,"started_at":"2026-10-21T07:00:00.857703Z","finished_at":"2026-10-21T07:03:00.080032Z","session_id":"01a15d42-7f37-7fc1-b91a-c7c75e6ec32c","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.024493542s
+head: "1a41927bc3d9689c62c58d032a8c7bef9b6c69a9"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

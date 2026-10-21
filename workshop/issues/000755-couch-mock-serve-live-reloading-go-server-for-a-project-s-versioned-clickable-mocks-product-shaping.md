@@ -54,6 +54,7 @@ Implementation details: [durable plan](../plans/000755-mock-server-plan.md).
 ## Log
 
 ### 2026-10-20
+- 2026-10-20: closed — BR-5 killed-owner recovery and OS-confirmed lock-contention regression passes; removing flock makes it fail. Reserved-file scan/cap regressions failed before the fix and pass after. Final package race passed 2.824s; reader inventory passed. Sandboxed private-profile Chrome reload/sample passed on committed code 584a03cf62abf80bad6e7041f5426a6fbd1cf906 (9.316s), raw output in workshop/plans/000755-mock-browser-evidence.md. Recorded affected/full-suite queued on pushed final code; pass required before landing.; review verdict: SHIP
 
 - Claimed in pair:4 after pair#733 landed. Read the operator-approved product-shaping design in ops. The server is standalone: no supervisor, terminal, stored Couch identity or visible browser launch. Surveyed the existing CLI, loopback HTTP lifecycle, browser/CDP qualification and source inventories. A bounded context exploration returned integration points without edits.
 - Alternatives: native file watching adds a dependency and recursive watch lifecycle; rescanning per browser multiplies project IO by browser count. Recommend one bounded content scan owned by the server, with browsers polling its cached revision (ARCH-DRY, ARCH-CONSTRAINTS). Use an HTML parser for authoritative root attributes rather than regex or browser-only tagging (ARCH-PURE).

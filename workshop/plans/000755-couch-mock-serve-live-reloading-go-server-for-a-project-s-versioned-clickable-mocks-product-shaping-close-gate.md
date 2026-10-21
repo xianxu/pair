@@ -526,6 +526,190 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 99fb5c24-3b89-4f75-8065-11e1da34a1aa
+            repository: github.com/xianxu/pair
+            issue_id: "000755"
+            recipe: milestone-review
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/f6904dd752437243
+            reviewed_head: 1a41927bc3d9689c62c58d032a8c7bef9b6c69a9
+            slot: pair:4
+            requested_at: "2026-10-21T07:00:00.660471Z"
+          phase: finished
+          pid: 84688
+          started_at: "2026-10-21T07:00:00.857703Z"
+          finished_at: "2026-10-21T07:03:00.080032Z"
+          session_id: 01a15d42-7f37-7fc1-b91a-c7c75e6ec32c
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 1a41927bc3d9689c62c58d032a8c7bef9b6c69a9
+        tracker_head: 8ad72e59f205333629047a953ea2e6eaa42cefe1
+        branch_point: 79ea4ca9e5be10c67c5c356b7f7d4067ebd79a92
+        since: "2026-10-20T22:40:54-07:00"
+        until: "2026-10-20T23:59:06-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-20T22:40:54-07:00"
+              end: "2026-10-20T23:59:06-07:00"
+              began: "2026-10-20T22:40:54-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot4/pair
+        sources:
+            - harness: codex
+              id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 9938a7e6dcb353417ee35faddf00413a1e24b0b9089cd6b10911861e59dd82d9
+              started: "2026-10-20T17:08:30.923Z"
+              spawned: false
+              bytes: 17657583
+              windows:
+                - start: "2026-10-20T22:40:54-07:00"
+                  end: "2026-10-20T23:59:06-07:00"
+            - harness: codex
+              id: 01a15cfa-72c5-7572-8b02-f2056ee548f6
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              parent_id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              digest: 5401f0f3bd86c869cb32d5df44c87f0fd8258346cda55aaceb20581356217caf
+              started: "2026-10-21T05:41:19.814Z"
+              spawned: true
+              bytes: 652919
+              windows:
+                - start: "2026-10-21T05:41:19.814Z"
+                  end: "2026-10-20T23:59:06-07:00"
+            - harness: codex
+              id: 01a15d07-3ccf-7023-ade8-9f85cedd4787
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 6e1e1b3acdc4e7f6c4b3ee9921c792a7dbc8ab590b6fc7513e8a02c4152ccab9
+              started: "2026-10-21T05:55:18.212Z"
+              spawned: false
+              bytes: 545233
+              windows:
+                - start: "2026-10-21T05:55:18.212Z"
+                  end: "2026-10-20T23:59:06-07:00"
+            - harness: codex
+              id: 01a15d09-e16e-7973-869b-447feb0de7d4
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 7666bc2cfa2b5266548b5bf7684a18adcdc8aa89a2cb40d27161f6eb7b38336f
+              started: "2026-10-21T05:58:11.397Z"
+              spawned: false
+              bytes: 505167
+              windows:
+                - start: "2026-10-21T05:58:11.397Z"
+                  end: "2026-10-20T23:59:06-07:00"
+            - harness: codex
+              id: 01a15d0b-c808-77a0-8a74-b058604cf1e8
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 775a5ebd6ce47b7647d64baca6dc6d6075af73394146897950b4df76ba0ae6fb
+              started: "2026-10-21T06:00:16.2Z"
+              spawned: false
+              bytes: 518046
+              windows:
+                - start: "2026-10-21T06:00:16.2Z"
+                  end: "2026-10-20T23:59:06-07:00"
+            - harness: codex
+              id: 01a15d0c-4f3e-7c23-9eb6-c0e3bfaee8ee
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 68125bf8491fa1a9237a8a23b25136ec9a96c11f2527fd3bb588f3a4b2fad9d3
+              started: "2026-10-21T06:00:50.659Z"
+              spawned: false
+              bytes: 447230
+              windows:
+                - start: "2026-10-21T06:00:50.659Z"
+                  end: "2026-10-20T23:59:06-07:00"
+            - harness: codex
+              id: 01a15d0d-9ec0-70d1-a196-c8d913b2f3c9
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              parent_id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              digest: 3b23ab7dc82e8fb206a9ffe0a5d32549fa160a7d69fe7991920bcd1a0b0435e2
+              started: "2026-10-21T06:02:16.226Z"
+              spawned: true
+              bytes: 634480
+              windows:
+                - start: "2026-10-21T06:02:16.226Z"
+                  end: "2026-10-20T23:59:06-07:00"
+            - harness: codex
+              id: 01a15d0e-032a-7401-bb22-542ec2559bee
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              parent_id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              digest: 0272946db24a77027059fa1d2499a9e4300652ebd31f14effb6ccfbfb574c63a
+              started: "2026-10-21T06:02:41.947Z"
+              spawned: true
+              bytes: 554824
+              windows:
+                - start: "2026-10-21T06:02:41.947Z"
+                  end: "2026-10-20T23:59:06-07:00"
+            - harness: codex
+              id: 01a15d12-f90c-7480-af77-512cb85c5c24
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              parent_id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              digest: b3af1b23f47d568ec119d8edf4e2a83b475d100a1b6e3d6a8cf9ac9c1b41ac8c
+              started: "2026-10-21T06:08:07.079Z"
+              spawned: true
+              bytes: 545002
+              windows:
+                - start: "2026-10-21T06:08:07.079Z"
+                  end: "2026-10-20T23:59:06-07:00"
+        cuts:
+            - dispatched: "2026-10-20T23:18:15-07:00"
+              finalized: "2026-10-20T23:23:07-07:00"
+              finalizing: false
+            - dispatched: "2026-10-20T23:33:18-07:00"
+              finalized: "2026-10-20T23:37:26-07:00"
+              finalizing: false
+            - dispatched: "2026-10-20T23:48:58-07:00"
+              finalized: "2026-10-20T23:52:30-07:00"
+              finalizing: false
+      "n": 4
+      timestamp: "2026-10-21T00:03:01-07:00"
+      dispatched: "2026-10-20T23:59:57-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Identity-checked directory/file reads remain shared by HTTP and scanner paths; ancestor-link and replacement regressions pass.
+          round: 4
+        - id: BR-2
+          disposition: addressed
+          note: Generation/request ownership fencing remains reachable; repeated restoration and stale response, body, rejection and timer tests pass.
+          round: 4
+        - id: BR-3
+          disposition: addressed
+          note: Concurrent readers accept only complete values or ErrPathChanged, verify the settled value, and join writers; package race tests pass.
+          round: 4
+        - id: BR-4
+          disposition: withdrawn
+          note: Retain the prior withdrawal. Recorded sandboxed browser qualification targets 584a03cf62abf80bad6e7041f5426a6fbd1cf906; its diff to the reviewed head changes documentation only.
+          round: 4
+        - id: BR-5
+          disposition: addressed
+          note: Fixed staging is reclaimed only under the persistent OS lock and excluded from scan content/caps. The killed-writer recovery regression passes; disabling locking makes it fail. Removing reserved-name scan exclusion independently fails its regression. Both negative controls ran in a disposable copy, subsequently removed.
+          round: 4
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 1a41927bc3d9689c62c58d032a8c7bef9b6c69a9
+      blocked: false
 ---
 
 # Gate ledger — pair#755 (boundary-review)
@@ -568,6 +752,16 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-5** [Important] `transient-artifact-reclamation` (kind: defect) Interrupted selection writers leave staging files without a reclamation path
   cmd/internal/mockserve/project.go:227-244 creates a fresh .mock-current-<nonce>.tmp for every selection, with removal owned only by a defer. Process termination before rename/defer leaves that file permanently; no startup, subsequent writer, or scanner path reclaims abandoned staging files. These files consume the scanner's 1,024-entry allowance (scan.go:70-72), so repeated interrupted commands eventually prevent serving an otherwise valid project. ARCH-FUNERAL: define bounded, concurrency-safe staging ownership/reclamation, preserve active writers and the published pointer, and add interrupted-writer recovery coverage.
 
+## Round 4 — 2026-10-21T00:03:01-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Identity-checked directory/file reads remain shared by HTTP and scanner paths; ancestor-link and replacement regressions pass.
+- BR-2 — addressed — Generation/request ownership fencing remains reachable; repeated restoration and stale response, body, rejection and timer tests pass.
+- BR-3 — addressed — Concurrent readers accept only complete values or ErrPathChanged, verify the settled value, and join writers; package race tests pass.
+- BR-4 — withdrawn — Retain the prior withdrawal. Recorded sandboxed browser qualification targets 584a03cf62abf80bad6e7041f5426a6fbd1cf906; its diff to the reviewed head changes documentation only.
+- BR-5 — addressed — Fixed staging is reclaimed only under the persistent OS lock and excluded from scan content/caps. The killed-writer recovery regression passes; disabling locking makes it fail. Removing reserved-name scan exclusion independently fails its regression. Both negative controls ran in a disposable copy, subsequently removed.
+
 ## Open findings
 
-- **BR-5** [Important] `transient-artifact-reclamation` (kind: defect) Interrupted selection writers leave staging files without a reclamation path
+(none — every finding has been disposed)
