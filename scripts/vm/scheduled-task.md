@@ -4,16 +4,16 @@ Pair#743 supplies one deterministic command. Pair#737 owns scheduling;
 operations owns registration. Until that scheduler lands, the hub or operator
 invokes this command manually. Registration is pending.
 
-After main contains #743 and ariadne#509's supported non-required `conformance`
+After main contains #743 and ariadne#509's supported non-required `conformance-vm`
 declaration, invoke:
 
 ```sh
 bash /Users/xianxu/workspace/pair/scripts/vm/nightly.sh --checkout /Users/xianxu/workspace/pair
 ```
 
-The caller needs supported SDLC, Git origin access and the qualified image.
+The caller needs SDLC at or after ariadne commit `9ffe23d0`, Git origin access and the qualified image. Version-2 declaration uses `scope: landing`, `resource: runner`, `required: false`; named execution is manual-only on pinned main, and `--all` excludes it. SDLC takes no suite slot; the Pair runner alone owns VM capacity.
 The command fetches origin/main once, resolves its exact commit and runs
-`sdlc local-check run --name conformance --rev SHA` once. The checkout keeps its
+`sdlc local-check run --name conformance-vm --rev SHA` once. The checkout keeps its
 branch and local edits. A concurrent push can cause SDLC's exact-tip guard to
 refuse; preserve that failure. No retry occurs.
 

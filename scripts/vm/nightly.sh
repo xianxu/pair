@@ -135,7 +135,7 @@ def nightly_main(checkout, root, date):
             if cancelled:
                 return 128 + cancelled
             env = dict(os.environ, PAIR_VM_ARTIFACTS_DIR=str(destination / 'vm'))
-            child = subprocess.Popen(['sdlc', 'local-check', 'run', '--name', 'conformance', '--rev', source],
+            child = subprocess.Popen(['sdlc', 'local-check', 'run', '--name', 'conformance-vm', '--rev', source],
                                      cwd=checkout, env=env)
             if cancelled and child.poll() is None:
                 child.send_signal(cancelled)

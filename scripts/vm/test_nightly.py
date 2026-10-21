@@ -73,7 +73,7 @@ sys.exit(int(os.environ.get('EXIT','0')))
     def test_exact_remote_main_once_without_switching_or_touching_source(self):
         result = self.run_night()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(self.calls(), [{'argv':['local-check','run','--name','conformance','--rev',self.main],
+        self.assertEqual(self.calls(), [{'argv':['local-check','run','--name','conformance-vm','--rev',self.main],
             'cwd':str(self.repo), 'artifacts':str(self.artifacts / '2026-10-21' / 'vm')}])
         self.assertEqual(self.git('branch', '--show-current').strip(), 'operator-work')
         self.assertEqual((self.repo / 'tracked').read_text(), 'uncommitted operator work')

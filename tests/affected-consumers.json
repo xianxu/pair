@@ -470,6 +470,7 @@
       "go": [],
       "files": [
         "Makefile*",
+        ".sdlc/local-checks.json",
         "tests/conformance-*.py",
         "tests/conformance-paths.json",
         "tests/native-terminal-ci*.py",

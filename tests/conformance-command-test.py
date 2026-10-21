@@ -14,6 +14,18 @@ SPEC.loader.exec_module(vm)
 
 
 class CommandTest(unittest.TestCase):
+    def test_declared_vm_check_is_manual_landing_runner_with_shared_paths(self):
+        root = Path(__file__).resolve().parents[1]
+        declaration = json.loads((root / '.sdlc/local-checks.json').read_text())
+        self.assertEqual(declaration['version'], 2)
+        checks = {check['name']: check for check in declaration['checks']}
+        self.assertEqual(checks['conformance-vm'], {
+            'name':'conformance-vm', 'command':['make','conformance-vm'],
+            'scope':'landing', 'required':False, 'resource':'runner',
+            'paths_file':'tests/conformance-paths.json', 'timeout_minutes':30,
+        })
+        self.assertTrue(checks['suite']['required'])
+
     def test_host_invokes_generic_train_runner_once_and_preserves_exit(self):
         for code in (0, 37):
             with self.subTest(code=code), tempfile.TemporaryDirectory() as scratch:
