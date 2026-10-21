@@ -2526,3 +2526,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #764: Retire owned PTY/process handles before closing, signalling or reaping them; shared detach/final cleanup must consume each exactly once, including failure paths. Join startup and cleanup errors, and make live-fixture cleanup failures affect the test result rather than merely logging them.
 
 - #764 BR-1: A fixture-only change can still add a repository enforcement surface. Every new Pair-local lint rule needs its owner, rejected and accepted patterns, and syntax-analysis limits mapped in atlas/go-lint-catalog.md; include that surface in the close atlas decision.
+
+- #768 PQ-1: A PTY initialization abort must terminate its owned child explicitly; master hangup cannot stop an arbitrary HUP-ignoring command. Close master/slave before the sole wait because the child can already be blocked in kernel exit-drain. Preserve the initialization error and keep normal EOF/live-child ownership distinct.

@@ -89,3 +89,11 @@ item: milestone-review design=0.02 impl=0.12
 design-buffer: 0.15
 total: 1.30
 ```
+
+### 2026-10-21 — implementation proof checkpoint
+
+Full-flow change-code passed (plan round3, no open findings; estimate-quality INFO). Go-module estimate items include their native fixtures; docs/review items include audit certificates, public smoke, recorded checks and landing, with qualification/landing duration remaining uncertain per advisory.
+
+Observed native RED before adapter: both exit0/7 lost all final bytes after the out-of-band child stdio-close barrier. Retained start passed. Production run integration now verifies exact stdout/log and child status after the same barrier. Disposable immediate-slave-close mutation failed both production cases with empty stdout/log and was restored; transcript /tmp/pair-768-immediate-release-mutation.log. Native run also returned exact bytes/status while ignored-SIGHUP descendant held a slave after leader exit. Abort tests cover live HUP-ignoring child and exit-drain, requiring reaped direct child and closed master/slave while retaining MakeRaw failure. Large concurrent output, signal results and command identity checks pass; race/vet and remaining verification in progress.
+
+Targeted verification: go test ./cmd/internal/scribecmd ./cmd/internal/artifactpath ./internal/repolint passed; scribe race run passed, vet passed. Reader audit certificate covers only generated local log/fixture reads. Three new production files classified NonArtifactSources; inventory preflight caught and resolved those omissions before the recorded check. Interactive native fixture observes Run’s initial resize and verifies outer terminal mode restoration. N8/N16 retained descriptors remain valid before drain and are closed after join; stateful concurrent release fake requires exactly one close and stable error. No helper processes remained after the run.
