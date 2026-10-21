@@ -1,6 +1,6 @@
 ---
 id: 000731
-status: codecomplete
+status: done
 created: 2026-10-20
 updated: 2026-10-21
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: ae6dc590d696c87ed99f948c1d0d4b56c9762f5c
         evidence_commit: f046fc278933cd1b5bdd611e692517f8926ad92a
+        landed_commit: 323986ed412b4dd1b885b560c9ba9a71e2132e11
 ---
 
 # A pane that fell back to a native shell still classifies as a Pair terminal
