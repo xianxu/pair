@@ -565,3 +565,59 @@ recorded in atlas and cheaply asserted. Implement now, then take #738 while
 the private live check waits for #744. No new external protocol, persistence,
 queue, retry, executor or visible state. The second #737/#739 lander verifies
 their combined locks and getter/notice wiring.
+
+
+### 2026-10-21 02:56 PDT — BR-3 controlled counter-measurement
+
+Hub91039d1a requested the same cache-enabled invocation on frozen main and
+branch, cold and warm, before deciding causation. Filed unclaimed pair#765
+for the independent cache-enabled invocation envelope; no cap or runner-policy
+change belongs to #739. The controlled evidence follows.
+
+#739 controlled cache-enabled package measurements
+
+All four invocations exited 1. All test assertions passed; only the existing physical-write budgets failed. No cached package result was reused, including warm runs. No source or budget was changed.
+
+Pinned main: 53a9d42e503efa47ecef42beec294a30ba87768f (base)
+Pinned branch: 1b948b3c040f6979eaafa77b1ad2da127f524da4 (work)
+Go: go1.27.1 darwin/arm64, cgo enabled.
+Command: go test ./cmd/internal/couchcore ./cmd/internal/couchtty
+GOFLAGS=-p=2 -trimpath -v (verbose, cache-compatible; no -count or -run)
+Each variant has a separate initially empty private GOCACHE, reused for its warm run. Identical TMPDIR/GOTMPDIR point at this task's tmp directory. Runtimebundle generation happened beforehand with the normal shared cache. No shared cache was cleared. Runs were sequential, with at most two package processes.
+
+Go source cmd/go/internal/test/test.go:1861 admits -test.v to cacheArgs. Thus these measurements preserve cache-enabled execution but do not use default quiet output.
+
+| Mode | Package | Bytes written | Cap | Seconds | Failure |
+|---|---|---:|---:|---:|---|
+| base-cold | couchcore | 143224832 | 134217728 | 283.825 | budget only |
+| base-cold | couchtty | 105287680 | 67108864 | 54.419 | budget only |
+| base-warm | couchcore | 143204352 | 134217728 | 219.561 | budget only |
+| base-warm | couchtty | 104529920 | 67108864 | 42.836 | budget only |
+| work-cold | couchcore | 158978048 | 134217728 | 158.853 | budget only |
+| work-cold | couchtty | 105304064 | 67108864 | 47.208 | budget only |
+| work-warm | couchcore | 162770944 | 134217728 | 146.409 | budget only |
+| work-warm | couchtty | 105287680 | 67108864 | 42.784 | budget only |
+
+Main already exceeds both caps in both cache modes. Branch adds 15,753,216 cold / 19,566,592 warm core bytes versus matched main modes; tty adds 16,384 cold / 757,760 warm. Therefore this establishes a pre-existing defect, but does not establish zero incremental cost from #739.
+
+Concrete candidate mechanism: cache-enabled Go supplies -test.testlogfile. During main cold execution at 09:30:08 UTC, the core testlog was already 27 MiB. These observations do not separately attribute all write differences to Go's testlog.
+
+Complete stdout/stderr logs and SHA256 hashes are recorded alongside this report in metadata.json. Worktrees, generated bundle, caches and logs retained for the owner; no cleanup performed.
+
+Log SHA256 (complete stdout/stderr):
+
+- base-cold: 9702cbaa68e9b10be86c980205552123b1b2dbe79ff04c0fa5b85cbc47e248a7
+- base-warm: d8b801d8d281ea631323584229417490932230645f229ce1f27c2d266f7707f2
+- work-cold: 3effd7b37d19e762952334c0f4833b9393cd7f6b6abba7bc82293740339556a1
+- work-warm: 9d4007e1935e95d45e83d197462d8b58fd18747c09f5ce67a1005bd5e34b61ee
+
+Hub5c4f9ccc accepts the pre-existing cap failure but requires attribution of
+the branch increment before the dispute. Attribution controls are running;
+do not yet claim the extra writes are tests rather than production.
+
+Final-code recorded suite attempt080a8de027740459d8a9639a4d4f603f on
+e94267fd6c9026a06a26bafd6f7e2911a576af44 passed exit0 in11m2s; log
+SHA prefix492cf5028e0c, saved under .git/sdlc/local-checks/<head>/suite.log.
+Core190.474s, tty40.275s; installed explicit-start command and lint passed.
+Live disposable-fleet acceptance remains owed after #744/#761; no stage or
+merge is authorized before it.
