@@ -212,7 +212,7 @@ Each task uses the named function-verification strategy above. A checked task re
 ### Task 5 — shared tool, held scene and painter
 
 - [x] Use pointer/painter, FIFO-policy and independent-scene strategies; mount the same tool in viewer and console. Required-label transitions and source-document identity are enforced on both adapters. Count new samples/segments, not wall-clock speed.
-- [x] Pass `node --test tests/webcast/sketch-*.test.mjs tests/webcast/viewer.test.mjs tests/webcast/operator*.test.mjs tests/webcast/annotation-placement.test.mjs`, Go assembly tests, N/2N guards and owned browser fixtures, then commit.
+- [ ] Requalify logical gesture ownership and pass `node --test tests/webcast/sketch-*.test.mjs tests/webcast/viewer.test.mjs tests/webcast/operator*.test.mjs tests/webcast/annotation-placement.test.mjs`, Go assembly tests, N/2N guards and owned browser fixtures, then commit.
 - [x] Resolve round1 BR-2/BR-3 with red/green regressions for authoritative console lifecycle metadata and queue-full terminal recovery, covering move and pointer-up.
 
 ### Task 6 — conformance, review and landing
@@ -344,3 +344,7 @@ Use the existing five-second console operation/CDP deadline as the shared finish
 The BR-8 revision also updates the current state enumeration, recovery rows and function-strategy row above so the live contract includes finishing and its bounded failure, rather than leaving the new rule only in historical revisions.
 
 BR-8 implementation uses one shared `beforeAnnotationMode` gate on the tool, delegated to by both adapters, including preflight/deferred exit. Five-second `observeRequest` observers detach UI waiting and deduplication from a hung transport without canceling or reidentifying the writer's operation. Unknown write failure exposes Check confirmation; anchor-only failure instead retains label/escape acknowledgment, without advertising a nonexistent receipt. The label-dialog Escape clears the finished exit intent before ordinary drawing resumes.
+
+### 2026-10-21 — BR-9 logical gesture ownership re-plan checkpoint
+
+The review verified BR-8 and reproduced a successor-contact crash on both surfaces. Physical pointer release currently clears `contact` before the gesture has resolved its anchor and drained its terminal; a new contact mutates capture state before accumulator admission throws. ARCH-ORDER/ARCH-PURPOSE require one logical gesture owner held through anchor/buffer/terminal production, independent of physical contact. Stop implementation and enumerate pointer-up, pointercancel, lost capture, buffer/point-limit endings, explicit exit and every successor-input transition before choosing the admission rule. Reopened Task 5 pointer verification. The existing recorded runner remains retained pending a concrete reviewed correction.

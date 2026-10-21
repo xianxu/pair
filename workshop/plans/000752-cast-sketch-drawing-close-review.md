@@ -379,3 +379,128 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T04:21:39-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 752 — cast-sketch: live console and driver drawing with pen pressure |
+| repo | pair |
+| issue file | workshop/issues/000752-cast-sketch-drawing.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | bc79cbaeae75b518dcfa789fc2bd0e40ccf06f97..208edef0488a0171064d6892db65d9a878880288 |
+| command | sdlc close --issue 752 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T04:21:39-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-8’s voluntary-exit correction is verified: all 16 delayed-anchor regressions pass at the pinned head and fail with the fix removed in a disposable copy. One adjacent blocking defect remains: starting another stroke after pointer-up but before anchor resolution crashes the shared controller on both surfaces. Focused Go/Node checks and the reader inventory pass; live Chrome checks remain limited by the previously documented environment failure.
+
+1. **Strengths**
+
+   - Both adapters reuse the same finishing policy, preserving pending geometry before requesting a label.
+   - Writer acknowledgments distinguish durable acceptance from uncertainty, retaining immutable retry identities.
+   - README and atlas document controls, recovery, privacy boundaries and limits. The revised Core concepts tables distinguish deterministic helpers from effectful wrappers.
+
+2. **Critical findings and prior dispositions**
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Retain prior disposition: implementation tasks reference the shared function-verification table instead of repeating case inventories.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Retain prior disposition: console authoritative lifecycle and late-label regressions pass in the pinned-head Node suite.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Retain prior disposition: queue-saturation terminal and pointer-up regressions pass; the finding below concerns a separate pending-anchor ordering.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Retain prior disposition: Core concepts paths and new/modified/reused classifications match the inspected implementation range.
+  - id: BR-5
+    disposition: withdrawn
+    note: |
+      Retain prior withdrawal. Local live checks again encounter GPU-process startup failure/CDP EOF; this does not reopen the previously disposed environment finding.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Retain prior disposition: producer and optimistic painter use width 3; durable-width and pressure regressions pass.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Retain prior disposition: PURE rows identify deterministic symbols, while callbacks, canvas, journal ownership and live adapters are classified INTEGRATION.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      All 16 viewer/console delayed-anchor exit regressions pass at head and fail with the finishing fix removed in a temporary copy; the temporary copy was removed.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: bounded-input-retains-terminal-work
+    title: |
+      A second contact before the previous anchor resolves crashes drawing on both surfaces
+    detail: |
+      At cmd/internal/webcast/web/sketch.js:352–357, pointer-up clears contact while the logical gesture remains pending its anchor. The down guard at lines 367–376 admits another contact and mutates contact before createSketchGesture.start rejects it at sketch-policy.js:437. Controlled viewer and console harnesses reproduce “gesture already open”, followed by a TypeError reading contact.last at sketch.js:346 on the next pointer-up; the second stroke is absent. ARCH-ORDER/ARCH-PURPOSE: this is the 3rd finding in family bounded-input-retains-terminal-work. Earlier rounds fixed instances. Do NOT fix only this instance: state and enforce the rule that physical contact release does not retire logical gesture ownership. Enumerate pointer-up, pointercancel, lost capture and automatic buffer/point-limit endings, and prevent or explicitly queue successor gestures until their predecessor relinquishes ownership. Add controlled-order regressions on both adapters.
+```
+
+3. **Important findings**
+
+   None.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - Passed focused webcast Go packages, `TestNode`, operator assembly checks, `make test-affected-inventory`, and range whitespace checks.
+   - Independently reproduced the new crash through both existing mount harnesses without modifying the checkout.
+   - Existing pending-anchor coverage resolves the anchor before starting the next stroke ([sketch.test.mjs:324](/Volumes/TestScratch/review-checkouts/d48da7d342cc7fc3/tests/webcast/sketch.test.mjs:324)); it misses this ordering.
+   - All four requested live Chrome cases failed before substantive assertions because Chrome’s GPU process could not initialize or CDP returned EOF. Real console smoke and the corrected-head recorded check remain explicit pre-landing holds.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared tool, renderer, authority and writer seams are reused.
+   - **ARCH-PURE — pass:** inspected deterministic helpers match their narrowed classifications; effects are identified separately.
+   - **ARCH-PURPOSE — flag:** ordinary successive strokes can fail on both required drawing surfaces.
+   - **ARCH-MOCK — pass structurally:** stateful Writer/Hub/CDP harnesses exercise production seams; live verification has the limitation above.
+   - **ARCH-CONSTRAINTS — pass:** explicit queue/source/transfer limits and counted-growth tests are present.
+   - **ARCH-SECURE — pass on inspected paths:** ingress validates authority and shape; private reads remain source-bound.
+   - **ARCH-ORDER — flag:** physical contact and logical gesture lifetimes disagree about when another contact is legal.
+   - **ARCH-FUNERAL — pass:** scene, timer, transfer and journal resources have retirement paths and bounds.
+   - **ARCH-EVOLVE — pass:** truncation is additive, absent/false compatibility is tested, and preserving codec seams remain intact.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry defining logical gesture ownership through delayed-anchor settlement. Enumerate every physical-contact ending and successor-input transition, then require controlled-order tests on both adapters. Reopen Task 5’s pointer verification until that rule is enforced.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"44f88c08-8708-45c0-b5ca-4c68de1d92c5","repository":"github.com/xianxu/pair","issue_id":"000752","recipe":"milestone-review","round":5,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/d48da7d342cc7fc3","reviewed_head":"208edef0488a0171064d6892db65d9a878880288","slot":"pair:9","requested_at":"2026-10-21T11:18:13.540205Z"},"phase":"finished","pid":78378,"started_at":"2026-10-21T11:18:13.708684Z","finished_at":"2026-10-21T11:21:38.74408Z","session_id":"01a15e2e-e583-7853-82da-5bdbb6b61475","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.955410375s
+head: "208edef0488a0171064d6892db65d9a878880288"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

@@ -448,6 +448,167 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 44f88c08-8708-45c0-b5ca-4c68de1d92c5
+            repository: github.com/xianxu/pair
+            issue_id: "000752"
+            recipe: milestone-review
+            round: 5
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/d48da7d342cc7fc3
+            reviewed_head: 208edef0488a0171064d6892db65d9a878880288
+            slot: pair:9
+            requested_at: "2026-10-21T11:18:13.540205Z"
+          phase: finished
+          pid: 78378
+          started_at: "2026-10-21T11:18:13.708684Z"
+          finished_at: "2026-10-21T11:21:38.74408Z"
+          session_id: 01a15e2e-e583-7853-82da-5bdbb6b61475
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: 208edef0488a0171064d6892db65d9a878880288
+        tracker_head: 627c11120a0bef231a162263412c952c7c74601e
+        branch_point: bc79cbaeae75b518dcfa789fc2bd0e40ccf06f97
+        since: "2026-10-21T00:30:29-07:00"
+        until: "2026-10-21T04:17:19-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-21T00:30:29-07:00"
+              end: "2026-10-21T04:17:19-07:00"
+              began: "2026-10-21T00:30:29-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot9/pair
+        sources:
+            - harness: codex
+              id: 01a15cc4-b370-7d60-9efa-989c5b30869b
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: c07d81451b30e3023f50c795e9776badbc782a36191a43aedcb72ab1b94e5697
+              started: "2026-10-21T04:42:37.82Z"
+              spawned: false
+              bytes: 19951345
+              windows:
+                - start: "2026-10-21T00:30:29-07:00"
+                  end: "2026-10-21T04:17:19-07:00"
+            - harness: codex
+              id: 01a15d72-f362-71f2-ac46-571622add1dd
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: 21e6662300c1bed4a15a4792083ab14d80a05c66377f7b4994ab4ba521841f36
+              started: "2026-10-21T07:52:57.643Z"
+              spawned: false
+              bytes: 801571
+              windows:
+                - start: "2026-10-21T07:52:57.643Z"
+                  end: "2026-10-21T04:17:19-07:00"
+            - harness: codex
+              id: 01a15d78-07d8-7e30-b172-25de09195a37
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: c6881ead8ac3f533d352dd6c63982205c1fd552b98e8bb53bd78a6c051b1549f
+              started: "2026-10-21T07:58:30.132Z"
+              spawned: false
+              bytes: 507194
+              windows:
+                - start: "2026-10-21T07:58:30.132Z"
+                  end: "2026-10-21T04:17:19-07:00"
+            - harness: codex
+              id: 01a15d78-9f81-7ee3-bed1-6016d32c5c39
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: fd4a263d9b10335f2bb096cfaa2510a3be42c97276d0db2b453e1d80fd5ec242
+              started: "2026-10-21T07:59:08.967Z"
+              spawned: false
+              bytes: 485363
+              windows:
+                - start: "2026-10-21T07:59:08.967Z"
+                  end: "2026-10-21T04:17:19-07:00"
+        queue_waits:
+            - attempt_id: d33c24095b0e99efb97794a1065963d6
+              slot: pair:9
+              record_digest: cd51443b21b75b0eb664f444fd77c71f6f5f0f027620d25753056067f5b68556
+              start: "2026-10-21T09:32:04.598544Z"
+              end: "2026-10-21T09:38:11.880148Z"
+              queue_seconds: 367.281604
+              raw_seconds: 367.281604
+              exact: true
+            - attempt_id: 53424823b0e2ed3099f5dab5c5a415b2
+              slot: pair:9
+              record_digest: a978dd3d291fdae1b9bc1ebcc7c7efd0d01c6dcbd09aa84438f6030c86facb5d
+              start: "2026-10-21T10:14:41.500881Z"
+              end: "2026-10-21T10:35:20.504649Z"
+              queue_seconds: 1239.003768
+              raw_seconds: 1239.003768
+              exact: true
+        cuts:
+            - dispatched: "2026-10-21T02:50:12-07:00"
+              finalized: "2026-10-21T02:55:07-07:00"
+              finalizing: false
+            - dispatched: "2026-10-21T03:49:07-07:00"
+              finalized: "2026-10-21T03:53:20-07:00"
+              finalizing: false
+            - dispatched: "2026-10-21T03:59:30-07:00"
+              finalized: "2026-10-21T04:03:18-07:00"
+              finalizing: false
+      "n": 5
+      timestamp: "2026-10-21T04:21:39-07:00"
+      dispatched: "2026-10-21T04:18:10-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: 'Retain prior disposition: implementation tasks reference the shared function-verification table instead of repeating case inventories.'
+          round: 5
+        - id: BR-2
+          disposition: addressed
+          note: 'Retain prior disposition: console authoritative lifecycle and late-label regressions pass in the pinned-head Node suite.'
+          round: 5
+        - id: BR-3
+          disposition: addressed
+          note: 'Retain prior disposition: queue-saturation terminal and pointer-up regressions pass; the finding below concerns a separate pending-anchor ordering.'
+          round: 5
+        - id: BR-4
+          disposition: addressed
+          note: 'Retain prior disposition: Core concepts paths and new/modified/reused classifications match the inspected implementation range.'
+          round: 5
+        - id: BR-5
+          disposition: withdrawn
+          note: Retain prior withdrawal. Local live checks again encounter GPU-process startup failure/CDP EOF; this does not reopen the previously disposed environment finding.
+          round: 5
+        - id: BR-6
+          disposition: addressed
+          note: 'Retain prior disposition: producer and optimistic painter use width 3; durable-width and pressure regressions pass.'
+          round: 5
+        - id: BR-7
+          disposition: addressed
+          note: 'Retain prior disposition: PURE rows identify deterministic symbols, while callbacks, canvas, journal ownership and live adapters are classified INTEGRATION.'
+          round: 5
+        - id: BR-8
+          disposition: addressed
+          note: All 16 viewer/console delayed-anchor exit regressions pass at head and fail with the finishing fix removed in a temporary copy; the temporary copy was removed.
+          round: 5
+      findings:
+        - kind: defect
+          id: BR-9
+          severity: Critical
+          title: A second contact before the previous anchor resolves crashes drawing on both surfaces
+          detail: 'At cmd/internal/webcast/web/sketch.js:352–357, pointer-up clears contact while the logical gesture remains pending its anchor. The down guard at lines 367–376 admits another contact and mutates contact before createSketchGesture.start rejects it at sketch-policy.js:437. Controlled viewer and console harnesses reproduce “gesture already open”, followed by a TypeError reading contact.last at sketch.js:346 on the next pointer-up; the second stroke is absent. ARCH-ORDER/ARCH-PURPOSE: this is the 3rd finding in family bounded-input-retains-terminal-work. Earlier rounds fixed instances. Do NOT fix only this instance: state and enforce the rule that physical contact release does not retire logical gesture ownership. Enumerate pointer-up, pointercancel, lost capture and automatic buffer/point-limit endings, and prevent or explicitly queue successor gestures until their predecessor relinquishes ownership. Add controlled-order regressions on both adapters.'
+          family: bounded-input-retains-terminal-work
+          round: 5
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 disputes:
     - id: BR-5
       rationale: The review checkout could not start Chrome before its assertions ran; the same required tests execute successfully on this host. Corrected implementation is committed and host conformance is measured; TL operator console smoke remains a separate pre-landing hold.
@@ -517,6 +678,24 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-8** [Critical] `bounded-input-retains-terminal-work` (kind: defect) Leaving before the asynchronous anchor resolves discards the stroke
   cmd/internal/webcast/web/sketch.js:461–464 calls finish(), immediately dispatches leave, then awaits pending work. If scene.hitTest is unresolved, finish only buffers the terminal; the later anchor callback at lines 363–365 emits stroke-begin/points/end after sketch-policy.js:173 has entered label-required, so the guard at lines 190–201 rejects every command. Using the existing mount harness, all six combinations of Done/Escape/tool change and open/released contact completed with zero strokes and only sketch-begin plus sketch-label sent. ARCH-ORDER/ARCH-PURPOSE: introduce an explicit finishing transition that blocks new input and label submission while admitting and settling the existing gesture. This is the 2nd finding in family bounded-input-retains-terminal-work: state the preservation rule and sweep every voluntary exit across pending-anchor, queued and uncertain-work states on both adapters, with controlled-order regression tests.
 
+## Round 5 — 2026-10-21T04:21:39-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Retain prior disposition: implementation tasks reference the shared function-verification table instead of repeating case inventories.
+- BR-2 — addressed — Retain prior disposition: console authoritative lifecycle and late-label regressions pass in the pinned-head Node suite.
+- BR-3 — addressed — Retain prior disposition: queue-saturation terminal and pointer-up regressions pass; the finding below concerns a separate pending-anchor ordering.
+- BR-4 — addressed — Retain prior disposition: Core concepts paths and new/modified/reused classifications match the inspected implementation range.
+- BR-5 — withdrawn — Retain prior withdrawal. Local live checks again encounter GPU-process startup failure/CDP EOF; this does not reopen the previously disposed environment finding.
+- BR-6 — addressed — Retain prior disposition: producer and optimistic painter use width 3; durable-width and pressure regressions pass.
+- BR-7 — addressed — Retain prior disposition: PURE rows identify deterministic symbols, while callbacks, canvas, journal ownership and live adapters are classified INTEGRATION.
+- BR-8 — addressed — All 16 viewer/console delayed-anchor exit regressions pass at head and fail with the finishing fix removed in a temporary copy; the temporary copy was removed.
+
+### Raised
+
+- **BR-9** [Critical] `bounded-input-retains-terminal-work` (kind: defect) A second contact before the previous anchor resolves crashes drawing on both surfaces
+  At cmd/internal/webcast/web/sketch.js:352–357, pointer-up clears contact while the logical gesture remains pending its anchor. The down guard at lines 367–376 admits another contact and mutates contact before createSketchGesture.start rejects it at sketch-policy.js:437. Controlled viewer and console harnesses reproduce “gesture already open”, followed by a TypeError reading contact.last at sketch.js:346 on the next pointer-up; the second stroke is absent. ARCH-ORDER/ARCH-PURPOSE: this is the 3rd finding in family bounded-input-retains-terminal-work. Earlier rounds fixed instances. Do NOT fix only this instance: state and enforce the rule that physical contact release does not retire logical gesture ownership. Enumerate pointer-up, pointercancel, lost capture and automatic buffer/point-limit endings, and prevent or explicitly queue successor gestures until their predecessor relinquishes ownership. Add controlled-order regressions on both adapters.
+
 ## Disputes
 
 Findings the implementer declined (`sdlc finding dispute`), each answered by the
@@ -528,4 +707,4 @@ next review round.
 
 ## Open findings
 
-- **BR-8** [Critical] `bounded-input-retains-terminal-work` (kind: defect) Leaving before the asynchronous anchor resolves discards the stroke
+- **BR-9** [Critical] `bounded-input-retains-terminal-work` (kind: defect) A second contact before the previous anchor resolves crashes drawing on both surfaces
