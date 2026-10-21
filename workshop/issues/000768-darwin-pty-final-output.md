@@ -53,6 +53,7 @@ Discovered while investigating #766. Public scribe command is direct evidence of
 
 
 ### 2026-10-21 — planning checkpoint (pending approval)
+- 2026-10-21: closed — Native delayed-first-read RED/GREEN and immediate-release mutation prove exact final stdout/log, EOF and exit0/7; production run returns with ignored-HUP descendant holding slave; abort-kill mutation catches hangup-only cleanup; native large-output/signals/resize/tty restoration and N8/N16 leases pass. Targeted artifact/repolint, race, vet and Linux cross-compile pass. Public clean-head binary smoke passes short/nonzero/empty/argv/Ctrl+C and exact log/status/tty restore. Per tl-worker queued-suite overlap, recorded suite lease-1672737506 on4f4cdc15 remains queued, final-code pass required before landing; hub real-shell/stage coordination requested. CI on code head green.; review verdict: SHIP
 
 Audited all three production launch owners: scribe, wrap's runProxy/startNativePTY, and ptychild.Start (Couch/term). Recommend retaining one parent slave on Darwin through scribe's existing output drain, releasing before the sole child wait. Preserve original exec.Cmd/direct startup and synchronous executable failures; no helper protocol, retries or deadlines.
 
