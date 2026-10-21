@@ -186,3 +186,24 @@ Core189.558s, tty38.182s, testdisk8.296s; all scripts/packages completed with
 no failure. This is the required integration evidence, separately from the
 earlier branch suite. Enter narrow fixed-then-ship close for the JSON union,
 then re-enter merge. No code or audited hash changed after this pass.
+
+
+### 2026-10-21 — adopt landed #763 inventory owner
+
+After fleet-blocking #763 landed, train227 held this car on the expected
+modify/delete conflict: main42bfa761430c9e27413135f2453997b1350b4907 deleted
+the shared aggregate and stores one certificate per reader. Accept that
+deletion and use its supported recorder for our same tracked conformance
+reader/disposition. New tests/affected-readers/cmd/internal/testdisk/
+cache_conformance_test.go.json preserves exact SHA256
+a11f7561b20c7143dbacd9e03e300c40445457b251f25913ae5e84483696f841.
+No blanket re-audit, no other reader acceptance, no counter/cap or feature code
+change. Fixed-scanner registration remains in the shared preflight.
+
+Fast inventory and whitespace pass; the landed inventory regression suite
+passes all20 tests in34.989s, including actual independent Git merges and
+unknown-number preservation. No unresolved paths remain. This adopts #763's
+existing format rather than changing it in #765 (ARCH-DRY/ARCH-EVOLVE). The
+earlier integration suite remains historical evidence, not a pass for this
+new main. Record the new integrated full suite, then narrow re-close and merge
+through the normal gate; no grant revoke or test bypass.
