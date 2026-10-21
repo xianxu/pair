@@ -8,8 +8,10 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -124,7 +126,7 @@ func lockSchedule(ctx context.Context, dir *os.File) (func(), error) {
 // publishSchedule uses durablefile's write/sync/rename/directory-sync order.
 // Its pathname API cannot retain the nofollow ancestry fence during rename;
 // this focused publisher keeps every operation relative to the admitted fd.
-func publishSchedule(ctx context.Context, dir *os.File, raw []byte, beforeDirSync func() error) error {
+func publishSchedule(ctx context.Context, dir *os.File, raw []byte, beforeDirSync func() error, step func(string, string) error) error {
 	var random [16]byte
 	if _, err := rand.Read(random[:]); err != nil {
 		return err
@@ -135,17 +137,33 @@ func publishSchedule(ctx context.Context, dir *os.File, raw []byte, beforeDirSyn
 		return err
 	}
 	defer f.Close()
-	defer unix.Unlinkat(int(dir.Fd()), name, 0)
+	var created unix.Stat_t
+	if err = unix.Fstat(int(f.Fd()), &created); err != nil {
+		return err
+	}
+	defer removeLedgerPublicationStage(dir, name, created)
+	if err = ledgerStateStep(step, "created", name); err != nil {
+		return err
+	}
 	if _, err = f.Write(raw); err != nil {
 		return err
 	}
+	if err = ledgerStateStep(step, "written", name); err != nil {
+		return err
+	}
 	if err = f.Sync(); err != nil {
+		return err
+	}
+	if err = ledgerStateStep(step, "synced", name); err != nil {
 		return err
 	}
 	if err = f.Close(); err != nil {
 		return err
 	}
 	if err = ctx.Err(); err != nil {
+		return err
+	}
+	if err = ledgerStateStep(step, "pre-rename", name); err != nil {
 		return err
 	}
 	if err = unix.Renameat(int(dir.Fd()), name, int(dir.Fd()), "state.json"); err != nil {
@@ -157,4 +175,122 @@ func publishSchedule(ctx context.Context, dir *os.File, raw []byte, beforeDirSyn
 		}
 	}
 	return dir.Sync()
+}
+
+func ledgerStateStep(hook func(string, string) error, step, name string) error {
+	if hook != nil {
+		return hook(step, name)
+	}
+	return nil
+}
+
+// The publishing process may remove only its own inode on an error return.
+// In particular, rename has consumed the original name on success: any later
+// file at that name is not the publication's deferred-cleanup authority.
+func removeLedgerPublicationStage(dir *os.File, name string, created unix.Stat_t) {
+	var current unix.Stat_t
+	if unix.Fstatat(int(dir.Fd()), name, &current, unix.AT_SYMLINK_NOFOLLOW) != nil {
+		return
+	}
+	if created.Dev != current.Dev || created.Ino != current.Ino || created.Mode != current.Mode || created.Uid != current.Uid || created.Nlink != 1 || current.Nlink != 1 || current.Mode&unix.S_IFMT != unix.S_IFREG {
+		return
+	}
+	_ = unix.Unlinkat(int(dir.Fd()), name, 0)
+}
+
+var ledgerStageName = regexp.MustCompile(`^\.state-[0-9a-f]{32}\.tmp$`)
+
+const maxLedgerDirectoryEntries = 4096
+
+// cleanupLedgerStages runs only under the permanent state lock. Every
+// legitimate publisher holds that same lock until publication/cleanup ends,
+// so an admitted residue has no live writer and needs no age/PID heuristic.
+func cleanupLedgerStages(ctx context.Context, dir *os.File, step func(string, string) error) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	scan, err := openScheduleChild(dir, ".", unix.O_RDONLY|unix.O_DIRECTORY)
+	if err != nil {
+		return err
+	}
+	defer scan.Close()
+	names, err := scan.Readdirnames(maxLedgerDirectoryEntries + 1)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return err
+	}
+	if len(names) > maxLedgerDirectoryEntries {
+		return errors.New("ledger directory exceeds recovery inventory bound")
+	}
+	changed := false
+	for _, name := range names {
+		if !ledgerStageName.MatchString(name) {
+			continue
+		}
+		if err = ctx.Err(); err != nil {
+			return err
+		}
+		if err = cleanupLedgerStage(ctx, dir, name, step); err != nil {
+			return err
+		}
+		changed = true
+	}
+	if !changed {
+		return nil
+	}
+	if err = ledgerStateStep(step, "cleanup-directory-sync", ""); err != nil {
+		return err
+	}
+	return dir.Sync()
+}
+
+func cleanupLedgerStage(ctx context.Context, dir *os.File, name string, step func(string, string) error) error {
+	file, err := openScheduleChild(dir, name, unix.O_RDONLY)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	before, err := file.Stat()
+	if err != nil {
+		return err
+	}
+	var expected unix.Stat_t
+	if err = unix.Fstat(int(file.Fd()), &expected); err != nil {
+		return err
+	}
+	if !before.Mode().IsRegular() || before.Mode().Perm() != 0600 || before.Size() > maxScheduleStateBytes || expected.Uid != uint32(os.Geteuid()) || expected.Nlink != 1 {
+		return fmt.Errorf("unsafe ledger staging file %s", name)
+	}
+	if err = ledgerStateStep(step, "cleanup-observed", name); err != nil {
+		return err
+	}
+	if err = ctx.Err(); err != nil {
+		return err
+	}
+	named, err := openScheduleChild(dir, name, unix.O_RDONLY)
+	if err != nil {
+		return err
+	}
+	defer named.Close()
+	current, err := named.Stat()
+	if err != nil {
+		return err
+	}
+	opened, err := file.Stat()
+	if err != nil {
+		return err
+	}
+	if !os.SameFile(before, current) || !os.SameFile(before, opened) || before.Mode() != current.Mode() || before.Size() != current.Size() || !before.ModTime().Equal(current.ModTime()) || before.Mode() != opened.Mode() || before.Size() != opened.Size() || !before.ModTime().Equal(opened.ModTime()) {
+		return fmt.Errorf("ledger staging identity changed: %s", name)
+	}
+	var atName unix.Stat_t
+	if err = unix.Fstatat(int(dir.Fd()), name, &atName, unix.AT_SYMLINK_NOFOLLOW); err != nil {
+		return err
+	}
+	if expected.Dev != atName.Dev || expected.Ino != atName.Ino || expected.Mode != atName.Mode || expected.Uid != atName.Uid || expected.Nlink != atName.Nlink || expected.Size != atName.Size {
+		return fmt.Errorf("ledger staging entry replaced: %s", name)
+	}
+	if err = ctx.Err(); err != nil {
+		return err
+	}
+	return unix.Unlinkat(int(dir.Fd()), name, 0)
 }

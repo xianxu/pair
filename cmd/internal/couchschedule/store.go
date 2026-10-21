@@ -23,6 +23,7 @@ type StateStore struct {
 	BeforePersist func() error
 	// BeforeDirectorySync injects a post-rename durability fault in store tests.
 	BeforeDirectorySync func() error
+	stateStep           func(step, name string) error
 }
 
 func emptyLedger() Ledger { return Ledger{Version: 1, Tasks: map[string]TaskState{}} }
@@ -70,6 +71,9 @@ func (s StateStore) Update(ctx context.Context, change func(*Ledger) error) erro
 	if err != nil {
 		return err
 	}
+	if err = cleanupLedgerStages(ctx, dir, s.stateStep); err != nil {
+		return err
+	}
 	if err = change(&state); err != nil {
 		return err
 	}
@@ -85,5 +89,5 @@ func (s StateStore) Update(ctx context.Context, change func(*Ledger) error) erro
 			return err
 		}
 	}
-	return publishSchedule(ctx, dir, raw, s.BeforeDirectorySync)
+	return publishSchedule(ctx, dir, raw, s.BeforeDirectorySync, s.stateStep)
 }
