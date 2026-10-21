@@ -50,7 +50,7 @@ The key is rooted in the **hub checkout**, never its claimed product repositorie
 | `acquireExecutionPermits`, `executionLease` | `cmd/internal/couchschedule/admission.go` | delivered M1 | Per-task lease and two machine permits; declared heavy uses existing test-lock helper. |
 | `FakeTaskRuntime` | `cmd/internal/couchschedule/runtime_fake.go` | delivered M1 | Stateful execution double with held starts, exits and cancellation. |
 | `Store.Publish`, `Store.List`, `Store.Read`, `Store.SweepPage` | `cmd/internal/operationalrun/store.go`, `retention.go` | delivered M1 | Immutable execution bundles and shared operational retention. |
-| `scheduleService` | `cmd/internal/couchcmd/schedule_service.go` | delivered M1 catalogue/status; automatic effects planned M2 | Joined service lifetime, declaration refresh, recovery and published snapshots. |
+| `scheduleCoordinator` | `cmd/internal/couchcmd/schedule_service.go` | delivered M1 catalogue/status; automatic effects planned M2 | Joined service lifetime, declaration refresh, recovery and published snapshots. |
 | `manualTaskRunner` | `cmd/internal/couchcmd/schedule_manual.go` | delivered M1 | Durable manual reservation, shared execution and run publication. |
 | `scheduleNotice` | `cmd/internal/couchcmd/schedule_notice.go` | planned M2, not implemented | Exact hub binding, broker admission and canonical receipt observation. |
 | `parseScheduleCLI`, `runScheduleCLI` | `cmd/internal/couchcmd/schedule_cli.go`, `schedule_status.go` | delivered M1 | Closed CLI grammar, status exchange, manual run and retained history. |
@@ -367,3 +367,7 @@ TL approved the M2 notice revision after the M1 review: execution facts and outp
 ### 2026-10-20 — M1 cache recovery simplification (TL direction)
 
 Before adding a journal, use the cache's rebuildable content-addressed contract: publish a complete temporary directory by atomic rename; touch the entry mtime without staged metadata replacement; evict by rename to trash followed by deletion. Lookup recovery ignores in-progress temporary/trash names and cleans stale unreferenced leftovers after one minute, respecting existing mutation and lifetime locks and preserving ambiguous replacements. Corrupt entries are rebuildable from captured source. Prove interrupted publication, touch and eviction with abrupt process termination. A journal requires a concrete crash counterexample that this smaller design cannot handle; none is presently established, so do not add one.
+
+### 2026-10-20 — Complete concept-name correction before retrying M1 review
+
+Final read-through found one missed table label: implemented `scheduleCoordinator` was still called scheduleService. Interrupted the owned review attempt before any verdict, corrected that label, and checked every delivered core-table symbol against its listed source files. The interrupted attempt admitted no findings or close result. This is a documentation correction within BR-4, with no code or acceptance change.
