@@ -1,6 +1,6 @@
 ---
 id: 000733
-status: codecomplete
+status: done
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: d23f89c948bc96012025b918e93dc153f9ba6cb2
         evidence_commit: c7442acdd394ab55cb74d299c0cd467f7a556d87
+        landed_commit: 8db1a277ecfe534753530ab80c1ed8d0a028e5fb
 ---
 
 # couch: notifications are ephemeral: a restart starts with an empty list, dismiss and clear-all remove items, old items age out
