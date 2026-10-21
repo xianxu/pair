@@ -169,3 +169,79 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T05:14:19-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 763 — Go reader audit: isolate certificates so independent changes merge cleanly |
+| repo | pair |
+| issue file | workshop/issues/000763-artifactpath-manifest-split-the-2-000-line-central-inventory-by-area-so-parallel-landings-stop-conflicting.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 54fcc8b82d72355d7314c7adb848a63a57e13f63..7b5e43b79ea17f9c2d8d79b5cb57bbdc3a1cd99b |
+| command | sdlc close --issue 763 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T05:14:19-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The conflict resolution preserves both sides’ intent: all 467 aggregate entries retain their exact paths, dispositions, and hashes in per-reader certificates, and every hash matches current source bytes. The aggregate is removed. Tracker revisions record integration work without changing scope. No new defects found in this interdiff.
+
+Done-when: current — it still covers exact migration, independent certificate updates, audit refusal controls, preservation, and documentation.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The corrected numeric-token decoder and recursive encoder remain unchanged in this interdiff. The precise-number roundtrip and non-JSON-constant refusal regressions both pass; the prior correction remains intact.
+```
+
+1. **Strengths**
+
+   - Exact comparison verified all 467 migrated entries, including the five additional readers.
+   - All 21 changed certificates match the aggregate’s audited values.
+   - Existing README and atlas documentation accurately describe the resulting layout and repair commands.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   All 12 `FastInventoryCLI` tests and 12 affected-runner tests passed. Inventory `--check`, source-digest verification, and diff whitespace checks passed. The checkout remains clean. The integrated full suite was not rerun during this narrow review.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY: pass** — the resolution removes the duplicate aggregate and retains the canonical certificate loader.
+   - **ARCH-PURE: pass** — no logic or IO boundaries change.
+   - **ARCH-PURPOSE: pass** — the complete aggregate is represented in certificates; no audit entry is stranded.
+   - **ARCH-EVOLVE: pass** — migrated values remain exact; the lossless unknown-field handling and its regressions remain intact.
+
+7. **Plan revision recommendations:** None. The added revision records conflict resolution and retains the integrated verification requirement.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"e4259632-d65b-4ea8-a7ee-6613bea3a6ed","repository":"github.com/xianxu/pair","issue_id":"000763","recipe":"fix-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/f5cf58603c20265b","reviewed_head":"7b5e43b79ea17f9c2d8d79b5cb57bbdc3a1cd99b","slot":"pair:2","requested_at":"2026-10-21T12:13:12.202278Z"},"phase":"finished","pid":46524,"started_at":"2026-10-21T12:13:12.302675Z","finished_at":"2026-10-21T12:14:19.397603Z","session_id":"01a15e61-39f3-7601-be65-0926df1c5bca","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.714838875s
+head: "7b5e43b79ea17f9c2d8d79b5cb57bbdc3a1cd99b"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

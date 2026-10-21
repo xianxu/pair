@@ -141,6 +141,88 @@ rounds:
       isolation: fenced
       reviewed: 45081cdbf92674fcd1dd42998ee3ee14c7f281bd
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: e4259632-d65b-4ea8-a7ee-6613bea3a6ed
+            repository: github.com/xianxu/pair
+            issue_id: "000763"
+            recipe: fix-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/f5cf58603c20265b
+            reviewed_head: 7b5e43b79ea17f9c2d8d79b5cb57bbdc3a1cd99b
+            slot: pair:2
+            requested_at: "2026-10-21T12:13:12.202278Z"
+          phase: finished
+          pid: 46524
+          started_at: "2026-10-21T12:13:12.302675Z"
+          finished_at: "2026-10-21T12:14:19.397603Z"
+          session_id: 01a15e61-39f3-7601-be65-0926df1c5bca
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: 7b5e43b79ea17f9c2d8d79b5cb57bbdc3a1cd99b
+        tracker_head: 9499400254e020bcff910f9b9ded024b8741708e
+        branch_point: 9c62cdcd9aa48f42961563ad1f3f296d03187ad7
+        since: "2026-10-21T01:47:34-07:00"
+        until: "2026-10-21T05:01:41-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-21T01:47:34-07:00"
+              end: "2026-10-21T05:01:41-07:00"
+              began: "2026-10-21T01:47:34-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+        sources:
+            - harness: codex
+              id: 01a15a8b-89c9-7e02-a733-8b52dd00ebac
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 9cbd1e2bcbb186401184e27b57f52beed69c8e54281960617bebc3951abd37ce
+              started: "2026-10-20T18:21:51.812Z"
+              spawned: false
+              bytes: 16844153
+              windows:
+                - start: "2026-10-21T01:47:34-07:00"
+                  end: "2026-10-21T05:01:41-07:00"
+        queue_waits:
+            - attempt_id: 65b00f38ad64242609d580f61afe7a58
+              slot: pair:2
+              record_digest: 5ff94a62d613b7e753d5601a8e635d52127b00cbb6655f103e9234c1474e1a15
+              start: "2026-10-21T11:25:05.491874Z"
+              end: "2026-10-21T11:49:34.289349Z"
+              queue_seconds: 1468.797475
+              raw_seconds: 1468.797475
+              exact: true
+        cuts:
+            - dispatched: "2026-10-21T04:19:20-07:00"
+              finalized: "2026-10-21T04:21:26-07:00"
+              finalizing: false
+            - dispatched: "2026-10-21T04:26:24-07:00"
+              finalized: "2026-10-21T04:28:03-07:00"
+              finalizing: true
+      "n": 3
+      timestamp: "2026-10-21T05:14:20-07:00"
+      dispatched: "2026-10-21T05:13:10-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: The corrected numeric-token decoder and recursive encoder remain unchanged in this interdiff. The precise-number roundtrip and non-JSON-constant refusal regressions both pass; the prior correction remains intact.
+          round: 3
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 7b5e43b79ea17f9c2d8d79b5cb57bbdc3a1cd99b
+      blocked: false
 ---
 
 # Gate ledger — pair#763 (boundary-review)
@@ -160,6 +242,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - BR-1 — addressed — tests/affected-go-readers-test.py:108–146 preserves numeric tokens recursively and rejects non-JSON constants. Both regression tests at :261 and :273 pass; restoring default numeric decoding in a temporary copy makes both fail, confirming the fix is exercised.
+
+## Round 3 — 2026-10-21T05:14:20-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — The corrected numeric-token decoder and recursive encoder remain unchanged in this interdiff. The precise-number roundtrip and non-JSON-constant refusal regressions both pass; the prior correction remains intact.
 
 ## Open findings
 
