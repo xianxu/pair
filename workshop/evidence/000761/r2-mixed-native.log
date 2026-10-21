@@ -1,0 +1,6 @@
+=== RUN   TestNativeR2MixedCapture761
+    native761_r2_mixed_test.go:56: root=/Volumes/TestScratch/p761-3410791972 session=p761-e6fc3bba6b20d10c
+    native761_r2_mixed_test.go:207: logical limit=1000 attempts=1020 failed_final=0 malformed_json=0 servers_absent=true root_removed=true evidence=/Volumes/TestScratch/tmp/pair-slot5/pair-761-r2-mixed.wZwDDg
+--- PASS: TestNativeR2MixedCapture761 (8.05s)
+PASS
+ok  	github.com/xianxu/pair/cmd/internal/launcher	8.235s
