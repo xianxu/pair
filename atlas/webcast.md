@@ -688,3 +688,9 @@ recorder. Its fixed trusted owner can edit only operator-created notes. Unknown
 writes retain their request identity: the existing target note does not prove an
 edit was accepted. See [the format](webcast-format.md#own-note-revisions-537) and
 [session ownership](broadcast.md#own-note-editing-537).
+
+Sketch anchor latency can be qualified with the opt-in `TestSketchAnchorLatencyLive` in
+`cmd/internal/webcast/sketch_anchor_latency_live_test.go` (`WEBCAST_MEASURE_SKETCH_ANCHOR=1 WEBCAST_LIVE_CHROME=1`).
+It owns synthetic local/tunnel pages and disposable Chrome profiles, measures the actual accumulator token drain
+separately from writer acknowledgments, and includes console journal traffic. Raw samples go to owned scratch;
+small desktop measurements do not qualify mobile or large-document behavior.

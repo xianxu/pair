@@ -410,3 +410,7 @@ The read-only table audit added foreign-pointer no-ops, transactional setup roll
 ### 2026-10-21 — BR-9 implementation and first latency qualification
 
 The canonical table now drives both-adapter regressions for physical endings, successor tails/admission failure, bounded wait, controls, retirement and stale success/failure. Source uses the existing accumulator token, not a successor queue or duplicate ownership state. The released-contact/unknown-prior-terminal combination is covered explicitly; only unanchored unaccepted work is canceled and no nonexistent end command is manufactured. Root Node/operator, host live4 and inventory checks pass (issue Log contains exact evidence). The first actual local/tunnel anchor series has zero >150ms among1600 samples; console p95 is0.5ms both idle and with journal traffic. This supports retaining the approved simple admission rule for the measured desktop fixtures, with device/echo acceptance left to #754.
+
+### 2026-10-21 — direct accumulator latency result
+
+The final real Chrome fixture measures actual createSketchGesture end→anchor→terminal drain, separately from ACKs:1600 samples, zero >150ms. Local/tunnel viewer p95 both0.1ms; console idle/busy p95 0.5/0.6ms (max2.1/4.5ms). Tunnel ACK p95 34.1/31.7ms does not hold the token after terminal production. Run passed108.30s; issue Log pins raw samples and fixture command. No one-deep queue is justified by the measured small desktop source; #754 retains device/echo qualification.
