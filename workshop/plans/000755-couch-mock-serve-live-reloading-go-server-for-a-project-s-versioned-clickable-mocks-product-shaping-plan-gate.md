@@ -47,6 +47,45 @@ rounds:
           family: scan-work-budget
           round: 1
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: a36f28f3-fc19-47f9-b274-2b9000e5c401
+            repository: github.com/xianxu/pair
+            issue_id: "000755"
+            recipe: plan-quality
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot4/pair
+            reviewed_head: 97615af2e2e88656734e8b6407f6e0e1243e949c
+            slot: pair:4
+            requested_at: "2026-10-21T05:58:10.711284Z"
+          phase: finished
+          pid: 97575
+          started_at: "2026-10-21T05:58:10.805685Z"
+          finished_at: "2026-10-21T05:58:35.515629Z"
+          session_id: 01a15d09-e16e-7973-869b-447feb0de7d4
+          outcome: returned
+      "n": 2
+      timestamp: "2026-10-20T22:58:35-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Defines pre-read revision bootstrap, first-poll comparison, restart identity, and controllable ordering verification.
+          round: 2
+        - id: PQ-2
+          disposition: addressed
+          note: Supersedes the case checklist with production-function strategy owners and separates integration qualification.
+          round: 2
+        - id: PQ-3
+          disposition: addressed
+          note: Caps every visited entry, requires incremental traversal, and counts entries in the scanner oracle with visible refusal and recovery.
+          round: 2
+      blocked: false
+content_hash: 10e9912df7d1fd777a01e648f8600310eb87e28ba882452c81b64012e90c37f1
 ---
 
 # Gate ledger — pair#755 (plan-quality)
@@ -65,8 +104,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **PQ-3** [Minor] `scan-work-budget` Bound visited directory entries as well as regular-file contents
   ARCH-CONSTRAINTS: The envelope limits regular files and content bytes, but an arbitrarily large empty-directory tree can remain within both limits. State the traversal scope and an entry/directory budget with visible refusal and recovery, and include visited entries in the scanner's operation-count oracle.
 
+## Round 2 — 2026-10-20T22:58:35-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Defines pre-read revision bootstrap, first-poll comparison, restart identity, and controllable ordering verification.
+- PQ-2 — addressed — Supersedes the case checklist with production-function strategy owners and separates integration qualification.
+- PQ-3 — addressed — Caps every visited entry, requires incremental traversal, and counts entries in the scanner oracle with visible refusal and recovery.
+
 ## Open findings
 
-- **PQ-1** [Important] `document-revision-ordering` Define how a loaded document establishes its revision baseline
-- **PQ-2** [Important] `function-level-test-strategy` Replace the prose case inventory with production function strategies
-- **PQ-3** [Minor] `scan-work-budget` Bound visited directory entries as well as regular-file contents
+(none — every finding has been disposed)

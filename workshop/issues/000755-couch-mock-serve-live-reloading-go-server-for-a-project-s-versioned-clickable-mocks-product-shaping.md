@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
-estimate_hours:
+estimate_hours: 1.69
 collaboration-mode: collaboration
-card_mirror: '91cda1e4dea415bcac5f1527b1446591fec8a775' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '5716d83421c319a421043ff09d5bdb2e59d56166' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T22:40:54-07:00
 claimant:
     operator: Xian Xu
@@ -71,3 +71,22 @@ Implementation details: [durable plan](../plans/000755-mock-server-plan.md).
 - All screens fetch `/fixtures.json`, the one shared file. Serve version assets and that fixture only; do not expose arbitrary project-root files. Files and paths stay beneath the mock root; reject symlink entries rather than following them outside the project. No writes are accepted over HTTP.
 - One 500ms scan hashes bounded project contents, independent of browser count; each browser polls cached state every 500ms. Proposed local-prototype envelope: at most 1,024 files and 32 MiB total, with HTML at most 1 MiB. Over-limit, unreadable and invalid input produces an explicit error with repair guidance; runtime recovery observes the repaired tree. Count file visits and bytes at N/2N, and prove polling adds no scans. No claimed hard wall-clock bound for stalled filesystem IO.
 - This exceeds the quick code shell. Request full-flow approval for one atomic close boundary (plain checkboxes, no artificial Mx milestones). Headless browser qualification runs in a temporary profile; operator live look is after landing, as dispatched.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. The source is marked stale by estimate-source; values remain provisional. Derived after plan-quality cleared.
+
+Three bounded concerns: project/document core, HTTP/scanner lifecycle, browser reload. Go net/http, os.Root and x/net/html cover the first two: base design 1h each ×0.5 library availability ×0.2 settled-spec discount =0.10h each. Browser reload uses base design 1h ×0.2=0.20h; no library discount for its document-ordering policy. Base implementations 0.6/0.8/0.6h ×0.4 yield0.24/0.32/0.24h. Familiar Go/HTTP/JS and existing CDP seams justify1.0 familiarity. CLI/sample is a well-specced extension (design0.2×0.2, impl0.4×0.4); docs (design0.1×0.2, impl0.15×0.4) and the single review boundary (design0.1×0.2, impl0.3×0.4) are separate overhead. Thorough approved plan uses15% design buffer; there is no cross-repo propagation. Sum design0.48×1.15 + impl1.14 =1.692h, rounded1.69h. No new API discovery: browser qualification uses the existing CDP transport and private-profile pattern.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-go-module design=0.10 impl=0.24
+item: greenfield-go-module design=0.10 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.24
+item: smaller-go-module design=0.04 impl=0.16
+item: atlas-docs design=0.02 impl=0.06
+item: milestone-review design=0.02 impl=0.12
+design-buffer: 0.15
+total: 1.69
+```
