@@ -42,7 +42,7 @@ Fix the demonstrated copy-on-select fixture/process ownership failure without a 
 
 - [x] Reproduce with a fresh test binary; capture the hook/orchestrator boundary and establish root cause.
 - [x] Pin shared-inode placement, including forced EXDEV, before replacing raw fixture copies and the shared helper copy fallback with aliases.
-- [ ] Run targeted copy/shortcut/shared-helper tests and recorded suite, close, and land before resuming #733.
+- [x] Run targeted copy/shortcut/shared-helper tests, queue recorded verification and request close review; recorded pass remains required before landing and resuming #733.
 
 ## Log
 
@@ -68,3 +68,8 @@ Fix the demonstrated copy-on-select fixture/process ownership failure without a 
 
 - Targeted green: go test ./cmd/internal/clipcmd ./cmd/internal/testpair -count=1 passed; shared shell contract, copy-on-select fixture and terminal-shortcut fixture passed with an explicit shared candidate on another volume. Reader audit initially rejected the changed source as expected; re-audited its unchanged repository input and updated only the non_go_full_fallback hash; fixed inventory/preflight test passed. The remaining seven inventory regression tests passed before that hash update.
 - Verification plan: push implementation and queue sdlc local-check affected; overlap close review if queued, as tl-worker permits, with a recorded final-head pass required before landing. Fixture-only repair needs no operator UI stage.
+
+### 2026-10-20 — verification/review overlap
+
+- Reason: tl-worker permits the close review to overlap a queued recorded check; changes from review requeue verification on the changed code.
+- Delta: PR #499 opened and affected verification queued on pushed implementation 814eb8d40. Close review may proceed now, but landing requires recorded success on the final code.
