@@ -2554,3 +2554,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #775 BR-4/5: Bound and canonicalize the entire numeric string before shell arithmetic; leading zeros invoke octal and large integers can wrap. Exercise both CLI arguments through the actual main path, including no-effect refusal and exact work counts. Documentation must name the implemented observation predicate rather than imply a stronger parser or liveness proof.
 
 - #775: A new default Make recipe also creates affected-runner ownership obligations. Keep real native diagnostic experiments explicitly opt-in; verify MakeEntrypoint.test_recipe_ownership when changing the default recipe set.
+
+- #775 BR-6/7: After SHIP, a newly combined runnable entry point requires a full close rather than a fix-only review. Every added runnable command must be named in the top-level README as well as its guide and atlas owner; a prior invocation of the underlying script does not document a later Make command.

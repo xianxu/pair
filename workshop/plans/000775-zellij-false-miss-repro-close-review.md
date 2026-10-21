@@ -309,3 +309,116 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T13:08:44-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 775 — Standalone Zellij false-miss reproduction |
+| repo | pair |
+| issue file | workshop/issues/000775-zellij-false-miss-repro.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 644a01cfea85504a86d02b7e9ce98c800d1366d6..d9bc8999768f3d49bad8cb003b6e7bf51672845c |
+| command | sdlc close --issue 775 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T13:08:44-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The targeted tests pass, retained evidence hashes match, and prior corrections remain intact. However, this window introduces behavior beyond the prior findings, requiring a full close review under the supplied scope rule. The new Make target also lacks the required root README update.
+
+Done-when: current — syntax, invalid-input refusal and native qualification still cover the standalone reproduction.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Complete-stream comparisons remain unchanged at scripts/repro/zellij-false-miss.sh:30,33; exact-signature regression tests pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The existing standalone invocation remains documented at README.md:2435 and atlas/zellij-reply-safety.md:290. The newly introduced Make target has a separate documentation gap below.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      workshop/evidence/000775/run.json still identifies initial-setup-failure.log as the setup-failure evidence.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Both arguments retain bounded_decimal validation before arithmetic; all 15 main/worker regression tests pass.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Both pinned versions of atlas/zellij-reply-safety.md:301-304 describe heading-line presence, matching the worker predicate at scripts/repro/zellij-false-miss.sh:35.
+findings:
+  - id: new
+    severity: Critical
+    family: post-close-scope-control
+    title: |
+      scope changed after close — run a full `sdlc close`
+    detail: |
+      Makefile.local:625-628 removes the default regression dependency and adds native execution through a new manual target. The issue's Revisions entry at workshop/issues/000775-zellij-false-miss-repro.md:86 explicitly adopts this behavior, which none of BR-1 through BR-5 requested. Under the supplied narrow-review rule, this requires a full close review rather than admission through this fix interdiff.
+  - id: new
+    severity: Important
+    family: new-surface-documentation
+    title: |
+      README update appears missing for make zellij-false-miss
+    detail: |
+      Makefile.local:626 introduces a command users run, but root README.md is unchanged; its reproduction section at line 2435 documents only the Bash invocation. This is the 3rd finding in family new-surface-documentation. Apply the rule across every added or changed runnable surface: update the root README alongside the relevant guide and atlas documentation, including this target's regression-plus-native behavior.
+```
+
+1. **Strengths**
+
+   - All 15 diagnostic regressions and all 12 affected-runner tests pass.
+   - Atlas and repro-guide updates accurately describe the explicit target.
+   - Manual-run log and script hashes match the manifest; the recorded Makefile matches the pinned head.
+
+2. **Critical findings**
+
+   - `Makefile.local:625-628`: post-close behavior expansion requires full review, as detailed above.
+
+3. **Important findings**
+
+   - `README.md:2435`: document the new manual target using the family-wide rule above.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Bash syntax and Make dry-run checks pass. Recipe ownership passes at this head. No source files were changed. Native execution and the full suite were not rerun; retained native evidence was checked.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Make delegates to existing tests and script.
+   - **ARCH-PURE — pass:** orchestration remains thin.
+   - **ARCH-PURPOSE — flag:** expanded behavior requires review against the complete contract.
+   - **ARCH-EVOLVE — pass:** no persisted-format reader or rewrite changes.
+
+7. **Plan revision recommendations**
+
+   Record the full-close review requirement in `## Revisions` and replace the entry’s instruction to perform only a narrow re-close.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"e6e4fa5b-7c0e-4bd9-aecf-e2ac7b762e48","repository":"github.com/xianxu/pair","issue_id":"000775","recipe":"fix-review","round":4,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/4a73011cb725c0f8","reviewed_head":"d9bc8999768f3d49bad8cb003b6e7bf51672845c","slot":"pair:5","requested_at":"2026-10-21T20:07:33.707895Z"},"phase":"finished","pid":64367,"started_at":"2026-10-21T20:07:33.819787Z","finished_at":"2026-10-21T20:08:44.344151Z","session_id":"01a16013-83e4-7e10-bbe7-242d0d29ef5b","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.00242425s
+head: "d9bc8999768f3d49bad8cb003b6e7bf51672845c"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000411

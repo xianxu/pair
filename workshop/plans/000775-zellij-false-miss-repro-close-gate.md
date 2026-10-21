@@ -312,6 +312,147 @@ rounds:
       isolation: fenced
       reviewed: b88131bf4093ef81422cd19f71f18d328863c2c0
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: e6e4fa5b-7c0e-4bd9-aecf-e2ac7b762e48
+            repository: github.com/xianxu/pair
+            issue_id: "000775"
+            recipe: fix-review
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/4a73011cb725c0f8
+            reviewed_head: d9bc8999768f3d49bad8cb003b6e7bf51672845c
+            slot: pair:5
+            requested_at: "2026-10-21T20:07:33.707895Z"
+          phase: finished
+          pid: 64367
+          started_at: "2026-10-21T20:07:33.819787Z"
+          finished_at: "2026-10-21T20:08:44.344151Z"
+          session_id: 01a16013-83e4-7e10-bbe7-242d0d29ef5b
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: d9bc8999768f3d49bad8cb003b6e7bf51672845c
+        tracker_head: 4d0b9ff0507eebd70316fee7b01a23973c47db46
+        branch_point: eaa758a6f0cd38837655be5334400098849410ec
+        since: "2026-10-21T10:56:40-07:00"
+        until: "2026-10-21T13:06:51-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-21T10:56:40-07:00"
+              end: "2026-10-21T13:06:51-07:00"
+              began: "2026-10-21T10:56:40-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot5/pair
+        sources:
+            - harness: codex
+              id: 01a1574c-1cb1-7e92-adfe-354342364799
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              digest: 20545168591cdd41265c081549b82ade4d0e9661e94a4adf018ff03e8901b368
+              started: "2026-10-20T03:12:49.04Z"
+              spawned: false
+              bytes: 66834281
+              windows:
+                - start: "2026-10-21T10:56:40-07:00"
+                  end: "2026-10-21T13:06:51-07:00"
+            - harness: codex
+              id: 01a15fcf-6ef8-7773-bd25-bcdb05d954fd
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              parent_id: 01a1574c-1cb1-7e92-adfe-354342364799
+              digest: 9720b8c017b8c632640cbf195ae8bec649748d7aabe9ccd77ae3da7340ae5bcf
+              started: "2026-10-21T18:53:12.419Z"
+              spawned: true
+              bytes: 489393
+              windows:
+                - start: "2026-10-21T18:53:12.419Z"
+                  end: "2026-10-21T13:06:51-07:00"
+        queue_waits:
+            - attempt_id: 1854c8857c9461ff2e2db655f22ab7f1
+              slot: pair:5
+              record_digest: b373e1f39283314bbda49da7e134d97c2ec3c508b1294d9658b6f6b5df1cef51
+              start: "2026-10-21T17:56:40Z"
+              end: "2026-10-21T18:30:45.832701Z"
+              queue_seconds: 2045.832701
+              raw_seconds: 2444.526379
+              exact: true
+            - attempt_id: 6157b34a00dabe9beffd6806f952a6df
+              slot: pair:5
+              record_digest: 315f041a17d0e0d4d49d1beb170878f120a59b2f926f3789d4b473edbe773125
+              start: "2026-10-21T19:15:35.920502Z"
+              end: "2026-10-21T19:44:57.409649Z"
+              queue_seconds: 1761.489147
+              raw_seconds: 1761.489147
+              exact: true
+            - attempt_id: 0d79ac4a475c681f06f8b868c3257d8b
+              slot: pair:5
+              record_digest: f8bbd3c7bcac650803306334d4ced0f9461533dbdb8345aac187338e65062a45
+              start: "2026-10-21T20:03:22.407751Z"
+              end: "2026-10-21T20:03:22.891623Z"
+              queue_seconds: 0.483872
+              raw_seconds: 0.483872
+              exact: true
+        cuts:
+            - dispatched: "2026-10-21T11:48:47-07:00"
+              finalized: "2026-10-21T11:50:20-07:00"
+              finalizing: false
+            - dispatched: "2026-10-21T12:02:51-07:00"
+              finalized: "2026-10-21T12:05:37-07:00"
+              finalizing: false
+            - dispatched: "2026-10-21T12:16:09-07:00"
+              finalized: "2026-10-21T12:17:41-07:00"
+              finalizing: true
+      "n": 4
+      timestamp: "2026-10-21T13:08:45-07:00"
+      dispatched: "2026-10-21T13:07:31-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Complete-stream comparisons remain unchanged at scripts/repro/zellij-false-miss.sh:30,33; exact-signature regression tests pass.
+          round: 4
+        - id: BR-2
+          disposition: addressed
+          note: The existing standalone invocation remains documented at README.md:2435 and atlas/zellij-reply-safety.md:290. The newly introduced Make target has a separate documentation gap below.
+          round: 4
+        - id: BR-3
+          disposition: addressed
+          note: workshop/evidence/000775/run.json still identifies initial-setup-failure.log as the setup-failure evidence.
+          round: 4
+        - id: BR-4
+          disposition: addressed
+          note: Both arguments retain bounded_decimal validation before arithmetic; all 15 main/worker regression tests pass.
+          round: 4
+        - id: BR-5
+          disposition: addressed
+          note: Both pinned versions of atlas/zellij-reply-safety.md:301-304 describe heading-line presence, matching the worker predicate at scripts/repro/zellij-false-miss.sh:35.
+          round: 4
+      findings:
+        - id: BR-6
+          severity: Critical
+          title: scope changed after close — run a full `sdlc close`
+          detail: Makefile.local:625-628 removes the default regression dependency and adds native execution through a new manual target. The issue's Revisions entry at workshop/issues/000775-zellij-false-miss-repro.md:86 explicitly adopts this behavior, which none of BR-1 through BR-5 requested. Under the supplied narrow-review rule, this requires a full close review rather than admission through this fix interdiff.
+          family: post-close-scope-control
+          round: 4
+        - id: BR-7
+          severity: Important
+          title: README update appears missing for make zellij-false-miss
+          detail: 'Makefile.local:626 introduces a command users run, but root README.md is unchanged; its reproduction section at line 2435 documents only the Bash invocation. This is the 3rd finding in family new-surface-documentation. Apply the rule across every added or changed runnable surface: update the root README alongside the relevant guide and atlas documentation, including this target''s regression-plus-native behavior.'
+          family: new-surface-documentation
+          round: 4
+      recipe: fix-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#775 (boundary-review)
@@ -355,6 +496,24 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-4 — addressed — Both arguments use bounded_decimal before arithmetic. Tests cover normalization, overflow, exact limits, one-past-limit refusal and actual request counts. Restoring the old CLI validation produces nine failing subcases.
 - BR-5 — addressed — The pinned correction replaces beginning-of-response and malformed-layout claims with line-presence wording at atlas/zellij-reply-safety.md:301-304, matching the worker at scripts/repro/zellij-false-miss.sh:35. All four documentation consumers were checked.
 
+## Round 4 — 2026-10-21T13:08:45-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Complete-stream comparisons remain unchanged at scripts/repro/zellij-false-miss.sh:30,33; exact-signature regression tests pass.
+- BR-2 — addressed — The existing standalone invocation remains documented at README.md:2435 and atlas/zellij-reply-safety.md:290. The newly introduced Make target has a separate documentation gap below.
+- BR-3 — addressed — workshop/evidence/000775/run.json still identifies initial-setup-failure.log as the setup-failure evidence.
+- BR-4 — addressed — Both arguments retain bounded_decimal validation before arithmetic; all 15 main/worker regression tests pass.
+- BR-5 — addressed — Both pinned versions of atlas/zellij-reply-safety.md:301-304 describe heading-line presence, matching the worker predicate at scripts/repro/zellij-false-miss.sh:35.
+
+### Raised
+
+- **BR-6** [Critical] `post-close-scope-control` scope changed after close — run a full `sdlc close`
+  Makefile.local:625-628 removes the default regression dependency and adds native execution through a new manual target. The issue's Revisions entry at workshop/issues/000775-zellij-false-miss-repro.md:86 explicitly adopts this behavior, which none of BR-1 through BR-5 requested. Under the supplied narrow-review rule, this requires a full close review rather than admission through this fix interdiff.
+- **BR-7** [Important] `new-surface-documentation` README update appears missing for make zellij-false-miss
+  Makefile.local:626 introduces a command users run, but root README.md is unchanged; its reproduction section at line 2435 documents only the Bash invocation. This is the 3rd finding in family new-surface-documentation. Apply the rule across every added or changed runnable surface: update the root README alongside the relevant guide and atlas documentation, including this target's regression-plus-native behavior.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-6** [Critical] `post-close-scope-control` scope changed after close — run a full `sdlc close`
+- **BR-7** [Important] `new-surface-documentation` README update appears missing for make zellij-false-miss

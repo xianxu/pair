@@ -2435,7 +2435,9 @@ and report limitations; a diagnostic pass does not establish a crash fix.
 For a standalone Zellij 0.45.1 lookup-race reproduction, run
 `bash scripts/repro/zellij-false-miss.sh 1000 4`. It uses three private sessions
 without Pair or Couch; see the [repro guide](scripts/repro/README.md) for counters
-and liveness limits.
+and liveness limits. `make zellij-false-miss` explicitly runs its Python
+regressions followed by the default native diagnostic (1,000 queries/four
+workers). It is opt-in and is not part of `make test`.
 
 For disposable multi-slot Couch acceptance, run `make test-couch-fleet`. It uses
 the shared native fleet helper with real Zellij, Pair/wrappers and provisioned
