@@ -1,13 +1,23 @@
 ---
 id: 000744
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-20
-updated: 2026-10-20
-estimate_hours:
+updated: 2026-10-21
+estimate_hours: 8.337
 collaboration-mode: collaboration
-card_mirror: 'ddc133aa1d7d8437a3650f1a07ef0167983a38d1' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'f9bbc72f9fb3d2a9de605e03898bbfce0ff1b08e' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-20T14:46:17-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:5
+    worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
+    repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
+actual_hours: 8.89
 ---
 
 # testing: one shared disposable-Couch harness for every live test (isolated roots, real supervisor and slots, every agent kind, exact cleanup)
@@ -21,6 +31,219 @@ live fleet. Operator, 10-20 (ops side doc `2026-10-20-19-conformance-structure.m
 
 ## Spec
 
+Build one shared `cmd/internal/testcouch` helper for the native disposable fleets needed by #722, #740 and #741. TL2d5e80a3 explicitly selects real installed Zellij topology under isolated roots and dispatches this issue independently from main. No #722 commit or drain API is a dependency. Its claim/PR remain parked until this helper lands.
+
+The helper owns a fresh root lease, empty environment, actual Git primary/remote and N numbered workspaces, one real supervisor/steward, actual Pair/wrappers and native Zellij sessions. Real installed SDLC/Weave provision minimal repositories without Brewfiles/Makefiles; no invented setup markers or caller bindings. Public CLI runs inside the controlled agent's inherited registered environment. All mutations and cleanup target only the owned fleet. A deterministic fake-agent engine has Claude and Codex personalities; these are fixtures, not installed models or behavioral conformance to real agents. Qoder and real-model/network runs are outside this dispatch.
+
+Normal tests qualify pure confinement/ownership/agent reducers with stateful process/filesystem doubles. A named opt-in native test consumes the shared helper, starts a genuine steward and three non-hub workers, exercises actual messaging for both supported personalities, detach/restart and exact cleanup. It is the first live-test consumer of the helper; the full #722/#740/#741 scenarios resume in their own issues. Existing bespoke tests migrate when next touched, rather than a fleet-wide refactor here. Full design: [shared native harness plan](../plans/000744-shared-native-couch-plan.md).
+
+## Done when
+
+- One shared helper creates only private roots/environment, actual native supervisor/Pair/wrapper/Zellij and a configurable bounded number of genuine numbered workers; provisioning and caller identity use production routes.
+- Deterministic Claude/Codex fixture personalities support recognized input, controlled work/picker/idle, public CLI execution and native conversation artifacts for consumer-owned lifecycle scenarios, without credentials or network.
+- Every direct child and IO pump is joined; daemon/session shutdown is fenced to the run's private namespace and observed process generations. Startup failure, cancellation and PID reuse cannot target a foreign process or erase unknown live state.
+- A guard test rejects live/inherited/empty/symlink-escaping paths before effects and proves derived messaging sockets differ from the live namespace. State/operation counts at N and 2N defend bounded fanout.
+- A real opt-in consumer runs successfully for Claude and Codex with a genuine steward plus three non-hub workers, public message/receipt paths, detach/restart, and verified cleanup. It emits exact-head/native-version/isolation/log evidence. Cheap tests stay in the ordinary suite.
+- Atlas documents this as the shared live-fleet path; reader/artifact inventories, required recorded suite, mandatory close review and normal PR landing pass. No protected local-gate declaration or staging of operator slots is included.
+
+## Plan
+
+- [x] TL reviews the durable design and state/recovery table before change-code; derive the estimate only after plan-quality.
+- [x] Implement confinement and owned lifecycle plus deterministic agent/CLI protocol with focused adversarial tests.
+- [x] Compose real provisioning/native runtime, then qualify the first shared-helper consumer and audit source-reader/artifact ownership.
+- [x] Document verification and prepare the recorded-suite/close handoff. Publication remains subject to the suite, close and merge gates.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. The calibration source is marked stale by estimate-source; values are provisional ship wall-clock, not a deadline.
+
+Decomposition: issue/spec shaping; root guard/environment; ownership reducer; Claude/Codex fixture paint/transcripts; correlated control protocol; candidate build/provisioning adapter; native fleet/actor adapter; exact cleanup adapter; qualification consumer; isolated transport seam; atlas/inventory work; one close review; three external API discovery units (Zellij, SDLC/Weave provisioning, native transcript/resume). Existing testpair, procutil, terminal, captures and provisioning contracts avoid greenfield library work. Design uses the thorough-plan ×0.2 discount on implementation components, plus a 15% buffer. Impl values are already v3.1's 40% scale. Familiarity 1.5 reflects native but bounded integration; do not apply another implementation scale.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.5
+item: issue-spec design=0.5 impl=0.08
+item: smaller-go-module design=0.06 impl=0.2
+item: greenfield-go-module design=0.2 impl=0.32
+item: tui-screen design=0.2 impl=0.4
+item: smaller-go-module design=0.06 impl=0.2
+item: api-integration design=0.2 impl=0.6
+item: api-integration design=0.3 impl=0.6
+item: api-integration design=0.3 impl=0.6
+item: smaller-go-module design=0.06 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0 impl=0.2
+item: real-api-discovery design=0 impl=0.36
+design-buffer: 0.15
+total: 8.337
+```
+
+Design 1.98 ×1.15 + impl 4.04 ×1.5 = 8.337 hours. Setup/runtime/cleanup budgets in the plan are separate resource limits, not estimates.
+
+## Log
+
+### 2026-10-20 — clean waiting checkpoint
+
+Final audited PTY test hash refresh passed the reader inventory/fixed-preflight check (1test5.201s); helper races after the lifecycle creation-gate correction passed13.453s. Documentation, artifact/reader declarations and cheap guards are ready. TL sequencing is recorded above; wait for landed #747, integrate only landed main, then run both native personalities and the required pushed-head suite before mandatory close review/merge. No composite build, stage, native pass, full suite or SHIP is claimed. Claim retained; #722 remains parked until #744 lands.
+
+### 2026-10-20 — documentation and guard qualification while waiting for #747
+
+Added atlas/couch-testing.md, linked the shared helper and isolated message parent, and documented make test-couch-fleet in README. Audited artifact sources and reader classes; renamed the internal intermediate executable fixture-agent to avoid artifact-vocabulary collision. The main-package ignore guard now treats an existing source-directory collision as the go-build refusal it is, preserving file/missing-path negative controls. Artifactpath passed10.018s, reader audit9 tests61.265s, affected-runner11 tests15.368s, candidate/installer checks0.875s. Repolint initially found two fixed sleeps in the real-PTY regression and an unused suppression; replaced waits with observed control-turn and resized-frame events, removed the suppression, then native entrypoint races passed3.571s and repolint passed8.294s. Final reader hash refresh pending this test edit; no native retry until landed #747. Full required suite and mandatory close review remain outstanding.
+
+### 2026-10-20 — native worker blocker #747; exact failed-run recovery
+
+Second native target ran clean Pair/Couch candidates at25ac5f6fbf856a337fd03d53108ea4a66f9386ed with real SDLCf8d649244c434aa51a81330a0600d9997d64522b and Zellij0.45.1. Public adoption, genuine provisioning and Claude steward registration passed. Its actual reboot fixture:1 failed with reserved-vs-established registration; filed unclaimed #747 and hub receipt21fa0729 was submitted. Full log: /Volumes/TestScratch/tmp/pair-slot5/pair-744-native-ump2qlja/native.log, SHA256e4ef8082296fb7cbd03b6ad947f4e71fcf8ccf73fdec59256ea5089886c4593a. No passing native fleet claimed.
+
+Cleanup exposed a real native stdin issue: Stop returned but os.Stdin.Close did not unblock its already-blocked TTY reader. Added a real-PTY/self-exec regression (red on prior adapter), fixed Main with cancellable ttyio and cached native fd for resize, then verified fixture races. The driver had already entered Codex after the failed Claude cleanup; it refused the still-live same logical session name and cleaned its own root. The qualification now stops immediately after a failed personality, before another fleet starts. The retained Claude run was recovered with a temporary exact-owner/generation probe, all owned generations confirmed absent, and the probe deleted. Its diagnostic root /Volumes/TestScratch/pc-3857330288 remains with ownership Phasequiescent/zero resources; no live test process is retained. Current focused races pass helper4.965s, fixture1.809s, native fixture entrypoint3.899s and couchmessage30.356s; ordinary consumer opt-out passes0.456s. Native/full-suite/close remain pending #747. #722 stays parked with its claim.
+
+### 2026-10-20 — first native attempt and cleanup review corrections
+
+The first native consumer failed at genuine provisioning before any slot launch: the public provisioning route reads the singleton selection, and a fresh store had not been adopted. Both Claude/Codex roots were removed successfully; no native qualification claimed. Added the real public adoption preview/validated digest/apply route before provisioning, with stateful refusal tests. A bounded cleanup review found marker-only census missed platform-binary descendants, Stop was not joined, and blanket late resource removal could erase unobserved generations. Fixed those classes with indexed ancestry/private-TTY closure, fixture generation publication, actual supervisor/agent shutdown joins, exact observed absence updates and a quiescent-before-root-removal reducer state. All testcouch/fixture race tests passed (10.723s/3.125s). Next: rerun native consumer and retain full log evidence; no full suite/close yet.
+
+### 2026-10-20 — implementation checkpoint before native composition
+
+Full-flow change-code passed at c23595e57 after PQ-1 transport isolation correction and TL3d5e6782 approval. Estimate-quality returned INFO; the 8.337h decomposition includes native debugging/races/required-suite work in the integration adapters, with qualification item covering the consumer itself. Implemented shared root/environment guards, pure owned-generation reconciliation, actual provisioning adapter, candidate/runtime placement and deterministic Claude/Codex fixtures. Focused testcouch packages passed (4.901s helper, 0.893s fixture), and transport full package (26.147s) plus targeted race checks passed. The first installed consumer compiles and correctly opts out without PAIR_NATIVE_COUCH_FLEET; native composition is the next step, with no native/full-suite/close pass claimed. #722 remains parked.
+
+### 2026-10-20 14:50 PDT — native shared-harness plan ready for TL review
+
+#722 is parked at its pushed checkpoint with claim kept. #744 claim/start-plan created this independent branch at fresh main; no #722 commits were imported. Two bounded read-only explorations verified native environment/agent reuse and real provisioning/public worker startup. The proposed helper uses real provision-workspace and recordless reboot, not extra hubs, fake workspace identities or setup markers. Durable plan records confinement/ownership state table, exact execution/cleanup seams, agent personalities, native qualification/first consumer and limits. Await TL review before change-code or implementation; no estimate derived yet.
+
+
+### 2026-10-20
+
+
+### 2026-10-20 — landed #747 integration and native delivery failure
+
+Integrated landed main containing PR498 into clean head 4ef7301c08078dee9c7a50f1f5dc0a0552c3c448. Native qualification brought up a genuine Claude steward plus all three workers, then timed out waiting for ordinary receipt submission. Full log /Volumes/TestScratch/tmp/pair-slot5/pair-744-native-k8fbki9y/native.log, SHA256786982c4cbaa630a33122cb2690725153fbb5a5502f7c2a95831257ff938847b. All fixture composers held the Zellij DCS version-reply payload >|Zellij(4501); receipt remained queued for an empty composer. Repeated status queries consumed the fixture's ordinary mailbox budget, which incorrectly blocked Stop too. No matrix pass or close claimed. TL2f8fbc72 approved regression-backed corrections and requires identifying the query producer before classifying the DCS defect as fixture-only.
+
+A temporary exact-owner/generation recovery probe reconciled only run82d0fab94f658ef6d73cd5acd1a8110a. The native test returned PASS0.66s with Phasequiescent and zero owned resources; diagnostic root /Volumes/TestScratch/pc-3751337488 is retained. Probe removed immediately afterward. No retained live test fleet or new native run pending.
+
+### 2026-10-20 — native negotiation provenance
+
+The pinned Claude composer capture itself contains XTVERSION ESC[>0q at byte59, emitted once by agentfixture/run.go before deterministic repaint. Native Zellij returns its solicited DCS response through the same pane PTY to the fixture. Every retained raw scrollback contains one such query; no Pair/Couch-originated or replayed query is demonstrated. The fixture parser dropped the DCS opener but treated its payload as authored input. Whole/every-two-piece-split regressions now prove both personalities ignore the completed bounded control string and still accept a following ordinary message. This is fixture negotiation handling; no independent product bug is established by this evidence.
+
+### 2026-10-20 — negotiation and shutdown regressions verified
+
+DCS whole/split framing and counted shutdown regressions pass, including 128 completed ordinary requests followed by Stop, sixteen stale shutdowns without actor exit or retained-result growth, and unrelated pending-result absence. Shutdown owns one reserved request/result slot; the ordinary quota stays128. Independent full fixture race run passed agentfixture2.229s and native entrypoint3.442s. Audited model_test.go and run_test.go changes read only their existing private fixtures; refreshed those two local_or_literal_fixture hashes individually. Next: commit these corrections and rerun native matrix from that clean head.
+
+### 2026-10-20 — caller deadline correction after bounded CLI failure
+
+Native rerun79a7f25ea072b3ec47218fa6b74bef45fa902242 failed worker3 after fixture runCLI killed its recovery subprocess at its fixed15s inner deadline; public slot recovery permits30s admission plus5m operation polling. Full log /Volumes/TestScratch/tmp/pair-slot5/pair-744-native-f6oqf28t/native.log SHA256b0fa89ae4f1b3aaf9b70c121f1d8b5ff8f8e4e54fae9a6507d8c2f464a9ed474. Cleanup succeeded with all owned generations absent, direct child/IO joined and root removed. No ordinary-message/restart matrix pass claimed.
+
+ActorCLI now transports its caller's remaining bounded deadline to the fixture command; no arbitrary increased inner constant. Direct fixture tests retain a15s default; explicit requests are validated through24h and parent cancellation still joins native children. A readiness audit also found that RestartSupervisor could observe all four reconnected actors before Start's exact-one snapshot; readiness now accepts at least its requested count, while native qualification still asserts exact membership. Stateful observer regression failed on the prior exact comparison and passes after correction. Portable helper5.453s, fixture1.479s/native entrypoint0.512s, artifactpath5.776s and repolint12.863s passed on the preceding correction; current combined races and inventory are in progress before the next clean-head native run.
+
+### 2026-10-20 — complete pre-rerun harness sweep
+
+Native head299c7bf30748c23971207cd5842b1047bf40a174 established four genuine Claude registrations, three concurrent public actor queries, receipt0090a45e-be1d-42ea-bc99-fcca46ed1d65 submitted and independent worker accepted-body evidence for shared-native-fleet-ordinary-message-claude. It timed out at Detach: the helper sent legacy ESC-d, which Couch intentionally treats as ordinary input. Log /Volumes/TestScratch/tmp/pair-slot5/pair-744-native-vavozhhc/native.log SHA256c0f476dd7aed8d8df381e748d622be9b698f107918765b86827c03a3395e4903. Cleanup confirmed all generations absent and removed its root.
+
+Following verified TL69cdbd1e, swept every helper/consumer input, query, timeout, sleep and poll before another native run:
+
+- Host keys: Detach is the only physical-key producer. Encode Ctrl+Space/Alt+d from the actual terminal Endpoint keyboard mode, including CSI-u event flags; observe the real switcher before Alt+d. Regression decodes both negotiated modes and pins the legacy non-chord. Ordinary peer sends retain production paste/submit; both personalities' actual wrapper profiles submit raw CR, which the fixture accepts.
+- Capture negotiation: Claude emits its original XTVERSION/DA1 queries; Codex emits CPR, OSC10/11 colors, Kitty and DA1. The fixture consumes bounded fragmented DCS/OSC/CSI responses. No extra product-originated query found. Direct physical CSI-u typing into worker fixtures is not qualified by this matrix; only console keys and real public message delivery are used.
+- Caller deadlines: ActorCLI transports the caller's remaining budget. Removed the unrelated per-tool2s version deadline; versions now share the declared build budget. Build/setup180s, runtime120s and cleanup15s are explicit outer scenario budgets, with no increases. The existing runner's TERM grace2s, fleet supervisor TERM2s, process escalation1.5s, terminal post-exit drain500ms and pipe WaitDelay are shutdown policies within their owners, not readiness success allowances.
+- Cancellation ownership: build/provision direct-child cancellation was insufficient. Reused couchcore.OSProvisionIO instead of adding a second process-group runner (ARCH-DRY). Both old wrappers failed a marker/generation-controlled descendant regression; both now join cancellation with no running observed descendant. Provision environment/output separation and existing bounded diagnostics remain tested.
+- Waits: replaced the paste30ms sleep with observed draft state before asserting no acceptance. Removed the100ms child scheduling assumption; the independent marker-controlled parent-cancel test proves started-child join. Remaining5/20/25/100ms loops are condition/mailbox cadences bounded by their caller; permanent mailbox exhaustion now has a typed error and readiness/native waits return it after one observation, rather than poll to timeout. The128 ordinary-request cap is unchanged, shutdown remains reserved.
+- Diagnostics/claims: terminal feed errors now stop input/readiness explicitly. Native logs record cohort, receipt/body and restart elapsed evidence. Resize's ioctl is exercised here; native fixture SIGWINCH/repaint has its separate real-PTY regression, and this matrix does not claim every background pane repainted. Final membership remains exactly one steward plus three workers of the requested personality.
+
+Next: finish combined checks and reader audit, commit/push, then native rerun; no matrix pass/full suite/close claimed.
+
+### 2026-10-20 — sweep checks complete before clean-head native rerun
+
+Independent whole helper race run passed testcouch7.367s, agentfixture2.161s and native fixture entrypoint3.427s. Targeted console/observer/keyboard checks passed; repository lint6.317s and artifactpath6.188s passed. Individually audited changed native consumer (real repository/runtime inputs, non_go_full_fallback), run/terminal/binary tests (only private local fixtures, local_or_literal_fixture), refreshed those four reader hashes, then make test-affected-inventory passed. Issue validation and whitespace checks passed. Commit/push this complete sweep before the next native run; no native/full-suite/close pass yet.
+
+### 2026-10-20 — sweep rerun reaches restart, exposes result-retirement lifetime
+
+Clean native head83f2c0b39939cb9e05b0f1b7011fd153f3d60004 passed exact Claude steward/three-worker personality membership at24.93s, concurrent queries, submitted receiptce13c3ff-8400-4dbb-923d-a85fbec60b8f and independent accepted body at26.04s, then physical detach. Restart readiness hit the unchanged128-request lifetime/result quota and the new typed refusal ended immediately. Full log /Volumes/TestScratch/tmp/pair-slot5/pair-744-native-nkp9k3yo/native.log SHA256c5b166c22a60d032247b8e7785b258e9bb108996bea617f7793eb42ae9904148. Cleanup succeeded; root removed and every owned generation absent.
+
+The durable plan adds explicit reclamation of matched consumed query results, preserving128 unread/pending capacity and reserved shutdown. Active Exec IDs plus unread result files replace lifetime bookkeeping; admission reserves completion capacity. Counted retirement and unread-cap regressions precede the next native run. No timeout/cap increase and no full-matrix/close pass claimed.
+
+### 2026-10-20 — bounded query retirement and concurrent publication guards
+
+Fixture regression reproduced the old lifetime failure at cycle128. The correction completes256 serial consume/retire cycles while retaining at most one pending command and one unread result, with active Exec IDs bounded at4 and no lifetime tombstones/counter. Keep original command/result ID fences through explicit consumption, including stale directory-entry retirement races. ActorCLI retires its own matched result after reading it.
+
+The capacity sweep also reproduced two atomic-publication races: a transient .publish file falsely made127 pending look full; ignoring it without serialized admission let32 concurrent writers admit3 and reach130. One owned per-actor advisory admission inode now serializes check/publication, and counters exclude atomic scratch names. Eight rounds of32 writers admit exactly one request to128. Unread128 still refuses ordinary work, reserved Stop still joins, stale shutdowns remain fenced, and no timeout/cap was increased. Agent fixture race run passed8.260s and native entrypoint3.456s; independent combined verification follows before commit/native rerun.
+
+### 2026-10-20 — result reclamation checks complete
+
+Independent whole helper races passed testcouch7.653s, agentfixture8.243s and native fixture entrypoint3.379s. Repository lint5.998s, artifactpath6.796s, individually audited run_test reader hash, make test-affected-inventory and whitespace checks all passed. Commit/push this bounded lifecycle correction before rerunning native; no full matrix/full suite/close pass claimed.
+
+### 2026-10-20 — real detach ownership refusal after bounded lifecycle correction
+
+Native head5aa2570ca7f9cb1be8771903df943618759ca492 passed exact Claude cohort and concurrent queries, then submitted receiptdf3c25fa-196c-4cc5-9d7a-82afca51f156 with independently accepted body at26.94s. Real switcher detach refused: leave couch: detach1-fixture-2: observe Pair session before retiring its incarnation: session ownership unresolved (remaining diagnostic clipped by the screen). Cleanup again confirmed all generations absent and removed the root. Full log /Volumes/TestScratch/tmp/pair-slot5/pair-744-native-xyneu9_b/native.log SHA2569030df57986142026b443b6bd53158a0f1a29a049bb378813f4a94f457bfb2e1. No complete matrix pass or product classification yet.
+
+Added diagnostic observation only: detect the explicit leave refusal, use the public Ctrl+Y copy-notice action, and capture the owned host's bounded OSC52 effect after a sequence fence. It exposes the full product reason rather than waiting120s on a clipped error. A real-PTY regression proves owned OSC52 capture; no operator clipboard is touched by the private emulator. Registration failure also includes its current screen. Next native run is a deliberate diagnostic reproduction of this product-boundary refusal, not a blind pass retry.
+
+### 2026-10-21 — diagnostic outcome and real composer conformance
+- 2026-10-21: closed — Post-close canonical native-root correction: unchanged native matrix on code477fa0ff0c8a9e709df44428aaa84f2a464bd3e4 PASS186.88s, Claude96.50s/Codex77.77s, both steward+three workers, submitted receipt and accepted body, detach/restart and exact cleanup; logSHA2560fd4a1c48377b5a58cfd4a74c1d795f1e5daf07e74e916e81fcce250a26d355a. Native-authority guard reproduced RED before fix; guard plus Claude/Codex transcript/resume races PASS68.869s/1.215s after canonical OSRuntime.NativeRoots reuse, no exemptions. Reader inventory PASS. Prior full suite completed11m23s and failed only duplicated-root guard, retained in final-layout-suite-fail.log; fresh corrected-head recorded suite still required before landing. Original747 proof SHA25653cbdc9a79cdcfe4ba579b28f86057494a546b7efa6be342b2deb315fcaf4880 retained; independent772/773 remain open. (fixed-then-ship); review verdict: SHIP
+- 2026-10-21: closed — Final clean code5ecbef821f2d64af2564de889bd6e781277ee7a6 real Claude+Codex steward/three-worker matrix PASS93.20s, no same-head native retry, both receipts/accepted bodies/restart/exact cleanup; final-capture logSHA256e17cf62855cb8cda74d6afe31aa03c1bf148dcda14e287160e4cdd6c5627a37c. Single post-publication guard covers every uncertain return; full helper races PASS27.232s/13.430s/3.485s, wrapper/composer races PASS2.453s, native query/artifact/catalog guards and reader inventory PASS. BR-5 classified intermittent production attach: exact Codex subtest registered772; TL approved bounded pre-rollback endpoint and pre-teardown startup diagnostics, all private/count/byte/budget/env controls pass. Separate fixed readiness10s issue773 retains original52.90s failure and AMFI uncertainty; no startup timeout changed. Original747 proof logSHA25653cbdc9a79cdcfe4ba579b28f86057494a546b7efa6be342b2deb315fcaf4880 and all prior fail/pass logs retained. Recorded suite starting on pushedf37acbe8b, PASS required before landing; review overlap per tl-worker. Full review after REWORK.; review verdict: FIX-THEN-SHIP
+
+Diagnostic headdcdffcea8f14b4465f025c3d40839968082e2a32 completed the full Claude path: exact four-actor membership, submitted receipt36fe0870-02c2-4288-9f27-e46f3e661744 and accepted body, detach/restart30.60s, all owned generations absent and root removed. The prior ownership refusal did not reproduce; filed unclaimed #761 with failed and diagnostic evidence, without claiming a product fix or registering a known flake. The Codex subcase registered all four genuine actors but its ordinary receipt never submitted before the unchanged deadline; all composers remained empty and accepted0. Its full cleanup passed. Combined log /Volumes/TestScratch/tmp/pair-slot5/pair-744-native-diagnostic-phd4gpjx/native.log SHA256c83886c74d8553e3a44fef3082f2d198410bcdb94baad557602a71b69aff2dcb.
+
+The Codex fixture's synthetic shortcuts footer painted the reserved left edge beneath the prompt. Production peerComposerText correctly refused that surface despite the bold prompt itself being recognizable. Added42 tests through the actual production terminal model, peerComposerState and qualifiedComposerText for both personalities, idle/working/picker phases, empty/occupied/multiline/wrapped drafts and three geometries. Eighteen Codex cases were RED before removing only the optional synthetic footer; production recognizers are unchanged. Independent targeted composer race run passed1.960s, and affected-reader inventory passed (new test reads only pure fixture paint/model state; no repository scanner). No native run remained active after the capacity interruption; continued from these retained results, without duplicate fleet launch.
+
+### 2026-10-21 — worker early exit and failure evidence before cleanup
+
+Native3046a4affc8ff1eb9bed7f89bad733a890073d41 stopped at worker2 public recovery: Pair exited before registering (exit1), operation31a19fcf-29b3-441f-a4ea-22ea3f2f70ea, attemptstart-2e7663c377216793. Full log /Volumes/TestScratch/tmp/pair-slot5/pair-744-native-imxp9u7d/native.log SHA256f24995581e7d6379ebca8ca58ac67f0815d7cc6de453f4457361664a763feda4. Cleanup succeeded but removed the referenced private failures.json, preventing classification of the exit. No matrix pass or root cause claimed.
+
+Cleanup now reads the existing bounded production LaunchFailureStore after every owned generation is absent, logging at most the newest four records and their bounded raw-output tails before root removal. It creates no retained diagnostic file or process. A real production-store regression pins newest-record/output preservation. Cancelled only this checkout's queued suite on3046a4af through sdlc local-check cancel because the diagnostic code changed; other runs were left intact. Requeue the final head after native qualification.
+
+Independent race verification also caught an assertion-domain bug: the256-cycle test counted transient .publish hard links as extra retained results. Production counters already exclude those. The regression now deliberately holds such a scratch file and independently counts only final .json request/result files, preserving the same one-request/one-result assertion without a cap/timeout change. Checks in progress before the diagnostic rerun.
+
+### 2026-10-21 — failure-evidence checks complete
+
+Independent whole helper race checks passed testcouch11.950s, agentfixture11.894s and native fixture entrypoint3.541s. Repository lint13.976s, artifactpath12.467s, audited run_test reader update, affected-reader inventory and whitespace checks passed. Commit/push before the launch-failure diagnostic rerun.
+
+### 2026-10-21 — full native qualification PASS; #747 live proof
+
+Clean candidate5484106480a0123bd86913ea39273a339342a196 passed make test-couch-fleet in143.30s (Claude70.02s, Codex60.88s). Each personality used the genuine steward and three real non-hub workers, verified exact personalities/membership, three concurrent actor CLI calls, public receipt submission and independent accepted-body evidence, host resize, public switcher detach, supervisor restart with all four actors returned, and cleanup proving every owned generation absent/direct child+IO joined and both roots removed. Claude receipt62a0f057-9c21-48b0-846b-3e812c363b97; Codex receipt50108e66-b645-465c-8a65-cd72b1428896.
+
+Full retained log: /Volumes/TestScratch/tmp/pair-slot5/pair-744-native-diagnostic-k_3lukca/native.log, SHA25653cbdc9a79cdcfe4ba579b28f86057494a546b7efa6be342b2deb315fcaf4880. Native tools: Zellij0.45.1, nvim0.11.7, Git2.54.0, installed SDLCbdee3f351ca51b0ad9ef65c4ae4e845b00a6a847 modified=false, Weave versiondev. This is the agreed **#747 post-landing live proof**, after integrating its landed PR498; no composite build or candidate override. #747 owner independently verified the log/checksum.
+
+The earlier detach owner refusal remains recorded as unclaimed #761, without a product-fix or known-flake claim. The isolated worker early-exit attempt is also retained above and has not been given a root-cause claim. Current matrix is a complete native pass; required recorded suite and mandatory close review/merge remain outstanding. #722 stays parked until #744 lands.
+
+### 2026-10-21 — close finding class repairs
+
+BR-1 reproduced both service failures and the installed PTY refusal before migrating every real isolated-root consumer: stale_store service tests, installed CLI helper, opt-in stale-session native setup and shell wrapper. testpair.ShortRoot and the shell wrapper allocate owned short roots; no transport limit or live-parent rule changed. Real broker/wrapper listener confinement/cleanup and long-TMPDIR shell regressions pass; complete couchcmd99.641s, installed PTY13.852s and short-root race1.330s passed. Three existing reader hashes were individually audited; the new shell-reading test is non_go_full_fallback.
+
+BR-2 reproduced active ActorCLI returning while its actual child remained alive, queued cancellation failing to settle at four occupied slots, and lack of absolute-deadline decoding. The approved protocol now cancels and acknowledges one immutable request, accounts queue time in its absolute deadline, suppresses canceled queued spawning, and joins actual process-group work before terminal publication/retirement. A pure admission decision derives transitions from existing facts rather than maintaining duplicate state. Queued/running/deadline/racing-result cases and129 cancel/success same-ID cycles cover no inherited marker or retained files. Complete helper/fixture race checks passed10.382s/12.030s and final ActorCLI race1.308s.
+
+BR-3 corrects implemented value/function names, paint location and filesystem correlation classification in the current Core concepts tables with a dated Revision. BR-4 uses durablefile atomic snapshots, reports the first publication failure while retaining in-memory ownership, and still completes proved-clean teardown. Held-reader, failed-write/prior-evidence, and actual owned-process cleanup regressions passed; independent ownership race2.316s. Newly tracked fixture-local tests were individually audited as local_or_literal_fixture; no repository scanners or native-build inputs are hidden by those dispositions. A newly tracked short-root file exposed a stale suppression, removed before the final lint pass. Native final-head rerun, recorded suite and close remain next.
+
+### 2026-10-21 — final native rerun blocked; parked for #761
+
+After BR-1 through BR-4 repairs, clean pushed bfa769c1dec8ee80eabba775220d7084ae1c4983 failed make test-couch-fleet in48.08s during Claude detach. The genuine four-actor cohort and submitted receipt1b2825eb-0193-4b89-84f9-0fcce43274f8 with independent accepted body passed first. Public detach refused: observe Pair session before detach, session 📁1-3 ownership unresolved: invalid live pane JSON, failure operation-392b33c981ed0bbda69e1a8a9d6763ed. New bounded diagnostics preserved that precise product refusal before cleanup. All exact owned generations were absent, direct child/IO joined and root /Volumes/TestScratch/pc-1539241296 removed. Codex was not attempted after this failure.
+
+Retained complete log /Volumes/TestScratch/tmp/pair-slot5/pair-744-native-final.nEqfD0/native.log SHA2561d4b86f5c114a28e372bb025ee7c5eaf30355f05d301802d0f1ecddc420ce7b5. Tool versions match the earlier PASS. This is not a final-head native pass and not a known-flake classification. Verified TL159f625e directs park744, claim761 from main, root-cause/fix/land its product bug, then integrate landed main into744 and rerun final matrix before close/landing. The queued bfa769c1 recorded suite was canceled before running because744 is parked for its prerequisite; other checkouts remained running. Claims retained; PR509 stays open. #722 and #739 wait. Next744 step: integrate only landed761, native matrix, recorded suite, repeat full close, merge.
+
+### 2026-10-21 — resume after landed #761/#763/#764
+
+TL3eba5889 dispatches the final qualification/landing sequence after train232 landed #761 and #766 through PR522. The #761 conductor exited0 and released this checkout to clean main-slot5 before switching. Integrated landed main7fabbeb93589b7c0c44a43fa699e83b09082bd5e, containing the native lookup recovery/raw evidence, per-reader certificates and exact fixture cleanup fix; no candidate override or stacked branch. Sole conflict is main's deletion of the old aggregate. Accepted deletion and regenerated exactly18 previously audited issue-owned reader certificates with make affected-readers, preserving classifications and verifying each merged source still has its audited hash. All other current-main certificates stay intact. New inventory and diff checks pass.
+
+Preflight verification: whole testcouch/agentfixture/native-entrypoint races PASS11.092s/12.847s/3.587s; couchmessage25.174s, testpair11.077s, artifactpath10.516s, repolint8.910s and actual fixture composer conformance0.416s PASS. Commit/push integration before one clean-head make test-couch-fleet run for Claude and Codex, retaining the full log, head/tool versions, receipts/body proof and exact cleanup. Preserve the original143.30s successful #747 post-landing proof and its53cbdc9a79cdcfe4ba579b28f86057494a546b7efa6be342b2deb315fcaf4880 checksum plus the later failed final attempt; the new result does not erase either. Required recorded suite, full close and normal merge follow; #722 remains parked and #739 waits for main.
+
+### 2026-10-21 — final native matrix PASS after prerequisite landing
+
+Clean sourceb60b2f7b064fe5a8b57c38388f23a8e419f4600b passed make test-couch-fleet once: test107.35s (Claude50.57s, Codex49.62s), whole command108.881s, exit0, identical head and clean tree afterward. Each genuine steward plus3 workers passed concurrent ActorCLI, public ordinary message receipt/submitted and independent accepted-body proof, resize, physical detach, supervisor restart returning all4 actors, and cleanup proving every owned generation absent/direct child and IO joined. Claude receiptadb100ec-5ff6-4f12-bb1e-be1495ca96ef; Codexcb696b96-d463-4256-be0c-ac0a1232df5e. Both owned roots were removed. No native retry, timeout increase or remaining live test fleet.
+
+Retained full log workshop/evidence/000744/final-post761-native.log SHA256d444a2fd8f8300ea4fc666ac9f3b43a819ee655546e68b50b7bd68a28e74b6c3, with exact-head command/result JSON beside it. Tools: Zellij0.45.1, nvim0.11.7, Git2.54.0, installed SDLC65859e6cf429aa9e672921a1c781361bc0902452 modified=false, Weave dev. The earlier #747 live proof remains explicitly retained at5484106480a0123bd86913ea39273a339342a196, log53cbdc9a79cdcfe4ba579b28f86057494a546b7efa6be342b2deb315fcaf4880; this post-BR/prerequisite run also preserves that coverage. Prior failed bfa769c1 final attempt stays recorded. Whitespace checks pass for code/docs; byte-exact raw terminal captures intentionally retain their native whitespace and were excluded from that formatting check. Required recorded suite and full close/merge remain next. #739 waits for landing, #722 stays parked.
+
+## Revisions
+
+### 2026-10-20 — #747 native-proof sequencing
+
+Verified submitted TLd31f383f: #747 lands independently on its real emitted-profile executable-boundary proof. Then #744 integrates landed main and runs the native three-worker matrix, doubling as #747 live proof. No composite scratch candidate and no issue-branch stacking. #744 docs and guards proceed while native acceptance waits; no changed Done when or bypass.
+
+### 2026-10-20 — approved base plan; PQ-1 isolation correction pending
+
+Verified submitted TLcf61df78 approved the base native plan and change-code. Full-flow plan-quality then found that directory-wide dead-wrapper collection at message listener startup can touch foreign residue in the shared per-UID parent even with disjoint addresses. No implementation started. The durable plan now proposes extending existing COUCH_ISOLATED_ROOT authority to an owned message parent, with actual-listener foreign-residue regression and compatibility checks. This narrow transport seam corrects the original no-production-change assumption; request TL approval before code, then rerun the remembered plan gate.
+
+### 2026-10-20 14:47 PDT — dispatched native prerequisite for #722
+
+Verified submitted TL2d5e80a3: park #722 with claim, commit/push and next step; take #744 from main on its own branch, plan first, land it, then resume #722 over landed main. Native Zellij topology approved; scope limited to #722/#740/#741 needs. The original broader Spec/Done when/Plan are retained below; the active contract above narrows agent coverage to Claude/Codex and makes the initial native helper qualification its first live consumer. Qoder is a future adapter, not a promised result now.
+
+### Original Spec — historical
+
 One pair test helper package for a disposable Couch fleet:
 - private `COUCH_ISOLATED_ROOT`, store, identity, Pair data, HOME, XDG, Zellij socket/config/runtime and sdlc queue
   roots, under TestScratch when present (TMPDIR otherwise); refuses empty, live or inherited paths before starting;
@@ -31,15 +254,151 @@ One pair test helper package for a disposable Couch fleet:
 - a guard test proving it can never see the live Couch's socket, store or HOME.
 Existing live tests migrate to it as they're next touched; new ones must use it.
 
-## Done when
+### Original Done when — historical
 
 - The helper exists with the guard test, and pair#741 (or the first live test to land next) uses it.
 - `atlas/` documents it as the one way to write a live test.
 
-## Plan
+### Original Plan — historical
 
 - [ ]
 
-## Log
+### 2026-10-20 — TL3d5e6782 approves transport isolation correction
 
-### 2026-10-20
+The PQ-1 scope correction is approved, conditional on unset-isolation path/sweep compatibility, refusal before effects for invalid/overlong paths, and actual-listener foreign-residue coverage. Rerun the remembered full-flow plan gate. No code has been written.
+
+
+### 2026-10-21 — separate pre-close checklist from gated publication
+
+The original final Plan row read: “Document and run required checks, close and land. Resume #722 only after this issue is on main.” It mixed pre-close readiness with actions that cannot occur until the close gate itself completes. The active checklist now records the verified implementation/native work and prepared suite/close handoff. Required suite PASS, mandatory close review and normal merge remain mandatory, with pending/passed outcomes recorded in Log and SDLC; this bookkeeping correction neither waives a gate nor changes scope. #722 still resumes only over landed main.
+
+
+### 2026-10-21 — close round1 revision
+
+Close returned REWORK with BR-1 isolated-consumer socket-root coverage, BR-2 per-request cancellation, BR-3 pure/integration table and BR-4 ownership snapshot publication findings. The queued suite on6d584dc2 was canceled before running because code fixes invalidate it; other checkouts were left running. TL8aa5e124 approved the correlated-cancellation ordering in the durable plan and requires a new final-head native matrix, preserving the earlier PASS. Correct classifications and fix whole consumer/request/publication classes without changing socket limits, native topology or scenario scope. Required suite, repeated full close and ordinary merge remain outstanding.
+
+### 2026-10-21 — BR-2 leader-first completion: proposed retained uncertainty
+
+Close round2 verifies BR-1, BR-3 and BR-4 addressed and independently passes both native personalities, but keeps BR-2 Critical. Root regression TestCLILeaderExitCannotAcknowledgeLiveDescendant is RED: inherited-pipes returns terminal ErrWaitDelay in1.01s with descendant alive; closed-pipes returns success in0.01s with descendant alive. The regression terminates only its observed matching descendant generation afterward. The queued suite lease75766965 was canceled through SDLC before execution; no suite result is claimed. The final native PASS107.35s remains retained, but must be repeated after any lifecycle correction.
+
+Proposed refinement, awaiting TL approval: preserve the current generation-qualified live-leader cancellation; never copy a raw numeric-PGID kill after its identity has disappeared. Observe exact group quiescence after every completion, including success, child error, cancellation and pipe-drain cutoff. A nonempty or unreadable group is a typed CleanupUncertain result, not terminal acknowledgment. RetireResult must refuse it before removing command/result/cancel files. ActorCLI surfaces explicit cleanup uncertainty, records the existing OwnedRun unknown/stuck outcome and refuses new fleet work; existing Close performs private-run census and generation-qualified descendant reconciliation. If cleanup cannot prove absence, preserve the owned root/manifest as it already does. This uses the existing bounded request slot and fleet owner, without another persistent store or timeout increase.
+
+| Internal outcome | Visible result | Recovery | Possible loss |
+|---|---|---|---|
+| Leader complete and group proved empty | ordinary terminal result; retire correlated slot | continue | none |
+| Leader exited, descendants live or group inspection unknown (pipes held or closed) | cleanup uncertain; correlated evidence retained; no new work | Close owned fleet | transient fixture work is stopped during exact cleanup |
+| Leader live, deadline/cancel | existing generation-fenced stop, then group observation | retire only if quiescent; otherwise Close | interrupted CLI work |
+| Owned cleanup cannot prove generations absent | cleanup failure with retained root/manifest | inspect evidence before another fleet | residue deliberately retained |
+
+Simplest rejected alternative: copy OSProvisionIO's post-WaitDelay numeric group kill; it neither preserves incarnation authority after leader exit nor confirms absence. A new per-request anchor could supply that authority, but adds a process/control protocol when the existing fail-closed uncertainty/Close path already expresses this failure. Regression sweep: leader-first with inherited/closed pipes; ordinary success/error; deadline and explicit cancellation; unreadable group; no retirement/ID reuse of uncertain slot; refusal of new work; owned exact cleanup of a retained descendant. Keep process/IO joins bounded and errors visible, retain original native runs/#747 checksum, then rerun focused races, native matrix, recorded suite and full close. No implementation of this refinement begins until TL approves.
+
+### 2026-10-21 — approved BR-2 implementation checkpoint
+
+| Completion path | Visible state and recovery | Regression |
+|---|---|---|
+| Normal exit, group absent | terminal result; consume and continue | TestCLICompletionPaths/normal |
+| Nonzero exit or self-signal, group absent | terminal failure; consume and inspect command error | TestCLICompletionPaths/error and signal |
+| Leader exits first, live descendant, inherited or closed pipes | typed cleanup uncertainty; retain slot; Close fleet | TestCLILeaderExitCannotAcknowledgeLiveDescendant |
+| Live leader cancelled or deadline reached | incarnation-fenced cancellation, then group observation; consume only if absent, otherwise Close | TestCLILiveLeaderCancellationJoinsBeforeCompletion and existing cancellation tests |
+| Group inspection unknown | typed cleanup uncertainty; retain slot; Close fleet | TestCLIGroupObservationClassification |
+| Uncertain slot reaches ActorCLI | retained command/result/cancel; refuse new work including console mutation | TestActorCLIUncertainDescendantRetainsSlotAndStopsNewWork; TestUncertainFleetRefusesConsoleMutations |
+| Retained private descendant is visible to owned census | Close stops only its matching generation, joins and removes root | TestUncertainLeaderDescendantIsCollectedByExistingClose |
+
+Focused RED/GREEN: Input and Resize returned no-active-console instead of typed uncertainty before their gate, then both passed. The cleanup-proof fixture initially mixed StrictIdentity with the fleet's native Identity token; after correction it also demonstrated the documented Darwin limitation that system sleep exposes no environment. The proof now re-execs the user test binary with the private run marker (the same supported environment-observation boundary as procutil's native regression), reparents it through a shell leader, and passes real census plus Close in0.46s. Shell descendants without readable environment require the existing same-census ancestry/private-TTY witness; this test does not claim arbitrary orphan authority. No production census authority was broadened. Prior direct CLI/signal/result-retention focused tests passed; complete races/native/recorded suite/full close remain pending on this code head. Original native evidence and #747 cross-reference/checksum remain retained.
+
+### 2026-10-21 — final BR-2 candidate checks
+
+The complete helper race run passed (testcouch9.389s, agentfixture12.926s, entrypoint3.367s). Repository catalog and artifact-path guards passed5.917s/6.118s. The new local fixture-cli-group-completion catalog rule catches deletion of the runner observation; negative cases failed before implementation, accepted/rejected cases pass. Its syntax limits and runtime completion-path proof are mapped in atlas/go-lint-catalog.md. Reader certificates were individually re-audited: only private marker/mailbox files and literal fixture commands are consumed. Native matrix and recorded suite remain required on the final code head.
+
+### 2026-10-21 — final BR-2 native qualification PASS
+
+Final unchanged clean code head b25d7b0bff019b43f2a0c0e67a8c058cfd242b44 passed make test-couch-fleet: TestDisposableCouchFleet150.09s, Claude65.74s, Codex76.93s (whole command151.903s). Both personalities genuinely registered steward+three workers, concurrent ActorCLI completed, ordinary delivery returned submitted receipts plus independently observed accepted bodies (Claude22cf9300-2f05-4ac1-abec-e01790ed5d4a; Codex5f679cfb-fc9c-4572-a351-bac18f971780), physical detach/restart returned all four actors, and Close proved generations absent/direct child and IO joined/private roots removed. No timeout, retry, foreign process signal or live state mutation. Source HEAD and worktree remained unchanged throughout. Evidence: workshop/evidence/000744/final-br2-{native.log,run.json,result.json}; logSHA256 82d7cf756f506df082e27c40b266693f8323a3e4594fd2620e1135c243a1ff58. Installed SDLC7be44ad5cd268115aff52056f06e869c353732cb modified=false; Zellij0.45.1; nvim0.11.7. Earlier107.35s final-post761 native and original #747 post-landing proof remain retained: original head5484106480a0123bd86913ea39273a339342a196,143.30s, independently verified logSHA25653cbdc9a79cdcfe4ba579b28f86057494a546b7efa6be342b2deb315fcaf4880. This additional run qualifies the final BR-1/BR-2 changes rather than replacing those historical results. Required recorded suite and full close review follow.
+
+### 2026-10-21 07:34 PDT — third-delta re-plan: one request lifetime, all uncertain exits (pending TL approval)
+
+Round3 REWORK proves the earlier correction covered uncertain terminal Results but missed early returns when CancelCommand cannot publish or the acknowledgment cannot be read/arrive. Reviewer made cancellations read-only after the child started: ActorCLI returned an error while the child remained alive, then admitted another command. Root cause: uncertainty authority is currently invoked by result content, not by the lifetime of the admitted request. This is the third correction on this mechanism; implementation stops for a consolidated re-plan rather than another local branch patch (ARCH-ORDER, ARCH-PURPOSE).
+
+One resource: the already-published correlated mailbox command is owned until joined terminal proof and successful retirement. Keep the existing admission lock, bounded command/result/cancel slot, and OwnedRun sticky uncertainty. No new process, registry, timeout, retry or persistence mechanism. Once WriteCommand succeeds, arm one deferred outcome guard in ActorCLI. Only successful non-uncertain ReadResult plus RetireResult disarms it. Every other return routes through the same existing unknown transition and wraps ErrCleanupUncertain with the original caller/IO error. This removes result-only authority and avoids a new boolean per failure branch. The guard is one request-lifetime proof, not an alternate fleet state machine. An ordinary command error after proved retirement stays an ordinary terminal error. Before publication, validation/readiness/admission errors remain effect-free; atomicJSON returns the publication link/rename result directly, so a failed WriteCommand has not admitted a command.
+
+| Internal request outcome | Visible state | Recovery | Possible loss / regression |
+|---|---|---|---|
+| Rejected before command publication | ordinary refusal; no request effects | correct input/capacity and retry | none; existing admission tests |
+| Joined terminal success/error/signal and slot retired | ordinary result/error; fleet remains usable | continue or inspect CLI error | command failure only; completion table tests |
+| Caller canceled, cancellation published, joined acknowledgment and retirement succeed | original cancellation; fleet remains usable | continue | interrupted CLI; existing joined cancellation test |
+| Cancellation publication fails | typed cleanup uncertainty, command and available evidence retained, new work refused | Close fleet | command may still run; real read-only cancellations regression with live child |
+| Result/ack read fails or correlation is invalid | same typed uncertainty and gate | Close fleet | terminal outcome unknown; private stateful mailbox corruption regression |
+| Cancellation acknowledgment budget expires | same typed uncertainty and gate, unchanged15s cleanup bound | Close fleet | pending/active request outcome unknown; private held-mailbox deadline regression |
+| Result says group live/unknown | same typed uncertainty; preserve cancellation marker where writable | Close fleet | transient command work; existing leader-first open/closed pipes tests |
+| Terminal retirement partially fails | same typed uncertainty, preserve remaining files; no rollback that invents evidence | Close fleet | some correlated files may already be removed; private filesystem refusal regression |
+| Close cannot prove owned generations absent | retained root/manifest and cleanup error | inspect evidence before fresh fleet | deliberately retained residue; existing Close failure controls |
+
+Implementation steps after approval:
+- Add RED filesystem-backed tests for cancellation publication failure (real running CLI child and attempted subsequent ActorCLI/Input/Resize), acknowledgment read/correlation failure, actual15s acknowledgment exhaustion, and retirement failure. Use the same private mailbox seam, not function-call mocks. Confirm original caller errors and typed uncertainty both survive; assert command/available evidence retention, no new effect marker and sticky admission refusal. Restore only owned fixture permissions and perform generation-qualified cleanup in test cleanup.
+- Consolidate ActorCLI finalization in cmd/internal/testcouch/actor.go: named returns and one post-publication deferred guard; mark retired only after both joined-result validation and successful retirement. Preserve current normal/cancellation behavior, the result group classifier and no post-leader numeric signal. RetainUncertainCLI becomes a best-effort evidence helper, with the lifetime guard as the sole error-to-sticky-outcome owner. No new PURE entity; the named-return outcome adapter and filesystem retirement remain INTEGRATION; ReduceRun and Result.CleanupFailure remain existing PURE projections.
+- Sweep every ActorCLI return and update the catalog guard to catch bypass of the completion owner where a syntax rule can defend the class; document its limits. Re-run helper races, catalog/artifact/composer/transport guards and individually audit changed reader certificates.
+- Classify BR-5 from retained reviewer transcript and failure nonce operation-730874d8fa66046c985836b933151494 before any acceptance rerun. Reviewer observed native failure103.75s and unchanged pass107.43s, cleanup successful both times. Preserve both; if independently intermittent, register its exact test on an owning flake issue; if a reproducible product defect blocks qualification, file it in Pair and report to TL for sequencing. No blind native retry or claimed acceptance around an unexplained failure.
+- After classification and code checks, rerun final real Claude/Codex three-worker matrix once, retain all prior evidence/#747 checksum, record suite on pushed final head, full close, then merge on SHIP. Prior lease214519138 was canceled through SDLC while queued; no suite result claimed.
+
+Simplest rejected alternative: add the unknown call at the two reviewer-named returns. That leaves future early exits and partial retirement outside the lifetime authority, repeating this defect family. A new per-request process supervisor is also unnecessary: the existing fleet owner and correlated slot already carry cleanup authority. Public helper CLI, isolation, bounds and scenario scope are unchanged. No code changes until TL approves this re-plan.
+
+### 2026-10-21 — third-delta re-plan approval and BR-5 disposition
+
+TL approval ff2a11b1-7eaa-47eb-ab7c-3fa515f7801c approves the single post-publication lifetime guard above: disarm only after joined non-uncertain result AND retirement; all other returns latch typed uncertainty, preserve available evidence and delegate Close. The four new filesystem-backed tests are RED before implementation: read-only cancellation publication leaves a real CLI child alive; malformed acknowledgment returns decode error; held acknowledgment expires at the unchanged15s cleanup bound; command unlink permission failure leaves partial retirement. Every case previously returned without typed uncertainty. The implementation uses one deferred admitted-request guard, with no new fleet state/resource/protocol or timeout.
+
+BR-5 is an independently intermittent production attach/PTY-lifecycle failure, registered on unclaimed pair#772 for exact github.com/xianxu/pair/cmd/couch.TestDisposableCouchFleet/codex. Preserved reviewer failure103.75s and unchanged pass107.43s under workshop/evidence/000744/review-round3-native-{fail.log,pass.log,evidence.json}. The observed endpoint ended within7.1845s during worker3 attach, not a120s scenario timeout; existing projection cannot identify check site, endpoint termination cause, direct child exit or last output. No root cause is claimed. TL directs744 to land without waiting on772, with one approved scope addition: retain the next failure's exact attach site, actual endpoint ended observation/exit status when observed, and bounded recent output before rollback. Reuse LifecycleFailure's existing Stage/BeforeExit/Stream/Output/LaunchError fields; nil exits remain explicitly unobserved. Capture an immutable typed diagnostic error at attach rejection, adopt it into the same operation attempt/nonce, and include the existing fields in the harness's pre-cleanup projection. This is diagnostic evidence, not a fix or retry for772; endpoint termination cause unavailable from current API stays explicit. Regression tests exercise preflight/precommit snapshots, bounded copied output, observed versus unknown exit and unchanged attempt identity. After744 landing, this slot takes772 separately from main per TL dispatch.
+
+### 2026-10-21 — consolidated outcome guard and attach evidence checks PASS
+
+All new failure rows passed after RED: live-child cancellation publication failure, malformed/correlation acknowledgment, actual15s acknowledgment exhaustion and partial retirement; new work through ActorCLI/Input/Resize refuses, original caller errors remain, and ordinary completed command errors leave admission open. Final complete helper races passed25.236s/12.715s/3.463s. Focused attach/recorder/projection races passed couchtty1.774s/couchcore3.005s/testcouch1.212s, including actual producer-to-operation-to-store adoption and precommit barrier. Catalog/artifact guards passed7.087s/10.283s; individually audited new diagnostic-only production helper into NonArtifactSources; reader inventory PASS (new tests consume literal/private fixture data, none qualify as source readers). Native matrix, final recorded suite and full close remain required on this final implementation.
+
+### 2026-10-21 — final outcome native run stopped: separate registration failure
+
+Clean unchanged implementation head db791e3b82bb23242ecd5e8fdbebd550c9da8e04 make test-couch-fleet failed: test52.90s, whole command56.322s. Claude worker3 failed before registration, operation nonce operation-9923c3b354cb3f27bbbb015f499d4a66; stage registration, observed before_exit=1 and after_exit=1. Bounded output now retained: Pair failed to launch native session because terminal admission was unverified, missing agent-ready-1-fixture-4-claude.json, followed by context deadline exceeded. Operation evidence reports prepare877ms/operation15.732s; this is distinct from the registered Codex attach InputEnded failure, and no same-head passing repeat has been run. Exact cleanup succeeded and owned root was removed. Evidence final-outcome-{native-fail.log,run.json,result.json}, logSHA256 355723305828834b91e4c8b91a2374d32d87e3f3c180bc00174f8c9f34058b42. No suite/acceptance PASS is claimed and no blind rerun. Read-only classification and TL sequencing are pending; no live roots touched, no budget changed.
+
+### 2026-10-21 — registration failure classification, TL-requested leads
+
+Confirmed production chain: terminalOSAttempt.observeAdmission repeatedly Lstat'd the wrapper agent-ready file; admitTerminalAfterReady expired its readiness context; Pair exited1, then Couch's helper-exit watcher canceled registration. This is not fixture ready.json and not CLI's15s progress notice. birthBound is fixed10s (launcher/birthwatch.go:26), passed directly by session_handoff_os.go to coordinateTerminalHandoff; session_handoff.go applies WithTimeout to the caller lifetime, so an earlier caller can shorten it but the120s fleet caller cannot extend it. Separate LaunchOptions.BirthBound affects the outer watch only, and Couch registration defaults to2m. Thus a load-only late publication would be a fixed startup-budget design failure, not a flaky test; retained evidence does not yet prove that load caused the missing publication.
+
+Collision audit: reader and writer share scoped storage plus selected tag/agent through Paths.AgentReadyChecked. createflow exports the chosen tag and scope; final and .tmp paths are tag-specific. fixture:3 is the slot while1-fixture-4 is the allocated thread tag, not an off-by-one collision. Exact tag/agent/session/nonce are checked. No collision in inspected construction, but failed wrapper environment and sibling filenames were not retained, so this occurrence's inherited values are not proved.
+
+AMFI lead: runtime_files.go copies Pair/Couch/helper/Claude/Codex once into each fleet's bin; all four actors reuse those same fleet executable paths, with no new per-worker copy. This differs from749's per-run shell fixture copy, though fleet-wide fresh inodes remain exposed to assessment. Read-only unified-log queries07:40:55–07:42:05 returned no event naming pc-999117904 or candidate27790119. An info/debug assessment query captured555 lines/76219bytes of redacted private Gatekeeper assessments07:41:49–07:41:59; these establish policy activity but cannot attribute delay to this executable. The amfid window contains only an unrelated Python library event. Absence of attributed records is not proof of no assessment. Local raw diagnostics are retained beside the failed run, not committed with unrelated system activity. No warm-up, retry, timeout bump or machine change was performed.
+
+Classification: deadline-driven production terminal-readiness refusal; upstream missing-publication cause unresolved. Missing evidence is pane/wrapper startup stderr/events (including AGENT-READY-write-fail), effective scoped tag/session/nonce, ready-file sibling census and native pane/server diagnostics before cleanup. No cause-specific bug fix or flake registration is justified yet. TL sequencing requested before another native attempt.
+
+### 2026-10-21 — TL sequencing: product budget issue773 and expanded private evidence
+
+TL ac4d118b-2fb9-4022-ba58-bf35b9d23f7f directs filing fixed10s readiness as its own product issue (done: unclaimed pair#773), then extending744 pre-cleanup evidence in scope. Capture bounded private pane/wrapper startup stderr, any AGENT-READY write failure, effective scope/tag/session/nonce, and ready-file sibling census using canonical emitted-profile/artifact owners. Retain only allowlisted identity keys, never complete environment/credentials; cap counts and bytes, show missing/read failures, and reject symlink escapes. Add filesystem-backed regression with real path/schema shapes and escaping/truncation controls. No startup timeout change, AMFI warm-up, product readiness fix or retry policy is part of744. Once capture is verified, run one final native matrix; if it passes, continue suite/close/landing with the original failure attached to773; if it fails, classify from the new capture. #772 remains registered for the exact Codex attach subtest and is this slot's next issue after744. Existing native failures remain failures, retained alongside successful runs.
+
+### 2026-10-21 — approved diagnostic source contour (6e0eb216)
+
+Source inspection established that pre-exec pane-shell stderr and an effective exported-environment profile are not persisted; scrollback raw contains inner-agent PTY bytes only. TL6e0eb216-ce18-4777-9e56-8a739becb6cc confirms the minimal source contour: enable owned bounded PAIR_WRAP_LOG inside the fixture root; record allowlisted actual scope/tag/session/nonce and startup/readiness errors through existing wrapper diagnostics; query the genuine private pane with Zellij dump-screen before teardown; explicitly report unavailable if product rollback already removed it; capture readiness sibling census. Pre-exec shell stderr is explicitly out of scope. No new pane wrapper, probe, process, fake PTY, topology, startup deadline or retry is introduced. Diagnostic capture starts after admitted ActorCLI joins but before supervisor/agent teardown, then the existing final failure projection follows joined cleanup. All file sources are factory-private, physically confined and bounded; reject symlinks/escapes, cap file counts and retained bytes, and retain missing/read/query errors rather than reconstructing values. Extend stateful filesystem/native-query seam tests and value-only allowlist/bounds tests using actual emitted formats, not fictitious profiles. After focused checks and committed clean implementation, one native matrix per TL sequencing; #772 remains exact Codex flake, fixed-budget issue773 remains independent and unclaimed.
+
+### 2026-10-21 — approved diagnostic capture implemented and checks PASS
+
+The owned wrapper log uses the existing bounded writer and emits only actualPID plus effective scope/tag/session/nonce, with bounded escaped values; startup failures record fixed phase/type/errno, without raw argv/prompt/error text. Existing AGENT-READY-write-fail stays available. Default unset logging has no filesystem/output effects, and runtime child exit is not mislabeled startup failure. The collector reads actual emitted framing, not an invented profile; allows only startup/readiness labels; validates canonical expected readiness and reports identity mismatch; records sibling names; snapshots genuine native panes using explicit private socket env. Incomplete failure addresses fall back to bounded observed wrapper identities, and known attempt-nonce mismatch refuses attribution. Missing/rolled-back sources remain unavailable. Pre-teardown snapshot happens after active calls join; filtered log reread follows joined writers. Query work has ONE derived quarter-remaining cleanup deadline, leaving the original context to stop/reconcile; counts, files, bytes and native outputs are bounded, and symlink escapes refuse. No new process, launch topology, timeout or retry.
+
+Artifact coverage initially rejected the new sources, correctly. The diagnostic readiness-candidate basename recognizer now lives in artifactpath.IsAgentReadyCandidate with direct RED/GREEN tests: malformed readiness-looking names remain visible, but paths refuse and no owner/readiness authority is granted. Startup collector uses canonical readiness resolution plus this recognition API; precise binding/source declarations pass rather than widening vocabulary/waiving a gate. Startup logging delegates existing diagnostic IO and is audited non-artifact source. Reader audit retained environment_test.go's non-Go fallback and admitted only the two new private/literal fixture readers; inventory PASS.
+
+Combined full helper races PASS27.232s/13.430s/3.485s; wrapper startup/child-exit/exec-failure/composer controls race PASS2.453s. Collector focused race PASS1.987s including stateful executable query argv/private environment, refusal/truncation, file/socket escapes, incomplete identity/mismatch controls, actual emitted wrapper rows, N/2N scans and held-query cleanup reserve. Full artifactpath PASS20.883s after precise declarations; repolint and zellijtest PASS11.678s/9.664s. One authorized final native matrix follows committed clean code. All earlier failures/pass evidence, #772 registration, #773 original failure and #747 checksum remain retained.
+
+### 2026-10-21 — authorized final capture matrix PASS
+
+The one final native matrix authorized by TL6e0eb216 passed on clean unchanged final code 5ecbef821f2d64af2564de889bd6e781277ee7a6: TestDisposableCouchFleet93.20s, Claude42.21s, Codex44.05s (whole command96.615s). Both genuine cohorts included steward+three workers, concurrent actor-origin CLI, submitted ordinary message plus independent accepted body, physical detach/restart returning all four actors, and exact owned-generation/direct-child/IO/root cleanup. Receipts Claudee2000e11-0b45-4e9a-b76a-d324967a2e85 and Codexd6d30d30-f35b-4a1c-bd7e-fb2fd8922be7. No failed native retry on this code head. Evidence final-capture-{native.log,run.json,result.json}; logSHA256 e17cf62855cb8cda74d6afe31aa03c1bf148dcda14e287160e4cdd6c5627a37c. HEAD after matched before and worktree stayed clean. Installed SDLC9eefd64d2247c45c97af673741216a8074850755 modified=false, Zellij0.45.1, nvim0.11.7.
+
+Retain the previous outcome run as FAIL under independent product issue773, with full log/checksum/evidence commit in its published body; this pass does not identify that incident's missing readiness cause. Exact Codex subtest remains registered against772 with reviewer same-head fail103.75s/pass107.43s and the approved diagnostic source improvement. Original #747 proof remains explicit: head5484106480a0123bd86913ea39273a339342a196,143.30s, independently verified logSHA25653cbdc9a79cdcfe4ba579b28f86057494a546b7efa6be342b2deb315fcaf4880. Earlier107.35s/150.09s passes and all failures remain in evidence. Queue final recorded suite and fresh full close review now; no landing until final suite/SHIP/CI gates pass.
+
+### 2026-10-21 — FIX-THEN-SHIP canonical SlotLayout correction
+
+Round4 review confirms BR-2 and BR-5 addressed and independently passes both native personalities154.44s with exact cleanup. It returns FIX-THEN-SHIP only for provisioning's three duplicated layout spellings (BR-6). Existing TestEverySlotStateSiteIsAResource reproduced RED at the worker container, main-slot resting branch and setup-marker filename. All provisioning observations now derive through NewSlotLayout(primary, common,n).Host(), RestingBranch() and SetupMarkerPath(admin); no audit exemption or alternative path rule. Targeted audit, real-Git provisioning, failure/cancellation/adoption and slot-layout race tests PASS couchcore17.804s/testcouch4.771s. No new state or scope, and fixture topology expectations remain the same. The queued pre-fix suite lease4288014647 was canceled via SDLC before execution; no result claimed. Checkpoint fix, rerun native on final code, then finalize this existing close receipt with issue recovery reconcile and run the required final-head recorded suite. No redundant close review is requested under FIX-THEN-SHIP protocol.
+
+### 2026-10-21 — canonical-layout final native PASS
+
+After the FIX-THEN-SHIP canonical path correction, clean unchanged final code d57a131dd94bcd42771984fa2773648e883bc703 passed make test-couch-fleet:96.26s (Claude47.71s/Codex41.91s; whole97.945s). Both genuine steward+three-worker cohorts, concurrent actor CLI, ordinary submitted receipt/independent accepted body, detach/restart and exact cleanup passed. Receipts Claudeeb7ddb24-bf55-4359-9bc4-bf554062feb0; Codex586e7b41-54b2-4d25-af34-0c8e95a65dd6. No native retry on this code head; worktree and HEAD stayed unchanged. Evidence final-layout-{native.log,run.json,result.json}; logSHA256 07e6d86eff477a9b8aea70792e74fdb5d6a57d9ceed69e52f212035d34c31d82. Finalize existing FIX-THEN-SHIP close receipt, then record full suite on finalized pushed head and enter merge. Earlier failed/passing evidence, independent772/773 and #747 proof remain retained unchanged.
+
+### 2026-10-21 08:57 — final suite canonical-native-root correction
+
+Recorded suite lease-2683593840 completed all packages on f9c046f0861c3c87fa42f5e4fc0f09b2e9e201cd and failed only sessioninventory.TestNoNativeAuthorityShadowInInteractiveConsumers (11m23s; saved failed attempt0504e46eb6390c92f827017c0c077172). The unchanged guard reproduced RED in2.137s: fixture conversation.go duplicated Claude native root. Derive both fixture producer roots through existing OSRuntime.NativeRoots, including WithCodexHome, and reuse that same runtime for native resume validation. No scanner exemption, schema or topology change. Existing guard and Claude/Codex transcript/resume tests cover the correction. Preserve the failed full run, verify targeted/native, then narrow re-close and record the suite on the corrected pushed head. ARCH-DRY: fixture producers share canonical storage layout too.
+
+### 2026-10-21 09:03 — canonical-root correction verified
+
+Canonical-root code477fa0ff0c8a9e709df44428aaa84f2a464bd3e4 passed unchanged native matrix186.88s (Claude96.50s/Codex77.77s; whole189.845s), both genuine four-actor cohorts, submitted receipt/independent accepted body, detach/restart and exact owned-generation/child/IO cleanup. Both roots removed. LogSHA2560fd4a1c48377b5a58cfd4a74c1d795f1e5daf07e74e916e81fcce250a26d355a; durable canonical-roots-{native.log,run.json,result.json}. Guard/resume races PASS sessioninventory68.869s and agentfixture1.215s; reader inventory PASS. Previous suite failure is retained as final-layout-suite-fail.log, not relabelled as a flake. Narrow post-close review and fresh recorded suite remain due. Original747 and all earlier native failure/pass evidence remain unchanged.

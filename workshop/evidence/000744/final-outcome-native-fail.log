@@ -1,0 +1,22 @@
+PAIR_NATIVE_COUCH_FLEET=1 go test ./cmd/couch -run '^TestDisposableCouchFleet$' -count=1 -v -timeout=12m
+=== RUN   TestDisposableCouchFleet
+    fleet_acceptance_test.go:25: native Couch tool git: /usr/bin/git (git version 2.54.0 (Apple Git-157))
+    fleet_acceptance_test.go:25: native Couch tool sdlc: /Users/xianxu/workspace/ariadne/bin/sdlc (sdlc version path=/Users/xianxu/workspace/ariadne/bin/sdlc revision=7be44ad5cd268115aff52056f06e869c353732cb modified=false)
+    fleet_acceptance_test.go:25: native Couch tool weave: /Users/xianxu/workspace/ariadne/bin/weave (weave version dev)
+    fleet_acceptance_test.go:25: native Couch tool zellij: /opt/homebrew/Cellar/zellij/0.45.1/bin/zellij (zellij 0.45.1)
+    fleet_acceptance_test.go:25: native Couch tool nvim: /opt/homebrew/opt/nvim-0.11/bin/nvim (NVIM v0.11.7)
+    fleet_acceptance_test.go:25: native Couch candidates: source=/Users/xianxu/workspace/worktree/pair-slot5/pair head=db791e3b82bb23242ecd5e8fdbebd550c9da8e04 dir=/Volumes/TestScratch/couch-fleet-binaries-27790119
+=== RUN   TestDisposableCouchFleet/claude
+    fleet_acceptance_test.go:29: native fleet isolation: root=/Volumes/TestScratch/pc-999117904 run=6ee1e1d66d9842d4d41c1b68c1eeb506 agent=claude workers=3
+    fleet_acceptance_test.go:43: worker 3 CLI: fixture CLI: exit status 1; stdout={"FailureNonce":"operation-9923c3b354cb3f27bbbb015f499d4a66","ID":"820e4b74-6e83-43a5-8ee8-0642f0c546d5","Op":"reboot","Target":"fixture:3","Status":"failed","Detail":"Pair exited before registering (exit 1) [attempt start-85d2d0fea5efc727; diagnostics /Volumes/TestScratch/pc-999117904/store/launch-diagnostics/failures.json]; inspect with couch --show '/Volumes/TestScratch/pc-999117904/fleet/worktree/fixture-slot3/fixture'","Warning":"started fresh; previous TTY capture unavailable; use branch and issue evidence; any unproved owners were left untouched under their original identities; workspace setup was not refreshed","Admitted":"2026-10-21T07:41:37.670051-07:00","Finished":"2026-10-21T07:41:54.3034-07:00"}
+         stderr=couch: fixture:3 reboot still running after 15s
+        
+    fleet.go:434: native failure evidence before root removal: nonce=operation-9923c3b354cb3f27bbbb015f499d4a66 slot=fixture:3 stage=registration before_exit=1 after_exit=1 launch="context canceled\nrecovery attempt registration is not confirmed" final="Pair exited before registering (exit 1) [attempt start-85d2d0fea5efc727; diagnostics /Volumes/TestScratch/pc-999117904/store/launch-diagnostics/failures.json]; inspect with couch --show '/Volumes/TestScratch/pc-999117904/fleet/worktree/fixture-slot3/fixture'\ncontext canceled\nrecovery attempt registration is not confirmed [remote job: queued 0s, prepare 877ms, operation 15.732s]" cleanup="" stream="pty stdout/stderr" output="\x1b]0;📁1-4\apair: failed to launch zellij session '📁1-4': terminal admission unverified: lstat /Volumes/TestScratch/pc-999117904/data/pair/repos/02ee004922119016/agent-ready-1-fixture-4-claude.json: no such file or directory\r\ncontext deadline exceeded\r\n"
+        ; read_error=<nil>
+    fleet.go:452: native fleet cleaned: root=/Volumes/TestScratch/pc-999117904 all owned generations absent; direct child and IO joined
+--- FAIL: TestDisposableCouchFleet (52.90s)
+    --- FAIL: TestDisposableCouchFleet/claude (47.14s)
+FAIL
+FAIL	github.com/xianxu/pair/cmd/couch	53.080s
+FAIL
+make: *** [test-couch-fleet] Error 1

@@ -32,6 +32,9 @@ READER = re.compile(
     r'|"\.\.(?:/|"\s*,)'
     r'|(?:os|ioutil)\.(?:ReadFile|Open|ReadDir)\s*\(\s*"(?:[^"\n]*\.(?:go|lua|sh|kdl|py)|\.)"'
 )
+# These APIs compile/read the real checkout and runtime assets even when the
+# calling test contains no literal repository path. They are not source scanners.
+NATIVE_HELPER_READER = re.compile(r'\b(?:testcouch\.(?:Build|New)|runtimeEnvironment)\s*\(')
 TEST = re.compile(r'^func (Test\w+)\(t \*testing\.T\)', re.MULTILINE)
 DISPOSITIONS = {"fixed_scanner", "non_go_full_fallback", "local_or_literal_fixture"}
 
@@ -47,7 +50,7 @@ def tracked_readers(root):
         if not path.is_file():
             continue
         body = path.read_bytes()
-        if READER.search(body.decode("utf-8")):
+        if READER.search(body.decode("utf-8")) or NATIVE_HELPER_READER.search(body.decode("utf-8")):
             readers[name] = body
     return readers
 
@@ -88,6 +91,8 @@ def audit(root, inventory, fixed_tests, actual=None):
         disposition, digest = expected[name]
         if hashlib.sha256(body).hexdigest() != digest:
             errors.append("changed reader: " + name + "; re-audit inputs and preflight/fallback ownership")
+        if NATIVE_HELPER_READER.search(body.decode("utf-8")) and disposition != "non_go_full_fallback":
+            errors.append("native helper API requires repository-input fallback classification: " + name)
         if disposition == "fixed_scanner" or repository_source_scan(body.decode("utf-8")):
             tests = set(TEST.findall(body.decode("utf-8")))
             registered = set(fixed_tests.get(str(Path(name).parent), ()))
@@ -524,6 +529,17 @@ class ReaderInventoryTest(unittest.TestCase):
         self.assertIn("cmd/internal/slugcmd/slug.go", output)
         self.assertNotIn("python3 -B tests/build-go-atomic-test.py", output,
                          "selected groups ran after the failed preflight")
+
+    def test_native_helper_api_requires_repository_input_classification(self):
+        for helper in ("testcouch.Build", "testcouch.New", "runtimeEnvironment"):
+            with self.subTest(helper=helper):
+                self.write("cmd/scan/scan_test.go",
+                    "package scan\nfunc TestScan(t *testing.T) { " + helper + "(t) }\n")
+                self.assertTrue(any("unmapped reader" in error
+                                    for error in audit(self.root, {"version": 1, "readers": {}}, {})))
+                self.assertEqual(audit(self.root, self.inventory(), {}), [])
+                errors = audit(self.root, self.inventory("local_or_literal_fixture"), {})
+                self.assertTrue(any("native helper API" in error for error in errors), errors)
 
     def test_repository_inventory_and_fixed_preflight(self):
         inventory, _ = load_inventory(INVENTORY)

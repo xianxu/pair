@@ -16,6 +16,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchsingleton"
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/pathscope"
 )
 
 // accountHome is deliberately independent of HOME and XDG. Explicit isolation
@@ -28,58 +29,15 @@ func localAccountHome() (string, error) {
 	return account.HomeDir, nil
 }
 
-// canonicalFuture resolves existing ancestors without creating missing roots.
-func canonicalFuture(path string) (string, error) {
-	if !filepath.IsAbs(path) {
-		return "", fmt.Errorf("Couch root must be absolute: %q", path)
-	}
-	path = filepath.Clean(path)
-	physical, err := filepath.EvalSymlinks(path)
-	if err == nil {
-		return physical, nil
-	}
-	if !errors.Is(err, os.ErrNotExist) {
-		return "", err
-	}
-	if info, statErr := os.Lstat(path); statErr == nil && info.Mode()&os.ModeSymlink != 0 {
-		return "", fmt.Errorf("unresolved Couch root symlink %q: %w", path, err)
-	}
-	parent := filepath.Dir(path)
-	if parent == path {
-		return "", err
-	}
-	physical, err = canonicalFuture(parent)
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(physical, filepath.Base(path)), nil
-}
-
-func confined(root, path string) bool {
-	rel, err := filepath.Rel(root, path)
-	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel)
-}
+func canonicalFuture(path string) (string, error) { return pathscope.CanonicalFuture(path) }
+func confined(root, path string) bool             { return pathscope.Within(root, path) }
 
 // isolatedChildRoots retains the physical destinations validated before any
 // selection or child effects. Fallbacks obey the same rule as explicit roots.
 type isolatedChildRoots struct{ home, data, temporary string }
 
 func confinedDirectory(root, path, name string) (string, error) {
-	physical, err := canonicalFuture(path)
-	if err != nil {
-		return "", fmt.Errorf("%s isolation root: %w", name, err)
-	}
-	if !confined(root, physical) {
-		return "", fmt.Errorf("%s must remain inside COUCH_ISOLATED_ROOT: %q", name, physical)
-	}
-	if info, err := os.Stat(physical); err == nil {
-		if !info.IsDir() {
-			return "", fmt.Errorf("%s isolation root is not a directory: %q", name, physical)
-		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return "", err
-	}
-	return physical, nil
+	return pathscope.Directory(root, path, name)
 }
 
 func resolveIsolatedChildRoots(root, requestedHome string) (isolatedChildRoots, error) {
