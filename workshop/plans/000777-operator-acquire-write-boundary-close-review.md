@@ -98,3 +98,91 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T15:23:25-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 777 — session-sync: serialize operator acquisition with the writer commit boundary |
+| repo | pair |
+| issue file | workshop/issues/000777-operator-acquire-write-boundary.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 1ed39dfdbbe0182b72c4b3a62b5504b2e725ce5d..5620eb1d7a9592f06992466f17083a784d97ecb7 |
+| command | sdlc close --issue 777 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T15:23:25-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation fulfills the producer-side exclusion contract: operator acquisition shares the registered writer transaction, preserves exact turn ownership on retries, and acknowledges only after durability confirmation. BR-1 is addressed. No new findings.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      README.md:532-537 adds both required invocation forms and the acknowledgment/retry/release pointer. atlas/couch-agentic-documents.md:87-155 describes the contract implemented by session_sync.go and operator_lock.go. This is a prose-only correction; behavioral conformance tests also pass.
+```
+
+1. **Strengths**
+
+   - Acquisition and release reuse `withRegistry`, covering the same exclusion boundary as registered Write and Apply (`operator_lock.go:71`).
+   - Deterministic ordering tests pause writers after their guard and at final round publication, proving acquisition cannot acknowledge early.
+   - Recovery preserves exact proof bytes and handles uncertain publication, partial alias removal, process death, and canonical witness reconstruction.
+   - README, atlas, atlas index, and embedded skill consistently document the new commands and legacy-client limits.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed:
+
+   - Full `cmd/internal/sessionsync` suite.
+   - Selected operator CLI and real executable tests in `couchcmd` and `cmd/couch`.
+   - Race-enabled `TestOperatorLock` tests.
+   - `make test-affected-inventory`.
+   - Pinned-range `git diff --check`.
+
+   Pure ownership tests use no IO. Integration tests use disposable folders and a stateful filesystem fake. Native editor freshness/input behavior remains the explicitly documented consumer deliverable in parley.nvim#408.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Existing registry exclusion, path authority, and durable publication are reused.
+   - **ARCH-PURE — pass:** Proof parsing and ownership decisions are pure; filesystem effects remain in the transaction shell.
+   - **ARCH-PURPOSE — pass:** Write, Apply, and move recovery participate in the documented acknowledgment contract.
+   - **ARCH-MOCK — pass:** Production and uncertainty tests share the filesystem seam; real-backend and executable tests provide conformance evidence.
+   - **ARCH-CONSTRAINTS — pass:** Existing registry/alias bounds, bounded sidecar reads, and counted alias tests support the operating envelope.
+   - **ARCH-SECURE — pass:** Identity, token, file type, and ownership validation precede destructive effects; foreign protection is preserved.
+   - **ARCH-ORDER — pass:** Tagged decisions and serialized transactions preserve uncertain outcomes; controlled ordering and crash tests exercise recovery.
+   - **ARCH-FUNERAL — pass:** Exact-turn release and existing move ownership govern sidecars; deterministic stages have bounded residue and reclamation.
+   - **ARCH-EVOLVE — pass:** New sidecar fields are additive; retries and canonical recovery preserve raw unknown lines.
+
+7. **Plan revision recommendations:** None. The core-concept paths, classifications, and implementation status match the inspected code.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"a79e1ab8-4d83-42c8-b6ff-984d94baf599","repository":"github.com/xianxu/pair","issue_id":"000777","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/1eb60932f33eb070","reviewed_head":"5620eb1d7a9592f06992466f17083a784d97ecb7","slot":"pair:2","requested_at":"2026-10-21T22:22:08.42904Z"},"phase":"finished","pid":80408,"started_at":"2026-10-21T22:22:08.540777Z","finished_at":"2026-10-21T22:23:24.403074Z","session_id":"01a1608e-b9e5-7a43-bd12-10e577e9ed2c","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.213661125s
+head: "5620eb1d7a9592f06992466f17083a784d97ecb7"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
