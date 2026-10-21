@@ -72,3 +72,82 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T03:32:17-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 765 — Cache-enabled Go tests exceed physical write envelopes |
+| repo | pair |
+| issue file | workshop/issues/000765-cache-test-write-envelope.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 3b5e8efb9c94035076c5edf5683db97422e6de76..7999245e29ebddadb321e849b30dba9a2bba8dfe |
+| command | sdlc close --issue 765 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T03:32:17-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The shared boundary enforces the documented cache policy without changing write caps or failure semantics. BR-1 is verified addressed. No new findings; the checkout remains unchanged.
+
+Done-when: current — the clauses cover attribution, cache-enabled and uncached invocation contracts, and continued refusal of excessive fixture writes.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      SOURCE_GUARDS registers TestGoCacheWriteBudgetConformance and the audited inventory contains its current digest. make test-affected-inventory passes; independently removing either registration in memory makes the existing audit fail with the expected diagnostic. The registered conformance test passes.
+```
+
+1. **Strengths**
+   - `cmd/internal/testdisk/run.go:87` centralizes policy for all seven budgeted package callers.
+   - `cache_conformance_test.go:88–119` verifies actual cache reuse, fresh guarded execution, and retained coverage.
+   - Native tests preserve real excess-write refusal and failure status.
+   - README and atlas explain the result-cache tradeoff.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None remaining.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+   - Inventory check and diff whitespace check passed.
+   - `go test -count=1 ./cmd/internal/testdisk` passed.
+   - Replacing `run.go` with its base version through a temporary Go overlay makes the trace regression fail: 5,353,472 bytes against a 1 MiB cap.
+   - Uncached core/tty tests passed: 270.586s / 53.470s.
+   - Verified retained plain-run results and cold/warm attribution logs against recorded hashes.
+   - The full required `make test` suite was not rerun during this review.
+
+6. **Architectural notes**
+   - **ARCH-DRY: pass** — one shared policy owner.
+   - **ARCH-PURE: pass** — flag mutation stays at the integration boundary; accounting remains directly testable.
+   - **ARCH-PURPOSE: pass** — excludes cache instrumentation while retaining workload caps.
+   - **ARCH-EVOLVE: pass** — no persisted-format changes.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"9d9b11b2-0933-4769-8b3a-520a9c6f520e","repository":"github.com/xianxu/pair","issue_id":"000765","recipe":"small-diff-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/033ef061b6890bad","reviewed_head":"7999245e29ebddadb321e849b30dba9a2bba8dfe","slot":"pair:7","requested_at":"2026-10-21T10:26:35.798994Z"},"phase":"finished","pid":39688,"started_at":"2026-10-21T10:26:35.934892Z","finished_at":"2026-10-21T10:32:17.208198Z","session_id":"01a15dff-a080-7fd3-b7fe-d5d2d4f892c2","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.14874225s
+head: "7999245e29ebddadb321e849b30dba9a2bba8dfe"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000411

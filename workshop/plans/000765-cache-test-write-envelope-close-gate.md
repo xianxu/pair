@@ -71,6 +71,76 @@ rounds:
       recipe: small-diff-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 9d9b11b2-0933-4769-8b3a-520a9c6f520e
+            repository: github.com/xianxu/pair
+            issue_id: "000765"
+            recipe: small-diff-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/033ef061b6890bad
+            reviewed_head: 7999245e29ebddadb321e849b30dba9a2bba8dfe
+            slot: pair:7
+            requested_at: "2026-10-21T10:26:35.798994Z"
+          phase: finished
+          pid: 39688
+          started_at: "2026-10-21T10:26:35.934892Z"
+          finished_at: "2026-10-21T10:32:17.208198Z"
+          session_id: 01a15dff-a080-7fd3-b7fe-d5d2d4f892c2
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 7999245e29ebddadb321e849b30dba9a2bba8dfe
+        tracker_head: e07b360d3ebc1c5f73640be9bf427cdd5cdd360e
+        branch_point: 3b5e8efb9c94035076c5edf5683db97422e6de76
+        since: "2026-10-21T03:09:03-07:00"
+        until: "2026-10-21T03:25:44-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-21T03:09:03-07:00"
+              end: "2026-10-21T03:25:44-07:00"
+              began: "2026-10-21T03:09:03-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot7/pair
+        sources:
+            - harness: codex
+              id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              slot: pair:7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 07226528ac528f8886cef60ff7b50737c8e845fc3214b2a33dc15a573620caf5
+              started: "2026-10-13T04:50:49.58Z"
+              spawned: false
+              bytes: 227942200
+              windows:
+                - start: "2026-10-21T03:09:03-07:00"
+                  end: "2026-10-21T03:25:44-07:00"
+        cuts:
+            - dispatched: "2026-10-21T03:19:13-07:00"
+              finalized: "2026-10-21T03:20:42-07:00"
+              finalizing: false
+      "n": 2
+      timestamp: "2026-10-21T03:32:18-07:00"
+      dispatched: "2026-10-21T03:26:33-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: SOURCE_GUARDS registers TestGoCacheWriteBudgetConformance and the audited inventory contains its current digest. make test-affected-inventory passes; independently removing either registration in memory makes the existing audit fail with the expected diagnostic. The registered conformance test passes.
+          round: 2
+      recipe: small-diff-review
+      isolation: fenced
+      reviewed: 7999245e29ebddadb321e849b30dba9a2bba8dfe
+      blocked: false
 ---
 
 # Gate ledger — pair#765 (boundary-review)
@@ -85,6 +155,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-1** [Important] `repository-reader-registration` (kind: defect) Register the new conformance test before closing the issue
   cmd/internal/testdisk/cache_conformance_test.go:21–28 introduces a repository reader without updating SOURCE_GUARDS or tests/affected-go-readers.json. At the pinned head, make test-affected-inventory exits 2 with “unmapped reader: cmd/internal/testdisk/cache_conformance_test.go”; scripts/test-affected.py also runs this check before affected testing. This is the only unmapped reader reported in this window. Audit its repository/module inputs, register its test in SOURCE_GUARDS, record its audited inventory disposition, and rerun the required checks.
 
+## Round 2 — 2026-10-21T03:32:18-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — SOURCE_GUARDS registers TestGoCacheWriteBudgetConformance and the audited inventory contains its current digest. make test-affected-inventory passes; independently removing either registration in memory makes the existing audit fail with the expected diagnostic. The registered conformance test passes.
+
 ## Open findings
 
-- **BR-1** [Important] `repository-reader-registration` (kind: defect) Register the new conformance test before closing the issue
+(none — every finding has been disposed)
