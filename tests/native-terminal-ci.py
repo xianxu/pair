@@ -3,6 +3,7 @@
 Candidate and JSON evidence are invocation-owned, on both macOS and Linux.
 Native CI currently qualifies macOS; this runner makes no Linux pass claim.
 """
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -10,42 +11,35 @@ import shutil
 import signal
 import subprocess
 import tempfile
+import sys
 
-REQUIRED = {
-    "TestNativeConsoleWrapperZellij",
-    "TestNativeConsoleWrapperZellij/direct-zellij-baseline",
-    "TestNativeConsoleWrapperZellij/wrapped-zellij",
-    "TestLiveConsoleNvimPreservesContentAndChrome",
-    "TestLiveReservedRowSurvivesRealScrolling",
-    "TestNotificationPTYConformance",
-    "TestTerminalRecoveryZellijConformance",
-}
+_validator_spec = importlib.util.spec_from_file_location("conformance_vm", Path(__file__).with_name("conformance-vm.py"))
+_validator = importlib.util.module_from_spec(_validator_spec)
+_validator_spec.loader.exec_module(_validator)
+REQUIRED_BY_PACKAGE = _validator.NATIVE_REQUIRED
+REQUIRED = set().union(*REQUIRED_BY_PACKAGE.values())
 
 
 def require_execution(events):
-    passed = set()
-    for event in events:
-        action, name = event.get("Action"), event.get("Test")
-        if action in ("skip", "fail"):
-            raise RuntimeError(f"native conformance {action}: {name or 'package'}")
-        if action == "pass" and name:
-            passed.add(name)
-    missing = REQUIRED - passed
-    if missing:
-        raise RuntimeError(f"native conformance did not execute: {sorted(missing)}")
+    # Compatibility for callers with decoded fixtures. Production streams below
+    # feed the shared reducer directly and parse each event exactly once.
+    return _validator.validate_results((json.dumps(event) for event in events), REQUIRED_BY_PACKAGE)
 
 
-def run_tests(command, env, evidence):
+def run_tests(command, env, evidence, required=None):
     # The child process group must join before invocation scratch is removed,
     # including malformed output, output errors, and operator interruption.
     with evidence.open("w") as output:
         process = subprocess.Popen(command, env=env, stdout=subprocess.PIPE, text=True, start_new_session=True)
         try:
-            for line in process.stdout:
-                output.write(line)
-                event = json.loads(line)
-                if "Output" in event:
-                    print(event["Output"], end="", flush=True)
+            def lines():
+                for line in process.stdout:
+                    output.write(line)
+                    # Raw Go JSON is retained both here and by the VM stdout
+                    # stream; human/tool diagnostics use stderr separately.
+                    print(line, end="", flush=True)
+                    yield line
+            _validator.validate_results(lines(), REQUIRED_BY_PACKAGE if required is None else required)
             return process.wait(timeout=10)
         finally:
             if process.poll() is None:
@@ -58,21 +52,19 @@ def run_tests(command, env, evidence):
             process.stdout.close()
 
 
-def qualify(command, env, scratch):
+def qualify(command, env, scratch, required=None):
     evidence = scratch / "events.jsonl"
     try:
-        status = run_tests(command, env, evidence)
+        status = run_tests(command, env, evidence, required)
         if status:
             raise RuntimeError(f"native go test exited {status}")
-        with evidence.open() as source:
-            require_execution(json.loads(line) for line in source)
     except BaseException:
         # Go preserves -artifacts here; publish before owned scratch is deleted.
         # These are only the oracle's known evidence files, never the private HOME.
         for path in sorted((scratch / "artifacts").rglob("node-oracle-*/*")):
             if path.name in {"request.json", "stdout.raw", "stderr.txt", "node-report.json"} and path.is_file():
-                print(f"\n--- oracle artifact {path.relative_to(scratch)} ({path.stat().st_size} bytes) ---", flush=True)
-                print(path.read_bytes().decode("utf-8", errors="backslashreplace"), flush=True)
+                print(f"\n--- oracle artifact {path.relative_to(scratch)} ({path.stat().st_size} bytes) ---", file=sys.stderr, flush=True)
+                print(path.read_bytes().decode("utf-8", errors="backslashreplace"), file=sys.stderr, flush=True)
         raise
 
 
@@ -85,9 +77,9 @@ def main():
     version = subprocess.check_output(["zellij", "--version"], text=True, timeout=10).strip()
     if version != "zellij 0.45.1":
         raise RuntimeError(f"native baseline requires zellij 0.45.1, got {version!r}")
-    print(f"Native baseline: {version}", flush=True)
-    subprocess.run(["npm", "ci", "--prefix", "tests/terminal-oracle", "--ignore-scripts", "--no-audit", "--no-fund"], check=True, timeout=120)
-    subprocess.run(["node", "--test", "tests/terminal-oracle/driver_test.cjs"], check=True, timeout=30)
+    print(f"Native baseline: {version}", file=sys.stderr, flush=True)
+    subprocess.run(["npm", "ci", "--prefix", "tests/terminal-oracle", "--ignore-scripts", "--no-audit", "--no-fund"], check=True, stdout=sys.stderr, timeout=120)
+    subprocess.run(["node", "--test", "tests/terminal-oracle/driver_test.cjs"], check=True, stdout=sys.stderr, timeout=30)
     with tempfile.TemporaryDirectory(prefix="pair-native-ci-") as scratch:
         candidate = str(Path(scratch) / "pair")
         # Native fixtures inherit the same empty allowlist as every Pair test.
@@ -105,7 +97,7 @@ def main():
         artifacts.mkdir()
         command = ["go", "test", "-p", "1", "-race", "-json", "./cmd/internal/couchtty", "./cmd/internal/layoutcmd", "-run", pattern, "-count=1", "-timeout=5m", "-artifacts", "-outputdir", str(artifacts)]
         qualify(command, env, Path(scratch))
-        print(f"Verified execution of all {len(REQUIRED)} required native tests/subtests.")
+        print(f"Verified execution of all {len(REQUIRED)} required native tests/subtests.", file=sys.stderr)
 
 
 if __name__ == "__main__":

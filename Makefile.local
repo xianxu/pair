@@ -228,7 +228,7 @@ PAIR_AFFECTED_LUA := test-lua test-retention test-nvim-pidfile test-lifecycle-co
 PAIR_AFFECTED_REVIEW := test-review
 PAIR_AFFECTED_DOCTOR := test-doctor test-perf-capture test-perf-key-conformance test-emitter-health test-adapt-schema
 PAIR_AFFECTED_BUILD := test-build-go-atomic test-supervision-labels test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-make-env test-host-preflight test-run-headless
-PAIR_AFFECTED_SHELL := test-vm-provision test-session-watch test-pair-restart-quit test-pair-rename test-changelog test-copy-on-select test-term-pane-shortcuts test-zellij-trace test-plan-superseded test-paint-gate-consumers
+PAIR_AFFECTED_SHELL := test-vm-conformance test-vm-provision test-session-watch test-pair-restart-quit test-pair-rename test-changelog test-copy-on-select test-term-pane-shortcuts test-zellij-trace test-plan-superseded test-paint-gate-consumers
 
 .PHONY: test-affected test-affected-lua test-affected-review test-affected-doctor test-affected-build test-affected-shell test-affected-runner test-affected-config
 test-affected:
@@ -251,7 +251,7 @@ ifeq ($(PAIR_TEST_BINARY),)
 test:
 	bash tests/lib/with-pair-test-binary.sh $(MAKE) test
 else
-test: test-vm-provision test-affected-runner test-affected-config test-build-go-atomic test-supervision-labels test-host-preflight runtimebundle-generate test-retention test-nvim-pidfile test-run-headless test-lua test-lifecycle-command test-perf-capture test-queue test-submission-transaction test-bang-tag test-autopair test-draft-complete test-pair-doctor test-perf-key-conformance test-plan-superseded test-paint-gate-consumers test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-pair-rename test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review test-make-env
+test: test-vm-conformance test-vm-provision test-affected-runner test-affected-config test-build-go-atomic test-supervision-labels test-host-preflight runtimebundle-generate test-retention test-nvim-pidfile test-run-headless test-lua test-lifecycle-command test-perf-capture test-queue test-submission-transaction test-bang-tag test-autopair test-draft-complete test-pair-doctor test-perf-key-conformance test-plan-superseded test-paint-gate-consumers test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-pair-rename test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review test-make-env
 	# pair#610: temporary 20m per-package budget; couchcore is ~580s idle.
 	# pair#611 profiles/splits/shards it before removing this allowance.
 	go test ./... -count=1 -timeout 20m
@@ -614,3 +614,13 @@ test-pair-rename:
 .PHONY: test-vm-provision
 test-vm-provision:
 	python3 -B scripts/vm/test_provision.py
+
+.PHONY: conformance-vm test-vm-conformance
+conformance-vm: $(BIN_DIR)/pair
+	python3 -B tests/conformance-vm.py host
+
+test-vm-conformance:
+	python3 -B tests/conformance-vm-test.py
+	python3 -B tests/conformance-command-test.py
+	python3 -B tests/conformance-paths-test.py
+	python3 -B tests/native-terminal-ci-test.py
