@@ -1,13 +1,21 @@
 ---
 id: 000751
-status: open
+status: working
 deps: [pair#750]
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'd0cabc7f95b9419eb5dcacafb00780fe8ef1bdb0' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '1d824000c2130defa50837decf63b4572f79961a' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-20T21:40:18-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:9
+    worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
+    repository: github.com/xianxu/pair
 ---
 
 # cast-sketch: recording model, pressure paths and undo history
@@ -36,7 +44,9 @@ Primary surfaces: cmd/internal/webcast/recording/{sketch.go,sketch_state.go,reco
 
 ## Plan
 
-- [ ] Claim/start-plan after dependencies land; write the slice-specific execution plan.
+- [x] Claim/start-plan after dependencies land; write the slice-specific execution plan.
+
+Execution plan: [000751-cast-sketch-recording-plan.md](../plans/000751-cast-sketch-recording-plan.md).
 - [ ] Implement and verify the Spec and Done when through the normal SDLC gates.
 
 ## Log
@@ -44,3 +54,6 @@ Primary surfaces: cmd/internal/webcast/recording/{sketch.go,sketch_state.go,reco
 ### 2026-10-20
 
 - Filed from operator-approved #750 design via ops:0. Left unclaimed for TL dispatch.
+
+- #750 landed as PR #501; claimed and started #751 from main. ops:0 approved deriving terminal reserve from worst-case encoded label plus envelope and end/interruption, rounding up to at least 8 KiB while preserving the 32 MiB total cap. Plan records the correction and adversarial regression; no further operator round required.
+- Read-only implementation reconnaissance identified existing strictjson preservation helpers, both ordered producers, causal ctl catch-up history and operator module-export constraints; plan covers each without adding UI/transport scope.
