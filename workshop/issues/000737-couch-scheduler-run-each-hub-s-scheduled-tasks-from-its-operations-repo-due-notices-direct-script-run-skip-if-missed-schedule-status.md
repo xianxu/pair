@@ -167,6 +167,47 @@ The three original real-I/O outage regressions reproduced the hidden-error class
 
 Six top-level health tests (including four error-budget subcases) pass under race (2.103s), covering real hub rename/replace, latest cause/stable local since-time, completed production-worker facts settled during outage without replay, independent native ledger failure/recovery, startup failure, failed refresh application, history refusal versus busy text, and CLI/JSON validity. Broad Schedule/Skill/HelpAndSkill/MessageSkill race selection passes (80.616s), artifactpath passes (10.460s), affected reader inventory and diff checks pass. The active plan/atlas map now anchors the retained failure and diagnostic projection, with the prior BR-16 map preserved as superseded. TL clarification 274cb2fc explicitly preserves existing admission: retained catalogue stays in use, scripts revalidate own task before release, notify-only notices may reflect last-good declarations. Help/atlas and append-only plan revision state this rather than contradicting superseded M2 prose. No native fleet acceptance, live stage/day or recorded suite pass is claimed. Commit/push and committed-head preflight precede the fresh check and third M3 review.
 
+### 2026-10-21 — M3 SHIP and disposable automatic acceptance
+
+M3 round 3 closed SHIP with no new/open M3 blockers and BR-15/16/17 addressed; SDLC committed/pushed evidence 23c29c1f4b972f83154edb222d85366f44939c6b. Reviewer independently ran the scheduler/protocol/core/history/artifact/durable/GC selections and verified BR-15 and BR-17 mutations fail. This is the milestone boundary, not whole-issue acceptance.
+
+Native shared #744 harness qualification ran the reviewed candidate through isolated real supervisors, wrappers and deterministic Claude/Codex fixture personalities. Final corrected-observer run PASS 343.694s (Claude 158.93s, Codex 179.22s). Actual wall-clock due execution produced exit-10 wake and timeout with submitted notices; public system receipts and fixture accepted-input logs agree, immutable history/detail/output/Last/revision/next-due agree, cwd is the owned scratch hub, and exact controller/task/TERM-resistant descendant generations are absent before final cleanup. Each root is removed after joined ownership proof. No real model service, ops task, :0, stage or restart is part of this qualification.
+
+The first scratch draft failed (188.637s) at terminal-history polling with fixture CLI exit status 1; its helper dropped CLI stderr, so that original failure remains unclassified. An instrumented same-code Claude-only diagnostic passed (189.757s) and did not reproduce it. Source audit found a definite observer defect: it inspected history while tasks were still publishing/finalizing, although that API explicitly returns busy under its nonblocking task lock. Final draft waits for BOTH published matching scheduled terminal statuses before inspecting history and retains full CLI errors; it does not broadly retry failures. A deterministic owned task-lock control in each personality proves exact stderr `couch: schedule: history: operational task busy` and the same generic fixture exit-status error. This establishes the observer/API mismatch without claiming to reconstruct the first missing stderr. All three run logs remain separate; no passing retry overwrites the failure and no production change was made.
+
+Reproduction from this slot (testcouch.Build records the actual source HEAD):
+
+```sh
+PAIR_NATIVE_COUCH_FLEET=1 go test -overlay /Volumes/TestScratch/pair737-fleet-draft.1Vlnju/overlay.json ./cmd/couch -run '^TestScheduleDisposableFleetAcceptance$' -count=1 -v -timeout=30m
+```
+
+Local retained artifacts and SHA-256:
+
+- `/Volumes/TestScratch/pair737-fleet-draft.1Vlnju/schedule_disposable_acceptance_test.go` — `194e8bc2da1815572886a8cfef67a4ac2754845a15ade96e601c61559c2c8f1f`
+- `/Volumes/TestScratch/pair737-fleet-draft.1Vlnju/acceptance.log` — `232dd7a1b87de0769f0f049fd1efe5e7bcbadd6a43287b7f5575372a341e0975`
+- `/Volumes/TestScratch/pair737-fleet-draft.1Vlnju/diagnostic-claude.log` — `ef21f4f237c2f093829800d58c85d2157bab86584069723bd8effc1ab3750ba9`
+- `/Volumes/TestScratch/pair737-fleet-draft.1Vlnju/settled-observer.log` — `d1009561cd9112ba48707aaa9ef19f80e37e45b1202548d67e24db63fd309135`
+
+Final native evidence excerpts:
+
+```text
+    schedule_disposable_acceptance_test.go:32: native Couch candidates: source=/Users/xianxu/workspace/worktree/pair-slot1/pair head=23c29c1f4b972f83154edb222d85366f44939c6b dir=/Volumes/TestScratch/couch-fleet-binaries-2979135903
+    schedule_disposable_acceptance_test.go:168: history observer negative control: exit=1 stderr="couch: schedule: history: operational task busy\n" error=fixture CLI: exit status 1
+    schedule_disposable_acceptance_test.go:377: automatic acceptance: task=exit10 run=8675ba563c32a0f28c82e17f9ebc51e6 due=2026-10-21 21:53:00 +0000 UTC outcome=wake exit=10 notice=submitted output="schedule fleet cwd /Volumes/TestScratch/pc-2971173135/fleet/fixture\n2a356fb74dc76fbc46bf35d6b2dd2d00-scheduled-exit10\n"
+    schedule_disposable_acceptance_test.go:377: automatic acceptance: task=timeout run=1c3bd472e8f007268df5c0ceced9abd1 due=2026-10-21 21:53:00 +0000 UTC outcome=timeout exit=unavailable (signal) notice=submitted output="schedule fleet cwd /Volumes/TestScratch/pc-2971173135/fleet/fixture\n2a356fb74dc76fbc46bf35d6b2dd2d00-timeout-started\n"
+    fleet.go:460: native fleet cleaned: root=/Volumes/TestScratch/pc-2971173135 all owned generations absent; direct child and IO joined
+    schedule_disposable_acceptance_test.go:168: history observer negative control: exit=1 stderr="couch: schedule: history: operational task busy\n" error=fixture CLI: exit status 1
+    schedule_disposable_acceptance_test.go:377: automatic acceptance: task=exit10 run=620e0c7d4f0b8f139296fc61264357a3 due=2026-10-21 21:56:00 +0000 UTC outcome=wake exit=10 notice=submitted output="schedule fleet cwd /Volumes/TestScratch/pc-234239105/fleet/fixture\n0266230ae8d11c8240b2306d7a19d4a1-scheduled-exit10\n"
+    schedule_disposable_acceptance_test.go:377: automatic acceptance: task=timeout run=a839076b2df31b6f69598279f98dafde due=2026-10-21 21:56:00 +0000 UTC outcome=timeout exit=unavailable (signal) notice=submitted output="schedule fleet cwd /Volumes/TestScratch/pc-234239105/fleet/fixture\n0266230ae8d11c8240b2306d7a19d4a1-timeout-started\n"
+    fleet.go:460: native fleet cleaned: root=/Volumes/TestScratch/pc-234239105 all owned generations absent; direct child and IO joined
+--- PASS: TestScheduleDisposableFleetAcceptance (343.51s)
+    --- PASS: TestScheduleDisposableFleetAcceptance/claude (158.93s)
+    --- PASS: TestScheduleDisposableFleetAcceptance/codex (179.22s)
+ok  	github.com/xianxu/pair/cmd/couch	343.694s
+```
+
+Recorded suite lease-1057026342 is still queued on code head 16589ba4c7b896b51f50b2761a8160be58e6720f; its result must be verified before landing. No own recorded suite pass is claimed. The mandatory real ops testscratch day remains TL-coordinated/open, as does whole-issue close/landing. Preserve the concrete #739 getter/combined lock-order obligation for whichever lands second.
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only; calibration currently marked stale/provisional by estimate-source. Already-scaled implementation hours use 40% of v2/v2.1 ranges; design uses the thorough-spec 0.2 multiplier, plus 0.5 library credit only for cron/kernel and bounded durable catalog/store. Familiarity 1.0; thorough-plan design buffer 15%. Passive day-long live observation is not focused ship time.
