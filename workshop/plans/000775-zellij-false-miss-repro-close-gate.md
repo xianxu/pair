@@ -202,6 +202,116 @@ rounds:
       recipe: small-diff-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 087979cd-61a7-4798-9873-b14dd1884ebe
+            repository: github.com/xianxu/pair
+            issue_id: "000775"
+            recipe: small-diff-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/e7651d89c6c2b72a
+            reviewed_head: b88131bf4093ef81422cd19f71f18d328863c2c0
+            slot: pair:5
+            requested_at: "2026-10-21T19:16:11.966725Z"
+          phase: finished
+          pid: 91910
+          started_at: "2026-10-21T19:16:12.142327Z"
+          finished_at: "2026-10-21T19:17:40.011644Z"
+          session_id: 01a15fe4-7e74-79e1-bf91-ba9aafeda67e
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: b88131bf4093ef81422cd19f71f18d328863c2c0
+        tracker_head: 2e76067bd30230e4780016414b5e2eba5a52f5e2
+        branch_point: eaa758a6f0cd38837655be5334400098849410ec
+        since: "2026-10-21T10:56:40-07:00"
+        until: "2026-10-21T12:15:20-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-21T10:56:40-07:00"
+              end: "2026-10-21T12:15:20-07:00"
+              began: "2026-10-21T10:56:40-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot5/pair
+        sources:
+            - harness: codex
+              id: 01a1574c-1cb1-7e92-adfe-354342364799
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              digest: 5d22bfa7f8187ebeba03de2408bd93d05b8c95f45a94bff97ed7ed458e2eea10
+              started: "2026-10-20T03:12:49.04Z"
+              spawned: false
+              bytes: 65477962
+              windows:
+                - start: "2026-10-21T10:56:40-07:00"
+                  end: "2026-10-21T12:15:20-07:00"
+            - harness: codex
+              id: 01a15fcf-6ef8-7773-bd25-bcdb05d954fd
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              parent_id: 01a1574c-1cb1-7e92-adfe-354342364799
+              digest: 9720b8c017b8c632640cbf195ae8bec649748d7aabe9ccd77ae3da7340ae5bcf
+              started: "2026-10-21T18:53:12.419Z"
+              spawned: true
+              bytes: 489393
+              windows:
+                - start: "2026-10-21T18:53:12.419Z"
+                  end: "2026-10-21T12:15:20-07:00"
+        queue_waits:
+            - attempt_id: 1854c8857c9461ff2e2db655f22ab7f1
+              slot: pair:5
+              record_digest: b373e1f39283314bbda49da7e134d97c2ec3c508b1294d9658b6f6b5df1cef51
+              start: "2026-10-21T17:56:40Z"
+              end: "2026-10-21T18:30:45.832701Z"
+              queue_seconds: 2045.832701
+              raw_seconds: 2444.526379
+              exact: true
+        cuts:
+            - dispatched: "2026-10-21T11:48:47-07:00"
+              finalized: "2026-10-21T11:50:20-07:00"
+              finalizing: false
+            - dispatched: "2026-10-21T12:02:51-07:00"
+              finalized: "2026-10-21T12:05:37-07:00"
+              finalizing: false
+      "n": 3
+      timestamp: "2026-10-21T12:17:41-07:00"
+      dispatched: "2026-10-21T12:16:09-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Both signatures use complete-byte comparison. Restoring the old grep matcher produces eight failing regression subcases.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: README.md:2435 provides the invocation; atlas/zellij-reply-safety.md:290 documents the standalone diagnostic, counters and liveness limits.
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: run.json names initial-setup-failure.log, which contains the setup refusal and passing cleanup; native.log contains the successful measured run.
+          round: 3
+        - id: BR-4
+          disposition: addressed
+          note: Both arguments use bounded_decimal before arithmetic. Tests cover normalization, overflow, exact limits, one-past-limit refusal and actual request counts. Restoring the old CLI validation produces nine failing subcases.
+          round: 3
+        - id: BR-5
+          disposition: addressed
+          note: The pinned correction replaces beginning-of-response and malformed-layout claims with line-presence wording at atlas/zellij-reply-safety.md:301-304, matching the worker at scripts/repro/zellij-false-miss.sh:35. All four documentation consumers were checked.
+          round: 3
+      recipe: small-diff-review
+      isolation: fenced
+      reviewed: b88131bf4093ef81422cd19f71f18d328863c2c0
+      blocked: false
 ---
 
 # Gate ledger — pair#775 (boundary-review)
@@ -235,7 +345,16 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-5** [Minor] `new-surface-documentation` Atlas overstates the liveness response validation
   atlas/zellij-reply-safety.md:301-302 says the response begins with layout { and malformed replies remain unconfirmed, but scripts/repro/zellij-false-miss.sh:27 accepts a matching line anywhere. An actual-worker check with "unrelated diagnostic\nlayout { pane; }\n" increments the confirmed counter. This is the 2nd finding in family new-surface-documentation. Apply the rule that documented predicates must match enforced predicates across all four new documentation consumers: README.md, scripts/repro/README.md, atlas/index.md and atlas/zellij-reply-safety.md. The inaccurate predicate claims are confined to atlas lines 301-302; describe the implemented line-presence check accurately.
 
+## Round 3 — 2026-10-21T12:17:41-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Both signatures use complete-byte comparison. Restoring the old grep matcher produces eight failing regression subcases.
+- BR-2 — addressed — README.md:2435 provides the invocation; atlas/zellij-reply-safety.md:290 documents the standalone diagnostic, counters and liveness limits.
+- BR-3 — addressed — run.json names initial-setup-failure.log, which contains the setup refusal and passing cleanup; native.log contains the successful measured run.
+- BR-4 — addressed — Both arguments use bounded_decimal before arithmetic. Tests cover normalization, overflow, exact limits, one-past-limit refusal and actual request counts. Restoring the old CLI validation produces nine failing subcases.
+- BR-5 — addressed — The pinned correction replaces beginning-of-response and malformed-layout claims with line-presence wording at atlas/zellij-reply-safety.md:301-304, matching the worker at scripts/repro/zellij-false-miss.sh:35. All four documentation consumers were checked.
+
 ## Open findings
 
-- **BR-4** [Important] `bounded-decimal-input` Numeric arguments undergo octal interpretation and integer overflow
-- **BR-5** [Minor] `new-surface-documentation` Atlas overstates the liveness response validation
+(none — every finding has been disposed)

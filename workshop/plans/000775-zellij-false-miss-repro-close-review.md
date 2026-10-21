@@ -213,3 +213,99 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T12:17:41-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 775 — Standalone Zellij false-miss reproduction |
+| repo | pair |
+| issue file | workshop/issues/000775-zellij-false-miss-repro.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | eaa758a6f0cd38837655be5334400098849410ec..b88131bf4093ef81422cd19f71f18d328863c2c0 |
+| command | sdlc close --issue 775 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T12:17:41-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+Both open findings are addressed. Regression tests fail when the old numeric validation is restored, documentation matches the implemented liveness predicate, and a fresh native run completed with cleanup passing. No new findings.
+
+Done-when: current — syntax checks, invalid-input refusal and native qualification still cover the revised diagnostic.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Both signatures use complete-byte comparison. Restoring the old grep matcher produces eight failing regression subcases.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      README.md:2435 provides the invocation; atlas/zellij-reply-safety.md:290 documents the standalone diagnostic, counters and liveness limits.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      run.json names initial-setup-failure.log, which contains the setup refusal and passing cleanup; native.log contains the successful measured run.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Both arguments use bounded_decimal before arithmetic. Tests cover normalization, overflow, exact limits, one-past-limit refusal and actual request counts. Restoring the old CLI validation produces nine failing subcases.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      The pinned correction replaces beginning-of-response and malformed-layout claims with line-presence wording at atlas/zellij-reply-safety.md:301-304, matching the worker at scripts/repro/zellij-false-miss.sh:35. All four documentation consumers were checked.
+```
+
+1. **Strengths**
+
+   - Shared helpers enforce both numeric bounds and exact diagnostic comparisons.
+   - Tests exercise actual main/worker paths with an injected executable and private sockets.
+   - Final native evidence hashes match, and its script is identical to the pinned head.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Bash syntax check and all **15 tests passed**.
+   - Both mutation checks failed as expected; temporary copies were removed.
+   - Fresh native run: **1,000 queries, four workers; exit0=5, confirmed exit1=0, unconfirmed exit1=0, other nonzero=0; cleanup passed**.
+   - Exit1 outcomes are covered deterministically. Repository working tree remains unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** both argument consumers and both signature consumers share their respective helpers.
+   - **ARCH-PURE — pass:** deterministic numeric validation is separate; native IO remains within the diagnostic boundary.
+   - **ARCH-PURPOSE — pass:** standalone reproduction, raw anomalies and distinct liveness outcomes are delivered.
+   - **ARCH-EVOLVE — pass:** no existing persisted-format reader or rewrite changes.
+   - No Core concepts table is present.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"087979cd-61a7-4798-9873-b14dd1884ebe","repository":"github.com/xianxu/pair","issue_id":"000775","recipe":"small-diff-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/e7651d89c6c2b72a","reviewed_head":"b88131bf4093ef81422cd19f71f18d328863c2c0","slot":"pair:5","requested_at":"2026-10-21T19:16:11.966725Z"},"phase":"finished","pid":91910,"started_at":"2026-10-21T19:16:12.142327Z","finished_at":"2026-10-21T19:17:40.011644Z","session_id":"01a15fe4-7e74-79e1-bf91-ba9aafeda67e","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.949398917s
+head: "b88131bf4093ef81422cd19f71f18d328863c2c0"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
