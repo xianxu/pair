@@ -40,3 +40,11 @@ Regression strategies: interleaved console/viewer begins/points/undo/redo/labels
 ## Log
 
 2026-10-21: filed unclaimed at TL direction22603f68-f45b-4ba9-99a6-428ed9bff6e1. Read-only audit during #752 confirmed that this is a material reducer, source lease, delivery, authority and persistence redesign, not a boolean permission change. No concurrent-lane implementation landed in #752. ARCH-DRY: reuse ordered writer/display; ARCH-ORDER: scope transitions to lanes; ARCH-EVOLVE: explicit version boundary protects implicit legacy handoff semantics; ARCH-CONSTRAINTS/FUNERAL: at most two leases with bounded storage and independent retirement.
+
+## Revisions
+
+### 2026-10-21 — viewers use annotation permission, not driving privilege
+
+Operator decision relayed by TL9596d9a8-b0d8-451a-b23d-70ac2f064511 and8c15a281-46c8-4b34-b4f8-b4d00251aec8 supersedes the earlier current-driver restriction above: viewers draw under ANNOTATION permission, independently of driving privilege. Console remains trusted. This belongs only to this follow-up; #752 retains the single-holder model with console independent of annotation toggle.
+
+Before implementation, replace viewer-turn witnesses with annotation/seat/context lifetimes for viewer drawing and settle the resulting concurrency bound: two fixed lanes no longer covers multiple annotation-enabled viewers. Independent histories/source leases must be per admitted surface with an explicit bounded admission/resource policy, rather than silently allowing unbounded source memory. Viewer driving handoff alone must not revoke annotation-authorized drawing; annotation revocation and seat/context retirement must. Extend Done-when and regression strategies to non-driving annotated viewers, multiple viewers plus console, driving handoff without drawing revocation, annotation-off scoped clear, and all versioned replay/snapshot compatibility requirements above. Detailed capacity/UX choices require TL/operator design approval.
