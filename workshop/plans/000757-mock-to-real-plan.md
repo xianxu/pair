@@ -62,6 +62,10 @@ Known same-upstream absolute redirects are rewritten to the front origin; relati
 
 HTTP body streaming uses bounded buffers and context cancellation, not whole-response buffering. Reuse listener lifecycle and one existing scan/watch loop. Track upgraded connections owned by this front, close them on cancellation and join their copy loops; net/http Shutdown alone does not collect hijacked sockets. Keep ReadHeaderTimeout=5s, IdleTimeout=30s and MaxHeaderBytes=16KiB. Hybrid listener WriteTimeout=0 permits app SSE/streaming; existing standalone listener keeps its 10s write timeout. Hybrid active-request/upgrade admission is capped at64, with cancellation-owned lifetimes. Give the owned upstream transport 3s dial and 5s response-header budgets; no total body timer. Tests gate blocked streams and upgrades on explicit barriers, then cancel and assert joined cleanup. No polling loop beyond the existing scanner or browser reload loop.
 
+### Declared mock delivery integrity
+
+Hybrid mode validates every `state:mock` catalogue row against the selected version at startup and each scan, using the same scan observation's validated entry inventory. Each row must name its exact available HTML document. Missing or unsafe declared documents refuse startup; a version switch, catalogue edit or filesystem change making one unavailable publishes the existing explicit repair/error state until repaired. A successful standalone `mock use` pointer write may therefore produce a hybrid repair state; it does not silently choose another screen or undo that selection. At request time, disappearance or replacement after a healthy scan returns a named503 unavailable-declared-screen response, never a redirect to index, never upstream fallback. Recovery follows the existing scan error/recovery revision. Standalone mock mode keeps its existing missing-screen index fallback (`server.go` ServeHTTP) and index-only scan requirement (`scan.go` Project.Scan). Hybrid uses an explicit strict-document delivery path, not an accidental reuse of that fallback.
+
 ### 3. Missing screens in production
 
 `couch mock check DIR` parses the same catalogue and prints a deterministic progress summary plus each `state:mock` screen's ID and route. Missing implementations are informational: exit 0 so the app's normal build proceeds. Invalid/unreadable catalogue is a command error, not a missing-screen report. Check opens no listener, executes no build and reads no fixtures. It writes no files.
@@ -133,47 +137,59 @@ Retain current finite listener/header budgets; bound proxy header bytes and dial
 
 No per-request/per-scan durable artifact, cache, generated mock family or catalogue writer. Existing `.mock-current` family remains host-owned. Example's generated production projection is one fixed build-local file replaced by that build and removed with its private/staging root; output is one explicitly selected operator-owned artifact. Tests remove roots after joining children. fixtures/catalogue/mock folders are developer-owned git content, no automatic rewrite/removal.
 
+## Verification strategy by function
+
+| Risky function / owner | Adversarial input class | Mechanical guard |
+|---|---|---|
+| ParseCatalogue | ambiguous or hostile JSON/schema/route identifiers | table-driven classes and seeded fuzzing, strict duplicate/known-field validation and byte/element bounds |
+| ResolveScreen / RouteDecision | alias/reserved namespace collisions and malformed URLs | pure decision tables plus fuzzing; upstream spy must observe zero forbidden dispatches |
+| MissingReport / Run check | incomplete versus invalid input and command side effects | exact deterministic report/exit assertions with only a catalogue present; filesystem/listener/process effects remain absent |
+| Project.Scan / refresh / observation | selected catalogue/document mutation across observation boundaries | barrier-controlled replacement and selection changes, atomic published health/catalogue/revision; strict hybrid missing-document failure and recovery |
+| DevelopmentFront.ServeHTTP | real/mock dispatch under upstream errors and mixed HTTP traffic | stateful fake app, exact body/status/origin assertions and request cancellation barriers; no error fallback |
+| DevelopmentFront shutdown / upgrade ownership | cancellation while streams/upgrades remain active | explicit connection-ready barriers, cancel owner then assert all copy loops/fds joined; overload admission count |
+| TransformPage / DevelopmentChrome | hostile bounded HTML and conflicting owned metadata | pure transform assertions and fuzz seeds preserving project scripts/identity; no real HTML modification |
+| Reload client lifecycle | status/version/repair observation races | existing deterministic JS generation fences plus bounded private-browser full-navigation conformance |
+| InferShape / MatchShape | arbitrary nested JSON and ambiguous array prototypes | seeded fuzzing and JSON-path failure assertions under depth/byte bounds; mutation demonstrates backend drift caught |
+| ProductionScreenProjection / sample routing | drift between catalogue and build/navigation/handler registration | build private source copies with partial and complete states; exact placeholder/link/report behavior and artifact sentinel absence |
+| Screen lookup / scan / shape work | N versus2N input/request growth | counted IO/node/transform operations, zero per-request scan/parse work; timing is not the oracle |
+| Nested template qualification | root Go suite silently omits nested module | root integration explicitly runs sample tests/build and real mock host against private owned roots |
+
 ## Implementation tasks — only after approval and change-code
+
+All implementation follows RED → observed failure → minimal implementation → GREEN for the named strategies above. Tasks below assign files and owners without duplicating executable test cases in prose.
 
 ### 1. Catalogue, report and route policy
 
 Files: mockserve/screens.go, screens_test.go, front_route.go, front_route_test.go, check.go/check_test.go; cli.go/cli_test.go and couchcmd/mock_test.go/run.go.
 
-- [ ] Write RED table tests for schema/duplicates/unknown fields/version/types/limits, root/aliases/collisions, deterministic report and incomplete exit0; run targeted mockserve tests and confirm failure.
-- [ ] Implement immutable catalogue and pure route decision; test all reserved/private/malformed paths precede upstream, all HTTP methods route appropriately, no upstream-error fallback.
-- [ ] Add `--real` and `mock check DIR` parsing/help and runtime-independent dispatch tests. Check requires only screens.json, reads no fixtures, creates no listener/file and spawns no child.
-- [ ] Add counted work tests for N/2N and fuzz seeds; verify targeted tests green and commit pure/CLI layer.
+- [ ] Implement immutable catalogue, pure dispatch/report policy and their named strategies.
+- [ ] Extend ParseCommand/Run for --real and mock check, preserving runtime-independent Couch dispatch and documenting command exit behavior.
+- [ ] Run targeted mockserve/couchcmd checks and commit the verified catalogue/CLI layer.
 
 ### 2. Front, shared scan publication and browser behavior
 
-Files: mockserve/front.go/front_test.go; scan.go/scan_test.go, server.go/server_test.go, page.go/page_test.go, browser_test.go, reload.js/reload_test.js only if needed by catalogue-change reload.
+Files: mockserve/front.go/front_test.go; scan.go/scan_test.go, server.go/server_test.go, page.go/page_test.go, browser_test.go; reload.js/reload_test.js only if catalogue-change navigation needs it.
 
-- [ ] Write RED stateful-fake tests for canonical + version-alias transitions, mock-only baseline, real assets/API/POST/query/redirect/cookie behavior, WebSocket exchange and request/upgrade cancellation.
-- [ ] Integrate catalogue bytes parsed from existing confined scan, paired with revision under existing owner. Preserve lock/staging exclusions, caps and plain mock behavior; no request scans or duplicate read owner.
-- [ ] Implement optional front and mock-only badge/count, leaving real response bytes/CSP/encoding unchanged. Reject non-loopback/self upstream and private/reserved fallback; name errors without retrying requests.
-- [ ] Prove scanner error/recovery and status-edit publication with barriers, upgrade cleanup and capacity refusal. Run targeted race tests plus node reload tests.
-- [ ] Add bounded private-profile browser test for mock-to-real-to-mock full navigation, version change, state flip and badge/count; include explicit SPA-navigation documentation boundary. No visible browser window.
-- [ ] Commit verified host feature.
+- [ ] Integrate catalogue and declared-document validation into the existing confined scan observation; publish health/catalogue/revision together without a new watcher/read owner.
+- [ ] Implement optional front, exact hybrid document delivery and mock-only chrome; keep upstream response bytes and standalone mock semantics intact.
+- [ ] Implement context-owned proxy transport, capacity admission and upgraded-connection shutdown under the named lifecycle strategy.
+- [ ] Run targeted race/JS checks and bounded private-profile browser conformance; commit the verified host feature.
 
 ### 3. Worked Go sample, production convention and contracts
 
 Files: examples/mock-to-real/go.mod, cmd/app/main.go, cmd/build/main.go, internal/sample, internal/screens, internal/contract, mocks/{screens.json,fixtures.json,mock-1/*}, README.md and design.md, .gitignore.
 
-- [ ] Write RED nested tests for two real handlers + one mock declaration, production placeholders/back link/marked links, and fixture shape drift. Implement sample using the common catalogue convention, not an independent state list.
-- [ ] Use app's own build command with check report and fixed production projection; sample build succeeds with detail missing. Production code has no host/proxy/fixture/HTML mock embedding path.
-- [ ] Build/launch production in private root; request missing page and navigation; require plain placeholder, working way back and visible missing-link text. Probe mock/fixture/reload/version-asset paths and scan built artifact for unique fixture/mock sentinels.
-- [ ] In private source copy implement detail and mark real, rebuild, require real content and no missing report. Do not create a parallel hand-maintained screen list.
-- [ ] Contract tests hit actual backend independently of fixtures; mutate response field/type to prove RED, restore then run nested race tests green.
-- [ ] Document any-framework steps and full-document cross-boundary links; Go is one worked adapter, not a required production stack. Commit sample.
+- [ ] Implement independent real backend, typed shape contracts and single-catalogue sample consumer using their named verification strategies.
+- [ ] Implement app-owned production build/report/projection, missing-screen page/back link and marked navigation; qualify partial and complete production artifacts in private roots.
+- [ ] Document any-framework usage and full-document boundary; run nested race checks and commit the worked example.
 
 ### 4. Integration and one close boundary
 
-Files: cmd/internal/mocktemplate/template_test.go; artifactpath production-source classifications and per-reader certificates; README.md, atlas/mock-server.md, atlas/mock-to-real.md and atlas/index.md.
+Files: cmd/internal/mocktemplate/template_test.go; artifactpath source classifications/per-reader certificates; README.md, atlas/mock-server.md, atlas/mock-to-real.md and atlas/index.md.
 
-- [ ] Root integration invokes nested tests/build and actual host/sample, so standard root suite cannot omit nested module. Use shared candidate image and private process ownership.
-- [ ] Audit every new reader and source path; run inventory/repolint/artifact checks and complete targeted race/browser qualification.
-- [ ] Update atlas/help/README for `--real`, check exit/report, SPA boundary and production ownership; sweep old production-refusal claims, retaining historical decisions only as superseded.
-- [ ] Push/PR, recorded affected/suite, close with binary-owned mandatory review, then merge and report hub. One atomic review boundary, no Mx tag.
+- [ ] Integrate nested qualification into the root suite; audit new readers/source classifications and run inventory/artifact/repolint checks.
+- [ ] Update public docs for --real, report-only check, production responsibility and accepted limits; retain historical refusal only as superseded provenance.
+- [ ] Push/PR, recorded affected/suite, close with binary-owned mandatory review, merge and report hub. One atomic close boundary, no Mx tag.
 
 ## Architecture lenses
 
@@ -319,3 +335,7 @@ Files: cmd/build/main.go, main_test.go in the module; cmd/internal/mocktemplate/
 ARCH-DRY: existing mock host remains the one scan/selection/reload owner; the screen list is one dispatch/progress/build authority. ARCH-PURE: pure route/shape/decoration policy separate from HTTP/process effects. ARCH-PURPOSE: sample crosses real/mock links and actually refuses then succeeds at production build. ARCH-MOCK: stateful host fake plus real-host conformance, independent backend response tests. ARCH-CONSTRAINTS: explicit HTML/JSON/depth/HTTP bounds and counted work. ARCH-SECURE: loopback-only origin and closed routes; production does not compile a proxy or mock assets. ARCH-ORDER: immutable routing state, build validation before child/output effects, context-owned children joined. ARCH-FUNERAL: no unbounded generated family; explicit build output and scoped test roots. ARCH-EVOLVE: fixtures are read-only, extra response fields allowed, shape changes require deliberate fixture revision.
 
 </details>
+
+## Revisions — plan-quality round1
+
+- 2026-10-21: PQ-1 clarified exact declared-mock document integrity at startup, scan/selection changes and request-time disappearance, preserving standalone index fallback. PQ-2 replaced active prose test inventories with named per-function adversarial strategies and mechanical guards. These refine approved error visibility and test execution without changing product scope.
