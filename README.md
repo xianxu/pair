@@ -2444,3 +2444,13 @@ Repeat the same command after interrupted setup. Completed work is reused;
 unconfirmed setup reruns `weave compile`. This operation prepares directories
 without starting an agent. See the [workspace provisioning contract](atlas/workspace-provisioning.md)
 for remote selection, paths and the separate lifecycle/UI integration work.
+
+## Clickable project mocks
+
+Run `couch mock serve examples/couch-mocks` and open the printed loopback URL. It serves plain HTML/CSS/JS, reloads on edits, and opens no browser. `--port N` after the directory selects a port; the default chooses a free one. Stop with Ctrl-C.
+
+Keep `mock-1/`, `mock-2/`, … alongside one shared `fixtures.json`. The highest numbered version shows by default. `couch mock use examples/couch-mocks mock-1` selects an existing direction without restarting the server; `.mock-current` remembers that explicit choice. Remove that file to return to the highest-numbered default. A switch preserves the current screen when available, otherwise opens the selected version's index.
+
+Every screen fetches `/fixtures.json`. Write a state list in the project's `design.md`, including empty, error and long-list cases and links between screens. The fixture shape is the future backend response contract. The sample has three linked screens, two directions and scenario links. Each served HTML root carries `data-mock-version` and `data-mock-screen`; version URLs make the iteration explicit.
+
+Commit each feedback round to the current version and revert that commit to undo it. Make a new mock-N+1 for a new direction worth comparing. The server does not invoke git or make versions. Reload resets transient browser state; invalid input shows a repairable preview error. Limits are 1,024 total directory entries, 32 MiB total regular-file contents and 1 MiB per HTML file; symlinks/special files are refused. Only version assets and the root fixtures are served, on 127.0.0.1. See [the server map](atlas/mock-server.md).

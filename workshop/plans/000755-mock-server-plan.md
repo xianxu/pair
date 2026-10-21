@@ -148,3 +148,8 @@ PQ-2: The earlier Test-named case table is superseded by this production-functio
 Integration qualification remains the sample's real-browser click/edit/switch/revert test and the public Couch early-dispatch test. Each risky function has one strategy owner above; implementation tasks refer to this table.
 
 PQ-3: The existing 1,024-file limit also caps **all visited directory entries at 1,024**, including directories and symlinks. Walk the complete project root without following symlinks, reading directories incrementally so a huge directory cannot allocate an unbounded entry list. The first excess entry produces the existing over-limit error/repair behavior. Count entry visits as well as bytes in the linear-work oracle; qualify a many-empty-directory tree and a single huge directory. Root itself does not consume an entry. The approved file/byte/HTML limits remain unchanged; this makes their traversal cost enforceable.
+
+
+### 2026-10-20 — implemented verification details
+
+Plan-quality rounds 2 and 3 are clean; estimate-quality is advisory INFO (credible derivation, optimistic verification allowance). Implementation retains a bounded metadata sort for deterministic scan hashing: total CPU is O(F log F+B), while filesystem visits and bytes read remain O(F+B). Counted N/2N tests observe actual entry/read boundaries independently of returned snapshot counts; deliberately doubling reads fails them, and making cached state requests rescan fails the zero-scan regression. HTML screen routes use the planned literal `.html` suffix; other MIME-detected HTML aliases refuse rather than bypassing root tagging. Client decision/request tests are also run by the Go package when Node is available, with explicit Node qualification retained for hosts without it.

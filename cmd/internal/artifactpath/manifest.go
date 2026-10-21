@@ -666,6 +666,12 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	"cmd/internal/mockserve/cli.go",
+	"cmd/internal/mockserve/page.go",
+	"cmd/internal/mockserve/project.go",
+	"cmd/internal/mockserve/revision.go",
+	"cmd/internal/mockserve/scan.go",
+	"cmd/internal/mockserve/server.go",
 	"internal/testbinary/cache.go",
 	"internal/testoracle/run.go",
 	// #649 wiring, contextual runtime delegation, and the pure title reducer
