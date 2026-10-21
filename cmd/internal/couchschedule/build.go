@@ -17,7 +17,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/durablefile"
 	"github.com/xianxu/pair/cmd/internal/osfs"
-	"github.com/xianxu/pair/cmd/internal/strictjson"
+
 	"golang.org/x/sys/unix"
 )
 
@@ -41,6 +41,7 @@ type Builder struct {
 	CacheBytes         int64
 	cacheNow           func() time.Time
 	cacheFault         func(string) error
+	cacheRecoveryNow   func() time.Time
 }
 
 func (b Builder) Build(ctx context.Context, hubRoot, task string) (Artifact, error) {
@@ -162,6 +163,9 @@ func (b Builder) Build(ctx context.Context, hubRoot, task string) (Artifact, err
 	if err = buildSafePath(cache, cache); err != nil {
 		return Artifact{}, err
 	}
+	if err = b.recoverCache(ctx, cache); err != nil {
+		return Artifact{}, err
+	}
 	if _, err = cacheNames(cache); err != nil {
 		return Artifact{}, err
 	}
@@ -178,7 +182,7 @@ func (b Builder) Build(ctx context.Context, hubRoot, task string) (Artifact, err
 	} else if !os.IsNotExist(err) {
 		return Artifact{}, err
 	}
-	if err = validateCacheShape(cache, dir); err != nil && !os.IsNotExist(err) {
+	if _, err = captureCacheDir(cache, dir); err != nil && !os.IsNotExist(err) {
 		return Artifact{}, err
 	}
 	if a, ok := cachedBuild(ctx, dir, manifest); ok {
@@ -549,14 +553,10 @@ func cachedBuild(ctx context.Context, dir string, want BuildManifest) (Artifact,
 		return Artifact{}, false
 	}
 	var got BuildManifest
-	if strictjson.Decode(raw, &got) != nil || got.Version != 1 || got.Key != want.Key || got.BinarySHA256 == "" {
+	if json.Unmarshal(raw, &got) != nil || got.Version != 1 || got.Key != want.Key || got.BinarySHA256 == "" {
 		return Artifact{}, false
 	}
-	got.BinarySHA256 = ""
-	got.Key = ""
-	got.LastUsed = 0
-	encoded, _ := json.Marshal(got)
-	if digestBuild(encoded) != want.Key {
+	if buildContentKey(got) != want.Key {
 		return Artifact{}, false
 	}
 	var committed BuildManifest

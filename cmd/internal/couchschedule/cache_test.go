@@ -1,11 +1,13 @@
 package couchschedule
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -14,10 +16,13 @@ import (
 
 func cacheFixture(t *testing.T) (Builder, string) {
 	t.Helper()
-	root := t.TempDir()
+	return cacheFixtureDirs(t, t.TempDir(), t.TempDir())
+}
+func cacheFixtureDirs(t *testing.T, root, cache string) (Builder, string) {
+	t.Helper()
 	writeBuildFixture(t, root, "go.mod", "module fixture.local/task\n\ngo 1.23\n")
 	writeBuildFixture(t, root, "scripts/scheduled/task/main.go", "package main\nfunc main(){}\n")
-	b := Builder{CacheDir: t.TempDir(), CacheBytes: 4000}
+	b := Builder{CacheDir: cache, CacheBytes: 4000}
 	tick := int64(0)
 	b.cacheNow = func() time.Time { tick++; return time.Unix(0, tick) }
 	b.Run = func(ctx context.Context, dir string, env, args []string) ([]byte, error) {
@@ -190,14 +195,7 @@ func TestCacheCancellationWhileWaitingMaintenance(t *testing.T) {
 	}
 	defer unlock()
 	compiled := make(chan struct{})
-	run := b.Run
-	b.Run = func(ctx context.Context, dir string, env, args []string) ([]byte, error) {
-		out, e := run(ctx, dir, env, args)
-		if args[0] == "build" {
-			close(compiled)
-		}
-		return out, e
-	}
+	b.AfterCapture = func() { close(compiled) }
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	done := make(chan error, 1)
@@ -205,7 +203,7 @@ func TestCacheCancellationWhileWaitingMaintenance(t *testing.T) {
 	select {
 	case <-compiled:
 	case <-time.After(2 * time.Second):
-		t.Fatal("build did not reach maintenance")
+		t.Fatal("build did not reach cache admission")
 	}
 	cancel()
 	select {
@@ -247,5 +245,297 @@ func TestCacheInvalidLiveBinaryIsNotReplaced(t *testing.T) {
 	raw, e := os.ReadFile(a.Path)
 	if e != nil || string(raw) != "changed while owned" {
 		t.Fatal(string(raw), e)
+	}
+}
+func TestCacheFutureManifestMetadataSurvivesReuseAndRebuild(t *testing.T) {
+	b, root := cacheFixture(t)
+	a := cacheBuild(t, b, root, "a")
+	_ = a.Close()
+	path := filepath.Join(filepath.Dir(a.Path), "manifest.json")
+	raw, e := os.ReadFile(path)
+	if e != nil {
+		t.Fatal(e)
+	}
+	raw = bytes.Replace(raw, []byte(`"Inputs":[{`), []byte(`"future_metadata":{ "enabled": true },"Inputs":[{"future_input":{ "rev": 2 },`), 1)
+	if e = os.WriteFile(path, raw, 0600); e != nil {
+		t.Fatal(e)
+	}
+	for _, rebuild := range []bool{false, true} {
+		if rebuild {
+			if e = os.WriteFile(a.Path, []byte("corrupt"), 0700); e != nil {
+				t.Fatal(e)
+			}
+		}
+		before := append([]byte(nil), raw...)
+		next, e := b.Build(t.Context(), root, "task")
+		if e != nil {
+			t.Fatal("future metadata blocked build", e)
+		}
+		_ = next.Close()
+		raw, e = os.ReadFile(path)
+		if !rebuild && e == nil && !bytes.Equal(raw, before) {
+			t.Fatal("cache touch rewrote manifest bytes")
+		}
+		if e != nil || !bytes.Contains(raw, []byte(`{ "enabled": true }`)) || !bytes.Contains(raw, []byte(`{ "rev": 2 }`)) {
+			t.Fatal("future metadata lost", string(raw), e)
+		}
+	}
+}
+
+func TestCacheCrashHelper(t *testing.T) {
+	step := os.Getenv("PAIR_CACHE_CRASH_STEP")
+	if step == "" {
+		return
+	}
+	b, root := cacheFixtureDirs(t, os.Getenv("PAIR_CACHE_CRASH_ROOT"), os.Getenv("PAIR_CACHE_CRASH_CACHE"))
+	if step == "legacy-manifest-temp" || step == "legacy-binary-temp" || step == "legacy-half-eviction" {
+		a := cacheBuild(t, b, root, "a")
+		dir := filepath.Dir(a.Path)
+		if step == "legacy-half-eviction" {
+			if e := os.Remove(filepath.Join(dir, "manifest.json")); e != nil {
+				t.Fatal(e)
+			}
+		} else {
+			prefix := ".manifest-123456789"
+			if step == "legacy-binary-temp" {
+				prefix = ".binary-123456789"
+			}
+			if e := os.WriteFile(filepath.Join(dir, prefix), []byte("interrupted writer"), 0600); e != nil {
+				t.Fatal(e)
+			}
+		}
+		os.Exit(73)
+	}
+	b.cacheFault = func(at string) error {
+		if at == step {
+			os.Exit(73)
+		}
+		return nil
+	}
+	a := cacheBuild(t, b, root, os.Getenv("PAIR_CACHE_CRASH_VERSION"))
+	_ = a.Close()
+	t.Fatalf("checkpoint %s was never reached", step)
+}
+func crashCache(t *testing.T, b Builder, root, version, step string) {
+	t.Helper()
+	cmd := exec.Command(os.Args[0], "-test.run=^TestCacheCrashHelper$")
+	cmd.Env = append(os.Environ(), "PAIR_CACHE_CRASH_STEP="+step, "PAIR_CACHE_CRASH_ROOT="+root, "PAIR_CACHE_CRASH_CACHE="+b.CacheDir, "PAIR_CACHE_CRASH_VERSION="+version)
+	out, e := cmd.CombinedOutput()
+	var exit *exec.ExitError
+	if !errors.As(e, &exit) || exit.ExitCode() != 73 {
+		t.Fatalf("crash helper %s: %s %v", step, out, e)
+	}
+}
+func TestCacheAbruptMutationRecovery(t *testing.T) {
+	for _, scenario := range []struct {
+		step, version string
+		seed          bool
+	}{{"publication-created", "a", false}, {"publication-task-written", "a", false}, {"publication-manifest-written", "a", false}, {"publication-ready", "a", false}, {"publication-renamed", "a", false}, {"manifest-update-ready", "a", true}, {"eviction-reserved", "d", true}, {"eviction-renamed", "d", true}, {"cleanup-task", "d", true}, {"cleanup-manifest.json", "d", true}, {"cleanup-removed", "d", true}} {
+		t.Run(scenario.step, func(t *testing.T) {
+			b, root := cacheFixture(t)
+			if scenario.seed {
+				a := cacheBuild(t, b, root, "a")
+				_ = a.Close()
+				c := cacheBuild(t, b, root, "c")
+				_ = c.Close()
+			}
+			crashCache(t, b, root, scenario.version, scenario.step)
+			b.cacheRecoveryNow = func() time.Time { return time.Now().Add(2 * time.Minute) }
+			a := cacheBuild(t, b, root, scenario.version)
+			defer a.Close()
+			if _, e := inspectCache(t.Context(), b.CacheDir); e != nil {
+				t.Fatal("abrupt mutation blocked namespace", e)
+			}
+			ns, e := cacheNames(b.CacheDir)
+			if e != nil {
+				t.Fatal(e)
+			}
+			for _, name := range ns {
+				if privateCacheName.MatchString(name) {
+					t.Fatal("aged mutation residue retained", name)
+				}
+			}
+		})
+	}
+}
+func TestCacheKnownCorruptEntryRebuilds(t *testing.T) {
+	for _, kind := range []string{"missing-manifest", "malformed-manifest"} {
+		t.Run(kind, func(t *testing.T) {
+			b, root := cacheFixture(t)
+			a := cacheBuild(t, b, root, "a")
+			_ = a.Close()
+			path := filepath.Join(filepath.Dir(a.Path), "manifest.json")
+			var e error
+			if kind == "missing-manifest" {
+				e = os.Remove(path)
+			} else {
+				e = os.WriteFile(path, []byte(`{"broken":`), 0600)
+			}
+			if e != nil {
+				t.Fatal(e)
+			}
+			rebuilt, e := b.Build(t.Context(), root, "task")
+			if e != nil {
+				t.Fatal("corrupt known cache cannot rebuild", e)
+			}
+			defer rebuilt.Close()
+		})
+	}
+}
+func TestCacheResidueReplacementRefused(t *testing.T) {
+	b, _ := cacheFixture(t)
+	path := filepath.Join(b.CacheDir, ".publication-123456789")
+	if e := os.Mkdir(path, 0700); e != nil {
+		t.Fatal(e)
+	}
+	if e := os.WriteFile(filepath.Join(path, "task"), []byte("partial"), 0700); e != nil {
+		t.Fatal(e)
+	}
+	old := time.Now().Add(-2 * time.Minute)
+	if e := os.Chtimes(path, old, old); e != nil {
+		t.Fatal(e)
+	}
+	replaced := false
+	b.cacheFault = func(step string) error {
+		if step == "cleanup-observed" && !replaced {
+			replaced = true
+			if e := os.Rename(path, path+"-saved"); e != nil {
+				return e
+			}
+			if e := os.Mkdir(path, 0700); e != nil {
+				return e
+			}
+			return os.WriteFile(filepath.Join(path, "task"), []byte("replacement"), 0700)
+		}
+		return nil
+	}
+	if e := b.recoverCache(t.Context(), b.CacheDir); e == nil {
+		t.Fatal("replacement accepted")
+	}
+	raw, e := os.ReadFile(filepath.Join(path, "task"))
+	if e != nil || string(raw) != "replacement" {
+		t.Fatal(string(raw), e)
+	}
+	raw, e = os.ReadFile(filepath.Join(path+"-saved", "task"))
+	if e != nil || string(raw) != "partial" {
+		t.Fatal("observed source changed", string(raw), e)
+	}
+}
+func TestCacheFreshResidueAccountedAndUnknownShapeRetained(t *testing.T) {
+	b, root := cacheFixture(t)
+	path := filepath.Join(b.CacheDir, fmt.Sprintf(".publication-%d-123", time.Now().UnixNano()))
+	if e := os.Mkdir(path, 0700); e != nil {
+		t.Fatal(e)
+	}
+	if e := os.WriteFile(filepath.Join(path, "task"), []byte("partial"), 0700); e != nil {
+		t.Fatal(e)
+	}
+	a := cacheBuild(t, b, root, "a")
+	_ = a.Close()
+	if _, e := os.Stat(path); e != nil {
+		t.Fatal("fresh residue removed", e)
+	}
+	if e := os.WriteFile(filepath.Join(path, "unknown"), []byte("operator data"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	b.cacheRecoveryNow = func() time.Time { return time.Now().Add(2 * time.Minute) }
+	if e := b.recoverCache(t.Context(), b.CacheDir); e == nil {
+		t.Fatal("unknown residue shape accepted")
+	}
+	if raw, e := os.ReadFile(filepath.Join(path, "unknown")); e != nil || string(raw) != "operator data" {
+		t.Fatal(string(raw), e)
+	}
+}
+
+func TestCacheAbruptLegacyMutationRecovery(t *testing.T) {
+	for _, step := range []string{"legacy-manifest-temp", "legacy-binary-temp", "legacy-half-eviction"} {
+		t.Run(step, func(t *testing.T) {
+			b, root := cacheFixture(t)
+			a := cacheBuild(t, b, root, "a")
+			_ = a.Close()
+			crashCache(t, b, root, "a", step)
+			b.cacheRecoveryNow = func() time.Time { return time.Now().Add(2 * time.Minute) }
+			other := cacheBuild(t, b, root, "d")
+			defer other.Close()
+			rebuilt := cacheBuild(t, b, root, "a")
+			defer rebuilt.Close()
+			ns, e := os.ReadDir(filepath.Dir(rebuilt.Path))
+			if e != nil || len(ns) != 2 {
+				t.Fatal("legacy mutation survived", ns, e)
+			}
+		})
+	}
+}
+func TestCacheRecoveryProtectsNewLiveKey(t *testing.T) {
+	b, root := cacheFixture(t)
+	a := cacheBuild(t, b, root, "a")
+	_ = a.Close()
+	c := cacheBuild(t, b, root, "c")
+	_ = c.Close()
+	crashCache(t, b, root, "d", "eviction-renamed")
+	b.CacheBytes = 12000
+	replacement := cacheBuild(t, b, root, "a")
+	defer replacement.Close()
+	b.cacheRecoveryNow = func() time.Time { return time.Now().Add(2 * time.Minute) }
+	if e := b.recoverCache(t.Context(), b.CacheDir); e != nil {
+		t.Fatal(e)
+	}
+	if _, e := os.Stat(replacement.Path); e != nil {
+		t.Fatal("new live source removed while reclaiming old trash", e)
+	}
+}
+func TestCacheFreshResidueCountsAgainstCapacity(t *testing.T) {
+	b, root := cacheFixture(t)
+	a := cacheBuild(t, b, root, "a")
+	_ = a.Close()
+	entries, e := inspectCache(t.Context(), b.CacheDir)
+	if e != nil || len(entries) != 1 {
+		t.Fatal(entries, e)
+	}
+	b.CacheBytes = entries[0].bytes + 500
+	stage, e := os.MkdirTemp(b.CacheDir, fmt.Sprintf(".publication-%d-", time.Now().UnixNano()))
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = os.WriteFile(filepath.Join(stage, "task"), bytes.Repeat([]byte("x"), 1000), 0700); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = b.Build(t.Context(), root, "task"); !errors.Is(e, ErrCacheCapacity) {
+		t.Fatal("fresh residue ignored in budget", e)
+	}
+	if _, e = os.Stat(stage); e != nil {
+		t.Fatal("fresh residue removed before grace", e)
+	}
+}
+
+func TestCacheZeroBytePartialEntriesRebuild(t *testing.T) {
+	for _, members := range [][]string{{"task"}, {"manifest.json"}, {"task", "manifest.json"}} {
+		t.Run(strings.Join(members, "+"), func(t *testing.T) {
+			b, root := cacheFixture(t)
+			a := cacheBuild(t, b, root, "a")
+			if e := a.Close(); e != nil {
+				t.Fatal(e)
+			}
+			dir := filepath.Dir(a.Path)
+			for _, name := range []string{"task", "manifest.json"} {
+				if e := os.Remove(filepath.Join(dir, name)); e != nil {
+					t.Fatal(e)
+				}
+			}
+			for _, name := range members {
+				if e := os.WriteFile(filepath.Join(dir, name), nil, 0600); e != nil {
+					t.Fatal(e)
+				}
+			}
+			rebuilt, e := b.Build(t.Context(), root, "task")
+			if e != nil {
+				t.Fatal("zero-byte partial entry could not rebuild", e)
+			}
+			defer rebuilt.Close()
+			st, e := os.Stat(rebuilt.Path)
+			if e != nil || st.Size() == 0 {
+				t.Fatal("empty artifact retained", st, e)
+			}
+		})
 	}
 }

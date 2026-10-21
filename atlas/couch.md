@@ -49,6 +49,8 @@ The owner must match the slug of the hub checkout's effective Git `user.name`.
 Missing Operators is tolerated for machine tasks; it cannot authorize a team
 owner. Invalid, oversized, symlinked or changed declarations refuse that task
 and remain visible rather than silently running an old definition.
+Malformed directory names appear as escaped diagnostic entries, separately from
+routable task slugs; one refused entry cannot invalidate the other tasks' status.
 
 From the configured hub checkout:
 
@@ -77,6 +79,9 @@ refuses `vendor`, `go.work`, foreign/CGo inputs and local module replacements
 outside the hub. It does not invoke `go generate` or write executables into the
 hub checkout. The 256 MiB cache evicts unused keys by LRU; held artifact leases
 protect executing binaries, and full live capacity refuses additional admission.
+Publication renames a complete temporary entry into place; LRU touches update
+mtime, and eviction renames an unused entry to trash before deletion. Lookup
+recovery removes stale unreferenced temporary/trash entries after one minute.
 
 Two execution permits are shared machine-wide by manual and scheduled tasks.
 One held per-task lease excludes overlap. `heavy: true` additionally acquires a
