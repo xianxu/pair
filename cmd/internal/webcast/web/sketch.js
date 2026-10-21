@@ -84,6 +84,8 @@ export function mountSketch(doc, win, view, options) {
   });
   const undoButton = button('Undo', () => undo()),
     redoButton = button('Redo', () => redo());
+  const noteButton = button('Note', () => leave('watch'));
+  noteButton.title = 'Open text for this unfinished sketch';
   const doneButton = button('Done', () => leave('watch'));
   const retryButton = button('Check confirmation', () => dispatch({ type: 'retry' }));
   const continueButton = button('Continue drawing', () => continueDrawing());
@@ -96,6 +98,12 @@ export function mountSketch(doc, win, view, options) {
   };
   async function idle() {
     while (pending.size) await Promise.all([...pending]);
+  }
+  function unavailableReason(s) {
+    return s.ended ? 'This cast has ended. Start a new cast to sketch.'
+      : !s.live ? 'Resume the cast to sketch.'
+      : !s.allowed ? options.unavailableHint?.() || 'Ask the operator to enable annotation and grant you driving control to sketch.'
+      : '';
   }
   function show() {
     const s = state(),
@@ -110,32 +118,36 @@ export function mountSketch(doc, win, view, options) {
     retryButton.hidden = s.phase !== 'reconciling';
     continueButton.hidden = !canContinue();
     sketchButton.disabled = !s.allowed || !s.live || s.ended;
-    const unavailable = s.ended ? 'This cast has ended. Start a new cast to sketch.'
-      : !s.live ? 'Resume the cast to sketch.'
-      : !s.allowed ? options.unavailableHint?.() || 'Ask the operator to enable annotation and grant you driving control to sketch.'
-      : '';
+    const unavailable = unavailableReason(s);
     sketchButton.title = unavailable;
     doneButton.disabled = !entering && !s.active;
+    noteButton.hidden = !s.active;
+    noteButton.disabled = s.phase === 'finishing';
     const status = statuses.get(s.active),
       busy = !!contact || !!gesture.snapshot().active || s.slots.some((x) => x.sketch === s.active && (x.inflight || x.queued));
     undoButton.disabled = !drawing || busy || !status?.visible_top;
     redoButton.disabled = !drawing || busy || !status?.redo_top;
-    notice.textContent =
+    const noticeText =
       message ||
       (s.slots.some((x) => x.finishing) || deferredExit !== null
         ? 'Saving…'
         : s.phase === 'reconciling' ? 'Confirmation pending. Check before continuing.'
         : !s.active && !toolbar.hidden ? unavailable : '');
+    if (notice.textContent !== noticeText) notice.textContent = noticeText;
     if (finishDeadline && !s.slots.some((x) => x.finishing) && !entering) {
       win.clearTimeout(finishDeadline.timer);
       finishDeadline.resolve();
       finishDeadline = null;
     }
-    labels.replaceChildren();
-    for (const key of s.pendingLabels) {
-      const b = make('button', '', labels);
-      b.textContent = 'Label unfinished sketch';
-      b.addEventListener('click', () => openLabel(key));
+    if (labels.children.length !== s.pendingLabels.length || s.pendingLabels.some((key,i)=>labels.children[i].dataset.sketch!==key)) {
+      labels.replaceChildren();
+      for (const key of s.pendingLabels) {
+        const b = make('button', '', labels);
+        b.dataset.sketch = key;
+        b.textContent = 'Note';
+        b.title = 'Open text for this unfinished sketch';
+        b.addEventListener('click', () => openLabel(key));
+      }
     }
     scheduler.invalidate();
   }
@@ -602,10 +614,11 @@ export function mountSketch(doc, win, view, options) {
   }
   function openLabel(key) {
     if (disposed || state().slots.find((s) => s.sketch === key)?.finishing) return;
-    if (labelTarget !== key) labelInput.value = drafts.get(key) || '';
+    const changed = labelTarget !== key;
+    if (changed) labelInput.value = drafts.get(key) || '';
     labelTarget = key;
     show();
-    labelInput.focus();
+    if (changed) labelInput.focus();
   }
   async function saveLabel() {
     if (!labelTarget) return;
@@ -693,6 +706,10 @@ export function mountSketch(doc, win, view, options) {
     await idle();
   }
   function setAuthority(authority) {
+    const previous = state();
+    if (previous.allowed === authority.allowed && previous.live === authority.live &&
+        previous.ended === (authority.ended === true) && previous.epoch === authority.epoch &&
+        sketchButton.title === unavailableReason(authority)) return;
     dispatch({ type: 'sync', ...authority });
   }
   async function paint() {
@@ -888,6 +905,7 @@ export function mountSketch(doc, win, view, options) {
     canContinue,
     continueDrawing,
     state,
+    captureBusy: () => entering || drawingMode || !!labelTarget,
     layer,
     labelInput,
     retry: () => dispatch({ type: 'retry' }),

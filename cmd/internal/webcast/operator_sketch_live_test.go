@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/broadcast"
 	castassets "github.com/xianxu/pair/cmd/internal/webcast/assets"
 	"github.com/xianxu/pair/cmd/internal/webcast/board"
+	"github.com/xianxu/pair/cmd/internal/webcast/recorder"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
@@ -152,6 +154,9 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 	})
 	clickTool("Sketch")
 	wait("prepared console scene", func() bool { return string(eval(world, `__couchcastOperatorSketch.state().phase`)) == `"drawing"` })
+	if err := recorder.CaptureBackgroundScreenshot(ctx, chrome.conn, session, world, map[string]any{"format": "png"}, nil); !errors.Is(err, recorder.ErrBackgroundCaptureDeferred) {
+		t.Fatalf("active drawing background capture: %v", err)
+	}
 	if got := string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode();return ['Sketch','Undo','Redo','Done'].every(name=>{const b=[...root.querySelectorAll('.sketch-toolbar button')].find(b=>b.textContent===name),r=b.getBoundingClientRect();return r.width>0&&r.height>0&&r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight&&b.contains(root.elementFromPoint(r.x+r.width/2,r.y+r.height/2))})})()`)); got != "true" {
 		t.Fatalf("active sketch toolbar buttons are hidden or covered: %s; %s", got, eval(world, `JSON.stringify([...__couchcastOperatorSketch.labelInput.getRootNode().querySelectorAll('.sketch-toolbar button')].map(b=>{const r=b.getBoundingClientRect(),s=getComputedStyle(b),hit=b.getRootNode().elementFromPoint(r.x+r.width/2,r.y+r.height/2);return {text:b.textContent,rect:[r.x,r.y,r.width,r.height],position:s.position,z:s.zIndex,hit:hit?.className}}))`))
 	}
@@ -217,9 +222,29 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 	wait("required label", func() bool {
 		return string(eval(world, `!__couchcastOperatorSketch.labelInput.parentElement.hidden`)) == "true"
 	})
+	eval(world, `(()=>{const input=__couchcastOperatorSketch.labelInput,host=input.getRootNode().host;input.value='AB';input.setSelectionRange(1,1);globalThis.captureBlur=0;globalThis.captureHidden=0;input.addEventListener('blur',()=>captureBlur++);new MutationObserver(()=>{if(host.hidden)captureHidden++}).observe(host,{attributes:true});return true})()`)
+	var screenshot struct {
+		Data string `json:"data"`
+	}
+	for i := 0; i < 3; i++ {
+		if err := recorder.CaptureBackgroundScreenshot(ctx, chrome.conn, session, world, map[string]any{"format": "png"}, &screenshot); !errors.Is(err, recorder.ErrBackgroundCaptureDeferred) {
+			t.Fatalf("open label background capture: %v", err)
+		}
+		eval(0, fmt.Sprintf(`document.querySelector('button').setAttribute('data-focus-check',%q)`, fmt.Sprint(i)))
+	}
+	if got := string(eval(world, `(()=>{const input=__couchcastOperatorSketch.labelInput;return input.getRootNode().activeElement===input&&input.selectionStart===1&&input.selectionEnd===1&&captureBlur===0&&captureHidden===0})()`)); got != "true" {
+		t.Fatalf("background capture interrupted label focus/caret: %s", got)
+	}
+	call("Input.insertText", map[string]any{"text": "x"}, nil)
+	if got := string(eval(world, `__couchcastOperatorSketch.labelInput.value`)); got != `"AxB"` {
+		t.Fatalf("native typing after idle/remote capture opportunities: %s", got)
+	}
 	eval(world, `(async()=>{const s=__couchcastOperatorSketch;s.labelInput.value='Move this console control';await s.saveLabel();return true})()`)
 	waitKind("sketch-label")
 	wait("held scene exit", func() bool { return string(eval(world, `!globalThis.__couchcastPrivateSceneFrame`)) == "true" })
+	if err := recorder.CaptureBackgroundScreenshot(ctx, chrome.conn, session, world, map[string]any{"format": "png"}, &screenshot); err != nil || screenshot.Data == "" {
+		t.Fatalf("background capture did not resume after finished label: %v", err)
+	}
 	type inkBounds struct {
 		Count int `json:"count"`
 		MinX  int `json:"minX"`

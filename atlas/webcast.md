@@ -193,8 +193,8 @@ reporting success. Both accept-then-error and reject-before-write sinks are cove
 ## Sketch drawing (#752)
 
 `web/sketch.js` mounts the shared toolbar, required-label editor and pointer controller in the viewer and isolated
-operator UI. Drawing follows the existing driving holder: the operator when no viewer drives, otherwise only the
-granted drive-link seat, with annotation enabled. The server rechecks the authenticated principal, annotation
+operator UI. Drawing follows the existing driving holder: the trusted operator when no viewer drives, otherwise
+only the granted drive-link seat. Viewer drawing requires annotation enabled; console drawing does not. The server rechecks the authenticated principal, annotation
 generation and drawing epoch on ingress; client availability is only an affordance. Pointer and view-only links,
 and recording replay, render accepted paths without drawing permission or a palette endpoint.
 
@@ -202,6 +202,14 @@ The trusted console sketches independently of viewer annotation permission when 
 viewer admission still requires annotation and the current driving seat. Console unavailable controls explain
 readiness or ask the viewer to release driving control. Paused/ended casts explain resume/new-cast recovery; Done is disabled until
 there is a sketch or preparation to finish. Read-only viewer toolbars honor their hidden state.
+The toolbar sits above the private scene and drawing canvas so its buttons remain visible and clickable. Note
+opens text for an unfinished sketch through the same settlement/required-label path; completed-label editing
+is deferred to #783. Identical authority/control refreshes preserve editor focus and existing unfinished controls.
+
+Optional periodic fidelity captures defer while a console sketch/preparation or sketch/note editor is open;
+their privacy suppression would otherwise hide the host and interrupt typing. Explicit captures retain their
+existing suppression, and background captures resume after the UI closes. Fidelity screenshots can therefore
+have gaps while composing; capture without visible suppression outside this fallback is tracked by #784.
 
 Choose a fixed colour, then Sketch, and wait for its held recorded scene. Pressure samples stream before pointer-up;
 mouse/touch use pressure 1, pen hover is ignored, and cancellation seals a truncated partial stroke. Physical release

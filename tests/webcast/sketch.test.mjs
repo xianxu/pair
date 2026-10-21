@@ -272,6 +272,24 @@ test('unavailable drawing explains recovery and Done requires a sketch', async (
   ui.dispose();
 });
 
+test('unfinished Note opens label once and idle authority preserves its controls and focus', async () => {
+  const {mountSketch}=await mod(),h=harness();
+  const ui=mountSketch(h.doc,h.win,h.view,h.options);
+  await ui.enter();
+  const note=h.root.querySelector('.sketch-toolbar').children.find(b=>b.textContent==='Note');
+  assert.ok(note,'unfinished sketch has a Note button');
+  let focuses=0;ui.labelInput.focus=()=>focuses++;
+  for(const fn of note.listeners.click)fn();await h.flush();
+  assert.equal(h.root.querySelector('.sketch-label').hidden,false);
+  ui.labelInput.value='Keep this note';
+  const pending=h.root.querySelector('.sketch-pending-labels'),button=pending.children[0];
+  for(let i=0;i<10;i++){ui.setAuthority(h.options.authority());ui.openLabel(ui.state().active);}
+  assert.equal(focuses,1,'same editor must not be repeatedly focused');
+  assert.equal(ui.labelInput.value,'Keep this note');
+  assert.equal(pending.children[0],button,'unchanged unfinished Note control keeps its identity');
+  ui.dispose();
+});
+
 test('shared mount streams pressure before pointerup, keeps one anchor, and Undo/Redo reach the model', async () => {
   const { mountSketch } = await mod();
   const h = harness(),
