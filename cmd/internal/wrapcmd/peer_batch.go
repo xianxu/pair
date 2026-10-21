@@ -54,6 +54,11 @@ func (d *peerDelivery) finalizeBatch(id string, messages []couchmessage.Message)
 	}
 	d.batch.members = append([]couchmessage.Message(nil), messages...)
 	d.batch.phase = phase
+	for _, m := range d.batch.members {
+		r := d.current
+		r.Message = m
+		d.recordWorkerCueLocked(r)
+	}
 	d.signal()
 	return nil
 }
