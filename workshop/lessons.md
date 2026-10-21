@@ -8,6 +8,7 @@ representative evidence, not an exhaustive index.
 ## Proof and verification
 
 - #761: Classify native replies from the complete stdout, stderr and exit together. A successful process can print a fallback listing after falsely missing its target; retain exact bytes before recovery. Diagnostic observers own their snapshots before calling other observers, and typed evidence must survive context/generation refusal wrappers without becoming ownership authority. Keep diagnostic version reads separate from counted ownership attempts in stateful fakes and budget tests.
+- #763 BR-1: Unknown JSON values must survive decode and rewrite without machine-number conversion. Test precise fractions, over/underflow exponents, negative zero and huge integers nested in arrays/objects; a large-integer-only roundtrip misses float corruption. Reject non-JSON NaN/Infinity before effects, while keeping known-field types strict.
 
 - #750 design review: a held drawing scene must render the acknowledged source prefix on initial preparation as well as reconnect; freezing whatever the client currently shows can anchor paths to another moment. Record timer-driven interruptions as replay inputs, and reserve writer capacity for terminal events and required labels before admitting growing stroke data.
 
