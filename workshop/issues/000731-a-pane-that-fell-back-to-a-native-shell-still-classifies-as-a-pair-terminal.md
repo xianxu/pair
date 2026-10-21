@@ -16,6 +16,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "a4f91cf6", done: "e7484f0b"}
 ---
 
 # A pane that fell back to a native shell still classifies as a Pair terminal
