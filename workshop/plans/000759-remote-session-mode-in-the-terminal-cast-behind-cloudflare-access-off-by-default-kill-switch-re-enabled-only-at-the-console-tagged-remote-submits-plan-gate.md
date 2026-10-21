@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: 5bdf6b94-c7a7-4d90-8a26-91ac025d59f5
+        repository: github.com/xianxu/pair
+        issue_id: "000759"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot6/pair
+        reviewed_head: ebb6b635071bfeff508d16268a7b64b747dbaac6
+        slot: pair:6
+        requested_at: "2026-10-21T16:41:38.263004Z"
+      phase: finished
+      pid: 26569
+      started_at: "2026-10-21T16:41:38.353465Z"
+      finished_at: "2026-10-21T16:42:08.131048Z"
+      session_id: 01a15f56-fc31-7962-82c4-5df123cb9eee
+      outcome: returned
 gate: plan-quality
 issue: 759
 id_prefix: PQ
@@ -75,6 +95,62 @@ rounds:
           note: 'The function table is substantially improved, but prose case inventories remain at plan lines 220, 234, 242 and 244, and the transcript strategy at line 265 still lacks a function name. This is the 2nd observation in family function-level-test-strategy. Apply one rule across the entire plan: every risky unit-test obligation belongs in one named-function/adversarial-class/mechanical-guard row; milestone steps reference those rows instead of repeating case inventories. Sweep all M1–M3 test instructions under that rule, retaining generated-sequence invariants and operation-count checks.'
           round: 2
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 600fcc17-3e86-40e2-a48f-7586e544bcc8
+            repository: github.com/xianxu/pair
+            issue_id: "000759"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot6/pair
+            reviewed_head: ebb6b635071bfeff508d16268a7b64b747dbaac6
+            slot: pair:6
+            requested_at: "2026-10-21T16:15:37.118444Z"
+          phase: finished
+          pid: 23138
+          started_at: "2026-10-21T16:15:37.306526Z"
+          finished_at: "2026-10-21T16:16:06.230422Z"
+          session_id: 01a15f3f-2ab4-75b0-9b7e-09a8c722eed8
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-21T09:16:06-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-2
+          disposition: addressed
+          note: M1–M3 reference a consolidated named-function strategy table covering the requested risk surfaces while retaining generated-sequence invariants and operation-count checks.
+          round: 3
+      blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 7f2fcbe8-9912-4458-ad72-7dbda91d76d0
+            repository: github.com/xianxu/pair
+            issue_id: "000759"
+            recipe: plan-quality
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot6/pair
+            reviewed_head: ebb6b635071bfeff508d16268a7b64b747dbaac6
+            slot: pair:6
+            requested_at: "2026-10-21T16:39:50.997352Z"
+          phase: finished
+          pid: 75787
+          started_at: "2026-10-21T16:39:51.123751Z"
+          finished_at: "2026-10-21T16:40:18.029029Z"
+          session_id: 01a15f55-59bd-7770-a306-ac6bcff40a16
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-21T09:40:18-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      blocked: false
+content_hash: de7e39e3bf149f8467155884b4f07e631a6a79494b5d9fb3a66ea2bfba4cdc40
 ---
 
 # Gate ledger — pair#759 (plan-quality)
@@ -98,6 +174,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - PQ-1 — addressed — Named retained-raw-object codecs cover the changed formats, including nested preservation, strict validation, actual rewrite-path tests and explicit mixed-version limits.
 - PQ-2 — not-addressed — The function table is substantially improved, but prose case inventories remain at plan lines 220, 234, 242 and 244, and the transcript strategy at line 265 still lacks a function name. This is the 2nd observation in family function-level-test-strategy. Apply one rule across the entire plan: every risky unit-test obligation belongs in one named-function/adversarial-class/mechanical-guard row; milestone steps reference those rows instead of repeating case inventories. Sweep all M1–M3 test instructions under that rule, retaining generated-sequence invariants and operation-count checks.
 
+## Round 3 — 2026-10-21T09:16:06-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-2 — addressed — M1–M3 reference a consolidated named-function strategy table covering the requested risk surfaces while retaining generated-sequence invariants and operation-count checks.
+
+## Round 4 — 2026-10-21T09:40:18-07:00 (codex) — passed
+
 ## Open findings
 
-- **PQ-2** [Important] `function-level-test-strategy` Replace prose case inventories with strategies attached to named functions.
+(none — every finding has been disposed)

@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-21
-estimate_hours:
+estimate_hours: 9.07
 collaboration-mode: collaboration
-card_mirror: '9fa6bf216ed66532d11c08b13ec25a5522dd1c01' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '21c0d8d674fc4b06a04976c4927f34dffa530d95' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-21T01:17:25-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
 ---
 
 # remote-session: 👽 mode in the terminal cast behind Cloudflare Access, off by default, kill switch re-enabled only at the console, tagged remote submits
@@ -89,3 +90,31 @@ Authenticated TL7c5b26ce-a932-4fb1-8d97-21c12f04fa05: APPROVED with changes. Upd
 ### 2026-10-21 09:04 — approved current contract
 
 Operator approval via TL7c5b26ce supersedes original “submitted remotely” display marker and short-lived-session proposal. Exact remote header now carries authenticated email and trusted-proxy client IP; console submits untagged, metadata fields preserved. Access alone supplies session time limits, with silent handshake and four concurrent sessions. Ordinary toggles/rotation are distinct from persistent kill and host-only reset; transcript retained. See durable plan Revisions for full provenance and acceptance changes.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. Calibration is marked stale by estimate-source; use provisionally, without inventing a replacement scale.
+
+Scope is the complete security foundation, tests, integration and three review boundaries; #758's actual nvim adapter is excluded. The multi-concern authenticated service (policy, sessions, replay, durable authority, audit, document seam and HTTP) uses the greenfield-service primitive at design8 ×0.2=1.6 and implementation10 ×0.40=4.0. This is the high implementation end because the security interleavings and stateful tests are part of the work. Access integration uses an established OIDC verifier plus Go HTTP, not custom crypto: API design3 ×0.2 ×0.5 library shortcut=0.3, implementation1.5 ×0.4=0.6. Existing transport and provenance/codec extensions are two cross-cutting refactors, each design0.5 ×0.2=0.1 and implementation0.5 ×0.4=0.2. Console controls use TUI design1 ×0.2=0.2 and implementation1 ×0.4=0.4. Familiarity1.0 reflects existing Go/Couch patterns; the separate API integration and discovery cover the bounded new Access seam. Three milestone reviews each use design0.04, implementation0.2; docs design0.04, implementation0.08; one external API discovery uses implementation0.4 ×0.4=0.16. No implementation scaling is applied twice.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-service design=1.6 impl=4.0
+item: api-integration design=0.3 impl=0.6
+item: cross-cutting-refactor design=0.1 impl=0.2
+item: cross-cutting-refactor design=0.1 impl=0.2
+item: tui-screen design=0.2 impl=0.4
+item: milestone-review design=0.04 impl=0.2
+item: milestone-review design=0.04 impl=0.2
+item: milestone-review design=0.04 impl=0.2
+item: atlas-docs design=0.04 impl=0.08
+item: real-api-discovery design=0 impl=0.16
+design-buffer: 0.15
+total: 9.069
+```
+
+Design subtotal2.46h, buffered to2.829h; already-scaled implementation6.24h; total9.069h (round to9.07h). Range roughly6–12h, most likely9.07h. Operator scheduling and external CI queue waits are not active effort. The full design and test obligations, rather than code volume alone, determine the service primitive.
+
+
+Estimate-quality INFO accepted: M1 and M2 close through milestone-close; M3 is the final issue-close boundary (three reviews total). The service allocation includes provenance codec/integration tests and active private/live conformance, rather than charging those twice as refactors/API discovery. Refactor rows budget only the existing-reader wiring; API discovery is only external protocol investigation. Design allowance covers effect-door/interface integration choices and operator acceptance iteration, not redoing approved policy. No extra M3 milestone-close is intended.
