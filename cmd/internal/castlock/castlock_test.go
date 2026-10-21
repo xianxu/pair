@@ -186,7 +186,7 @@ func TestRandomSequencesKeepInvariants(t *testing.T) {
 		var issued [2][]string
 		var dead [2]map[string]bool
 		dead[0], dead[1] = map[string]bool{}, map[string]bool{}
-		var wrongThisCode [2]int
+		var wrongThisCode, forced [2]int
 		var codeSeen [2]string
 		ended := [2]bool{}
 		for i := range 2 {
@@ -202,11 +202,12 @@ func TestRandomSequencesKeepInvariants(t *testing.T) {
 				}
 			case op < 8:
 				l.Unlock(time.Now(), wrongFor(l.Code()))
-				if !ended[i] {
+				if !ended[i] && forced[i] < MaxForcedRotations {
 					wrongThisCode[i]++
 				}
 			case op < 9:
 				if _, err := l.Rotate(); err == nil {
+					forced[i] = -1 // the code-change observation below starts a new lifetime
 					for _, s := range issued[i] {
 						dead[i][s] = true
 					}
@@ -223,6 +224,7 @@ func TestRandomSequencesKeepInvariants(t *testing.T) {
 			for j := range 2 {
 				if c := locks[j].Code(); c != codeSeen[j] {
 					codeSeen[j], wrongThisCode[j] = c, 0
+					forced[j]++
 				}
 				if wrongThisCode[j] >= budget && !ended[j] {
 					t.Fatalf("seed %d step %d: lock %d absorbed %d wrong tries on one code", seed, step, j, wrongThisCode[j])
@@ -310,9 +312,13 @@ func TestConcurrentRotationsNewestGenIsCurrentCode(t *testing.T) {
 }
 
 // failingRand serves crypto randomness until fail is set.
-type failingRand struct{ fail atomic.Bool }
+type failingRand struct {
+	fail  atomic.Bool
+	reads atomic.Int64
+}
 
 func (f *failingRand) Read(p []byte) (int, error) {
+	f.reads.Add(1)
 	if f.fail.Load() {
 		return 0, errors.New("no entropy")
 	}
@@ -351,5 +357,140 @@ func TestSessionMintFailureIsNotEnded(t *testing.T) {
 	src.fail.Store(true)
 	if _, out := l.Unlock(time.Now(), l.Code()); out != Failed {
 		t.Fatalf("mint failure: %v", out)
+	}
+}
+
+func TestLifetimeGuessCapSurvivesUnlocksAndNeedsOperatorRotation(t *testing.T) {
+	for _, digits := range []int{4, 6} {
+		t.Run(string(rune('0'+digits)), func(t *testing.T) {
+			src := &failingRand{}
+			var rotations []Rotation
+			l := mustNew(t, Config{Digits: digits, Rand: src, OnRotated: func(r Rotation) { rotations = append(rotations, r) }})
+			viewer, out := l.Unlock(time.Now(), l.Code())
+			if out != Unlocked {
+				t.Fatal(out)
+			}
+			revoked, _ := l.Valid(viewer)
+			for rotation := 1; rotation <= 3; rotation++ {
+				before := l.Code()
+				for wrong := 1; wrong <= DefaultBudget; wrong++ {
+					if _, out := l.Unlock(time.Now(), wrongFor(l.Code())); out != Wrong {
+						t.Fatal(out)
+					}
+					if wrong < DefaultBudget && l.Code() != before {
+						t.Fatal("rotated early")
+					}
+				}
+				if l.Code() == before || len(rotations) != rotation || rotations[rotation-1].Capped != (rotation == 3) {
+					t.Fatalf("rotation %d: %+v", rotation, rotations)
+				}
+				_, out := l.Unlock(time.Now(), l.Code())
+				if rotation < 3 && out != Unlocked {
+					t.Fatalf("capped early at %d: %v", rotation, out)
+				}
+				if rotation == 3 && out != Wrong {
+					t.Fatalf("correct code unlocked at lifetime cap: %v", out)
+				}
+			}
+			for range 20 {
+				if s, out := l.Unlock(time.Now(), l.Code()); out != Wrong || s != "" {
+					t.Fatalf("cap admitted %q: %v", s, out)
+				}
+				l.Unlock(time.Now(), wrongFor(l.Code()))
+			}
+			if len(rotations) != 3 {
+				t.Fatal("kept rotating after cap")
+			}
+			if _, ok := l.Valid(viewer); !ok {
+				t.Fatal("cap revoked unlocked viewer")
+			}
+			select {
+			case <-revoked:
+				t.Fatal("cap closed session generation")
+			default:
+			}
+			other := mustNew(t, Config{Digits: digits})
+			if _, out := other.Unlock(time.Now(), other.Code()); out != Unlocked {
+				t.Fatal("cap crossed links")
+			}
+			src.fail.Store(true)
+			if _, err := l.Rotate(); err == nil {
+				t.Fatal("operator rotation ignored RNG failure")
+			}
+			src.fail.Store(false)
+			if _, out := l.Unlock(time.Now(), l.Code()); out != Wrong {
+				t.Fatal("failed rotation cleared cap")
+			}
+			if _, ok := l.Valid(viewer); !ok {
+				t.Fatal("failed rotation revoked viewer")
+			}
+			next, err := l.Rotate()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, out := l.Unlock(time.Now(), next); out != Unlocked {
+				t.Fatal("operator rotation did not clear cap")
+			}
+			if _, ok := l.Valid(viewer); ok {
+				t.Fatal("operator rotation kept old viewer")
+			}
+			for range 2 * DefaultBudget {
+				l.Unlock(time.Now(), wrongFor(l.Code()))
+			}
+			if _, out := l.Unlock(time.Now(), l.Code()); out != Unlocked {
+				t.Fatal("recovery did not restore full lifetime budget")
+			}
+		})
+	}
+}
+
+func TestThirdForcedRotationEntropyFailureKeepsRefusalAndSessions(t *testing.T) {
+	src := &failingRand{}
+	l := mustNew(t, Config{Rand: src})
+	viewer, _ := l.Unlock(time.Now(), l.Code())
+	for range 2 * DefaultBudget {
+		l.Unlock(time.Now(), wrongFor(l.Code()))
+	}
+	last := l.Code()
+	src.fail.Store(true)
+	for range DefaultBudget {
+		l.Unlock(time.Now(), wrongFor(last))
+	}
+	if l.Code() != last {
+		t.Fatal("failed entropy changed code")
+	}
+	src.fail.Store(false)
+	for range 32 {
+		if _, out := l.Unlock(time.Now(), last); out != Wrong {
+			t.Fatal("spent code unlocked after entropy recovered")
+		}
+	}
+	if _, ok := l.Valid(viewer); !ok {
+		t.Fatal("failed forced rotation revoked viewer")
+	}
+	if _, err := l.Rotate(); err != nil {
+		t.Fatal(err)
+	}
+	if _, out := l.Unlock(time.Now(), l.Code()); out != Unlocked {
+		t.Fatal("operator could not recover")
+	}
+}
+
+func TestCappedAttemptsDoNotDrawMoreRandomness(t *testing.T) {
+	for _, attempts := range []int{32, 64} {
+		src := &failingRand{}
+		l := mustNew(t, Config{Rand: src})
+		for range 3 * DefaultBudget {
+			l.Unlock(time.Now(), wrongFor(l.Code()))
+		}
+		reads := src.reads.Load()
+		for range attempts {
+			if _, out := l.Unlock(time.Now(), l.Code()); out != Wrong {
+				t.Fatal(out)
+			}
+		}
+		if got := src.reads.Load(); got != reads {
+			t.Fatalf("%d capped attempts added %d entropy reads", attempts, got-reads)
+		}
 	}
 }

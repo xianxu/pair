@@ -77,11 +77,9 @@ func StartControlledZellijWithOptions(ctx context.Context, session string, optio
 	for !zellijScreenRender.MatchString(capture.String()) {
 		select {
 		case output := <-clientOutput:
-			_ = fixture.Close()
-			return nil, fmt.Errorf("controlled zellij client exited before initial screen render: %s", output)
+			return nil, errors.Join(fmt.Errorf("controlled zellij client exited before initial screen render: %s", output), fixture.Close())
 		case <-ctx.Done():
-			_ = fixture.Close()
-			return nil, fmt.Errorf("controlled zellij session %q did not emit initial screen render: %w", session, ctx.Err())
+			return nil, errors.Join(fmt.Errorf("controlled zellij session %q did not emit initial screen render: %w", session, ctx.Err()), fixture.Close())
 		case <-ticker.C:
 		}
 	}
@@ -91,19 +89,16 @@ func StartControlledZellijWithOptions(ctx context.Context, session string, optio
 			if options.LayoutFile != "" {
 				out, err := exec.CommandContext(ctx, "zellij", "--session", session, "action", "new-tab", "--layout", options.LayoutFile).CombinedOutput()
 				if err != nil {
-					_ = fixture.Close()
-					return nil, fmt.Errorf("controlled zellij layout: %s: %w", out, err)
+					return nil, errors.Join(fmt.Errorf("controlled zellij layout: %s: %w", out, err), fixture.Close())
 				}
 			}
 			return fixture, nil
 		}
 		select {
 		case output := <-clientOutput:
-			_ = fixture.Close()
-			return nil, fmt.Errorf("controlled zellij client exited before readiness: %s", output)
+			return nil, errors.Join(fmt.Errorf("controlled zellij client exited before readiness: %s", output), fixture.Close())
 		case <-ctx.Done():
-			_ = fixture.Close()
-			return nil, fmt.Errorf("controlled zellij session %q did not become ready: %w; last list=%q; client startup=%q", session, ctx.Err(), output, capture.String())
+			return nil, errors.Join(fmt.Errorf("controlled zellij session %q did not become ready: %w; last list=%q; client startup=%q", session, ctx.Err(), output, capture.String()), fixture.Close())
 		case <-ticker.C:
 		}
 	}
@@ -118,14 +113,28 @@ func (f *ControlledZellij) KillClient() error {
 	if f == nil || f.command == nil || f.command.Process == nil {
 		return errors.New("controlled zellij has no client process")
 	}
-	if f.pty != nil {
-		_ = f.pty.Close()
+	return f.stopClient(syscall.SIGTERM)
+}
+
+// Consume owned handles before acting on them: detach and final cleanup must
+// never close or reap the same handle twice, even when the first action fails.
+func (f *ControlledZellij) stopClient(signal os.Signal) error {
+	var result error
+	terminal := f.pty
+	f.pty = nil
+	if terminal != nil {
+		result = errors.Join(result, terminal.Close())
 	}
-	if err := f.command.Process.Signal(syscall.SIGTERM); err != nil {
-		return err
+	command := f.command
+	f.command = nil
+	if command != nil && command.Process != nil {
+		if err := command.Process.Signal(signal); err != nil && !errors.Is(err, os.ErrProcessDone) {
+			result = errors.Join(result, err)
+		}
+		_, err := command.Process.Wait()
+		result = errors.Join(result, err)
 	}
-	_, err := f.command.Process.Wait()
-	return err
+	return result
 }
 
 func (f *ControlledZellij) Close() error {
@@ -164,15 +173,7 @@ func (f *ControlledZellij) close(ctx context.Context) error {
 			result = errors.Join(result, fmt.Errorf("delete controlled zellij: %w: %s", err, out))
 		}
 	}
-	if f.pty != nil {
-		result = errors.Join(result, f.pty.Close())
-		f.pty = nil
-	}
-	if f.command != nil && f.command.Process != nil {
-		_ = f.command.Process.Kill()
-		_, _ = f.command.Process.Wait()
-		f.command = nil
-	}
+	result = errors.Join(result, f.stopClient(syscall.SIGKILL))
 	// The daemon is reparented to PID 1: reaping the client cannot join it.
 	// Keep its exact kernel generation until it can no longer write caches.
 	waitErr := f.waitServers(ctx, servers)

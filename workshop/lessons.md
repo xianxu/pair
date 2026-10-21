@@ -2491,6 +2491,13 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #746 BR-1: A generated repair command must satisfy the same current constraints as its executor, ahead of historical classification. Execute emitted commands in private fixtures for each classification transition; checking only their text or the manual command misses advice that cannot work.
 - #749: Acceptance fixtures must execute the one shared Pair image through testpair.At or tests/lib/pair-test-binary.sh, preserving inode identity even across volumes. A raw executable copy triggers another AMFI assessment before the CLI starts and can consume a fixture deadline; verify file identity rather than extending the timeout. Resolve the shared binary before installing a hermetic fixture environment.
 
+- #755 PQ-1/PQ-3: A live-reload client must compare its first observation against a revision embedded before document delivery; accepting the first poll as baseline can permanently miss an intervening edit. Count directory entries as well as file bytes when claiming a bounded tree scan, including empty directories.
+
+- #755 BR-1: os.Root confinement is only as narrow as the opened root: a version-prefixed path can still traverse an in-root ancestor link to private project files. Pin and verify directory/file identities at each effect boundary, scope child roots during traversal, and reproduce links introduced after the initial scan plus replacement between Lstat and open. Earlier validation cannot authorize a later filesystem read.
+
+- #755 BR-2/BR-3: Pagehide can suspend a document rather than destroy it. Handle persisted pageshow, preserve the document baseline, and fence old fetch/body/error/finally/timer callbacks with generation plus request ownership across repeated restores. When an identity guard intentionally refuses concurrent replacement, the fixture must admit that typed outcome and always join writers before cleanup; separately force refusal and confirm a whole settled value.
+
+- #755 BR-5: A defer cannot reclaim a staging file after process death. Selection publication needs a bounded staging name protected for the whole write by a persistent OS advisory lock; the next owner recovers residue after death. Exclude only exact private root coordination names from content scans and git, and force OS-confirmed contention plus killed-owner recovery in tests. Join helper processes, pipe readers and waiting writers on every failure path.
 - #731 BR-1: When an approved plan revision changes an acceptance policy or introduces a replacement API, reconcile Done when in the same checkpoint. A Revisions entry alone leaves an executable contract contradiction for close review.
 
 - #731 suite: When strengthening a shared admission predicate, enumerate both Go and shell entrypoints that execute the real CLI. Healthy fixtures must establish the new authority through the production seam; keep a separate stale-metadata negative control rather than merely changing expected effects.
@@ -2513,3 +2520,9 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #742 BR-3: An approved post-SHIP change to executable recognition criteria requires a full close review; narrow re-close is for fixes inside the reviewed contract. Reconcile the current Spec as well as appending the revision.
 
 - #742 live recheck: Exercise the reader's observeOutput before handleChunk in drive regressions. A render-only harness bypasses the activity-sequence fence and can pass while every native timer tick revokes admission. Interrupt proof uses operator-input generation plus freshly parsed work/composer/ownership; queued unparsed output cannot attest the old complete frame. Keep ordinary drives on their activity fence.
+
+- #762: Rotating a guessed secret resets a per-code budget, so it cannot bound lifetime attempts by itself. Keep a separate bounded counter under the lock owner and reset only on explicit authorized recovery. When callbacks carry ordered generations, commit their visible notice under that same generation guard; spawning the notice effect can let older recovery advice overwrite the current cap.
+
+- #764: Retire owned PTY/process handles before closing, signalling or reaping them; shared detach/final cleanup must consume each exactly once, including failure paths. Join startup and cleanup errors, and make live-fixture cleanup failures affect the test result rather than merely logging them.
+
+- #764 BR-1: A fixture-only change can still add a repository enforcement surface. Every new Pair-local lint rule needs its owner, rejected and accepted patterns, and syntax-analysis limits mapped in atlas/go-lint-catalog.md; include that surface in the close atlas decision.

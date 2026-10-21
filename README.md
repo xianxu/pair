@@ -1659,8 +1659,7 @@ never see it.
   - Rotating disconnects everyone who used the old code.
   - Before pointing first makes the pointer link, its row shows `pointer (not made
     yet)`, with no actions; click `👆` to make it.
-- **Wrong guesses.** About 8 wrong tries on one code rotate it by themselves. Couch
-  says so, and viewers already in stay connected.
+- **Wrong guesses.** Every 8 wrong tries force a code change, with a Couch notice. After the third forced rotation, the link refuses new unlocks until you explicitly rotate it in the Codes menu. Successful unlocks do not reset that count; viewers already in stay connected. The third notice says the code changed and the link is locked until you rotate.
 - **What viewers see.** The codes show on your screen only, never in what the LIVE
   broadcast sends, and a notice says that a code changed, never what it is. A new code
   flashes three times over its cell.
@@ -2455,3 +2454,13 @@ Repeat the same command after interrupted setup. Completed work is reused;
 unconfirmed setup reruns `weave compile`. This operation prepares directories
 without starting an agent. See the [workspace provisioning contract](atlas/workspace-provisioning.md)
 for remote selection, paths and the separate lifecycle/UI integration work.
+
+## Clickable project mocks
+
+Run `couch mock serve examples/couch-mocks` and open the printed loopback URL. It serves plain HTML/CSS/JS, reloads on edits, and opens no browser. `--port N` after the directory selects a port; the default chooses a free one. Stop with Ctrl-C.
+
+Keep `mock-1/`, `mock-2/`, … alongside one shared `fixtures.json`. The highest numbered version shows by default. `couch mock use examples/couch-mocks mock-1` selects an existing direction without restarting the server; `.mock-current` remembers that explicit choice. Remove that file to return to the highest-numbered default. A switch preserves the current screen when available, otherwise opens the selected version's index.
+
+Every screen fetches `/fixtures.json`. Write a state list in the project's `design.md`, including empty, error and long-list cases and links between screens. The fixture shape is the future backend response contract. The sample has three linked screens, two directions and scenario links. Each served HTML root carries `data-mock-version` and `data-mock-screen`; version URLs make the iteration explicit.
+
+Commit each feedback round to the current version and revert that commit to undo it. Make a new mock-N+1 for a new direction worth comparing. The server does not invoke git or make versions. Reload resets transient browser state; invalid input shows a repairable preview error. Selection uses two reserved, git-ignored lock/staging files, excluded from reload and caps; an interrupted writer is recovered by the next selection. Limits are 1,024 project directory entries, 32 MiB total regular-file contents and 1 MiB per HTML file; symlinks/special files are refused. Only version assets and the root fixtures are served, on 127.0.0.1. See [the server map](atlas/mock-server.md).
