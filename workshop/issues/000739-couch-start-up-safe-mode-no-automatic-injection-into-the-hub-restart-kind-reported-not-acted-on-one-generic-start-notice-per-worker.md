@@ -46,9 +46,9 @@ the restart-kind report as one retained Console status line, never a composer
 message. Unknown or orphaned evidence is not a full-shutdown proof. All explicit
 operator-authorized lifecycle actions keep their existing guards.
 
-Use a **per-hub memory-only start gate**, initially closed. It opens only by the TL running `couch --start-gate open` on the operator's "let it start", or the operator's switcher key; `couch --start-gate status` is read-only. Ordinary operator submissions do not open it: debugging can continue with the gate closed. Discard hub-directed automatic system messages while closed, including #737 scheduled-task exit-10 notices. Ordinary peer reports stay deliverable; no suppressed occurrence replays on open. The status line says the start gate is closed and to say "let it start".
+**Hub automation** controls only Couch-generated hub input and scheduled runs. CLI: `couch --automation off|on|status [hub]`, plus switcher control. It starts on for a positively surviving hub after normal restart; off after full shutdown/unknown startup, and off for missing hubs in a mixed fleet. Only explicit on/off changes it afterward. Human submissions never flip it: the TL can debug with the operator while off. The separate tl-lead rule will run automation on on the first operator message unless told keep off; Couch performs no message parsing.
 
-In a partial fleet every surviving hub reattaches with its own closed gate; missing hubs remain listed/parked and are named in the startup status. Open on the launch hub if it survived, otherwise on the switcher. Background extra-hub completions never steal focus.
+CLI mutation is own-hub-only; optional hub must name the caller's canonical hub. Only the operator switcher may control another configured hub. While off, suppress automatic hub input and skip scheduled due runs (#737) like missed runs; on resumes at the next due time without replay/catch-up. Already-running scripts may finish (soft stop). Worker/peer reports, operator input, status and desktop output are never gated. The retained line says "hub automation off; say turn it on" and names missing hubs. Focus the launch hub if it survived, otherwise the switcher; extra-hub adoption never steals focus.
 
 The generic worker cue is once per **wrapper launch incarnation**, including
 Fresh, resume and relaunch; same-incarnation reconnect across a Couch restart
@@ -133,3 +133,10 @@ qualification to the operator-review plan. This is still design-only work.
 ### 2026-10-20 23:42 PDT — operator approval: explicit start gate and partial hubs
 
 Operator approval relayed by ops:0 requires the name "start gate", an explicit `couch --start-gate open`/switcher act, read-only status, and no automatic release on operator submission. The TL may debug with the operator while closed. Keep scheduled-task exit-10 wakes behind it with no replay. Reattach surviving hubs with independent closed gates, name missing hubs in one status line, and focus the launch hub only if it survived; otherwise leave the switcher open. The active Spec and durable plan now use these rules. Earlier submission-release text above is superseded historical design. Proceed through change-code; no implementation yet.
+
+
+### 2026-10-20 23:44–23:48 PDT — final operator policy and plan-quality disposition
+
+Operator renamed the control to hub automation, with explicit off/on/status [hub] and switcher control. Initial on only for positively surviving hubs on normal restart; full shutdown, unknown state and missing mixed-fleet hubs remain off. Off is a soft stop for scheduled runs as well as notices, with missed runs skipped and no replay/catch-up on on; running jobs finish. Human/worker input and status/desktop output stay independent. CLI is own-hub-only, operator switcher may select another hub. tl-lead's first-operator-message default is a separate ariadne rule; no Couch parsing or implicit flip.
+
+First plan-quality round returned PQ-1 Important for prose case inventories instead of named risky functions/adversarial strategies. Active plan compressed into function and producer strategy tables; all latest operator decisions are in the active Spec. No code admitted, no estimate derived. Hub relays #737's predicate seam once pair:1 is back; integration waits for that issue on main.

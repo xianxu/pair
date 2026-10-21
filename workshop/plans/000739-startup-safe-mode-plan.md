@@ -2,197 +2,170 @@
 collaboration-mode: discussion
 ---
 
-# Couch startup safe mode implementation plan
+# Couch startup safe mode and hub automation implementation plan
 
-> **For agentic workers:** Consult AGENTS.md §3 for execution strategy. Use the approved plan and SDLC gates; do not implement until the operator approves this startup policy through the hub.
+> **For agentic workers:** Consult AGENTS.md §3 for execution strategy. The operator-approved contract below supersedes the earlier design in Revisions. SDLC plan-quality and estimate admission still precede code.
 
-**Goal:** Reconnect surviving terminals without starting agents or recovery, keep startup out of hub composers, and orient each newly started worker once.
+**Goal:** Reattach surviving terminals without starting agents/recovery, make hub automation explicit, and orient each newly started worker once.
 
-**Architecture:** Startup observes, classifies and attaches only positively listed terminals. A memory-only per-hub gate discards automatic system messages until an explicit open action; ordinary peer reports stay deliverable. Explicit lifecycle actions retain their existing admission. The wrapper owns the generic notice's one-shot memory, and the current broker carries its delivery; the separate Couch-restart resend prompt keeps its existing lifetime.
+**Architecture:** One read-only startup observation classifies the fleet and each hub. Only positively proved warm sessions attach. A per-hub memory owner controls Couch-generated input and scheduled runs, independently of human/worker communication. Wrapper-owned cue evidence survives supervisor replacement; the separate restart resend prompt keeps its current lifetime.
 
-**Tech stack:** Go, existing Couch core/Console, negotiated wrapper session protocol, existing peer delivery reducer and stateful process/socket fakes.
+**Tech stack:** Go, current Couch/Console lifecycle workers, existing broker/automatic-input reducer, negotiated wrapper sessions and private stateful native/socket fakes.
 
-## Operator review: choices and scope
+## Approved contract and alternatives
 
-Source: ops `teams/devinfra/projects/fleet-drain/design.md`, especially the operator's revised point 10. This plan is for review, not permission to code.
+Source: ops `teams/devinfra/projects/fleet-drain/design.md` and operator decisions relayed by ops:0 on 2026-10-20. The latest wording is **hub automation**, on/off, rather than start gate.
 
-| Choice | Proposed behavior | Alternative and cost |
+| Decision | Approved behavior | Alternative considered |
 |---|---|---|
-| Missing hub at startup | Open the switcher; list retained/missing hubs and slots. Never cold-resume or create an agent, even on an empty installation. | Keep automatic hub creation/resume: convenient, but violates operator-owned recovery. |
-| Surviving sessions | Attach warm hubs and workers with existing exact-session guards and worker limits. Never turn a failed warm attach into cold/Fresh. | Disable all attachment: quieter, but needlessly abandons running terminals and changes the approved warm-worker behavior. |
-| Restart report | One retained Console status line, readable/copyable in the notice list, never a broker message into a TL composer. | Inject a one-line message: wakes the TL automatically and contradicts safe mode. |
-| Start gate | All automatic system-message producers share a per-hub gate, initially closed. Only the explicit open action opens that hub; suppressed facts never replay. | Suppress only startup lifecycle/baseline facts: smaller, but inherited wait/reminder/resource conditions can still wake the TL. Hub chose the shared gate; operator reviews it. |
-| Generic worker cue | Once per wrapper incarnation, with memory owned by that wrapper, including across Couch-only restarts. Fresh/resume/relaunch starts get a cue; reconnecting the same wrapper does not. | Once per incarnation per Couch lifetime: simpler coordinator map, but a surviving agent gets a false "you restarted" cue after every Couch restart. Hub chose the wrapper-owned option; operator may overrule it. |
-| Couch-restart resend prompt | Preserve the existing once-per-worker-address-per-Couch-lifetime prompt about an unanswered relevant report. It is distinct from the agent-start cue. | Replace it with the generic cue: loses the restart's lost-report recovery hint. |
+| Implicit startup | Attach positively surviving sessions only; absent/empty hubs remain in the switcher. Never cold-resume/Fresh or recover automatically. | Automatic hub launch/resume is convenient but defeats operator-owned recovery. |
+| Partial fleet | Every surviving hub reattaches; missing hubs remain listed/parked and are named in the single startup line. Focus launch hub if it survived, otherwise switcher; extra-hub completions never steal focus. | Selecting another surviving hub automatically would move the operator without authority. |
+| Initial automation | On only for a positively surviving hub on a normal restart. Off for full-shutdown/unknown startup and for every missing hub in a mixed fleet. | Always off was the initial proposal; operator chose continuity for surviving hubs. |
+| Explicit control | `couch --automation off|on|status [hub]`; Ctrl+G in the switcher toggles the selected row's owning hub, naming it. Status never changes state; on/off are idempotent. | Automatic opening on operator submission was rejected: debugging must work while off. |
+| Authority | CLI mutation is hub-only and own-hub-only. Optional hub must resolve to caller's canonical hub. Operator switcher may control any configured hub. | Cross-hub TL control was explicitly rejected. |
+| First operator message | Couch does not interpret it. A separate tl-lead rule tells the TL to run automation on unless the operator says keep it off. | Message parsing or implicit flip inside Couch was rejected. |
+| While off | Drop Couch-generated hub input, and skip scheduled due runs like missed runs. No backlog/replay/catch-up when on; schedule resumes at next due time. Running scripts may finish (soft stop). | Baseline-only suppression misses other producers; notice-only scheduler gating still runs unwanted work. |
+| Ungated communication | Human input, worker/peer reports, startup/status reads and desktop output are always allowed. Worker-directed cues remain independent. | Muting all hub traffic would hide the evidence needed to debug. |
+| Generic worker cue | Once per wrapper launch incarnation, including across supervisor-only restarts; reconnect adds none. | Per-Couch-lifetime memory would falsely tell surviving workers they restarted. |
+| Restart resend prompt | Keep existing once-per-worker-address-per-Couch-lifetime request to resend only relevant unanswered reports. | Replacing it with the generic cue loses its separate lost-report purpose. |
 
-Generic cue text: **"You restarted; reread your issue Log and continue where you left off; report to your hub."** The TL may add context in an ordinary separate message. The existing `startupResendPrompt` text remains unchanged.
+Generic cue: **"You restarted; reread your issue Log and continue where you left off; report to your hub."** Only the TL supplies custom work. The startup line says **"hub automation off; say turn it on"** for affected hubs and names missing hubs. The TL-visible status exposes startup kind, missing hubs and each hub's automation state without composer injection.
 
-Covered: implicit `couch`/directory/multi-hub startup, primary and numbered hubs, warm worker attachment, all verified hub identities, wrapper reconnect/replacement, startup summaries and worker cue provenance. Existing explicit operator/TL-authorized start, resume, Fresh, relaunch, park and recover operations remain available; safe mode is startup policy, not a new fleet lock or persisted drain state.
+Scope: implicit bare/directory/multi-hub startup, primary/numbered hubs, warm worker attachment, automatic producer admission, scheduled run admission and wrapper cue reporting. Existing explicit start/resume/recover/park APIs retain their safety guards. Exclude automatic recovery/scripts, drain redesign, native-agent selection, persisted automation/notice storage and the TL's own first-message interpretation. Hub owns project and real rollout; no pair:0 activity is authorized here.
 
-Out: automatic recovery, a recovery script, drain/queue redesign, native-agent selection, durable notice storage, resurrecting old reports or changing wait/stale/resource thresholds and payloads. Their automatic hub delivery does go through the gate. Existing machine-wide passive status, desktop alarm and archive maintenance paths do not become agent input or recovery authority. The hub owns the project and coordinated acceptance. No pair:0 activity is authorized by this plan.
+## Current source and integration ownership
 
-## Current source evidence
-
-- `couchcore/startup.go:StartInteractive` attaches a listed hub, otherwise selects proven cold resume or Fresh. The managed-slot branch can also cold-resume/Fresh. Both implicit fallback classes must go.
-- `couchcmd/run.go:beginConsole` currently arms the warm pass only after an initial child exists. Safe startup must also run a switcher and arm its warm-only pass when the hub has no handle.
-- `couchcmd/hubs.go:startExplicitHubs/queueExplicitHubs` queues extra hubs through `start-hub`; `operationdispatch.go` currently delegates that to `StartInteractive`. Every configured hub must use the same attachment-only startup policy. Ownership must be installed before pass seeding.
-- `couchtty/menu_reattach.go` already skips configured hubs and executes worker `resume` with `warm-only=true`; reuse its scheduler and per-slot reservation through adoption.
-- `couchtty/console_lifecycle.go` brackets the warm pass and emits automatic recovery completions plus initial `needs-relaunch` observations. `couchcmd/lifecycle_notices.go` currently turns these into a hub summary. Drop only startup-origin facts, not explicit actions or subsequent independently observed events.
-- `couchcmd/supervision_model.go` currently owns the resend prompt's per-address attempted set. Keep it for that prompt; it cannot own a cross-supervisor worker-start bit.
-- `couchmessage/session_protocol.go` and `session_transport.go` already negotiate hello-v4→v3→v2→v1 by redial after a definite no-ack. Extend that seam; never relax strict decoders or add new fields to old-version frames.
-- `wrapcmd/peer_delivery.go` owns the automatic input writer, retained receipts and confirmed Submitted outcome. This is the one authority that knows whether the cue actually reached the native agent.
-- Filtering lifecycle alone is insufficient: `waitWatcher` inherits pre-start quiet time; `sessionStaleWatcher` may remind a hub about its own document; resource sampling starts immediately; a wrapper stall can arrive at any time. There is no current startup gate. Operator submission is not authority to release safe mode; the operator explicitly rejected automatic opening.
+- `couchcore/startup.go:StartInteractive` currently falls back from listed warm hubs to proven cold resume or Fresh, for primary and managed hubs. Replace only implicit startup selection, preserving explicit actions.
+- `couchcmd/run.go:beginConsole` currently skips arming warm workers without an initial handle. `hubs.go:startExplicitHubs/queueExplicitHubs` uses the declared `start-hub` path for extras. Install ownership before pass seeding and run a usable no-handle switcher.
+- `couchtty/menu_reattach.go` already skips configured hubs and uses bounded `resume --warm-only`; preserve its reservation through adoption and scheduler capacity.
+- `couchtty/console_lifecycle.go` and `couchcmd/lifecycle_notices.go` produce initial observations and restart summaries. Retire startup-origin facts, including if automation turns on while the warm pass is still held; do not retain a later summary backlog.
+- `couchmessage/session_protocol.go`/`session_transport.go` negotiate hello-v4→v3→v2→v1 after definite no-ack. New state must negotiate, not add fields to strict old frames.
+- `wrapcmd/peer_delivery.go` owns actual native input/Submitted confirmation. `wrap.go:freshAgentInvocation` prepares a new launch ordinal before re-exec: PID/birth/binding can survive exec, so exact binding alone is not a new-start key.
+- #737 owns the unlanded scheduler. Hub relays the agreed predicate contract to pair:1: check before each due script; off consumes/skips that due time; on admits next due only; already-running work finishes. Exit-10 notices use the same automation owner. No stacked branch; integrate main after #737 lands before wiring/qualifying that consumer. #739 cannot claim scheduler coverage complete before that integration.
 
 ## Core concepts
 
 ### Pure entities
 
-| Name | Lives in | Status |
+| Name / risky functions | Lives in | Status |
 |---|---|---|
-| `StartupObservation` / restart-kind projection | `cmd/internal/couchcore/startup_policy.go` | new |
-| startup attachment selection | `cmd/internal/couchcore/startup.go` | modified |
-| `StartGate` | `cmd/internal/couchcmd/start_gate.go` | new |
-| worker start-notice state and canonical identity/text | `cmd/internal/couchmessage/worker_start_notice.go` | new |
-| startup provenance of lifecycle observations | `cmd/internal/couchtty/console_lifecycle.go` | modified |
+| `StartupObservation`; `ClassifyStartup`, `SelectStartupHub` | new `couchcore/startup_policy.go` | new |
+| `HubAutomation`; `AdvanceHubAutomation`, `AutomationStatus` | new `couchcore/hub_automation.go` | new |
+| `WorkerStartNotice`; `AdvanceWorkerStartNotice`, `WorkerStartNoticeID` | new `couchmessage/worker_start_notice.go` | new |
+| Startup lifecycle provenance | `couchtty/console_lifecycle.go` | modified |
 
-`StartupObservation` is a point-in-time value: restart kind (surviving fleet terminal / none / unknown), verified parked count and uncertainty. Use existing `SessionObservation` and parsed thread records; do not infer missing sessions from zero values or unreadable records. Any positively attributed present terminal proves a normal restart; no present terminal plus unresolved/orphaned/incomplete evidence is unknown, not full shutdown. Fully observed absence gives the full-shutdown projection. An empty known fleet gives no sessions/zero parked, not permission to Fresh.
+Startup values use existing parsed ThreadRecord and SessionObservation. A positively attributed live fleet session supports normal restart; complete absence supports full shutdown. Unknown/unreadable/incomplete/orphaned evidence without a proved survivor stays unknown. Per-hub positively surviving proof is needed to initialize that hub on; an absent hub stays off even when other workers survived. Parked counts include verified parked records only; unknown is not zero. These are current observations, not historical proof of host power-off, and never authorize a later attachment without its current exact-session guard.
 
-`StartGate` has closed and open states, 1:1 with each configured hub in this supervisor lifetime. It starts closed. **No operator submission, conversation activity, worker message, reconnect, hub replacement or timer opens it.** The TL may keep talking/debugging with the operator while it remains closed. Only the TL's authenticated `couch --start-gate open` on the operator's "let it start", or the operator's switcher key, opens that hub. `couch --start-gate status` reports state without changing it. Open is idempotent, monotonic until Couch exits, and does not start recovery or replay messages. The existing service owns the memory; a common generated-message entry point checks the exact target's current hub identity.
+`HubAutomation` is a bounded map over configured canonical hub roots. Initialization is a single startup transition. Only explicit authenticated on/off events change it afterward; status, input, submit, connect, restart summaries and time cannot. Capture automated occurrences under the same owner's serialized decision: an event suppressed while off stays retired even if later dispatch races with on. Off never revokes human/worker communication or cancels already-running scripts. There is no new recovery permission or fleet lock.
 
-Switcher action: **Ctrl+G** opens the owning hub's start gate for the selected row/section, with the hub named in the help/status line; outside the switcher it reaches the child unchanged. This is an explicit action, never triggered by ordinary typing or Return. Resolve the selected hub through `HubOwnership`, not slot-number guesses; refuse absent/ambiguous ownership. CLI open requires the authenticated caller to be that hub; the operator-owned switcher uses the same gate owner and transition. No global-open command or durable setting is introduced.
+`WorkerStartNotice` belongs to one wrapper/launch ordinal, not Couch. Needed → committed → delivered/unconfirmed is monotonic for that launch. A constant-size sticky receipt witnesses actual confirmation, survives ordinary receipt expiration and is reported on reconnect; committed/uncertain never resets to needed. ID uses exact binding plus existing launch ordinal. A new launch gets one opportunity even across same-PID exec. Only canonical server-origin input can change the witness; copied peer prose cannot. Missing ordinal/capability remains unknown.
 
-The worker cue state belongs 1:1 to `peerDelivery`'s wrapper incarnation. Model needed → committed → delivered or unconfirmed; a retained one-shot receipt witnesses the monotonic "already delivered" bit and prevents an accepted/uncertain attempt becoming needed again. This is constant memory, not another history. The wrapper reports its current state on connect and on changes; normal reconnect does not reset it. A new wrapper begins needed. Use a shared deterministic message identity from the exact binding **and existing launch ordinal**, and a shared body definition, separate from the random-ID resend prompt. `wrap.go:freshAgentInvocation` already prepares a new launch ordinal before re-exec: PID/birth and even some binding fields can survive exec, so binding equality alone is not the start identity. Carry that ordinal in the negotiated cue report and validate it against the existing recorded-child authority; unsupported/missing evidence is unknown, not a made-up start. Only a server-origin cue can change this state; an ordinary peer copying the prose cannot.
+### IO seams
 
-Do not change the existing thread lifecycle vocabulary or persist a startup/recovery permission bit. The observation never authorizes later effects; selected warm attachment still revalidates the exact terminal through existing guards.
-
-### Integration points
-
-| Name | Lives in | Status | Wraps |
+| Integration / functions | Lives in | Status | External/state owner |
 |---|---|---|---|
-| read-only startup collection | `couchcore/startup.go`, existing `SessionPresenceResolver` | modified | Preview records + bulk bound-session presence |
-| safe Console startup | `couchcmd/run.go`, `hubs.go`, `couchtty/console_reattach.go` | modified | initial/extra warm attachment, switcher and retained status |
-| generated-message policy | new `couchcmd/start_gate.go`; `message_service.go`, `supervision.go`, `lifecycle_notices.go` | new/modified | verified target ownership, explicit gate actions, existing Broker.SendSystem |
-| worker session reporting | `couchmessage/session_protocol.go`, `session_transport.go`, `registry.go`; `couchcmd/message_service.go` | modified | negotiated hello-v5 plus session updates |
-| cue admission | `couchcmd/supervision.go` and a focused worker-cue adapter | modified | verified hub ownership + exact current worker + normal Broker.SendSystem |
-| wrapper cue witness | `wrapcmd/peer_delivery.go`, `peer_runtime.go` | modified | existing queue/input/confirmation and session client |
-| lifecycle startup filtering | `couchcmd/lifecycle_notices.go`, `couchtty/console_lifecycle.go` | modified | existing arm/drain and source provenance |
+| `ObserveStartupContext`, implicit `StartInteractive` | `couchcore/startup.go` | modified | read-only Preview snapshot + bulk SessionPresenceResolver |
+| initial/extra hub adoption, `beginConsole` | `couchcmd/run.go`, `hubs.go`, Console reattach | modified | existing terminal/lifecycle workers, no new pool |
+| `sendAutomaticSystem`, automation CLI/UI controller | new `couchcmd/automation.go`, current generated-send consumers | new/modified | verified hub bindings + one memory owner + normal broker |
+| `runAutomationCLI`, `handleAutomation` | new `couchcmd/automation.go`, CLI/request dispatch | new | authenticated own-hub control; no process effect |
+| negotiated cue reporting | session protocol/transport/registry + `message_service.go` | modified | versioned private Unix session connection |
+| cue confirmation/publication | `wrapcmd/peer_delivery.go`, `peer_runtime.go`; coordinator | modified | existing sole input writer and post-submit confirmation |
+| scheduler due admission | #737 scheduler as landed | modified after main integration | injected automation predicate, existing due/missed-run policy |
 
-Fakes: reuse `FakeThreadArtifactCollisionChecker` (present/absent/orphan/unknown and mutation hooks), `FakeRunner`, private ThreadStore/SlotCatalogFake, `hubStartupRig`, fake host/terminal, real private Unix session sockets and existing stateful peer-delivery harness. No operator HOME/session/process is a fixture. The wrapper's native process lifetime, not a supervisor map, is the resource that enforces no second cue.
+Use current FakeThreadArtifactCollisionChecker/FakeRunner, private ThreadStore/SlotCatalogFake, hubStartupRig, fake host/terminal, peer-delivery harness and real private Unix sockets. Only live acceptance uses a coordinated disposable fleet/real restart. No fixture reads operator HOME, credentials or current sessions. Memory owners die with wrapper or supervisor; no new files/processes. Current registry-owned state is bounded at its existing 128 actors, never an unbounded incarnation history.
 
-## State and failure projection
+## Visible states and recovery
 
-Actions: **inspect Slots**, **operator chooses recovery**, **operator/TL explicitly supplies orientation**. Attaching a surviving terminal is presentation of existing work; it is not permission to restart an agent.
+Actions: **inspect Slots/status**, **say turn it on**, **explicit automation on/off**, **operator chooses recovery**, **TL explicitly supplies orientation**.
 
-| Internal state / failure | Visible state | One recovery action | Possible loss |
+| Internal state/failure | Visible state | Recovery action | Possible loss |
 |---|---|---|---|
-| One or more verified attachable fleet sessions; other slots may be absent | `Couch restart; missing hubs: <names>; N slots parked; start gate closed — say "let it start"` | inspect Slots | Any unrecovered process work was already absent; Couch creates nothing to replace it |
-| Fully observed absence of attachable fleet sessions | `Full shutdown detected: N slots parked; missing hubs: <names>; start gate closed — say "let it start"` | operator chooses recovery | Native processes are absent; retained records/transcripts remain |
-| Listing timeout/no reply, unreadable identity, orphan or ambiguous ownership without a proved survivor | `Startup state unknown; missing hubs: <names/unknown>; start gate closed — inspect Slots` | inspect Slots | Observation incomplete; do not claim absence or kill survivors |
-| Warm proof disappears / adoption fails | Existing failed attachment row with its reason; no cold fallback | inspect Slots | Terminal may still survive; no new agent or replacement |
-| Hub gate closed; automatic notice generated | One startup status says start gate closed; no injected message and no backlog | operator says "let it start", TL opens that hub gate | Suppressed automatic notices are intentionally lost; current state remains queryable |
-| Explicit open action opens this hub | Existing hub conversation; future automatic notices follow normal rules | no recovery needed | Prior suppressed notices stay discarded |
-| Generic cue needed, owner hub not connected yet | Worker remains unprompted; cue waits for verified owner | operator/TL explicitly supplies orientation if needed | Orientation delayed, never sent as the worker's own authority |
-| Cue accepted and held behind composer/picker | Existing queued/held message status | inspect Slots | None yet; no forced paste |
-| Cue Submitted | No extra persistent UI state; wrapper remembers delivered | no recovery needed | None |
-| Cue refused, incomplete or uncertain | One Console notice identifying slot and uncertainty, without re-injection | operator/TL explicitly supplies orientation | Generic orientation may not have arrived; never duplicate on uncertainty |
-| Old wrapper has no cue-state capability | One status naming the compatibility limit; ordinary messaging still works | operator/TL explicitly supplies orientation | Cannot prove whether an old worker has received a cue; do not guess |
-| Shutdown during collection/attachment/send | Existing cancellation/partial-result receipts; no restart replay store | inspect Slots on next startup | Only ephemeral uncommitted attempts; preserve acknowledged input |
+| Launch hub survives normal restart | Launch hub focused; automation on, missing hubs named | inspect Slots/status | Unavailable slots remain untouched |
+| Full shutdown/unknown/missing hub | Switcher if launch hub absent; affected hubs say automation off; say turn it on | say turn it on | Missing processes not recreated; unknown stays unknown |
+| Automation explicitly off | Hub can converse/debug; automatic input absent, due scripts skipped | explicit automation on | Suppressed notices and due occurrences intentionally lost, state queryable |
+| Automation on | Future automatic input/due runs eligible | explicit automation off | Prior skipped work never returns |
+| Warm attachment proof/adoption fails | Existing failed row/reason; no cold fallback | inspect Slots/status | Survivor may still exist; no replacement started |
+| Worker cue held | Existing held/queued receipt | inspect Slots/status | Orientation delayed, never forced |
+| Worker cue refused/uncertain/unsupported | Bounded per-slot status, no duplicate native input | TL explicitly supplies orientation | Generic cue may not arrive |
+| Shutdown interrupts work | Existing partial/cancel/uncertain receipts; new supervisor re-observes | inspect Slots/status | Ephemeral uncommitted work only; acknowledged prefix retained |
 
-The line describes the startup observation, not proof that the host powered off. Parked counts count verified parked slots only; an unavailable count is displayed as unknown, never zero. Multiple hubs share the startup observation and retain their configured ownership even when their terminals are absent.
+The one startup status is retained/readable/copyable, not pasted into hub input. Status and desktop diagnostics are never automation-gated. Report emission does not create recovery work. Explicit on/off has no replay effect and no implicit focus change.
 
-### Ordering and compatibility
+## Producer sweep and no replay
 
-1. Resolve configured hub ownership, collect a bounded read-only startup observation, then perform only positively proved warm attachments. Do not enroll/provision a missing hub or parse native resume targets merely to classify startup.
-2. Install ownership before initial menu inventory and arm the warm pass even without an attached initial hub. Extra-hub requests remain on the existing lifecycle lane; no new executor. A warm refusal is final for that request.
-3. Publish one startup status through Console, never `SendSystem` to a hub. Install the per-hub gate before starting producers. Route every automatic system send through one policy entry; normal worker peer reports bypass it. A suppressed outcome is typed and terminal for that occurrence, not busy/unavailable and not a successful delivery. Each producer retires its suppressed occurrence without buffering or retrying it when the gate opens. Retain queryable current state. No timer releases the gate.
-4. Baseline initial inventory and background warm completions must not later flush as a hub summary. Retire startup-origin facts at observation, even while a hub is absent. Explicit lifecycle facts observed while quiet are suppressed/retired too; after explicit gate opening only new facts may publish. Test opening the gate while startup work is held and after drain; neither releases a startup backlog. Genuine later operator actions/native exits retain their existing independent notice semantics.
-5. Session hello-v5 carries cue state; updates stay on the existing coalesced activity channel. Strictly validate shape and known states. New wrapper→old supervisor falls back through existing hello versions, omitting cue fields on older frames. Old wrapper→new supervisor remains connected with unknown cue state, never treated as needed. No change to public CLI/resource JSON is required.
-6. Current verified ownership and exact recipient incarnation gate the cue. Do not require the hub composer to be idle or its start gate open, only its current connected authority: the target is a worker. No self-sent worker cue when the hub is missing. Recheck current incarnation at admission and let existing broker/receiver guards reject replacement.
-7. Atomically claim the one-shot cue at wrapper commit, before any PTY write. Report committed while held; set delivered only at the existing post-submit confirmation. A supervisor restart between commit and confirmation must see committed/delivered/unconfirmed, never needed. Preserve the fixed witness past normal receipt-history expiry. No uncertain write is retried, and no accepted cue is replaced by another random ID.
-8. Duplicate hello/activity, same-incarnation reconnect (including Couch replacement), hub replacement, late old-session frames and uncertain admission cannot create another generic cue. Fresh/resume/relaunch/re-exec yields a new launch incarnation and one new opportunity, even when PID/birth survives exec. The independent resend prompt still runs once per address per new Couch lifetime.
+Every automatic conversation input goes through the shared policy, with a typed terminal suppressed disposition, never a fabricated success or retryable busy error. Each producer consumes its suppressed occurrence in its own reducer. Retire before any delayed effect can escape; retaining current queryable evidence is not retaining a pending notification. Pin all production SendSystem sites to this owner.
 
-### Complete automatic producer sweep
-
-All conversation-bound system messages use the shared target gate. Audit production `SendSystem` call sites and pin the inventory so a new direct call cannot bypass it.
-
-| Producer | Current source | Closed-gate behavior and required regression |
+| Producer / risky function | Location | Strategy and mechanical guard |
 |---|---|---|
-| Lifecycle summaries, later lifecycle/native-exit facts | `lifecycle_notices.go`; `console_lifecycle.go`, `native_exit.go` | Retire suppressed revisions without retry/diagnostic injection; initial warm/baseline facts never become later backlog. Test quiet, open-after-drain, and a new post-open explicit action. |
-| Worker wait notice | `wait_notice.go:waitWatcher.tick` | Consume the suppressed wait episode without claiming it was delivered. Test inherited pre-start quiet time, gate opening, unchanged episode (still zero writes), then a new episode. |
-| Session-file freshness reminder (including a hub's own file) | `session_stale.go` / `session_stale_model.go` | Consume suppressed reminder, keep document evidence queryable. Test immediate first check, gate opening/no replay, then a new reminder condition; worker-directed reminders remain independent. |
-| Resource episode | `resources_alert.go:resourceAlertDispatcher.dispatch` / resource episode reducer | Terminal suppressed disposition for that effect, no pending retry. Test a pending startup episode, unchanged condition after opening, and a distinct new episode after opening. |
-| Automatic-input stall tripwire | `automatic_input_stall.go` | Gate the hub message; retain the existing occurrence reservation and diagnostic/desktop evidence. Test arrival before gate opening, no replay on opening and one new occurrence afterward. |
-| Unanswered-report supervision nudge | `supervision.go` / `supervision_model.go` | Gate hub-directed nudge and consume the suppressed report episode's notice effect. Test a worker report accepted while hub is quiet, no automatic nudge replay after opening, and a later new report episode. Ordinary worker report itself is delivered. |
-| Generic worker cue and existing restart resend prompt | new cue adapter; `supervision.go` | Target workers only; test every configured hub is excluded and both distinct lifetimes work while the owner hub is quiet. |
-| Archive freshness/Drive warnings | `archive_notify.go` / `archive_schedule.go` | Not a broker conversation producer: status/attention/desktop only. Do not turn it into agent input or auto-recovery. Pin the distinction; machine-wide backup work remains independent. |
+| `lifecyclePublisher.observe/run` | `lifecycle_notices.go`; Console lifecycle/native exit | Stateful observation/admission ordering around off→on; suppressed revisions retire and startup facts never flush; count actual hub input |
+| `waitWatcher.tick` | `wait_notice.go` | Inherited quiet episodes under controlled ticks; consume suppression once and require a fresh episode for later input |
+| `sessionStaleWatcher.tick` / `advanceStaleReminder` | session_stale files | Stateful private document/owner transitions; suppressed reminder cannot remain a pending replay; worker-directed input independent |
+| `resourceAlertDispatcher.dispatch` / `AdvanceResourceEpisode` | resource alert/reducer files | Episode event sequences across off/on; suppressed effect terminal without delivered claim or pending retry |
+| `handleAutomaticInputStall` | `automatic_input_stall.go` | Sequence/provenance/reconnect adversaries; one reserved occurrence, gated hub input, ungated desktop/diagnostic |
+| `supervisionCoordinator.tick` / supervision state | `supervision.go`/model | Controlled report episodes; ordinary worker report arrives while off, generated nudge does not replay |
+| worker cue and restart resend prompt | cue adapter / supervision | Exact-role/lifetime adversaries; neither targets a hub; two distinct once rules remain independent |
+| #737 due admission and exit-10 wake | landed scheduler seam | Fake clock/script receipts while off/on; skipped due runs never start/catch up; exit-10 respects automation |
+| archive warning output | archive_notify/archive_schedule | Assert no broker agent-input call; existing status/attention/desktop and machine backup maintenance remain independent |
 
-The pending #737 scheduler's exit-10 wake notices are gated with no exception (operator option a); it must use this same entry point for any hub conversation input once integrated. Its branch is not a base for #739; coordinate after landing. A peer seam inquiry was refused without a receipt; no delivery or agreement is claimed.
+## Test strategy by risky function
 
-No durable schema changes: no drain, marker, startup receipt file or automatic recovery intent. The session protocol is version-negotiated precisely because adding fields to strict old frames is unsafe (ARCH-EVOLVE). No native credentials are read.
+| Functions | Adversarial class → mechanical guard |
+|---|---|
+| `ClassifyStartup`, `SelectStartupHub` | Arbitrary typed presence/record populations → direct table/property tests; unknown never fabricates absence, selection never fabricates recovery |
+| `ObserveStartupContext`, `StartInteractive` | Mutating native/record evidence at selection/effect boundary → stateful fakes, unchanged retained records, zero cold/Fresh/native-target reads and counted bulk calls |
+| `AdvanceHubAutomation`, `AutomationStatus` | Arbitrary explicit/irrelevant event sequences across independent hubs → pure transition properties, no input-driven change or implicit replay |
+| `handleAutomation`, `runAutomationCLI` | Forged/current/stale caller and hub aliases → actual private socket/CLI and strict decoder, own-hub mutation only |
+| Console automation key/adoption | Incrementally delivered key encodings and completion reordering → fake host/input plus real reducer; outside-switcher bytes preserved; focus never stolen |
+| `AdvanceWorkerStartNotice`, `WorkerStartNoticeID` | Launch identity/receipt uncertainty/reconnect sequences → pure properties plus one sticky witness; count native submissions, not only send calls |
+| `EncodeSessionFrame`, `DecodeSessionFrame`, `SessionClient.session` | Malformed/version-conflicting bounded frames → seeded fuzz plus stateful negotiation sockets; no new field sent to old peers, no timeout downgrade |
+| `peerDelivery.enqueueLocked`, `proxy.dispatchPeer`, cue coordinator | Supervisor death between commit and confirmation, recipient replacement, receipt expiry/re-exec → independent rendezvous controls; at most one native cue per launch and no uncertainty retry |
 
-## Operating envelope and invariants
+N/2N qualification: at 20/40 records, one added bulk startup classification call and linear reduction, zero added per-row client/native-resume/process-table queries; existing selected warm-attachment guards retain their own work. At 20/40 workers and unchanged tick sequences, at most one generic cue per needed launch, zero re-cue after same-launch reconnect, zero new filesystem work per automation/cue tick. Preserve existing native timeouts, broker/worker bounds and overload behavior; no timing claims or increased constants.
 
-- This is startup/session-connect work, not a UI tick or message-admission discovery loop. Reuse one bulk presence observation for the startup classification; do not ask every row for clients or native transcript ownership. Existing selected warm-attach revalidation retains its own calls and limits.
-- Input size is the bounded existing fleet/store inventory. At N=20 and 2N=40, count one classification bulk call, one pass over records and zero cold-resume/Fresh/native-binding probes; no new process-table scans per row. Existing warm attachment work scales with attached terminals through the unchanged lifecycle worker limit/cap, not a new pool.
-- Per tick/session update, cue decisions use memory. At 20/40 current workers, count at most one cue admission per needed incarnation, zero admissions after delivered/reconnect, zero hub-directed startup admissions. Simulate replacements and N/2N unchanged ticks; no per-tick filesystem scan or goroutine is added.
-- Per-hub gate checks and opening use cached verified identity and an explicit action only; no native query on a generated send. The bounded hub table dies with the supervisor. Ordinary submissions, reconnects and another hub's open cannot release it. Opening races with suppression are serialized: an occurrence observed while closed stays discarded even if dispatch runs after opening; prove the order with held callbacks, not sleeps.
-- Keep existing Zellij logical-read timeout, broker capacity and delivery/input deadlines; no new retry or deadline extension. A failed observer returns unknown with a usable switcher.
-- One wrapper witness dies with the wrapper. Supervisor current-incarnation bookkeeping is bounded by existing registry capacity (128) and replaced/retired with its registry owner; no incarnation-history map that grows with relaunches. Existing notice and receipt bounds remain.
+## Implementation tasks — one close boundary
 
-## Implementation tasks (one final close boundary)
+### 1. Read-only startup policy and warm-only hubs
 
-### 1. Qualify safe startup selection and report
+Files: new startup_policy.go/test; startup.go and existing startup tests; couchcmd run/hubs and startup rigs.
 
-Files: `couchcore/startup.go`, new `startup_policy.go`/`startup_policy_test.go`, existing `startup_test.go`, `startup_observation_test.go`, `startup_proof_test.go`, `couchcmd/startup_observation_test.go`.
+- [ ] Write semantic reds against StartInteractive and pure classification, using the function strategies above; verify failure before code.
+- [ ] Implement bulk read-only collection, attachment-only implicit selection, per-hub initial automation/focus evidence and one report. Preserve explicit lifecycle operations.
+- [ ] Update Console no-handle initialization and extra-hub warm path; preserve background worker scheduler/reservations. Run targeted core/startup/reattach tests and commit.
 
-- [ ] Write reds through actual `StartInteractive`: absent primary hub, absent numbered hub, empty fleet and proven cold-resume evidence all produce zero agent starts and unchanged retained records. Known warm hub still attaches. Missing extra hub must not call Fresh/resume. Use fixture gates, not sleeps.
-- [ ] Add direct projection cases: live+absent mixed fleet, all absent, exited rows, orphan, missing/unreadable record/index, duplicate attribution and listing no-reply/malformed. Unknown never becomes full shutdown.
-- [ ] Implement the narrow observation/attachment-only path using existing read-only snapshot and session projections. Keep explicit start/resume/recovery implementations reachable only from explicit actions; remove implicit cold/Fresh fallback.
-- [ ] Run `go test ./cmd/internal/couchcore -run 'TestStartup|TestOccupancy|TestScopeHolds' -count=1`; expect the new semantic reds before implementation and pass afterward. Commit source/tests with issue/model trailers.
+### 2. Hub automation owner, CLI/UI, producer integration
 
-### 2. Keep the hub silent and the Console usable
+Files: new core hub_automation.go/test, new couchcmd automation.go/test; request/CLI and Console key dispatch; generated producers and their existing reducers.
 
-Files: `couchcmd/run.go`, `hubs.go`, `hubs_startup_test.go`, `startup_warm_pass_test.go`, `lifecycle_notices.go`/tests; `couchtty/console_reattach.go`, `console_lifecycle.go`/tests.
+- [ ] Write pure event and actual CLI/UI reds; qualify authorization, status and no implicit changes.
+- [ ] Implement one shared off/on owner and explicit controls, initially seeded from startup evidence. Suppressed outcome is typed and terminal.
+- [ ] Sweep every producer in the table through it, with its function-level controlled regression and no-replay invariant; retain passive and human/peer communication.
+- [ ] Integrate #737 only after it lands on main; inject the agreed predicate into due-run admission and exit-10 input, qualifying skipped occurrences before claiming this task complete.
+- [ ] Run focused automation, producer, lifecycle and Console suites/race tests; commit coherent behavior.
 
-- [ ] Add real-Console/declared-dispatch reds for no-handle startup, multiple warm/absent hubs, one readable status line, unchanged focus and zero cold/Fresh workers. Exercise blocked attachment/cancellation and a vanished session after selection.
-- [ ] Write a pure per-hub closed→open transition suite. Ordinary operator submission, counter changes, peer/system/worker input, reconnect, hub replacement and time are no-ops; authenticated explicit open opens only its target hub. Test status/idempotence, worker/wrong-hub refusal, and the switcher Ctrl+G route including unchanged child input outside the switcher. Hold a producer between observation and dispatch while opening to prove suppressed work is never released.
-- [ ] Count zero hub-composer startup writes across every producer in the sweep, with lifecycle notices both on/off. Open the gate with pending observations and prove zero replay; only a new episode/fact after opening publishes. Hold the warm pass while an explicit action occurs after opening and prove that new action publishes once without flushing startup facts.
-- [ ] Wire ownership before inventory, arm the pass with no initial handle, apply the shared warm-only hub policy and common message gate, and retire suppressed producer occurrences explicitly. Preserve existing shared queue/adoption reservations. The gate never blocks ordinary peer reports or worker-directed cues.
-- [ ] Run all targeted `couchcmd` startup/lifecycle and `couchtty` reattach/lifecycle tests, including existing focus and cancellation cases; commit the coherent startup behavior.
+### 3. Wrapper-owned generic cue
 
-### 3. Deliver the worker cue once across supervisor replacement
+Files: new worker_start_notice.go/test; session protocol/transport/registry and focused negotiation tests; wrapper delivery/runtime and cue tests; coordinator.
 
-Files: new `couchmessage/worker_start_notice.go`/tests; `session_protocol.go`, `session_transport.go`, `registry.go` and protocol/negotiation tests; `wrapcmd/peer_delivery.go`, `peer_runtime.go` and focused cue tests; `couchcmd/supervision.go`/model/tests and focused adapter.
+- [ ] Write cross-supervisor red with one live fake wrapper and real private sockets; use the cue function strategies to prove native-input counts.
+- [ ] Implement the fixed-size wrapper witness and hello-v5 reporting with existing negotiation fallback. Old unsupported wrappers remain unknown; ordinary messaging stays live.
+- [ ] Wire canonical system-origin cue admission to exact current worker/owner and launch ordinal. Keep the separate restart resend prompt intact.
+- [ ] Run focused protocol/session/supervision/peer tests, bounded frame fuzz and race checks; commit.
 
-- [ ] Write the cross-lifetime red first: one wrapper delivers a cue, replace only the private supervisor/registry socket, expire ordinary recent receipts, reconnect the same wrapper and observe zero further cue writes. Then replace the wrapper and observe exactly one new cue.
-- [ ] Qualify hello-v5 state validation, old/new fallback in both directions, duplicate/reordered session events and no new fields sent to old peers. All external-process fakes keep state across the modeled reconnects.
-- [ ] Enumerate cue transitions using the existing delivery reducer: needed/commit/held/confirmed/uncertain/disconnect/cancel; gate commit and confirmation independently. A supervisor death between them, a busy composer, changed hub/worker incarnation, refused admission and lost acknowledgment must not duplicate native input. Add a same-PID/birth re-exec with a new launch ordinal and a late prior-ordinal update. Count actual writes, not only send calls.
-- [ ] Add negatives: hub never receives the generic cue, missing hub cannot impersonate it, an ordinary peer copying cue text cannot set the bit, unsupported old wrapper remains unknown. Assert the separate restart resend prompt survives and is not counted as a new generic cue.
-- [ ] Implement one constant-size wrapper witness plus negotiated reporting and current-owner admission, reusing normal broker/provenance/automatic input. No retry loop or new executor. Run focused protocol/session/supervision/peer tests with race detection and commit.
+### 4. Documentation, gates and operator rollout
 
-### 4. Document, verify, review and coordinate rollout
+- [ ] Update README/atlas/index and shipped Couch skill/help for automation controls, initial state, status/report surface, suppression loss and the two worker notice lifetimes. tl-lead first-message rule is a separately owned ariadne issue, not Couch parsing.
+- [ ] Audit source readers; run make test-affected-inventory and git diff --check; push tested head, run recorded local-check affected (known #738 graph fallback may select full suite). Classify failures; no gate waiver or blind rerun.
+- [ ] Close once via SDLC fresh review after verification. Estimate only after plan-quality passes; no single-pass milestone tags.
+- [ ] Hub/operator coordinate disposable-fleet acceptance and real restart: measured input/launch/notice counts and focus, plus manual automation controls and scheduled-run predicate. No real slot/restart/stage without concrete hub authorization. Record the agreed live evidence before claiming acceptance.
+- [ ] On SHIP, sdlc merge --yes, verify Git/PR outcome, report hub and stop. Hub owns project updates.
 
-- [ ] Update README startup, lifecycle and supervision passages plus `atlas/couch.md`/index and shipped Couch skill/help text where the old behavior is described. Explain the per-hub gate and loss of suppressed notices, both worker notice lifetimes, no automatic cold/Fresh, unknown status, old-wrapper limits and operator-owned recovery. Add lessons only for an actual reviewed mistake class.
-- [ ] Audit added/changed source readers and run `make test-affected-inventory` plus `git diff --check` before review. Run N/2N counted cases and targeted packages; push the final head and run `sdlc local-check run --name affected` (known #738 graph fallback may run the suite). Gate failures are evidence to classify, not permission to waive.
-- [ ] Close once through SDLC's fresh review after required verification. No milestone tags for this atomic behavior change. Estimate only after plan-quality passes, not during this operator review.
-- [ ] Coordinate real acceptance with the hub/operator: disposable owned fleet first, then a scheduled restart. Prove warm restart has no new agent and no startup hub input; full-shutdown fixture starts no agent and waits in switcher; operator explicitly opens/recoveries a hub and worker; worker cue once; supervisor-only reconnect no repeat; explicit worker relaunch one new cue. No staging, restart or real slot action without the hub's concrete authorization.
-- [ ] On SHIP and the agreed acceptance evidence, `sdlc merge --yes`, verify Git/PR results, report to hub and stop. Hub owns project updates.
+## Architecture and lifecycle
 
-## Architecture rationale
+ARCH-DRY/PURE: reuse presence, warm attachment, broker/receiver and negotiation; policy and transitions are pure, typed and singly owned. ARCH-PURPOSE: sweep primary/managed launch fallbacks and all automatic producers, including actual scheduled-run admission. ARCH-MOCK: private portable stores, stateful native/terminal doubles and real private sockets; coordinated live conformance. ARCH-CONSTRAINTS: new work is bounded startup/current-session work; no hot-path discovery, new executor or timeout increase. ARCH-SECURE: strict parsed records/frames, exact current caller/owner authority, unknown never authorizes input, no credentials. ARCH-ORDER: explicit automation events and per-launch committed cue witness; suppression is occurrence-owned and uncertainty never resets it. ARCH-FUNERAL: no durable files/processes; fixed wrapper witness dies with wrapper, bounded automation map with supervisor, no incarnation history. ARCH-EVOLVE: no persisted-format change; negotiate session v5 and omit new fields for old peers, retaining strict known-field validation. New automation status is specific to its new command, not an added non-omitted field on ordinary legacy responses.
 
-- **ARCH-DRY/PURE:** reuse typed presence, warm attachment, broker/receiver and session negotiation. Selection, projection and cue transitions stay pure; one source defines cue identity/text.
-- **ARCH-PURPOSE:** remove both primary and managed implicit launch fallbacks and startup hub-summary producers; do not merely replace one prompt string.
-- **ARCH-MOCK:** private folder-backed stores, stateful native/terminal fakes and real private Unix sockets cover restarts; live qualification is coordinated, not performed on the operator while planning.
-- **ARCH-CONSTRAINTS:** bound new work to startup/current sessions and counted linear passes; preserve existing native timeouts, worker capacity and overload handling.
-- **ARCH-SECURE:** external records/listings remain strictly parsed, missing evidence remains unknown, exact verified hub/worker bindings gate system origin; no user prose is authority.
-- **ARCH-ORDER:** the wrapper owns the one-shot commit witness through reconnect; delayed/uncertain outcomes never reset it. Startup provenance, not elapsed time, separates initial observation from later lifecycle changes.
-- **ARCH-FUNERAL:** create no durable artifacts or new process. Fixed wrapper witness dies on exec/exit; registry-owned current state dies with its session/supervisor; no history growth per reconnect.
-- **ARCH-EVOLVE:** no persisted-format change; new session shape is version-negotiated with strict known fields and old-version fallback. Do not change CLI JSON to carry internal cue bookkeeping.
+## Approval
 
-## Approval and open decisions
-
-The operator approved the plan through ops:0, with the explicit start-gate action, scheduled-task gating and partial-hub focus rules recorded below. Change-code still owns plan-quality and estimate admission before implementation. No production code or tests have been changed at this revision.
-
+Operator approved the current contract through ops:0, including own-hub CLI authority and operator-only cross-hub switcher control. The final tl-lead rule operates the explicit control on the operator's first message unless told keep off; Couch itself never flips on input. #737 integration waits for its main landing and hub-relayed seam coordination. No implementation has started; plan-quality is pending the revised inputs.
 
 ## Revisions
 
@@ -201,3 +174,10 @@ The operator approved the plan through ops:0, with the explicit start-gate actio
 The operator rejected the earlier first-submission release: they must be able to talk to the TL and debug while the gate remains closed. Name it the **start gate**, open only by authenticated `couch --start-gate open` after "let it start", or an explicit switcher key. Add `couch --start-gate status`; Ctrl+G is switcher-only and opens the selected row's owning hub through the same owner. No submissions, timers or reconnects release it and no suppressed work replays. This replaces, rather than supplements, the earlier counter/baseline mechanism.
 
 Every surviving hub reattaches and works with its own gate closed. Missing hubs stay listed/parked; the single startup status names them and says the start gate is closed and to say "let it start". Initial focus remains on the launch hub if it survived, otherwise the switcher; a later extra-hub completion never steals it. Add mixed-fleet and multi-hub focus regressions. Scheduled task exit-10 wake notices (#737) stay gated (option a), including no replay on opening. The operator approved the remaining design; the hub instructed change-code and implementation.
+
+
+### 2026-10-20 23:44–23:48 PDT — final hub automation policy
+
+Operator follow-ups supersede always-closed/monotonic start-gate wording above: call it hub automation; initialize on for positively surviving hubs after a normal restart, off for full shutdown/unknown/missing hubs, and allow explicit off as a soft stop. Expose automation off/on/status [hub], plus switcher control. No automatic submission release. While off, skip scheduled due runs and generated wake notices; on resumes at the next due time without catch-up. Already-running scripts finish; human/worker input and desktop/status output are never gated. CLI names only the caller's own canonical hub; cross-hub control belongs to the operator switcher. tl-lead first-message interpretation is a separate ariadne change owned by the hub.
+
+PQ-1 required named risky functions and adversarial strategies rather than prose case inventories. The active plan now has one function-level strategy table and a producer contract table, without duplicated per-case task lists. The previous reviewer completed before the follow-ups and refused only that format issue; no code was admitted. Re-run plan-quality against this committed revision.
