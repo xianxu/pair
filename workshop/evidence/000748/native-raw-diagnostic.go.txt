@@ -6,7 +6,7 @@ func TestRecoveryNativeRawDiagnostic748(t *testing.T){
  session:=fmt.Sprintf("p748-%d",os.Getpid())
  f,err:=pairlifecycletest.StartControlledZellij(ctx,session);if err!=nil{t.Fatal(err)};defer f.Close()
  paths,err:=filepath.Glob(filepath.Join(os.Getenv("ZELLIJ_SOCKET_DIR"),"*",session));if err!=nil||len(paths)!=1{t.Fatalf("sockets=%v err=%v",paths,err)}
- log,err:=os.Create("/Volumes/TestScratch/tmp/pair-slot3/pair748-raw-9pdmesp4/raw.jsonl");if err!=nil{t.Fatal(err)};defer log.Close()
+ log,err:=os.Create("EVIDENCE_JSONL");if err!=nil{t.Fatal(err)};defer log.Close()
  query,_:=hex.DecodeString("4a0b0a07920604280130012001")
  send:=func(c net.Conn,p []byte)error{frame:=make([]byte,4+len(p));binary.LittleEndian.PutUint32(frame,uint32(len(p)));copy(frame[4:],p);_,err:=c.Write(frame);return err}
  bad,crossed:=0,0

@@ -184,20 +184,35 @@ type zellijQueryObserverKey struct{}
 
 // WithZellijQueryObserver scopes optional query measurement to ctx. Callbacks
 // run synchronously after each direct subprocess completes and must not block.
-// Concurrent operations require a synchronized observer. No query is added or
-// retried, and ordinary contexts retain the original execution and output path.
+// Concurrent operations require a synchronized observer. Every subprocess attempt
+// is reported, including bounded known-bug recovery of an idempotent read.
 func WithZellijQueryObserver(ctx context.Context, observe func(ZellijQueryObservation)) context.Context {
 	return context.WithValue(ctx, zellijQueryObserverKey{}, observe)
 }
 
-func (s ZellijSource) runContext(ctx context.Context, args ...string) (output []byte, resultErr error) {
+func (s ZellijSource) runContext(ctx context.Context, args ...string) ([]byte, error) {
+	callerDeadline, _ := ctx.Deadline()
+	ctx, cancel := context.WithTimeout(ctx, zellijQueryTimeout)
+	defer cancel()
+	var output []byte
+	var err error
+	for attempt := 0; attempt < 3; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		output, err = s.runQueryAttempt(ctx, callerDeadline, args...)
+		if zellijReadKind(args) == 0 || (!errors.Is(err, ErrZellijNoReply) && !errors.Is(err, errZellijCrossedReply)) {
+			return output, err
+		}
+	}
+	return nil, err
+}
+
+func (s ZellijSource) runQueryAttempt(ctx context.Context, callerDeadline time.Time, args ...string) (output []byte, resultErr error) {
 	path := s.Path
 	if path == "" {
 		path = "zellij"
 	}
-	callerDeadline, _ := ctx.Deadline()
-	ctx, cancel := context.WithTimeout(ctx, zellijQueryTimeout)
-	defer cancel()
 	cmd := exec.CommandContext(ctx, path, args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -249,6 +264,9 @@ func (s ZellijSource) runContext(ctx context.Context, args ...string) (output []
 	}
 	if len(bytes.TrimSpace(stdout.Bytes())) == 0 {
 		return nil, fmt.Errorf("zellij %s: %w", strings.Join(args, " "), ErrZellijNoReply)
+	}
+	if crossedZellijReply(zellijReadKind(args), stdout.Bytes()) {
+		return nil, fmt.Errorf("zellij %s: %w", strings.Join(args, " "), errZellijCrossedReply)
 	}
 	return stdout.Bytes(), nil
 }

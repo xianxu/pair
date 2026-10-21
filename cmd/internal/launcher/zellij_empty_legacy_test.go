@@ -42,8 +42,8 @@ func TestEmptySessionListingCannotFreeAName(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(raw) != "list-sessions --no-formatting\n" {
-		t.Fatalf("unexpected retry or mutation: %s", raw)
+	if string(raw) != strings.Repeat("list-sessions --no-formatting\n", 3) {
+		t.Fatalf("unexpected attempt count or mutation: %s", raw)
 	}
 }
 func TestEmptyNameProbeCannotBecomeMonotoneAcceptance(t *testing.T) {

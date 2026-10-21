@@ -57,9 +57,9 @@ case "$*" in
  if [ -f '` + count + `' ]; then read -r n < '` + count + `'; fi
  n=$((n+1)); printf '%s\n' "$n" > '` + count + `'
  case "$n" in
-  1) ` + zellijtest.ShellCase(t, "launcher-observer-unanswered") + ` ;;
-  2) ` + zellijtest.ShellCase(t, "launcher-observer-empty-clients") + ` ;;
-  3) ` + zellijtest.ShellCase(t, "launcher-observer-attached") + ` ;;
+  1|2|3) ` + zellijtest.ShellCase(t, "launcher-observer-unanswered") + ` ;;
+  4) ` + zellijtest.ShellCase(t, "launcher-observer-empty-clients") + ` ;;
+  5) ` + zellijtest.ShellCase(t, "launcher-observer-attached") + ` ;;
   *) ` + zellijtest.ShellCase(t, "launcher-observer-partial-failure") + ` ;;
  esac ;;
  *) exit 9 ;;
@@ -85,19 +85,19 @@ esac
 			t.Fatalf("attempt%d rows=%+v err=%v", i, rows, err)
 		}
 	}
-	if len(events) != 8 {
-		t.Fatalf("observed %d calls, want 8 (one listing and one client query per observation)", len(events))
+	if len(events) != 10 {
+		t.Fatalf("observed %d calls, want 10 (four listings, three exhausted attempts and three later client queries)", len(events))
 	}
-	for i, want := range []string{"", "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n", "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n1 terminal_0 sh\n", "partial\n"} {
-		e := events[i*2+1]
+	for i, want := range []string{"", "", "", "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n", "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n1 terminal_0 sh\n", "partial\n"} {
+		e := events[[]int{1, 2, 3, 5, 7, 9}[i]]
 		if string(e.Stdout) != want || len(e.Args) != 4 || e.Args[1] != "pair-observed" || e.Started.IsZero() || e.Finished.Before(e.Started) || e.Duration < 0 {
 			t.Fatalf("attempt%d evidence=%+v", i, e)
 		}
-		if i == 3 {
+		if i == 5 {
 			if e.ExitCode != 7 || string(e.Stderr) != "query failed\n" || e.Err == nil {
 				t.Fatalf("failure evidence=%+v", e)
 			}
-		} else if i == 0 {
+		} else if i < 3 {
 			if e.ExitCode != 0 || !errors.Is(e.Err, ErrZellijNoReply) {
 				t.Fatalf("unanswered observation lost exit0: %+v", e)
 			}
@@ -105,12 +105,12 @@ esac
 			t.Fatalf("success evidence=%+v", e)
 		}
 	}
-	if raw, err := os.ReadFile(count); err != nil || string(raw) != "4\n" {
-		t.Fatalf("query duplicated: %q %v", raw, err)
+	if raw, err := os.ReadFile(count); err != nil || string(raw) != "6\n" {
+		t.Fatalf("client query count: %q %v", raw, err)
 	}
 	// A context observer must not escape into unrelated calls.
 	_, _ = source.runContext(t.Context(), "unobserved")
-	if len(events) != 8 {
+	if len(events) != 10 {
 		t.Fatal("observer escaped its context")
 	}
 }

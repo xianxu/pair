@@ -1,0 +1,13 @@
+# #748 retained investigation and qualification
+
+`ci-failed-query-capture.json` is the original observer capture from GitHub job118965862227, run39521409698. Full raw job-log SHA256 and timeline are in the issue Log.
+
+The raw protocol control sends 2,000 independent sequential native requests:45 wrong first replies, including5 crossed kinds. `native-first-replies.json` retains two healthy controls and every bad first reply; full local raw JSONL SHA256 is f2d28181109f21844496a3cb472ef52b851522c879c8f23119a54713b8b4ac1c. Every failure is counted, never retried by the test. The process ends with the expected diagnostic failure.
+
+The production CLI control uses ZellijSource.runContext for2,000 logical JSON-pane reads:2,001 subprocess attempts,1 erroneous empty attempt,0 bad final answers. The query boundary recovers that attempt; the test never retries a logical read. These controls exercise different paths/rates and do not establish a45→1 first-reply rate improvement. Both use unchanged installed Zellij0.45.1 and private fixture roots.
+
+To reproduce either diagnostic, copy its `.go.txt` file to a scratch file, replace EVIDENCE_JSONL with an owned output path, and map a new virtual Go test path through a Go `-overlay` JSON Replace entry. Raw control package/path: `cmd/internal/couchcore/recovery_raw_diagnostic_test.go`, test TestRecoveryNativeRawDiagnostic748. Product control: `cmd/internal/launcher/known_bug_native_748_test.go`, test TestKnownBugNative2000Diagnostic748. Run `go test -overlay OVERLAY ./cmd/internal/PACKAGE -run '^TEST$' -count=1 -v`; raw control needs PAIR_LIVE_COUCH=1. Scratch paths are explicit because the fixture deliberately scrubs arbitrary environment variables. The fixture owns shutdown/removal; no operator session/image/settings are used.
+
+The deterministic red-before-green regression is `launcher.TestZellijKnownBugReadRecoversEmptyAndCrossedReplies`: exact empty→crossed→valid schedules exercise the production process/query boundary using the existing stateful frame fake. Exhaustion and no-effects recovery tests cover3 failed attempts. `warm20-result.txt` records20 consecutive native warm passes. No changed test deadline, sleeps or test retries are involved.
+
+`upstream-5630-server.patch` is the actual merged server diff from upstream PR5630, including monotonic ID allocation and a ConnStatus fast path before registration. Its mixed PR title is not a description of every included change. Remove the bounded compatibility mitigation only after the supported native release includes the upstream correction and these controls are requalified.
