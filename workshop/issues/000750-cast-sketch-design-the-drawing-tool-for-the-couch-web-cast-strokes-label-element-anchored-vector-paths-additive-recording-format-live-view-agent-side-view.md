@@ -29,9 +29,9 @@ sketches.
 
 ## Spec
 
-The design settles these; it is operator-reviewed before code.
+The design below was approved by the operator via ops:0 on 2026-10-20, with the drawing-privilege and pressure revision recorded below.
 
-Detailed proposal: [cast-sketch plan](../plans/000750-cast-sketch-plan.md). The operator's latest direction is live streaming from the first stroke, Undo and Redo, using the viewer's pointer colour. The proposed label step runs when leaving the tool; unfinished intent stays explicit. Source-moment anchoring, interruption/retry behavior, additive recording, replay and agent image/paths are designed together. All unresolved product choices are marked **Decision needed** in the plan for one operator review.
+Approved design: [cast-sketch plan](../plans/000750-cast-sketch-plan.md). Drawing follows driving: console user inside the casting Chrome while control is local, or the current granted drive-link holder, exactly one drawer cast-wide. Pointer/view links watch; pointer links still point. Include pen pressure and Apple Pencil, streaming strokes, current-sketch Undo/Redo, label on leaving, held source moment, fixed colour, one anchor per stroke and no old-sketch takeover after expired link. Agent handoff is operator-only recording plus local CLI export; no viewer-side submission.
 
 - The ✎ tool and stroke capture: a sketch is strokes plus a **required label** (the label carries intent; no shape
   recognition).
@@ -53,8 +53,8 @@ Detailed proposal: [cast-sketch plan](../plans/000750-cast-sketch-plan.md). The 
 
 - [x] Claim and start planning; read broadcast/webcast atlas and implementation before designing.
 - [x] Write the durable design with streaming strokes, Undo/Redo, required label, coordinates/anchors, additive records, live/replay rendering and agent evidence.
-- [ ] Operator reviews the collected Decision needed items and approves the detailed plan.
-- [ ] File implementation issues from the approved slices; no code before approval.
+- [x] Operator reviewed and approved the detailed plan, with drawing privilege/console/pressure revision.
+- [x] Filed unclaimed dependent implementation slices: #751 recording → #752 drawing → #753 agent export → #754 acceptance; #751 depends on #750. No implementation started.
 
 ## Log
 
@@ -69,3 +69,8 @@ Detailed proposal: [cast-sketch plan](../plans/000750-cast-sketch-plan.md). The 
 ## Revisions
 
 - 2026-10-20: added the detailed proposed design and operator's streaming/Undo/Redo direction. Earlier Problem/Spec remains as project context; author erasure is proposed through Undo, with post-finish editing explicitly awaiting a decision. Design scope remains design-only until operator approval and implementation issue filing.
+
+### 2026-10-20 — approved scope revision
+
+- Operator approval relayed by ops:0: replace viewer-first access with driving-derived single-drawer authority. Casting-Chrome drawing and pen pressure/Apple Pencil are required; pointer/view spectators cannot draw, pointer spectators retain pointing. All other recommendations approved.
+- Updated current plan sections and appended the approval Revision, including ordered handoff fencing, independent pending-label completion and pressure-faithful live/replay/export. Filed #751, #752, #753 and #754 on origin, unclaimed for TL dispatch, with dependencies #750 → #751 → #752 → #753 → #754. No implementation work started.

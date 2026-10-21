@@ -6,13 +6,13 @@ collaboration-mode: discussion
 
 > **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy). Use @superpowers-subagent-driven-development for bounded independent tasks or @superpowers-executing-plans for work that depends on session context. Steps use checkboxes.
 
-**Goal:** Let a viewer sketch a proposed page design while everyone watches the strokes appear, undo and redo their strokes, and give a coding agent the labelled result, DOM anchors, paths and a historical image.
+**Goal:** Let the console operator or current granted driver sketch a proposed page design while everyone watches, undo/redo their strokes, and let the operator hand labelled anchors, pressure-aware paths and a historical image to a coding agent.
 
 **Architecture:** Add persistent sketch events to the existing version-1 DOM recording. The recorder remains the single ordered writer; Board owns admission and author authority; pure Go and JavaScript reducers own sketch state. Reuse the viewer renderer and anchor placement for live/replay display and the existing headless replay infrastructure for agent images.
 
 **Tech stack:** Go, embedded JavaScript modules, Pointer Events, canvas overlays, JSONL, existing CDP and sandboxed DOM replay. No new library or service.
 
-**Status:** Proposed design for operator review. No implementation authorized. The operator's latest direction supersedes the earlier local-draft proposal: sketch strokes stream from the start; Undo and Redo are the only drawing commands; colour follows the viewer's pointer. Questions are collected below rather than interrupting review. Implementation issues are proposed here and will be filed after approval.
+**Status:** Operator-approved design, relayed by ops:0 on 2026-10-20. The approved revision below replaces the earlier drawing-access recommendation: one drawer, following driving privilege, including the casting Chrome, with pen pressure. Other recommendations are approved. This issue remains design-only; implementation uses the separately filed slices and their SDLC gates.
 
 ## Current system and constraints
 
@@ -26,7 +26,7 @@ collaboration-mode: discussion
 
 ## Operator experience and choices
 
-The viewer's existing pointer and note tools gain **✎ Sketch**. The drawing UI contains the current pointer swatch, Undo and Redo. Mouse, touch and stylus all produce a fixed-width polyline; pressure, shape recognition, text drawing, eraser, object selection and brush controls are out of scope. Undoing every stroke is how an author erases their sketch. There is no separate erase command.
+The casting Chrome and current granted drive-link driver gain **✎ Sketch**. Drawing follows driving: the console operator draws while control is local; only the current granted drive-link holder draws while control is remote. There is exactly one drawer cast-wide. Pointer-link viewers watch and retain pointing; view-only viewers watch. The drawing UI has the current pointer swatch, Undo and Redo. Mouse/touch use constant width; pen input retains pressure, including Apple Pencil on an iPad holding driving. Shape recognition, text drawing, an eraser, object selection and brush controls remain out of scope. Undo-all erases the current sketch; no separate erase command.
 
 Recommended interaction:
 
@@ -38,21 +38,21 @@ Recommended interaction:
 
 The label step is metadata required by the project, not an additional drawing command. Until it succeeds, the recording preserves an explicitly unfinished sketch. Agent queries include unfinished sketches with `label_pending: true`; they never manufacture an intent label. A label does not retroactively change what replay knew before the label event.
 
-### Decision needed: when to collect the required label
+### Approved: when to collect the required label
 
-**Recommend:** on leaving ✎, as above. This permits immediate live sketching without a form first. Alternative: require the label on entering ✎, so every durable sketch is labelled from its first stroke. Missing labels after a crash are the tradeoff of the recommended choice. The agent must ask for intent before building from an unfinished sketch.
+**Approved choice:** on leaving ✎, as above. This permits immediate live sketching without a form first. Alternative: require the label on entering ✎, so every durable sketch is labelled from its first stroke. Missing labels after a crash are the tradeoff of the recommended choice. The agent must ask for intent before building from an unfinished sketch.
 
-### Decision needed: hold the drawer's page while sketching
+### Approved: hold the drawer's page while sketching
 
-**Recommend:** hold only the drawer's rendered page at sketch start. This gives all paths one coherent DOM moment, even if the operator scrolls or resizes during a long sketch. Other viewers project paths onto their current page using the recorded anchors. The drawer still receives sketches, capability changes and pause/end notices. Alternatives: let the drawer's page continue moving and store a separate source moment for every stroke, producing multi-moment image evidence; or pause the whole cast, which interrupts everyone. A held drawer cannot also remote-drive; switching to driving first leaves sketch mode and requests the label.
+**Approved choice:** hold only the drawer's rendered page at sketch start. This gives all paths one coherent DOM moment, even if the operator scrolls or resizes during a long sketch. Other viewers project paths onto their current page using the recorded anchors. The drawer still receives sketches, capability changes and pause/end notices. Alternatives: let the drawer's page continue moving and store a separate source moment for every stroke, producing multi-moment image evidence; or pause the whole cast, which interrupts everyone. A held drawer retains the driving privilege but suppresses normal remote page input while sketching; returning to page interaction leaves sketch mode and requests the label. This is input-mode suppression, not a transfer of the driving seat.
 
-### Decision needed: where drawing is available
+### Approved: where drawing is available
 
-**Recommend:** pointer-link and drive-link web viewers first, including the operator opening their own pointer link. View-only links see sketches but cannot draw/undo/redo. Show saved and in-progress sketches in the operator Chrome's existing annotation projection too. Adding drawing controls inside the real cast Chrome would require a held replay surface there as well; defer those controls unless the operator requires them now. Existing Chrome Pen/Note behavior remains owned by its current shared mount.
+**Operator decision:** drawing follows driving, one drawer at a time: the console user inside the casting Chrome when control is local, or the currently granted drive-link viewer. A drive link alone grants no drawing authority. Pointer-link viewers can point but cannot sketch; view-only viewers watch. Casting-Chrome drawing controls and its held replay surface are required. Reuse the shared sketch mount in the excluded isolated-world host with privileged binding transport and a private historical scene. Page scripts receive no credentials or trusted bindings.
 
-### Decision needed: undo scope after leaving a sketch
+### Approved: undo scope after leaving a sketch
 
-**Recommend:** Undo/Redo operate on the current unfinished sketch only; selecting ✎ after labelling creates a new sketch. Finished sketches remain historical design evidence. Alternative: reopen an authored saved sketch for Undo/Redo, which adds selection and label-revision semantics. Undo-all satisfies author erasure during sketching; if erasure after finishing is required, include reopening in the approved scope rather than adding an independent eraser.
+**Approved choice:** Undo/Redo operate on the current unfinished sketch only; selecting ✎ after labelling creates a new sketch. Finished sketches remain historical design evidence. Alternative: reopen an authored saved sketch for Undo/Redo, which adds selection and label-revision semantics. Undo-all satisfies author erasure during sketching; if erasure after finishing is required, include reopening in the approved scope rather than adding an independent eraser.
 
 ## Core concepts
 
@@ -64,6 +64,7 @@ Paths below are relative to `cmd/internal/webcast/` unless stated otherwise. “
 |---|---|---|
 | Sketch event union and limits | `recording/sketch.go` | new |
 | SketchState / NextSketch | `recording/sketch_state.go` | new |
+| DrawingPermit / drawer handoff policy | `board/sketch_authority.go` | new |
 | Recording State sketch projection | `recording/reduce.go` | modified |
 | Sketch geometry and bounds | `sketch/geometry.go` | new |
 | Sketch request parsers | `board/sketch_wire.go` | new |
@@ -79,12 +80,12 @@ Geometry maps recorded page points through a recorded anchor box to a current an
 
 | Name | Lives in | Status | Wraps |
 |---|---|---|---|
-| Board sketch admission / preparation | `board/sketch.go` | new | capability, author session, ordered recording |
+| Board sketch admission / preparation | `board/sketch.go`, `board/sketch_authority.go` | new | current driving holder/generation, author session, ordered recording |
 | Acknowledged sketch writer | `recorder/sketch.go`, `board/writer.go` | new / modified | recorder queue and sink outcome |
-| HTTP sketch routes | `server_sketch.go`, `server.go` | new / modified | locked pointer/drive links |
+| HTTP sketch routes | `server_sketch.go`, `server.go` | new / modified | locked current-driver link; pointer/view drawing mutations refused |
 | Shared sketch mount | `web/sketch.js`, `web/sketch.css` | new | pointer events, canvas, transport |
 | Held viewer scene | `web/sketch-scene.js`, `web/viewer.js` | new / modified | current Renderer and live Model |
-| Operator display projection | `board/operator_view.go`, `operator.js`, `operator_script.go` | modified | excluded isolated-world UI |
+| Operator drawing and display | `board/operator_view.go`, `board/operator.go`, `operator.js`, `operator_script.go`, `recorder/operator.go` | modified | privileged isolated-world controls, pressure input, acknowledged writes and held scene |
 | Historical image renderer | `sketch_image.go`, `fidelity_check.go`, `web/sketch-image.js` | new / modified | loopback replay and headless Chrome |
 | ImageRenderer / FakeImageRenderer | `sketchimage/contract.go`, `sketchimage/fake.go` | new | replay image job and output lifecycle |
 | Agent CLI | `query/cli.go`, `query/surface.go`, `query/fake.go`, `couchcmd` query wiring | modified | local recording reads and optional image output |
@@ -99,7 +100,7 @@ Keep format `couch-webcast`, `v:1`. Add these event kinds, all in `events.jsonl`
 |---|---|---|
 | `sketch-begin` | `id,author,owner,doc,tab,vp` | Begin an unfinished sketch; this record is its exact source moment. |
 | `sketch-stroke-begin` | `sketch,id,at,width` | Pin a stroke to an element in that sketch's source DOM. |
-| `sketch-points` | `sketch,id,chunk,pts` | Append page-coordinate `[x,y]` points; chunk numbers start at 0. |
+| `sketch-points` | `sketch,id,chunk,pts` | Append `[x,y,pressure]` page-coordinate samples; pressure is finite in [0,1], chunk numbers start at 0. |
 | `sketch-stroke-end` | `sketch,id` | Seal the accepted points of the current stroke. |
 | `sketch-undo` | `sketch,id` | Hide the last completed visible stroke named by the reducer. |
 | `sketch-redo` | `sketch,id` | Restore the top redo stroke named by the reducer. |
@@ -113,34 +114,34 @@ Example of the semantic payloads (the writer supplies envelope times):
 ```json
 {"t":1401,"k":"sketch-begin","id":"s1","author":{"id":"v1","name":"Ana","color":"#ff0000"},"owner":"opaque-session-digest","doc":1,"tab":"tab-1","vp":{"w":1280,"h":800,"dpr":2}}
 {"t":1402,"k":"sketch-stroke-begin","sketch":"s1","id":"p1","at":{"node":7,"kind":"element","path":["main","section#plans"],"box":[100,200,600,400]},"width":3}
-{"t":1403,"k":"sketch-points","sketch":"s1","id":"p1","chunk":0,"pts":[[110,220],[180,240]]}
+{"t":1403,"k":"sketch-points","sketch":"s1","id":"p1","chunk":0,"pts":[[110,220,0.4],[180,240,0.8]]}
 {"t":1404,"k":"sketch-stroke-end","sketch":"s1","id":"p1"}
 {"t":1450,"k":"sketch-label","sketch":"s1","label":"Put the price beside the plan name"}
 ```
 
-`owner` is a public digest using the existing note-owner mechanism, never the cookie or an editing credential. Author/name are attribution; HTTP requests cannot self-assign operator identity. Colour comes from the current server-validated pointer palette selection, frozen per sketch; changing the pointer swatch applies to the next sketch. **Decision needed:** recommend freezing colour for one sketch for readable history; alternatively propagate later swatch changes with a new explicit event.
+`owner` is a public digest using existing note ownership, never a cookie or editing credential. Author/name are attribution; HTTP cannot claim operator identity. Colour comes from the current server-validated pointer palette selection and stays fixed per sketch. Changing the swatch affects the next sketch. **Approved:** fixed sketch colour.
 
 At begin, the recorder checks live/document/capability and emits `sketch-begin` with a timestamp strictly greater than preceding records, then fences later records to `> begin.t`. Its acknowledged operation returns the sketch ID only after the sink accepts it. Thus reducing the recording through `begin.t` is exact even with split-file merging, without a format-wide sequence field. Test same-millisecond DOM/notes/pointer/begin interleavings in both the production writer and reference Writer. No subsequent client can choose the source time.
 
 Board keeps a bounded immutable source State for each active sketch, captured from the ordered stream at `sketch-begin`. Stroke anchors are built with `notes.Structural.Anchor` against that State. The client supplies a frozen-renderer node ID and observed box; it does not supply trusted selector/text/path evidence. Require a finite positive anchor box and validate element identity against the frozen source. Choose the element under the first point, allowing the viewer to choose a containing page element through the existing hit-test behavior; all points in that stroke use that anchor. A line extending outside its element is allowed, since redesign arrows often do. There is no inferred shape or inferred second endpoint anchor.
 
-### Decision needed: arrows spanning independently moving elements
+### Approved: arrows spanning independently moving elements
 
-**Recommend:** one anchor per stroke, selected at its start. A line connecting two independently reflowing elements follows its first element as one shape. Users can split a drawing into strokes on separate elements. Multi-anchor deformation would distort shapes and introduces another editing model. Agent output retains original geometry and every stroke's anchor so the intended relationship remains inspectable.
+**Approved choice:** one anchor per stroke, selected at its start. A line connecting two independently reflowing elements follows its first element as one shape. Users can split a drawing into strokes on separate elements. Multi-anchor deformation would distort shapes and introduces another editing model. Agent output retains original geometry and every stroke's anchor so the intended relationship remains inspectable.
 
 ## Streaming transport and authority
 
-Add `POST sketch-begin`, `sketch-stroke-begin`, `sketch-points`, `sketch-stroke-end`, `sketch-undo`, `sketch-redo`, `sketch-label`, and a read-only POST `sketch-status` for exact request reconciliation. Reuse castlock, `link.annotates()`, annotation generation headers, admission/body deadlines and generic refusal mapping. New routes use focused parsers, not a larger switch in the already substantial annotation mount.
+Add `POST sketch-begin`, `sketch-stroke-begin`, `sketch-points`, `sketch-stroke-end`, `sketch-undo`, `sketch-redo`, `sketch-label`, and read-only POST `sketch-status` for exact reconciliation. Reuse castlock, driving-seat identity/generation, annotation generation checks where applicable, body admission/deadlines and refusal mapping. Drawing admission is stricter than `link.annotates()`: pointer/view drawing mutations fail before body reads; a drive link must be the current granted driver. The casting Chrome reaches the same Board operations through the privileged isolated-world binding, never HTTP operator impersonation. Keep focused parsers and modules.
 
 Every mutation carries a random client operation ID plus sketch ID (begin allocates one), and a per-sketch monotonic operation number. Server identity is `(cast, authenticated owner, sketch, operation)`. The ordered writer stores its outcome in bounded in-memory receipts; the corresponding event carries the operation identity and body digest so retry outcomes can be rebuilt from the recording after reconnect. Exact repeats return the same result; another body under that identity is rejected. The same numbered command is the only retry allowed while outcome is unknown. Status returning “not observed yet” is not proof of absence: a writer barrier must confirm that the operation was refused before reusing its slot.
 
 Only one in-flight command per author sketch; chunks are sent FIFO, at 50 ms cadence with a bounded client queue. Undo/Redo wait for a stroke-end acknowledgment. The first point is drawn optimistically; echoed points are keyed by stroke/chunk and replace the optimistic copy. A failed or unconfirmed chunk is visibly marked, never quietly treated as shared. Do not copy the fire-and-forget pointer POST behavior.
 
-The resource proving exclusive authoring is one active-sketch lease per authenticated owner, held from accepted begin through label/cast end/revocation. A second tab with the same owner must join/resume that exact sketch or finish it; it cannot begin an independent competing sketch. Undo/Redo check the owner digest, current lease and exact expected stack top at the writer, not merely the claimed viewer ID. Existing viewer attribution can be spoofed; it is not erase authority.
+The resource proving exclusive drawing is existing cast-wide driving ownership, projected into one active-sketch lease for that exact holder and generation. No independent multi-drawer grant menu. Local control permits the privileged console surface; remote control permits the granted seat/session. A second tab must satisfy the same seat identity and resume the same sketch, not become a competing drawer. Begin/points/end/Undo/Redo recheck the permit at ingress and ordered write. Undo/Redo additionally check original author and exact stack top. Viewer attribution grants no drawing or erase authority.
 
-On network disconnect the lease remains until reconnect or a 2-minute idle timeout. Reconnect refreshes current state and resumes the same operation numbers. On lease expiry, order a `sketch-interrupt` record before releasing the snapshot/lease; it seals accepted partial points, rejects late chunks and retains history. Navigation and recording end perform the same pure interruption transition from their existing `seg`/`stop` records, avoiding a record after `stop end`. If the writer is broken, report an unknown outcome and derive unfinished state from available evidence; never claim an unrecorded expiry was persisted. Replacing the launch or rotating the link cannot grant a new session ownership of someone else's sketch. **Decision needed:** recommend no ownership recovery across a rotated/expired authenticated session; retain the unfinished evidence and start a new labelled sketch. Alternative requires a separate explicit operator recovery grant.
+On disconnect, retained sketch preparation cannot outlive current driving ownership/generation or existing seat expiry. The 2-minute sketch-idle timeout is only an upper bound and cannot extend driving authority. Reconnect resumes commands only while the exact permit remains valid. Expiry records or derives interruption before releasing preparation; partial accepted points remain. Navigation/end derive the same transition from existing seg/stop events. Broken writers report unknown outcome rather than inventing persisted expiry. **Approved:** no old-sketch ownership takeover after link/session expiry; the next eligible drawer starts a new sketch.
 
-An interrupted sketch can still receive its one required label from the original authenticated owner through a metadata-only `sketch-label` operation. It needs no active drawing lease or current source document, but still requires the same live cast, allowed annotation generation and exact author authority; it cannot append points or change history. After cast end there is no label mutation. A lost/rotated author session or ended cast therefore leaves an explicitly unlabelled sketch permanently unfinished in this version; agent output identifies that limitation rather than pretending the required intent exists.
+An interrupted sketch can receive its one required label from its original privileged console surface or authenticated driver author through metadata-only `sketch-label`. This needs no current drawing permit/source document, but requires the same live cast and retained original author authority; it cannot append points/change history. It remains available after handoff and uses reserved capacity, while global clear/session revocation invalidates it. Cast end/expired author credentials leave explicitly unfinished intent; the agent never invents a label.
 
 ## State, interruption and recovery
 
@@ -160,6 +161,7 @@ An interrupted sketch can still receive its one required label from the original
 | any active + pause | existing stop-pause event seals accepted partial stroke; hold drawing and retain reconciliation |
 | any active + disconnect | hold locally; no server-state invention; lease retains any open stroke until reconnect/expiry |
 | held + same-doc resume/reconnect | reconcile exact pending command; seal any still-open accepted partial stroke before accepting a new stroke; restart held scene from recorded begin moment |
+| active + driving grant/revoke/release/leave/reset | interrupted; seal partial points and retire old-generation permit before enabling the new drawer; retain metadata-only label authority |
 | active + navigation/cast end/lease expiry | interrupted; seal accepted partial points, keep unlabeled evidence, release lease |
 | active + annotation revocation/clear | cleared according to existing clear barrier; late operations rejected |
 | interrupted/complete + late points/Undo/Redo | reject; never attach to a newer sketch |
@@ -195,7 +197,7 @@ projected = (nx + (px-x)*nw/w, ny + (py-y)*nh/h)
 screen = fromPage(projected, viewerScale, currentTopScroll)
 ```
 
-Extract the common point/box affine transform beside existing `projectRegion`; do not duplicate note placement traversal. Extend placement to expose the resolved anchor box and clip so sketches reuse the same ancestor-scroll, shadow-root and frame handling. Reuse original node identity first and the existing confidence-scored replacement match otherwise. Refuse ambiguous or unsupported transformed-frame placement; retain the list item and historical paths. Width remains 3 CSS px in the page overlay, then scales with the viewer; it does not stretch with the anchor's aspect ratio. Dots use a round cap.
+Extract the common point/box affine transform beside existing `projectRegion`; do not duplicate note placement traversal. Extend placement to expose the resolved anchor box and clip so sketches reuse the same ancestor-scroll, shadow-root and frame handling. Reuse original node identity first and the existing confidence-scored replacement match otherwise. Refuse ambiguous or unsupported transformed-frame placement; retain the list item and historical paths. Width uses a 3 CSS px base, scales with the viewer, and does not stretch with anchor aspect ratio. Mouse/touch samples use pressure 1; pen contact retains normalized pressure and renders width `3 * (0.25 + 0.75 * pressure)` CSS px. Missing pressure defaults to 1. Pen hover produces no points. Preserve coalesced Pointer Events within existing bounds. Pointer-up seals with last contact pressure; pointercancel retains accepted partial work as truncated. Use round dots/joins and the same pressure-aware renderer live, in replay and in CLI images.
 
 Initial preparation and reconnect both return the same bounded source snapshot ending at the acknowledged `sketch-begin`. Render that snapshot through the existing Model/Renderer and enable drawing only once it is ready; never freeze an arbitrary current renderer that might lag or lead the writer's source moment. The server snapshot response is a bounded catch-up prefix of the recording ending at begin; admit it within 16 MiB, separately from the 8 MiB source DOM/state budget. If historical annotations make the prefix too large, visibly refuse preparation instead of silently dropping source state. Later implementation may add a compact scene serializer if actual workloads require it; it is not silently assumed here.
 
@@ -211,7 +213,7 @@ Add `sketch-image --sketch ID --out DIR [--at T]`: default uses the latest accep
 
 Images are replay renderings, not original screenshots. Label them as such. Preserve existing uncaptured canvas/video/frame placeholders and missing-asset warnings. Never query today's live tab for substitute pixels. When historical rendering is unavailable, text/anchors/paths still succeed and the image result states why. Refactor the existing headless replay owner into a shared focused helper; fidelity and sketch export both use it. Image cancellation closes Chrome, the loopback server, CDP and temporary profiles before returning.
 
-**Decision needed:** recommend explicit local CLI export for this version, rather than extending the existing Ctrl+Shift+Alt+Return note-submission bundle. The agent already reads the recording, satisfying the project's stated handoff. If the operator requires one-chord sketch submission alongside notes, that must be a separate approved implementation slice covering selection, privacy and acknowledgment semantics, not an implicit reuse of note-specific captures.
+**Approved:** agent handoff is only through the operator, by recording plus local CLI export. No viewer-side submission action or mutation that dispatches evidence to an agent. Do not extend the existing note-submission chord as part of this feature.
 
 ## Operating envelope and lifetime
 
@@ -222,8 +224,8 @@ Budgets below are initial design choices to confirm at review, not measured perf
 | Interactive sampling | existing 50 ms batches, max 64 points/batch; local draw on next animation frame |
 | Points | max 4096 per stroke, 16384 per sketch; reaching the cap stops the stroke visibly, keeps admitted work |
 | Strokes | max 64 per sketch, including undone strokes; Undo does not free historical capacity |
-| Active sketches | max 4 cast-wide, one per authenticated owner; refuse further begin with a clear busy message |
-| Frozen scene | max 8 MiB encoded source DOM/state per sketch, 32 MiB cast-wide; refuse preparation before reserving if too large |
+| Active sketches | exactly one active drawer/sketch cast-wide, derived from current driving ownership; previous unfinished items may remain for metadata-only labelling |
+| Frozen scene | max 8 MiB encoded source DOM/state for the one active sketch; source-prefix response <=16 MiB; refuse preparation before reserving if too large |
 | Command queue | 8 chunks/client, existing bounded server in-flight admission; stop sampling visibly on overflow, do not discard an unknown write |
 | Mutation body | max 16 KiB chunk; max 1024 UTF-8 bytes for label; finite coordinate magnitude <= 1e7 CSS px |
 | Shared drawing traffic | retain current cast-wide stroke-rate budget initially; sketch traffic shares it with pointer drawing |
@@ -249,7 +251,7 @@ Trust boundaries: locked web clients, isolated operator projection, JSONL loaded
 
 ## Proposed implementation slices after approval
 
-These are proposed issue boundaries, not Mx tags for design issue #750. File them after operator approval, with dependency on the prior landed slice. Each gets its own durable execution plan and required SDLC gates; no stacked development. The tasks below provide concrete file/test/acceptance direction for those plans.
+These are approved implementation slices, not Mx tags for design issue #750. File them with dependency on the prior landed slice (A also depends on design #750). Each gets its own execution plan and required SDLC gates; no stacked development. The approval revision below extends the task lists with required casting-Chrome drawing, driving handoff and pen pressure.
 
 ### Slice A: recording model and anchored geometry
 
@@ -257,6 +259,7 @@ These are proposed issue boundaries, not Mx tags for design issue #750. File the
 **Modify:** `recording/record.go`, `codec.go`, `reduce.go`, `catchup.go`, `web/model.js`, `web/replay.js`, existing codec/order/catchup tests and corpus.
 
 - [ ] Write failing tests for streamed chunk joins, duplicate/conflicting/out-of-order chunks, empty/incomplete strokes, Undo/Redo/new-branch behavior, source begin timestamp fencing, label completion, interrupt/late-label recovery, clear and source-document retention. Include nested unknown fields, old-reader compatibility and terminal-capacity reservations.
+- [ ] Include normalized pen pressure and deterministic mouse/touch fallback in record/geometry/shared fixtures; derive old-drawer interruption from ordered ctl transitions before exposing the next holder.
 - [ ] Run `go test ./cmd/internal/webcast/recording ./cmd/internal/webcast/sketch -run 'Sketch|CatchUp|Order' -count=1` and `node --test tests/webcast/sketch-model.test.mjs tests/webcast/replay.test.mjs`; confirm failures identify absent sketch semantics.
 - [ ] Implement the event union, raw-preserving codec, pure transitions, geometry, reducer and catch-up. Independently stated invariant: only the active author's selected last stroke changes; an undo never deletes earlier timeline evidence.
 - [ ] Rerun targeted tests plus existing codec/catch-up corpus tests; compare Go/JS results for every shared sequence prefix, including pause/resume/navigation.
@@ -268,6 +271,7 @@ These are proposed issue boundaries, not Mx tags for design issue #750. File the
 **Modify:** `board/writer.go`, `board/operator_view.go`, `cast.go`, `browser.go`, `server.go`, `web/viewer.js`, `web/annotate.js`, `web/annotation-placement.js`, `operator.js`, `operator_script.go`, existing fake browser/drive adapters.
 
 - [ ] Write failing parser/admission/identity tests and stateful writer tests that hold dispatch across navigation, clear, lost replies and revocation. Cover second-tab lease collision, queue overflow and exact retry idempotency.
+- [ ] Cover console drawing versus current granted drive-link drawing, spectator refusals, pressure/coalesced pen input, and handoff races in both real/reference writer seams. Implement the held historical scene in casting Chrome as well as the remote viewer; do not defer the console controls.
 - [ ] Run `go test ./cmd/internal/webcast/board ./cmd/internal/webcast/recorder ./cmd/internal/webcast -run 'Sketch|Annotation|Writer' -count=1`; confirm the new cases fail before implementation.
 - [ ] Implement acknowledged begin/chunk/end/undo/redo/label/status calls, exact source-moment snapshots, budgets and leaf-lock discipline. Generalize the existing acknowledged writer plumbing where shared; do not clone the complete note capture service.
 - [ ] Write failing JS sequence tests for optimistic echo replacement, missing ack, reconnect, label prompt, pointer colour, local hold and late page changes. Implement thin mount/policy/scene modules; use existing pointer chunking and geometry helpers where their semantics match.
@@ -282,6 +286,7 @@ These are proposed issue boundaries, not Mx tags for design issue #750. File the
 
 - [ ] Write failing CLI/contract/golden tests for finished, unfinished, undone, redone, cleared, cross-document and missing-anchor sketches. Run `go test ./cmd/internal/webcast/query -run 'Sketch|Surface|Agent|Golden' -count=1` and confirm missing-command/model failures.
 - [ ] Implement one-pass sketch query and render input selection. Assert source DOM uses begin time while paths/label use the selected later history cutoff. Include raw page paths and transform in JSON.
+- [ ] Preserve/render original pressure; keep all agent handoff under operator control through recording and CLI, with no viewer-side submit surface.
 - [ ] Define ImageRenderer and its stateful fake first; write contract cases for success, missing asset, timeout, cancellation, bad PNG, bounded output and existing destination refusal. Extract/reuse the headless renderer owner and implement real historical export behind that seam.
 - [ ] Run `go test ./cmd/internal/webcast/sketchimage ./cmd/internal/webcast/query ./cmd/internal/webcast -run 'Sketch|Fidelity' -count=1`; verify existing fidelity tests still pass after extraction. Run a bounded headless fixture through the real renderer and compare crop bounds and coloured path pixels with independent expected geometry.
 - [ ] Update `atlas/webcast-format.md`, `atlas/webcast.md`, README and shipped `couch --skill` query instructions; explain replay-rendered pixels, unfinished labels and private exports. Commit, recorded check, SDLC close/review.
@@ -289,6 +294,7 @@ These are proposed issue boundaries, not Mx tags for design issue #750. File the
 ### Slice D: end-to-end operator acceptance
 
 - [ ] Automate a fixture with two viewers, navigation, scroll, resize, frames, a held sink and a disconnect. Verify the recording validates, first partial stroke reaches the other viewer, Undo/Redo replay correctly at every event boundary, and query/image evidence identifies the intended elements.
+- [ ] Verify the real console-to-iPad/Apple Pencil driving handoff, pressure variation, old-drawer fencing, spectator pointing and return to console, alongside the xianxu.dev/echo acceptance below.
 - [ ] Run `go test ./cmd/internal/webcast/... -run 'Sketch|CatchUp|Conformance|Fidelity' -count=1` plus JS tests. Push the final head and run `sdlc local-check run --name affected` where declared by this repo. Each landing still follows its integration check; do not substitute a design-document check for feature verification.
 - [ ] Ask the TL to arrange the real xianxu.dev cast with the operator. Draw and label a proposed change, observe streaming from a second viewer before pointer-up, Undo/Redo, scroll and resize, replay after navigation, and export the recording's image/paths. Give that evidence to a coding agent in the echo design process and verify it can state the requested change and anchor elements before building.
 - [ ] Record actual browser/device, recording ID, commands/results and retained image locations in the implementation issue; summarize to the TL, who owns the project file. The project done-when requires this live acceptance, not just a headless fixture.
@@ -305,11 +311,37 @@ These are proposed issue boundaries, not Mx tags for design issue #750. File the
 - **ARCH-FUNERAL:** event history dies with recording, bounded at writer; frozen scenes/leases/jobs have named release paths; exports have explicit caller ownership.
 - **ARCH-EVOLVE:** additive event kinds in existing events file, old reader tests, nested raw-field preservation for new records, no unsupported universal preservation claim.
 
-## Decision needed: approval and issue boundaries
+## Approval and issue boundaries
 
-Approve or revise the recommendations collected above, especially held drawing view, label timing, operator Chrome controls, post-finish Undo scope and handoff via CLI. Then file the implementation slices with the approved scope and dependencies. Do not run `sdlc change-code` or start implementation from this unapproved plan. No estimate has been invented before the settled plans clear their plan-quality gates.
+The operator approved this design with the drawing-privilege and pressure revision recorded below. File the implementation slices with their dependencies, then execute only when dispatched through their own plans and SDLC gates. No implementation or estimate belongs in design issue #750.
 
 ## Revisions
 
 - 2026-10-20: operator direction relayed by ops:0 supersedes TL's earlier atomic local-draft preference. Current proposal streams all stroke chunks, adds author Undo/Redo, and uses pointer colour. The atomic-save alternative would reduce protocol complexity but fails the operator's stated need to watch a sketch form, so it is rejected for this version.
 - 2026-10-20: one advisory fresh-eyes pass identified exact initial scene synchronization, durable interruption inputs, reserved finalization bytes and label recovery after interruption. Added explicit mechanisms above; retained Decision needed recommendations as the operator expressly requested. This pass is editing advice, not plan-quality or operator approval.
+
+### 2026-10-20 — operator approval and drawing privilege revision
+
+Approval relayed by ops:0 (delivery bd973e96-0b6a-4710-aec3-4777d64c1a4d). The operator approved all recommendations except the prior drawing-access row, and added pen pressure:
+
+- Drawing is the driving privilege, one drawer at a time: console operator inside the casting Chrome while control is local, or the current granted drive-link holder. Pointer/view links watch; pointer links still point. The operator can hand drawing to their own iPad/Apple Pencil through driving.
+- Casting-Chrome sketch controls, its held scene and pen pressure are in scope. The earlier viewer-first deferral and four-concurrent-sketch allowance are superseded. Shared mount, recorder binding and private snapshot transfer must support both real Chrome and remote current-driver surfaces.
+- The existing driving owner/generation is the single authority. Grant/revoke/release/leave/reset must order the old sketch interruption before enabling the next drawer; reject queued old-generation writes even on the same document. A label pending from the prior drawer must not delay handoff or grant that author further drawing.
+- Retain approved label-on-leave, held drawer page, Undo/Redo within the current sketch, fixed per-sketch pointer colour, one anchor per stroke, no takeover after expired link, and operator-only recording/CLI agent handoff. No viewer-side submission.
+- Pen samples persist normalized pressure beside original page coordinates. Pressure rendering is shared by live/replay/export. Mouse/touch have a deterministic constant-width fallback. Include coalesced samples, hover exclusion, pointercancel and real Apple Pencil verification.
+- Update Slice A for pressure data/geometry; Slice B for console drawing, private held scene, driving handoff fencing and pen capture; Slice C for operator-only pressure-faithful CLI evidence; Slice D for the real console-to-iPad handoff and xianxu.dev/echo acceptance. Existing alternatives remain rationale, not unanswered product questions.
+
+Handoff implementation rule: run the sketch-interruption transition from the ordered existing `ctl` event before exposing its new holder; use `sketch-interrupt` for standalone lease expiry only. Both writers and both reducers must use this canonical ordering. If handoff outcome is unknown, existing driving reconciliation keeps drawing fail-closed. Required labels may finish through the old author's metadata-only authority, independently of the new drawer. No second authority state machine may overrule driving.
+
+### 2026-10-20 — implementation issues filed
+
+All slices are filed on origin, unclaimed for TL dispatch. Dependencies are a landing chain, not stacked branches:
+
+| Slice | Issue | Depends on |
+|---|---|---|
+| A — recording model, pressure paths, Undo/Redo history | #751 (`workshop/issues/000751-cast-sketch-recording.md`) | #750 |
+| B — live casting-Chrome/current-driver drawing, pen input and handoff fencing | #752 (`workshop/issues/000752-cast-sketch-drawing.md`) | #751 |
+| C — operator CLI queries and historical pressure-aware image export | #753 (`workshop/issues/000753-cast-sketch-agent-export.md`) | #752 |
+| D — console-to-iPad/Pencil handoff and xianxu.dev/echo acceptance | #754 (`workshop/issues/000754-cast-sketch-acceptance.md`) | #753 |
+
+Each issue contains its slice Spec and Done when, references the approved design/revision, and requires its own execution plan and SDLC verification. No implementation code was started while filing.
