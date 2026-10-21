@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- When profiling changes the approved mechanism, reconcile Done when with the specific regression that proves that mechanism; an old timing or parallelism requirement does not become satisfied by a different cancellation test. Preserve the approval and old clause in Revisions. (#776 BR-1)
+
 - A child TERM marker is not proof that cleanup is still in progress when the test resumes. Prove an inherited lease before cancellation and its release after the owned join; an intermediate busy assertion can reject correctly completed cleanup under race instrumentation. (#776)
 
 - #744 close: a cross-process command belongs to its caller through cancellation and terminal acknowledgment, including time spent queued. Preserve the absolute admission deadline, suppress canceled queued work, join active child effects, and retire correlated files only after completion. When tightening a shared isolation contract, enumerate existing consumers as well as new-helper tests; keep recovery snapshots atomic and surface persistence errors while preserving in-memory teardown authority.

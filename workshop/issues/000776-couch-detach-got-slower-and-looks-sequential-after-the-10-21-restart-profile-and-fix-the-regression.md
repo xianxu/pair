@@ -44,16 +44,17 @@ dominates or serializes, find the change in its history since 856876acd; fix the
 ## Done when
 
 - A measured four-slot profile before and after the fix is in the Log, including retirement and post-Leave completion; the incomplete eight-slot attempt is retained separately under #773 (approved scope refinement below).
-- The cause of the slowdown is identified with evidence and fixed, with a regression test that bounds detach time or
-  asserts parallel retirement; or the Log shows with numbers that detach is not slower and what the operator saw.
+- The measured post-Leave delay is identified and fixed. A deterministic regression proves cancellation completes before the grace expires when the whole owned process group is confirmed absent (ESRCH), while unavailable probes retain the original two-second grace and group escalation. Native exited-leader/TERM-resistant-descendant controls prove inherited lease cleanup remains joined; the four-slot before/after timing remains required.
 
 ## Plan
 
-- [x] Preserve the completed current-main four-slot profile and the failed eight-slot startup separately; preserve #759 on its own pushed branch.
-- [ ] Break retirement into GetThread/backend resolution, observeRecordSession/process census, RetireIncarnation/backend routing, coordinator and store lock wait, journal recovery and publication. Measure elapsed wall time and process CPU so waiting is not mislabeled CPU work.
-- [ ] Use only a bounded private shared fleet, installed Zellij, explicit empty-base environments, exact owned-process cleanup and an in-memory bounded timing buffer. Keep temporary observers in the disposable clone; no operator sessions or tracing changes.
-- [ ] Compare only the measured dominant dependency's history against 856876acd. Report evidence before choosing a fix or raising fan-out. ARCH-CONSTRAINTS: operator scale is about29 slots, configured fan-out6; extrapolated waves are a hypothesis, not a29-slot benchmark.
-- [ ] If a product fix is justified, send its narrow plan to the hub before implementation and change-code; defend the measured behavior with a regression through existing fake seams (ARCH-DRY, ARCH-MOCK), then normal recorded checks and review. No persisted format change is currently proposed (ARCH-EVOLVE).
+- [x] Preserve the completed current-main four-slot profile and failed eight-slot startup separately; keep #759 on its own pushed branch.
+- [x] Measure retirement substeps, coordinator/store waits, publication, process CPU and the post-Leave completion path, retaining attribution limits.
+- [x] Use bounded private shared fleets with installed Zellij, explicit isolated environments, bounded memory observers and exact owned-process cleanup; preserve cited evidence and collect scratch.
+- [x] Inspect the measured dominant dependency's history against856876acd; prove the unconditional cancellation-grace mechanism without claiming an unproved introduction commit or changing fan-out.
+- [x] Implement the hub-approved completion-aware group cancellation, deterministic stateful group regressions, native descendant/lease controls, shared-caller/race checks, atlas update and private-fleet after timing.
+
+The recorded suite, mandatory close review and sdlc landing gates follow these completed implementation tasks; their actual outcomes are recorded in the Log, not preclaimed here.
 
 ## Log
 
@@ -174,3 +175,15 @@ After evidence byte-verified in 000776-detach-profile.side/after (summary, analy
 Authenticated TL94985f9d restored Go's default cache configuration machine-wide. Verified go env GOCACHE now /Users/xianxu/Library/Caches/go-build (GOTMPDIR remains the slot's usable RAM scratch). Prior ENOSPC setup failures remain infrastructure-only; they executed no race/catalog test and are not test evidence or flakes. No recorded suite was started during that blocker, so there is no owned failed local-check attempt to reclassify. Resume exactly one recorded suite on the current pushed head with no override; report any same-head refusal without bypass.
 
 All task-local targeted checks and native qualification have completed; removed /Volumes/TestScratch/pair-776-checks.QKsQe4 after joins. No shared cache removed. The duplicate after-evidence source bundle was also collected after its cited logs/JSON were committed. No test or native process was stopped by this housekeeping.
+
+
+### 2026-10-21 13:06 PDT — recorded suite queued, close review overlap
+
+One recorded suite admitted on pushed f41bac247: attempt c9c08a90b06acc5e10090d6338d6399b, run lease-3201391114; normal FIFO position5 when observed. No ENOSPC same-head refusal, no bypass or cache override. Log in the git common-dir sdlc/test-stats/inflight attempt directory. No duplicate runner. Close review may overlap this queued check per tl-worker; required passing final-code verification remains a landing prerequisite. Plan rows now distinguish completed implementation from these pending gates; this records workflow truth and changes no approved scope. No suite result is claimed yet.
+
+
+### 2026-10-21 13:08 PDT — BR-1 acceptance wording aligned
+
+Boundary review round1 found no code defects and independently reproduced the regression RED through an overlay of baseline cancellation (whole_group_gone sends TERM+KILL rather than TERM). Reviewer normal provision/group controls passed4.263s and race provision/group/Leave controls passed6.291s. Its sole Important finding BR-1, family acceptance-contract-traceability, correctly identifies the second Done-when bullet as stale: it still demanded a detach-time bound or parallel-retirement regression after the hub approved the cancellation-completion fix. The existing parallel Leave regression would pass without this fix and was not claimed as its proof.
+
+Revision delta: replace that sole stale acceptance clause with deterministic whole-group completion before grace on ESRCH, conservative unknown-probe behavior, unchanged two-second grace/escalation, and native exited-leader/TERM-resistant-descendant lease protection. Keep measured four-slot before/after timing. This reflects authenticated TL04f6e7f5's approved contract; it adds no code or scope change. Original clause is retained here for history: "regression test that bounds detach time or asserts parallel retirement." Sweep found no other acceptance clause needing this correction. Close was NOT finalized; rerun the ordinary close so the binary review disposes BR-1, with no ledger bypass.
