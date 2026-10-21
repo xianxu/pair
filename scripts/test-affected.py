@@ -418,10 +418,37 @@ SOURCE_GUARDS = {'cmd/internal/adapt': ('TestDetailTruncatedToValidUTF8',
  'probes/zellijprobe': ('TestNoProbeExitsPastItsOwnCleanup',)}
 
 
-def source_guard_argv() -> list[str]:
-    names = sorted({name for tests in SOURCE_GUARDS.values() for name in tests})
-    return ["go", "test", *("github.com/xianxu/pair/" + package for package in SOURCE_GUARDS),
+# Only audited nested modules participate; never discover packages dynamically or
+# widen the provider's selected-package argv. Reader certificates still name the
+# original repository-relative package, while Go runs within its module.
+SOURCE_MODULES = ("examples/mock-to-real",)
+SOURCE_GUARDS["examples/mock-to-real/internal/app"] = (
+    "TestRealAppAndContract", "TestMissingRealHandler", "TestPreparedRoutesAndNavigationOwnSnapshot")
+SOURCE_GUARDS["examples/mock-to-real/internal/buildsample"] = (
+    "TestProductionPartialAndCompletedPrivateCopy", "TestCanceledBuildPublishesNothing",
+    "TestActiveChildCancellationJoins", "TestReportFailureDoesNotLeaveArtifact")
+
+
+def _guard_argv(guards, prefix):
+    names = sorted({name for tests in guards.values() for name in tests})
+    return ["go", "test", *(prefix + package for package in guards),
             "-run", "^(" + "|".join(names) + ")$", "-count=1", "-timeout", "20m"]
+
+
+def source_guard_argv() -> list[str]:
+    root = {package: tests for package, tests in SOURCE_GUARDS.items()
+            if not any(package.startswith(module + "/") for module in SOURCE_MODULES)}
+    return _guard_argv(root, "github.com/xianxu/pair/")
+
+
+def source_guard_commands():
+    commands = [(source_guard_argv(), None)]
+    for module in SOURCE_MODULES:
+        guards = {package[len(module) + 1:]: tests for package, tests in SOURCE_GUARDS.items()
+                  if package.startswith(module + "/")}
+        if guards:
+            commands.append((_guard_argv(guards, "./"), module))
+    return commands
 
 
 @dataclass(frozen=True)
@@ -462,7 +489,8 @@ def run_selection(selection: TestSelection, make_argv: list[str]) -> None:
         if selection.packages:
             started = time.monotonic()
             try:
-                subprocess.run(source_guard_argv(), check=True)
+                for guard, directory in source_guard_commands():
+                    subprocess.run(guard, cwd=directory, check=True)
             finally:
                 print(f"affected source preflight: {time.monotonic() - started:.3f}s", flush=True)
         subprocess.run(argv, check=True)

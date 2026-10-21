@@ -22,20 +22,30 @@ const reloadPath = "/__couch_mock/reload.js"
 
 // Server publishes one scan observation to every browser. Requests never scan.
 type Server struct {
-	project  *Project
-	lifetime string
-	scan     func(context.Context) (Snapshot, error)
-	mu       sync.RWMutex
-	state    RevisionState
+	project     *Project
+	lifetime    string
+	scan        func(context.Context) (Snapshot, error)
+	mu          sync.RWMutex
+	state       RevisionState
+	catalogue   *Catalogue
+	progressOut io.Writer
 }
 
 func NewServer(ctx context.Context, p *Project, lifetime string) (*Server, error) {
 	s := &Server{project: p, lifetime: lifetime, scan: p.Scan}
+	return initializeServer(ctx, s)
+}
+func newHybridServer(ctx context.Context, p *Project, lifetime string) (*Server, error) {
+	s := &Server{project: p, lifetime: lifetime, scan: p.scanHybrid}
+	return initializeServer(ctx, s)
+}
+func initializeServer(ctx context.Context, s *Server) (*Server, error) {
 	snap, err := s.scan(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("repair mock project: %w", err)
 	}
 	s.state.Observe(snap.Version, snap.Digest, nil)
+	s.catalogue = snap.Catalogue
 	return s, nil
 }
 func (s *Server) refresh(ctx context.Context) {
@@ -44,8 +54,26 @@ func (s *Server) refresh(ctx context.Context) {
 		return
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	before := ""
+	if s.catalogue != nil {
+		before = s.catalogue.Report()
+	}
 	s.state.Observe(snap.Version, snap.Digest, err)
+	s.catalogue = snap.Catalogue
+	after := ""
+	if snap.Catalogue != nil {
+		after = snap.Catalogue.Report()
+	}
+	out := s.progressOut
+	s.mu.Unlock()
+	if out != nil && before != after && after != "" {
+		_, _ = io.WriteString(out, after)
+	}
+}
+func (s *Server) frontObservation() (Observation, *Catalogue) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.state.Snapshot(s.lifetime), s.catalogue
 }
 func (s *Server) observation() Observation {
 	s.mu.RLock()
@@ -147,12 +175,19 @@ func (s *Server) redirect(w http.ResponseWriter, r *http.Request, version, scree
 	http.Redirect(w, r, u.String(), http.StatusFound)
 }
 func (s *Server) file(w http.ResponseWriter, r *http.Request, name, screen string, obs Observation) {
+	s.deliverFile(w, r, name, screen, obs, nil)
+}
+func (s *Server) deliverFile(w http.ResponseWriter, r *http.Request, name, screen string, obs Observation, catalogue *Catalogue) {
 	limit := MaxBytes
 	if strings.HasSuffix(screen, ".html") {
 		limit = MaxHTMLBytes
 	}
 	body, err := s.project.readBounded(name, limit)
 	if err != nil {
+		if catalogue != nil {
+			http.Error(w, "Declared mock screen unavailable: "+screen, http.StatusServiceUnavailable)
+			return
+		}
 		http.NotFound(w, r)
 		return
 	}
@@ -170,7 +205,13 @@ func (s *Server) file(w http.ResponseWriter, r *http.Request, name, screen strin
 			http.NotFound(w, r)
 			return
 		}
-		body, err = TransformPage(body, Bootstrap{Version: obs.Version, Screen: id, Revision: obs.Revision})
+		boot := Bootstrap{Version: obs.Version, Screen: id, Revision: obs.Revision}
+		if catalogue == nil {
+			body, err = TransformPage(body, boot)
+		} else {
+			real, total := catalogue.Progress()
+			body, err = TransformDevelopmentPage(body, boot, real, total)
+		}
 		if err != nil {
 			http.Error(w, "cannot transform mock page: "+err.Error(), 500)
 			return
@@ -203,15 +244,22 @@ func Serve(ctx context.Context, dir string, port int, out io.Writer) error {
 	return serveListener(ctx, s, ln, out)
 }
 func serveListener(ctx context.Context, s *Server, ln net.Listener, out io.Writer) error {
+	return serveHandler(ctx, s, s, ln, out, 10*time.Second)
+}
+func serveHandler(ctx context.Context, s *Server, handler http.Handler, ln net.Listener, out io.Writer, writeTimeout time.Duration) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	srv := &http.Server{Handler: s, ReadHeaderTimeout: 5 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10}
+	srv := &http.Server{Handler: handler, ReadHeaderTimeout: 5 * time.Second, WriteTimeout: writeTimeout, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10}
 	served := make(chan error, 1)
 	serveDone := make(chan struct{})
 	go func() { defer close(serveDone); served <- srv.Serve(ln) }()
 	watched := make(chan struct{})
 	go func() { defer close(watched); s.watch(ctx) }()
 	_, writeErr := fmt.Fprintln(out, "http://"+ln.Addr().String()+"/")
+	_, catalogue := s.frontObservation()
+	if writeErr == nil && catalogue != nil {
+		_, writeErr = io.WriteString(out, catalogue.Report())
+	}
 	var runErr error
 	if writeErr != nil {
 		runErr = writeErr
@@ -222,6 +270,9 @@ func serveListener(ctx context.Context, s *Server, ln net.Listener, out io.Write
 		}
 	}
 	cancel()
+	if closer, ok := handler.(io.Closer); ok {
+		_ = closer.Close()
+	}
 	shutdown, stop := context.WithTimeout(context.Background(), 2*time.Second)
 	if err := srv.Shutdown(shutdown); err != nil {
 		_ = srv.Close()

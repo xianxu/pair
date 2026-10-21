@@ -61,6 +61,19 @@ Claimed and started after #755 landed as PR507. Read the product-shaping design 
 
 - TL confirmed the plan is with the operator in Needs you (authenticated receipt9fd58461-e8aa-43b1-bf57-4780481fc7d9). TL recommends two-command development reuse and strict production refusal; suggested considering a make dev convenience command that starts both. Holding code until the relayed answer. Any two-process convenience runner must own cancellation and join both processes; it is not yet an approved implementation addition.
 
+### 2026-10-21 — implementation checkpoint
+
+Full-flow change-code PASSED: plan-quality CLEAN after PQ-1/PQ-2; estimate-quality INFO accepted derivation and noted broad uniform concern budgets. Proxy ownership budget covers pure ownership/admission, API budget covers real transport/stream/upgrade wiring, qualification covers active suite/CI/landing work (queue idle excluded), and real-API discovery covers ReverseProxy hijack/cancel behavior. Eight concerns fit standard Go/host seams but qualification remains the optimistic component; no estimate back-fit.
+
+Implemented explicit catalogue/report, optional framework-neutral front, paired scan/route/count revisions, exact declared mock delivery, mock-only chrome, external-app ownership and finite proxy/upgrade capacity. Catalogue/route/shape tests observed RED then GREEN and bounded fuzz; stateful upstream tests cover real errors/methods/assets/redirects, private namespace denial and no request scans. Production Go example builds partial and complete private copies, checks named missing handlers, preserves old outputs and excludes unique mock/fixture sentinels. The app's fixture data remains independent. Root integration runs nested tests and actual host+sample and proves front stop leaves app alive.
+
+Verification so far: mockserve race checks pass; root template+host checks pass; private browser passed3 consecutive runs plus a subsequent integrated run2.941s, and suppressed delivered-progress negative control fails the intended assertion. First browser run overlapped production edits and failed before diagnostics; no stable-head flake is claimed. Inventory passed after auditing six new readers; targeted artifactpath12.351s, repolint12.467s and root template5.040s pass. Python affected-runner13 tests pass with finite nested-module source-preflight grouping. Root sample executable uses suite-owned cache, not per-test builds. Final incomplete-upload and padded-port probes were RED and fixes are being verified. No full recorded suite or final close is claimed yet. Private GOCACHE remains on main SSD, for removal after completion; no local-check/merge runner is active in this slot.
+
+
+### 2026-10-21 — final targeted verification
+
+Incomplete-upload cancellation and zero-padded origin probes both failed before fixes and pass afterward (mockserve targeted race1.966s; public Couch mock CLI0.373s). Combined mockserve/root-template race passed5.023s/5.558s and vet passed. Final private browser plus lifecycle/port/page-work verification passed; previous integrated browser run2.941s. Counted page traversal is bounded at N/2N. Contract traversal counts128→256 rows: inference2043→4091 visits for1026→2050 nodes (<=2 per node), matching1026→2050 (exactly1 per node); ambiguity comparisons are counted, not hidden reflect scans. Shape fuzz also passed76087 executions after this guard. Private selection lock/staging files are now git-ignored in the copyable sample. No full recorded suite/close yet.
+
 ## Revisions
 
 - 2026-10-21 09:06 PDT — Operator approved partial production instead of refusal (TL receipt9e25f576-8ab1-4752-a2c4-21084fb68b10): plain Not implemented yet page + way back, marked links, report from successful build, no mock/fixtures/badge in production. The prior strict refusal contract is superseded.
@@ -72,6 +85,7 @@ Claimed and started after #755 landed as PR507. Read the product-shaping design 
 - 2026-10-21 12:54 PDT — TL/operator made #757 high priority and authorized parking #769 and starting this issue now, superseding the prior wait-for-landing sequence. PR524, reviews and passed suite preserved; its runner had already exited1 after train238 conflict hold, so no cancellation was needed. Private GOCACHE=$HOME/.cache/go-build-757 on main SSD for builds/tests, to be removed at completion. No Go cache on TestScratch.
 
 - 2026-10-21: Full-flow plan review round1 requested PQ-1 exact missing-declared-mock delivery policy and PQ-2 named per-function test strategies. Added startup/watch/selection repair and request-time503 semantics without index/upstream fallback in hybrid mode, preserving standalone behavior; compressed active tasks into function/strategy table. Re-running plan-quality before code.
+
 
 ## Estimate
 

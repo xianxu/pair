@@ -90,13 +90,13 @@ Keep one shared fixtures.json for mocks. The example's real backend uses its own
 
 | Name | Lives in | Status |
 |---|---|---|
-| ScreenCatalogue, ParseCatalogue, ResolveScreen, Progress, MissingReport | cmd/internal/mockserve/screens.go | new |
-| RouteDecision | cmd/internal/mockserve/front_route.go | new |
-| DevelopmentChrome | cmd/internal/mockserve/page.go | modified |
-| FixtureShape, InferShape, MatchShape | examples/mock-to-real/internal/contract/shape.go | new |
-| ProductionScreenProjection and navigation policy | examples/mock-to-real/internal/screens/screens.go | new |
+| Catalogue, ParseCatalogue, ResolveRoute, ResolveMock, Progress, Report | cmd/internal/mockserve/screens.go | new |
+| frontRoute / decideFrontRoute | cmd/internal/mockserve/front_route.go | new |
+| TransformDevelopmentPage | cmd/internal/mockserve/page.go | modified |
+| Shape, Infer, Match | examples/mock-to-real/internal/contract/shape.go | new |
+| app.Screen, catalogue.Read and prepared navigation policy | examples/mock-to-real/internal/app/app.go and internal/catalogue/catalogue.go | new |
 
-Catalogue owns immutable route/alias maps and one computed progress value; no duplicated app-side Go-only declaration. RouteDecision yields mock document/asset, internal/private/refusal or real proxy without IO. Existing version selection remains its sole owner. Mock decoration remains a pure bounded HTML transform, shared with existing bootstrap work. Contract/projection tests use literal values and no IO mocks. Extensions to the catalogue are additive/read-only; future route patterns would be an explicit widened contract.
+Catalogue owns immutable route/alias maps and one computed progress value; no duplicated app-side Go-only declaration. frontRoute / decideFrontRoute yields mock document/asset, internal/private/refusal or real proxy without IO. Existing version selection remains its sole owner. Mock decoration remains a pure bounded HTML transform, shared with existing bootstrap work. Contract/projection tests use literal values and no IO mocks. Extensions to the catalogue are additive/read-only; future route patterns would be an explicit widened contract.
 
 ### Integration points
 
@@ -142,15 +142,15 @@ No per-request/per-scan durable artifact, cache, generated mock family or catalo
 | Risky function / owner | Adversarial input class | Mechanical guard |
 |---|---|---|
 | ParseCatalogue | ambiguous or hostile JSON/schema/route identifiers | table-driven classes and seeded fuzzing, strict duplicate/known-field validation and byte/element bounds |
-| ResolveScreen / RouteDecision | alias/reserved namespace collisions and malformed URLs | pure decision tables plus fuzzing; upstream spy must observe zero forbidden dispatches |
-| MissingReport / Run check | incomplete versus invalid input and command side effects | exact deterministic report/exit assertions with only a catalogue present; filesystem/listener/process effects remain absent |
+| ResolveRoute / ResolveMock / decideFrontRoute | alias/reserved namespace collisions and malformed URLs | pure decision tables plus fuzzing; upstream spy must observe zero forbidden dispatches |
+| Report / Run check | incomplete versus invalid input and command side effects | exact deterministic report/exit assertions with only a catalogue present; filesystem/listener/process effects remain absent |
 | Project.Scan / refresh / observation | selected catalogue/document mutation across observation boundaries | barrier-controlled replacement and selection changes, atomic published health/catalogue/revision; strict hybrid missing-document failure and recovery |
-| DevelopmentFront.ServeHTTP | real/mock dispatch under upstream errors and mixed HTTP traffic | stateful fake app, exact body/status/origin assertions and request cancellation barriers; no error fallback |
-| DevelopmentFront shutdown / upgrade ownership | cancellation while streams/upgrades remain active | explicit connection-ready barriers, cancel owner then assert all copy loops/fds joined; overload admission count |
-| TransformPage / DevelopmentChrome | hostile bounded HTML and conflicting owned metadata | pure transform assertions and fuzz seeds preserving project scripts/identity; no real HTML modification |
+| developmentFront.ServeHTTP | real/mock dispatch under upstream errors and mixed HTTP traffic | stateful fake app, exact body/status/origin assertions and request cancellation barriers; no error fallback |
+| developmentFront.Close / upgrade ownership | cancellation while streams/upgrades remain active | explicit connection-ready barriers, cancel owner then assert all copy loops/fds joined; overload admission count |
+| TransformPage / TransformDevelopmentPage | hostile bounded HTML and conflicting owned metadata | pure transform assertions and fuzz seeds preserving project scripts/identity; no real HTML modification |
 | Reload client lifecycle | status/version/repair observation races | existing deterministic JS generation fences plus bounded private-browser full-navigation conformance |
-| InferShape / MatchShape | arbitrary nested JSON and ambiguous array prototypes | seeded fuzzing and JSON-path failure assertions under depth/byte bounds; mutation demonstrates backend drift caught |
-| ProductionScreenProjection / sample routing | drift between catalogue and build/navigation/handler registration | build private source copies with partial and complete states; exact placeholder/link/report behavior and artifact sentinel absence |
+| Infer / Shape.Match | arbitrary nested JSON and ambiguous array prototypes | seeded fuzzing and JSON-path failure assertions under depth/byte bounds; mutation demonstrates backend drift caught |
+| app.Screen / catalogue.Read / app.New / buildsample.Build | drift between catalogue and build/navigation/handler registration | build private source copies with partial and complete states; exact placeholder/link/report behavior and artifact sentinel absence |
 | Screen lookup / scan / shape work | N versus2N input/request growth | counted IO/node/transform operations, zero per-request scan/parse work; timing is not the oracle |
 | Nested template qualification | root Go suite silently omits nested module | root integration explicitly runs sample tests/build and real mock host against private owned roots |
 
@@ -162,33 +162,33 @@ All implementation follows RED → observed failure → minimal implementation �
 
 Files: mockserve/screens.go, screens_test.go, front_route.go, front_route_test.go, check.go/check_test.go; cli.go/cli_test.go and couchcmd/mock_test.go/run.go.
 
-- [ ] Implement immutable catalogue, pure dispatch/report policy and their named strategies.
-- [ ] Extend ParseCommand/Run for --real and mock check, preserving runtime-independent Couch dispatch and documenting command exit behavior.
-- [ ] Run targeted mockserve/couchcmd checks and commit the verified catalogue/CLI layer.
+- [x] Implement immutable catalogue, pure dispatch/report policy and their named strategies.
+- [x] Extend ParseCommand/Run for --real and mock check, preserving runtime-independent Couch dispatch and documenting command exit behavior.
+- [x] Run targeted mockserve/couchcmd checks and commit the verified catalogue/CLI layer.
 
 ### 2. Front, shared scan publication and browser behavior
 
 Files: mockserve/front.go/front_test.go; scan.go/scan_test.go, server.go/server_test.go, page.go/page_test.go, browser_test.go; reload.js/reload_test.js only if catalogue-change navigation needs it.
 
-- [ ] Integrate catalogue and declared-document validation into the existing confined scan observation; publish health/catalogue/revision together without a new watcher/read owner.
-- [ ] Implement optional front, exact hybrid document delivery and mock-only chrome; keep upstream response bytes and standalone mock semantics intact.
-- [ ] Implement context-owned proxy transport, capacity admission and upgraded-connection shutdown under the named lifecycle strategy.
-- [ ] Run targeted race/JS checks and bounded private-profile browser conformance; commit the verified host feature.
+- [x] Integrate catalogue and declared-document validation into the existing confined scan observation; publish health/catalogue/revision together without a new watcher/read owner.
+- [x] Implement optional front, exact hybrid document delivery and mock-only chrome; keep upstream response bytes and standalone mock semantics intact.
+- [x] Implement context-owned proxy transport, capacity admission and upgraded-connection shutdown under the named lifecycle strategy.
+- [x] Run targeted race/JS checks and bounded private-profile browser conformance; commit the verified host feature.
 
 ### 3. Worked Go sample, production convention and contracts
 
 Files: examples/mock-to-real/go.mod, cmd/app/main.go, cmd/build/main.go, internal/sample, internal/screens, internal/contract, mocks/{screens.json,fixtures.json,mock-1/*}, README.md and design.md, .gitignore.
 
-- [ ] Implement independent real backend, typed shape contracts and single-catalogue sample consumer using their named verification strategies.
-- [ ] Implement app-owned production build/report/projection, missing-screen page/back link and marked navigation; qualify partial and complete production artifacts in private roots.
-- [ ] Document any-framework usage and full-document boundary; run nested race checks and commit the worked example.
+- [x] Implement independent real backend, typed shape contracts and single-catalogue sample consumer using their named verification strategies.
+- [x] Implement app-owned production build/report/projection, missing-screen page/back link and marked navigation; qualify partial and complete production artifacts in private roots.
+- [x] Document any-framework usage and full-document boundary; run nested race checks and commit the worked example.
 
 ### 4. Integration and one close boundary
 
 Files: cmd/internal/mocktemplate/template_test.go; artifactpath source classifications/per-reader certificates; README.md, atlas/mock-server.md, atlas/mock-to-real.md and atlas/index.md.
 
-- [ ] Integrate nested qualification into the root suite; audit new readers/source classifications and run inventory/artifact/repolint checks.
-- [ ] Update public docs for --real, report-only check, production responsibility and accepted limits; retain historical refusal only as superseded provenance.
+- [x] Integrate nested qualification into the root suite; audit new readers/source classifications and run inventory/artifact/repolint checks.
+- [x] Update public docs for --real, report-only check, production responsibility and accepted limits; retain historical refusal only as superseded provenance.
 - [ ] Push/PR, recorded affected/suite, close with binary-owned mandatory review, merge and report hub. One atomic close boundary, no Mx tag.
 
 ## Architecture lenses
@@ -205,6 +205,13 @@ ARCH-DRY: reuse host; one catalogue feeds dispatch/progress/report/sample produc
 ## Revisions — priority and cache
 
 - 2026-10-21 12:54 PDT: TL/operator made #757 high priority and explicitly superseded the wait-for-#769 sequence. Park #769, keep PR524/suite/reviews, start #757 now. Its retained runner had already exited1 when train238 held its merge for conflict; no live process was stopped. Re-entry must follow the printed integrate/re-close recovery after the cache is cleared. All Go build/test subprocesses use private GOCACHE at $HOME/.cache/go-build-757 on main SSD, never TestScratch; remove that private cache when done.
+
+
+## Revisions — implementation layout and verification integration
+
+- 2026-10-21: Aligned conceptual table names with actual focused implementation APIs; sample owns internal/app, catalogue, jsonvalue, contract and buildsample. No new product policy. Root qualification uses suite-owned testbinary.Cache for its distinct sample executable; every process joins before TestMain removes it.
+- The nested standalone Go module has audited source-reading tests that the old fixed preflight cannot address as root-module imports. Added explicit finite SOURCE_MODULES grouping: existing root scanner argv remains exact, nested audited packages run from their own module before provider-selected packages, and any preflight failure stops selected effects. Statefully recorded child-executable tests cover commands/failure propagation; no discovery or widening of the selected-package argv. Reader certificates remain per file.
+- Final adversarial regressions exposed blocked incomplete-upload cancellation and zero-padded self-origin ports. Normalize origin ports before self-target checks; owner cancellation wakes downstream reads/writes and joins its callback before returning. Both regressions observed RED before fixes.
 
 ## Historical initial proposal — superseded, retained for decision provenance
 
