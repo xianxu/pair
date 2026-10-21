@@ -1,13 +1,13 @@
 ---
 id: 000761
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours: 2.3535
 collaboration-mode: collaboration
-card_mirror: '232644e80b60b6602d3d547fcca3bb513bb475b8' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '6747b42a277335f870083bea99c47eca1c16e43b' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-21T00:55:41-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 5.09
 ---
 
 # Couch native detach intermittently loses post-client ownership proof
