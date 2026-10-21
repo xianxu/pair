@@ -20,31 +20,41 @@ const launchFailureHistoryLimit = 64
 // LifecycleFailure is evidence for an exact attempt, independent of thread lifecycle.
 // Nil exit observations mean unobserved, never success. Output preserves raw bytes.
 type LifecycleFailure struct {
-	Unknown          map[string]json.RawMessage `json:"-"`
-	addressUnknown   map[string]json.RawMessage
-	Target           string                `json:"target,omitempty"`
-	Slot             string                `json:"slot,omitempty"`
-	Phase            string                `json:"phase,omitempty"`
-	Outcome          string                `json:"outcome,omitempty"`
-	Holders          []ProcessIdentityLine `json:"holders,omitempty"`
-	HoldersTruncated int                   `json:"holders_truncated,omitempty"`
-	LaunchNonce      string                `json:"launch_nonce,omitempty"`
-	ParkNonce        string                `json:"park_nonce,omitempty"`
-	Address          ThreadAddress         `json:"address"`
-	Nonce            string                `json:"nonce"`
-	StartingPath     string                `json:"starting_path,omitempty"`
-	Agent            string                `json:"agent,omitempty"`
-	Operation        string                `json:"operation,omitempty"`
-	Stage            string                `json:"stage,omitempty"`
-	FailedAt         time.Time             `json:"failed_at"`
-	Output           []byte                `json:"output,omitempty"`
-	Stream           string                `json:"stream,omitempty"`
-	HelperStarted    bool                  `json:"helper_started"`
-	BeforeExit       *int                  `json:"before_exit,omitempty"`
-	AfterExit        *int                  `json:"after_exit,omitempty"`
-	LaunchError      string                `json:"launch_error,omitempty"`
-	FinalError       string                `json:"final_error,omitempty"`
-	CleanupError     string                `json:"cleanup_error,omitempty"`
+	Unknown               map[string]json.RawMessage `json:"-"`
+	addressUnknown        map[string]json.RawMessage
+	Target                string                `json:"target,omitempty"`
+	Slot                  string                `json:"slot,omitempty"`
+	Phase                 string                `json:"phase,omitempty"`
+	Outcome               string                `json:"outcome,omitempty"`
+	Holders               []ProcessIdentityLine `json:"holders,omitempty"`
+	HoldersTruncated      int                   `json:"holders_truncated,omitempty"`
+	LaunchNonce           string                `json:"launch_nonce,omitempty"`
+	ParkNonce             string                `json:"park_nonce,omitempty"`
+	Address               ThreadAddress         `json:"address"`
+	Nonce                 string                `json:"nonce"`
+	StartingPath          string                `json:"starting_path,omitempty"`
+	Agent                 string                `json:"agent,omitempty"`
+	Operation             string                `json:"operation,omitempty"`
+	Stage                 string                `json:"stage,omitempty"`
+	FailedAt              time.Time             `json:"failed_at"`
+	Output                []byte                `json:"output,omitempty"`
+	Stream                string                `json:"stream,omitempty"`
+	HelperStarted         bool                  `json:"helper_started"`
+	BeforeExit            *int                  `json:"before_exit,omitempty"`
+	AfterExit             *int                  `json:"after_exit,omitempty"`
+	LaunchError           string                `json:"launch_error,omitempty"`
+	FinalError            string                `json:"final_error,omitempty"`
+	CleanupError          string                `json:"cleanup_error,omitempty"`
+	ZellijArgs            []string              `json:"zellij_args,omitempty"`
+	ZellijExecutable      string                `json:"zellij_executable,omitempty"`
+	ZellijStdout          []byte                `json:"zellij_stdout,omitempty"`
+	ZellijStderr          []byte                `json:"zellij_stderr,omitempty"`
+	ZellijStdoutBytes     int                   `json:"zellij_stdout_bytes,omitempty"`
+	ZellijStderrBytes     int                   `json:"zellij_stderr_bytes,omitempty"`
+	ZellijStdoutTruncated bool                  `json:"zellij_stdout_truncated,omitempty"`
+	ZellijStderrTruncated bool                  `json:"zellij_stderr_truncated,omitempty"`
+	ZellijExit            *int                  `json:"zellij_exit,omitempty"`
+	ZellijVersion         string                `json:"zellij_version,omitempty"`
 }
 
 type LaunchFailure = LifecycleFailure
@@ -52,6 +62,13 @@ type LifecycleFailureHistory []LifecycleFailure
 type LaunchFailureHistory = LifecycleFailureHistory
 
 func cloneLaunchFailure(f LaunchFailure) LaunchFailure {
+	f.ZellijArgs = append([]string(nil), f.ZellijArgs...)
+	f.ZellijStdout = append([]byte(nil), f.ZellijStdout...)
+	f.ZellijStderr = append([]byte(nil), f.ZellijStderr...)
+	if f.ZellijExit != nil {
+		v := *f.ZellijExit
+		f.ZellijExit = &v
+	}
 	f.Output = append([]byte(nil), f.Output...)
 	f.Unknown = strictjson.CloneRaw(f.Unknown)
 	f.addressUnknown = strictjson.CloneRaw(f.addressUnknown)
@@ -80,6 +97,12 @@ func boundLaunchFailureError(s string) string {
 }
 func normalizeLaunchFailure(f LaunchFailure) (LaunchFailure, error) {
 	f = cloneLaunchFailure(f)
+	if f.ZellijStdoutBytes < 0 || f.ZellijStderrBytes < 0 {
+		return f, fmt.Errorf("invalid native query byte count")
+	}
+	if f.hasNativeQueryEvidence() {
+		f.setNativeQueryEvidence(f.nativeQueryEvidence())
+	}
 	if f.Outcome == "" {
 		f.Outcome = "failed"
 	}
@@ -165,6 +188,9 @@ func (h LaunchFailureHistory) Upsert(f LaunchFailure) (LaunchFailureHistory, err
 				old.ParkNonce = f.ParkNonce
 			}
 			found = true
+			if f.hasNativeQueryEvidence() {
+				old.setNativeQueryEvidence(f.nativeQueryEvidence())
+			}
 			if f.Output != nil {
 				old.Output = f.Output
 			}

@@ -172,3 +172,46 @@ The fixture itself shares one handle-retirement path between KillClient and
 Close: consume the PTY and client before closing/signalling/reaping, and retain
 real failures. Startup refusal joins cleanup errors; final cleanup still requires
 exact server-generation exit evidence before removing its owned cache root.
+
+
+## Inherited descriptor proof (#767)
+
+The local `fd-path-permission` rule is registered and implemented in
+`internal/repolint/local_catalog_test.go`. It flags literal shell `test`, `[` and
+`[[` permission probes (`-r`, `-w`, `-x`) of numeric `/dev/fd/N` paths. The identity
+fixture exposed a macOS false negative while its inherited descriptor remained
+readable. Check the descriptor itself (read, fstat or fcntl); a pathname's access
+permission is a separate observation. The rule is lexical and does not resolve
+dynamically assembled shell commands. Its fixture cases live in
+`internal/repolint/fd_path_permission_test.go`; finding/suppression behavior is
+shared with the catalog above. Other consumers' shared catalog is unchanged.
+
+## Scribe terminal-aware output producer (#766)
+
+The Pair-local `scribe-pty-printf` rule, owned by
+`internal/repolint/scribe_pty_printf_rule_test.go`, rejects a bare or absolute
+`printf` executable after `--` in inline string arguments to scribecmd's
+`runWithPTY` and `runWithPTYReply` test helpers. A short-lived producer can lose
+unread output at Darwin's last slave close. The tee fixture instead opens
+`/dev/tty`, exchanges a readiness/acknowledgement through the real PTYs, then
+emits its final marker. Its native stress regression checks the actual stdout
+and log bytes.
+
+This guard checks direct syntax only; argv variables, aliases, computed arguments
+and shell protocol correctness are outside its scope. Other commands and helpers
+are unaffected. Public scribe's generic-command exposure is tracked separately
+in #768; this fixture rule does not claim a production launch-policy fix.
+
+## Fixture CLI group completion (#744)
+
+The Pair-local `fixture-cli-group-completion` rule is owned by
+`internal/repolint/fixture_cli_group_rule_test.go` and registered in pairCatalog.
+It rejects Wait calls in agentfixture.runCLI when the owner no longer invokes
+cliGroupError. A completed command leader does not prove descendant quiescence.
+The accepted owner observes every successfully started completion and retains
+explicit uncertainty when the group is live or unknown.
+
+This narrow syntax guard detects deletion of the observation, including ordinary
+error paths and misleading comments. It does not prove ordering, control flow,
+exec.Cmd aliases or indirect calls; the real completion-path regressions cover
+success, signal, cancellation and leader-first descendants with open/closed pipes.

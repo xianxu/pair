@@ -2075,6 +2075,15 @@ entry when replacing its sleep, and never add entries or inline sleep exemptions
 See the [Go lint catalog](atlas/go-lint-catalog.md) for scanner scope, module
 updates and the temporary debt contract.
 
+Ordinary Darwin+cgo package tests using `testdisk.RunWithWriteBudget` disable
+Go test-result caching before the measured callback. This avoids charging Go's
+filesystem-access trace to the fixture-write cap; build caching remains enabled.
+Plain `go test` therefore executes these measured packages again on a warm cache,
+just as `-count=1` does, while explicit repetition counts keep their meaning.
+The diagnostic says `test-result cache disabled` when a trace was requested.
+Real payload writes remain subject to the same caps. Benchmark/fuzz workloads
+and unsupported native counters keep their existing coverage policy.
+
 Pair and wrapper subprocess fixtures use `testpair.Environment(t, disposableRoot,
 explicitEntries...)`. It delegates to `tests/lib/pair-test-env.sh`, the shared
 empty-environment owner for Go, shell and Python tests: only host PATH, disposable
@@ -2422,6 +2431,14 @@ log before scratch cleanup. For manual Go runs, add `-artifacts -outputdir
 <owned-dir>` to retain the complete oracle files; successful calls remove theirs.
 The [oracle guide](tests/terminal-oracle/README.md) covers replay, headless controls
 and report limitations; a diagnostic pass does not establish a crash fix.
+
+For disposable multi-slot Couch acceptance, run `make test-couch-fleet`. It uses
+the shared native fleet helper with real Zellij, Pair/wrappers and provisioned
+workspaces, plus deterministic Claude/Codex fixtures. It requires installed
+SDLC/Weave, Git, Zellij and nvim, and uses private state and queue roots without
+models or credentials. Portable helper tests run normally; the native consumer
+opts in only through this target or `PAIR_NATIVE_COUCH_FLEET=1`.
+See [fleet ownership and evidence](atlas/couch-testing.md).
 
 `tests/terminal-performance.py --help` describes isolated baseline/candidate
 measurements using real Pair terminal processes and independent screen receipts.

@@ -173,6 +173,7 @@ func (s ZellijSource) run(args ...string) ([]byte, error) {
 // subprocess status (-1 if absent).
 // CallerDeadline is zero when absent; EffectiveDeadline includes the query cap.
 type ZellijQueryObservation struct {
+	Executable                        string
 	Args                              []string
 	Started, Finished                 time.Time
 	CallerDeadline, EffectiveDeadline time.Time
@@ -205,7 +206,7 @@ func (s ZellijSource) runContext(ctx context.Context, args ...string) ([]byte, e
 			return nil, err
 		}
 		output, err = s.runQueryAttempt(ctx, callerDeadline, args...)
-		if zellijReadKind(args) == 0 || (!errors.Is(err, ErrZellijNoReply) && !errors.Is(err, errZellijCrossedReply)) {
+		if zellijReadKind(args) == 0 || (!errors.Is(err, ErrZellijNoReply) && !errors.Is(err, errZellijCrossedReply) && !errors.Is(err, errZellijSessionLookupMiss)) {
 			return output, err
 		}
 	}
@@ -233,7 +234,7 @@ func (s ZellijSource) runQueryAttempt(ctx context.Context, callerDeadline time.T
 			const bound = 64 * 1024
 			observe(ZellijQueryObservation{
 				CallerDeadline: callerDeadline, EffectiveDeadline: effectiveDeadline,
-				Args: append([]string(nil), args...), Started: started, Finished: finished,
+				Executable: cmd.Path, Args: append([]string(nil), args...), Started: started, Finished: finished,
 				Duration: finished.Sub(started), ExitCode: exitCode, Err: resultErr,
 				Stdout:      append([]byte(nil), stdout.Bytes()[:min(stdout.Len(), bound)]...),
 				Stderr:      append([]byte(nil), stderr.Bytes()[:min(stderr.Len(), bound)]...),
@@ -255,6 +256,10 @@ func (s ZellijSource) runQueryAttempt(ctx context.Context, callerDeadline time.T
 			// Only the direct process exit can be normalized. A joined collector
 			// failure remains unknown even if it contains this same exit code.
 			exitErr, pureExit := err.(*exec.ExitError)
+			if pureExit && exitErr.ExitCode() == 1 && len(args) > 1 &&
+				retryableSessionLookupMiss(args, stdout.Bytes(), stderr.Bytes(), 1, true) && sessionSocketPresent(args[1]) {
+				return nil, fmt.Errorf("zellij %s: %w", strings.Join(args, " "), errZellijSessionLookupMiss)
+			}
 			if len(args) > 0 && args[0] == "list-sessions" &&
 				pureExit && exitErr.ExitCode() == 1 &&
 				stdout.Len() == 0 && strings.TrimSpace(stderr.String()) == "No active zellij sessions found." {
@@ -266,10 +271,13 @@ func (s ZellijSource) runQueryAttempt(ctx context.Context, callerDeadline time.T
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("zellij %s: %w", strings.Join(args, " "), err)
 	}
+	if retryableSessionLookupMiss(args, stdout.Bytes(), stderr.Bytes(), 0, false) {
+		return nil, fmt.Errorf("zellij %s: %w", strings.Join(args, " "), errZellijSessionLookupMiss)
+	}
 	if len(bytes.TrimSpace(stdout.Bytes())) == 0 {
 		return nil, fmt.Errorf("zellij %s: %w", strings.Join(args, " "), ErrZellijNoReply)
 	}
-	if crossedZellijReply(zellijReadKind(args), stdout.Bytes()) {
+	if stderr.Len() == 0 && crossedZellijReply(zellijReadKind(args), stdout.Bytes()) {
 		return nil, fmt.Errorf("zellij %s: %w", strings.Join(args, " "), errZellijCrossedReply)
 	}
 	return stdout.Bytes(), nil
