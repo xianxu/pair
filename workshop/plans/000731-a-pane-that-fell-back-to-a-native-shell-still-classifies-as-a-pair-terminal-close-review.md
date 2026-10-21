@@ -330,3 +330,79 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T01:09:02-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 731 — A pane that fell back to a native shell still classifies as a Pair terminal |
+| repo | pair |
+| issue file | workshop/issues/000731-a-pane-that-fell-back-to-a-native-shell-still-classifies-as-a-pair-terminal.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 9bab1a06b4feafec88fe41d0b19bec847a24c011..ae6dc590d696c87ed99f948c1d0d4b56c9762f5c |
+| command | sdlc close --issue 731 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T01:09:02-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff preserves both sides of the reader-inventory conflict resolution and retains the corrected acceptance contract. No new defects or scope changes found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Issue line 45 retains “Unavailable identity/argv inspection preserves the live registry answer” and diagnostic-failure independence. This matches terminal_owner.go:32–80. The pinned before/after diff leaves that corrected passage unchanged.
+```
+
+1. **Strengths**
+
+   - `tests/affected-go-readers.json:153–156` preserves all four independent reader entries with verified hashes.
+   - The implementation plan and issue’s Spec/Done when remain unchanged.
+   - Lesson changes relocate existing guidance without altering its meaning.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Reader inventory `--check`, all 13 inventory tests, and `git diff --check` passed. Tests include duplicate-key rejection and the actual affected-run preflight regression. No production behavior correction requires a revert-to-red check in this window.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** no duplicated logic introduced.
+   - **ARCH-PURE — pass:** no business logic or IO boundary changes.
+   - **ARCH-PURPOSE — pass:** conflict resolution preserves both reader sets and the approved contract.
+   - **ARCH-EVOLVE — pass:** inventory schema, existing entries, and reader/writer behavior are preserved.
+
+   No new architectural or user-facing surface requires atlas or README changes.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"0d98eaec-1e6a-4d25-ada7-638cf86cfd5a","repository":"github.com/xianxu/pair","issue_id":"000731","recipe":"fix-review","round":5,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/e00a66b53e398efa","reviewed_head":"ae6dc590d696c87ed99f948c1d0d4b56c9762f5c","slot":"pair:6","requested_at":"2026-10-21T08:07:10.62902Z"},"phase":"finished","pid":39751,"started_at":"2026-10-21T08:07:10.843158Z","finished_at":"2026-10-21T08:09:01.513037Z","session_id":"01a15d7f-fc6d-7e92-bfc9-d7e4c7056442","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.400257542s
+head: "ae6dc590d696c87ed99f948c1d0d4b56c9762f5c"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

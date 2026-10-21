@@ -460,6 +460,146 @@ rounds:
       isolation: fenced
       reviewed: b1594a72ced6e04ad55fdac5cdac2e9a9a84b605
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 0d98eaec-1e6a-4d25-ada7-638cf86cfd5a
+            repository: github.com/xianxu/pair
+            issue_id: "000731"
+            recipe: fix-review
+            round: 5
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/e00a66b53e398efa
+            reviewed_head: ae6dc590d696c87ed99f948c1d0d4b56c9762f5c
+            slot: pair:6
+            requested_at: "2026-10-21T08:07:10.62902Z"
+          phase: finished
+          pid: 39751
+          started_at: "2026-10-21T08:07:10.843158Z"
+          finished_at: "2026-10-21T08:09:01.513037Z"
+          session_id: 01a15d7f-fc6d-7e92-bfc9-d7e4c7056442
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: ae6dc590d696c87ed99f948c1d0d4b56c9762f5c
+        tracker_head: b5c5a3667e9e89e94a37e258d9baaa529b854e4e
+        branch_point: bc79cbaeae75b518dcfa789fc2bd0e40ccf06f97
+        since: "2026-10-20T20:32:00-07:00"
+        until: "2026-10-21T00:29:47-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-20T20:32:00-07:00"
+              end: "2026-10-21T00:29:47-07:00"
+              began: "2026-10-20T20:32:00-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot6/pair
+        sources:
+            - harness: codex
+              id: 01a14b2c-9890-74f3-a738-58879659bef5
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: bd090a40218626ff68e4f3e2aa831dc9ff8f5970a204c735a57ac21863228f4e
+              started: "2026-10-17T18:42:56.865Z"
+              spawned: false
+              bytes: 75099518
+              windows:
+                - start: "2026-10-20T20:32:00-07:00"
+                  end: "2026-10-21T00:29:47-07:00"
+            - harness: codex
+              id: 01a15c96-3f91-7301-bd36-aff56db004d4
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: 58ba196d37dd4eac35327b3d22351ac1740992def0366b5f1ab1bfa42b5fd99e
+              started: "2026-10-21T03:51:53.145Z"
+              spawned: true
+              bytes: 567936
+              windows:
+                - start: "2026-10-21T03:51:53.145Z"
+                  end: "2026-10-21T00:29:47-07:00"
+            - harness: codex
+              id: 01a15c96-7553-7931-bc6e-f0d533f98ad6
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: 537d12a2f020ea6a6fcac4c64a44a186a0d7a03443e03db36fd53ce7f4ed5d21
+              started: "2026-10-21T03:52:06.916Z"
+              spawned: true
+              bytes: 446295
+              windows:
+                - start: "2026-10-21T03:52:06.916Z"
+                  end: "2026-10-21T00:29:47-07:00"
+            - harness: codex
+              id: 01a15c97-53d1-79a2-a7d9-2966d169f1bc
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: fce406d0c93449ebac41d8ae994efa6427872894f3c8201e54c214bb78649005
+              started: "2026-10-21T03:53:03.877Z"
+              spawned: true
+              bytes: 758070
+              windows:
+                - start: "2026-10-21T03:53:03.877Z"
+                  end: "2026-10-21T00:29:47-07:00"
+        queue_waits:
+            - attempt_id: 4e0911c5874d0fb462a6898c6d9e8a8e
+              slot: pair:6
+              record_digest: 8c074a89dd144d4f7d5f6dac3591d7855d0debe51f713c1237f440cc695ec28b
+              start: "2026-10-21T04:19:58.539563Z"
+              end: "2026-10-21T04:50:18.219924Z"
+              queue_seconds: 1819.680361
+              raw_seconds: 1819.680361
+              exact: true
+            - attempt_id: 38e6e85e8d3cfef8a14ccfe7f5730fc0
+              slot: pair:6
+              record_digest: e1fcf25fa8234399babe193c926bdf961eb5f6b2a0884d60cf43e91acc8af72a
+              start: "2026-10-21T05:01:45.209835Z"
+              end: "2026-10-21T05:32:39.345533Z"
+              queue_seconds: 1854.135698
+              raw_seconds: 1854.135698
+              exact: true
+            - attempt_id: 8ffd268d18ca5653a7e005cae3ed3a26
+              slot: pair:6
+              record_digest: 57dde4f74ee4b329451cd05272666c2f855b86b7186622bd551b7540a3214721
+              start: "2026-10-21T06:44:24.489644Z"
+              end: "2026-10-21T07:09:41.89016Z"
+              queue_seconds: 1517.400516
+              raw_seconds: 1517.400516
+              exact: true
+        cuts:
+            - dispatched: "2026-10-20T21:07:02-07:00"
+              finalized: "2026-10-20T21:09:07-07:00"
+              finalizing: false
+            - dispatched: "2026-10-20T21:11:04-07:00"
+              finalized: "2026-10-20T21:14:37-07:00"
+              finalizing: true
+            - dispatched: "2026-10-20T21:59:25-07:00"
+              finalized: "2026-10-20T22:00:33-07:00"
+              finalizing: true
+            - dispatched: "2026-10-21T00:22:48-07:00"
+              finalized: "2026-10-21T00:23:48-07:00"
+              finalizing: true
+      "n": 5
+      timestamp: "2026-10-21T01:09:02-07:00"
+      dispatched: "2026-10-21T01:07:07-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Issue line 45 retains “Unavailable identity/argv inspection preserves the live registry answer” and diagnostic-failure independence. This matches terminal_owner.go:32–80. The pinned before/after diff leaves that corrected passage unchanged.
+          round: 5
+      recipe: fix-review
+      isolation: fenced
+      reviewed: ae6dc590d696c87ed99f948c1d0d4b56c9762f5c
+      blocked: false
 ---
 
 # Gate ledger — pair#731 (boundary-review)
@@ -491,6 +631,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - BR-1 — addressed — Issue line 45 retains the LiveOwnerIDs contract: confirmed mismatch/replacement rejects, unavailable inspection retains membership with bounded diagnostics, and diagnostic failure preserves classification. This matches terminal_owner.go:32–80; this window does not alter that policy.
+
+## Round 5 — 2026-10-21T01:09:02-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Issue line 45 retains “Unavailable identity/argv inspection preserves the live registry answer” and diagnostic-failure independence. This matches terminal_owner.go:32–80. The pinned before/after diff leaves that corrected passage unchanged.
 
 ## Open findings
 

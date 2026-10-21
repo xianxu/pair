@@ -53,6 +53,8 @@ Measure the native metadata across a wrapper-to-shell exec in a disposable sessi
 
 ## Log
 
+
+- 2026-10-21: closed — Resolved only independent affected-go reader inventory additions after #751/#742 landed, preserving both term and webcast reader entries. Inventory audit and recorded full suite c09c2c414b5eaec1865df4c2cda2b6c7 passed on ae6dc590d696c87ed99f948c1d0d4b56c9762f5c (9m40s, log 53ad259632f5), including stale terminal split/tab/focus refusals. No production conflict resolution or scope change. (fixed-then-ship; full suite: Recorded suite c09c2c414b5eaec1865df4c2cda2b6c7 passed on ae6dc590d696c87ed99f948c1d0d4b56c9762f5c, exit 0 in 9m40s; log SHA prefix 53ad259632f5; full combined-head shell/editor and Go coverage.); review verdict: SHIP
 - 2026-10-21: Re-entry cleared server CI, then the merge runner explicitly refused integration with new main bc79cbaeae75b518dcfa789fc2bd0e40ccf06f97 (#751/#742): independent additions conflicted in tests/affected-go-readers.json. Preserved both audited reader sets (term admission/fullscreen plus webcast geometry/sketch corpus); inventory --check passes. No production resolution was needed. Re-run the recorded full suite and narrow close on this combined head before re-entering merge.
 
 
