@@ -2518,3 +2518,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #742 BR-3: An approved post-SHIP change to executable recognition criteria requires a full close review; narrow re-close is for fixes inside the reviewed contract. Reconcile the current Spec as well as appending the revision.
 
 - #742 live recheck: Exercise the reader's observeOutput before handleChunk in drive regressions. A render-only harness bypasses the activity-sequence fence and can pass while every native timer tick revokes admission. Interrupt proof uses operator-input generation plus freshly parsed work/composer/ownership; queued unparsed output cannot attest the old complete frame. Keep ordinary drives on their activity fence.
+
+- #762: Rotating a guessed secret resets a per-code budget, so it cannot bound lifetime attempts by itself. Keep a separate bounded counter under the lock owner and reset only on explicit authorized recovery. When callbacks carry ordered generations, commit their visible notice under that same generation guard; spawning the notice effect can let older recovery advice overwrite the current cap.

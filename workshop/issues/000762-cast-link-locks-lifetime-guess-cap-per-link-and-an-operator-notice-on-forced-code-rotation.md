@@ -53,7 +53,7 @@ Out: URL-token expiry, the quick-tunnel default, and Access in front (pair#759's
 
 - [x] Add the per-lock third-forced-rotation refusal under its existing mutex; only successful operator rotation clears it. Preserve live sessions and RNG-failure refusal.
 - [x] Publish every current guessing rotation through the existing Couch notice seam, with one combined cap notice; retain ended-cast/stale-generation guards and remove the quiet window.
-- [ ] Pin exact thresholds, successful-unlock persistence, per-link isolation, session survival, explicit rotation/RNG failure and notice behavior; update the broadcast policy paragraph, verify and land.
+- [x] Pin exact thresholds, successful-unlock persistence, per-link isolation, session survival, explicit rotation/RNG failure and notice behavior; update the broadcast policy paragraph, verify and land.
 
 Actions: unlock, rotate explicitly, end cast.
 
@@ -83,3 +83,5 @@ TL approval receipt2ea832e9-f345-48e2-ab4b-986934a358fd supersedes “without a 
 - Notice tests reproduced the missing rapid second notice and asynchronous old-notice overwrite before fixes. Removed the quiet maps/window and published through the shared locked notice seam while the existing generation guard is held; repaint/flash remain outside locks. Targeted notice race tests passed2.367s for both cast kinds/all link kinds, concurrent callbacks, cap text/privacy and stale/ended guards. Final package/lint checks running before recorded suite and close.
 
 - Final targeted checks passed: couchtty race214.803s, artifactpath26.554s and repolint21.642s. Reader inventory and whitespace checks passed. Implementation adds35 production lines across existing files, within the quick shell. Preparing pushed-head recorded verification and mandatory close review; landing remains gated.
+
+- Opened PR514 and queued sdlc local-check affected on the pushed implementation. All behavior/documentation checkboxes are implemented and targeted-green; the recorded check, close verdict and merge remain the machine-gated acceptance/landing steps, not a claim that the issue has landed. Running mandatory close review in parallel with queued recorded verification, as permitted by tl-worker.
