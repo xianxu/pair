@@ -172,8 +172,9 @@ func prepareWorkspaces(ctx context.Context, b Binaries, p RootsPlan, env []strin
 		if err := strictjson.Decode([]byte(raw), &result); err != nil {
 			return w, fmt.Errorf("slot %d provisioning result: %w", n, err)
 		}
-		host := filepath.Join(fleet, "worktree", fmt.Sprintf("fixture-slot%d", n), "fixture")
-		address, rest := fmt.Sprintf("fixture:%d", n), fmt.Sprintf("main-slot%d", n)
+		layout := couchcore.NewSlotLayout(primary, common, n)
+		host := layout.Host()
+		address, rest := fmt.Sprintf("fixture:%d", n), layout.RestingBranch()
 		if result.SchemaVersion != 1 || result.Path != host || result.Address != address || result.RestingBranch != rest || result.BaselineSHA != baseline || result.Disposition != "created" || result.Warning != "" {
 			return w, fmt.Errorf("slot %d unexpected provisioning result: %+v", n, result)
 		}
@@ -207,7 +208,7 @@ func prepareWorkspaces(ctx context.Context, b Binaries, p RootsPlan, env []strin
 		if err != nil || !pathscope.Within(common, admin) {
 			return w, fmt.Errorf("slot %d Git admin escapes primary: %q (%v)", n, admin, err)
 		}
-		markerPath := filepath.Join(admin, "couch-setup-success.json")
+		markerPath := couchcore.SetupMarkerPath(admin)
 		if err := ctx.Err(); err != nil {
 			return w, err
 		}

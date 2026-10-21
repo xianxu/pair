@@ -344,3 +344,103 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T08:25:39-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 744 — testing: one shared disposable-Couch harness for every live test (isolated roots, real supervisor and slots, every agent kind, exact cleanup) |
+| repo | pair |
+| issue file | workshop/issues/000744-testing-one-shared-disposable-couch-harness-for-every-live-test-isolated-roots-real-supervisor-and-slots-every-agent-kind-exact-cleanup.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 7fabbeb93589b7c0c44a43fa699e83b09082bd5e..f37acbe8b92fe6c1b186b88874e60392722133df |
+| command | sdlc close --issue 744 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T08:25:39-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The shared harness and both prior corrections are substantiated by code and tests. Native qualification passed for Claude and Codex on pinned head, including exact cleanup. One Important issue remains: the provisioning helper duplicates canonical slot-layout rules and fails an existing repository audit.
+
+```findings
+dispose:
+  - id: BR-2
+    disposition: addressed
+    note: |
+      ActorCLI now fences every unretired post-publication exit. Current helper and race suites pass; replacing actor.go with its pre-fix version through a temporary Go overlay makes all four acknowledgment/retirement regressions fail. Cancellation, queued suppression, descendant uncertainty and owned cleanup have executable coverage.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Independently inspected Pair's issue-tracker card for #772: it registers the exact Codex subtest with the original nonce and same-head failure/pass evidence. Retained log hashes match. Attach diagnostics have reachable preflight/precommit regressions; this classifies and preserves the failure without claiming its root cause is fixed.
+findings:
+  - id: new
+    severity: Important
+    kind: defect
+    family: slot-layout-single-source
+    title: |
+      Provisioning helper bypasses canonical SlotLayout and fails the repository audit
+    detail: |
+      cmd/internal/testcouch/provision.go:175, :176 and :210 independently construct the worker directory, resting branch and setup-marker path. Both the full couchcore run and isolated TestEverySlotStateSiteIsAResource fail on these three sites. ARCH-DRY / ARCH-PURPOSE: derive them through NewSlotLayout(primary, common, n).Host(), RestingBranch() and SetupMarkerPath(admin), then rerun the audit and provisioning tests. Preserve the audit rather than exempting this consumer.
+```
+
+1. **Strengths**
+
+   - Request lifetime has one completion guard at `cmd/internal/testcouch/actor.go:78`, covering early failures as well as uncertain results.
+   - Attach evidence preserves bounded output and distinguishes observed exits from unknown outcomes.
+   - Isolation tests exercise actual listeners and verify that foreign socket residue remains untouched.
+   - README and atlas document the new helper, native target, isolation behavior and cleanup limits.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** The canonical-layout violation above needs correction before landing.
+
+4. **Minor findings:** None.
+
+5. **Test coverage**
+
+   - Native matrix: PASS, 154.44 seconds, both personalities and exact cleanup.
+   - Helper ordinary and race suites: PASS.
+   - Transport, terminal, wrapper, testpair, artifact and repository-lint packages: PASS.
+   - Reader inventory and focused operation-evidence regression: PASS.
+   - Full couchcore run: FAIL on the three layout violations; isolated rerun reproduces them.
+   - Checkout remains unchanged.
+
+6. **Architecture**
+
+   - **ARCH-DRY — flag:** duplicated slot-layout rules.
+   - **ARCH-PURE — pass:** listed pure entities use value-based tests; IO remains in adapters.
+   - **ARCH-PURPOSE — flag:** the new layout consumer bypasses the existing authoritative source.
+   - **ARCH-MOCK — pass:** stateful filesystem/process fixtures and native qualification cover the seams.
+   - **ARCH-CONSTRAINTS — pass:** bounded workers, requests, output and diagnostic budgets have coverage.
+   - **ARCH-SECURE — pass:** private environments, physical confinement and diagnostic allowlists are tested.
+   - **ARCH-ORDER — pass:** cancellation and uncertain outcomes retain ownership and refuse new work.
+   - **ARCH-FUNERAL — pass:** joins, generation-qualified cleanup and retained failure evidence are explicit.
+   - **ARCH-EVOLVE — pass:** diagnostic changes reuse existing persisted fields without changing their meaning.
+
+7. **Plan revision recommendation**
+
+   Add a `## Revisions` entry requiring provisioning observations to derive slot paths and branches from `SlotLayout`, with `TestEverySlotStateSiteIsAResource` included in focused verification.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"7d6c4789-809e-46de-a897-0ba01cc08cb7","repository":"github.com/xianxu/pair","issue_id":"000744","recipe":"milestone-review","round":4,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/c93bd2053417abab","reviewed_head":"f37acbe8b92fe6c1b186b88874e60392722133df","slot":"pair:5","requested_at":"2026-10-21T15:17:29.859383Z"},"phase":"finished","pid":85756,"started_at":"2026-10-21T15:17:29.959483Z","finished_at":"2026-10-21T15:25:39.185745Z","session_id":"01a15f09-f3e1-7160-b7e8-355ad814c494","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.743222959s
+head: "f37acbe8b92fe6c1b186b88874e60392722133df"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

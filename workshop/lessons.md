@@ -2542,3 +2542,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #744 BR-2: a reaped command leader and drained pipes do not prove its process group is quiescent. Check descendants on every completion path; retain explicit uncertainty and correlated evidence when incarnation-safe cleanup cannot be proved.
 
 - #744 BR-2 round3: once asynchronous work is admitted, every return must resolve the same lifetime owner. Result-content checks miss publication, read, timeout and partial-retirement failures; arm a single default-uncertain outcome until joined acknowledgment and retirement prove completion.
+
+- #744 BR-6: test provisioning observations are production consumers of slot layout. Derive host, resting branch and setup markers through SlotLayout/SetupMarkerPath, and run TestEverySlotStateSiteIsAResource with provisioning preflights; an independent hand-written expected topology still duplicates policy.
