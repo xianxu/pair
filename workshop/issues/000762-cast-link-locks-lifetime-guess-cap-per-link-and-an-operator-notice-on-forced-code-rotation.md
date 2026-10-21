@@ -70,6 +70,7 @@ The existing Lock mutex orders attempt/counter/rotation changes (ARCH-ORDER). On
 ## Log
 
 ### 2026-10-21
+- 2026-10-21: closed — Exact third-rotation cap red/green on4/6-digit links, persists through successful unlocks, preserves existing sessions and isolates links; explicit recovery/RNG failure tested. Counted32/64 capped attempts draw no entropy. Race packages castlock3.337s broadcast112.417s webcast18.185s couchtty214.803s passed; artifactpath26.554s repolint21.642s and reader inventory passed. Notice seam tests cover all cast/link kinds, rapid/concurrent publication and privacy. Recorded affected verification queued; pass required before landing. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 
 - Traced shared castlock.Lock, broadcast.LinkLocks and Couch onCodeRotated. Guessing currently rotates indefinitely; Couch has a30-second coalescing window. Scope is bounded changes in these existing owners; no new effect path or artifact family. Quick-flow plan posted to hub, proceeding unless objected.
 
