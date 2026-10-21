@@ -7,7 +7,7 @@ created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '526b666c043328a38919d4f599a2377c9012958c' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '354790ec7d87c6d740259ea4898f0e570a8a832f' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T17:33:54-07:00
 claimant:
     operator: Xian Xu
@@ -17,7 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
-actual_hours: 1.11
+actual_hours: 1.33
 ---
 
 # flake: TestRecoveryRealHelperAndSessionConformanceLive/warm (zellij list-panes no reply after helper exit) holds the pair landing line
