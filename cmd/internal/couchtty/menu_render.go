@@ -693,9 +693,9 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 			row.text = selectedMenuLine(string(ansi.Strip([]byte(row.text))), true, width)
 		}
 		if row.hub {
-			style := reverseSGR
+			style := "\x1b[4m"
 			if row.selected {
-				style += "\x1b[1m"
+				style += reverseSGR + "\x1b[1m"
 				if color256 && state.Blocked[row.thread] {
 					style += blockedSGR
 				}

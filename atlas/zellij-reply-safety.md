@@ -10,7 +10,7 @@ clients, panes and tab information without changing the tolerant
 `zellijpane.Parse` used by advisory consumers. `Confirm` validates the first
 observation before starting a second independent invocation, compares the
 caller's decision projection and returns the admitted second snapshot. Unknown
-first evidence terminates the request; there is no observation retry.
+first evidence terminates the request after the narrow read-boundary compatibility policy below; confirmation disagreement never retries the decision.
 
 A five-second admission context is shared by the observations of one decision,
 capped by earlier caller deadlines. A selected launcher warm attachment carries
@@ -239,10 +239,10 @@ regression and the Pair-local repository lint rule defend that propagation
 (see [Go lint catalog](go-lint-catalog.md)).
 
 Recovery admission is tested through the production scoped query adapter and
-shared stateful native fake, including unknown replies at both ownership reads
-and the detached-client read. A later healthy response cannot rescue the failed
-operation; the complete durable record and launch/quiescence effects remain
-unchanged on refusal.
+shared stateful native fake, including exhaustion at both ownership reads and
+the detached-client read. Once bounded read recovery is exhausted, a later
+healthy response cannot rescue that operation; its durable record and
+launch/quiescence effects remain unchanged on refusal.
 
 Live fixture diagnostics reuse the existing context-scoped launcher query
 observer. It retains bounded copies of the original query bytes, process status
@@ -267,3 +267,22 @@ removed; the existing strict full-listing decoder validates every row. This
 proves the CLI accepted the name, never session liveness or ownership. Clients
 tables remain strict. Malformed, contradictory or failed/cancelled collections
 remain unknown. Native list_sessions exits before its caller's intended exit1.
+
+### Bounded native read compatibility (#748)
+
+`launcher.ZellijSource.runContext` owns a temporary workaround for0.45.1's
+client-ID reuse bug (upstream PR5630). Exact allowlisted full unformatted
+listings, list-clients and JSON list-panes command/state reads can make at most
+three total sequential attempts under their original shared5s/caller deadline.
+Only exit-zero empty/whitespace output or a complete validated different reply
+kind is reissued. Every attempt retains its own query-observer event. There is
+no delay/backoff or mutation replay. Nonzero/collector errors, malformed
+same-kind payloads and cancellation stop immediately; caller strict fields,
+server-generation checks and independent agreement remain mandatory.
+
+Tests retain the empty/crossed reply schedules, exhaustion without effects,
+cancellation, counted8/16 read bounds, and native qualification artifacts in
+`workshop/evidence/000748`. The Pair lint catalog rejects new direct calls to
+the private one-attempt collector outside that owner. Other query consumers
+retain their existing contracts. Remove the workaround after the supported
+native release includes PR5630 and the controls are requalified.

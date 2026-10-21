@@ -32,6 +32,9 @@ Launches a `zellij` workbench in one of two layouts:
   overlays. At
   a shell prompt terminal-local chords are intercepted; draft-only Alt+Up/Down
   pass through to the shell.
+  Invalid backend cells display as `�` while the terminal keeps running. If the
+  wrapper itself fails, it restores the terminal and hands the pane to a plain
+  interactive shell. A missing right pane can be recreated with `Alt+Shift+t`.
 
 Layout flags are Pair-owned and may appear before or after the agent name but
 before `--`, for example `pair codex --layout3` or
@@ -168,7 +171,7 @@ adds context that a one-line description cannot carry.
 | **Alt+Shift+d** | layout 3 terminal | Split the right terminal downward; the new lower pane takes focus. `Alt+k` from the left returns to the split pane last used. |
 | **Alt+←** / **Alt+→** | layout 3 terminal | Switch local terminal tabs. |
 | **Shift+Alt+←** / **Shift+Alt+→** | any pane | Switch the right terminal's tabs from wherever you are, **without moving focus** — check another tab while you keep typing in the draft. |
-| **Shift+Alt+t** | any pane | Create a new right-terminal tab from wherever you are, without moving focus — works even while a full-screen app (nvim) owns the right pane. |
+| **Shift+Alt+t** | any pane | Create a new right-terminal tab from wherever you are, without moving focus — works even while a full-screen app (nvim) owns the right pane. If the right terminal is absent, recreate its pane after confirming the current tab. |
 | **Alt+c** | non-agent panes | Open/show/hide review. From the draft, restore the current review branch's document before toggling; pending work blocks switching documents. Without a review identity, offers `:PairReview`. |
 | **Alt+c** | review buffer (normal/insert) | Hide review and return to the draft. Esc keeps review open; insert/visual Esc leaves that mode, and normal Esc dismisses internal floats. |
 | **Enter** | review buffer (normal), on a compact marker | Open the editable comment thread (`:w` save, `q` save/close, `:q!` discard). |
@@ -482,7 +485,7 @@ couch --peek repo:N --all [--transcripts]
                                            complete current recording projection [heavy]; bounded, plain text
 couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
-couch --resources [--json] cached process sample plus fresh hosted-ingest totals
+couch --resources [--json] cached process sample plus fresh hosted-ingest and supervision-log health
 couch --reap-orphans [--confirm] [--json]
                          the unattributed embedded nvim --resources named, and the processes a teardown left
                          running (an agent's setsid'd runner: a background build, test or merge); without
@@ -1227,6 +1230,24 @@ generation; gaps are not inactivity. The [offline labeling script](scripts/super
 compares observed writes within ten minutes without changing Couch decisions.
 See [the fact-log contract](atlas/couch.md#supervision-fact-log-543) for coverage and retention.
 
+`couch --resources [--json]` also reads the supervision logger's current health
+from memory: opening, working, unavailable, failed-write or closed, with offered,
+acknowledged-write and dropped counts, the last successful write, and a bounded
+last storage error. A recovered logger keeps its historical last error; its state
+shows whether writes currently work. These counters do not promise fsync durability
+or replay of lost facts. For unavailable/failed-write, report the shown error to
+the hub; for closed, ask the hub to restart Couch. An opening logger can be
+inspected again. Storage work never runs in this query or gates message admission.
+
+Use the rebuilt CLI with the rebuilt supervisor for this health field: an old CLI
+strictly rejects the added resource response field. A new CLI querying an older
+server prints `health unavailable`; absence is not a healthy empty stream. The
+default fact file is `~/.local/share/pair/couch/supervision.jsonl` (under the active
+Pair data directory if configured). It records completed observations, not every
+message hold: inspect `couch --message-status ID --json` for a retained delivery's
+current waiting reason. Logger health instrumentation alone does not repair a
+historically frozen stream; #736's measured cause fix follows its live observation.
+
 Wrapper diagnostics batch at64KiB or every five seconds while dirty; raw capture
 and its offset sidecar flush every250ms. Orderly shutdown drains both. A process
 crash can lose pending buffers; optional diagnostics have no power-loss durability
@@ -1244,9 +1265,10 @@ captures use their separate age policy and exact reader protections.
 The tab bar starts with the hub, the checkout you started Couch from, and then
 lists every other slot grouped by repository:
 `ops  ariadne  :1  :2  blog  pair  :1  :2`. In the switcher the hub is the first line and the rest sit indented
-under it. The hub tab and switcher row use reversed colours as a bookmark;
-focus brackets still mark the active tab, and the selected hub row is bold
-with a cursor arrow. When the tabs don't fit, a repository's numbered slots fold into a
+under it. The hub tab uses reversed colours as a bookmark; switcher hub rows
+are underlined, and only the selected row uses reverse video. Focus brackets
+still mark the active tab, and a selected hub keeps its underline and bold
+cursor arrow. When the tabs don't fit, a repository's numbered slots fold into a
 count (`pair  +2`), starting from the right. A red, belled or focused tab is
 never folded away, and the switcher always lists everything.
 
@@ -1345,12 +1367,15 @@ slots blocked on a permission prompt or picker, and slots whose turn ended with
 a question to you. While the list has items, the right end of the status row
 shows `🔔N`, red if a slot is blocked on a prompt; click it to open the list too.
 The list opens at the top right. `Up`/`Down` (or `k`/`j`) move, `Enter` or a
-click jumps to the item's slot, `d` dismisses, and `Escape` closes. Picking a
-notification reads it, so it goes. A prompt or question stays until the slot
-stops waiting, whoever answered it. The list survives a Couch restart: messages
-come back as they were, and prompts and questions come back once the slot is
-seen still waiting. The list is never broadcast. The desktop notification still
-fires, and helps when the terminal is in the background.
+click jumps to the item's slot and removes the item, `d` dismisses, and
+`Escape` closes. Choose **Clear all** or press `c` to empty the list. Opening,
+dismissing or clearing a prompt/question hides that occurrence until the slot
+stops waiting; a fresh occurrence shows again. Notification messages expire
+after 12 hours; an unresolved live prompt/question never expires. The list is
+ephemeral: restart forgets messages and dismissals, then derives current live
+conditions again. The hub's Needs-you section holds the durable record. The
+list is never broadcast. Desktop notifications still help when the terminal
+is in the background.
 
 `Ctrl+Alt+b` **broadcasts** this screen, view-only, to anyone with the link
 (#395). The link is copied to your clipboard (it is never drawn on screen);
@@ -1965,8 +1990,9 @@ For targeted tests, `PAIR_TEST_BINARY=/absolute/path/to/plain-pair go test ...`
 uses an existing executable without rebuilding or deleting it. With the variable
 unset, Go consumers lazily build once per package; their `TestMain` calls
 `testpair.Run` after helper dispatch to remove only that owned fallback after
-all tests finish. Private executable names use hard links (copies across
-filesystems). Standalone shell consumers use the same builder, which locates
+all tests finish. Private executable names use hard links (symlinks across
+filesystems) to preserve the shared image; fresh copies can trigger another macOS
+security assessment before the CLI runs. Standalone shell consumers use the same builder, which locates
 its checkout independently of the caller's working directory.
 
 Native diagnostic-log open-file conformance skips with a named reason when `lsof`
@@ -1983,6 +2009,11 @@ answer with a wrong holder or process identity fails in both modes.
 Affected branch checks use `.sdlc/affected.json` and `make test-affected` once the
 installed SDLC supports ariadne#473. SDLC reads the declaration from main and
 supplies `SDLC_AFFECTED_GO_PKGS` (exact import paths) and `SDLC_AFFECTED_GROUPS`.
+Before close or re-close, run `make test-affected-inventory`. It audits tracked
+Go test readers without building Go or running the seeded guard tests, and is
+also the affected runner's first step. Failures name each reader and print its
+per-file record or removal command. Audit its repository inputs and fixed
+preflight coverage before recording a disposition; never refresh hashes in bulk.
 For a manual selected run:
 
 ```bash
@@ -2083,7 +2114,7 @@ From a non-agent Pair pane, detach with `Alt+d`. For Couch-managed work, use the
 
 ## History backup
 
-🤖{Use `pair archive inventory` to inspect supported history sources and `pair archive create --request /private/tmp/pair-archive-request.json` to back up explicitly selected stable files. Creation streams tar through zstd (`-9 -T0` for Codex databases, `-19 -T0` for other kinds) and GPG public-key encryption, verifies stored ciphertext and records the result in a private local catalog; it preserves source files. Install `gpg` and `zstd`, supply a trusted full public-key fingerprint and separate source, sink and catalog paths. No private key is needed for creation. [History backup](atlas/history-backup.md) documents the request JSON, defaults, limits, retry behavior and operator key-recovery checklist. `pair archive continuous` runs one pass over agent transcripts, Codex databases, ops documents and sdlc data, configured by `$PAIR_DATA_DIR/archive/continuous.json`: it archives files once they have been unmodified for three days, each file once by content hash, and takes coherent private snapshots of Codex databases through bounded read-only SQLite transactions or, for observed cold WAL files without sidecars, two verified descriptor reads into a private copy; Couch runs it daily when configured and warns once per database per UTC day when a failed/deferred check has no verified backup or one older than `PAIR_ARCHIVE_DATABASE_MAX_AGE` (default `48h`); currently validated unchanged databases stay healthy. Continuous mode also copies the encrypted bundles and public labels to the configured rclone destination (default `pair-backup:backups/pair-history`) after local backup succeeds, using one batch with up to eight transfers. When running from a Pair-slot terminal, set `PAIR_DATA_DIR="$HOME/.local/share/pair"` explicitly to select the shared configuration. Install and configure `rclone` separately; optional `drive_remote` and `drive_folder` settings select the destination. Drive failures leave local backup intact and print a pending/unavailable note. The same listings supply a before/after file count; Couch warns once per destination root per UTC day above `PAIR_ARCHIVE_DRIVE_MAX_FILES` (default `20000`), suggesting year subfolders. An unavailable count stays unknown. Verified upload receipts are kept separately from the local catalog. `pair archive find [--kind KIND] [--since UTC] [--until UTC]` searches local public labels without network calls; `pair archive sync-index --from drive` reconstructs the separate label/location index by downloading labels only. Dated observed/verified location evidence remains separate from local backup authority. Use `pair archive restore --id ID --to /absolute/private-scratch/new-child [--from auto|local|drive] [--path REL]` to recover verified files; repeat `--id` and literal `--path` as needed. Restore checks the downloaded ciphertext and every archived member, then publishes only a complete fresh directory after decryption succeeds. It uses the operator’s installed private key through normal GPG pinentry; it never imports files into live agent roots. Sources remain unchanged. See the [Drive verification and retry guide](atlas/history-backup.md#drive-copies-678).}
+🤖{Use `pair archive inventory` to inspect supported history sources and `pair archive create --request /private/tmp/pair-archive-request.json` to back up explicitly selected stable files. Creation streams tar through zstd (`-9 -T0` for Codex databases, `-19 -T0` for other kinds) and GPG public-key encryption, verifies stored ciphertext and records the result in a private local catalog; it preserves source files. Install `gpg` and `zstd`, supply a trusted full public-key fingerprint and separate source, sink and catalog paths. No private key is needed for creation. [History backup](atlas/history-backup.md) documents the request JSON, defaults, limits, retry behavior and operator key-recovery checklist. `pair archive continuous` runs one pass over agent transcripts, Codex databases, ops documents and sdlc data, configured by `$PAIR_DATA_DIR/archive/continuous.json`: it archives files once they have been unmodified for three days, each file once by content hash, and takes coherent private snapshots of Codex databases through bounded read-only SQLite transactions or, for observed cold WAL files without sidecars, two verified descriptor reads into a private copy; Couch runs it daily when configured and warns once per database per UTC day when a failed/deferred check has no verified backup or one older than `PAIR_ARCHIVE_DATABASE_MAX_AGE` (default `48h`); currently validated unchanged databases stay healthy. Continuous mode also copies the encrypted bundles and public labels to the configured rclone destination (default `pair-backup:backups/pair-history`) after local backup succeeds. New pairs go to `<destination>/<YYYY>/<MM>/` using the bundle’s UTC start month. Existing flat pairs remain valid and are not moved; partial or ambiguous legacy pairs require inspection. Each active physical folder uses one batch with up to eight transfers, with one shared 4 GiB complete-pair budget across the pass. Upload lists the legacy root and only current or pending months; valid receipts do not trigger historical month scans. When running from a Pair-slot terminal, set `PAIR_DATA_DIR="$HOME/.local/share/pair"` explicitly to select the shared configuration. Install and configure `rclone` separately; optional `drive_remote` and `drive_folder` settings select the destination. Drive failures leave local backup intact and print a pending/unavailable note. The same listings supply a before/after file count; Couch warns once per observed physical folder per UTC day above `PAIR_ARCHIVE_DRIVE_MAX_FILES` (default `20000`), asking the hub to inspect that folder and archive policy. Root/month counts remain separate; they never claim a whole-tree total. An unavailable count stays unknown. Verified upload receipts are kept separately from the local catalog. `pair archive find [--kind KIND] [--since UTC] [--until UTC]` searches local public labels without network calls; `pair archive sync-index --from drive` reconstructs the separate label/location index across legacy root and YYYY/MM folders by downloading labels only; it publishes one complete snapshot or retains the prior one on failure. Dated observed/verified location evidence remains separate from local backup authority. Use `pair archive restore --id ID --to /absolute/private-scratch/new-child [--from auto|local|drive] [--path REL]` to recover verified files; repeat `--id` and literal `--path` as needed. Drive restore uses the recorded physical location and confirms its current folder identity; absent location records require sync-index, and a bad selected copy is refused. Restore checks the downloaded ciphertext and every archived member, then publishes only a complete fresh directory after decryption succeeds. It uses the operator’s installed private key through normal GPG pinentry; it never imports files into live agent roots. Sources remain unchanged. See the [Drive verification and retry guide](atlas/history-backup.md#drive-copies-678).}
 
 ## Storage retention
 

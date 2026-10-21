@@ -55,7 +55,11 @@ func TestParkClientCountQueryContract(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			root := t.TempDir()
-			state := parkClientCLI(t, root, []string{tc.reply})
+			replies := []string{tc.reply}
+			if tc.noReply {
+				replies = append(replies, tc.reply, tc.reply)
+			}
+			state := parkClientCLI(t, root, replies)
 			testpair.ApplyEnvironment(t, root, "PATH="+root+":/usr/bin:/bin", "PAIR_TEST_CLIENT_REPLY_STATE="+state)
 			got, err := zellijClientCount(t.Context(), "pair-readiness")
 			if tc.noReply {
@@ -70,8 +74,8 @@ func TestParkClientCountQueryContract(t *testing.T) {
 				t.Fatalf("count=%d err=%v; want %d", got, err, tc.want)
 			}
 			raw, readErr := os.ReadFile(state)
-			if readErr != nil || strings.TrimSpace(string(raw)) != "1" {
-				t.Fatalf("query count=%q err=%v; want exactly one invocation", raw, readErr)
+			if readErr != nil || strings.TrimSpace(string(raw)) != strconv.Itoa(len(replies)) {
+				t.Fatalf("query count=%q err=%v; want %d invocations", raw, readErr, len(replies))
 			}
 		})
 	}
@@ -79,8 +83,8 @@ func TestParkClientCountQueryContract(t *testing.T) {
 
 func TestParkHelperRejectsUnknownBaselineBeforeStarting(t *testing.T) {
 	root := t.TempDir()
-	// A later header must never turn an unanswered baseline into attachment.
-	state := parkClientCLI(t, root, []string{"park.empty", "park.zero"})
+	// A header after the exhausted read budget must not establish attachment.
+	state := parkClientCLI(t, root, []string{"park.empty", "park.empty", "park.empty", "park.zero"})
 	binary, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
@@ -97,8 +101,8 @@ func TestParkHelperRejectsUnknownBaselineBeforeStarting(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n, err := strconv.Atoi(strings.TrimSpace(string(raw))); err != nil || n != 1 {
-		t.Fatalf("baseline refusal made more queries: %q, %v", raw, err)
+	if n, err := strconv.Atoi(strings.TrimSpace(string(raw))); err != nil || n != 3 {
+		t.Fatalf("baseline refusal exceeded its three-attempt budget: %q, %v", raw, err)
 	}
 }
 

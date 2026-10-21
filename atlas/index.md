@@ -13,10 +13,11 @@
 - [Go migration inventory](go-migration-inventory.md) — artifact/caller/runtime contract for the staged primary-Go-binary migration.
 - [Workflow](workflow/index.md) — issue-based development loop inherited from the ariadne base layer.
 - [How-to-bring-up-a-new-harness-cli](how-to-bring-up-a-new-harness-cli.md) — guide on integrating a new agent harness CLI.
-- [couch](couch.md) — the session supervisor (`cmd/couch`): one leased namespace, Couch-owned composite durable threads coordinated with Pair-owned address claims, recoverable pre-exec starts, stale-thread/checkpoint recovery, explicit archive, tty routing, the after-restart recover plan with resume/reboot over the message socket (#367), confirmed remote agent switching, exact previous tty reads (#517), and listing-based terminal admission, observation-only startup and capture producer witnesses (#528), plus bounded failed-launch evidence with one-line recovery guidance (#531), shared hosted title ownership on the existing activity schedule (#649), sampled per-slot CPU/RSS/disk writes, orphan attribution and hub alerts (#587), and capped FIFO hub-message batches with per-message receipts (#648), shared positive geometry for tall Codex composer confirmation and Return (#652), and bounded server-origin lifecycle notices with restart summaries (#574), the durable attention list with its top-right panel and status-row badge (#673), and the lifecycle primitives: additive preserving records, the transcript binding resumes open by one stat, the slot lifecycle address with its per-thread lifetime lease, proven teardown, typed retire authorities and the left-running orphan registry (#695).
+- [couch](couch.md) — the session supervisor (`cmd/couch`): one leased namespace, Couch-owned composite durable threads coordinated with Pair-owned address claims, recoverable pre-exec starts, stale-thread/checkpoint recovery, explicit archive, tty routing, the after-restart recover plan with resume/reboot over the message socket (#367), confirmed remote agent switching, exact previous tty reads (#517), and listing-based terminal admission, observation-only startup and capture producer witnesses (#528), plus bounded failed-launch evidence with one-line recovery guidance (#531), shared hosted title ownership on the existing activity schedule (#649), sampled per-slot CPU/RSS/disk writes, orphan attribution and hub alerts (#587), and capped FIFO hub-message batches with per-message receipts (#648), shared positive geometry for tall Codex composer confirmation and Return (#652), and bounded server-origin lifecycle notices with restart summaries (#574), the ephemeral attention list with its top-right panel, clear-all control, and status-row badge (#673, #733), and the lifecycle primitives: additive preserving records, the transcript binding resumes open by one stat, the slot lifecycle address with its per-thread lifetime lease, proven teardown, typed retire authorities and the left-running orphan registry (#695).
 - [Workspace provisioning](workspace-provisioning.md) — repeatable numbered worktree setup, local Couch state, Weave readiness and durable recovery (#305–306); the slot resource table, observation and reconcile plan (#387); repository-family admission and subdirectory propagation are mapped in [couch](couch.md).
 - [Workbench performance](workbench-performance.md) — normal-suite counted UI/message/attach invariants, scan ratchets, extension guide and separate live CPU acceptance.
 - [Couch slot scratch](couch-scratch.md) — opt-in TestScratch temp environments, current-selection diagnostics, age cleanup, socket pinning and reboot-only Zellij metadata routing (#708, #720).
+- [Supervision fact health](couch.md#supervision-fact-log-543) — request-time memory-only logger state, bounded backend errors, dropped/acknowledged counts and the coordinated CLI/supervisor upgrade (#736 M1).
 - [Agent scratch volume](agent-scratch-volume.md) — Go build cache and agent/test temp roots on an APFS volume fseventsd doesn't journal (#496): setup, verify, lifecycle, teardown.
 - [Review workbench](review-workbench.md) — embedded nvim document-review pane (#66): agent proposes edit records, nvim applies them undo-ably + journals rounds via docflow.
 - [Agentic document caller contract](couch-agentic-documents.md) — durable registration, read-only discovery, rename and forget for submitted markdown files; shared with Parley.
@@ -29,6 +30,8 @@
 
 - `.sdlc/affected.json`, `scripts/test-affected.py` — affected branch checks
   consume ariadne#473's main-authoritative selection through `make test-affected`.
+  `make test-affected-inventory` reuses the reader audit before close and before
+  affected execution; explicit per-file repair commands retain scanner coverage.
   Selected Go argv stays exact; fixed named source scanners run first for Go
   selections. Non-Go file-reader populations and unknown paths force full.
   `tests/affected-consumers.json` audits recipe inputs against the real planner;
@@ -57,7 +60,7 @@
   fresh plain binary through `tests/lib/with-pair-test-binary.sh` and exports
   `PAIR_TEST_BINARY`; the development binary has different linker defaults.
   `Binary` shares it, while `At` hard-links a private executable name/directory
-  (copies across filesystems). Targeted Go runs build lazily once per package;
+  (symlinks across filesystems, preserving the shared executable image). Targeted Go runs build lazily once per package;
   their `TestMain` calls `testpair.Run` after helper dispatch to clean up only
   the owned fallback. Context variants preserve caller build deadlines. Shell
   consumers use `tests/lib/pair-test-binary.sh`, which owns the sole full-Pair
@@ -182,7 +185,7 @@
 
 - [Storage retention](storage-retention.md) — Pair/Couch clocks, protected users, collection, migration and bounded 24-hour resource-monitor snapshots.
 
-- [History backup](history-backup.md) — Explicit encrypted bundles, verified local publication, private sharded catalog, bounded live SQLite snapshots and per-database freshness, retry guarantees and operator key recovery.
+- [History backup](history-backup.md) — Explicit encrypted bundles, verified local publication, private sharded catalog, bounded live SQLite snapshots and per-database freshness, pinned Drive month uploads, atomic dual-layout index discovery and recorded-location restore, retry guarantees and operator key recovery.
 - [Managed retention I/O](storage-retention-io.md) — Checked entrypoints, protected artifacts, guard call chains, meaningful-use rules and behavioral evidence.
 
 - [Terminal ownership](terminal.md) — Shared endpoint, presenter, profile, transport and qualification boundaries.

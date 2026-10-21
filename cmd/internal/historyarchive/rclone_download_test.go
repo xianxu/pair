@@ -3,6 +3,7 @@ package historyarchive_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -157,38 +158,41 @@ func TestRcloneDownloadBatchPartialAndCancel(t *testing.T) {
 	}
 }
 func TestRcloneDownloadBatchEnforcesByteLimits(t *testing.T) {
-	t.Run("transfer", func(t *testing.T) {
-		f, r, pin, dest, list := downloadFixture(t)
-		if err := r.DownloadBatch(context.Background(), pin, []string{downloadLabelName, downloadCipherName}, dest, list, 18, 100); err == nil {
-			t.Fatal("transfer overflow accepted")
-		}
-		if f.DownloadedLabelBytes+f.DownloadedCipherBytes > 18 {
-			t.Fatalf("unbounded download %+v", f)
-		}
-		entries, _ := os.ReadDir(dest)
-		var total int64
-		for _, entry := range entries {
-			s, _ := entry.Info()
-			total += s.Size()
-		}
-		if total > 18 {
-			t.Fatalf("unbounded retained files %d", total)
-		}
-	})
-	t.Run("size", func(t *testing.T) {
-		f, r, pin, dest, list := downloadFixture(t)
-		if err := r.DownloadBatch(context.Background(), pin, []string{downloadLabelName, downloadCipherName}, dest, list, 100, 10); err != nil {
-			t.Fatal(err)
-		}
-		if f.DownloadedLabelBytes != 0 || f.DownloadedCipherBytes != 10 {
-			t.Fatalf("oversize copied %+v", f)
-		}
-		if _, err := os.Stat(filepath.Join(dest, downloadLabelName)); !os.IsNotExist(err) {
-			t.Fatal("oversized file exists")
-		}
-	})
+	for _, tc := range []struct {
+		name        string
+		total, size int64
+	}{{"transfer", 18, 100}, {"size", 100, 10}} {
+		t.Run(tc.name, func(t *testing.T) {
+			f, r, pin, dest, list := downloadFixture(t)
+			err := r.DownloadBatch(context.Background(), pin, []string{downloadLabelName, downloadCipherName}, dest, list, tc.total, tc.size)
+			if err == nil || !strings.Contains(err.Error(), "exceeds admitted byte limit") {
+				t.Fatalf("post-download overflow accepted: %v", err)
+			}
+			if f.DownloadedLabelBytes != 14 || f.DownloadedCipherBytes != 10 {
+				t.Fatalf("selected objects not exercised: %+v", f)
+			}
+			if _, err := os.Stat(filepath.Join(dest, downloadUnselectedName)); !os.IsNotExist(err) {
+				t.Fatal("unselected object downloaded")
+			}
+			if _, err := os.Stat(list); !os.IsNotExist(err) {
+				t.Fatal("filter leaked after postcheck refusal")
+			}
+		})
+	}
 }
 
+type streamingDownloadRunner struct {
+	runner ha.ExecRcloneRunner
+	calls  [][]string
+}
+
+func (r *streamingDownloadRunner) Run(ctx context.Context, args []string, limit int) ([]byte, error) {
+	if args[0] == "copy" {
+		args = append(append([]string(nil), args...), "--disable", "Copy")
+	}
+	r.calls = append(r.calls, append([]string(nil), args...))
+	return r.runner.Run(ctx, args, limit)
+}
 func TestRcloneDownloadLocalBackendConformance(t *testing.T) {
 	if os.Getenv("PAIR_RCLONE_LOCAL_CONFORMANCE") != "1" {
 		t.Skip("opt-in installed rclone local backend")
@@ -197,7 +201,10 @@ func TestRcloneDownloadLocalBackendConformance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	root := t.TempDir()
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	source := filepath.Join(root, "source")
 	if err = os.Mkdir(source, 0700); err != nil {
 		t.Fatal(err)
@@ -206,57 +213,61 @@ func TestRcloneDownloadLocalBackendConformance(t *testing.T) {
 	if err = os.WriteFile(config, []byte("[fixture]\ntype = local\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	r := ha.Rclone{Runner: ha.ExecRcloneRunner{Binary: binary, Env: []string{"HOME=" + root, "RCLONE_CONFIG=" + config, "PATH=" + os.Getenv("PATH")}}, LocalConformance: true}
+	runner := &streamingDownloadRunner{runner: ha.ExecRcloneRunner{Binary: binary, Env: []string{"HOME=" + root, "RCLONE_CONFIG=" + config, "PATH=" + os.Getenv("PATH")}}}
+	r := ha.Rclone{Runner: runner, LocalConformance: true}
 	pin := ha.PinnedDrive{Root: "fixture:" + source}
 	for _, tc := range []struct {
-		name                string
-		data                []byte
-		maxBytes, maxSize   int64
-		wantError, wantFile bool
-	}{{strings.Repeat("c", 64) + ".json", []byte("label"), 100, 100, false, true}, {strings.Repeat("d", 64) + ".json", []byte("too large"), 100, 4, false, false}, {strings.Repeat("e", 64) + ".tar.zst.gpg", []byte(strings.Repeat("x", 4<<20)), 1 << 20, 8 << 20, true, false}} {
+		name                     string
+		bytes                    int
+		total, size, backstop    int64
+		wantError, coarseFailure bool
+	}{
+		{"small", 5, 5, 5, 1 << 20, false, false},
+		{"odd3109", 3109, 3109, 3109, 1 << 20, false, false},
+		{"exact2048", 2048, 2048, 2048, 1 << 20, false, false},
+		{"exact1MiB", 1 << 20, 1 << 20, 1 << 20, 2 << 20, false, false},
+		{"object-grew", 9, 100, 4, 1 << 20, true, false},
+		{"coarse-transfer-limit", 4 << 20, 1 << 20, 8 << 20, 2 << 20, true, true},
+	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if err = os.WriteFile(filepath.Join(source, tc.name), tc.data, 0600); err != nil {
+			name := strings.Repeat("c", 64) + ".tar.zst.gpg"
+			data := []byte(strings.Repeat("x", tc.bytes))
+			if err := os.WriteFile(filepath.Join(source, name), data, 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(source, downloadUnselectedName), []byte("not selected"), 0600); err != nil {
 				t.Fatal(err)
 			}
 			dest := t.TempDir()
-			list := filepath.Join(root, tc.name+".list")
-			e := r.DownloadBatch(context.Background(), pin, []string{tc.name}, dest, list, tc.maxBytes, tc.maxSize)
-			if tc.wantError && (e == nil || !strings.Contains(strings.ToLower(e.Error()), "max transfer limit reached")) {
-				t.Fatalf("expected actual transfer-limit failure, got %v", e)
+			filter := filepath.Join(root, "filter")
+			err := r.DownloadBatch(context.Background(), pin, []string{name}, dest, filter, tc.total, tc.size)
+			if (err != nil) != tc.wantError {
+				t.Fatalf("download error=%v wantError=%v", err, tc.wantError)
 			}
-			if (e != nil) != tc.wantError {
-				t.Fatalf("transfer error=%v wantError=%v", e, tc.wantError)
+			if tc.coarseFailure && !strings.Contains(strings.ToLower(err.Error()), "max transfer limit reached") {
+				t.Fatalf("coarse transfer limit not exercised: %v", err)
 			}
-			b, e := os.ReadFile(filepath.Join(dest, tc.name))
-			if tc.wantFile {
-				if e != nil || string(b) != string(tc.data) {
-					t.Fatalf("selected data %q %v", b, e)
+			if tc.wantError && !tc.coarseFailure && !strings.Contains(err.Error(), "exceeds admitted byte limit") {
+				t.Fatalf("postcheck not exercised: %v", err)
+			}
+			if !tc.wantError {
+				got, err := os.ReadFile(filepath.Join(dest, name))
+				if err != nil || string(got) != string(data) {
+					t.Fatalf("selected data bytes=%d err=%v", len(got), err)
 				}
-			} else if !os.IsNotExist(e) {
-				t.Fatalf("unexpected retained file %d %v", len(b), e)
 			}
-			entries, e := os.ReadDir(dest)
-			if e != nil {
-				t.Fatal(e)
+			if _, err := os.Stat(filepath.Join(dest, downloadUnselectedName)); !os.IsNotExist(err) {
+				t.Fatal("unselected object downloaded")
 			}
-			expectedCount := 0
-			if tc.wantFile {
-				expectedCount = 1
+			if _, err := os.Stat(filter); !os.IsNotExist(err) {
+				t.Fatal("filter leaked")
 			}
-			if len(entries) != expectedCount {
-				t.Fatalf("selected-object boundary: retained %d files want %d", len(entries), expectedCount)
+			call := strings.Join(runner.calls[len(runner.calls)-1], " ")
+			if strings.Contains(call, "--max-size") || !strings.Contains(call, fmt.Sprintf("--max-transfer %dB", tc.backstop)) || !strings.Contains(call, "--disable Copy") {
+				t.Fatalf("unexpected transport limits: %s", call)
 			}
-			var total int64
-			for _, entry := range entries {
-				st, e := entry.Info()
-				if e != nil {
-					t.Fatal(e)
-				}
-				total += st.Size()
-			}
-			if total > tc.maxBytes {
-				t.Fatalf("retained bytes %d exceed budget %d", total, tc.maxBytes)
-			}
+			// A failed native copy can retain partial transfer data. The coarse transport
+			// cap bounds the attempted stream; the adapter's exact postcheck owns success.
 		})
 	}
 }

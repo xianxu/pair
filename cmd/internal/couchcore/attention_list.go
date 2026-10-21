@@ -1,6 +1,8 @@
 package couchcore
 
 import (
+	"maps"
+	"slices"
 	"sort"
 	"time"
 )
@@ -24,14 +26,13 @@ const (
 // AttentionItem is one row. A condition item (prompt, question) is keyed by
 // kind and thread, so a slot has at most one of each; a notify item by its ID.
 type AttentionItem struct {
-	ID      string        `json:"id"`
-	Kind    AttentionKind `json:"kind"`
-	Thread  ThreadAddress `json:"thread"`
-	Label   string        `json:"label"`
-	Title   string        `json:"title,omitempty"`
-	Body    string        `json:"body,omitempty"`
-	Since   time.Time     `json:"since"`
-	Visited bool          `json:"visited,omitempty"`
+	ID     string        `json:"id"`
+	Kind   AttentionKind `json:"kind"`
+	Thread ThreadAddress `json:"thread"`
+	Label  string        `json:"label"`
+	Title  string        `json:"title,omitempty"`
+	Body   string        `json:"body,omitempty"`
+	Since  time.Time     `json:"since"`
 }
 
 // AttentionCondition is one slot in a condition set: its label and what it
@@ -43,64 +44,24 @@ type AttentionCondition struct {
 const (
 	// AttentionCap bounds the list; the oldest notify item goes first, and a
 	// condition item never goes while its condition holds.
-	AttentionCap = 50
-	// AttentionRestoreGrace is how long a condition item restored from disk
-	// waits for its live condition to re-raise it with its original time.
-	AttentionRestoreGrace = 2 * time.Minute
+	AttentionCap    = 50
+	AttentionMaxAge = 12 * time.Hour
 )
 
 // AttentionList is a value: every transition returns a new list.
 type AttentionList struct {
-	items []AttentionItem
-	// restored holds condition items loaded at restart until their live
-	// condition re-raises them (keeping Since and Visited) or the grace ends.
-	restored map[string]restoredAttention
-}
-
-type restoredAttention struct {
-	item  AttentionItem
-	until time.Time
+	items      []AttentionItem
+	suppressed map[string]AttentionItem // live conditions hidden until their source clears
 }
 
 func conditionID(kind AttentionKind, thread ThreadAddress) string {
 	return string(kind) + ":" + thread.RepoScope + ":" + string(thread.Tag)
 }
 
-// RestoreAttention starts from a saved list. Notify items are kept as they
-// were; condition items wait, unseen, for live state to confirm them, since
-// a prompt answered while Couch was down no longer waits on anyone.
-func RestoreAttention(saved []AttentionItem, now time.Time) AttentionList {
-	var l AttentionList
-	for _, item := range saved {
-		switch item.Kind {
-		case AttentionNotify:
-			l.items = append(l.items, item)
-		case AttentionPrompt, AttentionQuestion:
-			if l.restored == nil {
-				l.restored = map[string]restoredAttention{}
-			}
-			l.restored[conditionID(item.Kind, item.Thread)] = restoredAttention{item: item, until: now.Add(AttentionRestoreGrace)}
-		}
-	}
-	return l.capped()
-}
-
 // Items is the list newest first.
 func (l AttentionList) Items() []AttentionItem {
 	out := append([]AttentionItem(nil), l.items...)
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Since.After(out[j].Since) })
-	return out
-}
-
-// Saved is what persists at now: the shown items and any restored condition
-// items still inside their grace, so a second restart inside it loses nothing.
-func (l AttentionList) Saved(now time.Time) []AttentionItem {
-	out := l.Items()
-	for _, r := range l.restored {
-		if now.Before(r.until) {
-			out = append(out, r.item)
-		}
-	}
 	return out
 }
 
@@ -114,6 +75,7 @@ type AttentionFact struct {
 
 // Apply folds one fact into the list.
 func (l AttentionList) Apply(f AttentionFact, now time.Time) AttentionList {
+	l = l.Expire(now)
 	if f.Kind == AttentionNotify {
 		if f.Notify.Since.IsZero() {
 			f.Notify.Since = now
@@ -137,13 +99,35 @@ func (l AttentionList) Has(kind AttentionKind) bool {
 }
 
 func (l AttentionList) clone() AttentionList {
-	out := AttentionList{items: append([]AttentionItem(nil), l.items...)}
-	if len(l.restored) > 0 {
-		out.restored = make(map[string]restoredAttention, len(l.restored))
-		for k, v := range l.restored {
-			out.restored[k] = v
-		}
+	return AttentionList{items: append([]AttentionItem(nil), l.items...), suppressed: maps.Clone(l.suppressed)}
+}
+
+// Expire removes old notification events; a live condition never ages out.
+func (l AttentionList) Expire(now time.Time) AttentionList {
+	out := l.clone()
+	out.items = slices.DeleteFunc(out.items, func(item AttentionItem) bool {
+		return item.Kind == AttentionNotify && now.Sub(item.Since) >= AttentionMaxAge
+	})
+	return out
+}
+
+func (l *AttentionList) suppress(item AttentionItem) {
+	if item.Kind == AttentionNotify {
+		return
 	}
+	if l.suppressed == nil {
+		l.suppressed = map[string]AttentionItem{}
+	}
+	l.suppressed[item.ID] = item
+}
+
+// Clear removes the current list without re-raising its live conditions.
+func (l AttentionList) Clear() AttentionList {
+	out := l.clone()
+	for _, item := range out.items {
+		out.suppress(item)
+	}
+	out.items = nil
 	return out
 }
 
@@ -160,6 +144,12 @@ func (l AttentionList) Notify(item AttentionItem) AttentionList {
 // from it clears, whoever answered it.
 func (l AttentionList) Conditions(kind AttentionKind, live map[ThreadAddress]AttentionCondition, now time.Time) AttentionList {
 	out := l.clone()
+	for id, item := range out.suppressed {
+		_, present := live[item.Thread]
+		if item.Kind == kind && !present {
+			delete(out.suppressed, id)
+		}
+	}
 	kept := out.items[:0]
 	have := map[string]bool{}
 	for _, item := range out.items {
@@ -176,39 +166,22 @@ func (l AttentionList) Conditions(kind AttentionKind, live map[ThreadAddress]Att
 	out.items = kept
 	for thread, c := range live {
 		id := conditionID(kind, thread)
-		if have[id] {
+		if _, hidden := out.suppressed[id]; have[id] || hidden {
 			continue
 		}
 		item := AttentionItem{ID: id, Kind: kind, Thread: thread, Label: c.Label, Title: c.Title, Since: now}
-		if r, ok := out.restored[id]; ok && now.Before(r.until) {
-			item.Since, item.Visited = r.item.Since, r.item.Visited
-		}
-		delete(out.restored, id)
 		out.items = append(out.items, item)
-	}
-	for id, r := range out.restored {
-		if !now.Before(r.until) {
-			delete(out.restored, id)
-		}
 	}
 	return out.capped()
 }
 
 // Select is the operator picking an item: it names the item to jump to. A
-// notify item is read by being picked and goes; a condition item stays,
-// visited, until its condition clears.
+// picked item is removed; live conditions stay suppressed until they clear.
 func (l AttentionList) Select(id string) (AttentionList, AttentionItem, bool) {
-	out := l.clone()
-	for i, item := range out.items {
-		if item.ID != id {
-			continue
+	for _, item := range l.items {
+		if item.ID == id {
+			return l.Dismiss(id), item, true
 		}
-		if item.Kind == AttentionNotify {
-			out.items = append(out.items[:i], out.items[i+1:]...)
-		} else {
-			out.items[i].Visited = true
-		}
-		return out, item, true
 	}
 	return l, AttentionItem{}, false
 }
@@ -218,6 +191,7 @@ func (l AttentionList) Dismiss(id string) AttentionList {
 	out := l.clone()
 	for i, item := range out.items {
 		if item.ID == id {
+			out.suppress(item)
 			out.items = append(out.items[:i], out.items[i+1:]...)
 			break
 		}
@@ -225,10 +199,7 @@ func (l AttentionList) Dismiss(id string) AttentionList {
 	return out
 }
 
-// capped drops the oldest notify items past AttentionCap, and then while the
-// list would not fit the store's byte cap: the writer is bounded by the same
-// encoding the store reads back, so a long run of large notifications never
-// leaves the list unsaveable.
+// capped drops the oldest notifications at the count and payload byte bounds.
 func (l AttentionList) capped() AttentionList {
 	for len(l.items) > AttentionCap || !l.fits() {
 		oldest := -1
@@ -245,13 +216,8 @@ func (l AttentionList) capped() AttentionList {
 	return l
 }
 
-// fits reports whether everything the list may save (shown items and every
-// restored item) encodes within AttentionStoreLimit.
+// fits keeps the in-memory event payload within the existing byte bound.
 func (l AttentionList) fits() bool {
-	all := append([]AttentionItem(nil), l.items...)
-	for _, r := range l.restored {
-		all = append(all, r.item)
-	}
-	raw, err := encodeAttention(all)
-	return err == nil && len(raw) <= AttentionStoreLimit
+	raw, err := encodeAttention(l.items)
+	return err == nil && len(raw) <= AttentionByteLimit
 }

@@ -16,6 +16,9 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import argparse
+import shlex
+import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -63,7 +66,7 @@ def repository_source_scan(body):
     return 'ls-files' in body or bool(direct_parent_read) or bool(outside and go_source and reader)
 
 
-def audit(root, inventory, fixed_tests):
+def audit(root, inventory, fixed_tests, actual=None):
     errors = []
     if inventory.get("version") != 1 or not isinstance(inventory.get("readers"), dict):
         return ["invalid Go reader inventory schema"]
@@ -78,7 +81,7 @@ def audit(root, inventory, fixed_tests):
             if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
                 errors.append("invalid reader digest: " + name)
             expected[name] = (disposition, digest)
-    actual = tracked_readers(root)
+    actual = tracked_readers(root) if actual is None else actual
     for name in sorted(expected.keys() - actual.keys()):
         errors.append("stale reader: " + name)
     for name, body in actual.items():
@@ -96,6 +99,166 @@ def audit(root, inventory, fixed_tests):
             if not registered or not tests <= registered:
                 errors.append("fixed preflight omits tests from " + name + ": " + ", ".join(sorted(tests - registered)))
     return errors
+
+
+def unique_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate inventory key: " + key)
+        result[key] = value
+    return result
+
+
+def command_line():
+    parser = argparse.ArgumentParser(description="Audit reader inputs before recording one explicit disposition.")
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--check", action="store_true")
+    mode.add_argument("--record", metavar="FILE")
+    mode.add_argument("--remove", metavar="FILE")
+    parser.add_argument("--disposition", choices=sorted(DISPOSITIONS))
+    args = parser.parse_args()
+    try:
+        inventory = json.loads(INVENTORY.read_text(), object_pairs_hook=unique_object)
+        if inventory.get("version") != 1 or not isinstance(inventory.get("readers"), dict):
+            raise ValueError("invalid Go reader inventory schema")
+        fixed = runpy.run_path(str(ROOT / "scripts/test-affected.py"))["SOURCE_GUARDS"]
+        actual = tracked_readers(ROOT)
+        known = {name: disposition for disposition in DISPOSITIONS
+                 for name in inventory["readers"].get(disposition, {})}
+        if args.record:
+            if args.record not in actual or not args.disposition:
+                raise ValueError("record requires a tracked reader and explicit --disposition")
+            body = actual[args.record].decode("utf-8")
+            source = repository_source_scan(body)
+            registered = set(fixed.get(str(Path(args.record).parent), ()))
+            if source and args.disposition != "fixed_scanner":
+                raise ValueError("repository source reader requires fixed_scanner")
+            if (source or args.disposition == "fixed_scanner") and (
+                    not registered or not set(TEST.findall(body)) <= registered):
+                raise ValueError("register every reader test in SOURCE_GUARDS before recording")
+            for disposition in DISPOSITIONS:
+                inventory["readers"].get(disposition, {}).pop(args.record, None)
+            inventory["readers"].setdefault(args.disposition, {})[args.record] = hashlib.sha256(actual[args.record]).hexdigest()
+        elif args.remove:
+            if args.remove not in known or args.remove in actual:
+                raise ValueError("remove requires an audited reader that is no longer present")
+            inventory["readers"][known[args.remove]].pop(args.remove)
+        else:
+            errors = audit(ROOT, inventory, fixed, actual)
+            for error in errors:
+                print(error, file=sys.stderr)
+                kind, _, rest = error.partition(": ")
+                name = rest.split(";", 1)[0]
+                command = "python3 -B tests/affected-go-readers-test.py "
+                if kind == "stale reader":
+                    print("After auditing removal: " + command + "--remove " + shlex.quote(name), file=sys.stderr)
+                elif kind in ("changed reader", "unmapped reader"):
+                    disposition = "fixed_scanner" if repository_source_scan(actual[name].decode()) else known.get(name, "non_go_full_fallback")
+                    print("After auditing inputs: " + command + "--record " + shlex.quote(name)
+                          + " --disposition " + disposition, file=sys.stderr)
+            return bool(errors)
+        INVENTORY.write_text(json.dumps(inventory, indent=2) + "\n")
+        return 0
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        print("reader inventory: " + str(error), file=sys.stderr)
+        return 1
+
+
+class FastInventoryCLI(unittest.TestCase):
+    def setUp(self):
+        self.scratch = tempfile.TemporaryDirectory(prefix="pair-fast-inventory-")
+        self.addCleanup(self.scratch.cleanup)
+        self.root = Path(self.scratch.name)
+        (self.root / "tests").mkdir()
+        (self.root / "scripts").mkdir()
+        shutil.copyfile(__file__, self.root / "tests/affected-go-readers-test.py")
+        (self.root / "scripts/test-affected.py").write_text("SOURCE_GUARDS = {}\n")
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
+        self.name = "cmd/leaf/read_test.go"
+        self.reader = self.root / self.name
+        self.reader.parent.mkdir(parents=True)
+        self.reader.write_text('os.ReadFile("own.go")')
+        subprocess.run(["git", "add", self.name], cwd=self.root, check=True)
+        self.inventory = self.root / "tests/affected-go-readers.json"
+        self.extra = {"future": {"integer": 123456789012345678901234567890}}
+        self.inventory.write_text(json.dumps(dict(self.extra, version=1, readers={
+            "local_or_literal_fixture": {self.name: hashlib.sha256(self.reader.read_bytes()).hexdigest()}
+        })))
+        tools = self.root / "tools"
+        tools.mkdir()
+        self.tool_record = self.root / "unexpected-tool"
+        for name in ("go", "make"):
+            tool = tools / name
+            tool.write_text('#!/bin/sh\nprintf called >> "$INVENTORY_TOOL_RECORD"\nexit 89\n')
+            tool.chmod(0o755)
+        self.env = dict(os.environ, PATH=str(tools) + os.pathsep + os.environ["PATH"],
+                        INVENTORY_TOOL_RECORD=str(self.tool_record))
+
+    def cli(self, *args):
+        return subprocess.run([os.sys.executable, "-B", "tests/affected-go-readers-test.py", *args],
+                              cwd=self.root, env=self.env, text=True, capture_output=True)
+
+    def test_fast_check_names_exact_repair_and_preserves_unknown_fields(self):
+        self.assertEqual(self.cli("--check").returncode, 0)
+        self.reader.write_text(self.reader.read_text() + "\n// audited change\n")
+        result = self.cli("--check")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("changed reader: " + self.name, result.stderr)
+        self.assertIn("python3 -B tests/affected-go-readers-test.py --record " + self.name
+                      + " --disposition local_or_literal_fixture", result.stderr)
+        result = self.cli("--record", self.name, "--disposition", "local_or_literal_fixture")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.cli("--check").returncode, 0)
+        self.assertEqual(json.loads(self.inventory.read_text())["future"], self.extra["future"])
+        self.assertFalse(self.tool_record.exists(), "fast inventory mode invoked Go or Make")
+
+    def test_record_refuses_untracked_and_scanner_waivers_without_writing(self):
+        before = self.inventory.read_bytes()
+        result = self.cli("--record", "cmd/untracked_test.go", "--disposition", "fixed_scanner")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("tracked reader", result.stderr)
+        self.reader.write_text('func TestScan(t *testing.T) { os.ReadFile("../source.go") }')
+        for disposition in ("local_or_literal_fixture", "non_go_full_fallback", "fixed_scanner"):
+            result = self.cli("--record", self.name, "--disposition", disposition)
+            self.assertNotEqual(result.returncode, 0, disposition)
+            self.assertIn("SOURCE_GUARDS" if disposition == "fixed_scanner" else "requires fixed_scanner", result.stderr)
+            self.assertEqual(self.inventory.read_bytes(), before)
+
+    def test_removed_reader_has_exact_removal_command(self):
+        self.assertNotEqual(self.cli("--remove", self.name).returncode, 0)
+        self.reader.unlink()
+        result = self.cli("--check")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("--remove " + self.name, result.stderr)
+        self.assertEqual(self.cli("--remove", self.name).returncode, 0)
+        self.assertEqual(self.cli("--check").returncode, 0)
+
+    def test_duplicate_keys_refuse_without_rewrite(self):
+        self.inventory.write_text('{"version":1,"version":1,"readers":{}}')
+        before = self.inventory.read_bytes()
+        result = self.cli("--record", self.name, "--disposition", "local_or_literal_fixture")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("duplicate inventory key", result.stderr)
+        self.assertEqual(self.inventory.read_bytes(), before)
+
+    def test_changed_source_reader_prints_executable_required_disposition(self):
+        old_digest = hashlib.sha256(self.reader.read_bytes()).hexdigest()
+        (self.root / "scripts/test-affected.py").write_text("SOURCE_GUARDS = {'cmd/leaf': ('TestScan',)}\n")
+        self.reader.write_text('func TestScan(t *testing.T) { os.ReadFile("../source.go") }')
+        for previous in ("local_or_literal_fixture", "non_go_full_fallback"):
+            with self.subTest(previous=previous):
+                self.inventory.write_text(json.dumps({"version": 1, "readers": {
+                    previous: {self.name: old_digest}
+                }}))
+                result = self.cli("--check")
+                self.assertNotEqual(result.returncode, 0)
+                command = next(line.removeprefix("After auditing inputs: ")
+                               for line in result.stderr.splitlines() if line.startswith("After auditing inputs: "))
+                self.assertIn("--disposition fixed_scanner", command)
+                recorded = self.cli(*shlex.split(command)[3:])
+                self.assertEqual(recorded.returncode, 0, recorded.stderr)
+                self.assertEqual(self.cli("--check").returncode, 0)
 
 
 class ReaderInventoryTest(unittest.TestCase):
@@ -227,4 +390,6 @@ class ReaderInventoryTest(unittest.TestCase):
 
 
 if __name__ == "__main__":
+    if any(arg in ("--check", "--record", "--remove") for arg in sys.argv[1:]):
+        sys.exit(command_line())
     unittest.main(verbosity=2)

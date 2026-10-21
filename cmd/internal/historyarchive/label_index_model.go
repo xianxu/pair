@@ -256,11 +256,26 @@ func mergeExtensions(a, b map[string]json.RawMessage) (map[string]json.RawMessag
 
 // ApplyIndexRefresh preserves its input and commits no partial observation.
 func ApplyIndexRefresh(old LabelIndex, r IndexRefresh) (LabelIndex, error) {
-	if !r.Complete || !validTime(r.At) {
-		return LabelIndex{}, errors.New("refresh is incomplete or has invalid time")
-	}
-	if r.Backend != "local" && r.Backend != "drive" {
-		return LabelIndex{}, errors.New("unsupported refresh backend")
+	return applyIndexRefreshes(old, []IndexRefresh{r})
+}
+
+// applyIndexRefreshes applies distinct complete destinations in one transaction.
+// Its single-refresh path is ApplyIndexRefresh itself: cloning, invalidation,
+// label/extension merging and final validation have one implementation.
+func applyIndexRefreshes(old LabelIndex, refreshes []IndexRefresh) (LabelIndex, error) {
+	byDestination := make(map[string]IndexRefresh, len(refreshes))
+	for _, r := range refreshes {
+		if !r.Complete || !validTime(r.At) {
+			return LabelIndex{}, errors.New("refresh is incomplete or has invalid time")
+		}
+		if r.Backend != "local" && r.Backend != "drive" {
+			return LabelIndex{}, errors.New("unsupported refresh backend")
+		}
+		key := r.Backend + "\n" + r.Locator
+		if _, exists := byDestination[key]; exists {
+			return LabelIndex{}, errors.New("duplicate destination in index refresh batch")
+		}
+		byDestination[key] = r
 	}
 	if err := ValidateLabelIndex(old); err != nil {
 		return LabelIndex{}, err
@@ -269,25 +284,29 @@ func ApplyIndexRefresh(old LabelIndex, r IndexRefresh) (LabelIndex, error) {
 	if err != nil {
 		return LabelIndex{}, err
 	}
-	if r.Backend == "drive" {
-		marker := DestinationObservation{Backend: r.Backend, Locator: r.Locator, FolderID: r.FolderID, ObservedAt: r.At}
-		if err := validateDestinationObservation(marker); err != nil {
-			return LabelIndex{}, err
-		}
-		if prior, ok := out.CompleteDestinations[marker.Identity()]; ok {
-			if r.At.Before(prior.ObservedAt) {
-				return LabelIndex{}, errors.New("stale complete destination refresh")
+	for _, r := range refreshes {
+		if r.Backend == "drive" {
+			marker := DestinationObservation{Backend: r.Backend, Locator: r.Locator, FolderID: r.FolderID, ObservedAt: r.At}
+			if err := validateDestinationObservation(marker); err != nil {
+				return LabelIndex{}, err
 			}
-			marker.Extensions = prior.Extensions
+			if prior, ok := out.CompleteDestinations[marker.Identity()]; ok {
+				if r.At.Before(prior.ObservedAt) {
+					return LabelIndex{}, errors.New("stale complete destination refresh")
+				}
+				marker.Extensions = prior.Extensions
+			}
+			if out.CompleteDestinations == nil {
+				out.CompleteDestinations = map[string]DestinationObservation{}
+			}
+			out.CompleteDestinations[marker.Identity()] = marker
 		}
-		if out.CompleteDestinations == nil {
-			out.CompleteDestinations = map[string]DestinationObservation{}
-		}
-		out.CompleteDestinations[marker.Identity()] = marker
 	}
+	// One record scan invalidates all observed destinations. Each observation
+	// below then restores only the location actually proven by that refresh.
 	for id, record := range out.Records {
 		for key, loc := range record.Locations {
-			if loc.Backend == r.Backend && loc.Locator == r.Locator {
+			if r, ok := byDestination[loc.Backend+"\n"+loc.Locator]; ok {
 				if r.At.Before(loc.LastObserved) {
 					return LabelIndex{}, errors.New("stale index refresh")
 				}
@@ -297,66 +316,68 @@ func ApplyIndexRefresh(old LabelIndex, r IndexRefresh) (LabelIndex, error) {
 		}
 		out.Records[id] = record
 	}
-	seen := map[string]bool{}
-	for _, ob := range r.Observations {
-		l := ob.Location
-		if r.Backend == "drive" && l.FolderID != r.FolderID {
-			return LabelIndex{}, errors.New("observation folder differs from complete binding")
-		}
-		if l.Backend != r.Backend || l.Locator != r.Locator || (l.Available && !l.LastObserved.Equal(r.At)) || (!l.Available && (r.Backend != "local" || l.LastObserved.After(r.At))) {
-			return LabelIndex{}, errors.New("observation does not match refresh")
-		}
-		if err := ValidateLabel(ob.Label); err != nil {
-			return LabelIndex{}, err
-		}
-		if err := validateLocation(l, ob.Label); err != nil {
-			return LabelIndex{}, err
-		}
-		id := ob.Label.ID
-		if seen[id] {
-			return LabelIndex{}, errors.New("duplicate bundle in refresh")
-		}
-		seen[id] = true
-		record, ok := out.Records[id]
-		if !ok {
-			record = LabelIndexRecord{Label: ob.Label, Locations: map[string]BundleLocation{}}
-		} else {
-			a, b := record.Label, ob.Label
-			a.Extensions = nil
-			b.Extensions = nil
-			ra, _ := json.Marshal(a)
-			rb, _ := json.Marshal(b)
-			if !bytes.Equal(ra, rb) {
-				return LabelIndex{}, errors.New("conflicting label for bundle ID")
+	for _, r := range refreshes {
+		seen := map[string]bool{}
+		for _, ob := range r.Observations {
+			l := ob.Location
+			if r.Backend == "drive" && l.FolderID != r.FolderID {
+				return LabelIndex{}, errors.New("observation folder differs from complete binding")
 			}
-			record.Label.Extensions, err = mergeExtensions(record.Label.Extensions, ob.Label.Extensions)
-			if err != nil {
+			if l.Backend != r.Backend || l.Locator != r.Locator || (l.Available && !l.LastObserved.Equal(r.At)) || (!l.Available && (r.Backend != "local" || l.LastObserved.After(r.At))) {
+				return LabelIndex{}, errors.New("observation does not match refresh")
+			}
+			if err := ValidateLabel(ob.Label); err != nil {
 				return LabelIndex{}, err
 			}
-		}
-		if prior, ok := record.Locations[l.Identity()]; ok {
-			if !l.Available && prior.LastObserved.After(l.LastObserved) {
-				l.LastObserved = prior.LastObserved
-			}
-			if l.FirstObserved.After(prior.FirstObserved) {
-				l.FirstObserved = prior.FirstObserved
-			}
-			l.Extensions, err = mergeExtensions(prior.Extensions, l.Extensions)
-			if err != nil {
+			if err := validateLocation(l, ob.Label); err != nil {
 				return LabelIndex{}, err
 			}
-			l.Proof.Extensions, err = mergeExtensions(prior.Proof.Extensions, l.Proof.Extensions)
-			if err != nil {
-				return LabelIndex{}, err
+			id := ob.Label.ID
+			if seen[id] {
+				return LabelIndex{}, errors.New("duplicate bundle in refresh")
 			}
-			if l.Proof.Method == "" || prior.Proof.VerifiedAt.After(l.Proof.VerifiedAt) {
-				ext := l.Proof.Extensions
-				l.Proof = prior.Proof
-				l.Proof.Extensions = ext
+			seen[id] = true
+			record, ok := out.Records[id]
+			if !ok {
+				record = LabelIndexRecord{Label: ob.Label, Locations: map[string]BundleLocation{}}
+			} else {
+				a, b := record.Label, ob.Label
+				a.Extensions = nil
+				b.Extensions = nil
+				ra, _ := json.Marshal(a)
+				rb, _ := json.Marshal(b)
+				if !bytes.Equal(ra, rb) {
+					return LabelIndex{}, errors.New("conflicting label for bundle ID")
+				}
+				record.Label.Extensions, err = mergeExtensions(record.Label.Extensions, ob.Label.Extensions)
+				if err != nil {
+					return LabelIndex{}, err
+				}
 			}
+			if prior, ok := record.Locations[l.Identity()]; ok {
+				if !l.Available && prior.LastObserved.After(l.LastObserved) {
+					l.LastObserved = prior.LastObserved
+				}
+				if l.FirstObserved.After(prior.FirstObserved) {
+					l.FirstObserved = prior.FirstObserved
+				}
+				l.Extensions, err = mergeExtensions(prior.Extensions, l.Extensions)
+				if err != nil {
+					return LabelIndex{}, err
+				}
+				l.Proof.Extensions, err = mergeExtensions(prior.Proof.Extensions, l.Proof.Extensions)
+				if err != nil {
+					return LabelIndex{}, err
+				}
+				if l.Proof.Method == "" || prior.Proof.VerifiedAt.After(l.Proof.VerifiedAt) {
+					ext := l.Proof.Extensions
+					l.Proof = prior.Proof
+					l.Proof.Extensions = ext
+				}
+			}
+			record.Locations[l.Identity()] = l
+			out.Records[id] = record
 		}
-		record.Locations[l.Identity()] = l
-		out.Records[id] = record
 	}
 	if err := ValidateLabelIndex(out); err != nil {
 		return LabelIndex{}, err

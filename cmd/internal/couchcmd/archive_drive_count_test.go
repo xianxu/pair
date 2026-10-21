@@ -62,7 +62,7 @@ func TestArchiveDriveCountRootDailyAdmission(t *testing.T) {
 	check(3)
 	observation.Files++
 	check(4)
-	if !strings.Contains(outputs[0], "Ask the hub to arrange year subfolders on Drive.") || !strings.Contains(outputs[0], "20001") {
+	if !strings.Contains(outputs[0], "Ask the hub to inspect this folder and its archive layout policy.") || !strings.Contains(outputs[0], "20001") {
 		t.Fatal(outputs[0])
 	}
 	log, err := os.ReadFile(filepath.Join(s.store, "continuous.log"))
@@ -134,5 +134,47 @@ func TestArchiveDriveCountAdmissionMatchesSequenceModel(t *testing.T) {
 		if attempts != want {
 			t.Fatalf("event %d day=%d root=%s files=%d limit=%d attempts=%d want=%d", i, currentDay, root, files, limit, attempts, want)
 		}
+	}
+}
+
+func TestArchiveDriveCountMultipleFolderAdmission(t *testing.T) {
+	s := newArchiveScheduler(t.TempDir(), func(string) {})
+	if err := os.MkdirAll(s.store, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(s.store, historyarchive.ContinuousConfigName), []byte("{}"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 10, 19, 0, 0, 0, 0, time.UTC)
+	s.now = func() time.Time { return now }
+	root := historyarchive.DriveInventoryObservation{Destination: "remote:root", FolderID: "root-id", Phase: "before", Files: 30}
+	after := root
+	after.Phase = "after"
+	after.Files = 1
+	leaf := historyarchive.DriveInventoryObservation{Destination: "remote:root/2026/10", FolderID: "month-id", Phase: "after", Files: 40}
+	other := leaf
+	other.Destination = "remote:root/2026/09"
+	other.FolderID = "other-id"
+	report := historyarchive.ContinuousCommandReport{Outcome: historyarchive.ContinuousComplete, MaxDriveFiles: 20, Report: historyarchive.ContinuousReport{Drive: &historyarchive.DriveReport{Inventory: &after, Inventories: []historyarchive.DriveInventoryObservation{root, after, leaf, leaf, other}}}}
+	s.launch = func(context.Context) (historyarchive.ContinuousCommandReport, error) { return report, nil }
+	var outputs []string
+	s.warn = func(_ context.Context, text string) (string, error) {
+		outputs = append(outputs, text)
+		return text, nil
+	}
+	s.tick(context.Background())
+	s.tick(context.Background())
+	if len(outputs) != 2 {
+		t.Fatalf("warnings=%v; want one per over-limit observed month", outputs)
+	}
+	for i, dest := range []string{leaf.Destination, other.Destination} {
+		if !strings.Contains(outputs[i], dest) {
+			t.Fatalf("warning=%s want %s", outputs[i], dest)
+		}
+	}
+	now = now.Add(24 * time.Hour)
+	s.tick(context.Background())
+	if len(outputs) != 4 {
+		t.Fatalf("next day warnings=%v", outputs)
 	}
 }

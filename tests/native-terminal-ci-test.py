@@ -76,6 +76,11 @@ class CoverageGateTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             ci.require_execution(self.complete()[1:])
 
+    def test_terminal_recreation_must_actually_execute(self):
+        prior_tests = [e for e in self.complete() if e["Test"] != "TestTerminalRecoveryZellijConformance"]
+        with self.assertRaisesRegex(RuntimeError, "TestTerminalRecoveryZellijConformance"):
+            ci.require_execution(prior_tests)
+
     def test_skipped_or_failed_test_is_failure(self):
         for action in ("skip", "fail"):
             with self.subTest(action=action), self.assertRaises(RuntimeError):

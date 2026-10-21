@@ -20,7 +20,13 @@ export PAIR_DRAFT_PATH="$tmp/draft.md"
 export PAIR_DRAFT_PANE_PATH="$PAIR_DATA_DIR/draft-pane-t.json"
 export PAIR_LAST_LEFT_PANE_PATH="$PAIR_DATA_DIR/last-left-pane-t"
 export PAIR_LAYOUT_MODE_PATH="$PAIR_DATA_DIR/layout-mode-t"
-cp "$ROOT/bin/pair" "$PAIR_HOME/bin/pair"
+bash "$ROOT/tests/lib/pair-test-binary.sh" "$PAIR_HOME/bin/pair"
+if [ -n "${PAIR_TEST_BINARY:-}" ]; then
+  python3 - "$PAIR_TEST_BINARY" "$PAIR_HOME/bin/pair" <<'PY'
+import os,sys
+assert os.path.samefile(*sys.argv[1:]), 'shortcut fixture must execute the shared image, never a per-run copy (#749)'
+PY
+fi
 
 fakebin="$tmp/fakebin"
 mkdir -p "$fakebin"
@@ -341,9 +347,11 @@ grep -Fq '"move-focus", "right"' "$ROOT/cmd/internal/wrapcmd/wrap.go" \
   && pass "right terminal split leaves borderless to the layout, not the call site" \
   || { printf 'FAIL right terminal split passes --borderless; the layout already declares it at all nine rungs\n'; fail=1; }
 
-grep -Fq "$layout_terminal_shell" "$ROOT/cmd/internal/termcmd/run.go" \
-  && pass "right terminal split command matches layout3 terminal command" \
-  || { printf 'FAIL right terminal split command drifted from layout3 terminal command\n'; fail=1; }
+grep -Fq "$layout_terminal_shell" "$ROOT/cmd/internal/workbenchshortcut/terminal_command.go" \
+  && grep -Fq 'const rightTerminalPaneShell = workbenchshortcut.RightTerminalPaneShell' "$ROOT/cmd/internal/termcmd/run.go" \
+  && grep -Fq 'workbenchshortcut.RightTerminalPaneShell' "$ROOT/cmd/internal/layoutcmd/layoutcmd.go" \
+  && pass "split and recovery share the layout3 terminal command" \
+  || { printf 'FAIL shared right terminal command or its consumers drifted from layout3\n'; fail=1; }
 
 grep -Fq 'support_kitty_keyboard_protocol true' "$ROOT/zellij/config.kdl" \
   && pass "Zellij explicitly enables Kitty keyboard protocol" \

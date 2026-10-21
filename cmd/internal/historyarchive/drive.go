@@ -24,6 +24,7 @@ const maxDriveBatchBytes int64 = 4 << 30
 // DriveReport describes independent remote evidence; it grants no local authority.
 type DriveReport struct {
 	Inventory           *DriveInventoryObservation
+	Inventories         []DriveInventoryObservation
 	Verified            int
 	AlreadyRecorded     int
 	DownloadedChecksums int
@@ -84,9 +85,7 @@ func projectDriveCandidates(ctx context.Context, c *Catalog, cfg ContinuousConfi
 	return out, err
 }
 
-func (d DriveMirror) Run(ctx context.Context, cfg ContinuousConfig, store string) (report DriveReport, err error) {
-	ctx, cancel := context.WithTimeout(ctx, drivePhaseBudget)
-	defer cancel()
+func (d DriveMirror) runFolder(ctx context.Context, cfg ContinuousConfig, store string, candidates []driveCandidate, dest DriveDestination, pin PinnedDrive, before map[string][]RemoteEntry, namespace string, receiptCount *int, limit int64) (report DriveReport, err error) {
 	stage, err := openUploadStaging(store)
 	if err != nil {
 		return report, err
@@ -101,47 +100,11 @@ func (d DriveMirror) Run(ctx context.Context, cfg ContinuousConfig, store string
 		return report, err
 	}
 	defer objects.Close()
-	candidates, err := driveCandidates(ctx, cfg)
-	if err != nil {
-		return report, err
-	}
 	report.Pending = len(candidates)
-	if len(candidates) == 0 {
-		return report, nil
-	}
-	limit := d.BatchByteLimit
-	if limit == 0 {
-		limit = maxDriveBatchBytes
-	}
-	if limit < 0 || limit > maxDriveBatchBytes {
-		return report, errors.New("invalid Drive batch byte budget")
-	}
-	dest, err := ParseDriveDestination(cfg.DriveRemote, cfg.DriveFolder)
-	if err != nil {
-		return report, err
-	}
-	pin, err := d.Rclone.ResolveDestination(ctx, dest)
-	if err != nil {
-		return report, err
-	}
-	if !validRemoteIdentity(pin.FolderID) {
-		if d.Rclone.LocalConformance {
-			pin.FolderID = pin.Root
-		} else {
-			return report, errors.New("Drive folder has invalid identity")
-		}
-	}
-	before, err := d.Rclone.ObserveFlatInventory(ctx, pin)
-	if err != nil {
-		return report, err
-	}
 	observedBefore, destinationEntries := observeDriveInventory(dest, pin.FolderID, "before", before)
 	report.Inventory = &observedBefore
 	receipts := LocalSink{Root: cfg.Catalog + ".uploads"}
-	receiptCount, err := countUploadReceipts(ctx, receipts.Root, dest.Namespace())
-	if err != nil {
-		return report, err
-	}
+
 	destinationDeferred := 0
 	source := LocalSink{Root: cfg.Sink}
 	var ready []driveCandidate
@@ -156,46 +119,13 @@ func (d DriveMirror) Run(ctx context.Context, cfg ContinuousConfig, store string
 		if err = ctx.Err(); err != nil {
 			return report, err
 		}
-		bname, lname, e := dest.RemoteObjectNames(candidate.Label.ID)
-		if e != nil {
-			return report, e
-		}
-		label, e := readDriveLabel(ctx, source, candidate)
+		expected, e := expectedDriveReceipt(ctx, cfg, candidate, dest, pin.FolderID, now)
 		if e != nil {
 			failures = append(failures, e)
 			continue
 		}
-		expected := UploadReceipt{Version: Version, Destination: dest.String(), FolderID: pin.FolderID, BundleID: candidate.Label.ID, VerifiedAt: now,
-			Bundle: UploadObject{Name: bname, Size: candidate.Label.Bytes, SHA256: candidate.Label.SHA256}, Label: UploadObject{Name: lname, Size: int64(len(label))}}
-		_, expected.Label.SHA256, e = fileDigest(ctx, bytes.NewReader(label), nil, MaxMetadataBytes)
-		if e != nil {
-			return report, e
-		}
-		key := dest.Namespace() + "/" + candidate.Label.ID + ".json"
-		existing, found, e := readUploadReceipt(ctx, receipts, key)
-		if e != nil {
-			failures = append(failures, e)
-			continue
-		}
-		if found {
-			want := existing
-			want.Destination = expected.Destination
-			want.FolderID = expected.FolderID
-			want.BundleID = expected.BundleID
-			want.Bundle.Name = expected.Bundle.Name
-			want.Bundle.Size = expected.Bundle.Size
-			want.Bundle.SHA256 = expected.Bundle.SHA256
-			want.Label.Name = expected.Label.Name
-			want.Label.Size = expected.Label.Size
-			want.Label.SHA256 = expected.Label.SHA256
-			if !MatchReceipt(existing, want) {
-				failures = append(failures, errors.New("Drive receipt conflicts with local pair; inspect upload catalog"))
-				continue
-			}
-			report.AlreadyRecorded++
-			report.Pending--
-			continue
-		}
+		bname, lname := expected.Bundle.Name, expected.Label.Name
+
 		next, admit, e := AdmitBatchPair(used, expected.Bundle.Size, expected.Label.Size, limit)
 		if e != nil {
 			return report, e
@@ -378,11 +308,11 @@ func (d DriveMirror) Run(ctx context.Context, cfg ContinuousConfig, store string
 		if effect != UploadRecordReceipt {
 			return report, errors.New("upload transition did not authorize receipt")
 		}
-		if receiptCount >= maxDriveCandidates {
+		if *receiptCount >= maxDriveCandidates {
 			failures = append(failures, errors.New("Drive upload catalog reached 100000 receipt bound"))
 			break
 		}
-		key := dest.Namespace() + "/" + candidate.Label.ID + ".json"
+		key := namespace + "/" + candidate.Label.ID + ".json"
 		if e = PublishUploadReceipt(ctx, receipts, key, candidate.Receipt); e != nil {
 			failures = append(failures, e)
 			_, _ = advanceUpload(candidate, UploadUnknown, false)
@@ -391,7 +321,7 @@ func (d DriveMirror) Run(ctx context.Context, cfg ContinuousConfig, store string
 		if _, e = advanceUpload(candidate, UploadRecorded, false); e != nil {
 			return report, e
 		}
-		receiptCount++
+		*receiptCount++
 		report.Verified++
 		report.Pending--
 		report.Notes = append(report.Notes, fmt.Sprintf("%s: bundle=%s label=%s", candidate.Label.ID, candidate.Receipt.Bundle.Verification, candidate.Receipt.Label.Verification))
