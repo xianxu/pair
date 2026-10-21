@@ -130,6 +130,12 @@ Original Done when says child exits before first read. A protected Darwin child 
 
 - 2026-10-21: [Initial shared-owner draft](000768-darwin-pty-final-output-plan.md.side/shared-owner-draft.md) proposed all three owners. Audit found wrap's live-target stdio-close cleanup would change; ptychild has its own input-ended boundary. Current plan supersedes that draft: retain #768 scribe scope, report other exposures for separate designs, require master-close-before-wait on abort, separate small-output/backpressure test protocols.
 
+## Descendant-held slave contract
+
+On Darwin, exit of scribe's session-leader child drains and revokes its controlling terminal. The master must therefore return terminal EOF after final bytes even if a descendant retains a slave and ignores SIGHUP. Scribe releases its parent lease and reaps only its direct child, returning that status; it does not wait for, adopt or kill detached descendants. No new timer or descendant wait is introduced. Native planning probe confirmed exact final-marker, EOF while the descendant remained alive, and direct-child exit7 with the parent slave still held. Qualification must exercise this through the production run path, with an out-of-band descendant-ready barrier; keep the descendant alive until after scribe returns, then clean the exact owned descendant in test cleanup. Failure to reach EOF is a design failure: stop, report evidence and re-plan rather than introducing a deadline.
+
 ## Approval checkpoint
 
-Plan only; no production/test code edited. Await TL approval of retained-slave choice, scribe scope/remaining exposure, acceptance clarification and full-flow choice before change-code or follow-up filing.
+TL approved retained-slave choice, scribe-only scope, acceptance clarification and full flow on 2026-10-21 (receipt a711dfa3-61f8-4c22-847e-25caf4a69a63). Required descendant-held-slave contract is explicit above and will be tested. Proceed to change-code; no production/test edits yet.
+
+- 2026-10-21: TL approved full flow and required deterministic completion with descendant-held slave. Added explicit Darwin revoke/EOF contract and native feasibility result; no child-wait-before-read.

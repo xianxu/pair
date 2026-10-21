@@ -32,7 +32,8 @@ Preserve final output for admitted short-lived non-terminal-aware commands under
 
 ## Done when
 
-- A deterministic native regression forces the child to write and exit before the first master read and still preserves exact stdout and log bytes.
+- A deterministic native regression forces completed writes and closure of all child-owned slave descriptors before the first master read, then verifies exact stdout/log bytes, EOF and status.
+- A descendant retaining the slave, including ignored SIGHUP, cannot prevent deterministic scribe completion after direct-child exit.
 - Short-lived non-terminal-aware children and normal interactive shell/agent behavior pass, including child exit status, signals and cleanup ownership.
 - The design records which Pair PTY entrypoints are covered and any remaining exposure.
 
@@ -61,3 +62,9 @@ Do not generalize this patch: wrap uses EOF to stop a still-live process group, 
 ## Revisions
 
 - 2026-10-21 (proposed, pending TL approval): choose scribe-only Darwin retained-slave ownership after auditing other production owners. Original Spec remains the scope contract. Clarify the first Done when, originally “write and exit before the first master read”: require finished writes and closure of all child-owned slave descriptors before the first read, then exact stdout/log, EOF and correct reap status. A protected child may be in kernel exit-drain, so requiring waitpid completion before reading would deadlock. The durable plan records both alternatives, remaining exposures and qualification. No production/test edits yet.
+
+### 2026-10-21 — TL approval
+
+TL approved full flow, scribe-only retention and acceptance clarification (receipt a711dfa3-61f8-4c22-847e-25caf4a69a63). Added explicit descendant-held-slave contract to the plan: Darwin session-leader exit revokes the terminal, scribe drains to EOF and reaps its direct child without waiting for descendants. Native planning probe observed exact final-marker and EOF while an ignored-SIGHUP descendant still held the slave; direct child exited7. Qualification must prove this through production Run; failure is a stop/re-plan, not a new timeout. Separate unclaimed wrap/ptychild issues requested.
+
+Filed unclaimed follow-ups #769 (wrap) and #770 (ptychild), each preserving probe provenance and the owner-specific termination-semantics risk.
