@@ -35,3 +35,17 @@ export function projectRegion(region, originalBox, currentBox) {
   const result = [nx+(region[0]-x)/w*nw, ny+(region[1]-y)/h*nh, region[2]/w*nw, region[3]/h*nh];
   return valid(result) ? result : null;
 }
+
+// Affine point projection retains the original path and its pressure. A caller
+// may omit pressure (mouse/touch capture); persisted tuples remain strict triples.
+export function projectPoint(point, originalBox, currentBox) {
+  const box = b => Array.isArray(b) && b.length === 4 && b.every(Number.isFinite) && b[2] > 0 && b[3] > 0;
+  if (!Array.isArray(point) || ![2,3].includes(point.length) || !point.every(Number.isFinite) || !box(originalBox) || !box(currentBox)) return null;
+  const p = point.length === 2 ? 1 : point[2];
+  if (p < 0 || p > 1) return null;
+  const result = [currentBox[0]+(point[0]-originalBox[0])/originalBox[2]*currentBox[2], currentBox[1]+(point[1]-originalBox[1])/originalBox[3]*currentBox[3], p];
+  return result.every(Number.isFinite) ? result : null;
+}
+export function pressureWidth(base, pressure) {
+  return Number.isFinite(base) && base > 0 && Number.isFinite(pressure) && pressure >= 0 && pressure <= 1 ? base*(.25+.75*pressure) : NaN;
+}
