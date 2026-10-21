@@ -223,7 +223,7 @@ Files: new `cmd/internal/remotesession/{state,policy,protocol,session,store,orig
 - [x] Implement the typed reducer, durable store and session policy using the Store, codec and Sessions function-strategy rows; run their red/green tests.
 - [x] Implement the stateful signed issuer/key backend and AccessVerifier.Verify strategy row; run `go test ./cmd/internal/remotesession -count=1` red/green.
 - [x] Implement Audit, OriginStore and Replay using their named function-strategy rows, including the counted checks specified there.
-- [ ] Update `atlas/remote-session.md` and `atlas/index.md`; commit coherent steps with agent trailers; `sdlc milestone-close --issue 759 --milestone M1` with evidence.
+- [x] Update `atlas/remote-session.md` and `atlas/index.md`; commit coherent steps with agent trailers; `sdlc milestone-close --issue 759 --milestone M1` with evidence.
 
 
 ### M2 — Exclusive exposure, local reset and revocation
@@ -352,3 +352,10 @@ BR-1: the actual Sessions owner is INTEGRATION (OS entropy plus mutex-owned sess
 ### 2026-10-21 — M1 repeated concept-map finding, complete delivered-row audit
 
 BR-4 exposed a second instance in the core-concept-classification family: DocumentResult is declared in documents.go, not protocol.go. Applied the whole rule: every delivered row now names actual declarations at their actual files, with IO/entropy/mutex owners classified as integration and future wiring explicitly marked planned. Split protocol values from document values; included the real pure replay and artifact-path entities; separated Store/OriginStore/Audit; mapped AccessVerifier/accessKeys to their respective files; classified Permit/admissionGate with the integration seam. Verified every delivered row against the declarations and imports. No runtime change; prior BR-1/2/3 were all disposed addressed by round2.
+
+
+### 2026-10-21 — M1 SHIP, capture/link transfer refinement and project coordination
+
+M1 closed SHIP at4f9bb9b371b5 with all four findings disposed. During M2 read-only wiring inspection, confirmed opt-in terminal capture records final host-write bytes even for the Presenter operator-only layer. TL7b706dfa-f54f-499d-8d0f-6e0456653c49 approved refusing remote enable whenever COUCH_CAPTURE_DIR is configured, with exact recovery: “unset COUCH_CAPTURE_DIR and restart Couch, or keep capture and skip remote”. CLI on/off prints action/status only; link appears solely in Couch's own console, never a Pair child transcript. Add a bounded locally generated QR alongside the text link where geometry fits; retain text/copy fallback in small terminals. No network QR service or generated image artifact. Terminal-app scrollback stays within trusted-account scope; Pair's own capture does not persist the capability.
+
+The TL-owned remote-session project records the operator dropping ariadne#520 at10:00. This issue preserves the approved origin/RemoteEdited and email/IP transcript provenance but implements no confirmation policy; historical references above describe the earlier project state. #760 owns the phone editor web app; #759's live pre-#758 surface remains authenticated security status/kill/logout, never a public fake document backend.

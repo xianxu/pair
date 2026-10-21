@@ -150,3 +150,8 @@ Every remote durable publication now reuses one exact artifactpath-resolved stag
 ### 2026-10-21 — M1 review round2: prior findings closed, one table-path correction
 
 Round2 disposed BR-1/2/3 addressed and found no new runtime defect. BR-4 repeats the concept-map family: DocumentResult was grouped under protocol.go although declared in documents.go. Swept all delivered rows by actual declaration/file/effects, split pure values from integration owners, and marked all future M2/M3 wiring planned. This is a documentation correction; runtime test evidence remains on1811e47e. Re-run M1 on the corrected map, without changing code or test deadlines.
+
+
+### 2026-10-21 — M1 finalized; M2 starts
+
+M1 SHIP, boundary commit4f9bb9b371b5 pushed; no open findings. Reported to hub via8482b4b5-595b-4170-baec-0c7422404c53. M2 capture/link refinement approved by TL7b706dfa: enable refuses with the named unset-and-restart recovery while COUCH_CAPTURE_DIR is configured; CLI carries no secret link, host console only. Cheap local QR rendering planned with text-only fallback for insufficient space; no network encoder. Protected transport assigned a bounded worker; root retains supervisor/HTTP/console ownership. Project now says ariadne#520 dropped; references will be historical only, no confirmation behavior is built here. No live exposure or setup change.
