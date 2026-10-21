@@ -55,7 +55,7 @@ During SessionPanes, scope a chained observer and retain only the current attemp
 
 Capture stdout/stderr prefixes at most4KiB each, argv metadata at most1KiB, version at most256bytes, original counts and truncation flags, and nullable exit status. Never confuse missing observations with exit0. Retain executable identity from the actual query boundary so version probing uses the same binary, not a different PATH lookup. Probe version only after failure, through the existing joined runner and remaining original caller/proof deadline; record unavailable/canceled version explicitly. No new timeout allowance, persistent version cache or success-path subprocess.
 
-Both formatted Unknown consumers must preserve the typed cause: NamedPairSessionContext and launcher ensureCouchConversationTerminal. Keep their current operator message; raw output stays outside Error(), notices, receipts and tab labels. lifecycleFailureForAttempt extracts the typed evidence through errors.As and populates additive top-level fields on the existing failure row. Clone byte slices/pointers; normalize writer and reader bounds; enrich only the matching operation nonce in Upsert. Existing duplicate-key/known-type checks and unrelated unknown fields round-trip unchanged. Do not replace existing launch output. Keep64-row/1MiB whole-entry retention; no new archive.
+Both formatted Unknown consumers must preserve the typed cause: NamedPairSessionContext and launcher verifyCouchSessionCreate. Keep their current operator message; raw output stays outside Error(), notices, receipts and tab labels. lifecycleFailureForAttempt extracts the typed evidence through errors.As and populates additive top-level fields on the existing failure row. Clone byte slices/pointers; normalize writer and reader bounds; enrich only the matching operation nonce in Upsert. Existing duplicate-key/known-type checks and unrelated unknown fields round-trip unchanged. Do not replace existing launch output. Keep64-row/1MiB whole-entry retention; no new archive.
 
 Actions remain inspect failure evidence and rerun after resolving the native failure.
 
@@ -71,12 +71,26 @@ Successful reads create no new retained state. Capture/error values die with ope
 ## Tests and tasks — one boundary
 
 - [ ] Preserve a minimal native reproduction sequence, installed executable version/checksum, rate, exact bad stdout/stderr and all failed samples. Prove private generation cleanup and report the exit1-control gap honestly.
-- [ ] TDD the pure classifier with the captured186byte fallback. Stateful query frames: false miss→valid response, three false misses→refusal, late deadline, target absent/exited, wrong stderr/argv, malformed or arbitrary escape bytes, collector errors and mutation negative controls. Observe RED before admitting only the exact signature.
-- [ ] TDD parse-selected typed evidence: malformed native bytes with stderr/exit; valid JSON larger than observer cap must not falsely capture; observer chaining; Unknown,nil semantics; cause preserved through both consumers; successful reads execute zero version commands, failure at most one. Exercise actual fake executable/counters, not only callback mocks.
-- [ ] TDD persistence through real OperationAttempt→Save→reopen: exact raw bytes/counts/nullable exit/version, concise UI, cloning, truncation, matching-nonce enrichment, unrelated launch output, known-field refusal and unknown-field round trips. Count retained row/byte bounds.
+- [ ] Write failing tests for each named risky function in the strategy table below, then implement the least change that makes its independent invariant pass. Keep reproduction bytes as seeds and mutation controls for retry admission.
 - [ ] Implement minimal helpers and adapters with existing runner/codec ownership; audit artifact/source-reader inventories. Run go test ./cmd/internal/launcher ./cmd/internal/couchcore ./cmd/internal/artifactpath ./internal/repolint -count=1 plus relevant races and make test-affected-inventory.
 - [ ] Run the captured mixed native schedule through the fixed production boundary. Count every attempt and final parse; never erase failures with a blind test rerun. Recheck actual production owner Probe/Revalidate and detach/restart with exact cleanup using main's existing private native fixtures. #744's full matrix waits until this issue lands.
 - [ ] Update atlas/couch.md and atlas/index.md for failure-evidence location and workaround removal condition. Push final head, required recorded suite, mandatory full close review, PR and ordinary merge. Report landing; only then integrate landed main into #744 and rerun its matrix.
+
+## Function-specific test strategies
+
+These names define the implementation seams; tests qualify the actual function rather than a separate model.
+
+| Risky function | Adversarial input class and mechanical guard |
+|---|---|
+| retryableSessionLookupMiss(args, stdout, stderr, exit, socketPresent) | Generated combinations of reply kind, exact/mutated native signature and socket fact; independent allowlist oracle, fuzz seeds from both real captures, and actual invocation counters reject any mutation/unknown/nonmatching retry. |
+| parseColoredSessionListing(raw) | Arbitrary bytes, malformed/trailing ANSI and metadata/name ambiguity; whole-input parser plus fuzzing accepts only the exact supported native envelope and preserves opaque identities. |
+| sessionSocketPresent(name) | Unsafe basenames and missing/regular/symlink/unknown files in a private stateful socket folder; require SocketPresent from exact derived native namespace, with zero host scans or process calls. |
+| boundNativeQueryEvidence(observation) / cloneNativeQueryEvidence(value) | Generated oversize/malformed byte streams and nullable exit metadata; prefix/count/truncation invariants and independently mutated input/output slices prove hard limits and no aliases. |
+| SessionOwnerProbe.probe | Controlled full replies and observer sequences, including replies larger than the observer cap; assert existing authority states and Unknown,nil semantics, select evidence only on the full parser result and preserve chained observations. |
+| queryZellijVersion(ctx, executable) | Stateful executable fixture records calls and held child lifetime; independent counters require zero success-path probes and at most one failure-path probe, with the original deadline and joined cancellation. |
+| lifecycleFailureForAttempt | Wrapped diagnostic error chains and distinct operation identities through actual recorder/Save/reopen; compare original byte/exit/version evidence and independently assert concise operator text and unchanged unrelated launch output. |
+| cloneLaunchFailure / normalizeLaunchFailure / LaunchFailureHistory.Upsert | Generated evidence sizes, nullable fields and repeated/mismatched nonces; independent no-alias/bound/retention invariants at N/2N and exact typed-field enrichment. |
+| encodeLifecycleFailureRow / decodeLifecycleFailureHistory | Round trips with nested existing unknown members, duplicate/ill-typed known fields and new optional top-level evidence; preserve unrelated bytes while strict malformed-known refusals and total encoded limits remain enforced. |
 
 ## Growth and trust
 
@@ -91,3 +105,8 @@ The original plan kept exit1 no-active-session failures fail-closed pending clas
 ## Approval and estimate
 
 TL approved the narrow fix and evidence requirement; send this concrete full plan for confirmation before product implementation. Re-run change-code so plan-quality checks the expanded flow, then derive the estimate from the calibrated method; do not invent actual hours. Any broader retry signature requires a dated Revision and TL approval.
+
+
+### 2026-10-21 — PQ-1/PQ-2: executable function strategies and actual consumer name
+
+The initial plan listed test cases without assigning each risky helper a function-level adversarial strategy. The new table names every classifier/capture/IO/persistence seam with its input class and mechanical oracle; the task now executes those strategies. The launcher consumer is verifyCouchSessionCreate at couch_session.go195/238, not the prior nonexistent ensureCouchConversationTerminal name. Scope, approved retry signatures and authority semantics are unchanged.
