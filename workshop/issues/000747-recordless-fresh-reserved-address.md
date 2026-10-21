@@ -49,8 +49,8 @@ Actions: start fresh explicitly; inspect an unconfirmed attempt; retry only afte
 
 ## Plan
 
-- [ ] Pin the actual recordless producer profile, creating start claim and real reserved marker at the launcher boundary; demonstrate the current refusal without manufacturing registration.
-- [ ] Persist the existing tagged Fresh recovery intent with the new record and use the existing authorized recovery launch tail; preserve ordinary Fresh and all input/ownership guards.
+- [x] Pin the actual recordless producer profile, creating start claim and real reserved marker at the launcher boundary; demonstrate the current refusal without manufacturing registration.
+- [x] Persist the existing tagged Fresh recovery intent with the new record and use the existing authorized recovery launch tail; preserve ordinary Fresh and all input/ownership guards.
 - [ ] Verify exact authority mismatches, failure cleanup, foreign owners, unsupported records and ordinary/resume behavior; qualify the independent #744 native consumer.
 - [ ] Update atlas/README as needed, run targeted/race and recorded affected checks, then boundary review/CI and landing. Detailed plan: workshop/plans/000747-recordless-fresh-reserved-address-plan.md.
 
@@ -67,3 +67,5 @@ Actions: start fresh explicitly; inspect an unconfirmed attempt; retry only afte
 - 2026-10-20 — TL settled qualification order with pair:5: land747 on its real emitted-profile executable-boundary proof, then744 integrates landed main and its native three-worker matrix serves as both issues' live proof. No candidate overrides or composite builds:744 adds isolated socket-root derivation absent from plain main, so mixing binaries would invalidate isolation. This changes acceptance sequencing, not implementation or authority semantics.
 
 - Verification so far: equivalent RunLaunch boundary RED on original production with the exact established-address error, GREEN on corrected producer (six cases,10.749s), and helper-generation-validation mutation RED on unauthorized marker advancement. Producer start-intent omission mutation also RED at real launcher authority validation. Focused race recovery/claim tests PASS couchcore8.904s/launcher1.468s; vet PASS. Full targeted packages and final boundary race in progress. No native run or registration success claimed.
+
+- Final boundary/race/inventory verification: six-case actual-profile RunLaunch/OS-marker boundary PASS under race12.083s. All8 reader-inventory checks PASS69.473s after auditing the new boundary reader as disposable local fixture input. Production and tests committed at e8d003b68beb9b52c88e13697bb7d4d65dcd613a; PR498 open. Recorded affected check falls back to full suite for known738 runtime-bundle graph gap and queues FIFO position5; no native override or stage change.

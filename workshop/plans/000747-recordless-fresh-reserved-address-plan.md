@@ -48,31 +48,31 @@ The durable O_EXCL marker owns the address for the thread lifetime; the committe
 
 **Files:** cmd/internal/couchcore/recovery_fresh_missing_test.go; new focused recordless launch-boundary test beside it if needed; cmd/internal/launcher/recovery_fresh_claim_test.go.
 
-- [ ] Extend the stateful recordless fixture to inspect the actual emitted profile and committed start after helper acknowledgment. Require RecoveryFresh intent equality, exact new address, source revision no newer than committed revision, exact nonce/helper and existing orientation. Require the real launcher recovery-record validator to accept it. Current code must fail because Recovery is nil.
-- [ ] Add an executable-boundary regression using the actual emitted child argv/environment and file-backed marker/record. Use the existing shared Pair test binary and isolated testpair environment, with controlled external terminal handoff; exercise public launch parsing and real OS authority validation. Assert reserved -> established only for the exact authorized helper. A controlled terminal stop can bound this check after claim validation; #744 remains the full native worker-registration acceptance.
-- [ ] Keep the regression's pre-fix failure diagnostic: existing established-address refusal, or earlier missing genuine Recovery authority. Do not manufacture a registered artifact to make this boundary pass.
-- [ ] Bound and join the test child/IO; keep all homes, stores and command fixtures under disposable roots. Do not touch the operator's native sessions.
+- [x] Extend the stateful recordless fixture to inspect the actual emitted profile and committed start after helper acknowledgment. Require RecoveryFresh intent equality, exact new address, source revision no newer than committed revision, exact nonce/helper and existing orientation. Require the real launcher recovery-record validator to accept it. Current code must fail because Recovery is nil.
+- [x] Add an executable-boundary regression using the actual emitted child argv/environment and file-backed marker/record. Use the existing shared Pair test binary and isolated testpair environment, with controlled external terminal handoff; exercise public launch parsing and real OS authority validation. Assert reserved -> established only for the exact authorized helper. A controlled terminal stop can bound this check after claim validation; #744 remains the full native worker-registration acceptance.
+- [x] Keep the regression's pre-fix failure diagnostic: existing established-address refusal, or earlier missing genuine Recovery authority. Do not manufacture a registered artifact to make this boundary pass.
+- [x] Bound and join the test child/IO; keep all homes, stores and command fixtures under disposable roots. Do not touch the operator's native sessions.
 
 ### 2. Carry genuine Fresh intent through the existing transaction
 
 **Files:** cmd/internal/couchcore/recovery_fresh_missing.go; cmd/internal/couchcore/slotrecovery.go. Remove the unused prompt-driven Fresh tail in cmd/internal/couchcore/couch.go only if this routing leaves it without callers.
 
-- [ ] Pass structured branch/issue/unavailable-screen orientation from recordless recovery into its existing slot transaction instead of using a nonempty prompt as the permission signal. Ordinary callers continue with no recovery orientation.
-- [ ] In the recordless transaction's existing claimFreshRecord Commit callback, construct the existing tagged RecoveryFresh intent for the allocated record address, its initial revision, selected agent and creation time; nonempty selected key bound to that address/revision, no native ID. Normalize through persistedRecoveryIntent. Attach identical cloned intent to record.RecoveryIntent and its creating Start.RecoveryIntent before replaceSlotCurrent.
-- [ ] Preserve existing source/current authority CAS, address collision retries, retention claims and rollback. No second record or follow-up publication window.
-- [ ] Re-read the committed record from the slot backend, as launchRecoveryFreshAddress does: claimFreshRecord's returned pre-callback value is insufficient.
-- [ ] Route recordless launch through launchRecoveryClaim with recoveryClaimed phase, RecoveryFresh selection, committed intent and existing recoveryExistingWorkspace readiness. Preserve slot reference, one-time orientation, no workspace convergence, no stopping unproved owners, and existing registration confirmation.
-- [ ] Leave ordinary Fresh callers on launchClaimedThread. Keep RegisterExistingCouchThread, EnsureThreadAddressForPair and the launcher's Recovery gate unchanged.
-- [ ] Run the red regressions and focused recovery tests to green; commit the atomic fix and tests with model trailers.
+- [x] Pass structured branch/issue/unavailable-screen orientation from recordless recovery into its existing slot transaction instead of using a nonempty prompt as the permission signal. Ordinary callers continue with no recovery orientation.
+- [x] In the recordless transaction's existing claimFreshRecord Commit callback, construct the existing tagged RecoveryFresh intent for the allocated record address, its initial revision, selected agent and creation time; nonempty selected key bound to that address/revision, no native ID. Normalize through persistedRecoveryIntent. Attach identical cloned intent to record.RecoveryIntent and its creating Start.RecoveryIntent before replaceSlotCurrent.
+- [x] Preserve existing source/current authority CAS, address collision retries, retention claims and rollback. No second record or follow-up publication window.
+- [x] Re-read the committed record from the slot backend, as launchRecoveryFreshAddress does: claimFreshRecord's returned pre-callback value is insufficient.
+- [x] Route recordless launch through launchRecoveryClaim with recoveryClaimed phase, RecoveryFresh selection, committed intent and existing recoveryExistingWorkspace readiness. Preserve slot reference, one-time orientation, no workspace convergence, no stopping unproved owners, and existing registration confirmation.
+- [x] Leave ordinary Fresh callers on launchClaimedThread. Keep RegisterExistingCouchThread, EnsureThreadAddressForPair and the launcher's Recovery gate unchanged.
+- [x] Run the red regressions and focused recovery tests to green; commit the atomic fix and tests with model trailers.
 
 ### 3. Defend negative authority and failure outcomes
 
 **Files:** same focused test files; cmd/internal/couchcore/recovery_launch_failure_test.go as needed.
 
-- [ ] Test changed helper generation, attempt nonce, address/scope, agent/cwd, missing or established marker, missing intent and newer/future record. Refusals leave marker bytes and native launch effects unchanged.
-- [ ] Retain ordinary Fresh reserved refusal, cold-resume established registration, direct Pair, and foreign-owner/no-setup-refresh cases.
-- [ ] Inject post-ack helper failure and verify existing confirmed cleanup can retain the Fresh selection; uncertainty remains unconfirmed and never launches a replacement automatically.
-- [ ] Mutate away intent propagation and require the boundary oracle to fail. Mutate the nonce/helper authority check only in a temporary overlay and require its negative oracle to fail; restore and rerun focused checks.
+- [x] Test changed helper generation, attempt nonce, address/scope, agent/cwd, missing or established marker, missing intent and newer/future record. Refusals leave marker bytes and native launch effects unchanged.
+- [x] Retain ordinary Fresh reserved refusal, cold-resume established registration, direct Pair, and foreign-owner/no-setup-refresh cases.
+- [x] Inject post-ack helper failure and verify existing confirmed cleanup can retain the Fresh selection; uncertainty remains unconfirmed and never launches a replacement automatically.
+- [x] Mutate away intent propagation and require the boundary oracle to fail. Mutate the nonce/helper authority check only in a temporary overlay and require its negative oracle to fail; restore and rerun focused checks.
 
 ### 4. Qualification and landing
 
@@ -102,3 +102,5 @@ Plan only: no production/test edits before hub approval and sdlc change-code. On
 ## Revisions
 
 - 2026-10-20 — ops:0 explicitly changed qualification order:747 lands on its executable-boundary proof;744 then integrates main and supplies the native three-worker proof for both issues. Pair/Couch candidate mixing is excluded because744 adds isolated messaging-root support. All authority and no-bypass requirements remain.
+
+- Execution qualification detail: the executable-boundary equivalent runs actual emitted argv/profile/terminal intent through RunLaunch inside the acknowledged helper callback. The executing test process is recorded through the ordinary StartHelperRecorded event with its real OS PID/generation. OSRuntime validates the actual committed record and marker; only external terminal observations are controlled, stopping at the next handoff. This avoids a disposable native UI before744's isolated-root support exists. Six cases and helper-generation/start-intent mutation controls establish the boundary without synthesizing registration.
