@@ -1,13 +1,13 @@
 ---
 id: 000769
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours: 1.861
 collaboration-mode: collaboration
-card_mirror: '53af7dc451c1254e0abe8020fedd38c1bbfea6a4' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '98ffa3e1731f76bf8ec8e2ac4e01152b1635e6a9' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-21T06:43:45-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 1.18
 ---
 
 # Preserve wrap Darwin PTY final output without changing termination
