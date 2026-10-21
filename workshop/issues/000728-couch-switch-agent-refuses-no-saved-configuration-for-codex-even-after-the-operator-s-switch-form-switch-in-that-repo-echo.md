@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
-estimate_hours:
+estimate_hours: 14.58
 collaboration-mode: collaboration
-card_mirror: 'e31e46ec79b082813dff4e1f855b47e6d8578f38' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '087579056e70ca221fbcd3d8626feabeada1fb57' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T23:31:35-07:00
 claimant:
     operator: Xian Xu
@@ -47,6 +47,43 @@ The latest governing Revisions and [durable plan](../plans/000728-shared-agent-s
 - [ ] M1 — Couch-owned repository arguments, bounded migration and explicitly accepted borrowed suggestions; Pair stays independent.
 - [ ] M2 — Editable field/provenance, explicit CLI arguments and guarded live/proven-vacant switching, with typed restart intent.
 - [ ] M3 — Edited same-native-conversation restart, visible missing-conversation fresh fallback and real acceptance.
+
+## Estimate
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. estimate-source marks the calibration stale; values are provisional.*
+
+Primitive mapping, in block order: approved issue/spec; repository argument decisions; nested raw codec; global store/concurrency; legacy fold/conflict/provenance; all Couch consumer migration; final console adoption/publication and warnings; editable form; typed CLI/socket/receipt intent; live/proven-vacant guard integration; pure edited-restart decision; pinned cold-resume/fallback lifecycle integration; combined warning projection; README/help/atlas; Claude and Codex native conformance discovery; M1/M2/M3 and whole-issue reviews. Stateful fake/regression work belongs to its component, not a separate undifferentiated test buffer.
+
+Library check: existing strictjson codecs/MergeRaw and ThreadStore atomic writer/locks halve design for the first two greenfield model/codec primitives (1.5h ×0.5 library ×0.2 thorough-spec =0.15h each). Migration/conflict and pure fallback rules are new domain policy without a substituting library (1.5h ×0.2 =0.30h each). Other design anchors are2–3h for the integration seams,2h for the TUI,1h for cross-cutting consumers,0.3h for the smaller warning extension and0.2h for docs, all ×0.2 thorough-plan discount. Four review design anchors are0.1h ×0.2. No new third-party dependency or stack is needed.
+
+Each impl value is its v2/v2.1 anchor ×0.40, including two0.6h native discovery budgets and four0.5h review budgets. Familiarity1.5 reflects bounded but unfamiliar global-store routing, late attachment adoption and native resume failure authority; no additional implementation buffer or cross-repo factor. Design4.38h ×1.15 =5.037h; scaled impl6.36h ×1.5 =9.54h; total14.577h, recorded14.58h. A reasonable provisional range is10–18 focused hours; queue waits, operator label/smoke waits and the separate #743 work are excluded. The earlier2–4h marginal edited-resume comparison is not this full scope's total.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.5
+item: issue-spec design=0.30 impl=0.12
+item: greenfield-go-module design=0.15 impl=0.32
+item: greenfield-go-module design=0.15 impl=0.32
+item: api-integration design=0.40 impl=0.60
+item: greenfield-go-module design=0.30 impl=0.32
+item: cross-cutting-refactor design=0.20 impl=0.20
+item: api-integration design=0.60 impl=0.60
+item: tui-screen design=0.40 impl=0.40
+item: api-integration design=0.40 impl=0.40
+item: api-integration design=0.40 impl=0.60
+item: greenfield-go-module design=0.30 impl=0.32
+item: api-integration design=0.60 impl=0.60
+item: smaller-go-module design=0.06 impl=0.20
+item: atlas-docs design=0.04 impl=0.08
+item: real-api-discovery design=0.00 impl=0.24
+item: real-api-discovery design=0.00 impl=0.24
+item: milestone-review design=0.02 impl=0.20
+item: milestone-review design=0.02 impl=0.20
+item: milestone-review design=0.02 impl=0.20
+item: milestone-review design=0.02 impl=0.20
+design-buffer: 0.15
+total: 14.58
+```
 
 ## Log
 
@@ -124,3 +161,5 @@ The durable plan's 2026-10-21 00:04 governing revision completely replaces share
 Authenticated submitted hub76a8370a-46db-4150-a6ee-f0362d42e550 approves the revised Couch-only design and resolves Restart: preserve the same native conversation with edited flags; when no previous conversation is found, start fresh with those flags and report "no previous conversation found; started fresh with the new parameters". Started-but-not-remembered behavior remains accepted. Plan Revisions now includes explicit absence versus unrelated failure/unknown ownership, final adoption learning, exact combined warning transport, native-ID/race/fallback tests and the extra M3 edited-resume review boundary. No Pair preference/store/default changes, no new Fresh selector, no new resume engine. #743 is parked codecomplete for its operator label; its final code suite passed, so it needs no restarted runner. Next is change-code plan-quality, scoped estimate after quality passes, then M1 TDD.
 
 - Plan-quality round1: PQ-1 Important asks for an enforced pure restart-to-fallback transition; Minor asks for function-level strategies rather than case inventories. Added named AdvanceEditedRestart table, exact binder/failed-attempt evidence producers, claim/lifecycle reuse and interruption behavior. Read-only M1 trace also identified final console attach after registry insertion; publication now explicitly follows successful shared attach and warning payload survives StartedChild projection. No code edits; M1 store and M3 decision remain held for plan-quality.
+
+- Plan-quality round2 CLEAN: PQ-1/PQ-2 addressed, no blockers. Derived full scoped estimate only afterward using the named stale v3.1 calibration;14.58h includes all three milestones, four boundaries, stateful tests/native qualification and final adoption handling. Card setter and estimate-quality gate follow; implementation still awaits admission.
