@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/broadcast.TestHubRandomInterleavings]
+flow: {kind: quick, provenance: inferred, spec: "f0fe9253", done: "a0bbe98b"}
 ---
 
 # flake: TestHubRandomInterleavings/30
