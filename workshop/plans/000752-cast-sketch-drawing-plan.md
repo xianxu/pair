@@ -215,7 +215,7 @@ The counters are test seams around named traversals/encodes, not wall-clock asse
 
 - [ ] Owned headless Chrome tests `TestSketchLiveTwoViewers` and `TestOperatorSketchLiveScenePrivacy`: real Server/recording sees an incomplete pressure stroke before pointer-up; echo once; Undo/Redo/label and historical replay agree. Exercise privileged console scene with the same renderer; adversarial page sees no binding/credentials/private assets and receives no drawing input. Run `WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run 'SketchLive|OperatorSketchLive' -count=1 -v` against a disposable profile, including named-frame attacks as a real negative control.
 - [ ] Obtain TL-arranged live console input smoke before landing; send reviewable commands/URLs and exact built revision. Include current-driver and pointer/view behavior; #754 retains wider real iPad/echo acceptance.
-- [ ] Update README controls/recovery, `atlas/webcast.md`, `atlas/webcast-format.md` and index as needed. Document ephemeral authority/delivery separately from append-only persisted events. Add lessons only for actual discoveries.
+- [ ] Update README controls/recovery, `atlas/webcast.md`, `atlas/webcast-format.md` and index as needed. Add the TL-required invariant to webcast atlas: the casting page never reaches the recorded scene, bindings or assets. Document ephemeral authority/delivery separately from append-only persisted events. Add lessons only for actual discoveries.
 - [ ] Audit new production-file dispositions and each changed source-reader input; run `make test-affected-inventory`, artifactpath/repolint checks and all targeted webcast/Node tests.
 - [ ] Push PR, run recorded `sdlc local-check run --name affected` (full-suite fallback if graph still unavailable), close with evidence and `--no-project` because TL owns ops project. Mandatory fresh review is the close gate; fix all blocking findings and reverify final code.
 - [ ] On SHIP promptly `sdlc merge --yes`; retain its runner through admission/integration/CI. Report landed PR and evidence once to hub, then proceed #756→#753→#754 as assigned. Do not claim UI/device coverage that did not run.
@@ -234,7 +234,7 @@ The counters are test seams around named traversals/encodes, not wall-clock asse
 
 ## Approval and checkpoint
 
-Draft for hub approval. No implementation or estimate yet. After approval, commit the finalized design, run `sdlc change-code --issue 752 --flow full --worktree=no`, answer plan-quality findings, then derive the estimate from the accepted plan.
+Approved by ops:0 on 2026-10-21 (delivery96710fe7-a135-4b67-81e3-9189c71f5d63), including the opaque scene, authority/receipt/delivery contracts and mandatory named-target leak regression. TL will perform console smoke when staged. Run `sdlc change-code --issue 752 --flow full --worktree=no`, answer plan-quality findings, then derive the estimate from the accepted plan. No implementation or estimate preceded approval.
 
 ## Revisions
 
