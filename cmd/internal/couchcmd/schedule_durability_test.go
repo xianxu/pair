@@ -33,7 +33,7 @@ func TestScheduleDurableAdoptionConsumerInventory(t *testing.T) {
 			a := newAutomaticScheduler(c, nil, &resultScheduleNotices{})
 			key := couchschedule.TaskKey{Hub: roots[0], Task: "report"}
 			var before couchschedule.TaskState
-			if err := c.store.Update(t.Context(), func(l *couchschedule.Ledger) error {
+			if err := updateScheduleFixture(c.store, t.Context(), func(l *couchschedule.Ledger) error {
 				s := l.Tasks[key.ID()]
 				s.NextDue = now.Add(time.Hour)
 				s.Active = &couchschedule.Attempt{ID: "renamed-result", Source: "scheduled", Revision: s.Revision, Stage: "running", DueAt: now.Add(-time.Minute), StartedAt: now.Add(-30 * time.Second), Deadline: now.Add(time.Minute)}
@@ -165,7 +165,7 @@ func TestScheduleDurableAdoptionConsumerInventory(t *testing.T) {
 			if len(fake.Runs()) != 0 {
 				t.Fatal("failed durable adoption replayed executor")
 			}
-			if err := c.store.Update(t.Context(), func(l *couchschedule.Ledger) error {
+			if err := updateScheduleFixture(c.store, t.Context(), func(l *couchschedule.Ledger) error {
 				healthy := couchschedule.TaskKey{Hub: roots[1], Task: "report"}
 				s := l.Tasks[healthy.ID()]
 				s.NextDue = *now

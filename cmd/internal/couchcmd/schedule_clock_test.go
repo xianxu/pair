@@ -229,7 +229,7 @@ func TestScheduleClockRunRestartRetainsUnknownWithoutReplay(t *testing.T) {
 	c, roots, initial := scheduleServiceFixture(t)
 	due := initial.Add(time.Minute)
 	key := couchschedule.TaskKey{Hub: roots[0], Task: "report"}
-	if err := c.store.Update(t.Context(), func(l *couchschedule.Ledger) error {
+	if err := updateScheduleFixture(c.store, t.Context(), func(l *couchschedule.Ledger) error {
 		s := l.Tasks[key.ID()]
 		s, _ = couchschedule.Advance(s, couchschedule.Event{Kind: couchschedule.ClockObserved, At: due, RunID: "before-restart", HubOnline: true, Location: time.UTC})
 		l.Tasks[key.ID()] = s

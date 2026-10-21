@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchschedule"
@@ -13,13 +14,14 @@ import (
 // scheduleOwner is the only scheduler state/history writer in its namespace.
 // Its event loop owns the capability; execution and transport return facts.
 type scheduleOwner struct {
-	coordinator *scheduleCoordinator
-	state       *couchschedule.StateOwner
-	busy        map[string]string
-	intents     map[string]couchschedule.ManualIntent
-	operations  map[string]*scheduleOwnerOperation
-	loop        *scheduleOwnerLoop
-	recovered   bool
+	automationEnabled func(hubRoot string) bool
+	coordinator       *scheduleCoordinator
+	state             *couchschedule.StateOwner
+	busy              map[string]string
+	intents           map[string]couchschedule.ManualIntent
+	operations        map[string]*scheduleOwnerOperation
+	loop              *scheduleOwnerLoop
+	recovered         bool
 }
 
 func newScheduleOwner(c *scheduleCoordinator) *scheduleOwner {
@@ -48,6 +50,9 @@ func (o *scheduleOwner) authorize(ctx context.Context, state couchschedule.TaskS
 	current := ledger.Tasks[state.Key.ID()]
 	if !sameReservedAttempt(current, state) || !current.Allowed || !o.coordinator.now().Before(state.Active.Deadline) {
 		return errors.New("execution authority changed or expired")
+	}
+	if current.Active.Source == "scheduled" && !o.automationOn(current.Key.Hub) {
+		return errors.New("automation off: scheduled execution refused")
 	}
 	event := couchschedule.Event{Kind: couchschedule.OwnerRecorded, At: o.coordinator.now(), Attempt: state.Active.ID, Revision: state.Active.Revision, Owner: &identity}
 	if _, err := o.apply(ctx, state.Key, event, nil); err != nil {
@@ -81,9 +86,56 @@ func (o *scheduleOwner) apply(ctx context.Context, key couchschedule.TaskKey, ev
 		return decision, err
 	}
 	err := o.state.Update(ctx, func(ledger *couchschedule.Ledger) error {
+		var err error
+		decision, localErr, err = o.applyInLedger(ctx, ledger, key, event, facts)
+		return err
+	})
+	if err != nil {
+		return decision, err
+	}
+	if localErr != nil {
+		return decision, &taskHistoryError{cause: localErr}
+	}
+	// Passive consumption and unknown classification are durable before their
+	// diagnostic/no-execution bundles can be published. Never reconstruct native
+	// execution completion here.
+	if (event.Kind == couchschedule.ClockObserved && decision.Next == couchschedule.SettlementPublishHistory) || (decision.State.Active != nil && decision.State.Active.Stage == "uncertain" && decision.State.Last != nil && decision.State.Last.Outcome == "unknown") {
+		state := decision.State
+		record, err := o.ensureRetainedRun(ctx, state, state.Active != nil && state.Active.Stage == "uncertain")
+		if err != nil {
+			if commitErr := o.state.Update(ctx, func(l *couchschedule.Ledger) error {
+				return quarantineTaskHistory(ctx, l, l.Tasks[key.ID()], "passive publication", err)
+			}); commitErr != nil {
+				return decision, commitErr
+			}
+			return decision, &taskHistoryError{cause: err}
+		}
+		summary := runSummaryForRecord(record)
+		err = o.state.Update(ctx, func(l *couchschedule.Ledger) error {
+			decision = couchschedule.PlanSettlement(l.Tasks[key.ID()], &summary, couchschedule.Event{At: event.At})
+			if decision.Kind == couchschedule.SettlementQuarantined {
+				return errors.New(decision.Reason)
+			}
+			l.Tasks[key.ID()] = decision.State
+			return nil
+		})
+		if err != nil {
+			return decision, err
+		}
+	}
+	return decision, nil
+}
+
+// applyInLedger shares canonical-first history settlement between individual
+// commands and timer batches. Its candidate becomes authority only when the
+// enclosing owner transaction commits. Task-local failures retain prior facts.
+func (o *scheduleOwner) applyInLedger(ctx context.Context, ledger *couchschedule.Ledger, key couchschedule.TaskKey, event couchschedule.Event, facts *scheduleExecutionFacts) (couchschedule.Settlement, error, error) {
+	var decision couchschedule.Settlement
+	var localErr error
+	err := func() error {
 		prior := ledger.Tasks[key.ID()]
 		if event.Kind == couchschedule.ManualRequested || event.Kind == couchschedule.ClockObserved {
-			if err := ensurePassiveRun(ctx, o.coordinator.runs, prior); err != nil {
+			if err := o.ensurePassiveRun(ctx, prior); err != nil {
 				localErr = err
 				return quarantineTaskHistory(ctx, ledger, prior, "prior passive history", err)
 			}
@@ -138,41 +190,8 @@ func (o *scheduleOwner) apply(ctx context.Context, key couchschedule.TaskKey, ev
 		}
 		ledger.Tasks[key.ID()] = candidate
 		return nil
-	})
-	if err != nil {
-		return decision, err
-	}
-	if localErr != nil {
-		return decision, &taskHistoryError{cause: localErr}
-	}
-	// Passive consumption and unknown classification are durable before their
-	// diagnostic/no-execution bundles can be published. Never reconstruct native
-	// execution completion here.
-	if (event.Kind == couchschedule.ClockObserved && decision.Next == couchschedule.SettlementPublishHistory) || (decision.State.Active != nil && decision.State.Active.Stage == "uncertain" && decision.State.Last != nil && decision.State.Last.Outcome == "unknown") {
-		state := decision.State
-		record, err := ensureRetainedRun(ctx, o.coordinator.runs, state, state.Active != nil && state.Active.Stage == "uncertain")
-		if err != nil {
-			if commitErr := o.state.Update(ctx, func(l *couchschedule.Ledger) error {
-				return quarantineTaskHistory(ctx, l, l.Tasks[key.ID()], "passive publication", err)
-			}); commitErr != nil {
-				return decision, commitErr
-			}
-			return decision, &taskHistoryError{cause: err}
-		}
-		summary := runSummaryForRecord(record)
-		err = o.state.Update(ctx, func(l *couchschedule.Ledger) error {
-			decision = couchschedule.PlanSettlement(l.Tasks[key.ID()], &summary, couchschedule.Event{At: event.At})
-			if decision.Kind == couchschedule.SettlementQuarantined {
-				return errors.New(decision.Reason)
-			}
-			l.Tasks[key.ID()] = decision.State
-			return nil
-		})
-		if err != nil {
-			return decision, err
-		}
-	}
-	return decision, nil
+	}()
+	return decision, localErr, err
 }
 
 func ownerResultRecord(state couchschedule.TaskState, facts *scheduleExecutionFacts) (operationalrun.Record, []byte) {
@@ -232,12 +251,36 @@ func (o *scheduleOwner) refresh(ctx context.Context) error {
 			if prior.Key.Hub != "" && !containsScheduleRoot(c.roots, prior.Key.Hub) {
 				continue
 			}
-			canonical, err := o.canonical(ctx, prior)
+			// Unknown diagnostics contain only previously committed facts.
+			// A retained history quarantine also needs durable proof before
+			// discovery may restore policy, including Last-only passive rows.
+			var canonical *couchschedule.RunSummary
+			var historyErr error
+			retained := prior.Last != nil && (prior.Active == nil || prior.Last.ID == prior.Active.ID)
+			if retainedUnknownSummary(prior) || (retained && !prior.Allowed && strings.Contains(prior.Refusal, " history ")) {
+				record, err := o.ensureRetainedRun(ctx, prior, retainedUnknownSummary(prior))
+				historyErr = err
+				if err == nil {
+					summary := runSummaryForRecord(record)
+					canonical = &summary
+				}
+			} else {
+				canonical, historyErr = o.canonical(ctx, prior)
+			}
+			err := historyErr
 			if err != nil {
 				if err := quarantineTaskHistory(ctx, ledger, prior, "owner settlement", err); err != nil {
 					return err
 				}
 				continue
+			}
+			// History quarantine is diagnostic, not a catalogue edit. Release
+			// it only after durable evidence and an unchanged declaration agree;
+			// genuine policy/revision edits still wait for occurrence settlement.
+			if canonical != nil && !prior.Allowed && strings.Contains(prior.Refusal, " history ") {
+				if d := catalogue[key]; d != nil && d.Key == prior.Key && d.Revision == prior.Revision && d.Spec == prior.Spec && prior.RemovedAt.IsZero() {
+					prior.Allowed, prior.Refusal = d.Allowed, d.Reason
+				}
 			}
 			decision := couchschedule.PlanSettlement(prior, canonical, couchschedule.Event{Kind: couchschedule.CatalogChanged, At: c.now(), Declaration: catalogue[key], Location: c.location})
 			if decision.Kind == couchschedule.SettlementQuarantined {

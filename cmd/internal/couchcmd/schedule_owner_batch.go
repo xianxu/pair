@@ -37,14 +37,14 @@ func (o *scheduleOwner) reserveDueBatch(ctx context.Context, clock scheduleClock
 			if o.busy[key] != "" && s.Active == nil {
 				continue
 			}
-			if err := ensurePassiveRun(ctx, o.coordinator.runs, s); err != nil {
+			if err := o.ensurePassiveRun(ctx, s); err != nil {
 				local = append(local, err)
 				if err := quarantineTaskHistory(ctx, l, s, "prior passive history", err); err != nil {
 					return err
 				}
 				continue
 			}
-			event := couchschedule.Event{Kind: couchschedule.ClockObserved, At: clock.Now(), RunID: scheduledRunID(s), HubOnline: online[s.Key.Hub], Location: o.coordinator.location}
+			event := couchschedule.Event{Kind: couchschedule.ClockObserved, At: clock.Now(), RunID: scheduledRunID(s), HubOnline: online[s.Key.Hub], AutomationDisabled: !o.automationOn(s.Key.Hub), Location: o.coordinator.location}
 			decision := couchschedule.PlanSettlement(s, nil, event)
 			if decision.Kind == couchschedule.SettlementQuarantined {
 				cause := errors.New(decision.Reason)
@@ -145,7 +145,7 @@ func (o *scheduleOwner) publishRetainedBatch(ctx context.Context, states []couch
 	}
 	confirmed := make([]evidence, 0, len(states))
 	for _, s := range states {
-		record, err := ensureRetainedRun(ctx, o.coordinator.runs, s, s.Active != nil && s.Active.Stage == "uncertain")
+		record, err := o.ensureRetainedRun(ctx, s, s.Active != nil && s.Active.Stage == "uncertain")
 		confirmed = append(confirmed, evidence{state: s, summary: runSummaryForRecord(record), err: err})
 	}
 	var local []error
@@ -187,4 +187,95 @@ func ownerBatchErrors(local []error) error {
 		return nil
 	}
 	return &taskHistoryError{cause: errors.Join(local...)}
+}
+
+// settleObservedBatch consumes terminal receipts and expired notice intents in
+// one ledger publication. History finalizes before this commit; a failed commit
+// retries canonical adoption rather than a competing finalization or send.
+func (o *scheduleOwner) settleObservedBatch(ctx context.Context, clock scheduleClock, online map[string]bool) error {
+	if o.loop == nil {
+		return nil
+	}
+	view, err := o.state.ViewDurable(ctx)
+	if err != nil {
+		return err
+	}
+	type observation struct {
+		key   couchschedule.TaskKey
+		event couchschedule.Event
+	}
+	var observations []observation
+	for key, s := range view.Tasks {
+		a := s.Active
+		if a == nil || !containsScheduleRoot(o.coordinator.roots, s.Key.Hub) {
+			continue
+		}
+		if _, ok := o.loop.pending[key]; ok {
+			continue
+		}
+		if _, ok := o.loop.active[key]; ok {
+			continue
+		}
+		event := couchschedule.Event{At: clock.Now(), Attempt: a.ID, Revision: a.Revision, HubOnline: online[s.Key.Hub]}
+		switch a.Stage {
+		case "delivery":
+			notice, known, active := "uncertain", false, false
+			if o.loop.port != nil {
+				notice, known, active = o.loop.port.Observe(a.ReceiptID)
+			}
+			if active {
+				continue
+			}
+			if !known {
+				notice = "uncertain"
+			}
+			if notice == "" {
+				continue
+			}
+			event.Kind, event.Notice = couchschedule.NoticeObserved, notice
+		case "reserved":
+			if a.Source != "manual" || o.busy[key] != "" {
+				continue
+			}
+			intent, ok := o.intents[key]
+			if ok && intent.ID == a.ID && intent.Digest() == a.ManualIntentDigest {
+				continue
+			}
+			event.Kind = couchschedule.OwnerUnknown
+		case "notifying":
+			if clock.Now().Before(a.NoticeDeadline) && online[s.Key.Hub] {
+				continue
+			}
+			event.Kind = couchschedule.NoticeIntentDurable
+		default:
+			continue
+		}
+		observations = append(observations, observation{s.Key, event})
+	}
+	if len(observations) == 0 {
+		return nil
+	}
+	var local []error
+	var publish []couchschedule.TaskState
+	err = o.state.Update(ctx, func(l *couchschedule.Ledger) error {
+		for _, observation := range observations {
+			decision, localErr, err := o.applyInLedger(ctx, l, observation.key, observation.event, nil)
+			if err != nil {
+				return err
+			}
+			if localErr != nil {
+				local = append(local, localErr)
+			} else if decision.State.Active != nil && decision.State.Active.Stage == "uncertain" && decision.State.Last != nil && decision.State.Last.Outcome == "unknown" {
+				publish = append(publish, decision.State)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if err = o.publishRetainedBatch(ctx, publish, clock); err != nil {
+		return err
+	}
+	return ownerBatchErrors(local)
 }

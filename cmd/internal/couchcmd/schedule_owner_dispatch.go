@@ -98,10 +98,14 @@ func (o *scheduleOwner) tick(ctx context.Context, clock scheduleClock) error {
 		return err
 	}
 	o.recovered = true
+	if err = o.settleObservedBatch(ctx, clock, online); err != nil && !ownerTaskLocal(err) {
+		return err
+	}
 	ledger, err = o.state.ViewDurable(ctx)
 	if err != nil {
 		return err
 	}
+	keys = o.dispatchOrder(keys, ledger.Tasks, clock, online)
 	for _, key := range keys {
 		state := ledger.Tasks[key]
 		if state.Active == nil {
@@ -131,9 +135,7 @@ func (o *scheduleOwner) tick(ctx context.Context, clock scheduleClock) error {
 			}
 			if a.Source == "manual" {
 				intent, ok := o.intents[key]
-				if !ok || intent.ID != a.ID || intent.Digest() != a.ManualIntentDigest {
-					_, err = o.apply(ctx, state.Key, couchschedule.Event{Kind: couchschedule.OwnerUnknown, At: clock.Now(), Attempt: a.ID, Revision: a.Revision}, nil)
-				} else {
+				if ok && intent.ID == a.ID && intent.Digest() == a.ManualIntentDigest {
 					o.launchExecution(ctx, state, intent.Args)
 				}
 			} else if state.Spec.ScriptRun {
@@ -153,18 +155,7 @@ func (o *scheduleOwner) tick(ctx context.Context, clock scheduleClock) error {
 			// Completed worker facts are handled by retry; retained recovery is a
 			// batched catalogue/startup operation, not a full ledger write per task.
 		case "delivery":
-			notice, known, active := "uncertain", false, false
-			if o.loop.port != nil {
-				notice, known, active = o.loop.port.Observe(a.ReceiptID)
-			}
-			if !active {
-				if !known {
-					notice = "uncertain"
-				}
-				if notice != "" {
-					_, err = o.apply(ctx, state.Key, couchschedule.Event{Kind: couchschedule.NoticeObserved, At: clock.Now(), Attempt: a.ID, Revision: a.Revision, Notice: notice, HubOnline: online[state.Key.Hub]}, nil)
-				}
-			}
+			// Receipt observations settle together before dispatch selection.
 		}
 		if err != nil {
 			if !ownerTaskLocal(err) {
@@ -176,7 +167,8 @@ func (o *scheduleOwner) tick(ctx context.Context, clock scheduleClock) error {
 			continue
 		}
 		if !clock.Now().Before(a.NoticeDeadline) || !online[state.Key.Hub] {
-			_, err = o.apply(ctx, state.Key, couchschedule.Event{Kind: couchschedule.NoticeIntentDurable, At: clock.Now(), Attempt: a.ID, Revision: a.Revision, HubOnline: online[state.Key.Hub]}, nil)
+			// Already attempted in the batch, including quarantined failures.
+			continue
 		} else {
 			if !o.noticeCapacity() {
 				continue

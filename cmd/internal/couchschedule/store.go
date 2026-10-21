@@ -11,6 +11,7 @@ const maxScheduleStateBytes = 2 * 1024 * 1024
 
 // Ledger owns the scheduler snapshot. original retains future key/spec members
 // which have no storage field in the pure routing/declaration value types.
+
 type Ledger struct {
 	Version  int
 	Tasks    map[string]TaskState
@@ -29,6 +30,7 @@ type StateStore struct {
 func emptyLedger() Ledger { return Ledger{Version: 1, Tasks: map[string]TaskState{}} }
 
 // View is read-only, including when the namespace has never been created.
+
 func (s StateStore) View(ctx context.Context) (Ledger, error) {
 	dir, err := openScheduleDir(ctx, s.Dir, false)
 	if errors.Is(err, os.ErrNotExist) {
@@ -39,30 +41,6 @@ func (s StateStore) View(ctx context.Context) (Ledger, error) {
 	}
 	defer dir.Close()
 	return readLedger(ctx, dir)
-}
-
-// WithAuthority holds the existing writer lock through a bounded external
-// admission. The callback only reads this snapshot; it must not call Update.
-// This deliberately does not rewrite state after an external effect.
-func (s StateStore) WithAuthority(ctx context.Context, inspect func(Ledger) error) error {
-	if inspect == nil {
-		return errors.New("schedule authority requires callback")
-	}
-	dir, err := openScheduleDir(ctx, s.Dir, true)
-	if err != nil {
-		return err
-	}
-	defer dir.Close()
-	release, err := lockSchedule(ctx, dir)
-	if err != nil {
-		return err
-	}
-	defer release()
-	state, err := readLedger(ctx, dir)
-	if err != nil {
-		return err
-	}
-	return inspect(state)
 }
 
 func readLedger(ctx context.Context, dir *os.File) (Ledger, error) {
@@ -77,24 +55,7 @@ func readLedger(ctx context.Context, dir *os.File) (Ledger, error) {
 }
 
 // Update serializes fresh read/reduce/publish under one permanent lock inode.
-func (s StateStore) Update(ctx context.Context, change func(*Ledger) error) error {
-	if change == nil {
-		return errors.New("schedule update requires callback")
-	}
-	dir, err := openScheduleDir(ctx, s.Dir, true)
-	if err != nil {
-		return err
-	}
-	defer dir.Close()
-	release, err := lockSchedule(ctx, dir)
-	if err != nil {
-		return err
-	}
-	defer release()
-	return s.updateHeld(ctx, dir, change)
-}
 
-// updateHeld requires the existing permanent state lock throughout the call.
 func (s StateStore) updateHeld(ctx context.Context, dir *os.File, change func(*Ledger) error) error {
 	state, err := readLedger(ctx, dir)
 	if err != nil {

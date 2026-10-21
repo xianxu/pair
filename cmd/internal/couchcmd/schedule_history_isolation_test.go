@@ -30,7 +30,7 @@ func TestScheduleTaskHistoryIsolation(t *testing.T) {
 			}
 			key := couchschedule.TaskKey{Hub: roots[0], Task: "report"}
 			var retained couchschedule.TaskState
-			if err := c.store.Update(t.Context(), func(l *couchschedule.Ledger) error {
+			if err := updateScheduleFixture(c.store, t.Context(), func(l *couchschedule.Ledger) error {
 				s := l.Tasks[key.ID()]
 				if strings.Contains(consumer, "passive") {
 					s.Last = &couchschedule.RunSummary{ID: "damaged", Revision: s.Revision, Source: "scheduled", StartedAt: *now, EndedAt: *now, DueAt: *now, Outcome: "skipped", Notice: "hub offline, skipped"}
@@ -197,7 +197,7 @@ func TestScheduleHistoryPendingEvidenceRetriedWithoutReplay(t *testing.T) {
 			a := newAutomaticScheduler(c, nil, onlineScheduleNotices{})
 			key := couchschedule.TaskKey{Hub: roots[0], Task: "report"}
 			var state couchschedule.TaskState
-			if err := c.store.Update(t.Context(), func(l *couchschedule.Ledger) error {
+			if err := updateScheduleFixture(c.store, t.Context(), func(l *couchschedule.Ledger) error {
 				state = l.Tasks[key.ID()]
 				state.Active = &couchschedule.Attempt{ID: "pending-result", Source: "scheduled", Revision: state.Revision, Stage: "reserved", StartedAt: *now, DueAt: *now, Deadline: now.Add(time.Minute)}
 				if admission {

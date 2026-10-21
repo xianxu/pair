@@ -468,7 +468,12 @@ couch --schedule history landing-plan --run RUN_ID
 ```
 
 Couch runs due tasks or delivers due notices for each configured hub; manual
-runs share its cached execution and history. Missed runs skip by default, and
+runs submit to its single namespace owner and share cached execution and history.
+The CLI prints bounded output on completion and returns the task exit; Ctrl-C
+requests cancellation of that exact run. Accepted work survives client disconnect,
+and a lost submit reply reports its run ID without automatic resubmission.
+Declaration edits remain visibly busy until the prior occurrence settles.
+Missed runs skip by default, and
 uncertain execution or delivery never replays automatically. Tasks run with your account's
 filesystem and network access. Two machine-wide permits bound task execution;
 `heavy: true` also joins the existing full-suite test queue. Run output retains a

@@ -45,7 +45,7 @@ func TestScheduleManualPersistsResultBeforeClearingAndPreservesDue(t *testing.T)
 	due := time.Now().Add(time.Hour)
 	state, _ := couchschedule.Advance(couchschedule.TaskState{}, couchschedule.Event{Kind: couchschedule.CatalogChanged, At: time.Now(), Declaration: &decls[0]})
 	state.NextDue = due
-	if err := store.Update(ctx, func(l *couchschedule.Ledger) error { l.Tasks[state.Key.ID()] = state; return nil }); err != nil {
+	if err := updateScheduleFixture(store, ctx, func(l *couchschedule.Ledger) error { l.Tasks[state.Key.ID()] = state; return nil }); err != nil {
 		t.Fatal(err)
 	}
 	fake.Enqueue(couchschedule.ExecutionResult{Exit: 10, Outcome: "wake", Output: []byte("retained output")})

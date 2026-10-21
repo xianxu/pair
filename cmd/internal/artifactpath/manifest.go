@@ -684,6 +684,18 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchschedule/store_unix.go",
 	// #737 CLI/projection/history route the existing private message transport
 	// and explicit Couch namespaces; these sources introduce no Pair tag paths.
+	// The automation predicate is an in-memory admission seam; it constructs no paths.
+	"cmd/internal/couchcmd/schedule_automation.go",
+	"cmd/internal/couchcmd/schedule_execution.go",
+	"cmd/internal/couchcmd/schedule_owner.go",
+	"cmd/internal/couchcmd/schedule_owner_batch.go",
+	"cmd/internal/couchcmd/schedule_owner_dispatch.go",
+	"cmd/internal/couchcmd/schedule_owner_loop.go",
+	"cmd/internal/couchcmd/schedule_owner_manual.go",
+	"cmd/internal/couchcmd/schedule_rpc.go",
+	"cmd/internal/couchschedule/manual.go",
+	"cmd/internal/couchschedule/owner.go",
+	"cmd/internal/couchschedule/settlement.go",
 	"cmd/internal/couchcmd/schedule_cli.go",
 	"cmd/internal/couchcmd/schedule_automatic.go",
 	"cmd/internal/couchcmd/schedule_notice.go",

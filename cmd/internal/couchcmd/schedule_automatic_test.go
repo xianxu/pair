@@ -113,7 +113,7 @@ func TestScheduleAutomaticSharesWorkersBetweenHubs(t *testing.T) {
 	if err := c.refresh(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.store.Update(t.Context(), func(l *couchschedule.Ledger) error {
+	if err := updateScheduleFixture(c.store, t.Context(), func(l *couchschedule.Ledger) error {
 		key := (couchschedule.TaskKey{Hub: roots[1], Task: "a0"}).ID()
 		state := l.Tasks[key]
 		state.NextDue = now.Add(2 * time.Minute)

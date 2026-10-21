@@ -196,7 +196,7 @@ func TestScheduleOwnerLoopNoticeDeadlineIncludesQueuedGate(t *testing.T) {
 
 func TestScheduleOwnerLoopLongScriptLeavesOwnerResponsiveAndJoinsWorker(t *testing.T) {
 	runner, fake, reserved, store := reservedExecutionFixture(t)
-	if err := store.Update(t.Context(), func(l *couchschedule.Ledger) error {
+	if err := updateScheduleFixture(store, t.Context(), func(l *couchschedule.Ledger) error {
 		s := l.Tasks[reserved.Key.ID()]
 		s.Active = nil
 		s.Last = nil

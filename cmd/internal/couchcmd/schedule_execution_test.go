@@ -41,7 +41,7 @@ func reservedExecutionFixture(t *testing.T) (*manualTaskRunner, *couchschedule.F
 		t.Fatalf("missing reserved state: %+v", state)
 	}
 	store := couchschedule.StateStore{Dir: filepath.Join(runner.namespace, "schedule")}
-	if err = store.Update(context.Background(), func(l *couchschedule.Ledger) error { l.Tasks[state.Key.ID()] = state; return nil }); err != nil {
+	if err = updateScheduleFixture(store, context.Background(), func(l *couchschedule.Ledger) error { l.Tasks[state.Key.ID()] = state; return nil }); err != nil {
 		t.Fatal(err)
 	}
 	return runner, fake, state, store
@@ -139,7 +139,7 @@ func TestScheduleReservedLostPublicationRetainsUnknownAndNeverReplays(t *testing
 
 func TestScheduleReservedRequiresPersistedAuthority(t *testing.T) {
 	runner, fake, reserved, store := reservedExecutionFixture(t)
-	if err := store.Update(context.Background(), func(l *couchschedule.Ledger) error { delete(l.Tasks, reserved.Key.ID()); return nil }); err != nil {
+	if err := updateScheduleFixture(store, context.Background(), func(l *couchschedule.Ledger) error { delete(l.Tasks, reserved.Key.ID()); return nil }); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := runner.runReserved(context.Background(), reserved, nil); err == nil {
@@ -270,7 +270,7 @@ func TestScheduleReservedLatePreackRefusalCannotPoisonRunningAttempt(t *testing.
 	runner, _, reserved, store := reservedExecutionFixture(t)
 	runner.executor = taskExecutorFunc(func(ctx context.Context, request couchschedule.ExecutionRequest, onOwner func(couchschedule.OwnerIdentity) error) (couchschedule.ExecutionResult, error) {
 		// Another cooperating worker wins authorization after this caller's view.
-		if err := store.Update(ctx, func(l *couchschedule.Ledger) error {
+		if err := updateScheduleFixture(store, ctx, func(l *couchschedule.Ledger) error {
 			state := l.Tasks[reserved.Key.ID()]
 			owner := couchschedule.OwnerIdentity{PID: 777, Start: "winning-owner"}
 			state, _ = couchschedule.Advance(state, couchschedule.Event{Kind: couchschedule.OwnerRecorded, At: runner.now(), Attempt: reserved.Active.ID, Revision: reserved.Active.Revision, Owner: &owner})
@@ -367,7 +367,7 @@ func TestScheduleReservedCatalogueCancellationPublishesTerminalNotice(t *testing
 				declaration = &current
 			}
 			var changed couchschedule.TaskState
-			if err := store.Update(t.Context(), func(l *couchschedule.Ledger) error {
+			if err := updateScheduleFixture(store, t.Context(), func(l *couchschedule.Ledger) error {
 				state := l.Tasks[reserved.Key.ID()]
 				event := couchschedule.Event{Kind: couchschedule.CatalogChanged, At: runner.now(), Declaration: declaration, Location: time.UTC, Attempt: reserved.Active.ID, Revision: reserved.Active.Revision}
 				if change == "cancel" {
@@ -619,7 +619,7 @@ func TestScheduleManualPreservesPassiveOccurrenceBeforeReservation(t *testing.T)
 			state, _ := couchschedule.Advance(couchschedule.TaskState{}, couchschedule.Event{Kind: couchschedule.CatalogChanged, At: at, Declaration: &declaration, Location: time.UTC})
 			state.Last = &couchschedule.RunSummary{Revision: revision, ID: "passive-before-manual", Source: "scheduled", DueAt: at.Add(-time.Second), StartedAt: at, EndedAt: at, Outcome: "skipped", Notice: "hub offline, skipped"}
 			store := couchschedule.StateStore{Dir: filepath.Join(runner.namespace, "schedule")}
-			if err = store.Update(t.Context(), func(l *couchschedule.Ledger) error { l.Tasks[state.Key.ID()] = state; return nil }); err != nil {
+			if err = updateScheduleFixture(store, t.Context(), func(l *couchschedule.Ledger) error { l.Tasks[state.Key.ID()] = state; return nil }); err != nil {
 				t.Fatal(err)
 			}
 			_, err = runner.run(t.Context(), root, "report", nil)

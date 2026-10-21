@@ -19,7 +19,7 @@ func TestScheduleCachedCanonicalRecoveryAfterFailedCommit(t *testing.T) {
 			*now = now.Add(time.Minute)
 			key := couchschedule.TaskKey{Hub: roots[0], Task: "report"}
 			var state couchschedule.TaskState
-			if err := c.store.Update(t.Context(), func(l *couchschedule.Ledger) error {
+			if err := updateScheduleFixture(c.store, t.Context(), func(l *couchschedule.Ledger) error {
 				state, _ = couchschedule.Advance(l.Tasks[key.ID()], couchschedule.Event{Kind: couchschedule.ClockObserved, At: *now, RunID: "canonical-passive", Location: time.UTC})
 				state.Last.Outcome = outcome
 				state.Last.Notice = "none"

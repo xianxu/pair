@@ -65,14 +65,30 @@ couch --schedule history landing-plan --json
 couch --schedule history landing-plan --run RUN_ID
 ```
 
-The manual helper builds the selected task and forwards the argument tail as
-argv, including `--help`; tasks own their flags and help text. Product checkouts
-cannot select a hub's tasks through claims or arbitrary paths. Manual attempts
-use the same execution lease and run store as scheduled attempts, but do not
-consume the next scheduled occurrence. Status reads the existing private socket's
-immutable snapshot; it does not compile, scan declarations or start work. The
-service refreshes the catalog at startup and every 30 seconds. History
-is a separate bounded read of retained records and output.
+The manual helper submits an intent to the running service and forwards the
+argument tail as argv, including `--help`; tasks own their flags and help text.
+Product checkouts cannot select a hub's tasks through claims or arbitrary paths.
+The service owns manual execution, using the same cache, execution lease and run
+store as scheduled attempts, without consuming the next scheduled occurrence or
+waking the hub. On completion the CLI prints retained bounded output, fetched in
+16 KiB pages under the existing transport frame limit, and returns the recorded
+exit, including 10. It does not stream live subprocess output.
+
+Manual submit, observe and cancel use `schedule-run`, `schedule-run-status` and
+`schedule-run-cancel` on the existing private socket. One client-generated run ID
+and hub/task/argv digest identify the intent. Acknowledgement follows durable
+reservation; a lost reply means unknown admission, never automatic resubmission.
+Matching retained duplicates observe the same occurrence; conflicting or legacy
+unknown intent refuses. This protection lasts only as long as authority/history
+retention. A disconnected client leaves accepted work owned by the service until
+its deadline or explicit cancellation. Ctrl-C requests cancellation for that exact
+ID; a missing acknowledgement is reported as uncertain. Inspect retained history
+after a disconnect. Observation never repairs or starts work.
+
+Status reads the existing private socket's immutable snapshot; it does not
+compile, scan declarations or start work. The service refreshes the catalog at
+startup and every 30 seconds. History is a separate bounded read of retained
+records and output.
 
 Execution is trusted operator-level code, with the current account's filesystem
 permissions and network access; Couch supplies no task sandbox. The builder uses
@@ -127,25 +143,48 @@ Publication refuses before exceeding its bounded 4096-entry inventory. GC owns
 cleanup through its existing preview/apply/background phases, independently of
 session migration and diagnostic-log retention.
 
-The implementation map is `couchschedule/{spec,calendar,model,status}` for pure
-rules and projection, `catalog`/`store`/`state_json` for observed declarations and
-preserving authority, `build`/`build_manifest`/`cache` for captured artifacts, and
-`admission`/`execute`/`execute_unix` for the owned controller. `couchcmd/schedule_*`
-provides the message-service catalog/status lifetime, CLI and history boundary.
-`operationalrun` owns execution bundles, monotonic notice finalization and
-identity-fenced collection; `gcruntime/operational.go` adds registered Couch
-namespaces to GC and `gcruntime/schedule.go` persists its bounded maintenance
-cursor. `schedule_automatic.go` owns the injected clock, two execution and two notice-admission job slots,
-four joined effect workers and interleaved hub queues. Long-running or queued
-heavy scripts cannot occupy notification admission. The next wake is the earlier of catalogue refresh,
-due time, notice observation or admission deadline; results wake it directly.
-`schedule_notice.go` uses the existing authenticated system mailbox and canonical
-receipts, with exact hub-binding checks under the ownership effect gate.
-Notice admission has one lock order: hub-effect gate, then scheduler authority.
-The persisted notice deadline bounds both waits and broker admission; final
-tuple validation and SendSystem share the authority lifetime, so catalogue
-cancellation cannot commit between them. Gate waiters hold no scheduler
-authority. Accepted/uncertain effects retain their canonical receipt semantics.
+The implementation map is `couchschedule/{spec,calendar,model,status,settlement}`
+for pure rules, projection and canonical settlement; `catalog` supplies observed
+declarations, and `store`/`state_json`/`owner` preserve authority. One
+`couchcmd/scheduleOwner` event loop is the scheduler state/history writer for its
+namespace. It acquires the existing permanent `.state.lock` once at startup and
+holds its descriptor/flock until all effect workers and callbacks have joined.
+Contenders report owned/busy without repairing state or launching work; startup
+ownership failure blocks scheduler status while unrelated message service
+functions remain available. The lock is close-on-exec and is never stolen or
+reacquired for individual transitions.
+
+`schedule_owner_loop`/`schedule_owner_dispatch`/`schedule_owner_batch` serialize
+typed commands, canonical adoption, timer batches and bounded fair hub dispatch.
+Two script workers and two notice workers return facts to the owner. Discovery,
+execution adapters and transport handlers have no scheduler writer capability.
+`schedule_execution` revalidates declaration/owner facts before asking the owner
+to authorize script release. `schedule_rpc` provides manual submit/observe/cancel;
+`couchschedule/manual` defines bounded intent and output payloads.
+`build`/`build_manifest`/`cache` own captured artifacts;
+`admission`/`execute`/`execute_unix` own process control. `operationalrun` owns
+immutable bundles, monotonic notice finalization and identity-fenced collection;
+`gcruntime/operational.go` visits registered namespaces and `gcruntime/schedule.go`
+persists its bounded maintenance cursor.
+
+Catalogue removal, revision and owner-policy edits show
+`catalogue change pending: task busy` while the retained occurrence is executing,
+awaiting its receipt or settling canonical history and ledger acknowledgement.
+No new occurrence starts under a pending edit. A running script retains its
+reserved declaration and original deadline; the next ordinary scan applies the
+current files after settlement. Explicit manual cancellation and shutdown still
+stop and join owned work. Hub/automation authorization checks remain immediate.
+
+Owner serialization preserves the independent operational-history task lock
+(shared with GC), execution lease, two machine permits, heavy-test lock,
+builder/cache/capture leases, hub-effect gate, broker and automation locks.
+Notice workers acquire the hub-effect gate outside the owner, then hand off a
+bounded admission command. Wait order is hub-effect gate, owner admission turn,
+broker, automation; history locks are released before broker calls. The owner
+never waits for the gate or a worker result during a transition. Gate-ready
+handoff retains the gate until the owner's admission decision completes, including
+cancellation. The namespace flock is a lifetime exclusivity fence, independent
+of these runtime waits. Accepted/uncertain effects retain canonical receipts.
 
 Due reservation or consumption commits before its run bundle is published.
 Passive summaries retain their declaration revision, and automatic/manual
@@ -156,8 +195,10 @@ immutable. A failed ledger acknowledgment therefore cannot manufacture new run
 facts or repeat execution. Unknown classification commits before its protected
 history is published. Terminal passive history proofs are bounded to current
 tasks and never become cached pending-notice authority.
-Cached and freshly read canonical summaries share adoption through timestamped
-`NewRecoveryEvent` construction, including after failed authority commits.
+Canonical history settles through the pure `PlanSettlement` decision before a
+ledger transition is acknowledged, including after failed authority commits.
+Settled passive ticks never reread or republish old output; retained completion
+evidence never authorizes script or notice replay.
 History inspection uses `Store.Read`; authority adoption and quarantine release
 use `Store.ReadDurable`, which validates the existing bundle and confirms its
 directories under the task lock without creating missing history. Publication,

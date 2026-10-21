@@ -75,7 +75,7 @@ func main(){
 		if err != nil || len(decls) != 1 || !decls[0].Allowed {
 			t.Fatalf("fixture catalog: %+v %v", decls, err)
 		}
-		if err := store.Update(ctx, func(l *couchschedule.Ledger) error {
+		if err := updateScheduleFixture(store, ctx, func(l *couchschedule.Ledger) error {
 			state, _ := couchschedule.Advance(l.Tasks[key.ID()], couchschedule.Event{Kind: couchschedule.CatalogChanged, At: time.Now(), Declaration: &decls[0], Location: time.UTC})
 			state.NextDue = due
 			l.Tasks[key.ID()] = state

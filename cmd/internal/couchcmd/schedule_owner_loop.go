@@ -66,6 +66,7 @@ type scheduleOwnerLoop struct {
 	retryAt            map[string]time.Time
 	receipts           map[string]string
 	clock              scheduleClock
+	cursor             int
 }
 
 func (o *scheduleOwner) configure(worker scheduleExecutionWorker, notices scheduleNoticePort) {
@@ -201,6 +202,53 @@ func (o *scheduleOwner) handleCommand(cmd scheduleOwnerCommand, clock scheduleCl
 	}
 	cmd.reply <- reply
 }
+
+// dispatchOrder gives each eligible hub a turn within each independent worker
+// pool. Ineligible rows must not consume a hub turn ahead of its ready rows.
+func (o *scheduleOwner) dispatchOrder(keys []string, tasks map[string]couchschedule.TaskState, clock scheduleClock, online map[string]bool) []string {
+	if o.loop == nil {
+		return keys
+	}
+	l := o.loop
+	var ready [2][]string
+	var rest []string
+	for _, key := range keys {
+		s := tasks[key]
+		a := s.Active
+		kind := -1
+		_, active := l.active[key]
+		_, pending := l.pending[key]
+		if s.Allowed && a != nil && !active && !pending {
+			switch a.Stage {
+			case "reserved":
+				if o.busy[key] == "" {
+					if a.Source == "manual" {
+						intent, ok := o.intents[key]
+						if ok && intent.ID == a.ID && intent.Digest() == a.ManualIntentDigest {
+							kind = 0
+						}
+					} else if s.Spec.ScriptRun {
+						kind = 0
+					} else if online[s.Key.Hub] && !clock.Now().Before(l.retryAt[key]) {
+						kind = 1
+					}
+				}
+			case "notifying":
+				if online[s.Key.Hub] && clock.Now().Before(a.NoticeDeadline) && !clock.Now().Before(l.retryAt[key]) {
+					kind = 1
+				}
+			}
+		}
+		if kind < 0 {
+			rest = append(rest, key)
+		} else {
+			ready[kind] = append(ready[kind], key)
+		}
+	}
+	ordered := append(interleaveScheduleHubs(ready[0], tasks, l.cursor), interleaveScheduleHubs(ready[1], tasks, l.cursor)...)
+	return append(ordered, rest...)
+}
+
 func (o *scheduleOwner) launchExecution(ctx context.Context, state couchschedule.TaskState, args []string) bool {
 	return o.launch(ctx, state, args, false)
 }
@@ -243,6 +291,7 @@ func (o *scheduleOwner) launch(ctx context.Context, state couchschedule.TaskStat
 	select {
 	case jobs <- job:
 		l.active[key] = notice
+		l.cursor++
 		if !notice {
 			o.operations[key] = &scheduleOwnerOperation{id: state.Active.ID, cancel: cancel}
 		}

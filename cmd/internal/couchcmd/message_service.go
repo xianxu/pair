@@ -167,19 +167,21 @@ const (
 // timers in arrival order. Request goroutines read
 // only the published snapshot of connected bindings.
 type messageService struct {
-	schedule  atomic.Pointer[scheduleCoordinator]
-	scheduler atomic.Pointer[scheduleOwner]
-	lifecycle atomic.Pointer[lifecyclePublisher]
-	resources atomic.Pointer[resourceSampler]
-	hubMoves  atomic.Pointer[hubMoveService]
-	facts     atomic.Pointer[supervisionFactLog]
-	server    *couchmessage.Server
-	sessions  *couchmessage.SessionServer
-	broker    *couchmessage.Broker
-	cancel    context.CancelFunc
-	lifetime  context.Context
-	workers   sync.WaitGroup
-	authority messageAuthority
+	// Installed before scheduler startup; nil preserves always-on admission.
+	scheduleAutomationEnabled func(hubRoot string) bool
+	schedule                  atomic.Pointer[scheduleCoordinator]
+	scheduler                 atomic.Pointer[scheduleOwner]
+	lifecycle                 atomic.Pointer[lifecyclePublisher]
+	resources                 atomic.Pointer[resourceSampler]
+	hubMoves                  atomic.Pointer[hubMoveService]
+	facts                     atomic.Pointer[supervisionFactLog]
+	server                    *couchmessage.Server
+	sessions                  *couchmessage.SessionServer
+	broker                    *couchmessage.Broker
+	cancel                    context.CancelFunc
+	lifetime                  context.Context
+	workers                   sync.WaitGroup
+	authority                 messageAuthority
 	// hubTargets is admission's warm source for target slots (pair#726); nil
 	// without hub ownership.
 	hubTargets *hubTargetMemo
@@ -606,6 +608,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	}
 	coordinator := newScheduleCoordinator(namespace, scheduleRoots, time.Local, time.Now)
 	scheduler := newScheduleOwner(coordinator)
+	scheduler.automationEnabled = service.scheduleAutomationOn
 	scheduler.configure(scheduleExecutionWorker{namespace: namespace, permitsDir: permits, executor: couchschedule.Executor{}, now: time.Now}, scheduleNotice{service: service})
 	service.schedule.Store(coordinator)
 	service.scheduler.Store(scheduler)

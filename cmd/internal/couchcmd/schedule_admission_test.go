@@ -73,7 +73,7 @@ func TestScheduleAdmissionGateRechecksDeadlineAndCancellation(t *testing.T) {
 			// rejects reversing the documented hub-effect -> authority order.
 			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 			defer cancel()
-			if err := c.store.Update(ctx, func(*couchschedule.Ledger) error { return nil }); err != nil {
+			if err := updateScheduleFixture(c.store, ctx, func(*couchschedule.Ledger) error { return nil }); err != nil {
 				t.Fatal("waiting admission blocked authority", err)
 			}
 			if name == "cancelled" {
@@ -150,7 +150,7 @@ func TestScheduleAdmissionDeadlineReleasesAuthorityFromBrokerWait(t *testing.T) 
 		t.Fatal("no broker reservation")
 	}
 	updated := make(chan error, 1)
-	go func() { updated <- c.store.Update(t.Context(), func(*couchschedule.Ledger) error { return nil }) }()
+	go func() { updated <- updateScheduleFixture(c.store, t.Context(), func(*couchschedule.Ledger) error { return nil }) }()
 	clock.advance(t, job.state.Active.NoticeDeadline)
 	select {
 	case notice := <-done:

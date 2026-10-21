@@ -38,7 +38,7 @@ func scheduledResultFixture(t *testing.T) (*automaticScheduler, *couchschedule.F
 	if state.Active == nil || state.Active.Stage != "running" {
 		t.Fatalf("missing running authority: %+v", state)
 	}
-	if err := store.Update(t.Context(), func(l *couchschedule.Ledger) error { l.Tasks[state.Key.ID()] = state; return nil }); err != nil {
+	if err := updateScheduleFixture(store, t.Context(), func(l *couchschedule.Ledger) error { l.Tasks[state.Key.ID()] = state; return nil }); err != nil {
 		t.Fatal(err)
 	}
 	c := newScheduleCoordinator(runner.namespace, []string{state.Key.Hub}, time.UTC, runner.now)
@@ -78,7 +78,7 @@ func scheduledDeliveryFixture(t *testing.T) (*automaticScheduler, *couchschedule
 	if s.Active == nil || s.Active.Stage != "delivery" {
 		t.Fatalf("missing delivery authority: %+v", s)
 	}
-	if err := a.coordinator.store.Update(t.Context(), func(l *couchschedule.Ledger) error { l.Tasks[s.Key.ID()] = s; return nil }); err != nil {
+	if err := updateScheduleFixture(a.coordinator.store, t.Context(), func(l *couchschedule.Ledger) error { l.Tasks[s.Key.ID()] = s; return nil }); err != nil {
 		t.Fatal(err)
 	}
 	return a, fake, s, notices
@@ -225,7 +225,7 @@ func TestScheduleResultSavedPendingCancelledBeforeRecovery(t *testing.T) {
 			a, fake, running, notices := scheduledResultFixture(t)
 			record := scheduledResultRecord(running, a.coordinator.now(), "wake")
 			saveScheduledResult(t, a, record)
-			if err := a.coordinator.store.Update(t.Context(), func(l *couchschedule.Ledger) error {
+			if err := updateScheduleFixture(a.coordinator.store, t.Context(), func(l *couchschedule.Ledger) error {
 				state := l.Tasks[running.Key.ID()]
 				event := couchschedule.Event{Kind: couchschedule.CancelRequested, At: a.coordinator.now(), Attempt: state.Active.ID, Revision: state.Active.Revision}
 				if change == "revision" {

@@ -12,7 +12,7 @@ import (
 func ownerManualFixture(t *testing.T) (*scheduleOwner, couchschedule.ManualIntent) {
 	t.Helper()
 	a, _, state, _ := scheduledResultFixture(t)
-	if err := a.coordinator.store.Update(t.Context(), func(l *couchschedule.Ledger) error {
+	if err := updateScheduleFixture(a.coordinator.store, t.Context(), func(l *couchschedule.Ledger) error {
 		s := l.Tasks[state.Key.ID()]
 		s.Active = nil
 		s.Last = nil
@@ -123,5 +123,40 @@ func TestScheduleOwnerManualNativeRetainedDuplicateAndReadOnlyPages(t *testing.T
 	}
 	if _, err := o.submitManual(t.Context(), legacy); err == nil {
 		t.Fatal("legacy unknown intent adopted arbitrary args")
+	}
+}
+
+func TestScheduleOwnerManualDuplicateRequiresDurableReservation(t *testing.T) {
+	o, intent := ownerManualFixture(t)
+	if err := o.close(); err != nil {
+		t.Fatal(err)
+	}
+	failing := false
+	fault := errors.New("reservation directory sync failed")
+	o.coordinator.store.BeforeDirectorySync = func() error {
+		if failing {
+			return fault
+		}
+		return nil
+	}
+	if err := o.open(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := o.submitManual(t.Context(), intent); err != nil {
+		t.Fatal(err)
+	}
+	failing = true
+	for i := 0; i < 2; i++ {
+		if _, err := o.submitManual(t.Context(), intent); !errors.Is(err, fault) {
+			t.Fatalf("duplicate acknowledged unconfirmed reservation: %v", err)
+		}
+	}
+	// Inspection remains read-only even when a durable admission cannot be made.
+	if status, err := o.observeManual(t.Context(), intent.Hub, intent.Task, intent.ID, 0); err != nil || status.Stage != "reserved" {
+		t.Fatalf("inspection changed: %+v %v", status, err)
+	}
+	failing = false
+	if _, err := o.submitManual(t.Context(), intent); err != nil {
+		t.Fatal(err)
 	}
 }

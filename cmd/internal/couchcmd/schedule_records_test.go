@@ -22,7 +22,7 @@ func retainedPassiveFixture(t *testing.T) (*manualTaskRunner, *couchschedule.Fak
 	state, _ := couchschedule.Advance(couchschedule.TaskState{}, couchschedule.Event{Kind: couchschedule.CatalogChanged, At: now, Declaration: &declaration})
 	state.Last = &couchschedule.RunSummary{ID: "old-passive", Revision: "old-declaration", Source: "scheduled", DueAt: now.Add(-3 * time.Minute), StartedAt: now.Add(-2 * time.Minute), EndedAt: now.Add(-2 * time.Minute), Outcome: "skipped", Notice: "hub offline, skipped"}
 	store := couchschedule.StateStore{Dir: filepath.Join(runner.namespace, "schedule")}
-	if err := store.Update(t.Context(), func(l *couchschedule.Ledger) error { l.Tasks[state.Key.ID()] = state; return nil }); err != nil {
+	if err := updateScheduleFixture(store, t.Context(), func(l *couchschedule.Ledger) error { l.Tasks[state.Key.ID()] = state; return nil }); err != nil {
 		t.Fatal(err)
 	}
 	return runner, fake, store, state
@@ -66,10 +66,10 @@ func TestSchedulePassiveHistoryPrecedesManualReplacement(t *testing.T) {
 func TestSchedulePassiveLegacyRevisionNeverInvented(t *testing.T) {
 	runner, _, store, state := retainedPassiveFixture(t)
 	state.Last.Revision = ""
-	if err := store.Update(t.Context(), func(l *couchschedule.Ledger) error { l.Tasks[state.Key.ID()] = state; return nil }); err != nil {
+	if err := updateScheduleFixture(store, t.Context(), func(l *couchschedule.Ledger) error { l.Tasks[state.Key.ID()] = state; return nil }); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Update(t.Context(), func(l *couchschedule.Ledger) error {
+	if err := updateScheduleFixture(store, t.Context(), func(l *couchschedule.Ledger) error {
 		return ensurePassiveRun(context.Background(), operationalrun.Store{Namespace: runner.namespace}, l.Tasks[state.Key.ID()])
 	}); err == nil {
 		t.Fatal("invented passive revision from current declaration")

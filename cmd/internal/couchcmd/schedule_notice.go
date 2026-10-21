@@ -67,6 +67,9 @@ func (n scheduleNotice) send(ctx context.Context, root string, expected couchmes
 	if current != expected {
 		return "dropped: hub changed", nil
 	}
+	if !n.service.scheduleAutomationOn(root) {
+		return "dropped: automation off", nil
+	}
 	_, err := n.service.broker.SendSystem(ctx, expected, id, couchmessage.Route{Target: expected.Slot}, body)
 	if err != nil {
 		return scheduleNoticeAdmissionError(err), err

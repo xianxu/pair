@@ -32,7 +32,7 @@ func TestScheduleCanonicalRecoveryPreservesSummaryNamespace(t *testing.T) {
 				record = scheduledResultRecord(state, c.now().Add(time.Second), "quiet")
 			}
 			state.Last = &couchschedule.RunSummary{ID: state.Active.ID, Revision: state.Active.Revision, Source: state.Active.Source, DueAt: state.Active.DueAt, StartedAt: state.Active.StartedAt, EndedAt: record.EndedAt, Exit: record.Exit, Outcome: record.Outcome, Notice: record.Notice, Unknown: map[string]json.RawMessage{"future_summary_field": json.RawMessage(`{"nested":[42]}`)}}
-			if err := c.store.Update(t.Context(), func(l *couchschedule.Ledger) error { l.Tasks[state.Key.ID()] = state; return nil }); err != nil {
+			if err := updateScheduleFixture(c.store, t.Context(), func(l *couchschedule.Ledger) error { l.Tasks[state.Key.ID()] = state; return nil }); err != nil {
 				t.Fatal(err)
 			}
 			record.Unknown = map[string]json.RawMessage{"future_record_field": json.RawMessage(`{"value":99}`)}

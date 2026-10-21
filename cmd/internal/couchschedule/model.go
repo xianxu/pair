@@ -107,6 +107,8 @@ const (
 )
 
 type Event struct {
+	// AutomationDisabled is a live admission input, never persisted state.
+	AutomationDisabled bool
 	ManualIntentDigest string
 	Kind               EventKind
 	At                 time.Time
@@ -237,6 +239,9 @@ func advance(state TaskState, event Event) (TaskState, []Effect) {
 		}
 		if !state.Allowed {
 			return result("refused", state.Refusal)
+		}
+		if !manual && event.AutomationDisabled {
+			return result("skipped", "automation off, skipped")
 		}
 		if !manual && event.At.Sub(due) >= time.Minute && state.Spec.Missed != "once" {
 			return result("skipped", "missed slot")

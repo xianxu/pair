@@ -63,7 +63,7 @@ func serviceManualOwner(t *testing.T, c *scheduleCoordinator, root string) couch
 	t.Helper()
 	key := couchschedule.TaskKey{Hub: root, Task: "report"}
 	var state couchschedule.TaskState
-	if err := c.store.Update(t.Context(), func(l *couchschedule.Ledger) error {
+	if err := updateScheduleFixture(c.store, t.Context(), func(l *couchschedule.Ledger) error {
 		state = l.Tasks[key.ID()]
 		state.Active = &couchschedule.Attempt{ID: "manual-live", Revision: state.Revision, Source: "manual", Stage: "running", StartedAt: c.now(), Deadline: c.now().Add(time.Minute), ControllerPID: 12345, ControllerStart: "exact-owner"}
 		l.Tasks[key.ID()] = state
@@ -100,7 +100,7 @@ func TestScheduleRemovedStateAgesFromFirstRemovalAndProtectsOwners(t *testing.T)
 	protected.Key.Task = "uncertain"
 	protected.Active = &couchschedule.Attempt{ID: "old-owner", Revision: protected.Revision, Source: "scheduled", Stage: "uncertain", StartedAt: removed, Deadline: removed.Add(time.Minute)}
 	protected.Last = &couchschedule.RunSummary{ID: protected.Active.ID, Source: protected.Active.Source, DueAt: protected.Active.DueAt, StartedAt: protected.Active.StartedAt, Outcome: "unknown"}
-	if err := c.store.Update(t.Context(), func(l *couchschedule.Ledger) error { l.Tasks[protected.Key.ID()] = protected; return nil }); err != nil {
+	if err := updateScheduleFixture(c.store, t.Context(), func(l *couchschedule.Ledger) error { l.Tasks[protected.Key.ID()] = protected; return nil }); err != nil {
 		t.Fatal(err)
 	}
 	*now = removed.Add(30 * 24 * time.Hour)
@@ -122,7 +122,7 @@ func TestScheduleRemovedStateAgesFromFirstRemovalAndProtectsOwners(t *testing.T)
 func TestScheduleSnapshotExcludesRetiredHubAuthority(t *testing.T) {
 	c, roots, _ := scheduleServiceFixture(t)
 	old := couchschedule.TaskKey{Hub: "/old-unconfigured-hub", Task: "report"}
-	if err := c.store.Update(t.Context(), func(l *couchschedule.Ledger) error {
+	if err := updateScheduleFixture(c.store, t.Context(), func(l *couchschedule.Ledger) error {
 		copy := l.Tasks[(couchschedule.TaskKey{Hub: roots[0], Task: "report"}).ID()]
 		copy.Key = old
 		l.Tasks[old.ID()] = copy
@@ -342,7 +342,7 @@ func TestScheduleRefreshPublishesManualCompletionsAcrossTwoHubs(t *testing.T) {
 		t.Fatalf("refresh: %+v", snapshot)
 	}
 	key := couchschedule.TaskKey{Hub: roots[0], Task: "report"}
-	if err := c.store.Update(ctx, func(ledger *couchschedule.Ledger) error {
+	if err := updateScheduleFixture(c.store, ctx, func(ledger *couchschedule.Ledger) error {
 		state := ledger.Tasks[key.ID()]
 		state.Last = &couchschedule.RunSummary{ID: "manual", Outcome: "quiet", Source: "manual"}
 		ledger.Tasks[key.ID()] = state

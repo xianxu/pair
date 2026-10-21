@@ -86,9 +86,18 @@ run heavy verbs one at a time, after checking uptime's load.
 `couch --schedule --status` reads the published task snapshot. From the
 configured hub checkout, use `couch --schedule run landing-plan -- --help` for task help
 or `couch --schedule run landing-plan -- script-run` for direct execution. Task flags
-after the separator pass through literally. This helper builds the reviewed Go
-package into a content cache and returns its actual exit, including 10; manual
-runs do not wake the hub or advance scheduled due time.
+after the separator pass through literally. The helper submits to the service's
+single namespace owner, which builds the reviewed Go package into a content cache.
+On completion the CLI prints capped retained output in bounded pages and returns
+the recorded exit, including 10; manual runs do not wake the hub or advance due
+time. Ctrl-C requests cancellation of that exact run. Accepted work survives a
+client disconnect. A lost submit reply means unknown admission: inspect the
+reported run ID in history before invoking a new run; never automatically retry.
+Status/observation cannot launch or repair work. Declaration edits show task busy
+until the retained occurrence's canonical history/receipt and ledger settle;
+a running script may finish its original revision and deadline. The next scan
+applies current files. Uncertain outcomes and retained output never authorize
+execution or notice replay.
 
 `couch --schedule history landing-plan` lists retained runs; add `--run ID` for
 one run's metadata and capped output. Add `--json` to status or history for JSON.

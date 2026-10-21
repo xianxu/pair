@@ -18,7 +18,7 @@ func (o *scheduleOwner) submitManual(ctx context.Context, m couchschedule.Manual
 	if !containsScheduleRoot(o.coordinator.roots, m.Hub) {
 		return couchschedule.ManualStatus{}, errors.New("manual hub is not configured")
 	}
-	ledger, err := o.coordinator.store.View(ctx)
+	ledger, err := o.state.ViewDurable(ctx)
 	if err != nil {
 		return couchschedule.ManualStatus{}, err
 	}
