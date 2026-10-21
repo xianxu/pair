@@ -174,3 +174,7 @@ Targeted complete TestRepoArgument/TestRepoPreference group passes under race in
 ### 2026-10-21 10:44 — Operator's interrupt-then-switch scope addition
 
 Authenticated submitted hub c304f9f9-aca2-4d34-a7c2-fcbbf0415f96 adds explicit confirmed interrupt-then-switch for busy/unknown-idle sources. Read the actual diagnostics entry operation-0547363bcf95d1afe9d438f9da750c80: hub thread 1-ops-71 refused known-idle admission at09:18:38, before any helper started. Appended governing plan Revisions with existing #742 interrupt reuse, distinct confirmed CLI/form intent, one30s total bound, at most one interrupt, fresh idle proof, same-source/cleanliness guards, precise failure diagnostics and state/acceptance table. Unknown working-turn proof never authorizes speculative Ctrl+C. This is approved M2 scope; M1 work continues, M3 retained.
+
+### 2026-10-21 10:47 — Operator-only unknown-idle force escape approved
+
+Authenticated submitted hub e9c3a9af-422f-4c4e-acfc-ac4e21f612eb approves M2 interrupt-first but notes usage-limit/stuck-turn evidence can be neither working nor idle. Appended governing Revisions: form/console-only Force switch, distinct second confirmation naming loss of the current turn's unsaved progress, source/fingerprint-bound typed local consent, no CLI/hub force path, normal verified ownership/Git/park/cleanup/launch gates retained. Added usage-limit fixture and remote/replay/cancel/adoption acceptance. This closes the product gap without speculative interrupt bytes or a second lifecycle mechanism.
