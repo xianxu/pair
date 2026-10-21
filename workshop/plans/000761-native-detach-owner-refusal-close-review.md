@@ -291,3 +291,71 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T03:56:00-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 761 — Couch native detach intermittently loses post-client ownership proof |
+| repo | pair |
+| issue file | workshop/issues/000761-native-detach-owner-refusal.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | d17806fe58b57b4a211968036cfa0a2a96f2a406..96e8bc0d3416e030877ffc1ac46f86ba675ee592 |
+| command | sdlc close --issue 761 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T03:56:00-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The narrow interdiff preserves both sides of the inventory conflict without changing product code, approved scope, reader classifications, or hashes. No new defects found. Previously disposed findings remain closed.
+
+```findings
+{}
+```
+
+1. **Strengths**
+   - Conflict resolution preserves the exact semantic union of both sides at `tests/affected-go-readers.json:155` and `:458`.
+   - Strict parsing confirms no duplicate JSON keys across all 471 reader entries.
+   - Spec, Done when, and implementation Plan remain unchanged.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes:** `make test-affected-inventory`, strict duplicate-key parsing, semantic union comparison, and `git diff --check` passed. Product tests were not rerun because product code is unchanged. This review does not certify the separately required recorded suite.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** No duplicated behavior introduced.
+   - **ARCH-PURE — pass:** No logic or IO boundaries changed.
+   - **ARCH-PURPOSE — pass:** Resolution retains both inventories’ intent.
+   - **ARCH-EVOLVE — pass:** Existing schema, classifications, hashes, and all entries are preserved.
+
+   No new architectural or user-facing surface requires atlas or README changes.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"3967cf31-35b0-4f15-b184-afe2066354e4","repository":"github.com/xianxu/pair","issue_id":"000761","recipe":"fix-review","round":4,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/520d7aef20807e20","reviewed_head":"96e8bc0d3416e030877ffc1ac46f86ba675ee592","slot":"pair:5","requested_at":"2026-10-21T10:55:04.179761Z"},"phase":"finished","pid":26146,"started_at":"2026-10-21T10:55:04.367772Z","finished_at":"2026-10-21T10:55:59.609263Z","session_id":"01a15e19-b21a-7ca1-b599-d553451bb6e8","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.465121375s
+head: "96e8bc0d3416e030877ffc1ac46f86ba675ee592"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
