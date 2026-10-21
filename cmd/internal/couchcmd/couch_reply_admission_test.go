@@ -9,6 +9,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijtest"
 )
@@ -62,7 +63,8 @@ func TestCouchRestartReplyAdmission(t *testing.T) {
 			if mode == "generation-change" {
 				a.final = errors.New("server generation changed")
 			}
-			role, err := shortcutFocusProbe(a, queryShortcutClients)(context.Background(), address)
+			processes := &focusProcessWorld{args: []string{"pair", "term"}}
+			role, err := shortcutFocusProbeWithProcesses(a, queryShortcutClients, procutil.NewSource(processes))(context.Background(), address)
 			if mode == "healthy" {
 				if err != nil || role != workbenchshortcut.PaneRoleRightTerminal {
 					t.Fatalf("role=%v error=%v", role, err)

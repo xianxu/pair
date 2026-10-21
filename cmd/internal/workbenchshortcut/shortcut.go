@@ -1,6 +1,6 @@
 // Package workbenchshortcut contains Pair's pane-local workbench shortcut
-// decisions. The package stays pure except for LastLeftPaneStore's small
-// sidecar helpers, so pane wrappers can share the same semantics.
+// decisions, with explicit sidecar and native process adapters around the
+// shared pure role and routing projections.
 package workbenchshortcut
 
 import (
@@ -14,6 +14,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 )
 
@@ -694,12 +695,12 @@ func (r TerminalPaneRegistry) Register(paneID string, pid int) error {
 	return err
 }
 
-// LiveIDs returns the pane ids whose registering process is still alive —
+// LiveIDs filters registrations with an injected process predicate —
 // first live entry per id wins (file order; dead pids never block newer
 // entries for other ids). The sidecar is append-only with no compaction:
 // entries are one short line per pair-term start, so growth is negligible
-// and liveness filtering makes stale lines inert. Liveness is injected so
-// the filtering stays testable without real processes.
+// and the predicate is cached once per PID per read. Native routing readers
+// must use LiveOwnerIDs to distinguish an active wrapper from a shell exec.
 func (r TerminalPaneRegistry) LiveIDs(alive func(pid int) bool) ([]string, error) {
 	data, err := os.ReadFile(r.Path())
 	if errors.Is(err, os.ErrNotExist) {
@@ -710,13 +711,22 @@ func (r TerminalPaneRegistry) LiveIDs(alive func(pid int) bool) ([]string, error
 	}
 	var ids []string
 	seen := map[string]bool{}
+	owners := map[int]bool{}
 	for _, line := range strings.Split(string(data), "\n") {
 		fields := strings.Fields(line)
 		if len(fields) != 2 || seen[fields[0]] {
 			continue
 		}
 		pid, err := strconv.Atoi(fields[1])
-		if err != nil || !alive(pid) {
+		if err != nil || pid <= 0 {
+			continue
+		}
+		live, known := owners[pid]
+		if !known {
+			live = alive(pid)
+			owners[pid] = live
+		}
+		if !live {
 			continue
 		}
 		seen[fields[0]] = true
@@ -741,11 +751,14 @@ func Registered(terminalPaneIDs []string, paneID string) bool {
 	return false
 }
 
-// RoleForPaneWith is RoleForPane with the terminal-pane registry overlaid:
-// a pane whose id is registered as a live `pair term` is a right terminal
-// even when zellij's pane report carries no usable command or title.
+// RoleForPaneWith requires live registration for a right-terminal routing role.
+// Templates and titles survive native shell handoff; they are only layout hints.
+// Registered splits need no usable command/title. Other Pair roles keep precedence.
 func RoleForPaneWith(p zellijpane.Pane, terminalPaneIDs []string) PaneRole {
 	role := RoleForPane(p)
+	if role == PaneRoleRightTerminal {
+		role = PaneRoleOther
+	}
 	if role != PaneRoleOther || p.IsPlugin || p.ID == "" {
 		return role
 	}
@@ -757,14 +770,14 @@ func RoleForPaneWith(p zellijpane.Pane, terminalPaneIDs []string) PaneRole {
 
 // LiveTerminalPaneIDsFromEnv reads the terminal-pane registry for the current
 // PAIR_DATA_DIR/PAIR_TAG and returns the pane ids whose registering process is
-// still alive. Every OSRuntime that needs "which panes are pair terminals"
+// a live wrapper (or whose inspection is unavailable). Every OSRuntime that needs "which panes are pair terminals"
 // delegates here — layoutcmd (focus + width toggle), termcmd (chord routing),
 // and clipcmd (the #125 auto-paste gate) — so the registry construction has one
 // source rather than a copy per consumer. Liveness is injected so callers can
-// keep using their own procutil wrapper without this package importing it.
+// keep using their own liveness policy alongside the native argv adapter.
 func LiveTerminalPaneIDsFromEnv(alive func(pid int) bool) ([]string, error) {
 	reg := TerminalPaneRegistry{DataDir: DataDirFromEnv(), Tag: os.Getenv("PAIR_TAG")}
-	return reg.LiveIDs(alive)
+	return reg.LiveOwnerIDs(alive, procutil.Source{})
 }
 
 // DataDirFromEnv resolves pair's data dir by delegating to the canonical

@@ -92,46 +92,46 @@ func modePanes() []zellijpane.Pane {
 func TestObserveRightPaneMode(t *testing.T) {
 	on := true
 	panes := modePanes()
-	if mode, _, err := ObserveRightPaneMode(panes, nil); err != nil || mode != ModeNormal {
+	if mode, _, err := ObserveRightPaneMode(panes, []string{"3", "4"}); err != nil || mode != ModeNormal {
 		t.Fatalf("tiled: %v %v", mode, err)
 	}
 	panes[3].IsFloating = true
-	if mode, id, err := ObserveRightPaneMode(panes, nil); err != nil || mode != ModeFocus || id != "3" {
+	if mode, id, err := ObserveRightPaneMode(panes, []string{"3", "4"}); err != nil || mode != ModeFocus || id != "3" {
 		t.Fatalf("floating: %v %s %v", mode, id, err)
 	}
-	if !FocusModeActive(panes, nil) {
+	if !FocusModeActive(panes, []string{"3", "4"}) {
 		t.Fatal("FocusModeActive disagrees with ObserveRightPaneMode")
 	}
 	// A floating pane with unknown fullscreen state is still focus mode: the
 	// floating observation alone decides it.
 	panes[3].IsFullscreen = nil
-	if mode, _, err := ObserveRightPaneMode(panes, nil); err != nil || mode != ModeFocus {
+	if mode, _, err := ObserveRightPaneMode(panes, []string{"3", "4"}); err != nil || mode != ModeFocus {
 		t.Fatalf("floating nil-fs: %v %v", mode, err)
 	}
 	panes = modePanes()
 	panes[3].IsFullscreen = &on
-	if mode, id, err := ObserveRightPaneMode(panes, nil); err != nil || mode != ModeFullscreen || id != "3" {
+	if mode, id, err := ObserveRightPaneMode(panes, []string{"3", "4"}); err != nil || mode != ModeFullscreen || id != "3" {
 		t.Fatalf("fullscreen: %v %s %v", mode, id, err)
 	}
-	if FocusModeActive(panes, nil) {
+	if FocusModeActive(panes, []string{"3", "4"}) {
 		t.Fatal("native fullscreen reported as focus")
 	}
 	panes = append(modePanes(), zellijpane.Pane{ID: "4", Title: "terminal 2", IsFloating: true})
 	panes[3].IsFloating = true
-	if _, _, err := ObserveRightPaneMode(panes, nil); err == nil {
+	if _, _, err := ObserveRightPaneMode(panes, []string{"3", "4"}); err == nil {
 		t.Fatal("two floating right terminals accepted")
 	}
-	if FocusModeActive(panes, nil) {
+	if FocusModeActive(panes, []string{"3", "4"}) {
 		t.Fatal("ambiguous observation reported as focus")
 	}
 	panes = append(modePanes(), zellijpane.Pane{ID: "4", Title: "terminal 2", IsFullscreen: &on})
 	panes[3].IsFloating = true
-	if _, _, err := ObserveRightPaneMode(panes, nil); err == nil {
+	if _, _, err := ObserveRightPaneMode(panes, []string{"3", "4"}); err == nil {
 		t.Fatal("floating plus a fullscreen half accepted")
 	}
 	// Floating panes that are not right terminals (review, key help) are not focus mode.
 	panes = append(modePanes(), zellijpane.Pane{ID: "9", Title: "review", TerminalCommand: "nvim review", IsFloating: true})
-	if mode, _, err := ObserveRightPaneMode(panes, nil); err != nil || mode != ModeNormal {
+	if mode, _, err := ObserveRightPaneMode(panes, []string{"3", "4"}); err != nil || mode != ModeNormal {
 		t.Fatalf("foreign floating: %v %v", mode, err)
 	}
 }
@@ -167,7 +167,7 @@ func TestPlanRightPaneCycle(t *testing.T) {
 		record ExpandRecord
 		steps  []Step
 	}{
-		{"normal-to-focus", RightPaneInput{Panes: modePanes(), Caller: "2", Swap: "third"}, ModeNormal, ModeFocus,
+		{"normal-to-focus", RightPaneInput{Registered: []string{"3"}, Panes: modePanes(), Caller: "2", Swap: "third"}, ModeNormal, ModeFocus,
 			ExpandRecord{Return: "2", Swap: "third"},
 			[]Step{{StepSave, ""}, {StepFloat, "3"}, {StepPlace, "3"}, {StepShow, ""}, {StepNudge, ""}}},
 		{"normal-to-focus-split-caller-half", RightPaneInput{Panes: split(), Caller: "4", Last: "3", Registered: registered, Swap: "small-split"}, ModeNormal, ModeFocus,
@@ -183,22 +183,22 @@ func TestPlanRightPaneCycle(t *testing.T) {
 		{"normal-to-focus-clean-base-split", RightPaneInput{Panes: split(), Caller: "2", Last: "4", Registered: registered, Swap: "BASE"}, ModeNormal, ModeFocus,
 			ExpandRecord{Return: "2", Swap: "BASE", Order: []string{"3", "4"}},
 			[]Step{{StepSave, ""}, {StepFloat, "4"}, {StepPlace, "4"}, {StepShow, ""}, {StepNudge, ""}}},
-		{"focus-to-normal", RightPaneInput{Panes: floating(modePanes(), "3"), Caller: "3", Record: ExpandRecord{Return: "2", Swap: "third"}}, ModeFocus, ModeNormal,
+		{"focus-to-normal", RightPaneInput{Registered: []string{"3"}, Panes: floating(modePanes(), "3"), Caller: "3", Record: ExpandRecord{Return: "2", Swap: "third"}}, ModeFocus, ModeNormal,
 			ExpandRecord{Return: "2", Swap: "third"},
 			[]Step{{StepEmbed, "3"}, {StepRestore, "3"}, {StepFocus, "2"}, {StepClear, ""}, {StepNudge, ""}}},
 		{"focus-to-normal-split", RightPaneInput{Panes: floating(split(), "4"), Caller: "4", Registered: registered, Record: ExpandRecord{Return: "2", Swap: "BASE", Order: []string{"3", "4"}}}, ModeFocus, ModeNormal,
 			ExpandRecord{Return: "2", Swap: "BASE", Order: []string{"3", "4"}},
 			[]Step{{StepEmbed, "4"}, {StepRestore, "4"}, {StepFocus, "2"}, {StepClear, ""}, {StepNudge, ""}}},
-		{"focus-to-normal-same-pane", RightPaneInput{Panes: floating(modePanes(), "3"), Caller: "3", Record: ExpandRecord{Return: "3"}}, ModeFocus, ModeNormal,
+		{"focus-to-normal-same-pane", RightPaneInput{Registered: []string{"3"}, Panes: floating(modePanes(), "3"), Caller: "3", Record: ExpandRecord{Return: "3"}}, ModeFocus, ModeNormal,
 			ExpandRecord{Return: "3"},
 			[]Step{{StepEmbed, "3"}, {StepRestore, "3"}, {StepFocus, "3"}, {StepClear, ""}, {StepNudge, ""}}},
-		{"focus-to-normal-stale-return", RightPaneInput{Panes: floating(modePanes(), "3"), Caller: "3", Record: ExpandRecord{Return: "99"}}, ModeFocus, ModeNormal,
+		{"focus-to-normal-stale-return", RightPaneInput{Registered: []string{"3"}, Panes: floating(modePanes(), "3"), Caller: "3", Record: ExpandRecord{Return: "99"}}, ModeFocus, ModeNormal,
 			ExpandRecord{Return: "99"},
 			[]Step{{StepEmbed, "3"}, {StepRestore, "3"}, {StepFocus, "2"}, {StepClear, ""}, {StepNudge, ""}}},
-		{"native-fullscreen-to-normal", RightPaneInput{Panes: fullscreen(modePanes(), "3"), Caller: "3", Record: ExpandRecord{Return: "2", Swap: "third"}}, ModeFullscreen, ModeNormal,
+		{"native-fullscreen-to-normal", RightPaneInput{Registered: []string{"3"}, Panes: fullscreen(modePanes(), "3"), Caller: "3", Record: ExpandRecord{Return: "2", Swap: "third"}}, ModeFullscreen, ModeNormal,
 			ExpandRecord{Return: "2", Swap: "third"},
 			[]Step{{StepFullscreen, "3"}, {StepFocus, "2"}, {StepClear, ""}}},
-		{"native-fullscreen-to-normal-same-pane", RightPaneInput{Panes: fullscreen(modePanes(), "3"), Caller: "3", Record: ExpandRecord{Return: "3"}}, ModeFullscreen, ModeNormal,
+		{"native-fullscreen-to-normal-same-pane", RightPaneInput{Registered: []string{"3"}, Panes: fullscreen(modePanes(), "3"), Caller: "3", Record: ExpandRecord{Return: "3"}}, ModeFullscreen, ModeNormal,
 			ExpandRecord{Return: "3"},
 			[]Step{{StepFullscreen, "3"}, {StepClear, ""}}},
 		{"no-right-terminal", RightPaneInput{Panes: modePanes()[:3], Caller: "2"}, ModeNormal, ModeNormal, ExpandRecord{}, nil},
@@ -216,7 +216,7 @@ func TestPlanRightPaneCycle(t *testing.T) {
 			}
 		})
 	}
-	if _, err := PlanRightPane(RightPaneInput{Panes: modePanes(), Caller: "99"}); err == nil {
+	if _, err := PlanRightPane(RightPaneInput{Registered: []string{"3"}, Panes: modePanes(), Caller: "99"}); err == nil {
 		t.Fatal("stale caller accepted")
 	}
 }

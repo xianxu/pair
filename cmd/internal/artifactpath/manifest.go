@@ -458,6 +458,8 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/workbenchshortcut/shortcut.go", Kind: ResolvedConsumer,
 		Families:     []string{"last-left-pane", "last-terminal-pane", "terminal-panes"},
 		BindingNames: []string{"scoped-wrapper-last-left-pane", "scoped-wrapper-last-terminal-pane", "scoped-wrapper-terminal-panes"}},
+	{Path: "cmd/internal/workbenchshortcut/terminal_owner.go", Kind: ResolvedConsumer,
+		Families: []string{"adapt"}, BindingNames: []string{"scoped-adapt"}},
 	{Path: "cmd/internal/workbenchshortcut/fullscreen_store.go", Kind: ResolvedConsumer,
 		Families:     []string{"fullscreen-return", "fullscreen-lock", "fullscreen-diagnostics"},
 		BindingNames: []string{"scoped-fullscreen-fullscreen-return", "scoped-fullscreen-fullscreen-lock", "scoped-fullscreen-fullscreen-diagnostics"}},
@@ -666,6 +668,12 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	"cmd/internal/mockserve/cli.go",
+	"cmd/internal/mockserve/page.go",
+	"cmd/internal/mockserve/project.go",
+	"cmd/internal/mockserve/revision.go",
+	"cmd/internal/mockserve/scan.go",
+	"cmd/internal/mockserve/server.go",
 	"internal/testbinary/cache.go",
 	"internal/testoracle/run.go",
 	// #649 wiring, contextual runtime delegation, and the pure title reducer

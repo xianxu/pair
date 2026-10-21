@@ -19,6 +19,11 @@ var pairCatalog = append(append([]golint.Rule(nil), golint.Catalog...), golint.R
 	Message:  "compose diagnostic addresses atomically with completeFailureAddress; partial target evidence must not replace an exact captured address",
 	Match:    lifecycleFailureAddressOverrides,
 }, golint.Rule{
+	Name:     "terminal-registry-owner",
+	Incident: "pair#731",
+	Message:  "use LiveOwnerIDs for native terminal ownership; kill-only LiveIDs admits a shell after exec",
+	Match:    terminalRegistryOwnerCalls,
+}, golint.Rule{
 	Name:     "zellij-read-attempt-bypass",
 	Incident: "pair#748",
 	Message:  "call ZellijSource.runContext to preserve bounded read recovery, the shared deadline and per-attempt evidence; runQueryAttempt belongs only to that entry point",
