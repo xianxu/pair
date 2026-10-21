@@ -203,6 +203,23 @@ now name hello-v5, while old-peer strict downgrade behavior remains tested.
 The fast reader inventory is audited rather than waived; modified preflight
 names follow renamed semantics and the sole-ingress source guard.
 
+### 2026-10-21 — live acceptance dependency and close ordering
+
+Code head 1580bf163bd5869428d5831e3d5d9cef2b18f3ec is published as PR #510.
+Recorded affected selected the full suite because the clean runtime bundle graph
+is unavailable (#738); attempt 4e8fab1bec9d0e9cb2e5fad70d697437 remains in the
+normal machine queue. No duplicate suite, staging or live fleet action occurred.
+
+Hub requires three private real-supervisor scenarios before landing: full
+shutdown gives automation off, one status/no hub injection and empty-hub start
+guidance, followed by explicit on and a fresh notice; normal restart preserves
+hub automation on and reattaches workers without a new generic cue; an actually
+started worker receives exactly one cue. pair:5 confirms #744's shared harness
+is still unlanded. Hub c23219fb-e84d-4e8a-ae60-c54976d1f4f3 directs waiting for
+#744, no duplicated fixture, finishing this suite and close review meanwhile,
+and reporting if #744 slips beyond the next morning. Landing stays blocked on
+that live evidence; the real fleet first use is the next restart after landing.
+
 ## Revisions
 
 ### 2026-10-20 — operator-review startup boundary and two notice lifetimes
@@ -268,3 +285,13 @@ an explicit control; normal surviving hubs start on. The separate tl-lead rule
 chooses the first-message action, and Couch never flips on a submission. Live
 acceptance remains owed and must be coordinated with the hub; no stage or
 restart is claimed here.
+
+### 2026-10-21 — reviewed code before shared-harness live acceptance
+
+Per hub c23219fb-e84d-4e8a-ae60-c54976d1f4f3, finish recorded checks and the close
+review before #744 lands; then integrate its main code and implement the three
+approved private-fleet scenarios. This is not permission to land without live
+acceptance, nor to use a second fixture. The remaining live Plan checkbox is
+intentionally pending at that review boundary; its precise close-plan exception
+must say so, rather than falsely ticking acceptance. Any post-review integration
+or test code follows the normal narrow re-close and verification gates.
