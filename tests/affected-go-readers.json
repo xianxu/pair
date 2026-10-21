@@ -226,6 +226,7 @@
       "cmd/internal/couchcore/provision_git_test.go": "414f1e51f41d7f445ef66b3f20b0caa70f77ef15821876d32143361b632a36fe",
       "cmd/internal/couchcore/provision_identity_fixture_test.go": "798e8a7e21c982d73a4901a50e81e83dd206d78bd1ff1ee15d9679394a20bab4",
       "cmd/internal/couchcore/quiesce_conformance_live_test.go": "0be3c5022eae2738d4ee183b56640d4ee1633f1de33e0978c207299c444a9f6c",
+      "cmd/internal/couchcore/recordless_fresh_boundary_test.go": "7853f5439a12cc821a8c8baa0b555ab88a38eb934563d58dbf345a5ddd811964",
       "cmd/internal/couchcore/recoverplan_test.go": "e01dc0a181782c6bfb236f1dcb612e9977536673a695996f10ca708fac03685e",
       "cmd/internal/couchcore/recovery_conformance_live_test.go": "584f2018480aa65ee8b080fc5c733d21727ce0649fa98455692c2cba1c179e24",
       "cmd/internal/couchcore/recovery_live_environment_test.go": "cd2ed57d8a7962069120aa39c011aa65b686476c501ee6c9eadf4f564fd84dca",

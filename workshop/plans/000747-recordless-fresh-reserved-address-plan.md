@@ -80,8 +80,8 @@ The durable O_EXCL marker owns the address for the thread lifetime; the committe
 
 - [ ] Record producer/consumer authority in atlas; no new public CLI grammar. Audit and refresh reader digests only after input-scope inspection.
 - [ ] Run focused recovery/claim tests in couchcore and launcher, affected couchcmd/command tests, and focused race/vet. Run recorded sdlc local-check affected on the pushed code.
-- [ ] Coordinate with pair:5/hub for #744's independent main-based native consumer to start all three genuine numbered workers with no bypass or synthesized registration. Its branch remains independent; no stacking or taking its test harness changes onto747.
-- [ ] Run sdlc close with recorded evidence, address findings, check PR CI, and land through sdlc merge when independent native qualification clears. No stage replacement while #742 owns pair:0; coordinate any later live staging through the hub.
+- [ ] Per TL's approved sequencing, land747 on its real emitted-profile executable-boundary proof. Then pair:5 integrates landed main into744 and runs the independent native three-worker matrix. Do not mix unlanded candidate binaries:744's isolated messaging-root support must remain internally consistent.
+- [ ] Run sdlc close with recorded evidence, address findings, check PR CI, and land through sdlc merge when local/CI gates clear;744 owns post-landing native qualification. No stage replacement while #742 owns pair:0; coordinate any later live staging through the hub.
 
 ## Architecture and bounds
 
@@ -98,3 +98,7 @@ The durable O_EXCL marker owns the address for the thread lifetime; the committe
 ## Approval checkpoint
 
 Plan only: no production/test edits before hub approval and sdlc change-code. On #742 live acceptance, commit any current747 atomic work, switch to its preserved branch, land742, then return here as directed.
+
+## Revisions
+
+- 2026-10-20 — ops:0 explicitly changed qualification order:747 lands on its executable-boundary proof;744 then integrates main and supplies the native three-worker proof for both issues. Pair/Couch candidate mixing is excluded because744 adds isolated messaging-root support. All authority and no-bypass requirements remain.

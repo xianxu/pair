@@ -45,7 +45,7 @@ Actions: start fresh explicitly; inspect an unconfirmed attempt; retry only afte
 
 - A real or equivalent executable-boundary regression shows an approved recordless Fresh transaction establishes its exact newly reserved address and registers the numbered worker.
 - Unproved, mismatched and existing-address attempts still refuse before effects.
-- #744's native consumer starts its three non-hub workers without bypasses.
+- Land on the real emitted-profile executable-boundary proof; #744 then integrates landed main and owns the native three-worker qualification for both issues, as explicitly sequenced by ops:0.
 
 ## Plan
 
@@ -59,3 +59,11 @@ Actions: start fresh explicitly; inspect an unconfirmed attempt; retry only afte
 2026-10-20: #744 native run at clean candidate revision25ac5f6fbf856a337fd03d53108ea4a66f9386ed (both Pair and Couch build metadata verified) reproduced the failure. Genuine steward fixture:0 registered. Its public reboot operation36970b7f-1c25-416e-85d1-22bd8d1af529 failed unconfirmed for fixture:1. The actual target marker was reserved while the steward marker was established. Retained local diagnostics: /Volumes/TestScratch/pc-3857330288/store/launch-diagnostics/failures.json. Full run log /Volumes/TestScratch/tmp/pair-slot5/pair-744-native-ump2qlja/native.log, SHA256 e4ef8082296fb7cbd03b6ad947f4e71fcf8ccf73fdec59256ea5089886c4593a. Likely class seam: startFreshRecoveryWithoutRecord/startFreshSlotWithPrompt passes FreshRequired without the recovery authority needed by createflow.go's EnsureThreadAddress branch; verify rather than weakening RegisterExistingCouchThread.
 
 - 2026-10-20 — Claimed by pair:2 from main while742 remains code-complete, staged and claimed. Root-cause audit confirms recordless startFreshSlotWithPrompt -> claimFreshRecord creates a reserved marker/creating record without RecoveryIntent; launchClaimedThread chooses BuildCouchFreshLaunchProfile from prompt presence, so FreshRequired reaches createflow.go without Recovery authority. RegisterExistingCouchThread correctly refuses reserved. The same missing intent also explains the secondary confirmed-failure cleanup refusal. Existing launchRecoveryFreshAddress already demonstrates tagged Fresh intent publication plus committed-record reread and launchRecoveryClaim reuse. #728's configuration and parked-source admission failures are separate, unproven seams; excluded from747. No production/test code changed; plan submitted to TL before change-code.
+
+- 2026-10-20 — TL approved the plan; change-code admitted quick flow. Producer regression RED: actual recordless child lacks committed recovery authority before fake registration. Implementation commits normalized tagged Fresh intent with both record and creating start, rereads committed record, and uses launchRecoveryClaim/recoveryExistingWorkspace. Removed the now-unused prompt-selected Fresh tail from ordinary launchClaimedThread. No launcher/marker validator changes. Focused recordless + ordinary Fresh cases PASS6.122s; broader recovery/claim and executable-boundary qualification in progress.
+
+## Revisions
+
+- 2026-10-20 — TL settled qualification order with pair:5: land747 on its real emitted-profile executable-boundary proof, then744 integrates landed main and its native three-worker matrix serves as both issues' live proof. No candidate overrides or composite builds:744 adds isolated socket-root derivation absent from plain main, so mixing binaries would invalidate isolation. This changes acceptance sequencing, not implementation or authority semantics.
+
+- Verification so far: equivalent RunLaunch boundary RED on original production with the exact established-address error, GREEN on corrected producer (six cases,10.749s), and helper-generation-validation mutation RED on unauthorized marker advancement. Producer start-intent omission mutation also RED at real launcher authority validation. Focused race recovery/claim tests PASS couchcore8.904s/launcher1.468s; vet PASS. Full targeted packages and final boundary race in progress. No native run or registration success claimed.
