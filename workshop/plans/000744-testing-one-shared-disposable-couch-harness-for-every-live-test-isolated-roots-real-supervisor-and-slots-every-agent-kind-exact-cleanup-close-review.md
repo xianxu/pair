@@ -444,3 +444,82 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T09:03:47-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 744 — testing: one shared disposable-Couch harness for every live test (isolated roots, real supervisor and slots, every agent kind, exact cleanup) |
+| repo | pair |
+| issue file | workshop/issues/000744-testing-one-shared-disposable-couch-harness-for-every-live-test-isolated-roots-real-supervisor-and-slots-every-agent-kind-exact-cleanup.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 7ad6463ef53930f5e3144f23e23d1ef16f6a116d..86e8804dce281ad1d22f89ffc88b7342cbe15dc1 |
+| command | sdlc close --issue 744 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T09:03:47-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+BR-6 is addressed. The interdiff replaces duplicated layout rules with canonical APIs, preserves existing paths and behavior, and introduces no blocking defect. The revision records the correction without changing Spec or Done when.
+
+```findings
+dispose:
+  - id: BR-6
+    disposition: addressed
+    note: |
+      provision.go now derives worker hosts and resting branches through NewSlotLayout and setup markers through SetupMarkerPath. The unchanged repository audit passes on pinned head and fails at all three original sites with pre-fix provision.go restored in a disposable tree. Provisioning tests pass normally and under race detection.
+```
+
+1. **Strengths**
+
+   - Provisioning consumes canonical layout at `cmd/internal/testcouch/provision.go:175` and `:211`, preserving validation of actual provisioning evidence.
+   - Transcript creation and resume share the canonical runtime at `cmd/internal/testcouch/agentfixture/conversation.go:71`.
+   - Both repository audits remain enforced without exemptions.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Slot-state and native-authority audits pass on pinned head.
+   - Restoring pre-fix files makes both audits fail for the expected violations; the disposable tree was removed.
+   - Provisioning, failure/cancellation/adoption, and Claude/Codex transcript/resume tests pass, including race checks.
+   - Inspected retained native qualification evidence and verified its log checksum; native qualification and the full suite were not rerun during this review.
+   - Reviewed checkout remains unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** both corrections reuse existing authorities.
+   - **ARCH-PURE — pass:** path derivation remains separate from filesystem/process adapters.
+   - **ARCH-PURPOSE — pass:** all three BR-6 sites are corrected, with repository-wide enforcement preserved.
+   - **ARCH-EVOLVE — pass:** no persisted schema or field meaning changes.
+   - No new user-facing or architectural surface requires README or atlas changes.
+
+7. **Plan revision recommendations:** None; the added revision accurately records the fix.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"ae278350-6091-46ed-9348-e3fc007dc0ec","repository":"github.com/xianxu/pair","issue_id":"000744","recipe":"fix-review","round":5,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/6d4fa1b7d36130c0","reviewed_head":"86e8804dce281ad1d22f89ffc88b7342cbe15dc1","slot":"pair:5","requested_at":"2026-10-21T16:00:52.066699Z"},"phase":"finished","pid":17953,"started_at":"2026-10-21T16:00:52.209129Z","finished_at":"2026-10-21T16:02:43.691845Z","session_id":"01a15f31-a98d-7e12-8210-0aee53bfccb6","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.594949834s
+head: "86e8804dce281ad1d22f89ffc88b7342cbe15dc1"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
