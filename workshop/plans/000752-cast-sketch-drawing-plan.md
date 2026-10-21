@@ -28,13 +28,16 @@ Paths below are relative to `cmd/internal/webcast/`.
 
 | Name | Lives in | Status |
 | --- | --- | --- |
-| Strict sketch command union, normalized command digest, reply values | `board/sketch_wire.go` | new |
-| Drawing authority projection and permit identity values | `drive/drawing.go` | new |
-| Narrow immutable sketch receipt/metadata/top queries | `recording/sketch_state.go` | modified |
-| Bounded source-prefix candidate and scene byte accounting | `recording/sketch_source.go` | new |
-| Browser interaction and recovery policy | `web/sketch-policy.js` | new |
-| Pressure path painter and render-only patch projection | `web/sketch-render.js` | new |
-| Operator delta cursor/transfer protocol | `board/sketch_delivery.go`, `web/sketch-delivery.js` | new |
+| Strict sketch command union, normalized digest and replies | `board/sketch_wire.go` | new |
+| Strict Unicode byte validation | `../strictjson/unicode.go` | new |
+| Drawing authority and permit identity | `drive/drawing.go` | new |
+| Owned receipt/metadata/top queries and cancellation semantics | `recording/sketch_state.go`, `recording/sketch.go`, `recording/sketch_codec.go`, `recording/sketch_snapshot.go` | modified |
+| Source-document anchor index | `recording/sketch_anchors.go` | new |
+| Bounded source-prefix candidate and state byte accounting | `recording/sketch_source.go` | new |
+| Browser interaction/recovery policy | `web/sketch-policy.js` | new |
+| Render-only patch projection and incremental painter | `web/sketch-render.js` | new |
+| Browser reducer queries and anchor index | `web/sketch-model.js`, `web/model.js` | modified |
+| Operator journal/cursor and transfer receiver | `board/sketch_delivery.go`, `web/sketch-delivery.js` | new |
 
 The command union owns ingress shape, not persisted shape: the client supplies node identity and observed box, never trusted author, owner, selector/path/text, source time or digest. Digest the normalized strict command (including operation, sequence and origin epoch); store that digest in the event. #751 independently compares actual final event semantics on reducer retry. A begin retry resolves its original server-assigned sketch/source before any current-source reconstruction.
 
@@ -46,16 +49,21 @@ Render patches contain already accepted facts: new point chunks and authoritativ
 
 | Name | Lives in | Status | Wraps |
 | --- | --- | --- | --- |
-| Controller drawing witness and capability publication | `drive/drawing.go`, `drive/controller.go`, `drive/controller_mem.go`, `drive/capability.go` | new / modified | driving holder, acknowledged ctl/reset, held-input release, seat lifetime |
-| Board sketch service and source lease | `board/sketch.go`, `board/sketch_authority.go`, `board/board.go` | new / modified | annotation proof, authenticated principal, frozen State, ordered writer |
-| Settled sketch writer/reference fake | `recorder/sketch.go`, `recorder/recorder.go`, `board/writer.go` | new / modified | actor queue, mirror, sink, barrier and expiry timer |
-| Source-prefix provider | `recording/hub.go`, `cast.go`, `browser.go` | modified | accepted Hub log and cast-owned fallback Hub |
-| Sketch HTTP routes | `server_sketch.go`, `server.go`, `server_drive.go`, `server_capabilities.go` | new / modified | castlock, seat authentication, bounded body/asset exchange |
-| Shared tool, held scene and viewer adapter | `web/sketch.js`, `web/sketch-scene.js`, `web/sketch.css`, `web/viewer.js`, `web/drive.js`, `web/annotate.js` | new / modified | Pointer Events, renderer, live connection and tool transitions |
-| Shared anchor placement | `web/annotation-placement.js`, `web/render.js` | modified | current box/clip and recorded source-document identity |
-| Privileged console adapter | `operator.js`, `operator_script.go`, `chrome_operator.go`, `recorder/operator.go`, `board/operator.go`, `board/operator_view.go` | modified | isolated binding, excluded host, private scene/assets, bounded delivery |
-| Opaque private scene session | `chrome_sketch_scene.go`, `sketch_scene_script.go` | new | scoped child CDP world, frozen Renderer, loader/context identity and transfer handles |
-| Existing owned browser doubles | `fake.go`, `fake_drive.go`, recorder test harness | modified | same new sketch/source writer interfaces and held sink outcomes |
+| Controller witness and capability publication | `drive/controller.go`, `drive/controller_mem.go`, `drive/capability.go` | modified | driving holder, acknowledged ctl/reset, input release and seat lifetime; new witness in `drive/drawing.go` |
+| Board sketch authority/service and source lease | `board/sketch.go` | new | annotation proof, authenticated principal, frozen State and writer |
+| Board lifecycle, sketch journal and anchor projection hooks | `board/board.go`, `board/operator_view.go` | modified | existing reducer and serialized Board |
+| Settled reference writer | `board/writer_sketch.go` (new), `board/writer.go` (modified) | new / modified | existing stateful Writer, sink outcomes and barriers |
+| Settled recording writer and ingress queue | `recorder/sketch.go` (new), `recorder/recorder.go` (modified) | new / modified | actor preflight, mirror, sink and barrier |
+| Cast source/provider and scoped asset reader | `cast_sketch.go` (new), `cast.go`, `chrome.go` (modified) | new / modified | existing Hub and cast-owned fallback Hub; existing recording asset files |
+| Sketch HTTP and capability routes | `server_sketch.go` (new), `server.go`, `server_capabilities.go` (modified) | new / modified | seat authentication, castlock and bounded bodies/assets |
+| Shared tool and held browser scene | `web/sketch.js`, `web/sketch-scene.js`, `web/sketch.css` | new | Pointer Events, independent source Model/Renderer and label transitions |
+| Viewer/coordinator and recorded geometry adapters | `web/viewer.js`, `web/drive.js`, `web/annotate.js`, `web/render.js`, `web/index.html`, `web/viewer.css` | modified | live connection, mode suspension and existing placement helper |
+| Console transport and serialized runtime | `operator-sketch.js`, `chrome_operator_sketch.go`, `chrome_operator_sketch_binding.go`, `chrome_operator_sketch_wiring.go` | new | trusted context, async settled writes, metadata and private scene/journal delivery |
+| Existing console assembly and view integration | `operator.js`, `operator_script.go`, `chrome_operator.go` | modified | shared UI modules and existing worker |
+| Trusted original-node binding | `chrome_operator_original.go`, `recorder/operator_original.go` | modified | current-document note/sketch eligibility and exact debugger objects |
+| Opaque private scene | `chrome_sketch_scene.go`, `sketch_scene_script.go` | new | child isolated world, frozen Renderer, loader/context identity and transfer handles |
+| Scene recording exclusion | `chrome_sketch_exclusion.go`, `recorder/exclusion.go` (new), `recorder/drive.go`, `recorder/observer.js`, `recorder/recorder.go`, `chrome.go` (modified) | new / modified | frame admission, private asset URLs and existing recorder/drive lifetime |
+| Existing browser/CDP stateful doubles | existing `fake.go`, `fake_drive.go` and package test harness | reused unchanged | existing interfaces; new stateful writer/source behavior is in the rows above |
 
 Use the existing stateful `board.Writer` and fake browser/CDP harness to model queue start, persisted records, uncertainty and late replies. HTTP integration boots the real owned Server with Hub/Writer and fake browser. Live conformance uses disposable Chrome profiles and recorded assets. Storage stays in the existing portable recording directory; no new sidecar or user-profile dependency.
 
@@ -167,58 +175,44 @@ The counters are test seams around named traversals/encodes, not wall-clock asse
 
 ## Implementation tasks
 
-### Task 1 — strict protocol and narrow model queries
+Each task uses the named function-verification strategy above. A checked task records its implementation checkpoint; boundary findings reopen the affected behavior until the review accepts its disposition.
 
-**Files:** create `board/sketch_wire.go`, `board/sketch_wire_test.go`; extend `recording/sketch_state.go`/tests and focused Unicode validation helper; add `web/sketch-policy.js`/tests.
+### Task 1 — protocol and reducer queries
 
-- [x] Write `TestSketchCommandUnionRejectsOwnedFields`, `TestSketchCommandUnicodeAndBounds`, `TestSketchReceiptQueriesOwnedAndConstantWork`; seed parser fuzz with all commands, duplicate keys, unsafe integers, nonfinite triples, lone surrogates and valid pairs.
-- [x] Run `go test ./cmd/internal/webcast/board ./cmd/internal/webcast/recording -run 'SketchCommand|SketchReceiptQueries' -count=1`; observe missing parser/query failures before implementation.
-- [x] Implement strict command values/digest/replies and O(1) immutable receipt, metadata and stack-top queries. Keep existing persisted event behavior except the explicit additive truncation fact below.
-- [x] Add optional stroke-end truncation with red tests for cancel→next stroke/Undo/Redo/label, absent/false/true/null/type validation, same-operation conflict, old-reader roundtrip, snapshot receipt replay and the terminal reserve. Extend/regenerate the shared Go/JS corpus with cancellation. This is an additive fact required by the approved pointercancel behavior.
-- [x] Add generated browser policy sequences for unknown/refused/exact retry, label leave/Escape, pause and handoff. Run focused Go/Node tests, then commit this bounded task.
+- [x] Use the parser/digest and owned-query strategy: establish failing tests, implement strict ingress/replies and constant-size queries, then pass `go test ./cmd/internal/webcast/board ./cmd/internal/webcast/recording -run 'SketchCommand|SketchReceiptQueries' -count=1` and parser fuzz.
+- [x] Extend cancellation through the shared Go/JS corpus, codec, semantic retry and snapshot receipt replay. Preserve absent/false identity and terminal reserve; pass focused corpus/policy tests and commit.
 
-### Task 2 — driving permit resource and UI authority feed
+### Task 2 — driving witness and authority feed
 
-**Files:** create `drive/drawing.go`/tests and `board/sketch_authority.go`; extend controller/capability, wire capabilities and server tests.
+- [x] Apply the driving-witness held-transition strategy to operator-local and granted-driver origins. Prove no old permit revives after A→B→A and no new permit precedes acknowledged release/control.
+- [x] Pass `go test ./cmd/internal/webcast/drive ./cmd/internal/webcast -run 'DrawingPermit|DrawingReset|SketchAuthority' -count=1`, including normal driving regressions, then commit.
 
-- [x] Write held-transition tests `TestDrawingPermitABARetiresOldOrigin`, `TestDrawingPermitWaitsForControlAndRelease`, `TestPendingControlKeepsDrawingPermit`, `TestDrawingResetAndCloseFence`, `TestSketchAuthorityArrivesBeforeOrAfterCtl`.
-- [x] Run `go test ./cmd/internal/webcast/drive ./cmd/internal/webcast -run 'DrawingPermit|DrawingReset|SketchAuthority' -count=1`; verify red, implement the sketch-only witness and existing-feed projection, then rerun.
-- [x] Verify console-local availability with remote drive disabled, failure-frozen release, view/pointer denial and current-seat authentication. Preserve normal driving regression tests. Commit.
+### Task 3 — source, acknowledged writers and lease
 
-### Task 3 — acknowledged source/writer/Board service
+- [x] Use the source preflight, settled-writer and expiry strategies through both reference Writer and Recorder. Compare persisted replay and exact physical-write counts; refused preparation changes no clock/state/budget and unknown sinks stay unknown.
+- [x] Pass `go test ./cmd/internal/webcast/recording ./cmd/internal/webcast/board ./cmd/internal/webcast/recorder -run 'SketchSource|SketchWrite|SketchLease|SketchHandoff' -count=1`, N/2N counters and existing note/control ordering, then commit.
 
-**Files:** create `recording/sketch_source.go`/tests, `board/sketch.go`/tests, `recorder/sketch.go`/tests; extend Hub, reference Writer, cast/browser/fakes, board lifecycle.
+### Task 4 — routes and private delivery
 
-- [x] Write source tests for exact begin fencing, following same-clock mutation, later navigation compaction, independent8/16 MiB boundaries, zero-mutation refusal and absent/custom live factory fallback.
-- [x] Write generated operation sequences and held queue/sink/reply tests through BOTH reference Writer and Recorder: accepted/refused/unknown retries, same-ID conflicts, handoff variants, old-owner metadata label, clear/pause/resume/end, expiry racing last mutation and Close joining work.
-- [x] Run `go test ./cmd/internal/webcast/recording ./cmd/internal/webcast/board ./cmd/internal/webcast/recorder -run 'SketchSource|SketchWrite|SketchLease|SketchHandoff' -count=1`; prove red before adding source/settlement service.
-- [x] Implement writer preflight→commit→flush→receipt, exact source retention/lease and healthy-barrier status. Anchor only against frozen State. Run N/2N counters and existing note/control ordering tests; commit.
+- [x] Use ingress and journal strategies with the real Server/Writer/Hub and trusted-context CDP double. Compare every accepted render prefix to reducer output; ingress refusal precedes body effects and context replacement fences late work.
+- [x] Pass `go test ./cmd/internal/webcast/... -run 'SketchRoute|OperatorSketch|SketchDelivery|OperatorScript' -count=1`, `node --test tests/webcast/sketch-delivery.test.mjs` and existing operator/castlock checks, then commit.
 
-### Task 4 — routes and private operator delivery
+### Task 5 — shared tool, held scene and painter
 
-**Files:** create `server_sketch.go`/tests, `board/sketch_delivery.go`/tests, `web/sketch-delivery.js`/tests; extend cast locks/routes, recorder/operator, chrome_operator and operator assembler.
+- [x] Use pointer/painter, FIFO-policy and independent-scene strategies; mount the same tool in viewer and console. Required-label transitions and source-document identity are enforced on both adapters. Count new samples/segments, not wall-clock speed.
+- [x] Pass `node --test tests/webcast/sketch-*.test.mjs tests/webcast/viewer.test.mjs tests/webcast/operator*.test.mjs tests/webcast/annotation-placement.test.mjs`, Go assembly tests, N/2N guards and owned browser fixtures, then commit.
+- [ ] Resolve round1 BR-2/BR-3 with red/green regressions for authoritative console lifecycle metadata and queue-full terminal recovery, covering move and pointer-up.
 
-- [x] Write HTTP tests proving link/seat/epoch refusal before body reads, per-owner status/source isolation, bounded source/asset chunk offsets and terminal error mapping. Use stateful Server+Writer+Hub stack.
-- [x] Write operator tests for trusted-context admission, new-context late replies, metadata label after document retirement, coalesced journal drain, duplicate ACK, gap bootstrap, worker fairness, exact maximum bootstrap and handle cleanup.
-- [x] Run `go test ./cmd/internal/webcast/... -run 'SketchRoute|OperatorSketch|SketchDelivery|OperatorScript' -count=1` and `node --test tests/webcast/sketch-delivery.test.mjs`; observe red, implement, rerun plus existing operator/castlock suites, commit.
+### Task 6 — conformance, review and landing
 
-### Task 5 — shared held scene, painter and tool on both surfaces
-
-**Files:** create `web/sketch.js`, `web/sketch-scene.js`, `web/sketch-render.js`, `web/sketch.css` and focused tests; extend viewer/drive/annotate/placement/render/operator and embedded asset registry.
-
-- [x] Write pointer policy tests for coalesced pressure, hover, capture, cancel/up, mouse/touch fallback, optimistic echo, bounded backpressure and current-sketch Undo/Redo. Test renderer output against #751 shared geometry corpus.
-- [x] Write held-scene tests proving source/live independence at initial prepare AND reconnect, nested scroll/viewport/animation hold, asset readiness failure/disposal and restoration to fresh live catch-up. Generalize source identity proof with negative cross-document placement controls. Add opaque SceneSession loader/context fences, CSP refusal, nested-frame names/CSS fidelity and parent named-target DOM/blob denial.
-- [x] Mount shared UI and tool coordinator in viewer and isolated console; replace single operator callback with subscriptions. Add label-required leave/Escape and independent interrupted-label affordance; never expose transport internals in product UI.
-- [x] Run `node --test tests/webcast/sketch-*.test.mjs tests/webcast/viewer.test.mjs tests/webcast/operator*.test.mjs tests/webcast/annotation-placement.test.mjs`; run Go module-assembly tests and browser fixture. Compare render patches with reducer projections at every prefix, run N/2N work counters, commit.
-
-### Task 6 — end-to-end proof, documentation and landing
-
-- [x] Owned headless Chrome tests `TestSketchLiveTwoViewers` and `TestOperatorSketchLiveScenePrivacy`: real Server/recording sees an incomplete pressure stroke before pointer-up; echo once; Undo/Redo/label and historical replay agree. Exercise privileged console scene with the same renderer; adversarial page sees no binding/credentials/private assets and receives no drawing input. Run `WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run 'SketchLive|OperatorSketchLive' -count=1 -v` against a disposable profile, including named-frame attacks as a real negative control.
-- [ ] Obtain TL-arranged live console input smoke before landing; send reviewable commands/URLs and exact built revision. Include current-driver and pointer/view behavior; #754 retains wider real iPad/echo acceptance.
-- [x] Update README controls/recovery, `atlas/webcast.md`, `atlas/webcast-format.md` and index as needed. Add the TL-required invariant to webcast atlas: the casting page never reaches the recorded scene, bindings or assets. Document ephemeral authority/delivery separately from append-only persisted events. Add lessons only for actual discoveries.
-- [x] Audit new production-file dispositions and each changed source-reader input; run `make test-affected-inventory`, artifactpath/repolint checks and all targeted webcast/Node tests.
-- [x] Push PR, run recorded `sdlc local-check run --name affected` (full-suite fallback if graph still unavailable), close with evidence and `--no-project` because TL owns ops project. Mandatory fresh review is the close gate; fix all blocking findings and reverify final code.
-- [ ] On SHIP promptly `sdlc merge --yes`; retain its runner through admission/integration/CI. Report landed PR and evidence once to hub, then proceed #756→#753→#754 as assigned. Do not claim UI/device coverage that did not run.
+- [x] Run `WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run 'SketchLive|OperatorSketchLive' -count=1 -v`: compare partial pressure/Undo/Redo/label/replay and assert actual console/private-scene behavior, including named-frame negative controls.
+- [ ] Rerun host conformance on the corrected implementation and supply exact evidence for BR-5; retain interrupted-contact and moved-original/replacement regressions.
+- [x] Update README, webcast/format atlas and index, including the invariant that the casting page never reaches the recorded scene, bindings or assets. Add only measured lessons.
+- [x] Audit production artifact dispositions and source-reader inputs; pass `make test-affected-inventory`, artifactpath/repolint and targeted webcast/Node checks.
+- [x] Open PR512 and pass the recorded local-check full fallback on the initial implementation.
+- [ ] Push corrected code, rerun the recorded check and `make test-affected-inventory`, then close with evidence and `--no-project` because TL owns ops project. The close gate owns the mandatory fresh review; resolve its findings.
+- [ ] After TL staging go, stage/build and send verified revisions for the real console smoke. No landing until smoke succeeds; #754 retains wider iPad/echo acceptance.
+- [ ] On SHIP and release of the smoke hold, run `sdlc merge --yes`, retain its runner, report the landed PR to the hub and continue #756→#753→#754.
 
 ## Architectural check
 
@@ -258,3 +252,13 @@ TL delivery b1d858cd-0dfc-445b-a623-c3e78b62a282 directs finishing the recorded 
 ### 2026-10-21 — recorded verification
 
 The retained full fallback suite passed on10e2d7b59465d1f955becbc6ceb8184e03a6ab3c (11m11s, log SHA256 prefix c157a785c710). PR512 is open. The close gate now owns its mandatory review; that task remains subject to resolving its findings. TL console smoke and landing remain unchecked and held.
+
+### 2026-10-21 — boundary round1 corrections
+
+BR-4: Cross-checked every Core concepts path/status against the pinned branch patch. Corrected planned nonexistent splits (`board/sketch_authority.go`) and unchanged existing adapters; named actual `recording/sketch_source.go`, `cast_sketch.go`, `board/writer_sketch.go`, runtime, exclusion and anchor-index owners. Existing Hub, browser interfaces, placement helper and browser doubles are reused, not modified.
+
+BR-2/BR-3: Reopened the UI verification class: console journal metadata must drive shared policy through open-contact handoff/pause/expiry/clear/end; bounded point queues must preserve terminal sealing/reconciliation at saturation, including pointer-up synchronous cancellation. Add failing regressions on these paths before fixes and retain exact-operation identity/queue bounds.
+
+BR-5: The disposable review checkout could not start Chrome (GPU/sandbox initialization, CDP EOF); successful host conformance must be rerun on the corrected committed implementation and supplied to the next review. The operator console smoke remains a separate pre-landing hold.
+
+BR-1: Removed repeated case inventories from task prompts; tasks now reference the single function-strategy table and retain runnable commands plus independent invariants. New boundary work is explicitly unchecked until verified.

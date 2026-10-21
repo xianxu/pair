@@ -104,6 +104,12 @@ Primary surfaces: board/{sketch.go,sketch_authority.go,sketch_wire.go,writer.go,
 - Retained local-check runner acquired capacity after366s and completed the full fallback suite exit0 in11m11s. Recorded sdlc-local/suite on10e2d7b59465d1f955becbc6ceb8184e03a6ab3c; log SHA256 prefix c157a785c710. All Go packages and shell/editor checks passed. Later commits only document the acceptance hold, so this evidence covers unchanged implementation.
 - Entering mandatory close review under the TL-directed pre-smoke order. Console smoke remains unperformed; stage and merge remain held until restart admission and that acceptance.
 
+### 2026-10-21 — close round1 REWORK
+
+- Mandatory review reproduced BR-2 (console interrupted open contact cannot label) and BR-3 (full point queue loses terminal sealing and may null-contact crash during pointer-up). Browser work owns red/green shared-policy and console-metadata fixes; actual console open-contact handoff regression is being added independently. Fix the lifecycle/terminal classes across both adapters.
+- BR-4: Corrected the complete Core concepts map against the branch patch; removed nonexistent file splits and unchanged-interface modification claims. BR-1: Compressed task case inventories into the one function-strategy map, retaining commands and independent invariants. Both corrections are recorded in plan Revisions.
+- BR-5 is an unverifiable host condition: review Chrome failed at GPU/sandbox startup and CDP EOF, while prior host runs passed. Rerun all required live tests on the corrected committed implementation and submit measured host evidence to the next review. TL smoke remains separate and unperformed; no stage or merge.
+
 ## Estimate
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.*
