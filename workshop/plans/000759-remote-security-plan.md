@@ -327,3 +327,8 @@ PQ-1 addressed across every changed persisted format: named retained-raw-object 
 ### 2026-10-21 — plan-quality round2 full test-obligation sweep
 
 PQ-1 closed. PQ-2 remained because milestone prose duplicated adversarial test inventories and the transcript row lacked actual function names. Removed those duplicate unit-case inventories across all M1–M3 steps; steps now reference the single function-strategy table. Added RemoteServer.ServeHTTP and matchRemoteConsoleReset rows and named proxy.dispatchPeer/advancePeer, peerTurnRecorder and pairlog.PersistPeerTurn for the actual transcript seam. Expanded the single rows to retain the displaced adversarial classes. Manual operator acceptance remains explicit; generated sequence and counted-operation obligations remain unchanged.
+
+
+### 2026-10-21 — additive raw-number validation approved during M1
+
+TL87a8195f approved a shared preserve-number duplicate-validation entrypoint used only by the new retained-raw remote stores. Existing strict readers and their pinned acceptance remain unchanged. This resolves the observed valid-JSON unknown1e999 rejection without broadening legacy readers; known authority fields still undergo exact typed validation. Atlas records the distinction. Publication uncertainty is interpreted from actual durable evidence: current writers block after errors; an off record already published by an authorized host reset or confirmed ordinary teardown may recover off, with no automatic enable and no claim that failed sync rolls back rename.

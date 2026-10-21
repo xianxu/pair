@@ -6,7 +6,9 @@ require (
 	github.com/charmbracelet/ultraviolet v0.0.0-20260303162955-0b88c25f3fff
 	github.com/charmbracelet/x/ansi v0.11.7
 	github.com/charmbracelet/x/vt v0.0.0-20260510215043-e3181689be6b
+	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/creack/pty v1.1.24
+	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/xianxu/ariadne v0.0.0-20261018104241-81c832d5e000
 	golang.org/x/image v0.46.0
 	golang.org/x/net v0.55.0
@@ -27,6 +29,7 @@ require (
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
+	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
 )
 

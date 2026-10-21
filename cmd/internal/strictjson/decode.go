@@ -45,7 +45,15 @@ func RejectDuplicateKeys(raw []byte) error { return rejectDuplicateKeys(raw) }
 // keys. Decoder.Token allocates and converts every value, even values irrelevant
 // to duplicate detection. Keep decoded-key equality (including invalid UTF-8
 // replacement) and Token's float64 overflow rejection for the external API.
-func rejectDuplicateKeys(raw []byte) error {
+// RejectDuplicateKeysPreserveNumbers validates retained-raw records without
+// converting JSON numbers to float64. Known members still need typed decoding.
+// Ordinary Decode/RejectDuplicateKeys retain their historical acceptance.
+func RejectDuplicateKeysPreserveNumbers(raw []byte) error {
+	return rejectDuplicateKeysMode(raw, true)
+}
+
+func rejectDuplicateKeys(raw []byte) error { return rejectDuplicateKeysMode(raw, false) }
+func rejectDuplicateKeysMode(raw []byte, preserveNumbers bool) error {
 	if !json.Valid(raw) {
 		return errors.New("invalid JSON value")
 	}
@@ -96,8 +104,10 @@ func rejectDuplicateKeys(raw []byte) error {
 				for i+1 < len(raw) && raw[i+1] != ',' && raw[i+1] != '}' && raw[i+1] != ']' && raw[i+1] != ' ' && raw[i+1] != '\t' && raw[i+1] != '\r' && raw[i+1] != '\n' {
 					i++
 				}
-				if _, err := strconv.ParseFloat(string(raw[start:i+1]), 64); err != nil {
-					return err
+				if !preserveNumbers {
+					if _, err := strconv.ParseFloat(string(raw[start:i+1]), 64); err != nil {
+						return err
+					}
 				}
 			}
 		}

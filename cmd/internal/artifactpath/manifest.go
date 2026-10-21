@@ -182,6 +182,7 @@ type SourceClassification struct {
 // family requires adding its constructor and classifying every source consumer.
 // pair:m5-concept pure
 var Families = []Family{
+	{Name: "remote-security", Token: "remote-security"},
 	{Name: "session-lock", Token: "session-locks"},
 	{Name: "fullscreen-return", Token: "fullscreen-return-"},
 	{Name: "fullscreen-lock", Token: "fullscreen-lock-"},
@@ -237,6 +238,7 @@ var Families = []Family{
 // shell, Lua, and KDL sources.
 // pair:m5-concept pure
 var SourceClassifications = []SourceClassification{
+	{Path: "cmd/internal/artifactpath/remote.go", Kind: Constructor, Families: []string{"remote-security"}},
 	// #649 title adapters resolve scoped roots and storage ownership through
 	// artifactpath; neither constructs a tracked artifact filename family.
 	{Path: "cmd/internal/couchcmd/titles.go", Kind: ResolvedConsumer},
@@ -668,6 +670,22 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	"cmd/internal/remotesession/store.go",
+	"cmd/internal/remotesession/origin_store.go",
+	"cmd/internal/remotesession/audit.go",
+	"cmd/internal/remotesession/audit_codec.go",
+
+	// #759 policy/codecs consume owner-resolved paths and introduce no path authority.
+	"cmd/internal/remotesession/access.go",
+	"cmd/internal/remotesession/access_keys.go",
+	"cmd/internal/remotesession/codec.go",
+	"cmd/internal/remotesession/origin_codec.go",
+	"cmd/internal/remotesession/policy.go",
+	"cmd/internal/remotesession/replay.go",
+	"cmd/internal/remotesession/session.go",
+	"cmd/internal/remotesession/state.go",
+	"cmd/internal/remotesession/store_codec.go",
+
 	"cmd/internal/mockserve/cli.go",
 	"cmd/internal/mockserve/page.go",
 	"cmd/internal/mockserve/project.go",
@@ -1927,6 +1945,7 @@ type GCClassification struct {
 // GCClassifications must cover every artifact family explicitly.
 // pair:m5-concept pure
 var GCClassifications = map[string]GCClassification{
+	"remote-security":           {SessionRetention, GCProtected, "RemoteStatePaths; latch/origin authority is never session-collected; audit retention belongs to its writer"},
 	"session-lock":              {SessionRetention, GCProtected, "PairCachePaths.TerminalLease; stable coordination inode, never unlinked"},
 	"agent-default":             {SessionRetention, GCShared, "ScopePaths.AgentDefault"},
 	"native-lock":               {SessionRetention, GCProtected, "Permanent conversation flock inodes; never unlink online; operator-approved quiescent reclamation only"},
