@@ -2372,7 +2372,12 @@ work status above its qualified composer: `RecognizeCodexWorking` recognizes
 `Working ` and `Waiting for ` status prefixes plus `esc to interrupt`, with
 either captured spinner bullet. Counters, truncated summaries and following
 command-detail rows do not supply authority and are ignored. The same recognizer feeds lifecycle observation and interrupt admission;
-Codex admission does not depend on cached notification flags. Status position
+Codex admission does not depend on cached notification flags. Interrupt observations
+carry the last operator-input value of the mailbox activity sequence, so normal
+work redraws do not revoke a queued interrupt. Observation, wrapper admission
+and the writer use the same sequence selector; typing, Esc, image input and
+submit advance it. Other drive shapes retain the all-activity sequence. Reader
+output not yet parsed blocks interrupt proof until the current frame is known. Status position
 is relative to the composer because modern Codex can leave most of the viewport
 blank below it. MCP startup, quoted status text and partial redraws do not prove
 work; partial redraws also do not publish a stop transition (#742). It also needs a complete frame, no picker, and the wrapper owning

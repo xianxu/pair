@@ -2459,3 +2459,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #742 live miss: Native work authority is the composer-relative allowed status verb plus interrupt hint. Elapsed counters, background counts, truncation and command-detail rows are presentation; parsing them as authority creates false refusals. Pin narrow and wide native viewports, and keep startup/quoted/no-hint cases negative.
 
 - #742 BR-3: An approved post-SHIP change to executable recognition criteria requires a full close review; narrow re-close is for fixes inside the reviewed contract. Reconcile the current Spec as well as appending the revision.
+
+- #742 live recheck: Exercise the reader's observeOutput before handleChunk in drive regressions. A render-only harness bypasses the activity-sequence fence and can pass while every native timer tick revokes admission. Interrupt proof uses operator-input generation plus freshly parsed work/composer/ownership; queued unparsed output cannot attest the old complete frame. Keep ordinary drives on their activity fence.

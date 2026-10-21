@@ -477,3 +477,78 @@ func TestDriveInterruptNeedsAWorkingTurnProof(t *testing.T) {
 		})
 	}
 }
+
+// The wrapper supplies an opaque semantic token for interruptible work. Its
+// output observer/writer tests cover timer redraws advancing activity while
+// retaining this token; the supervisor must still recheck the positive proof.
+func TestDriveInterruptGuardAcceptsStableSemanticProofAcrossWorkingRedraws(t *testing.T) {
+	r, q, hub, worker, e := driveRig(t)
+	e.observation = couchmessage.DriveObservation{Instance: "working-wrapper", Sequence: 51, Interruptible: true}
+	req := driveRequest(hub, "ticking-interrupt", worker.Slot)
+	req.Op, req.Confirmed = "interrupt", true
+	req.Drive = &agentdrive.Request{Interrupt: true}
+	if got := switchCall(t, r, req); got.Code != "accepted" {
+		t.Fatalf("admission %+v", got)
+	}
+	var call couchcore.OperationCall
+	for i := 0; i < 3; i++ {
+		// Every fresh observation still proves native work and retains the last
+		// operator-input token, regardless of elapsed-time/spinner repainting.
+		var err error
+		call, err = q.job(0).prepare(context.Background())
+		if err != nil {
+			t.Fatalf("working redraw %d guard: %v", i, err)
+		}
+	}
+	value, err := executeAgentDrive(call)
+	if err != nil || value.(agentdrive.Result).Outcome != agentdrive.OutcomeConfirmed {
+		t.Fatalf("execution %#v %v", value, err)
+	}
+	if starts, _ := e.counts(); starts != 1 {
+		t.Fatalf("starts=%d", starts)
+	}
+}
+
+func TestDriveInterruptGuardRejectsChangedSemanticProofBeforeInput(t *testing.T) {
+	for _, stage := range []string{"queue preparation", "effect"} {
+		for _, fault := range []string{"operator input", "work ended", "composer proof lost", "wrapper instance"} {
+			t.Run(stage+"/"+fault, func(t *testing.T) {
+				r, q, hub, worker, e := driveRig(t)
+				e.observation = couchmessage.DriveObservation{Instance: "working-wrapper", Sequence: 51, Interruptible: true}
+				req := driveRequest(hub, "guarded-interrupt", worker.Slot)
+				req.Op, req.Confirmed = "interrupt", true
+				req.Drive = &agentdrive.Request{Interrupt: true}
+				if got := switchCall(t, r, req); got.Code != "accepted" {
+					t.Fatalf("admission %+v", got)
+				}
+				call, err := q.job(0).prepare(context.Background())
+				if err != nil {
+					t.Fatal(err)
+				}
+				switch fault {
+				case "operator input":
+					e.observation.Sequence++
+				case "work ended":
+					e.observation.Interruptible = false
+					e.observation.Idle = true
+				case "composer proof lost":
+					e.observation.Interruptible = false
+					e.observation.Recoverable = true
+				case "wrapper instance":
+					e.observation.Instance = "replacement-wrapper"
+				}
+				if stage == "queue preparation" {
+					_, err = q.job(0).prepare(context.Background())
+				} else {
+					_, err = executeAgentDrive(call)
+				}
+				if err == nil {
+					t.Fatal("changed proof reached input")
+				}
+				if starts, _ := e.counts(); starts != 0 {
+					t.Fatalf("starts=%d", starts)
+				}
+			})
+		}
+	}
+}

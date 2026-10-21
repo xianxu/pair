@@ -24,5 +24,6 @@
       "composer_row": 36,
       "sha256": "2a1f56d5d6ee9ea87d76b0de8c613ce775cc018d4feaaa9578ffba46713f827c"
     }
-  }
+  },
+  "ticking_variants": "codex_interrupt_ticks_test.go derives synchronized Working6s/7s/9s status-row repaints from operator-working-six.raw at94x39, keeping its captured composer/footer; these repaints are synthetic variants, not additional native captures. Production-order observeOutput then handleChunk exercises the native mailbox activity fence. The captured operator-waiting.raw is also used before writer dispatch."
 }

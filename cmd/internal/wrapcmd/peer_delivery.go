@@ -87,6 +87,9 @@ type peerDelivery struct {
 	// none.
 	pickerTitle        string
 	pickerTitleEpisode uint64
+
+	// The existing activity sequence at the last admitted operator input.
+	lastOperatorInputSequence uint64
 }
 
 type peerSessionSink interface {
@@ -278,6 +281,7 @@ func (d *peerDelivery) operatorInputLocked() (couchmessage.Observation, peerSess
 	d.cancelDriveLocked("operator input")
 	d.lastInput = d.now()
 	d.sequence++
+	d.lastOperatorInputSequence = d.sequence
 	d.lastActivity = d.now()
 	d.interrupted = d.interrupted || d.current.Status == couchmessage.Delivering
 	return d.observationLocked(), d.session, d.unsettleLocked()
@@ -318,6 +322,7 @@ func (d *peerDelivery) admitImage() {
 	d.image = true
 	d.interrupted = d.interrupted || d.current.Status == couchmessage.Delivering
 	d.sequence++
+	d.lastOperatorInputSequence = d.sequence
 	d.lastActivity = d.now()
 	o, sink, unsettled := d.observationLocked(), d.session, d.unsettleLocked()
 	d.mu.Unlock()
@@ -332,6 +337,7 @@ func (d *peerDelivery) humanSubmit() {
 	d.mu.Lock()
 	d.image = false
 	d.sequence++
+	d.lastOperatorInputSequence = d.sequence
 	d.submissions++
 	d.lastActivity = d.now()
 	o, sink, unsettled := d.observationLocked(), d.session, d.unsettleLocked()

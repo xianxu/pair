@@ -103,7 +103,8 @@ func (p *proxy) agentDriveScreenLocked() agentdrive.Screen {
 		}
 		s.Recoverable = s.Recoverable && owned
 		s.Dismissable = s.Dismissable && owned
-		s.Interruptible = s.Interruptible && owned
+		// Output seen by the reader but not parsed cannot attest the old frame.
+		s.Interruptible = s.Interruptible && owned && d.outputPending == 0
 	}
 	if !s.Recoverable {
 		s.ComposerText = ""
@@ -125,6 +126,17 @@ func (d *peerDelivery) driveAvailableLocked() bool {
 	return d.drive != nil && d.drive.active == nil && !d.exited && !d.image && !d.inputBuffered && d.replies.inFlight == 0 && len(d.replies.input) == 0 && d.reservation == "" && (d.current.Message.ID == "" || d.current.Status.Terminal())
 }
 func (d *peerDelivery) driveIdleLocked() bool { return d.driveAvailableLocked() && d.settled }
+
+// Interrupts revalidate current work on every boundary, so native output may
+// redraw between them. Operator input still revokes their original admission.
+// Other drive shapes retain the existing all-activity fence. Caller holds mu.
+func (d *peerDelivery) driveSequenceLocked(interrupt bool) uint64 {
+	if interrupt {
+		return d.lastOperatorInputSequence
+	}
+	return d.sequence
+}
+
 func (d *peerDelivery) agentDriveObservation() couchmessage.DriveObservation {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -140,6 +152,7 @@ func (d *peerDelivery) agentDriveObservation() couchmessage.DriveObservation {
 		o.Dismissable = d.driveAvailableLocked() && s.Dismissable && s.Complete
 		o.Interruptible = d.driveAvailableLocked() && s.Interruptible && s.Complete
 	}
+	o.Sequence = d.driveSequenceLocked(o.Interruptible)
 	return o
 }
 func (d *peerDelivery) startAgentDrive(id string, start couchmessage.DriveStart) (agentdrive.Result, error) {
@@ -161,7 +174,7 @@ func (d *peerDelivery) startAgentDrive(id string, start couchmessage.DriveStart)
 	if err := start.Validate(d.now()); err != nil {
 		return refuse(err.Error())
 	}
-	if start.Instance != d.drive.instance || start.Sequence != d.sequence {
+	if start.Instance != d.drive.instance || start.Sequence != d.driveSequenceLocked(start.Request.InterruptOnly()) {
 		return refuse("wrapper observation changed; inspect the slot and send a new request")
 	}
 	if len(d.drive.receipts) >= maxWrapperDriveReceipts {
@@ -279,7 +292,7 @@ func (p *proxy) dispatchAgentDrive(out io.Writer) {
 		// A recovery or interrupt drive may take a residual wait (a hub-sent
 		// turn leaves AwaitingEmpty); active owners stay exclusive.
 		lease := p.automaticInput.phase == automaticInputIdle || residual && (recovery || interrupt || p.automaticInputAvailable(automaticInputDrive))
-		common := !d.exited && !d.image && d.sequence == r.start.Sequence && !d.inputBuffered && d.replies.inFlight == 0 && len(d.replies.input) == 0 && d.reservation == "" && (d.current.Message.ID == "" || d.current.Status.Terminal()) && lease
+		common := !d.exited && !d.image && d.driveSequenceLocked(interrupt) == r.start.Sequence && !d.inputBuffered && d.replies.inFlight == 0 && len(d.replies.input) == 0 && d.reservation == "" && (d.current.Message.ID == "" || d.current.Status.Terminal()) && lease
 		screen.Idle = screen.Idle && d.settled && common
 		screen.Recoverable = screen.Recoverable && recovery && common
 		screen.Dismissable = screen.Dismissable && recovery && common
