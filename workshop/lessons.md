@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #737 BR-15/16: Admission eligibility must never gate settlement: enumerate every reserved source across edits, deadline and cancellation, including worker/result custody and failed commits. Round-trip every emitted summary through canonical recovery; a timeout producer with an explanatory reason is incomplete if recovery rejects its own facts. Keep active concept locations as checked production declaration anchors in a durable atlas, with an explicitly superseded historical plan map.
+
 - #737 M3: Quarantine blocks new effects, not canonical terminal settlement. Requalify both active and Last-only history consumers after consolidating writers; discovery must not clear a passive quarantine from readable-but-unsynced history, and repaired receipt authority must converge. Duplicate admission also needs durable reservation proof even when inspection may remain read-only.
 
 - A parent and controller sharing a declared deadline must preserve its cause: closing the lifetime pipe at that instant can race deadline expiry into cancellation. Let the controller timer own an elapsed declared deadline, and qualify earlier cancellation separately through the real helper. Bound streaming on a separate nonblocking channel so a slow reader cannot delay task-group cleanup or budget release. (#737 M1 native acceptance)

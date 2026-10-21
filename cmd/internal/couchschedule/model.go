@@ -654,6 +654,7 @@ func validRecoveredSummary(s RunSummary) bool {
 		return true
 	}
 	// These outcomes carry an explanatory refusal/skip/owner reason, rather
-	// than a delivery state. The operational record already owns its identity.
-	return s.Outcome == "skipped" || s.Outcome == "refused" || s.Outcome == "unknown"
+	// than a delivery state. A pre-execution admission timeout also carries a
+	// reason and has no native exit. Recover the same facts the model emits.
+	return s.Outcome == "skipped" || s.Outcome == "refused" || s.Outcome == "unknown" || (s.Outcome == "timeout" && s.Exit == nil)
 }

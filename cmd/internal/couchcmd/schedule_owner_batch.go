@@ -234,14 +234,21 @@ func (o *scheduleOwner) settleObservedBatch(ctx context.Context, clock scheduleC
 			}
 			event.Kind, event.Notice = couchschedule.NoticeObserved, notice
 		case "reserved":
-			if a.Source != "manual" || o.busy[key] != "" {
+			// No admitted worker or retained result owns this reservation. A
+			// missing manual binding remains uncertain; otherwise the existing
+			// deadline transition settles known-unstarted work independently
+			// of policy, pending edits, and worker-capacity eligibility.
+			if a.Source == "manual" {
+				intent, ok := o.intents[key]
+				if !ok || intent.ID != a.ID || intent.Digest() != a.ManualIntentDigest {
+					event.Kind = couchschedule.OwnerUnknown
+					break
+				}
+			}
+			if clock.Now().Before(a.Deadline) {
 				continue
 			}
-			intent, ok := o.intents[key]
-			if ok && intent.ID == a.ID && intent.Digest() == a.ManualIntentDigest {
-				continue
-			}
-			event.Kind = couchschedule.OwnerUnknown
+			event.Kind = couchschedule.ReservationDurable
 		case "notifying":
 			if clock.Now().Before(a.NoticeDeadline) && online[s.Key.Hub] {
 				continue
