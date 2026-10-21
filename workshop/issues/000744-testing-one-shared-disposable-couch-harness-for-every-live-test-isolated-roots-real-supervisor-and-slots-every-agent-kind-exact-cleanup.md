@@ -242,3 +242,8 @@ The PQ-1 scope correction is approved, conditional on unset-isolation path/sweep
 ### 2026-10-21 — separate pre-close checklist from gated publication
 
 The original final Plan row read: “Document and run required checks, close and land. Resume #722 only after this issue is on main.” It mixed pre-close readiness with actions that cannot occur until the close gate itself completes. The active checklist now records the verified implementation/native work and prepared suite/close handoff. Required suite PASS, mandatory close review and normal merge remain mandatory, with pending/passed outcomes recorded in Log and SDLC; this bookkeeping correction neither waives a gate nor changes scope. #722 still resumes only over landed main.
+
+
+### 2026-10-21 — close round1 revision
+
+Close returned REWORK with BR-1 isolated-consumer socket-root coverage, BR-2 per-request cancellation, BR-3 pure/integration table and BR-4 ownership snapshot publication findings. The queued suite on6d584dc2 was canceled before running because code fixes invalidate it; other checkouts were left running. TL8aa5e124 approved the correlated-cancellation ordering in the durable plan and requires a new final-head native matrix, preserving the earlier PASS. Correct classifications and fix whole consumer/request/publication classes without changing socket limits, native topology or scenario scope. Required suite, repeated full close and ordinary merge remain outstanding.

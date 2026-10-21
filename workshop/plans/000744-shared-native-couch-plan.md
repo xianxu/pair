@@ -26,8 +26,9 @@ Included: root/environment guards, genuine provisioning and worker launches, act
 |---|---|---|
 | RootsPlan / ValidateRoots | cmd/internal/testcouch/roots.go | new |
 | OwnedRun / ReduceRun | cmd/internal/testcouch/ownership.go | new |
-| AgentState / ReduceAgent and Claude/Codex paint adapters | cmd/internal/testcouch/agentfixture/model.go | new |
-| AgentCommand / AgentResult validation and request correlation | cmd/internal/testcouch/agentfixture/protocol.go | new |
+| AgentState / ReduceAgent | cmd/internal/testcouch/agentfixture/model.go | new |
+| Claude/Codex Paint | cmd/internal/testcouch/agentfixture/paint.go | new |
+| Command / Result values, ValidateCommand / DecodeCommand and ActorDirectory | cmd/internal/testcouch/agentfixture/protocol.go | new |
 
 RootsPlan names every mutable root and the explicit read-only tool/source inputs. OwnedRun owns 1:N children, native sessions and IO pumps; it accepts observations about exact generations, never naked PIDs. AgentState is one deterministic fake agent with two supported personalities, not a new production agent kind. Actor requests identify a fixture actor and request ID, never a fabricated Couch binding. ARCH-PURE/DRY: one owner for each fact, and no shadow terminal or broker protocol.
 
@@ -38,6 +39,7 @@ RootsPlan names every mutable root and the explicit read-only tool/source inputs
 | Git/provisioning | cmd/internal/testcouch/provision.go | new | actual Git, Couch provision-workspace, installed SDLC/Weave |
 | Fleet / ActorCLI / frame and input control | cmd/internal/testcouch/fleet.go, actor.go | new | real public CLI, PTY, existing terminal emulator, private fixture control |
 | Native session/process owner | cmd/internal/testcouch/process.go | new | procutil generation checks, existing native terminal configuration and shutdown patterns |
+| Mailbox publication, ReadResult correlation, retirement and cancellation | cmd/internal/testcouch/agentfixture/protocol.go, run.go | new | private filesystem, admission lock, joined process-group runner |
 | Fixture executable | cmd/internal/testcouch/agentfixture/cmd/main.go | new | real agent stdin/stdout, controlled CLI child processes, native transcript fixtures |
 | First live consumer | cmd/couch/fleet_acceptance_test.go | new | shared helper; no private fleet implementation |
 
@@ -136,3 +138,21 @@ The sweep rerun passed physical detach, then correctly reported the unchanged128
 ### 2026-10-20 — publication and retirement handoff fence
 
 Keep each original command file until its result is consumed, so a completed-ID handoff cannot unlink a reused request. Retirement releases the immutable command before its matching immutable result; stale directory snapshots skip confirmed missing retired entries. One private .admission.lock inode per actor serializes only bounded validation/publication across writers and dies with the root. Count actual published requests/results, excluding atomic-publication scratch names; never count a transient second hard link as another request. Eight rounds of32 writers at127 pending plus a held scratch publication must admit exactly one request to128. This closes concurrent quota admission as well as serial result reclamation, without a larger cap or timeout.
+
+
+### 2026-10-21 — BR-3: classify the implemented core and filesystem seams
+
+The previous pure table combined AgentCommand/AgentResult validation and request correlation and placed paint in model.go. The implemented names are Command/Result; validation/decoding and path selection are deterministic, while ReadResult and RetireResult read/remove actual mailbox files and belong in INTEGRATION. Paint is pure in paint.go. Physical root discovery remains in the integration adapter, separate from ValidateRoots over supplied physical facts. This corrects the current table rather than inventing a second pure correlation API (ARCH-PURE/DRY).
+
+### 2026-10-21 — BR-2: caller cancellation owns the published request
+
+Verified submitted TL approval8aa5e124 accepts this ordering refinement. Exec carries its absolute caller deadline, fixed at admission rather than renewed when a queued request starts. A correlated cancel marker is bounded by its existing command slot. Queued cancellation suppresses spawning; running cancellation cancels and joins the existing process-group runner. Only a terminal Result after join acknowledges completion. The caller retires command/result/marker and returns the original cancellation. Cancellation cleanup shares the existing15s cleanup budget; exhaustion or publication failure is explicit uncertainty, never success or absence. Admission and retirement serialize marker/ID reuse so a stale cancellation cannot affect another request.
+
+| Request state / event | Transition and effect | Caller result / recovery |
+|---|---|---|
+| Queued / cancellation or expired absolute deadline | suppress spawn, publish terminal cancellation result | retire all correlated files; return cancellation |
+| Running / cancellation or expired deadline | cancel child context, join process-group runner, then terminal result | retire only after acknowledgment; return cancellation |
+| Terminal / cancellation racing result | correlate the same terminal result, retire once | original caller cancellation wins |
+| Cancellation / acknowledgment unavailable or cleanup budget exhausted | retain uncertain request evidence for owned fleet cleanup | explicit cleanup error; Close owns reconciliation |
+
+The already successful native run remains recorded. BR-1/BR-2 change the harness, so the final code head must run both three-worker personalities again before landing, alongside focused regressions and the requeued recorded suite. No timeout increase or live-root access is authorized.

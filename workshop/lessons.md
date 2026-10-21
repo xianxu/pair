@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #744 close: a cross-process command belongs to its caller through cancellation and terminal acknowledgment, including time spent queued. Preserve the absolute admission deadline, suppress canceled queued work, join active child effects, and retire correlated files only after completion. When tightening a shared isolation contract, enumerate existing consumers as well as new-helper tests; keep recovery snapshots atomic and surface persistence errors while preserving in-memory teardown authority.
+
 - Before an expensive native harness rerun, sweep the complete adapter: derive physical keys from negotiated terminal modes, parse all captured query replies, propagate caller deadlines, reserve shutdown capacity, and treat permanent observation refusals as terminal. Test cancellation at the descendant boundary and use observed state rather than sleeps for negative assertions. (#744)
 - A native fleet's run marker is positive ownership evidence, not an exhaustive census: macOS can return an empty environment for platform binaries. Close and join all command/native producers before the final generation-fenced census; include descendants and private TTY cohorts, and apply absence only to the exact observed resource set. Process absence precedes root deletion; it does not itself mean cleanup completed. (#744)
 - #750 design review: a held drawing scene must render the acknowledged source prefix on initial preparation as well as reconnect; freezing whatever the client currently shows can anchor paths to another moment. Record timer-driven interruptions as replay inputs, and reserve writer capacity for terminal events and required labels before admitting growing stroke data.
