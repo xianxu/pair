@@ -10,12 +10,31 @@ import (
 	"github.com/xianxu/pair/cmd/internal/launcher"
 )
 
-func TestStartupClassifiesOnlyPositiveSurvivors(t *testing.T) {
-	env, hub := startupFixture(t, 1, Layout3)
-	snapshot, err := env.Couch.Threads.PreviewSnapshot()
-	if err != nil {
-		t.Fatal(err)
+// startupPolicySnapshot supplies policy inputs directly: classification neither
+// reads nor writes the thread store. Store-backed observation is exercised below.
+func startupPolicySnapshot(t *testing.T, others int) (ThreadSnapshot, ThreadAddress) {
+	t.Helper()
+	var snapshot ThreadSnapshot
+	for i := 0; i <= others; i++ {
+		path, suffix := "/repo", "cwd"
+		if i > 0 {
+			path, suffix = fmt.Sprintf("/other-%02d", i-1), fmt.Sprintf("o%02d", i-1)
+		}
+		scope, err := launcher.ResolveRepoScope(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		record := validThreadRecord(t)
+		record.Address = ThreadAddress{RepoScope: scope.Key, Tag: ThreadTag(fmt.Sprintf("couch-%016x", threadCounter(suffix)))}
+		record.StartingPath, record.WorkingPath = path, path
+		record.Layout = Layout3
+		snapshot.Records = append(snapshot.Records, record)
 	}
+	return snapshot, snapshot.Records[0].Address
+}
+
+func TestStartupClassifiesOnlyPositiveSurvivors(t *testing.T) {
+	snapshot, hub := startupPolicySnapshot(t, 1)
 	for _, state := range []SessionState{SessionUnresolved, SessionAbsent, SessionOrphaned, SessionPresent} {
 		presence := map[ThreadAddress]SessionObservation{}
 		for _, record := range snapshot.Records {
@@ -52,7 +71,7 @@ func TestStartupClassifiesOnlyPositiveSurvivors(t *testing.T) {
 func TestStartupObservationBulkAndReadOnly(t *testing.T) {
 	for _, n := range []int{20, 40} {
 		t.Run(fmt.Sprint(n), func(t *testing.T) {
-			env, hub := startupFixture(t, n, Layout3)
+			env, hub := startupFixture(t, n, "")
 			env.Artifacts.SetSessionPresence(hub, SessionObservation{State: SessionPresent, Name: "selected"})
 			before, _ := env.Couch.Threads.PreviewSnapshot()
 			observation, err := env.Couch.ObserveStartupContext(context.Background(), []string{"/repo", "/missing"})
@@ -87,8 +106,7 @@ func TestStartupObservationFailureIsDiagnosticAndCancellationIsError(t *testing.
 }
 
 func TestStartupNumberedHubUsesOnlyItsCurrentSlotRecord(t *testing.T) {
-	env, hub := startupFixture(t, 0, Layout3)
-	snapshot, _ := env.Couch.Threads.PreviewSnapshot()
+	snapshot, hub := startupPolicySnapshot(t, 0)
 	slot := conventionalSlot("/primary", 1)
 	scope, _ := launcher.ResolveRepoScope(slot.WorktreeRoot)
 	hub.RepoScope = scope.Key
@@ -108,8 +126,7 @@ func TestStartupNumberedHubUsesOnlyItsCurrentSlotRecord(t *testing.T) {
 }
 
 func TestStartupObservationDistinguishesUnreadableFromMissingHub(t *testing.T) {
-	env, hub := startupFixture(t, 0, Layout3)
-	snapshot, _ := env.Couch.Threads.PreviewSnapshot()
+	snapshot, hub := startupPolicySnapshot(t, 0)
 	snapshot.Records = nil
 	snapshot.Unreadable = []ThreadAddress{hub}
 	observation := ClassifyStartup(snapshot, nil, []string{"/repo", "/missing"})
@@ -128,8 +145,7 @@ func TestStartupObservationPropagatesResolverCancellation(t *testing.T) {
 }
 
 func TestStartupDoesNotAttributeSharedSessionToTwoRecords(t *testing.T) {
-	env, hub := startupFixture(t, 1, Layout3)
-	snapshot, _ := env.Couch.Threads.PreviewSnapshot()
+	snapshot, hub := startupPolicySnapshot(t, 1)
 	presence := map[ThreadAddress]SessionObservation{}
 	for _, record := range snapshot.Records {
 		presence[record.Address] = SessionObservation{State: SessionPresent, Name: "contested"}
@@ -141,8 +157,7 @@ func TestStartupDoesNotAttributeSharedSessionToTwoRecords(t *testing.T) {
 }
 
 func TestStartupClassificationIsIndependentOfRecordOrder(t *testing.T) {
-	env, _ := startupFixture(t, 1, Layout3)
-	snapshot, _ := env.Couch.Threads.PreviewSnapshot()
+	snapshot, _ := startupPolicySnapshot(t, 1)
 	states := []SessionState{SessionAbsent, SessionUnresolved, SessionOrphaned, SessionPresent}
 	for _, first := range states {
 		for _, second := range states {

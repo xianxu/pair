@@ -2490,3 +2490,7 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #739 pre-close audit: A receipt witness is not an admission fence. When exec can preserve a binding/socket, reject an old launch's message before native input, not only when updating attribution. Exercise old-message/new-receiver ordering through real endpoints, including batch followers; sending only the replacement's new message misses the race.
 - #739 inventory preflight: Bounded implementation handoffs must name the artifact-source disposition of each new production file. Reader-inventory checks alone do not cover the separate exhaustive production-source inventory; run both cheap guards before queueing a full suite.
+
+- #739 BR-1/BR-2: Before close, reconcile the plan's Core concepts rows with the actual changed-file list: name pure reducers separately from stateful IO owners, and audit every existing integration test of a deliberately changed entry point, not just the new focused tests. A pre-implementation location or old automatic-launch assertion can survive a passing focused group.
+
+- #739 BR-3: Pure classifier tests should construct typed snapshots directly, leaving store-backed IO only in observation/attachment tests. When a physical-write cap fails, compare added tests, the complete package, and the package excluding additions before changing fixtures; a passing focused group alone does not establish the ordinary package envelope. Preserve the cap and report any unreproduced measurement honestly.

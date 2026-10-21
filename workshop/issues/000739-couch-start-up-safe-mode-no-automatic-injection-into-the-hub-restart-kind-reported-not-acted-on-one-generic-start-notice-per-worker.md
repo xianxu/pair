@@ -260,6 +260,58 @@ removed stale cold/Fresh startup and startup-summary prose from the shipped
 skill, atlas/index and the older detailed atlas map. Added the stale-generation
 admission and handoff-inventory lessons; no gate waiver or known-violation entry.
 
+
+### 2026-10-21 01:34 PDT — first close review REWORK
+
+The binary-owned first boundary review at 588e2ce6 returned BR-1 (concept
+traceability), BR-2 (an old empty-start integration assertion), and BR-3
+(ordinary core/tty fixture write envelopes). No close finalized. Correcting
+BR-1's pure/IO ownership and locations; reproducing BR-2 before updating its
+assertion and preserving a surviving-session attachment case; measuring BR-3
+without increasing either cap. The recorded affected-to-suite attempt
+88eb38ffab1923ce37fca6b243c5bc7e was cancelled through local-check cancel while
+still queued, before any tests or capacity acquisition, because the reviewed
+head needs fixes. Fallback registered its lease as suite (not affected); the
+first affected-filtered cancel changed nothing, then suite-filtered cancel
+confirmed cancellation. No other checkout's run was changed. The final head
+needs a fresh recorded check. Live acceptance remains held for #744/#761.
+
+
+### 2026-10-21 — BR-1/BR-2 disposition and BR-3 measured control
+
+BR-1: durable plan Core concepts now names LifecycleNoticeState's pure
+suppression transition in couchcore/lifecycle_notice.go separately from
+couchcmd/lifecycle_notices.go's IO publisher, and locates ObserveStartupContext
+in startup_policy.go; unchanged Console observation provenance is not claimed
+modified. BR-2: reproduced the old empty-start test red, then split it into
+no-launch usable-switcher and explicitly seeded warm-survivor cases. Related
+couchcmd startup family passed in 2.171 s; affected inventory needs no new
+reader entry/hash for that fixture-only test.
+
+BR-3 tty control: ordinary go test ./cmd/internal/couchtty -count=1 -v passed
+in 49.529 s, writing 39,800,832 bytes under the unchanged 67,108,864-byte cap.
+The same complete suite excluding only the added SwitcherAutomation/RootMenu
+tests passed in 53.201 s with exactly 39,800,832 bytes; those added tests alone
+wrote zero. TMPDIR was /Volumes/TestScratch/tmp/pair-slot7. Thus the new tty
+tests add zero measured writes. Reviewer's 87,949,312-byte result is retained
+as observed, but not reproduced or explained by this control; no tty test or
+cap was altered. Core's pure classification fixtures now avoid the filesystem;
+its ordinary package run remains pending before claiming the envelope passes.
+
+### 2026-10-21 — ordinary core package within unchanged envelope
+
+After replacing five pure policy fixtures with direct ThreadSnapshot inputs and
+omitting unrelated layout-update writes in the 20/40 store-backed observation
+fixtures, go test ./cmd/internal/couchcore -count=1 -v passed in 346.072 s.
+TestMain measured 101,834,752 bytes under the unchanged 134,217,728-byte cap.
+Log: /tmp/pair739-core-budget-after.log. Focused startup tests also passed
+(11.032 s; 2,895,872 bytes). The difference from the review's 154,050,560 bytes
+is not a controlled per-fixture savings measurement because its TMPDIR was
+not recorded; no such attribution is claimed. Both ordinary packages now pass
+their strict existing envelopes. No production code, assertion bound, cap or
+timeout was changed in this review round.
+
+
 ## Revisions
 
 ### 2026-10-20 — operator-review startup boundary and two notice lifetimes
@@ -335,3 +387,13 @@ acceptance, nor to use a second fixture. The remaining live Plan checkbox is
 intentionally pending at that review boundary; its precise close-plan exception
 must say so, rather than falsely ticking acceptance. Any post-review integration
 or test code follows the normal narrow re-close and verification gates.
+
+
+### 2026-10-21 — close-review traceability and test alignment
+
+BR-1 corrects the delivered concepts' source paths and PURE/IO classifications
+in the durable plan. BR-2 aligns the existing startup integration test with the
+already-approved attachment-only contract; BR-3 preserves the existing package
+write caps and requires measured fixture attribution. These fixes do not add
+startup behavior, recovery authority or another fixture. The private-fleet live
+check remains outstanding on #744 after #761.

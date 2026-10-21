@@ -33,7 +33,7 @@ Generic cue: **"You restarted; reread your issue Log and continue where you left
 
 Scope: implicit bare/directory/multi-hub startup, primary/numbered hubs, warm worker attachment, automatic producer admission, scheduled run admission and wrapper cue reporting. Existing explicit start/resume/recover/park APIs retain their safety guards. Exclude automatic recovery/scripts, drain redesign, native-agent selection, persisted automation/notice storage and the TL's own first-message interpretation. Hub owns project and real rollout; no pair:0 activity is authorized here.
 
-## Current source and integration ownership
+## Starting source and integration ownership
 
 - `couchcore/startup.go:StartInteractive` currently falls back from listed warm hubs to proven cold resume or Fresh, for primary and managed hubs. Replace only implicit startup selection, preserving explicit actions.
 - `couchcmd/run.go:beginConsole` currently skips arming warm workers without an initial handle. `hubs.go:startExplicitHubs/queueExplicitHubs` uses the declared `start-hub` path for extras. Install ownership before pass seeding and run a usable no-handle switcher.
@@ -51,8 +51,8 @@ Scope: implicit bare/directory/multi-hub startup, primary/numbered hubs, warm wo
 |---|---|---|
 | `StartupObservation`; `ClassifyStartup`, `SelectStartupHub` | new `couchcore/startup_policy.go` | new |
 | `HubAutomation`; `AdvanceHubAutomation`, `AutomationStatus` | new `couchcore/hub_automation.go` | new |
-| `WorkerStartNotice`; `AdvanceWorkerStartNotice`, `WorkerStartNoticeID` | new `couchmessage/worker_start_notice.go` | new |
-| Startup lifecycle provenance | `couchtty/console_lifecycle.go` | modified |
+| `WorkerCueReport`; `AdvanceWorkerStartNotice`, `WorkerStartNoticeID`, `ValidateWorkerStartNotice` | new `couchmessage/worker_start_notice.go` | new |
+| `LifecycleNoticeState`; `AdvanceLifecycleNotices` suppression/discard transitions | `couchcore/lifecycle_notice.go` | modified |
 
 Startup values use existing parsed ThreadRecord and SessionObservation. A positively attributed live fleet session supports normal restart; complete absence supports full shutdown. Unknown/unreadable/incomplete/orphaned evidence without a proved survivor stays unknown. Per-hub positively surviving proof is needed to initialize that hub on; an absent hub stays off even when other workers survived. Parked counts include verified parked records only; unknown is not zero. These are current observations, not historical proof of host power-off, and never authorize a later attachment without its current exact-session guard.
 
@@ -64,10 +64,12 @@ Startup values use existing parsed ThreadRecord and SessionObservation. A positi
 
 | Integration / functions | Lives in | Status | External/state owner |
 |---|---|---|---|
-| `ObserveStartupContext`, implicit `StartInteractive` | `couchcore/startup.go` | modified | read-only Preview snapshot + bulk SessionPresenceResolver |
+| `ObserveStartupContext` | new `couchcore/startup_policy.go` | new | read-only Preview snapshot + bulk SessionPresenceResolver |
+| implicit `StartInteractive` | `couchcore/startup.go` | modified | existing current-session guards and warm attachment |
 | initial/extra hub adoption, `beginConsole` | `couchcmd/run.go`, `hubs.go`, Console reattach | modified | existing terminal/lifecycle workers, no new pool |
 | `sendAutomaticSystem`, automation CLI/UI controller | new `couchcmd/automation.go`, current generated-send consumers | new/modified | verified hub bindings + one memory owner + normal broker |
 | `runAutomationCLI`, `handleAutomation` | new `couchcmd/automation.go`, CLI/request dispatch | new | authenticated own-hub control; no process effect |
+| lifecycle automation admission and suppression ownership, `lifecyclePublisher.observe/run` | `couchcmd/lifecycle_notices.go` | modified | existing cancellable publisher workers, owner epochs and broker; Console observation provenance unchanged |
 | negotiated cue reporting | session protocol/transport/registry + `message_service.go` | modified | versioned private Unix session connection |
 | cue confirmation/publication | `wrapcmd/peer_delivery.go`, `peer_runtime.go`; coordinator | modified | existing sole input writer and post-submit confirmation |
 | scheduler due admission | #737 scheduler as landed | modified after main integration | injected automation predicate, existing due/missed-run policy |
@@ -209,3 +211,16 @@ names that action; no fake conversation address or primary-as-numbered identity
 is introduced. Bare-cwd startup separately binds the same verified HubOwnership
 to routing and Console, so Ctrl+G works there too; failed resolution stays
 unknown with a usable switcher and an explicit diagnostic.
+
+
+### 2026-10-21 — BR-1 concept traceability correction
+
+The first close review found a stale design row claiming a PURE change in
+console_lifecycle.go, which is unchanged by this issue. The delivered pure
+transitions are in couchcore/lifecycle_notice.go; lifecycle_notices.go owns
+stateful admission, cancellation and publication IO. Split those rows, and split
+new ObserveStartupContext in startup_policy.go from modified StartInteractive
+in startup.go. Name WorkerCueReport and its receiver validation explicitly. The
+starting-source survey remains historical design context, not a claim that its
+pre-implementation fallbacks remain. These are documentation corrections only;
+no new behavior or scope is introduced (ARCH-PURE).
