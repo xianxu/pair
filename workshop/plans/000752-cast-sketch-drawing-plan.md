@@ -436,3 +436,15 @@ TL delivery d446a25b-56c0-471e-b371-92b2ee676110 makes discoverable disabled con
 ### 2026-10-21 — active toolbar stacking from operator smoke
 
 TL delivery185e0754-d052-4f48-8e87-485c63a8537b reports active controls disappearing over the held scene. Real Chrome RED proves all four button centers hit sketch-layer instead: the static toolbar sits below the positioned drawing canvas and private scene. ARCH-ORDER: explicitly position the shared toolbar above the canvas/scene while retaining the label layer's priority. Prove visible in-viewport hit targets for Sketch/Undo/Redo/Done during drawing, then use actual CDP pointer clicks for Undo/Redo/Done rather than direct controller calls. Verify no unintended extra ink, durable undo/redo and labelled exit. This corrects presentation/input routing without a new drawing state.
+
+### 2026-10-21 — approved bounded console trust correction
+
+TL22603f68-f45b-4ba9-99a6-428ed9bff6e1 defers concurrent console/viewer lanes and selective clearing. TLcbf33121-ef13-4ead-b9b2-911c2bd48636 approves only console sketching independent of annotation On/Off, while retaining the existing single-holder driver epoch/witness, generation fence, closed-board lifetime and global annotation-clear behavior. Earlier annotation-toggle guidance now applies to viewers; console unavailability explains an active viewer driver or readiness/pause/end.
+
+| Concept | Owner | Revision |
+|---|---|---|
+| Operator-sketch admission | board/annotation.go | Opaque issued variant of existing AnnotationAdmission; expected generation and board lifetime still checked, capability phase ignored only by sketch Check. Ordinary annotation mutation methods retain ordinary permit checks. |
+| Console availability | chrome_operator_sketch_wiring.go, operator-sketch.js | Remove annotation-On requirement; retain current holder, ready target, driver witness and CDP uncertainty fence. |
+| Console ingress | cast.go | Capture the operator-sketch variant instead of ordinary viewer admission; final service and scene-open Check reuse the same opaque admission. |
+
+Verification strategy: board unit tests issue operator admission with annotations off, reject stale generation and closed board, and prove it cannot authorize ordinary viewer/pointer mutations. A real cast/Chrome fixture draws, uses native Undo/Redo/Done and saves with annotation never enabled; existing viewer HTTP/drive checks must still refuse annotation-off. Preserve handoff/paused/ended and private-source tests. No new persistent state, recording grammar, source resource, scheduler or concurrency lane. Run targeted package/Node/live checks, audited inventory, fresh full close review and recorded suite on pushed final code; then restage and require real smoke before landing. The versioned two-lane contract is a separate unclaimed dependent issue, not part of this correction.
