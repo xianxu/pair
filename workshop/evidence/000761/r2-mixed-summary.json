@@ -1,0 +1,39 @@
+{
+  "head": "9c8d524f584735c788cd79051c07ee377badf6c9",
+  "test": "TestNativeR2MixedCapture761",
+  "command": "go test -overlay '/Volumes/TestScratch/tmp/pair-slot5/pair-761-r2-mixed.wZwDDg/overlay.json' ./cmd/internal/launcher -run '^TestNativeR2MixedCapture761$' -count=1 -v > '/Volumes/TestScratch/tmp/pair-slot5/pair-761-r2-mixed.wZwDDg/native.log' 2>&1",
+  "control_source": "/Volumes/TestScratch/tmp/pair-slot5/pair-761-fixed-mixed-57pdmvnf/native761_test.go",
+  "control_source_sha256": "ca6aad45a48e22a086b54901722f1274565c45ed8e766b6e72f824d3780fe957",
+  "scratch_source": "/Volumes/TestScratch/tmp/pair-slot5/pair-761-r2-mixed.wZwDDg/native761_test.go",
+  "scratch_source_sha256": "90354e22fd158125029c48209cbc0828d43249b7e83cf127fd8b3edcbb6f2f44",
+  "overlay_sha256": "a3d22113865db9efe833ce85e37dacdff00ec75eb6f1901a849eb87737b8b17f",
+  "logical": 1000,
+  "attempts": 1020,
+  "max_attempts": 3,
+  "failed_final": 0,
+  "malformed_final_json": 0,
+  "context_error": "<nil>",
+  "signatures": {
+    "success": 1000,
+    "empty": 9,
+    "lookup_exit0": 11
+  },
+  "logical_attempt_histogram": {
+    "1": 981,
+    "2": 18,
+    "3": 1
+  },
+  "cleanup": {
+    "error": "<nil>",
+    "kind": "cleanup",
+    "root": "/Volumes/TestScratch/p761-3410791972",
+    "servers": {
+      "58798": "1792575812.585746",
+      "58831": "1792575812.784760",
+      "58920": "1792575812.987885"
+    }
+  },
+  "binary": "/opt/homebrew/Cellar/zellij/0.45.1/bin/zellij",
+  "binary_sha256": "604c684330fe097bc1363ada020d1b9b0ad17caa48d633e838869dfe9fc49e9c",
+  "native_log_sha256": "e0ac81cde6a49c3d4d12747144b6422b6f254a1a145a51daa3d63360b0c0055f"
+}

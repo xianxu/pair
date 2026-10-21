@@ -19,16 +19,26 @@ func ResolveZellijSocketRoot(explicitRoot, tempDir, runtimeDir, platform string,
 	// PathBuf::join does, including a short symlink followed by parent segments.
 	// https://docs.rs/directories/6.0.0/src/directories/lin.rs.html#64-94
 	if root == "" && platform == "linux" && filepath.IsAbs(runtimeDir) {
-		root = strings.TrimRight(runtimeDir, "/") + "/zellij"
+		root = appendNativeSocketPath(runtimeDir, "zellij")
 	}
 	if root == "" {
 		if uid < 0 || !filepath.IsAbs(tempDir) || strings.ContainsRune(tempDir, 0) {
 			return "", errors.New("invalid Zellij socket fallback directory or uid")
 		}
-		root = filepath.Join(tempDir, "zellij-"+strconv.Itoa(uid))
+		root = appendNativeSocketPath(tempDir, "zellij-"+strconv.Itoa(uid))
 	}
 	if !filepath.IsAbs(root) || strings.ContainsRune(root, 0) {
 		return "", errors.New("Zellij socket directory must be absolute and contain no NUL")
 	}
 	return root, nil
+}
+
+// appendNativeSocketPath matches native PathBuf append for already-absolute
+// roots and relative suffixes. Preserve every root byte so the kernel resolves
+// symlink/parent segments and repeated separators in the native spelling.
+func appendNativeSocketPath(root, suffix string) string {
+	if strings.HasSuffix(root, "/") {
+		return root + suffix
+	}
+	return root + "/" + suffix
 }

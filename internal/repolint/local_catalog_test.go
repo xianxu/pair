@@ -41,6 +41,11 @@ var pairCatalog = append(append([]golint.Rule(nil), golint.Catalog...), golint.R
 	Incident: "pair#767",
 	Message:  "prove inherited descriptor usability directly (read/fstat/fcntl), not through a /dev/fd pathname permission check; macOS can report a false negative",
 	Match:    fdPathPermissionChecks,
+}, golint.Rule{
+	Name:     "scribe-pty-printf",
+	Incident: "pair#766",
+	Message:  "use a terminal-aware producer and acknowledge its readiness before final output; direct printf can fail before producing the test marker",
+	Match:    scribePTYPrintfCalls,
 })
 
 // This lexical guard covers literal shell test/[ /[[ permission probes. It

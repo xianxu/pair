@@ -185,3 +185,19 @@ permission is a separate observation. The rule is lexical and does not resolve
 dynamically assembled shell commands. Its fixture cases live in
 `internal/repolint/fd_path_permission_test.go`; finding/suppression behavior is
 shared with the catalog above. Other consumers' shared catalog is unchanged.
+
+## Scribe terminal-aware output producer (#766)
+
+The Pair-local `scribe-pty-printf` rule, owned by
+`internal/repolint/scribe_pty_printf_rule_test.go`, rejects a bare or absolute
+`printf` executable after `--` in inline string arguments to scribecmd's
+`runWithPTY` and `runWithPTYReply` test helpers. A short-lived producer can lose
+unread output at Darwin's last slave close. The tee fixture instead opens
+`/dev/tty`, exchanges a readiness/acknowledgement through the real PTYs, then
+emits its final marker. Its native stress regression checks the actual stdout
+and log bytes.
+
+This guard checks direct syntax only; argv variables, aliases, computed arguments
+and shell protocol correctness are outside its scope. Other commands and helpers
+are unaffected. Public scribe's generic-command exposure is tracked separately
+in #768; this fixture rule does not claim a production launch-policy fix.
