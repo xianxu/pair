@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-21
 updated: 2026-10-21
-estimate_hours:
+estimate_hours: 5.814
 collaboration-mode: collaboration
-card_mirror: 'acde1c7c4bcef86fcee82625f62d87d799503e2a' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '51b64acb2f6e7d4ce42d6666a04472c2e965f8c3' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-21T16:42:14-07:00
 claimant:
     operator: Xian Xu
@@ -63,3 +63,26 @@ Initial read-only audit: one-row assumptions exist in couchtty rendering/geometr
 - 2026-10-21: TL a01bc13f approves the durable plan and authorizes change-code. Stage is explicitly sequenced after #752 lands and the hub clears pair:0; TL will coordinate with #737's live day. No code/estimate yet; full-flow plan-quality gate precedes the derived estimate.
 
 - 2026-10-21: PQ round1 found admitted-versus-painted geometry and tiny active/control priority underspecified. TL ba876ba6 approves revisioned pending/confirmed chrome input admission and active-first tiny fallback with fail-closed LIVE. Durable plan revised with controlled-writer strategy and named function guards; re-run plan-quality before estimating or coding.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration is stale, so provisional. Plan-quality round2 CLEAN preceded derivation. Covers shaping already done, all code/tests/docs, native and operator qualification, review and landing activity; queue idle excluded.
+
+Primitive mapping: issue/spec uses0.8 design without spec discount and0.2 raw impl. Packing and Console each use a TUI screen with1.5 raw design ×0.2 thorough-spec; raw impl0.8/1.0. Terminal trusted metadata/confirmation is a typed-data prototype (0.8 design ×0.2,0.5 raw impl); rectangular geometry propagation is a cross-cutting refactor (0.8 ×0.2,0.5 impl). Broadcast/frame admission is existing API integration (1.0 ×0.2,1.5 impl), and viewer guard interaction is one bounded UI primitive (0.8 ×0.2,0.8 impl). Docs/review use0.2 design ×0.2 and raw impl0.2/0.5. Two operator UX rounds reserve0.3 design and0.3 raw impl each; no spec discount for undecided feedback. Every impl value below is raw ×0.40 exactly once; familiarity1.0 (existing Go/JS/compositor, no new stack). Existing row drawer, Presenter FIFO, stateful fixtures and server contracts are reused; none assumes a missing library or new framework, so no greenfield/library discount claimed. Thorough-plan design buffer15%.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.8 impl=0.08
+item: tui-screen design=0.3 impl=0.32
+item: typed-data-prototype design=0.16 impl=0.20
+item: cross-cutting-refactor design=0.16 impl=0.20
+item: tui-screen design=0.3 impl=0.40
+item: api-integration design=0.2 impl=0.60
+item: tui-screen design=0.16 impl=0.32
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.04 impl=0.20
+item: ux-rename-iteration design=0.6 impl=0.24
+design-buffer: 0.15
+total: 5.814
+```
