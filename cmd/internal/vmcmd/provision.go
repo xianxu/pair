@@ -216,14 +216,19 @@ func publishProvision(ctx context.Context, root string, m ImageManifest, reporte
 	if err := provisionInterruption(ctx); err != nil {
 		return err
 	}
-	// Preserve future top-level provenance from the existing active manifest.
+	// Preserve additive provenance absent from the newly qualified report.
+	// Explicit current values win, as at the shared strictjson merge boundary.
 	active, err := readMachineImage(root)
 	if err == nil {
 		old, err := DecodeImageManifest(active)
 		if err != nil {
 			return err
 		}
-		m.Unknown = old.Unknown
+		m.Unknown = strictjson.MergeRaw(old.Unknown, m.Unknown)
+		for name, tool := range m.Tools {
+			tool.Unknown = strictjson.MergeRaw(old.Tools[name].Unknown, tool.Unknown)
+			m.Tools[name] = tool
+		}
 		previous, _ := json.Marshal(old.Image)
 		if m.Unknown == nil {
 			m.Unknown = map[string]json.RawMessage{}

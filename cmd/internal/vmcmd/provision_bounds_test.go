@@ -23,6 +23,9 @@ func TestPublishProvisionManifestSizeBoundary(t *testing.T) {
 				t.Fatal(err)
 			}
 			old.Unknown = map[string]json.RawMessage{"future_metadata": json.RawMessage(`"` + strings.Repeat("m", 32000) + `"`)}
+			oldTool := old.Tools["go"]
+			oldTool.Unknown = map[string]json.RawMessage{"previous_tool_metadata": json.RawMessage(`"` + strings.Repeat("n", 32000) + `"`)}
+			old.Tools["go"] = oldTool
 			prior, err := EncodeImageManifest(old)
 			if err != nil {
 				t.Fatal(err)
@@ -53,7 +56,7 @@ func TestPublishProvisionManifestSizeBoundary(t *testing.T) {
 			}
 			combined.Unknown["previous_image"] = previous
 			tool := combined.Tools["go"]
-			tool.Unknown = map[string]json.RawMessage{"future_provenance": json.RawMessage(`""`)}
+			tool.Unknown["future_provenance"] = json.RawMessage(`""`)
 			combined.Tools["go"] = tool
 			base, err := EncodeImageManifest(combined)
 			if err != nil {
@@ -67,8 +70,19 @@ func TestPublishProvisionManifestSizeBoundary(t *testing.T) {
 			if len(want) != size {
 				t.Fatalf("combined fixture size = %d, want %d", len(want), size)
 			}
+			// The old nested bytes are absent from the fresh report. They must be
+			// included only when merging, before the final publication size check.
+			reportManifest, err := DecodeImageManifest(want)
+			if err != nil {
+				t.Fatal(err)
+			}
+			delete(reportManifest.Tools["go"].Unknown, "previous_tool_metadata")
+			reportRaw, err := EncodeImageManifest(reportManifest)
+			if err != nil {
+				t.Fatal(err)
+			}
 			var fields map[string]json.RawMessage
-			if err := json.Unmarshal(want, &fields); err != nil {
+			if err := json.Unmarshal(reportRaw, &fields); err != nil {
 				t.Fatal(err)
 			}
 			reported := fields["tools"]
