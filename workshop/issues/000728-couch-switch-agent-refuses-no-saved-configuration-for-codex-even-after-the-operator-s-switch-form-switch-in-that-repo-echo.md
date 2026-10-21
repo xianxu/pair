@@ -64,3 +64,7 @@ agent's last successful launch configuration in that repo. The refusal names exa
   in this issue: when a slot path has no remembered arguments for an agent, fall back to the same repository's
   (repo_identity) remembered arguments, then save them for the slot on a successful launch; show which source was used
   in the switch form.
+- 10-20 22:45 (TL): the operator ran `pair codex -- --sandbox danger-full-access` in the ops-slot1 worktree and the
+  switch still ignored it: Pair's remembered-arguments store and Couch's `threadstore/path-preferences/` are separate,
+  and Couch never got an entry for that folder. The fix must give remembered arguments one source of truth shared by
+  Pair and Couch (plus the repo-level fallback for slot folders above).
