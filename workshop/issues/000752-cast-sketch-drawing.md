@@ -57,6 +57,8 @@ Primary surfaces: board/{sketch.go,sketch_wire.go,sketch_delivery.go,writer_sket
 
 ## Log
 
+- 2026-10-21: Authenticated TL release1a61c2c4-9b66-4b57-bc40-416fef0b2cd0 authorizes stage --build on pair:0 as soon as the shared cache is cleared; TL owns the real console smoke. Returned to preserved branch7beb52b43120b40879a6d9cae1a32245f6ec7c76. #767 landed PR520 and retired its registration. #771 is codecomplete/PR527, root fix and narrow review complete, but its integrated suite failed before tests because AgentScratch/go-build was full; branch and evidence retained. Gracefully stopped only its verified waiting merge (exit130) before this branch switch; no suite or peer runner was canceled. Operator is reclaiming shared cache; no stage/build attempted while disk remains full. Existing final-source suite10m2s remains valid for this branch's unchanged executable code.
+
 - 2026-10-21: Final-code recorded full suite PASSED on61e43e35e7794260aa860c3b3ff269e687351e14: exit0 in10m2s after1372s queue, attempt735922b215e89a192d144d44af5f4a35, log .git/sdlc/local-checks/61e43e35e7794260aa860c3b3ff269e687351e14/suite.log, SHA256 prefixc0f339cf4f5a. GitHub confirms sdlc-local/suite success. Every webcast package, artifactpath, repolint and couchcore passed; no flake rerun needed. Automated acceptance and finalized local close are complete. Waiting for TL restart/staging release and real console smoke before landing PR512; no stage or merge performed. Subsequent evidence commits are prose only and do not require replacing this source-equivalent pass.
 
 - 2026-10-21: Continuation recovery found the retained final-source check had not survived the context restart: exec session72612 unknown; lease-2496662231, inflight log, detached checkout and saved attempt absent; no recorded suite status on607f31bf. Started replacement on pushed prose-only head61e43e35e7794260aa860c3b3ff269e687351e14 (Git confirms only issue/plan/continuation differ from accepted source). Retain exec session31948, lease-3343331055, attempt735922b215e89a192d144d44af5f4a35, checkout /Volumes/TestScratch/local-checks/sdlc-local-2988573213, log .git/sdlc/test-stats/inflight/735922b215e89a192d144d44af5f4a35/run.log. Full suite fallback, queued sixth. No final recorded pass yet. Codecomplete remains finalized; stage, real console smoke and landing remain held. Hub recovery report receipt c68e8d5a-5fc4-4a6c-8da7-47e1ce4caacf submitted.
@@ -248,3 +250,7 @@ Implementation and automated verification can close locally before the deferred 
 ### 2026-10-21 — implementation-location correction
 
 BR-4 also corrects the Spec entry-point list to actual implemented files and marks existing browser/placement interfaces as reused. This changes locations, not required behavior.
+
+### 2026-10-21 — staging released after restart
+
+TL delivery1a61c2c4-9b66-4b57-bc40-416fef0b2cd0 releases the restart/staging hold and prioritizes this item. Stage/build waits only for operator-owned Go-cache reclamation. TL must still perform and accept the real console smoke before landing; this revision changes admission timing, not behavior or acceptance scope.
