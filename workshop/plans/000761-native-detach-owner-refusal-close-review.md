@@ -359,3 +359,71 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T04:44:08-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 761 — Couch native detach intermittently loses post-client ownership proof |
+| repo | pair |
+| issue file | workshop/issues/000761-native-detach-owner-refusal.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 4286a0ac0b84524fb24367a71a610f6fe17f7951..1c3cfb28316d17d49f983716a0c13e28fb18c842 |
+| command | sdlc close --issue 761 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T04:44:08-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The narrow interdiff correctly resolves the reader-inventory conflict and updates review records. It introduces no product-code or approved-scope changes. No new defects found; previously disposed findings remain closed.
+
+```findings
+{}
+```
+
+1. **Strengths**
+   - Independently verified that `tests/affected-go-readers.json:151` preserves the exact semantic union of both conflict sides: 471 unique readers, with unchanged classifications and hashes.
+   - Strict JSON parsing confirms no duplicate keys.
+   - Spec, Done when, and the implementation plan remain unchanged.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes:** `make test-affected-inventory`, direct inventory validation, semantic union comparison, and `git diff --check` passed. Product tests were not rerun because product code is unchanged. No behavior-changing fix in this window requires a regression-reversion check.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** No duplicated behavior introduced.
+   - **ARCH-PURE — pass:** No logic or IO boundaries changed.
+   - **ARCH-PURPOSE — pass:** Conflict resolution retains both sides’ inventory intent.
+   - **ARCH-EVOLVE — pass:** Existing schema, entries, classifications, and hashes are preserved.
+
+   No new architectural or user-facing surface requires atlas or README updates.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"82820008-7be9-4262-a5a1-0e7f986f7678","repository":"github.com/xianxu/pair","issue_id":"000761","recipe":"fix-review","round":5,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/4c1721b03278ff5c","reviewed_head":"1c3cfb28316d17d49f983716a0c13e28fb18c842","slot":"pair:5","requested_at":"2026-10-21T11:43:15.765798Z"},"phase":"finished","pid":90663,"started_at":"2026-10-21T11:43:15.899125Z","finished_at":"2026-10-21T11:44:08.070188Z","session_id":"01a15e45-d111-76c0-a890-dea8ad12b9a5","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.188119458s
+head: "1c3cfb28316d17d49f983716a0c13e28fb18c842"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
