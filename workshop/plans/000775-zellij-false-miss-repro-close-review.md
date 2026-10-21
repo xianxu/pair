@@ -422,3 +422,105 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000411
+
+---
+
+## Re-review — 2026-10-21T13:13:23-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 775 — Standalone Zellij false-miss reproduction |
+| repo | pair |
+| issue file | workshop/issues/000775-zellij-false-miss-repro.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | eaa758a6f0cd38837655be5334400098849410ec..848ab2512db9f362fb3fe2219d288a7bc8e37d5d |
+| command | sdlc close --issue 775 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T13:13:23-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The full pinned range satisfies the revised reproduction contract. Both open findings are addressed, prior fixes remain effective, and no new blocking defects were found. The native target passed with a short temporary path; the repository-wide suite remains a separate pending gate.
+
+Done-when: current — the criteria cover the standalone artifact, input refusal, native workload and cleanup; the added Make target sequences the regressions and that same verified diagnostic.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Both signatures compare complete stderr bytes. Restoring line-membership matching caused eight regression failures.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      README.md:2435, atlas/index.md:10 and atlas/zellij-reply-safety.md:290 document the standalone diagnostic.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      run.json identifies initial-setup-failure.log, whose contents show the setup refusal and passing cleanup.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Both arguments pass through bounded decimal normalization before arithmetic. Restoring the prior CLI guard caused nine regression failures.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      atlas/zellij-reply-safety.md:300 describes the successful response containing a matching layout-heading line, consistent with script lines 34–35.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      This review inspected the complete supplied base-to-head range, including the manual target. The issue's Revisions entry at line 94 supersedes the narrow-review instruction.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      README.md:2438–2440 documents the target's regression-then-native behavior and exclusion from make test, matching Makefile.local:625–628.
+```
+
+1. **Strengths**
+   - Both diagnostic signatures enforce complete-byte equality, with meaningful negative fixtures.
+   - Numeric validation precedes Zellij execution and temporary-root creation.
+   - Native evidence hashes match the recorded sources; the final measured script equals HEAD.
+   - Both runnable entry points have README, guide and atlas coverage.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+   - Bash syntax, all 15 regressions, recipe ownership and scoped diff checks passed.
+   - `TMPDIR=/tmp make zellij-false-miss` passed: 1,000 queries/four workers, exit-zero misses **1**, confirmed/unconfirmed exit-one **0/0**, other nonzero **0**, cleanup **pass**.
+   - The initial long-path refusal cleaned up as documented.
+   - Mutation checks confirmed regression sensitivity for BR-1 and BR-4. The full repository suite was not run during this review.
+
+6. **Architectural notes**
+   - **ARCH-DRY: pass** — shared signature and numeric helpers cover both consumers.
+   - **ARCH-PURE: pass** — deterministic validation is separated from the small process/filesystem shell; integration tests inject a CLI double.
+   - **ARCH-PURPOSE: pass** — delivers the standalone native reproduction without product recovery changes.
+   - **ARCH-EVOLVE: pass** — no existing persisted-format reader or rewrite path changes.
+   - No Core concepts table requires reconciliation.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"f651d1bf-0a5f-4e81-82de-4b253e338c9e","repository":"github.com/xianxu/pair","issue_id":"000775","recipe":"small-diff-review","round":5,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/07366ed3b251686f","reviewed_head":"848ab2512db9f362fb3fe2219d288a7bc8e37d5d","slot":"pair:5","requested_at":"2026-10-21T20:10:38.695296Z"},"phase":"finished","pid":92186,"started_at":"2026-10-21T20:10:38.790204Z","finished_at":"2026-10-21T20:13:15.421194Z","session_id":"01a16016-5654-7f32-a0b4-85beafede362","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.929634667s
+head: "848ab2512db9f362fb3fe2219d288a7bc8e37d5d"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

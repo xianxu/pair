@@ -453,6 +453,146 @@ rounds:
       recipe: fix-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: f651d1bf-0a5f-4e81-82de-4b253e338c9e
+            repository: github.com/xianxu/pair
+            issue_id: "000775"
+            recipe: small-diff-review
+            round: 5
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/07366ed3b251686f
+            reviewed_head: 848ab2512db9f362fb3fe2219d288a7bc8e37d5d
+            slot: pair:5
+            requested_at: "2026-10-21T20:10:38.695296Z"
+          phase: finished
+          pid: 92186
+          started_at: "2026-10-21T20:10:38.790204Z"
+          finished_at: "2026-10-21T20:13:15.421194Z"
+          session_id: 01a16016-5654-7f32-a0b4-85beafede362
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: 848ab2512db9f362fb3fe2219d288a7bc8e37d5d
+        tracker_head: b1389a878b549e72fccce9c73fa538ecd07fdd51
+        branch_point: eaa758a6f0cd38837655be5334400098849410ec
+        since: "2026-10-21T10:56:40-07:00"
+        until: "2026-10-21T13:10:11-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-21T10:56:40-07:00"
+              end: "2026-10-21T13:10:11-07:00"
+              began: "2026-10-21T10:56:40-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot5/pair
+        sources:
+            - harness: codex
+              id: 01a1574c-1cb1-7e92-adfe-354342364799
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              digest: fc9abf172c479763fb777993aac33aaa2f0bd1798e6285685ecf615875fb46a2
+              started: "2026-10-20T03:12:49.04Z"
+              spawned: false
+              bytes: 67003915
+              windows:
+                - start: "2026-10-21T10:56:40-07:00"
+                  end: "2026-10-21T13:10:11-07:00"
+            - harness: codex
+              id: 01a15fcf-6ef8-7773-bd25-bcdb05d954fd
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              parent_id: 01a1574c-1cb1-7e92-adfe-354342364799
+              digest: 9720b8c017b8c632640cbf195ae8bec649748d7aabe9ccd77ae3da7340ae5bcf
+              started: "2026-10-21T18:53:12.419Z"
+              spawned: true
+              bytes: 489393
+              windows:
+                - start: "2026-10-21T18:53:12.419Z"
+                  end: "2026-10-21T13:10:11-07:00"
+        queue_waits:
+            - attempt_id: 1854c8857c9461ff2e2db655f22ab7f1
+              slot: pair:5
+              record_digest: b373e1f39283314bbda49da7e134d97c2ec3c508b1294d9658b6f6b5df1cef51
+              start: "2026-10-21T17:56:40Z"
+              end: "2026-10-21T18:30:45.832701Z"
+              queue_seconds: 2045.832701
+              raw_seconds: 2444.526379
+              exact: true
+            - attempt_id: 6157b34a00dabe9beffd6806f952a6df
+              slot: pair:5
+              record_digest: 315f041a17d0e0d4d49d1beb170878f120a59b2f926f3789d4b473edbe773125
+              start: "2026-10-21T19:15:35.920502Z"
+              end: "2026-10-21T19:44:57.409649Z"
+              queue_seconds: 1761.489147
+              raw_seconds: 1761.489147
+              exact: true
+            - attempt_id: 0d79ac4a475c681f06f8b868c3257d8b
+              slot: pair:5
+              record_digest: f8bbd3c7bcac650803306334d4ced0f9461533dbdb8345aac187338e65062a45
+              start: "2026-10-21T20:03:22.407751Z"
+              end: "2026-10-21T20:03:22.891623Z"
+              queue_seconds: 0.483872
+              raw_seconds: 0.483872
+              exact: true
+        cuts:
+            - dispatched: "2026-10-21T11:48:47-07:00"
+              finalized: "2026-10-21T11:50:20-07:00"
+              finalizing: false
+            - dispatched: "2026-10-21T12:02:51-07:00"
+              finalized: "2026-10-21T12:05:37-07:00"
+              finalizing: false
+            - dispatched: "2026-10-21T12:16:09-07:00"
+              finalized: "2026-10-21T12:17:41-07:00"
+              finalizing: true
+            - dispatched: "2026-10-21T13:07:31-07:00"
+              finalized: "2026-10-21T13:08:45-07:00"
+              finalizing: false
+      "n": 5
+      timestamp: "2026-10-21T13:13:23-07:00"
+      dispatched: "2026-10-21T13:10:36-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Both signatures compare complete stderr bytes. Restoring line-membership matching caused eight regression failures.
+          round: 5
+        - id: BR-2
+          disposition: addressed
+          note: README.md:2435, atlas/index.md:10 and atlas/zellij-reply-safety.md:290 document the standalone diagnostic.
+          round: 5
+        - id: BR-3
+          disposition: addressed
+          note: run.json identifies initial-setup-failure.log, whose contents show the setup refusal and passing cleanup.
+          round: 5
+        - id: BR-4
+          disposition: addressed
+          note: Both arguments pass through bounded decimal normalization before arithmetic. Restoring the prior CLI guard caused nine regression failures.
+          round: 5
+        - id: BR-5
+          disposition: addressed
+          note: atlas/zellij-reply-safety.md:300 describes the successful response containing a matching layout-heading line, consistent with script lines 34–35.
+          round: 5
+        - id: BR-6
+          disposition: addressed
+          note: This review inspected the complete supplied base-to-head range, including the manual target. The issue's Revisions entry at line 94 supersedes the narrow-review instruction.
+          round: 5
+        - id: BR-7
+          disposition: addressed
+          note: README.md:2438–2440 documents the target's regression-then-native behavior and exclusion from make test, matching Makefile.local:625–628.
+          round: 5
+      recipe: small-diff-review
+      isolation: fenced
+      reviewed: 848ab2512db9f362fb3fe2219d288a7bc8e37d5d
+      blocked: false
 ---
 
 # Gate ledger — pair#775 (boundary-review)
@@ -513,7 +653,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-7** [Important] `new-surface-documentation` README update appears missing for make zellij-false-miss
   Makefile.local:626 introduces a command users run, but root README.md is unchanged; its reproduction section at line 2435 documents only the Bash invocation. This is the 3rd finding in family new-surface-documentation. Apply the rule across every added or changed runnable surface: update the root README alongside the relevant guide and atlas documentation, including this target's regression-plus-native behavior.
 
+## Round 5 — 2026-10-21T13:13:23-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Both signatures compare complete stderr bytes. Restoring line-membership matching caused eight regression failures.
+- BR-2 — addressed — README.md:2435, atlas/index.md:10 and atlas/zellij-reply-safety.md:290 document the standalone diagnostic.
+- BR-3 — addressed — run.json identifies initial-setup-failure.log, whose contents show the setup refusal and passing cleanup.
+- BR-4 — addressed — Both arguments pass through bounded decimal normalization before arithmetic. Restoring the prior CLI guard caused nine regression failures.
+- BR-5 — addressed — atlas/zellij-reply-safety.md:300 describes the successful response containing a matching layout-heading line, consistent with script lines 34–35.
+- BR-6 — addressed — This review inspected the complete supplied base-to-head range, including the manual target. The issue's Revisions entry at line 94 supersedes the narrow-review instruction.
+- BR-7 — addressed — README.md:2438–2440 documents the target's regression-then-native behavior and exclusion from make test, matching Makefile.local:625–628.
+
 ## Open findings
 
-- **BR-6** [Critical] `post-close-scope-control` scope changed after close — run a full `sdlc close`
-- **BR-7** [Important] `new-surface-documentation` README update appears missing for make zellij-false-miss
+(none — every finding has been disposed)
