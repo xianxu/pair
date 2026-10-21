@@ -160,3 +160,16 @@ Later changes are evidence-only. Review SHIP is already recorded. The last
 Plan checkbox still includes landing and stays unchecked until the merge
 provides its receipt; no landing is claimed before that command returns.
 Enter normal sdlc merge --yes now; no manual integration or bypass.
+
+
+### 2026-10-21 — landing integration conflict
+
+The merge gate integrated main77e3f916635177b73cf0666bd6310b49c0300c14
+and found only an adjacent last-entry conflict in tests/affected-go-readers.json.
+Its isolated attempt preserved the branch. Repeated the requested integration
+manually and retained BOTH original audited hash entries: cache conformance
+and main rightpane_rungs_live_test.go. No hash refresh or code-side choice.
+Fast inventory and whitespace checks pass after resolution. Main brings
+#762/#764 code; the earlier suite is not claimed to cover that integration.
+Run the required new recorded suite, then narrow fixed-then-ship close with
+its full-suite receipt before re-entering merge, as the gate requires.
