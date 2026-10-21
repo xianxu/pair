@@ -16,7 +16,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "fdc34bcf", done: "fe9bca56"}
+flow: {kind: quick, provenance: inferred, spec: "114b2d48", done: "b07177f9"}
 actual_hours: 1.07
 ---
 
