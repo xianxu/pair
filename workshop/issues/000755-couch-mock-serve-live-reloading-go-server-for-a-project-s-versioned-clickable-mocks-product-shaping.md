@@ -59,6 +59,7 @@ Implementation details: [durable plan](../plans/000755-mock-server-plan.md).
 - TL read the committed plan and found it sound, but operator design review is required for product-shaping. Held all implementation pending the operator's answer, relayed through the TL, on whether the highest-numbered version should show by default. No `change-code` or implementation has run.
 - During the authorized hold, read pair#757 and pair#756 without edits or commits on either. #757's per-screen development routing, production refusal and fixture-shape contract are separate from #755; #756 consumes the two page attributes. Keep screen IDs stable across version folders and keep one project-root fixture file as planned. Ariadne#512 now contains the published pair#733 cleanup evidence; its landed branch remains preserved.
 - Operator approved the design as planned via TL, including highest-numbered default, version folders, shared fixtures, state table and limits. Approval and the non-enforced git feedback convention are recorded in the durable plan's Revisions. Implementation hold is released.
+- Plan-quality round 1 blocked on PQ-1 document bootstrap ordering and PQ-2 production-function test strategies; advisory PQ-3 noted unbounded empty-directory traversal. Verified all three against the written plan and appended governing refinements: baseline captured before document read and compared on first poll, named function strategies, and an all-entry traversal cap within the existing file envelope. No implementation started.
 
 ## Revisions
 

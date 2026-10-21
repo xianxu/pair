@@ -126,3 +126,25 @@ ARCH-DRY: one selection parser, one fixture file and one server scan, not scans 
 ### 2026-10-20 — operator approval relayed by TL
 
 Approved as planned, including highest-numbered version by default, separate git-tracked mock-N folders, one shared fixtures file, the state table and limits. Proceed on the full flow with one atomic close boundary. The operator's working convention is documentation, not a server rule: each feedback round is a commit to the current version, undo means reverting that commit, and mock-N+1 starts a new direction worth comparing. Record this convention in the sample/documentation; do not automate git or create a new version on every edit.
+
+### 2026-10-20 — plan review refinements (PQ-1, PQ-2, PQ-3)
+
+PQ-1: Every HTML response captures the cached revision **before** reading the document and embeds that revision plus the requested page version/screen in a JSON bootstrap. Client `reloadDecision(baseline, observation)` compares its first successful poll to this bootstrap; it never adopts a first poll as its initial baseline. If the tree changes between capture/read/poll, a later scan produces a different revision and causes conservative reload. A request for an old version bootstraps that actual page version, so a current-selection mismatch navigates even on poll one. Revision tokens include one server-lifetime identifier plus the pure revision state's sequence, so a server restart cannot accidentally match an old page's counter. Server scan errors retain the page and show the banner; the first repaired observation refreshes. A held-scan/document-response integration test edits content or switches versions before the browser's first poll, then releases observation and requires the new DOM/version. This is correctness within the approved reload mechanism, not a new selection policy.
+
+PQ-2: The earlier Test-named case table is superseded by this production-function strategy inventory; use the earlier test names only as suggested integration-test grouping, not a second normative case checklist.
+
+| Production function | Adversarial class and mechanical guard |
+|------|------|
+| ParseVersion, SelectVersion | malformed/ambiguous names and missing explicit selection; pure table/property tests require one validated natural-order winner or error |
+| ParseCommand | arbitrary argv and flag-like path values; table plus fuzz requires closed serve/use/help forms without supervisor classification |
+| ScreenFromPath, TransformPage | malformed/fragment HTML and conflicting marks; parse rendered DOM and require authoritative escaped root identity and exact bootstrap before page scripts |
+| RevisionState.Observe | repeated/failed/recovered observations; sequence tests assert monotonic change only on transition and recovery visibility |
+| Project.Use | interrupted/concurrent pointer replacement; private filesystem tests observe whole old/new values only and no temporary residue; retry re-reads confirmed disk selection |
+| Project.Scan | arbitrary tree topology/content, same-metadata edits and over-limit input; count every entry and byte at N/2N, enforce caps before excess traversal/read, cancellation between IO operations |
+| Server.ServeHTTP | hostile paths, method and concurrent tree replacement; real root-confined private filesystem plus HTTP requests require no root-file/escape exposure and no scans on cached state reads |
+| Serve | cancellation/bind failure/held scan; real listener test joins every owned worker before return and requires URL output only after admission |
+| reloadDecision (JavaScript) | pre-first-poll edits, selection/restart mismatch and error→repair; pure decision table in a private browser plus held-first-observation end-to-end test rejects stale-baseline adoption |
+
+Integration qualification remains the sample's real-browser click/edit/switch/revert test and the public Couch early-dispatch test. Each risky function has one strategy owner above; implementation tasks refer to this table.
+
+PQ-3: The existing 1,024-file limit also caps **all visited directory entries at 1,024**, including directories and symlinks. Walk the complete project root without following symlinks, reading directories incrementally so a huge directory cannot allocate an unbounded entry list. The first excess entry produces the existing over-limit error/repair behavior. Count entry visits as well as bytes in the linear-work oracle; qualify a many-empty-directory tree and a single huge directory. Root itself does not consume an entry. The approved file/byte/HTML limits remain unchanged; this makes their traversal cost enforceable.
