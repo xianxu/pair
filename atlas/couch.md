@@ -3613,10 +3613,11 @@ switcher resumes that exact thread and makes it the root console. It never
 creates an intervening actor that would occupy the parked thread's address
 (`ARCH-PURPOSE`, `ARCH-PURE`).
 
-Interactive `couch [<repo>]` startup uses `ObserveStartupContext`,
-`ClassifyStartup` and `SelectStartupHub` to select only a positively surviving
-session for the exact primary or numbered hub. It ranks surviving candidates by
-recency and revalidates the selected session before attachment. Parked, missing
+Interactive `couch [<repo>]` startup uses `ObserveStartupContext` and
+`ClassifyStartup` to report surviving sessions and seed hub automation.
+`StartInteractive` selects only a positively surviving session for the exact
+primary or numbered hub. It ranks surviving candidates by recency and
+revalidates the selected session before attachment. Parked, missing
 or unknown sessions never authorize implicit cold resume or Fresh. Without a
 surviving launch hub, the switcher stays focused; extra surviving hubs attach in
 the background. Configured empty hubs have display-only entries naming the

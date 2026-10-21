@@ -169,16 +169,6 @@ func ClassifyStartup(snapshot ThreadSnapshot, presence map[ThreadAddress]Session
 	return out
 }
 
-// SelectStartupHub returns the most recently active positively surviving
-// conversation for this exact hub. Attachment must revalidate its exact proof.
-func SelectStartupHub(observation StartupObservation, path string) (StartupCandidate, bool) {
-	hub := observation.Hubs[path]
-	if observation.Kind != StartupNormal || !hub.Survived || len(hub.Candidates) == 0 {
-		return StartupCandidate{}, false
-	}
-	return hub.Candidates[0], true
-}
-
 // ObserveStartupContext takes one read-only record snapshot and one bulk
 // session observation. Diagnostics degrade to unknown; cancellation stays an
 // error so a canceled startup cannot continue using incomplete evidence.

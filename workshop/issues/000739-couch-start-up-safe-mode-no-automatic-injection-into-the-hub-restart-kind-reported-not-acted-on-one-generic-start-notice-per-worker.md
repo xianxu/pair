@@ -312,6 +312,25 @@ their strict existing envelopes. No production code, assertion bound, cap or
 timeout was changed in this review round.
 
 
+### 2026-10-21 01:51 PDT — second review and dead-symbol red
+
+The second review disposed BR-1/2/3 as addressed and independently passed all
+five ordinary changed-package suites under the unchanged caps. BR-4 found
+SelectStartupHub has only test callers; reproduced the artifactpath
+TestNoProductionSymbolIsReferencedOnlyByTests failure locally, then removed
+the unused helper and corrected its test/plan/atlas claims. Production
+StartInteractive already owns candidate selection and is unchanged. Recorded
+attempt a03f6aec6edf17e9d977e064f5859480 on ea07b031 was cancelled through
+local-check cancel while still queued, before capacity or tests. No test pass
+is claimed for that attempt; final-head recorded verification is still due.
+
+
+BR-4 verification after deletion: complete artifactpath package passes in
+9.606 s, including the previously red dead-symbol guard and source inventory;
+core startup tests pass in 2.692 s; affected reader inventory and git diff
+--check pass. No allowlist entry, dummy caller or assertion bound was added.
+
+
 ## Revisions
 
 ### 2026-10-20 — operator-review startup boundary and two notice lifetimes
@@ -397,3 +416,11 @@ already-approved attachment-only contract; BR-3 preserves the existing package
 write caps and requires measured fixture attribution. These fixes do not add
 startup behavior, recovery authority or another fixture. The private-fleet live
 check remains outstanding on #744 after #761.
+
+
+### 2026-10-21 — remove unused startup selector (BR-4)
+
+Delete SelectStartupHub and its false production-consumer claim. Keep the
+actual classifier and existing StartInteractive attachment logic, with direct
+classifier candidate assertions and the seeded real entry-point regression.
+No new selection mechanism or authority; no scope expansion.

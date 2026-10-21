@@ -52,11 +52,11 @@ func TestStartupClassifiesOnlyPositiveSurvivors(t *testing.T) {
 		if observation.Kind != want {
 			t.Fatalf("%v: kind %v, want %v", state, observation.Kind, want)
 		}
-		candidate, selected := SelectStartupHub(observation, "/repo")
-		if selected != (state == SessionPresent) || selected && candidate.Record.Address != hub {
+		observedHub := observation.Hubs["/repo"]
+		if observedHub.Survived != (state == SessionPresent) || observedHub.Survived && (len(observedHub.Candidates) != 1 || observedHub.Candidates[0].Record.Address != hub) {
 			t.Fatalf("%v: wrong hub %+v", state, observation)
 		}
-		if _, ok := SelectStartupHub(observation, "/missing"); ok {
+		if observation.Hubs["/missing"].Survived || len(observation.Hubs["/missing"].Candidates) != 0 {
 			t.Fatal("invented missing hub")
 		}
 	}
@@ -114,13 +114,13 @@ func TestStartupNumberedHubUsesOnlyItsCurrentSlotRecord(t *testing.T) {
 	snapshot.Slots = []SlotInventoryObservation{{Identity: slot}}
 	presence := map[ThreadAddress]SessionObservation{hub: {State: SessionPresent, Name: "historical"}}
 	observation := ClassifyStartup(snapshot, presence, []string{slot.WorktreeRoot})
-	if _, ok := SelectStartupHub(observation, slot.WorktreeRoot); ok {
+	if observation.Hubs[slot.WorktreeRoot].Survived || len(observation.Hubs[slot.WorktreeRoot].Candidates) != 0 {
 		t.Fatal("historical record substituted for empty current numbered slot")
 	}
 	snapshot.Slots[0].Address = hub
 	observation = ClassifyStartup(snapshot, presence, []string{slot.WorktreeRoot, "/rep"})
-	candidate, ok := SelectStartupHub(observation, slot.WorktreeRoot)
-	if !ok || candidate.Record.Address != hub || observation.Hubs["/rep"].Survived {
+	observedHub := observation.Hubs[slot.WorktreeRoot]
+	if !observedHub.Survived || len(observedHub.Candidates) != 1 || observedHub.Candidates[0].Record.Address != hub || observation.Hubs["/rep"].Survived {
 		t.Fatalf("exact numbered hub: %+v", observation)
 	}
 }

@@ -49,7 +49,7 @@ Scope: implicit bare/directory/multi-hub startup, primary/numbered hubs, warm wo
 
 | Name / risky functions | Lives in | Status |
 |---|---|---|
-| `StartupObservation`; `ClassifyStartup`, `SelectStartupHub` | new `couchcore/startup_policy.go` | new |
+| `StartupObservation`; `ClassifyStartup` | new `couchcore/startup_policy.go` | new |
 | `HubAutomation`; `AdvanceHubAutomation`, `AutomationStatus` | new `couchcore/hub_automation.go` | new |
 | `WorkerCueReport`; `AdvanceWorkerStartNotice`, `WorkerStartNoticeID`, `ValidateWorkerStartNotice` | new `couchmessage/worker_start_notice.go` | new |
 | `LifecycleNoticeState`; `AdvanceLifecycleNotices` suppression/discard transitions | `couchcore/lifecycle_notice.go` | modified |
@@ -113,7 +113,7 @@ Every automatic conversation input goes through the shared policy, with a typed 
 
 | Functions | Adversarial class → mechanical guard |
 |---|---|
-| `ClassifyStartup`, `SelectStartupHub` | Arbitrary typed presence/record populations → direct table/property tests; unknown never fabricates absence, selection never fabricates recovery |
+| `ClassifyStartup` | Arbitrary typed presence/record populations → direct table/property tests; unknown never fabricates absence; candidates require positive exact-session evidence |
 | `ObserveStartupContext`, `StartInteractive` | Mutating native/record evidence at selection/effect boundary → stateful fakes, unchanged retained records, zero cold/Fresh/native-target reads and counted bulk calls |
 | `AdvanceHubAutomation`, `AutomationStatus` | Arbitrary explicit/irrelevant event sequences across independent hubs → pure transition properties, no input-driven change or implicit replay |
 | `handleAutomation`, `runAutomationCLI` | Forged/current/stale caller and hub aliases → actual private socket/CLI and strict decoder, own-hub mutation only |
@@ -224,3 +224,14 @@ in startup.go. Name WorkerCueReport and its receiver validation explicitly. The
 starting-source survey remains historical design context, not a claim that its
 pre-implementation fallbacks remain. These are documentation corrections only;
 no new behavior or scope is introduced (ARCH-PURE).
+
+
+### 2026-10-21 — BR-4 remove the unused selection helper
+
+The second review reproduced the production dead-symbol guard: SelectStartupHub
+had only test callers. Remove that unused helper instead of adding another
+selection layer. ClassifyStartup's tests directly assert exact hub candidates;
+production StartInteractive retains its existing candidate ranking and current
+proof checks. Correct the plan/atlas claim that the report selector drove
+attachment. This deletes unused surface without changing startup behavior
+(ARCH-PURPOSE).
