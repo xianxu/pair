@@ -1,13 +1,13 @@
 ---
 id: 000766
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'c18a5d0fde0fad0323cdcabfc8362cb58d0697cd' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '38d9efa3fd6eca79734713a3e511ef81b41787bc' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-21T04:13:24-07:00
 claimant:
     operator: Xian Xu
@@ -18,6 +18,7 @@ claimant:
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/scribecmd.TestRunTeesChildOutputToStdoutAndLog]
 flow: {kind: quick, provenance: operator, spec: "29bd97b8", done: "8000361a"}
+actual_hours: 0.27
 ---
 
 # flake: TestRunTeesChildOutputToStdoutAndLog
