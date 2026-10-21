@@ -1,0 +1,4 @@
+{"Time":"2026-10-21T05:27:00.118708Z","Action":"start","Package":"github.com/xianxu/pair/cmd/internal/couchtty"}
+{"Time":"2026-10-21T05:27:00.149957Z","Action":"run","Package":"github.com/xianxu/pair/cmd/internal/couchtty","Test":"TestLiveConsoleNvimPreservesContentAndChrome"}
+{"Time":"2026-10-21T05:27:00.150473Z","Action":"output","Package":"github.com/xianxu/pair/cmd/internal/couchtty","Test":"TestLiveConsoleNvimPreservesContentAndChrome","Output":"=== RUN   TestLiveConsoleNvimPreservesContentAndChrome\n"}
+{"Time":"2026-10-21T05:27:01.522433Z","Action":"artifacts","Package":"github.com/xianxu/pair/cmd/internal/couchtty","Test":"TestLiveConsoleNvimPreservesContentAndChrome","Path":"/private/tmp/pair-vm-24c185ef716e9576cbe3e6be48c559b5/tmp/pair-native-ci-v1aplu2f/artifacts/_artifacts/1530838485"}

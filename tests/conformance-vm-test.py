@@ -39,6 +39,27 @@ class ResultsTest(unittest.TestCase):
         with self.assertRaises((ValueError, RuntimeError)):
             self.validate(events)
 
+    def test_go_artifact_and_attribute_metadata_is_not_completion(self):
+        for metadata in [dict(Action="artifacts", Path="/guest/artifact"),
+                         dict(Action="attr", Key="case", Value="native")]:
+            with self.subTest(metadata=metadata):
+                event = dict(metadata, Package="example/native", Test="TestNative")
+                events = self.events()
+                events.insert(2, event)
+                self.validate(events)
+                self.rejects([events[0], events[1], event, events[-1]])
+                for key in ('Path',) if metadata['Action'] == 'artifacts' else ('Key', 'Value'):
+                    bad = dict(event, **{key: 1})
+                    events[2] = bad
+                    self.rejects(events)
+                    events[2] = dict(event)
+                    del events[2][key]
+                    if key == 'Path':
+                        self.rejects(events)
+                    else:
+                        self.validate(events)  # Go omits empty attr strings.
+                    events[2] = event
+
     def test_complete_summary(self):
         result = self.validate(self.events())
         self.assertEqual(result["events"], 6)

@@ -1,0 +1,10 @@
+[
+  {
+    "nonce": "24c185ef716e9576cbe3e6be48c559b5",
+    "head": "eb6edd16be7c8564707d8441d61437bd2952589c",
+    "exit_code": 1,
+    "lane_claim_retained": false,
+    "cause": "Strict checker omitted Go test2json artifacts metadata action emitted by -artifacts. Raw event stream retained; no passing rerun claimed.",
+    "correction": "Recognize artifacts and attr metadata with strict known string types, running-test identity and no completion authority; qualify literal and actual-producer streams before the next native attempt."
+  }
+]

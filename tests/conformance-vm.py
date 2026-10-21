@@ -41,7 +41,7 @@ def validate_results(lines, required_by_package):
     packages = {}
     count = 0
     string_fields = ("Time", "Action", "Package", "Test", "Output", "OutputType",
-                     "FailedBuild", "ImportPath")
+                     "FailedBuild", "ImportPath", "Path", "Key", "Value")
     for line in lines:
         count += 1
         event = json.loads(line, object_pairs_hook=_unique_object,
@@ -67,7 +67,7 @@ def validate_results(lines, required_by_package):
                     or "Package" in event or "Test" in event):
                 raise ValueError(f"event {count}: malformed build output")
             continue
-        if action not in ("start", "run", "pause", "cont", "pass", "output", "bench"):
+        if action not in ("start", "run", "pause", "cont", "pass", "output", "bench", "artifacts", "attr"):
             raise ValueError(f"event {count}: unsupported Action {action!r}")
         package, name = event.get("Package"), event.get("Test")
         if package not in required:
@@ -95,7 +95,13 @@ def validate_results(lines, required_by_package):
         if not name:
             raise RuntimeError(f"event {count}: {action} requires Test")
         status = tests.get(name)
-        if action == "run" and status is None:
+        if action in ("artifacts", "attr"):
+            # test2json emits these from ArtifactDir/Attr. They carry metadata,
+            # never execution/completion authority. Empty attr strings are
+            # omitted by Go's omitempty codec, so absence means empty here.
+            if status not in ("run", "pause") or (action == "artifacts" and not event.get("Path")):
+                raise RuntimeError(f"event {count}: metadata without running test or artifact path")
+        elif action == "run" and status is None:
             tests[name] = "run"
         elif action == "pause" and status == "run":
             tests[name] = "pause"
