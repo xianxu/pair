@@ -513,3 +513,90 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T02:06:37-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 755 — couch mock serve: live-reloading Go server for a project's versioned, clickable mocks (product-shaping) |
+| repo | pair |
+| issue file | workshop/issues/000755-couch-mock-serve-live-reloading-go-server-for-a-project-s-versioned-clickable-mocks-product-shaping.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 5f2ae6a8e78edf39520476dfde8b966de4ba34ff..31384115c5407a4a5f2f3eabe253ff96bff9f651 |
+| command | sdlc close --issue 755 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T02:06:37-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The narrow fix window correctly resolves the reader-inventory conflict and records prior review activity. Both contributions are preserved with current classifications and matching digests. No product behavior or approved scope changes, and no new defects were found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Retain the finalized disposition; confinement implementation and regression tests are unchanged.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Retain the finalized disposition; document restoration implementation and regression tests are unchanged.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Retain the finalized disposition; concurrent-selection behavior and regression tests are unchanged.
+  - id: BR-4
+    disposition: withdrawn
+    note: |
+      Retain the prior withdrawal; browser behavior and accepted host qualification evidence are unchanged.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Retain the finalized disposition; staging ownership, recovery, scan exclusions and regression tests are unchanged.
+```
+
+1. **Strengths**
+   - Inventory resolution preserves both sides’ reader registrations and selects current CLI/reply digests.
+   - Issue revisions record integration activity without changing Spec or Done when.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage:** Inventory audit passed; all 13 inventory regression tests passed. Diff whitespace checks passed. A read-only negative control confirmed the base inventory fails JSON parsing at its conflict marker; the resolved inventory validates all 467 entries.
+
+6. **Architecture**
+   - **ARCH-DRY — pass:** One authoritative reader registry remains.
+   - **ARCH-PURE — pass:** No business logic or IO boundaries changed.
+   - **ARCH-PURPOSE — pass:** Resolution preserves both contributions.
+   - **ARCH-EVOLVE — pass:** Existing schema and valid registrations remain intact.
+
+   No new surface requires README or atlas updates.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"0e519aaa-05fc-46d1-8b8d-8fdcf0e9d628","repository":"github.com/xianxu/pair","issue_id":"000755","recipe":"fix-review","round":6,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/d94093f4a2a9aad1","reviewed_head":"31384115c5407a4a5f2f3eabe253ff96bff9f651","slot":"pair:4","requested_at":"2026-10-21T09:04:45.951514Z"},"phase":"finished","pid":55599,"started_at":"2026-10-21T09:04:46.126824Z","finished_at":"2026-10-21T09:06:36.45221Z","session_id":"01a15db4-b61d-74c0-930c-85c57821ba46","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.551945375s
+head: "31384115c5407a4a5f2f3eabe253ff96bff9f651"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

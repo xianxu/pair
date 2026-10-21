@@ -906,6 +906,213 @@ rounds:
       isolation: fenced
       reviewed: 438872758e60a6f4212cad05b293f677dabae63e
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 0e519aaa-05fc-46d1-8b8d-8fdcf0e9d628
+            repository: github.com/xianxu/pair
+            issue_id: "000755"
+            recipe: fix-review
+            round: 6
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/d94093f4a2a9aad1
+            reviewed_head: 31384115c5407a4a5f2f3eabe253ff96bff9f651
+            slot: pair:4
+            requested_at: "2026-10-21T09:04:45.951514Z"
+          phase: finished
+          pid: 55599
+          started_at: "2026-10-21T09:04:46.126824Z"
+          finished_at: "2026-10-21T09:06:36.45221Z"
+          session_id: 01a15db4-b61d-74c0-930c-85c57821ba46
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: 31384115c5407a4a5f2f3eabe253ff96bff9f651
+        tracker_head: fff12e4ef1a4407db6f0e3e4ac7f46b9d9e57a08
+        branch_point: bade54de27356233d8fabf74b0b816d933a3ddf4
+        since: "2026-10-20T22:40:54-07:00"
+        until: "2026-10-21T01:45:15-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-20T22:40:54-07:00"
+              end: "2026-10-21T01:45:15-07:00"
+              began: "2026-10-20T22:40:54-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot4/pair
+        sources:
+            - harness: codex
+              id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: d7497deb79b43286621eea37e1309a2c7845157ac9a8fe859e1deea2893446e4
+              started: "2026-10-20T17:08:30.923Z"
+              spawned: false
+              bytes: 19544790
+              windows:
+                - start: "2026-10-20T22:40:54-07:00"
+                  end: "2026-10-21T01:45:15-07:00"
+            - harness: codex
+              id: 01a15cfa-72c5-7572-8b02-f2056ee548f6
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              parent_id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              digest: 5401f0f3bd86c869cb32d5df44c87f0fd8258346cda55aaceb20581356217caf
+              started: "2026-10-21T05:41:19.814Z"
+              spawned: true
+              bytes: 652919
+              windows:
+                - start: "2026-10-21T05:41:19.814Z"
+                  end: "2026-10-21T01:45:15-07:00"
+            - harness: codex
+              id: 01a15d07-3ccf-7023-ade8-9f85cedd4787
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 6e1e1b3acdc4e7f6c4b3ee9921c792a7dbc8ab590b6fc7513e8a02c4152ccab9
+              started: "2026-10-21T05:55:18.212Z"
+              spawned: false
+              bytes: 545233
+              windows:
+                - start: "2026-10-21T05:55:18.212Z"
+                  end: "2026-10-21T01:45:15-07:00"
+            - harness: codex
+              id: 01a15d09-e16e-7973-869b-447feb0de7d4
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 7666bc2cfa2b5266548b5bf7684a18adcdc8aa89a2cb40d27161f6eb7b38336f
+              started: "2026-10-21T05:58:11.397Z"
+              spawned: false
+              bytes: 505167
+              windows:
+                - start: "2026-10-21T05:58:11.397Z"
+                  end: "2026-10-21T01:45:15-07:00"
+            - harness: codex
+              id: 01a15d0b-c808-77a0-8a74-b058604cf1e8
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 775a5ebd6ce47b7647d64baca6dc6d6075af73394146897950b4df76ba0ae6fb
+              started: "2026-10-21T06:00:16.2Z"
+              spawned: false
+              bytes: 518046
+              windows:
+                - start: "2026-10-21T06:00:16.2Z"
+                  end: "2026-10-21T01:45:15-07:00"
+            - harness: codex
+              id: 01a15d0c-4f3e-7c23-9eb6-c0e3bfaee8ee
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 68125bf8491fa1a9237a8a23b25136ec9a96c11f2527fd3bb588f3a4b2fad9d3
+              started: "2026-10-21T06:00:50.659Z"
+              spawned: false
+              bytes: 447230
+              windows:
+                - start: "2026-10-21T06:00:50.659Z"
+                  end: "2026-10-21T01:45:15-07:00"
+            - harness: codex
+              id: 01a15d0d-9ec0-70d1-a196-c8d913b2f3c9
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              parent_id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              digest: 3b23ab7dc82e8fb206a9ffe0a5d32549fa160a7d69fe7991920bcd1a0b0435e2
+              started: "2026-10-21T06:02:16.226Z"
+              spawned: true
+              bytes: 634480
+              windows:
+                - start: "2026-10-21T06:02:16.226Z"
+                  end: "2026-10-21T01:45:15-07:00"
+            - harness: codex
+              id: 01a15d0e-032a-7401-bb22-542ec2559bee
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              parent_id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              digest: 0272946db24a77027059fa1d2499a9e4300652ebd31f14effb6ccfbfb574c63a
+              started: "2026-10-21T06:02:41.947Z"
+              spawned: true
+              bytes: 554824
+              windows:
+                - start: "2026-10-21T06:02:41.947Z"
+                  end: "2026-10-21T01:45:15-07:00"
+            - harness: codex
+              id: 01a15d12-f90c-7480-af77-512cb85c5c24
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              parent_id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              digest: b3af1b23f47d568ec119d8edf4e2a83b475d100a1b6e3d6a8cf9ac9c1b41ac8c
+              started: "2026-10-21T06:08:07.079Z"
+              spawned: true
+              bytes: 545002
+              windows:
+                - start: "2026-10-21T06:08:07.079Z"
+                  end: "2026-10-21T01:45:15-07:00"
+        queue_waits:
+            - attempt_id: b6b1d1d560ec5ce9860a56bbe0aa1492
+              slot: pair:4
+              record_digest: 72ec7c6f54225916035eaffa0abef151ae7a64d9f4628822e3a2fa1c4749903b
+              start: "2026-10-21T06:59:32.347001Z"
+              end: "2026-10-21T07:34:43.614045Z"
+              queue_seconds: 2111.267044
+              raw_seconds: 2111.267044
+              exact: true
+            - attempt_id: 9e309265d2620ff3a8c1e72631aec4d7
+              slot: pair:4
+              record_digest: 537e18d09029d17e043bd2b99fc69c098a741fe30522aaa01981115650523473
+              start: "2026-10-21T07:48:08.025926Z"
+              end: "2026-10-21T08:27:32.489029Z"
+              queue_seconds: 2364.463103
+              raw_seconds: 2364.463103
+              exact: true
+        cuts:
+            - dispatched: "2026-10-20T23:18:15-07:00"
+              finalized: "2026-10-20T23:23:07-07:00"
+              finalizing: false
+            - dispatched: "2026-10-20T23:33:18-07:00"
+              finalized: "2026-10-20T23:37:26-07:00"
+              finalizing: false
+            - dispatched: "2026-10-20T23:48:58-07:00"
+              finalized: "2026-10-20T23:52:30-07:00"
+              finalizing: false
+            - dispatched: "2026-10-20T23:59:57-07:00"
+              finalized: "2026-10-21T00:03:01-07:00"
+              finalizing: true
+            - dispatched: "2026-10-21T01:39:04-07:00"
+              finalized: "2026-10-21T01:42:00-07:00"
+              finalizing: true
+      "n": 6
+      timestamp: "2026-10-21T02:06:37-07:00"
+      dispatched: "2026-10-21T02:04:43-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Retain the finalized disposition; confinement implementation and regression tests are unchanged.
+          round: 6
+        - id: BR-2
+          disposition: addressed
+          note: Retain the finalized disposition; document restoration implementation and regression tests are unchanged.
+          round: 6
+        - id: BR-3
+          disposition: addressed
+          note: Retain the finalized disposition; concurrent-selection behavior and regression tests are unchanged.
+          round: 6
+        - id: BR-4
+          disposition: withdrawn
+          note: Retain the prior withdrawal; browser behavior and accepted host qualification evidence are unchanged.
+          round: 6
+        - id: BR-5
+          disposition: addressed
+          note: Retain the finalized disposition; staging ownership, recovery, scan exclusions and regression tests are unchanged.
+          round: 6
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 31384115c5407a4a5f2f3eabe253ff96bff9f651
+      blocked: false
 ---
 
 # Gate ledger — pair#755 (boundary-review)
@@ -967,6 +1174,16 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-3 — addressed — Retain the finalized disposition; concurrent-selection tests are unchanged in this window.
 - BR-4 — withdrawn — Retain the prior withdrawal; this window changes neither browser behavior nor the previously accepted qualification evidence.
 - BR-5 — addressed — Retain the finalized disposition; staging ownership, reclamation, scan exclusions and their regression tests are unchanged in this window.
+
+## Round 6 — 2026-10-21T02:06:37-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Retain the finalized disposition; confinement implementation and regression tests are unchanged.
+- BR-2 — addressed — Retain the finalized disposition; document restoration implementation and regression tests are unchanged.
+- BR-3 — addressed — Retain the finalized disposition; concurrent-selection behavior and regression tests are unchanged.
+- BR-4 — withdrawn — Retain the prior withdrawal; browser behavior and accepted host qualification evidence are unchanged.
+- BR-5 — addressed — Retain the finalized disposition; staging ownership, recovery, scan exclusions and regression tests are unchanged.
 
 ## Open findings
 
