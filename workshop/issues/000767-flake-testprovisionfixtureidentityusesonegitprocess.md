@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/couchcore.TestProvisionFixtureIdentityUsesOneGitProcess]
+flow: {kind: quick, provenance: inferred, spec: "d4a43449", done: "50383ae7"}
 ---
 
 # flake: TestProvisionFixtureIdentityUsesOneGitProcess
