@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: 0f316dfe-bc05-47ff-861a-44bd2ad0fa30
+        repository: github.com/xianxu/pair
+        issue_id: "000779"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot4/pair
+        reviewed_head: d7b019d944c647927bb0b02498e00f79fadd5711
+        slot: pair:4
+        requested_at: "2026-10-21T23:58:26.115302Z"
+      phase: finished
+      pid: 52632
+      started_at: "2026-10-21T23:58:26.289606Z"
+      finished_at: "2026-10-21T23:58:56.817912Z"
+      session_id: 01a160e6-e362-7eb1-becf-175133f513b7
+      outcome: returned
 gate: plan-quality
 issue: 779
 id_prefix: PQ
@@ -85,7 +105,32 @@ rounds:
           note: The verification table names risky functions, adversarial classes and mechanical guards, including Console publication and broadcast admission/overlay paths.
           round: 2
       blocked: false
-content_hash: cfb924ae919cd50e95fa931fc3754f66ec3e4e5853ff34b856776b3eb4f08df0
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 0468993b-2402-4077-94da-057bf74d29a2
+            repository: github.com/xianxu/pair
+            issue_id: "000779"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot4/pair
+            reviewed_head: d7b019d944c647927bb0b02498e00f79fadd5711
+            slot: pair:4
+            requested_at: "2026-10-21T23:57:58.924848Z"
+          phase: finished
+          pid: 36912
+          started_at: "2026-10-21T23:57:59.098837Z"
+          finished_at: "2026-10-21T23:58:22.010651Z"
+          session_id: 01a160e6-791a-75a2-b836-e378419ab9ce
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-21T16:58:22-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      blocked: false
+content_hash: 3b617a327e0c6d8c295fbf8440b245001944ae62326dd386ccd8134325e5f2ad
 ---
 
 # Gate ledger — pair#779 (plan-quality)
@@ -111,6 +156,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - PQ-1 — addressed — Presenter revision confirmation, pending Console extents, restricted input admission and controllable-writer retry tests cover admitted-but-unpainted publication.
 - PQ-2 — addressed — The one-row fallback reserves positive active-chip width before controls and fails broadcast admission when LIVE is omitted or clipped.
 - PQ-3 — addressed — The verification table names risky functions, adversarial classes and mechanical guards, including Console publication and broadcast admission/overlay paths.
+
+## Round 3 — 2026-10-21T16:58:22-07:00 (codex) — passed
 
 ## Open findings
 
