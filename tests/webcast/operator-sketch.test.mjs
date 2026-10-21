@@ -77,7 +77,7 @@ async function lifecycleFixture(){
  return {adapter,win,view,root,timers,listeners,sent,previous};
 }
 
-test('console disabled Sketch points to Chrome annotation toggle and distinguishes driving holder',async()=>{
+test('console disabled Sketch explains readiness and distinguishes driving holder',async()=>{
  const f=await lifecycleFixture();
  const toolbar=f.root.querySelector('.sketch-toolbar');
  const button=name=>toolbar.children.find(n=>n.textContent===name);
@@ -85,7 +85,7 @@ test('console disabled Sketch points to Chrome annotation toggle and distinguish
  assert.equal(toolbar.hidden,false);
  assert.equal(button('Sketch').disabled,true);
  assert.equal(button('Done').disabled,true);
- assert.match(f.root.querySelector('.sketch-status').textContent,/annotation.*👆.*Chrome/);
+ assert.match(f.root.querySelector('.sketch-status').textContent,/getting ready.*Wait/);
  f.win.__couchcastSketchAuthority({revision:'3',epoch:1,holder:'driver',ready:true,active:true,generation:'1'});
  assert.match(f.root.querySelector('.sketch-status').textContent,/viewer.*driving.*release/i);
  f.win.__couchcastSketchAuthority({revision:'4',epoch:1,holder:'operator',ready:true,active:true,generation:'1'});

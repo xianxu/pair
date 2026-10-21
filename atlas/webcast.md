@@ -198,9 +198,9 @@ granted drive-link seat, with annotation enabled. The server rechecks the authen
 generation and drawing epoch on ingress; client availability is only an affordance. Pointer and view-only links,
 and recording replay, render accepted paths without drawing permission or a palette endpoint.
 
-The console keeps unavailable drawing controls visible with recovery guidance: turn on the 👆 after ↗ in Couch's
-Chrome status group (not the earlier screen-broadcast 👆), or release another viewer's driving control. There is no
-annotation-toggle keyboard shortcut. Paused/ended casts explain resume/new-cast recovery; Done is disabled until
+The trusted console sketches independently of viewer annotation permission when no viewer drives; ordinary
+viewer admission still requires annotation and the current driving seat. Console unavailable controls explain
+readiness or ask the viewer to release driving control. Paused/ended casts explain resume/new-cast recovery; Done is disabled until
 there is a sketch or preparation to finish. Read-only viewer toolbars honor their hidden state.
 
 Choose a fixed colour, then Sketch, and wait for its held recorded scene. Pressure samples stream before pointer-up;

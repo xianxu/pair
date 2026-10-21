@@ -226,7 +226,7 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 		}
 		out := recordingOutput(cfg, liveSink, bd, id, proxy)
 		ro = &RecordOptions{Operator: bd, Sketches: sketches, SketchAuthority: func(epoch, generation uint64) (board.SketchAuthority, error) {
-			admission, err := bd.AdmitAnnotationGeneration(generation)
+			admission, err := bd.AdmitOperatorSketchGeneration(generation)
 			if err != nil {
 				return board.SketchAuthority{}, err
 			}

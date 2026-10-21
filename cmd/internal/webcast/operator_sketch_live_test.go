@@ -121,18 +121,18 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 		<-done
 		return world != 0
 	})
-	wait("operator live while annotation is off", func() bool {
-		return string(eval(world, `!!globalThis.__couchcastOperatorSketch?.state().live`)) == "true"
-	})
-	if got := string(eval(world, `(()=>{const ui=__couchcastOperatorSketch,root=ui.labelInput.getRootNode(),bar=root.querySelector('.sketch-toolbar'),buttons=[...bar.querySelectorAll('button')];return !ui.state().allowed&&!bar.hidden&&getComputedStyle(bar).display!=='none'&&buttons.find(b=>b.textContent==='Sketch').disabled&&buttons.find(b=>b.textContent==='Done').disabled&&/annotation.*👆.*Chrome/.test(root.querySelector('.sketch-status').textContent)})()`)); got != "true" {
-		t.Fatalf("annotation-off toolbar lacks actionable guidance or enables Done: %s", got)
-	}
-	if err = cast.board.SetAnnotationAllowed(ctx, true); err != nil {
-		t.Fatal(err)
-	}
 	wait("operator sketch permission", func() bool {
-		return string(eval(world, `!!globalThis.__couchcastOperatorSketch?.state().allowed`)) == "true"
+		return string(eval(world, `!!globalThis.__couchcastOperatorSketch?.state().allowed&&__couchcastOperatorSketch.state().live`)) == "true"
 	})
+	if _, err = cast.board.AdmitAnnotation(); err == nil {
+		t.Fatal("viewer annotation enabled by console drawing")
+	}
+	wait("operator UI unsuppressed", func() bool {
+		return string(eval(world, `!__couchcastOperatorSketch.labelInput.getRootNode().host.hidden`)) == "true"
+	})
+	if got := string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode(),bar=root.querySelector('.sketch-toolbar'),buttons=[...bar.querySelectorAll('button')];return !bar.hidden&&getComputedStyle(bar).display!=='none'&&!buttons.find(b=>b.textContent==='Sketch').disabled&&buttons.find(b=>b.textContent==='Done').disabled})()`)); got != "true" {
+		t.Fatalf("annotation-off console toolbar unavailable or idle Done enabled: %s; %s", got, eval(world, `JSON.stringify([...__couchcastOperatorSketch.labelInput.getRootNode().querySelectorAll('.sketch-toolbar button')].map(b=>({text:b.textContent,disabled:b.disabled,display:getComputedStyle(b).display})))`))
+	}
 	var records []recording.Record
 	read := func() []recording.Record {
 		t.Helper()

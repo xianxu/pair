@@ -7,7 +7,6 @@ import (
 	"strconv"
 
 	"github.com/xianxu/pair/cmd/internal/webcast/board"
-	"github.com/xianxu/pair/cmd/internal/webcast/capability"
 )
 
 // The cast's existing drive-capability subscription wakes this worker before
@@ -72,7 +71,7 @@ func (c *Chrome) deliverOperatorDrawing(target operatorTarget, b *board.Board, p
 	}
 	authority := ro.DrawingAuthority()
 	annotation := b.AnnotationCapability()
-	desired := authority.Ready && authority.Holder == "operator" && target.active && annotation.Phase == capability.On
+	desired := authority.Ready && authority.Holder == "operator" && target.active
 	value := operatorDrawingValue{Generation: strconv.FormatUint(annotation.Generation, 10), Epoch: authority.Epoch, Holder: authority.Holder, Ready: desired, Active: target.active}
 	projection, _ := json.Marshal(value)
 	if p.projection != string(projection) {
