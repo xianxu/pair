@@ -16,6 +16,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "fe4788a5", done: "6618e2de"}
 ---
 
 # artifactpath manifest: split the 2,000-line central inventory by area so parallel landings stop conflicting
