@@ -41,7 +41,7 @@ Establish the supported invocation and physical-write accounting contract for or
 ## Plan
 
 - [x] Red native trace-heavy fixture and real go-test cache conformance, then suppress tracing only at the shared ordinary supported-budget boundary.
-- [ ] Keep caps/repetition/failure semantics; qualify fresh cache-enabled and uncached core/tty runs and real excess refusal.
+- [x] Keep caps/repetition/failure semantics; qualify fresh cache-enabled and uncached core/tty runs and real excess refusal.
 - [ ] Document result-cache policy, run recorded affected check, close and land.
 
 
@@ -136,3 +136,15 @@ actual Go conformance12.074s and catalog5.090s; selected testdisk then passed
 11.345s. Separate catalog repeat passed3.862s. No failed check is represented
 as a pass. All remaining broad uncached coverage is owned by the recorded
 full suite on the corrected head.
+
+
+### 2026-10-21 — close round2 SHIP, recorded suite waiting
+
+BR-1 addressed: independent review checked reader inventory and its mutation
+control, testdisk regression/mutation and real Go cache conformance. It also
+ran uncached core/tty successfully270.586s/53.470s and verified retained plain
+cache-enabled logs/hashes. No remaining findings; SHIP, evidence895240ab88c2.
+Recorded suite attempt565ab9c18cb876ea6bb5b1f1ce3d832b on final code
+7999245e29ebddadb321e849b30dba9a2bba8dfe remains queued normally; no pass
+or landing claimed. Third Plan checkbox stays unchecked until it passes and
+landing completes. No new code after reviewed head.
