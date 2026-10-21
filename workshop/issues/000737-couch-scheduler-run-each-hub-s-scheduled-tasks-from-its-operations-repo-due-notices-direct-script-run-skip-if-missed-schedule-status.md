@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
-estimate_hours:
+estimate_hours: 6.67
 collaboration-mode: collaboration
-card_mirror: '04c2010b5ff497cfc893db62c8c5b586277144bf' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'f1cd606d671fc818c16be23372a438043db66b70' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T17:17:42-07:00
 claimant:
     operator: Xian Xu
@@ -72,6 +72,35 @@ settled the contour with the operator on 10-20; its `design.md` is the reference
 - Operator approved the plan through ops:0 with the three revisions below. Proceed to change-code and M1; no acceptance requirement was waived.
 
 - Plan gate round 1 held on PQ-1 retention integration and PQ-2 repeated test inventories. Verified actual APIs: diagnostic generations and session transactions cannot collect run bundles directly. Added focused operationalrun adapter plus gcruntime phase/report and compressed test strategies; rerunning the gate before code.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only; calibration currently marked stale/provisional by estimate-source. Already-scaled implementation hours use 40% of v2/v2.1 ranges; design uses the thorough-spec 0.2 multiplier, plus 0.5 library credit only for cron/kernel and bounded durable catalog/store. Familiarity 1.0; thorough-plan design buffer 15%. Passive day-long live observation is not focused ship time.
+
+Rows follow implementation scope: kernel, catalog/store, operational bundles, GC integration, captured builds, native execution/admission, CLI/status/history, scheduler, broker notices, docs, two review boundaries, and two native API qualifications. The cron library, durablefile/strictjson, broker and machine helper are available; no existing library supplies the operational bundle authority/recovery or frozen Go source view, so those retain full design credit before the spec discount.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-go-module design=0.10 impl=0.32
+item: greenfield-go-module design=0.10 impl=0.32
+item: greenfield-go-module design=0.40 impl=0.32
+item: api-integration design=0.20 impl=0.40
+item: greenfield-go-module design=0.40 impl=0.32
+item: api-integration design=0.30 impl=0.60
+item: smaller-go-module design=0.06 impl=0.20
+item: greenfield-go-module design=0.40 impl=0.32
+item: api-integration design=0.20 impl=0.40
+item: atlas-docs design=0.02 impl=0.08
+item: milestone-review design=0 impl=0.20
+item: milestone-review design=0 impl=0.20
+item: real-api-discovery design=0 impl=0.24
+item: real-api-discovery design=0 impl=0.24
+design-buffer: 0.15
+total: 6.67
+```
+
+Design subtotal 2.18 × 1.15 = 2.507; implementation subtotal 4.16; total 6.667, rounded 6.67 focused ship hours.
 
 ## Revisions
 
