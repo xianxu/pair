@@ -18,6 +18,11 @@ var pairCatalog = append(append([]golint.Rule(nil), golint.Catalog...), golint.R
 	Incident: "pair#714",
 	Message:  "compose diagnostic addresses atomically with completeFailureAddress; partial target evidence must not replace an exact captured address",
 	Match:    lifecycleFailureAddressOverrides,
+}, golint.Rule{
+	Name:     "terminal-registry-owner",
+	Incident: "pair#731",
+	Message:  "use LiveOwnerIDs for native terminal ownership; kill-only LiveIDs admits a shell after exec",
+	Match:    terminalRegistryOwnerCalls,
 })
 
 func wrapperChildReleases(file *ast.File) []ast.Node {

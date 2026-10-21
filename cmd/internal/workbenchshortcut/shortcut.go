@@ -14,6 +14,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 )
 
@@ -710,13 +711,22 @@ func (r TerminalPaneRegistry) LiveIDs(alive func(pid int) bool) ([]string, error
 	}
 	var ids []string
 	seen := map[string]bool{}
+	owners := map[int]bool{}
 	for _, line := range strings.Split(string(data), "\n") {
 		fields := strings.Fields(line)
 		if len(fields) != 2 || seen[fields[0]] {
 			continue
 		}
 		pid, err := strconv.Atoi(fields[1])
-		if err != nil || !alive(pid) {
+		if err != nil || pid <= 0 {
+			continue
+		}
+		live, known := owners[pid]
+		if !known {
+			live = alive(pid)
+			owners[pid] = live
+		}
+		if !live {
 			continue
 		}
 		seen[fields[0]] = true
@@ -741,11 +751,14 @@ func Registered(terminalPaneIDs []string, paneID string) bool {
 	return false
 }
 
-// RoleForPaneWith is RoleForPane with the terminal-pane registry overlaid:
-// a pane whose id is registered as a live `pair term` is a right terminal
-// even when zellij's pane report carries no usable command or title.
+// RoleForPaneWith requires live registration for a right-terminal routing role.
+// Templates and titles survive native shell handoff; they are only layout hints.
+// Registered splits need no usable command/title. Other Pair roles keep precedence.
 func RoleForPaneWith(p zellijpane.Pane, terminalPaneIDs []string) PaneRole {
 	role := RoleForPane(p)
+	if role == PaneRoleRightTerminal {
+		role = PaneRoleOther
+	}
 	if role != PaneRoleOther || p.IsPlugin || p.ID == "" {
 		return role
 	}
@@ -764,7 +777,7 @@ func RoleForPaneWith(p zellijpane.Pane, terminalPaneIDs []string) PaneRole {
 // keep using their own procutil wrapper without this package importing it.
 func LiveTerminalPaneIDsFromEnv(alive func(pid int) bool) ([]string, error) {
 	reg := TerminalPaneRegistry{DataDir: DataDirFromEnv(), Tag: os.Getenv("PAIR_TAG")}
-	return reg.LiveIDs(alive)
+	return reg.LiveOwnerIDs(alive, procutil.Source{})
 }
 
 // DataDirFromEnv resolves pair's data dir by delegating to the canonical

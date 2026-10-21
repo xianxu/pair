@@ -47,7 +47,7 @@ Measure the native metadata across a wrapper-to-shell exec in a disposable sessi
 
 ## Plan
 
-- [x] Confirm the measured owner/role design with the hub; durable plan: [terminal-owner-role-plan](../plans/000731-terminal-owner-role-plan.md).
+- [x] Confirm the measured owner/role design with the hub; durable plan: [terminal-owner-role-plan](../plans/000731-a-pane-that-fell-back-to-a-native-shell-still-classifies-as-a-pair-terminal-plan.md).
 - [ ] Implement and qualify the shared owner observation and role projection under the approved plan, then close and land through SDLC.
 
 ## Log
@@ -66,3 +66,10 @@ Deferred from pair#727 by the hub on 2026-10-20 (delivery 7225aa16-eefc-46c0-97b
 ### 2026-10-20 — approved inspection-unavailable compatibility
 
 The original native owner proposal denied unavailable inspection. The hub's approved contract distinguishes it from confirmed different argv: retain today's registry answer and bounded diagnostic reason when native inspection is unavailable. This accepts possible stale ownership in restricted contexts to preserve working terminal panes. Confirmed wrapper-to-shell exec still loses the role; registry bytes/schema remain unchanged.
+
+### 2026-10-20 — implementation checkpoint
+
+- change-code accepted the design (quick flow inferred). Implemented shared LiveOwnerIDs with identity-bracketed argv, once per PID per registry read, plus mandatory registration in RoleForPaneWith. The env adapter covers term/layout/clipboard; Couch injects the same procutil.Source through its focus probe. Confirmed shell and replaced identity deny; unavailable inspection retains liveness and emits one bounded scoped diagnostic. No registry rewrite or new lock.
+- Owner and role regression tests failed before implementation, then passed. Stateful N/2N tests count one argv and two identity reads per unique live PID, including duplicates and rejected shells; no process-table enumeration. Added the pair#731 local lint rule after its four forbidden-reader cases failed; its regression now passes. Corrected an artifact manifest duplicate by reusing the existing scoped-adapt binding.
+- Disposable installed-Zellij regression passed with two registered helper panes: wrapper-to-shell exec preserves PID/birth and metadata, but loses admitted ownership while the control remains registered; shell input still works and unknown registry bytes survive. Exact owned session/helpers were collected. This remains a controlled native ownership test, not a production recovery fault injection.
+- Updated healthy terminal fixtures to register ownership explicitly; added stale unregistered terminal refusals across admission paths. Focused Couch tests passed. Term/layout agents report package passes; independent combined verification, diagnostic failure coverage, reader preflight, documentation and normal close/landing remain pending. No suite or merge runner is active at this checkpoint.
