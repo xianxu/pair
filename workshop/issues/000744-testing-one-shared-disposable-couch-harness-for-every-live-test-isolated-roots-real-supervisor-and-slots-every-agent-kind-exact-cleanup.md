@@ -1,13 +1,13 @@
 ---
 id: 000744
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-20
-updated: 2026-10-20
+updated: 2026-10-21
 estimate_hours: 8.337
 collaboration-mode: collaboration
-card_mirror: 'a6df4fea1bea2d49afe5ef94de0bb53eca2a832d' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '4007a8dd139981447f5de60f2276909b706af1d5' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T14:46:17-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 8.51
 ---
 
 # testing: one shared disposable-Couch harness for every live test (isolated roots, real supervisor and slots, every agent kind, exact cleanup)
