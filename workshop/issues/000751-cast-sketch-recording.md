@@ -69,6 +69,7 @@ Execution plan: [000751-cast-sketch-recording-plan.md](../plans/000751-cast-sket
 ## Log
 
 ### 2026-10-20
+- 2026-10-20: closed — Feature Go packages and webcast TestNode/CatchUpCorpus/OperatorScript PASS; browser prefix/snapshot/privacy-of-authority tests PASS including real signed-zero history accounting; owned-Unicode fuzz PASS; full repolint/artifactpath and affected-reader inventory PASS. BR-1 canonical numeric class and BR-2 production history/control encapsulation fixed with red-to-green regressions; wire bytes remain exact. Recorded full suite on corrected pushed head queued after known pair#738 fallback; tl-worker permits review overlap, recorded pass required before landing. ops:0 owns project updates.; review verdict: SHIP
 
 - Filed from operator-approved #750 design via ops:0. Left unclaimed for TL dispatch.
 

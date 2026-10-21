@@ -104,3 +104,89 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T22:23:03-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 751 — cast-sketch: recording model, pressure paths and undo history |
+| repo | pair |
+| issue file | workshop/issues/000751-cast-sketch-recording.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | a1630f0c07c8ac61814c74131799fa53357db8f3..db8caaeba35cb82f5d4e3ac8ba0ca20397f5c185 |
+| command | sdlc close --issue 751 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T22:23:03-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range delivers the recording/model slice described by the Spec and revised Plan. Both prior findings are addressed with reachable regression tests that fail when their respective fixes are removed. No new blocking findings were identified.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      sketchModelEncodedBytes now uses normalized canonical fields while SketchBudget retains exact wire accounting. The signed-zero shared prefix passes; removing normalized accounting makes TestSketchSignedZeroModelAccountingAndOwnedProjection fail with 614 versus 618 bytes.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Model keeps sketch/control authority in private fields and returns owned projections. Removing sketch privacy makes the regression at tests/webcast/sketch-model.test.mjs:507 fail on mutated points, receipts, stacks and sequence authority.
+```
+
+1. **Strengths**
+
+   - Both producers share timestamp fencing and byte-budget admission, with tests covering retries, overflow and uncertain sink outcomes.
+   - Snapshot restoration validates receipt history through the production transition core; repeated compaction and reconnect tests preserve projection and control authority.
+   - Preserving codecs cover nested unknown fields, strict owned-field validation and frozen legacy-reader compatibility.
+   - Atlas updates describe the new format, lifecycle, compatibility and bootstrap contracts. No new commands, flags or user configuration require a README update.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed all recording, sketch, board and recorder package tests; 110 focused browser tests; webcast `TestNode`, `OperatorScript` and `CatchUpCorpus` checks; affected-reader inventory; and pinned-range whitespace checks.
+
+   Both prior-fix removal experiments failed as expected in a disposable copy, which was removed afterward. The reviewed checkout remains unchanged. The repository-wide suite was not rerun during this review.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Producers reuse ordering/budget helpers; restoration reuses transition validation.
+   - **ARCH-PURE — pass:** History, admission arithmetic and geometry remain separate from recorder/sink IO.
+   - **ARCH-PURPOSE — pass:** Recording deliverables are implemented; UI/transport/export remain within their documented follow-on slices.
+   - **ARCH-MOCK — pass:** Integration tests exercise production seams using stateful sinks and the recorder harness.
+   - **ARCH-CONSTRAINTS — pass:** Explicit history/point bounds, terminal reserves and counted-work tests cover the declared envelope.
+   - **ARCH-SECURE — pass:** Strict decoding, malformed-Unicode checks and atomic snapshot refusal protect input boundaries.
+   - **ARCH-ORDER — pass:** Private browser authority prevents the reviewed bypass; tests cover contextual interruptions, retries and persistence uncertainty.
+   - **ARCH-FUNERAL — pass:** No new durable artifact family or background task; sketch residue uses existing recording retention and bounded growth.
+   - **ARCH-EVOLVE — pass:** Additive v1 events preserve nested unknown members and remain tolerable to the frozen legacy registry.
+
+7. **Plan revision recommendations:** None. Existing revisions describe the implemented corrections and snapshot mechanism.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"b02941e6-8c9f-4518-8ccf-afef20fcb00a","repository":"github.com/xianxu/pair","issue_id":"000751","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/fcde2957fd102968","reviewed_head":"db8caaeba35cb82f5d4e3ac8ba0ca20397f5c185","slot":"pair:9","requested_at":"2026-10-21T05:21:13.433994Z"},"phase":"finished","pid":11485,"started_at":"2026-10-21T05:21:13.528156Z","finished_at":"2026-10-21T05:23:02.47257Z","session_id":"01a15ce8-0c3b-7e80-89a6-d716d1b0e084","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.59958375s
+head: "db8caaeba35cb82f5d4e3ac8ba0ca20397f5c185"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000411
