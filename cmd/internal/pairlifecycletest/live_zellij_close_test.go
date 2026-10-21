@@ -279,6 +279,9 @@ func TestControlledZellijKillClientThenCloseRetiresHandlesOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	retired := fixture.command == nil && fixture.pty == nil
+	if err := command.Process.Signal(os.Interrupt); !errors.Is(err, os.ErrProcessDone) {
+		t.Fatalf("client not reaped: %v", err)
+	}
 	if err := fixture.Close(); err != nil {
 		t.Fatalf("KillClient then Close: %v", err)
 	}

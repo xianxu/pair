@@ -35,8 +35,8 @@ A focused regression executes KillClient then Close and observes successful exac
 
 ## Plan
 
-- [ ] Reproduce KillClient then Close with a real owned child/PTY and exact fake server evidence, then retire each client/PTY handle exactly once in the shared cleanup path.
-- [ ] Preserve shutdown/observation/handle errors; audit this fixture’s callers and startup refusal paths so meaningful cleanup failures are joined or reported. Add a local lint regression for discarded fixture cleanup.
+- [x] Reproduce KillClient then Close with a real owned child/PTY and exact fake server evidence, then retire each client/PTY handle exactly once in the shared cleanup path.
+- [x] Preserve shutdown/observation/handle errors; audit this fixture’s callers and startup refusal paths so meaningful cleanup failures are joined or reported. Add a local lint regression for discarded fixture cleanup.
 - [ ] Verify focused lifetime/error regressions and affected packages, run recorded verification, close and land.
 
 Actions: detach client, close fixture, retry diagnosis after cleanup failure.
@@ -57,3 +57,6 @@ Observed during #761 on 830f29d9ef0892b6fb8d06869a4840eed28f7ad9. Relevant sourc
 - Traced the fixture and callers. KillClient closes the PTY without clearing it, and keeps the waited process command; final close repeats both operations. Native timing drops the resulting error. Startup refusal paths and several ControlledZellij callers also discard Close results; auditing the same fixture class before code. #757 remains untouched on its preserved branch.
 
 - TDD checkpoint: focused real-child/PTY regressions both fail on the original implementation: KillClient→Close returns file already closed, and a deliberately broken first PTY close is silently lost. Caller sweep and local lint work are in progress; fixture implementation has not changed yet.
+
+- Implemented shared handle retirement; all five startup refusal paths join cleanup failures. Audited 13 outside-fixture cleanup sites and two readiness-test sites; errors now fail tests without skipping remaining cleanup proof. Added bounded provenance-aware controlled-zellij-close local lint (27 scanner cases; aliases, typed fields, diagnostics-only handling, unrelated closers negative).
+- Verification: full pairlifecycletest and internal/repolint packages pass under -race; affected caller packages compile. Native TestStartupManagedAttachDetachTimingLive passed with private socket isolation (6.83 s), sentinel_survived=true and owned session retired=true, now enforcing Close errors. Artifact classification passes. Existing affected-reader scopes re-audited; only cleanup reporting changed, dispositions retained.
