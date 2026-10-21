@@ -47,6 +47,8 @@ A list that only grows stops being read, which defeats notifications.
 
 ## Log
 
+- 2026-10-20 18:36 PDT: branch full suite passed on 09df3e13 (10m52s, log sha256 ad2e7f04e1ff). Merge integrated main at 13bd7df51123cc82c79953ca2e8423511c0a5b49; hosted conformance passed. Integrated suite attempt 0082d1dc13f7dff65c18d760ca43ba06 stopped in tests/copy-on-select-test.sh: detached copy orchestrator did not finish (4m46s, log sha256 8b7c811b0f82). Isolated fresh-binary TestCopyOnSelectShellFixture also fails hook timeout=3. TL assigned blocker pair#749 separately and explicitly directed stopping the merge runner, preserving this SHIP branch, then re-entering after #749 lands. Merge runner interrupted cleanly; no suite/check bypass.
+
 - Close full review returned SHIP with zero blocking findings. Advisory BR-1 was the atlas/index.md summary still calling attention durable; corrected the summary and captured the index-sweep lesson. Reviewer passed normal/race attention tests and full affected-package tests; authoritative recorded suite remains queued.
 
 - Production-startup regression seeds a valid legacy attention/list.json, starts the real message service, verifies the empty-list notice, observes/clears a fresh event, and verifies legacy bytes unchanged. Passed on the implementation; failed against a temporary overlay of the original persistence path (missing empty-list notice), proving restart regression coverage.
