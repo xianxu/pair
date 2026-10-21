@@ -1,6 +1,6 @@
 ---
 id: 000731
-status: working
+status: codecomplete
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.79
+tracker:
+    version: 1
+    completion:
+        token: close-e7a24d872e37
+        repository: github.com/xianxu/pair
+        reviewed_head: f09a8ae39e6891f9c3882967d48c2de3e83da2ae
+        evidence_commit: c4c69c526607cc33298d02b29742b34514cb9efb
 ---
 
 # A pane that fell back to a native shell still classifies as a Pair terminal
