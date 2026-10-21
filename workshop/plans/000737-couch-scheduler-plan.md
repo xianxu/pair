@@ -14,7 +14,7 @@ collaboration-mode: discussion
 
 **Issue:** pair#737. **Project/design:** `ops/teams/devinfra/projects/couch-scheduling/{project,design}.md` (TL-owned; read only here).
 
-**Approval boundary:** This is a proposed implementation plan for operator review via ops:0. Do not run `sdlc change-code`, estimate the unsettled design, or implement it before approval. The first close's live acceptance also needs the coordinated ops task described below.
+**Approval boundary:** Approved by the operator via ops:0 on 2026-10-20, with the three superseding decisions recorded in Revisions. Run `sdlc change-code` and implement M1 first. The first close's live acceptance still needs the coordinated ops task described below.
 
 ## Settled contour and resolved discrepancies
 
@@ -36,16 +36,16 @@ collaboration-mode: discussion
 | `BuildKey`, `BuildManifest` | `cmd/internal/couchschedule/build_manifest.go` | new | Hash a captured build-input manifest; source/dependency/embed/toolchain changes invalidate a binary independently of task arguments. |
 | `StatusSnapshot`, `TaskStatus` | `cmd/internal/couchschedule/status.go` | new | Projection shared by JSON/text status and notices; distinguish queued, running, quiet, wake, failed, skipped, refused, and uncertain. |
 
-The key is rooted in the **hub checkout**, never its claimed product repositories. One task has many occurrences; a scheduled occurrence is keyed by task, declaration revision, and due UTC instant. Manual attempts have a separate nonce and never consume or advance a scheduled occurrence. One state snapshot owns all task records and the bounded history. The reducer owns scheduling decisions (ARCH-PURE/ARCH-ORDER); adapters must not implement competing catch-up or exit-code rules (ARCH-DRY).
+The key is rooted in the **hub checkout**, never its claimed product repositories. One task has many occurrences; a scheduled occurrence is keyed by task, declaration revision, and due UTC instant. Manual attempts have a separate nonce and never consume or advance a scheduled occurrence. One state snapshot owns current task authority; immutable per-run records and bounded output live separately under the Couch data folder. The reducer owns scheduling decisions (ARCH-PURE/ARCH-ORDER); adapters must not implement competing catch-up or exit-code rules (ARCH-DRY).
 
 ### Integration points
 
 | Name | Lives in | Status | Wraps |
 |---|---|---|---|
 | `TaskCatalog` | `cmd/internal/couchschedule/catalog.go` | new | Bounded repository-local discovery, declaration bytes, Operators, effective Git identity, and source revision observations. |
-| `StateStore` | `cmd/internal/couchschedule/store.go`, `store_unix.go`, `state_json.go` | new | Context-bounded flock transactions, additive JSON, `durablefile` atomic writes, bounded output/history retention. |
+| `StateStore` | `cmd/internal/couchschedule/store.go`, `store_unix.go`, `state_json.go` | new | Context-bounded flock transactions, additive JSON, `durablefile` atomic writes, plus separate per-run records integrated with Couch operational-data retention. |
 | `TaskBuilder` | `cmd/internal/couchschedule/build.go` | new | Go package metadata/build commands, complete build manifests, atomic executable cache publication. |
-| `TaskExecutor`, `TaskAdmission` | `cmd/internal/couchschedule/execute.go`, `execute_unix.go`, `admission.go` | new | Owned process groups, timeout, parent lifetime, output capture, per-task lease, namespace execution permits, and optional machine admission. |
+| `TaskExecutor`, `TaskAdmission` | `cmd/internal/couchschedule/execute.go`, `execute_unix.go`, `admission.go` | new | Owned process groups, timeout, parent lifetime, output capture, per-task lease, machine-wide execution permits, and optional machine admission. |
 | `FakeTaskRuntime` | `cmd/internal/couchschedule/runtime_fake.go` | new | Stateful build cache/process/admission/clock double with held operations, exits, cancellation and crash/reopen observations. |
 | `scheduleService` | `cmd/internal/couchcmd/schedule_service.go` | new | Existing message-service lifetime, hub definitions, fake ticks, store snapshots, bounded workers and broker outcomes. |
 | `scheduleNotice` | `cmd/internal/couchcmd/schedule_notice.go` | new | Exact hub binding, `Broker.SendSystem`, canonical receipt observation and frozen bounded notice body. |
@@ -74,7 +74,7 @@ Use a small UTF-8 JSON object named `schedule` beside `main.go`; this avoids add
 - Required: version 1, a five-field cron string, positive timeout up to 24h. Defaults: `scope=machine`, `missed=skip`, `script_run=false`, `heavy=false`. `scope=team` additionally requires `owner`.
 - `missed` accepts `skip` or `once`. `script_run` explicitly opts into the implemented subcommand; do not discover capabilities by running the task, or scrape human help output. A declared but missing subcommand is a task failure, never a silent fallback.
 - `heavy=true` takes one machine suite slot before build/run. It is a declaration of resource cost, not a sandbox policy. Nested test invocations inherit the verified owner marker only after admission.
-- Cron uses minute/hour/day/month/weekday fields through a parser configured without seconds/descriptors. Reject extra fields and `TZ=`/`CRON_TZ=` prefixes. Interpret in the machine location supplied by the IO shell; persist due instants in UTC and display the location. Spring-forward nonexistent times skip; fall-back matching instants are distinct occurrences. These are explicit reviewable semantics, pinned by fixtures.
+- Cron uses minute/hour/day/month/weekday fields through a parser configured without seconds/descriptors. Reject extra fields and `TZ=`/`CRON_TZ=` prefixes. Interpret in the machine location supplied by the IO shell; persist due instants in UTC and display the location. Spring-forward nonexistent times skip; fall-back repeated local times run once, at their first matching instant; the repeated interval is suppressed even if Couch starts during its second copy. These are explicit reviewable semantics, pinned by fixtures.
 - A declaration error refuses that task, with its hub/path/reason visible; it does not stop other tasks. Missing `scripts/scheduled` is an empty catalog, not an error. Missing `main.go` for a declared task is a refusal.
 - Read declarations from the configured hub root only. Task names are single plain directory components; reject traversal, control bytes, absolute references, symlink escapes, duplicate/case-colliding task names and declarations over 32 KiB. Observe an invalid replacement as disabled/refused; do not continue executing an old last-good declaration silently.
 - Read Operators only until the next heading of level 1 or 2. Parse the leading slug in the agreed list format; reject duplicate slugs/ambiguous entries for team validation. A listed owner on another operator's machine is `not-owner`, not an invalid declaration. Machine scope does not require Git identity or Operators.
@@ -83,6 +83,8 @@ Use a small UTF-8 JSON object named `schedule` beside `main.go`; this avoids add
 
 ```text
 couch --schedule --status [--json]
+couch --schedule history <task> [--json]
+couch --schedule history <task> --run <run-id>
 couch --schedule run <task> -- <args...>
 couch --schedule run landing-plan -- --help
 couch --schedule run landing-plan -- script-run
@@ -92,7 +94,7 @@ Status is read-only and uses the existing operator-private socket/transport, lik
 
 For `run`, resolve cwd through existing Git/workspace resolution and the supervisor's configured hub catalog. A product worker checkout does not become a scheduler root and cannot select another hub's task by passing a path. Task selection is one slug in the current hub; same-name tasks in two hubs are unambiguous. Resolve the hub once, then use the same catalog/builder/executor/store as automatic execution. Argument tails are argv, not shell text. `--help` is passed to the built task; the helper does not reinterpret task flags.
 
-The manual process owns cancellation, streams/captures bounded task output, and returns the task exit code (including 10); it does not auto-wake the hub or advance `next_due`. It records a manual attempt so status remains honest. Automatic execution interprets 0/10/other through the reducer. The helper requires the configured Couch catalog to resolve its hub; no offline scan of unrelated repositories. Every manual or automatic process attempt takes the same per-task lease **and one of two namespace-wide execution-permit flocks** before starting build/task work. A manual caller cannot evade the global cap by executing a different task.
+The manual process owns cancellation, streams/captures bounded task output, and returns the task exit code (including 10); it does not auto-wake the hub or advance `next_due`. It records a manual attempt so status remains honest. Automatic execution interprets 0/10/other through the reducer. The helper requires the configured Couch catalog to resolve its hub; no offline scan of unrelated repositories. Every manual or automatic process attempt takes the same per-task lease **and one of two machine-wide execution-permit flocks** before starting build/task work. A manual caller cannot evade the global cap by executing a different task.
 
 ## Time and state semantics
 
@@ -103,7 +105,7 @@ The manual process owns cancellation, streams/captures bounded task output, and 
 - At restart or after a sleep gap, overdue saved slots advance directly to `Next(now)`. Default records one `skipped-missed` summary; no loop over missed ticks. `missed=once` reserves **one** catch-up occurrence, irrespective of missed count, and also advances next due beyond now.
 - An occurrence observed and reserved while running may wait for local worker/machine admission; it is not a new catch-up run. The declaration's one end-to-end timeout covers admission, build, execution and cleanup initiation. Timeout is recorded, the next scheduled slot remains armed, and no immediate automatic retry follows.
 - At most one active attempt per task; manual and scheduled runs contend on the same held execution lease. A due slot overlapping an active attempt records `skipped-running` and advances; no unbounded backlog. Round-robin dispatch between hubs prevents one hub's ready tasks taking all worker starts.
-- A valid owner is distinct from a connected hub. Reserve an eligible owner's occurrence even when its hub is temporarily disconnected, advance next due, and enter `waiting-hub` with a persisted absolute deadline. Before the deadline, reconnection may enable that same occurrence; afterward it expires without execution/admission. Wrong/missing owner is an immediate refused/non-owner slot with next due advanced, not an offline retry. Another hub never runs it; startup missed policy still applies.
+- Hub connectivity does not gate direct execution: an eligible `script_run` task reserves and runs when due even if its hub is offline. A notify-only task with an offline hub records `hub offline, skipped` and advances immediately. An exit-10/failure notice whose hub is offline is dropped with an explicit retained status/history line; reconnection does not retry it. There is no waiting-hub state. Wrong/missing owner is refused/non-owner with next due advanced, never an offline retry.
 
 ### Reducer shape
 
@@ -120,14 +122,13 @@ type Event struct {
 func Advance(state ScheduleState, event Event) (ScheduleState, []Effect)
 ```
 
-`TaskState` holds an immutable current declaration and `NextDue`, plus an optional tagged active attempt. The attempt stage is one of reserved, waiting-hub, queued, building, running, notifying, or recovering. Process attempts retain source (manual/scheduled), controller PID/start token, work-group identity, owning parent, and absolute deadline. Final records carry quiet/wake/failed/skipped/refused/uncertain outcomes. Typed event/stage/attempt checks ignore stale or duplicate completions; callers cannot mutate authoritative phase fields directly.
+`TaskState` holds an immutable current declaration and `NextDue`, plus an optional tagged active attempt. The attempt stage is one of reserved, queued, building, running, notifying, or recovering. Process attempts retain source (manual/scheduled), controller PID/start token, work-group identity, owning parent, and absolute deadline. Final records carry quiet/wake/failed/skipped/refused/uncertain outcomes. Typed event/stage/attempt checks ignore stale or duplicate completions; callers cannot mutate authoritative phase fields directly.
 
 | State/event | Decision/effect | Next visible state |
 |---|---|---|
 | New task / catalog accepted | Persist initial next due | Waiting |
-| Waiting / due, eligible owner | Reserve attempt and advance next due in one durable transaction, independently of hub connectivity | Reserved/waiting-hub |
+| Waiting / due, eligible owner | Persist reserve plus next due; direct task runs regardless of hub connectivity; offline notify-only task records skip without admission | Reserved or hub offline, skipped |
 | Waiting / due, refused or different owner | Consume the slot without effects and advance next due; retain the owner reason | Refused/not owner |
-| Waiting-hub / reconnect or deadline | Continue this occurrence only before its deadline; otherwise record expiry | Reserved or missed |
 | Reserved / commit durable | Obtain per-task execution lease, then admission/build or due-notice effect | Queued/building/notifying |
 | Reserved / write or directory-sync failure | No external effect; retain failure evidence | Refused/uncertain storage |
 | Active / another due or manual request | Skip scheduled overlap; manual returns busy with the active attempt | Existing active attempt |
@@ -135,7 +136,8 @@ func Advance(state ScheduleState, event Event) (ScheduleState, []Effect)
 | Running / exit 0 | Record completion, bounded output, release run owner | Quiet |
 | Running / exit 10 | Record completed execution and freeze one notice body/ID; never execute again while notifying | Notifying |
 | Running / other exit or timeout | Stop/join owned group; record failure; freeze failure notice | Failed + notifying |
-| Notifying / exact hub unavailable or known non-admission | Retry only admission within deadline | Waiting for hub |
+| Notifying / exact hub offline | Drop notice, retain output and explicit reason; no reconnect retry | Notice dropped, hub offline |
+| Notifying / connected hub, known non-admission | Retry only admission within the one-minute window | Notifying |
 | Notifying / broker admission or uncertain commit | Retain receipt; observe that same receipt, never allocate another paste | Queued/submitted/uncertain delivery |
 | Active / declaration removal, changed owner, or shutdown | Cancel not-started work; stop/join started group; retain outcome of this attempt | Cancelled/interrupted |
 | Reopen / reserved or started attempt without terminal record | Never replay automatically; reconcile exact native owner, preserve unavailable system receipt as terminal delivery uncertainty, apply missed policy to future slots | Recovering/next due |
@@ -152,7 +154,9 @@ Actions available to the operator/hub: inspect status/log; edit/commit the decla
 |---|---|---|---|
 | Invalid cron/owner/module or missing Operators | Refused, exact field/path reason | Edit/commit declaration/team file, then inspect status after reload | This slot is not run |
 | Valid owner belongs to another operator | Not owner, next due shown | Correct reviewed owner if responsibility changed | No automatic cross-machine failover |
-| Hub offline through admission deadline, or broker reports delivery expiry | Missed/delivery expired | Inspect log; manually run if still useful | Missed occurrence; no backlog replay |
+| Notify-only due while hub offline | Hub offline, skipped | Inspect history; invoke manually if still useful | Due notice lost; no reconnect replay |
+| Direct run finishes while hub offline | Actual task result, notice dropped/hub offline | Read retained output through history | Wake/failure notice lost, task result retained |
+| Broker reports delivery expiry | Delivery expired | Inspect history; invoke manually if still useful | Notice not delivered; no backlog replay |
 | Build/toolchain/dependency failure | Failed build, bounded log | Repair source/toolchain, then manual helper | This occurrence is not executed |
 | Heavy admission paused/expired/unavailable | Queued or admission failed | Inspect shared queue; retry manually after repair | This occurrence may expire |
 | Timeout or helper cancellation with joined group | Timed out/cancelled | Inspect log, then manually rerun if safe | Partial task work may remain |
@@ -180,19 +184,20 @@ Give each execution a short-lived owner process, not the long-lived Couch PID. F
 
 Sanitize inherited lock bypass/reentrancy variables before admission. Accept a positively acquired lease only; a verified same-owner nested run may reuse it. Treat skipped, malformed, missing-helper, paused, timeout and uncertain output as non-admission. Set `WF_TEST_LOCK_HELD_BY` to that owner only **after** acquisition for nested test commands. Do not watch the Couch PID, spawn task work before admission, or release the owner while its task group is still alive.
 
-The watched **controller stays outside the separate build/task work group it terminates**. The controller owns the per-task lease, one of the two namespace permits, a parent-lifetime pipe and the work group's direct child handle. Its identity/source is durably recorded while it is blocked; only a later authorization acknowledgement permits admission/build/task effects. Parent EOF/cancellation starts work-group TERM, then KILL after a one-second grace, then reaping/pipe-drain completion. The controller exits last, keeping admission and execution permits until cleanup is confirmed; retain an uncertain owner if it cannot be confirmed. Use `procutil` PID/start-token matching; bare PID disappearance is not proof that a surviving group is gone. Native parent-death tests must observe both descendant cleanup **and actual machine-slot release** in that order.
+The watched **controller stays outside the separate build/task work group it terminates**. The controller owns the per-task lease, one of the two machine-wide permits, a parent-lifetime pipe and the work group's direct child handle. Its identity/source is durably recorded while it is blocked; only a later authorization acknowledgement permits admission/build/task effects. Parent EOF/cancellation starts work-group TERM, then KILL after a one-second grace, then reaping/pipe-drain completion. The controller exits last, keeping admission and execution permits until cleanup is confirmed; retain an uncertain owner if it cannot be confirmed. Use `procutil` PID/start-token matching; bare PID disappearance is not proof that a surviving group is gone. Native parent-death tests must observe both descendant cleanup **and actual machine-slot release** in that order.
 
 The manual CLI parent, rather than Couch, owns a manual controller. A Couch restart observes a surviving exact manual controller and its held permits without cancelling it or issuing its work again. A scheduled controller is owned by the scheduler service and cancels on that parent's EOF. Store updates name source/controller identity/attempt; stale results from either caller cannot clear another active owner.
 
-The same end-to-end timeout bounds manual and automatic admission/build/task work; cached builds still obey it. Cleanup has its separate grace and uncertainty outcome. A notice-only occurrence uses its original deadline for admission. A completed direct task needing a wake/failure notice gets a separate, persisted one-minute admission window starting when its terminal result is recorded; a timeout can therefore still report its failure. Neither deadline invents an expiry for input already accepted by the broker. Capture stdout/stderr with a writer that continues draining after the retained 64 KiB cap, marks truncation, and cannot bypass its cap through `io.ReaderFrom`. Notice rendering removes terminal controls and truncates UTF-8 safely to the broker's body limit; output is not shell input. Task output is reviewed operational data, retained privately, and may be deliberately delivered on exit 10.
+The same end-to-end timeout bounds manual and automatic admission/build/task work; cached builds still obey it. Cleanup has its separate grace and uncertainty outcome. A notice-only occurrence uses its original deadline for admission. A completed direct task needing a wake/failure notice gets a separate, persisted one-minute admission window starting when its terminal result is recorded; a timeout can therefore still report its failure. Neither deadline invents an expiry for input already accepted by the broker. Capture stdout/stderr with a writer that continues draining after the retained 256 KiB head-and-tail cap (128 KiB each, with total byte count and a truncation marker), marks truncation, and cannot bypass its cap through `io.ReaderFrom`. Notice rendering removes terminal controls and truncates UTF-8 safely to the broker's body limit; output is not shell input. Task output is reviewed operational data, retained privately, and may be deliberately delivered on exit 10.
 
 ### Store and retention
 
-- Use a private namespace-local `schedule/` subtree, outside all hub repositories. One bounded `state.json` contains task state and the last 256 run records across the scheduler; output files are keyed by run ID. Manual and automatic writers use short context-aware flock transactions and `Advance` against freshly loaded state, so one cannot erase the other's outcome/next due.
+- Keep scheduler authority in a private namespace-local `schedule/state.json`, outside hub repositories. Store one result per run under the Couch data folder at `schedule/<hub>/<task>/runs/<run-id>/`, with strict metadata and capped output. Canonical hub identity maps to a safe collision-resistant path component. Each result records task, declaration revision, scheduled/manual source, scheduled instant if any, start/end, exit (nullable while unknown), outcome and notice-delivery state. Do not embed historical results/output in authority state. Manual and automatic writers use short context-aware flock transactions and `Advance` against freshly loaded state, so one cannot erase another outcome/next due. Publish a durable run record before clearing completed authority; recovery can finish that idempotent publication without rerunning task effects.
 - Use `strictjson.SplitObject`/`EncodeObject` at **every** persisted object level; preserve unknown members on read/modify/write. Known types, required fields, duplicate members, bounds, timestamps and versions remain strict. Schema corruption never resets the ledger into a runnable empty state.
 - Publish with `durablefile`; failed file/directory durability prevents first effects. A result-publication failure after execution is recorded/returned as uncertainty, not a reason to execute again.
-- Proposed operating envelope for review: at most 256 tasks per supervisor; 32 KiB/declaration, 2 MiB state, 64 KiB retained output/run, 256 history rows. Two active jobs globally, one per task. Admission/build/run use the declared timeout; cancellation/join is a separate bounded cleanup phase with visible uncertainty if it fails.
-- Cache budget: 256 MiB per supervisor. Evict unused build keys by LRU after publication; never remove a live execution's binary. Evicted run records remove only their owned output files. Removed-task state is pruned after 30 days, retaining active/uncertain owners. Sweep only validated scheduler paths; symlink or identity ambiguity refuses that cleanup rather than following it.
+- Operating envelope: at most 256 tasks per supervisor; 32 KiB/declaration and 2 MiB authority state; 256 KiB head/tail output per run. Two machine-wide execution permits shared by all manual/automatic processes and supervisor namespaces, one lease per task. Admission/build/run use the declared timeout; cancellation/join is a separate bounded cleanup phase with visible uncertainty if it fails.
+- Register run folders as Couch-wide **operational data** through the same retention mechanism used by diagnostic logs (#677/#687), default 30 days and 300 runs per task. Reuse its preview, identity-fenced deletion and failure reporting; no parallel age-pruning loop. Protect live/uncertain authority from retention; retained terminal result/output can age out without making a task runnable again. Add `couch --schedule history <task> [--json]` for run lists and `--run <run-id>` for one run's metadata/output. History is an explicit bounded IO operation; status still reads only the coordinator snapshot.
+- Cache budget: 256 MiB per supervisor. Evict unused build keys by LRU after publication; never remove a live execution's binary. Shared operational-data retention removes each expired run record together with only its owned output. Removed-task state is pruned after 30 days, retaining active/uncertain owners. Sweep only validated scheduler paths; symlink or identity ambiguity refuses that cleanup rather than following it.
 - These caps are initial design assumptions, not measurements. Exceeding a cap is visible and bounded; no silent partial catalog or unbounded history growth (ARCH-CONSTRAINTS/ARCH-FUNERAL).
 
 ## Supervisor, notices and status integration
@@ -207,7 +212,7 @@ The same end-to-end timeout bounds manual and automatic admission/build/task wor
 
 ## Complexity and test strategy
 
-Let H be configured hubs, N task entries, B changed declaration bytes, I build-input bytes, and R retained history rows. A catalog pass reads each directory/task declaration once: O(H+N+B); one due pass does at most one recurrence transition per task, not one per missed occurrence. Status copies O(N+R) bounded data. Input hashing/build metadata work is O(I) per admitted build and absent from ordinary clock/status paths. No task count multiplies another full catalog scan.
+Let H be configured hubs, N task entries, B changed declaration bytes, I build-input bytes, and R retained history rows. A catalog pass reads each directory/task declaration once: O(H+N+B); one due pass does at most one recurrence transition per task, not one per missed occurrence. Status copies O(N) current-task summaries; explicit history lists O(R) retained run entries for the selected task. Input hashing/build metadata work is O(I) per admitted build and absent from ordinary clock/status paths. No task count multiplies another full catalog scan.
 
 Count operations, not wall-clock speed: fixtures at N=8 and 16 reject more than two file reads/recurrence evaluations per task per pass; 1,000 missed slots still cause one transition and at most one catch-up effect; same content across two calls causes one build; two hubs cannot exceed the two-worker cap or run the same TaskKey concurrently. Native tests prove timeout/parent EOF/descendant cleanup separately from fake-clock scheduling tests.
 
@@ -218,8 +223,8 @@ Count operations, not wall-clock speed: fixtures at N=8 and 16 reject more than 
 | `Advance` | Exit 0/10/other, duplicate/stale completion, config change during build/run, overlapping manual call | Attempt/revision guards; output-10 produces exactly one notice, zero repeat executions. |
 | `StateStore` | Truncation, unknown nested fields, write/rename/sync refusal, concurrent manual completion | Reopen real folder-backed state; unknown bytes survive and no effect precedes durable reservation. |
 | `TaskBuilder` | Local dependency/embed/module/toolchain changes, dirty input during capture/build, unsupported module inputs, concurrent same key, failed build | Captured manifests and held stateful builder; compile reads only captured sources; unsupported inputs refuse; no stale-key executable or partial publication. |
-| `TaskExecutor`, `TaskAdmission` | Paused/unknown/skipped helper outcome, forged inherited bypass, timeout, parent death, lingering descendant, three mixed manual/automatic callers | No pre-admission task code; actual machine lease survives owned cleanup; controller outside killed group; namespace permits cap all callers at two. |
-| `scheduleNotice` | Offline reconnect before/after deadline, timeout-result admission window, busy/replaced hub, exhausted allowance, commit uncertainty, broker restart/expiry | Actual fake-backed broker path; same frozen receipt/body; timeout still reports; no resend on lost system receipt, no second paste/script, no claimed absolute queue expiry. |
+| `TaskExecutor`, `TaskAdmission` | Paused/unknown/skipped helper outcome, forged inherited bypass, timeout, parent death, lingering descendant, three mixed manual/automatic callers | No pre-admission task code; actual machine lease survives owned cleanup; controller outside killed group; machine-wide permits cap callers across supervisor namespaces at two. |
+| `scheduleNotice` | Offline notify-only skip/direct execution/exit-10 drop, timeout-result admission window, busy/replaced hub, exhausted allowance, commit uncertainty, broker restart/expiry | Actual fake-backed broker path; same frozen receipt/body; timeout still reports; no resend on lost system receipt, no second paste/script, no claimed absolute queue expiry. |
 | CLI/protocol/status | Cross-hub task reference, argument separator, malformed status, large/controlled output | Exact parser/socket assertions; JSON/text project same snapshot and status performs zero build/probe IO. |
 
 ## Implementation tasks
@@ -238,11 +243,11 @@ Count operations, not wall-clock speed: fixtures at N=8 and 16 reject more than 
 
 ### Task 2: Local discovery and preserving, bounded state
 
-**Create:** `cmd/internal/couchschedule/{catalog,store,store_unix,state_json}.go` and tests. **Reuse:** `cmd/internal/durablefile/write.go`, `cmd/internal/strictjson/object.go`.
+**Create:** `cmd/internal/couchschedule/{catalog,store,store_unix,state_json,history}.go` and tests; modify the existing diagnostic retention class/catalog integration to include operational data. **Reuse:** `cmd/internal/durablefile/write.go`, `cmd/internal/strictjson/object.go`.
 
 - [ ] Write failing folder-backed tests for two independent hubs, malformed replacement, symlinks, absent Operators, state reopen, nested unknown preservation, failed durable reservation, and concurrent manual/automatic updates.
 - [ ] Run `go test ./cmd/internal/couchschedule -run 'Test(Catalog|Store|StateJSON)' -count=1`; confirm the intended red failures.
-- [ ] Implement bounded discovery and context-aware store transactions. Keep task refusal local; state-store corruption blocks effects. Enforce history/output/cache ownership before any pruning.
+- [ ] Implement bounded discovery and context-aware store transactions. Keep task refusal local; state-store corruption blocks effects. Publish per-run records and 256 KiB head/tail output; register operational data with shared diagnostic retention (30 days/300 runs per task). Test preview/delete fencing and partial publication recovery.
 - [ ] Run tests green plus the 8/16-task IO counts, simulated directory-sync failure and crash/reopen sequence; ensure no real user data/store paths are used.
 - [ ] Commit `#737 M1: persist scheduled occurrences and bounded history` with trailers.
 
@@ -260,7 +265,7 @@ Count operations, not wall-clock speed: fixtures at N=8 and 16 reject more than 
 
 **Create:** `cmd/internal/couchcmd/{schedule_cli,schedule_status}.go` and tests. **Modify:** `cmd/internal/couchcmd/{cli,messages,run}.go`, `cmd/internal/couchmessage/protocol.go` and protocol tests; `README.md`, `atlas/couch.md`, `atlas/index.md`, `cmd/internal/artifactpath/manifest.go`.
 
-- [ ] Write failing CLI/socket tests for the exact proposed forms, current-hub-only resolution, argv preservation, manual exit propagation, manual history without schedule advancement, JSON/text equivalence and no status effects.
+- [ ] Write failing CLI/socket tests for the exact proposed forms, current-hub-only resolution, argv preservation, manual exit propagation, manual history without schedule advancement, list/show-output history forms, JSON/text equivalence and no status effects.
 - [ ] Run `go test ./cmd/internal/couchcmd ./cmd/internal/couchmessage -run 'TestSchedule' -count=1`; confirm red.
 - [ ] Wire the helper to the shared builder/executor/store and status to the existing private socket. Add team/hub/TL glossary to Pair atlas; leave `tl-lead --help` changes to the Ariadne project item.
 - [ ] Run targeted tests, source inventory guard, and the required recorded affected/full selection on the pushed head. Verify a native temporary hub task's `--help`, script-run and status without driving the operator's live Couch.
@@ -272,7 +277,7 @@ Count operations, not wall-clock speed: fixtures at N=8 and 16 reject more than 
 
 **Create:** `cmd/internal/couchcmd/{schedule_service,schedule_notice}.go` and tests. **Modify:** `cmd/internal/couchcmd/message_service.go`, scheduler status composition, source inventory.
 
-- [ ] Write failing fake-clock sequences through actual service composition: explicit/implicit hubs, no hub, on-time due, offline hub reconnecting before/after its reserved deadline, busy hub, 0 quiet, 10 wake, failure/timeout, sleep/restart skip/once, lost system receipt after restart, owner replacement, catalog edit/removal, shutdown cancellation/join and paused heavy admission.
+- [ ] Write failing fake-clock sequences through actual service composition: explicit/implicit hubs, no hub, on-time due, offline notify-only skip and offline direct execution with dropped exit-10 notice, busy hub, 0 quiet, 10 wake, failure/timeout, sleep/restart skip/once, lost system receipt after restart, owner replacement, catalog edit/removal, shutdown cancellation/join and paused heavy admission.
 - [ ] Run `go test ./cmd/internal/couchcmd -run 'TestSchedule' -count=1`; confirm red. Hold executor/receipt observations explicitly; no sleeps to choose event order.
 - [ ] Start/join one coordinator on service lifetime; feed pure transitions with catalog/time/process/receipt events. Bound workers and persist reservations before effects. Admit exact system notices through `hubBindingAt`/`holdHubEffect`/`SendSystem` and observe their canonical receipts.
 - [ ] Run the complete scheduling packages green; mutation-check no cross-hub execution, one exit-10 notice, no replay after uncertain completion, clock/sleep catch-up counts and immediate cancellation preventing the first side effect.
@@ -316,3 +321,7 @@ Team-owner enforcement is included now despite the earlier project reservation. 
 ### 2026-10-20 — one fresh-eyes plan pass
 
 Code-backed review exposed six incomplete contracts. The revised design uses existing broker delivery semantics without inventing an absolute TTL; treats unavailable system receipts after restart as terminal uncertainty; keeps the watched controller outside its work group until cleanup completes; shares lifetime execution permits across manual and automatic callers; specifies a captured-source Go build view; and reserves an eligible owner's offline occurrence before waiting for reconnection. Tests now name each boundary. The absence of a generic fleet-drain hook is an explicit v1 limitation rather than deferred implementation design. No production code or acceptance requirement changed.
+
+### 2026-10-20 — operator approval through ops:0
+
+Approved with three superseding decisions: (1) fall-back repeated local times run once; spring-forward missing times skip. (2) Remove waiting-hub: offline notify-only tasks skip/advance; direct tasks run anyway, dropping offline notices with explicit status/history. (3) Separate per-run records under Couch data schedule/<hub>/<task>/runs, with task/revision/source/start/end/exit/outcome/notice-delivery metadata and 256 KiB head/tail output; operational-data retention reuses diagnostic-log machinery, default 30 days/300 runs per task; add history listing and per-run output. The two execution permits are machine-wide. JSON declaration, one-minute result-notice window and uncertainty/no-replay remain approved. Begin change-code and M1. Earlier revision entries preserve superseded design history.

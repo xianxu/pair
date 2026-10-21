@@ -41,7 +41,9 @@ settled the contour with the operator on 10-20; its `design.md` is the reference
 - Team-scoped tasks run only on the hub of their owner operator; an owner not listed in `team.md`'s Operators
   section refuses with a clear reason.
 - `couch --schedule --status`: tasks, scope, last run and result, next due. Run history stays local and bounded.
-- Each hub only ever runs its own repo's tasks.
+- Each hub only ever runs its own repo's tasks. Fall-back repeated local times run once; spring-forward missing times skip.
+- Offline hub: notify-only due tasks skip/advance; direct tasks execute anyway, dropping offline notices with an explicit status/history reason.
+- Per-run records under Couch data `schedule/<hub>/<task>/runs/` retain revision, source, start/end, exit, outcome, notice-delivery state and 256 KiB head/tail output. Reuse diagnostic-log retention as operational data (30 days/300 runs per task); `couch --schedule history <task>` lists runs and prints selected output.
 - Manual/help entrypoint: `couch --schedule run <task> -- <args>`, sharing the content-keyed cached Go build and
   execution path with the automatic scheduler (TL clarification, 2026-10-20).
 
@@ -67,6 +69,8 @@ settled the contour with the operator on 10-20; its `design.md` is the reference
 - Durable implementation plan written to workshop/plans/000737-couch-scheduler-plan.md for TL/operator review before change-code. It keeps the current live Done when: a staged trivial ops task must run for a day; ops task provisioning and the staged restart require TL coordination.
 - One fresh-context plan edit identified six incomplete contracts, now resolved in the revised plan: broker expiry, lost system receipts, watched controller/group lifetime, manual/global execution permits, captured build inputs, and disconnected-hub reservation. Broader fleet drain is explicitly outside the proposed v1 shutdown guarantee. Operator review still precedes implementation; no tests were run for these documentation-only changes.
 
+- Operator approved the plan through ops:0 with the three revisions below. Proceed to change-code and M1; no acceptance requirement was waived.
+
 ## Revisions
 
 ### 2026-10-20 — clarified execution and owner scope (ops:0)
@@ -74,3 +78,7 @@ settled the contour with the operator on 10-20; its `design.md` is the reference
 Original Spec described a Go program named main and execution “under the sandbox and machine test budget.” TL clarified main is an abstract entrypoint: main.go packages are built once per content hash into a cache, and the shared helper is couch --schedule run <task> -- <args>. No general sandbox is promised in v1: reviewed code runs as the operator with network access, timeout, process-group stop and bounded output; only declared heavy tasks acquire the machine test lock. The current Spec reflects that superseding contract.
 
 The project/design previously reserved team scope beyond its owner field. TL confirmed the small deterministic owner check now: scope team requires an owner slug listed under team.md Operators, using lines of the form - <slug> (<name>): …; slug is normalized from git user.name. Missing section is tolerated but refuses a team task. No real team task or election is added.
+
+### 2026-10-20 — operator-approved plan revision (ops:0)
+
+Fall-back repeated local times run once. Remove waiting-hub: offline notify-only tasks skip/advance; direct tasks run regardless, with offline notices dropped and recorded. Replace embedded bounded history with per-run operational data under Couch data schedule/<hub>/<task>/runs, 256 KiB head/tail output, shared diagnostic retention (30 days/300 runs per task), and a history list/output command. Two execution permits are machine-wide. Other plan contracts, including one-minute notice admission and unknown/no-replay, remain approved.
