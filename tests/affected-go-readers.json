@@ -55,15 +55,14 @@
       "cmd/internal/zellijreply/reply_test.go": "c2c31cd564f2ae459542b7ea0061c1a943b25c29b779127d2fa57af19a23a951",
       "cmd/internal/zellijtest/reply_contract_test.go": "c72068e36467ba6f666b9425fd322b2f42b05b54cf0c73caa5660f3c97b8f2a6",
       "internal/repolint/catalog_test.go": "7525e40fa82f7cc69e4d76455ee82b9784cd2ddcf9697b416e5f5fc51a4b1ee4",
-      "internal/repolint/native_fixture_roots_test.go": "5091833cae04e8b4c3b84ac60f6ff44b12d4cf559907f13ba1ae474c82ebbd48",
       "internal/repolint/repository_test.go": "18f811280dadcf9206df255f10aeb07b60b47e1a81234dc8796a934b75974bcc",
-      "probes/zellijprobe/probeshape_test.go": "346295cb17dcb7fad208f4134a80c67fe0cc95b9c08162fbf868d98f567cdaf0"
+      "probes/zellijprobe/probeshape_test.go": "346295cb17dcb7fad208f4134a80c67fe0cc95b9c08162fbf868d98f567cdaf0",
+      "internal/repolint/native_fixture_roots_test.go": "9c63d03a6174ad905c9361f82269f2e1df51a72ce9c4b950bc33295fcadcc22a"
     },
     "non_go_full_fallback": {
       "cmd/internal/artifactpath/cross_scope_integration_test.go": "141dc4e3cd7632114dd20e263104176cdd470e86d6dd921dc2e9c9715077e18d",
       "cmd/internal/broadcast/viewer_test.go": "44f01533272916cfe7085c4115d8481b74bb2f12db323db3ea69eb40aeb4f3f5",
       "cmd/internal/clipcmd/cli_admission_test.go": "256e2332dfb5202894f5ccb1a379e65875438962326a6e7a636b19bf43fa4f1d",
-      "cmd/internal/couchcmd/shortcut_conformance_live_test.go": "67504844aa794941facbdbbc3b65227e6604a2f5bf5e2ea3ed5b45aaedcab9fd",
       "cmd/internal/couchcmd/stale_store_test.go": "f55eb2e1aa16137380152f0a372f09eb28619fa932076e69168076c845e99642",
       "cmd/internal/couchcmd/startup_fleet_timing_live_test.go": "e3e6890f2a31b50af420aed8b3562a09799b9e71f8fee8c31d296b820dfa23bb",
       "cmd/internal/couchcmd/supervision_fact_storage_test.go": "89759b3d4d8cf053248fe56a20a90ee26e8afeca42148403402e8e7e87e7bf44",
@@ -151,7 +150,8 @@
       "cmd/internal/wrapcmd/terminal_tail_test.go": "9131f3b46d3d253300a272875be6a28aaf33ca9877940a4d3ee2061cf336413f",
       "cmd/internal/wrapcmd/translate_test.go": "19a77f27b5eeb7686ae076513a3e5064257d9f9c8ed36c3cc71e423e2f599e04",
       "cmd/internal/zellijtest/fake_test.go": "0820421bf6161904427c0ac989b550cbcfaa3a964538f6da00219b6aac5d042f",
-      "cmd/pair-go/main_test.go": "92b328484019f5aa5e6a3850c6dee60b7e4500aec392766ef0ddbbc7bbcb9523"
+      "cmd/pair-go/main_test.go": "92b328484019f5aa5e6a3850c6dee60b7e4500aec392766ef0ddbbc7bbcb9523",
+      "cmd/internal/couchcmd/shortcut_conformance_live_test.go": "8a3d8995e5f64554936b7ebe13143406a615f958e5b5e00f1de2a62c61be24c8"
     },
     "local_or_literal_fixture": {
       "cmd/internal/vmcmd/positions_test.go": "6934e31a9ed104ec272a29a62ef509521b28c10681a2167fb35c38adba83f4b5",

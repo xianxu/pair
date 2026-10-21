@@ -6,5 +6,13 @@
     "lane_claim_retained": false,
     "cause": "Strict checker omitted Go test2json artifacts metadata action emitted by -artifacts. Raw event stream retained; no passing rerun claimed.",
     "correction": "Recognize artifacts and attr metadata with strict known string types, running-test identity and no completion authority; qualify literal and actual-producer streams before the next native attempt."
+  },
+  {
+    "nonce": "d4a80a4a1b16d346e53efaa9c0fee72c",
+    "head": "06b77d49d154895fddf30a260cf38ae59f308a47",
+    "exit_code": 1,
+    "lane_claim_retained": false,
+    "cause": "Native terminal population passed; shortcut fixture inherited bootstrap ZELLIJ_SOCKET_DIR, exhausting Darwin AF_UNIX path/session-name budget. Lowering TMPDIR alone does not override the explicit socket-root environment.",
+    "correction": "Existing shortcut fixture now explicitly owns a short socket root and cleanup; long-TMPDIR/inherited-root regression binds the longest actual session path under the 103-byte conservative budget. Existing native-fixture lint is extended for the same class."
   }
 ]
