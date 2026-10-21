@@ -539,3 +539,53 @@ func TestCacheZeroBytePartialEntriesRebuild(t *testing.T) {
 		})
 	}
 }
+
+func TestCachePublicationPreservesReplacements(t *testing.T) {
+	for _, target := range []string{"directory", "task", "manifest.json"} {
+		for _, returnError := range []bool{true, false} {
+			t.Run(fmt.Sprintf("%s/error=%t", target, returnError), func(t *testing.T) {
+				b, root := cacheFixture(t)
+				saved := filepath.Join(t.TempDir(), "observed")
+				var foreign string
+				b.cacheFault = func(step string) error {
+					if step != "publication-ready" {
+						return nil
+					}
+					stages, err := filepath.Glob(filepath.Join(b.CacheDir, ".publication-*"))
+					if err != nil || len(stages) != 1 {
+						return fmt.Errorf("publication inventory: %v %v", stages, err)
+					}
+					stage := stages[0]
+					if target == "directory" {
+						if err = os.Rename(stage, saved); err != nil {
+							return err
+						}
+						if err = os.Mkdir(stage, 0700); err != nil {
+							return err
+						}
+						foreign = filepath.Join(stage, "task")
+					} else {
+						foreign = filepath.Join(stage, target)
+						if err = os.Rename(foreign, saved); err != nil {
+							return err
+						}
+					}
+					if err = os.WriteFile(foreign, []byte("foreign replacement"), 0600); err != nil {
+						return err
+					}
+					if returnError {
+						return errors.New("returned publication fault")
+					}
+					return nil
+				}
+				if _, err := b.Build(t.Context(), root, "task"); err == nil {
+					t.Fatal("publication fault ignored")
+				}
+				raw, err := os.ReadFile(foreign)
+				if err != nil || string(raw) != "foreign replacement" {
+					t.Fatalf("replacement lost: %q %v", raw, err)
+				}
+			})
+		}
+	}
+}

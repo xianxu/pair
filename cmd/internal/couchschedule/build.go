@@ -44,7 +44,7 @@ type Builder struct {
 	cacheRecoveryNow   func() time.Time
 }
 
-func (b Builder) Build(ctx context.Context, hubRoot, task string) (Artifact, error) {
+func (b Builder) Build(ctx context.Context, hubRoot, task string) (artifact Artifact, buildErr error) {
 	if err := ctx.Err(); err != nil {
 		return Artifact{}, err
 	}
@@ -83,11 +83,27 @@ func (b Builder) Build(ctx context.Context, hubRoot, task string) (Artifact, err
 	if err != nil {
 		return Artifact{}, err
 	}
-	stage, err := os.MkdirTemp("", "couch-build-")
+	scratch, err := acquireBuildScratch(ctx, b.CacheDir)
 	if err != nil {
 		return Artifact{}, err
 	}
-	defer os.RemoveAll(stage)
+	defer func() {
+		var uncertain *groupUncertain
+		if errors.As(buildErr, &uncertain) {
+			uncertain.capture = scratch
+			return
+		}
+		cleanupErr := scratch.close()
+		if cleanupErr != nil {
+			if buildErr == nil {
+				_ = artifact.Close()
+				artifact = Artifact{}
+			}
+			buildErr = errors.Join(buildErr, cleanupErr)
+		}
+	}()
+	stage := scratch.path
+	ctx = context.WithValue(ctx, captureContextKey{}, scratch.lease)
 	modfile := filepath.Join(stage, "capture.mod")
 	if err = os.WriteFile(modfile, mod, 0600); err != nil {
 		return Artifact{}, err
@@ -208,6 +224,9 @@ func (b Builder) Build(ctx context.Context, hubRoot, task string) (Artifact, err
 		}
 	}()
 
+	if err = validateCaptureInputs(inputs, mapped); err != nil {
+		return Artifact{}, err
+	}
 	view := filepath.Join(stage, "view")
 	for _, in := range inputs {
 		p := filepath.Join(view, mapped[in.Module], filepath.FromSlash(in.Path))
@@ -501,16 +520,10 @@ func (b Builder) command(ctx context.Context, dir string, env []string, args ...
 			return nil, err
 		}
 	}
-	cmd := exec.CommandContext(ctx, goBin, args...)
-	cmd.Dir = dir
-	cmd.Env = env
-	cmd.WaitDelay = time.Second
 	var out, stderr buildCapture
-	cmd.Stdout = &out
-	cmd.Stderr = &stderr
-	err := cmd.Run()
+	_, err := ownedGroupCommand(ctx, goBin, dir, env, args, &out, &stderr, false)
 	if out.overflow || stderr.overflow {
-		return nil, errors.New("go command output exceeds bound")
+		return nil, errors.Join(err, errors.New("go command output exceeds bound"))
 	}
 	if err != nil {
 		return nil, fmt.Errorf("go %s: %w: %s", strings.Join(args, " "), err, stderr.String())

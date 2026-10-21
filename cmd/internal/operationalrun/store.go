@@ -12,6 +12,7 @@ import (
 	"sort"
 
 	"github.com/xianxu/pair/cmd/internal/durablefile"
+	"golang.org/x/sys/unix"
 )
 
 var stageName = regexp.MustCompile(`^\.run-stage-[0-9]+$`)
@@ -57,7 +58,7 @@ func (s Store) Publish(ctx context.Context, key RunKey, r Record, output []byte)
 		return e
 	}
 	defer unlock()
-	if e = cleanupStages(ctx, task); e != nil {
+	if e = s.cleanupStages(ctx, task); e != nil {
 		return e
 	}
 	runs := filepath.Join(task, "runs")
@@ -88,30 +89,67 @@ func (s Store) Publish(ctx context.Context, key RunKey, r Record, output []byte)
 	if len(entries) >= 4096 {
 		return errors.New("operational run inventory full; retain scheduler result and collect history before retrying publication")
 	}
+	fd, e := unix.Open(task, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
+	if e != nil {
+		return e
+	}
+	root := os.NewFile(uintptr(fd), task)
+	defer root.Close()
+	rootID, e := stageOpenedIdentity(root)
+	if e != nil {
+		return e
+	}
 	stage, e := os.MkdirTemp(task, ".run-stage-")
 	if e != nil {
 		return e
 	}
+	name := filepath.Base(stage)
+	stageDir, e := stageOpenChild(root, name, true)
+	if e != nil {
+		return e
+	}
+	defer stageDir.Close()
+	stageID, e := stageOpenedIdentity(stageDir)
+	if e != nil {
+		return e
+	}
+	files := map[string]fileIdentity{}
+	var children []string
+	published := false
 	defer func() {
-		_ = os.Remove(filepath.Join(stage, "record.json"))
-		_ = os.Remove(filepath.Join(stage, "output"))
-		_ = os.Remove(stage)
+		if !published {
+			_ = (Store{}).cleanupCapturedRunStage(context.Background(), root, rootID, name, stageDir, stageID, children, files)
+		}
 	}()
 	if e = durablefile.WriteAtomic(filepath.Join(stage, "record.json"), raw, ".record-"); e != nil {
 		return e
 	}
+	files["record.json"], e = stageChildIdentity(stageDir, "record.json", false)
+	if e != nil {
+		return e
+	}
+	children = append(children, "record.json")
 	if e = durablefile.WriteAtomic(filepath.Join(stage, "output"), output, ".output-"); e != nil {
 		return e
 	}
+	files["output"], e = stageChildIdentity(stageDir, "output", false)
+	if e != nil {
+		return e
+	}
+	children = append(children, "output")
 	if e = s.fail("publish-ready"); e != nil {
 		return e
 	}
 	if e = ctx.Err(); e != nil {
 		return e
 	}
+	if e = verifyCapturedRunStage(root, rootID, name, stageDir, stageID, files); e != nil {
+		return e
+	}
 	if e = os.Rename(stage, dest); e != nil {
 		return e
 	}
+	published = true
 	return errors.Join(durablefile.SyncDirectory(runs), durablefile.SyncDirectory(task))
 }
 func (s Store) readMetadata(key RunKey) (Record, error) {
@@ -227,50 +265,4 @@ func names(dir string) ([]string, error) {
 	}
 	sort.Strings(ns)
 	return ns, nil
-}
-
-// A task lock fences abandoned private staging directories from live publishers.
-// Their reserved names never grant authority over an unknown child.
-func cleanupStages(ctx context.Context, task string) error {
-	ns, e := names(task)
-	if e != nil {
-		return e
-	}
-	for _, name := range ns {
-		if e = ctx.Err(); e != nil {
-			return e
-		}
-		if !stageName.MatchString(name) {
-			continue
-		}
-		path := filepath.Join(task, name)
-		children, e := names(path)
-		if e != nil {
-			return e
-		}
-		for _, child := range children {
-			if child != "record.json" && child != "output" && !stageFileName.MatchString(child) {
-				return errors.New("unknown operational publication staging member")
-			}
-			id, e := identity(filepath.Join(path, child))
-			if e != nil {
-				return e
-			}
-			if !os.FileMode(id.Mode).IsRegular() {
-				return errors.New("unsafe operational staging member")
-			}
-		}
-		for _, child := range children {
-			if e = ctx.Err(); e != nil {
-				return e
-			}
-			if e = os.Remove(filepath.Join(path, child)); e != nil {
-				return e
-			}
-		}
-		if e = os.Remove(path); e != nil {
-			return e
-		}
-	}
-	return durablefile.SyncDirectory(task)
 }

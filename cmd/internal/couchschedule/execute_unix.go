@@ -21,8 +21,9 @@ import (
 )
 
 type groupUncertain struct {
-	pid int
-	err error
+	pid     int
+	err     error
+	capture *buildScratch
 }
 
 func (e *groupUncertain) Error() string {
@@ -37,6 +38,7 @@ func ownedGroupCommand(ctx context.Context, program, dir string, env, args []str
 	cmd := exec.Command(program, args...)
 	cmd.Dir = dir
 	cmd.Env = env
+	cmd.ExtraFiles = captureExtraFiles(ctx)
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
@@ -87,7 +89,7 @@ kill:
 		case processErr = <-done:
 			joined = true
 		case <-time.After(time.Second):
-			return -1, &groupUncertain{pid, errors.New("direct child reaping unconfirmed")}
+			return -1, &groupUncertain{pid: pid, err: errors.New("direct child reaping unconfirmed")}
 		}
 	}
 	end := time.Now().Add(time.Second)
@@ -97,7 +99,7 @@ kill:
 			break
 		}
 		if time.Now().After(end) {
-			return -1, &groupUncertain{pid, probeErr}
+			return -1, &groupUncertain{pid: pid, err: probeErr}
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
@@ -156,10 +158,12 @@ func executeOwned(ctx context.Context, r ExecutionRequest, stream *os.File) (Exe
 				for {
 					gone, _ := ownedGroupGone(unknown.pid)
 					if gone {
+						if unknown.capture != nil {
+							_ = unknown.capture.close()
+						}
 						closeResources()
 						return
 					}
-					_ = unix.Kill(-unknown.pid, unix.SIGKILL)
 					time.Sleep(100 * time.Millisecond)
 				}
 			}
@@ -366,5 +370,36 @@ func setCancellationOutcome(ctx context.Context, result *ExecutionResult) {
 		result.Outcome = "timeout"
 	} else if ctx.Err() != nil {
 		result.Outcome = "cancelled"
+	}
+}
+
+// BuildCleanupError retains a capture lease after uncertain group cleanup.
+// Join waits for the remaining group and releases the capture only after
+// group disappearance is confirmed. Cancellation while the group remains live
+// retains ownership for retry. Interrupted cleanup after disappearance releases
+// the lease and leaves recognized residue for the next allocator.
+// Ignoring the error fails closed until the owning process exits.
+type BuildCleanupError interface {
+	error
+	Join(context.Context) error
+}
+
+func (e *groupUncertain) Join(ctx context.Context) error {
+	for {
+		gone, err := ownedGroupGone(e.pid)
+		if gone {
+			if e.capture != nil {
+				return e.capture.closeContext(ctx)
+			}
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(10 * time.Millisecond):
+		}
 	}
 }

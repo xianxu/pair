@@ -81,7 +81,12 @@ hub checkout. The 256 MiB cache evicts unused keys by LRU; held artifact leases
 protect executing binaries, and full live capacity refuses additional admission.
 Publication renames a complete temporary entry into place; LRU touches update
 mtime, and eviction renames an unused entry to trash before deletion. Lookup
-recovery removes stale unreferenced temporary/trash entries after one minute.
+recovery removes stale unreferenced temporary/trash entries after one minute. Captured build
+views use a separate two-slot leased pool beside the cache; Go writers inherit
+the lease, and uncertain cleanup keeps the slot held. State updates recover
+abandoned snapshot files under the state lock. Run publication and collection
+recover private staging under the run-task lock. Cleanup and publication both
+check captured file identities, including ordinary returned-error paths.
 
 Two execution permits are shared machine-wide by manual and scheduled tasks.
 One held per-task lease excludes overlap. `heavy: true` additionally acquires a

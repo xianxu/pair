@@ -113,7 +113,7 @@ func (s Store) SweepPage(ctx context.Context, now time.Time, after Cursor, apply
 				continue
 			}
 			if apply {
-				e = cleanupStages(ctx, dir)
+				e = s.cleanupStages(ctx, dir)
 				if e == nil {
 					e = s.recoverCollection(ctx, dir)
 				}

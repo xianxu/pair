@@ -269,21 +269,43 @@ func (b Builder) maintainCache(ctx context.Context, cache string, m BuildManifes
 	if e != nil {
 		return e
 	}
+	stageDir, e := openScheduleDir(ctx, stage, false)
+	if e != nil {
+		return e
+	}
+	defer stageDir.Close()
+	stageInfo, e := stageDir.Stat()
+	if e != nil {
+		return e
+	}
+	stageID, e := cacheFileID(stageInfo)
+	if e != nil {
+		return e
+	}
+	owned := cacheDirSnapshot{identity: stageID, files: map[string]cacheFileIdentity{}}
 	defer func() {
-		_ = os.Remove(filepath.Join(stage, "manifest.json"))
-		_ = os.Remove(filepath.Join(stage, "task"))
-		_ = os.Remove(stage)
+		cleanup, stop := context.WithTimeout(context.Background(), 5*time.Second)
+		defer stop()
+		_ = b.deleteCacheDir(cleanup, cache, stage, owned)
 	}()
 	if e = b.cacheStep("publication-created"); e != nil {
 		return e
 	}
-	if e = writeCachePayload(filepath.Join(stage, "task"), binary, 0700); e != nil {
+	payload, e := writeCachePayload(stageDir, "task", binary, 0700)
+	if payload.inode != 0 {
+		owned.files["task"] = payload
+	}
+	if e != nil {
 		return e
 	}
 	if e = b.cacheStep("publication-task-written"); e != nil {
 		return e
 	}
-	if e = writeCachePayload(filepath.Join(stage, "manifest.json"), encoded, 0600); e != nil {
+	payload, e = writeCachePayload(stageDir, "manifest.json", encoded, 0600)
+	if payload.inode != 0 {
+		owned.files["manifest.json"] = payload
+	}
+	if e != nil {
 		return e
 	}
 	if e = b.cacheStep("publication-manifest-written"); e != nil {
@@ -298,6 +320,18 @@ func (b Builder) maintainCache(ctx context.Context, cache string, m BuildManifes
 	if b.cacheFault != nil {
 		if e = b.cacheFault("publication-ready"); e != nil {
 			return e
+		}
+	}
+	current, e := captureCacheDir(cache, stage)
+	if e != nil {
+		return e
+	}
+	if !owned.identity.matches(current.identity) || len(owned.files) != len(current.files) {
+		return errors.New("cache publication replaced")
+	}
+	for name, expected := range owned.files {
+		if !expected.matches(current.files[name]) {
+			return errors.New("cache publication payload replaced")
 		}
 	}
 	if e = os.Rename(stage, dir); e != nil {
@@ -587,16 +621,24 @@ func (b Builder) recoverCache(ctx context.Context, cache string) error {
 	defer unlock()
 	return b.recoverCacheLocked(ctx, cache)
 }
-func writeCachePayload(path string, raw []byte, perm os.FileMode) error {
-	f, e := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, perm)
+func writeCachePayload(dir *os.File, name string, raw []byte, perm os.FileMode) (id cacheFileIdentity, err error) {
+	f, e := openScheduleChild(dir, name, unix.O_CREAT|unix.O_EXCL|unix.O_WRONLY)
 	if e != nil {
-		return e
+		return id, e
 	}
-	defer f.Close()
+	defer func() {
+		if info, e := f.Stat(); e == nil {
+			id, _ = cacheFileID(info)
+		}
+		_ = f.Close()
+	}()
+	if e = f.Chmod(perm); e != nil {
+		return id, e
+	}
 	if _, e = f.Write(raw); e != nil {
-		return e
+		return id, e
 	}
-	return f.Sync()
+	return id, f.Sync()
 }
 
 // Earlier builds used atomic file replacement inside the key directory. Those

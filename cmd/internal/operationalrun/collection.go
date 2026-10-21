@@ -36,6 +36,9 @@ func identity(path string) (fileIdentity, error) {
 	if e != nil {
 		return fileIdentity{}, e
 	}
+	return identityInfo(st)
+}
+func identityInfo(st os.FileInfo) (fileIdentity, error) {
 	if !st.IsDir() && !st.Mode().IsRegular() {
 		return fileIdentity{}, errors.New("unsafe operational bundle member")
 	}

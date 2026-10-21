@@ -33,7 +33,7 @@ func WriteAtomicStaged(path string, raw []byte, stage string) error {
 		if !info.Mode().IsRegular() {
 			return errors.New("unsafe durable publication stage")
 		}
-		if e = os.Remove(stage); e != nil {
+		if e = removeOwnedStage(stage, info); e != nil {
 			return e
 		}
 	} else if !errors.Is(e, os.ErrNotExist) {
@@ -46,8 +46,12 @@ func WriteAtomicStaged(path string, raw []byte, stage string) error {
 	return publish(path, raw, f, 0600)
 }
 func publish(path string, raw []byte, f *os.File, perm os.FileMode) error {
-	defer os.Remove(f.Name())
 	defer f.Close()
+	owned, e := f.Stat()
+	if e != nil {
+		return e
+	}
+	defer func() { _ = removeOwnedStage(f.Name(), owned) }()
 	if e := f.Chmod(perm); e != nil {
 		return e
 	}
@@ -60,11 +64,34 @@ func publish(path string, raw []byte, f *os.File, perm os.FileMode) error {
 	if e := f.Close(); e != nil {
 		return e
 	}
+	if e := verifyOwnedStage(f.Name(), owned); e != nil {
+		return e
+	}
 	if e := os.Rename(f.Name(), path); e != nil {
 		return e
 	}
 	return SyncDirectory(filepath.Dir(path))
 }
+
+// A stage pathname grants cleanup/publication authority only while it names
+// the file originally opened by the writer. Lstat refuses a substituted symlink.
+func verifyOwnedStage(path string, owned os.FileInfo) error {
+	current, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if !current.Mode().IsRegular() || !os.SameFile(owned, current) {
+		return errors.New("durable publication stage replaced")
+	}
+	return nil
+}
+func removeOwnedStage(path string, owned os.FileInfo) error {
+	if err := verifyOwnedStage(path, owned); err != nil {
+		return err
+	}
+	return os.Remove(path)
+}
+
 func SyncDirectory(path string) error {
 	f, e := os.Open(path)
 	if e != nil {
