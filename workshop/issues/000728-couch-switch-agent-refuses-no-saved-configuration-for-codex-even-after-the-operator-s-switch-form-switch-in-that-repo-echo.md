@@ -178,3 +178,7 @@ Authenticated submitted hub c304f9f9-aca2-4d34-a7c2-fcbbf0415f96 adds explicit c
 ### 2026-10-21 10:47 — Operator-only unknown-idle force escape approved
 
 Authenticated submitted hub e9c3a9af-422f-4c4e-acfc-ac4e21f612eb approves M2 interrupt-first but notes usage-limit/stuck-turn evidence can be neither working nor idle. Appended governing Revisions: form/console-only Force switch, distinct second confirmation naming loss of the current turn's unsaved progress, source/fingerprint-bound typed local consent, no CLI/hub force path, normal verified ownership/Git/park/cleanup/launch gates retained. Added usage-limit fixture and remote/replay/cancel/adoption acceptance. This closes the product gap without speculative interrupt bytes or a second lifecycle mechanism.
+
+### 2026-10-21 10:53 — Emergency force simplified by the operator
+
+Authenticated submitted hub c6e88045-8036-43b4-abfd-ca18d04d9132 supersedes the earlier two-confirmation unknown-only escape: emergency form/console force has one explicit loss confirmation, stops the stuck agent hard via the existing park owner, then launches the target; no CLI/hub force, no standby hub. Appended the governing Revisions. Read-only lifecycle trace is checking existing hard-stop escalation for reuse. Asked the hub whether force also permits an owned dirty tree or retains the clean-tree refusal; M1 remains independent and proceeds.
