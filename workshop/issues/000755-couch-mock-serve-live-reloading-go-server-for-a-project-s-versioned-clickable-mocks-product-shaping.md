@@ -47,7 +47,7 @@ through clickable mocks iterated by sketching. It needs one default way to serve
 ## Plan
 
 - [x] Implement the versioned mock server and browser reload contract, with deterministic and real-browser verification.
-- [ ] Wire standalone Couch commands, add the sample and conventions, run the recorded suite, close and land.
+- [x] Wire standalone Couch commands, add the sample and conventions, run the recorded suite, close and land.
 
 Implementation details: [durable plan](../plans/000755-mock-server-plan.md).
 
@@ -63,6 +63,8 @@ Implementation details: [durable plan](../plans/000755-mock-server-plan.md).
 - Plan-quality round 1 blocked on PQ-1 document bootstrap ordering and PQ-2 production-function test strategies; advisory PQ-3 noted unbounded empty-directory traversal. Verified all three against the written plan and appended governing refinements: baseline captured before document read and compared on first poll, named function strategies, and an all-entry traversal cap within the existing file envelope. No implementation started.
 
 - Implementation and sample are complete. Targeted HTTP/CLI, package race, artifactpath and repolint checks passed. Real private-profile Chrome qualified HTML/CSS/JS/fixture edit reload, clicks, switch/revert, invalid-fixture repair and held-first-poll edit/switch orderings, plus the checked-in three-screen/two-version sample and its empty/error/80-row cases. Metadata/script suppression negative controls failed as intended; cached-read rescan and doubled file-read mutations failed their regressions. Node client tests passed all five request/decision cases. Audited new readers as private/literal fixtures, except the actual sample browser reader which uses the conservative non-Go full fallback. Preparing the recorded pushed-head suite and mandatory close review.
+
+- PR507 is open and the recorded pushed-head affected check is started. Implementation checklist is complete; suite completion, close verdict and landing remain machine-gated. Using the TL-worker allowance to overlap the queued recorded suite with boundary review; no landing before a final-head recorded pass.
 
 ## Revisions
 
