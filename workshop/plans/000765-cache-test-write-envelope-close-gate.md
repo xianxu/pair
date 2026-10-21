@@ -231,6 +231,107 @@ rounds:
       isolation: fenced
       reviewed: 7a44ba96a8802861c3991ed9791bd55b549ed8cd
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: c4e900e9-c170-4344-ab80-20be04310f21
+            repository: github.com/xianxu/pair
+            issue_id: "000765"
+            recipe: fix-review
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/e01bd393425d81a2
+            reviewed_head: 991599da3c42aba8eac2fa7fd9c6ac28572b50fe
+            slot: pair:7
+            requested_at: "2026-10-21T13:06:13.929988Z"
+          phase: finished
+          pid: 50361
+          started_at: "2026-10-21T13:06:14.095175Z"
+          finished_at: "2026-10-21T13:07:25.15563Z"
+          session_id: 01a15e91-c775-7930-86db-abb569c1eadc
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: 991599da3c42aba8eac2fa7fd9c6ac28572b50fe
+        tracker_head: d51374c90e11cea1e7b897a7f2626e00e92b8e8a
+        branch_point: 42bfa761430c9e27413135f2453997b1350b4907
+        since: "2026-10-21T03:09:03-07:00"
+        until: "2026-10-21T06:05:33-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-21T03:09:03-07:00"
+              end: "2026-10-21T06:05:33-07:00"
+              began: "2026-10-21T03:09:03-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot7/pair
+        sources:
+            - harness: codex
+              id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              slot: pair:7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 2f0e9a8e5de9c73fef749b3014aeb35061457619c46c63fd5a7113d4a4cf4d84
+              started: "2026-10-13T04:50:49.58Z"
+              spawned: false
+              bytes: 230523446
+              windows:
+                - start: "2026-10-21T03:09:03-07:00"
+                  end: "2026-10-21T06:05:33-07:00"
+        queue_waits:
+            - attempt_id: 565ab9c18cb876ea6bb5b1f1ce3d832b
+              slot: pair:7
+              record_digest: 7d57a5a58cc06115fc88fac12388ca034c49d959df4677ec79dd51193a56c912
+              start: "2026-10-21T10:26:11.522402Z"
+              end: "2026-10-21T10:57:22.469283Z"
+              queue_seconds: 1870.946881
+              raw_seconds: 1870.946881
+              exact: true
+            - attempt_id: 4b7476afad2ec562731e223ce7e4f83b
+              slot: pair:7
+              record_digest: 557ed4d74daf7f219e9fbba045831b04fc8dd141dbfdfa640b0a83c6feb03bc1
+              start: "2026-10-21T11:14:26.105756Z"
+              end: "2026-10-21T11:49:34.917572Z"
+              queue_seconds: 2108.811816
+              raw_seconds: 2108.811816
+              exact: true
+            - attempt_id: 290d0c9b3fb71b55fbfd2a570aaf7448
+              slot: pair:7
+              record_digest: f8f2256caea4627d17d262a9017ee3276103111ea9466984857c8f02be6d59c0
+              start: "2026-10-21T12:23:08.816399Z"
+              end: "2026-10-21T12:54:18.366079Z"
+              queue_seconds: 1869.54968
+              raw_seconds: 1869.54968
+              exact: true
+        cuts:
+            - dispatched: "2026-10-21T03:19:13-07:00"
+              finalized: "2026-10-21T03:20:42-07:00"
+              finalizing: false
+            - dispatched: "2026-10-21T03:26:33-07:00"
+              finalized: "2026-10-21T03:32:18-07:00"
+              finalizing: true
+            - dispatched: "2026-10-21T05:01:01-07:00"
+              finalized: "2026-10-21T05:02:12-07:00"
+              finalizing: true
+      "n": 4
+      timestamp: "2026-10-21T06:07:26-07:00"
+      dispatched: "2026-10-21T06:06:10-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: The conformance certificate preserves its audited hash and SOURCE_GUARDS registration. Inventory validation passes; removing either registration in memory produces the expected audit failure. The registered conformance test passes.
+          round: 4
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 991599da3c42aba8eac2fa7fd9c6ac28572b50fe
+      blocked: false
 ---
 
 # Gate ledger — pair#765 (boundary-review)
@@ -256,6 +357,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - BR-1 — addressed — The conformance reader retains its matching inventory hash and SOURCE_GUARDS registration. The inventory check and registered conformance test pass. Removing either registration in memory makes the audit fail.
+
+## Round 4 — 2026-10-21T06:07:26-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — The conformance certificate preserves its audited hash and SOURCE_GUARDS registration. Inventory validation passes; removing either registration in memory produces the expected audit failure. The registered conformance test passes.
 
 ## Open findings
 
