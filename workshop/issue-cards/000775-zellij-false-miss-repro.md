@@ -13,14 +13,14 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
-actual_hours: 1.45
+actual_hours: 1.75
 tracker:
     version: 1
     completion:
-        token: close-c27065b86770
+        token: close-1e97bfa8fa8b
         repository: github.com/xianxu/pair
-        reviewed_head: 848ab2512db9f362fb3fe2219d288a7bc8e37d5d
-        evidence_commit: 855c5fbfaecebea83d504d0db60d82a227448797
+        reviewed_head: dd995d96feffc62e3984bebaaeae9b8278ec887c
+        evidence_commit: c7ff6724c6d559821bdef91879b47c4eab627c30
 ---
 
 # Standalone Zellij false-miss reproduction
