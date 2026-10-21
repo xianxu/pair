@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
-estimate_hours: 6.67
+estimate_hours: 10.42
 collaboration-mode: collaboration
-card_mirror: 'f1cd606d671fc818c16be23372a438043db66b70' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '4a60b1d7ff769f0fae4f38e87c1f7e5107ed4af7' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T17:17:42-07:00
 claimant:
     operator: Xian Xu
@@ -88,11 +88,17 @@ Authenticated ops:0 delivery `8935cb14-0bb2-47d2-a8db-5325ca4023aa` relays opera
 
 Ops:0 delivery `29bde47e-ecea-4daf-bf0f-0278b7fa6145` approves the concrete option-A plan and completion-time bounded manual output. Per the operator's decision relayed by TL, M2 is retired as superseded and the one-writer redesign is M3 with its own fresh review boundary. This is an explicit replacement of the concurrency model, not a patch round or reset of M2's cap/findings. Prior M2 ledger/sidecar remains intact and BR-14 must be qualified through M3. Proceed through change-code before implementation; live and disposable acceptance remain required.
 
+### 2026-10-21 — M3 change-code and initial components
+
+Change-code accepted the revised design: plan-quality CLEAN, no new findings; estimate-quality INFO identified the original scope's missing M3 allowance. Derived an explicit 3.75-hour replacement increment after that result, preserving original work and mapping owner/settlement modules, four integrations, affected M1 recovery, M3/final reviews, active native/live qualification and atlas; revised planned total 10.42 via the card setter. This is an estimate, not measured actuals. Initial TDD slices: owner lifetime/fence and complete affected ledger recovery race selection pass (5.989s), full couchschedule race passes (26.891s); absent-fence and missing-CLOEXEC mutations fail their regressions. Pure canonical-first settlement and model/manual/ledger race selection pass (1.811s), with behavioral red probes for competing edits, stale recovery and pending-versus-terminal evidence. Fact-only worker stub first failed output/owner/deadline assertions; corrected worker race selection passes (1.440s). New owner catalogue shell first failed all removal/revision/owner-policy and busy-execution probes; combined owner/fact-worker race selection now passes (1.608s). These are component proofs, not complete M3 integration: production service still uses old scheduler composition pending migration, manual transport integration and additive intent persistence are in progress, old write APIs remain temporarily. No suite/review/stage/live acceptance or M3 completion claimed.
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only; calibration currently marked stale/provisional by estimate-source. Already-scaled implementation hours use 40% of v2/v2.1 ranges; design uses the thorough-spec 0.2 multiplier, plus 0.5 library credit only for cron/kernel and bounded durable catalog/store. Familiarity 1.0; thorough-plan design buffer 15%. Passive day-long live observation is not focused ship time.
 
 Rows follow implementation scope: kernel, catalog/store, operational bundles, GC integration, captured builds, native execution/admission, CLI/status/history, scheduler, broker notices, docs, two review boundaries, and two native API qualifications. The cron library, durablefile/strictjson, broker and machine helper are available; no existing library supplies the operational bundle authority/recovery or frozen Go source view, so those retain full design credit before the spec discount.
+
+After M3 plan-quality CLEAN, revise the total by retained original work plus explicit replacement work, not by pretending M2 cost vanished. Additional rows below map in order to lifetime owner capability (module), pure settlement kernel (module), migrating all service/worker writers (API), manual submit/observe/cancel plus paged output (two API integrations), gate-ready owner/broker handoff (API), full affected M1 recovery qualification (module), M3 and final issue review (two reviews), disposable exit-10/timeout and coordinated stage/live evidence inspection (two native qualifications), and updated atlas (docs). Existing runtime/socket/store credit remains; only owner/settlement conceptual work adds 0.10 design each under the same thorough-spec/library discount. Unattended live-day waiting is excluded, active staging/inspection is included. These are incremental planned allowances, not measured actuals or a back-fit to elapsed time.
 
 ```estimate
 model: estimate-logic-v3.1
@@ -111,11 +117,23 @@ item: milestone-review design=0 impl=0.20
 item: milestone-review design=0 impl=0.20
 item: real-api-discovery design=0 impl=0.24
 item: real-api-discovery design=0 impl=0.24
+item: greenfield-go-module design=0.10 impl=0.32
+item: greenfield-go-module design=0.10 impl=0.32
+item: api-integration design=0 impl=0.40
+item: api-integration design=0 impl=0.40
+item: api-integration design=0 impl=0.40
+item: api-integration design=0 impl=0.40
+item: greenfield-go-module design=0 impl=0.32
+item: milestone-review design=0 impl=0.20
+item: milestone-review design=0 impl=0.20
+item: real-api-discovery design=0 impl=0.24
+item: real-api-discovery design=0 impl=0.24
+item: atlas-docs design=0 impl=0.08
 design-buffer: 0.15
-total: 6.67
+total: 10.42
 ```
 
-Design subtotal 2.18 × 1.15 = 2.507; implementation subtotal 4.16; total 6.667, rounded 6.67 focused ship hours.
+Original derivation: design 2.18 × 1.15 + implementation 4.16 = 6.667. M3 increment: design 0.20 × 1.15 + implementation 3.52 = 3.75. Revised design subtotal 2.38 × 1.15 = 2.737; implementation subtotal 7.68; total 10.417, rounded 10.42 focused ship hours. Original estimate retained here for provenance; actuals remain measured by SDLC.
 
 ## Revisions
 
