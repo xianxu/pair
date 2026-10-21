@@ -1,13 +1,22 @@
 ---
 id: 000771
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '0629ad97823d860dc244034037caaa7659eedce7' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '78a6d5324fb47bcfe8dc7f8ac7d3487183f2f0f8' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-21T09:04:08-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:9
+    worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
+    repository: github.com/xianxu/pair
+flake_tests: [github.com/xianxu/pair/cmd/internal/broadcast.TestHubRandomInterleavings]
 ---
 
 # flake: TestHubRandomInterleavings/30
@@ -20,14 +29,25 @@ Known flaky tests (#394), registered with same-head fail→pass evidence:
 
 ## Spec
 
+Make the manual timer's completion proof independent of goroutine scheduling. Hypothesis: fireGrace queues a buffered timer value, then h.sync queues an unrelated request; Hub.run may select the request first, so the helper returns before OnPointerHidden. Preserve the real Hub timer-select path and all500 seeded invariants. No retries, sleeps, timeout increases or production policy changes.
+
+Use an unbuffered timer rendezvous after querying the active timer on the hub loop, followed by the existing completion barrier. Canceled, never-armed, fired and ended timers are no-ops. ARCH-DRY/PURE: keep one shared manual-clock helper for both watches and test its protocol through controlled channels. ARCH-STATE: explicitly order delivery and completion; no task survives the helper/test scope. No new product state, IO or durable runtime artifacts.
+
+Alternatives: polling callback counts changes the model and can hide missing effects; invoking timer handlers directly skips the real select path. A rendezvous proves consumption while preserving production dispatch. Add a local catalog guard against buffered time channels in the manualClock constructor/after seam, with documented syntax limits.
+
 ## Done when
 
 - The root cause is fixed (never a retry loop or a longer timeout); closing this issue unregisters the tests.
 
 ## Plan
 
-- [ ]
+- [ ] Reproduce request-before-timer ordering with a controlled fake loop and retain RED evidence.
+- [ ] Correct manual-clock rendezvous, covering active/canceled/fired/ended behavior and both real watches; add the local lint rule and atlas scope.
+- [ ] Verify500 seeds repeatedly, broadcast under race detection, lint/inventory and recorded suite; close and land to retire the broad registration.
 
 ## Log
 
 ### 2026-10-21
+
+- #767 landed PR520 and its registry entry retired before starting this main-based issue. Authenticated TL dispatch8b70bb19 assigns this issue next while #752 remains parked.
+- The failed train234 full candidate was d6efc430bb4fbd8b1e943981688eec3914f8c1ca (#765+#768, not held #767). Attempt88fb48b8719d5a57732691bd0fe8cb2f failed in9m47s, log hashf1a767397c5d. Same-head exact seed30 count100 passed1.126s and all500 seeds passed10.528s. The parser coarsened indented subtest output to the top test, so the child registration was replaced by one parent registration. This broad scope is temporary pending this fix; the original failure remains recorded.
