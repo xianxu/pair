@@ -1,0 +1,90 @@
+---
+gate: boundary-review
+issue: 765
+id_prefix: BR
+rounds:
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: ee647810-7427-4c16-94e3-87b99a18fc1e
+            repository: github.com/xianxu/pair
+            issue_id: "000765"
+            recipe: small-diff-review
+            round: 1
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/0115220ea38644f9
+            reviewed_head: 7277dc3885c834b9dd3dfb80e9ee6f4b085f820e
+            slot: pair:7
+            requested_at: "2026-10-21T10:19:15.394078Z"
+          phase: finished
+          pid: 11978
+          started_at: "2026-10-21T10:19:15.516661Z"
+          finished_at: "2026-10-21T10:20:41.463069Z"
+          session_id: 01a15df8-e806-7603-af4a-65b1e863c5f5
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 7277dc3885c834b9dd3dfb80e9ee6f4b085f820e
+        tracker_head: e07b360d3ebc1c5f73640be9bf427cdd5cdd360e
+        branch_point: 3b5e8efb9c94035076c5edf5683db97422e6de76
+        since: "2026-10-21T03:09:03-07:00"
+        until: "2026-10-21T03:15:27-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-21T03:09:03-07:00"
+              end: "2026-10-21T03:15:27-07:00"
+              began: "2026-10-21T03:09:03-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot7/pair
+        sources:
+            - harness: codex
+              id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              slot: pair:7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: 4d29faf460dbb3118cc0d566451d4f4f4bd10eb010a8e8be39911dfcb75b7d52
+              started: "2026-10-13T04:50:49.58Z"
+              spawned: false
+              bytes: 227567204
+              windows:
+                - start: "2026-10-21T03:09:03-07:00"
+                  end: "2026-10-21T03:15:27-07:00"
+      "n": 1
+      timestamp: "2026-10-21T03:20:42-07:00"
+      dispatched: "2026-10-21T03:19:13-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      findings:
+        - kind: defect
+          id: BR-1
+          severity: Important
+          title: Register the new conformance test before closing the issue
+          detail: 'cmd/internal/testdisk/cache_conformance_test.go:21–28 introduces a repository reader without updating SOURCE_GUARDS or tests/affected-go-readers.json. At the pinned head, make test-affected-inventory exits 2 with “unmapped reader: cmd/internal/testdisk/cache_conformance_test.go”; scripts/test-affected.py also runs this check before affected testing. This is the only unmapped reader reported in this window. Audit its repository/module inputs, register its test in SOURCE_GUARDS, record its audited inventory disposition, and rerun the required checks.'
+          family: repository-reader-registration
+          round: 1
+      recipe: small-diff-review
+      isolation: fenced
+      blocked: true
+---
+
+# Gate ledger — pair#765 (boundary-review)
+
+Findings this gate raised, the stable ids the binary assigned them, and how
+later rounds disposed of them. Generated — edit the gate, not this file.
+
+## Round 1 — 2026-10-21T03:20:42-07:00 (codex) — BLOCKED
+
+### Raised
+
+- **BR-1** [Important] `repository-reader-registration` (kind: defect) Register the new conformance test before closing the issue
+  cmd/internal/testdisk/cache_conformance_test.go:21–28 introduces a repository reader without updating SOURCE_GUARDS or tests/affected-go-readers.json. At the pinned head, make test-affected-inventory exits 2 with “unmapped reader: cmd/internal/testdisk/cache_conformance_test.go”; scripts/test-affected.py also runs this check before affected testing. This is the only unmapped reader reported in this window. Audit its repository/module inputs, register its test in SOURCE_GUARDS, record its audited inventory disposition, and rerun the required checks.
+
+## Open findings
+
+- **BR-1** [Important] `repository-reader-registration` (kind: defect) Register the new conformance test before closing the issue

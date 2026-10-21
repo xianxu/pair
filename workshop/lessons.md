@@ -2518,3 +2518,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #742 BR-3: An approved post-SHIP change to executable recognition criteria requires a full close review; narrow re-close is for fixes inside the reviewed contract. Reconcile the current Spec as well as appending the revision.
 
 - #742 live recheck: Exercise the reader's observeOutput before handleChunk in drive regressions. A render-only harness bypasses the activity-sequence fence and can pass while every native timer tick revokes admission. Interrupt proof uses operator-input generation plus freshly parsed work/composer/ownership; queued unparsed output cannot attest the old complete frame. Keep ordinary drives on their activity fence.
+
+- #765 BR-1: Stage newly authored reader tests before running the tracked-only affected inventory. An audit while the file is untracked cannot verify its registration; re-run after git add and register the real test in the fixed preflight when it reads repository inputs.

@@ -100,3 +100,25 @@ check passes. Plain cache-enabled full core/tty run is now running, log
 Native Go-cache conformance defends the Go-owned flag contract on upgrades;
 no production API or persisted format changes. README and performance atlas
 state the supported-result-cache tradeoff and unchanged coverage boundaries.
+
+
+### 2026-10-21 — BR-1 inventory registration and plain-run proof
+
+Plain cache-enabled go test core/tty passed: core100298752/134217728 bytes
+in248.720s; tty39800832/67108864 in62.400s. Both diagnostics say result-cache
+disabled, build cache unchanged. Log SHA256
+cd071fb6568ee9a4893021fcd4d8e5e785f269bed2b7a6894b944e8bdf20ebc7
+at /Volumes/TestScratch/tmp/pair-slot7/pair765-checks.BL7YLd/plain.log.
+
+Close BR-1 found the new tracked conformance reader missing from inventory.
+The earlier fast audit ran before git add and thus did not inspect the new
+file. Audited inputs: repository go.sum, local module replacement and the Go
+source reached by the real guarded import; generated fixture outputs/coverage
+and markers are private. Register TestGoCacheWriteBudgetConformance in the
+fixed scanner preflight and record precisely this file as fixed_scanner.
+Indent the generated fixture's literal TestValue declaration so the lexical
+inventory does not mistake it for a real test in the enclosing package; it
+remains executed through actual Go in the private module. No scanner waiver.
+Fast inventory now passes on the tracked file. Cancelled obsolete queued
+attempt37fb730c9fd3c77230a42eba0028629c through local-check cancel before any
+test capacity was acquired. It is not a passing/failing suite attempt.

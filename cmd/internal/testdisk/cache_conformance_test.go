@@ -47,7 +47,7 @@ func TestGoCacheWriteBudgetConformance(t *testing.T) {
 		writeCacheFixture(t, filepath.Join(dir, "value_test.go"), fmt.Sprintf(`package fixture
 import ("os"; "testing"; %s)
 func TestMain(m *testing.M) { %s }
-func TestValue(t *testing.T) {
+ func TestValue(t *testing.T) {
  f, err := os.OpenFile(os.Getenv("PAIR_CACHE_MARKER"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
  if err != nil { t.Fatal(err) }; if _, err := f.Write([]byte("x")); err != nil { t.Fatal(err) }; if err := f.Close(); err != nil { t.Fatal(err) }
  if !Value() { t.Fatal("value") }
