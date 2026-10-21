@@ -109,3 +109,10 @@ Important remaining gap: physical gesture minus core is2099.073ms. Retained time
 ### 2026-10-21 12:15 PDT — measure completion after Leave
 
 Authenticated TL7308a242 directs a bounded post-Leave observer (console teardown, PTY join, footer sync) plus one further retirement sample with the existing timers, then a fix to the measured dominant work; no fan-out change. Capture console worker join, presenter/child disposal, message-service and runtime/lease cleanup, private recorder IO, and the harness process/PTY completion boundaries where practical. One four-slot run is the next sample; do not loop until a preferred slow result. Keep incomplete or fast samples explicit. Fix design and change-code follow measured attribution; no product change approved by inference alone.
+
+
+### 2026-10-21 — post-Leave profile identifies service-close bucket
+
+One four-slot capture PASSED31.899s with exact cleanup of /Volumes/TestScratch/pc-4266580487. Physical gesture2352.149ms, core Leave291.812ms, retirement78–111ms (slow sample again not reproduced). Console teardown1.331ms; runConsole.messages.Close2001.235ms dominates the tail. Final synced trace flush3.306ms; cmd.Wait returned5.6ms after main.before_exit, PTY reader join0.003ms. This identifies the message-service close bucket, not its internal cause. Temporary observer patch SHA-2568738aae03afb4d1bed48dc3d59beee237d545b569aa1e1d16e6aebba9604df67. No fan-out or product change.
+
+Continue the authorized post-Leave attribution with one bounded private four-slot capture separating service cancel, server.Close, sessions.Close, broker.Close, workers.Wait, hubTargets.wait and facts.Close, plus worker-return milestones. Preserve cancellation/close order. No automatic repeat if retirement remains fast. Existing source closes sockets on lifetime cancellation and session Closed callbacks use that canceled lifetime; these observations alone do not identify the2s cause.
