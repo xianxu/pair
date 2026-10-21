@@ -68,10 +68,20 @@ func openConversation(c Config) (*conversation, error) {
 	if !nativeUUID.MatchString(id) {
 		return nil, errors.New("fixture native ID must be a full UUID")
 	}
-	root := filepath.Join(c.Home, ".claude", "projects")
+	runtime := sessioninventory.NewOSRuntime(c.Home, "")
+	if c.Agent == "codex" {
+		runtime, err = runtime.WithCodexHome(c.CodexHome)
+		if err != nil {
+			return nil, err
+		}
+	}
+	roots := runtime.NativeRoots(sessioninventory.Agent(c.Agent))
+	if len(roots) != 1 {
+		return nil, errors.New("fixture agent requires one canonical native root")
+	}
+	root := roots[0].Path
 	path := filepath.Join(root, strings.ReplaceAll(cwd, "/", "-"), id+".jsonl")
 	if c.Agent == "codex" {
-		root = filepath.Join(c.CodexHome, "sessions")
 		path = filepath.Join(root, time.Now().UTC().Format("2006/01/02"), "rollout-fixture-"+id+".jsonl")
 	}
 	if resume {
@@ -105,13 +115,6 @@ func openConversation(c Config) (*conversation, error) {
 			return nil, errors.New("fixture native resume transcript missing")
 		}
 		path = found
-		runtime := sessioninventory.NewOSRuntime(c.Home, "")
-		if c.Agent == "codex" {
-			runtime, err = runtime.WithCodexHome(c.CodexHome)
-			if err != nil {
-				return nil, err
-			}
-		}
 		if !sessioninventory.NativeSessionCandidateExists(runtime, sessioninventory.Agent(c.Agent), id) {
 			return nil, errors.New("fixture native transcript validation refused resume")
 		}
