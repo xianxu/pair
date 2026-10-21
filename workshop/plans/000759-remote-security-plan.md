@@ -69,6 +69,17 @@ Session cookies contain fresh 256-bit random material; hash server-side, bind to
 
 Static app assets, status, kill and stream routes all use the remote auth boundary; no public health/document bypass. Replace the Host's public-200 mount readiness for this mode with bounded local server-start plus connector-ready evidence. Call it “waiting for authenticated phone” until the first verified handshake; do not claim public delivery from connector readiness. Ordinary casts retain their existing probe.
 
+## Document integration contract (settle before M1)
+
+Proposed ownership: #759 owns the remote HTTP listener/routes, auth/session admission and trusted submit delivery; #758 supplies a typed document adapter behind that boundary, not a second server. This refines #758's current server wording and requires TL coordination before code; neither branch edits the other's implementation. The adapter contract is agreed first, not invented in M3:
+
+- Resolve an eligible DocumentRef by opaque registered ID and editor generation, returning text/revision/highlights through bounded subscribe/read operations.
+- Mutations accept a typed action, base revision, request ID and server-only permit. The adapter exposes a nonblocking handoff into its owned operation queue. The handoff shares the supervisor's admission mutex with kill: while holding it, recheck epoch/session, record the dispatched identity and enqueue exactly once. No audit/storage/network wait holds this mutex. Kill either wins and prevents handoff, or handoff wins and the operation is in flight and may commit/return uncertain. A held audit intent is followed by a fresh atomic handoff check, never by a stale permit read.
+- The adapter rechecks permit cancellation and document/editor identity at its effect door; queued work not yet at that door is discarded after kill. An effect already handed to nvim is treated as in-flight, not retrospectively rolled back. Reset waits for adapter workers/streams to join. Never hide a second unbounded queue behind the handoff.
+- Navigation is resolve -> authorize destination -> bounded navigate, never execute a raw nvim link/jump command and inspect the result afterward. Targets, parent links and jump-list entries must resolve to eligible registered document/editor identities before nvim opens them, and be rechecked at handoff. Test unregistered targets, symlinks, stale history and target rebinding between resolve/handoff.
+- Persist remote-edit provenance before mutation handoff as described below. Remote submit passes through #759's origin-aware path after #758's save semantics, carrying exact document/revision and request identity; no shell-based send-to fallback.
+- Outcomes are confirmed result, confirmed refusal-before-effect, or uncertain with retained operation/submit identity. Adapter stateful tests and real-nvim tests share the interface. Missing adapter fails closed.
+
 ## Core concepts (ARCH-PURE / ARCH-DRY)
 
 | Pure entity | Lives in | Status |
@@ -84,7 +95,7 @@ The reducer owns legal transitions; policy decides claims, identity, origin, act
 | Integration point | Lives in | Status | Wraps |
 |---|---|---|---|
 | Remote supervisor | `cmd/internal/remotesession/supervisor.go` | new | lifecycle effects, sessions, joined requests |
-| Latch store and audit | `cmd/internal/remotesession/store.go`, `audit.go` | new | injected private directory, durablefile, lifetime lock |
+| Latch store, origin evidence and audit | `cmd/internal/remotesession/store.go`, `origin_store.go`, `audit.go` | new | injected private directory, durablefile, lifetime lock |
 | Access verifier / key source | `cmd/internal/remotesession/access.go` | new | JWT library, bounded HTTPS JWKS |
 | Protected named transport | `cmd/internal/broadcast/cloudflared.go`, `host.go`; `couchcmd/remote.go` | modified/new | existing cloudflared handle/guard/lock, strict remote config |
 | Host-TTY security control | `cmd/internal/couchtty/console_remote.go`, `terminal_input.go`, `console.go` | new/modified | local decoded key event, status and notices |
@@ -140,7 +151,9 @@ Decode strict typed JSON under `/remote/v1/`: session handshake/status, eligible
 
 Remote submit generates canonical `submitted: <registered-current-path>` on the server and carries an immutable broker origin `remote` in the trusted envelope (“submitted remotely”), receipt, batches and delivery ledger. Never append the tag to the path line: SubmitPath treats the entire first line as the path. Do not use OriginSystem, which skips delivery obligations. The phone cannot supply an origin, caller binding, routing owner or arbitrary message body. #758 calls the trusted path through its admitted permit after parley's save/submit semantics; it must not shell out to ordinary --send-to and lose provenance. Extend endpoint validation and compatibility tests; older wrapper unable to carry provenance refuses remote submit and asks for relaunch, rather than silently downgrading to local.
 
-Record remote edit origin with the document revision so a later local submit cannot silently erase knowledge of included remote edits. #758's adapter owns this revision evidence; the message is remote-tagged if submitted remotely or if the submitted revision includes unreconciled remote edits. Conservative tagging is acceptable; an unknown origin must not become a local-authority claim. This is provenance, not content inspection or a new agent permission system. Align this explicit seam with #758 before code.
+Proposed conservative provenance policy for operator review: persist a monotonic “remote edited” marker keyed by stable registered document ID **before** the first remote mutation handoff, even if that mutation later fails. #759 owns this small origin store; #758 supplies the exact document identity and never clears it on save, revision changes, headless/desktop handover or nvim restart. The ordinary local submit admission consults the same store even when remote mode is off, so Couch restart cannot launder provenance. A tagged local submit says it includes a remotely edited document, distinct from a direct “submitted remotely” event. Unknown/unreadable origin evidence never yields an unqualified local provenance claim.
+
+For simplicity there is no content-diff proof or “all remote text removed” heuristic. The conservative marker remains for the registration lifetime; the existing explicit local forget/re-register workflow is the reconciliation boundary, after pending submits for the old ID settle. Remote API cannot forget/register or clear markers. Before clearing/re-registering, the operator reviews the document; this intentionally costs convenience rather than silently clearing evidence. Markers survive rename/alias changes; bounded cleanup removes old-ID markers only after registry absence and no pending operation/receipt. Proposed limits:4096 markers/1 MiB total, private versioned JSON preserving supported unknown fields, capacity/error refuses remote edits; no silent eviction. This is a new provenance policy needing operator approval, not an already-settled requirement.
 
 Each edit/submit uses bounded `(session epoch, request ID, document ID, base revision)` replay protection. Same ID/same payload returns the retained result without a duplicate effect; same ID/different payload refuses. Uncertain effects are retained as uncertain and reconciled by document revision/submit receipt, not re-run. Killed/expired sessions cannot use retry to act again.
 
@@ -158,6 +171,7 @@ These are initial engineering proposals for operator review, not measured perfor
 | Per-session traffic | 10 mutation requests/sec, burst20; 8 concurrent requests process-wide, reserved kill admission | 429; kill bypasses normal operation queue |
 | Streams | One active document stream/session; bounded 1 MiB queued output each | close/resubscribe; no unbounded slow-client queue |
 | Replay table | 256 requests/session, <=15-minute lifetime, 1 KiB metadata/result cap | refuse new mutation until session renewed; uncertain entries never evicted to allow replay |
+| Origin evidence | <=4096 markers / 1 MiB; stable document IDs, lookup once per submit | refuse remote edits at capacity; retire only forgotten, settled IDs |
 | Audit | <=2 KiB/record; 16 MiB active + one 16 MiB previous, max30 days | rotate under writer; remove superseded old segment; failure blocks remote mutation |
 | Latch | One <=4 KiB private file plus lifetime lock; fixed read at boot, writes at lifecycle transitions only | malformed/oversized blocks remote; never auto-delete |
 | Registry/documents | Reuse #758 and existing registry/file limits, no scan per edit | unsupported/oversized document refusal |
@@ -174,8 +188,9 @@ No task below starts before the operator approves this plan and TL resolves the 
 
 ### M1 — Auth policy, lifecycle and durable authority
 
-Files: new `cmd/internal/remotesession/{state,policy,protocol,session,store,access,audit}.go` and colocated tests; `cmd/internal/artifactpath/remote.go`, `manifest.go`; dependency files if the reviewed verifier is new.
+Files: new `cmd/internal/remotesession/{state,policy,protocol,session,store,origin_store,access,audit,documents}.go` and colocated tests; `cmd/internal/artifactpath/remote.go`, `manifest.go`; dependency files if the reviewed verifier is new.
 
+- [ ] Settle server/adapter ownership, typed handoff, navigation and provenance contract with #758/TL before implementation.
 - [ ] Write pure transition/policy failing tests for all rows above; generated event sequences independently assert no grant after kill, no restart grant from disk and no old-epoch completion adoption.
 - [ ] Run `go test ./cmd/internal/remotesession -run 'TestRemoteState|TestRemotePolicy' -count=1`; observe red before implementation, then green.
 - [ ] Implement typed reducer, durable armed-before-exposure store and session policy. Fault-inject write/rename/file sync/directory sync, corrupt/unknown/truncated state and restart at every publication boundary.
@@ -200,10 +215,10 @@ Files: `broadcast/cloudflared.go`, `host.go` and tests; new `couchcmd/remote.go`
 
 Files: new `remotesession/documents.go`, `couchcmd/remote_submit.go`; `couchmessage/{model,batch,broker}.go` and endpoint/accounting consumers; session-sync provenance ledger/owed projections; #758 adapter at its agreed owner path; tests and docs.
 
-- [ ] Define the narrow document adapter/permit contract with #758 without implementing its RPC/editor subsystem here. Use a stateful fake with IDs, rename/forget, revision conflicts, remote-origin revisions, held commits, ambiguous replies and submit receipts.
-- [ ] Write end-to-end fake-server/broker tests before wiring: allowed registered roots/side docs; foreign registered docs, traversal, IDs rebound to another editor and arbitrary methods refused. Kill between admission and dispatch blocks effects.
+- [ ] Implement the M1-agreed narrow document adapter/permit integration without implementing #758's RPC/editor subsystem here. Use a stateful fake with IDs, rename/forget, revision conflicts, remote-origin revisions, held commits, ambiguous replies and submit receipts.
+- [ ] Write end-to-end fake-server/broker tests before wiring: allowed registered roots/side docs; foreign registered docs, traversal, IDs rebound to another editor and arbitrary methods refused. Kill while audit is held and immediately before atomic handoff prevents dispatch; handoff-before-kill is recorded as in flight. Navigation into an unregistered target is refused before any nvim open.
 - [ ] Add broker-origin handling without reusing OriginSystem; carry remote provenance through endpoint validation, batches, receipts, delivery accounting and preserved supported persisted fields. Keep the canonical submitted path line unchanged. Local legacy submits stay compatible; older incompatible wrappers visibly refuse remote delivery.
-- [ ] Test direct remote submit and remote edit followed by local submit retain provenance, duplicate retry delivers once, unknown outcomes require reconciliation, and tag reaches the TL's trusted envelope/owed ledger. #520 supplies policy; do not implement its confirmation agent rule here.
+- [ ] Test direct remote submit and remote edit followed by local submit retain provenance across Couch/nvim restart, editor handover, rename and failed edit; explicit local forget/re-register retires only settled old-ID evidence; duplicate retry delivers once, unknown outcomes require reconciliation, and tag reaches the TL's trusted envelope/owed ledger. #520 supplies policy; do not implement its confirmation agent rule here.
 - [ ] Align real nvim adapter with #758; if unavailable, report the integration hold explicitly instead of claiming the editor flow passed. The #759 security harness is not real-nvim acceptance.
 - [ ] Run targeted packages and reader inventory audit on committed HEAD; push; recorded affected/full check per current gate contract; required final close review. Do not weaken deadlines or bypass failed gates.
 - [ ] Operator-assisted live conformance only after separate authorization for setup/staging/network: approved named tunnel + Access policy; iPhone login as allowed user, refused unapproved identity, raw forged/missing/wrong-audience assertion refused before handler, session expiry, tagged edit+submit, phone kill, old tab/session dead, restart still killed, CLI/--keys unable to reset, console reset then fresh login succeeds. Check no owned stage/connector remains after teardown. Record exact build and outcomes without secrets.
@@ -243,3 +258,10 @@ Cloudflare primary documentation checked 2026-10-21 (read-only public browsing):
 ## Approval record
 
 Operator approval: pending. TL approval of implementation/acceptance sequencing: pending. Account/network/staging authorization: none. The only writes so far are this plan and #759's issue Log/Plan on its claimed branch.
+
+
+## Revisions
+
+### 2026-10-21 — advisory fresh-eyes review before operator submission
+
+The initial draft left backend ownership/handoff, durable edit origin and navigation prevalidation implicit. Refined the whole contract before implementation: #759 owns HTTP/security, #758 is a typed adapter agreed before M1; kill and nonblocking mutation handoff share one linearization boundary; conservative per-registration origin survives process/editor lifetimes and has an explicit local retirement policy; navigation validates its destination before nvim opens it. This is one advisory editing pass, not approval. The operator reviews the proposed convenience/security tradeoffs and TL settles #758 scope ownership before change-code.
