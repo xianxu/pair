@@ -1,6 +1,6 @@
 ---
 id: 000755
-status: codecomplete
+status: done
 created: 2026-10-20
 updated: 2026-10-21
 estimate_hours: 1.69
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 31384115c5407a4a5f2f3eabe253ff96bff9f651
         evidence_commit: 440071e9f1a8acd3fc98af1b84058d9f13a576ac
+        landed_commit: 65520059b9937c4e12f0c3f34c0f6b4a37469c4e
 ---
 
 # couch mock serve: live-reloading Go server for a project's versioned, clickable mocks (product-shaping)
