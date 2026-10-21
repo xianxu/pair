@@ -16,6 +16,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "6341887b", done: "80fbe5c1"}
 ---
 
 # Cache-enabled Go tests exceed physical write envelopes
