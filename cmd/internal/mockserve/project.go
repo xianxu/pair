@@ -2,6 +2,7 @@ package mockserve
 
 import (
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -9,6 +10,9 @@ import (
 	"path"
 	"strings"
 )
+
+// ErrPathChanged means an observed entry was replaced before its handle was admitted.
+var ErrPathChanged = errors.New("project path changed during open")
 
 const MaxEntries = 1024
 const MaxBytes int64 = 32 << 20
@@ -136,7 +140,7 @@ func (p *Project) openChildDirectory(parent *os.Root, name, relative string) (*o
 	actual, err := child.Stat(".")
 	if err != nil || !os.SameFile(observed, actual) {
 		child.Close()
-		return nil, fmt.Errorf("directory changed during open: %s", relative)
+		return nil, fmt.Errorf("%w: directory %s", ErrPathChanged, relative)
 	}
 	return child, nil
 }
@@ -158,7 +162,7 @@ func (p *Project) openRegularAt(parent *os.Root, name, relative string) (*os.Fil
 	actual, err := f.Stat()
 	if err != nil || !actual.Mode().IsRegular() || !os.SameFile(observed, actual) {
 		f.Close()
-		return nil, fmt.Errorf("file changed during open: %s", relative)
+		return nil, fmt.Errorf("%w: file %s", ErrPathChanged, relative)
 	}
 	return f, nil
 }

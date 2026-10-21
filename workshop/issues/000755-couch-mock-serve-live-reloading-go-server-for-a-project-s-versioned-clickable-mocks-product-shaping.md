@@ -70,6 +70,8 @@ Implementation details: [durable plan](../plans/000755-mock-server-plan.md).
 
 - BR-1 verification: post-scan HTTP aliases are refused; directory/file replacement tests pass and fail when identity guards are disabled (directory, in-parent leaf and scanner leaf cases). Package, artifactpath and repolint race checks passed; real-browser/sample qualification passed in8.357s. Re-audited the two private-fixture reader hashes and inventory passes. The shared read fix preserves one directory visit per scan and independent counted read/entry guards.
 
+- Close round2 disposed BR-1 and raised BR-2 BFCache polling restoration, BR-3 concurrent-pointer test expectations/worker cleanup, and BR-4 unavailable Chrome sandbox in the review environment. Cancelled the obsolete queued suite. Added explicit reload lifecycle generation/owner fencing; deterministic JS restore/late-completion/timer tests failed before the fix and pass after it. Concurrent reads now permit only typed identity-change refusal or whole values, with deterministic refusal and settled-value coverage and unconditional writer joining;20 race-enabled repetitions passed. Final pinned-head Chrome evidence will be recorded on the host before re-close.
+
 ## Revisions
 
 ### 2026-10-20 — concrete server contract for TL approval

@@ -18,7 +18,8 @@
   const element = document.getElementById("couch-mock-bootstrap");
   if (!element) return;
   const baseline = JSON.parse(element.textContent);
-  let stopped = false;
+  let phase = "active";
+  let generation = 0;
   let timer;
   let pending;
   let banner;
@@ -34,16 +35,30 @@
     banner.textContent = "Mock preview: " + message;
   }
 
-  async function poll() {
-    if (stopped) return;
+  function schedulePoll() {
+    if (phase !== "active" || timer !== undefined || pending) return;
+    const owner = generation;
+    timer = setTimeout(() => {
+      if (phase !== "active" || owner !== generation) return;
+      timer = undefined;
+      return poll(owner);
+    }, 500);
+  }
+
+  async function poll(owner) {
+    if (phase !== "active" || owner !== generation || pending) return;
     const controller = new AbortController();
-    pending = controller;
-    const timeout = setTimeout(() => controller.abort(), 3000);
-    let departing = false;
+    const request = {controller};
+    pending = request;
+    const ownsRequest = () => owner === generation && pending === request;
+    request.timeout = setTimeout(() => {
+      if (ownsRequest() && phase === "active") controller.abort();
+    }, 3000);
     try {
       const response = await fetch("/__couch_mock/state", {cache: "no-store", signal: controller.signal});
+      if (!ownsRequest() || phase !== "active") return;
       const observation = await response.json();
-      if (stopped) return;
+      if (!ownsRequest() || phase !== "active") return;
       if (!response.ok && !observation.error) throw new Error("Mock server returned HTTP " + response.status);
       const decision = reloadDecision(baseline, observation);
       if (decision.kind === "error") {
@@ -51,26 +66,42 @@
       } else {
         if (banner) { banner.remove(); banner = undefined; }
         if (decision.kind === "navigate") {
-          departing = true;
+          phase = "departing";
           window.location.assign(decision.target + window.location.search + window.location.hash);
         } else if (decision.kind === "reload") {
-          departing = true;
+          phase = "departing";
           window.location.reload();
         }
       }
     } catch (error) {
-      if (!stopped) showError(error.message || "Cannot reach mock server.");
+      if (ownsRequest() && phase === "active") showError(error.message || "Cannot reach mock server.");
     } finally {
-      clearTimeout(timeout);
-      pending = undefined;
-      if (!stopped && !departing) timer = setTimeout(poll, 500);
+      // A suspended request can finish after restoration has started a new one.
+      // Only its current owner may touch the shared request and polling timer.
+      if (ownsRequest()) {
+        clearTimeout(request.timeout);
+        pending = undefined;
+        schedulePoll();
+      }
     }
   }
 
   window.addEventListener("pagehide", () => {
-    stopped = true;
+    phase = "paused";
+    generation++;
     clearTimeout(timer);
-    if (pending) pending.abort();
-  }, {once: true});
-  timer = setTimeout(poll, 500);
+    timer = undefined;
+    if (pending) {
+      const request = pending;
+      pending = undefined;
+      clearTimeout(request.timeout);
+      request.controller.abort();
+    }
+  });
+  window.addEventListener("pageshow", event => {
+    if (!event.persisted || phase !== "paused") return;
+    phase = "active";
+    schedulePoll();
+  });
+  schedulePoll();
 })();

@@ -163,6 +163,189 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 78250bae-041e-45e0-a9e3-c96c7bae9bb2
+            repository: github.com/xianxu/pair
+            issue_id: "000755"
+            recipe: milestone-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/96421f6ff64905db
+            reviewed_head: 6026591abfcf2590379f7e149e70df3c0617de6f
+            slot: pair:4
+            requested_at: "2026-10-21T06:33:20.321511Z"
+          phase: finished
+          pid: 1179
+          started_at: "2026-10-21T06:33:20.460896Z"
+          finished_at: "2026-10-21T06:37:25.850331Z"
+          session_id: 01a15d2a-1253-7ec3-924c-15e8513605b8
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 6026591abfcf2590379f7e149e70df3c0617de6f
+        tracker_head: deb9ee1ae285970fca7df7cb1a4bba599ffa91d3
+        branch_point: 79ea4ca9e5be10c67c5c356b7f7d4067ebd79a92
+        since: "2026-10-20T22:40:54-07:00"
+        until: "2026-10-20T23:32:26-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-20T22:40:54-07:00"
+              end: "2026-10-20T23:32:26-07:00"
+              began: "2026-10-20T22:40:54-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot4/pair
+        sources:
+            - harness: codex
+              id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 5d8a9a34534ac3890734344a10e511e92a47ecfb53bb2223ce7daa4522085065
+              started: "2026-10-20T17:08:30.923Z"
+              spawned: false
+              bytes: 16115041
+              windows:
+                - start: "2026-10-20T22:40:54-07:00"
+                  end: "2026-10-20T23:32:26-07:00"
+            - harness: codex
+              id: 01a15cfa-72c5-7572-8b02-f2056ee548f6
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              parent_id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              digest: 5401f0f3bd86c869cb32d5df44c87f0fd8258346cda55aaceb20581356217caf
+              started: "2026-10-21T05:41:19.814Z"
+              spawned: true
+              bytes: 652919
+              windows:
+                - start: "2026-10-21T05:41:19.814Z"
+                  end: "2026-10-20T23:32:26-07:00"
+            - harness: codex
+              id: 01a15d07-3ccf-7023-ade8-9f85cedd4787
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 6e1e1b3acdc4e7f6c4b3ee9921c792a7dbc8ab590b6fc7513e8a02c4152ccab9
+              started: "2026-10-21T05:55:18.212Z"
+              spawned: false
+              bytes: 545233
+              windows:
+                - start: "2026-10-21T05:55:18.212Z"
+                  end: "2026-10-20T23:32:26-07:00"
+            - harness: codex
+              id: 01a15d09-e16e-7973-869b-447feb0de7d4
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 7666bc2cfa2b5266548b5bf7684a18adcdc8aa89a2cb40d27161f6eb7b38336f
+              started: "2026-10-21T05:58:11.397Z"
+              spawned: false
+              bytes: 505167
+              windows:
+                - start: "2026-10-21T05:58:11.397Z"
+                  end: "2026-10-20T23:32:26-07:00"
+            - harness: codex
+              id: 01a15d0b-c808-77a0-8a74-b058604cf1e8
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 775a5ebd6ce47b7647d64baca6dc6d6075af73394146897950b4df76ba0ae6fb
+              started: "2026-10-21T06:00:16.2Z"
+              spawned: false
+              bytes: 518046
+              windows:
+                - start: "2026-10-21T06:00:16.2Z"
+                  end: "2026-10-20T23:32:26-07:00"
+            - harness: codex
+              id: 01a15d0c-4f3e-7c23-9eb6-c0e3bfaee8ee
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 68125bf8491fa1a9237a8a23b25136ec9a96c11f2527fd3bb588f3a4b2fad9d3
+              started: "2026-10-21T06:00:50.659Z"
+              spawned: false
+              bytes: 447230
+              windows:
+                - start: "2026-10-21T06:00:50.659Z"
+                  end: "2026-10-20T23:32:26-07:00"
+            - harness: codex
+              id: 01a15d0d-9ec0-70d1-a196-c8d913b2f3c9
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              parent_id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              digest: a3213c5c1610c6162b59f80e20c949d2754f33f228bb0a53adea5038abd561b8
+              started: "2026-10-21T06:02:16.226Z"
+              spawned: true
+              bytes: 399198
+              windows:
+                - start: "2026-10-21T06:02:16.226Z"
+                  end: "2026-10-20T23:32:26-07:00"
+            - harness: codex
+              id: 01a15d0e-032a-7401-bb22-542ec2559bee
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              parent_id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              digest: 3d980590c5f4ba3ff9eceab50c9eb0f1ce8e3ce4a2ab2bc2ac0e58587b65bfcc
+              started: "2026-10-21T06:02:41.947Z"
+              spawned: true
+              bytes: 396746
+              windows:
+                - start: "2026-10-21T06:02:41.947Z"
+                  end: "2026-10-20T23:32:26-07:00"
+            - harness: codex
+              id: 01a15d12-f90c-7480-af77-512cb85c5c24
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              parent_id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              digest: b3af1b23f47d568ec119d8edf4e2a83b475d100a1b6e3d6a8cf9ac9c1b41ac8c
+              started: "2026-10-21T06:08:07.079Z"
+              spawned: true
+              bytes: 545002
+              windows:
+                - start: "2026-10-21T06:08:07.079Z"
+                  end: "2026-10-20T23:32:26-07:00"
+        cuts:
+            - dispatched: "2026-10-20T23:18:15-07:00"
+              finalized: "2026-10-20T23:23:07-07:00"
+              finalizing: false
+      "n": 2
+      timestamp: "2026-10-20T23:37:26-07:00"
+      dispatched: "2026-10-20T23:33:18-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: project.go now pins and verifies directory and file identities across HTTP, selection and scanner reads. Post-scan alias and controlled replacement tests pass. In disposable pinned-head copies, removing directory pinning reproduced HTTP 200 exposure of design.md in both ancestor-alias cases; disabling identity guards failed directory, in-parent file and scanner-file regressions.
+          round: 2
+      findings:
+        - kind: defect
+          id: BR-2
+          severity: Critical
+          title: Back/forward-cache restoration permanently disables live reload
+          detail: 'cmd/internal/mockserve/reload.js:70-75 sets stopped=true and clears polling on pagehide, but never handles pageshow. A document restored from the browser''s back/forward cache retains that stopped state without rerunning its scripts, so subsequent edits and version switches are never observed. ARCH-ORDER/ARCH-PURPOSE: model suspension and restoration explicitly, resume exactly one poll on restoration, and retain cancellation on subsequent departures. A deterministic test added to the existing JS harness dispatched persisted pagehide/pageshow and failed because zero polling timers remained.'
+          family: document-lifecycle-restartability
+          round: 2
+        - kind: defect
+          id: BR-3
+          severity: Important
+          title: Concurrent selection regression fails under the new identity checks
+          detail: 'cmd/internal/mockserve/project_test.go:139-169 assumes every concurrent pointer read succeeds, although a legitimate atomic rename between Lstat and Open now produces "file changed during open: .mock-current". Running go test ./cmd/internal/mockserve -run ''TestUseAtomicSelectionReaders|TestProjectRejectsReplacementDuringOpen|TestHTTPRejectsInRootAncestorLinksAfterScan'' -count=20 reproduced that failure. The fatal exit also skips wg.Wait, allowing project cleanup to close the root while the writer still runs; the same run reported "file already closed". ARCH-ORDER: define the permitted replacement/refusal outcome, exercise it deterministically, assert whole values for successful reads, and join the writer on every exit without weakening confinement.'
+          family: concurrency-test-contract
+          round: 2
+        - kind: unverifiable
+          id: BR-4
+          severity: Important
+          title: Real-browser acceptance behavior could not be qualified in this environment
+          detail: 'WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/mockserve -run ''TestMockBrowserReload|TestSampleBrowser'' -count=1 failed all initial DOM checks with CDP read EOF. A separate private-profile Chrome diagnostic exited with signal 5 and "sandbox initialization failed: Operation not permitted". This prevents verification of the planned browser click/edit/switch/recovery behavior; provide passing output for the pinned reviewed head on a host where Chrome can initialize its sandbox, or enable that capability in the review environment. ARCH-PURPOSE.'
+          family: browser-qualification-evidence
+          round: 2
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#755 (boundary-review)
@@ -177,6 +360,23 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-1** [Critical] `filesystem-route-isolation` (kind: defect) Ancestor symlinks bypass the private-root HTTP boundary
   cmd/internal/mockserve/project.go:90-97 checks only the final path component with Lstat; os.Root.Open follows ancestor symlinks whose targets remain inside the project root. After starting a valid project, creating mock-1/private -> .. and requesting /mock-1/private/design.md returned HTTP 200 with the private root document before the next scan rejected the symlink. ARCH-SECURE: enforce race-safe, no-follow path resolution at the read boundary rather than relying on an earlier scan. Sweep document, asset and scanner reads, and add a deterministic post-initial-scan ancestor-replacement regression that fails without the fix.
 
+## Round 2 — 2026-10-20T23:37:26-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — project.go now pins and verifies directory and file identities across HTTP, selection and scanner reads. Post-scan alias and controlled replacement tests pass. In disposable pinned-head copies, removing directory pinning reproduced HTTP 200 exposure of design.md in both ancestor-alias cases; disabling identity guards failed directory, in-parent file and scanner-file regressions.
+
+### Raised
+
+- **BR-2** [Critical] `document-lifecycle-restartability` (kind: defect) Back/forward-cache restoration permanently disables live reload
+  cmd/internal/mockserve/reload.js:70-75 sets stopped=true and clears polling on pagehide, but never handles pageshow. A document restored from the browser's back/forward cache retains that stopped state without rerunning its scripts, so subsequent edits and version switches are never observed. ARCH-ORDER/ARCH-PURPOSE: model suspension and restoration explicitly, resume exactly one poll on restoration, and retain cancellation on subsequent departures. A deterministic test added to the existing JS harness dispatched persisted pagehide/pageshow and failed because zero polling timers remained.
+- **BR-3** [Important] `concurrency-test-contract` (kind: defect) Concurrent selection regression fails under the new identity checks
+  cmd/internal/mockserve/project_test.go:139-169 assumes every concurrent pointer read succeeds, although a legitimate atomic rename between Lstat and Open now produces "file changed during open: .mock-current". Running go test ./cmd/internal/mockserve -run 'TestUseAtomicSelectionReaders|TestProjectRejectsReplacementDuringOpen|TestHTTPRejectsInRootAncestorLinksAfterScan' -count=20 reproduced that failure. The fatal exit also skips wg.Wait, allowing project cleanup to close the root while the writer still runs; the same run reported "file already closed". ARCH-ORDER: define the permitted replacement/refusal outcome, exercise it deterministically, assert whole values for successful reads, and join the writer on every exit without weakening confinement.
+- **BR-4** [Important] `browser-qualification-evidence` (kind: unverifiable) Real-browser acceptance behavior could not be qualified in this environment
+  WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/mockserve -run 'TestMockBrowserReload|TestSampleBrowser' -count=1 failed all initial DOM checks with CDP read EOF. A separate private-profile Chrome diagnostic exited with signal 5 and "sandbox initialization failed: Operation not permitted". This prevents verification of the planned browser click/edit/switch/recovery behavior; provide passing output for the pinned reviewed head on a host where Chrome can initialize its sandbox, or enable that capability in the review environment. ARCH-PURPOSE.
+
 ## Open findings
 
-- **BR-1** [Critical] `filesystem-route-isolation` (kind: defect) Ancestor symlinks bypass the private-root HTTP boundary
+- **BR-2** [Critical] `document-lifecycle-restartability` (kind: defect) Back/forward-cache restoration permanently disables live reload
+- **BR-3** [Important] `concurrency-test-contract` (kind: defect) Concurrent selection regression fails under the new identity checks
+- **BR-4** [Important] `browser-qualification-evidence` (kind: unverifiable) Real-browser acceptance behavior could not be qualified in this environment

@@ -97,3 +97,122 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T23:37:26-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 755 — couch mock serve: live-reloading Go server for a project's versioned, clickable mocks (product-shaping) |
+| repo | pair |
+| issue file | workshop/issues/000755-couch-mock-serve-live-reloading-go-server-for-a-project-s-versioned-clickable-mocks-product-shaping.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 79ea4ca9e5be10c67c5c356b7f7d4067ebd79a92..6026591abfcf2590379f7e149e70df3c0617de6f |
+| command | sdlc close --issue 755 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T23:37:26-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: medium
+```
+
+BR-1 is addressed, with regression tests that fail when the protections are removed. The implementation delivers the main server, CLI, sample and documentation surfaces. Shipping remains blocked by a browser restoration bug, a reproducible concurrency-test failure, and unavailable real-browser qualification in this review environment.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      project.go now pins and verifies directory and file identities across HTTP, selection and scanner reads. Post-scan alias and controlled replacement tests pass. In disposable pinned-head copies, removing directory pinning reproduced HTTP 200 exposure of design.md in both ancestor-alias cases; disabling identity guards failed directory, in-parent file and scanner-file regressions.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: document-lifecycle-restartability
+    title: |
+      Back/forward-cache restoration permanently disables live reload
+    detail: |
+      cmd/internal/mockserve/reload.js:70-75 sets stopped=true and clears polling on pagehide, but never handles pageshow. A document restored from the browser's back/forward cache retains that stopped state without rerunning its scripts, so subsequent edits and version switches are never observed. ARCH-ORDER/ARCH-PURPOSE: model suspension and restoration explicitly, resume exactly one poll on restoration, and retain cancellation on subsequent departures. A deterministic test added to the existing JS harness dispatched persisted pagehide/pageshow and failed because zero polling timers remained.
+  - id: new
+    severity: Important
+    kind: defect
+    family: concurrency-test-contract
+    title: |
+      Concurrent selection regression fails under the new identity checks
+    detail: |
+      cmd/internal/mockserve/project_test.go:139-169 assumes every concurrent pointer read succeeds, although a legitimate atomic rename between Lstat and Open now produces "file changed during open: .mock-current". Running go test ./cmd/internal/mockserve -run 'TestUseAtomicSelectionReaders|TestProjectRejectsReplacementDuringOpen|TestHTTPRejectsInRootAncestorLinksAfterScan' -count=20 reproduced that failure. The fatal exit also skips wg.Wait, allowing project cleanup to close the root while the writer still runs; the same run reported "file already closed". ARCH-ORDER: define the permitted replacement/refusal outcome, exercise it deterministically, assert whole values for successful reads, and join the writer on every exit without weakening confinement.
+  - id: new
+    severity: Important
+    kind: unverifiable
+    family: browser-qualification-evidence
+    title: |
+      Real-browser acceptance behavior could not be qualified in this environment
+    detail: |
+      WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/mockserve -run 'TestMockBrowserReload|TestSampleBrowser' -count=1 failed all initial DOM checks with CDP read EOF. A separate private-profile Chrome diagnostic exited with signal 5 and "sandbox initialization failed: Operation not permitted". This prevents verification of the planned browser click/edit/switch/recovery behavior; provide passing output for the pinned reviewed head on a host where Chrome can initialize its sandbox, or enable that capability in the review environment. ARCH-PURPOSE.
+```
+
+1. **Strengths**
+
+   - The shared filesystem boundary now protects document, asset and scanner reads. Mutation checks confirmed the BR-1 tests detect removal of the protections.
+   - Cached state polling is separated from filesystem scans, with independent work-counting and zero-rescan tests.
+   - README and atlas changes document commands, selection policy, limits, fixtures and screen identity. Both documentation gates are satisfied.
+
+2. **Critical findings**
+
+   - `reload.js:70`: resume polling after persisted `pageshow`; test repeated suspend/restore sequences and pending-request cancellation.
+
+3. **Important findings**
+
+   - `project_test.go:139`: reconcile concurrent-reader expectations with fail-closed identity checks and guarantee writer cleanup.
+   - Browser qualification requires host evidence as described above.
+
+4. **Minor findings**
+
+   - None.
+
+5. **Test coverage notes**
+
+   - Passed: normal tests for `mockserve`, `couchcmd` and `artifactpath`; `mockserve` race tests; five existing Node tests; affected-reader inventory.
+   - Failed: repeated concurrent-selection test and the added restoration regression.
+   - BR-1 negative controls produced behavioral failures, not merely compilation failures. Disposable copies were removed; tracked files remain unchanged.
+
+6. **Architectural notes for upcoming work**
+
+   | Marker | Result |
+   |---|---|
+   | ARCH-DRY | Pass: shared filesystem guards, version parser and scan publication. |
+   | ARCH-PURE | Pass: version, command, HTML and revision logic have direct pure tests. |
+   | ARCH-PURPOSE | Flag: restoration loses the promised live-reload behavior; browser qualification remains unverified. |
+   | ARCH-MOCK | Pass: portable project folders and private HTTP fixtures exercise production boundaries. |
+   | ARCH-CONSTRAINTS | Pass: entry, byte and HTML limits are enforced; scan work is measured. |
+   | ARCH-SECURE | Pass: BR-1’s enumerable document/asset/scanner read class is covered. |
+   | ARCH-ORDER | Flag: restoration is omitted, and concurrent-reader tests assume one favorable ordering. |
+   | ARCH-FUNERAL | Pass: scoped handles, temporary-file cleanup and joined scanner lifecycle are present. |
+   | ARCH-EVOLVE | Pass: fixture bytes are preserved; the selection pointer remains a strict single value. |
+
+   Core-concept locations and classifications match the implementation.
+
+7. **Plan revision recommendations**
+
+   Add `## Revisions` entries defining document suspension/restoration transitions and their regression strategy, and the permitted concurrent selection-read outcomes. Keep real-browser qualification pending until measured host evidence is available.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"78250bae-041e-45e0-a9e3-c96c7bae9bb2","repository":"github.com/xianxu/pair","issue_id":"000755","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/96421f6ff64905db","reviewed_head":"6026591abfcf2590379f7e149e70df3c0617de6f","slot":"pair:4","requested_at":"2026-10-21T06:33:20.321511Z"},"phase":"finished","pid":1179,"started_at":"2026-10-21T06:33:20.460896Z","finished_at":"2026-10-21T06:37:25.850331Z","session_id":"01a15d2a-1253-7ec3-924c-15e8513605b8","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.5419625s
+head: "6026591abfcf2590379f7e149e70df3c0617de6f"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000410

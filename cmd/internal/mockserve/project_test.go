@@ -2,6 +2,7 @@ package mockserve
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -157,8 +158,12 @@ func TestUseAtomicSelectionReaders(t *testing.T) {
 			}
 		}
 	}()
+	defer wg.Wait() // join even when an assertion exits this test goroutine
 	for i := 0; i < 200; i++ {
 		b, e := p.readBounded(".mock-current", selectionLimit)
+		if errors.Is(e, ErrPathChanged) {
+			continue
+		}
 		if e != nil {
 			t.Fatal(e)
 		}
@@ -167,6 +172,10 @@ func TestUseAtomicSelectionReaders(t *testing.T) {
 		}
 	}
 	wg.Wait()
+	final, err := p.readBounded(".mock-current", selectionLimit)
+	if err != nil || (string(final) != "mock-1\n" && string(final) != "mock-2\n") {
+		t.Fatalf("settled selection %q: %v", final, err)
+	}
 }
 func TestProjectBoundedReads(t *testing.T) {
 	p, d := testProject(t)
@@ -236,5 +245,31 @@ func TestProjectRejectsReplacementDuringOpen(t *testing.T) {
 				t.Fatalf("replacement boundary not refused: matched=%v err=%v", matched, err)
 			}
 		})
+	}
+}
+
+func TestConcurrentSelectionReadRefusesChangedIdentity(t *testing.T) {
+	p, dir := testProject(t)
+	writeProjectFile(t, dir, "mock-2/index.html", "two")
+	if err := p.Use("mock-1"); err != nil {
+		t.Fatal(err)
+	}
+	changed := false
+	p.beforeOpen = func(name string) {
+		if name != ".mock-current" || changed {
+			return
+		}
+		changed = true
+		if err := p.Use("mock-2"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := p.readBounded(".mock-current", selectionLimit); !errors.Is(err, ErrPathChanged) {
+		t.Fatalf("changed selection identity must refuse: %v", err)
+	}
+	p.beforeOpen = nil
+	b, err := p.readBounded(".mock-current", selectionLimit)
+	if err != nil || string(b) != "mock-2\n" {
+		t.Fatalf("confirmed selection %q %v", b, err)
 	}
 }

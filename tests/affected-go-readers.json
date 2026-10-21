@@ -465,8 +465,8 @@
       "cmd/internal/couchcmd/cli_test.go": "83b88aaf00ee7861c6f7dc9bc2fac42e64a9e1f1f7b5853ba73c85b8f6f6dbad",
       "cmd/internal/couchcmd/mock_test.go": "d00532d5f8a555d7f1ea3459734612caa3223399159b48487ff61b1cfb5eafd4",
       "cmd/internal/mockserve/page_test.go": "1d3f976a2a576d9a7778f9c4faa6927802b250431e48267d860d4068b0abfe2b",
-      "cmd/internal/mockserve/project_test.go": "498a1e6e3fb456f128042a9c8499868238756225ebe62452f71a890573f23b50",
-      "cmd/internal/mockserve/server_test.go": "250858fc94ed58e0172f25d32c92c5675822c0c5cef95abe7ca2d0e13183ad1f"
+      "cmd/internal/mockserve/server_test.go": "250858fc94ed58e0172f25d32c92c5675822c0c5cef95abe7ca2d0e13183ad1f",
+      "cmd/internal/mockserve/project_test.go": "eaf2a30b683f756232da9f3f58deb576b7c72decc8b028f8da31248feda24bdb"
     }
   }
 }
