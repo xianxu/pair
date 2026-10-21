@@ -1,0 +1,352 @@
+{
+  "physical_gesture_ms": 2700.922,
+  "leave_ms": [
+    601.849
+  ],
+  "cpu": [
+    {
+      "event": "whole_leave.process_cpu",
+      "time_ns": 1792609939655759000,
+      "user_cpu_ns": 234052000,
+      "system_cpu_ns": 441387000
+    }
+  ],
+  "configured_parallelism": [
+    {
+      "event": "configured.parallelism",
+      "time_ns": 1792609939053901000,
+      "parallelism": 6
+    }
+  ],
+  "per_slot": [
+    {
+      "slot": "fixture:0",
+      "retirement_ms": 226.045,
+      "retire.get_thread_ms": 24.251,
+      "retire.observe_owner_ms": 183.638,
+      "retire.publish_ms": 18.11,
+      "claim_ms": 0.006,
+      "read+owner_ms": 99.223,
+      "process-exit_ms": 10.242,
+      "publication_admission_ms": 0.216,
+      "store.update.read_mutate_encode_ms": 0.085,
+      "store.update.journal_ms": 14.389,
+      "retirement_owner_census_ms": 16.542,
+      "retirement_owner_queries_ms": 163.533,
+      "retirement_owner_query_count": 2,
+      "publication_coordinator_leases": [
+        {
+          "coordinator.check_retention": 0.005,
+          "coordinator.sync_root": 0.025,
+          "coordinator.check_owners": 0.003,
+          "coordinator.sync_retention": 0.024,
+          "coordinator.open_lock": 0.029,
+          "coordinator.flock_wait": 0.001,
+          "coordinator.held": 14.642,
+          "coordinator.total": 14.738,
+          "lease": 218
+        }
+      ]
+    },
+    {
+      "slot": "fixture:1",
+      "retirement_ms": 121.697,
+      "retire.get_thread_ms": 6.997,
+      "retire.observe_owner_ms": 89.344,
+      "retire.publish_ms": 21.439,
+      "claim_ms": 0.004,
+      "read+owner_ms": 293.992,
+      "process-exit_ms": 10.318,
+      "publication_admission_ms": 0.253,
+      "store.update.read_mutate_encode_ms": 0.197,
+      "store.update.journal_ms": 14.4,
+      "retirement_owner_census_ms": 6.367,
+      "retirement_owner_queries_ms": 82.042,
+      "retirement_owner_query_count": 2,
+      "publication_coordinator_leases": [
+        {
+          "coordinator.check_retention": 0.004,
+          "coordinator.sync_root": 0.018,
+          "coordinator.check_owners": 0.003,
+          "coordinator.sync_retention": 0.015,
+          "coordinator.open_lock": 0.024,
+          "coordinator.flock_wait": 0.001,
+          "coordinator.held": 14.797,
+          "coordinator.total": 14.866,
+          "lease": 242
+        }
+      ]
+    },
+    {
+      "slot": "fixture:2",
+      "retirement_ms": 216.983,
+      "retire.get_thread_ms": 30.418,
+      "retire.observe_owner_ms": 147.385,
+      "retire.publish_ms": 39.101,
+      "claim_ms": 0.003,
+      "read+owner_ms": 164.883,
+      "process-exit_ms": 11.069,
+      "publication_admission_ms": 0.272,
+      "store.update.read_mutate_encode_ms": 0.19,
+      "store.update.journal_ms": 12.289,
+      "retirement_owner_census_ms": 6.427,
+      "retirement_owner_queries_ms": 140.328,
+      "retirement_owner_query_count": 2,
+      "publication_coordinator_leases": [
+        {
+          "coordinator.check_retention": 0.005,
+          "coordinator.sync_root": 0.023,
+          "coordinator.check_owners": 0.003,
+          "coordinator.sync_retention": 0.019,
+          "coordinator.open_lock": 0.026,
+          "coordinator.flock_wait": 0.001,
+          "coordinator.held": 12.683,
+          "coordinator.total": 12.764,
+          "lease": 236
+        }
+      ]
+    },
+    {
+      "slot": "fixture:3",
+      "retirement_ms": 218.209,
+      "retire.get_thread_ms": 30.428,
+      "retire.observe_owner_ms": 164.608,
+      "retire.publish_ms": 22.823,
+      "claim_ms": 0.004,
+      "read+owner_ms": 161.691,
+      "process-exit_ms": 10.526,
+      "publication_admission_ms": 0.236,
+      "store.update.read_mutate_encode_ms": 0.276,
+      "store.update.journal_ms": 15.78,
+      "retirement_owner_census_ms": 7.469,
+      "retirement_owner_queries_ms": 154.909,
+      "retirement_owner_query_count": 2,
+      "publication_coordinator_leases": [
+        {
+          "coordinator.check_retention": 0.003,
+          "coordinator.sync_root": 0.02,
+          "coordinator.check_owners": 0.003,
+          "coordinator.sync_retention": 0.02,
+          "coordinator.open_lock": 0.024,
+          "coordinator.flock_wait": 0.001,
+          "coordinator.held": 16.25,
+          "coordinator.total": 16.327,
+          "lease": 230
+        }
+      ]
+    }
+  ],
+  "all_window_events": {
+    "console.lifecycle.queue": {
+      "count": 1,
+      "sum_ms": 0.009,
+      "max_ms": 0.009
+    },
+    "leave.lane_wait": {
+      "count": 4,
+      "sum_ms": 0.018,
+      "max_ms": 0.016
+    },
+    "thread.hold_wait": {
+      "count": 4,
+      "sum_ms": 0.016,
+      "max_ms": 0.011
+    },
+    "coordinator.check_retention": {
+      "count": 84,
+      "sum_ms": 0.535,
+      "max_ms": 0.032
+    },
+    "coordinator.sync_root": {
+      "count": 84,
+      "sum_ms": 186.553,
+      "max_ms": 19.25
+    },
+    "coordinator.check_owners": {
+      "count": 84,
+      "sum_ms": 1.555,
+      "max_ms": 0.286
+    },
+    "coordinator.sync_retention": {
+      "count": 84,
+      "sum_ms": 83.737,
+      "max_ms": 21.489
+    },
+    "coordinator.open_lock": {
+      "count": 84,
+      "sum_ms": 4.881,
+      "max_ms": 0.501
+    },
+    "coordinator.flock_wait": {
+      "count": 84,
+      "sum_ms": 123.504,
+      "max_ms": 22.869
+    },
+    "store.register_store": {
+      "count": 84,
+      "sum_ms": 19.553,
+      "max_ms": 2.153
+    },
+    "store.validate_backend": {
+      "count": 84,
+      "sum_ms": 2.559,
+      "max_ms": 0.124
+    },
+    "store.lock_wait": {
+      "count": 84,
+      "sum_ms": 4.377,
+      "max_ms": 0.4
+    },
+    "store.recover_journal": {
+      "count": 84,
+      "sum_ms": 4.864,
+      "max_ms": 1.254
+    },
+    "store.held": {
+      "count": 84,
+      "sum_ms": 84.493,
+      "max_ms": 16.115
+    },
+    "coordinator.held": {
+      "count": 84,
+      "sum_ms": 112.845,
+      "max_ms": 16.25
+    },
+    "coordinator.total": {
+      "count": 84,
+      "sum_ms": 514.821,
+      "max_ms": 32.608
+    },
+    "store.with_lock.total": {
+      "count": 84,
+      "sum_ms": 514.956,
+      "max_ms": 32.61
+    },
+    "zellij.query": {
+      "count": 24,
+      "sum_ms": 1456.62,
+      "max_ms": 137.495
+    },
+    "owner.process_census": {
+      "count": 12,
+      "sum_ms": 132.45,
+      "max_ms": 16.59
+    },
+    "claim": {
+      "count": 4,
+      "sum_ms": 0.018,
+      "max_ms": 0.006
+    },
+    "read+owner": {
+      "count": 4,
+      "sum_ms": 719.789,
+      "max_ms": 293.992
+    },
+    "signal": {
+      "count": 4,
+      "sum_ms": 0.057,
+      "max_ms": 0.017
+    },
+    "process-exit": {
+      "count": 4,
+      "sum_ms": 42.154,
+      "max_ms": 11.069
+    },
+    "retire.get_thread": {
+      "count": 4,
+      "sum_ms": 92.095,
+      "max_ms": 30.428
+    },
+    "retire.observe_owner": {
+      "count": 4,
+      "sum_ms": 584.975,
+      "max_ms": 183.638
+    },
+    "store.update.admission": {
+      "count": 4,
+      "sum_ms": 0.977,
+      "max_ms": 0.272
+    },
+    "store.update.read_mutate_encode": {
+      "count": 4,
+      "sum_ms": 0.748,
+      "max_ms": 0.276
+    },
+    "publication.file_sync": {
+      "count": 8,
+      "sum_ms": 17.035,
+      "max_ms": 3.723
+    },
+    "publication.rename": {
+      "count": 8,
+      "sum_ms": 1.861,
+      "max_ms": 0.485
+    },
+    "publication.sync_directories": {
+      "count": 8,
+      "sum_ms": 21.478,
+      "max_ms": 4.915
+    },
+    "journal.publish": {
+      "count": 4,
+      "sum_ms": 18.856,
+      "max_ms": 6.5
+    },
+    "journal.apply_target": {
+      "count": 4,
+      "sum_ms": 25.096,
+      "max_ms": 7.562
+    },
+    "journal.remove": {
+      "count": 4,
+      "sum_ms": 0.363,
+      "max_ms": 0.113
+    },
+    "journal.sync_directory": {
+      "count": 4,
+      "sum_ms": 11.967,
+      "max_ms": 4.586
+    },
+    "store.update.journal": {
+      "count": 4,
+      "sum_ms": 56.857,
+      "max_ms": 15.78
+    },
+    "retire.publish": {
+      "count": 4,
+      "sum_ms": 101.472,
+      "max_ms": 39.101
+    },
+    "retirement": {
+      "count": 4,
+      "sum_ms": 782.934,
+      "max_ms": 226.045
+    },
+    "detach.end": {
+      "count": 4,
+      "sum_ms": 1544.998,
+      "max_ms": 426.036
+    },
+    "leaveOne.end": {
+      "count": 4,
+      "sum_ms": 2186.293,
+      "max_ms": 597.551
+    },
+    "leave.end": {
+      "count": 1,
+      "sum_ms": 601.849,
+      "max_ms": 601.849
+    }
+  },
+  "instrumentation": [
+    {
+      "event": "instrumentation",
+      "first_flush_ns": 10323292,
+      "observer_ns": 782486,
+      "overflow": false
+    }
+  ],
+  "rows": 1330,
+  "cleanup_confirmed": true,
+  "interpretation_limits": "Aggregate events overlap and include background supervisor work; per-publication coordinator lease matched only when its held interval uniquely contains the known thread update callback-admission timestamp. Writable GetThread outer time includes routing, unassigned inner coordinator spans are not guessed."
+}

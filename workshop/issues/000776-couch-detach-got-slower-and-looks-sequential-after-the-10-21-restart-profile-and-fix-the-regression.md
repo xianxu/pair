@@ -77,3 +77,28 @@ Evidence copied below; original scratch /Volumes/TestScratch/detach-compare.O0eT
 ### 2026-10-21 — bounded inner-step capture
 
 Before the next capture, recorded exact observer seams in retirement-substeps-plan.json beside this issue evidence. Reuse pinned eaa758a6: current main a9522724 changes only issue details, with no product-code delta. Exactly one four-total-slot private capture; no eight-slot retry. Preserve nil-context and lock semantics. Whole-supervisor user/system CPU around Leave is aggregate CPU including background goroutines, never per-slot CPU. The collector remains bounded, metadata-only and in memory, with flush outside the measured core. Separate coordinator pre-lock directory syncs from actual lock wait and held work. No product fix is proposed yet.
+
+
+### 2026-10-21 — inner-step capture result, cause still unproved
+
+Exactly one authorized four-total-slot capture PASSED (54.611s including setup/cleanup). All owned generations were absent, direct child and IO joined, root /Volumes/TestScratch/pc-3450868507 removed. No eight-slot run or blind retry. Scratch observer initially failed to compile on a Darwin timeval cast; corrected before any native run. Final observer patch SHA-256 e8d0b936982139d5c8109b079176b6c0471147e55c120af408cbf76329958f1c. No product behavior changed.
+
+This run did NOT reproduce slow retirement: physical gesture2700.922ms, core Leave601.849ms, fan-out6. Retirement121.697–226.045ms versus the earlier685.882–1489.178ms. Exact partitions in fixture slot order0–3:
+
+| Sub-step (ms) | Slot0 | Slot1 | Slot2 | Slot3 |
+|---|---:|---:|---:|---:|
+| Retirement |226.045|121.697|216.983|218.209|
+| GetThread including routing |24.251|6.997|30.418|30.428|
+| Owner observation |183.638|89.344|147.385|164.608|
+| Publication including routing |18.110|21.439|39.101|22.823|
+| Two native queries inside owner |163.533|82.042|140.328|154.909|
+| Owner process census |16.542|6.367|6.427|7.469|
+| Journal transaction inside publication |14.389|14.400|12.289|15.780|
+
+Uniquely matched publication coordinator intervals: combined pre-lock directory sync0.033–0.049ms, flock wait0.001ms, held12.683–16.250ms. Publication admission after routing0.216–0.272ms. Journal recovery and store-lock wait were small in these matched intervals. GetThread includes writable routing/coordinator/store recovery; its inner work was not guessed from overlapping background events.
+
+All-window84 coordinator calls include background supervisor work: root-sync186.553ms summed, retention-sync83.737ms, flock wait123.504ms, held112.845ms. These overlap; they are NOT an additive per-slot or critical-path breakdown. Whole-supervisor CPU234.052ms user +441.387ms system across601.849ms wall includes other goroutines and is not per-slot CPU. Twenty-four queries, no reported failure; collector1330 rows, no overflow, total record cost0.782ms and first flush10.323ms.
+
+Important remaining gap: physical gesture minus core is2099.073ms. Retained timestamps put about27ms before core and2072ms after core. Leave began19:12:19.053901Z, ended19:12:19.655754Z; trace footer mtime19:12:19.666135705Z, driver return stamp19:12:21.727759Z. The post-core interval can include footer sync/close, console teardown and process/PTY join plus helper25ms polling; it is NOT measured retirement time, and exact attribution remains unknown. Do not name a culprit or raise fan-out on this evidence. Next useful measurement is the post-Leave completion path and attribution of a genuinely slow retirement sample. Hub report sent; no further native run started.
+
+#773 owner pair:7 authenticated the cross-reference and will append it when safely back from #774's active merge; no branch switch was requested under that runner. This is reproduction evidence, not #773 guarded acceptance.
