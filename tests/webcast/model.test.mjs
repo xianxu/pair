@@ -64,7 +64,7 @@ test('refusals leave the state as it was, as the reducer does', () => {
 test('changes outside a live segment are refused; unknown kinds are ignored', () => {
   const m = reduce([head, seg(1), doc, { t: 2, k: 'stop', why: 'pause' }]);
   assert.throws(() => m.apply({ t: 3, k: 'title', v: 'x' }), /no live segment/);
-  m.apply({ t: 3, k: 'ctl', who: 'v1' });
+  m.apply({ t: 3, k: 'future-kind', payload: 'v1' });
 });
 
 test('hover and pointer are tracked outside the canonical', () => {

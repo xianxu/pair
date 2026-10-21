@@ -432,7 +432,8 @@ export function mountDrive(doc, win, v, seat) {
 
   v.onRecord((r) => {
     if (r.k === 'ctl') ctl = r;
-    if (r.k === 'ctl' || r.k === 'seg' || r.k === 'stop') render();
+    if (r.k === 'sketch-snapshot') ctl = r.control;
+    if (r.k === 'ctl' || r.k === 'sketch-snapshot' || r.k === 'seg' || r.k === 'stop') render();
   });
 
   const listen = (type, fn) => layer.addEventListener(type, (e) => {

@@ -3,6 +3,7 @@ package recording
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"slices"
 )
 
@@ -79,12 +80,19 @@ func Merge(files map[string][]Located) []Located {
 // files preserves emission order. Within a millisecond Merge orders files;
 // crossing backward in that order must begin a new millisecond. Raw readers
 // still validate supplied timestamps directly, without rewriting history.
-func OrderedTime(t, lastTime int64, lastKind, kind string) int64 {
+// Sketch sources have strict fences on both sides so their timestamp names
+// exactly the preceding source prefix. Clears strictly follow annotations.
+// An impossible fence refuses rather than wrapping the timeline.
+func OrderedTime(t, lastTime int64, lastKind, kind string) (int64, error) {
 	t = max(t, lastTime)
-	if t == lastTime && lastKind != "" && fileRank(FileOf(kind)) < fileRank(FileOf(lastKind)) {
+	fence := kind == "sketch-begin" || lastKind == "sketch-begin" || kind == "annotation-clear" || fileRank(FileOf(kind)) < fileRank(FileOf(lastKind))
+	if t == lastTime && lastKind != "" && fence {
+		if t == math.MaxInt64 {
+			return 0, fmt.Errorf("recording timestamp overflow before %s", kind)
+		}
 		t++
 	}
-	return t
+	return t, nil
 }
 
 func fileRank(file string) int { return slices.Index(mergeOrder, file) }
