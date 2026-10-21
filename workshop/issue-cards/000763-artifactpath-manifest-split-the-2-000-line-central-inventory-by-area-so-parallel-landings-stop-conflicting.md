@@ -15,6 +15,6 @@ claimant:
     repository: github.com/xianxu/pair
 ---
 
-# artifactpath manifest: split the 2,000-line central inventory by area so parallel landings stop conflicting
+# Go reader audit: isolate certificates so independent changes merge cleanly
 
 ## Problem
