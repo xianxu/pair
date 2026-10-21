@@ -173,6 +173,12 @@ Native head5aa2570ca7f9cb1be8771903df943618759ca492 passed exact Claude cohort a
 
 Added diagnostic observation only: detect the explicit leave refusal, use the public Ctrl+Y copy-notice action, and capture the owned host's bounded OSC52 effect after a sequence fence. It exposes the full product reason rather than waiting120s on a clipped error. A real-PTY regression proves owned OSC52 capture; no operator clipboard is touched by the private emulator. Registration failure also includes its current screen. Next native run is a deliberate diagnostic reproduction of this product-boundary refusal, not a blind pass retry.
 
+### 2026-10-21 — diagnostic outcome and real composer conformance
+
+Diagnostic headdcdffcea8f14b4465f025c3d40839968082e2a32 completed the full Claude path: exact four-actor membership, submitted receipt36fe0870-02c2-4288-9f27-e46f3e661744 and accepted body, detach/restart30.60s, all owned generations absent and root removed. The prior ownership refusal did not reproduce; filed unclaimed #761 with failed and diagnostic evidence, without claiming a product fix or registering a known flake. The Codex subcase registered all four genuine actors but its ordinary receipt never submitted before the unchanged deadline; all composers remained empty and accepted0. Its full cleanup passed. Combined log /Volumes/TestScratch/tmp/pair-slot5/pair-744-native-diagnostic-phd4gpjx/native.log SHA256c83886c74d8553e3a44fef3082f2d198410bcdb94baad557602a71b69aff2dcb.
+
+The Codex fixture's synthetic shortcuts footer painted the reserved left edge beneath the prompt. Production peerComposerText correctly refused that surface despite the bold prompt itself being recognizable. Added42 tests through the actual production terminal model, peerComposerState and qualifiedComposerText for both personalities, idle/working/picker phases, empty/occupied/multiline/wrapped drafts and three geometries. Eighteen Codex cases were RED before removing only the optional synthetic footer; production recognizers are unchanged. Independent targeted composer race run passed1.960s, and affected-reader inventory passed (new test reads only pure fixture paint/model state; no repository scanner). No native run remained active after the capacity interruption; continued from these retained results, without duplicate fleet launch.
+
 ## Revisions
 
 ### 2026-10-20 — #747 native-proof sequencing
