@@ -178,9 +178,9 @@ func PresentThreads(rows []couchcore.ActionableThreadSummary, git map[string]cou
 }
 
 // hubSection leads with the hub's row and puts every other row one level
-// under it (pair#491). The hub stands alone: its repository's other slots
-// stay in their alphabetical group. Multi-hub presentation applies this same
-// shape to each ownership group in command-line order.
+// under it (pair#491). A primary hub's repository follows it immediately,
+// before the remaining alphabetical groups (pair#732). Multi-hub presentation
+// applies this same shape to each ownership group in command-line order.
 func hubSection(rows []ThreadPresentation, hub string) []ThreadPresentation {
 	at := slices.IndexFunc(rows, func(p ThreadPresentation) bool { return hub != "" && p.Path == hub })
 	if at < 0 {
@@ -190,8 +190,16 @@ func hubSection(rows []ThreadPresentation, hub string) []ThreadPresentation {
 	lead.Hub, lead.Indent = true, 0
 	out := make([]ThreadPresentation, 0, len(rows))
 	out = append(out, lead)
+	// The input already has numeric order within each repository. Promote the
+	// hub's group without disturbing that order or the alphabetical remainder.
 	for i, p := range rows {
-		if i != at {
+		if i != at && lead.SlotNumber == 0 && p.GroupKey == lead.GroupKey {
+			p.Indent += 2
+			out = append(out, p)
+		}
+	}
+	for i, p := range rows {
+		if i != at && (lead.SlotNumber != 0 || p.GroupKey != lead.GroupKey) {
 			p.Indent += 2
 			out = append(out, p)
 		}
