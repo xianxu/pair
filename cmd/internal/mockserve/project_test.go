@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -189,5 +190,51 @@ func TestProjectBoundedReads(t *testing.T) {
 	}
 	if e := p.Use("mock-1"); e == nil {
 		t.Fatal("outside version accepted")
+	}
+}
+
+func TestProjectRejectsReplacementDuringOpen(t *testing.T) {
+	for _, kind := range []string{"directory", "file", "file-in-parent", "scanner-directory", "scanner-file", "scanner-file-in-parent"} {
+		t.Run(kind, func(t *testing.T) {
+			p, dir := testProject(t)
+			writeProjectFile(t, dir, "secret.html", "PRIVATE_ROOT_SECRET")
+			writeProjectFile(t, dir, "index.html", "PRIVATE_ROOT_SECRET")
+			writeProjectFile(t, dir, "mock-1/alternate.html", "different public file")
+			matched := false
+			p.beforeOpen = func(name string) {
+				target := "mock-1"
+				if strings.Contains(kind, "file") {
+					target = "mock-1/index.html"
+				}
+				if name != target || matched {
+					return
+				}
+				matched = true
+				saved := "saved"
+				destination := "."
+				if strings.Contains(kind, "file") {
+					saved = "mock-1/saved.html"
+					destination = "../secret.html"
+					if strings.HasSuffix(kind, "in-parent") {
+						destination = "alternate.html"
+					}
+				}
+				if err := os.Rename(filepath.Join(dir, target), filepath.Join(dir, saved)); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(destination, filepath.Join(dir, target)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var err error
+			if strings.HasPrefix(kind, "scanner-") {
+				_, err = p.Scan(t.Context())
+			} else {
+				_, err = p.readBounded("mock-1/index.html", MaxHTMLBytes)
+			}
+			if !matched || err == nil {
+				t.Fatalf("replacement boundary not refused: matched=%v err=%v", matched, err)
+			}
+		})
 	}
 }

@@ -169,3 +169,44 @@ func TestHTTPRejectsUntaggedHTMLAliases(t *testing.T) {
 		}
 	}
 }
+
+func TestHTTPRejectsInRootAncestorLinksAfterScan(t *testing.T) {
+	for _, replacement := range []string{"nested", "version"} {
+		t.Run(replacement, func(t *testing.T) {
+			p, dir := serverProject(t)
+			if err := os.WriteFile(filepath.Join(dir, "secret.html"), []byte("<h1>PRIVATE_ROOT_SECRET</h1>"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, "secret.css"), []byte("PRIVATE_ROOT_SECRET"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			s, err := NewServer(t.Context(), p, "test")
+			if err != nil {
+				t.Fatal(err)
+			}
+			prefix := "/mock-2/private/"
+			if replacement == "nested" {
+				err = os.Symlink("..", filepath.Join(dir, "mock-2", "private"))
+			} else {
+				if err = os.Rename(filepath.Join(dir, "mock-2"), filepath.Join(dir, "saved")); err != nil {
+					t.Fatal(err)
+				}
+				err = os.Symlink(".", filepath.Join(dir, "mock-2"))
+				prefix = "/mock-2/"
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, name := range []string{"design.md", "secret.html", "secret.css", "fixtures.json"} {
+				w := httptest.NewRecorder()
+				s.ServeHTTP(w, httptest.NewRequest("GET", prefix+name, nil))
+				if w.Code >= 200 && w.Code < 300 || strings.Contains(w.Body.String(), "PRIVATE_ROOT_SECRET") || w.Body.String() == "private" {
+					t.Fatalf("exposed %s: %d %s", name, w.Code, w.Body.String())
+				}
+			}
+			if _, err := p.Scan(t.Context()); err == nil {
+				t.Fatal("scanner accepted new ancestor link")
+			}
+		})
+	}
+}

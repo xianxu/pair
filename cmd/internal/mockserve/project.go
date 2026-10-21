@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path"
 	"strings"
@@ -76,6 +77,8 @@ type Project struct {
 	root *os.Root
 	// scanWork observes actual entry visits and read bytes at the IO boundary.
 	scanWork func(int, int64)
+	// beforeOpen is a deterministic boundary for concurrent-replacement tests.
+	beforeOpen func(string)
 }
 
 func OpenProject(dir string) (*Project, error) {
@@ -86,32 +89,103 @@ func OpenProject(dir string) (*Project, error) {
 	return &Project{root: r}, nil
 }
 func (p *Project) Close() error { return p.root.Close() }
+
+// openDirectory pins every observed directory identity before descending. A
+// project-root Root alone would allow an ancestor link back to private files.
+func (p *Project) openDirectory(name string) (*os.Root, error) {
+	if !fs.ValidPath(name) {
+		return nil, fmt.Errorf("invalid project path %q", name)
+	}
+	dir, err := p.root.OpenRoot(".")
+	if err != nil {
+		return nil, err
+	}
+	if name == "." {
+		return dir, nil
+	}
+	relative := ""
+	for _, part := range strings.Split(name, "/") {
+		if relative != "" {
+			relative += "/"
+		}
+		relative += part
+		next, err := p.openChildDirectory(dir, part, relative)
+		dir.Close()
+		if err != nil {
+			return nil, err
+		}
+		dir = next
+	}
+	return dir, nil
+}
+func (p *Project) openChildDirectory(parent *os.Root, name, relative string) (*os.Root, error) {
+	observed, err := parent.Lstat(name)
+	if err != nil {
+		return nil, err
+	}
+	if !observed.IsDir() {
+		return nil, fmt.Errorf("%s is not a directory", relative)
+	}
+	if p.beforeOpen != nil {
+		p.beforeOpen(relative)
+	}
+	child, err := parent.OpenRoot(name)
+	if err != nil {
+		return nil, err
+	}
+	actual, err := child.Stat(".")
+	if err != nil || !os.SameFile(observed, actual) {
+		child.Close()
+		return nil, fmt.Errorf("directory changed during open: %s", relative)
+	}
+	return child, nil
+}
+func (p *Project) openRegularAt(parent *os.Root, name, relative string) (*os.File, error) {
+	observed, err := parent.Lstat(name)
+	if err != nil {
+		return nil, err
+	}
+	if !observed.Mode().IsRegular() {
+		return nil, fmt.Errorf("%s is not a regular file", relative)
+	}
+	if p.beforeOpen != nil {
+		p.beforeOpen(relative)
+	}
+	f, err := parent.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	actual, err := f.Stat()
+	if err != nil || !actual.Mode().IsRegular() || !os.SameFile(observed, actual) {
+		f.Close()
+		return nil, fmt.Errorf("file changed during open: %s", relative)
+	}
+	return f, nil
+}
 func (p *Project) readBounded(name string, limit int64) ([]byte, error) {
-	st, e := p.root.Lstat(name)
-	if e != nil {
-		return nil, e
+	if !fs.ValidPath(name) || name == "." {
+		return nil, fmt.Errorf("invalid project file %q", name)
 	}
-	if !st.Mode().IsRegular() {
-		return nil, fmt.Errorf("%s is not a regular file", name)
+	dir, err := p.openDirectory(path.Dir(name))
+	if err != nil {
+		return nil, err
 	}
-	f, e := p.root.Open(name)
-	if e != nil {
-		return nil, e
+	defer dir.Close()
+	f, err := p.openRegularAt(dir, path.Base(name), name)
+	if err != nil {
+		return nil, err
 	}
 	defer f.Close()
-	st, e = f.Stat()
-	if e != nil {
-		return nil, e
-	}
-	if !st.Mode().IsRegular() {
-		return nil, fmt.Errorf("%s is not a regular file", name)
+	st, err := f.Stat()
+	if err != nil {
+		return nil, err
 	}
 	if st.Size() > limit {
 		return nil, fmt.Errorf("%s exceeds %d bytes", name, limit)
 	}
-	b, e := io.ReadAll(io.LimitReader(f, limit+1))
-	if e != nil {
-		return nil, e
+	b, err := io.ReadAll(io.LimitReader(f, limit+1))
+	if err != nil {
+		return nil, err
 	}
 	if int64(len(b)) > limit {
 		return nil, fmt.Errorf("%s exceeds %d bytes", name, limit)

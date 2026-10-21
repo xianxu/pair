@@ -66,6 +66,10 @@ Implementation details: [durable plan](../plans/000755-mock-server-plan.md).
 
 - PR507 is open and the recorded pushed-head affected check is started. Implementation checklist is complete; suite completion, close verdict and landing remain machine-gated. Using the TL-worker allowance to overlap the queued recorded suite with boundary review; no landing before a final-head recorded pass.
 
+- Close round1 returned REWORK with Critical BR-1: in-root ancestor links could reach private project-root files before the next scan. Reproduced nested and whole-version forms as deterministic HTTP200 private-file leaks. Cancelled only this checkout's queued check, then centralized component pinning/identity verification across HTTP document/assets, selection and scanner reads. Added post-startup and held-open replacement regressions; targeted confinement checks passed. Re-running package race, real-browser and inventory verification on the fix before a new recorded suite and close review.
+
+- BR-1 verification: post-scan HTTP aliases are refused; directory/file replacement tests pass and fail when identity guards are disabled (directory, in-parent leaf and scanner leaf cases). Package, artifactpath and repolint race checks passed; real-browser/sample qualification passed in8.357s. Re-audited the two private-fixture reader hashes and inventory passes. The shared read fix preserves one directory visit per scan and independent counted read/entry guards.
+
 ## Revisions
 
 ### 2026-10-20 — concrete server contract for TL approval

@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
+	"path"
 	"sort"
 	"strings"
 )
@@ -33,12 +35,12 @@ func (p *Project) Scan(ctx context.Context) (Snapshot, error) {
 	selection := ""
 	hasSelection := false
 	hasFixtures := false
-	var walk func(string) error
-	walk = func(dir string) error {
+	var walk func(*os.Root, string) error
+	walk = func(root *os.Root, dir string) error {
 		if e := ctx.Err(); e != nil {
 			return e
 		}
-		f, e := p.root.Open(dir)
+		f, e := root.Open(".")
 		if e != nil {
 			return e
 		}
@@ -73,7 +75,7 @@ func (p *Project) Scan(ctx context.Context) (Snapshot, error) {
 				if dir != "." {
 					name = dir + "/" + name
 				}
-				st, e := p.root.Lstat(name)
+				st, e := root.Lstat(de.Name())
 				if e != nil {
 					return e
 				}
@@ -85,7 +87,13 @@ func (p *Project) Scan(ctx context.Context) (Snapshot, error) {
 							versions = append(versions, name)
 						}
 					}
-					if e := walk(name); e != nil {
+					child, e := p.openChildDirectory(root, de.Name(), name)
+					if e != nil {
+						return e
+					}
+					e = walk(child, name)
+					child.Close()
+					if e != nil {
 						return e
 					}
 					continue
@@ -103,7 +111,7 @@ func (p *Project) Scan(ctx context.Context) (Snapshot, error) {
 				if st.Size() > limit {
 					return fmt.Errorf("%s exceeds remaining scan limit of %d bytes", name, limit)
 				}
-				data, e := p.readForScan(ctx, name, limit)
+				data, e := p.readForScan(ctx, root, name, limit)
 				if e != nil {
 					return e
 				}
@@ -130,7 +138,7 @@ func (p *Project) Scan(ctx context.Context) (Snapshot, error) {
 			}
 		}
 	}
-	if e := walk("."); e != nil {
+	if e := walk(p.root, "."); e != nil {
 		return Snapshot{}, e
 	}
 	if !hasFixtures {
@@ -165,8 +173,8 @@ func (p *Project) Scan(ctx context.Context) (Snapshot, error) {
 	return result, nil
 }
 
-func (p *Project) readForScan(ctx context.Context, name string, limit int64) ([]byte, error) {
-	f, e := p.root.Open(name)
+func (p *Project) readForScan(ctx context.Context, root *os.Root, name string, limit int64) ([]byte, error) {
+	f, e := p.openRegularAt(root, path.Base(name), name)
 	if e != nil {
 		return nil, e
 	}
