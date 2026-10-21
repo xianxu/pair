@@ -46,7 +46,7 @@ Measure the native metadata across a wrapper-to-shell exec in a disposable sessi
 
 ## Plan
 
-- [ ] Confirm the measured owner/role design with the hub; durable plan: [terminal-owner-role-plan](../plans/000731-terminal-owner-role-plan.md).
+- [x] Confirm the measured owner/role design with the hub; durable plan: [terminal-owner-role-plan](../plans/000731-terminal-owner-role-plan.md).
 - [ ] Implement and qualify the shared owner observation and role projection under the approved plan, then close and land through SDLC.
 
 ## Log
@@ -58,3 +58,10 @@ Deferred from pair#727 by the hub on 2026-10-20 (delivery 7225aa16-eefc-46c0-97b
 - Hub dispatched #731 after #706 landed; verified unowned, claimed, and ran start-plan from main. No #706 work remains in flight. Bare start-plan caught up the sibling Ariadne build, as required by the fleet tool rule.
 - Hub d78ab148-d0d9-49e4-9255-f5983c3ee9a6 approved bounded disposable native diagnosis. Installed Zellij0.45.1 private session p731-31448 used private HOME, config/data/cache/runtime and ZELLIJ_SOCKET_DIR. A controlled registered pair term executable gated syscall.Exec into /bin/sh. PID31490 and birth remained unchanged; startup command and terminal title survived; pane_command changed to sh -i. LiveIDs and both existing role projections still granted RightTerminal. A command executed by the interactive shell acknowledged the same PID. Cleanup closed the exact session/client; private list-sessions reported none, and the exact owned PIDs were gone. Capture: [metadata-capture.json](000731-a-pane-that-fell-back-to-a-native-shell-still-classifies-as-a-pair-terminal.side/metadata-capture.json). This is native metadata evidence, not a production fault-recovery test. Temporary probe source was removed from cmd; retained owned diagnostic source/binary are under /Volumes/TestScratch/tmp/pair731.p79ksE.
 - Found a registry-only cached-draft fast path in termcmd and a direct registry reader in Couch focus admission, alongside layout/clipboard consumers. A pane-command-only fix misses that path. Proposed plan uses existing identity-fenced native per-PID argv evidence plus mandatory registered ownership in RoleForPaneWith. It leaves the append-only registry format and all unknown rows intact, avoiding retirement rewrites/new locks and new lifetime artifacts (ARCH-DRY, ARCH-EVOLVE, ARCH-FUNERAL). No production/test implementation has begun; awaiting hub plan approval before change-code.
+- Hub d495d55d-e94e-4033-8b07-6095ee2c618a approved the plan with one compatibility requirement: confirmed shell argv denies; unavailable/unreadable native inspection retains today's liveness-based registry result and records why. Revised the current design/state/test tables and appended its history under Revisions; both policies and diagnostic failure are mandatory tests. No implementation yet; entering change-code next.
+
+## Revisions
+
+### 2026-10-20 — approved inspection-unavailable compatibility
+
+The original native owner proposal denied unavailable inspection. The hub's approved contract distinguishes it from confirmed different argv: retain today's registry answer and bounded diagnostic reason when native inspection is unavailable. This accepts possible stale ownership in restricted contexts to preserve working terminal panes. Confirmed wrapper-to-shell exec still loses the role; registry bytes/schema remain unchanged.
