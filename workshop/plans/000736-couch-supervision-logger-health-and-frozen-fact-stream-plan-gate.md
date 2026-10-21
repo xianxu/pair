@@ -41,6 +41,41 @@ rounds:
           family: function-test-strategy
           round: 1
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: b98ebd6b-ccfe-4c71-bd01-580fd5dc7a1b
+            repository: github.com/xianxu/pair
+            issue_id: "000736"
+            recipe: plan-quality
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot7/pair
+            reviewed_head: 650062885b23e19cdc72af2e92000f5dc24a523d
+            slot: pair:7
+            requested_at: "2026-10-21T03:09:33.334556Z"
+          phase: finished
+          pid: 61429
+          started_at: "2026-10-21T03:09:33.495686Z"
+          finished_at: "2026-10-21T03:10:04.942295Z"
+          session_id: 01a15c6f-8104-7ea1-ba0d-1a7cb6df89f8
+          outcome: returned
+      "n": 2
+      timestamp: "2026-10-20T20:10:05-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Requires coordinated CLI/supervisor upgrade and strict-decoder tests for both compatibility directions; explicitly acknowledges old-client refusal.
+          round: 2
+        - id: PQ-2
+          disposition: addressed
+          note: Replaces case inventories with named production functions and compact adversarial-input strategies with mechanical guards.
+          round: 2
+      blocked: false
+content_hash: c0ff483370657cadbf1bd24c4b2f908d8d9be3c63ebe338be077d2d4ea317c2e
 ---
 
 # Gate ledger — pair#736 (plan-quality)
@@ -57,7 +92,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **PQ-2** [Important] `function-test-strategy` Replace test-case inventories with named-function strategies
   M1 steps 1 and 4 enumerate cases instead of providing the required production-function test strategies. Name factLogLifecycle.advance, the health snapshot/error-capture functions, messageService.handle, projectResourceView and renderResources as applicable, with one compact adversarial-input and mechanical-guard strategy per risky function; keep detailed cases in executable tests.
 
+## Round 2 — 2026-10-20T20:10:05-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Requires coordinated CLI/supervisor upgrade and strict-decoder tests for both compatibility directions; explicitly acknowledges old-client refusal.
+- PQ-2 — addressed — Replaces case inventories with named production functions and compact adversarial-input strategies with mechanical guards.
+
 ## Open findings
 
-- **PQ-1** [Important] `wire-compatibility-contract` Resolve the false claim that older clients ignore additive response fields
-- **PQ-2** [Important] `function-test-strategy` Replace test-case inventories with named-function strategies
+(none — every finding has been disposed)

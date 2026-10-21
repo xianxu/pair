@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
-estimate_hours:
+estimate_hours: 1.7225
 collaboration-mode: collaboration
-card_mirror: '17f9ff00b1326f7605c0065cae8f54fc65b9c7be' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '783dc86f9b48ee4c63c8736929dfe737fe6161c3' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T20:02:41-07:00
 claimant:
     operator: Xian Xu
@@ -42,6 +42,34 @@ Expose logger health and a bounded last error through an existing Couch status s
 - [ ] M2 — Observe the actual refusal after the hub's coordinated restart; approve a cause-specific revision, reproduce it, fix it and verify fresh live facts.
 
 Durable plan: [implementation plan](../plans/000736-supervision-logger-health-plan.md).
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against
+baseline-v3.1.md, Method A. Calibration is flagged stale by estimate-source.
+Existing log worker, sink and resources projection eliminate greenfield library
+work. M1 uses two smaller-go-module extensions at v2 impl0.5 each ×0.4, design0.2
+each ×0.2 for the approved detailed plan. Issue authoring uses design0.5 ×0.2,
+impl0.1 ×0.4; docs design0.1 ×0.2 and impl0.1 ×0.4. Two actual milestone reviews
+use impl0.5 ×0.4 each. M2 provisionally budgets one real-API discovery at0.6 ×0.4,
+and one smaller extension at design0.3 ×0.5, impl0.5 ×0.4. This is explicitly an
+uncertain M2 allowance, revised after the real error is known, not a claim that
+its cause is understood. Familiar stack1.0 and thorough-plan design buffer15%.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.10 impl=0.04
+item: smaller-go-module design=0.04 impl=0.20
+item: smaller-go-module design=0.04 impl=0.20
+item: atlas-docs design=0.02 impl=0.04
+item: milestone-review design=0 impl=0.20
+item: milestone-review design=0 impl=0.20
+item: real-api-discovery design=0 impl=0.24
+item: smaller-go-module design=0.15 impl=0.20
+design-buffer: 0.15
+total: 1.7225
+```
 
 ## Log
 
