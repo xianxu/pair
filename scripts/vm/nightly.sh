@@ -29,23 +29,26 @@ class RetentionAttention(ValueError):
     """Exit 10 wakes the scheduling hub before retained evidence is lost."""
 
 
-def traversal_error(error):
-    raise error
-
-
 def retained_bytes(root):
     total = 0
     entries = 0
-    for parent, directories, files in os.walk(root, followlinks=False, onerror=traversal_error):
-        for name in directories + files:
-            entries += 1
-            if entries > 1600000:
-                raise ValueError('nightly entry bound reached; inspect/archive evidence')
-            info = (Path(parent) / name).lstat()
-            if not (stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode)):
-                raise ValueError('nightly evidence contains a symlink or special file; inspect/archive')
-            if stat.S_ISREG(info.st_mode):
-                total += info.st_size
+    pending = [root]
+    # os.walk can swallow DirEntry.is_dir errors independently of onerror.
+    # The same checked lstat decides both accounting and directory traversal.
+    while pending:
+        with os.scandir(pending.pop()) as children:
+            for child in children:
+                entries += 1
+                if entries > 1600000:
+                    raise ValueError('nightly entry bound reached; inspect/archive evidence')
+                path = Path(child.path)
+                info = path.lstat()
+                if stat.S_ISDIR(info.st_mode):
+                    pending.append(path)
+                elif stat.S_ISREG(info.st_mode):
+                    total += info.st_size
+                else:
+                    raise ValueError('nightly evidence contains a symlink or special file; inspect/archive')
     return total
 
 

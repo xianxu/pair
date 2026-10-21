@@ -1,4 +1,5 @@
 """Nightly command contract against a real Git remote and stateful SDLC fake."""
+import contextlib
 import json
 import os
 from pathlib import Path
@@ -210,6 +211,36 @@ sys.exit(int(os.environ.get('EXIT','0')))
         with mock.patch.object(Path, 'lstat', side_effect=OSError('metadata unknown')):
             with self.assertRaises(OSError):
                 api['retained_bytes'](night)
+
+    def test_entry_classification_failure_cannot_hide_directory_bytes(self):
+        hidden = self.artifacts/'2026-10-01'/'hidden'
+        hidden.mkdir(parents=True)
+        with (hidden/'sparse').open('wb') as stream:
+            stream.truncate(3 << 30)
+        real_scandir = os.scandir
+
+        class AmbiguousEntry:
+            def __init__(self, entry):
+                self.entry = entry
+
+            def __getattr__(self, name):
+                return getattr(self.entry, name)
+
+            def is_dir(self, *args, **kwargs):
+                if self.entry.name == 'hidden':
+                    raise PermissionError('directory classification unknown')
+                return self.entry.is_dir(*args, **kwargs)
+
+        @contextlib.contextmanager
+        def ambiguous_scandir(path):
+            with real_scandir(path) as entries:
+                yield (AmbiguousEntry(entry) for entry in entries)
+
+        api = self.api()
+        with mock.patch.object(os, 'scandir', ambiguous_scandir):
+            with self.assertRaisesRegex(ValueError, 'retention'):
+                with api['reserve_nightly_artifacts'](self.artifacts, '2026-10-21'):
+                    self.fail('directory bytes vanished from admission accounting')
 
     def test_byte_warning_wakes_hub_without_launch(self):
         night = self.artifacts/'2026-10-01'
