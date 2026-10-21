@@ -1,0 +1,205 @@
+[
+  {
+    "sample": 38,
+    "attempt": 1,
+    "args": [
+      "--session",
+      "p761-f0ab63ebb7b4af9a-0",
+      "action",
+      "list-clients"
+    ],
+    "error": "invalid Zellij clients header",
+    "exit_code": 0,
+    "observer_error": null,
+    "stdout_repr": "b'\\x1b[32;1mp761-f0ab63ebb7b4af9a-2\\x1b[m [Created \\x1b[35;1m0s\\x1b[m ago] \\n\\x1b[32;1mp761-f0ab63ebb7b4af9a-1\\x1b[m [Created \\x1b[35;1m1s\\x1b[m ago] \\n\\x1b[32;1mp761-f0ab63ebb7b4af9a-0\\x1b[m [Created \\x1b[35;1m1s\\x1b[m ago] \\n'",
+    "stderr_repr": "b\"Session 'p761-f0ab63ebb7b4af9a-0' not found. The following sessions are active:\\n\"",
+    "stdout_file": "query-0038-attempt-1.stdout",
+    "stderr_file": "query-0038-attempt-1.stderr",
+    "stdout_sha256": "3d9f742c10530e4c278ffa08a6aac3132770980ebd8521d3d797107939b834b2"
+  },
+  {
+    "sample": 196,
+    "attempt": 2,
+    "args": [
+      "--session",
+      "p761-f0ab63ebb7b4af9a-1",
+      "action",
+      "list-panes",
+      "--json",
+      "--command"
+    ],
+    "error": "invalid JSON value",
+    "exit_code": 0,
+    "observer_error": null,
+    "stdout_repr": "b'\\x1b[32;1mp761-f0ab63ebb7b4af9a-0\\x1b[m [Created \\x1b[35;1m3s\\x1b[m ago] \\n\\x1b[32;1mp761-f0ab63ebb7b4af9a-1\\x1b[m [Created \\x1b[35;1m3s\\x1b[m ago] \\n\\x1b[32;1mp761-f0ab63ebb7b4af9a-2\\x1b[m [Created \\x1b[35;1m3s\\x1b[m ago] \\n'",
+    "stderr_repr": "b\"Session 'p761-f0ab63ebb7b4af9a-1' not found. The following sessions are active:\\n\"",
+    "stdout_file": "query-0196-attempt-2.stdout",
+    "stderr_file": "query-0196-attempt-2.stderr",
+    "stdout_sha256": "c27d6c4e195b0df681b4589d02e8d1520d15bf0b14439d93e8ab7aca65fdead4"
+  },
+  {
+    "sample": 286,
+    "attempt": 1,
+    "args": [
+      "--session",
+      "p761-f0ab63ebb7b4af9a-2",
+      "action",
+      "list-clients"
+    ],
+    "error": "invalid Zellij clients header",
+    "exit_code": 0,
+    "observer_error": null,
+    "stdout_repr": "b'\\x1b[32;1mp761-f0ab63ebb7b4af9a-1\\x1b[m [Created \\x1b[35;1m4s\\x1b[m ago] \\n\\x1b[32;1mp761-f0ab63ebb7b4af9a-2\\x1b[m [Created \\x1b[35;1m4s\\x1b[m ago] \\n\\x1b[32;1mp761-f0ab63ebb7b4af9a-0\\x1b[m [Created \\x1b[35;1m5s\\x1b[m ago] \\n'",
+    "stderr_repr": "b\"Session 'p761-f0ab63ebb7b4af9a-2' not found. The following sessions are active:\\n\"",
+    "stdout_file": "query-0286-attempt-1.stdout",
+    "stderr_file": "query-0286-attempt-1.stderr",
+    "stdout_sha256": "d8316d844f73c05f29d87da5aed3171b304b47c16a2fc6d470fe43c7094cdb49"
+  },
+  {
+    "sample": 377,
+    "attempt": 1,
+    "args": [
+      "--session",
+      "p761-f0ab63ebb7b4af9a-1",
+      "action",
+      "list-panes",
+      "--json",
+      "--command",
+      "--state"
+    ],
+    "error": "invalid JSON value",
+    "exit_code": 0,
+    "observer_error": null,
+    "stdout_repr": "b'\\x1b[32;1mp761-f0ab63ebb7b4af9a-2\\x1b[m [Created \\x1b[35;1m5s\\x1b[m ago] \\n\\x1b[32;1mp761-f0ab63ebb7b4af9a-1\\x1b[m [Created \\x1b[35;1m5s\\x1b[m ago] \\n\\x1b[32;1mp761-f0ab63ebb7b4af9a-0\\x1b[m [Created \\x1b[35;1m6s\\x1b[m ago] \\n'",
+    "stderr_repr": "b\"Session 'p761-f0ab63ebb7b4af9a-1' not found. The following sessions are active:\\n\"",
+    "stdout_file": "query-0377-attempt-1.stdout",
+    "stderr_file": "query-0377-attempt-1.stderr",
+    "stdout_sha256": "e8ae961666f1f91ca50afde3befbcf6bbc93c622de9d3fb8d3668ef3f7194ffa"
+  },
+  {
+    "sample": 530,
+    "attempt": 1,
+    "args": [
+      "--session",
+      "p761-f0ab63ebb7b4af9a-0",
+      "action",
+      "list-clients"
+    ],
+    "error": "invalid Zellij clients header",
+    "exit_code": 0,
+    "observer_error": null,
+    "stdout_repr": "b'\\x1b[32;1mp761-f0ab63ebb7b4af9a-1\\x1b[m [Created \\x1b[35;1m7s\\x1b[m ago] \\n\\x1b[32;1mp761-f0ab63ebb7b4af9a-2\\x1b[m [Created \\x1b[35;1m7s\\x1b[m ago] \\n\\x1b[32;1mp761-f0ab63ebb7b4af9a-0\\x1b[m [Created \\x1b[35;1m8s\\x1b[m ago] \\n'",
+    "stderr_repr": "b\"Session 'p761-f0ab63ebb7b4af9a-0' not found. The following sessions are active:\\n\"",
+    "stdout_file": "query-0530-attempt-1.stdout",
+    "stderr_file": "query-0530-attempt-1.stderr",
+    "stdout_sha256": "27ae0d2e37f43dd93d75a6c3fb898ad2d2ccb1ef8567bbde7f05167a19224f18"
+  },
+  {
+    "sample": 538,
+    "attempt": 1,
+    "args": [
+      "--session",
+      "p761-f0ab63ebb7b4af9a-2",
+      "action",
+      "list-clients"
+    ],
+    "error": "invalid Zellij clients header",
+    "exit_code": 0,
+    "observer_error": null,
+    "stdout_repr": "b'\\x1b[32;1mp761-f0ab63ebb7b4af9a-2\\x1b[m [Created \\x1b[35;1m7s\\x1b[m ago] \\n\\x1b[32;1mp761-f0ab63ebb7b4af9a-1\\x1b[m [Created \\x1b[35;1m8s\\x1b[m ago] \\n\\x1b[32;1mp761-f0ab63ebb7b4af9a-0\\x1b[m [Created \\x1b[35;1m8s\\x1b[m ago] \\n'",
+    "stderr_repr": "b\"Session 'p761-f0ab63ebb7b4af9a-2' not found. The following sessions are active:\\n\"",
+    "stdout_file": "query-0538-attempt-1.stdout",
+    "stderr_file": "query-0538-attempt-1.stderr",
+    "stdout_sha256": "5ad320ec140088ecc1b2750500d37f7109affee6fd97a56a23a9c4e6df69cf7a"
+  },
+  {
+    "sample": 746,
+    "attempt": 1,
+    "args": [
+      "--session",
+      "p761-f0ab63ebb7b4af9a-0",
+      "action",
+      "list-clients"
+    ],
+    "error": "invalid Zellij clients header",
+    "exit_code": 0,
+    "observer_error": null,
+    "stdout_repr": "b'\\x1b[32;1mp761-f0ab63ebb7b4af9a-1\\x1b[m [Created \\x1b[35;1m10s\\x1b[m ago] \\n\\x1b[32;1mp761-f0ab63ebb7b4af9a-2\\x1b[m [Created \\x1b[35;1m10s\\x1b[m ago] \\n\\x1b[32;1mp761-f0ab63ebb7b4af9a-0\\x1b[m [Created \\x1b[35;1m11s\\x1b[m ago] \\n'",
+    "stderr_repr": "b\"Session 'p761-f0ab63ebb7b4af9a-0' not found. The following sessions are active:\\n\"",
+    "stdout_file": "query-0746-attempt-1.stdout",
+    "stderr_file": "query-0746-attempt-1.stderr",
+    "stdout_sha256": "6b19d89dc8273f3ee5a0129b6339e5416fbf1285ac095729bd92516aea460517"
+  },
+  {
+    "sample": 830,
+    "attempt": 1,
+    "args": [
+      "--session",
+      "p761-f0ab63ebb7b4af9a-0",
+      "action",
+      "list-clients"
+    ],
+    "error": "invalid Zellij clients header",
+    "exit_code": 0,
+    "observer_error": null,
+    "stdout_repr": "b'\\x1b[32;1mp761-f0ab63ebb7b4af9a-2\\x1b[m [Created \\x1b[35;1m11s\\x1b[m ago] \\n\\x1b[32;1mp761-f0ab63ebb7b4af9a-1\\x1b[m [Created \\x1b[35;1m11s\\x1b[m ago] \\n\\x1b[32;1mp761-f0ab63ebb7b4af9a-0\\x1b[m [Created \\x1b[35;1m12s\\x1b[m ago] \\n'",
+    "stderr_repr": "b\"Session 'p761-f0ab63ebb7b4af9a-0' not found. The following sessions are active:\\n\"",
+    "stdout_file": "query-0830-attempt-1.stdout",
+    "stderr_file": "query-0830-attempt-1.stderr",
+    "stdout_sha256": "e240d793dd4b558fe80f9d6ae74f888907e6524b04a1371d6e8a806fafaa86fc"
+  },
+  {
+    "sample": 850,
+    "attempt": 1,
+    "args": [
+      "--session",
+      "p761-f0ab63ebb7b4af9a-2",
+      "action",
+      "list-clients"
+    ],
+    "error": "invalid Zellij clients header",
+    "exit_code": 0,
+    "observer_error": null,
+    "stdout_repr": "b'\\x1b[32;1mp761-f0ab63ebb7b4af9a-2\\x1b[m [Created \\x1b[35;1m11s\\x1b[m ago] \\n\\x1b[32;1mp761-f0ab63ebb7b4af9a-0\\x1b[m [Created \\x1b[35;1m12s\\x1b[m ago] \\n\\x1b[32;1mp761-f0ab63ebb7b4af9a-1\\x1b[m [Created \\x1b[35;1m12s\\x1b[m ago] \\n'",
+    "stderr_repr": "b\"Session 'p761-f0ab63ebb7b4af9a-2' not found. The following sessions are active:\\n\"",
+    "stdout_file": "query-0850-attempt-1.stdout",
+    "stderr_file": "query-0850-attempt-1.stderr",
+    "stdout_sha256": "a2db33a884fd9513162e3a92a5716dd14b81ffbd34e1e810046ff2fe115f8f06"
+  },
+  {
+    "sample": 926,
+    "attempt": 1,
+    "args": [
+      "--session",
+      "p761-f0ab63ebb7b4af9a-0",
+      "action",
+      "list-clients"
+    ],
+    "error": "invalid Zellij clients header",
+    "exit_code": 0,
+    "observer_error": null,
+    "stdout_repr": "b'\\x1b[32;1mp761-f0ab63ebb7b4af9a-2\\x1b[m [Created \\x1b[35;1m12s\\x1b[m ago] \\n\\x1b[32;1mp761-f0ab63ebb7b4af9a-0\\x1b[m [Created \\x1b[35;1m13s\\x1b[m ago] \\n\\x1b[32;1mp761-f0ab63ebb7b4af9a-1\\x1b[m [Created \\x1b[35;1m13s\\x1b[m ago] \\n'",
+    "stderr_repr": "b\"Session 'p761-f0ab63ebb7b4af9a-0' not found. The following sessions are active:\\n\"",
+    "stdout_file": "query-0926-attempt-1.stdout",
+    "stderr_file": "query-0926-attempt-1.stderr",
+    "stdout_sha256": "9ccab40869a67a6a4e2003d4ef68aaa998d2def9e2f3b02f591396d419981345"
+  },
+  {
+    "sample": 942,
+    "attempt": 1,
+    "args": [
+      "--session",
+      "p761-f0ab63ebb7b4af9a-1",
+      "action",
+      "list-clients"
+    ],
+    "error": "invalid Zellij clients header",
+    "exit_code": 0,
+    "observer_error": null,
+    "stdout_repr": "b'\\x1b[32;1mp761-f0ab63ebb7b4af9a-0\\x1b[m [Created \\x1b[35;1m13s\\x1b[m ago] \\n\\x1b[32;1mp761-f0ab63ebb7b4af9a-1\\x1b[m [Created \\x1b[35;1m13s\\x1b[m ago] \\n\\x1b[32;1mp761-f0ab63ebb7b4af9a-2\\x1b[m [Created \\x1b[35;1m13s\\x1b[m ago] \\n'",
+    "stderr_repr": "b\"Session 'p761-f0ab63ebb7b4af9a-1' not found. The following sessions are active:\\n\"",
+    "stdout_file": "query-0942-attempt-1.stdout",
+    "stderr_file": "query-0942-attempt-1.stderr",
+    "stdout_sha256": "db38f7be763a3c9a22ddc572389257b1aef621d51717ff38869954aa6ebcbd36"
+  }
+]

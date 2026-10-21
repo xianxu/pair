@@ -23,7 +23,7 @@ func (f *fakeRuntime) TryLock() (func(), bool, error)                     { retu
 func (f *fakeRuntime) CurrentTabJSON() ([]byte, error) {
 	return []byte(`{"tab_id":1,"position":1,"active_swap_layout_name":"BASE","is_swap_layout_dirty":false}`), nil
 }
-func (f *fakeRuntime) NudgeWrap() error { return nil }
+func (f *fakeRuntime) NudgeWrap() error           { return nil }
 func (f *fakeRuntime) NotifyRefusal(string) error { return nil }
 func (f *fakeRuntime) LogFailure(err error) {
 	f.fullscreenErrors = append(f.fullscreenErrors, err.Error())
@@ -118,7 +118,7 @@ func TestTerminalNativeAlreadyFocusedReturnClearsRecord(t *testing.T) {
 	}
 	t.Setenv("PATH", dir)
 	for _, quiet := range []bool{false, true} {
-		f := &fakeRuntime{currentPaneID: "4", fullscreenRecord: "2 swap=BASE", panesJSON: `[{"id":2,"is_floating":false,"is_fullscreen":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua d.md","is_plugin":false,"is_focused":false,"pane_x":0,"pane_y":0,"pane_columns":75,"pane_rows":39,"tab_id":1,"tab_position":1},{"id":4,"is_floating":true,"is_fullscreen":false,"title":"terminal","terminal_command":"pair term","is_plugin":false,"is_focused":false,"pane_x":0,"pane_y":0,"pane_columns":75,"pane_rows":39,"tab_id":1,"tab_position":1}]`}
+		f := &fakeRuntime{currentPaneID: "4", terminalPaneIDs: []string{"4"}, fullscreenRecord: "2 swap=BASE", panesJSON: `[{"id":2,"is_floating":false,"is_fullscreen":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua d.md","is_plugin":false,"is_focused":false,"pane_x":0,"pane_y":0,"pane_columns":75,"pane_rows":39,"tab_id":1,"tab_position":1},{"id":4,"is_floating":true,"is_fullscreen":false,"title":"terminal","terminal_command":"pair term","is_plugin":false,"is_focused":false,"pane_x":0,"pane_y":0,"pane_columns":75,"pane_rows":39,"tab_id":1,"tab_position":1}]`}
 		if code := layoutcmd.RunToggleFocused(nil, nativeReturnFocusRuntime{f, quiet}, io.Discard); code != 0 || f.fullscreenRecord != "" || len(f.fullscreenErrors) != 0 {
 			t.Fatalf("quiet=%v code=%d record=%q errors=%v", quiet, code, f.fullscreenRecord, f.fullscreenErrors)
 		}

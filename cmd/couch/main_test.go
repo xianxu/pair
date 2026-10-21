@@ -230,10 +230,7 @@ func waitInstalled(t *testing.T, cmd *exec.Cmd, cancel context.CancelFunc, waitR
 
 func installedEnv(t *testing.T, binDir string) []string {
 	t.Helper()
-	root, err := filepath.EvalSymlinks(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	root := testpair.ShortRoot(t)
 	home := filepath.Join(root, "home")
 	if err := os.MkdirAll(home, 0700); err != nil {
 		t.Fatal(err)

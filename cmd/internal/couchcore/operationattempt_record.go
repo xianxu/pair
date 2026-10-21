@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/launcher"
 )
 
 // LifecycleFailureRecorder appends terminal failure evidence. It owns no
@@ -169,6 +171,15 @@ func lifecycleFailureForAttempt(a *OperationAttempt, cause error, at time.Time) 
 		f.LaunchNonce = f.Nonce
 		f.Phase = "launch"
 	}
+	var terminal interface{ TerminalFailureEvidence() LifecycleFailure }
+	if errors.As(cause, &terminal) {
+		// Adopt only diagnostic observations. The operation owns its identity;
+		// terminal evidence must not rebind the target, nonce or cleanup scope.
+		evidence := cloneLaunchFailure(terminal.TerminalFailureEvidence())
+		f.Stage, f.Stream, f.Output = evidence.Stage, evidence.Stream, evidence.Output
+		f.LaunchError, f.HelperStarted = evidence.LaunchError, evidence.HelperStarted
+		f.BeforeExit = evidence.BeforeExit
+	}
 	f.Nonce, f.Operation, f.FailedAt = a.nonce, a.op, at
 	f.Target = target.Target
 	f.Address = completeFailureAddress(target.Address, f.Address)
@@ -180,6 +191,12 @@ func lifecycleFailureForAttempt(a *OperationAttempt, cause error, at time.Time) 
 	var details LifecycleFailureDetails
 	if errors.As(cause, &details) {
 		f.Phase, f.Holders, f.Outcome = details.FailurePhase(), details.FailureHolders(), details.FailureOutcome()
+	}
+	var native interface {
+		NativeQueryEvidence() launcher.NativeQueryEvidence
+	}
+	if errors.As(cause, &native) {
+		f.setNativeQueryEvidence(native.NativeQueryEvidence())
 	}
 	return f
 }

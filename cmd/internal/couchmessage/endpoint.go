@@ -116,7 +116,11 @@ func EndpointSocket(namespace string, binding Binding) (string, error) {
 		return "", err
 	}
 	// Retain the exact-incarnation hash while making dead owners discoverable.
-	return filepath.Join(filepath.Dir(socket), fmt.Sprintf("wrapper-%d-%s", binding.PID, filepath.Base(socket))), nil
+	socket = filepath.Join(filepath.Dir(socket), fmt.Sprintf("wrapper-%d-%s", binding.PID, filepath.Base(socket)))
+	if os.Getenv("COUCH_ISOLATED_ROOT") != "" && len(socket) > 103 {
+		return "", errors.New("isolated wrapper socket exceeds 103 bytes; choose a shorter COUCH_ISOLATED_ROOT")
+	}
+	return socket, nil
 }
 
 // RemoteEndpoint sends commit exactly once. Subsequent RPCs only observe the
