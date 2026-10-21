@@ -187,6 +187,99 @@ rounds:
       isolation: fenced
       reviewed: fb794ec500174a160dd447ac51b4695972c48cb0
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 6f174145-b748-40c2-a25b-57ea131eeb95
+            repository: github.com/xianxu/pair
+            issue_id: "000748"
+            recipe: fix-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/35101e2fe2f85718
+            reviewed_head: 8ebb557f6406d40da5512e16a1e320daae225433
+            slot: pair:3
+            requested_at: "2026-10-21T02:49:51.827743Z"
+          phase: finished
+          pid: 52766
+          started_at: "2026-10-21T02:49:52.037059Z"
+          finished_at: "2026-10-21T02:51:04.27938Z"
+          session_id: 01a15c5d-7ad6-7292-a525-b3b7b0883a6c
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 8ebb557f6406d40da5512e16a1e320daae225433
+        tracker_head: 68181dae97728be93cd1ff1775c3c34d2ca9eb9a
+        branch_point: 127001eae6379ce571b6097f4573deb57ca90416
+        since: "2026-10-20T17:33:54-07:00"
+        until: "2026-10-20T19:48:43-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-20T17:33:54-07:00"
+              end: "2026-10-20T19:48:43-07:00"
+              began: "2026-10-20T17:33:54-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot3/pair
+        sources:
+            - harness: codex
+              id: 01a15b4f-8616-7e93-b16c-446f5ace13a6
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: aed80dc5b3dde2cf178ecb04631f1f856d28de59a96b474244f44931a321cde1
+              started: "2026-10-20T21:55:01.064Z"
+              spawned: false
+              bytes: 7142889
+              windows:
+                - start: "2026-10-20T17:33:54-07:00"
+                  end: "2026-10-20T19:48:43-07:00"
+            - harness: codex
+              id: 01a15be1-7f3d-7fe1-b320-918261b6457c
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a15b4f-8616-7e93-b16c-446f5ace13a6
+              digest: 76a1ff22ff8cb95fdd5df9b723673acfc0c715abfc6886bf7a39a144b5be06f6
+              started: "2026-10-21T00:34:27.441Z"
+              spawned: true
+              bytes: 1551049
+              windows:
+                - start: "2026-10-21T00:34:27.441Z"
+                  end: "2026-10-20T19:48:43-07:00"
+        cuts:
+            - dispatched: "2026-10-20T19:20:01-07:00"
+              finalized: "2026-10-20T19:23:21-07:00"
+              finalizing: false
+            - dispatched: "2026-10-20T19:30:10-07:00"
+              finalized: "2026-10-20T19:35:32-07:00"
+              finalizing: true
+      "n": 3
+      timestamp: "2026-10-20T19:51:05-07:00"
+      dispatched: "2026-10-20T19:49:48-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: 'Previously disposed correction remains intact: the fake counts every child before schedule validation. This interdiff does not alter that behavior.'
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: The retained diagnostic validates final payloads with production pane requirements. New evidence explicitly records two failed final reads, consistent with the retained events and result.
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: Query comments retain the corrected distinction between logical reads, bounded attempts, and attempt-local observer errors; this interdiff leaves them unchanged.
+          round: 3
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 8ebb557f6406d40da5512e16a1e320daae225433
+      blocked: false
 ---
 
 # Gate ledger — pair#748 (boundary-review)
@@ -212,6 +305,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-1 — addressed — zellij_empty_reply_test.go:98 counts children before frame validation, and the regression asserts counts and final errors. An independently applied unsafe retry mutation fails nonzero, mutation, and unknown-flags cases with three calls instead of one.
 - BR-2 — addressed — native-production-query-diagnostic.go.txt:13 validates returned panes using production requirements and rejects empty inventory. Injected malformed output fails this oracle while the former error-only oracle passes. Retained results and associated claims were refreshed; independent native runs produced both a failure and a pass, as reported here.
 - BR-3 — addressed — The pinned correction updates zellij.go timeout, inventory-cost, ClientCountContext, and observer comments to describe bounded logical reads and attempt-local errors, consistent with runContext:197 and runQueryAttempt:215.
+
+## Round 3 — 2026-10-20T19:51:05-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Previously disposed correction remains intact: the fake counts every child before schedule validation. This interdiff does not alter that behavior.
+- BR-2 — addressed — The retained diagnostic validates final payloads with production pane requirements. New evidence explicitly records two failed final reads, consistent with the retained events and result.
+- BR-3 — addressed — Query comments retain the corrected distinction between logical reads, bounded attempts, and attempt-local observer errors; this interdiff leaves them unchanged.
 
 ## Open findings
 

@@ -185,3 +185,86 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T19:51:04-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 748 — flake: TestRecoveryRealHelperAndSessionConformanceLive/warm (zellij list-panes no reply after helper exit) holds the pair landing line |
+| repo | pair |
+| issue file | workshop/issues/000748-flake-testrecoveryrealhelperandsessionconformancelive-warm-zellij-list-panes-no-reply-after-helper-exit-holds-the-pair-landing-line.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 8e51ba7464c95b79e976f9df040aed35fa2ba27d..8ebb557f6406d40da5512e16a1e320daae225433 |
+| command | sdlc close --issue 748 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T19:51:04-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff correctly adds the missing source-inventory classification. Its existing guard passes at head and fails without the added entry. Qualification records accurately retain native failures without broadening the retry contract. No new defects or scope changes found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Previously disposed correction remains intact: the fake counts every child before schedule validation. This interdiff does not alter that behavior.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The retained diagnostic validates final payloads with production pane requirements. New evidence explicitly records two failed final reads, consistent with the retained events and result.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Query comments retain the corrected distinction between logical reads, bounded attempts, and attempt-local observer errors; this interdiff leaves them unchanged.
+```
+
+1. **Strengths**
+   - `cmd/internal/artifactpath/manifest.go:1593` correctly classifies the reply-validation helper as a non-artifact source.
+   - Native evidence preserves all 14 erroneous attempts and both final failures.
+   - Tracker revisions record qualification and the inventory correction while preserving the existing contract.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+   - `TestProductionArtifactReferencesAreExactlyClassified` passed.
+   - A temporary Go overlay restoring the base manifest made that test fail specifically for the missing helper entry.
+   - Evidence checks confirmed 14 erroneous attempts, final failures at logical reads 223 and 510, and 20 retained warm passes.
+   - `git diff --check` passed; tracked files remain unchanged. Native controls were not rerun.
+
+6. **Architectural notes**
+   - **ARCH-DRY:** Pass — uses the existing authoritative inventory.
+   - **ARCH-PURE:** Pass — the classified helper performs byte validation without IO.
+   - **ARCH-PURPOSE:** Pass — repairs exhaustive classification without weakening enforcement.
+   - **ARCH-EVOLVE:** Pass — no persisted-format reader or rewrite changes.
+   - No new architectural or user-facing surface requires atlas or root README updates.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"6f174145-b748-40c2-a25b-57ea131eeb95","repository":"github.com/xianxu/pair","issue_id":"000748","recipe":"fix-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/35101e2fe2f85718","reviewed_head":"8ebb557f6406d40da5512e16a1e320daae225433","slot":"pair:3","requested_at":"2026-10-21T02:49:51.827743Z"},"phase":"finished","pid":52766,"started_at":"2026-10-21T02:49:52.037059Z","finished_at":"2026-10-21T02:51:04.27938Z","session_id":"01a15c5d-7ad6-7292-a525-b3b7b0883a6c","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.890526375s
+head: "8ebb557f6406d40da5512e16a1e320daae225433"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
