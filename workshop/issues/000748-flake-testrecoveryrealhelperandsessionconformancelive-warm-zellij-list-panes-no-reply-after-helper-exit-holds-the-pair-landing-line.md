@@ -1,13 +1,13 @@
 ---
 id: 000748
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '5a18e381148a906cb385cc731889dc7862fe6e1a' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '526b666c043328a38919d4f599a2377c9012958c' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T17:33:54-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 1.11
 ---
 
 # flake: TestRecoveryRealHelperAndSessionConformanceLive/warm (zellij list-panes no reply after helper exit) holds the pair landing line
