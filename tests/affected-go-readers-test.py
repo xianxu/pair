@@ -105,6 +105,28 @@ def unique_object(pairs):
     return result
 
 
+class JSONNumber:
+    """A validated JSON numeric token, retained without a machine-number limit."""
+
+    def __init__(self, token):
+        self.token = token
+
+
+def reject_constant(token):
+    raise ValueError("invalid JSON constant: " + token)
+
+
+def certificate_json(value):
+    if isinstance(value, JSONNumber):
+        return value.token
+    if isinstance(value, dict):
+        return "{" + ", ".join(json.dumps(key) + ": " + certificate_json(item)
+                                for key, item in value.items()) + "}"
+    if isinstance(value, list):
+        return "[" + ", ".join(certificate_json(item) for item in value) + "]"
+    return json.dumps(value, allow_nan=False)
+
+
 def load_inventory(directory):
     """The canonical relative filename is the reader identity; no shared index."""
     if directory.with_name("affected-go-readers.json").exists():
@@ -120,8 +142,9 @@ def load_inventory(directory):
         if not name.endswith("_test.go.json"):
             raise ValueError("invalid reader certificate path: " + name)
         name = name.removesuffix(".json")
-        record = json.loads(path.read_text(), object_pairs_hook=unique_object)
-        if not isinstance(record, dict) or type(record.get("version")) is not int or record["version"] != 1:
+        record = json.loads(path.read_text(), object_pairs_hook=unique_object,
+                            parse_int=JSONNumber, parse_float=JSONNumber, parse_constant=reject_constant)
+        if not isinstance(record, dict) or type(record.get("version")) is not JSONNumber or record["version"].token != "1":
             raise ValueError("invalid reader certificate schema: " + name)
         disposition, digest = record.get("disposition"), record.get("sha256")
         if not isinstance(disposition, str) or disposition not in DISPOSITIONS:
@@ -162,7 +185,7 @@ def command_line():
             record.update(disposition=args.disposition, sha256=hashlib.sha256(actual[args.record]).hexdigest())
             path = INVENTORY / (args.record + ".json")
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps(record, indent=2) + "\n")
+            path.write_text(certificate_json(record) + "\n")
         elif args.remove:
             if args.remove not in known or args.remove in actual:
                 raise ValueError("remove requires an audited reader that is no longer present")
@@ -235,6 +258,28 @@ class FastInventoryCLI(unittest.TestCase):
         self.assertEqual(json.loads(self.inventory.read_text())["future"], self.extra["future"])
         self.assertFalse(self.tool_record.exists(), "fast inventory mode invoked Go or Make")
 
+    def test_unknown_numbers_roundtrip_without_precision_or_type_changes(self):
+        suffix = ', "future_numbers": {"fraction": 0.12345678901234567890123456789, "array": [1e400, -1e-400, -0.0, "1e400", true, null], "huge_integer": ' + "9" * 5000 + '}}'
+        original = self.inventory.read_text().rstrip()[:-1] + suffix
+        self.inventory.write_text(original)
+        decode = lambda body: json.loads(body, parse_float=lambda token: ("number", token),
+                                         parse_int=lambda token: ("number", token))
+        result = self.cli("--record", self.name, "--disposition", "local_or_literal_fixture")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(decode(self.inventory.read_text())["future_numbers"], decode(original)["future_numbers"])
+        self.assertEqual(self.cli("--check").returncode, 0)
+
+    def test_non_json_constants_refuse_without_rewrite(self):
+        valid = self.inventory.read_text()
+        for constant in ("NaN", "Infinity", "-Infinity"):
+            with self.subTest(constant=constant):
+                invalid = valid.rstrip()[:-1] + ', "future_numbers": [{"invalid": ' + constant + '}]}'
+                self.inventory.write_text(invalid)
+                for args in (("--check",), ("--record", self.name, "--disposition", "local_or_literal_fixture")):
+                    result = self.cli(*args)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(self.inventory.read_text(), invalid)
+
     def test_record_refuses_untracked_and_scanner_waivers_without_writing(self):
         before = self.inventory.read_bytes()
         result = self.cli("--record", "cmd/untracked_test.go", "--disposition", "fixed_scanner")
@@ -282,7 +327,8 @@ class FastInventoryCLI(unittest.TestCase):
 
     def test_missing_certificate_and_invalid_records_refuse(self):
         valid = self.inventory.read_text()
-        for invalid in ('{"version":true}', '{"version":1,"disposition":"unknown","sha256":"bad"}',
+        for invalid in ('{"version":true}', '{"version":1.0}', '{"version":"1"}',
+                        '{"version":1,"disposition":"local_or_literal_fixture","sha256":' + "1" * 64 + "}", '{"version":1,"disposition":"unknown","sha256":"bad"}',
                         '{"version":1,"disposition":"local_or_literal_fixture","sha256":false}', '[]', '{'):
             with self.subTest(invalid=invalid):
                 self.inventory.write_text(invalid)
