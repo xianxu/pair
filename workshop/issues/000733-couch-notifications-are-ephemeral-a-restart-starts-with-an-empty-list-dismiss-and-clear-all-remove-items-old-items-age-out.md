@@ -1,13 +1,13 @@
 ---
 id: 000733
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '69c94a144912c45c78979d022886c650197f7b46' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '2c8104f59970da92fca14089de7b1782382af558' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T14:54:44-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 0.48
 ---
 
 # couch: notifications are ephemeral: a restart starts with an empty list, dismiss and clear-all remove items, old items age out
