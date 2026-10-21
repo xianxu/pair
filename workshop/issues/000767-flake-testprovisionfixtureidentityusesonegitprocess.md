@@ -52,6 +52,7 @@ Recorded-suite completion, close review and landing remain gates tracked in Log;
 ## Log
 
 ### 2026-10-21
+- 2026-10-21: closed — Native old gate false-negative1/14969 with immediate correct FD3 read; direct-token probe passes16000 starts twice, retained counter run attempts=16000 failures=0. Deterministic mode000/wrong-token RED then all4 controls GREEN. Identity-family count100 passes101.617s; full repolint8.623s; audited reader inventory/diff pass. Recorded full fallback lease-1363786489 on681c7986 queued and must pass before landing, review may overlap per tl-worker. Atlas local catalog updated; TL owns project. No timeout or production FD lifetime changes. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 
 - 2026-10-21: Authenticated TL dispatch4dfe9de6-e6f4-4d8a-bce5-31ab01faa1c4; preserved #752 branch and switched through main-slot9 to fresh main-based #767 branch via claim/start-plan. Unchanged identity test passed100 repetitions in28.616s. Parent lease is cleanup-owned and forwarded unchanged into ExtraFiles; diagnosis must distinguish shell pathname permission from actual inherited descriptor usability.
 
