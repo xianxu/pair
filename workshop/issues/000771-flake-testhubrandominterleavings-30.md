@@ -42,13 +42,16 @@ Alternatives: polling callback counts changes the model and can hide missing eff
 
 ## Plan
 
-- [ ] Reproduce request-before-timer ordering with a controlled fake loop and retain RED evidence.
-- [ ] Correct manual-clock rendezvous, covering active/canceled/fired/ended behavior and both real watches; add the local lint rule and atlas scope.
+- [x] Reproduce request-before-timer ordering with a controlled fake loop and retain RED evidence.
+- [x] Correct manual-clock rendezvous, covering active/canceled/fired/ended behavior and both real watches; add the local lint rule and atlas scope.
 - [ ] Verify500 seeds repeatedly, broadcast under race detection, lint/inventory and recorded suite; close and land to retire the broad registration.
 
 ## Log
 
 ### 2026-10-21
+
+- Controlled RED: TestManualClockWaitsForTimerConsumption fails immediately with fireGrace returned after a request, before timer consumption. The fake loop deliberately processes the request before the timer, with synctest quiescence proving the helper returned; this isolates the scheduling race without sleeps or probabilistic seed replay. GREEN after an unbuffered receive rendezvous followed by h.sync. The active-channel query runs on the hub loop, so canceled/never-armed/fired/ended timers remain no-ops. End-during-delivery releases through Done. Production Hub.run is unchanged.
+- Protocol tests count100 pass0.199s, both-watch tests count20 pass0.204s, lint rule RED2 positive cases then GREEN5 cases; full repolint6.081s. Full broadcast package with race detection passes147.847s. Inventory and diff checks pass. All500 seeds count20 remains retained as targeted exec43708; no recorded full suite queued yet.
 
 - #767 landed PR520 and its registry entry retired before starting this main-based issue. Authenticated TL dispatch8b70bb19 assigns this issue next while #752 remains parked.
 - The failed train234 full candidate was d6efc430bb4fbd8b1e943981688eec3914f8c1ca (#765+#768, not held #767). Attempt88fb48b8719d5a57732691bd0fe8cb2f failed in9m47s, log hashf1a767397c5d. Same-head exact seed30 count100 passed1.126s and all500 seeds passed10.528s. The parser coarsened indented subtest output to the top test, so the child registration was replaced by one parent registration. This broad scope is temporary pending this fix; the original failure remains recorded.
