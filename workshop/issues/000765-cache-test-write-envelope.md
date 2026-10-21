@@ -148,3 +148,15 @@ Recorded suite attempt565ab9c18cb876ea6bb5b1f1ce3d832b on final code
 7999245e29ebddadb321e849b30dba9a2bba8dfe remains queued normally; no pass
 or landing claimed. Third Plan checkbox stays unchecked until it passes and
 landing completes. No new code after reviewed head.
+
+
+### 2026-10-21 — final recorded suite PASS; enter landing
+
+Attempt565ab9c18cb876ea6bb5b1f1ce3d832b on final code
+7999245e29ebddadb321e849b30dba9a2bba8dfe passed exit0 in10m34s. Log SHA
+prefix6750613a6adc saved at .git/sdlc/local-checks/<code-head>/suite.log.
+Core196.063s, tty38.332s; every package/script completed without a failure.
+Later changes are evidence-only. Review SHIP is already recorded. The last
+Plan checkbox still includes landing and stays unchecked until the merge
+provides its receipt; no landing is claimed before that command returns.
+Enter normal sdlc merge --yes now; no manual integration or bypass.
