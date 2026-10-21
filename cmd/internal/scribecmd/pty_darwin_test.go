@@ -472,7 +472,11 @@ func TestDarwinRunLargeOutputAndSignals(t *testing.T) {
 }
 
 func TestDarwinStartPreservesCommand(t *testing.T) {
-	dir := t.TempDir()
+	physicalDir := t.TempDir()
+	dir := filepath.Join(t.TempDir(), "cwd")
+	if err := os.Symlink(physicalDir, dir); err != nil {
+		t.Fatal(err)
+	}
 	output, err := os.CreateTemp(dir, "output")
 	if err != nil {
 		t.Fatal(err)
@@ -504,9 +508,22 @@ func TestDarwinStartPreservesCommand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "a b|$(literal)|hello world|" + dir
-	if string(body) != want {
-		t.Fatalf("got %q want %q", body, want)
+	const prefix = "a b|$(literal)|hello world|"
+	cwd, ok := strings.CutPrefix(string(body), prefix)
+	if !ok {
+		t.Fatalf("got %q, want literal argv/environment prefix %q", body, prefix)
+	}
+	gotDir, err := os.Stat(cwd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantDir, err := os.Stat(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A shell may report the physical spelling of a symlinked working directory.
+	if !os.SameFile(gotDir, wantDir) {
+		t.Fatalf("cwd %q does not identify requested directory %q", cwd, dir)
 	}
 }
 

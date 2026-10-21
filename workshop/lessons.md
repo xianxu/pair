@@ -2528,3 +2528,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #764 BR-1: A fixture-only change can still add a repository enforcement surface. Every new Pair-local lint rule needs its owner, rejected and accepted patterns, and syntax-analysis limits mapped in atlas/go-lint-catalog.md; include that surface in the close atlas decision.
 
 - #768 PQ-1: A PTY initialization abort must terminate its owned child explicitly; master hangup cannot stop an arbitrary HUP-ignoring command. Close master/slave before the sole wait because the child can already be blocked in kernel exit-drain. Preserve the initialization error and keep normal EOF/live-child ownership distinct.
+
+- #768 cwd oracle: A shell may print the physical spelling of a symlinked working directory. Pin a symlink in the fixture and compare filesystem identity when checking cwd behavior; retain lexical equality only when testing that a supplied command field itself was preserved.
