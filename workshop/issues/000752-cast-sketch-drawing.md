@@ -127,6 +127,12 @@ Primary surfaces: board/{sketch.go,sketch_wire.go,sketch_delivery.go,writer_sket
 - On committed8be34c6fab5b1cc1c2431a7cadb1da915b2e793d, WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run 'SketchLive|OperatorSketchLive' -count=1 -v exited0 in9.541s. Scene privacy2.16s; actual console drawing2.51s; open-contact handoff label1.80s; two viewers2.91s. All assertions executed, including named-frame/blob denial, moved original/replacement, three pre-up pressure samples, replay/Undo/Redo and old-label/new-holder source continuity.
 - Supplied this fresh host evidence to BR-5 through sdlc finding dispute; the next mandatory review must explicitly dispose of the unverifiable finding. The operator console smoke remains unperformed and staging/landing held.
 
+### 2026-10-21 — classified fixture flake and independent close review
+
+- Corrected-head full suite ran after1238s queue and finished10m22s. Every test passed except unchanged couchcore.TestProvisionFixtureIdentityUsesOneGitProcess (exit42, child shim could not read /dev/fd/3 before real Git). Attempt53424823b0e2ed3099f5dab5c5a415b2, raw log .git/sdlc/test-stats/failed/53424823b0e2ed3099f5dab5c5a415b2.log, SHA256 prefix48f54c92822d. All webcast and shared Node tests passed.
+- Same exact ecef5f7af3515fead7c02d6464ae112b16498fe1: targeted fixture test passed (root0.533s; independent single0.13s and10/10 in3.062s). Registered unclaimed pair#767 with fail→pass evidence. Underlying FD cause is unproven; this is flake classification, not a fixture fix. Hub filing receipt submitted.
+- Started SDLC recorded full rerun on the same head, retained lease-1901225109; queued sixth behind existing runs. This binary launches a fresh suite for this recovery. Close review can proceed independently with the classified same-head failure and targeted pass explicit; recorded status remains failed/pending until the rerun qualifies. No stage, landing or claim of a clean recorded pass yet.
+
 ## Estimate
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.*

@@ -274,3 +274,5 @@ Residency sweep removes receiver tombstones and prunes per-sketch metadata/draft
 Final focused rework checks passed: all targeted webcast Go packages, shared Node/assembly, and audited reader inventory. Settled-retired slot release and all per-slot cache pruning now pass512 clear/restart cycles; unknown cleared begins keep their immutable receipt lookup until definite settlement and cannot emit begin-accepted afterward. Host conformance and recorded suite will now run on the committed fix.
 
 Host conformance on8be34c6fab5b1cc1c2431a7cadb1da915b2e793d executed all4 required live tests successfully (package9.541s); BR-5 receives this measured host evidence through its formal dispute. Stage/operator smoke and landing remain held.
+
+Corrected-head suite encountered only the unchanged fixture FD flake, now pair#767 with same-head targeted passes. The retained recorded rerun is queued; mandatory close review proceeds independently with this limitation explicit. All automated acceptance is not complete until the recorded rerun is settled. Stage and landing remain held.
