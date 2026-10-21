@@ -16,6 +16,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "7a2c8147", done: "1f52dd3c"}
 ---
 
 # Affected package graph falls back to full suite before runtime bundle preparation
