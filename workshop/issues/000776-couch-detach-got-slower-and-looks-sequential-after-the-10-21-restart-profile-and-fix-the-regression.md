@@ -142,3 +142,14 @@ Authenticated TL04f6e7f5 approves the fix below and shared-caller sweep; TLd2e10
 - [ ] Extend provision_subprocess_test.go native lease control so a leader exits on TERM while its descendant ignores TERM and retains the inherited creation lease; Run must still kill that group at the original grace and release the lease. Existing TERM-resistant leader/output/timeout cases remain.
 - [ ] Sweep OSProvisionIO callers; run targeted production-cancellation and provision regressions, race checks and lint/catalog. Run a bounded private-fleet after capture, comparing matching shutdown/retirement brackets. Record fast/slow observations honestly; no fan-out change (ARCH-CONSTRAINTS, ARCH-MOCK).
 - [ ] Update atlas map of provisioning cancellation, record required affected/suite check, close through the mandatory fresh review and land through sdlc. No new persisted format (ARCH-EVOLVE); reuse existing owned group signal semantics (ARCH-DRY).
+
+
+### 2026-10-21 — cancellation fix and verification checkpoint
+
+change-code admitted quick flow. Extracted the original callback unchanged into private cancelProvisionGroup, then regression RED: whole_group_gone signaled [TERM,KILL], wanted [TERM] (test0.274s). Completion-aware ESRCH polling GREEN0.320s. Additional deterministic case finishes after a descendant disappears on the second poll with no grace event delivered. Native exited-leader/TERM-resistant-descendant control keeps the inherited creation lease busy until joined group cleanup; full TestProvision(Process|Group) pass4.290s. Existing output bounds, timeout and TERM-resistant leader tests pass in that set. New helper is private and adds no stored format or public configuration.
+
+Shared caller sweep: provisioning/setup, slot lookup/report, fleet inventory, Couch preparation, wrapper native-lock/peer runtime identity and shared testcouch provisioning all use this same OSProvisionIO boundary; normal exit/output semantics remain unchanged. No fan-out change.
+
+Profiling evidence retention: verified all cited logs/JSON byte-for-byte and the exact blocked stack in JSON; retained the final observer diff/hash as hubstack-observer-source.json for after-fix reconstruction. Removed /Volumes/TestScratch/detach-compare.O0eTeh (about1.1GiB) after all native roots/generations had been confirmed absent and joined, per TLd2e10979. No live files removed.
+
+Race and catalog checks initially could not start: shared /Volumes/AgentScratch/go-build is full (df186Gi used,100Mi available; exact error no space left on device). No test execution or flake claim for these setup failures. Hub informed; task-local RAM cache /Volumes/TestScratch/pair-776-checks.QKsQe4 now holds only temporary verification artifacts and will be collected after checks/qualification. No shared cache deletion or machine setting change. Race/shared-callers and catalog checks running there.

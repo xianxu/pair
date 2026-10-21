@@ -120,3 +120,78 @@ func TestProvisionProcessInheritedLeaseCancellation(t *testing.T) {
 	}
 	next.Close()
 }
+
+type provisionExitWriter struct {
+	mu          sync.Mutex
+	text        string
+	ready, exit chan struct{}
+	readyOnce   sync.Once
+	exitOnce    sync.Once
+}
+
+func (w *provisionExitWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.text += string(p)
+	if strings.Contains(w.text, "ready") {
+		w.readyOnce.Do(func() { close(w.ready) })
+	}
+	if strings.Contains(w.text, "leader-exited") {
+		w.exitOnce.Do(func() { close(w.exit) })
+	}
+	return len(p), nil
+}
+
+func TestProvisionProcessExitedLeaderRetainsDescendantLease(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	lease, err := AcquireHostCreationLease(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lease.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	progress := &provisionExitWriter{ready: make(chan struct{}), exit: make(chan struct{})}
+	done := make(chan error, 1)
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		_, err := (OSProvisionIO{}).Run(ctx, ProvisionCommand{
+			Program: "sh", Args: []string{"-c", "trap 'printf leader-exited >&2; exit 0' TERM; (trap '' TERM; printf ready; sleep 30 & wait) & wait"},
+			Lease: lease.File(), Progress: progress, StreamOutput: true,
+		})
+		done <- err
+	}()
+	t.Cleanup(func() { cancel(); <-stopped })
+	select {
+	case <-progress.ready:
+	case <-testwait.After(t):
+		t.Fatal("descendant did not install its TERM handler")
+	}
+	lease.Close()
+	cancel()
+	select {
+	case <-progress.exit:
+	case <-testwait.After(t):
+		t.Fatal("leader did not process TERM")
+	}
+	if second, err := AcquireHostCreationLease(root); !errors.Is(err, ErrHostCreationBusy) {
+		if second != nil {
+			second.Close()
+		}
+		t.Fatalf("descendant lost lease when leader exited: %v", err)
+	}
+	select {
+	case err = <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("error=%v", err)
+		}
+	case <-testwait.After(t):
+		t.Fatal("descendant did not stop after grace")
+	}
+	next, err := AcquireHostCreationLease(root)
+	if err != nil {
+		t.Fatalf("descendant retained lease after Run joined: %v", err)
+	}
+	next.Close()
+}

@@ -1,0 +1,26 @@
+=== RUN   TestDetachCandidateComparison
+=== RUN   TestDetachCandidateComparison/old-4
+    detach_comparison_test.go:38: native fleet isolation: root=/Volumes/TestScratch/pc-339109010 run=b1bf41a38fd5cb4f779c0e1ea7900219 agent=claude workers=3
+    detach_comparison_test.go:49: PREPARE candidate=old total=4 root=/Volumes/TestScratch/pc-339109010
+    detach_comparison_test.go:58: START candidate=old total=4
+    detach_comparison_test.go:66: worker 1 CLI: fixture CLI: exit status 1; stdout={"FailureNonce":"operation-9ceeedb1207defbc12d1730bd2d0fa15","ID":"385b57c2-3fc6-434d-b9e3-b19d3fbb925c","Op":"reboot","Target":"fixture:1","Status":"failed","Code":"unconfirmed","Detail":"Launch unconfirmed; Pair exited before registering (exit 1) [attempt start-e3c516199e125150; diagnostics /Volumes/TestScratch/pc-339109010/store/launch-diagnostics/failures.json]; inspect with couch --show '/Volumes/TestScratch/pc-339109010/fleet/worktree/fixture-slot1/fixture'","Warning":"started fresh; previous TTY capture unavailable; use branch and issue evidence; any unproved owners were left untouched under their original identities; workspace setup was not refreshed","Admitted":"2026-10-21T11:51:17.239075-07:00","Finished":"2026-10-21T11:51:24.740317-07:00"}
+         stderr=
+    fleet.go:402: native startup evidence before teardown: pane queries share diagnostic_deadline=2026-10-21T11:51:28.565631052-07:00
+        wrapper_log truncated=false read_error=<nil>
+        wrapper startup records unavailable
+        startup_sources=1 truncated=false
+        source scope="8978e8524619a481" tag="1-fixture-2"
+        ready_siblings=[] truncated=false read_error=<nil>
+        expected_ready="agent-ready-1-fixture-2-claude.json" truncated=false read_error=openat data/pair/repos/8978e8524619a481/agent-ready-1-fixture-2-claude.json: no such file or directory
+        ready identity unavailable
+        pane dump unavailable: exact emitted launch identity unavailable
+    fleet.go:439: native failure evidence before root removal: nonce=operation-9ceeedb1207defbc12d1730bd2d0fa15 slot=fixture:1 stage=registration before_exit=1 after_exit=1 launch="context canceled\nrecovery attempt registration is not confirmed\nconfirmed recovery failure requires one recorded recovery helper" final="recovery launch unconfirmed for 8978e8524619a481:1-fixture-2 (attempt start-e3c516199e125150): Pair exited before registering (exit 1) [attempt start-e3c516199e125150; diagnostics /Volumes/TestScratch/pc-339109010/store/launch-diagnostics/failures.json]; inspect with couch --show '/Volumes/TestScratch/pc-339109010/fleet/worktree/fixture-slot1/fixture'\ncontext canceled\nrecovery attempt registration is not confirmed\nconfirmed recovery failure requires one recorded recovery helper [remote job: queued 0s, prepare 1.685s, operation 5.814s]" cleanup="" stream="pty stdout/stderr" output="pair: cannot claim thread '1-fixture-2': existing Couch thread registration does not match requested established address\r\n"
+        ; read_error=<nil>
+    fleet.go:442: native wrapper evidence after join: wrapper_log truncated=false read_error=<nil>
+        wrapper startup records unavailable
+    fleet.go:460: native fleet cleaned: root=/Volumes/TestScratch/pc-339109010 all owned generations absent; direct child and IO joined
+--- FAIL: TestDetachCandidateComparison (21.48s)
+    --- FAIL: TestDetachCandidateComparison/old-4 (21.48s)
+FAIL
+FAIL	github.com/xianxu/pair/cmd/couch	21.664s
+FAIL

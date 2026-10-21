@@ -236,3 +236,17 @@ initial setup and later menu operations; its renderer owns the screen and existi
 operation notices show progress. `OSProvisionIO` still retains the bounded command
 diagnostic tail and includes it in setup failures. Raw Homebrew/weave output must
 never paint over the switcher. (`pair#312`)
+
+
+## Provisioning command cancellation
+
+`OSProvisionIO` owns a private process group for each command, including workspace
+identity reads used by resource inventory, slot lookup and fleet discovery. On
+cancellation it sends TERM and keeps the existing two-second grace before group
+KILL. It polls the group during that grace and finishes early only when a signal
+probe returns ESRCH for the whole group. Leader exit alone, permission errors and
+unavailable probes cannot end descendant cleanup. `Cmd.Wait` joins this callback;
+this avoids making Couch detach wait out an otherwise idle grace (#776).
+
+Deterministic group controls and native inherited-lease controls live in
+`provision_cancel_test.go` and `provision_subprocess_test.go` beside the runner.
