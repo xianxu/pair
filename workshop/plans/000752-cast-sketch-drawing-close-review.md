@@ -630,3 +630,140 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T13:34:03-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 752 — cast-sketch: live console and driver drawing with pen pressure |
+| repo | pair |
+| issue file | workshop/issues/000752-cast-sketch-drawing.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 65469fe6b2d13d83a736c11e948397711e1559a9..4f0f3228eec3ae76481f3bc120f22c216bc38f7e |
+| command | sdlc close --issue 752 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T13:34:03-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: medium
+```
+
+BR-10 is addressed with meaningful regressions on both surfaces. The shared implementation, authority fencing, bounded delivery and additive recording changes pass the available automated checks. One documentation correction remains: README describes controls and console prerequisites that changed in the latest revisions. Live Chrome verification remains limited by this environment’s previously reported GPU/CDP startup failure.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Retained: the plan uses a function/strategy verification map rather than repeated prose inventories.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Retained: authoritative console lifecycle reconciliation and interrupted-contact label regressions remain present and pass.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Retained: shared queue-saturation and pointer-up terminal-recovery regressions pass.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Retained: the Core concepts tables name actual implementation paths and distinguish new, modified and reused entities.
+  - id: BR-5
+    disposition: withdrawn
+    note: |
+      Retained from the prior disposition; this environment again fails before live assertions with Chrome GPU initialization errors and CDP EOF. This does not contradict the previously accepted host evidence.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Retained: board/sketch.go produces width 3; approved-width browser and persisted-pressure regressions pass.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Retained: the revised tables classify callbacks, DOM/canvas, journal initialization and Hub observation as INTEGRATION, separately from deterministic helpers.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      Retained: finishing owns delayed-anchor settlement; both-adapter voluntary-exit and deadline regressions pass.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Retained: accumulator ownership guards successor admission, and both-adapter delayed-anchor/successor regressions pass.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      sketch.js:526 routes Enter through saveLabel with composition guards. Tests at sketch.test.mjs:963 and operator-sketch.test.mjs:381 pass; removing only the Enter branch through a temporary loader makes both fail because zero label commands are sent.
+findings:
+  - id: new
+    severity: Important
+    kind: defect
+    family: user-docs-match-controls
+    title: |
+      README retains superseded console prerequisites and label-control instructions
+    detail: |
+      README.md:1572 says annotation must be enabled for console Sketch, although board/annotation.go:54 and operator-sketch.js now deliberately allow trusted console sketching with viewer annotation off. README.md:1593 also directs users to “Label unfinished sketch,” replaced by “Note” in web/sketch.js:147, and omits the new active-sketch Note action. ARCH-PURPOSE: update the complete sketch usage passage to match the approved revisions, including the background-capture deferral qualification to the blanket capture statement at README.md:1623; atlas/webcast.md already describes these changes.
+```
+
+1. **Strengths**
+
+   - Both surfaces reuse the same tool and guarded label-save path.
+   - Writer settlement distinguishes durable acceptance from unknown persistence; exact retries retain operation identity.
+   - Console admission remains generation-bound and cannot authorize ordinary viewer annotations.
+   - Cancellation’s optional `truncated` field preserves absent/false identity and unknown-field round trips.
+
+2. **Critical findings**
+
+   None.
+
+3. **Important findings**
+
+   Update [README.md:1572](/Volumes/TestScratch/review-checkouts/825d50d258c4180a/README.md:1572) as detailed above. This is a prose correction; wording-presence tests are unnecessary.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - Passed: all 484 browser tests.
+   - Passed: `go test ./cmd/internal/webcast/... ./cmd/internal/strictjson ./cmd/internal/artifactpath`.
+   - Passed: affected-reader inventory and pinned-range whitespace checks.
+   - BR-10: both regressions fail without the Enter handler.
+   - Live Chrome: all four selected fixtures failed during browser startup, before behavioral assertions.
+
+6. **Architectural notes for upcoming work**
+
+   - **ARCH-DRY — pass:** shared UI, renderer, preflight and Unicode validation.
+   - **ARCH-PURE — pass:** deterministic helpers are separated from explicitly classified integration adapters.
+   - **ARCH-PURPOSE — flag:** user instructions lag the approved controls; both required implementation surfaces are present.
+   - **ARCH-MOCK — pass:** stateful writer/browser/CDP seams exist; live verification has the limitation above.
+   - **ARCH-CONSTRAINTS — pass:** explicit queue, source, history and transfer bounds have focused coverage.
+   - **ARCH-SECURE — pass:** authenticated ownership, generation checks and private-scene isolation are explicit.
+   - **ARCH-ORDER — pass:** production policy and gesture ownership govern settlement and successor admission.
+   - **ARCH-FUNERAL — pass:** sources, timers, transfers and scenes have bounded lifetimes and disposal paths.
+   - **ARCH-EVOLVE — pass:** the persisted addition preserves compatibility and strict validation.
+
+7. **Plan revision recommendations**
+
+   No design revision is needed. Complete the README synchronization required by the existing documentation task; retain the explicit pre-landing console-smoke hold.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"78519034-962f-46c5-918b-1939ccee2b1f","repository":"github.com/xianxu/pair","issue_id":"000752","recipe":"milestone-review","round":7,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/825d50d258c4180a","reviewed_head":"4f0f3228eec3ae76481f3bc120f22c216bc38f7e","slot":"pair:9","requested_at":"2026-10-21T20:31:51.009069Z"},"phase":"finished","pid":99878,"started_at":"2026-10-21T20:31:51.131738Z","finished_at":"2026-10-21T20:34:02.496407Z","session_id":"01a16029-c076-79f3-865f-9c6f8f579202","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.887835625s
+head: "4f0f3228eec3ae76481f3bc120f22c216bc38f7e"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

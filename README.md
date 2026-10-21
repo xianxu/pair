@@ -1569,9 +1569,9 @@ While anyone drives:
 
 Only the drive link offers driving; the view-only and pointer links never do.
 
-**Persistent sketches (#752).** With annotation enabled, **Sketch** is available
-to the casting-Chrome operator when nobody else drives, or to the currently
-granted drive-link viewer. View-only and pointer links watch accepted sketches.
+**Persistent sketches (#752).** 🤖~With annotation enabled, **Sketch** is available~{Console **Sketch** works with annotation off}
+🤖~to the casting-Chrome operator when nobody else drives, or to the currently~{when no viewer drives. Viewer Sketch requires annotation and the current}
+🤖~granted drive-link viewer. View-only and pointer links watch accepted sketches.~{driving seat. View-only and pointer links watch accepted sketches.}
 Choose a colour before starting; it stays fixed for that sketch. The tool holds
 the acknowledged recorded moment while the live cast continues. Pen pressure
 is preserved, mouse and touch use full pressure, and paths stream to observers
@@ -1587,8 +1587,9 @@ prompt returns to the same held sketch. If saving cannot be confirmed within
 five seconds, **Couldn't save; accepted strokes kept** reports the failure. Use
 **Check confirmation** for an unknown write; a failed anchor leaves the label/escape action available.
 Press Enter or choose **Save label**; the requested tool opens only after confirmation.
+🤖{**Note** opens text for the unfinished sketch through that same save-and-label flow. The toolbar stays above the drawing surface, and Done is disabled until there is a sketch to finish.}
 A handoff interrupts drawing and
-keeps a separate **Label unfinished sketch** action while the original UI and
+keeps a separate **🤖<Label unfinished sketch>{Note}** action while the original UI and
 credentials survive. Accepted partial paths remain in the recording.
 
 If confirmation is uncertain, use **Check confirmation** before drawing more.
@@ -1620,7 +1621,7 @@ the binary to choose another (Couch refuses to start if it doesn't exist).
 record aren't in the recording. The viewer keeps their place at the operator's size and marks each with a dashed
 outline and a label such as "canvas: not captured", so the page never collapses around them.
 
-🤖{**Operator annotation in the cast Chrome (#494).** Use the viewer's same ✏️ and 💭 buttons in the cast Chrome to draw or leave a note on the actual page; hover for their tooltips. It starts Off; click the selected icon again or press Escape to turn annotation off. Couch’s Chrome Alt-click menu also offers Annotation · Off · Pen · Note without switching windows. Notes and strokes use the same recording and viewer display, attributed to Operator. While a remote viewer drives, annotations are disabled and an open draft is hidden and held; returning control makes annotation available again with the pen Off. A pause holds the draft, while navigation discards it. All Couch UI is excluded from page recording and hidden during fidelity and submission captures. Broadcast and driving control stay in Couch's cast row. If Couch reports uncertain remote input, close and reopen the cast Chrome to recover its hidden UI. The injected host shares the page DOM and is not a security boundary.}
+🤖{**Operator annotation in the cast Chrome (#494).** Use the viewer's same ✏️ and 💭 buttons in the cast Chrome to draw or leave a note on the actual page; hover for their tooltips. It starts Off; click the selected icon again or press Escape to turn annotation off. Couch’s Chrome Alt-click menu also offers Annotation · Off · Pen · Note without switching windows. Notes and strokes use the same recording and viewer display, attributed to Operator. While a remote viewer drives, annotations are disabled and an open draft is hidden and held; returning control makes annotation available again with the pen Off. A pause holds the draft, while navigation discards it. All Couch UI is excluded from page recording. Optional fidelity captures defer while a sketch/preparation or sketch/note editor is open, preserving visible controls and label focus; screenshots resume after that UI closes. Fidelity captures actually taken and explicit submission captures still hide private UI. Broadcast and driving control stay in Couch's cast row. If Couch reports uncertain remote input, close and reopen the cast Chrome to recover its hidden UI. The injected host shares the page DOM and is not a security boundary.}
 
 **Pointing and notes on a web cast (#470).** Anyone with the pointer link (👆) or the
 drive link can point and leave notes while annotation is enabled; the view-only

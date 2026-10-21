@@ -778,6 +778,364 @@ rounds:
       isolation: fenced
       reviewed: 320d01886adaa2859c3bfd1c51306826dc38e32b
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 78519034-962f-46c5-918b-1939ccee2b1f
+            repository: github.com/xianxu/pair
+            issue_id: "000752"
+            recipe: milestone-review
+            round: 7
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/825d50d258c4180a
+            reviewed_head: 4f0f3228eec3ae76481f3bc120f22c216bc38f7e
+            slot: pair:9
+            requested_at: "2026-10-21T20:31:51.009069Z"
+          phase: finished
+          pid: 99878
+          started_at: "2026-10-21T20:31:51.131738Z"
+          finished_at: "2026-10-21T20:34:02.496407Z"
+          session_id: 01a16029-c076-79f3-865f-9c6f8f579202
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: 4f0f3228eec3ae76481f3bc120f22c216bc38f7e
+        tracker_head: aa4b71d18e912477694b9316800adf2e315210f7
+        branch_point: 65469fe6b2d13d83a736c11e948397711e1559a9
+        since: "2026-10-21T00:30:29-07:00"
+        until: "2026-10-21T13:30:56-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-21T00:30:29-07:00"
+              end: "2026-10-21T13:30:56-07:00"
+              began: "2026-10-21T00:30:29-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot9/pair
+        sources:
+            - harness: codex
+              id: 01a15cc4-b370-7d60-9efa-989c5b30869b
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: c1fde1c95322747231dc0626e640d76a0a4d1ae4e3583de45ebde7a870860216
+              started: "2026-10-21T04:42:37.82Z"
+              spawned: false
+              bytes: 21787275
+              windows:
+                - start: "2026-10-21T00:30:29-07:00"
+                  end: "2026-10-21T13:30:56-07:00"
+            - harness: codex
+              id: 01a15d72-f362-71f2-ac46-571622add1dd
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: 21e6662300c1bed4a15a4792083ab14d80a05c66377f7b4994ab4ba521841f36
+              started: "2026-10-21T07:52:57.643Z"
+              spawned: false
+              bytes: 801571
+              windows:
+                - start: "2026-10-21T07:52:57.643Z"
+                  end: "2026-10-21T13:30:56-07:00"
+            - harness: codex
+              id: 01a15d78-07d8-7e30-b172-25de09195a37
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: c6881ead8ac3f533d352dd6c63982205c1fd552b98e8bb53bd78a6c051b1549f
+              started: "2026-10-21T07:58:30.132Z"
+              spawned: false
+              bytes: 507194
+              windows:
+                - start: "2026-10-21T07:58:30.132Z"
+                  end: "2026-10-21T13:30:56-07:00"
+            - harness: codex
+              id: 01a15d78-9f81-7ee3-bed1-6016d32c5c39
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: fd4a263d9b10335f2bb096cfaa2510a3be42c97276d0db2b453e1d80fd5ec242
+              started: "2026-10-21T07:59:08.967Z"
+              spawned: false
+              bytes: 485363
+              windows:
+                - start: "2026-10-21T07:59:08.967Z"
+                  end: "2026-10-21T13:30:56-07:00"
+            - harness: codex
+              id: 01a15e49-d730-7d33-b4b3-809814e36de7
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: 2f3a10380b73e3549af43c6663b14b08d92765879c2a80229c77b0046a6a2e4d
+              started: "2026-10-21T11:47:40.397Z"
+              spawned: false
+              bytes: 13876094
+              windows:
+                - start: "2026-10-21T11:47:40.397Z"
+                  end: "2026-10-21T13:30:56-07:00"
+            - harness: codex
+              id: 01a16014-1ff0-7c41-8e18-3d145d14b1df
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: 8be1da0e93d4b407ada9943a1b3732b33c2553767e5588eaf12f9299dc2bd3f6
+              started: "2026-10-21T20:08:15.052Z"
+              spawned: false
+              bytes: 607125
+              windows:
+                - start: "2026-10-21T20:08:15.052Z"
+                  end: "2026-10-21T13:30:56-07:00"
+            - harness: codex
+              id: 01a16014-81a1-7001-9e7e-d93eed68c583
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: a73215cf0b6c80893a9b162e88b1b86e50751977f34d0e842a425f318157c21c
+              started: "2026-10-21T20:08:39.68Z"
+              spawned: false
+              bytes: 546316
+              windows:
+                - start: "2026-10-21T20:08:39.68Z"
+                  end: "2026-10-21T13:30:56-07:00"
+            - harness: codex
+              id: 01a1601b-17ed-7f80-babd-675620ae6af1
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              parent_id: 01a15e49-d730-7d33-b4b3-809814e36de7
+              digest: 85b7da3648bccf2e26a26513862731018e431976d25216e976c26a0bf1a59e44
+              started: "2026-10-21T20:15:50.893Z"
+              spawned: true
+              bytes: 1159016
+              windows:
+                - start: "2026-10-21T20:15:50.893Z"
+                  end: "2026-10-21T13:30:56-07:00"
+            - harness: codex
+              id: 01a1601e-da52-7c40-a985-f00415b625a1
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: de821712f33f3ffdaa407227d277fa8e264eefe6fa986d541ecffdc179ea723f
+              started: "2026-10-21T20:19:57.695Z"
+              spawned: false
+              bytes: 572783
+              windows:
+                - start: "2026-10-21T20:19:57.695Z"
+                  end: "2026-10-21T13:30:56-07:00"
+            - harness: codex
+              id: 01a1601f-7ced-7603-80df-24b55016bcd8
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: 53e89f6fbe620c91561c86809413605d4bfa0b3f57a5cf6285407fda00cc1b7c
+              started: "2026-10-21T20:20:39.324Z"
+              spawned: false
+              bytes: 490930
+              windows:
+                - start: "2026-10-21T20:20:39.324Z"
+                  end: "2026-10-21T13:30:56-07:00"
+            - harness: codex
+              id: 01a16024-7679-7323-be47-5288a6d96993
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: da979932730c0ea6bb08eaabd3ee14a423c9e71b1e7461b614e3dc88d041d703
+              started: "2026-10-21T20:26:05.263Z"
+              spawned: false
+              bytes: 624433
+              windows:
+                - start: "2026-10-21T20:26:05.263Z"
+                  end: "2026-10-21T13:30:56-07:00"
+            - harness: codex
+              id: 01a16025-4e19-7c81-b2f7-0259a80e5bfd
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: 0ccd375cda1941c39ccef350354b005bb79b0889df73912f6b4aa9764854789c
+              started: "2026-10-21T20:27:00.458Z"
+              spawned: false
+              bytes: 477031
+              windows:
+                - start: "2026-10-21T20:27:00.458Z"
+                  end: "2026-10-21T13:30:56-07:00"
+        queue_waits:
+            - attempt_id: d33c24095b0e99efb97794a1065963d6
+              slot: pair:9
+              record_digest: cd51443b21b75b0eb664f444fd77c71f6f5f0f027620d25753056067f5b68556
+              start: "2026-10-21T09:32:04.598544Z"
+              end: "2026-10-21T09:38:11.880148Z"
+              queue_seconds: 367.281604
+              raw_seconds: 367.281604
+              exact: true
+            - attempt_id: 53424823b0e2ed3099f5dab5c5a415b2
+              slot: pair:9
+              record_digest: a978dd3d291fdae1b9bc1ebcc7c7efd0d01c6dcbd09aa84438f6030c86facb5d
+              start: "2026-10-21T10:14:41.500881Z"
+              end: "2026-10-21T10:35:20.504649Z"
+              queue_seconds: 1239.003768
+              raw_seconds: 1239.003768
+              exact: true
+            - attempt_id: 735922b215e89a192d144d44af5f4a35
+              slot: pair:9
+              record_digest: e8714b6a23d809afe52de4faf4ffed639e6660ebb6ddc3aa04de6ec87b10089b
+              start: "2026-10-21T11:48:51.940974Z"
+              end: "2026-10-21T12:11:44.856507Z"
+              queue_seconds: 1372.915533
+              raw_seconds: 1372.915533
+              exact: true
+            - attempt_id: c69f744252fbee1128c07e1f8fbf551a
+              slot: pair:9
+              record_digest: 2a3a8fcc4864ffe3399b8ee59a2acc3ae06f0f4139d9c307817344919a1d4dba
+              start: "2026-10-21T12:42:26.497128Z"
+              end: "2026-10-21T12:54:20.606708Z"
+              queue_seconds: 714.10958
+              raw_seconds: 714.10958
+              exact: true
+            - attempt_id: 88fb48b8719d5a57732691bd0fe8cb2f
+              slot: pair:9
+              record_digest: 2a21ca503c4da5173b05908762b9dd14059aa0ac18fb0a3ab409a0bc33a09ac6
+              start: "2026-10-21T14:00:47.987752Z"
+              end: "2026-10-21T14:09:00.802674Z"
+              queue_seconds: 492.814922
+              raw_seconds: 492.814922
+              exact: true
+            - attempt_id: 84941a9621aad47beaebbc31efe3a537
+              slot: pair:9
+              record_digest: 7f73982961426408e591978ff42cf614d7d697c1af7fa3b6fd36d8bc2b58367e
+              start: "2026-10-21T14:44:42.52177Z"
+              end: "2026-10-21T14:55:50.678741Z"
+              queue_seconds: 668.156971
+              raw_seconds: 668.156971
+              exact: true
+            - attempt_id: bdf15f966e13bb1cfc6c0a756250ea45
+              slot: pair:9
+              record_digest: a32affbad552074de8356457a39cc90a58494b3dd8608dc9924894e0549c0424
+              start: "2026-10-21T15:10:31.191979Z"
+              end: "2026-10-21T15:32:22.938258Z"
+              queue_seconds: 1311.746279
+              raw_seconds: 1311.746279
+              exact: true
+            - attempt_id: 1525ef6aee32b4dd0dca0ef93628db73
+              slot: pair:9
+              record_digest: 2ab4cc537c3dc5db7be6fbb0aeebffd6b6389cda78a4bb81ca75b5ce1d533dae
+              start: "2026-10-21T16:12:09.972919Z"
+              end: "2026-10-21T17:38:32.799388Z"
+              queue_seconds: 5182.826469
+              raw_seconds: 5182.826469
+              exact: true
+            - attempt_id: d8d4426ccb53656af49ceca443824846
+              slot: pair:9
+              record_digest: 74dd22ca3f595834ab252004e00c7cf5186d24283f3646a65af77b895c9e0ded
+              start: "2026-10-21T18:47:01.014133Z"
+              end: "2026-10-21T19:44:55.81636Z"
+              queue_seconds: 3474.802227
+              raw_seconds: 3474.802227
+              exact: true
+            - attempt_id: 96cb2e3f495bf699eb2371b62bfd3603
+              slot: pair:9
+              record_digest: a43616866e840a7c37a006b0a9d93a3a3494cbf886580177b8e6e4f569a343a4
+              start: "2026-10-21T20:03:26.238376Z"
+              end: "2026-10-21T20:03:48.299554Z"
+              queue_seconds: 22.061178
+              raw_seconds: 22.061178
+              exact: true
+        protected:
+            - issue: "767"
+              slot: pair:9
+              start: "2026-10-21T12:33:24.158Z"
+              end: "2026-10-21T12:42:26.497128Z"
+            - issue: "767"
+              slot: pair:9
+              start: "2026-10-21T12:54:20.606708Z"
+              end: "2026-10-21T14:00:47.987752Z"
+            - issue: "767"
+              slot: pair:9
+              start: "2026-10-21T14:09:00.802674Z"
+              end: "2026-10-21T14:44:42.52177Z"
+            - issue: "767"
+              slot: pair:9
+              start: "2026-10-21T14:55:50.678741Z"
+              end: "2026-10-21T15:10:31.191979Z"
+            - issue: "767"
+              slot: pair:9
+              start: "2026-10-21T15:32:22.938258Z"
+              end: "2026-10-21T15:43:12.986Z"
+            - issue: "771"
+              slot: pair:9
+              start: "2026-10-21T16:04:11.802Z"
+              end: "2026-10-21T16:12:09.972919Z"
+            - issue: "771"
+              slot: pair:9
+              start: "2026-10-21T17:38:32.799388Z"
+              end: "2026-10-21T18:46:33.351Z"
+        cuts:
+            - dispatched: "2026-10-21T02:50:12-07:00"
+              finalized: "2026-10-21T02:55:07-07:00"
+              finalizing: false
+            - dispatched: "2026-10-21T03:49:07-07:00"
+              finalized: "2026-10-21T03:53:20-07:00"
+              finalizing: false
+            - dispatched: "2026-10-21T03:59:30-07:00"
+              finalized: "2026-10-21T04:03:18-07:00"
+              finalizing: false
+            - dispatched: "2026-10-21T04:18:10-07:00"
+              finalized: "2026-10-21T04:21:39-07:00"
+              finalizing: false
+            - dispatched: "2026-10-21T04:37:48-07:00"
+              finalized: "2026-10-21T04:42:24-07:00"
+              finalizing: true
+      "n": 7
+      timestamp: "2026-10-21T13:34:03-07:00"
+      dispatched: "2026-10-21T13:31:49-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: 'Retained: the plan uses a function/strategy verification map rather than repeated prose inventories.'
+          round: 7
+        - id: BR-2
+          disposition: addressed
+          note: 'Retained: authoritative console lifecycle reconciliation and interrupted-contact label regressions remain present and pass.'
+          round: 7
+        - id: BR-3
+          disposition: addressed
+          note: 'Retained: shared queue-saturation and pointer-up terminal-recovery regressions pass.'
+          round: 7
+        - id: BR-4
+          disposition: addressed
+          note: 'Retained: the Core concepts tables name actual implementation paths and distinguish new, modified and reused entities.'
+          round: 7
+        - id: BR-5
+          disposition: withdrawn
+          note: Retained from the prior disposition; this environment again fails before live assertions with Chrome GPU initialization errors and CDP EOF. This does not contradict the previously accepted host evidence.
+          round: 7
+        - id: BR-6
+          disposition: addressed
+          note: 'Retained: board/sketch.go produces width 3; approved-width browser and persisted-pressure regressions pass.'
+          round: 7
+        - id: BR-7
+          disposition: addressed
+          note: 'Retained: the revised tables classify callbacks, DOM/canvas, journal initialization and Hub observation as INTEGRATION, separately from deterministic helpers.'
+          round: 7
+        - id: BR-8
+          disposition: addressed
+          note: 'Retained: finishing owns delayed-anchor settlement; both-adapter voluntary-exit and deadline regressions pass.'
+          round: 7
+        - id: BR-9
+          disposition: addressed
+          note: 'Retained: accumulator ownership guards successor admission, and both-adapter delayed-anchor/successor regressions pass.'
+          round: 7
+        - id: BR-10
+          disposition: addressed
+          note: sketch.js:526 routes Enter through saveLabel with composition guards. Tests at sketch.test.mjs:963 and operator-sketch.test.mjs:381 pass; removing only the Enter branch through a temporary loader makes both fail because zero label commands are sent.
+          round: 7
+      findings:
+        - kind: defect
+          id: BR-11
+          severity: Important
+          title: README retains superseded console prerequisites and label-control instructions
+          detail: 'README.md:1572 says annotation must be enabled for console Sketch, although board/annotation.go:54 and operator-sketch.js now deliberately allow trusted console sketching with viewer annotation off. README.md:1593 also directs users to “Label unfinished sketch,” replaced by “Note” in web/sketch.js:147, and omits the new active-sketch Note action. ARCH-PURPOSE: update the complete sketch usage passage to match the approved revisions, including the background-capture deferral qualification to the blanket capture statement at README.md:1623; atlas/webcast.md already describes these changes.'
+          family: user-docs-match-controls
+          round: 7
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 4f0f3228eec3ae76481f3bc120f22c216bc38f7e
+      blocked: false
 disputes:
     - id: BR-5
       rationale: The review checkout could not start Chrome before its assertions ran; the same required tests execute successfully on this host. Corrected implementation is committed and host conformance is measured; TL operator console smoke remains a separate pre-landing hold.
@@ -884,6 +1242,26 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-10** [Important] `approved-controls-match-behavior` (kind: defect) Enter does not submit the required sketch label on either surface
   ARCH-PURPOSE: the approved interaction at workshop/history/plans/000750-cast-sketch-plan.md:36 says Enter saves a nonblank label and returns to the requested tool. The shared handler at cmd/internal/webcast/web/sketch.js:507 handles only Escape. Controlled viewer and console reproductions at pinned head leave zero sketch-label commands after Enter. Route Enter through saveLabel, preserving its settlement guards, and add both-adapter regressions proving the requested tool opens only after acceptance.
 
+## Round 7 — 2026-10-21T13:34:03-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Retained: the plan uses a function/strategy verification map rather than repeated prose inventories.
+- BR-2 — addressed — Retained: authoritative console lifecycle reconciliation and interrupted-contact label regressions remain present and pass.
+- BR-3 — addressed — Retained: shared queue-saturation and pointer-up terminal-recovery regressions pass.
+- BR-4 — addressed — Retained: the Core concepts tables name actual implementation paths and distinguish new, modified and reused entities.
+- BR-5 — withdrawn — Retained from the prior disposition; this environment again fails before live assertions with Chrome GPU initialization errors and CDP EOF. This does not contradict the previously accepted host evidence.
+- BR-6 — addressed — Retained: board/sketch.go produces width 3; approved-width browser and persisted-pressure regressions pass.
+- BR-7 — addressed — Retained: the revised tables classify callbacks, DOM/canvas, journal initialization and Hub observation as INTEGRATION, separately from deterministic helpers.
+- BR-8 — addressed — Retained: finishing owns delayed-anchor settlement; both-adapter voluntary-exit and deadline regressions pass.
+- BR-9 — addressed — Retained: accumulator ownership guards successor admission, and both-adapter delayed-anchor/successor regressions pass.
+- BR-10 — addressed — sketch.js:526 routes Enter through saveLabel with composition guards. Tests at sketch.test.mjs:963 and operator-sketch.test.mjs:381 pass; removing only the Enter branch through a temporary loader makes both fail because zero label commands are sent.
+
+### Raised
+
+- **BR-11** [Important] `user-docs-match-controls` (kind: defect) README retains superseded console prerequisites and label-control instructions
+  README.md:1572 says annotation must be enabled for console Sketch, although board/annotation.go:54 and operator-sketch.js now deliberately allow trusted console sketching with viewer annotation off. README.md:1593 also directs users to “Label unfinished sketch,” replaced by “Note” in web/sketch.js:147, and omits the new active-sketch Note action. ARCH-PURPOSE: update the complete sketch usage passage to match the approved revisions, including the background-capture deferral qualification to the blanket capture statement at README.md:1623; atlas/webcast.md already describes these changes.
+
 ## Disputes
 
 Findings the implementer declined (`sdlc finding dispute`), each answered by the
@@ -895,4 +1273,4 @@ next review round.
 
 ## Open findings
 
-- **BR-10** [Important] `approved-controls-match-behavior` (kind: defect) Enter does not submit the required sketch label on either surface
+- **BR-11** [Important] `user-docs-match-controls` (kind: defect) README retains superseded console prerequisites and label-control instructions
