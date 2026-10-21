@@ -505,7 +505,12 @@ export function mountSketch(doc, win, view, options) {
     true,
   );
   on(labelInput, 'keydown', (e) => {
-    if (e.key === 'Escape') {
+    if (e.isComposing || e.keyCode === 229) return;
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      saveLabel();
+    } else if (e.key === 'Escape') {
       e.preventDefault();
       e.stopPropagation();
       escape();

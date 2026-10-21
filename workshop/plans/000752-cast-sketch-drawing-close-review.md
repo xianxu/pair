@@ -504,3 +504,129 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T04:42:24-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 752 — cast-sketch: live console and driver drawing with pen pressure |
+| repo | pair |
+| issue file | workshop/issues/000752-cast-sketch-drawing.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | bc79cbaeae75b518dcfa789fc2bd0e40ccf06f97..320d01886adaa2859c3bfd1c51306826dc38e32b |
+| command | sdlc close --issue 752 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T04:42:24-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: medium
+```
+
+BR-9 is addressed with meaningful regression evidence: all eight controlled physical-ending cases pass at head and fail without the fix. One separate, inexpensive workflow gap remains: Enter does not save the required label on either surface, despite the approved design.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Retain disposition; the plan uses the function verification strategy table.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Console handoff and old-author label regressions pass.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Queue saturation reserves a truncated terminal; move and pointer-up regressions pass.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Core concepts now identify existing implementation paths and distinguish new, modified and reused surfaces.
+  - id: BR-5
+    disposition: withdrawn
+    note: |
+      Retain withdrawal. This environment again failed during Chrome GPU/sandbox startup before assertions; no new conformance claim is made.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Producer and optimistic painter both use base width 3; relevant Go and Node tests pass.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Core concepts distinguish deterministic symbols from effectful wrappers and their integration tests.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      Delayed-anchor exit regressions pass for both adapters, including open and released contacts.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Eight pointer-up/cancel/lost-capture/buffer-limit regressions pass at head and all fail with “gesture already open” when sketch.js is restored to its pre-fix version in a disposable checkout.
+findings:
+  - id: new
+    severity: Important
+    kind: defect
+    family: approved-controls-match-behavior
+    title: |
+      Enter does not submit the required sketch label on either surface
+    detail: |
+      ARCH-PURPOSE: the approved interaction at workshop/history/plans/000750-cast-sketch-plan.md:36 says Enter saves a nonblank label and returns to the requested tool. The shared handler at cmd/internal/webcast/web/sketch.js:507 handles only Escape. Controlled viewer and console reproductions at pinned head leave zero sketch-label commands after Enter. Route Enter through saveLabel, preserving its settlement guards, and add both-adapter regressions proving the requested tool opens only after acceptance.
+```
+
+1. **Strengths**
+
+   - Logical admission checks the accumulator token before allocating contact, capture, identity or hit-test.
+   - Anchor success and failure callbacks check both generation and stroke identity.
+   - README and atlas document controls, recovery, limits and private-scene boundaries.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** Enter-to-save is missing at `cmd/internal/webcast/web/sketch.js:507`. Reuse the existing guarded `saveLabel()` path.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - All 113 viewer/console tests pass.
+   - Webcast package suite, strictjson, artifactpath, inventory and diff checks pass.
+   - Focused authority/writer race tests pass. The broader race run exceeded its 60-second limit in the large bootstrap fixture.
+   - Live Chrome assertions could not execute because browser startup failed.
+   - Disposable regression checkouts were removed; reviewed files remain unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared tool, reducer, source and rendering seams.
+   - **ARCH-PURE — pass:** deterministic entities distinguished from effectful adapters.
+   - **ARCH-PURPOSE — flag:** approved Enter-to-save action is absent.
+   - **ARCH-MOCK — pass:** stateful Writer/Hub/CDP seams exercised.
+   - **ARCH-CONSTRAINTS — pass:** explicit queue, source, history and transfer bounds.
+   - **ARCH-SECURE — pass:** authenticated authority, strict ingress and scoped private scenes.
+   - **ARCH-ORDER — pass:** retained logical ownership and fenced late completions have controlled-order coverage.
+   - **ARCH-FUNERAL — pass:** source, scene, timer, transfer and journal lifetimes are bounded.
+   - **ARCH-EVOLVE — pass:** additive truncation retains absent/false compatibility and unknown-field preservation.
+
+7. **Plan revision recommendation**
+
+   Add a `## Revisions` entry recording Enter-to-save parity with #750 and both-adapter keyboard/acknowledgment coverage. Existing recorded-check and real-console-smoke holds remain separate pre-landing requirements.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"256d00bf-cf86-4b57-9c5b-5e91a5efea40","repository":"github.com/xianxu/pair","issue_id":"000752","recipe":"milestone-review","round":6,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/5f546d39033bfe5d","reviewed_head":"320d01886adaa2859c3bfd1c51306826dc38e32b","slot":"pair:9","requested_at":"2026-10-21T11:37:50.369516Z"},"phase":"finished","pid":54911,"started_at":"2026-10-21T11:37:50.470553Z","finished_at":"2026-10-21T11:42:23.283692Z","session_id":"01a15e40-d98d-7b72-9af9-318b4623b594","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.532948917s
+head: "320d01886adaa2859c3bfd1c51306826dc38e32b"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

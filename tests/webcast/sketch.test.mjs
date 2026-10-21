@@ -911,3 +911,14 @@ for(const completion of ['reject','timeout'])for(const released of [false,true])
  h.event(ui.layer,'pointerup',{pointerId:3,buttons:0});freshResolve({node:7,box:[0,0,100,100]});await h.flush();assert.equal(h.model.sketchProjection().sketches[0].strokes.length,2);
  oldResolve({node:7,box:[0,0,100,100]});lateEnd(endResult);await h.flush();assert.equal(h.model.sketchProjection().sketches[0].strokes.length,2);ui.dispose();
 });
+
+test('viewer required label Enter saves once and waits for accepted reply before switching tools',async()=>{
+ const {mountSketch}=await mod();const h=harness(),send=h.options.send;let accept;
+ h.options.send=async(kind,body)=>{const result=await send(kind,body);return kind==='sketch-label'?new Promise(resolve=>accept=()=>resolve(result)):result;};
+ const ui=mountSketch(h.doc,h.win,h.view,h.options);await ui.enter();await ui.leave('point');
+ h.event(ui.labelInput,'keydown',{key:'Enter'});await h.flush();assert.equal(h.sent.filter(r=>r.kind==='sketch-label').length,0);
+ ui.labelInput.value='Required intent';h.event(ui.labelInput,'keydown',{key:'Enter',isComposing:true});await h.flush();assert.equal(h.sent.filter(r=>r.kind==='sketch-label').length,0);
+ h.event(ui.labelInput,'keydown',{key:'Enter'});await h.flush();assert.equal(h.sent.filter(r=>r.kind==='sketch-label').length,1);assert.deepEqual(h.tools,[]);assert.equal(h.scene.ready,true);
+ h.event(ui.labelInput,'keydown',{key:'Enter',repeat:true});await h.flush();assert.equal(h.sent.filter(r=>r.kind==='sketch-label').length,1);
+ accept();await h.flush();assert.deepEqual(h.tools,['point']);assert.equal(h.scene.ready,false);assert.equal(h.model.sketchProjection().sketches[0].label,'Required intent');h.event(ui.labelInput,'keydown',{key:'Enter'});await h.flush();assert.deepEqual(h.tools,['point']);ui.dispose();
+});

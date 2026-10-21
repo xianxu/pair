@@ -609,6 +609,175 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 256d00bf-cf86-4b57-9c5b-5e91a5efea40
+            repository: github.com/xianxu/pair
+            issue_id: "000752"
+            recipe: milestone-review
+            round: 6
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/5f546d39033bfe5d
+            reviewed_head: 320d01886adaa2859c3bfd1c51306826dc38e32b
+            slot: pair:9
+            requested_at: "2026-10-21T11:37:50.369516Z"
+          phase: finished
+          pid: 54911
+          started_at: "2026-10-21T11:37:50.470553Z"
+          finished_at: "2026-10-21T11:42:23.283692Z"
+          session_id: 01a15e40-d98d-7b72-9af9-318b4623b594
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: 320d01886adaa2859c3bfd1c51306826dc38e32b
+        tracker_head: e901f36afdc2db444d2638e4e3959136820600fc
+        branch_point: bc79cbaeae75b518dcfa789fc2bd0e40ccf06f97
+        since: "2026-10-21T00:30:29-07:00"
+        until: "2026-10-21T04:37:19-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-21T00:30:29-07:00"
+              end: "2026-10-21T04:37:19-07:00"
+              began: "2026-10-21T00:30:29-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot9/pair
+        sources:
+            - harness: codex
+              id: 01a15cc4-b370-7d60-9efa-989c5b30869b
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: 665c78cb105767006665970e4c786a93042a974b1ef154d56d868398ce8d4294
+              started: "2026-10-21T04:42:37.82Z"
+              spawned: false
+              bytes: 21229921
+              windows:
+                - start: "2026-10-21T00:30:29-07:00"
+                  end: "2026-10-21T04:37:19-07:00"
+            - harness: codex
+              id: 01a15d72-f362-71f2-ac46-571622add1dd
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: 21e6662300c1bed4a15a4792083ab14d80a05c66377f7b4994ab4ba521841f36
+              started: "2026-10-21T07:52:57.643Z"
+              spawned: false
+              bytes: 801571
+              windows:
+                - start: "2026-10-21T07:52:57.643Z"
+                  end: "2026-10-21T04:37:19-07:00"
+            - harness: codex
+              id: 01a15d78-07d8-7e30-b172-25de09195a37
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: c6881ead8ac3f533d352dd6c63982205c1fd552b98e8bb53bd78a6c051b1549f
+              started: "2026-10-21T07:58:30.132Z"
+              spawned: false
+              bytes: 507194
+              windows:
+                - start: "2026-10-21T07:58:30.132Z"
+                  end: "2026-10-21T04:37:19-07:00"
+            - harness: codex
+              id: 01a15d78-9f81-7ee3-bed1-6016d32c5c39
+              slot: pair:9
+              cwd: /Users/xianxu/workspace/worktree/pair-slot9/pair
+              digest: fd4a263d9b10335f2bb096cfaa2510a3be42c97276d0db2b453e1d80fd5ec242
+              started: "2026-10-21T07:59:08.967Z"
+              spawned: false
+              bytes: 485363
+              windows:
+                - start: "2026-10-21T07:59:08.967Z"
+                  end: "2026-10-21T04:37:19-07:00"
+        queue_waits:
+            - attempt_id: d33c24095b0e99efb97794a1065963d6
+              slot: pair:9
+              record_digest: cd51443b21b75b0eb664f444fd77c71f6f5f0f027620d25753056067f5b68556
+              start: "2026-10-21T09:32:04.598544Z"
+              end: "2026-10-21T09:38:11.880148Z"
+              queue_seconds: 367.281604
+              raw_seconds: 367.281604
+              exact: true
+            - attempt_id: 53424823b0e2ed3099f5dab5c5a415b2
+              slot: pair:9
+              record_digest: a978dd3d291fdae1b9bc1ebcc7c7efd0d01c6dcbd09aa84438f6030c86facb5d
+              start: "2026-10-21T10:14:41.500881Z"
+              end: "2026-10-21T10:35:20.504649Z"
+              queue_seconds: 1239.003768
+              raw_seconds: 1239.003768
+              exact: true
+        cuts:
+            - dispatched: "2026-10-21T02:50:12-07:00"
+              finalized: "2026-10-21T02:55:07-07:00"
+              finalizing: false
+            - dispatched: "2026-10-21T03:49:07-07:00"
+              finalized: "2026-10-21T03:53:20-07:00"
+              finalizing: false
+            - dispatched: "2026-10-21T03:59:30-07:00"
+              finalized: "2026-10-21T04:03:18-07:00"
+              finalizing: false
+            - dispatched: "2026-10-21T04:18:10-07:00"
+              finalized: "2026-10-21T04:21:39-07:00"
+              finalizing: false
+      "n": 6
+      timestamp: "2026-10-21T04:42:24-07:00"
+      dispatched: "2026-10-21T04:37:48-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Retain disposition; the plan uses the function verification strategy table.
+          round: 6
+        - id: BR-2
+          disposition: addressed
+          note: Console handoff and old-author label regressions pass.
+          round: 6
+        - id: BR-3
+          disposition: addressed
+          note: Queue saturation reserves a truncated terminal; move and pointer-up regressions pass.
+          round: 6
+        - id: BR-4
+          disposition: addressed
+          note: Core concepts now identify existing implementation paths and distinguish new, modified and reused surfaces.
+          round: 6
+        - id: BR-5
+          disposition: withdrawn
+          note: Retain withdrawal. This environment again failed during Chrome GPU/sandbox startup before assertions; no new conformance claim is made.
+          round: 6
+        - id: BR-6
+          disposition: addressed
+          note: Producer and optimistic painter both use base width 3; relevant Go and Node tests pass.
+          round: 6
+        - id: BR-7
+          disposition: addressed
+          note: Core concepts distinguish deterministic symbols from effectful wrappers and their integration tests.
+          round: 6
+        - id: BR-8
+          disposition: addressed
+          note: Delayed-anchor exit regressions pass for both adapters, including open and released contacts.
+          round: 6
+        - id: BR-9
+          disposition: addressed
+          note: Eight pointer-up/cancel/lost-capture/buffer-limit regressions pass at head and all fail with “gesture already open” when sketch.js is restored to its pre-fix version in a disposable checkout.
+          round: 6
+      findings:
+        - kind: defect
+          id: BR-10
+          severity: Important
+          title: Enter does not submit the required sketch label on either surface
+          detail: 'ARCH-PURPOSE: the approved interaction at workshop/history/plans/000750-cast-sketch-plan.md:36 says Enter saves a nonblank label and returns to the requested tool. The shared handler at cmd/internal/webcast/web/sketch.js:507 handles only Escape. Controlled viewer and console reproductions at pinned head leave zero sketch-label commands after Enter. Route Enter through saveLabel, preserving its settlement guards, and add both-adapter regressions proving the requested tool opens only after acceptance.'
+          family: approved-controls-match-behavior
+          round: 6
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 320d01886adaa2859c3bfd1c51306826dc38e32b
+      blocked: false
 disputes:
     - id: BR-5
       rationale: The review checkout could not start Chrome before its assertions ran; the same required tests execute successfully on this host. Corrected implementation is committed and host conformance is measured; TL operator console smoke remains a separate pre-landing hold.
@@ -696,6 +865,25 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-9** [Critical] `bounded-input-retains-terminal-work` (kind: defect) A second contact before the previous anchor resolves crashes drawing on both surfaces
   At cmd/internal/webcast/web/sketch.js:352–357, pointer-up clears contact while the logical gesture remains pending its anchor. The down guard at lines 367–376 admits another contact and mutates contact before createSketchGesture.start rejects it at sketch-policy.js:437. Controlled viewer and console harnesses reproduce “gesture already open”, followed by a TypeError reading contact.last at sketch.js:346 on the next pointer-up; the second stroke is absent. ARCH-ORDER/ARCH-PURPOSE: this is the 3rd finding in family bounded-input-retains-terminal-work. Earlier rounds fixed instances. Do NOT fix only this instance: state and enforce the rule that physical contact release does not retire logical gesture ownership. Enumerate pointer-up, pointercancel, lost capture and automatic buffer/point-limit endings, and prevent or explicitly queue successor gestures until their predecessor relinquishes ownership. Add controlled-order regressions on both adapters.
 
+## Round 6 — 2026-10-21T04:42:24-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Retain disposition; the plan uses the function verification strategy table.
+- BR-2 — addressed — Console handoff and old-author label regressions pass.
+- BR-3 — addressed — Queue saturation reserves a truncated terminal; move and pointer-up regressions pass.
+- BR-4 — addressed — Core concepts now identify existing implementation paths and distinguish new, modified and reused surfaces.
+- BR-5 — withdrawn — Retain withdrawal. This environment again failed during Chrome GPU/sandbox startup before assertions; no new conformance claim is made.
+- BR-6 — addressed — Producer and optimistic painter both use base width 3; relevant Go and Node tests pass.
+- BR-7 — addressed — Core concepts distinguish deterministic symbols from effectful wrappers and their integration tests.
+- BR-8 — addressed — Delayed-anchor exit regressions pass for both adapters, including open and released contacts.
+- BR-9 — addressed — Eight pointer-up/cancel/lost-capture/buffer-limit regressions pass at head and all fail with “gesture already open” when sketch.js is restored to its pre-fix version in a disposable checkout.
+
+### Raised
+
+- **BR-10** [Important] `approved-controls-match-behavior` (kind: defect) Enter does not submit the required sketch label on either surface
+  ARCH-PURPOSE: the approved interaction at workshop/history/plans/000750-cast-sketch-plan.md:36 says Enter saves a nonblank label and returns to the requested tool. The shared handler at cmd/internal/webcast/web/sketch.js:507 handles only Escape. Controlled viewer and console reproductions at pinned head leave zero sketch-label commands after Enter. Route Enter through saveLabel, preserving its settlement guards, and add both-adapter regressions proving the requested tool opens only after acceptance.
+
 ## Disputes
 
 Findings the implementer declined (`sdlc finding dispute`), each answered by the
@@ -707,4 +895,4 @@ next review round.
 
 ## Open findings
 
-- **BR-9** [Critical] `bounded-input-retains-terminal-work` (kind: defect) A second contact before the previous anchor resolves crashes drawing on both surfaces
+- **BR-10** [Important] `approved-controls-match-behavior` (kind: defect) Enter does not submit the required sketch label on either surface

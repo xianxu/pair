@@ -414,3 +414,7 @@ The canonical table now drives both-adapter regressions for physical endings, su
 ### 2026-10-21 — direct accumulator latency result
 
 The final real Chrome fixture measures actual createSketchGesture end→anchor→terminal drain, separately from ACKs:1600 samples, zero >150ms. Local/tunnel viewer p95 both0.1ms; console idle/busy p95 0.5/0.6ms (max2.1/4.5ms). Tunnel ACK p95 34.1/31.7ms does not hold the token after terminal production. Run passed108.30s; issue Log pins raw samples and fixture command. No one-deep queue is justified by the measured small desktop source; #754 retains device/echo qualification.
+
+### 2026-10-21 — BR-10 approved Enter-to-save parity
+
+The next close verified BR-9 and disposed all prior criticals, returning FIX-THEN-SHIP for the missing approved keyboard action. #750 explicitly requires Enter to save a nonblank label and return to the requested tool. Delegate label-input Enter to the existing guarded saveLabel path, preserve IME composition, and test blank/repeated Enter and held acknowledgment on both adapters. Tool selection/source release still waits for accepted label persistence. This restores the approved control without introducing a state or mechanism. Follow the binary's post-verdict path: one bundled fix/review-artifact commit, then issue recovery reconcile, without a duplicate close review.

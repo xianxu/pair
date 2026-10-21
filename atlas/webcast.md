@@ -207,7 +207,8 @@ Undo/Redo also wait for logical gesture release, then wait
 for confirmation and affect only the current unfinished sketch. Done, Escape or a tool change first shows
 “Saving…” and stops new input while the existing gesture is finished, including an anchor still being resolved
 after pointer-up. The required-label prompt opens after that work is confirmed; Escape there resumes the same
-scene. Save label completes the requested transition only after acceptance.
+scene. Enter or Save label submits through the same settlement guard and completes the requested transition
+only after acceptance.
 Handoff releases drawing input promptly and leaves an independent old-author label action while its UI credentials
 survive. Normal remote input is suspended while the sketch overlay owns input; the driving seat remains granted.
 
