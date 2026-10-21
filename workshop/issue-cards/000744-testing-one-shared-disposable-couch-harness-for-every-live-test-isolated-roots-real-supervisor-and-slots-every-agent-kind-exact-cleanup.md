@@ -1,6 +1,6 @@
 ---
 id: 000744
-status: codecomplete
+status: done
 created: 2026-10-20
 updated: 2026-10-21
 estimate_hours: 8.337
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 86e8804dce281ad1d22f89ffc88b7342cbe15dc1
         evidence_commit: 4704a853ad0ce0f0799d32a3d3b91d754d171fe5
+        landed_commit: 247339977628c8f8a47678dd666ed86ba0f5780f
 ---
 
 # testing: one shared disposable-Couch harness for every live test (isolated roots, real supervisor and slots, every agent kind, exact cleanup)
