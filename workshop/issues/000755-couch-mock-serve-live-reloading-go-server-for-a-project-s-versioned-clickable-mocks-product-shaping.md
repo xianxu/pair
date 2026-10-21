@@ -83,6 +83,8 @@ Implementation details: [durable plan](../plans/000755-mock-server-plan.md).
 - One 500ms scan hashes bounded project contents, independent of browser count; each browser polls cached state every 500ms. Proposed local-prototype envelope: at most 1,024 files and 32 MiB total, with HTML at most 1 MiB. Over-limit, unreadable and invalid input produces an explicit error with repair guidance; runtime recovery observes the repaired tree. Count file visits and bytes at N/2N, and prove polling adds no scans. No claimed hard wall-clock bound for stalled filesystem IO.
 - This exceeds the quick code shell. Request full-flow approval for one atomic close boundary (plain checkboxes, no artificial Mx milestones). Headless browser qualification runs in a temporary profile; operator live look is after landing, as dispatched.
 
+- Host qualification on committed code head 8fefb5c78182993499354d9227052209570022ea passed both real Chrome tests (7.686s), with sandbox enabled and a private profile; raw output retained in workshop/plans/000755-mock-browser-evidence.md for BR-4. Final package race passed (1.910s), and affected-reader inventory passed after auditing the changed private-fixture test. Requeueing recorded verification and ordinary close review.
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. The source is marked stale by estimate-source; values remain provisional. Derived after plan-quality cleared.
