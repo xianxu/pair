@@ -105,3 +105,7 @@ The implementation names the native registry adapter LiveOwnerIDs in terminal_ow
 ### 2026-10-20 — BR-1 acceptance reconciliation
 
 Updated Done when to name LiveOwnerIDs and the approved unavailable-inspection exception. Preserved the controlled metadata capture inline because the CI issue-ID scanner treats a numbered .side directory as a duplicate issue. This is a documentation/packaging correction only; the implemented policy and tests are unchanged.
+
+### 2026-10-20 — shell integration owner fixture
+
+The recorded suite exposed one additional healthy-owner fixture: term-pane-shortcuts-test.sh had only Pair-looking metadata. It now holds the shared production wrapper on a private PTY, acknowledges its shell readiness, joins teardown, and separately removes registration to prove stale-metadata refusals. This extends qualification at the existing owner seam; production and the approved acceptance policy are unchanged.

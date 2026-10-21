@@ -64,6 +64,12 @@ Deferred from pair#727 by the hub on 2026-10-20 (delivery 7225aa16-eefc-46c0-97b
 - Found a registry-only cached-draft fast path in termcmd and a direct registry reader in Couch focus admission, alongside layout/clipboard consumers. A pane-command-only fix misses that path. Proposed plan uses existing identity-fenced native per-PID argv evidence plus mandatory registered ownership in RoleForPaneWith. It leaves the append-only registry format and all unknown rows intact, avoiding retirement rewrites/new locks and new lifetime artifacts (ARCH-DRY, ARCH-EVOLVE, ARCH-FUNERAL). No production/test implementation has begun; awaiting hub plan approval before change-code.
 - Hub d495d55d-e94e-4033-8b07-6095ee2c618a approved the plan with one compatibility requirement: confirmed shell argv denies; unavailable/unreadable native inspection retains today's liveness-based registry result and records why. Revised the current design/state/test tables and appended its history under Revisions; both policies and diagnostic failure are mandatory tests. No implementation yet; entering change-code next.
 
+### 2026-10-20 — recorded suite fixture defect and correction
+
+Final-head affected attempt4e0911c5874d0fb462a6898c6d9e8a8e fell back to the full suite, acquired capacity after1819s, then failed in4m7s at term-pane-shortcuts-test.sh. Log SHA-2569387cb0035b1bc27d4026664897f2327ca9aa8106ae442a33342caf7bc2b52be. This is a reproducible branch fixture defect, not a flake: the shell integration supplied terminal metadata without a registered native wrapper, unlike the Go fixtures already updated. Go packages were not reached by that suite, so a fresh full run remains required.
+
+The fixture now holds the shared production Pair image on an owned PTY, with a private interactive shell readiness acknowledgement and joined teardown; no native Zellij session is started. Existing split/tab/focus assertions pass unchanged. Added explicit unregistered-metadata refusal cases for split, delivered tab and focus, including focus's nonzero result. The final focused shell run passed all cases and cleanup. Audited other shell consumers: the remaining route fixture substitutes its CLI and does not claim native terminal ownership. No production code, timeout or assertion was weakened. Entering narrow fixed-then-ship review, then one fresh recorded check on its final head.
+
 ## Revisions
 
 ### 2026-10-20 — approved inspection-unavailable compatibility

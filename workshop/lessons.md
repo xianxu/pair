@@ -2479,3 +2479,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #749: Acceptance fixtures must execute the one shared Pair image through testpair.At or tests/lib/pair-test-binary.sh, preserving inode identity even across volumes. A raw executable copy triggers another AMFI assessment before the CLI starts and can consume a fixture deadline; verify file identity rather than extending the timeout. Resolve the shared binary before installing a hermetic fixture environment.
 
 - #731 BR-1: When an approved plan revision changes an acceptance policy or introduces a replacement API, reconcile Done when in the same checkpoint. A Revisions entry alone leaves an executable contract contradiction for close review.
+
+- #731 suite: When strengthening a shared admission predicate, enumerate both Go and shell entrypoints that execute the real CLI. Healthy fixtures must establish the new authority through the production seam; keep a separate stale-metadata negative control rather than merely changing expected effects.
