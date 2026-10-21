@@ -7,7 +7,7 @@ created: 2026-10-21
 updated: 2026-10-21
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'cdfdf7a2620e57694df6e8363a2d461635d42415' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '6c0bfc039357c82170c46e49c0218a57bec2f86c' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-21T01:47:34-07:00
 claimant:
     operator: Xian Xu
@@ -17,7 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "fe4788a5", done: "6618e2de"}
-actual_hours: 0.45
+actual_hours: 0.65
 ---
 
 # Go reader audit: isolate certificates so independent changes merge cleanly
