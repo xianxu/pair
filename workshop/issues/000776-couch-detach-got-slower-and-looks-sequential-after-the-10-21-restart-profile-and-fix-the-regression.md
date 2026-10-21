@@ -42,7 +42,7 @@ dominates or serializes, find the change in its history since 856876acd; fix the
 
 ## Done when
 
-- A measured profile of detach on the current build (per step, 4 and 8 slots) is in the Log.
+- A measured four-slot profile before and after the fix is in the Log, including retirement and post-Leave completion; the incomplete eight-slot attempt is retained separately under #773 (approved scope refinement below).
 - The cause of the slowdown is identified with evidence and fixed, with a regression test that bounds detach time or
   asserts parallel retirement; or the Log shows with numbers that detach is not slower and what the operator saw.
 
@@ -125,3 +125,19 @@ Internal close capture PASSED and exact cleanup confirmed. Gesture402.313ms, Lea
 Authenticated TL6e4a43d1 says identify completion waiting out its deadline; do not shorten a timer. TLbb7bac55 approves one bounded stack-on-block observer and several configured-hub attempts. Declared next cohort: at most three serial four-total-slot private attempts, stop at the first adequate slow-close stack attribution. Collect at most512KiB once if service.Close remains blocked past100ms, in memory, owned/joined watcher; flush only after operation. This threshold is diagnostic only and never changes cancellation or effect lifetime.
 
 Harness audit corrected the initial hub hypothesis: ALL earlier runs, including the slow one, used implicit cwd and no explicit hub directories. Existing Fleet.Start has no hub/argv option. Minimal scratch-only adaptation passes its existing Workspaces.Primary as the explicit Couch directory argument, proving hubRuntime/memo creation while preserving private environment and cleanup. No live hub paths, no production test-harness change, no old-binary adaptation. Hub informed of this correction.
+
+
+### 2026-10-21 12:30 PDT — measured cause and approved narrow fix
+
+Configured-hub cohort stopped after attempt1 captured adequate evidence; attempts2/3 never started. Gesture2302.208ms, Leave231.654ms, service workers.Wait2001.050ms; hubTargets.wait0.000208ms. The blocked stack in hubstack-1-blocked-stack.json shows resourceInventory.refresh -> OSSlotCatalog.ResolveWorkspace -> WorkspaceProvisioner.identity -> OSProvisionIO.Run -> Cmd.Wait. Cmd.Wait is receiving watchCtx after Process.Wait has completed; Cancel is blocked on the unconditional2s timer at provision_io.go82. Thus leader exit is confirmed, group/descendant state is not. Exact cleanup of /Volumes/TestScratch/pc-3657925727 confirmed, all owned generations absent and direct IO joined. Stack5247bytes, captured0.364ms, private0600, no in-close IO. Evidence files beside this issue preserve the observed slow wait and its source boundary. No product-code introduction commit proved: provision_io.go and resources_inventory.go are unchanged856..eaa.
+
+Authenticated TL04f6e7f5 approves the fix below and shared-caller sweep; TLd2e10979 requests collection of1.1GiB profiling scratch after cited logs/JSON are preserved. Eight-slot capture remains incomplete due #773 and is not acceptance. Approved qualification is four-slot before/after plus deterministic group and native descendant cases.
+
+### Implementation plan (quick flow, no new public surface)
+
+- [ ] In cmd/internal/couchcore/provision_io.go, extract the existing cancellation group stop into a private testable helper with signal and clock-channel dependencies. Preserve2s TERM grace, final group SIGKILL, joined exec cancellation, WaitDelay, output bounds and lease inheritance.
+- [ ] Write deterministic stateful group tests: cooperative whole-group disappearance avoids waiting/escalation; a departed leader with surviving descendant does not; unavailable/permission probes retain ownership until existing grace; initial ESRCH and final ESRCH retain existing outcomes. Extract baseline semantics first and observe the new regression fail before changing behavior.
+- [ ] During grace, poll the exact owned negative PGID; only errors.Is(ESRCH) confirms absence. All other probes remain unknown/present until grace expires. This is completion detection, not a shorter grace or a leader-done shortcut. No background helper outlives Cmd.Wait (ARCH-FUNERAL, ARCH-SECURE).
+- [ ] Extend provision_subprocess_test.go native lease control so a leader exits on TERM while its descendant ignores TERM and retains the inherited creation lease; Run must still kill that group at the original grace and release the lease. Existing TERM-resistant leader/output/timeout cases remain.
+- [ ] Sweep OSProvisionIO callers; run targeted production-cancellation and provision regressions, race checks and lint/catalog. Run a bounded private-fleet after capture, comparing matching shutdown/retirement brackets. Record fast/slow observations honestly; no fan-out change (ARCH-CONSTRAINTS, ARCH-MOCK).
+- [ ] Update atlas map of provisioning cancellation, record required affected/suite check, close through the mandatory fresh review and land through sdlc. No new persisted format (ARCH-EVOLVE); reuse existing owned group signal semantics (ARCH-DRY).
