@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
-estimate_hours:
+estimate_hours: 4.695
 collaboration-mode: collaboration
-card_mirror: '120ea18e2370654d8ccb7181f0493cfc9483432e' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '9ef7a944c1d4a0d67b0bfa18f80f9b80b832fb84' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T22:40:29-07:00
 claimant:
     operator: Xian Xu
@@ -77,6 +77,49 @@ this distinction and the per-Couch-lifetime alternative in the durable plan.
 - [ ] Verify counts, compatibility and coordinated live behavior; close and land once.
 
 Durable plan: [startup safe mode](../plans/000739-startup-safe-mode-plan.md).
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against
+baseline-v3.1.md, Method A only; estimate-source flags calibration stale.
+Implementation values are v2 primitive hours scaled once by0.4; familiarity1.
+The approved thorough design discounts design by0.2 and uses15% design buffer.
+
+Breakdown: issue/spec (v2 design0.5, impl0.3); startup observation extension
+(0.3/0.5); one new automation policy owner (1.0/0.8, design halved by reuse of
+existing reducer/identity/controller infrastructure before spec discount);
+wrapper/session integration (1.0/1.5); three small producer-family extensions
+for lifecycle, episode/reminder and resource/stall suppression (each0.3/0.5);
+Console/CLI automation controls and focus qualification (TUI1.0/1.0);
+scheduler predicate integration (0.3/0.5); docs/inventory (0.2/0.2); one close
+review/active landing handling (0.2/0.5); bounded real Zellij/reconnect
+qualification (impl0.6, the real-API discovery allowance); two operator-driven
+UX/ownership iteration groups (each0.8/0.3). Existing broker, strict codecs,
+version fallback and stateful fakes avoid a greenfield protocol/service or
+external library. No machine-wait time or hub-owned restart work is counted.
+Design1.30 ×1.15 + implementation3.20 =4.695h. #737 wait is not effort; its
+injected predicate is an existing-stack integration, not a second scheduler.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.10 impl=0.12
+item: smaller-go-module design=0.06 impl=0.20
+item: greenfield-go-module design=0.10 impl=0.32
+item: api-integration design=0.20 impl=0.60
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: tui-screen design=0.20 impl=0.40
+item: smaller-go-module design=0.06 impl=0.20
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.04 impl=0.20
+item: real-api-discovery design=0.00 impl=0.24
+item: ux-rename-iteration design=0.16 impl=0.12
+item: ux-rename-iteration design=0.16 impl=0.12
+design-buffer: 0.15
+total: 4.695
+```
 
 ## Log
 
