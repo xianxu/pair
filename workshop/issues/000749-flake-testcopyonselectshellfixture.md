@@ -47,6 +47,7 @@ Fix the demonstrated copy-on-select fixture/process ownership failure without a 
 ## Log
 
 ### 2026-10-20
+- 2026-10-20: closed — AMFI logs prove the fresh copied pair-real spent 3.007s in security assessment before CLI startup. Shared inode assertions failed against both original fixture copies and forced EXDEV fallback, then passed after shared aliases. Full clipcmd/testpair packages and actual shell copy/shortcut/helper contracts passed with unchanged deadlines. Audited reader hash/preflight passed. Recorded affected verification queued on PR 499; final recorded pass remains required before landing. Test-fixture-only repair, no UI stage.; review verdict: SHIP
 
 - TL dispatched #749 as the top Pair blocker; preserve #733 SHIP branch and re-enter after #749 lands. Per explicit TL instruction stopped #733 merge runner cleanly and retained its failure/evidence in its Log, then claimed/started this branch from main in canonical pair:4.
 - #733 integration suite attempt 0082d1dc13f7dff65c18d760ca43ba06 at 13bd7df51123cc82c79953ca2e8423511c0a5b49 failed tests/copy-on-select-test.sh: detached copy orchestrator did not finish; 4m46s, complete log sha256 8b7c811b0f82. Fresh TestCopyOnSelectShellFixture on that source also reproduced hook timeout=3.
