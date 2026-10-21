@@ -1,13 +1,13 @@
 ---
 id: 000743
-status: working
+status: codecomplete
 deps: [ariadne#509]
 github_issue:
 created: 2026-10-20
-updated: 2026-10-20
+updated: 2026-10-21
 estimate_hours: 5.06
 collaboration-mode: collaboration
-card_mirror: '128120ffd724f84fe7916c022ed10ed1ae096acf' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'e8973da2d07bf70964f836343ba6bf3e715b1fad' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T14:15:16-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 9.00
 ---
 
 # conformance: run couch-zellij-conformance in a local Tart VM as a declared local check; GitHub job becomes a non-required main/weekly backstop
