@@ -335,3 +335,7 @@ Actions remain invoke, inspect and explicitly archive after the promotion decisi
 ### 2026-10-20 23:27 — Partial-night byte-bound correction
 
 Conservative artifact admission charges the full worst-case runner reservation for every incomplete night (missing/null/invalid terminal code), rather than only bytes written so far. An abruptly terminated wrapper can leave the existing SDLC child writing under its own lifetime after the artifact lock releases. Completed joined nights charge actual retained bytes; no new process owner/lease is introduced. A sparse near-cap fixture with an incomplete prior night observed red before this correction and green afterward. This enforces the already-approved retention bound under unknown completion (ARCH-CONSTRAINTS/ARCH-ORDER).
+
+### 2026-10-20 23:29 — Nightly native-home authority
+
+The nightly guard and default evidence root use the native account home from pwd.getpwuid, matching the delivered runner rather than trusting inherited HOME. An adversarial HOME fixture observed the guard reaching mkdir for actual managed storage before correction; mkdir was intercepted, so no real managed path was written. The corrected fixture refuses before any write. This preserves the original managed-storage separation; it adds no lifecycle mechanism. All eleven nightly cases pass.

@@ -2,10 +2,12 @@
 import json
 import os
 from pathlib import Path
+import pwd
 import subprocess
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 SCRIPT = Path(__file__).with_name('nightly.sh')
 
@@ -152,6 +154,16 @@ sys.exit(int(os.environ.get('EXIT','0')))
                 result = self.run_night()
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual(self.calls(), [])
+
+    def test_managed_storage_authority_ignores_poisoned_home_before_any_write(self):
+        api = {'__name__':'nightly_test'}
+        source = SCRIPT.read_text().split("<<'PYTHON'\n", 1)[1].rsplit('\nPYTHON', 1)[0]
+        exec(compile(source, str(SCRIPT), 'exec'), api)
+        native_managed = Path(pwd.getpwuid(os.getuid()).pw_dir) / '.tart/pair-runner/nightly'
+        with mock.patch.dict(os.environ, HOME=str(self.root / 'poison-home')):
+            with self.assertRaisesRegex(ValueError, 'overlaps'), mock.patch.object(Path, 'mkdir', side_effect=AssertionError('native storage touched')):
+                with api['reserve_nightly_artifacts'](native_managed, '2026-10-21'):
+                    self.fail('admitted managed storage')
 
     def test_cancellation_waits_for_owned_check_and_concurrent_date_refuses(self):
         first = subprocess.Popen(self.command(), env=dict(self.env, HOLD='1'), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)

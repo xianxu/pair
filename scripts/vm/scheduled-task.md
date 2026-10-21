@@ -36,7 +36,8 @@ according to the landed #737 schema and #509 resource semantics. Do not guess
 that `heavy` means another suite allocation. Operations owns task code, project
 updates and registration. This handoff installs no service or private timer.
 
-Evidence defaults to `~/.local/share/pair/conformance-nightly/YYYY-MM-DD/`.
+Evidence defaults to the native account home's `~/.local/share/pair/conformance-nightly/YYYY-MM-DD/`.
+Inherited HOME does not change managed-storage authority or that default.
 `--artifacts-root ABSOLUTE_PATH` selects a separate caller-owned root;
 `--date YYYY-MM-DD` selects an explicit date for manual invocation. A date
 reservation persists after fetch/setup/execution/cleanup failure. A partial

@@ -9,6 +9,7 @@ import fcntl
 import json
 import os
 from pathlib import Path
+import pwd
 import re
 import signal
 import stat
@@ -19,6 +20,7 @@ NIGHT_LIMIT = 16
 BYTE_LIMIT = 4 << 30
 # Generic runner logs plus its separately bounded result and this manifest.
 RUN_RESERVATION = (256 << 20) + 65536 + 4096
+NATIVE_HOME = Path(pwd.getpwuid(os.getuid()).pw_dir)
 
 
 def retained_bytes(root):
@@ -56,7 +58,7 @@ def reserve_nightly_artifacts(root, date):
     if not root.is_absolute() or root.is_symlink():
         raise ValueError('nightly artifact root must be absolute and not a symlink')
     root = root.resolve()
-    managed = (Path.home() / '.tart/pair-runner').resolve()
+    managed = (NATIVE_HOME / '.tart/pair-runner').resolve()
     if root == managed or root in managed.parents or managed in root.parents:
         raise ValueError('nightly artifact root overlaps managed runner storage')
     root.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -154,7 +156,7 @@ def nightly_main(checkout, root, date):
 def cli():
     parser = argparse.ArgumentParser(description='Run one exact origin/main conformance check; never retry or evict nights.')
     parser.add_argument('--checkout', type=Path, required=True)
-    parser.add_argument('--artifacts-root', type=Path, default=Path.home() / '.local/share/pair/conformance-nightly')
+    parser.add_argument('--artifacts-root', type=Path, default=NATIVE_HOME / '.local/share/pair/conformance-nightly')
     parser.add_argument('--date', default=datetime.date.today().isoformat(), help='evidence date YYYY-MM-DD (default local date)')
     args = parser.parse_args()
     if datetime.date.fromisoformat(args.date).isoformat() != args.date:
