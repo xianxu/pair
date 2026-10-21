@@ -39,7 +39,7 @@ Establish the supported invocation and physical-write accounting contract for or
 
 ## Plan
 
-- [ ] Red native trace-heavy fixture and real go-test cache conformance, then suppress tracing only at the shared ordinary supported-budget boundary.
+- [x] Red native trace-heavy fixture and real go-test cache conformance, then suppress tracing only at the shared ordinary supported-budget boundary.
 - [ ] Keep caps/repetition/failure semantics; qualify fresh cache-enabled and uncached core/tty runs and real excess refusal.
 - [ ] Document result-cache policy, run recorded affected check, close and land.
 
@@ -75,3 +75,28 @@ could hide fixture writes. A new subprocess owner would add lifecycle and
 cache identity machinery for an existing shared TestMain seam. Neither needed.
 README/atlas describe the intentional result-cache tradeoff. Quick flow;
 headless acceptance, no staging or machine/cache clearing.
+
+
+### 2026-10-21 — implementation and red/green evidence
+
+The read-only native workload reproduced5353472 bytes against1MiB, exit1
+in0.417s with all workload assertions passing. After the shared flag change,
+trace exclusion plus existing real256KiB-under/over/failure-status and pure
+accounting controls pass0.386s. Caps/repetitions and all workload counters are
+unchanged. The policy is enforced once at the existing shared wrapper, not a
+caller convention or new exemption list (ARCH-DRY).
+
+Actual cmd/go conformance red10.891s: the unguarded control cached as expected,
+but both guarded normal and coverage runs incorrectly returned cached results.
+Green10.738s: control still caches (one marker byte), guarded plain and coverage
+run twice (two marker bytes), real coverage profile contains the production
+value.go function. Logs /tmp/pair765-cache-red.log and
+/tmp/pair765-cache-green.log. No network or shared-cache clearing; isolated
+private build/result cache uses the existing module cache read-only.
+
+Fast make test-affected-inventory passes; catalog lint passes3.839s; whitespace
+check passes. Plain cache-enabled full core/tty run is now running, log
+/Volumes/TestScratch/tmp/pair-slot7/pair765-checks.BL7YLd/plain.log. No pass yet.
+Native Go-cache conformance defends the Go-owned flag contract on upgrades;
+no production API or persisted format changes. README and performance atlas
+state the supported-result-cache tradeoff and unchanged coverage boundaries.
