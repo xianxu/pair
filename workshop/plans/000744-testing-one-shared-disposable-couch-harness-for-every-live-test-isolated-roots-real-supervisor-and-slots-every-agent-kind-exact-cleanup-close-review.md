@@ -122,3 +122,112 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000411
+
+---
+
+## Re-review — 2026-10-21T06:51:20-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 744 — testing: one shared disposable-Couch harness for every live test (isolated roots, real supervisor and slots, every agent kind, exact cleanup) |
+| repo | pair |
+| issue file | workshop/issues/000744-testing-one-shared-disposable-couch-harness-for-every-live-test-isolated-roots-real-supervisor-and-slots-every-agent-kind-exact-cleanup.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 7fabbeb93589b7c0c44a43fa699e83b09082bd5e..3a866f60174ee73a004660e363c21f5f05a4d2c1 |
+| command | sdlc close --issue 744 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T06:51:20-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The shared harness passes ordinary tests, race checks, and an independent native Claude/Codex matrix at the pinned head. BR-1, BR-3, and BR-4 are addressed. BR-2 remains blocking: terminal request acknowledgment can occur while a CLI descendant is still running.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The isolated consumers now use owned short roots. All three previously failing tests pass. Restoring the base stale_store_test.go through a temporary Go overlay makes both service regressions fail again with the 103-byte socket error.
+  - id: BR-2
+    disposition: not-addressed
+    note: |
+      cmd/internal/testcouch/agentfixture/run.go:459-475 still loses process-group cleanup when the leader exits first. An overlay regression invoked runCLI with a 200ms timeout and a shell that starts sleep 30, records its PID, then exits. runCLI returned a terminal exec.ErrWaitDelay result after 1.01s while the descendant remained alive (kill(pid, 0) succeeded). The cancellation guard refuses group cleanup once the leader identity disappears, and the WaitDelay path performs no reconciliation. Preserve ownership of outstanding descendants and confirm their termination before publishing terminal acknowledgment; add this ordering to the committed regression suite. This remains family request-cancellation-joins-effects (ARCH-ORDER, ARCH-FUNERAL).
+  - id: BR-3
+    disposition: addressed
+    note: |
+      The plan's Core concepts tables at lines 25-43 now place Paint in paint.go, use the implemented Command/Result names, and classify ReadResult correlation, retirement, and cancellation as integration. The named pure functions contain no mutable filesystem IO; the dated BR-3 revision explains the correction.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Fleet.record publishes through durablefile.WriteAtomic and retains publication errors without dropping in-memory ownership. The committed snapshot and failure tests pass; overlay reversals of atomic replacement and error retention independently make their corresponding regressions fail. The owned-process cleanup regression also passes.
+```
+
+1. **Strengths**
+
+   - Transport tests exercise real listeners, preserve unset-isolation addresses, and verify foreign socket residue remains untouched.
+   - Native qualification uses genuine provisioning and registered actors, with independent receipt/body evidence.
+   - Ownership publication now preserves complete prior snapshots and exposes persistence failures.
+   - README and atlas document the new target, helper interfaces, isolation, and teardown contract.
+
+2. **Critical findings**
+
+   - **BR-2 remains open**, at `cmd/internal/testcouch/agentfixture/run.go:459-475`. Cover leader exit before cancellation and output-pipe completion. Reconcile the owned process group before treating the request as terminal.
+
+3. **Important findings**
+
+   None newly raised.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Passed:
+
+   - Ordinary `testcouch/...`, `testpair`, and `couchmessage` tests.
+   - `testcouch/...` race checks.
+   - All three previously failing isolated consumers.
+   - `make test-affected-inventory`.
+   - Independent `make test-couch-fleet`: **73.43s**, both personalities, messaging, detach/restart, and cleanup.
+   - Whitespace checks excluding byte-exact terminal captures.
+
+   The temporary leader-exit regression failed against the pinned implementation. Its descendant was explicitly terminated afterward. Repository files remain unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — flag:** BR-2 exposes divergence between `runCLI` and the existing `OSProvisionIO` handling of descendants after `ErrWaitDelay`; consolidate lifecycle ownership where practical.
+   - **ARCH-PURE — pass:** corrected classifications match the inspected pure functions and IO adapters.
+   - **ARCH-PURPOSE — pass:** the narrowed Spec’s shared native fleet and both personalities are delivered.
+   - **ARCH-MOCK — pass:** portable stateful fixtures and native qualification exercise the relevant seams.
+   - **ARCH-CONSTRAINTS — pass:** worker, mailbox, output, and runtime bounds are explicit and exercised.
+   - **ARCH-SECURE — pass:** empty environments, physical confinement, and generation checks protect foreign state.
+   - **ARCH-ORDER — flag:** BR-2 collapses leader completion into request completion despite outstanding descendants.
+   - **ARCH-FUNERAL — flag:** BR-2 permits terminal retirement before every owned child has ended.
+   - **ARCH-EVOLVE — pass:** no cross-version lossy read-modify-write path was introduced; mailbox artifacts are scoped to a disposable run.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry extending BR-2’s ordering table to cover **leader exited / descendants retain pipes / deadline or cancellation arrives**. Require confirmed descendant termination, or explicit retained uncertainty, before terminal acknowledgment and retirement.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"2e54f2b9-1890-4ed8-aa76-b90414813608","repository":"github.com/xianxu/pair","issue_id":"000744","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/1ecee9bece0fcf70","reviewed_head":"3a866f60174ee73a004660e363c21f5f05a4d2c1","slot":"pair:5","requested_at":"2026-10-21T13:47:14.108626Z"},"phase":"finished","pid":93929,"started_at":"2026-10-21T13:47:14.211852Z","finished_at":"2026-10-21T13:51:19.505864Z","session_id":"01a15eb7-50d2-7dc3-a339-696cebf6e11e","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.25150225s
+head: "3a866f60174ee73a004660e363c21f5f05a4d2c1"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000411

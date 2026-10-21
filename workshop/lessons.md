@@ -2538,3 +2538,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #764 BR-1: A fixture-only change can still add a repository enforcement surface. Every new Pair-local lint rule needs its owner, rejected and accepted patterns, and syntax-analysis limits mapped in atlas/go-lint-catalog.md; include that surface in the close atlas decision.
 
 - #766: A PTY consumer cannot recover bytes the kernel discarded at last slave close. Native tee fixtures must own producer lifetime through an output/input acknowledgement and establish the controlling-terminal reference on Darwin; distinguish first-read EOF from a wrapper closing its master early. Audit public generic-command exposure and file that product defect separately from a fixture repair.
+
+- #744 BR-2: a reaped command leader and drained pipes do not prove its process group is quiescent. Check descendants on every completion path; retain explicit uncertainty and correlated evidence when incarnation-safe cleanup cannot be proved.
