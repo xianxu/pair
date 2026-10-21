@@ -46,13 +46,9 @@ the restart-kind report as one retained Console status line, never a composer
 message. Unknown or orphaned evidence is not a full-shutdown proof. All explicit
 operator-authorized lifecycle actions keep their existing guards.
 
-Use a **per-hub memory-only startup gate**: until a genuine operator submission
-to that hub, discard all hub-directed automatic system messages. Ordinary peer
-reports stay deliverable. Opening the gate never replays suppressed notices; the
-TL can inspect current state with peek/status. Initial counter reconciliation,
-worker/system input and reconnect cannot open it. The one restart-kind line is
-retained Console status, not injected agent input. The plan enumerates lifecycle,
-wait, session-file, resource, stall and report-nudge producers and their tests.
+Use a **per-hub memory-only start gate**, initially closed. It opens only by the TL running `couch --start-gate open` on the operator's "let it start", or the operator's switcher key; `couch --start-gate status` is read-only. Ordinary operator submissions do not open it: debugging can continue with the gate closed. Discard hub-directed automatic system messages while closed, including #737 scheduled-task exit-10 notices. Ordinary peer reports stay deliverable; no suppressed occurrence replays on open. The status line says the start gate is closed and to say "let it start".
+
+In a partial fleet every surviving hub reattaches with its own closed gate; missing hubs remain listed/parked and are named in the startup status. Open on the launch hub if it survived, otherwise on the switcher. Background extra-hub completions never steal focus.
 
 The generic worker cue is once per **wrapper launch incarnation**, including
 Fresh, resume and relaunch; same-incarnation reconnect across a Couch restart
@@ -132,3 +128,8 @@ notices never replay. The worker resend prompt remains distinct and deliverable
 to workers while the hub is quiet. Add producer-by-producer tests, current-hub
 submission negatives, protocol negotiation and cross-supervisor worker-cue
 qualification to the operator-review plan. This is still design-only work.
+
+
+### 2026-10-20 23:42 PDT — operator approval: explicit start gate and partial hubs
+
+Operator approval relayed by ops:0 requires the name "start gate", an explicit `couch --start-gate open`/switcher act, read-only status, and no automatic release on operator submission. The TL may debug with the operator while closed. Keep scheduled-task exit-10 wakes behind it with no replay. Reattach surviving hubs with independent closed gates, name missing hubs in one status line, and focus the launch hub only if it survived; otherwise leave the switcher open. The active Spec and durable plan now use these rules. Earlier submission-release text above is superseded historical design. Proceed through change-code; no implementation yet.
