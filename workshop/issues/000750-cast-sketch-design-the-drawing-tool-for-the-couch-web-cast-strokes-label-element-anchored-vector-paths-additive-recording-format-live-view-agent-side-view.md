@@ -64,6 +64,7 @@ Detailed proposal: [cast-sketch plan](../plans/000750-cast-sketch-plan.md). The 
 - Operator direction relayed by ops:0 supersedes the TL's initial local-draft/atomic-save choice: stream strokes immediately, Undo/Redo, pointer colour; finish the design without further questions and collect decisions in the plan.
 - Read-only delegated recording/query exploration confirmed that unknown kinds belong in events.jsonl for older-reader compatibility; existing typed known records drop unknown fields. Plan avoids claiming universal preservation (ARCH-EVOLVE).
 - Proposed a held drawer scene, one immutable source moment, shared anchor projection, author lease, acknowledged ordered chunk writes, pure Undo/Redo transitions and replay-based image export. These are recommendations for operator review, not approval or implementation (ARCH-DRY, ARCH-PURE, ARCH-ORDER).
+- One advisory fresh-eyes pass led to explicit initial snapshot synchronization, recorded interruption/expiry, finalization-capacity reserves and interrupted-label recovery. Retained Decision needed sections per the operator's explicit request; no automated plan-quality gate or implementation started. Added the general prevention rule to workshop/lessons.md.
 
 ## Revisions
 

@@ -104,6 +104,9 @@ Keep format `couch-webcast`, `v:1`. Add these event kinds, all in `events.jsonl`
 | `sketch-undo` | `sketch,id` | Hide the last completed visible stroke named by the reducer. |
 | `sketch-redo` | `sketch,id` | Restore the top redo stroke named by the reducer. |
 | `sketch-label` | `sketch,label` | Finish the sketch with bounded, nonblank plain text. |
+| `sketch-interrupt` | `sketch,reason` | Seal accepted partial work on lease expiry or source loss; retain explicit unfinished intent. |
+
+Each client-originated event also retains its `operation` identity/number and canonical request `digest` for exact retry reconciliation. Server-originated interruption records carry their own stable operation identity. These fields belong to the new sketch event types, not the existing recording Header.
 
 Example of the semantic payloads (the writer supplies envelope times):
 
@@ -135,7 +138,9 @@ Only one in-flight command per author sketch; chunks are sent FIFO, at 50 ms cad
 
 The resource proving exclusive authoring is one active-sketch lease per authenticated owner, held from accepted begin through label/cast end/revocation. A second tab with the same owner must join/resume that exact sketch or finish it; it cannot begin an independent competing sketch. Undo/Redo check the owner digest, current lease and exact expected stack top at the writer, not merely the claimed viewer ID. Existing viewer attribution can be spoofed; it is not erase authority.
 
-On network disconnect the lease remains until reconnect or a 2-minute idle timeout. Reconnect refreshes current state and resumes the same operation numbers. On lease expiry, freeze the accepted partial result as unfinished, release the snapshot, reject late chunks, and retain its history. Replacing the launch or rotating the link cannot grant a new session ownership of someone else's sketch. **Decision needed:** recommend no ownership recovery across a rotated/expired authenticated session; retain the unfinished evidence and start a new labelled sketch. Alternative requires a separate explicit operator recovery grant.
+On network disconnect the lease remains until reconnect or a 2-minute idle timeout. Reconnect refreshes current state and resumes the same operation numbers. On lease expiry, order a `sketch-interrupt` record before releasing the snapshot/lease; it seals accepted partial points, rejects late chunks and retains history. Navigation and recording end perform the same pure interruption transition from their existing `seg`/`stop` records, avoiding a record after `stop end`. If the writer is broken, report an unknown outcome and derive unfinished state from available evidence; never claim an unrecorded expiry was persisted. Replacing the launch or rotating the link cannot grant a new session ownership of someone else's sketch. **Decision needed:** recommend no ownership recovery across a rotated/expired authenticated session; retain the unfinished evidence and start a new labelled sketch. Alternative requires a separate explicit operator recovery grant.
+
+An interrupted sketch can still receive its one required label from the original authenticated owner through a metadata-only `sketch-label` operation. It needs no active drawing lease or current source document, but still requires the same live cast, allowed annotation generation and exact author authority; it cannot append points or change history. After cast end there is no label mutation. A lost/rotated author session or ended cast therefore leaves an explicitly unlabelled sketch permanently unfinished in this version; agent output identifies that limitation rather than pretending the required intent exists.
 
 ## State, interruption and recovery
 
@@ -152,11 +157,15 @@ On network disconnect the lease remains until reconnect or a 2-minute idle timeo
 | drawing/idle + Redo(top) | drawing/idle; move top redo stroke to visible |
 | drawing/idle + leave tool | label_pending; request label locally, no extra recording event required |
 | drawing or label_pending + valid label | complete; release source snapshot and lease |
-| any active + pause/disconnect | hold; finish no new stroke, retain accepted partial points and reconciliation |
-| held + same-doc resume/reconnect | drawing with existing stacks, restart held scene from recorded begin moment |
+| any active + pause | existing stop-pause event seals accepted partial stroke; hold drawing and retain reconciliation |
+| any active + disconnect | hold locally; no server-state invention; lease retains any open stroke until reconnect/expiry |
+| held + same-doc resume/reconnect | reconcile exact pending command; seal any still-open accepted partial stroke before accepting a new stroke; restart held scene from recorded begin moment |
 | active + navigation/cast end/lease expiry | interrupted; seal accepted partial points, keep unlabeled evidence, release lease |
 | active + annotation revocation/clear | cleared according to existing clear barrier; late operations rejected |
 | interrupted/complete + late points/Undo/Redo | reject; never attach to a newer sketch |
+| interrupted + original owner's valid label | complete with interruption reason retained; no geometry mutation |
+
+A repeated stroke-end for a stroke already sealed by pause/interruption is an idempotent acknowledgment, not another stack push. Source loss retains a reason and marks any partial stroke truncated; a later label never erases that evidence.
 
 Actions for the following table: reconnect, retry exact operation, resume cast, start new sketch, enter label, Undo, Redo, inspect recording.
 
@@ -188,7 +197,9 @@ screen = fromPage(projected, viewerScale, currentTopScroll)
 
 Extract the common point/box affine transform beside existing `projectRegion`; do not duplicate note placement traversal. Extend placement to expose the resolved anchor box and clip so sketches reuse the same ancestor-scroll, shadow-root and frame handling. Reuse original node identity first and the existing confidence-scored replacement match otherwise. Refuse ambiguous or unsupported transformed-frame placement; retain the list item and historical paths. Width remains 3 CSS px in the page overlay, then scales with the viewer; it does not stretch with the anchor's aspect ratio. Dots use a round cap.
 
-The held drawer keeps its current Renderer bound to a frozen Model at begin. `connect` advances a cloned live Model for incoming records but suspends page rendering; sketches and capability notifications still update. No unbounded incoming-record queue. On leave, destroy the held scene and reconnect for the existing fresh catch-up. Snapshot cloning must preserve Maps and graph references and be tested for independence. After reconnect, rebuild the held scene from the recorded begin prefix through a bounded snapshot response; this response is private to the owner and reuses existing sandboxed renderer modules and asset proxy.
+Initial preparation and reconnect both return the same bounded source snapshot ending at the acknowledged `sketch-begin`. Render that snapshot through the existing Model/Renderer and enable drawing only once it is ready; never freeze an arbitrary current renderer that might lag or lead the writer's source moment. The server snapshot response is a bounded catch-up prefix of the recording ending at begin; admit it within 16 MiB, separately from the 8 MiB source DOM/state budget. If historical annotations make the prefix too large, visibly refuse preparation instead of silently dropping source state. Later implementation may add a compact scene serializer if actual workloads require it; it is not silently assumed here.
+
+While drawing, `connect` continues advancing the ordinary live Model but suspends its page rendering; the separate held scene supplies geometry, while sketches and capability notifications continue updating. No unbounded incoming-record queue and no mutation of the frozen Model. On leave, destroy the held scene and reconnect for existing fresh catch-up. Snapshot and live Model independence is tested by mutating both streams. The snapshot response is private to the owner and reuses existing sandboxed renderer modules and asset proxy.
 
 Undo/Redo are timeline events. Seeking before Undo shows the stroke; after Undo hides it; after Redo restores it. `annotation-clear` additionally clears sketches, preserving prior replay positions. Navigation retains the cross-document list but only confidently places current-document sketches. Go and JS CatchUp retain sketch begin/chunks/history required by current items across resume and navigation; they may remove cleared items only after preserving the clear barrier. Agent historical queries always read the original recording.
 
@@ -216,7 +227,7 @@ Budgets below are initial design choices to confirm at review, not measured perf
 | Command queue | 8 chunks/client, existing bounded server in-flight admission; stop sampling visibly on overflow, do not discard an unknown write |
 | Mutation body | max 16 KiB chunk; max 1024 UTF-8 bytes for label; finite coordinate magnitude <= 1e7 CSS px |
 | Shared drawing traffic | retain current cast-wide stroke-rate budget initially; sketch traffic shares it with pointer drawing |
-| Durable sketch growth | max 32 MiB sketch events and 256 sketch begins per recording, enforced by writer before append; exhausted cast can view/query existing sketches but refuses new sketch commands |
+| Durable sketch growth | max 32 MiB sketch events and 256 sketch begins per recording, enforced by writer before append; reserve 4 KiB finalization capacity per active or unlabelled interrupted sketch before accepting begin; reject new drawing/Undo/Redo before consuming this reserve |
 | Receipt/source lifetime | receipts reconstructed from bounded sketch history; immutable source snapshots released at completion/interruption/clear/end; idle leases expire after 2 minutes |
 | Image jobs | one Chrome per CLI invocation; <= 30 s, <= 4 MP image, <= 8 MiB PNG; recording input <= 128 MiB; fail visibly at bounds |
 
@@ -225,6 +236,8 @@ Growth drivers are DOM nodes D, retained sketches K, strokes S, points P, chunks
 Counted tests at N and 2N must assert: N/2N chunk appends visit exactly newly appended points; repeated Undo/Redo does no point replay; 8/16 strokes sharing an anchor cause one candidate scan per invalidation; one paint is scheduled for 8/16 chunks in the same frame; query reduces R records once for 8/16 stroke answers. Rendering each growing stroke after every single sample would fail these counters even if timing happened to look fast.
 
 The recorder creates event lines; replay and agents are their last consumers; deleting the recording directory removes them. Existing recordings have operator deletion rather than automatic retention; the added 32 MiB writer cap prevents unbounded sketch residue per recording (ARCH-FUNERAL). No persisted source-snapshot family is added. The local held scene and canvas die on mode exit/disconnect/end. Explicit image output belongs to its caller until deleted; temporary rendering directories are removed on every result. Export refuses existing output files and never writes into the source recording. Tests prefer TestScratch through TMPDIR and use private temporary directories.
+
+The reserved 4 KiB covers at most one bounded stroke-end, one interrupt and one <=1024-byte label, including fixed bounded metadata. Derive the allowance from maximum encoded record sizes and assert it in tests. Reserves count inside the 32 MiB cap and remain assigned to interrupted unlabeled sketches until label/end; retrying an operation consumes no additional record space. Reaching the drawing budget stops drawing visibly while these terminal operations remain available. Undo/Redo use ordinary history budget, so budget exhaustion can refuse them visibly; completing the required label must still succeed.
 
 ## Format evolution and trust
 
@@ -243,7 +256,7 @@ These are proposed issue boundaries, not Mx tags for design issue #750. File the
 **Create:** `recording/sketch.go`, `recording/sketch_state.go`, `recording/sketch_test.go`, `recording/sketch_state_test.go`, `sketch/geometry.go`, `sketch/geometry_test.go`, `web/sketch-model.js`, `tests/webcast/sketch-model.test.mjs`, shared `tests/webcast/sketch-corpus.json`.
 **Modify:** `recording/record.go`, `codec.go`, `reduce.go`, `catchup.go`, `web/model.js`, `web/replay.js`, existing codec/order/catchup tests and corpus.
 
-- [ ] Write failing tests for streamed chunk joins, duplicate/conflicting/out-of-order chunks, empty/incomplete strokes, Undo/Redo/new-branch behavior, source begin timestamp fencing, label completion, clear and source-document retention. Include nested unknown fields and old-reader compatibility.
+- [ ] Write failing tests for streamed chunk joins, duplicate/conflicting/out-of-order chunks, empty/incomplete strokes, Undo/Redo/new-branch behavior, source begin timestamp fencing, label completion, interrupt/late-label recovery, clear and source-document retention. Include nested unknown fields, old-reader compatibility and terminal-capacity reservations.
 - [ ] Run `go test ./cmd/internal/webcast/recording ./cmd/internal/webcast/sketch -run 'Sketch|CatchUp|Order' -count=1` and `node --test tests/webcast/sketch-model.test.mjs tests/webcast/replay.test.mjs`; confirm failures identify absent sketch semantics.
 - [ ] Implement the event union, raw-preserving codec, pure transitions, geometry, reducer and catch-up. Independently stated invariant: only the active author's selected last stroke changes; an undo never deletes earlier timeline evidence.
 - [ ] Rerun targeted tests plus existing codec/catch-up corpus tests; compare Go/JS results for every shared sequence prefix, including pause/resume/navigation.
@@ -299,3 +312,4 @@ Approve or revise the recommendations collected above, especially held drawing v
 ## Revisions
 
 - 2026-10-20: operator direction relayed by ops:0 supersedes TL's earlier atomic local-draft preference. Current proposal streams all stroke chunks, adds author Undo/Redo, and uses pointer colour. The atomic-save alternative would reduce protocol complexity but fails the operator's stated need to watch a sketch form, so it is rejected for this version.
+- 2026-10-20: one advisory fresh-eyes pass identified exact initial scene synchronization, durable interruption inputs, reserved finalization bytes and label recovery after interruption. Added explicit mechanisms above; retained Decision needed recommendations as the operator expressly requested. This pass is editing advice, not plan-quality or operator approval.

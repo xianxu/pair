@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #750 design review: a held drawing scene must render the acknowledged source prefix on initial preparation as well as reconnect; freezing whatever the client currently shows can anchor paths to another moment. Record timer-driven interruptions as replay inputs, and reserve writer capacity for terminal events and required labels before admitting growing stroke data.
+
 - #735: Replay native recordings with resize events as well as bytes before blaming footer wording. A duplicate geometry update may receive no native repaint; preserve existing cursor/frame evidence on a synchronized no-op, while a retry after an aborted real resize must still restore synchronization and await a fresh cursor. Regress both paths and expose the missing evidence in retained wait receipts without copying screen contents.
 
 - Splitting an acceptance task into a child issue requires sweeping copied Spec tasks and Done when for parent-only checks. A Log saying the parent still owns console/deployment acceptance does not override an active child Spec clause requiring it. Keep the old clause only as superseded Revisions history. (#723 BR-1)
