@@ -98,7 +98,9 @@ sys.exit(int(os.environ.get('EXIT','0')))
     def test_sixteenth_small_night_is_admitted(self):
         self.artifacts.mkdir()
         for day in range(1, 16):
-            (self.artifacts / f'2026-10-{day:02d}').mkdir()
+            night = self.artifacts / f'2026-10-{day:02d}'
+            night.mkdir()
+            (night / 'nightly.json').write_text(json.dumps({'exit_code':125}))
         result = self.run_night()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(len(self.calls()), 1)
@@ -111,6 +113,19 @@ sys.exit(int(os.environ.get('EXIT','0')))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('archive', result.stderr)
         self.assertEqual(len(list(self.artifacts.glob('2026-*'))), 16)
+        self.assertEqual(self.calls(), [])
+
+    def test_incomplete_night_reserves_remaining_possible_writes(self):
+        completed = self.artifacts / '2026-10-01'
+        completed.mkdir(parents=True)
+        (completed / 'nightly.json').write_text(json.dumps({'exit_code':125}))
+        reservation = (256 << 20) + 65536 + 4096
+        with (completed / 'sparse').open('wb') as stream:
+            stream.truncate((4 << 30) - 2*reservation + 1)
+        (self.artifacts / '2026-10-02').mkdir()  # wrapper died; its child may still write
+        result = self.run_night()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('archive', result.stderr)
         self.assertEqual(self.calls(), [])
 
     def test_byte_saturation_refuses_before_launch(self):

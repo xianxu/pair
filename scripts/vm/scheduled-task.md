@@ -54,7 +54,7 @@ status publisher is an acceptable bootstrap.
 Admission retains at most sixteen nightly directories and 4 GiB of logical
 evidence bytes. It reserves a worst-case runner bundle plus bounded metadata,
 so byte saturation may refuse before sixteen dates. Failed and partial nights
-count. One file lock owns artifact admission through check completion; another
+count; incomplete nights reserve their full possible remaining writes even after the wrapper dies. One file lock owns artifact admission through check completion; another
 invocation refuses immediately. No evidence is evicted. Ordinary runner
 retention cannot prune these caller-owned bundles. At saturation, inspect and
 archive evidence explicitly under #745's promotion decision before resuming.

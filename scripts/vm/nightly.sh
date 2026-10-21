@@ -37,6 +37,20 @@ def retained_bytes(root):
     return total
 
 
+def reserved_night_bytes(night):
+    size = retained_bytes(night)
+    try:
+        with (night / 'nightly.json').open('rb') as stream:
+            raw = stream.read(4097)
+        manifest = json.loads(raw) if len(raw) <= 4096 else None
+        code = manifest.get('exit_code') if isinstance(manifest, dict) else None
+    except (OSError, ValueError):
+        code = None
+    # An abruptly dead wrapper can leave SDLC writing under its own lifetime.
+    # Charge its full possible bundle until a joined completion is recorded.
+    return size if type(code) is int and 0 <= code <= 255 else max(size, RUN_RESERVATION)
+
+
 @contextlib.contextmanager
 def reserve_nightly_artifacts(root, date):
     if not root.is_absolute() or root.is_symlink():
@@ -62,7 +76,7 @@ def reserve_nightly_artifacts(root, date):
         destination = root / date
         if destination.exists():
             raise ValueError(f'nightly date already reserved: {destination}; inspect existing evidence')
-        if len(nights) >= NIGHT_LIMIT or retained_bytes(root) + RUN_RESERVATION > BYTE_LIMIT:
+        if len(nights) >= NIGHT_LIMIT or sum(reserved_night_bytes(night) for night in nights) + RUN_RESERVATION > BYTE_LIMIT:
             raise ValueError('nightly retention saturated; inspect/archive evidence before running')
         destination.mkdir(mode=0o700)  # failed/partial nights keep their reservation
         yield destination
