@@ -1,0 +1,336 @@
+{
+  "requests": 2000,
+  "bad": 45,
+  "crossed": 5,
+  "records": [
+    {
+      "error": "<nil>",
+      "ok": true,
+      "probe": true,
+      "reply": "2200",
+      "sample": 0
+    },
+    {
+      "error": "<nil>",
+      "ok": true,
+      "probe": false,
+      "reply": "2a821d0aff1c5b0a20207b0a20202020226964223a20302c0a202020202269735f706c7567696e223a20747275652c0a202020202269735f666f6375736564223a2066616c73652c0a202020202269735f66756c6c73637265656e223a2066616c73652c0a202020202269735f666c6f6174696e67223a2066616c73652c0a202020202269735f73757070726573736564223a20747275652c0a20202020227469746c65223a2022282e29202d207a656c6c696a3a6c696e6b222c0a202020202265786974656422",
+      "sample": 1
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "1a020805",
+      "sample": 6
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "1a020805",
+      "sample": 36
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": false,
+      "reply": "2200",
+      "sample": 37
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": false,
+      "reply": "1a020805",
+      "sample": 39
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "1a020805",
+      "sample": 108
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "1a020805",
+      "sample": 200
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "1a020805",
+      "sample": 214
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": false,
+      "reply": "2200",
+      "sample": 215
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "2a821d0aff1c5b0a20207b0a20202020226964223a20302c0a202020202269735f706c7567696e223a20747275652c0a202020202269735f666f6375736564223a2066616c73652c0a202020202269735f66756c6c73637265656e223a2066616c73652c0a202020202269735f666c6f6174696e67223a2066616c73652c0a202020202269735f73757070726573736564223a20747275652c0a20202020227469746c65223a2022282e29202d207a656c6c696a3a6c696e6b222c0a202020202265786974656422",
+      "sample": 216
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "1a020805",
+      "sample": 460
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "1a020805",
+      "sample": 462
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "1a020805",
+      "sample": 536
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "1a020805",
+      "sample": 634
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "1a020805",
+      "sample": 652
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "1a020805",
+      "sample": 728
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "1a020805",
+      "sample": 970
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "1a020805",
+      "sample": 1068
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "1a020805",
+      "sample": 1076
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": false,
+      "reply": "1a020805",
+      "sample": 1077
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "1a020805",
+      "sample": 1082
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "1a020805",
+      "sample": 1118
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "1a020805",
+      "sample": 1200
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": false,
+      "reply": "2200",
+      "sample": 1201
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "1a020805",
+      "sample": 1218
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": false,
+      "reply": "1a020805",
+      "sample": 1221
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": false,
+      "reply": "1a020805",
+      "sample": 1223
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "1a020805",
+      "sample": 1224
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "1a020805",
+      "sample": 1244
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "1a020805",
+      "sample": 1306
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "1a020805",
+      "sample": 1372
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": false,
+      "reply": "2200",
+      "sample": 1373
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": false,
+      "reply": "1a020805",
+      "sample": 1435
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": false,
+      "reply": "1a020805",
+      "sample": 1437
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "1a020805",
+      "sample": 1486
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": false,
+      "reply": "1a020805",
+      "sample": 1487
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": false,
+      "reply": "1a020805",
+      "sample": 1489
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "1a020805",
+      "sample": 1494
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "1a020805",
+      "sample": 1562
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "1a020805",
+      "sample": 1638
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "1a020805",
+      "sample": 1646
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "1a020805",
+      "sample": 1668
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "1a020805",
+      "sample": 1688
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "1a020805",
+      "sample": 1716
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "1a020805",
+      "sample": 1726
+    },
+    {
+      "error": "<nil>",
+      "ok": false,
+      "probe": true,
+      "reply": "1a020805",
+      "sample": 1742
+    }
+  ]
+}
