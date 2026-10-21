@@ -141,6 +141,25 @@ The most dangerous interleaving is a holder handoff while an old chunk awaits th
 
 Count N/2N samples/chunks at 8/16 and 64/128; assert proportional visits, point appends and encoded journal bytes, zero source preparation/full-history snapshots on the chunk/status hot path. Count anchor candidate scans using existing placement instrumentation. Scene preparation may be linear in retained prefix/source bytes; it must not replay that prefix per chunk. Disk throughput and GPU performance are measured in the owned Chrome fixture; there is no new external service or new durable storage family.
 
+### Function verification strategy
+
+| Production function / family | Risk class | Mechanical guard and independent oracle |
+| --- | --- | --- |
+| `ParseSketch*`, `SketchCommandDigest` | Hostile JSON/Unicode/numeric types and request identity | Fuzz each closed union; normalized typed digest corpus; duplicate/server-owned-key negative controls |
+| `SketchState.Receipt`, metadata/top queries | Mutable authority leaks / accidental history scan | Mutate returned small values, then compare reducer; counted map/lookups at N/2N |
+| `AdmitDrawing`, `AdmitOperatorDrawing`, permit `Check` | ABA/stale origin and release-in-progress | Held acknowledged ctl/release in real controller; old permit remains closed after A→B→A, pending-only negative control |
+| `Hub.CandidateSketchSource`, scene-size accounting | Wrong source/time, size preflight mutates state, quadratic work | Generated same-clock record prefixes; compare candidate reduction with accepted begin prefix; exact limit boundary and counted one-pass visits |
+| `WriteSketch`, `ObserveSketch` | Cancel/retry/unknown effects and stale authority | Stateful Writer/Recorder contract with explicit queue/sink/reply gates; count physical writes and compare original recording replay |
+| lease expiry callback | Timer loses a last mutation / resurrects retired source | Inject clock and rendezvous before actor execution; generated mutation→expiry orderings; one terminal receipt and zero surviving timers after Close |
+| `SketchStrokeEnd` seal and snapshot receipt replay | Cancellation evidence lost or Undo stack duplicated | Shared Go/JS event-sequence corpus, absent/false compatibility and conflicting exact-retry controls |
+| `OperatorSketchSince`, bootstrap / receiver | Coalescing, duplicate ACK and gap corruption | Generated cursor/overflow/ACK sequences; compare render projection at every accepted prefix; bounded bytes and zero bootstrap on normal points |
+| `createSketchPolicy`, FIFO sender | New identity after unknown / terminal input races | Generated user/network/ctl sequences; one active operation and same-origin retry invariants; bounded queue negative controls |
+| shared pointer sampler/painter | Pen pressure loss, hover/palm input, duplicate optimistic echo | Recorded synthetic PointerEvent/coalesced corpus and shared geometry oracle; count new samples/painted segments at N/2N |
+| `createSketchScene`, scene/asset adapters | Display differs from acknowledged moment / leaked or late handles | Two independent Models with deliberately divergent live source; owned Chrome render/scroll/animation checks; late chunk/dispose and adversarial-page controls |
+| sketch HTTP / isolated binding adapters | Credential/body/epoch confusion | Real Server with stateful fake writer, body-read spy and cross-owner negative requests; actual isolated Chrome binding/frame probes |
+
+The counters are test seams around named traversals/encodes, not wall-clock assertions. Public-interface tests replay the recorded result; they do not merely assert that a method was called.
+
 ## Implementation tasks
 
 ### Task 1 — strict protocol and narrow model queries
@@ -149,7 +168,7 @@ Count N/2N samples/chunks at 8/16 and 64/128; assert proportional visits, point 
 
 - [ ] Write `TestSketchCommandUnionRejectsOwnedFields`, `TestSketchCommandUnicodeAndBounds`, `TestSketchReceiptQueriesOwnedAndConstantWork`; seed parser fuzz with all commands, duplicate keys, unsafe integers, nonfinite triples, lone surrogates and valid pairs.
 - [ ] Run `go test ./cmd/internal/webcast/board ./cmd/internal/webcast/recording -run 'SketchCommand|SketchReceiptQueries' -count=1`; observe missing parser/query failures before implementation.
-- [ ] Implement strict command values/digest/replies and O(1) immutable receipt, metadata and stack-top queries. Keep persisted event compatibility unchanged.
+- [ ] Implement strict command values/digest/replies and O(1) immutable receipt, metadata and stack-top queries. Keep existing persisted event behavior except the explicit additive truncation fact below.
 - [ ] Add optional stroke-end truncation with red tests for cancel→next stroke/Undo/Redo/label, absent/false/true/null/type validation, same-operation conflict, old-reader roundtrip, snapshot receipt replay and the terminal reserve. Extend/regenerate the shared Go/JS corpus with cancellation. This is an additive fact required by the approved pointercancel behavior.
 - [ ] Add generated browser policy sequences for unknown/refused/exact retry, label leave/Escape, pause and handoff. Run focused Go/Node tests, then commit this bounded task.
 
