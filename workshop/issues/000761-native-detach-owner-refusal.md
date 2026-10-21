@@ -41,7 +41,7 @@ Diagnose the post-client-exit SessionOwnerUnknown result at couchcore/detach.go:
 Durable full-flow plan: [native pane evidence](../plans/000761-native-pane-evidence-plan.md). Product implementation waits for the expanded change-code gate.
 
 - [x] Capture and classify native false-selection output, preserving original failures and exact cleanup proof.
-- [ ] Implement both approved bounded signatures and operation-owned typed raw evidence, with adversarial boundary and persistence tests.
+- [x] Implement both approved bounded signatures and operation-owned typed raw evidence, with adversarial boundary and persistence tests.
 - [ ] Document and complete native counter/control, focused checks, recorded suite and close readiness; publication remains gated by close and merge.
 
 ## Log
@@ -83,6 +83,18 @@ Launcher capture qualifies the full original parser result, owns its prefix/argv
 Clean implementation head895bb09b113b7b1b9375350a13869560860bd824 was pushed and both prepared controls ran serially once, with no test-level retry. Single-session control:1000reads/1024attempts,0final failures (0% observed versus the focused baseline24/1000,2.4%);12socket-present exit1 misses,11empty and1crossed reply recovered. Mixed three-session control:1000reads/1010attempts,0final failures (baseline11/1000);4validated colored exit0 misses (three clients, one pane+state) and6empty replies recovered. Maximum2attempts/read; all intermediate failures remain retained. These samples establish observed residuals, not a guarantee of zero native failures.
 
 Native0.45.1 binary /opt/homebrew/Cellar/zellij/0.45.1/bin/zellij SHA256604c684330fe097bc1363ada020d1b9b0ad17caa48d633e838869dfe9fc49e9c. Single runtime root1510417027/server76646 and mixed root755324766/three exact server generations were absent after joined cleanup; both roots removed and cleanup errors nil. Durable summaries, source and logs are workshop/evidence/000761/fixed-{single,mixed}-*. Full per-attempt files remain in pair-761-fixed-single-kfn404h_ and pair-761-fixed-mixed-57pdmvnf under /Volumes/TestScratch/tmp/pair-slot5. JSONL hashes respectively091e639ca25619afe76ff9ff7207728a69296d87c49196022e9c825f8b187c80 and afae5cc279beb84d9b24a913973650e49836d27568151c065383f66e9207d49d. Commands are in the durable summaries. PR511 opened for CI overlap; recorded suite admitted after35s capacity wait. Actual native owner/managed detach acceptance remains pending. Full supervisor restart belongs to #744 after #761 lands; no #744 helper is stacked here.
+
+### 2026-10-21 — managed client acceptance and coverage gap
+
+A once-only private overlay of main's existing TestStartupManagedAttachDetachTimingLive completed managed attach/detach and retained-session reattach/detach within the unchanged45s operation budget (3.58s). Its command FAILED solely on the existing helper's second PTY Close: file already closed. Exact server42939/generation1792572890.63797 was independently absent afterward; fixture and isolated socket roots removed. The full failing log is retained as workshop/evidence/000761/managed-reattach-native.log, SHA25649fdd7e0a1e461926b7d13edfa342319d278f28531fea2c8d86e36f29bffac92, with source/trace in /Volumes/TestScratch/tmp/pair-slot5/pair-761-native-reattach.Id4Vb5. Filed independent unclaimed pair#764 for that double-close and discarded-error class; no fixture fix is stacked here.
+
+The trace also establishes that current warm attach/detach does not invoke SessionOwnerProbe, so this run is client behavior evidence only. A distinct owner-control schedule is required before close: explicit production Probe/Revalidate before resume and after both detach boundaries, each requiring Owned, the same exact server generation and counted native pane queries. No blind retry of the previous acceptance is used. Full Couch supervisor restart stays with #744 after this prerequisite lands.
+
+### 2026-10-21 — explicit native ownership boundary qualified
+
+The distinct owner-control overlay on unchanged source HEAD830f29d9ef0892b6fb8d06869a4840eed28f7ad9 completed in3.56s. Actual SessionOwnerProbe.Probe and Revalidate succeeded before the first Resume and after each of two Detach calls; each required Owned and exact server86965/generation1792573021.266006. Each boundary emitted2actual list-panes queries,6total, all stdout3848bytes/stderr0/exit0, with zero failure-only version queries. Both managed attach/detach cycles succeeded inside the same45s caller budget. Whole command still FAILED solely on the preserved #764 already-closed PTY diagnostic, not on ownership or client behavior. Independently observed exact server absent and both private roots removed; no residue or test retry.
+
+Durable log/source are workshop/evidence/000761/owner-reattach-{native.log,source.go.txt}; full native trace/overlay in /Volumes/TestScratch/tmp/pair-slot5/pair-761-native-owner.fhLcYT. Log SHA256b06f0141da241ecc8cc6564d39a41d9ca31188cbe2c03701b0c18580b4bddb86; source SHA256aa974d1b81a16f32630c7626bf4b8d338bb883e89299b485f2a9b9e907b96eae. This supplies actual owner/managed-client acceptance, while honestly retaining the independent fixture failure; it does not claim a full supervisor restart. That final installed three-worker matrix remains #744's required post-landing qualification under the TL's prerequisite sequence.
 
 ## Estimate
 
