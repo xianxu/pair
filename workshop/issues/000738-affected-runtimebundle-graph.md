@@ -64,6 +64,28 @@ there cannot repair discovery. Filed unclaimed ariadne#517 for the provider seam
 The hub approved this dependency and parked #738 while assigning #736. No code,
 dummy embed, partial -e graph, or local-gates label was introduced.
 
+### 2026-10-21 — red/green consumer qualification
+
+Quick change-code admitted after main integration. New actual-provider test
+failed before the declaration with missing bounded runtime preparation: nil.
+Added graph_prepare {command:[make,runtimebundle-generate],timeout_minutes:2}.
+Against the unmodified current ariadne source, the complete affected-config
+qualification passes (14.966 s), including native clean Pair archive missing
+embeds → actual declared generator → exact Go-only selection, plus a broken
+import that still fails graph loading. The archive contains tracked HEAD only,
+not generated files from this checkout. Fixture command groups are cancelled
+and reaped within their bounded scope; no foreground/native fleet is involved.
+
+The sibling slot's ariadne checkout predates #517, so its Config lacks
+GraphPrepare. Qualification now explicitly requires #517 source; implicit old
+providers are unavailable evidence and give the existing visible SkipTest with
+an actionable source override. An explicit incompatible source still fails.
+The successful measured qualification used ARIADNE_AFFECTED_SOURCE pointing at
+the current primary ariadne checkout; no provider source was modified. Normal
+fixture execution here therefore reports one source-unavailable skip; that is
+not claimed as successful qualification. The full recorded check remains due.
+
+
 ## Revisions
 
 ### 2026-10-20 — prepare at the graph owner
