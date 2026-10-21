@@ -1,13 +1,21 @@
 ---
 id: 000768
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '1899fd8ad34e598d428cdf5e47b3caeda7546e3f' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'd1b258c6b57be47406e1427b9f54535b2cea7b70' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-21T05:20:49-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Preserve short-lived command output across Darwin PTY slave close
@@ -30,8 +38,26 @@ Preserve final output for admitted short-lived non-terminal-aware commands under
 
 ## Plan
 
-- [ ]
+Proposed design: [durable plan](../plans/000768-darwin-pty-final-output-plan.md). Await TL approval before change-code. Recommend full flow for launch/lifetime risk, with one atomic review boundary.
+
+- [ ] Approve Darwin-only retained slave for scribe, scope, native acceptance clarification and full flow.
+- [ ] Pin delayed-first-read loss with an out-of-band child stdio-close barrier; implement scribe-local start/lease ownership.
+- [ ] Qualify normal drain, abort cleanup, interactive behavior, exit/signals and resource lifetimes.
+- [ ] Document audited remaining exposures, qualify the public built command, run recorded suite, close/review and land.
 
 ## Log
 
 Discovered while investigating #766. Public scribe command is direct evidence of production admission; the shipped documented shell hook normally wraps a long-lived /bin/zsh, whose slave reference protects its ordinary subprocesses. Explicit scribe printf and final shell exec remain exposed. File unclaimed per TL instruction; do not expand #766's approved fixture-only scope.
+
+
+### 2026-10-21 — planning checkpoint (pending approval)
+
+Audited all three production launch owners: scribe, wrap's runProxy/startNativePTY, and ptychild.Start (Couch/term). Recommend retaining one parent slave on Darwin through scribe's existing output drain, releasing before the sole child wait. Preserve original exec.Cmd/direct startup and synchronous executable failures; no helper protocol, retries or deadlines.
+
+Native planning probe forced child stdio closure before first master read: unprotected baseline lost final-marker; child /dev/tty and parent retention each preserved it. The retained variant reached EOF while retained and exited7. This is feasibility evidence, not automated acceptance.
+
+Do not generalize this patch: wrap uses EOF to stop a still-live process group, so retention changes a target that closes stdio then keeps running. ptychild exposes EOF as input-ended before reap/publication. Both remain exposed and need separate lifetime designs; file unclaimed follow-ups only after TL approves scope. ARCH-PURPOSE/DRY shaped the scribe-local choice; ARCH-STATE/FUNERAL require explicit lease release and one wait owner. Abort must close the master before joining wait, because exit may be blocked draining unread output.
+
+## Revisions
+
+- 2026-10-21 (proposed, pending TL approval): choose scribe-only Darwin retained-slave ownership after auditing other production owners. Original Spec remains the scope contract. Clarify the first Done when, originally “write and exit before the first master read”: require finished writes and closure of all child-owned slave descriptors before the first read, then exact stdout/log, EOF and correct reap status. A protected child may be in kernel exit-drain, so requiring waitpid completion before reading would deadlock. The durable plan records both alternatives, remaining exposures and qualification. No production/test edits yet.
