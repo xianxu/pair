@@ -1,13 +1,21 @@
 ---
 id: 000752
-status: open
+status: working
 deps: [pair#751]
 github_issue:
 created: 2026-10-20
-updated: 2026-10-20
+updated: 2026-10-21
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '103965af822b7e8b04ff2ce40a6c604970527653' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'ed3d001d26a410dd0641da6fed0f994c30a7ae36' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-21T00:30:29-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:9
+    worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
+    repository: github.com/xianxu/pair
 ---
 
 # cast-sketch: live console and driver drawing with pen pressure
@@ -41,7 +49,7 @@ Primary surfaces: board/{sketch.go,sketch_authority.go,sketch_wire.go,writer.go,
 
 ## Plan
 
-- [ ] Claim/start-plan after dependencies land; write the slice-specific execution plan.
+- [x] Claim/start-plan after dependencies land; write the slice-specific execution plan at [000752-cast-sketch-drawing-plan.md](../plans/000752-cast-sketch-drawing-plan.md).
 - [ ] Implement and verify the Spec and Done when through the normal SDLC gates.
 
 ## Log
@@ -49,3 +57,9 @@ Primary surfaces: board/{sketch.go,sketch_authority.go,sketch_wire.go,writer.go,
 ### 2026-10-20
 
 - Filed from operator-approved #750 design via ops:0. Left unclaimed for TL dispatch.
+
+### 2026-10-21 — execution design
+
+- #751 landed as PR505 in train216/PR508, with branch full suite10m7s and integrated full suite11m57s; final CI passed. Its post-land local cleanup hit known ariadne#512. Per TL instruction preserved the landed branch, added evidence to that issue, returned to main-slot9 and fast-forwarded before claiming/starting this issue.
+- Using writing-plans with read-only bounded browser/protocol/producer exploration. ARCH-ORDER: extend existing driving owner with a sketch-only revocation witness/epoch to fence A→B→A and release-in-progress; actor rechecks it without taking controller locks. ARCH-DRY: capture exact prospective source from Hub on the writer, reuse shared model/placement/tool, and deliver small operator render patches rather than copying full history per chunk.
+- Draft plan records source/queue/delivery bounds, state/recovery mapping, generated/held-interleaving tests and required real console smoke. Checking actual console frame isolation before approval. No implementation or estimate yet.
