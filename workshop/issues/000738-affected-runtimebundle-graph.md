@@ -130,3 +130,12 @@ is queued as attempt80323f0ee9a2368b32f90e3fdc3bff3b. No pass is claimed.
 Review may overlap the queued recorded check under tl-worker rules. The only
 remaining Plan item is operator local-gates verification; it stays unchecked,
 and CI/merge still require the operator label. No agent will apply it.
+
+
+### 2026-10-21 — close BR-1 documentation
+
+The first close found only the README missing the graph-preparation contract
+and its newer provider prerequisite. Documented the same-private-checkout
+generator, two-minute bound and conservative fallback, distinguishing basic
+affected support (#473) from preparation qualification (#517). No runtime or
+test change; the already queued recorded code check remains applicable.
