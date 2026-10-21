@@ -2510,7 +2510,13 @@ requests retain their exact executors. Actual cold native resume and the thin
 `Reboot`/`ResumeCandidate` facades enter `executePreparedRecovery`
 (`recovery_prepared.go`). Native resume carries no Prompt. Fresh allocates a new
 tag and uses the normal #522 Prompt to point at previous-screen, branch and issue
-evidence. The raw unreadable-primary archive escape stops and launches nothing.
+evidence. The raw unreadable-primary archive escape stops and launches nothing. Recordless numbered-slot
+Fresh uses this same recovery launch tail: its new record and creating start
+claim commit a tagged Fresh intent together, then the producer rereads the
+committed record and supplies the existing RecoveryAuthority. Pair validates the
+exact helper, nonce, address, revision, agent and cwd before advancing that
+address's reserved marker. It does not treat FreshRequired alone as authority to
+establish an address (#747).
 
 Preparation resolves the normal saved profile, preserves available screen and
 durable selection, and obtains exact, expiring stop acceptance before retirement.
