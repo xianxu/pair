@@ -376,14 +376,14 @@ says who did what.
 A viewer that joins late receives the **catch-up**, followed by new live records. Its DOM/assets/notes portion keeps
 `head`, asset bindings, bare historical `seg`/`stop` records preserving note document identity, all note creations,
 revisions/states and clear barriers, current-document pointer strokes, and the latest segment's page records.
-Only the latest `hover` and `ptr` remain. Recordings without sketches keep the existing latest-pre-segment `ctl`
-baseline and subsequent control events.
+Only the latest `hover` and `ptr` remain. Every recording keeps the existing latest-pre-segment `ctl`
+baseline and contiguous current-segment control events, which driver-attributed DOM changes need.
 
 For sketch-bearing prefixes, `recording.CatchUp` reduces the accepted prefix through the same State, removes sketch
-and control history from the retained portion, and appends one derived `sketch-snapshot` bootstrap. It carries the
+history from the retained portion, and appends one derived `sketch-snapshot` bootstrap. It carries the
 current driving holder/pending control plus bounded sketch history: source metadata, finished and active sketches,
 accepted stroke points/chunks, open/sealed/truncated flags, visible/redo stacks, receipts, sequence and byte counters.
-It preserves accepted state without retaining control chatter. Repeated compaction consumes the prior bootstrap
+It adds no historical control retention beyond that existing baseline/current-segment contract. Repeated compaction consumes the prior bootstrap
 and new events; the append-only recording on disk remains complete.
 
 `sketch-snapshot` is catch-up-only, absent from the persisted kind registry and refused by ordered producers.

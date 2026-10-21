@@ -29,7 +29,7 @@ export function catchUp(recs) {
   if (model.control.driver) control.driver = structuredClone(model.control.driver);
   if (model.control.pending.length) control.pending = structuredClone(model.control.pending);
   const out = catchUpRecords(recs).filter(r =>
-    !SKETCH_KINDS.includes(r.k) && r.k !== 'sketch-snapshot' && r.k !== 'ctl');
+    !SKETCH_KINDS.includes(r.k) && r.k !== 'sketch-snapshot');
   out.push({t: model.t, k: 'sketch-snapshot', control, sketches: model.sketchProjection()});
   return out;
 }

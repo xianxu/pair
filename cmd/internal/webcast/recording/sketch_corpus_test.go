@@ -82,6 +82,7 @@ func makeSketchCorpus(t *testing.T) sketchCorpus {
 	drivenBegin.Author = who
 	drivenBegin.Owner = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 	c := sketchCorpus{Cases: []sketchCorpusCase{
+		corpusCase(t, "driver-DOM", &Ctl{Op: CtlRequest, Who: who, Control: Control{Pending: []Author{who}}}, &Ctl{Op: CtlGrant, Who: who, Control: Control{Driver: &who}}, drivenBegin, &Click{Source: Source{By: who.ID}, ID: 3, X: 1, Y: 2}),
 		corpusCase(t, "driver-reset", &Ctl{Op: CtlRequest, Who: who, Control: Control{Pending: []Author{who}}}, &Ctl{Op: CtlGrant, Who: who, Control: Control{Driver: &who}}, drivenBegin, sketchStroke(1, "a"), p(2, "a", 0, SketchPoint{1, 2, .4}), &Ctl{Op: CtlReset, Who: Author{ID: OperatorID}}, &SketchLabel{SketchOperation: sketchOp(3), Sketch: "sk", Label: "Reset"}),
 		corpusCase(t, "navigate-open", sketchBegin(), sketchStroke(1, "a"), p(2, "a", 0, SketchPoint{1, 2, .4}), &Seg{Seg: 2, Why: SegNavigate, Tab: Tab{ID: "tab2", URL: "http://x/2"}, VP: Viewport{W: 100, H: 100, DPR: 1}}, &SketchLabel{SketchOperation: sketchOp(3), Sketch: "sk", Label: "Navigated"}),
 		corpusCase(t, "cast-end-open", sketchBegin(), sketchStroke(1, "a"), p(2, "a", 0, SketchPoint{1, 2, .4}), &Stop{Why: StopEnd}, &SketchLabel{SketchOperation: sketchOp(3), Sketch: "sk", Label: "too late"}),

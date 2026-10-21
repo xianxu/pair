@@ -33,7 +33,7 @@ func CatchUp(recs []Record) []Record {
 	retained := catchUpRecords(recs)
 	out := make([]Record, 0, len(retained)+1)
 	for _, r := range retained {
-		if sketchMetadata(r) == nil && r.Kind() != "sketch-snapshot" && r.Kind() != "ctl" {
+		if sketchMetadata(r) == nil && r.Kind() != "sketch-snapshot" {
 			out = append(out, r)
 		}
 	}

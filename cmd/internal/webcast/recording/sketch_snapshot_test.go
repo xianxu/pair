@@ -134,7 +134,8 @@ func TestSketchCatchUpSnapshotsAtEveryPrefixAndCompaction(t *testing.T) {
 	recs = append(recs, begin)
 	who := Author{ID: "viewer"}
 	for i := 0; i < 1000; i++ {
-		recs = append(recs, &Ctl{Header: Header{T: int64(i*2 + 2)}, Op: CtlRequest, Who: who, Control: Control{Pending: []Author{who}}}, &Ctl{Header: Header{T: int64(i*2 + 3)}, Op: CtlDeny, Who: who})
+		recs = append(recs, &Ctl{Header: Header{T: int64(i*3 + 2)}, Op: CtlRequest, Who: who, Control: Control{Pending: []Author{who}}}, &Ctl{Header: Header{T: int64(i*3 + 3)}, Op: CtlDeny, Who: who})
+		recs = append(recs, &Seg{Header: Header{T: int64(i*3 + 4)}, Seg: i + 2, Why: SegResume, Tab: Tab{ID: "tab1"}, VP: Viewport{W: 100, H: 100, DPR: 1}})
 		recs = CatchUp(recs)
 	}
 	count := 0
@@ -143,11 +144,11 @@ func TestSketchCatchUpSnapshotsAtEveryPrefixAndCompaction(t *testing.T) {
 			count++
 		}
 	}
-	if count != 1 {
+	if count != 2 {
 		t.Fatalf("control chatter retained %d records", count)
 	}
 	encoded, _ := Encode(recs[len(recs)-1])
-	if len(encoded) > 4096 || len(recs) > 4 {
+	if len(encoded) > 4096 {
 		t.Fatal("unexpected fixture growth")
 	}
 }

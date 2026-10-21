@@ -1,6 +1,305 @@
 {
  "cases": [
   {
+   "name": "driver-DOM",
+   "records": [
+    {
+     "t": 0,
+     "k": "head",
+     "format": "couch-webcast",
+     "v": 1,
+     "id": "driver-DOM",
+     "started": "2026-10-11T00:00:00Z"
+    },
+    {
+     "t": 1,
+     "k": "seg",
+     "seg": 1,
+     "why": "live",
+     "tab": {
+      "id": "tab1",
+      "url": "http://x/"
+     },
+     "vp": {
+      "w": 1280,
+      "h": 800,
+      "dpr": 1
+     }
+    },
+    {
+     "t": 2,
+     "k": "doc",
+     "doc": 4,
+     "url": "http://x/",
+     "tree": {
+      "id": 4,
+      "y": "doc",
+      "c": [
+       {
+        "id": 5,
+        "y": "doctype",
+        "n": "html"
+       },
+       {
+        "id": 3,
+        "y": "el",
+        "n": "html",
+        "c": [
+         {
+          "id": 1,
+          "y": "el",
+          "n": "head"
+         },
+         {
+          "id": 2,
+          "y": "el",
+          "n": "body"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "t": 3,
+     "k": "ctl",
+     "op": "request",
+     "who": {
+      "id": "driver",
+      "name": "Ana",
+      "color": "#00ff00"
+     },
+     "pending": [
+      {
+       "id": "driver",
+       "name": "Ana",
+       "color": "#00ff00"
+      }
+     ]
+    },
+    {
+     "t": 4,
+     "k": "ctl",
+     "op": "grant",
+     "who": {
+      "id": "driver",
+      "name": "Ana",
+      "color": "#00ff00"
+     },
+     "driver": {
+      "id": "driver",
+      "name": "Ana",
+      "color": "#00ff00"
+     }
+    },
+    {
+     "t": 5,
+     "k": "sketch-begin",
+     "operation": "op-0",
+     "sequence": 0,
+     "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "id": "sk",
+     "author": {
+      "id": "driver",
+      "name": "Ana",
+      "color": "#00ff00"
+     },
+     "owner": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "doc": 1,
+     "tab": "tab1",
+     "vp": {
+      "w": 100,
+      "h": 100,
+      "dpr": 1
+     }
+    },
+    {
+     "t": 6,
+     "k": "click",
+     "by": "driver",
+     "id": 3,
+     "x": 1,
+     "y": 2
+    }
+   ],
+   "prefixes": [
+    {
+     "error": false,
+     "t": 0,
+     "control": {},
+     "projection": {
+      "active": "",
+      "history_bytes": 0,
+      "sketches": []
+     }
+    },
+    {
+     "error": false,
+     "t": 1,
+     "control": {},
+     "projection": {
+      "active": "",
+      "history_bytes": 0,
+      "sketches": []
+     }
+    },
+    {
+     "error": false,
+     "t": 2,
+     "control": {},
+     "projection": {
+      "active": "",
+      "history_bytes": 0,
+      "sketches": []
+     }
+    },
+    {
+     "error": false,
+     "t": 3,
+     "control": {
+      "pending": [
+       {
+        "id": "driver",
+        "name": "Ana",
+        "color": "#00ff00"
+       }
+      ]
+     },
+     "projection": {
+      "active": "",
+      "history_bytes": 0,
+      "sketches": []
+     }
+    },
+    {
+     "error": false,
+     "t": 4,
+     "control": {
+      "driver": {
+       "id": "driver",
+       "name": "Ana",
+       "color": "#00ff00"
+      }
+     },
+     "projection": {
+      "active": "",
+      "history_bytes": 0,
+      "sketches": []
+     }
+    },
+    {
+     "error": false,
+     "t": 5,
+     "control": {
+      "driver": {
+       "id": "driver",
+       "name": "Ana",
+       "color": "#00ff00"
+      }
+     },
+     "projection": {
+      "active": "sk",
+      "history_bytes": 328,
+      "sketches": [
+       {
+        "begin": {
+         "t": 5,
+         "k": "sketch-begin",
+         "operation": "op-0",
+         "sequence": 0,
+         "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "id": "sk",
+         "author": {
+          "id": "driver",
+          "name": "Ana",
+          "color": "#00ff00"
+         },
+         "owner": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+         "doc": 1,
+         "tab": "tab1",
+         "vp": {
+          "w": 100,
+          "h": 100,
+          "dpr": 1
+         }
+        },
+        "phase": "drawing",
+        "reason": "",
+        "label": "",
+        "strokes": [],
+        "visible": [],
+        "redo": [],
+        "next_sequence": 1,
+        "receipts": [
+         {
+          "operation": "op-0",
+          "sequence": 0,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-begin:{\"author\":{\"color\":\"#00ff00\",\"id\":\"driver\",\"name\":\"Ana\"},\"doc\":1,\"id\":\"sk\",\"operation\":\"op-0\",\"owner\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"sequence\":0,\"tab\":\"tab1\",\"vp\":{\"dpr\":1,\"h\":100,\"w\":100}}"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "error": false,
+     "t": 6,
+     "control": {
+      "driver": {
+       "id": "driver",
+       "name": "Ana",
+       "color": "#00ff00"
+      }
+     },
+     "projection": {
+      "active": "sk",
+      "history_bytes": 328,
+      "sketches": [
+       {
+        "begin": {
+         "t": 5,
+         "k": "sketch-begin",
+         "operation": "op-0",
+         "sequence": 0,
+         "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "id": "sk",
+         "author": {
+          "id": "driver",
+          "name": "Ana",
+          "color": "#00ff00"
+         },
+         "owner": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+         "doc": 1,
+         "tab": "tab1",
+         "vp": {
+          "w": 100,
+          "h": 100,
+          "dpr": 1
+         }
+        },
+        "phase": "drawing",
+        "reason": "",
+        "label": "",
+        "strokes": [],
+        "visible": [],
+        "redo": [],
+        "next_sequence": 1,
+        "receipts": [
+         {
+          "operation": "op-0",
+          "sequence": 0,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-begin:{\"author\":{\"color\":\"#00ff00\",\"id\":\"driver\",\"name\":\"Ana\"},\"doc\":1,\"id\":\"sk\",\"operation\":\"op-0\",\"owner\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"sequence\":0,\"tab\":\"tab1\",\"vp\":{\"dpr\":1,\"h\":100,\"w\":100}}"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
    "name": "driver-reset",
    "records": [
     {

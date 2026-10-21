@@ -152,8 +152,8 @@
       "cmd/internal/wrapcmd/translate_test.go": "19a77f27b5eeb7686ae076513a3e5064257d9f9c8ed36c3cc71e423e2f599e04",
       "cmd/internal/zellijtest/fake_test.go": "0820421bf6161904427c0ac989b550cbcfaa3a964538f6da00219b6aac5d042f",
       "cmd/pair-go/main_test.go": "3006109d07471c179dd742acf66901abe00868868f680694b5f75d75073cd99b",
-      "cmd/internal/webcast/recording/sketch_corpus_test.go": "63c7b2a12cac7382f7b3599d4c48c56dfbf617680d4ea4487793e25794c84cbf",
-      "cmd/internal/webcast/sketch/geometry_test.go": "10213e9ec3f3ab537e9e65633b25ec48ecba88644890b55d86900acfbda42a09"
+      "cmd/internal/webcast/sketch/geometry_test.go": "10213e9ec3f3ab537e9e65633b25ec48ecba88644890b55d86900acfbda42a09",
+      "cmd/internal/webcast/recording/sketch_corpus_test.go": "415642f9b97a4cda1ad2f60f7da2b73ba8739ae540a8c2185dd0cd4d71e57683"
     },
     "local_or_literal_fixture": {
       "cmd/couch/binary_test.go": "43767cf88cd38b404edd7df16cc7a646359171649eaf63adfbe4952f68fc4aa6",
