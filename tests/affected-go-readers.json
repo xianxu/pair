@@ -472,7 +472,9 @@
       "cmd/internal/launcher/startup_owner_timing_live_test.go": "a85a48f13628c166b0a56e5f62cf0ed03c9b0a37d61b096a6247a7f0679642ea",
       "cmd/internal/layoutcmd/fullscreen_conformance_live_test.go": "7778baaeb16a4ac92ed9e946b0399fffa90f5dafe31a40d7a54ed3183edad6e3",
       "cmd/internal/layoutcmd/terminal_recovery_live_test.go": "c5f0ce42d6030703e573b71205def04757a9c7b7c0d19b27995f7b92f15c8517",
-      "cmd/internal/pairlifecycletest/live_zellij_close_test.go": "c66279b0a7a43300426484b492e802b05624ac3e241fc1d1768cdddcc1dfc66d"
+      "cmd/internal/pairlifecycletest/live_zellij_close_test.go": "c66279b0a7a43300426484b492e802b05624ac3e241fc1d1768cdddcc1dfc66d",
+      "cmd/internal/scribecmd/scribecmd_test.go": "6b1afc8f2af9662382a0c2a09d5b82dcffd59e8ce7c43ec92daba1709e287c85",
+      "internal/repolint/scribe_pty_printf_test.go": "ecbc901757b6e7b0b5de2cf8d266e994daf794bb280908756596432272abf655"
     }
   }
 }

@@ -40,9 +40,9 @@ Find and fix the actual PTY output-loss cause, pin it with a regression that rej
 
 ## Plan
 
-- [ ] Trace the PTY launch/read/EOF and test lifetime with native probes; distinguish discarded kernel output from wrapper/test races.
-- [ ] Pin the confirmed cause, implement the smallest ownership/synchronization correction, and verify the original stress case.
-- [ ] Run recorded verification, close review and landing; closure retires the flake registration.
+- [x] Trace the PTY launch/read/EOF and test lifetime with native probes; distinguish discarded kernel output from wrapper/test races.
+- [x] Pin the confirmed cause, implement the smallest ownership/synchronization correction, and verify the original stress case.
+- [x] Start recorded verification and close review; landing remains gated on passing results and retires the flake registration.
 
 ## Log
 
@@ -61,3 +61,5 @@ Find and fix the actual PTY output-loss cause, pin it with a regression that rej
 - The newly added 1000-launch stress check happened to pass on the old fixture in one run, consistent with intermittency; the original exact test had already failed 10/10000, and the instrumented native wrapper 41/5000. No lucky rerun is used as root-cause proof. The explicit terminal reference and two-way handshake are the repair; stress guards the observed failure rate.
 
 - Done when reconciled to the TL-approved fixture-only scope before the first code commit: the original generic flake template promised a root fix without distinguishing the producer fixture from public production exposure. #768 owns the latter; acceptance now names the actual fixture protocol, stress and retirement evidence.
+
+- Verification: repaired exact tee test count=100 passed (1.075 s); full scribecmd race run including 1000-launch stress passed (12.448 s). Ten repetitions of the 1000-launch native stress passed with zero failures in 109.902 s (10000 launches, no retries). Full repolint passed, including 12 new scanner cases. The rule first rejected the real original bare printf source; fixture repair cleared it. Affected-reader inventory passed after auditing only private log files, /dev/tty and literal fake scanner inputs as local_or_literal_fixture. No production source changed. Recorded verification starts on this code head.
