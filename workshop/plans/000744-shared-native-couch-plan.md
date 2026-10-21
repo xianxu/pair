@@ -270,3 +270,7 @@ Source inspection established that pre-exec pane-shell stderr and an effective e
 | dumpStartupPane and bounded startupOutput stream adapter | cmd/internal/testcouch/startup_evidence.go | new | existing native query runner, explicit private sockets/environment, one derived diagnostic context |
 
 Per startup, four allowlisted environment values are selected once; no per-byte work is added. Capture visits each bounded log line/identity once, holds at most five ranking candidates, retains four sources, scans at most129 directory entries and retains32 names. Log reads64KiB, per-source/native output16KiB; truncation/unavailable are explicit. N/2N tests count visits8/16 for log rows, names and identity selection. Stateful executable tests qualify argv, actual private socket env, native refusal/output cap and no ambient secret inheritance. Core state remains the existing OwnedRun and correlated mailbox; diagnostic values grant no lifecycle or cleanup authority.
+
+### 2026-10-21 — final approved source contour verified
+
+Final clean code 5ecbef821f2d64af2564de889bd6e781277ee7a6 passes the authorized real Claude/Codex three-worker matrix93.20s, with all cohort/delivery/restart/cleanup checks and no native retry on that head. The Log/evidence retain both independent product failures (772,773), all prior successful qualification and747 cross-reference. Required final recorded suite and full close still precede landing.
