@@ -195,3 +195,102 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T03:17:32-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 743 — conformance: run couch-zellij-conformance in a local Tart VM as a declared local check; GitHub job becomes a non-required main/weekly backstop |
+| repo | pair |
+| issue file | workshop/issues/000743-conformance-run-couch-zellij-conformance-in-a-local-tart-vm-as-a-declared-local-check-github-job-becomes-a-non-required-main-weekly-backstop.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | 49ba55e48927d0bda057725b581940f555b4d90a..28877f6738ccb749e5b4c1015a4bf6ef46969f1d |
+| command | sdlc milestone-close --issue 743 --milestone M3 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T03:17:32-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range satisfies the revised M3 scope. BR-6 is addressed with a reachable correction and a regression that fails against the previous implementation. No new blocking findings emerged. Production named-check bootstrap remains an explicit post-landing step.
+
+```findings
+dispose:
+  - id: BR-6
+    disposition: addressed
+    note: |
+      scripts/vm/nightly.sh:32-52 uses checked lstat metadata for both accounting and recursion; enumeration and metadata errors propagate. All 18 nightly tests pass. Running the new directory-classification regression against the previous script fails because hidden bytes disappear and admission proceeds.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      The previously accepted correction remains intact: reserved_night_bytes retains the full bundle reservation regardless of leader exit or manifest contents. The surviving-writer regression passes.
+```
+
+1. **Strengths**
+
+   - Retention now enforces one accounting rule across traversal and metadata failures.
+   - Stateful tests cover cancellation, surviving writers, exact-main selection, duplicate dates, and archive recovery.
+   - The declaration preserves the required suite and shares the conformance path catalog.
+   - README, atlas, and scheduler handoff document the new command and evidence lifecycle.
+
+2. **Critical findings**
+
+   None.
+
+3. **Important findings**
+
+   None.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - Passed 58 targeted Python tests, focused Go slot-audit tests, and VM pure-core tests.
+   - Confirmed the BR-6 regression fails against the previous script for the reported accounting defect.
+   - Independently replayed retained native evidence: clean output validates 413 events and all 28 required cases; known-bad output rejects the deliberate skip.
+   - Full suite and live Tart execution were not repeated.
+
+6. **Architectural notes**
+
+   | Principle | Assessment |
+   |---|---|
+   | ARCH-DRY | Pass: existing VM/provider ownership and shared selection catalogs are reused. |
+   | ARCH-PURE | Pass: deterministic validation remains separate from IO orchestration. |
+   | ARCH-PURPOSE | Pass: revised M3 burn-in scope is delivered without premature activation. |
+   | ARCH-MOCK | Pass: stateful executable fixtures exercise the production command boundary. |
+   | ARCH-CONSTRAINTS | Pass: conservative reservations and checked accounting enforce admission bounds. |
+   | ARCH-SECURE | Pass: unknown filesystem metadata visibly refuses admission. |
+   | ARCH-ORDER | Pass: leader termination no longer releases surviving writers’ capacity. |
+   | ARCH-FUNERAL | Pass: evidence retention, archive ownership, and disposal responsibility are explicit. |
+   | ARCH-EVOLVE | Pass: no lossy persisted-format rewrite introduced. |
+
+   Core-concept mappings match the delivered seams and governing revisions. Scheduler registration and named-check bootstrap remain external follow-through.
+
+7. **Plan revision recommendations**
+
+   None. The 03:13 revision accurately describes the checked traversal mechanism and regression.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"85b5204f-f145-44d2-a115-57aba7ec3246","repository":"github.com/xianxu/pair","issue_id":"000743","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/cad8e14b0de816c3","reviewed_head":"28877f6738ccb749e5b4c1015a4bf6ef46969f1d","slot":"pair:3","requested_at":"2026-10-21T10:15:34.35479Z"},"phase":"finished","pid":26132,"started_at":"2026-10-21T10:15:34.562763Z","finished_at":"2026-10-21T10:17:32.286249Z","session_id":"01a15df5-89cd-7213-a7c6-872902615191","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.90878975s
+head: "28877f6738ccb749e5b4c1015a4bf6ef46969f1d"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000411
