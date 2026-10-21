@@ -81,13 +81,14 @@ total: 5.06
 
 Full-flow durable design: [local VM conformance plan](../plans/000743-local-vm-conformance-plan.md). Awaiting hub approval before implementation.
 
-- [ ] M1 — Refreshed image and generic isolated runner.
+- [x] M1 — Refreshed image and generic isolated runner.
 - [ ] M2 — Strict Pair conformance and runnable named check.
 - [ ] M3 — Nightly burn-in handoff and initial infrastructure landing.
 
 ## Log
 
 ### 2026-10-20
+- 2026-10-20: closed M1 — Qualified pinned Tahoe image and official Zellij; real runner success, exit37, positive-launch timeout124 and clean reuse with immutable tracked input/isolation evidence in workshop/evidence/000743. Review corrections: six controlled cancellation points never activate, merged manifest exact65536 accepted/65537 preserves prior bytes, actual plan mapping reconciled. vmcmd race49.768s; dispatcher/main/artifact source pass; repolint10.937s; nine provisioning tests; inventory and syntax pass. Recorded affected check queued on pushed fix head; required pass precedes landing.; review verdict: SHIP
 
 - Claimed in pair:3 and entered planning. Read-only audit confirms Tart 2.32.1; stopped pair-test last accessed 2026-06-09, four CPUs/8 GiB, 50 GiB virtual disk. No VM was started or modified during planning.
 - ARCH-DRY: interactive `.tart` is inherited, ignored dev infrastructure with best-effort hooks/final SSH status; the CI runner must have a strict command/cleanup boundary. The generic runner owns two fixed machine positions, not a second scheduling queue.

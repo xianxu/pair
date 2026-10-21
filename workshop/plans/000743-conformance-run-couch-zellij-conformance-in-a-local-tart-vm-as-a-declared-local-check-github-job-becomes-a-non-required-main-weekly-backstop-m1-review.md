@@ -108,3 +108,91 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T22:16:38-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 743 — conformance: run couch-zellij-conformance in a local Tart VM as a declared local check; GitHub job becomes a non-required main/weekly backstop |
+| repo | pair |
+| issue file | workshop/issues/000743-conformance-run-couch-zellij-conformance-in-a-local-tart-vm-as-a-declared-local-check-github-job-becomes-a-non-required-main-weekly-backstop.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | e30ea629818a733f65741bfc95c11de8e1868f34..ca1e57116e68be45336ef22d0b7f8b80f1681234 |
+| command | sdlc milestone-close --issue 743 --milestone M1 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T22:16:38-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range satisfies the revised M1 scope. All three prior findings are addressed, with executable regression evidence for both behavior fixes. No new blocking findings emerged. M2 conformance integration and M3 nightly delivery remain explicitly outstanding.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      provision.go:85-119 now requires reducer success authority and checks original-caller cancellation before sealing/publication. TestProvisionCancellationNeverActivates passes at head; removing those guards in a disposable copy made all six cancellation stages fail with activation and changed manifest bytes.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      provision.go:239 enforces the shared 64 KiB bound before replacement. TestPublishProvisionManifestSizeBoundary verifies readable exact-limit publication and unchanged prior bytes on overflow; removing the writer guard reproduced publication of an unreadable 65,537-byte manifest.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      The plan's corrected integration table at lines 59-67 names the existing runtime/host, driver, platform positions, snapshot, process and guest files. The 22:07 Revisions entry explains this mapping; the pinned before/after diff and delivered files agree.
+```
+
+1. **Strengths**
+   - Provisioning activation now consumes reducer authority and retains cancellation checks through publication.
+   - Git and Tart subprocesses share termination-before-reap ownership.
+   - Guest results use bounded transport without a writable host share.
+   - README and atlas document the new commands, resource limits and recovery behavior.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+   - Passed VM, dispatcher and public CLI package tests.
+   - Passed the complete VM race suite, nine provisioning-script tests, shell syntax checks and targeted source-inventory guards.
+   - Both behavior regressions failed when their fixes were removed in a disposable copy, subsequently deleted.
+   - Inspected retained native qualification evidence; no live VM provisioning or boot was performed during this review. Repository status remained clean.
+
+6. **Architectural notes**
+   - **ARCH-DRY — Pass:** shared subprocess owner and manifest codec.
+   - **ARCH-PURE — Pass:** request, codec, invocation and transition decisions remain separate from IO.
+   - **ARCH-PURPOSE — Pass:** revised M1 delivered; later milestones remain visible.
+   - **ARCH-MOCK — Pass:** stateful doubles exercise production runtime/driver seams; native qualification evidence is retained.
+   - **ARCH-CONSTRAINTS — Pass:** snapshot, export, artifact and manifest bounds have adversarial coverage.
+   - **ARCH-SECURE — Pass:** isolated guest roots, literal argv, restricted sharing and strict boundary decoding.
+   - **ARCH-ORDER — Pass:** controlled cancellation tests preserve cleanup ownership and prevent late activation.
+   - **ARCH-FUNERAL — Pass:** normal cleanup, bounded retention and explicit uncertain-residue recovery.
+   - **ARCH-EVOLVE — Pass:** additive metadata preservation and strict validation have regression coverage.
+
+7. **Plan revision recommendations:** None required for M1.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"b1c631a8-52f9-437e-b610-74e7845ca2a0","repository":"github.com/xianxu/pair","issue_id":"000743","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/a7e0afb2d3bfa270","reviewed_head":"ca1e57116e68be45336ef22d0b7f8b80f1681234","slot":"pair:3","requested_at":"2026-10-21T05:14:12.208796Z"},"phase":"finished","pid":84505,"started_at":"2026-10-21T05:14:12.369278Z","finished_at":"2026-10-21T05:16:37.816462Z","session_id":"01a15ce1-9f7f-7122-b7c3-17e314a7ca75","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.573867s
+head: "ca1e57116e68be45336ef22d0b7f8b80f1681234"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000409
