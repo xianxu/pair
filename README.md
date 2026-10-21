@@ -1659,8 +1659,7 @@ never see it.
   - Rotating disconnects everyone who used the old code.
   - Before pointing first makes the pointer link, its row shows `pointer (not made
     yet)`, with no actions; click `👆` to make it.
-- **Wrong guesses.** About 8 wrong tries on one code rotate it by themselves. Couch
-  says so, and viewers already in stay connected.
+- **Wrong guesses.** Every 8 wrong tries force a code change, with a Couch notice. After the third forced rotation, the link refuses new unlocks until you explicitly rotate it in the Codes menu. Successful unlocks do not reset that count; viewers already in stay connected. The third notice says the code changed and the link is locked until you rotate.
 - **What viewers see.** The codes show on your screen only, never in what the LIVE
   broadcast sends, and a notice says that a code changed, never what it is. A new code
   flashes three times over its cell.
