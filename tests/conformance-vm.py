@@ -156,6 +156,16 @@ LIFECYCLE_REQUIRED = {
 }
 
 
+# #432 exclusion is shared with the hosted target through the enforced catalog.
+LIFECYCLE_SKIP = '^TestRecoveryRealHelperAndSessionConformanceLive$/^checkpoint$'
+
+
+def test_pattern(required_by_package):
+    import re
+    names = {name.split('/', 1)[0] for cases in required_by_package.values() for name in cases}
+    return '^(' + '|'.join(re.escape(name) for name in sorted(names)) + ')$'
+
+
 def host_main(root, binary, env):
     """Invoke the generic runner once; it owns leases, artifacts and cleanup."""
     import os
@@ -189,12 +199,11 @@ def guest_main():
     ci = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(ci)
     ci.main()
-    names = sorted({name for cases in LIFECYCLE_REQUIRED.values() for name in cases if '/' not in name})
     env = dict(os.environ, PAIR_LIVE_COUCH='1')
     with tempfile.TemporaryDirectory(prefix='pair-lifecycle-ci-') as scratch:
         command = ['go', 'test', '-p', '1', '-json', *('./' + p.removeprefix('github.com/xianxu/pair/') for p in LIFECYCLE_REQUIRED),
-                   '-run', '^(' + '|'.join(names) + ')$',
-                   '-skip', '^TestRecoveryRealHelperAndSessionConformanceLive$/^checkpoint$',
+                   '-run', test_pattern(LIFECYCLE_REQUIRED),
+                   '-skip', LIFECYCLE_SKIP,
                    '-count=1', '-timeout=5m', '-artifacts', '-outputdir', scratch]
         ci.qualify(command, env, Path(scratch), required=LIFECYCLE_REQUIRED)
     return 0
