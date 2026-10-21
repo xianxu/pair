@@ -524,3 +524,104 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T14:56:55-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 775 — Standalone Zellij false-miss reproduction |
+| repo | pair |
+| issue file | workshop/issues/000775-zellij-false-miss-repro.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 15ab3531692742dd331c850f0d782bfaf94b606b..dd995d96feffc62e3984bebaaeae9b8278ec887c |
+| command | sdlc close --issue 775 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T14:56:55-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff repairs fixture conformance without changing the standalone script, Make target, or public contract. Both executable doubles now use the shared serializer/catalog, and diagnostic bytes remain covered. The added Revisions record this correction rather than expand scope. No new blocking defects found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Complete-stderr comparisons remain unchanged; the refactored actual-worker signature regressions pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      README.md:2435 and the atlas guide retain standalone diagnostic documentation.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      workshop/evidence/000775/run.json still identifies initial-setup-failure.log.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Both bounded-decimal argument validations remain unchanged; actual-main numeric regressions pass.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      The atlas liveness description remains consistent with the heading-line predicate at scripts/repro/zellij-false-miss.sh:34–35.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      The recorded full re-close covers the manual target; this interdiff only repairs test integration and records evidence.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      README.md:2438–2440 explicitly documents make zellij-false-miss and its opt-in behavior.
+```
+
+Done-when: current — this correction supports the existing standalone diagnostic and verification requirements without adding deliverables.
+
+1. **Strengths**
+   - Both executable doubles consume the existing shared fixture serializer.
+   - Explicit fault cases preserve malformed streams, including newline distinctions.
+   - Atlas documentation accurately describes the shared fixture integration.
+   - Retained suite-log hashes match their manifest.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage**
+   - All 15 repro tests and seven generator tests passed.
+   - Both targeted Go contract tests passed.
+   - In a temporary export of the pinned base, the production-decoder guard failed specifically on the unregistered producer; it passes at head. Temporary export removed.
+   - Full suite not rerun. Range whitespace checking reports carriage returns in the retained raw terminal log.
+
+6. **Architecture**
+   - **ARCH-DRY: pass** — reuses the canonical serializer.
+   - **ARCH-PURE: pass** — subprocess/socket work stays in integration fixtures.
+   - **ARCH-PURPOSE: pass** — both executable consumers are covered without exclusions or weakened validation.
+   - **ARCH-EVOLVE: pass** — additive catalog entries; no persisted-format rewrite changes.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"97b3a86a-929d-4f15-80a3-1f8015d93f57","repository":"github.com/xianxu/pair","issue_id":"000775","recipe":"fix-review","round":6,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/5fa08b53d48e192d","reviewed_head":"dd995d96feffc62e3984bebaaeae9b8278ec887c","slot":"pair:5","requested_at":"2026-10-21T21:55:40.786584Z"},"phase":"finished","pid":49587,"started_at":"2026-10-21T21:55:40.877138Z","finished_at":"2026-10-21T21:56:54.489418Z","session_id":"01a16076-7fd4-7371-ac82-06e48e81638f","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.695506333s
+head: "dd995d96feffc62e3984bebaaeae9b8278ec887c"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

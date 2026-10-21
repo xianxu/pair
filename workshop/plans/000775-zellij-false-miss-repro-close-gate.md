@@ -593,6 +593,157 @@ rounds:
       isolation: fenced
       reviewed: 848ab2512db9f362fb3fe2219d288a7bc8e37d5d
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 97b3a86a-929d-4f15-80a3-1f8015d93f57
+            repository: github.com/xianxu/pair
+            issue_id: "000775"
+            recipe: fix-review
+            round: 6
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/5fa08b53d48e192d
+            reviewed_head: dd995d96feffc62e3984bebaaeae9b8278ec887c
+            slot: pair:5
+            requested_at: "2026-10-21T21:55:40.786584Z"
+          phase: finished
+          pid: 49587
+          started_at: "2026-10-21T21:55:40.877138Z"
+          finished_at: "2026-10-21T21:56:54.489418Z"
+          session_id: 01a16076-7fd4-7371-ac82-06e48e81638f
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: dd995d96feffc62e3984bebaaeae9b8278ec887c
+        tracker_head: be201075042107c008a421ecf90d4690c636fd89
+        branch_point: eaa758a6f0cd38837655be5334400098849410ec
+        since: "2026-10-21T10:56:40-07:00"
+        until: "2026-10-21T14:54:27-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-21T10:56:40-07:00"
+              end: "2026-10-21T14:54:27-07:00"
+              began: "2026-10-21T10:56:40-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot5/pair
+        sources:
+            - harness: codex
+              id: 01a1574c-1cb1-7e92-adfe-354342364799
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              digest: 601493490ed9ca9a3266a34f9406ef630a6ac80591c3f124df2498a1452112fb
+              started: "2026-10-20T03:12:49.04Z"
+              spawned: false
+              bytes: 68918878
+              windows:
+                - start: "2026-10-21T10:56:40-07:00"
+                  end: "2026-10-21T14:54:27-07:00"
+            - harness: codex
+              id: 01a15fcf-6ef8-7773-bd25-bcdb05d954fd
+              slot: pair:5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              parent_id: 01a1574c-1cb1-7e92-adfe-354342364799
+              digest: 2e5532325cba42ab68891537948fbbc2d0f06ede08018eedaee6372ac15d9a7f
+              started: "2026-10-21T18:53:12.419Z"
+              spawned: true
+              bytes: 865523
+              windows:
+                - start: "2026-10-21T18:53:12.419Z"
+                  end: "2026-10-21T14:54:27-07:00"
+        queue_waits:
+            - attempt_id: 1854c8857c9461ff2e2db655f22ab7f1
+              slot: pair:5
+              record_digest: b373e1f39283314bbda49da7e134d97c2ec3c508b1294d9658b6f6b5df1cef51
+              start: "2026-10-21T17:56:40Z"
+              end: "2026-10-21T18:30:45.832701Z"
+              queue_seconds: 2045.832701
+              raw_seconds: 2444.526379
+              exact: true
+            - attempt_id: 6157b34a00dabe9beffd6806f952a6df
+              slot: pair:5
+              record_digest: 315f041a17d0e0d4d49d1beb170878f120a59b2f926f3789d4b473edbe773125
+              start: "2026-10-21T19:15:35.920502Z"
+              end: "2026-10-21T19:44:57.409649Z"
+              queue_seconds: 1761.489147
+              raw_seconds: 1761.489147
+              exact: true
+            - attempt_id: 0d79ac4a475c681f06f8b868c3257d8b
+              slot: pair:5
+              record_digest: f8bbd3c7bcac650803306334d4ced0f9461533dbdb8345aac187338e65062a45
+              start: "2026-10-21T20:03:22.407751Z"
+              end: "2026-10-21T20:03:22.891623Z"
+              queue_seconds: 0.483872
+              raw_seconds: 0.483872
+              exact: true
+            - attempt_id: 1855919b848ce48b7b48331aa2818802
+              slot: pair:5
+              record_digest: 7b2a18e50a45cb944a58f5c617ae21ce3976cce35d68182b290d160160ba6a50
+              start: "2026-10-21T20:07:05.001176Z"
+              end: "2026-10-21T21:39:22.067855Z"
+              queue_seconds: 5537.066679
+              raw_seconds: 5537.066679
+              exact: true
+        cuts:
+            - dispatched: "2026-10-21T11:48:47-07:00"
+              finalized: "2026-10-21T11:50:20-07:00"
+              finalizing: false
+            - dispatched: "2026-10-21T12:02:51-07:00"
+              finalized: "2026-10-21T12:05:37-07:00"
+              finalizing: false
+            - dispatched: "2026-10-21T12:16:09-07:00"
+              finalized: "2026-10-21T12:17:41-07:00"
+              finalizing: true
+            - dispatched: "2026-10-21T13:07:31-07:00"
+              finalized: "2026-10-21T13:08:45-07:00"
+              finalizing: false
+            - dispatched: "2026-10-21T13:10:36-07:00"
+              finalized: "2026-10-21T13:13:23-07:00"
+              finalizing: true
+      "n": 6
+      timestamp: "2026-10-21T14:56:55-07:00"
+      dispatched: "2026-10-21T14:55:39-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Complete-stderr comparisons remain unchanged; the refactored actual-worker signature regressions pass.
+          round: 6
+        - id: BR-2
+          disposition: addressed
+          note: README.md:2435 and the atlas guide retain standalone diagnostic documentation.
+          round: 6
+        - id: BR-3
+          disposition: addressed
+          note: workshop/evidence/000775/run.json still identifies initial-setup-failure.log.
+          round: 6
+        - id: BR-4
+          disposition: addressed
+          note: Both bounded-decimal argument validations remain unchanged; actual-main numeric regressions pass.
+          round: 6
+        - id: BR-5
+          disposition: addressed
+          note: The atlas liveness description remains consistent with the heading-line predicate at scripts/repro/zellij-false-miss.sh:34–35.
+          round: 6
+        - id: BR-6
+          disposition: addressed
+          note: The recorded full re-close covers the manual target; this interdiff only repairs test integration and records evidence.
+          round: 6
+        - id: BR-7
+          disposition: addressed
+          note: README.md:2438–2440 explicitly documents make zellij-false-miss and its opt-in behavior.
+          round: 6
+      recipe: fix-review
+      isolation: fenced
+      reviewed: dd995d96feffc62e3984bebaaeae9b8278ec887c
+      blocked: false
 ---
 
 # Gate ledger — pair#775 (boundary-review)
@@ -664,6 +815,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-5 — addressed — atlas/zellij-reply-safety.md:300 describes the successful response containing a matching layout-heading line, consistent with script lines 34–35.
 - BR-6 — addressed — This review inspected the complete supplied base-to-head range, including the manual target. The issue's Revisions entry at line 94 supersedes the narrow-review instruction.
 - BR-7 — addressed — README.md:2438–2440 documents the target's regression-then-native behavior and exclusion from make test, matching Makefile.local:625–628.
+
+## Round 6 — 2026-10-21T14:56:55-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Complete-stderr comparisons remain unchanged; the refactored actual-worker signature regressions pass.
+- BR-2 — addressed — README.md:2435 and the atlas guide retain standalone diagnostic documentation.
+- BR-3 — addressed — workshop/evidence/000775/run.json still identifies initial-setup-failure.log.
+- BR-4 — addressed — Both bounded-decimal argument validations remain unchanged; actual-main numeric regressions pass.
+- BR-5 — addressed — The atlas liveness description remains consistent with the heading-line predicate at scripts/repro/zellij-false-miss.sh:34–35.
+- BR-6 — addressed — The recorded full re-close covers the manual target; this interdiff only repairs test integration and records evidence.
+- BR-7 — addressed — README.md:2438–2440 explicitly documents make zellij-false-miss and its opt-in behavior.
 
 ## Open findings
 
