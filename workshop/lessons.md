@@ -7,6 +7,10 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #744 close: a cross-process command belongs to its caller through cancellation and terminal acknowledgment, including time spent queued. Preserve the absolute admission deadline, suppress canceled queued work, join active child effects, and retire correlated files only after completion. When tightening a shared isolation contract, enumerate existing consumers as well as new-helper tests; keep recovery snapshots atomic and surface persistence errors while preserving in-memory teardown authority.
+
+- Before an expensive native harness rerun, sweep the complete adapter: derive physical keys from negotiated terminal modes, parse all captured query replies, propagate caller deadlines, reserve shutdown capacity, and treat permanent observation refusals as terminal. Test cancellation at the descendant boundary and use observed state rather than sleeps for negative assertions. (#744)
+- A native fleet's run marker is positive ownership evidence, not an exhaustive census: macOS can return an empty environment for platform binaries. Close and join all command/native producers before the final generation-fenced census; include descendants and private TTY cohorts, and apply absence only to the exact observed resource set. Process absence precedes root deletion; it does not itself mean cleanup completed. (#744)
 - #761: Classify native replies from the complete stdout, stderr and exit together. A successful process can print a fallback listing after falsely missing its target; retain exact bytes before recovery. Diagnostic observers own their snapshots before calling other observers, and typed evidence must survive context/generation refusal wrappers without becoming ownership authority. Keep diagnostic version reads separate from counted ownership attempts in stateful fakes and budget tests.
 - #763 BR-1: Unknown JSON values must survive decode and rewrite without machine-number conversion. Test precise fractions, over/underflow exponents, negative zero and huge integers nested in arrays/objects; a large-integer-only roundtrip misses float corruption. Reject non-JSON NaN/Infinity before effects, while keeping known-field types strict.
 
@@ -2542,3 +2546,10 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #774 BR-1: preserving a strict matcher is insufficient if the caller discards the first observation. Carry its snapshot across phases and exercise the real preview-to-effect transition; a direct matcher unit test cannot prove the caller uses the right baseline.
 
 - #774: a new production helper must appear in both applicable inventories: affected-reader certificates cover readers, while artifactpath's exhaustive source inventory covers every production file, including pure metadata helpers. Classify the concrete source; never grow the known-violation quarantine for a new file.
+- #744 BR-2: a reaped command leader and drained pipes do not prove its process group is quiescent. Check descendants on every completion path; retain explicit uncertainty and correlated evidence when incarnation-safe cleanup cannot be proved.
+
+- #744 BR-2 round3: once asynchronous work is admitted, every return must resolve the same lifetime owner. Result-content checks miss publication, read, timeout and partial-retirement failures; arm a single default-uncertain outcome until joined acknowledgment and retirement prove completion.
+
+- #744 BR-6: test provisioning observations are production consumers of slot layout. Derive host, resting branch and setup markers through SlotLayout/SetupMarkerPath, and run TestEverySlotStateSiteIsAResource with provisioning preflights; an independent hand-written expected topology still duplicates policy.
+
+- #744: Native transcript fixture producers must derive storage roots through sessioninventory.OSRuntime.NativeRoots (and WithCodexHome), just like consumers; run the native-authority shadow guard before the recorded suite. Do not exempt test helper production files from the guard.

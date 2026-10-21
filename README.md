@@ -2435,6 +2435,14 @@ log before scratch cleanup. For manual Go runs, add `-artifacts -outputdir
 The [oracle guide](tests/terminal-oracle/README.md) covers replay, headless controls
 and report limitations; a diagnostic pass does not establish a crash fix.
 
+For disposable multi-slot Couch acceptance, run `make test-couch-fleet`. It uses
+the shared native fleet helper with real Zellij, Pair/wrappers and provisioned
+workspaces, plus deterministic Claude/Codex fixtures. It requires installed
+SDLC/Weave, Git, Zellij and nvim, and uses private state and queue roots without
+models or credentials. Portable helper tests run normally; the native consumer
+opts in only through this target or `PAIR_NATIVE_COUCH_FLEET=1`.
+See [fleet ownership and evidence](atlas/couch-testing.md).
+
 `tests/terminal-performance.py --help` describes isolated baseline/candidate
 measurements using real Pair terminal processes and independent screen receipts.
 Those timings include interpreter IPC and parsing; measured resource figures are
