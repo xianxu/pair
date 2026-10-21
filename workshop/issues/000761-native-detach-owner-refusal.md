@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-21
 updated: 2026-10-21
-estimate_hours:
+estimate_hours: 2.3535
 collaboration-mode: collaboration
-card_mirror: 'bd47f40dd12cc5e69a644821cfa0355b012eb26c' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '232644e80b60b6602d3d547fcca3bb513bb475b8' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-21T00:55:41-07:00
 claimant:
     operator: Xian Xu
@@ -16,7 +16,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "730be171", done: "f1e23da3"}
+flow: {kind: full, provenance: operator}
 ---
 
 # Couch native detach intermittently loses post-client ownership proof
@@ -66,6 +66,27 @@ Mixed run14.86s:1000logical reads/1003attempts,11failedfinal (2paneJSON/9client 
 The first one-session baseline had5exit1 final failures/1000 and no per-failure liveness observations. The focused bracketing control then retained24original exit1 failures/1000reads (2.4%), all exactly empty stdout/There is no active session! stderr. Each of24 diagnostic requeries succeeded under the original5s proof deadline; all24 kept PID11560 generation1792570266.40064 and its socket present before/after. Original failures remain counted. Focused JSONL /Volumes/TestScratch/tmp/pair-slot5/pair-761-exit1-errn9bsu/queries.jsonl SHA256aa179dbda866eaad83e59d7494694ccf840595fd9d6507f313544818aa8b0ed2. Exact cleanup passed. Baseline complete captures remain in pair-761-native-oe7dr7za; queries hash5974d31ba419fe9a0d9f201a774c248c91e11b8c4d7090c00be465f9aa9a19b2.
 
 TL a9a79b15 approves validated colored false-miss recovery and persisted evidence; TL3aacb9e7 additionally approves exact exit1 signature only while target socket is present, under unchanged3-attempt/deadline bounds. Full plan records both signatures and counter-run acceptance. No product fix or counter-run pass is claimed yet.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; calibration is marked stale by estimate-source, so provisional. Read v2/v2.1 primitive ranges; design picks receive the thorough-spec0.2 factor, implementation picks the v3.1 0.4 scale. Familiarity1.0, single repo,15percent design buffer. Existing Go JSON/strictjson, query runner, fake and lifecycle codec cover the stack; no greenfield library discovery is needed.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.10 impl=0.08
+item: api-integration design=0.40 impl=0.40
+item: smaller-go-module design=0.03 impl=0.14
+item: typed-data-prototype design=0.20 impl=0.14
+item: cross-cutting-refactor design=0.12 impl=0.14
+item: atlas-docs design=0.02 impl=0.05
+item: milestone-review design=0.02 impl=0.14
+item: real-api-discovery design=0 impl=0.24
+design-buffer: 0.15
+total: 2.3535
+```
+
+Respectively: issue/spec and reproduction record; native lookup retry integration; pure colored-list parser; bounded diagnostic value; two error consumers plus additive failure persistence; atlas; one boundary review; one external Zellij qualification/control. The unscaled implementation picks are0.2/1.0/0.35/0.35/0.35/0.125/0.35/0.6hours. Design subtotal0.89, implementation1.33;0.89×1.15+1.33=2.3535 focused ship-hours. Queue idle time is not added. Actual remains automatically measured at close.
 
 ## Revisions
 
