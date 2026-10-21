@@ -78,7 +78,7 @@ func runScheduleCLI(a *scheduleArgs, rt Runtime, stdout, stderr io.Writer, call 
 	if a.verb == "history" {
 		return runScheduleHistory(runCtx, a, rt.StoreDir(), root, stdout, stderr)
 	}
-	return runScheduleManual(runCtx, a, rt, root, stdout, stderr)
+	return runScheduleRemote(runCtx, a, root, socket, stdout, stderr, call)
 }
 
 type scheduleHubGitRunner interface {

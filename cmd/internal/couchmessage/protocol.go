@@ -20,9 +20,10 @@ import (
 // Request has closed per-operation shapes. Wrapper lifecycle operations use a
 // full binding and must pass the supervisor adapter's live identity check.
 type Request struct {
-	Drive                                            *agentdrive.Request `json:",omitempty"`
-	ToHub                                            string              `json:",omitempty"`
-	Persist                                          bool                `json:",omitempty"`
+	Manual                                           *couchschedule.ManualRequest `json:",omitempty"`
+	Drive                                            *agentdrive.Request          `json:",omitempty"`
+	ToHub                                            string                       `json:",omitempty"`
+	Persist                                          bool                         `json:",omitempty"`
 	Op, Scope, Tag, Session, Nonce, ID, Target, Body string
 	Title                                            string `json:",omitempty"` // notify only
 	// Agent narrows a send or selects the switch destination harness.
@@ -50,6 +51,7 @@ type Request struct {
 const CodeWarming = "warming"
 
 type Response struct {
+	Manual   *couchschedule.ManualStatus   `json:",omitempty"`
 	Schedule *couchschedule.StatusSnapshot `json:",omitempty"`
 	// RetryAfterMillis is a transient admission hint, only for CodeWarming.
 	RetryAfterMillis int                     `json:",omitempty"`
@@ -155,7 +157,39 @@ func validMessageID(id string) bool {
 	return id != "" && len(id) <= 128 && utf8.ValidString(id) && strings.IndexFunc(id, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) }) < 0
 }
 
+func IsScheduleRunOp(op string) bool {
+	return op == "schedule-run" || op == "schedule-run-status" || op == "schedule-run-cancel"
+}
+
 func ValidateRequest(r Request) error {
+	if IsScheduleRunOp(r.Op) {
+		manual := r.Manual
+		rest := r
+		rest.Manual = nil
+		if rest != (Request{Op: r.Op}) || manual == nil {
+			return errors.New("manual operation takes only typed manual intent")
+		}
+		if err := manual.Intent.Validate(); err != nil {
+			return err
+		}
+		if manual.Offset < 0 || manual.Offset > couchschedule.MaxManualOutput {
+			return errors.New("invalid manual output offset")
+		}
+		if r.Op == "schedule-run" && manual.Offset != 0 {
+			return errors.New("submit takes no output offset")
+		}
+		if r.Op != "schedule-run" && len(manual.Intent.Args) != 0 {
+			return errors.New("manual observation and cancellation take no arguments")
+		}
+		if r.Op == "schedule-run-cancel" && manual.Offset != 0 {
+			return errors.New("cancellation takes no output offset")
+		}
+		return nil
+	}
+	if r.Manual != nil {
+		return errors.New("manual intent applies only to manual schedule operations")
+	}
+
 	if r.Drive != nil && !IsDriveOp(r.Op) {
 		return errors.New("drive intent applies only to keys, set-model and interrupt")
 	}
