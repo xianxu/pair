@@ -25,7 +25,7 @@ func TestPlanFullscreenGeneratedInventorySafety(t *testing.T) {
 		for order := 0; order < 2; order++ {
 			for focus := 0; focus < 3; focus++ {
 				for mode := 0; mode < 6; mode++ {
-					for registry := 0; registry < 2; registry++ {
+					for registry := 0; registry < 4; registry++ {
 						base := []zellijpane.Pane{
 							{ID: "0", IsPlugin: true, Title: "terminal plugin", IsFocused: true},
 							{ID: "1", TerminalCommand: "pair wrap codex"},
@@ -62,10 +62,13 @@ func TestPlanFullscreenGeneratedInventorySafety(t *testing.T) {
 							}
 						}
 						var registered []string
-						if registry == 1 {
-							registered = []string{"4", "5", "99"}
+						if registry&1 != 0 {
+							registered = append(registered, "3")
 						}
-						eligible := map[string]bool{"3": true, "4": registry == 1}
+						if registry&2 != 0 {
+							registered = append(registered, "4", "5", "99")
+						}
+						eligible := map[string]bool{"3": registry&1 != 0, "4": registry&2 != 0}
 						var terminals, owners []string
 						live := map[string]bool{}
 						var focused []string

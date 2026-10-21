@@ -458,6 +458,8 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/workbenchshortcut/shortcut.go", Kind: ResolvedConsumer,
 		Families:     []string{"last-left-pane", "last-terminal-pane", "terminal-panes"},
 		BindingNames: []string{"scoped-wrapper-last-left-pane", "scoped-wrapper-last-terminal-pane", "scoped-wrapper-terminal-panes"}},
+	{Path: "cmd/internal/workbenchshortcut/terminal_owner.go", Kind: ResolvedConsumer,
+		Families: []string{"adapt"}, BindingNames: []string{"scoped-adapt"}},
 	{Path: "cmd/internal/workbenchshortcut/fullscreen_store.go", Kind: ResolvedConsumer,
 		Families:     []string{"fullscreen-return", "fullscreen-lock", "fullscreen-diagnostics"},
 		BindingNames: []string{"scoped-fullscreen-fullscreen-return", "scoped-fullscreen-fullscreen-lock", "scoped-fullscreen-fullscreen-diagnostics"}},
