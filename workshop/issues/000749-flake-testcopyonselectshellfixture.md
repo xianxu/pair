@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/clipcmd.TestCopyOnSelectShellFixture]
+flow: {kind: quick, provenance: inferred, spec: "b7b60c55", done: "a0bbe98b"}
 ---
 
 # flake: TestCopyOnSelectShellFixture
