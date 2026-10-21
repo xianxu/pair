@@ -29,7 +29,7 @@ Production terminal readiness imposes a fixed10s deadline even when its caller h
 
 Make terminal readiness honor a coherent caller-owned startup lifetime while preserving cancellation, bounded observation, fail-closed admission and generation-qualified cleanup. Design the production default for callers without deadlines explicitly; do not substitute a larger arbitrary constant. Preserve distinct precreation, readiness and postbirth native-query observation contracts and error evidence.
 
-Proposed design (awaiting hub approval): select one absolute startup deadline before the blocked helper is launched; reuse it for helper acknowledgement, pane birth, exact-generation readiness and Couch registration. Preserve an explicit caller deadline; with none, reuse the existing two-minute registration hang ceiling as the shared fallback. Consume the serialized deadline once across exec. Carry startup separately from interactive lifetime and the existing short native-query budgets; startup expiry never ends an admitted interactive client. Full design and adversarial tests: [startup budget plan](../plans/000773-startup-budget-plan.md).
+Approved design: select one absolute startup deadline before the blocked helper is launched; reuse it for helper acknowledgement, pane birth, exact-generation readiness and Couch registration. Preserve an explicit caller deadline; with none, reuse the existing two-minute registration hang ceiling as the shared fallback. Consume the serialized deadline once across exec. Carry startup separately from interactive lifetime and the existing short native-query budgets; startup expiry never ends an admitted interactive client. Full design and adversarial tests: [startup budget plan](../plans/000773-startup-budget-plan.md).
 
 ## Done when
 
@@ -39,7 +39,7 @@ Proposed design (awaiting hub approval): select one absolute startup deadline be
 
 ## Plan
 
-- [ ] Approve the caller-owned startup/default/transport contract and production-boundary test plan.
+- [x] Approve the caller-owned startup/default/transport contract and production-boundary test plan.
 - [ ] Record deterministic red probes, implement shared deadline selection and propagate it through helper, launcher, readiness and registration without renewal.
 - [ ] Qualify cancellations, uncertain outcomes, exact generation and admitted-client lifetime; update inventory and architecture map.
 - [ ] Use #744 shared disposable harness only after it lands for cold native acceptance, then recorded checks, close review and landing.
@@ -63,3 +63,7 @@ A bounded independent read-only subagent traced Couch/exec/registration callers 
 ### 2026-10-21 — one startup owner, not a readiness constant
 
 Reason: the production trace found independently renewed helper/readiness/registration windows, so removing the innermost constant alone cannot fulfill coherent startup ownership. Proposed delta: select one absolute deadline before helper launch, carry it across exec, preserve the existing two-minute fallback only when the caller supplies no deadline, retain shorter observation budgets and separate admitted interactive lifetime. The ten-second birth probe remains a diagnostic threshold. Native acceptance uses #744 after landing; original incident's missing-ready cause remains unknown. Awaiting hub approval before change-code or code.
+
+### 2026-10-21 — hub approval and progress requirement
+
+Hub approved the design and directed change-code. Required UX: existing progress identifies the current stage and elapsed time (waiting for agent readiness, 25 s); final failure identifies the stage that consumed the budget and elapsed time. Added to the durable plan; native acceptance remains on landed #744. No implementation started before the gate.

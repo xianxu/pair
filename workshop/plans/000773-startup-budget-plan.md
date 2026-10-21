@@ -57,6 +57,10 @@ Reuse FakeRunner, the channel-controlled handoff world and fake launcher runtime
 - **Registration:** `whileHelperAlive` remains an early-exit observer under the already selected startup context. Do not create a fresh two-minute window after ack. Keep existing final read-only recovery/exit looks explicitly outside startup admission: they may reconcile the exact already-started attempt but never create/retry one or renew its startup deadline.
 - **After admission:** cancelling/expiring the startup context must not end the interactive client. Its original lifetime context still owns it. An unsuccessful handoff cancels/reaps only its owned client and joins observation before lease release, preserving existing generation-qualified server/agent cleanup rules.
 
+## Startup progress and final diagnosis
+
+The existing operation progress surface must report the current startup stage and elapsed stage time, for example “waiting for agent readiness, 25 s”. Propagate bounded typed stage facts through the existing launch-output/progress seam; never infer readiness from arbitrary stderr text. Final budget exhaustion names the consuming stage and its elapsed time, while preserving the underlying error and existing retained attempt. Test stage transitions and stale/late progress with controlled time; no extra polling loop, timer renewal or free-form native content in status. Inspect the actual progress owner before choosing the smallest wire representation.
+
 ## State projection and ordering
 
 Actions: wait, inspect the retained failed/unconfirmed attempt through the existing recovery action, detach/quit an admitted client.
@@ -106,3 +110,9 @@ make test-affected-inventory
 ```
 
 The native harness's landed command and current API will be read before use; its existing bounded opt-in fleet target is the acceptance owner, not a second fixture.
+
+## Revisions
+
+### 2026-10-21 — approved budget and required progress
+
+Hub approved the absolute deadline/default/exec/lifetime contract and added stage plus elapsed-time progress and final failure attribution because an actually broken agent may now consume the existing two-minute ceiling. Implement this on the existing operation progress seam, with deterministic tests, before close. Native acceptance still waits for landed #744.
