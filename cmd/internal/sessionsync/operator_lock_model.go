@@ -97,7 +97,7 @@ func operatorLockText(turn operatorTurn, at time.Time) string {
 	return fmt.Sprintf("holder: operator\ntime: %s\ndocument: %s\nturn: %s\n", at.UTC().Format(time.RFC3339Nano), turn.ID, turn.Token)
 }
 
-func decideOperatorLock(turn operatorTurn, action operatorLockAction, locks []operatorLockObservation) (operatorLockDecision, error) {
+func decideOperatorLock(turn operatorTurn, action operatorLockAction, canonical string, locks []operatorLockObservation) (operatorLockDecision, error) {
 	if err := validateOperatorTurn(turn); err != nil {
 		return operatorLockDecision{}, err
 	}
@@ -122,7 +122,7 @@ func decideOperatorLock(turn operatorTurn, action operatorLockAction, locks []op
 		if action == operatorRelease {
 			decision.State = OperatorReleased
 			decision.Remove = append(decision.Remove, lock.Path)
-		} else if decision.State != OperatorAlreadyHeld {
+		} else if decision.State != OperatorAlreadyHeld || lock.Path == canonical {
 			decision.State = OperatorAlreadyHeld
 			decision.LockPath, decision.LockText = lock.Path, lock.Text
 		}

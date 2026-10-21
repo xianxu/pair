@@ -60,6 +60,8 @@ Acquire success exits 0 and emits one JSON object:
 
 `State` is `acquired` for newly published protection, or `already-held` when all observed protective locks belong to the same ID/token. An identical retry preserves ownership, exact LockText and its time; it does not refresh or create a different turn. New-versus-existing is deliberately allowed to change after a lost reply. A valid success proves all preceding registered writers have returned from their transaction and all subsequent writers observe operator protection. It does not claim the editor buffer is current: Parley must perform its approved unconditional post-ack freshness/read-completion check before admitting input.
 
+Every acquire acknowledgment has LockPath equal to canonical File plus `.lock`, with those exact LockText bytes on disk. If same-turn protection exists only at an admitted alias, copy its exact proof to the canonical sidecar under the registry transaction and confirm durability before returning `already-held`. If a same-turn canonical sidecar already exists, prefer its exact bytes over alias copies. Keep matching aliases for their existing move/lock lifetime owner; canonicalization does not invent an alias-deletion policy.
+
 Release success uses the same OperatorLock envelope, echoes ID, canonical File and Turn, and has State `released` or `already-released`. Holder is the empty string after release. LockPath is the canonical sidecar pathname and LockText is empty, so the response does not advertise protection that no longer exists. No operator sidecar means `already-released`, without claiming the caller previously owned it. Non-protective legacy agent sidecars are preserved. Any foreign protective sidecar refuses release before any deletion. Several matching aliases are removed under the same transaction; partial removal is uncertain and an identical retry finishes only still-owned protection. Both release states require directory confirmation for every admitted sidecar directory, including paths whose lock is already absent, so a retry reconciles an earlier unlink followed by failed fsync.
 
 | Failure | Code | Exit | Meaning / safe action |
@@ -178,7 +180,7 @@ Files: `cmd/internal/couchcmd/session_sync.go`, existing session-sync CLI tests,
 
 ### 4. Document, verify, close and land
 
-Files: session-sync atlas page found through `atlas/index.md`, public couch skill session-sync contract, this plan/issue Log, per-reader affected certificates when test dependencies change.
+Files: `README.md` public command reference, session-sync atlas page found through `atlas/index.md`, public couch skill session-sync contract, this plan/issue Log, per-reader affected certificates when test dependencies change.
 
 - [x] Document the single acknowledgment boundary, exact CLI/JSON/errors, same-token retry, released semantics, stopped-supervisor behavior, legacy limit and rename recovery. Link from atlas index as needed.
 - [x] Update affected-reader certificates using the repository regenerate target; do not change local-gate configuration or apply verification labels.
@@ -198,3 +200,7 @@ PQ-1: directory confirmation is mandatory on both release success states, includ
 ### 2026-10-21 — executable boundary and existing-limit clarification
 
 Executable conformance exposed runtime preparation before the session-sync handler: route its operator-only failure through the same unavailable/7 response as namespace resolution. Existing malformed-argv usage remains exit 2; valid-argv invalid ID/token stays operator-invalid/1. Correct the existing alias limit wording to distinguish path intervals from additional aliases. The approved ownership protocol, lifetime and producer/consumer split are unchanged.
+
+### 2026-10-21 — canonical witness and public reference
+
+Hub instruction 39b178f6-4643-4a88-af45-2ce13cefb6be pins acquire LockPath to canonical File plus `.lock`, including alias-only same-turn recovery. The model prefers an existing canonical proof; the transaction copies exact alias proof bytes to canonical when needed and confirms them, preserving the original token/time and the existing alias cleanup owner. Regression strategy: alias-only and competing same-turn proof spellings must produce one canonical acknowledgment witness; uncertain copy/retry must preserve it. BR-1 also adds both required command forms and the atlas ownership/retry link to README's public reference. No new public state or protocol phase.

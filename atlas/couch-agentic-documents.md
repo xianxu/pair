@@ -109,6 +109,12 @@ and time. Same-turn retries preserve the exact bytes and timestamp; foreign,
 legacy or malformed operator protection is never adopted. Unknown sidecar lines
 survive retries and moves verbatim.
 
+Acquire always returns LockPath equal to canonical File plus `.lock`, and those
+exact LockText bytes must exist there. Same-token alias-only protection is copied
+to that canonical witness under the registry transaction before acknowledgment;
+an existing same-turn canonical proof takes precedence over alias copies.
+Matching aliases keep their existing move/lock cleanup owner.
+
 Acknowledgment proves earlier registered writers completed before protection
 and future writers see it. The editor must then perform its unconditional
 freshness check and complete any clean native reread before admitting input

@@ -185,6 +185,23 @@ func TestSessionSyncOperatorExecutableLifecycle(t *testing.T) {
 	if raw, err := os.ReadFile(lockPath); err != nil || string(raw) != lockText {
 		t.Fatalf("persisted proof differs: %q %v", raw, err)
 	}
+	// Older move/alias ownership can exist only at an admitted alias. The
+	// editor still requires the canonical on-disk acknowledgment witness.
+	alias := filepath.Join(f.root, "document-alias.md")
+	if err := os.Symlink(file, alias); err != nil {
+		t.Fatal(err)
+	}
+	f.run(t, false, 0, "register", alias, "--owner", "ops:0", "--json")
+	if err := os.Rename(lockPath, alias+".lock"); err != nil {
+		t.Fatal(err)
+	}
+	canonicalized := f.operator(t, false, 0, "operator-acquire", alias, id, turn)["OperatorLock"]
+	if !reflect.DeepEqual(canonicalized, want) {
+		t.Fatalf("alias recovery did not normalize canonical witness: %v", canonicalized)
+	}
+	if raw, err := os.ReadFile(lockPath); err != nil || string(raw) != lockText {
+		t.Fatalf("canonical witness not present: %q %v", raw, err)
+	}
 
 	// Read before the no-mutation snapshot: read acknowledges the baseline.
 	read := f.run(t, false, 0, "read", "--all", file, "--json")

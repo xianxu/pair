@@ -516,6 +516,8 @@ need no registration and keep their legacy owner compatibility.
   requested ID/File/Turn with State released/already-released and empty holder/text;
   absence claims no past ownership. A move copies those bytes and releases NEW
   with the same ID/token. Foreign protection is never adopted or removed.
+  Acquire's LockPath always equals canonical File plus `.lock`; alias-only
+  same-turn protection is durably copied there before acknowledgment.
   Namespace/store unavailability is `session-sync-unavailable`/7, distinct from
   ownership/path/identity refusal and `operator-lock-uncertain`/1; uncertainty
   requires retaining the turn and explicitly repeating the identical command.

@@ -65,6 +65,36 @@ func TestOperatorLockLifecycle(t *testing.T) {
 	wantRefusal(t, err, 3, "operator-lock")
 }
 
+func TestOperatorLockAliasRecoveryAcknowledgesCanonicalWitness(t *testing.T) {
+	r, req := operatorRig(t)
+	alias := filepath.Join(filepath.Dir(req.File), "operator-alias.md")
+	if err := os.Symlink(req.File, alias); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.sync.Register(alias, "ops:0"); err != nil {
+		t.Fatal(err)
+	}
+	text := operatorLockText(operatorTurn{ID: req.ID, Token: req.Turn}, r.now) + "future: retained alias proof\n"
+	if err := os.WriteFile(alias+".lock", []byte(text), 0600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := r.sync.AcquireOperator(req)
+	if err != nil || got.State != OperatorAlreadyHeld || got.LockPath != got.File+".lock" || got.LockText != text || r.read(got.LockPath) != text {
+		t.Fatalf("noncanonical or changed witness: %+v %v", got, err)
+	}
+	if r.read(alias+".lock") != text {
+		t.Fatal("canonicalization stole alias lifecycle cleanup")
+	}
+	canonicalText := text + "canonical: preserve this newer unknown line\n"
+	if err := os.WriteFile(got.LockPath, []byte(canonicalText), 0600); err != nil {
+		t.Fatal(err)
+	}
+	got, err = r.sync.AcquireOperator(req)
+	if err != nil || got.LockText != canonicalText || got.LockPath != got.File+".lock" || r.read(got.LockPath) != canonicalText {
+		t.Fatalf("canonical proof overwritten by alias: %+v %v", got, err)
+	}
+}
+
 func TestOperatorLockWaitsForEntireWriterTransaction(t *testing.T) {
 	for _, apply := range []bool{false, true} {
 		t.Run(map[bool]string{false: "write", true: "apply"}[apply], func(t *testing.T) {

@@ -54,7 +54,7 @@ func TestOperatorLockModelDecisions(t *testing.T) {
 		{name: "release foreign", action: operatorRelease, locks: []operatorLockObservation{own, foreign}, refused: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := decideOperatorLock(modelTurn, tc.action, tc.locks)
+			got, err := decideOperatorLock(modelTurn, tc.action, "one.lock", tc.locks)
 			if tc.refused {
 				wantRefusal(t, err, 3, "operator-lock")
 				if !reflect.DeepEqual(got, operatorLockDecision{}) {
@@ -72,8 +72,16 @@ func TestOperatorLockModelDecisions(t *testing.T) {
 	}
 	newTurn := modelTurn
 	newTurn.Token = strings.Repeat("a", 32)
-	_, err := decideOperatorLock(newTurn, operatorRelease, []operatorLockObservation{own})
+	_, err := decideOperatorLock(newTurn, operatorRelease, "one.lock", []operatorLockObservation{own})
 	wantRefusal(t, err, 3, "operator-lock")
+	alias := own
+	alias.Path = "alias.lock"
+	canonical := own
+	canonical.Text += "canonical: preserve unknown fields\n"
+	got, err := decideOperatorLock(modelTurn, operatorAcquire, "one.lock", []operatorLockObservation{alias, canonical})
+	if err != nil || got.LockPath != canonical.Path || got.LockText != canonical.Text {
+		t.Fatalf("canonical proof did not win: %+v %v", got, err)
+	}
 }
 
 func FuzzOperatorLockModelProof(f *testing.F) {

@@ -8,6 +8,7 @@ representative evidence, not an exhaustive index.
 ## Proof and verification
 
 - A retry observing file absence does not prove an earlier unlink became durable. Before acknowledging idempotent removal, synchronize every admitted containing directory even for already-absent targets; test visible and durable state separately through failed fsync and crash recovery. (#777 plan gate)
+- Adding a public CLI verb requires updating every public command index, including README and embedded help/skill, alongside its detailed atlas contract. Audit those indexes together at the documentation boundary. (#777 BR-1)
 
 - #744 close: a cross-process command belongs to its caller through cancellation and terminal acknowledgment, including time spent queued. Preserve the absolute admission deadline, suppress canceled queued work, join active child effects, and retire correlated files only after completion. When tightening a shared isolation contract, enumerate existing consumers as well as new-helper tests; keep recovery snapshots atomic and surface persistence errors while preserving in-memory teardown authority.
 

@@ -103,11 +103,11 @@ func (s *Sync) operatorLock(req OperatorLockRequest, action operatorLockAction) 
 			}
 			observed = append(observed, operatorLockObservation{Path: path, Text: string(raw), Exists: err == nil})
 		}
-		decision, err := decideOperatorLock(turn, action, observed)
+		lockPath := canonical + ".lock"
+		decision, err := decideOperatorLock(turn, action, lockPath, observed)
 		if err != nil {
 			return OperatorLock{}, err
 		}
-		lockPath := canonical + ".lock"
 		// Only the single reserved private stage belongs to this transaction.
 		// Reclaim it after a crash, including on a no-publication retry/release.
 		stage := operatorStagePath(lockPath)
@@ -128,7 +128,15 @@ func (s *Sync) operatorLock(req OperatorLockRequest, action operatorLockAction) 
 			}
 		case OperatorAlreadyHeld:
 			res.Holder = HolderOperator
-			res.LockPath, res.LockText = decision.LockPath, decision.LockText
+			res.LockText = decision.LockText
+			if decision.LockPath != lockPath {
+				// Alias-only ownership is the same turn, but the editor needs one
+				// canonical on-disk witness. Keep exact proof bytes and leave
+				// alias cleanup to the existing lock/move lifetime owner.
+				if err := files.Publish(lockPath, []byte(res.LockText)); err != nil {
+					return OperatorLock{}, operatorUncertain(err)
+				}
+			}
 		case OperatorReleased:
 			for _, path := range decision.Remove {
 				if err := files.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {

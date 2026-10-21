@@ -91,6 +91,35 @@ func TestOperatorLockUncertainPublicationRecoversExactTurn(t *testing.T) {
 	}
 }
 
+func TestOperatorLockAliasCanonicalizationUncertainRetry(t *testing.T) {
+	r, req := operatorRig(t)
+	alias := filepath.Join(filepath.Dir(req.File), "alias-only.md")
+	if err := os.Symlink(req.File, alias); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.sync.Register(alias, "ops:0"); err != nil {
+		t.Fatal(err)
+	}
+	files := newMemoryOperatorFiles()
+	text := operatorLockText(operatorTurn{ID: req.ID, Token: req.Turn}, r.now) + "future: migrated unchanged\n"
+	files.visible[alias+".lock"] = text
+	if err := files.SyncDir(filepath.Dir(alias)); err != nil {
+		t.Fatal(err)
+	}
+	files.failPublish = true
+	r.sync.Registry = &registryStore{Dir: r.sync.registryStore().Dir, OperatorLocks: files}
+	_, err := r.sync.AcquireOperator(req)
+	wantRefusal(t, err, 1, "operator-lock-uncertain")
+	got, err := r.sync.AcquireOperator(req)
+	if err != nil || got.State != OperatorAlreadyHeld || got.LockPath != got.File+".lock" || got.LockText != text {
+		t.Fatalf("canonical migration retry %+v %v", got, err)
+	}
+	files.crash()
+	if files.visible[got.LockPath] != text || files.visible[alias+".lock"] != text {
+		t.Fatal("canonical witness was not durable or alias owner changed")
+	}
+}
+
 func TestOperatorLockAbsentReleaseRetryConfirmsDeletion(t *testing.T) {
 	r, req := operatorRig(t)
 	files := newMemoryOperatorFiles()
