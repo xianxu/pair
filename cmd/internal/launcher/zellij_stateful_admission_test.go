@@ -109,7 +109,7 @@ func TestOwnerAdmissionUsesStatefulNativeReplies(t *testing.T) {
 			switch fault {
 			case "wrong-kind":
 				raw := `{"active_swap_layout_name":null,"is_swap_layout_dirty":false}`
-				f.SetFaults(zellijtest.Fault{Ordinal: 1, Reply: &raw})
+				f.SetFaults(zellijtest.Fault{Ordinal: 1, Reply: &raw}, zellijtest.Fault{Ordinal: 2, Reply: &raw}, zellijtest.Fault{Ordinal: 3, Reply: &raw})
 			case "changed-owner":
 				other := ownerFixtureModel("nvim /tmp/data/repos/0123456789abcdef/draft-1-repo-2.md")
 				f.SetFaults(zellijtest.Fault{Ordinal: 2, Model: &other})
@@ -126,7 +126,7 @@ func TestOwnerAdmissionUsesStatefulNativeReplies(t *testing.T) {
 			}
 			want := 2
 			if fault == "wrong-kind" {
-				want = 1
+				want = 3
 			}
 			if len(f.Queries()) != want || len(f.Effects()) != 0 {
 				t.Fatalf("queries=%v effects=%v", f.Queries(), f.Effects())

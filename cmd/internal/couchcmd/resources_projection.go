@@ -15,6 +15,10 @@ import (
 // The actual JSON encoder accounts for escaping, not just source string bytes.
 func projectResourceView(v couchcore.ResourceView) couchcore.ResourceView {
 	out := v
+	if v.SupervisionLog != nil {
+		health := *v.SupervisionLog
+		out.SupervisionLog = &health
+	}
 	out.Slots = append([]couchcore.ResourceSlotView(nil), v.Slots...)
 	shortened := 0
 	clip := func(s string) string {

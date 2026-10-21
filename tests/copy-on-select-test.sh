@@ -25,15 +25,20 @@ REPO=$(cd "$(dirname "$0")/.." && pwd)
 export PAIR_TEST_ZELLIJ_REPLIES="$REPO/tests/lib/zellij_fixture_replies.py"
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/pair-copyonselect.XXXXXX"); trap 'rm -rf "$tmp"' EXIT
 
-# The single `pair` self-execs the `pair` sibling of its own binary for the
-# orchestrator + hand-off (dir(os.Executable())/pair), so a copy of it under
-# $PAIR_HOME/bin drives the whole chain.
+# The hook self-execs its `pair` sibling. Alias the shared image beside the
+# completion wrapper; copying it would trigger a new AMFI assessment (#749).
 export PAIR_HOME="$tmp/home"
 export PAIR_DATA_DIR="$tmp/data"
 export PAIR_TAG=t
 export PAIR_AGENT=claude
 mkdir -p "$PAIR_HOME/bin" "$PAIR_DATA_DIR"
-cp "${PAIR_TEST_BINARY:-$REPO/bin/pair}" "$PAIR_HOME/bin/pair-real"
+bash "$REPO/tests/lib/pair-test-binary.sh" "$PAIR_HOME/bin/pair-real"
+if [ -n "${PAIR_TEST_BINARY:-}" ]; then
+  python3 - "$PAIR_TEST_BINARY" "$PAIR_HOME/bin/pair-real" <<'PY'
+import os,sys
+assert os.path.samefile(*sys.argv[1:]), 'copy fixture must execute the shared image, never a per-run copy (#749)'
+PY
+fi
 export PAIR_TEST_COPY_BINARY="$PAIR_HOME/bin/pair-real"
 export PAIR_TEST_COPY_DONE="$tmp/done"
 mkfifo "$PAIR_TEST_COPY_DONE"

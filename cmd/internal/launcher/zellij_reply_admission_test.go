@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -15,13 +16,15 @@ func TestZellijClientCountRejectsNonemptyForeignReply(t *testing.T) {
 			f := newEmptyReplyFake(t,
 				emptyReplyFrame{Args: []string{"list-sessions", "--no-formatting"}, Stdout: "pair-a [Created 1s ago]\n"},
 				emptyReplyFrame{Args: []string{"--session", "pair-a", "action", "list-clients"}, Stdout: raw},
+				emptyReplyFrame{Args: []string{"--session", "pair-a", "action", "list-clients"}, Stdout: raw},
+				emptyReplyFrame{Args: []string{"--session", "pair-a", "action", "list-clients"}, Stdout: raw},
 			)
 			got, err := f.source.SnapshotSessionsContext(context.Background(), []string{"pair-a"})
-			if err == nil || got != nil {
+			if !errors.Is(err, errZellijCrossedReply) || got != nil {
 				t.Errorf("foreign reply granted detached authority: %+v, %v", got, err)
 			}
-			if calls := f.calls(t); calls != 2 {
-				t.Errorf("calls=%d; want2, no retry of unknown", calls)
+			if calls := f.calls(t); calls != 4 {
+				t.Errorf("calls=%d; want one listing plus three refused read attempts", calls)
 			}
 		})
 	}
@@ -89,10 +92,11 @@ func TestListedTerminalUnknownNeverRetries(t *testing.T) {
 }
 
 func TestWrongKindFullListingStopsBeforeFurtherQuery(t *testing.T) {
-	f := newEmptyReplyFake(t, emptyReplyFrame{Args: []string{"list-sessions", "--no-formatting"}, Stdout: `[{"id":1,"is_plugin":false}]`})
+	frame := emptyReplyFrame{Args: []string{"list-sessions", "--no-formatting"}, Stdout: `[{"id":1,"is_plugin":false}]`}
+	f := newEmptyReplyFake(t, frame, frame, frame)
 	got, err := f.source.SnapshotSessionsContext(t.Context(), []string{"pair-a"})
-	if err == nil || got != nil || f.calls(t) != 1 {
-		t.Fatalf("foreign first listing continued: got=%v err=%v calls=%d", got, err, f.calls(t))
+	if !errors.Is(err, errZellijCrossedReply) || got != nil || f.calls(t) != 3 {
+		t.Fatalf("foreign listing exceeded bounded attempts or continued: got=%v err=%v calls=%d", got, err, f.calls(t))
 	}
 }
 

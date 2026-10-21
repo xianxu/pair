@@ -115,9 +115,17 @@ func TestRecoverThreadNativeReplyUnknownStopsBeforeEffects(t *testing.T) {
 		for _, reply := range []struct{ name, raw string }{{"empty", ""}, {"whitespace", " \t\n"}, {"wrong-kind", `{"active_swap_layout_name":null,"is_swap_layout_dirty":false}`}, {"malformed", "[{"}} {
 			t.Run(stage.name+"/"+reply.name, func(t *testing.T) {
 				f := newRecoveryNativeFixture(t)
-				// The model stays healthy: every later query would succeed if recovery
-				// incorrectly retried this unknown observation.
-				f.native.SetFaults(zellijtest.Fault{Ordinal: stage.ordinal, Reply: &reply.raw})
+				// Exhaust only the known upstream signature's bounded read recovery;
+				// every later explicit observation would still be healthy.
+				attempts := 1
+				if reply.name != "malformed" {
+					attempts = 3
+				}
+				faults := make([]zellijtest.Fault, attempts)
+				for i := range faults {
+					faults[i] = zellijtest.Fault{Ordinal: stage.ordinal + i, Reply: &reply.raw}
+				}
+				f.native.SetFaults(faults...)
 				before, err := f.env.Couch.Threads.GetThread(f.source.Address)
 				if err != nil {
 					t.Fatal(err)
@@ -153,13 +161,43 @@ func TestRecoverThreadNativeReplyUnknownStopsBeforeEffects(t *testing.T) {
 					t.Fatalf("unknown reply quiesced source: sessions=%v signals=%v", f.env.Artifacts.quiesced, f.env.Proc.Signals)
 				}
 				queries := f.native.Queries()
-				if len(queries) != stage.ordinal {
-					t.Fatalf("unknown reply continued/retried: queries=%+v want=%d", queries, stage.ordinal)
+				if len(queries) != stage.ordinal+attempts-1 {
+					t.Fatalf("unknown reply exceeded bounded reads: queries=%+v", queries)
 				}
 				for i, query := range queries {
-					if query.Ordinal != i+1 || !reflect.DeepEqual(query.Args, recoveryNativeInitialQueries()[i]) {
+					want := min(i, stage.ordinal-1)
+					if query.Ordinal != i+1 || !reflect.DeepEqual(query.Args, recoveryNativeInitialQueries()[want]) {
 						t.Fatalf("query %d: %+v", i, query)
 					}
+				}
+			})
+		}
+	}
+}
+
+// A corrupt native read is recovered inside the production read boundary;
+// the recovery operation and its single launcher effect are never replayed.
+func TestRecoverThreadNativeKnownBugReadReattaches(t *testing.T) {
+	for _, stage := range []int{1, 2, 3, 4} {
+		for _, raw := range []string{"", `{"active_swap_layout_name":null,"is_swap_layout_dirty":false}`} {
+			t.Run(fmt.Sprintf("stage-%d/%q", stage, raw), func(t *testing.T) {
+				f := newRecoveryNativeFixture(t)
+				f.native.SetFaults(zellijtest.Fault{Ordinal: stage, Reply: &raw})
+				result, err := f.env.Couch.RecoverThread(t.Context(), f.source.Address, "")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if result.Handle == nil || result.Record.Shape != StartWarmReattach {
+					t.Fatalf("recovery=%+v", result)
+				}
+				t.Cleanup(func() { f.env.Runner.SetExited(result.Handle.ID(), 0) })
+				child := f.env.Runner.Child(result.Handle.ID())
+				if !reflect.DeepEqual(child.Argv, []string{"pair", launcher.CouchSessionFlag, "resume", string(f.source.Address.Tag)}) {
+					t.Fatalf("fresh-agent launch=%v", child.Argv)
+				}
+				queries := f.native.Queries()
+				if len(queries) <= stage || !reflect.DeepEqual(queries[stage-1].Args, queries[stage].Args) {
+					t.Fatalf("read was not reissued at its boundary: %+v", queries)
 				}
 			})
 		}
@@ -197,7 +235,7 @@ func TestRecoveryQueryCaptureRetainsFailedRecoveryRequest(t *testing.T) {
 	capture := newRecoveryQueryCapture(t)
 	f := newRecoveryNativeFixture(t)
 	empty := ""
-	f.native.SetFaults(zellijtest.Fault{Ordinal: 4, Reply: &empty})
+	f.native.SetFaults(zellijtest.Fault{Ordinal: 4, Reply: &empty}, zellijtest.Fault{Ordinal: 5, Reply: &empty}, zellijtest.Fault{Ordinal: 6, Reply: &empty})
 	ctx := capture.Context(t.Context())
 	capture.Mark("recover-enter")
 	_, err := f.env.Couch.RecoverThread(ctx, f.source.Address, "")
@@ -206,14 +244,14 @@ func TestRecoveryQueryCaptureRetainsFailedRecoveryRequest(t *testing.T) {
 		t.Fatalf("recovery classification: %v", err)
 	}
 	snapshot := capture.snapshot()
-	if len(snapshot.Records) != 6 || snapshot.DroppedRecords != 0 || len(f.native.Queries()) != 4 {
+	if len(snapshot.Records) != 8 || snapshot.DroppedRecords != 0 || len(f.native.Queries()) != 6 {
 		t.Fatalf("capture lost or added observations: records=%d dropped=%d queries=%v", len(snapshot.Records), snapshot.DroppedRecords, f.native.Queries())
 	}
 	failed := snapshot.Records[4]
 	if !failed.NoReply || failed.ExitCode != 0 || failed.StdoutBytes != 0 || len(failed.Stdout) != 0 || !reflect.DeepEqual(failed.Args, recoveryNativeInitialQueries()[3]) {
 		t.Fatalf("failed request evidence: %+v", failed)
 	}
-	if snapshot.Records[0].Name != "recover-enter" || snapshot.Records[5].Name != "recover-return" || failed.Started.Before(snapshot.Records[0].Started) || failed.Finished.After(snapshot.Records[5].Started) {
+	if snapshot.Records[0].Name != "recover-enter" || snapshot.Records[7].Name != "recover-return" || failed.Started.Before(snapshot.Records[0].Started) || failed.Finished.After(snapshot.Records[7].Started) {
 		t.Fatal("capture did not correlate the failing query with the recovery call")
 	}
 }
