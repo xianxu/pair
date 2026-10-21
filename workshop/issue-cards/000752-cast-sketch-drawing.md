@@ -1,6 +1,6 @@
 ---
 id: 000752
-status: working
+status: codecomplete
 created: 2026-10-20
 updated: 2026-10-21
 estimate_hours: 10.63
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:9
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
+actual_hours: 3.68
+tracker:
+    version: 1
+    completion:
+        token: close-c82c087dc339
+        repository: github.com/xianxu/pair
+        reviewed_head: 320d01886adaa2859c3bfd1c51306826dc38e32b
+        evidence_commit: ad61650fb44bab6a4ac0c98a1646bf79697f385b
 ---
 
 # cast-sketch: live console and driver drawing with pen pressure
