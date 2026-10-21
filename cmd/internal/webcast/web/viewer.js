@@ -79,7 +79,7 @@ export function connect(deps) {
   let es, state = null, ended = false, queued = false;
   const fresh = () => {
     if (v.renderer && v.renderer.revokeAll) v.renderer.revokeAll(); // the old drawing's blob: stylesheets
-    v.model = new Model();
+    v.model = new Model({allowSketchSnapshot:true});
     v.renderer = deps.renderer(v.model);
     v.renderer.onDirty = paint;
   };

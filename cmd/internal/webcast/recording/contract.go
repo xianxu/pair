@@ -293,13 +293,15 @@ func CheckCatchUp(recs []Record, t int64) error {
 			upto = append(upto, r)
 		}
 	}
-	cu, err := Reduce(CatchUp(upto), t)
+	cu, err := ReduceCatchUp(CatchUp(upto), t)
 	if err != nil {
 		return fmt.Errorf("the catch-up doesn't reduce: %w", err)
 	}
 	switch {
 	case !bytes.Equal(all.Canonical(), cu.Canonical()):
 		return fmt.Errorf("the page differs")
+	case !sameSketchProjection(all.Sketches.Snapshot(), cu.Sketches.Snapshot()):
+		return fmt.Errorf("sketch projection differs")
 	case !sameAssets(all.Assets, cu.Assets):
 		return fmt.Errorf("the asset table differs")
 	case all.DocSeg != cu.DocSeg:
@@ -345,4 +347,10 @@ func retainedNotes(s *State) string {
 		out = append(out, string(wire))
 	}
 	return strings.Join(out, ",")
+}
+
+func sameSketchProjection(a, b SketchProjection) bool {
+	x, _ := json.Marshal(a)
+	y, _ := json.Marshal(b)
+	return bytes.Equal(x, y)
 }

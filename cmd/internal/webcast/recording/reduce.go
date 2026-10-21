@@ -101,11 +101,14 @@ type State struct {
 	// Control is who drives (#466): per recording, ended by stop end.
 	Control Control
 
-	ctlSeen  bool // a ctl was applied: later ones must follow from it
-	whole    bool // reading a whole recording from its head (Validate)
-	nodes    map[NodeID]*DOMNode
-	types    map[NodeID]string // id -> type and tag, for the whole recording
-	awaitTop bool              // a seg came; its top doc hasn't
+	Sketches SketchState
+
+	allowSketchSnapshot bool
+	ctlSeen             bool // a ctl was applied: later ones must follow from it
+	whole               bool // reading a whole recording from its head (Validate)
+	nodes               map[NodeID]*DOMNode
+	types               map[NodeID]string // id -> type and tag, for the whole recording
+	awaitTop            bool              // a seg came; its top doc hasn't
 }
 
 // NewState is the state before any record.
@@ -173,6 +176,15 @@ func (s *State) Apply(r Record) error {
 			return fmt.Errorf("format version %d; this reader knows %d", h.V, Version)
 		}
 	}
+	if sketchMetadata(r) != nil {
+		duplicate, err := s.Sketches.Reconcile(r)
+		if err != nil {
+			return err
+		}
+		if duplicate {
+			return nil
+		}
+	}
 	if r.Time() < s.T {
 		return fmt.Errorf("t=%d is before the previous record's t=%d", r.Time(), s.T)
 	}
@@ -196,6 +208,14 @@ func (s *State) inSegment() error {
 }
 
 func (s *State) apply(r Record) error {
+	if sketchMetadata(r) != nil {
+		delta, err := NextSketch(&s.Sketches, r, SketchContext{Live: s.Live, Ended: s.Ended, Doc: s.DocSeg, Tab: s.Tab.ID, Driver: s.Control.Driving()})
+		if err != nil {
+			return err
+		}
+		delta.commit()
+		return nil
+	}
 	// After stop end the cast is over: nothing may change its state again.
 	switch r.(type) {
 	case *Seg, *Ctl, *AnnotationClear:
@@ -204,6 +224,8 @@ func (s *State) apply(r Record) error {
 		}
 	}
 	switch r := r.(type) {
+	case *SketchSnapshot:
+		return s.installSketchSnapshot(r)
 	case *Head:
 		if s.Head != nil {
 			return errors.New("a second head")
@@ -212,6 +234,9 @@ func (s *State) apply(r Record) error {
 	case *Seg:
 		if r.Seg <= s.Seg {
 			return fmt.Errorf("segment %d after segment %d", r.Seg, s.Seg)
+		}
+		if r.Why != SegResume || r.Tab.ID != s.Tab.ID {
+			s.Sketches.interrupt(SketchInterruptNavigation)
 		}
 		s.resetDOM()
 		s.Seg, s.Why, s.Live, s.Tab, s.VP = r.Seg, r.Why, true, r.Tab, r.VP
@@ -223,6 +248,11 @@ func (s *State) apply(r Record) error {
 		if !s.Live {
 			return errors.New("stop without a live segment")
 		}
+		if r.Why == StopPause {
+			s.Sketches.pause()
+		} else {
+			s.Sketches.interrupt(SketchInterruptEnd)
+		}
 		s.Live, s.awaitTop = false, false
 		if r.Why == StopEnd {
 			s.Control, s.Ended = Control{}, true
@@ -230,6 +260,7 @@ func (s *State) apply(r Record) error {
 	case *Ctl:
 		return s.applyCtl(r)
 	case *AnnotationClear:
+		s.Sketches.clear()
 		s.Notes, s.Strokes = nil, nil
 	case *Doc:
 		return s.applyDoc(r)

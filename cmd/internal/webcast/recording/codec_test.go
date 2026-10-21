@@ -10,7 +10,7 @@ import (
 func sample() []Record {
 	box := Box{1, 2, 3, 4}
 	t, f := true, Pos{5, 1}
-	return []Record{
+	records := []Record{
 		&Head{Format: Format, V: Version, ID: "r1", Started: "2026-10-11T23:00:00Z"},
 		&Seg{Seg: 1, Why: SegLive, Tab: Tab{ID: "T", URL: "http://x/"}, VP: Viewport{W: 1280, H: 800, DPR: 1}},
 		&Doc{Doc: 1, URL: "http://x/", Tree: Node{ID: 1, Y: YDoc, C: []Node{{ID: 2, Y: YDoctype, N: "html"}, {ID: 3, Y: YEl, N: "html"}}}},
@@ -48,6 +48,14 @@ func sample() []Record {
 		&Ctl{Op: CtlReset, Who: Author{ID: OperatorID}},
 		&Stop{Why: StopEnd},
 	}
+	for _, raw := range sketchWireSamples() {
+		r, err := Decode([]byte(raw))
+		if err != nil {
+			panic(err)
+		}
+		records = append(records, r)
+	}
+	return records
 }
 
 func TestCodecRoundTripsEveryKind(t *testing.T) {
