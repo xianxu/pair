@@ -210,6 +210,12 @@ func assertLayoutRefusalUsesIndependentBroker(t *testing.T, wrong string) {
 	}
 }
 
+type splitAdmissionRuntime struct{ admissionRuntime }
+
+func (r splitAdmissionRuntime) TerminalPaneIDs() ([]string, error) {
+	return []string{"3", "4"}, nil
+}
+
 func TestLayoutAmbiguousFirstReplyStopsBeforeConfirmation(t *testing.T) {
 	f := zellijtest.New(t)
 	for _, e := range f.Env() {
@@ -230,7 +236,7 @@ func TestLayoutAmbiguousFirstReplyStopsBeforeConfirmation(t *testing.T) {
 	w := newFullscreenWorld()
 	w.record = "preserved"
 	var diagnostic bytes.Buffer
-	if code := RunToggleFocused(nil, admissionRuntime{world: w}, &diagnostic); code != 1 || len(f.Queries()) != 1 || len(f.Effects()) != 0 || w.record != "preserved" {
+	if code := RunToggleFocused(nil, splitAdmissionRuntime{admissionRuntime{world: w}}, &diagnostic); code != 1 || len(f.Queries()) != 1 || len(f.Effects()) != 0 || w.record != "preserved" {
 		t.Fatalf("code=%d queries=%v effects=%v record=%q", code, f.Queries(), f.Effects(), w.record)
 	}
 }

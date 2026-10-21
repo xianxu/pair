@@ -97,6 +97,8 @@ Implementation details: [durable plan](../plans/000755-mock-server-plan.md).
 
 - Close round4 finalized SHIP with all five findings disposed. Recorded branch suite passed in10m50s on1a41927bc3d9689c62c58d032a8c7bef9b6c69a9 (log SHA256 prefix196a17a6e963). Entered merge; integration with origin/main conflicted only in tests/affected-go-readers.json. Resolved by preserving all three independent browser/sketch reader entries and their audited digests; inventory and whitespace checks passed. Recording a fresh suite on the integrated head before the required fix review, then re-entering merge.
 
+- Integrated suite passed on438872758e60a6f4212cad05b293f677dabae63e in10m7s (log SHA256 prefixdceca752c530), then fix review round5 finalized SHIP with no new findings. Immediate merge retry hit another inventory conflict against advanced main. Resolved with a three-way merge of audited path/classification/digest records: main’s changed terminal/reply readers plus this branch’s mock/cost/CLI entries; no product source conflict. Inventory and whitespace checks pass. Hub instructed prompt merge retry after resolution; retrying and following publish replay’s next action.
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. The source is marked stale by estimate-source; values remain provisional. Derived after plan-quality cleared.
