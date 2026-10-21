@@ -84,6 +84,22 @@ func runResourcesCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, ca
 }
 
 func renderResources(out io.Writer, v couchcore.ResourceView, now time.Time) {
+	if h := v.SupervisionLog; h == nil {
+		fmt.Fprintln(out, "Supervision log: health unavailable; use the rebuilt CLI and ask the hub to restart Couch")
+	} else {
+		fmt.Fprintf(out, "Supervision log: %s; offered=%d written=%d dropped=%d; last write=%s\n", rowtext.Sanitize(h.State), h.Offered, h.Written, h.Dropped, h.LastWriteAt.Format(time.RFC3339Nano))
+		if h.LastError != "" {
+			fmt.Fprintf(out, "  Last error (%s at %s): %s\n", rowtext.Sanitize(h.ErrorOperation), h.LastErrorAt.Format(time.RFC3339Nano), rowtext.Sanitize(h.LastError))
+		}
+		switch h.State {
+		case "opening":
+			fmt.Fprintln(out, "  Inspect resources again after opening completes")
+		case "unavailable", "failed-write":
+			fmt.Fprintln(out, "  Report this error to the hub; lost facts are not replayed")
+		case "closed", "unknown":
+			fmt.Fprintln(out, "  Ask the hub to restart Couch")
+		}
+	}
 	if v.SampledAt.IsZero() {
 		fmt.Fprintln(out, "Resources: waiting for first sample")
 	} else {

@@ -1204,7 +1204,30 @@ these rules. Parley's sole file-ping watcher is parley.nvim#321.
 The message service records best-effort JSONL at `<namespace>/supervision.jsonl`.
 `supervision_facts.go` owns its v1 schema; `supervision_factlog.go` owns one bounded
 writer, and `supervision_fact_events.go` adapts existing observations. There is no
-new watcher, candidate tracking, or online labeling. Rows record:
+new watcher, candidate tracking, or online labeling.
+
+`couch --resources [--json]` adds request-time `supervision_log` health (#736 M1).
+The existing fact owner captures bounded sanitized backend errors and acknowledged
+write counts; `health()` copies owner memory under its mutex, never reading the
+file or waiting on the sink. Pure `factLogLifecycle.advance` distinguishes opening,
+working, unavailable, failed-write and closed. A later independent successful row
+restores working; the failed row is never retried and its last error remains
+historical. Closed absorbs late IO completions. Counters report offers, complete
+sink acknowledgments and existing drops, not power-loss durability or a drained
+queue. The fact file's default location is `~/.local/share/pair/couch/supervision.jsonl`.
+Retained `couch --message-status ID --json` receipts, rather than this fact stream,
+explain per-message waiting decisions. The historical freeze still awaits the
+coordinated restart's measured error and a cause-specific M2 repair.
+
+The optional health field requires the rebuilt CLI with the new supervisor;
+older strict resource decoders reject it. A new CLI accepts an older server's
+absent field and renders health unavailable. No negotiation, retry, persisted
+format migration or decoder relaxation is involved; other operations' responses
+and admission decisions are unchanged. `resources_projection.go` retains this
+bounded value when trimming detail rows; both projection and cloning isolate it
+from the cached process sample.
+
+Rows record:
 
 - `hub_delivery`: endpoint completion to the hub, wording hint (landed,
   waiting-for-operator, progress, unknown), generated flag and confirmed,
