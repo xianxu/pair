@@ -41,17 +41,49 @@ func TestZellijLookupMissNativeReadRecovery(t *testing.T) {
 	}
 }
 
-func lookupMissSocketFixture(t *testing.T, name string) string {
+// nativeSocketFixtureRoot budgets the complete socket suffix before binding.
+// Its short allocation is private and leaves the caller's TMPDIR unchanged.
+func nativeSocketFixtureRoot(t *testing.T, relativeSocket string) string {
 	t.Helper()
-	root, err := os.MkdirTemp("", "s761-")
-	if err != nil {
-		t.Fatal(err)
+	cleanSuffix := filepath.Clean(relativeSocket)
+	if filepath.IsAbs(relativeSocket) || cleanSuffix == "." || cleanSuffix == ".." || strings.HasPrefix(cleanSuffix, ".."+string(filepath.Separator)) {
+		t.Fatal("socket fixture suffix must stay relative to its owned root")
+	}
+	base := os.TempDir()
+	if info, err := os.Stat("/Volumes/TestScratch"); err == nil && info.IsDir() {
+		base = "/Volumes/TestScratch"
+	}
+	root, err := os.MkdirTemp(base, "s761-")
+	if err != nil && base != os.TempDir() {
+		// TestScratch is optional even when mounted: it may be full or unwritable.
+		root, err = os.MkdirTemp(os.TempDir(), "s761-")
+	}
+	if err != nil || len(filepath.Join(root, relativeSocket)) > 103 {
+		if root != "" {
+			if err := os.RemoveAll(root); err != nil {
+				t.Fatal(err)
+			}
+		}
+		//lint:allow tmp-literal — native socket fixtures require a short writable fallback when optional scratch/default temp is unavailable or exceeds the conservative Unix pathname budget
+		root, err = os.MkdirTemp("/tmp", "s761-")
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 	t.Cleanup(func() {
 		if err := os.RemoveAll(root); err != nil {
 			t.Error(err)
 		}
 	})
+	if len(filepath.Join(root, relativeSocket)) > 103 {
+		t.Fatal("socket fixture name exceeds the conservative Unix pathname budget")
+	}
+	return root
+}
+
+func lookupMissSocketFixture(t *testing.T, name string) string {
+	t.Helper()
+	root := nativeSocketFixtureRoot(t, filepath.Join("contract_version_1", name))
 	t.Setenv("ZELLIJ_SOCKET_DIR", root)
 	dir := filepath.Join(root, "contract_version_1")
 	if err := os.Mkdir(dir, 0700); err != nil {
@@ -68,6 +100,30 @@ func lookupMissSocketFixture(t *testing.T, name string) string {
 		}
 	})
 	return path
+}
+
+func TestLookupMissSocketFixtureWithLongTMPDIR(t *testing.T) {
+	longRoot := filepath.Join(t.TempDir(), strings.Repeat("long", 40))
+	if err := os.MkdirAll(longRoot, 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TMPDIR", longRoot)
+	var ownedRoot string
+	t.Run("socket", func(t *testing.T) {
+		path := lookupMissSocketFixture(t, "pair-a")
+		ownedRoot = filepath.Dir(filepath.Dir(path))
+		if len(path) > 103 || !sessionSocketPresent("pair-a") {
+			t.Fatalf("native socket path (%d bytes) is not usable: %s", len(path), path)
+		}
+		if os.Getenv("TMPDIR") != longRoot {
+			t.Fatal("socket fixture changed the caller's TMPDIR")
+		}
+	})
+	if ownedRoot != "" {
+		if _, err := os.Lstat(ownedRoot); !os.IsNotExist(err) {
+			t.Fatalf("private socket root was not removed: %v", err)
+		}
+	}
 }
 
 func TestZellijLookupMissExitOneRequiresSocketAndKeepsBound(t *testing.T) {

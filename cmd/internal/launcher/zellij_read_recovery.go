@@ -115,5 +115,12 @@ func sessionSocketPresent(name string) bool {
 	if err != nil {
 		return false
 	}
-	return ObserveSocket(os.Lstat(filepath.Join(root, "contract_version_1", name))) == SocketPresent
+	// The kernel must resolve symlink/parent segments exactly as native Zellij
+	// does. filepath.Join would clean the root into a different socket identity.
+	path := root
+	if !strings.HasSuffix(path, "/") {
+		path += "/"
+	}
+	path += "contract_version_1/" + name
+	return ObserveSocket(os.Lstat(path)) == SocketPresent
 }

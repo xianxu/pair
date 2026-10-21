@@ -362,7 +362,6 @@
       "cmd/internal/launcher/startup_owner_timing_live_test.go": "aacc8b92a634a9ae889788f9ab18c2c4c175f228c00ac871687d59ff3bf74779",
       "cmd/internal/launcher/thread_claim_test.go": "bb9cdb1879a2b2112fab21e808fa0583766157701d9c724467a4acec0a95edeb",
       "cmd/internal/launcher/title_lease_cleanup_test.go": "016a62f2de42d323bc2a30103c19749ae070d4ef5f0d8339695090a105188f12",
-      "cmd/internal/launcher/workbench_attach_invariant_test.go": "7972d40f0e95748d52c691f6e6de8ef71fc1b4a176803e224bb543c90aad912f",
       "cmd/internal/launcher/zellij_name_failure_test.go": "96d3b24182f390efd2707d2ba37036af732054e90e5f887756e04a186da852e0",
       "cmd/internal/layoutcmd/decision_projection_test.go": "123ae8e26e4b1667a7915243c59dd0496cf332f649a72fa0a5ade48ed9d649ff",
       "cmd/internal/layoutcmd/fullscreen_adversarial_test.go": "b9ff464bb1e4fbae49102b89ffc0fc7d7a46794a1f32ccee2f37e2cde38b1631",
@@ -467,8 +466,9 @@
       "probes/zellijcalls/main_test.go": "382f78fb48fc70e5b522a8e5e38bc0fc8da82ebc75ec9c2f367c9ddfa7417693",
       "probes/zellijprobe/reporoot_test.go": "de13aef753c6fc958f01e4a04ec9963672a58a76f5e63d08d6e2ea32de825018",
       "cmd/internal/couchcore/nativequery_failure_test.go": "70e6d57ebd506b878b716c7338205a7c159baf307825e28689b37349130c5686",
-      "cmd/internal/launcher/zellij_lookup_miss_test.go": "067d90e398564713a006e9805a3be9260ad40a840554e2289f062fe7e64c0e2f",
-      "cmd/internal/couchcore/recovery_native_reply_test.go": "f15eaa5f77664006ea46e753b670ffa15523c82e4c7a5816280b732ae9ff8603"
+      "cmd/internal/couchcore/recovery_native_reply_test.go": "f15eaa5f77664006ea46e753b670ffa15523c82e4c7a5816280b732ae9ff8603",
+      "cmd/internal/launcher/zellij_lookup_miss_test.go": "c979731f872fd00c9c95d39f1e6da57b4166c27eefe735f4046f0334314b3e61",
+      "cmd/internal/launcher/workbench_attach_invariant_test.go": "bcf8e416bed738d1ca210f622aae8c9aa6298b9ce1a59b179982dbc8ef8db1ed"
     }
   }
 }

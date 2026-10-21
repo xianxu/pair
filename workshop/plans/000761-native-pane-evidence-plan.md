@@ -115,3 +115,7 @@ The initial plan listed test cases without assigning each risky helper a functio
 ### 2026-10-21 — implementation naming and cancellation propagation
 
 BoundNativeQueryEvidence is implemented as the private boundNativeQueryEvidence behind NativeQueryEvidence.Bounded, which clips and clones in one bounded pass; a separate cloneNativeQueryEvidence would duplicate that traversal. Typed-cause propagation also covers SessionOwnerPass and the existing post-observation context fences, preserving cancellation identity without another version query. This is the same error-chain class and does not alter authority or recovery policy.
+
+### 2026-10-21 — BR-1/BR-2: preserve native spelling and budget test sockets
+
+The exact-socket condition includes symlink/parent traversal semantics: append the validated native version/name components without filepath.Join cleaning. Add positive and negative filesystem regressions through the real read retry boundary. The test fixture must choose a short owned root independently of inherited TMPDIR, prefer TestScratch when it fits, and retain strict cleanup; run with an intentionally long TMPDIR. This implements the existing exact-target condition and portable test contract, with unchanged public behavior and retry budget. Requeue the suite on the fixed code, rerun native counters there and re-close against both ledger findings.
