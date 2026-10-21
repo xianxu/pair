@@ -7,7 +7,7 @@ created: 2026-10-21
 updated: 2026-10-21
 estimate_hours: 2.3535
 collaboration-mode: collaboration
-card_mirror: '5eb1204481a6423de772f32f9d3683dceb047ab7' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'f0cbefb337b3ecda337a8f1fd4312b11e2bd9840' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-21T00:55:41-07:00
 claimant:
     operator: Xian Xu
@@ -17,7 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
-actual_hours: 5.72
+actual_hours: 6.28
 ---
 
 # Couch native detach intermittently loses post-client ownership proof
