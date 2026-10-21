@@ -25,7 +25,7 @@
       "cmd/internal/couchcore/project_state_contract_test.go": "3f7e2c2d27d95fcc27c8b643e898b1db694f562474fb8276ee4a7aa5cf94c386",
       "cmd/internal/couchcore/retire_test.go": "43c433c9db35e56910ba80d638cfb21dfb0008c8e002a99a0a09f64da814798a",
       "cmd/internal/couchcore/retired_referents_test.go": "1c09f282949006c17eaed2a16bd17152b781f86cfbe02ce0640af90a84244ae7",
-      "cmd/internal/couchcore/slotresource_coverage_test.go": "5d75cd7958cd6a79c7430537de056f927498f70697269aac016cb241588c8aaf",
+      "cmd/internal/couchcore/slotresource_coverage_test.go": "a7b3a9a57780c35432d53ac919175731803c13b1e411c30ce94bc10e153ba35e",
       "cmd/internal/couchtty/core_concepts_contract_test.go": "1495aa9fdd8c75d166bf899973e1c1b2ca64363c39c74c9fca5e515c29a1e64b",
       "cmd/internal/couchtty/trace_test.go": "10dd00f2ccb4ea9fd30f9772f2a300eef4e90dc56a7200c0b088f96697fc1473",
       "cmd/internal/dispatcher/readme_test.go": "17b4b3deb5473035ebc417cd7d6927dcb8b0c085d79e985724273bb95d7116f3",

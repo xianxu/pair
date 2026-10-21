@@ -51,6 +51,18 @@ var slotTokenAllowlist = map[string]string{
 	"reuse-slot":   "a start-resolution fingerprint field, not a path",
 }
 
+// slotLiteralSiteAllowlist classifies non-slot uses by file, function and exact
+// literal; other uses in the same file remain subject to the complete audit.
+// TestSlotTokenAllowlistIsCurrent requires each site to occur exactly once.
+type slotLiteralSite struct {
+	file, function, literal string
+}
+
+var slotLiteralSiteAllowlist = map[slotLiteralSite]string{
+	{"cmd/internal/vmcmd/snapshot.go", "PlanSnapshot", ".couch"}:         "rejects Couch metadata from a VM snapshot; does not locate slot state",
+	{"cmd/internal/vmcmd/snapshot.go", "snapshotCheckout", "update-ref"}: "initializes HEAD in a fresh isolated snapshot repository; does not mutate slot refs",
+}
+
 // slotPathRootFields are identity fields whose value is a slot or fleet root:
 // joining a path onto one outside slotLayoutFile builds slot state by hand.
 var slotPathRootFields = map[string]bool{"EnvironmentRoot": true, "WorktreeRoot": true, "FleetRoot": true, "PrimaryRoot": true, "RepoIdentity": true}
@@ -155,9 +167,39 @@ func slotLayoutMethodNames() map[string]bool {
 func TestEverySlotStateSiteIsAResource(t *testing.T) {
 	t.Parallel()
 
+	for _, v := range slotStateViolations(productionGoFiles(t)) {
+		t.Error(v)
+	}
+	// Snapshot exceptions must not exempt another function, file or literal.
+	for _, tc := range []struct {
+		file, function, literal string
+		want                    int
+	}{
+		{"cmd/internal/vmcmd/snapshot.go", "PlanSnapshot", ".couch", 0},
+		{"cmd/internal/vmcmd/snapshot.go", "snapshotCheckout", "update-ref", 0},
+		{"cmd/internal/vmcmd/snapshot.go", "other", ".couch", 1},
+		{"cmd/internal/vmcmd/other.go", "PlanSnapshot", ".couch", 1},
+		{"cmd/internal/vmcmd/snapshot.go", "PlanSnapshot", ".couch/creation.json", 2},
+		{"cmd/internal/vmcmd/snapshot.go", "other", "update-ref", 1},
+		{"cmd/internal/vmcmd/other.go", "snapshotCheckout", "update-ref", 1},
+		{"cmd/internal/vmcmd/snapshot.go", "snapshotCheckout", "branch.other", 1},
+	} {
+		fset := token.NewFileSet()
+		file, err := parser.ParseFile(fset, tc.file, "package fixture; func "+tc.function+"() { _ = "+strconv.Quote(tc.literal)+" }", 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := slotStateViolations([]slotSourceFile{{rel: tc.file, fset: fset, file: file}})
+		if len(got) != tc.want {
+			t.Errorf("%s:%s literal %q: got %d violations, want %d: %v", tc.file, tc.function, tc.literal, len(got), tc.want, got)
+		}
+	}
+}
+
+func slotStateViolations(sources []slotSourceFile) []string {
 	layoutMethods := slotLayoutMethodNames()
 	var violations []string
-	for _, src := range productionGoFiles(t) {
+	for _, src := range sources {
 		if src.rel == slotLayoutFile {
 			continue
 		}
@@ -170,6 +212,9 @@ func TestEverySlotStateSiteIsAResource(t *testing.T) {
 					return true
 				}
 				if _, allowed := slotTokenAllowlist[v]; allowed {
+					return true
+				}
+				if _, allowed := slotLiteralSiteAllowlist[slotLiteralSite{src.rel, funcAt(src.file, n.Pos()), v}]; allowed {
 					return true
 				}
 				for _, tok := range slotStateTokens {
@@ -216,9 +261,7 @@ func TestEverySlotStateSiteIsAResource(t *testing.T) {
 		})
 	}
 	sort.Strings(violations)
-	for _, v := range violations {
-		t.Error(v)
-	}
+	return violations
 }
 
 // TestSlotTokenAllowlistIsCurrent keeps every exemption earning its place: an
@@ -228,10 +271,12 @@ func TestSlotTokenAllowlistIsCurrent(t *testing.T) {
 
 	seen := map[string]bool{}
 	funcs := map[string]bool{}
+	sites := map[slotLiteralSite]int{}
 	for _, src := range productionGoFiles(t) {
 		ast.Inspect(src.file, func(n ast.Node) bool {
 			if v, ok := stringLit(asExpr(n)); ok {
 				seen[v] = true
+				sites[slotLiteralSite{src.rel, funcAt(src.file, n.Pos()), v}]++
 			}
 			if fn, ok := n.(*ast.FuncDecl); ok {
 				funcs[src.rel+":"+fn.Name.Name] = true
@@ -246,6 +291,11 @@ func TestSlotTokenAllowlistIsCurrent(t *testing.T) {
 		}
 		if !seen[lit] || !matched {
 			t.Errorf("stale token exemption %q (%s): present=%v, matches a token=%v", lit, reason, seen[lit], matched)
+		}
+	}
+	for site, reason := range slotLiteralSiteAllowlist {
+		if sites[site] != 1 {
+			t.Errorf("stale or widened literal exemption %v (%s): got %d occurrences, want exactly one", site, reason, sites[site])
 		}
 	}
 	for site, reason := range slotPathRootAllowlist {

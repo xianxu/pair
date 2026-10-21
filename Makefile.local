@@ -614,6 +614,7 @@ test-pair-rename:
 .PHONY: test-vm-provision
 test-vm-provision:
 	python3 -B scripts/vm/test_provision.py
+	python3 -B scripts/vm/test_nightly.py
 
 .PHONY: conformance-vm test-vm-conformance
 conformance-vm: $(BIN_DIR)/pair
