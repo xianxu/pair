@@ -75,6 +75,8 @@ total: 1.7225
 
 ## Log
 
+
+- 2026-10-21: closed — Health-only closure per hub scope revision: M1 landed in PR502; 2026-10-21 live resources exposed unavailable open, offered77/written0/dropped77, exact reservation error and timestamp. Measured device-only mismatch is preserved in #774, which now owns repair and fresh-write acceptance; no historical-fix claim. Docs-only branch. Retained own recorded M1 suite 5090197a passed730.851s and landed-M1 suite d123e71b passed661.660s; original targeted race/protocol/fuzz evidence and SHIP remain. Hub owns project.; review verdict: SHIP
 ### 2026-10-20
 - 2026-10-20: closed M1 — M1 instrumentation only: semantic reds for invisible failure, missing resource field, clone alias and canceled-worker health; targeted supervision/resources race tests pass3.358s, resource/protocol tests pass, bounded2-worker error fuzz2062 executions passes, fast reader inventory and diff checks pass. README/atlas map memory-only health, legacy strict-reader refusal, rebuilt CLI requirement and retained receipt reasons. Recorded affected attempt5090197a is queued on pushed61cc29d9 (known #738 full fallback), review overlaps per tl-worker; pass still required before landing. No stage; hub owns project and coordinated restart; live refusal/cause repair remains M2, no historical-fix claim.; review verdict: SHIP
 
