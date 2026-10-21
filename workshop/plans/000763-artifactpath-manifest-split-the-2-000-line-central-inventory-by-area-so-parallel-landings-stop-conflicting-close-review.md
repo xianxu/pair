@@ -84,3 +84,88 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T04:28:03-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 763 — Go reader audit: isolate certificates so independent changes merge cleanly |
+| repo | pair |
+| issue file | workshop/issues/000763-artifactpath-manifest-split-the-2-000-line-central-inventory-by-area-so-parallel-landings-stop-conflicting.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 34af4bb26c7a16dd0d69e49c075f1e996e64d940..45081cdbf92674fcd1dd42998ee3ee14c7f281bd |
+| command | sdlc close --issue 763 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T04:28:03-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The implementation satisfies the revised certificate-splitting contract. All 462 migrated entries match the base exactly, independent changes merge cleanly, and BR-1 is addressed with passing regressions that fail without the fix. No new findings. Required recorded full-suite completion remains a separate gate; it was not independently established here.
+
+Done-when: current — it covers the revised layout, merge isolation, refusal controls, unknown-field preservation, and documentation.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      tests/affected-go-readers-test.py:108–146 preserves numeric tokens recursively and rejects non-JSON constants. Both regression tests at :261 and :273 pass; restoring default numeric decoding in a temporary copy makes both fail, confirming the fix is exercised.
+```
+
+1. **Strengths**
+
+   - Independently verified exact migration of all 462 paths, dispositions, and SHA256 values.
+   - Real-Git regression confirms independent reader updates merge with exact certificate bytes.
+   - Named regeneration leaves unrelated changed readers unaccepted and retains SOURCE_GUARDS enforcement.
+   - README and atlas explain certificate ownership, regeneration, and removal.
+
+2. **Critical findings**
+
+   None.
+
+3. **Important findings**
+
+   None.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   All 20 inventory tests and 12 affected-runner tests passed. Inventory checking and diff whitespace checking passed. Regression mutation checks confirmed BR-1 tests fail without the corrected decoding. The checkout remained clean.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY: pass** — one loader reconstructs the existing audit model.
+   - **ARCH-PURE: pass** — deterministic encoding and audit decisions remain separate from filesystem and CLI operations.
+   - **ARCH-PURPOSE: pass** — both inventory consumers use the shared loader; the aggregate is removed and independent updates are verified.
+   - **ARCH-EVOLVE: pass** — nested unknown values survive rewriting, including precise numeric tokens; known fields and duplicate keys remain strict.
+
+7. **Plan revision recommendations**
+
+   None. The pending verification/close/landing checklist accurately identifies remaining external gate work.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"78249a07-0a5e-4e74-96fc-904b24a09362","repository":"github.com/xianxu/pair","issue_id":"000763","recipe":"small-diff-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/89810bd97928a4b5","reviewed_head":"45081cdbf92674fcd1dd42998ee3ee14c7f281bd","slot":"pair:2","requested_at":"2026-10-21T11:26:26.924189Z"},"phase":"finished","pid":80589,"started_at":"2026-10-21T11:26:27.066254Z","finished_at":"2026-10-21T11:28:02.912234Z","session_id":"01a15e36-6c93-71d3-a04e-adbc3835ccef","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.298979917s
+head: "45081cdbf92674fcd1dd42998ee3ee14c7f281bd"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

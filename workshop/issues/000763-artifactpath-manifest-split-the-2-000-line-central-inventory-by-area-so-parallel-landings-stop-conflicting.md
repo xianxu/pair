@@ -56,6 +56,7 @@ no runtime, background process or new user-action state is introduced.
 ## Log
 
 ### 2026-10-21
+- 2026-10-21: closed — BR1 corrected: raw JSON number tokens preserve nested precise fractions, huge positive/negative exponents, negative zero and5000-digit integers; NaN/Infinity reject without rewrite, strict known types retained. Numeric controls RED before correction; CLI12 PASS4.403s; full inventory20 PASS50.666s on committed corrected45081cdb includes real Git merge, named Make refresh isolation and actual affected seeded violation. Prior runner12 PASS7.411s; exact migration462 preserved. Atlas/README and lesson updated. Replacement recorded suite lease-770558035 queued on corrected code; old queued suite cancelled through local-check. no-plan-check acknowledges remaining final Plan row includes pending recorded suite/CI/landing, all still mandatory; no scope change. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 
 ## Revisions
 - 10-21 01:50 (TL ops:0): **wrong file named at filing.** pair:4 reports the actual conflicts are in
