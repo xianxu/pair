@@ -1,0 +1,21 @@
+{
+  "argv": [
+    "go",
+    "test",
+    "-overlay=/Volumes/TestScratch/tmp/pair-slot5/pair-761-post764-owner-u3t8o_yj/overlay.json",
+    "./cmd/internal/couchcore",
+    "-run",
+    "^TestStartupManagedAttachDetachTimingLive$",
+    "-count=1",
+    "-v",
+    "-timeout=5m"
+  ],
+  "head": "29cf19bbd57c0bfbdc8e8d2a8348c5ebd82379f6",
+  "env": {
+    "PAIR_LIVE_COUCH": "1",
+    "PAIR_LIVE_STARTUP_PERF": "1",
+    "PAIR_STARTUP_PERF_ISOLATE_SOCKET": "1",
+    "PAIR_STARTUP_PERF_DIAGNOSTICS": "1",
+    "PAIR_STARTUP_PERF_DIAG_DIR": "/Volumes/TestScratch/tmp/pair-slot5/pair-761-post764-owner-u3t8o_yj"
+  }
+}
