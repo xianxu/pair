@@ -14,7 +14,7 @@ collaboration-mode: discussion
 
 ## Authority and scope
 
-Operator Spec is in pair#779. TL c5c04f63 approves full flow and these choices: attention badge stays right of line1; transient notices occupy free space on the final line; active remains visible as a full-label chip alone if needed, clipped but clickable at absurd widths. Attention chips take priority over ordinary chips; hidden attention is explicit in the overflow marker. This plan still needs TL approval before change-code.
+Operator Spec is in pair#779. TL c5c04f63 approves full flow and these choices: attention badge stays right of line1; transient notices occupy free space on the final line; active remains visible as a full-label chip alone if needed, clipped but clickable at absurd widths. Attention chips take priority over ordinary chips; hidden attention is explicit in the overflow marker. TL plan approval and subsequent refinement approval are recorded in Revisions.
 
 Includes the manual #757 archive repair, ariadne#532 class: one separately named commit, two100%-identical renames into history beside its archived parent plan. TL c1d5a9d6 approves it riding with #779. Name it explicitly in the PR description. Do not reopen/re-close #757 or retry its old archive proof.
 
@@ -47,7 +47,7 @@ Frame.ChromeRows is a scalar on an owned immutable publication. Endpoint snapsho
 |---|---|---|---|
 | Console chrome publication and resizing | cmd/internal/couchtty/terminal.go, console.go, console_menu.go | modified | Presenter FIFO and owned child PTYs |
 | Console mouse/codes/attention/note routing | terminal_input.go, console_castcodes.go, console_attention.go, console_noteanchor.go | modified | committed layout and local/remote input |
-| Presenter Select/ResizeLayout/UpdateChrome | cmd/internal/terminal/presenter.go | modified | one serialized physical parent writer and child resize callback |
+| Presenter Select/ResizeLayout/UpdateChrome/ChromeState | cmd/internal/terminal/presenter.go | modified | one serialized physical parent writer and child resize callback |
 | Broadcast admission and live frame delivery | cmd/internal/broadcast/hub.go, session.go, stream.go, server.go | modified | trusted current publication and SSE/browser frame delivery |
 | Viewer annotation geometry | cmd/internal/broadcast/web/notes.js and frame consumer | modified | server-owned frame geometry, never client authority |
 
@@ -60,7 +60,7 @@ Use existing stateful fake host, child endpoint and actual loopback broadcast se
 3. If the unfolded groups fit in two lines, render all of them with no +N. Keep cast/Chrome/capture controls left of line1 and attention at its right edge. Notices use only free space on the final line.
 4. Beyond two-line capacity, select active first, then attention (hub, blocked, bell), then ordinary actors. Among retained actors preserve original display order. No ordinary actor survives while an eligible attention actor is hidden. Overflow may show a full-label active chip separately when needed, as approved.
 5. Draw one whole trailing +N on line2, counting every omitted actor, including placeholders. Draw +N ! if any omitted actor needs attention. Do not claim a count for merely shortened labels. If the terminal is too narrow for both active and the whole marker, active wins and the marker is omitted; never draw a bare +. At such widths visibility means a clipped positive-width clickable active span, not impossible complete text.
-6. When terminal height permits only one chrome row, use the same bounded priority fallback on that row. With only one total host row, preserve today's no-reservation fallback so the child remains at least one row. At normal heights the bar is strictly one or two rows.
+6. When terminal height permits only one chrome row, use the same bounded priority fallback on that row. Reserve a positive-width active chip before fixed controls, attention badge or overflow; draw only controls that fit the remaining prefix. Omitted/clipped LIVE fails the broadcast indicator gate, never authorizes an unmarked stream. With only one total host row, preserve today's no-reservation fallback so the child remains at least one row. At normal heights the bar is strictly one or two rows.
 
 Overflow selection uses measured full-label chip widths so adding retained actors cannot reduce a candidate's cost through changed abbreviations. Group oversized classification is fixed from the original group, not recomputed per candidate. Precompute each actor's priority rank; search the largest retained priority prefix with allocation-free O(A) candidate packing, reserving a bounded worst-case whole overflow suffix. Render retained actors in source order once. Prefer a small conservative unused suffix over an unbounded search for a maximal packing; normal one/two-line cases use exact widths and no conservative reservation. This gives O(B + A log A), not repeated layoutChips/keptEnd prefix scans. The overflow fallback never repeats the old quadratic fitChips strategy.
 
@@ -68,9 +68,10 @@ Overflow selection uses measured full-label chip widths so adding retained actor
 
 - Terminal composition accepts a rectangular bottom surface of zero or more complete rows, strictly fewer than host rows. A shared pure helper owns the arithmetic/validation used by Compose, Presenter selection, resize and input child bounds; no hardcoded subtract-one copy.
 - Terminal Frame validation and history equality/reset comparisons include ChromeRows. A metadata-only change still reaches taps/broadcast even when the physical renderer produces no byte diff.
-- Console builds a proposed immutable layout from one status-model snapshot under publishMu. Unchanged height uses UpdateChrome; a height transition uses existing ResizeLayout with the selected child's ResizePTY callback. Commit hit extents/reservation only after the publication succeeds. Resize remaining children to that accepted size; InputEnded children retain existing skip behavior.
+- Console builds a proposed immutable layout from one status-model snapshot under publishMu. Unchanged height uses UpdateChrome; a height transition uses existing ResizeLayout with the selected child's ResizePTY callback. A nil publication result means admitted, not necessarily physically painted. Presenter.ChromeState returns a serialized read-only snapshot of the admitted chrome revision, host/row geometry and confirmation. Each Select, Panel, ResizeLayout or UpdateChrome admits a revision; successful paint confirms that revision, and an output stall revokes confirmation even if the method returned nil. Automatic retry paints the admitted layout under the same revision; no new timer or Console poll is added. Console stores pending hit extents with the admitted revision after the call and snapshots confirmation before geometry-dependent actions. Resize remaining children to admitted geometry; InputEnded children retain existing skip behavior.
 - Startup/installation, actor selection, actor/status changes, menu presentation and host resize all use this same layout owner. Selection first resizes the candidate child when its geometry differs; it cannot Select a stale-size frame. Startup prediction is reconciled before first presentation. Background children resize through the existing owner; a future selection revalidates size.
 - Switcher height, menu extents and footer use hostRows minus accepted chrome height. Resize rewraps and paints through one synchronized-output frame, never a separate erase/new-row paint. Existing routing-answer handling and publication fencing remain intact.
+- While painting is unconfirmed, or Console pending revision differs from the confirmed Presenter revision, local/remote geometry-dependent mouse presses and chrome actions are dropped; no stale layout is used. Presenter independently refuses child mouse admission under unconfirmed geometry. Motion/releases still traverse existing gesture ownership so cancellation/release joins correctly. Keyboard and paste keep existing logical-admission behavior. After a successful automatic repaint, the same pending extents become usable through the matching confirmation snapshot; no callback needs to re-enter Console from Presenter.
 - Chip spans include relative row. Controls retain column spans on relative row0; convert SGR/remote coordinates once against the committed top chrome row. Blank second-row cells are chrome and never go to the child. Pointer motion/release keep existing gesture ownership/cancellation.
 - ScreenLayout carries per-row chip extents and chrome top/height. Note anchors identify either chrome row correctly, with actual text from the captured frame.
 
@@ -94,7 +95,9 @@ Actions: resize host, add/remove/focus a tab, change attention, open/close switc
 | Groups require second row | two rows, child/menu one row shorter | resize/remove tabs | child's own resize/reflow only |
 | Two rows still insufficient | active and attention prioritized; +N or +N ! | focus a tab/open switcher/resize | hidden labels only, no tab/state deletion |
 | Physically tiny host | clipped active, whole marker if possible; bounded height | enlarge terminal | unreadable labels while tiny |
-| Actor attention changes wrapping | one accepted new layout and hit map | click/focus/resize | child's resize/reflow only |
+| Actor attention changes wrapping | one admitted layout plus matching revisioned hit map; usable after paint confirmation | click/focus/resize | child's resize/reflow only |
+| Resize admitted, writer stalls or accepts only a prefix | pending layout, geometry actions suppressed; keyboard/paste unchanged | existing automatic repaint after output recovers | geometry clicks during uncertainty are dropped, no queued click replay |
+| Automatic repaint succeeds on pending revision | hit map becomes usable without another layout write | click/focus | none |
 | Physical/child resize fails | existing terminal failure path; no accepted mismatched hit map | existing restart/recovery | existing in-flight terminal work limits |
 | Private switcher broadcast | placeholder body, both public chrome rows retained | close switcher | private menu content is withheld |
 | Frame metadata changes without ANSI delta | browser receives current guard geometry | retry navigation/place note | stale annotation attempt may be refused |
@@ -109,19 +112,19 @@ Creates no durable runtime artifact, cache, row history or background worker. La
 
 ARCH-DRY/PURE: one planner and one trusted geometry owner; existing styling and compositor reused. ARCH-PURPOSE: panes, input, broadcasts and notes consume the wrapped geometry. ARCH-MOCK: stateful host/endpoint/server tests plus native conformance. ARCH-SECURE: no child-text-derived broadcast authority; private body stays private. ARCH-ORDER: publication lock plus Presenter FIFO joins geometry and drawing. ARCH-EVOLVE: additive live message only; no persisted writer introduced.
 
-## Verification by function/risk
+## Verification strategy by function
 
-| Owner | Adversarial family | Mechanical pin |
+| Risky function | Adversarial family | Mechanical guard |
 |---|---|---|
-| planStatusRows / row drawer | fits1, groups2, oversized group, >2 capacity, active at tail, many attention chips, Unicode/control bytes, widths0/1/2 and normal widths | exact rows/counts/extents, attention-before-ordinary invariant, each row <=width, input model unchanged; seed fuzzing |
-| planner cost | 64/128 actors, all attention, many groups and long labels | counted visits/bytes and logarithmic bound, no repeated sanitation |
-| Compose / child geometry | no/one/two chrome rows, partial rows, all-host chrome, already-composed child | pure Frame validation/composition assertions, no overlap, unchanged one-row output |
-| Presenter ResizeLayout / input | one↔two while drag or child output is active | stateful endpoint/writer barriers, one coherent frame, release before changed input destination |
-| Console publication | startup, attach, select, attention changes, open switcher and repeated narrow↔wide resize | existing fake host/real child fixture; PTY geometry, footer and committed hit spans agree, no intermediate empty frame |
-| local/remote mouse and AnchorFor | identical columns in different rows, blank chrome, control clicks on row0 | exact intended actor/control and no child-delivered chrome click; anchors on both rows |
-| Indicator/ViewerFrame/guards | child imitates LIVE, two-row private frame, marks/notes on either control or ordinary cells | reject spoofed authority; preserve both chrome rows; real controls unpainted and private body absent |
-| Stream/Join/browser notes | metadata-only height change, late join, current layout after resize, stale client fields | actual server message and JS guard assertions, server refuses client geometry authority |
-| native and live setup | narrow two-row terminal then wide one-row, real TUI scroll/cursor/input | bounded owned native PTY test; stage selected head/build and operator look before landing |
+| planStatusRows / RenderStatusBar / shared row drawer | constrained grouped labels and conflicting active/control/attention priorities | pure exact layout/span invariants plus seeded fuzzing; per-row width bounds and no ordinary survivor while attention is hidden |
+| planStatusRows measured candidate packing | hostile actor/byte growth and kept-heavy inputs | N/2N operation and sanitation counters reject worse than declared logarithmic visits and linear bytes |
+| Compose / ChildGeometry / Frame.Validate | malformed or incompatible rectangular chrome | pure validation/composition tests preserve child minimum and one-row compatibility |
+| Presenter.ResizeLayout / ChromeState / paintPublication / mouseInput | admitted but unpainted layouts, partial writes and geometry-changing drags | controllable writer and endpoint barriers prove pending revision blocks mouse until successful retry; keyboard/paste and drag cleanup unchanged |
+| Console.paintNow / publishSelectionPublishing / showMenuPublishing / onResize / installChild | status and resize transitions across publication boundaries | existing fake host/PTY tests assert admitted child/menu geometry, pending extents and confirmation agree; native resize/scroll conformance |
+| routeMouseEvent / routeCastCodes / routeAttentionPanel / AnchorFor | stale or ambiguous row/column coordinates | both local and remote routes use confirmed revision; positive actor/control targeting and zero child-delivered chrome actions |
+| IndicatorShown / PointerShown / ViewerFrame | spoofed child authority and private two-row publications | explicit trusted-metadata negatives; exact public-chrome preservation and private-body absence |
+| Marks.Add / Marks.Overlay / NoteBoard.Add / DrawNotes / Session.acceptNote | guard movement and stale or hostile submitted geometry | actual current-frame admission and rendered-cell assertions protect real controls, including wide-cell overlaps |
+| Stream.Next / Stream.Join / server frame delivery / viewer note guards | metadata-only transitions and late/stale clients | stateful server/browser contract tests assert current additive geometry, no client-supplied authority and legacy missing-field behavior |
 
 ## Implementation tasks — one atomic close boundary
 
@@ -138,3 +141,5 @@ Targeted commands: go test ./cmd/internal/couchtty -run 'Test.*Status|Test.*Wrap
 ## Revisions
 
 - 2026-10-21: TL a01bc13f-f20c-4084-86d5-2f1e85796a01 approves this full design and test set; proceed to change-code. Operator stage must wait until #752 lands because it currently holds pair:0; TL sequences the look with #737's live day. No staging before hub clears that dependency.
+
+- 2026-10-21: Plan-quality round1 PQ-1/PQ-2 and minor PQ-3: clarified admitted versus confirmed geometry through Presenter.ChromeState, pending Console revisions and dropped geometry-dependent actions during uncertain paint; preserved keyboard/paste and existing automatic retry. Tiny one-row active wins over controls as well as count; omitted/clipped LIVE fails closed. Compressed the verification contract into named risky functions and strategies. TL ba876ba6-14f8-4bdc-80a4-6ede8d57ed6a approves this refinement. No implementation yet.
