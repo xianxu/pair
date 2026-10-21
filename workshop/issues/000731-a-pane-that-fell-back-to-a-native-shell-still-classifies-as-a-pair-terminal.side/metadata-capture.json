@@ -1,0 +1,118 @@
+{
+  "scope": "Controlled registered executable named pair term using production registry/projection and gated syscall.Exec; this measures native exec metadata, not the full production recovery path.",
+  "result": {
+    "version": "zellij 0.45.1",
+    "session": "p731-31448",
+    "pid_before": 31490,
+    "pid_after": 31490,
+    "ps_before": "31490 31485 Tue Oct 20 20:35:00 2026     /Volumes/TestScratch/tmp/pair731.p79ksE/pair term\n",
+    "ps_after": "31490 31485 Tue Oct 20 20:35:00 2026     sh -i\n",
+    "before": [
+      {
+        "live_ids": [
+          "0"
+        ],
+        "pane": {
+          "ID": "0",
+          "TabID": 0,
+          "TabPosition": 0,
+          "TerminalCommand": "",
+          "PaneCommand": "",
+          "PaneCwd": "",
+          "Title": "(.) - zellij:link",
+          "IsFocused": false,
+          "IsPlugin": true,
+          "IsFloating": false,
+          "IsFullscreen": false,
+          "X": 25,
+          "Y": 8,
+          "Columns": 50,
+          "Rows": 15
+        },
+        "role_with_registry": 0,
+        "role_without_registry": 0
+      },
+      {
+        "live_ids": [
+          "0"
+        ],
+        "pane": {
+          "ID": "0",
+          "TabID": 0,
+          "TabPosition": 0,
+          "TerminalCommand": "/Volumes/TestScratch/tmp/pair731.p79ksE/pair term",
+          "PaneCommand": "/Volumes/TestScratch/tmp/pair731.p79ksE/pair term",
+          "PaneCwd": "/Users/xianxu/workspace/worktree/pair-slot6/pair",
+          "Title": "terminal",
+          "IsFocused": true,
+          "IsPlugin": false,
+          "IsFloating": false,
+          "IsFullscreen": false,
+          "X": 0,
+          "Y": 0,
+          "Columns": 100,
+          "Rows": 30
+        },
+        "role_with_registry": 3,
+        "role_without_registry": 3
+      }
+    ],
+    "after": [
+      {
+        "live_ids": [
+          "0"
+        ],
+        "pane": {
+          "ID": "0",
+          "TabID": 0,
+          "TabPosition": 0,
+          "TerminalCommand": "",
+          "PaneCommand": "",
+          "PaneCwd": "",
+          "Title": "(.) - zellij:link",
+          "IsFocused": false,
+          "IsPlugin": true,
+          "IsFloating": false,
+          "IsFullscreen": false,
+          "X": 25,
+          "Y": 8,
+          "Columns": 50,
+          "Rows": 15
+        },
+        "role_with_registry": 0,
+        "role_without_registry": 0
+      },
+      {
+        "live_ids": [
+          "0"
+        ],
+        "pane": {
+          "ID": "0",
+          "TabID": 0,
+          "TabPosition": 0,
+          "TerminalCommand": "/Volumes/TestScratch/tmp/pair731.p79ksE/pair term",
+          "PaneCommand": "sh -i",
+          "PaneCwd": "/Users/xianxu/workspace/worktree/pair-slot6/pair",
+          "Title": "terminal",
+          "IsFocused": true,
+          "IsPlugin": false,
+          "IsFloating": false,
+          "IsFullscreen": false,
+          "X": 0,
+          "Y": 0,
+          "Columns": 100,
+          "Rows": 30
+        },
+        "role_with_registry": 3,
+        "role_without_registry": 3
+      }
+    ]
+  },
+  "cleanup": {
+    "client_returncode": 0,
+    "list_returncode": 1,
+    "stdout": "",
+    "stderr": "No active zellij sessions found.\n"
+  },
+  "probe_sha256": "1dac624b0b5c9413f9d24ff5a747697d50be346dae355fdc88fa2255f5e61474"
+}
