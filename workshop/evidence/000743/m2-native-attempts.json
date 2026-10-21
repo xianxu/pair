@@ -14,5 +14,13 @@
     "lane_claim_retained": false,
     "cause": "Native terminal population passed; shortcut fixture inherited bootstrap ZELLIJ_SOCKET_DIR, exhausting Darwin AF_UNIX path/session-name budget. Lowering TMPDIR alone does not override the explicit socket-root environment.",
     "correction": "Existing shortcut fixture now explicitly owns a short socket root and cleanup; long-TMPDIR/inherited-root regression binds the longest actual session path under the 103-byte conservative budget. Existing native-fixture lint is extended for the same class."
+  },
+  {
+    "nonce": "d1dd5e6c788fe48d1cf869a9f9ad8fef",
+    "head": "3b665b4be9dec6ac03691502d3ddad5983d0b9b7",
+    "exit_code": 0,
+    "lane_claim_retained": false,
+    "events": 409,
+    "required_cases": 28
   }
 ]
