@@ -170,7 +170,7 @@ Real Tart qualification uses the same `Run` adapter with controlled commands and
 - [x] Add `make conformance-vm` -> generic runner train lane -> strict guest conformance command -> existing terminal/lifecycle cases. Keep command construction in argv and avoid recursive VM invocation in the guest.
 - [x] Run `python3 -B tests/conformance-vm-test.py`, then `make conformance-vm` through the authorized outside-sandbox execution path. Run a deliberately failing fixture from a disposable checkout and retain its nonzero host result, logs and cleanup evidence. No live checkout mutation to create the fixture.
 - [x] Verify the direct public command on the pushed source head and the deliberately skipped-case private checkout; retain exact image/source/case identity, raw stdout/stderr and cleanup results. Coverage remains legacy/native stand-ins until #744 lands. Declaration and production named-check bootstrap acceptance are assigned to M3 by the approved revision below.
-- [ ] Update issue Log/atlas, commit, then `sdlc milestone-close --issue 743 --milestone M2 --verified '<measured evidence>'`.
+- [x] Update issue Log/atlas, commit, then `sdlc milestone-close --issue 743 --milestone M2 --verified '<measured evidence>'`.
 
 ### M3 — Nightly burn-in handoff and initial infrastructure landing
 
