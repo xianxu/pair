@@ -118,3 +118,8 @@ Design subtotal2.46h, buffered to2.829h; already-scaled implementation6.24h; tot
 
 
 Estimate-quality INFO accepted: M1 and M2 close through milestone-close; M3 is the final issue-close boundary (three reviews total). The service allocation includes provenance codec/integration tests and active private/live conformance, rather than charging those twice as refactors/API discovery. Refactor rows budget only the existing-reader wiring; API discovery is only external protocol investigation. Design allowance covers effect-door/interface integration choices and operator acceptance iteration, not redoing approved policy. No extra M3 milestone-close is intended.
+
+
+### 2026-10-21 — change-code passed; M1 implementation begins
+
+Plan-quality CLEAN through round4; estimate-quality INFO accepted, central change-code exited0. Estimate9.07h derived from configured v3.1 calibration. Three boundaries clarified: milestone-close M1/M2, final close M3. Starting pure lifecycle reducer and bounded latch worker in disjoint files; no Cloudflare account/configuration/public exposure or real-nvim drill. Latch restart/failure paths and late-completion/kill ordering are first red/green obligations.
