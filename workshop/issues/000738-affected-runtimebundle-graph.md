@@ -1,13 +1,13 @@
 ---
 id: 000738
-status: working
+status: codecomplete
 deps: [ariadne#517]
 github_issue:
 created: 2026-10-20
 updated: 2026-10-21
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'f977449387674581f9303e2c291f4d0d09be5e28' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '9fcf06252458c6863ba2e10c994706b943670677' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T19:58:34-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "7a2c8147", done: "1f52dd3c"}
+actual_hours: 9.91
 ---
 
 # Affected package graph falls back to full suite before runtime bundle preparation
