@@ -44,3 +44,15 @@ Make the inventory conflict-free by construction, keeping its exhaustiveness che
 ## Log
 
 ### 2026-10-21
+
+## Revisions
+- 10-21 01:50 (TL ops:0): **wrong file named at filing.** pair:4 reports the actual conflicts are in
+  `tests/affected-go-readers.json` (473 lines, 26 main commits in two days); `manifest.go` auto-merged both times.
+  That file maps each dynamic-reader test file to a content hash, one line per file in a single JSON object, so any
+  two branches touching neighbouring test files collide on adjacent lines, and every resolution costs a full suite
+  plus a fix review. **Re-scoped:** make the reader audit conflict-free by construction: one small file per reader
+  (e.g. `tests/affected-readers/<path>.sha256`) or another layout where independent changes never touch adjacent
+  lines, with a regenerate target (`make affected-readers`) so resolving is mechanical. Same audit semantics: a
+  changed reader still requires re-audit. Keep `manifest.go` as is unless it also shows real conflicts.
+  Done when: two branches changing different reader tests merge without conflict (test it with git), the audit check
+  still fails on a stale or missing hash, and atlas says where the entries live.
