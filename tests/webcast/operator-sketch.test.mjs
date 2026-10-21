@@ -4,11 +4,11 @@ import { createOperatorSketchTransport, createOperatorSketchReceiver } from '../
 
 test('console sketch transport retains original permission on unknown retry and joins close',async()=>{
  const sent=[],timers=new Map();let serial=0,generation='1';
- const win={setTimeout(fn){timers.set(++serial,fn);return serial;},clearTimeout(id){timers.delete(id);}};
+ const win={setTimeout(fn,ms){timers.set(++serial,{fn,ms});return serial;},clearTimeout(id){timers.delete(id);}};
  const t=createOperatorSketchTransport(m=>sent.push(m),win,()=>generation);
  const body={operation:'begin',sequence:0,epoch:1,seg:1,color:0};
  const first=t.ask('sketch-begin',body);
- timers.values().next().value();
+ timers.values().next().value.fn();
  await assert.rejects(first,/confirmation/);
  generation='3';
  const retry=t.ask('sketch-status',{operation:'begin',sequence:0,epoch:1});
@@ -174,17 +174,17 @@ test('authority validates canonical uint64 strings and safe epoch before advanci
 
 // Real shared controller/receiver over a stateful recording reducer. Its view
 // deliberately has only the console's synthetic fields, not Model APIs.
-async function drawingConsole({empty=false}={}){
+async function drawingConsole({empty=false,deferredAnchor=false}={}){
  const {mountOperatorSketch}=await import('../../cmd/internal/webcast/operator-sketch.js');
  const {Model}=await import('../../cmd/internal/webcast/web/model.js');
  const {Element}=await import('./dom-fixture.mjs');
  class E extends Element{appendChild(n){this.append(n);n.parentNode=this;return n;}insertBefore(n){this.appendChild(n);queueMicrotask(()=>n.onload?.());return n;}remove(){if(this.parentNode)this.parentNode.children=this.parentNode.children.filter(v=>v!==this);}}
  const root=new E('root'),box=new E('box');root.appendChild(box);
- const model=new Model();let time=0,serial=0,seq=0,begins=0,revision=0,pendingPoint=null,statusOverride=null;
+ const model=new Model();let time=0,serial=0,seq=0,begins=0,revision=0,pendingPoint=null,statusOverride=null,pendingAnchor=null;
  for(const r of [{k:'head',format:'couch-webcast',v:1,id:'console',started:'now'},{k:'seg',seg:1,why:'live',tab:{id:'tab',url:'u'},vp:{w:100,h:100,dpr:1}},{k:'doc',doc:1,url:'u',tree:{id:1,y:'doc',c:[{id:7,y:'el',n:'body'}]}}])model.apply({...r,t:time++});
  const subscribers=new Set(),sent=[],timers=new Map();
  const view={model:{seg:1,docSeg:1,paused:false,live:true,ended:false},onRecord(fn){subscribers.add(fn);return()=>subscribers.delete(fn);},fromPage:(x,y)=>[x,y],placementOf:p=>p.at.box};
- const win={crypto:{randomUUID:()=>`op-${++serial}`},requestAnimationFrame:()=>1,setTimeout(fn){timers.set(++serial,fn);return serial;},clearTimeout(id){timers.delete(id);},addEventListener(){},removeEventListener(){}};
+ const win={crypto:{randomUUID:()=>`op-${++serial}`},requestAnimationFrame:()=>1,setTimeout(fn,ms){timers.set(++serial,{fn,ms});return serial;},clearTimeout(id){timers.delete(id);},listeners:{},addEventListener(k,fn){(this.listeners[k]||=[]).push(fn);},removeEventListener(){}};
  let adapter;
  function transfer(payload){const bytes=Buffer.from(JSON.stringify(payload)),message={handle:`delivery-${++serial}`,epoch:'cast',total:bytes.length};adapter.receiver.receive({...message,phase:'begin'});return adapter.receiver.receive({...message,phase:'chunk',offset:0,base64:bytes.toString('base64')});}
  function facts(record,beforeOpen=''){
@@ -208,7 +208,7 @@ async function drawingConsole({empty=false}={}){
   else{record.sketch=sketch;if(b.id)record.id=b.id;if(k==='sketch-stroke-begin')Object.assign(record,{at:{node:b.node,box:b.box},width:3});if(k==='sketch-points')Object.assign(record,{chunk:b.chunk,pts:b.pts});if(k==='sketch-stroke-end'&&b.truncated)record.truncated=true;if(k==='sketch-label')record.label=b.label;}
   apply(record);answer(request,{outcome:'accepted',operation:b.operation,sketch,sequence:b.sequence,next_sequence:model.sketchMetadata(sketch).next_sequence,status:status(sketch),...(k==='sketch-begin'?{source:{handle:'h',time:time-1,length:100,doc:1,tab:'tab',vp:{w:100,h:100,dpr:1}}}:{})});
  }
- adapter=mountOperatorSketch({host:new E('host'),root,box,view,annotation:{setMode(){}},palette:['#ff0000'],css:'',shellURL:'data:text/html,private',report:({request})=>queueMicrotask(()=>{try{if(request.kind==='scene-open'||request.kind==='scene-dispose')answer(request,{});else if(request.kind==='scene-prepare')answer(request,{ready:true,vp:{w:100,h:100,dpr:1},scroll:[0,0]});else if(request.kind==='scene-hit')answer(request,{node:7,box:[0,0,100,100]});else if(request.kind==='scene-placement')answer(request,[0,0,100,100]);else mutation(request);}catch(error){adapter.transport.reply({request:request.request,ok:false,error:error.message});}})},{body:root,createElement:tag=>new E(tag)},win);
+ adapter=mountOperatorSketch({host:new E('host'),root,box,view,annotation:{setMode(){}},palette:['#ff0000'],css:'',shellURL:'data:text/html,private',report:({request})=>queueMicrotask(()=>{try{if(request.kind==='scene-open'||request.kind==='scene-dispose')answer(request,{});else if(request.kind==='scene-prepare')answer(request,{ready:true,vp:{w:100,h:100,dpr:1},scroll:[0,0]});else if(request.kind==='scene-hit'){if(deferredAnchor)pendingAnchor=()=>answer(request,{node:7,box:[0,0,100,100]});else answer(request,{node:7,box:[0,0,100,100]});}else if(request.kind==='scene-placement')answer(request,[0,0,100,100]);else mutation(request);}catch(error){adapter.transport.reply({request:request.request,ok:false,error:error.message});}})},{body:root,createElement:tag=>new E(tag)},win);
  transfer({bootstrap:{epoch:'cast',seq:0,display:{sketches:[]}}});
  const authority=(allowed=true,epoch=1)=>win.__couchcastSketchAuthority({revision:String(++revision),generation:'1',epoch,holder:allowed?'operator':'driver',ready:true,active:true});authority();
  const flush=async()=>{for(let i=0;i<120;i++)await Promise.resolve();};
@@ -216,7 +216,7 @@ async function drawingConsole({empty=false}={}){
  function synthetic(){view.model={seg:model.seg,docSeg:model.docSeg,paused:!model.live,live:model.live,ended:model.ended,driver:model.control.driver?.id||''};for(const fn of subscribers)fn({k:'view',t:model.t},view.model);}
  async function context(kind){if(kind==='handoff'){apply({k:'ctl',op:'request',who:{id:'driver'},pending:[{id:'driver'}]});apply({k:'ctl',op:'grant',who:{id:'driver'},driver:{id:'driver'},pending:[]});authority(false,2);}else if(kind==='expiry'){const next=model.sketchMetadata('s1').next_sequence;apply({k:'sketch-interrupt',sketch:'s1',reason:'expiry',operation:'expiry',sequence:next,digest:'b'.repeat(64)});}else if(kind==='clear')apply({k:'annotation-clear',who:{id:'operator'}});else apply({k:'stop',why:kind==='pause'?'pause':'end'});synthetic();if(pendingPoint){const p=pendingPoint;pendingPoint=null;answer(p,{outcome:'refused',operation:p.body.operation,sketch:p.body.sketch,sequence:p.body.sequence,next_sequence:model.sketchMetadata(p.body.sketch).next_sequence,status:status(p.body.sketch)});}await flush();}
  await adapter.tool.enter();event('pointerdown');await flush();
- return {adapter,model,root,sent,context,flush,event,authority,apply,synthetic,setStatus(fn){statusOverride=fn;}};
+ return {adapter,model,root,sent,context,flush,event,authority,apply,synthetic,resolveAnchor(){pendingAnchor?.();},tick(ms){for(const [id,t]of [...timers])if(t.ms<=ms){timers.delete(id);t.fn();}},exit(kind){if(kind==='Escape'){for(const fn of win.listeners.keydown||[])fn({key:'Escape',preventDefault(){},stopImmediatePropagation(){}});}else if(kind==='Done'){const toolbar=root.children.find(n=>n.className==='sketch-toolbar');for(const fn of toolbar.children.find(n=>n.textContent==='Done').listeners.click||[])fn();}else view.beforeAnnotationMode(kind);},setStatus(fn){statusOverride=fn;}};
 }
 for(const kind of ['handoff','expiry','pause','clear','end'])for(const empty of [false,true])test(`console ${kind} reconciles authoritative ${empty?'empty':'nonempty'} open contact without Model helpers`,async()=>{const f=await drawingConsole({empty});await f.context(kind);assert.equal(f.adapter.tool.layer.hasPointerCapture(1),false);const retired=kind==='clear'||kind==='end';if(retired){assert.equal(f.adapter.tool.state().phase,'off');assert.deepEqual(f.adapter.tool.state().pendingLabels,[]);}else{assert.equal(f.adapter.tool.state().phase,kind==='pause'?'paused':'interrupted');f.adapter.tool.openLabel('s1');f.adapter.tool.labelInput.value='Late partial intent';await f.adapter.tool.saveLabel();assert.equal(f.model.sketchProjection().sketches[0].label,'Late partial intent');assert.equal(f.sent.filter(r=>r.kind==='sketch-label').length,1);}f.adapter.dispose();});
 
@@ -278,4 +278,31 @@ test('repeated clear/bootstrap cycles retain no historical receiver identities',
   assert.equal(receiver.metadata(id),null);assert.deepEqual(receiver.paths(),[]);
  }
  receiver.retire();
+});
+
+for(const exit of ['Done','Escape','point','note'])for(const released of [false,true])
+ test(`console ${exit} preserves ${released?'released':'open'} contact through delayed anchor`,async()=>{
+  const f=await drawingConsole({deferredAnchor:true});f.event('pointermove',{clientX:30,pressure:.8});
+  if(released)f.event('pointerup',{buttons:0,clientX:30});await f.flush();
+  try {
+   f.exit(exit);assert.equal(f.adapter.tool.state().phase,'finishing');
+   f.adapter.tool.openLabel('s1');f.adapter.tool.labelInput.value='Console preserved';const saving=f.adapter.tool.saveLabel();
+   await f.flush();assert.equal(f.sent.filter(r=>r.kind==='sketch-label').length,0);
+   f.resolveAnchor();await f.flush();await saving;
+   assert.equal(f.adapter.tool.state().phase,'label-required');
+   const stroke=f.model.sketchProjection().sketches[0].strokes[0];assert.ok(stroke);assert.equal(stroke.sealed,true);assert.deepEqual(stroke.pts,[[20,20,.5],[30,20,.8]]);
+   f.adapter.tool.labelInput.value='Console preserved';await f.adapter.tool.saveLabel();assert.equal(f.model.sketchProjection().sketches[0].label,'Console preserved');
+  }finally{f.resolveAnchor();await f.flush();f.adapter.dispose();}
+ });
+
+for(const kind of ['handoff','pause','clear','end'])test(`console ${kind} visibly retires pending-anchor finishing and fences late callback`,async()=>{
+ const f=await drawingConsole({deferredAnchor:true});const leaving=f.adapter.tool.leave('point');
+ await f.context(kind);await leaving;
+ assert.match(f.root.children.find(n=>n.className==='sketch-status').textContent,/Couldn't save; accepted strokes kept/);
+ f.resolveAnchor();await f.flush();assert.equal(f.sent.filter(r=>r.kind==='sketch-stroke-begin').length,0);assert.equal(f.adapter.tool.layer.hasPointerCapture(1),false);f.adapter.dispose();
+});
+test('console finishing deadline bounds anchor wait and retains explicit failure after late response',async()=>{
+ const f=await drawingConsole({deferredAnchor:true});const leaving=f.adapter.tool.leave('watch');f.tick(5000);await leaving;await f.flush();
+ assert.match(f.root.children.find(n=>n.className==='sketch-status').textContent,/Couldn't save; accepted strokes kept/);
+ f.resolveAnchor();await f.flush();assert.equal(f.sent.filter(r=>r.kind==='sketch-stroke-begin').length,0);assert.match(f.root.children.find(n=>n.className==='sketch-status').textContent,/Couldn't save/);f.adapter.dispose();
 });

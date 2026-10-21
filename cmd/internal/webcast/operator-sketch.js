@@ -113,7 +113,7 @@ export function mountOperatorSketch({host,root,box,report,view,annotation,palett
   const current=()=>({allowed:authority.ready&&authority.holder==='operator',epoch:authority.epoch,live:!view.model.paused&&!view.model.ended&&view.model.seg>0,ended:!!view.model.ended});
   tool=mountSketch(doc,win,view,{root,box,scene,palette,paths:receiver.paths,sketchMetadata:receiver.metadata,authority:current,send:(kind,body)=>ask(kind,body,body.epoch),status:body=>ask('sketch-status',body,body.epoch),onMode(active){bypass=true;try{annotation.setMode('watch');}finally{bypass=false;}if(frame)frame.hidden=!active;},onTool(mode){bypass=true;try{annotation.setMode(mode);}finally{bypass=false;}}});
   const previousBeforeMode=view.beforeAnnotationMode;
-  const beforeMode=mode=>{if(disposed||bypass||!tool.state().active)return true;tool.leave(mode);return false;};
+  const beforeMode=mode=>disposed||bypass?true:tool.beforeAnnotationMode(mode);
   view.beforeAnnotationMode=beforeMode;
   const unRecord=view.onRecord(()=>{if(!disposed)tool.setAuthority(current());});
   const reply=reply=>transport.reply(reply);

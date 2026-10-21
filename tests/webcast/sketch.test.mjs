@@ -179,6 +179,7 @@ function harness() {
   };
   return {
     context,
+    timerCount: () => timers.size,
     root,
     box,
     doc,
@@ -755,4 +756,88 @@ test('optimistic contact uses approved 3px base and original pen pressure, mouse
     for (const arc of local) assert.equal(arc.radius * 2, 3 * (.25 + .75 * p), `${pointerType} pressure ${pressure}`);
     ui.dispose();
   }
+});
+
+for (const exit of ['Done', 'Escape', 'point', 'note']) for (const released of [false, true])
+ test(`viewer ${exit} preserves ${released ? 'released' : 'open'} contact through delayed anchor`, async () => {
+  const {mountSketch}=await mod();const h=harness();let anchor;
+  h.scene.hitTest=()=>new Promise(resolve=>anchor=resolve);
+  const ui=mountSketch(h.doc,h.win,h.view,h.options);await ui.enter();
+  h.event(ui.layer,'pointerdown');h.event(ui.layer,'pointermove',{clientX:20,pressure:.8});
+  if(released)h.event(ui.layer,'pointerup',{buttons:0,clientX:20});await h.flush();
+  try {
+   if(exit==='Escape')h.event(h.win,'keydown',{key:'Escape'});
+   else if(exit==='Done'){const toolbar=h.root.children.find(n=>n.className==='sketch-toolbar');h.event(toolbar.children.find(n=>n.textContent==='Done'),'click');}
+   else assert.equal(ui.beforeAnnotationMode(exit),false);
+   assert.equal(ui.state().phase,'finishing');
+   ui.openLabel('server-s');ui.labelInput.value='Preserved intent';const saving=ui.saveLabel();
+   await h.flush();assert.equal(h.sent.filter(r=>r.kind==='sketch-label').length,0);
+   anchor({node:7,box:[0,0,100,100]});await h.flush();await saving;
+   assert.equal(ui.state().phase,'label-required');
+   const strokes=h.model.sketchProjection().sketches[0].strokes;assert.equal(strokes.length,1);
+   assert.deepEqual(strokes[0].pts,[[10,10,.25],[20,10,.8]]);assert.equal(strokes[0].sealed,true);
+   ui.labelInput.value='Preserved intent';await ui.saveLabel();assert.equal(h.model.sketchProjection().sketches[0].label,'Preserved intent');
+  } finally {anchor({node:7,box:[0,0,100,100]});await h.flush();ui.dispose();}
+ });
+
+test('unknown before voluntary exit keeps exact retry and seals prefix before label',async()=>{
+ const {mountSketch}=await mod();const h=harness();const ui=mountSketch(h.doc,h.win,h.view,h.options);await ui.enter();
+ h.setUnknown(true);h.event(ui.layer,'pointerdown');await h.flush();const original=structuredClone(h.sent.at(-1));
+ await ui.leave('point');assert.equal(ui.state().phase,'reconciling');
+ h.setUnknown(false);h.options.status=async()=>({outcome:'not-observed'});ui.retry();await h.flush();
+ assert.deepEqual(h.sent.findLast(r=>r.kind==='sketch-points'),original);
+ assert.equal(ui.state().phase,'label-required');assert.equal(h.model.sketchProjection().sketches[0].strokes[0].sealed,true);ui.dispose();
+});
+test('finishing pending anchor expires visibly, bounds leave wait and fences late anchor',async()=>{
+ const {mountSketch}=await mod();const h=harness();let anchor;h.scene.hitTest=()=>new Promise(r=>anchor=r);
+ const ui=mountSketch(h.doc,h.win,h.view,h.options);await ui.enter();h.event(ui.layer,'pointerdown');await h.flush();
+ const leaving=ui.leave('watch');assert.equal(h.root.children.find(n=>n.className==='sketch-status').textContent,'Saving…');
+ h.tick(5000);await leaving;await h.flush();
+ const notice=h.root.children.find(n=>n.className==='sketch-status');assert.match(notice.textContent,/Couldn't save; accepted strokes kept/);
+ anchor({node:7,box:[0,0,100,100]});await h.flush();assert.equal(h.sent.filter(r=>r.kind==='sketch-stroke-begin').length,0);assert.match(notice.textContent,/Couldn't save/);ui.dispose();
+});
+test('held mutation observer times out then confirms original receipt while late HTTP is ignored',async()=>{
+ const {mountSketch}=await mod();const h=harness(),send=h.options.send;let response,late,command;
+ h.options.send=async(k,b)=>{const result=await send(k,b);if(k==='sketch-points'){response=result;command=structuredClone(b);return new Promise(r=>late=r);}return result;};
+ h.options.status=async b=>{assert.equal(b.operation,command.operation);return response;};
+ const ui=mountSketch(h.doc,h.win,h.view,h.options);await ui.enter();h.event(ui.layer,'pointerdown');await h.flush();
+ const leaving=ui.leave('point');h.tick(5000);await leaving;await h.flush();assert.equal(ui.state().phase,'reconciling');
+ ui.retry();await h.flush();assert.equal(ui.state().phase,'label-required');
+ const count=h.sent.length;late(response);await h.flush();assert.equal(h.sent.length,count);assert.equal(ui.state().phase,'label-required');
+ assert.match(h.root.children.find(n=>n.className==='sketch-status').textContent,/Couldn't save/);ui.dispose();
+});
+
+for(const kind of ['handoff','pause','clear','end'])test(`viewer ${kind} visibly retires pending-anchor finishing and fences late callback`,async()=>{
+ const {mountSketch}=await mod();const h=harness();let anchor;h.scene.hitTest=()=>new Promise(r=>anchor=r);const ui=mountSketch(h.doc,h.win,h.view,h.options);await ui.enter();h.event(ui.layer,'pointerdown');await h.flush();const leaving=ui.leave('point');
+ if(kind==='handoff'){h.emit({k:'ctl',t:9,op:'request',who:{id:'driver'},pending:[{id:'driver'}]});h.emit({k:'ctl',t:10,op:'grant',who:{id:'driver'},driver:{id:'driver'},pending:[]});ui.setAuthority({allowed:false,live:true,ended:false,epoch:2});}
+ else if(kind==='clear')h.emit({k:'annotation-clear',t:9,who:{id:'operator'}});else h.emit({k:'stop',t:9,why:kind});
+ await leaving;assert.match(h.root.children.find(n=>n.className==='sketch-status').textContent,/Couldn't save; accepted strokes kept/);
+ anchor({node:7,box:[0,0,100,100]});await h.flush();assert.equal(h.sent.filter(r=>r.kind==='sketch-stroke-begin').length,0);ui.dispose();
+});
+test('first deferred exit survives pending preflight and preparation without enabling capture',async()=>{
+ const {mountSketch}=await mod();const h=harness();let preflight,prepare;h.scene.preflight=()=>new Promise(r=>preflight=r);h.scene.prepare=()=>new Promise(r=>prepare=()=>{h.scene.ready=true;r();});
+ const ui=mountSketch(h.doc,h.win,h.view,h.options);const entering=ui.enter();await h.flush();assert.equal(ui.beforeAnnotationMode('point'),false);const leaving=ui.leave('note');ui.beforeAnnotationMode('note');
+ assert.equal(h.root.children.find(n=>n.className==='sketch-status').textContent,'Saving…');preflight();await h.flush();assert.equal(ui.state().phase,'finishing');h.event(ui.layer,'pointerdown');assert.equal(h.sent.length,1);
+ prepare();await entering;await leaving;assert.equal(ui.state().phase,'label-required');ui.labelInput.value='Prepared exit';await ui.saveLabel();assert.equal(h.tools.at(-1),'point');ui.dispose();
+});
+
+test('definite refusal while finishing keeps accepted prefix and requires explicit sealed recovery',async()=>{
+ const {mountSketch}=await mod();const h=harness(),send=h.options.send;let points=0,refuse;
+ h.options.send=(kind,body)=>{if(kind==='sketch-points'&&++points===2)return new Promise(resolve=>refuse=()=>resolve({outcome:'refused',next_sequence:body.sequence,status:{phase:'drawing',open_stroke:body.id}}));return send(kind,body);};
+ const ui=mountSketch(h.doc,h.win,h.view,h.options);await ui.enter();h.event(ui.layer,'pointerdown');await h.flush();h.event(ui.layer,'pointermove',{clientX:20});h.tick(50);await h.flush();const leaving=ui.leave('point');refuse();await leaving;await h.flush();
+ assert.equal(ui.state().phase,'interrupted');assert.equal(ui.canContinue(),true);assert.equal(h.model.sketchProjection().sketches[0].strokes[0].pts.length,1);
+ await ui.continueDrawing();const stroke=h.model.sketchProjection().sketches[0].strokes[0];assert.equal(stroke.sealed,true);assert.equal(stroke.truncated,true);
+ assert.equal(ui.state().phase,'label-required');ui.labelInput.value='Recovered exit';await ui.saveLabel();assert.equal(h.tools.at(-1),'point');ui.dispose();
+});
+test('unusable delayed anchor fails visibly before allowing label over accepted history',async()=>{
+ const {mountSketch}=await mod();const h=harness();let fail;h.scene.hitTest=()=>new Promise((_,reject)=>fail=reject);
+ const ui=mountSketch(h.doc,h.win,h.view,h.options);await ui.enter();h.event(ui.layer,'pointerdown');await h.flush();const leaving=ui.leave('watch');fail(Error('missing anchor'));await leaving;await h.flush();
+ assert.equal(ui.state().phase,'label-required');assert.match(h.root.children.find(n=>n.className==='sketch-status').textContent,/no usable anchor/);assert.equal(h.model.sketchProjection().sketches[0].strokes.length,0);ui.dispose();
+});
+
+test('dispose retires finishing deadline and bounded request observer timers',async()=>{
+ const {mountSketch}=await mod();const h=harness(),send=h.options.send;let late;
+ h.options.send=(kind,body)=>kind==='sketch-points'?new Promise(r=>late=r):send(kind,body);
+ const ui=mountSketch(h.doc,h.win,h.view,h.options);await ui.enter();h.event(ui.layer,'pointerdown');await h.flush();const leaving=ui.leave('watch');assert.ok(h.timerCount()>0);
+ ui.dispose();assert.equal(h.timerCount(),0);await leaving;late({outcome:'unknown'});await h.flush();assert.equal(h.timerCount(),0);
 });

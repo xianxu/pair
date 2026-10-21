@@ -200,12 +200,21 @@ and recording replay, render accepted paths without drawing permission or a pale
 
 Choose a fixed colour, then Sketch, and wait for its held recorded scene. Pressure samples stream before pointer-up;
 mouse/touch use pressure 1, pen hover is ignored, and cancellation seals a truncated partial stroke. Undo/Redo wait
-for confirmation and affect only the current unfinished sketch. Done, Escape or a tool change enters the label
-prompt; Escape there resumes the same scene. Save label completes the requested transition only after acceptance.
+for confirmation and affect only the current unfinished sketch. Done, Escape or a tool change first shows
+“Saving…” and stops new input while the existing gesture is finished, including an anchor still being resolved
+after pointer-up. The required-label prompt opens after that work is confirmed; Escape there resumes the same
+scene. Save label completes the requested transition only after acceptance.
 Handoff releases drawing input promptly and leaves an independent old-author label action while its UI credentials
 survive. Normal remote input is suspended while the sketch overlay owns input; the driving seat remains granted.
 
-`web/sketch-policy.js` owns UI scheduling, one operation in flight per sketch and bounded FIFO chunks. An uncertain
+`web/sketch.js` and `web/sketch-policy.js` own this finishing transition for both viewer and console; adapter tool
+controls retain the requested exit until it settles. Finishing has a five-second deadline. If it cannot be confirmed,
+the UI says “Couldn't save; accepted strokes kept”. An unknown write offers Check confirmation; a failed anchor
+leaves label/escape available to acknowledge the unsaved gesture. It does not report completion or
+discard an unknown write: the original operation remains available for reconciliation. A late callback cannot
+silently turn the failure into success.
+
+`web/sketch-policy.js` also owns one operation in flight per sketch and bounded FIFO chunks. An uncertain
 reply stops new geometry: Check confirmation queries the same operation/sequence/epoch, resending its exact body
 only after status says it was not observed. A definite refusal leaves the sequence unconsumed. Continue drawing is
 offered only for an authoritative drawing status at the expected sequence, the same eligible epoch and a ready held

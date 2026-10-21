@@ -1579,9 +1579,12 @@ before the pointer is released. Normal page input pauses without giving up the
 driving seat.
 
 **Undo** and **Redo** affect the current unfinished sketch after its stroke is
-confirmed. **Done**, Escape, or choosing another tool asks for a nonblank label;
-Escape from that prompt returns to the same held sketch. The requested tool
-opens only after **Save label** is confirmed. A handoff interrupts drawing and
+confirmed. **Done**, Escape, or choosing another tool shows **Saving…** while
+finishing the current stroke, then asks for a nonblank label. Escape from that
+prompt returns to the same held sketch. If saving cannot be confirmed within
+five seconds, **Couldn't save; accepted strokes kept** reports the failure. Use
+**Check confirmation** for an unknown write; a failed anchor leaves the label/escape action available.
+The requested tool opens only after **Save label** is confirmed. A handoff interrupts drawing and
 keeps a separate **Label unfinished sketch** action while the original UI and
 credentials survive. Accepted partial paths remain in the recording.
 

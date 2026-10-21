@@ -111,7 +111,7 @@ Keep one active source/lease cast-wide. Accepted mutation updates the two-minute
 
 ## Browser and privileged delivery
 
-`mountSketch(doc, win, view, options)` is shared by viewer and casting Chrome. `createSketchPolicy` owns `off|preparing|drawing|label-required|reconciling|paused|interrupted` tagged states. It permits one command in flight, FIFO chunks at 50 ms, at most 64 points/chunk and 16 queued chunks. At capacity stop the gesture visibly, retain accepted evidence and reconcile/seal; never silently discard samples or send them under a new operation identity.
+`mountSketch(doc, win, view, options)` is shared by viewer and casting Chrome. `createSketchPolicy` owns `off|preparing|drawing|finishing|label-required|reconciling|paused|interrupted` tagged states. It permits one command in flight, FIFO chunks at 50 ms, at most 64 points/chunk and 16 queued chunks. At capacity stop the gesture visibly, retain accepted evidence and reconcile/seal; never silently discard samples or send them under a new operation identity.
 
 The tool appears for eligible console/current driver. Enter prepares and awaits scene readiness before accepting input. It suppresses normal remote page input while retaining the driving seat. A common tool coordinator intercepts transitions away from sketch, ends any open stroke, requests a nonblank label, and completes the transition only on confirmation. Escape returns to the same sketch. Undo/Redo wait for stroke-end acknowledgment and use only the current unfinished sketch. A handoff releases the drawing mode promptly and preserves a separately reachable old-author label action.
 
@@ -131,13 +131,15 @@ Private source/bootstrap/assets use 32 KiB raw chunks (about 44 KiB base64) with
 
 ## State and recovery contract
 
-Actions: continue drawing, retry exact operation, reconnect, resume cast, enter label, start new sketch, Undo, Redo, inspect recording.
+Actions: Done, Escape, select another tool, continue drawing, Check confirmation/retry exact operation, reconnect, resume cast, enter label, start new sketch, Undo, Redo, inspect recording.
 
 | Internal state / failure mode | Visible state | Recovery action | Possible loss |
 | --- | --- | --- | --- |
 | Begin source is being admitted/built | Preparing held scene, input disabled | Retry exact operation | No accepted work |
 | Command started, reply lost or sink uncertain | Confirmation pending, gesture stopped | Retry exact operation | Unsent local samples if tab closes; accepted history retained |
-| Writer barrier proves refusal / queue at bound | Interrupted gesture with accepted prefix visible | Undo then continue drawing | Rejected/unsent samples only |
+| Writer barrier proves refusal / queue at bound | Interrupted gesture with accepted prefix visible | Continue recovery to reconcile and seal accepted prefix | Rejected/unsent samples only |
+| Voluntary exit with gesture/anchor/FIFO still pending | Saving…; new capture and label disabled | Await settlement within five seconds | None under normal settlement |
+| Finishing deadline expired | Couldn’t save; accepted strokes kept | Check confirmation for retained immutable operation; acknowledge explicit unanchorable gesture failure | Only explicitly failed unaccepted gesture; accepted history retained |
 | Same-document pause | Paused, scene and pending command retained | Resume cast | No accepted history |
 | Disconnect within exact holder/session lifetime | Reconnecting | Reconnect and retry exact operation | Unsent samples if client closes |
 | Holder changes, reset, expiry or source replacement | Old sketch interrupted; pending label remains separately reachable | Enter label; start new sketch as eligible holder | Unsent samples and unentered label |
@@ -176,7 +178,7 @@ Count N/2N samples/chunks at 8/16 and 64/128; assert proportional visits, point 
 | lease expiry callback | Timer loses a last mutation / resurrects retired source | Inject clock and rendezvous before actor execution; generated mutation→expiry orderings; one terminal receipt and zero surviving timers after Close |
 | `SketchStrokeEnd` seal and snapshot receipt replay | Cancellation evidence lost or Undo stack duplicated | Shared Go/JS event-sequence corpus, absent/false compatibility and conflicting exact-retry controls |
 | `OperatorSketchSince`, bootstrap / receiver | Coalescing, duplicate ACK and gap corruption | Generated cursor/overflow/ACK sequences; compare render projection at every accepted prefix; bounded bytes and zero bootstrap on normal points |
-| `createSketchPolicy`, FIFO sender | New identity after unknown / terminal input races | Generated user/network/ctl sequences; one active operation and same-origin retry invariants; bounded queue negative controls |
+| `createSketchPolicy`, FIFO sender | New identity after unknown / terminal input and exit races | Controlled user/network/ctl sequences on both adapters; delayed anchor and held/unknown reply across each exit control; deadline/recovery/retirement negative controls, one terminal and immutable retry identity |
 | shared pointer sampler/painter | Pen pressure loss, hover/palm input, duplicate optimistic echo | Recorded synthetic PointerEvent/coalesced corpus and shared geometry oracle; count new samples/painted segments at N/2N |
 | `createSketchScene`, scene/asset adapters | Display differs from acknowledged moment / leaked or late handles | Two independent Models with deliberately divergent live source; owned Chrome render/scroll/animation checks; late chunk/dispose and adversarial-page controls |
 | sketch HTTP / isolated binding adapters | Credential/body/epoch confusion | Real Server with stateful fake writer, body-read spy and cross-owner negative requests; actual isolated Chrome binding/frame probes |
@@ -338,3 +340,7 @@ TL approved the exit re-plan (delivery ec1b8b37-c337-452a-a91e-45f37ba01996). Bo
 ### 2026-10-21 — finishing deadline ownership detail
 
 Use the existing five-second console operation/CDP deadline as the shared finishing visibility bound. On expiry, report “Couldn't save; accepted strokes kept” and expose explicit recovery. Retain immutable unknown transport operations, accepted history and their admitted FIFO for confirmation; timeout is never a definitive refusal. An unresolved anchor with no durable stroke can be retired as unaccepted, with its callback generation fenced and the loss explicitly reported. Do not let a late anchor silently erase failure. Retained write acknowledgments may reconcile accepted facts, with the failure notice retained until user recovery. Bound leave's returned wait as well as its visible state; do not await the global mixed pending-Promise set indefinitely. Clear the finish timer at settlement/retirement/disposal.
+
+The BR-8 revision also updates the current state enumeration, recovery rows and function-strategy row above so the live contract includes finishing and its bounded failure, rather than leaving the new rule only in historical revisions.
+
+BR-8 implementation uses one shared `beforeAnnotationMode` gate on the tool, delegated to by both adapters, including preflight/deferred exit. Five-second `observeRequest` observers detach UI waiting and deduplication from a hung transport without canceling or reidentifying the writer's operation. Unknown write failure exposes Check confirmation; anchor-only failure instead retains label/escape acknowledgment, without advertising a nonexistent receipt. The label-dialog Escape clears the finished exit intent before ordinary drawing resumes.

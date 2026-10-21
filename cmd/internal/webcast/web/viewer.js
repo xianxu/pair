@@ -354,7 +354,7 @@ export function mount(doc, win) {
     onCapabilities: (fn) => { let stopped=false,remove; started.then(()=>{if(!stopped)remove=v.onCapabilities?.(fn);}); return ()=>{stopped=true;if(typeof remove==='function')remove();}; },
   };
   const surface = { ...win.couchViewer, get model() { return v.model; }, get seat() { return seat; }, get annotate() { return win.couchViewer.annotate; }, beforeAnnotationMode(mode) {
-    if(!bypassToolGate && sketchUI && ['drawing','label-required'].includes(sketchUI.state().phase)){sketchUI.leave(mode);return false;}
+    if(!bypassToolGate && sketchUI?.beforeAnnotationMode(mode)===false)return false;
     if(!bypassToolGate){win.couchViewer.drive?.setSketching(mode!=='watch');doc.body.classList.toggle('sketching',mode!=='watch');}return true;
   } };
   started.then(() => {

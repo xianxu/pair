@@ -323,3 +323,42 @@ test('clear retains unknown operation identity until accepted settlement without
  const effects=p.dispatch({type:'reply',operation:command.operation,outcome:'accepted',sketch:'server-old',next_sequence:1});
  assert.deepEqual(effects,[]);assert.equal(p.snapshot().slots.length,0);assert.equal(p.snapshot().active,null);
 });
+
+test('finishing preserves first exit and drains unknown queued terminal before label',async()=>{
+ const {createSketchPolicy}=await mod();const p=createSketchPolicy();ready(p);
+ const begin=p.dispatch({type:'queue',kind:'stroke-begin',body:{id:'p'}}).find(e=>e.type==='send').command;
+ p.dispatch({type:'reply',operation:begin.operation,outcome:'accepted'});
+ const points=p.dispatch({type:'queue',kind:'points',body:{id:'p',pts:[[1,2,.5]]}}).find(e=>e.type==='send').command;
+ p.dispatch({type:'reply',operation:points.operation,outcome:'unknown'});
+ p.dispatch({type:'leave',tool:'point',stroke:'p',waitingGesture:true});p.dispatch({type:'leave',tool:'note'});
+ p.dispatch({type:'gesture-finished',sketch:'s',stroke:'stale'});
+ assert.equal(p.dispatch({type:'queue',kind:'label',body:{label:'early'}}).some(e=>e.type==='send'),false);
+ p.dispatch({type:'queue',kind:'stroke-end',body:{id:'p',truncated:true}});
+ const end=p.dispatch({type:'reply',operation:points.operation,outcome:'accepted'}).find(e=>e.type==='send').command;
+ p.dispatch({type:'reply',operation:end.operation,outcome:'accepted'});assert.equal(p.snapshot().phase,'finishing');
+ p.dispatch({type:'gesture-finished',sketch:'s',stroke:'p'});assert.equal(p.snapshot().phase,'label-required');
+ const label=p.dispatch({type:'queue',kind:'label',body:{label:'intent'}}).find(e=>e.type==='send').command;
+ assert.equal(p.dispatch({type:'reply',operation:label.operation,outcome:'accepted'}).find(e=>e.type==='select-tool').tool,'point');
+});
+
+test('finishing saturation retains one bounded terminal and waits for every receipt',async()=>{
+ const {createSketchPolicy}=await mod();const p=createSketchPolicy({maxQueuedChunks:2});ready(p);
+ let command=p.dispatch({type:'queue',kind:'stroke-begin',body:{id:'p'}}).find(e=>e.type==='send').command;
+ p.dispatch({type:'reply',operation:command.operation,outcome:'accepted'});
+ command=p.dispatch({type:'queue',kind:'points',body:{id:'p',n:0}}).find(e=>e.type==='send').command;
+ for(let n=1;n<=2;n++)p.dispatch({type:'queue',kind:'points',body:{id:'p',n}});
+ p.dispatch({type:'leave',tool:'point',stroke:'p',waitingGesture:false});
+ p.dispatch({type:'queue',kind:'points',body:{id:'p',n:3}});
+ assert.equal(p.snapshot().slots[0].queuedPoints,2);assert.equal(p.snapshot().slots[0].queued,3);
+ const kinds=[];while(command){kinds.push(command.kind);const effects=p.dispatch({type:'reply',operation:command.operation,outcome:'accepted'});command=effects.find(e=>e.type==='send')?.command;}
+ assert.deepEqual(kinds,['points','points','points','stroke-end']);assert.equal(p.snapshot().phase,'label-required');
+});
+
+test('Escape cancels settled exit intent before later ordinary drawing refusal recovery',async()=>{
+ const {createSketchPolicy}=await mod();const p=createSketchPolicy();ready(p);
+ p.dispatch({type:'leave',tool:'point'});assert.equal(p.snapshot().phase,'label-required');p.dispatch({type:'escape'});
+ const command=p.dispatch({type:'queue',kind:'points',body:{id:'fresh',pts:[[1,2,.5]]}}).find(e=>e.type==='send').command;
+ p.dispatch({type:'reply',operation:command.operation,outcome:'refused',final:true});
+ p.dispatch({type:'recover',epoch:1,phase:'drawing',next_sequence:command.sequence,open_stroke:''});
+ assert.equal(p.snapshot().phase,'drawing');
+});

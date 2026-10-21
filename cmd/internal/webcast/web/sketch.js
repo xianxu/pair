@@ -11,6 +11,7 @@ export function mountSketch(doc, win, view, options) {
   let displayModel = view.model;
   let recordDisplay = options.paths ? null : createSketchRecordDisplay(displayModel);
   const requests = new Set(),
+    requestObservers = new Map(),
     placements = new Map();
   const pending = new Set(),
     statuses = new Map(),
@@ -37,6 +38,8 @@ export function mountSketch(doc, win, view, options) {
     message = '',
     paintGeneration = 0,
     entering = false,
+    deferredExit = null,
+    finishDeadline = null,
     recoveryEnd = null,
     drawingMode = false;
   const listeners = [];
@@ -102,8 +105,8 @@ export function mountSketch(doc, win, view, options) {
     observer.style.pointerEvents = 'none';
     panel.hidden = !labelTarget;
     toolbar.hidden =
-      !s.allowed && !['preparing', 'drawing', 'label-required', 'reconciling', 'paused'].includes(s.phase);
-    colors.disabled = ['preparing', 'drawing', 'label-required', 'reconciling', 'paused'].includes(s.phase);
+      !s.allowed && !['preparing', 'drawing', 'finishing', 'label-required', 'reconciling', 'paused'].includes(s.phase);
+    colors.disabled = ['preparing', 'drawing', 'finishing', 'label-required', 'reconciling', 'paused'].includes(s.phase);
     retryButton.hidden = s.phase !== 'reconciling';
     continueButton.hidden = !canContinue();
     sketchButton.disabled = !s.allowed || !s.live || s.ended;
@@ -112,7 +115,15 @@ export function mountSketch(doc, win, view, options) {
     undoButton.disabled = !drawing || busy || !status?.visible_top;
     redoButton.disabled = !drawing || busy || !status?.redo_top;
     notice.textContent =
-      message || (s.phase === 'reconciling' ? 'Confirmation pending. Check before continuing.' : '');
+      message ||
+      (s.slots.some((x) => x.finishing) || deferredExit !== null
+        ? 'Saving…'
+        : s.phase === 'reconciling' ? 'Confirmation pending. Check before continuing.' : '');
+    if (finishDeadline && !s.slots.some((x) => x.finishing) && !entering) {
+      win.clearTimeout(finishDeadline.timer);
+      finishDeadline.resolve();
+      finishDeadline = null;
+    }
     labels.replaceChildren();
     for (const key of s.pendingLabels) {
       const b = make('button', '', labels);
@@ -137,6 +148,7 @@ export function mountSketch(doc, win, view, options) {
     if (result?.outcome === 'accepted') confirmed.set(key, {
       sketch: key, operation: command.operation, sequence: command.sequence, epoch: command.epoch,
     });
+    if (result?.outcome === 'accepted' && command.kind === 'label') message = '';
     if (result?.outcome === 'accepted' && command.kind === 'stroke-end') optimistic.delete(command.body.id);
     dispatch({
       type: 'reply',
@@ -149,7 +161,7 @@ export function mountSketch(doc, win, view, options) {
     if (
       result?.outcome === 'accepted' &&
       recoveryEnd &&
-      state().phase === 'drawing' &&
+      ['drawing','finishing'].includes(state().phase) &&
       active() === recoveryEnd.sketch
     ) {
       const terminal = recoveryEnd;
@@ -161,6 +173,19 @@ export function mountSketch(doc, win, view, options) {
     if (drawingMode === value) return;
     drawingMode = value;
     options.onMode?.(value);
+  }
+  // Bound the UI observer, never the writer's ownership of a started command.
+  // Late transport completion cannot mutate UI after this observer timed out.
+  function observeRequest(call) {
+    let timeout;
+    const expired = new Promise((_, reject) => {
+      timeout = win.setTimeout(() => reject(Error('Confirmation pending.')), 5000);
+      requestObservers.set(timeout, reject);
+    });
+    return Promise.race([Promise.resolve().then(call), expired]).finally(() => {
+      win.clearTimeout(timeout);
+      requestObservers.delete(timeout);
+    });
   }
   function effect(e) {
     if (e.type === 'prepare-scene') {
@@ -182,10 +207,10 @@ export function mountSketch(doc, win, view, options) {
           .then(async () => {
             let result =
               e.type === 'status'
-                ? await options.status(e.lookup)
-                : await options.send('sketch-' + command.kind, body);
+                ? await observeRequest(() => options.status(e.lookup))
+                : await observeRequest(() => options.send('sketch-' + command.kind, body));
             if (e.type === 'status' && result?.outcome === 'not-observed' && !disposed)
-              result = await options.send('sketch-' + command.kind, body);
+              result = await observeRequest(() => options.send('sketch-' + command.kind, body));
             return result;
           })
           .then(
@@ -248,6 +273,8 @@ export function mountSketch(doc, win, view, options) {
         contact = null;
       }
     } else if (e.type === 'stop-gesture') {
+      if (finishDeadline && ['authority','paused','ended','clear','end'].includes(e.reason))
+        message = "Couldn't save; accepted strokes kept.";
       if (e.reason === 'queue-full')
         message = 'Stroke queue full. Confirming and sealing its accepted points.';
       if (e.reason === 'refused')
@@ -327,6 +354,7 @@ export function mountSketch(doc, win, view, options) {
     try {
       flush();
       gestureEffects(gesture.end({ truncated }));
+      if (!gesture.snapshot().active) dispatch({ type: 'gesture-finished', sketch: active(), stroke: finished.stroke });
     } finally {
       if (layer.hasPointerCapture?.(finished.pointer)) layer.releasePointerCapture(finished.pointer);
     }
@@ -346,6 +374,7 @@ export function mountSketch(doc, win, view, options) {
     const stroke = contact.stroke,
       first = point(e, pressure),
       hit = gesture.start(stroke, [first]),
+      sketch = active(),
       stamp = generation;
     contact.last = first.slice(0, 2);
     optimistic.set(stroke, {
@@ -362,12 +391,16 @@ export function mountSketch(doc, win, view, options) {
       Promise.resolve()
         .then(() => scene.hitTest(hit.point.slice(0, 2)))
         .then((at) => {
-          if (!disposed && stamp === generation) gestureEffects(gesture.anchor(at, stroke));
+          if (!disposed && stamp === generation) {
+            gestureEffects(gesture.anchor(at, stroke));
+            if (!gesture.snapshot().active) dispatch({ type: 'gesture-finished', sketch, stroke });
+          }
         })
         .catch(() => {
           if (stamp === generation) {
-            message = 'This stroke has no usable anchor.';
+            if (!message.startsWith("Couldn't save")) message = 'This stroke has no usable anchor.';
             cancel();
+            dispatch({ type: 'gesture-finished', sketch, stroke });
             show();
           }
         }),
@@ -413,7 +446,7 @@ export function mountSketch(doc, win, view, options) {
     win,
     'keydown',
     (e) => {
-      if (e.key !== 'Escape' || (!labelTarget && state().phase !== 'drawing')) return;
+      if (e.key !== 'Escape' || (!labelTarget && !['drawing','preparing','finishing','reconciling'].includes(state().phase) && !entering)) return;
       e.preventDefault();
       e.stopImmediatePropagation?.();
       if (labelTarget) escape();
@@ -431,6 +464,7 @@ export function mountSketch(doc, win, view, options) {
   function escape() {
     dispatch({ type: 'escape' });
     if (state().phase === 'drawing') {
+      message = '';
       labelTarget = null;
       show();
     }
@@ -448,25 +482,66 @@ export function mountSketch(doc, win, view, options) {
         key = id();
       dispatch({ type: 'enter', sketch: key });
       if (active() === before) return;
-      message = '';
+      if (!finishDeadline?.failed) message = '';
       queue('begin', { seg: view.model.seg, color }, key);
+      if (deferredExit) {
+        dispatch({ type: 'leave', tool: deferredExit });
+        deferredExit = null;
+      }
       await idle();
     } catch (error) {
       message = 'The held scene is unavailable. Try Sketch again.';
       show();
     } finally {
       entering = false;
+      deferredExit = null;
+      show();
     }
   }
+  function finishingDeadline() {
+    if (finishDeadline) return finishDeadline.promise;
+    const deadline = {};
+    deadline.promise = new Promise((resolve) => { deadline.resolve = resolve; });
+    deadline.timer = win.setTimeout(() => {
+      if (disposed || finishDeadline !== deadline) return;
+      deadline.failed = true;
+      message = "Couldn't save; accepted strokes kept." +
+        (state().slots.some((slot) => slot.inflight) ? ' Check confirmation.' : '');
+      if (gesture.snapshot().waitingAnchor) {
+        const stroke = gesture.snapshot().active,
+          sketch = active();
+        cancel();
+        dispatch({ type: 'gesture-finished', sketch, stroke });
+      }
+      deadline.resolve();
+      show();
+    }, 5000);
+    finishDeadline = deadline;
+    return deadline.promise;
+  }
   async function leave(tool = 'watch') {
-    finish();
-    dispatch({ type: 'leave', tool });
-    await idle();
+    if (entering && !active()) deferredExit ||= tool;
+    const deadline = finishingDeadline();
+    if (!finishDeadline?.failed) message = '';
+    dispatch({
+      type: 'leave',
+      tool,
+      stroke: gesture.snapshot().active || recoveryEnd?.id,
+      waitingGesture: !!gesture.snapshot().active,
+    });
+    finish(true);
+    await Promise.race([idle(), deadline]);
+  }
+  function beforeAnnotationMode(mode) {
+    if (!entering && !['preparing', 'drawing', 'finishing', 'reconciling', 'label-required'].includes(state().phase))
+      return true;
+    leave(mode);
+    return false;
   }
   function openLabel(key) {
-    if (disposed) return;
+    if (disposed || state().slots.find((s) => s.sketch === key)?.finishing) return;
+    if (labelTarget !== key) labelInput.value = drafts.get(key) || '';
     labelTarget = key;
-    labelInput.value = drafts.get(key) || '';
     show();
     labelInput.focus();
   }
@@ -475,18 +550,23 @@ export function mountSketch(doc, win, view, options) {
     const key = labelTarget, label = labelInput.value;
     reconcileSketches();
     let slot = state().slots.find((s) => s.sketch === key);
+    if (slot?.finishing) {
+      show();
+      return;
+    }
     if (needsStatus.has(key) && !slot?.inflight && !slot?.queued) {
       const lookup = confirmed.get(key);
       if (!lookup) return;
       const revision = observed.get(key);
       try {
-        const result = await options.status(lookup);
+        const result = await observeRequest(() => options.status(lookup));
         if (disposed || result?.outcome !== 'accepted' || observed.get(key) !== revision) return;
         if (result.status) statuses.set(key, structuredClone(result.status));
         dispatch({ type: 'observed', sketch: key, next_sequence: result.next_sequence });
         needsStatus.delete(key);
         reconcileSketches();
       } catch {
+        if (disposed) return;
         message = 'Confirmation pending. Check before continuing.';
         show();
         return;
@@ -734,6 +814,7 @@ export function mountSketch(doc, win, view, options) {
   return {
     enter,
     leave,
+    beforeAnnotationMode,
     saveLabel,
     undo,
     redo,
@@ -755,7 +836,17 @@ export function mountSketch(doc, win, view, options) {
     },
     dispose() {
       disposed = true;
+      for (const [timer, reject] of requestObservers) {
+        win.clearTimeout(timer);
+        reject(Error('Sketch context retired.'));
+      }
+      requestObservers.clear();
       generation++;
+      if (finishDeadline) {
+        win.clearTimeout(finishDeadline.timer);
+        finishDeadline.resolve();
+        finishDeadline = null;
+      }
       paintGeneration++;
       cancel();
       scheduler.dispose();

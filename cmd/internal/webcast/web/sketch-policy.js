@@ -73,6 +73,7 @@ export function createSketchPolicy({ operationId, maxQueuedChunks = 16 } = {}) {
           inflight: s.inflight ? own(s.inflight) : null,
           nextSequence: s.sequence,
           retired: s.retired,
+          finishing: s.phase === 'finishing',
         })),
         pendingLabels: Array.from(slots.values())
           .filter((s) => !s.retired && !s.labelled && ['interrupted', 'label-required', 'paused'].includes(s.phase))
@@ -125,7 +126,7 @@ export function createSketchPolicy({ operationId, maxQueuedChunks = 16 } = {}) {
             (slot &&
               !slot.retired &&
               slot.epoch === epoch &&
-              ['preparing', 'drawing', 'label-required'].includes(slot.phase))
+              ['preparing', 'drawing', 'finishing', 'label-required'].includes(slot.phase))
           ) {
             effects.push({ type: 'refused', reason: 'Drawing is unavailable.' });
             break;
@@ -166,21 +167,29 @@ export function createSketchPolicy({ operationId, maxQueuedChunks = 16 } = {}) {
             slot.sequence = event.nextSequence;
           }
           slot.sourceReady = true;
-          slot.phase = 'drawing';
+          if (slot.phase !== 'finishing') slot.phase = 'drawing';
           break;
         case 'leave':
-          if (slot && !slot.retired && slot.phase === 'drawing') {
-            slot.phase = 'label-required';
+          if (slot && !slot.retired && ['drawing', 'preparing'].includes(slot.phase)) {
+            slot.phase = 'finishing';
+            slot.exitRequested = true;
             slot.tool = event.tool || 'watch';
-            effects.push(
-              { type: 'stop-gesture', reason: 'leave' },
-              { type: 'request-label', sketch: slot.id },
-            );
+            slot.finishStroke = event.stroke || '';
+            slot.waitingGesture = event.waitingGesture ?? !!event.stroke;
           }
           break;
+        case 'gesture-finished':
+          if (slot?.phase === 'finishing' && event.sketch === slot.id && event.stroke === slot.finishStroke)
+            slot.waitingGesture = false;
+          break;
         case 'escape':
-          if (slot?.phase === 'label-required' && allowed && live && slot.epoch === epoch)
+          if (slot?.phase === 'label-required' && allowed && live && slot.epoch === epoch) {
             slot.phase = 'drawing';
+            slot.exitRequested = false;
+            slot.finishStroke = '';
+            slot.waitingGesture = false;
+            slot.tool = 'watch';
+          }
           break;
         case 'queue': {
           if (!slot || slot.retired || ended || !kinds.has(event.kind)) {
@@ -193,14 +202,21 @@ export function createSketchPolicy({ operationId, maxQueuedChunks = 16 } = {}) {
               !live ||
               slot.epoch !== epoch ||
               slot.id !== active ||
-              slot.uncertain ||
+              (slot.uncertain && slot.phase !== 'finishing') ||
               slot.recovering ||
-              (event.kind === 'begin' ? slot.phase !== 'preparing' : slot.phase !== 'drawing'))
+              (event.kind === 'begin' ? !['preparing', 'finishing'].includes(slot.phase) :
+                slot.phase !== 'drawing' && !(slot.phase === 'finishing' &&
+                  ['stroke-begin', 'points', 'stroke-end'].includes(event.kind) &&
+                  event.body?.id === slot.finishStroke)))
           ) {
             effects.push({ type: 'refused', reason: 'Drawing is unavailable.' });
             break;
           }
           if (event.kind === 'label') {
+            if (slot.phase === 'finishing' || slot.uncertain) {
+              effects.push({ type: 'refused', reason: 'Saving the current stroke. Wait for confirmation.' });
+              break;
+            }
             const label = event.body?.label;
             if (typeof label !== 'string' || !label.trim() || new TextEncoder().encode(label).length > 1024) {
               effects.push({ type: 'refused', reason: 'Add a nonblank label of at most 1024 bytes.' });
@@ -292,6 +308,7 @@ export function createSketchPolicy({ operationId, maxQueuedChunks = 16 } = {}) {
             slot.queue = [];
             slot.recovering = false;
             if (!slot.retired) slot.phase = live ? 'interrupted' : 'paused';
+            slot.waitingGesture = false;
             effects.push({ type: 'stop-gesture', reason: 'refused', error: event.error || '' });
             if (command.kind === 'begin') {
               slot.retired = true;
@@ -343,7 +360,8 @@ export function createSketchPolicy({ operationId, maxQueuedChunks = 16 } = {}) {
             typeof event.open_stroke !== 'string'
           )
             break;
-          slot.phase = 'drawing';
+          slot.phase = slot.exitRequested ? 'finishing' : 'drawing';
+          slot.waitingGesture = false;
           slot.open = !!event.open_stroke;
           slot.recovering = slot.open;
           if (slot.open)
@@ -371,6 +389,13 @@ export function createSketchPolicy({ operationId, maxQueuedChunks = 16 } = {}) {
           }
           effects.push({ type: 'stop-gesture', reason: event.type });
           break;
+      }
+      if (
+        slot?.phase === 'finishing' && slot.sourceReady && !slot.waitingGesture &&
+        !slot.open && !slot.inflight && !slot.queue.length && !slot.uncertain && !slot.recovering
+      ) {
+        slot.phase = 'label-required';
+        effects.push({ type: 'request-label', sketch: slot.id });
       }
       return effects;
     },
