@@ -1,6 +1,6 @@
 ---
 id: 000733
-status: working
+status: codecomplete
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.48
+tracker:
+    version: 1
+    completion:
+        token: close-348d49318865
+        repository: github.com/xianxu/pair
+        reviewed_head: d23f89c948bc96012025b918e93dc153f9ba6cb2
+        evidence_commit: c7442acdd394ab55cb74d299c0cd467f7a556d87
 ---
 
 # couch: notifications are ephemeral: a restart starts with an empty list, dismiss and clear-all remove items, old items age out
