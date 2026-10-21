@@ -277,6 +277,156 @@ rounds:
       isolation: fenced
       reviewed: 5620eb1d7a9592f06992466f17083a784d97ecb7
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: c3b33219-d276-4b28-ae2c-ef01649ea635
+            repository: github.com/xianxu/pair
+            issue_id: "000777"
+            recipe: fix-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/a9ebdbc231917628
+            reviewed_head: 89cc3757eef3a7631de94f1d9ddb125d60a00c93
+            slot: pair:2
+            requested_at: "2026-10-21T23:50:28.410102Z"
+          phase: finished
+          pid: 56349
+          started_at: "2026-10-21T23:50:28.566612Z"
+          finished_at: "2026-10-21T23:51:29.780156Z"
+          session_id: 01a160df-9991-79f1-8e71-9806058e4b2f
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: 89cc3757eef3a7631de94f1d9ddb125d60a00c93
+        tracker_head: f99918a1e4b2207a858a1e2f9149e48b226d7b55
+        branch_point: 1ed39dfdbbe0182b72c4b3a62b5504b2e725ce5d
+        since: "2026-10-21T14:41:07-07:00"
+        until: "2026-10-21T16:49:37-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-21T14:41:07-07:00"
+              end: "2026-10-21T16:49:37-07:00"
+              began: "2026-10-21T14:41:07-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+        sources:
+            - harness: codex
+              id: 01a15a8b-89c9-7e02-a733-8b52dd00ebac
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: a119bf20d16555d055f9b4d19f4582fb098a43521c0ee554defd11af59dd1c88
+              started: "2026-10-20T18:21:51.812Z"
+              spawned: false
+              bytes: 33414088
+              windows:
+                - start: "2026-10-21T14:41:07-07:00"
+                  end: "2026-10-21T16:49:37-07:00"
+            - harness: codex
+              id: 01a16069-9f47-7ab3-b5ec-00cffae279f1
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a15a8b-89c9-7e02-a733-8b52dd00ebac
+              digest: 5a82fa8f9abc3a14a5638f66062ca98d71f2d4307a1406eee605fb23cb65998e
+              started: "2026-10-21T21:41:37.322Z"
+              spawned: true
+              bytes: 518499
+              windows:
+                - start: "2026-10-21T21:41:37.322Z"
+                  end: "2026-10-21T16:49:37-07:00"
+            - harness: codex
+              id: 01a16073-c8af-7db3-be4e-bd0c90bbcb2a
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 4007f812c1730428c0cd95a99a8cb378694f485d34ee4ad9c17d738114370871
+              started: "2026-10-21T21:52:43.957Z"
+              spawned: false
+              bytes: 618311
+              windows:
+                - start: "2026-10-21T21:52:43.957Z"
+                  end: "2026-10-21T16:49:37-07:00"
+            - harness: codex
+              id: 01a16075-cc39-76d2-9335-788deb517fd1
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: da43b390e69ac292d1a274afc3f09fea29484275249169a73e34293c2192ff0d
+              started: "2026-10-21T21:54:55.591Z"
+              spawned: false
+              bytes: 474263
+              windows:
+                - start: "2026-10-21T21:54:55.591Z"
+                  end: "2026-10-21T16:49:37-07:00"
+            - harness: codex
+              id: 01a16076-fa18-7ab0-b1d1-1fa419d95af6
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 5d6180efd05553595d2221761c0864d4f9826160b1dbddfe3cdc254d1bd2735e
+              started: "2026-10-21T21:56:12.851Z"
+              spawned: false
+              bytes: 439088
+              windows:
+                - start: "2026-10-21T21:56:12.851Z"
+                  end: "2026-10-21T16:49:37-07:00"
+            - harness: codex
+              id: 01a16077-7396-7261-9822-ed1a5deefb4e
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 6ca27a8e28f6d77b702a7c5d60d70daccdfecca3f5e25b3bc781e73f4aae788c
+              started: "2026-10-21T21:56:43.8Z"
+              spawned: false
+              bytes: 424969
+              windows:
+                - start: "2026-10-21T21:56:43.8Z"
+                  end: "2026-10-21T16:49:37-07:00"
+            - harness: codex
+              id: 01a1607b-3d2e-7240-a76d-d42e530095c4
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a15a8b-89c9-7e02-a733-8b52dd00ebac
+              digest: e619b91cf067e71831f4497201d0dadb7d02e34f9a74be963907228f182b7465
+              started: "2026-10-21T22:00:51.916Z"
+              spawned: true
+              bytes: 1052551
+              windows:
+                - start: "2026-10-21T22:00:51.916Z"
+                  end: "2026-10-21T16:49:37-07:00"
+        queue_waits:
+            - attempt_id: 0b5d472b25b9245bb4327aa99c7a1a4e
+              slot: pair:2
+              record_digest: fbfed0b8b42a99e76e02f7913d8bc742d11c2435776ba83fbe8ccba209a95b97
+              start: "2026-10-21T22:21:45.466929Z"
+              end: "2026-10-21T23:37:31.706414Z"
+              queue_seconds: 4546.239485
+              raw_seconds: 4546.239485
+              exact: true
+        cuts:
+            - dispatched: "2026-10-21T15:15:58-07:00"
+              finalized: "2026-10-21T15:17:48-07:00"
+              finalizing: false
+            - dispatched: "2026-10-21T15:22:06-07:00"
+              finalized: "2026-10-21T15:23:25-07:00"
+              finalizing: true
+      "n": 3
+      timestamp: "2026-10-21T16:51:30-07:00"
+      dispatched: "2026-10-21T16:50:25-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: README.md:532-537 retains both exact command forms and the ownership/retry/release pointer in both pinned revisions. The passage agrees with atlas/couch-agentic-documents.md:87-155 and the CLI dispatch in cmd/internal/couchcmd/session_sync.go:259-273.
+          round: 3
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 89cc3757eef3a7631de94f1d9ddb125d60a00c93
+      blocked: false
 ---
 
 # Gate ledger — pair#777 (boundary-review)
@@ -296,6 +446,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - BR-1 — addressed — README.md:532-537 adds both required invocation forms and the acknowledgment/retry/release pointer. atlas/couch-agentic-documents.md:87-155 describes the contract implemented by session_sync.go and operator_lock.go. This is a prose-only correction; behavioral conformance tests also pass.
+
+## Round 3 — 2026-10-21T16:51:30-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — README.md:532-537 retains both exact command forms and the ownership/retry/release pointer in both pinned revisions. The passage agrees with atlas/couch-agentic-documents.md:87-155 and the CLI dispatch in cmd/internal/couchcmd/session_sync.go:259-273.
 
 ## Open findings
 

@@ -186,3 +186,80 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T16:51:30-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 777 — session-sync: serialize operator acquisition with the writer commit boundary |
+| repo | pair |
+| issue file | workshop/issues/000777-operator-acquire-write-boundary.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | f7af4e821247ccdeb9d0baa440b3499f150ff7d7..89cc3757eef3a7631de94f1d9ddb125d60a00c93 |
+| command | sdlc close --issue 777 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T16:51:30-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned interdiff correctly adds the two missing production-source classifications. The existing regression guard fails without those entries and passes with them. BR-1 remains addressed; no new defects, scope changes, or documentation gaps were found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      README.md:532-537 retains both exact command forms and the ownership/retry/release pointer in both pinned revisions. The passage agrees with atlas/couch-agentic-documents.md:87-155 and the CLI dispatch in cmd/internal/couchcmd/session_sync.go:259-273.
+```
+
+1. **Strengths**
+
+   - `cmd/internal/artifactpath/manifest.go:1229-1230` classifies both files consistently with neighboring session-sync sources.
+   - The exhaustive guard still checks non-artifact entries for artifact vocabulary and imports; this correction adds no waiver or quarantine.
+   - The issue Spec, Done-when, and implementation plan remain unchanged.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Full artifactpath package passed.
+   - `make test-affected-inventory` passed.
+   - Pinned-range `git diff --check` passed.
+   - A temporary Go overlay restoring the base manifest made `TestProductionArtifactReferencesAreExactlyClassified` fail on exactly the two corrected omissions. Repository files remained unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Reuses the existing authoritative inventory.
+   - **ARCH-PURE — pass:** Adds declarative entries without introducing IO or business logic.
+   - **ARCH-PURPOSE — pass:** Corrects both inventory omissions while retaining enforcement.
+   - **ARCH-EVOLVE — pass:** No persisted-format or reader/writer changes.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"c3b33219-d276-4b28-ae2c-ef01649ea635","repository":"github.com/xianxu/pair","issue_id":"000777","recipe":"fix-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/a9ebdbc231917628","reviewed_head":"89cc3757eef3a7631de94f1d9ddb125d60a00c93","slot":"pair:2","requested_at":"2026-10-21T23:50:28.410102Z"},"phase":"finished","pid":56349,"started_at":"2026-10-21T23:50:28.566612Z","finished_at":"2026-10-21T23:51:29.780156Z","session_id":"01a160df-9991-79f1-8e71-9806058e4b2f","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.765449166s
+head: "89cc3757eef3a7631de94f1d9ddb125d60a00c93"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
