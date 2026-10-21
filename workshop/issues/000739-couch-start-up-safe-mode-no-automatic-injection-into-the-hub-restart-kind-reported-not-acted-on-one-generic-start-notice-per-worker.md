@@ -621,3 +621,34 @@ SHA prefix492cf5028e0c, saved under .git/sdlc/local-checks/<head>/suite.log.
 Core190.474s, tty40.275s; installed explicit-start command and lint passed.
 Live disposable-fleet acceptance remains owed after #744/#761; no stage or
 merge is authorized before it.
+
+
+### 2026-10-21 03:04 PDT — BR-3 attribution controls
+
+Do not attribute the initial +16–20MB aggregate to production writes. The
+controlled follow-up does not reproduce that direction. Exact frozen variants
+and private caches are those above; source untouched, <=2 package processes.
+A conservative union of 37 changed/new/removed test names (exact function blocks
+and regex retained in changed-tests.json/.regex) and its complement gave:
+
+| Cache-enabled cohort | Main bytes | Branch bytes |
+|---|---:|---:|
+| Changed test names | 5779456 | 5304320 |
+| Unchanged test names | 127647744 | 127021056 |
+| Full core, retained trace | 137310208 | 134885376 |
+
+All assertions passed. Cohorts passed the budget; full runs failed only the
+unchanged cap. The full control uses go test -work ./cmd/internal/couchcore,
+same cache-compatible GOFLAGS and private caches. -work retains builder output;
+it does not disable cache logging. Main301.209s, branch309.294s. The full
+physical-write delta reverses to branch2424832 bytes LOWER. Its retained Go
+test-cache access log is main130916787 versus branch129125877 bytes, itself
+1790910 fewer bytes. Counts: main stat1146582/open170047/getenv20257; branch
+stat1126055/open170358/getenv20008. Repeated canonical-path ancestor stats
+dominate the cache log. Go's test-cache trace is the measured bulk write
+source; the initial positive aggregate delta is not stable under the paired
+full control, and neither disjoint test cohort grows. This does not assert
+zero production cost or precisely assign every physical byte. It rejects
+treating the initial aggregate delta as proof of added production writes.
+Logs, traces and hashes remain at the same private measurement root. #765
+owns the cache-enabled invocation envelope; #739 keeps all existing caps.
