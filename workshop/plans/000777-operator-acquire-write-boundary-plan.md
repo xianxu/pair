@@ -172,4 +172,4 @@ Files: session-sync atlas page found through `atlas/index.md`, public couch skil
 
 ## Approval checkpoint
 
-No production edits yet. Contract agreement is relayed, with the final machine-readable unavailable code/exit and the complete plan awaiting hub approval. The full-flow change-code plan-quality gate and estimate follow approval, not precede it.
+Hub approval 061be603-8e01-4db6-99ab-0572a62d93f6 accepts this full-flow plan, its error taxonomy, and public-command conformance on disposable files as producer live acceptance. No :0 stage. The operator's actual editing after parley.nvim#408 lands is the end-to-end proof. No production edits yet; enter change-code's plan-quality gate, then derive the estimate.
