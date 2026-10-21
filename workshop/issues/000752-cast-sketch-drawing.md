@@ -1,13 +1,13 @@
 ---
 id: 000752
-status: working
+status: codecomplete
 deps: [pair#751]
 github_issue:
 created: 2026-10-20
 updated: 2026-10-21
 estimate_hours: 10.63
 collaboration-mode: collaboration
-card_mirror: 'b4ba8913f171b9edd57756de0aed951a6611aab8' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'be6963d953418c1721180ac8c3d6be3798c10f25' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-21T00:30:29-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 3.68
 ---
 
 # cast-sketch: live console and driver drawing with pen pressure
