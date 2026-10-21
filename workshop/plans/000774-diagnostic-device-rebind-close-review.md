@@ -91,3 +91,101 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T10:03:52-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 774 — diagnostic checkpoints survive device remounts |
+| repo | pair |
+| issue file | workshop/issues/000774-diagnostic-device-rebind.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 9404e4e27c3cdd6eda6d2974f2aad57439a18e2c..f05fa31829f93d977d1df4ab0a5d6f493d67dade |
+| command | sdlc close --issue 774 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T10:03:52-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+BR-1 is addressed, and no new blocking findings emerged. Retained collection now preserves preview’s first observation and strictly revalidates it before metadata rebinding or deletion intent. The regression passes at the pinned head and fails when that guard is removed through a temporary Go overlay. Recorded verification and hub live-write acceptance remain separate, outstanding acceptance gates.
+
+Done-when: current — its identity, byte-preservation and fail-closed requirements cover the retained-generation changes and conservative transaction recovery.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      pages.go:340 carries preview's observed generation into Segment; collect.go:165 strictly checks it before metadata rebinding or deletion intent. TestDeviceRebindCollectionKeepsFirstObservation passes at head and fails with the guard removed, reporting that collection deleted the replacement. The existing synthetic device-change test separately verifies strict device comparison.
+```
+
+1. **Strengths**
+
+   - The shared classifier requires matching nonzero inode, size and nanosecond mtime before accepting device-only differences.
+   - Current recovery durably publishes the rebound identity while preserving payload and stale reservation bytes.
+   - The BR-1 regression exercises the production preview-to-deletion path through a controllable reader-proof callback.
+   - README and atlas changes accurately describe the recovery boundary and conservative refusals.
+
+2. **Critical findings**
+
+   None.
+
+3. **Important findings**
+
+   None.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Passed:
+
+   - Full `diagnosticlog` package suite.
+   - Focused device-rebind and classifier tests.
+   - Focused tests under the race detector.
+   - BR-1 mutation check: removing the strict observation guard makes the regression fail.
+   - Range whitespace check.
+
+   The PURE classifier tests perform no IO; integration fixtures use disposable files. No live diagnostic store was touched. Recorded suite completion and hub restart/write confirmation were not verified here.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY: pass** — persisted comparison is shared; live checks retain strict policy.
+   - **ARCH-PURE: pass** — deterministic classification is directly tested; filesystem effects remain in integration callers.
+   - **ARCH-PURPOSE: pass** — current and retained consumers are covered, including the previously missing observation transition.
+   - **ARCH-MOCK: pass** — no new external binary or service dependency; filesystem fixtures exercise production boundaries.
+   - **ARCH-CONSTRAINTS: pass** — fixed-size comparison and existing bounded traversal remain; rebind publications match the documented cost.
+   - **ARCH-SECURE: pass** — unsafe-path and identity mismatch controls remain fail-closed; tests use temporary storage.
+   - **ARCH-ORDER: pass** — the first observation survives across phases, with deterministic callback ordering testing refusal before deletion authority.
+   - **ARCH-FUNERAL: pass** — no new durable artifact family; the observation snapshot dies with its page.
+   - **ARCH-EVOLVE: pass** — no persisted format or codec change; the new snapshot is private and excluded from JSON.
+
+7. **Plan revision recommendations**
+
+   None. The BR-1 revision accurately describes the implemented snapshot, strict revalidation and regression coverage.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"e5a15d10-b6f4-44a6-a8cc-a560ef7a81e9","repository":"github.com/xianxu/pair","issue_id":"000774","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/c09fb9572dd3024b","reviewed_head":"f05fa31829f93d977d1df4ab0a5d6f493d67dade","slot":"pair:7","requested_at":"2026-10-21T16:41:01.586464Z"},"phase":"finished","pid":14189,"started_at":"2026-10-21T16:41:01.685375Z","finished_at":"2026-10-21T17:03:51.781726Z","session_id":"01a15f56-6d09-72a0-ab84-c634f819ac33","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.043838542s
+head: "f05fa31829f93d977d1df4ab0a5d6f493d67dade"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

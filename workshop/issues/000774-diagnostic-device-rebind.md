@@ -17,7 +17,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "6d28cfe7", done: "a9d7dd71"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # diagnostic checkpoints survive device remounts
@@ -53,6 +53,10 @@ Remaining acceptance gates: recorded suite must PASS before landing; close revie
 
 ## Log
 
+
+
+- 2026-10-21: closed — BR-1 real preview-to-deletion regression RED0.229s (replacement deleted) then strict snapshot carry GREEN; final focused race cohort PASS3.120s including all device/tail/pending/unsafe/sync controls; inventory PASS. Reuses existing Segment memory projection and reader-proof test seam, no format/stat hook or new retry. Corrected pushed code f05fa3182 now submitted for a replacement recorded affected/full suite; pending, landing still requires pass. Hub approved post-land coordinated restart to verify advancing writes and owns project. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
+- 2026-10-21: flow upgraded quick → full — 107 added lines in code files (limit 100)
 2026-10-21: filed and claimed by pair:7 per ops:0 after #736 start-plan refused continuing its already-landed M1 branch. No dependency: M1 code is already on main, and #736 is to close around the verified logger-health instrumentation. This cause fix has priority over parked #773 (draft PR525, pushed checkpoint c4f5b1990; no own runner). Direction is approved, detailed plan still due before code.
 
 ## Revisions
