@@ -1,6 +1,6 @@
 ---
 id: 000769
-status: working
+status: codecomplete
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours: 1.861
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+actual_hours: 1.18
+tracker:
+    version: 1
+    completion:
+        token: close-3c1c7766ea4a
+        repository: github.com/xianxu/pair
+        reviewed_head: dfc195a1b30268c577cbe3e8d2e21123f60c19b3
+        evidence_commit: 59483b7405db5b2ebe06731e22d453b36ced9c58
 ---
 
 # Preserve wrap Darwin PTY final output without changing termination
