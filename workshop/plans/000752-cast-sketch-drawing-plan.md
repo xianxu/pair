@@ -301,3 +301,5 @@ Verification seams match the classification: command/Unicode/reducer/anchor/sour
 ### 2026-10-21 — approved width restored
 
 BR-6 restores the approved3 CSS px base on both producer and optimistic painter, rather than choosing the previous client4 value as the consistency oracle. Service regression fails at4 and passes at3, including persisted pressure0/.5/1 widths .75/1.875/3 and doubled viewer scale. The independent canvas test holds anchor preparation and verifies pressure0/.2/.8/1 using3*(.25+.75p), plus mouse/touch3. Actual producer doubles use3; arbitrary historical width4 fixtures remain supported. Final targeted Go/Node/assembly and reader inventory pass before commit.
+
+All4 host Chrome tests executed successfully on bccbfa399b9a829f347ee21d22a1c45323fc5312 (package6.547s), including the approved-width producer/optimistic paths. The corrected-head recorded check is pending; the next local review may finish independently, with no staging or landing before that check and the TL-held smoke are settled.

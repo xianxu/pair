@@ -140,6 +140,12 @@ Primary surfaces: board/{sketch.go,sketch_wire.go,sketch_delivery.go,writer_sket
 - BR-7 repeats the Core concepts family: effectful canvas and random journal initialization were mislabeled pure. Applying a complete function/type/effect classification sweep, rather than moving only the named rows.
 - Source changes invalidate the queued ecef5f7a recovery run; after committing the fix, replace only this checkout's obsolete lease-1901225109 with a recorded run on the corrected head. No other checkouts or suite holders are touched.
 
+### 2026-10-21 — approved-width host conformance
+
+- On committed bccbfa399b9a829f347ee21d22a1c45323fc5312, all4 live Chrome tests pass (package6.547s): scene privacy1.18s, console drawing2.38s, open-contact handoff label1.09s, two-viewer pressure/replay1.74s. Source is unchanged after this measurement. Targeted Go/Node/assembly and reader inventory also pass.
+- Cancelled only obsolete ecef5f7a lease-1901225109 through SDLC after the executable width correction; no status was recorded for that queued cancellation. Started a fresh recorded affected/full fallback on bccbfa399. TL confirmed the targeted saved-failure recovery gap is open ariadne#463 and the full rerun is supported. Retain the corrected-head runner.
+- Entering the next close review independently while that recorded check is pending, with the pending status explicit. Both new findings are corrected; stage, operator smoke and landing remain held.
+
 ## Estimate
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.*
