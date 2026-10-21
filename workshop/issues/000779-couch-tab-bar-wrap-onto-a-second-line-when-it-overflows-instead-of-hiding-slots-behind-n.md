@@ -1,13 +1,21 @@
 ---
 id: 000779
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '66dc0ca27dbf542c4ae724ae8ef4aeaae0aeae9b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'acde1c7c4bcef86fcee82625f62d87d799503e2a' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-21T16:42:14-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Couch tab bar: wrap onto a second line when it overflows, instead of hiding slots behind +N
@@ -41,3 +49,8 @@ Wrap the tab bar onto a **second line** when it doesn't fit (like text wrapping)
 ## Log
 
 ### 2026-10-21
+
+Claimed and start-plan completed in pair:4 after pair#757 landed (PR532). Includes the manual #757 archive repair, ariadne#532 class: commit a2d91a471ac3bb0b10984194b0990fbde8fdb71f moves two unchanged browser evidence logs from noncanonical plan.md.side into workshop/history/plans/000757-mock-to-real-plan.side. Both renames are100%; no content changes. TL receipt c1d5a9d6-7e31-44f6-a670-5823fcadadf7 explicitly approves riding with this issue and requires this note in the PR description.
+
+Initial read-only audit: one-row assumptions exist in couchtty rendering/geometry/input/anchors, terminal composition/presenter resizing, and broadcast LIVE/pointer checks, private-frame filtering and annotation guards. This leaves the quick-flow code shell; prepare one atomic full-flow plan with pure packing and a shared trusted chrome-height contract before implementation. No product code written. Geometry and packing audits delegated read-only under AGENTS section3; plan approval will go through the hub. Private #757 GOCACHE removed; new Go calls use the repaired machine default on main SSD.
+
