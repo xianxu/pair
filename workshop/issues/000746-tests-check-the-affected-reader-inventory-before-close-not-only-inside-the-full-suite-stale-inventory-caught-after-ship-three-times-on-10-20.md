@@ -55,6 +55,7 @@ negative controls remain. No new persistent file family or schema.
 ## Log
 
 ### 2026-10-20
+- 2026-10-20: closed — BR-1 both historical non-scanner dispositions to required source-reader classification reproduced red; current source-scan requirement now overrides old disposition. Five private Git CLI tests pass2.015s including executing each emitted repair command, scanner/preflight refusals, removal and unknown/duplicate-key controls. make test-affected-inventory passed immediately before this close. Prior full suite on44c4e7ee passed13m21s; fresh recorded affected check on pushed a4f0b6ae is pending and must pass before landing, review overlaps per tl-worker. Twelve runner tests passed, exact inventory-first ordering retained. README/atlas/local before-close instructions updated; TL owns project, no staging for test tooling. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 
 ### 2026-10-20 — implementation and red/green evidence
 
