@@ -7,6 +7,9 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A new retention data class needs a measured collector/registration API, not just the same policy vocabulary. Separate exact diagnostic generations from immutable multi-file run bundles; name the shared maintenance phase, identity fence and crash recovery before implementation. (#737 PQ-1)
+- Keep plan test obligations in one function-level strategy matrix. Implementation checklists reference it and retain commands; repeating case inventories creates conflicting, stale contracts. (#737 PQ-2)
+
 - Check the real broker's admission, expiry and restart contracts before promising them in a plan. Cancelling a sender does not necessarily expire queued input, and a stable receipt ID does not imply recoverable receipt storage. Pin lost-receipt uncertainty without resending potentially accepted input. (#737 plan review)
 
 - A process whose lifetime releases a resource lease must stay outside the work group it terminates and exit after confirmed descendant cleanup. Test the actual resource release as well as process disappearance; otherwise a resistant descendant can outlive its budget owner. (#737 plan review)

@@ -666,6 +666,10 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	"cmd/internal/couchschedule/spec.go",
+	"cmd/internal/couchschedule/calendar.go",
+	"cmd/internal/couchschedule/model.go",
+	"cmd/internal/couchschedule/status.go",
 	"internal/testbinary/cache.go",
 	"internal/testoracle/run.go",
 	// #649 wiring, contextual runtime delegation, and the pure title reducer

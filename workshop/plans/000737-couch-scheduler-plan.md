@@ -249,11 +249,11 @@ Count operations, not wall-clock speed: fixtures at N=8 and 16 reject more than 
 
 **Create:** `cmd/internal/couchschedule/{spec,calendar,model,status}.go` and colocated `_test.go` files. **Modify:** `go.mod`, `go.sum` (pin cron parser), `cmd/internal/artifactpath/manifest.go` for every new production-shaped file.
 
-- [ ] Write failing tests for the pure functions using their single strategy rows below; keep event ordering explicit.
-- [ ] Run `go test ./cmd/internal/couchschedule -run 'Test(Spec|Owner|Calendar|Advance)' -count=1`; demonstrate red before implementation.
-- [ ] Implement the typed parsers, location-injected calendar wrapper and `Advance`; no IO in the kernel. Use one occurrence reservation plus next-due update, not a missed-slot loop.
-- [ ] Run the focused tests green; add N/2N counters and stale-event mutation checks. Verify `missed=once` cannot turn a completed script into a retry.
-- [ ] Register new source files and commit `#737 M1: add scheduled-task transition kernel` with Agent/Co-Authored-By trailers.
+- [x] Write failing tests for the pure functions using their single strategy rows below; keep event ordering explicit.
+- [x] Run `go test ./cmd/internal/couchschedule -run 'Test(Spec|Owner|Calendar|Advance)' -count=1`; demonstrate red before implementation.
+- [x] Implement the typed parsers, location-injected calendar wrapper and `Advance`; no IO in the kernel. Use one occurrence reservation plus next-due update, not a missed-slot loop.
+- [x] Run the focused tests green; add N/2N counters and stale-event mutation checks. Verify `missed=once` cannot turn a completed script into a retry.
+- [x] Register new source files and commit `#737 M1: add scheduled-task transition kernel` with Agent/Co-Authored-By trailers.
 
 ### Task 2: Local discovery and preserving, bounded state
 
@@ -343,3 +343,7 @@ Approved with three superseding decisions: (1) fall-back repeated local times ru
 ### 2026-10-20 — plan gate PQ-1/PQ-2
 
 PQ-1: specify the operationalrun store/collector and gcruntime report/bounded-phase integration, independent policy, shared task lock, exact bundle journal and replacement-safe recovery. Existing diagnostic generation counts are not reused. PQ-2: consolidate repeated task test inventories into the function-level strategy matrix; keep verification commands and implementation steps. These refinements implement the approved retention contour without changing acceptance or adding a new fleet mechanism.
+
+### 2026-10-20 — M1 kernel implementation checkpoint
+
+Advance operates on one TaskState per event; StateStore composes these into the ledger. This avoids cloning/scanning the whole task map per due event while preserving the approved single transition owner. A caller may supply its pre-parsed pure Next function; counted tests at 8/16 tasks show one recurrence evaluation per task even after 1,000 missed slots.

@@ -74,6 +74,8 @@ settled the contour with the operator on 10-20; its `design.md` is the reference
 
 - Plan gate round 1 held on PQ-1 retention integration and PQ-2 repeated test inventories. Verified actual APIs: diagnostic generations and session transactions cannot collect run bundles directly. Added focused operationalrun adapter plus gcruntime phase/report and compressed test strategies; rerunning the gate before code.
 
+- Plan-quality passed after PQ-1/PQ-2 were addressed; change-code completed with estimate-quality INFO (implementation/rollout allowances may be tight). Task 1 pure declaration/owner/calendar/transition/status files are implemented. Watched the no-op transition stub fail to arm a due slot, then passed focused tests; status exit-pointer alias reproduced red and fixed. Explicit-file kernel suite passed while parallel Task 2 tests were intentionally red. Fake-clock traces pin offline skip/direct execution, dropped notices, exit meanings, stale events, unknown/no-replay, manual schedule independence, and N/2N recurrence counts. Spec/calendar DST and fuzz qualification passed in the bounded subtask. M1 remains open; persistence, runtime execution and CLI wiring are in progress.
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only; calibration currently marked stale/provisional by estimate-source. Already-scaled implementation hours use 40% of v2/v2.1 ranges; design uses the thorough-spec 0.2 multiplier, plus 0.5 library credit only for cron/kernel and bounded durable catalog/store. Familiarity 1.0; thorough-plan design buffer 15%. Passive day-long live observation is not focused ship time.
