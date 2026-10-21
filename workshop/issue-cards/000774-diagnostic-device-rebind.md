@@ -1,6 +1,6 @@
 ---
 id: 000774
-status: working
+status: codecomplete
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours:
@@ -14,6 +14,14 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.68
+tracker:
+    version: 1
+    completion:
+        token: close-277b2ab890fa
+        repository: github.com/xianxu/pair
+        reviewed_head: f05fa31829f93d977d1df4ab0a5d6f493d67dade
+        evidence_commit: d9a38392e51e2f54cb4fa570c5bf3f6120a32a8c
 ---
 
 # diagnostic checkpoints survive device remounts
