@@ -1,13 +1,21 @@
 ---
 id: 000757
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-20
-updated: 2026-10-20
+updated: 2026-10-21
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'c7addaca11d56918eae5e115f23bcee4773c0e16' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '759cd5f5efe753f8ced70aa4eebf89058e9fe0c2' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-21T02:15:21-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
 ---
 
 # mock-to-real app template: per-screen real-or-mock dev router, refusing production build, fixtures contract tests (product-shaping)
@@ -33,8 +41,13 @@ A reusable template (Go) for mock-backed apps:
 
 ## Plan
 
-- [ ]
+- [ ] Deliver the approved template, sample, build refusal and fixture contracts described in workshop/plans/000757-mock-to-real-plan.md.
+- [ ] Verify, close and land the single atomic issue.
 
 ## Log
 
 ### 2026-10-20
+
+### 2026-10-21 — design proposal
+
+Claimed and started after #755 landed as PR507. Read the product-shaping design and surveyed integration constraints. The host is Go-internal and owns its watcher only in the standalone serve lifecycle; direct template import cannot reuse it. Proposed a self-contained nested Go module with a thin development HTTP fallback to the existing host, one screen list and guarded production build; root integration test explicitly runs the nested module. Proposed strict build refusal without partial release, prototype-based fixture contracts, and bounded/owned effects. Detailed alternatives, state table and costs are in the durable plan. Awaiting hub/operator design approval; no implementation started and no estimate derived.
