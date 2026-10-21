@@ -2,6 +2,13 @@ package launcher
 
 import (
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/xianxu/pair/cmd/internal/zellijreply"
 )
@@ -63,4 +70,53 @@ func crossedZellijReply(want zellijReplyKind, raw []byte) bool {
 		}
 	}
 	return false
+}
+
+// errZellijSessionLookupMiss is read-retry eligibility, never session authority.
+var errZellijSessionLookupMiss = errors.New("Zellij query falsely missed a live session")
+
+func validSessionLookupName(name string) bool {
+	return utf8.ValidString(name) && strings.TrimSpace(name) != "" && name != "." && name != ".." && filepath.Base(name) == name && strings.IndexFunc(name, unicode.IsControl) < 0
+}
+
+// retryableSessionLookupMiss admits only the two observed native lookup failures.
+// The caller separately guarantees successful collection (or a direct exit),
+// while the existing read allowlist/deadline/attempt budget owns any reissue.
+func retryableSessionLookupMiss(args []string, stdout, stderr []byte, exit int, socketPresent bool) bool {
+	kind := zellijReadKind(args)
+	if (kind != zellijClientsReply && kind != zellijPanesReply) || len(args) < 2 || !validSessionLookupName(args[1]) {
+		return false
+	}
+	name := args[1]
+	if exit == 1 {
+		return len(stdout) == 0 && string(stderr) == "There is no active session!\n" && socketPresent
+	}
+	if exit != 0 || string(stderr) != fmt.Sprintf("Session '%s' not found. The following sessions are active:\n", name) {
+		return false
+	}
+	states, err := sessionListingStates(stdout)
+	if err != nil {
+		states, err = parseColoredSessionListing(stdout)
+	}
+	if err != nil {
+		return false
+	}
+	exited, present := states[name]
+	return present && !exited
+}
+
+// sessionSocketPresent reads one exact native path; it never enumerates sessions
+// or infers ownership. A symlink/non-socket/unreadable path remains unknown.
+func sessionSocketPresent(name string) bool {
+	if !validSessionLookupName(name) {
+		return false
+	}
+	root, err := ResolveZellijSocketRoot(os.Getenv("ZELLIJ_SOCKET_DIR"), os.TempDir(), os.Getenv("XDG_RUNTIME_DIR"), runtime.GOOS, os.Getuid())
+	if err != nil {
+		return false
+	}
+	// The kernel must resolve symlink/parent segments exactly as native Zellij
+	// does. filepath.Join would clean the root into a different socket identity.
+	path := appendNativeSocketPath(root, "contract_version_1/"+name)
+	return ObserveSocket(os.Lstat(path)) == SocketPresent
 }
