@@ -670,6 +670,12 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #757 catalogue, report and HTTP front introduce no Pair artifact families.
+	"cmd/internal/mockserve/screens.go",
+	"cmd/internal/mockserve/check.go",
+	"cmd/internal/mockserve/front.go",
+	"cmd/internal/mockserve/front_origin.go",
+	"cmd/internal/mockserve/front_route.go",
 	"cmd/internal/mockserve/cli.go",
 	"cmd/internal/mockserve/page.go",
 	"cmd/internal/mockserve/project.go",
