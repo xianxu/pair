@@ -1972,8 +1972,9 @@ For targeted tests, `PAIR_TEST_BINARY=/absolute/path/to/plain-pair go test ...`
 uses an existing executable without rebuilding or deleting it. With the variable
 unset, Go consumers lazily build once per package; their `TestMain` calls
 `testpair.Run` after helper dispatch to remove only that owned fallback after
-all tests finish. Private executable names use hard links (copies across
-filesystems). Standalone shell consumers use the same builder, which locates
+all tests finish. Private executable names use hard links (symlinks across
+filesystems) to preserve the shared image; fresh copies can trigger another macOS
+security assessment before the CLI runs. Standalone shell consumers use the same builder, which locates
 its checkout independently of the caller's working directory.
 
 Native diagnostic-log open-file conformance skips with a named reason when `lsof`
@@ -1990,6 +1991,11 @@ answer with a wrong holder or process identity fails in both modes.
 Affected branch checks use `.sdlc/affected.json` and `make test-affected` once the
 installed SDLC supports ariadne#473. SDLC reads the declaration from main and
 supplies `SDLC_AFFECTED_GO_PKGS` (exact import paths) and `SDLC_AFFECTED_GROUPS`.
+Before close or re-close, run `make test-affected-inventory`. It audits tracked
+Go test readers without building Go or running the seeded guard tests, and is
+also the affected runner's first step. Failures name each reader and print its
+per-file record or removal command. Audit its repository inputs and fixed
+preflight coverage before recording a disposition; never refresh hashes in bulk.
 For a manual selected run:
 
 ```bash

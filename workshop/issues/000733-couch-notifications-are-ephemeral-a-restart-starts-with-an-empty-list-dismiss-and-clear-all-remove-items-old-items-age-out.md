@@ -47,6 +47,8 @@ A list that only grows stops being read, which defeats notifications.
 
 ## Log
 
+- 2026-10-20: blocker #749 landed in PR #499; resumed merge. Once the landing line became empty, #733 remained the only waiter because trains require a recorded affected vouch before admission, but admission precedes automatic main integration. TL explicitly authorized one manual integration of current main to bring in #749, then push and record the suite while preserving the merge runner. This catch-22 is tracked by ariadne#515. The merge was clean; no gate bypass or unmodified-old-fixture retry.
+
 - 2026-10-20 18:36 PDT: branch full suite passed on 09df3e13 (10m52s, log sha256 ad2e7f04e1ff). Merge integrated main at 13bd7df51123cc82c79953ca2e8423511c0a5b49; hosted conformance passed. Integrated suite attempt 0082d1dc13f7dff65c18d760ca43ba06 stopped in tests/copy-on-select-test.sh: detached copy orchestrator did not finish (4m46s, log sha256 8b7c811b0f82). Isolated fresh-binary TestCopyOnSelectShellFixture also fails hook timeout=3. TL assigned blocker pair#749 separately and explicitly directed stopping the merge runner, preserving this SHIP branch, then re-entering after #749 lands. Merge runner interrupted cleanly; no suite/check bypass.
 
 - Close full review returned SHIP with zero blocking findings. Advisory BR-1 was the atlas/index.md summary still calling attention durable; corrected the summary and captured the index-sweep lesson. Reviewer passed normal/race attention tests and full affected-package tests; authoritative recorded suite remains queued.
@@ -88,3 +90,8 @@ Cost: N listed items, L current live conditions, S suppressed conditions. Expiry
 
 - Reason: tl-worker explicitly permits close review during a queued recorded check; code changes from review require fresh verification.
 - Delta: plan row records queueing and review request; completion still requires the recorded pass before landing. Startup regression is in pushed head 09df3e13caf75ac076481a5bb7f84d51d392555a.
+
+### 2026-10-20 — admission-loop recovery
+
+- Reason: the failed pre-#749 fixture prevents train readiness, which prevents the automatic integration that would bring in the fix.
+- Delta: TL-authorized one current-main integration, then fresh recorded verification on that combined code before admission/landing. Preserve the existing runner and all review/CI gates.

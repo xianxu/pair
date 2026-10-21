@@ -20,7 +20,13 @@ export PAIR_DRAFT_PATH="$tmp/draft.md"
 export PAIR_DRAFT_PANE_PATH="$PAIR_DATA_DIR/draft-pane-t.json"
 export PAIR_LAST_LEFT_PANE_PATH="$PAIR_DATA_DIR/last-left-pane-t"
 export PAIR_LAYOUT_MODE_PATH="$PAIR_DATA_DIR/layout-mode-t"
-cp "$ROOT/bin/pair" "$PAIR_HOME/bin/pair"
+bash "$ROOT/tests/lib/pair-test-binary.sh" "$PAIR_HOME/bin/pair"
+if [ -n "${PAIR_TEST_BINARY:-}" ]; then
+  python3 - "$PAIR_TEST_BINARY" "$PAIR_HOME/bin/pair" <<'PY'
+import os,sys
+assert os.path.samefile(*sys.argv[1:]), 'shortcut fixture must execute the shared image, never a per-run copy (#749)'
+PY
+fi
 
 fakebin="$tmp/fakebin"
 mkdir -p "$fakebin"
