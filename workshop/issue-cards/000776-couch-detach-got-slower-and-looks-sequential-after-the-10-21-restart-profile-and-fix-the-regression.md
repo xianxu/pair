@@ -1,6 +1,6 @@
 ---
 id: 000776
-status: codecomplete
+status: done
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 072ca58490ea0949c6b1111344d48e5e7ed99324
         evidence_commit: e601bf75e1d5e54aabe25a83bcb872e8d482474d
+        landed_commit: 4869afaae13a400bccbe276c2e0a60652d96aa13
 ---
 
 # couch detach got slower and looks sequential after the 10-21 restart: profile and fix the regression
