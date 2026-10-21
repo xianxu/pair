@@ -194,7 +194,7 @@
 - [History backup](history-backup.md) — Explicit encrypted bundles, verified local publication, private sharded catalog, bounded live SQLite snapshots and per-database freshness, pinned Drive month uploads, atomic dual-layout index discovery and recorded-location restore, retry guarantees and operator key recovery.
 - [Managed retention I/O](storage-retention-io.md) — Checked entrypoints, protected artifacts, guard call chains, meaningful-use rules and behavioral evidence.
 
-- [Terminal ownership](terminal.md) — Shared endpoint, presenter, profile, transport and qualification boundaries.
+- [Terminal ownership](terminal.md) — Shared endpoint, presenter, profile, transport and qualification boundaries; Darwin wrapper output lease and process-exit lifetime.
 - [Couch broadcast](broadcast.md) — view-only streaming of the composed Couch screen: Presenter tap, LIVE-gated hub, switcher privacy (#395); the code lock on every cast link, the Host gate, the operator-only codes UI and the threat model (#495).
 - [Couch broadcast-web](webcast.md) — the cast Chrome (#454): CDP over the debugging pipe, the `Browser` seam and its fake, active-tab inference, the isolated-world in-page control and operator annotation (#494), shared viewer widgets, document-bound Board requests and capture/input suppression; the recorder (#458) on the CDP side of the seam; the asset store and proxy (#459); the fidelity check (#478): each recording's frames vs the viewer's replay, a report per recording, `couch --broadcast-web-fidelity` and at the end of a cast.
 - [Send cast notes to the agent](webcast-submission.md) — the draft chord, recorded context and current PNGs, portable evidence bundles, and delivery/acknowledgment recovery (#483).

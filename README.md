@@ -414,6 +414,8 @@ shell runtime; `zellij`, `nvim`, `fzf`, and the agent CLIs are the only external
 programs. Bare groups such as `pair review` (or `pair review --help`) list their
 subcommands.
 
+🤖{Use `pair wrap --help` (or `-h`) for command wrapping options. On macOS (Darwin), a command that closes its standard input/output remains owned until it exits or you explicitly stop the wrapper. Final output drains before cleanup stops the remaining owned process group; descendants in a separate process group are not adopted.}
+
 `make build` publishes each of `pair`, `couch`, and `pair-launch-helper` by
 building privately beside its destination, then renaming the completed executable.
 A failed build keeps the previous executable available, including for Couch sends.

@@ -2773,6 +2773,11 @@ func writeAtomic(path string, data []byte) error {
 // name). The returned int is the process exit code: the wrapped child's exit
 // code on success, or 1 on a startup/fatal error (printed to stderr).
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
+		fmt.Fprint(stdout, wrapHelp)
+		fmt.Fprintf(stdout, "%s PATH saves raw output; --from-launch-env uses the launcher's encoded command.\n", "--scrollback-log")
+		return 0
+	}
 	lease, retentionErr := storagegc.AcquireSelectedProcess(context.Background(), os.Getenv, "wrapper")
 	if retentionErr != nil {
 		fmt.Fprintf(stderr, "pair-wrap: protect storage: %v\n", retentionErr)
@@ -2806,7 +2811,20 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return code
 }
 
+const wrapHelp = `Usage: pair wrap [OPTIONS] [--] COMMAND [ARGS...]
+
+Wrap a command in a terminal and retain its output. On Darwin a target that
+closes its stdio remains owned until it exits or you explicitly stop the wrapper.
+Final output drains before the owned process group is stopped and the child reaped.
+Descendants outside that process group are not adopted or stopped.
+
+`
+
 func run(args []string, stdin io.Reader, stdout, stderr io.Writer) (int, error) {
+	return runWithPTY(args, stdin, stdout, stderr, startPTY)
+}
+
+func runWithPTY(args []string, stdin io.Reader, stdout, stderr io.Writer, start func(*exec.Cmd) (*startedPTY, error)) (int, error) {
 	// Hash this executable first, before anything is spawned (#421): the hash
 	// is read by path, so the earlier it runs the smaller the window in which a
 	// rebuild could replace the file under a still-running old image. ~10ms.
@@ -2960,12 +2978,28 @@ argsDone:
 	defer locks.Close() // registered before group cleanup: group is joined first
 	p.nativeLocks = locks
 	agentNotBefore := time.Now()
-	ptmx, err := startNativePTY(locks, cmd, stderr, pty.Start)
+	var started *startedPTY
+	ptmx, err := startNativePTY(locks, cmd, stderr, func(cmd *exec.Cmd) (*os.File, error) {
+		var err error
+		started, err = start(cmd)
+		if err != nil {
+			return nil, err
+		}
+		return started.master, nil
+	})
 	var group *ownedGroup
 	if cmd.Process != nil {
 		group = newOwnedGroup(cmd, time.Second)
 		p.ownedGroup = group
 		defer group.Wait() // every controlled return/panic stops and joins our group
+	}
+	if started != nil {
+		// Registered after group cleanup: release BEFORE its sole reap on abort.
+		defer func() {
+			if err := started.releaseSlave(); err != nil {
+				fmt.Fprintf(stderr, "pair-wrap: release terminal slave: %v\n", err)
+			}
+		}()
 	}
 	if err != nil {
 		if ptmx != nil {
@@ -2978,8 +3012,6 @@ argsDone:
 	childIO, err := ttyio.NewFile(ptmx, ptmx, false)
 	if err != nil {
 		_ = ptmx.Close()
-		_ = cmd.Process.Kill()
-		_, _ = cmd.Process.Wait()
 		return 0, fmt.Errorf("initialize child terminal transport: %w", err)
 	}
 	p.childIO = childIO
@@ -3143,6 +3175,7 @@ argsDone:
 	// binary called os.Exit(exitErr.ExitCode()) here; Run now returns the
 	// code so both entrypoints (shim + `pair wrap`) propagate it identically.
 	locks.Stop()
+	_ = started.releaseSlave()
 	werr := group.Wait()
 	if p.nativeLockErr != nil {
 		return 0, p.nativeLockErr

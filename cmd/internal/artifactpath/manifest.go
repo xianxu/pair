@@ -576,7 +576,8 @@ var SourceClassifications = []SourceClassification{
 		BindingNames: []string{"scoped-agent-output", "scoped-agent-pid", "scoped-agent-ready", "scoped-config", "scoped-image-capture", "scoped-pair-wrap-pid", "scoped-wrap-events"},
 		Vocabulary: []VocabularyAllowance{
 			goCallVocabulary("scrollback", "--scrollback-log", "builtin.append", 1, 1),
-			goComparisonVocabulary("scrollback", "--scrollback-log", "run", 1),
+			goComparisonVocabulary("scrollback", "--scrollback-log", "runWithPTY", 1),
+			goCallVocabulary("scrollback", "--scrollback-log", "fmt.Fprintf", 2, 1),
 			goCallVocabulary("scrollback", "usage: pair-wrap [--scrollback-log <path>] <command> [args...]", "errors.New", 0, 1),
 			goCallVocabulary("agent", "agent-restart-request", "method.traceWrap", 0, 1),
 			goCallVocabulary("scrollback", "scrollback-write", "method.traceWrap", 0, 1),
@@ -696,6 +697,10 @@ var NonArtifactSources = []string{
 	"cmd/internal/wrapcmd/owned_group_darwin.go",
 	"cmd/internal/wrapcmd/owned_group_linux.go",
 	"cmd/internal/wrapcmd/owned_group_other.go",
+	"cmd/internal/wrapcmd/pty.go",
+	"cmd/internal/wrapcmd/pty_darwin.go",
+	"cmd/internal/wrapcmd/pty_other.go",
+	"cmd/internal/pairlifecycletest/lifetime_darwin.go",
 	"cmd/internal/sessionwatch/binding_notice.go",
 	"cmd/internal/nativeid/id.go",
 	// #544 bounded input/control: pure recipes and styled markup; wrapper and

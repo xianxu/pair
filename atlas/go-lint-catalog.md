@@ -48,11 +48,16 @@ by increasing its deadline or shortening a sleep below the matcher threshold.
 
 The local single-file rule `wrapper-child-release`, owned by
 `internal/repolint/local_catalog_test.go`, rejects calls through a `Process.Release`
-selector in package `wrapcmd`, including chained and parenthesized receivers.
+or `Process.Wait` selector in package `wrapcmd`, including chained and
+parenthesized receivers (#769).
 Wrapper children must retain direct ownership and be joined before wrapper
 return; a released watcher can otherwise write retention state after its caller
-has begun removing storage. Other packages and unrelated `Release` methods are
-outside this syntax rule's scope.
+has begun removing storage. Direct `Process.Wait` can compete with the registered
+owned-group reap and invalidate its unreaped-leader identity fence. Use the
+command's one owner (`ownedGroup.Wait` for the native target); ordinary `cmd.Wait`
+remains accepted for separately owned children. Other packages, unrelated methods
+and aliases/computed receivers outside the literal `Process` selector shape are
+outside this syntax rule's scope; this rule does not prove arbitrary ownership.
 
 This rule uses the shared `golint.Check` finding and suppression behavior above.
 `pairCatalog` copies the slice before appending, so it never mutates upstream
