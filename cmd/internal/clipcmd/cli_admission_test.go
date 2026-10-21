@@ -3,7 +3,6 @@ package clipcmd
 import (
 	"bytes"
 	"context"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,7 +19,7 @@ import (
 // detached copy entry and existing broker. Wrapper-envelope qualification is
 // shared with notification presentation tests, not claimed by broker receipt.
 func TestDetachedClipboardRefusalUsesExistingBroker(t *testing.T) {
-	binary := testpair.Binary(t)
+	binary := testpair.Binary(t) // Resolve before the fixture replaces the Go environment.
 	f := zellijtest.New(t)
 	for _, entry := range f.Env() {
 		k, v, _ := strings.Cut(entry, "=")
@@ -50,23 +49,15 @@ func TestDetachedClipboardRefusalUsesExistingBroker(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("PAIR_TEST_CLIPBOARD", clipboard)
-	// Copying as 'pair' makes the production sibling executable resolution exact.
-	alias := filepath.Join(t.TempDir(), "pair")
-	if err := os.Link(binary, alias); err != nil {
-		src, e := os.Open(binary)
-		if e != nil {
-			t.Fatal(e)
-		}
-		defer src.Close()
-		dst, e := os.OpenFile(alias, os.O_CREATE|os.O_WRONLY, 0700)
-		if e != nil {
-			t.Fatal(e)
-		}
-		_, e = io.Copy(dst, src)
-		closeErr := dst.Close()
-		if e != nil || closeErr != nil {
-			t.Fatalf("copy binary: %v,%v", e, closeErr)
-		}
+	// Keep sibling resolution exact without creating a fresh executable image.
+	alias := testpair.At(t, filepath.Join(t.TempDir(), "pair"))
+	sourceInfo, err := os.Stat(binary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	aliasInfo, err := os.Stat(alias)
+	if err != nil || !os.SameFile(sourceInfo, aliasInfo) {
+		t.Fatalf("clipboard fixture must execute the shared image (#749): %v", err)
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()

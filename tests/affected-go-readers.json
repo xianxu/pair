@@ -62,7 +62,7 @@
     "non_go_full_fallback": {
       "cmd/internal/artifactpath/cross_scope_integration_test.go": "141dc4e3cd7632114dd20e263104176cdd470e86d6dd921dc2e9c9715077e18d",
       "cmd/internal/broadcast/viewer_test.go": "44f01533272916cfe7085c4115d8481b74bb2f12db323db3ea69eb40aeb4f3f5",
-      "cmd/internal/clipcmd/cli_admission_test.go": "20d1d8001535b861f701a3688f45e1fa3b410fce32e103a0dfde334fb632631c",
+      "cmd/internal/clipcmd/cli_admission_test.go": "256e2332dfb5202894f5ccb1a379e65875438962326a6e7a636b19bf43fa4f1d",
       "cmd/internal/couchcmd/shortcut_conformance_live_test.go": "67504844aa794941facbdbbc3b65227e6604a2f5bf5e2ea3ed5b45aaedcab9fd",
       "cmd/internal/couchcmd/stale_store_test.go": "f55eb2e1aa16137380152f0a372f09eb28619fa932076e69168076c845e99642",
       "cmd/internal/couchcmd/startup_fleet_timing_live_test.go": "e3e6890f2a31b50af420aed8b3562a09799b9e71f8fee8c31d296b820dfa23bb",

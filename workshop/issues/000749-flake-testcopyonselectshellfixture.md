@@ -35,11 +35,13 @@ Fix the demonstrated copy-on-select fixture/process ownership failure without a 
 ## Done when
 
 - The root cause is fixed (never a retry loop or a longer timeout); closing this issue unregisters the tests.
+- The shared helper preserves inode identity on same-volume and forced-EXDEV paths; copy-on-select and shortcut fixtures reject a per-run executable copy.
+- Targeted checks and recorded verification pass before landing.
 
 ## Plan
 
 - [x] Reproduce with a fresh test binary; capture the hook/orchestrator boundary and establish root cause.
-- [ ] Pin shared-inode placement, including forced EXDEV, before replacing raw fixture copies and the shared helper copy fallback with aliases.
+- [x] Pin shared-inode placement, including forced EXDEV, before replacing raw fixture copies and the shared helper copy fallback with aliases.
 - [ ] Run targeted copy/shortcut/shared-helper tests and recorded suite, close, and land before resuming #733.
 
 ## Log
@@ -60,3 +62,9 @@ Fix the demonstrated copy-on-select fixture/process ownership failure without a 
 - Unified log at 18:32:53.810 records AMFI assessment of GpEDlx/home/bin/pair-real; 18:32:56.817 reports SystemPolicy refusal after 3.007s. syspolicyd then finds the file missing because timeout cleanup removed the fixture. This is executable launch/security assessment, before the fake clipboard pipeline.
 - Fresh candidate symlink alias probe passed all three pane cases, preserving sibling executable resolution on macOS. Five targeted runs and ten two-at-a-time instrumented copy runs passed afterward; these do not erase the retained failures. Root cause is backed by OS diagnostics, not a blind pass.
 - Sweep: copy-on-select, terminal-shortcuts and clipboard broker fallback copy real candidates. Emitter-health uses marker text; dev-rebuild copies shell; fleet diagnostic retention copies evidence only. These unrelated copies remain.
+
+- Red/green: both real shell fixtures rejected their original raw copies with the new samefile assertions; forced EXDEV rejected the central helper byte-copy fallback. All three passed after alias-only placement. Clipboard broker now uses testpair.At and verifies samefile too. Its first converted run built after replacing Go environment, creating a private read-only module cache; restored pre-environment Binary resolution and the full clipcmd/testpair targeted packages passed.
+- Reviewed cli_admission_test.go repository inputs: the sole checkout input remains ../../../tests/copy-on-select-test.sh; new Stat checks touch only fixture binary aliases. The existing non_go_full_fallback disposition remains correct; refresh only its content hash.
+
+- Targeted green: go test ./cmd/internal/clipcmd ./cmd/internal/testpair -count=1 passed; shared shell contract, copy-on-select fixture and terminal-shortcut fixture passed with an explicit shared candidate on another volume. Reader audit initially rejected the changed source as expected; re-audited its unchanged repository input and updated only the non_go_full_fallback hash; fixed inventory/preflight test passed. The remaining seven inventory regression tests passed before that hash update.
+- Verification plan: push implementation and queue sdlc local-check affected; overlap close review if queued, as tl-worker permits, with a recorded final-head pass required before landing. Fixture-only repair needs no operator UI stage.
