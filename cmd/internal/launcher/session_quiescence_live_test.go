@@ -134,7 +134,11 @@ func controlledZellijFixture(t *testing.T, session string) *pairlifecycletest.Co
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = fixture.Close() })
+	t.Cleanup(func() {
+		if err := fixture.Close(); err != nil {
+			t.Errorf("controlled zellij cleanup: %v", err)
+		}
+	})
 	return fixture
 }
 
@@ -150,7 +154,11 @@ func startControlledZellijSession(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = fixture.Close() })
+	t.Cleanup(func() {
+		if err := fixture.Close(); err != nil {
+			t.Errorf("controlled zellij cleanup: %v", err)
+		}
+	})
 
 	return session
 }

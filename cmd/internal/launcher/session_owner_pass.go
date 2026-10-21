@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"sync"
@@ -92,6 +93,9 @@ func (p *SessionOwnerPass) Probe(ctx context.Context, name, globalDataDir, scope
 	defer cancel()
 	got, err := p.probe.probe(ctx, name, globalDataDir, scope, tag, p.initial)
 	if canceled := p.canceled(ctx); canceled != nil {
+		if cause := errors.Join(err, got.DiagnosticCause); cause != nil {
+			return SessionOwnerObservation{Name: name}, &diagnosticCauseError{error: canceled, cause: cause}
+		}
 		return SessionOwnerObservation{Name: name}, canceled
 	}
 	return got, err

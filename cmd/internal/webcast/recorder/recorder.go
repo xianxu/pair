@@ -135,7 +135,12 @@ type (
 // emittable: the kinds made outside the recorder. Everything else (the
 // page's DOM and state, segments, assets) is the recorder's own: a new kind
 // is refused until it is listed here.
-var emittable = map[string]bool{"note": true, "note-edit": true, "note-state": true, "stroke": true, "ctl": true}
+var emittable = map[string]bool{
+	"note": true, "note-edit": true, "note-state": true, "stroke": true, "ctl": true,
+	"sketch-begin": true, "sketch-stroke-begin": true, "sketch-points": true,
+	"sketch-stroke-end": true, "sketch-undo": true, "sketch-redo": true,
+	"sketch-label": true, "sketch-interrupt": true,
+}
 
 // side-worker results and queries, internal inputs.
 type (
@@ -559,11 +564,22 @@ func (r *Recorder) handle(in stamped) {
 			r.observe(v.Session, true)
 		}
 	case Emit:
+		if !r.opened || v.Record == nil {
+			break
+		}
+		// Accepted receipts outlive their source document. Reconciliation must
+		// precede the live-document guard, including during a pause/navigation.
+		if emittable[v.Record.Kind()] {
+			duplicate, err := r.m.State().Sketches.Reconcile(v.Record)
+			if duplicate || err != nil {
+				r.m.Emit(r.t(in.at), v.Record)
+				break
+			}
+		}
 		if n, ok := v.Record.(*rec.NoteState); ok && n.IfRevision != nil && !r.m.State().NoteUnchanged(n.ID, *n.IfRevision) {
 			break
 		}
 		switch {
-		case !r.opened || v.Record == nil:
 		case v.Doc > 0 && !r.m.State().OnDoc(v.Doc):
 			// The viewer's document has gone, or the cast is paused on it
 			// (pair#499): nobody may act on that page now.

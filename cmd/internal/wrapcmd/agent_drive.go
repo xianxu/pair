@@ -11,6 +11,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/ttyio"
 	"io"
+	"strings"
 	"time"
 )
 
@@ -59,19 +60,27 @@ func (p *proxy) agentDriveScreen() agentdrive.Screen {
 	picker := pickerBefore || p.pickerActive.Load()
 	s.Idle = wrapperSettled(peerComposerState(p.agentBasename, evidence.Snapshot), s.TurnActive, picker)
 	text, known := qualifiedComposerText(p.agentBasename, evidence.Snapshot)
-	s.Recoverable = known && s.Complete && !s.TurnActive && !picker
 	// A panel replaces the composer, so it is the unknown-composer case that
 	// still carries positive evidence: its own Esc footer (pair#691). It has
 	// no turn gate: Claude reports progress as working for as long as its
 	// panel is open, and the panel proof outranks that inference for a lone
 	// esc only. The picker gate stays.
 	s.Dismissable = !known && s.Complete && !picker && agentdrive.DismissablePanel(p.agentBasename, s.Lines)
-	// An interrupt needs positive evidence of work, never the turn flag alone
-	// (pair#717): the lifecycle's Working() (activity seen, no stop grace),
-	// the agent's own composer on screen (not a panel, whose turn flag Claude
-	// keeps set), and the agent's own "esc to interrupt" hint, which also
-	// covers a turn whose end the lifecycle missed. Esc handles pickers.
-	s.Interruptible = s.TurnActive && p.turnWorking.Load() && known && s.Complete && !picker && agentdrive.AdvertisesInterrupt(s.Lines)
+	// Claude needs its lifecycle's Working() (no stop grace) and current
+	// interrupt footer; a panel can keep its turn flag set (pair#717).
+	// Codex instead reports work in its native composer-relative status.
+	working := s.TurnActive && p.turnWorking.Load() && agentdrive.AdvertisesInterrupt(s.Lines)
+	if p.agentBasename == "codex" {
+		working = RecognizeCodexWorking(snap)
+		// Codex's current native status is authoritative even when the
+		// notification lifecycle missed work or still holds stop grace.
+		// Unknown/picker/partial screens cannot prove that the turn ended.
+		busy := working || strings.Contains(codexStatusLine(snap), "esc to interrupt")
+		s.Idle = known && s.Complete && !picker && !busy && text == ""
+		s.TurnActive = busy || s.TurnActive && !s.Idle
+	}
+	s.Recoverable = known && s.Complete && !s.TurnActive && !picker
+	s.Interruptible = working && known && s.Complete && !picker
 	// Cleanup proof is intentionally one acknowledged native command line. A
 	// multiline composer has no captured clearing contract and grants no cleanup.
 	if s.Recoverable && text == "/model" {
@@ -94,7 +103,8 @@ func (p *proxy) agentDriveScreenLocked() agentdrive.Screen {
 		}
 		s.Recoverable = s.Recoverable && owned
 		s.Dismissable = s.Dismissable && owned
-		s.Interruptible = s.Interruptible && owned
+		// Output seen by the reader but not parsed cannot attest the old frame.
+		s.Interruptible = s.Interruptible && owned && d.outputPending == 0
 	}
 	if !s.Recoverable {
 		s.ComposerText = ""
@@ -116,6 +126,17 @@ func (d *peerDelivery) driveAvailableLocked() bool {
 	return d.drive != nil && d.drive.active == nil && !d.exited && !d.image && !d.inputBuffered && d.replies.inFlight == 0 && len(d.replies.input) == 0 && d.reservation == "" && (d.current.Message.ID == "" || d.current.Status.Terminal())
 }
 func (d *peerDelivery) driveIdleLocked() bool { return d.driveAvailableLocked() && d.settled }
+
+// Interrupts revalidate current work on every boundary, so native output may
+// redraw between them. Operator input still revokes their original admission.
+// Other drive shapes retain the existing all-activity fence. Caller holds mu.
+func (d *peerDelivery) driveSequenceLocked(interrupt bool) uint64 {
+	if interrupt {
+		return d.lastOperatorInputSequence
+	}
+	return d.sequence
+}
+
 func (d *peerDelivery) agentDriveObservation() couchmessage.DriveObservation {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -131,6 +152,7 @@ func (d *peerDelivery) agentDriveObservation() couchmessage.DriveObservation {
 		o.Dismissable = d.driveAvailableLocked() && s.Dismissable && s.Complete
 		o.Interruptible = d.driveAvailableLocked() && s.Interruptible && s.Complete
 	}
+	o.Sequence = d.driveSequenceLocked(o.Interruptible)
 	return o
 }
 func (d *peerDelivery) startAgentDrive(id string, start couchmessage.DriveStart) (agentdrive.Result, error) {
@@ -152,7 +174,7 @@ func (d *peerDelivery) startAgentDrive(id string, start couchmessage.DriveStart)
 	if err := start.Validate(d.now()); err != nil {
 		return refuse(err.Error())
 	}
-	if start.Instance != d.drive.instance || start.Sequence != d.sequence {
+	if start.Instance != d.drive.instance || start.Sequence != d.driveSequenceLocked(start.Request.InterruptOnly()) {
 		return refuse("wrapper observation changed; inspect the slot and send a new request")
 	}
 	if len(d.drive.receipts) >= maxWrapperDriveReceipts {
@@ -270,7 +292,7 @@ func (p *proxy) dispatchAgentDrive(out io.Writer) {
 		// A recovery or interrupt drive may take a residual wait (a hub-sent
 		// turn leaves AwaitingEmpty); active owners stay exclusive.
 		lease := p.automaticInput.phase == automaticInputIdle || residual && (recovery || interrupt || p.automaticInputAvailable(automaticInputDrive))
-		common := !d.exited && !d.image && d.sequence == r.start.Sequence && !d.inputBuffered && d.replies.inFlight == 0 && len(d.replies.input) == 0 && d.reservation == "" && (d.current.Message.ID == "" || d.current.Status.Terminal()) && lease
+		common := !d.exited && !d.image && d.driveSequenceLocked(interrupt) == r.start.Sequence && !d.inputBuffered && d.replies.inFlight == 0 && len(d.replies.input) == 0 && d.reservation == "" && (d.current.Message.ID == "" || d.current.Status.Terminal()) && lease
 		screen.Idle = screen.Idle && d.settled && common
 		screen.Recoverable = screen.Recoverable && recovery && common
 		screen.Dismissable = screen.Dismissable && recovery && common

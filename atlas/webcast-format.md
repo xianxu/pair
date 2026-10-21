@@ -2,7 +2,7 @@
 
 The format is the product of couch-broadcast-web (project: ops `teams/devinfra/projects/couch-broadcast-web/project.md`).
 A **recording** is the DOM of a cast Chrome tab over time: a full snapshot when a segment starts, then every change,
-plus what the DOM alone doesn't hold (form values, scroll, CSSOM, fonts, layout boxes), plus notes and pointer strokes.
+plus what the DOM alone doesn't hold (form values, scroll, CSSOM, fonts, layout boxes), plus notes, pointer strokes and persistent sketches.
 Two kinds of reader use it. The **viewer** rebuilds the page from it in a script-free frame, live or replayed. The
 **agent** asks what the page was at time t, what happened between two moments, and what each note points at.
 
@@ -23,13 +23,14 @@ Every record is one JSON object on one line, with the same envelope everywhere:
   record on the timeline, and it does not reorder anything.
 - `k` is the kind. Every other field belongs to the kind.
 
-The live stream (recorder → viewers) and the recording on disk carry **the same records**. A live viewer receives
-them one by one as SSE events of type `rec`, each event's data being one record line. On disk the same lines are split by
-family into files. Splitting and merging are pure functions of `k`:
+Accepted live events and the recording on disk carry **the same records**. A live viewer receives
+them one by one as SSE events of type `rec`, each event's data being one record line. A late join starts with derived
+catch-up state, including an ephemeral sketch bootstrap when needed (see Joining mid-cast). On disk the accepted
+event lines are split by family into files. Splitting and merging are pure functions of `k`:
 
 ```
 <recording>/
-  events.jsonl         head, seg, stop, doc, DOM changes, observer state, context, control, assets, layout
+  events.jsonl         head, seg, stop, doc, DOM changes, observer state, context, control, assets, layout, sketches
   notes.jsonl          note, note-edit, note-state
   pointer.jsonl        stroke
   assets/<hash>        captured bodies (images resampled; CSS and fonts exact), named by content hash
@@ -42,7 +43,10 @@ Reading a recording merges the three record files into one stream by `t`. At equ
 notes, then pointer strokes. `frames/` is never merged in: screenshots are for the fidelity check, and pixels never go to
 viewers (Principle 1). The live writers use `recording.OrderedTime` to advance a
 record by one millisecond when an equal-time transition would reverse this file
-precedence. Splitting and merging therefore preserve the accepted live order.
+precedence. A `sketch-begin` is strictly later than the previous record, and the next accepted record is strictly
+later than that begin, so its timestamp names exactly the preceding source prefix. `annotation-clear` also
+strictly follows previous records. Timestamp overflow refuses admission; raw file readers never restamp history.
+Splitting and merging therefore preserve the accepted live order.
 
 ## Versioning
 
@@ -211,6 +215,59 @@ and `text` stay the same. Both carry a box, in their own units: page px here, ce
 anchor read as `{kind, path, text}`: here `kind: element` and the containers' path; on the terminal, Couch's layout
 path, which #488 M3 adds (atlas/broadcast.md).
 
+## Persistent sketches (#751)
+
+These additive version-1 kinds live in `events.jsonl`. Every kind carries `operation` (bounded identity),
+`sequence` (per-sketch browser-safe nonnegative integer), and `digest` (lowercase SHA256 hex64), beside `t` and `k`.
+
+| Kind | Payload | Meaning |
+|---|---|---|
+| `sketch-begin` | `id`, `author`, `owner`, `doc`, `tab`, `vp` | Freeze the source document segment, viewport, author/owner and `author.color`; one drawing sketch cast-wide. |
+| `sketch-stroke-begin` | `sketch`, `id`, `at`, `width` | Begin one stroke with its recorded anchor and positive base width; discard the redo branch. |
+| `sketch-points` | `sketch`, `id`, `chunk`, `pts` | Append the next chunk of original page-coordinate `[x,y,pressure]` triples. |
+| `sketch-stroke-end` | `sketch`, `id` | Seal a stroke; only a nonempty stroke enters the visible stack. |
+| `sketch-undo` | `sketch`, `id` | Move the named visible stack top to redo, with no open stroke. |
+| `sketch-redo` | `sketch`, `id` | Restore the named redo stack top, with no open stroke. |
+| `sketch-label` | `sketch`, `label` | Supply the required, nonblank label once; complete drawing or label interrupted work. |
+| `sketch-interrupt` | `sketch`, `reason` | Seal accepted partial work and retain truncation evidence; reasons are `expiry`, `navigation`, `handoff`, `reset`, `end`. |
+
+Pressure is explicitly recorded in `[0,1]`; a persisted point must have exactly three numbers. It never changes
+pointer `stroke`'s `[x,y,dt]` meaning. `sketch/geometry.go` and browser `annotation-anchor.js` project points between
+positive anchor boxes while retaining pressure; width is `base * (.25 + .75 * pressure)`, scaled with the viewer.
+Sketch/stroke/operation/tab/author identities are bounded to 128 UTF-8 bytes, labels to 1024 bytes. The owner is
+`operator` or an existing public session digest. Coordinates are finite and at most `1e7` in magnitude.
+
+`SketchCanonical` defines known request fields excluding writer time, kind and digest. `SketchDigest` hashes those
+bytes; receipts also retain the concrete kind and actual semantic request. An exact retry is a no-op even with a
+changed producer timestamp. Reusing an operation/sequence with a changed body conflicts even if its claimed digest
+is unchanged. Producers reconcile before restamping or emission, so a retry also consumes no extra bytes or sink writes.
+The preserving sketch codec rejects malformed owned fields and duplicate keys recursively, and retains additive
+unknown members on the original record, including nested anchor/author/viewport members. Authoritative history and
+snapshot projections contain known state; they do not copy wire-only unknown members.
+
+`recording/sketch_state.go` owns validated transitions and indexed history; `web/sketch-model.js` is its browser
+port, held to `tests/webcast/sketch-corpus.json` at each prefix. Appends visit only new points; Undo/Redo change
+stack references. Pause seals partial points and blocks drawing; same-document resume keeps the sketch source.
+A changed driving holder, reset, navigation or cast end interrupts drawing through the same reducer. Pending-only
+control requests do not interrupt. The original owner's late label can complete interrupted metadata without old
+live DOM; cast end and annotation clear forbid new labels. An interrupted sketch retains its interruption evidence
+after labeling. Repeated ends after implicit sealing never duplicate a visible stroke.
+
+Bounds are 64 points/chunk, 4096 points/stroke, 16384 points/sketch, 64 stroke identities/sketch and 256 sketch begins.
+Both producers use `recording.SketchBudget`: exact encoded sketch JSONL bytes, including newlines, plus outstanding
+reservations total at most 32 MiB. A sketch reserves 16 KiB: 8 KiB for its label, 4 KiB for
+stroke end and 4 KiB for interruption. The maximum-envelope regression uses actual `Encode` output with maximal
+identities/counters and a 1024-byte HTML-escaping-heavy label. Ending a stroke releases its end allowance; the next
+stroke must reserve it again. Explicit interruption retains label capacity; derived interruption conservatively
+retains the full remainder. Label, clear and cast end release unused reservations; used history bytes remain charged.
+The pure core separately bounds canonical known-field encoded history to 32 MiB, normalizing signed zero to positive zero in model accounting and owned point/anchor projections, and keeping `history_bytes` in snapshots; this
+counter excludes preserved unknown wire members, which the producer's exact byte budget charges.
+
+Reducer acceptance and sink persistence are separate. A sink error after acceptance leaves state and byte charges
+in place. `board.Writer` remembers that operation's uncertainty and returns it on exact retries without another
+write. The recorder's mirror accepts into a queue; its shell retains sink errors in `r.err` and returns them from
+`Close`. A receipt alone cannot prove durability; transport acknowledgment and query behavior belong to #752.
+
 ## The notes model (#461)
 
 [DOM submission](webcast-submission.md) (#483) packages all open notes selected
@@ -272,8 +329,8 @@ and `notes.Hints` were retired by #488. The landmark still gives the context and
 
 `annotation-clear` is an operator-authored event in `events.jsonl`:
 `{"t":7001,"k":"annotation-clear","who":{"id":"operator"}}`.
-It clears the current notes and strokes, including while paused; earlier replay
-positions remain unchanged. It is invalid after recording end. The timestamp is
+It clears the current notes and pointer strokes and retires sketch editing/late labels, including while paused;
+earlier replay positions remain unchanged. It is invalid after recording end. The timestamp is
 strictly after preceding annotations so split-file merge cannot resurrect marks
 at an equal timestamp. Catch-up retains the clear barrier and only subsequent
 notes. Go reduction, browser Model, replay catchUp and Player.seek apply the
@@ -316,27 +373,37 @@ says who did what.
 
 ## Joining mid-cast
 
-A viewer that joins late receives the **catch-up**, followed by the live records. The catch-up is:
-- `head`;
-- every `asset` record so far;
-- the `seg` the current document began in, as a bare record, so the document's notes keep their segment;
-- the notes, note states and strokes since then;
-- the latest `ctl` before the latest `seg`, which carries the whole control state;
-- everything from the latest `seg` on, except `hover` and `ptr`: of those, only the latest of each, in place (they are the
-  operator's pointer now, state rather than history; #458). While paused, that last part is the segment through its
-  `stop`. Reduced, the catch-up gives the same DOM, assets, `DocSeg`, current-document notes, control, hover and
-  pointer as the whole recording. This is tested at every cut point, and at every pinned
-time of every fixture. `recording.CatchUp` is this rule; the
-live fan-out (#460, `recording.Hub`) serves it. The hub keeps only `CatchUp(log)` at each segment, so what it holds for late
-joiners is bounded by one segment.
+A viewer that joins late receives the **catch-up**, followed by new live records. Its DOM/assets/notes portion keeps
+`head`, asset bindings, bare historical `seg`/`stop` records preserving note document identity, all note creations,
+revisions/states and clear barriers, current-document pointer strokes, and the latest segment's page records.
+Only the latest `hover` and `ptr` remain. Every recording keeps the existing latest-pre-segment `ctl`
+baseline and contiguous current-segment control events, which driver-attributed DOM changes need.
+
+For sketch-bearing prefixes, `recording.CatchUp` reduces the accepted prefix through the same State, removes sketch
+history from the retained portion, and appends one derived `sketch-snapshot` bootstrap. It carries the
+current driving holder/pending control plus bounded sketch history: source metadata, finished and active sketches,
+accepted stroke points/chunks, open/sealed/truncated flags, visible/redo stacks, receipts, sequence and byte counters.
+It adds no historical control retention beyond that existing baseline/current-segment contract. Repeated compaction consumes the prior bootstrap
+and new events; the append-only recording on disk remains complete.
+
+`sketch-snapshot` is catch-up-only, absent from the persisted kind registry and refused by ordered producers.
+`NewCatchUpState`/`ReduceCatchUp` explicitly enable validated, atomic restoration; browser Model has the equivalent
+`allowSketchSnapshot` option. Ordinary raw replay input refuses a bootstrap, and subsequent `ctl` validation remains
+strict. Snapshot restoration owns copies and validates bounds and references before installing control/sketch state.
+Historical anchors do not require old DOM snapshots. Invalid source prefixes are retained for ordinary validation.
+
+The live viewer and replay seeking use this same catch-up projection. `CheckCatchUp` compares sketch projection
+independently of legacy DOM canonical hashes. `recording.Hub` compacts at segment boundaries; retained DOM work is
+bounded by the latest segment, alongside existing note/asset history and the bounded sketch snapshot.
 
 ## Reading rules (the reducer)
 
 `recording.Reduce(records, t)` gives the state at time t: documents and node trees, sheets and adoptions, fonts,
 the asset table, form values, scroll, selection, focus, layout, URL, title, viewport, the segment, live or paused,
-the notes, and who drives (`Control`). A record that references a node that doesn't exist is an **error**, not something to skip: the
+the notes, sketches, and who drives (`Control`). A record that references a node that doesn't exist is an **error**, not something to skip: the
 recorder must not emit one, and the validator reports it with its line. `State.Canonical()` is a deterministic
-serialization of the state. The viewer's conformance check compares it with what the viewer rebuilt.
+serialization of the DOM state; sketch projections are checked separately. The viewer's conformance check compares
+both with what the viewer rebuilt.
 
 ## Lifecycle and size (ARCH-FUNERAL, ARCH-CONSTRAINTS)
 

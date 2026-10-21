@@ -56,3 +56,15 @@ agent's last successful launch configuration in that repo. The refusal names exa
   parameters" for the same agent is a supported path (form and CLI: `couch --switch-agent repo:N --agent codex
   --agent-args '…' --confirm` on the current agent), saved as that agent's remembered arguments; (3) the earlier cases
   (no saved configuration; a parked or disconnected source). Operator-facing; the operator hits it now.
+- 10-20 22:35 (TL): root cause of the operator's latest report ("switching to codex in ops didn't use the recorded
+  parameters"): remembered arguments are keyed by **exact physical path**. The ops primary checkout's preference file
+  (`threadstore/path-preferences/b96c0dde….json`, physical_path /Users/xianxu/workspace/ops) records codex
+  `["--sandbox","danger-full-access"]`, but slot worktrees (e.g. /Users/xianxu/workspace/worktree/ops-slot1/ops) have
+  **no preference file at all**, so a switch or fresh start there falls back to the agent's defaults. Fix to include
+  in this issue: when a slot path has no remembered arguments for an agent, fall back to the same repository's
+  (repo_identity) remembered arguments, then save them for the slot on a successful launch; show which source was used
+  in the switch form.
+- 10-20 22:45 (TL): the operator ran `pair codex -- --sandbox danger-full-access` in the ops-slot1 worktree and the
+  switch still ignored it: Pair's remembered-arguments store and Couch's `threadstore/path-preferences/` are separate,
+  and Couch never got an entry for that folder. The fix must give remembered arguments one source of truth shared by
+  Pair and Couch (plus the repo-level fallback for slot folders above).

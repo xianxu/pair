@@ -2,9 +2,11 @@ package pairlifecycletest
 
 import (
 	"context"
+	"errors"
 	"github.com/xianxu/pair/cmd/internal/zellijtest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -39,7 +41,11 @@ exit 1
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = fixture.Close() })
+	t.Cleanup(func() {
+		if err := fixture.Close(); err != nil {
+			t.Errorf("close controlled zellij: %v", err)
+		}
+	})
 	if _, err := os.Stat(early); !os.IsNotExist(err) {
 		t.Fatalf("session probed before initial client output: %v", err)
 	}
@@ -77,11 +83,48 @@ esac
 			ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
 			defer cancel()
 			if fixture, err := StartControlledZellij(ctx, "owned-test"); err == nil {
-				_ = fixture.Close()
+				if err := fixture.Close(); err != nil {
+					t.Errorf("close unexpected fixture: %v", err)
+				}
 				t.Fatal("missing initial output accepted")
 			}
 			if _, err := os.Stat(early); !os.IsNotExist(err) {
 				t.Fatalf("probed uninitialized session: %v", err)
+			}
+		})
+	}
+}
+
+func TestControlledZellijStartupRetainsCleanupFailure(t *testing.T) {
+	for _, mode := range []string{"exit", "timeout"} {
+		t.Run(mode, func(t *testing.T) {
+			dir := t.TempDir()
+			script := `#!/bin/sh
+case "$1" in
+ delete-session) echo shutdown-denied; exit 1;;
+ --session) if [ "$FIXTURE_MODE" = exit ]; then exit 42; fi; exec sleep 30;;
+esac
+exit 1
+`
+			if err := os.WriteFile(filepath.Join(dir, "zellij"), []byte(script), 0700); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+			t.Setenv("FIXTURE_MODE", mode)
+			ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
+			defer cancel()
+			fixture, err := StartControlledZellij(ctx, "owned-test")
+			if fixture != nil {
+				if closeErr := fixture.Close(); closeErr != nil {
+					t.Error(closeErr)
+				}
+				t.Fatal("unexpected fixture")
+			}
+			if err == nil || !strings.Contains(err.Error(), "initial screen render") || !strings.Contains(err.Error(), "delete controlled zellij") || !strings.Contains(err.Error(), "shutdown-denied") {
+				t.Fatalf("startup and cleanup errors not both retained: %v", err)
+			}
+			if mode == "timeout" && !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("deadline identity lost: %v", err)
 			}
 		})
 	}

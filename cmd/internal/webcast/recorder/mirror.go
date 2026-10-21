@@ -98,6 +98,7 @@ type TextFetch struct {
 type mirror struct {
 	st       *rec.State
 	lastKind string
+	budget   rec.SketchBudget
 	next     rec.NodeID
 	sessions map[string]*msession
 	out      []rec.Record
@@ -150,18 +151,38 @@ func (m *mirror) take() []rec.Record {
 // emit applies r at time t to the mirror's reducer and queues it. t never
 // goes back.
 func (m *mirror) emit(t int64, r rec.Record) bool {
-	if _, clear := r.(*rec.AnnotationClear); clear {
-		// Files merge equal times as events, notes, strokes. Put the
-		// clear strictly after earlier annotations, including at a frozen clock.
-		t = max(t, m.st.T+1)
-	}
-	t = rec.OrderedTime(t, m.st.T, m.lastKind, r.Kind())
-	r.SetTime(t)
-	if err := m.st.Apply(r); err != nil {
+	refuse := func(err error) bool {
 		m.Dropped[r.Kind()]++
 		m.note(fmt.Sprintf("t=%d %s: %v", t, r.Kind(), err))
 		return false
 	}
+	if r.Kind() == "sketch-snapshot" {
+		return refuse(errors.New("catch-up snapshot cannot be persisted"))
+	}
+	duplicate, err := m.st.Sketches.Reconcile(r)
+	if err != nil {
+		return refuse(err)
+	}
+	if duplicate {
+		return true
+	}
+	t, err = rec.OrderedTime(t, m.st.T, m.lastKind, r.Kind())
+	if err != nil {
+		return refuse(err)
+	}
+	r.SetTime(t)
+	size, err := rec.SketchEncodedBytes(r)
+	if err != nil {
+		return refuse(err)
+	}
+	delta, err := m.budget.Next(r, size, false)
+	if err != nil {
+		return refuse(err)
+	}
+	if err := m.st.Apply(r); err != nil {
+		return refuse(err)
+	}
+	m.budget.Commit(delta)
 	m.lastKind = r.Kind()
 	m.out = append(m.out, r)
 	return true
@@ -953,7 +974,9 @@ func (m *mirror) OwnedSheet(t int64, session string, ownerBackend int, text stri
 }
 
 // Emit passes a record the mirror doesn't derive (head, stop, asset, font,
-// title, frame) through its reducer.
+// title, frame) through its reducer. Success means acceptance into the ordered
+// queue, never proof of persistence. The recorder's write result/r.err owns
+// sink uncertainty; receipt consumers must check it before claiming durability.
 func (m *mirror) Emit(t int64, r rec.Record) bool { return m.emit(t, r) }
 
 // State is the mirror's reducer state (read-only to callers).

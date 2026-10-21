@@ -43,6 +43,10 @@ func queryShortcutClients(ctx context.Context, session string) ([]byte, error) {
 // of is_focused flags. More than one client is ambiguous until Zellij exposes
 // the presenting client's identity; report that rather than choose arbitrarily.
 func shortcutFocusProbe(artifacts shortcutFocusArtifacts, query func(context.Context, string) ([]byte, error)) func(context.Context, couchcore.ThreadAddress) (workbenchshortcut.PaneRole, error) {
+	return shortcutFocusProbeWithProcesses(artifacts, query, procutil.Source{})
+}
+
+func shortcutFocusProbeWithProcesses(artifacts shortcutFocusArtifacts, query func(context.Context, string) ([]byte, error), processes procutil.Source) func(context.Context, couchcore.ThreadAddress) (workbenchshortcut.PaneRole, error) {
 	return func(ctx context.Context, address couchcore.ThreadAddress) (workbenchshortcut.PaneRole, error) {
 		if artifacts == nil {
 			return workbenchshortcut.PaneRoleOther, fmt.Errorf("Pair session focus observer unavailable")
@@ -65,7 +69,7 @@ func shortcutFocusProbe(artifacts shortcutFocusArtifacts, query func(context.Con
 			if err != nil {
 				return nil, err
 			}
-			ids, err = (workbenchshortcut.TerminalPaneRegistry{DataDir: paths.ScopeDir(), Tag: string(address.Tag)}).LiveIDs(func(pid int) bool { return procutil.Alive(strconv.Itoa(pid)) })
+			ids, err = (workbenchshortcut.TerminalPaneRegistry{DataDir: paths.ScopeDir(), Tag: string(address.Tag)}).LiveOwnerIDs(func(pid int) bool { return procutil.Alive(strconv.Itoa(pid)) }, processes)
 			return raw, err
 		}
 		_, err = zellijreply.Confirm(ctx, read, func(raw []byte) (string, error) {

@@ -160,7 +160,14 @@ meaning. On Darwin+cgo, missing/decreasing/failed self-generation counters fail
 rather than silently passing. Other platforms report unsupported native evidence.
 A Darwin filesystem that cannot clone retains correctness but may fail a native
 write cap. These are root-process bytes, excluding compilation and descendants;
-they do not claim a whole-device wear budget.
+they do not claim a whole-device wear budget. Ordinary supported-budget runs
+clear Go's `test.testlogfile` before `m.Run`, so the cache-access trace does not
+consume the test workload's allowance. No trace is synthesized: cmd/go refuses
+result-cache publication without it, while build-cache use remains intact.
+Plain cache-enabled callers execute the measured workload each time; count/CPU
+repetitions still apply. Native trace-heavy reads, real excess-write refusal and
+actual cold/warm Go cache/coverage controls qualify this internal Go boundary
+against upgrades (#765).
 
 Couchcore's actual shared constructors also inventory completed trees before
 mutations: provision allows 24 files/48 directories/256KiB logical bytes; prepare

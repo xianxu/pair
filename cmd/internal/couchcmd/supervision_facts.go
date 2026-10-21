@@ -92,6 +92,7 @@ const (
 	factLogActive
 	factLogUnavailable
 	factLogClosed
+	factLogWriteError
 )
 
 type factLogEvent uint8
@@ -101,6 +102,7 @@ const (
 	factLogOpenFailed
 	factLogWriteFailed
 	factLogClose
+	factLogWriteSucceeded
 )
 
 func (s factLogLifecycle) advance(e factLogEvent) factLogLifecycle {
@@ -115,5 +117,30 @@ func (s factLogLifecycle) advance(e factLogEvent) factLogLifecycle {
 			return factLogUnavailable
 		}
 	}
+	if s == factLogActive || s == factLogWriteError {
+		if e == factLogWriteFailed {
+			return factLogWriteError
+		}
+		if e == factLogWriteSucceeded {
+			return factLogActive
+		}
+	}
 	return s
+}
+
+func (s factLogLifecycle) String() string {
+	switch s {
+	case factLogOpening:
+		return "opening"
+	case factLogActive:
+		return "working"
+	case factLogUnavailable:
+		return "unavailable"
+	case factLogWriteError:
+		return "failed-write"
+	case factLogClosed:
+		return "closed"
+	default:
+		return "unknown"
+	}
 }

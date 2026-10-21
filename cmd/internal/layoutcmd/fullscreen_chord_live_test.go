@@ -109,7 +109,7 @@ func TestFullscreenChordZellijLive(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		if err := fixture.Close(); err != nil {
-			t.Logf("fixture close (fresh session may lack resurrection data): %v", err)
+			t.Errorf("fixture close: %v", err)
 		}
 		cleanup, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()

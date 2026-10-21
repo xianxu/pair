@@ -2,7 +2,6 @@ package couchcore
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -51,8 +50,7 @@ func TestAttentionNotifyRow(t *testing.T) {
 }
 
 // The prompt and question rows: entering the set raises one item per slot
-// and kind, a repeat keeps its time, selecting marks it visited without
-// clearing it, and leaving the set clears it whoever answered.
+// and kind, a repeat keeps its time, and selecting suppresses that occurrence.
 func TestAttentionConditionRows(t *testing.T) {
 	for _, kind := range []AttentionKind{AttentionPrompt, AttentionQuestion} {
 		t.Run(string(kind), func(t *testing.T) {
@@ -64,16 +62,12 @@ func TestAttentionConditionRows(t *testing.T) {
 				t.Fatalf("raise once, keep time: %+v", items)
 			}
 			l, item, ok := l.Select(items[0].ID)
-			if !ok || item.Thread != attentionW1 || l.Len() != 1 || !l.Items()[0].Visited {
-				t.Fatalf("select keeps a condition item, visited: %+v", l.Items())
+			if !ok || item.Thread != attentionW1 || l.Len() != 0 {
+				t.Fatalf("select removes a condition item: %+v", l.Items())
 			}
-			// The other kind's set never touches this one.
-			other := AttentionPrompt
-			if kind == AttentionPrompt {
-				other = AttentionQuestion
-			}
-			if l = l.Conditions(other, nil, attentionT0); l.Len() != 1 {
-				t.Fatal("another kind's set cleared the item")
+			l = l.Conditions(kind, live, attentionT0.Add(time.Minute))
+			if l.Len() != 0 {
+				t.Fatal("selected condition reappeared while still live")
 			}
 			if l = l.Conditions(kind, map[ThreadAddress]AttentionCondition{attentionW2: {Label: "pair:2"}}, attentionT0); fmt.Sprint(attentionIDs(l)) != "["+conditionID(kind, attentionW2)+"]" {
 				t.Fatalf("a slot leaving the set clears, a new one raises: %v", attentionIDs(l))
@@ -82,48 +76,6 @@ func TestAttentionConditionRows(t *testing.T) {
 				t.Fatal("dismiss a condition item")
 			}
 		})
-	}
-}
-
-// The restart column: notify items come back as they were; condition items
-// come back only when live state re-raises them inside the grace, with their
-// original time and visit, and a slot that is no longer waiting stays gone.
-func TestAttentionRestore(t *testing.T) {
-	before := AttentionList{}.Notify(notifyItem("n1", attentionT0)).
-		Conditions(AttentionPrompt, map[ThreadAddress]AttentionCondition{attentionW1: {Label: "pair:1"}, attentionW2: {Label: "pair:2"}}, attentionT0)
-	before, _, _ = before.Select(conditionID(AttentionPrompt, attentionW1))
-	saved := before.Saved(attentionT0)
-
-	now := attentionT0.Add(time.Hour)
-	l := RestoreAttention(saved, now)
-	if fmt.Sprint(attentionIDs(l)) != "[n1]" {
-		t.Fatalf("only notify items show before live state: %v", attentionIDs(l))
-	}
-	if len(l.Saved(now)) != 3 {
-		t.Fatal("a second restart inside the grace would lose the waiting items")
-	}
-	// The startup set is empty (no picker reported yet): nothing is lost.
-	l = l.Conditions(AttentionPrompt, nil, now)
-	l = l.Conditions(AttentionPrompt, map[ThreadAddress]AttentionCondition{attentionW1: {Label: "pair:1"}}, now.Add(time.Minute))
-	var w1 AttentionItem
-	for _, item := range l.Items() {
-		if item.Thread == attentionW1 {
-			w1 = item
-		}
-	}
-	if !w1.Since.Equal(attentionT0) || !w1.Visited {
-		t.Fatalf("re-raised inside the grace keeps time and visit: %+v", w1)
-	}
-	// After the grace, w2 coming back is a new episode.
-	late := now.Add(AttentionRestoreGrace + time.Second)
-	l = l.Conditions(AttentionPrompt, map[ThreadAddress]AttentionCondition{attentionW1: {Label: "pair:1"}, attentionW2: {Label: "pair:2"}}, late)
-	for _, item := range l.Items() {
-		if item.Thread == attentionW2 && !item.Since.Equal(late) {
-			t.Fatalf("a re-raise after the grace is new: %+v", item)
-		}
-	}
-	if len(l.Saved(late)) != l.Len() || len(RestoreAttention(saved, now).Saved(late)) != 1 {
-		t.Fatal("expired restored items still persist")
 	}
 }
 
@@ -153,10 +105,10 @@ func TestAttentionCap(t *testing.T) {
 	}
 }
 
-// #673 BR-2: the writer is bounded by the store's own reader cap. A run of
+// #673 BR-2: retain the in-memory payload byte bound. A run of
 // maximum-size notifications (4096-byte bodies of characters JSON escapes)
-// drops the oldest until the list encodes within AttentionStoreLimit, so
-// every Save still succeeds and the newest notification is kept.
+// drops the oldest until the list encodes within AttentionByteLimit, so
+// the newest notification is kept without unbounded event payloads.
 func TestAttentionListStaysWithinTheStoreLimit(t *testing.T) {
 	body := strings.Repeat("<\x01", 2048)
 	var l AttentionList
@@ -164,9 +116,9 @@ func TestAttentionListStaysWithinTheStoreLimit(t *testing.T) {
 		item := notifyItem(fmt.Sprintf("n%02d", i), attentionT0.Add(time.Duration(i)*time.Second))
 		item.Body = body
 		l = l.Notify(item)
-		raw, err := encodeAttention(l.Saved(attentionT0))
-		if err != nil || len(raw) > AttentionStoreLimit {
-			t.Fatalf("after %d notifications the list encodes to %d bytes (limit %d): %v", i+1, len(raw), AttentionStoreLimit, err)
+		raw, err := encodeAttention(l.Items())
+		if err != nil || len(raw) > AttentionByteLimit {
+			t.Fatalf("after %d notifications the list encodes to %d bytes (limit %d): %v", i+1, len(raw), AttentionByteLimit, err)
 		}
 	}
 	if l.Len() == AttentionCap {
@@ -175,11 +127,62 @@ func TestAttentionListStaysWithinTheStoreLimit(t *testing.T) {
 	if ids := attentionIDs(l); ids[0] != fmt.Sprintf("n%02d", AttentionCap-1) {
 		t.Fatalf("the newest notification was dropped: %v", ids)
 	}
-	dir, err := filepath.EvalSymlinks(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
+
+}
+
+func TestAttentionDismissSuppressesUntilConditionClears(t *testing.T) {
+	for _, kind := range []AttentionKind{AttentionPrompt, AttentionQuestion} {
+		live := map[ThreadAddress]AttentionCondition{attentionW1: {Label: "pair:1"}}
+		l := AttentionList{}.Conditions(kind, live, attentionT0)
+		l = l.Dismiss(l.Items()[0].ID).Conditions(kind, live, attentionT0.Add(time.Minute))
+		if l.Len() != 0 {
+			t.Fatal("dismissed live condition reappeared")
+		}
+		l = l.Conditions(kind, nil, attentionT0.Add(time.Hour)).Conditions(kind, live, attentionT0.Add(2*time.Hour))
+		if l.Len() != 1 || !l.Items()[0].Since.Equal(attentionT0.Add(2*time.Hour)) {
+			t.Fatal("fresh occurrence missing")
+		}
 	}
-	if err := (AttentionStore{Dir: dir}).Save(l.Saved(attentionT0)); err != nil {
-		t.Fatalf("save at the size bound: %v", err)
+}
+
+func TestAttentionExpiryOnlyDropsNotificationsAtTwelveHours(t *testing.T) {
+	live := map[ThreadAddress]AttentionCondition{attentionW1: {Label: "pair:1"}}
+	before := AttentionList{}.Conditions(AttentionPrompt, live, attentionT0.Add(-24*time.Hour)).Conditions(AttentionQuestion, live, attentionT0.Add(-24*time.Hour)).Notify(notifyItem("old", attentionT0)).Notify(notifyItem("fresh", attentionT0.Add(time.Nanosecond)))
+	after := before.Expire(attentionT0.Add(AttentionMaxAge))
+	if after.Len() != 3 || before.Len() != 4 {
+		t.Fatalf("expiry: before=%v after=%v", attentionIDs(before), attentionIDs(after))
+	}
+	for _, item := range after.Items() {
+		if item.ID == "old" {
+			t.Fatal("expired event kept")
+		}
+	}
+	if !after.Has(AttentionPrompt) || !after.Has(AttentionQuestion) {
+		t.Fatal("old live condition expired")
+	}
+	if before.Expire(attentionT0.Add(AttentionMaxAge-time.Nanosecond)).Len() != 4 {
+		t.Fatal("expired too early")
+	}
+	if before.Apply(AttentionFact{Kind: AttentionNotify, Notify: notifyItem("new", attentionT0.Add(AttentionMaxAge))}, attentionT0.Add(AttentionMaxAge)).Len() != 4 {
+		t.Fatal("new fact did not expire old notification")
+	}
+}
+
+func TestAttentionClearSuppressesAllCurrentConditions(t *testing.T) {
+	live := map[ThreadAddress]AttentionCondition{attentionW1: {Label: "pair:1"}}
+	before := AttentionList{}.Conditions(AttentionPrompt, live, attentionT0).Conditions(AttentionQuestion, live, attentionT0).Notify(notifyItem("event", attentionT0))
+	cleared := before.Clear()
+	for _, kind := range []AttentionKind{AttentionPrompt, AttentionQuestion} {
+		cleared = cleared.Conditions(kind, live, attentionT0)
+	}
+	if cleared.Len() != 0 || before.Len() != 3 {
+		t.Fatal("clear mutated input or re-raised a current condition")
+	}
+	fresh := cleared.Conditions(AttentionPrompt, nil, attentionT0).Conditions(AttentionPrompt, live, attentionT0.Add(time.Hour))
+	if fresh.Len() != 1 || !fresh.Has(AttentionPrompt) || cleared.Len() != 0 {
+		t.Fatal("clear suppression did not end at the condition boundary")
+	}
+	if cleared.Notify(notifyItem("new", attentionT0)).Len() != 1 {
+		t.Fatal("clear hid a new notification")
 	}
 }

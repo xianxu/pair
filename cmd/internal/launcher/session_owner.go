@@ -37,11 +37,12 @@ type SessionServerIdentity struct {
 }
 
 type SessionOwnerObservation struct {
-	State      SessionOwnerState
-	Name       string
-	Owner      artifactpath.StorageOwner
-	Server     SessionServerIdentity
-	Diagnostic string
+	State           SessionOwnerState
+	Name            string
+	Owner           artifactpath.StorageOwner
+	Server          SessionServerIdentity
+	Diagnostic      string
+	DiagnosticCause error
 }
 
 func sessionExpectedOwner(root, scope, tag string) (artifactpath.StorageOwner, error) {
