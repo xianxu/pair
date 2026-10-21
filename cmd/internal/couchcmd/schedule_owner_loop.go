@@ -401,7 +401,7 @@ func (o *scheduleOwner) retry(ctx context.Context, clock scheduleClock) error {
 			l.retryAt[key] = clock.Now().Add(time.Second)
 			var local *taskHistoryError
 			if !errors.As(err, &local) {
-				o.coordinator.blocked(err)
+				o.blocked(err)
 				failures = append(failures, err)
 			}
 			continue
@@ -429,7 +429,7 @@ func (o *scheduleOwner) run(ctx context.Context, clock scheduleClock) {
 		if err == nil {
 			break
 		}
-		o.coordinator.blocked(err)
+		o.blocked(err)
 		timer := clock.NewTimer(30 * time.Second)
 		select {
 		case <-ctx.Done():
@@ -480,10 +480,10 @@ func (o *scheduleOwner) run(ctx context.Context, clock scheduleClock) {
 		}
 		if pendingErr := o.retry(ctx, clock); pendingErr == nil {
 			if err := o.tick(ctx, clock); err != nil {
-				o.coordinator.blocked(err)
+				o.blocked(err)
 			}
 		} else {
-			o.coordinator.blocked(pendingErr)
+			o.blocked(pendingErr)
 		}
 		retained := map[string]string{}
 		for _, row := range o.coordinator.view().Tasks {

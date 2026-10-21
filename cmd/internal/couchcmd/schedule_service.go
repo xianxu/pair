@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -73,14 +74,32 @@ func (c *scheduleCoordinator) view() couchschedule.StatusSnapshot {
 	return copy
 }
 
-func (c *scheduleCoordinator) blocked(err error) error {
+func (c *scheduleCoordinator) blocked(err error, retained ...error) error {
 	snapshot := c.view()
-	snapshot.Error = err.Error()
-	if len(snapshot.Error) > 4096 {
-		snapshot.Error = snapshot.Error[:4096]
-	}
+	snapshot.Error = scheduleErrorText(err, retained...)
 	c.snapshot.Store(&snapshot)
 	return err
+}
+
+func scheduleErrorText(err error, additional ...error) string {
+	var parts []string
+	for _, cause := range append([]error{err}, additional...) {
+		if cause != nil {
+			parts = append(parts, cause.Error())
+		}
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	// Give every independent failure space; a long retained cause must not
+	// truncate away the current authority failure (or the reverse).
+	limit := (4096 - len(parts) + 1) / len(parts)
+	for i := range parts {
+		if len(parts[i]) > limit {
+			parts[i] = parts[i][:limit]
+		}
+	}
+	return strings.Join(parts, "\n")
 }
 
 func (c *scheduleCoordinator) publish(ctx context.Context) error {

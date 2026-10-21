@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -22,6 +23,31 @@ type scheduleOwner struct {
 	operations        map[string]*scheduleOwnerOperation
 	loop              *scheduleOwnerLoop
 	recovered         bool
+	catalogueFailure  *scheduleCatalogueFailure
+}
+
+// The owner retains refresh evidence until a complete refresh succeeds. Other
+// owner turns may settle facts, but do not establish catalogue recovery.
+type scheduleCatalogueFailure struct {
+	since time.Time
+	err   error
+}
+
+func (o *scheduleOwner) failRefresh(err error, label string) error {
+	since := o.coordinator.now()
+	if o.catalogueFailure != nil {
+		since = o.catalogueFailure.since
+	}
+	o.catalogueFailure = &scheduleCatalogueFailure{since: since, err: fmt.Errorf("%s since %s: %w", label, since.In(o.coordinator.location).Format("15:04"), err)}
+	o.coordinator.blocked(o.catalogueFailure.err)
+	return err
+}
+
+func (o *scheduleOwner) blocked(err error) error {
+	if o.catalogueFailure != nil {
+		return o.coordinator.blocked(err, o.catalogueFailure.err)
+	}
+	return o.coordinator.blocked(err)
 }
 
 func newScheduleOwner(c *scheduleCoordinator) *scheduleOwner {
@@ -224,13 +250,13 @@ func (o *scheduleOwner) refresh(ctx context.Context) error {
 	c := o.coordinator
 	declarations, err := c.catalog.Discover(ctx, c.roots)
 	if err != nil {
-		return c.blocked(err)
+		return o.failRefresh(err, "task folder unreadable")
 	}
 	if o.state == nil {
-		return errors.New("scheduler owner unavailable")
+		return o.failRefresh(errors.New("scheduler owner unavailable"), "catalogue refresh failed")
 	}
 	if _, err := o.state.ViewDurable(ctx); err != nil {
-		return c.blocked(err)
+		return o.failRefresh(err, "catalogue refresh failed")
 	}
 	nextBusy := map[string]string{}
 	err = o.state.Update(ctx, func(ledger *couchschedule.Ledger) error {
@@ -305,9 +331,10 @@ func (o *scheduleOwner) refresh(ctx context.Context) error {
 		return nil
 	})
 	if err != nil {
-		return c.blocked(err)
+		return o.failRefresh(err, "catalogue refresh failed")
 	}
 	o.busy = nextBusy
+	o.catalogueFailure = nil
 	return o.publish(ctx)
 }
 
@@ -333,7 +360,7 @@ func (o *scheduleOwner) canonical(ctx context.Context, state couchschedule.TaskS
 func (o *scheduleOwner) publish(ctx context.Context) error {
 	ledger, err := o.state.ViewDurable(ctx)
 	if err != nil {
-		return o.coordinator.blocked(err)
+		return o.blocked(err)
 	}
 	states := make([]couchschedule.TaskState, 0, len(ledger.Tasks))
 	for _, s := range ledger.Tasks {
@@ -343,9 +370,12 @@ func (o *scheduleOwner) publish(ctx context.Context) error {
 	}
 	snapshot := couchschedule.BuildStatus(states, o.coordinator.location.String())
 	snapshot.Hubs = append([]string(nil), o.coordinator.roots...)
+	if o.catalogueFailure != nil {
+		snapshot.Error = scheduleErrorText(o.catalogueFailure.err)
+	}
 	for i := range snapshot.Tasks {
 		row := &snapshot.Tasks[i]
-		if reason := o.busy[(couchschedule.TaskKey{Hub: row.Hub, Task: row.Task}).ID()]; reason != "" {
+		if reason := o.busy[(couchschedule.TaskKey{Hub: row.Hub, Task: row.Task}).ID()]; reason != "" && row.State != "refused" {
 			row.Reason = reason
 		}
 	}

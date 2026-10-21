@@ -1482,6 +1482,8 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	verbLine(w, "--schedule", "       couch --schedule --status [--json]")
 	fmt.Fprintln(w, "             Also: --schedule run TASK -- [ARGS...]")
 	fmt.Fprintln(w, "             History: --schedule history TASK [--run ID] [--json]")
+	fmt.Fprintln(w, "             Discovery outages show cause/since-time; the retained catalogue stays in use.")
+	fmt.Fprintln(w, "             Scripts revalidate before release; notify-only tasks may use the last good catalogue.")
 	fmt.Fprintln(w, "             Run submits to the service; capped output prints on completion. Ctrl-C")
 	fmt.Fprintln(w, "             requests cancellation of that run; disconnected accepted work continues.")
 	fmt.Fprintln(w, "             Unknown admission reports a run ID; inspect history before another run.")
