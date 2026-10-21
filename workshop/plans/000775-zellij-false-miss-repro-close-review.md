@@ -99,3 +99,117 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T12:05:36-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 775 — Standalone Zellij false-miss reproduction |
+| repo | pair |
+| issue file | workshop/issues/000775-zellij-false-miss-repro.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | eaa758a6f0cd38837655be5334400098849410ec..6515126f10857f851ca746ca5295e70ef91967d2 |
+| command | sdlc close --issue 775 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T12:05:36-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+All three prior findings are addressed, including regression tests that fail with the old signature matcher. A fresh native run confirms the diagnostic works and cleans up. One input-validation defect remains: accepted numeric arguments can silently produce a different workload than the reported values.
+
+Done-when: current — syntax, invalid-input refusal and native qualification still cover the revised complete-stderr contract.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Both signatures call exact_error, which compares complete bytes. All 10 tests pass; replacing that helper with the old grep matcher produces eight failing subcases and zero errors. Exact positives and confirmed/unconfirmed exit1 outcomes are exercised.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The pinned correction adds the runnable README.md usage pointer and atlas/zellij-reply-safety.md:290-311 documentation of private roots, counters and liveness limits, supported by scripts/repro/zellij-false-miss.sh.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      The pinned before/after diff changes run.json's reference from native.log to initial-setup-failure.log. The latter contains the setup refusal and cleanup result; native.log contains the successful measured run.
+findings:
+  - id: new
+    severity: Important
+    family: bounded-decimal-input
+    title: |
+      Numeric arguments undergo octal interpretation and integer overflow
+    detail: |
+      scripts/repro/zellij-false-miss.sh:38-40 accepts digit strings directly into Bash arithmetic. A traced native invocation with arguments 010 1 exits successfully, reports queries=010, and executes only eight queries. Invocations with 18446744073709551617 as either argument also succeed and execute a one-query/one-worker workload because the value wraps to one. Both numeric inputs, n and parallel, are the complete family in this window; their unchecked representations feed worker and launch-loop arithmetic. Validate bounded decimal strings before arithmetic, normalize accepted values consistently for execution/reporting, and add regressions for both arguments covering leading zeros, overflow, limits and one-past-limit refusal.
+  - id: new
+    severity: Minor
+    family: new-surface-documentation
+    title: |
+      Atlas overstates the liveness response validation
+    detail: |
+      atlas/zellij-reply-safety.md:301-302 says the response begins with layout { and malformed replies remain unconfirmed, but scripts/repro/zellij-false-miss.sh:27 accepts a matching line anywhere. An actual-worker check with "unrelated diagnostic\nlayout { pane; }\n" increments the confirmed counter. This is the 2nd finding in family new-surface-documentation. Apply the rule that documented predicates must match enforced predicates across all four new documentation consumers: README.md, scripts/repro/README.md, atlas/index.md and atlas/zellij-reply-safety.md. The inaccurate predicate claims are confined to atlas lines 301-302; describe the implemented line-presence check accurately.
+```
+
+1. **Strengths**
+
+   - One shared `exact_error` helper enforces both complete-stderr signatures.
+   - Actual-worker tests verify classification and CLI call sequences, including independent liveness checks.
+   - Native evidence hashes match the committed manifests.
+   - Private roots, unretried measured queries and cleanup preserve the diagnostic’s independence from Pair and Couch.
+
+2. **Critical findings**
+
+   None.
+
+3. **Important findings**
+
+   - Script lines 38–40 need bounded decimal validation before arithmetic. The current behavior can invalidate the reported experiment size.
+
+4. **Minor findings**
+
+   - Atlas lines 301–302 describe stronger liveness validation than the worker implements.
+
+5. **Test coverage notes**
+
+   - `make test-zellij-false-miss`: **10 tests passed**.
+   - Old-matcher mutation: **eight failing subcases, zero errors**; temporary mutation removed.
+   - `bash -n` and ordinary malformed/out-of-range refusal checks passed.
+   - Fresh native run: **1,000 queries, four workers; exit0=3, confirmed exit1=0, unconfirmed exit1=0, other nonzero=0; cleanup passed**.
+   - Traced native runs confirmed the numeric-input defects. Committed tests currently cover the worker rather than CLI numeric validation.
+   - Repository working tree remains unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** both signature consumers derive from one comparison helper.
+   - **ARCH-PURE — pass:** external IO stays within the standalone diagnostic; worker integration tests inject the CLI boundary.
+   - **ARCH-PURPOSE — pass:** the native reproduction, raw evidence and separate liveness outcomes are delivered.
+   - **ARCH-EVOLVE — pass:** no existing persisted-format reader or rewrite path changes.
+   - No Core concepts table is present in this quick plan.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry requiring bounded decimal parsing for both CLI arguments, normalized workload reporting, and regressions for leading-zero and overflowing inputs. Correct the atlas’s liveness-predicate description.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"e4ee2189-1000-4da4-aa88-9ddd545cc800","repository":"github.com/xianxu/pair","issue_id":"000775","recipe":"small-diff-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/521044732775f127","reviewed_head":"6515126f10857f851ca746ca5295e70ef91967d2","slot":"pair:5","requested_at":"2026-10-21T19:02:54.338212Z"},"phase":"finished","pid":89849,"started_at":"2026-10-21T19:02:54.486838Z","finished_at":"2026-10-21T19:05:36.126992Z","session_id":"01a15fd8-526d-7e71-840d-6ddebc26ced6","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.894542792s
+head: "6515126f10857f851ca746ca5295e70ef91967d2"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

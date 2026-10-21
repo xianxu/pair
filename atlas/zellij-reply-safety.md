@@ -298,8 +298,10 @@ retries. Its [ten-line guide](../scripts/repro/README.md) describes invocation.
 `exit0_target_listed` requires the complete target-not-found stderr response and
 an exact target token in the colored native listing. `exit1_alive_confirmed`
 requires the complete no-active-session response, a socket before/after the
-failure, and a subsequent successful dump-layout response beginning with `layout {`. Failed
-or malformed liveness queries stay `exit1_liveness_unconfirmed`; other nonzero
+failure, and a subsequent successful dump-layout response containing a line
+matching `^layout[[:space:]]*\{`. Failed queries or responses without that heading
+stay `exit1_liveness_unconfirmed`; this recognizes a heading rather than parsing
+the complete layout. Other nonzero
 results remain separate. These are observations, not continuous liveness proof
 or an ownership grant, and zero misses does not rule out the race. Raw anomalous
 results print before cleanup. Cleanup addresses only the private namespace;

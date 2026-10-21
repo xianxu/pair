@@ -2550,3 +2550,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #744: Native transcript fixture producers must derive storage roots through sessioninventory.OSRuntime.NativeRoots (and WithCodexHome), just like consumers; run the native-authority shadow guard before the recorded suite. Do not exempt test helper production files from the guard.
 
 - #775: For an exact external diagnostic, compare the complete stderr stream, including newline boundaries. grep -Fxq proves one line exists and accepts unrelated errors around it; cover both positive signatures and extra-line negatives through the actual worker. Standalone tooling also needs a discoverable README/atlas pointer.
+
+- #775 BR-4/5: Bound and canonicalize the entire numeric string before shell arithmetic; leading zeros invoke octal and large integers can wrap. Exercise both CLI arguments through the actual main path, including no-effect refusal and exact work counts. Documentation must name the implemented observation predicate rather than imply a stronger parser or liveness proof.

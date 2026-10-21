@@ -5,6 +5,14 @@ exact_error() {
     printf '%s\n' "$2" | cmp -s - "$1"
 }
 
+bounded_decimal() {
+    local value=$1 max=$2
+    case "$value" in ''|*[!0-9]*) return 2;; esac
+    value=${value#"${value%%[!0]*}"}
+    [[ -n $value && ${#value} -le ${#max} ]] && (( value <= max )) || return 2
+    printf '%s\n' "$value"
+}
+
 worker() {
     local w=$1 i target sock before rc a=0 b=0 uncertain=0 other=0 esc=$'\033'
     local out="$root/out.$w" err="$root/err.$w" samples="$root/samples.$w"
@@ -35,9 +43,9 @@ worker() {
 
 main() {
     set -eu
-    n=${1:-1000}; parallel=${2:-4}
-    case "$n:$parallel" in *[!0-9:]*|:*|*:) echo 'usage: bash zellij-false-miss.sh [queries=1000] [workers=4]' >&2; exit 2;; esac
-    (( n > 0 && n <= 100000 && parallel > 0 && parallel <= 16 )) || exit 2
+    if (( $# > 2 )) || ! n=$(bounded_decimal "${1-1000}" 100000) || ! parallel=$(bounded_decimal "${2-4}" 16); then
+        echo 'usage: bash zellij-false-miss.sh [queries=1000] [workers=4]' >&2; return 2
+    fi
     [[ $(zellij --version) == 'zellij 0.45.1' ]] || { echo 'requires zellij 0.45.1' >&2; exit 2; }
     root=$(mktemp -d "${TMPDIR:-/tmp}/zfm.XXXXXX") || exit 1
     umask 077
