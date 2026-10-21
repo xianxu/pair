@@ -38,6 +38,10 @@
   selections. Non-Go file-reader populations and unknown paths force full.
   `tests/affected-consumers.json` audits recipe inputs against the real planner;
   the Go-reader inventory requires re-audit for new or changed source readers.
+  Its per-reader certificates live in `tests/affected-readers/<reader-path>.json`;
+  `make affected-readers READER=<path> DISPOSITION=<audited-kind>` refreshes just
+  that audited reader, preserving independent changes and unknown JSON fields.
+  `--remove` retires certificates after reader removal; no shared index is generated.
   The environment guard runs once; groups share a private Pair executable.
   The operator owns the local-gates label; the hub owns first recorded
   affected/docs-train evidence after landing.
