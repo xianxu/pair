@@ -2556,3 +2556,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #775: A new default Make recipe also creates affected-runner ownership obligations. Keep real native diagnostic experiments explicitly opt-in; verify MakeEntrypoint.test_recipe_ownership when changing the default recipe set.
 
 - #775 BR-6/7: After SHIP, a newly combined runnable entry point requires a full close rather than a fix-only review. Every added runnable command must be named in the top-level README as well as its guide and atlas owner; a prior invocation of the underlying script does not document a later Make command.
+
+- #775: A new executable Zellij double must use the shared reply serializer and producer-specific catalog, including malformed/non-query envelopes as explicit classified faults. Run TestEveryZellijFixtureReplyUsesProductionDecoder and the reader-inventory preflight before queuing the full suite; source registration alone cannot certify independent wire serialization.

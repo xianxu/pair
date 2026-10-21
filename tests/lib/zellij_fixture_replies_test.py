@@ -45,6 +45,38 @@ class FixtureReplyTest(unittest.TestCase):
         self.assertEqual(self.module.render("visibility", True),
                          dict(stdout="true\n", stderr="", code=0))
 
+    def test_repro_fault_catalog_preserves_diagnostic_streams(self):
+        cases = {entry["name"]: entry for entry in self.module.catalog()}
+        miss = "Session 'TARGET' not found. The following sessions are active:\n"
+        absent = "There is no active session!\n"
+        variants = {"prefix": lambda s: "diagnostic\n" + s,
+                    "suffix": lambda s: s + "diagnostic\n",
+                    "extra-newline": lambda s: s + "\n",
+                    "missing-newline": lambda s: s.rstrip("\n")}
+        for variant, transform in variants.items():
+            for family, text, stdout, code, decoder in (
+                    ("miss", miss, "TARGET [Created now]\n", 0, "panes"),
+                    ("absent", absent, "", 1, "name")):
+                entry = cases[f"zfm-worker-{family}-{variant}"]
+                with self.subTest(case=entry["name"]):
+                    self.assertEqual(entry["kind"], "fault")
+                    self.assertEqual(entry["decoder"], decoder)
+                    # The production name decoder trims these trailing bytes;
+                    # the standalone repro intentionally matches complete bytes.
+                    accept = family == "absent" and variant in {"extra-newline", "missing-newline"}
+                    self.assertEqual(entry["expect"], "accept" if accept else "reject")
+                    self.assertEqual(self.module.render(entry["kind"], entry["payload"]),
+                                     dict(stdout=stdout, stderr=transform(text), code=code))
+
+    def test_repro_healthy_query_cases_use_semantic_serializers(self):
+        cases = {entry["name"]: entry for entry in self.module.catalog()}
+        for name, kind in (("main-panes", "panes"), ("main-clients", "clients"),
+                           ("main-sessions", "sessions-full"), ("worker-no-session", "no-session")):
+            with self.subTest(name=name):
+                entry = cases["zfm-" + name]
+                self.assertEqual((entry["kind"], entry["expect"]), (kind, "accept"))
+                self.assertTrue(entry["source"].startswith("tests/zellij-false-miss-test.py:"))
+
 
 if __name__ == "__main__":
     unittest.main()

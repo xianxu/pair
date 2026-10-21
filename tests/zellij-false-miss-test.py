@@ -15,8 +15,6 @@ from collections import Counter
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts/repro/zellij-false-miss.sh"
 TARGET = "TARGET"
-MISS = f"Session '{TARGET}' not found. The following sessions are active:\n"
-ABSENT = "There is no active session!\n"
 QUERY = ["--session", TARGET, "action", "list-panes", "--json", "--command"]
 ALIVE = ["--session", TARGET, "action", "dump-layout"]
 
@@ -39,6 +37,8 @@ class WorkerTest(unittest.TestCase):
         fake.write_text(
             f"#!{sys.executable}\n"
             "import json, os, pathlib, sys\n"
+            "sys.path.insert(0, os.environ['ZELLIJ_FIXTURE_LIB'])\n"
+            "from zellij_fixture_replies import emit_case\n"
             "root = pathlib.Path(os.environ['FAKE_ROOT'])\n"
             "log = root / 'requests.jsonl'\n"
             "calls = log.read_text().splitlines() if log.exists() else []\n"
@@ -50,12 +50,12 @@ class WorkerTest(unittest.TestCase):
             "reply = replies[len(calls)]\n"
             "if argv != reply['argv']:\n"
             "    sys.exit('unexpected zellij argv: ' + repr(argv))\n"
-            "sys.stdout.write(reply['stdout'])\n"
-            "sys.stderr.write(reply['stderr'])\n"
-            "sys.exit(reply['rc'])\n"
+            "emit_case(reply['case'])\n"
         )
         fake.chmod(0o755)
         self.env = dict(os.environ, FAKE_ROOT=str(self.root),
+                        ZELLIJ_FIXTURE_LIB=str(SCRIPT.parents[2] / "tests/lib"),
+                        PYTHONDONTWRITEBYTECODE="1",
                         PATH=str(self.bin) + os.pathsep + os.environ["PATH"],
                         ZELLIJ_SOCKET_DIR=str(self.root / "s"))
 
@@ -65,11 +65,11 @@ class WorkerTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         return result
 
-    def check_worker(self, *, stdout="", stderr=ABSENT, rc=1, socket_present=True,
+    def check_worker(self, *, case="no-session", socket_present=True,
                      alive=None, expected=(0, 0, 0, 0)):
-        replies = [dict(argv=QUERY, stdout=stdout, stderr=stderr, rc=rc)]
+        replies = [dict(argv=QUERY, case="zfm-worker-" + case)]
         if alive is not None:
-            replies.append(dict(argv=ALIVE, stdout=alive[0], stderr=alive[1], rc=alive[2]))
+            replies.append(dict(argv=ALIVE, case="zfm-worker-" + alive))
         self.config.write_text(json.dumps(replies))
         if self.log.exists():
             self.log.unlink()
@@ -100,40 +100,37 @@ class WorkerTest(unittest.TestCase):
         self.assertEqual(set(self.root.iterdir()), before)
 
     def test_exact_exit_zero_with_ansi_target_listing(self):
-        self.check_worker(stdout="\x1b[32mTARGET\x1b[0m [Created now]\n",
-                          stderr=MISS, rc=0, expected=(1, 0, 0, 0))
+        self.check_worker(case="ansi-target", expected=(1, 0, 0, 0))
 
     def test_exit_zero_rejects_extra_stderr(self):
-        for stderr in ("diagnostic\n" + MISS, MISS + "diagnostic\n", MISS + "\n", MISS.rstrip("\n")):
-            with self.subTest(stderr=repr(stderr)):
-                self.check_worker(stdout="TARGET [Created now]\n", stderr=stderr, rc=0)
+        for variant in ("prefix", "suffix", "extra-newline", "missing-newline"):
+            with self.subTest(variant=variant):
+                self.check_worker(case="miss-" + variant)
 
     def test_exit_zero_requires_exact_target(self):
-        for stdout, stderr in (("OTHER [Created now]\n", MISS),
-                               ("TARGET-extra [Created now]\n", MISS),
-                               ("TARGET [Created now]\n", MISS.replace("TARGET", "OTHER"))):
-            with self.subTest(stdout=stdout, stderr=stderr):
-                self.check_worker(stdout=stdout, stderr=stderr, rc=0)
+        for case in ("other-target", "longer-target", "other-diagnostic"):
+            with self.subTest(case=case):
+                self.check_worker(case=case)
 
     def test_exact_exit_one_confirmed_alive(self):
-        self.check_worker(alive=("layout { pane; }\n", "", 0), expected=(0, 1, 0, 0))
+        self.check_worker(alive="layout", expected=(0, 1, 0, 0))
 
     def test_exact_exit_one_liveness_command_fails(self):
-        self.check_worker(alive=("", "cannot connect\n", 1), expected=(0, 0, 1, 0))
+        self.check_worker(alive="layout-failure", expected=(0, 0, 1, 0))
 
     def test_exact_exit_one_absent_socket_skips_liveness(self):
         self.check_worker(socket_present=False, expected=(0, 0, 1, 0))
 
     def test_exact_exit_one_malformed_layout_is_unconfirmed(self):
-        self.check_worker(alive=("unexpected reply\n", "", 0), expected=(0, 0, 1, 0))
+        self.check_worker(alive="layout-malformed", expected=(0, 0, 1, 0))
 
     def test_exit_one_rejects_extra_stderr_without_liveness(self):
-        for stderr in ("diagnostic\n" + ABSENT, ABSENT + "diagnostic\n", ABSENT + "\n", ABSENT.rstrip("\n")):
-            with self.subTest(stderr=repr(stderr)):
-                self.check_worker(stderr=stderr, expected=(0, 0, 0, 1))
+        for variant in ("prefix", "suffix", "extra-newline", "missing-newline"):
+            with self.subTest(variant=variant):
+                self.check_worker(case="absent-" + variant, expected=(0, 0, 0, 1))
 
     def test_exit_one_nonempty_stdout_skips_liveness(self):
-        self.check_worker(stdout="unexpected output\n", expected=(0, 0, 0, 1))
+        self.check_worker(case="partial-stdout", expected=(0, 0, 0, 1))
 
 
 class MainTest(unittest.TestCase):
@@ -148,15 +145,20 @@ class MainTest(unittest.TestCase):
         self.env["TMPDIR"] = str(self.cli_tmp)
         (self.bin / "zellij").write_text(f"#!{sys.executable}\n" + textwrap.dedent('''\
             import fcntl, json, os, pathlib, socket, sys
+            sys.path.insert(0, os.environ['ZELLIJ_FIXTURE_LIB'])
+            from zellij_fixture_replies import case_payload, emit, emit_case
             root = pathlib.Path(os.environ['FAKE_ROOT'])
             argv = sys.argv[1:]
             event = {'argv': argv}
+            reply_case = 'zfm-main-mutation-success'
+            kind = payload = None
             with (root / 'lock').open('w') as lock:
                 fcntl.flock(lock, fcntl.LOCK_EX)
                 if os.environ.get('REFUSE_CALLS'):
                     event['unexpected'] = True
+                    reply_case = 'zfm-main-refused-call'
                 elif argv == ['--version']:
-                    print('zellij 0.45.1')
+                    reply_case = 'zfm-main-version'
                 else:
                     sockets = pathlib.Path(os.environ['ZELLIJ_SOCKET_DIR']) / 'contract_version_1'
                     private = sockets.parent.parent
@@ -173,16 +175,20 @@ class MainTest(unittest.TestCase):
                     else:
                         assert len(list(sockets.iterdir())) == 3
                         if argv == ['list-sessions', '--no-formatting']:
-                            pass
+                            kind, payload = 'sessions-full', sorted(p.name for p in sockets.iterdir())
                         else:
                             assert len(argv) >= 4 and argv[0] == '--session'
                             assert (sockets / argv[1]).is_socket()
                             assert argv[2:] in (['action', 'list-clients'],
                                 ['action', 'list-panes', '--json', '--command'],
                                 ['action', 'list-panes', '--json', '--command', '--state'])
+                            kind = 'clients' if argv[3] == 'list-clients' else 'panes'
+                            payload = case_payload('zfm-main-' + kind)
                 with (root / 'requests.jsonl').open('a') as log:
                     log.write(json.dumps(event) + '\\n')
-            sys.exit(99 if event.get('unexpected') else 0)
+            if kind is not None:
+                emit(kind, payload)
+            emit_case(reply_case)
             '''))
 
     def run_cli(self, args, *, refuse_calls=False):
