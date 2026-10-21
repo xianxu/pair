@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #750 design review: a held drawing scene must render the acknowledged source prefix on initial preparation as well as reconnect; freezing whatever the client currently shows can anchor paths to another moment. Record timer-driven interruptions as replay inputs, and reserve writer capacity for terminal events and required labels before admitting growing stroke data.
+
 - Cached parent inventory is also a pass-wide capacity ledger: reserve a slot for every potentially completed create, retain it after an uncertain acknowledgment, and carry confirmed IDs forward. A per-attempt full-parent guard alone permits successive creates to exceed the reader limit. Test both root/year and year/month creation sequences near capacity. (#706 BR-1)
 
 
