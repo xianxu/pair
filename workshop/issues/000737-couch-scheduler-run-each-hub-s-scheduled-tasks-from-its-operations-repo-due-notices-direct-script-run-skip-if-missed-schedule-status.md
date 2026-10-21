@@ -208,6 +208,10 @@ ok  	github.com/xianxu/pair/cmd/couch	343.694s
 
 Recorded suite lease-1057026342 is still queued on code head 16589ba4c7b896b51f50b2761a8160be58e6720f; its result must be verified before landing. No own recorded suite pass is claimed. The mandatory real ops testscratch day remains TL-coordinated/open, as does whole-issue close/landing. Preserve the concrete #739 getter/combined lock-order obligation for whichever lands second.
 
+### 2026-10-21 — TL accepted disposable proof; live-day staging waits
+
+Authenticated TL delivery cf07fb0e-f859-4b79-8783-059df3b8553d accepts both-personality disposable qualification. Pair:0 currently holds #752 for operator recheck; do not replace that stage. Let recorded suite lease-1057026342 finish. After #752 lands and pair:0 is free, TL will explicitly authorize `sdlc stage --build`; operator restarts Couch, and TL watches/records the real ops testscratch day. Land only after that day. No stage, restart, real task edit or whole-issue close is authorized yet by this sequencing message.
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only; calibration currently marked stale/provisional by estimate-source. Already-scaled implementation hours use 40% of v2/v2.1 ranges; design uses the thorough-spec 0.2 multiplier, plus 0.5 library credit only for cron/kernel and bounded durable catalog/store. Familiarity 1.0; thorough-plan design buffer 15%. Passive day-long live observation is not focused ship time.
