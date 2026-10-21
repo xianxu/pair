@@ -507,7 +507,7 @@ func recoverRunOccurrence(state couchschedule.TaskState, record operationalrun.R
 		return state, err
 	}
 	summary := runSummaryForRecord(record)
-	next, _ := couchschedule.Advance(state, couchschedule.Event{Kind: couchschedule.ResultRecovered, At: at, Attempt: record.Key.ID, Revision: record.DeclarationRevision, Recovered: &summary})
+	next, _ := couchschedule.Advance(state, couchschedule.NewRecoveryEvent(at, record.Key.ID, record.DeclarationRevision, summary))
 	if next.Last == nil || next.Last.ID != record.Key.ID || next.Last.Revision != record.DeclarationRevision || !next.Last.StartedAt.Equal(summary.StartedAt) || !next.Last.EndedAt.Equal(summary.EndedAt) || !next.Last.DueAt.Equal(summary.DueAt) || next.Last.Outcome != summary.Outcome {
 		return state, errors.New("canonical occurrence recovery refused")
 	}

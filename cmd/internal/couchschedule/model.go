@@ -126,6 +126,12 @@ type Event struct {
 	Owner *OwnerIdentity
 }
 
+// NewRecoveryEvent requires an observation time at every producer. Recovery
+// uses the same timestamped transition contract as all other model events.
+func NewRecoveryEvent(at time.Time, attempt, revision string, canonical RunSummary) Event {
+	return Event{Kind: ResultRecovered, At: at, Attempt: attempt, Revision: revision, Recovered: cloneRunSummary(&canonical)}
+}
+
 type EffectKind string
 
 const (

@@ -134,7 +134,7 @@ func ensureUncertainRuns(ctx context.Context, store couchschedule.StateStore) er
 				record.Notice = "uncertain"
 			}
 			summary := runSummaryForRecord(record)
-			next, _ := couchschedule.Advance(s, couchschedule.Event{Kind: couchschedule.ResultRecovered, At: record.EndedAt, Attempt: s.Active.ID, Revision: s.Active.Revision, Recovered: &summary})
+			next, _ := couchschedule.Advance(s, couchschedule.NewRecoveryEvent(record.EndedAt, s.Active.ID, s.Active.Revision, summary))
 			if next.Last == nil || next.Last.ID != record.Key.ID {
 				if err := quarantineTaskHistory(ctx, l, s, "unknown adoption", errors.New("canonical uncertain history refused by task state")); err != nil {
 					return err

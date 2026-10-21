@@ -108,7 +108,7 @@ func (c *scheduleCoordinator) refresh(ctx context.Context) error {
 					err = errors.New("manual result identity differs from retained authority")
 				} else if record.Completed() || record.Outcome == "unknown" {
 					summary := runSummaryForRecord(record)
-					state, _ = couchschedule.Advance(state, couchschedule.Event{Kind: couchschedule.ResultRecovered, At: now, Attempt: a.ID, Revision: a.Revision, Recovered: &summary})
+					state, _ = couchschedule.Advance(state, couchschedule.NewRecoveryEvent(now, a.ID, a.Revision, summary))
 					ledger.Tasks[key] = state
 					continue
 				}

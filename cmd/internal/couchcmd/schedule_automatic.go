@@ -84,18 +84,25 @@ func runRecordForSummary(s couchschedule.TaskState) operationalrun.Record {
 // Same-occurrence stored facts are canonical. Source, revision and envelope
 // structure remain authority checks; regenerated timestamps are not identity.
 func adoptScheduledRecord(s couchschedule.TaskState, record operationalrun.Record) (couchschedule.TaskState, error) {
+	if record.Key.Hub != s.Key.HubID() || record.Key.Task != s.Key.Task || !record.Completed() && record.Outcome != "unknown" {
+		return s, errors.New("scheduled completion envelope differs from occurrence")
+	}
+	return adoptScheduledSummary(s, runSummaryForRecord(record))
+}
+
+// Both freshly read records and retained terminal proofs use this transition.
+func adoptScheduledSummary(s couchschedule.TaskState, canonical couchschedule.RunSummary) (couchschedule.TaskState, error) {
 	id, revision := "", ""
 	if s.Active != nil {
 		id, revision = s.Active.ID, s.Active.Revision
 	} else if s.Last != nil {
 		id, revision = s.Last.ID, s.Last.Revision
 	}
-	if record.Key.Hub != s.Key.HubID() || record.Key.Task != s.Key.Task || record.Key.ID != id || record.Source != "scheduled" || record.DeclarationRevision == "" || revision != "" && record.DeclarationRevision != revision || record.StartedAt.IsZero() || record.EndedAt.IsZero() || !record.Completed() && record.Outcome != "unknown" {
+	if canonical.ID != id || canonical.Source != "scheduled" || canonical.Revision == "" || revision != "" && canonical.Revision != revision || canonical.StartedAt.IsZero() || canonical.EndedAt.IsZero() {
 		return s, errors.New("scheduled completion identity or structure differs from occurrence")
 	}
-	canonical := runSummaryForRecord(record)
-	next, _ := couchschedule.Advance(s, couchschedule.Event{Kind: couchschedule.ResultRecovered, At: record.EndedAt, Attempt: id, Revision: revision, Recovered: &canonical})
-	if next.Last == nil || next.Last.ID != id || next.Last.Revision != canonical.Revision || next.Last.Source != canonical.Source || next.Last.Outcome != canonical.Outcome || next.Last.Notice != canonical.Notice {
+	next, _ := couchschedule.Advance(s, couchschedule.NewRecoveryEvent(canonical.EndedAt, id, revision, canonical))
+	if next.Last == nil || next.Last.ID != id || next.Last.Revision != canonical.Revision || next.Last.Source != canonical.Source || next.Last.Outcome != canonical.Outcome || next.Last.Notice != canonical.Notice || !next.Last.DueAt.Equal(canonical.DueAt) || !next.Last.StartedAt.Equal(canonical.StartedAt) || !next.Last.EndedAt.Equal(canonical.EndedAt) || (next.Last.Exit == nil) != (canonical.Exit == nil) || next.Last.Exit != nil && *next.Last.Exit != *canonical.Exit {
 		return s, errors.New("scheduled canonical completion refused by reducer")
 	}
 	return next, nil
@@ -247,8 +254,7 @@ func (a *automaticScheduler) ensurePassive(ctx context.Context, s couchschedule.
 	}
 	if proof, ok := a.passiveDurable[s.Key.ID()]; ok && proof.ID == last.ID {
 		if s.Active == nil {
-			next, _ := couchschedule.Advance(s, couchschedule.Event{Kind: couchschedule.ResultRecovered, Attempt: last.ID, Revision: last.Revision, Recovered: &proof})
-			return next, nil
+			return adoptScheduledSummary(s, proof)
 		}
 		return s, nil
 	}

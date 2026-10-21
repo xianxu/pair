@@ -156,6 +156,8 @@ immutable. A failed ledger acknowledgment therefore cannot manufacture new run
 facts or repeat execution. Unknown classification commits before its protected
 history is published. Terminal passive history proofs are bounded to current
 tasks and never become cached pending-notice authority.
+Cached and freshly read canonical summaries share adoption through timestamped
+`NewRecoveryEvent` construction, including after failed authority commits.
 Task-history damage quarantines the named task in status while retaining its
 authority and pending completion facts; healthy hubs continue. Shared ledger
 failures still block scheduling. Recovery preserves additive summary metadata

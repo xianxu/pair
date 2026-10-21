@@ -7,6 +7,20 @@ import (
 	"time"
 )
 
+func TestRecoveryEventRequiresObservationTime(t *testing.T) {
+	state := phaseStateFixture(t, "scheduled", "running")
+	at := state.Active.StartedAt.Add(time.Second)
+	canonical := RunSummary{ID: state.Active.ID, Revision: state.Active.Revision, Source: "scheduled", DueAt: state.Active.DueAt, StartedAt: state.Active.StartedAt, EndedAt: at, Outcome: "quiet", Notice: "none"}
+	event := NewRecoveryEvent(at, state.Active.ID, state.Active.Revision, canonical)
+	if event.At.IsZero() || !event.At.Equal(at) {
+		t.Fatal("recovery producer lost observation time")
+	}
+	next, effects := Advance(state, event)
+	if next.Active != nil || !reflect.DeepEqual(next.Last, &canonical) || len(effects) != 0 {
+		t.Fatalf("constructor did not authorize canonical recovery: %+v %v", next, effects)
+	}
+}
+
 func TestSummaryCapturesDeclarationRevision(t *testing.T) {
 	s, due := taskFixture(t, false)
 	skipped, _ := Advance(s, Event{Kind: ClockObserved, At: due, RunID: "skipped"})
