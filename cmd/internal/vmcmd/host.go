@@ -13,6 +13,8 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
 
 const maxRunArtifacts int64 = 256 << 20
@@ -387,16 +389,32 @@ func (h *hostRuntime) WriteResult(state RunState) error {
 	if !h.artifactsOwned {
 		return nil
 	}
+	imageRaw, err := EncodeImageManifest(h.image)
+	if h.provisionSource != "" {
+		imageRaw, err = json.Marshal(h.image)
+	} // private unqualified base, never an active manifest
+	if err != nil {
+		return err
+	}
 	result := struct {
-		Version  int            `json:"version"`
-		Exit     int            `json:"exit_code"`
-		Detail   string         `json:"detail"`
-		Envelope string         `json:"timeout_envelope"`
-		Image    ImageManifest  `json:"image"`
-		Snapshot SnapshotReport `json:"snapshot"`
-		Occupied bool           `json:"lane_claim_retained"`
-	}{1, state.ExitCode(), state.Detail(), fmt.Sprintf("timeout %s + cleanup up to 10 s", h.request.Timeout), h.image, h.snapshot, h.claimed}
-	raw, err := json.Marshal(result)
+		Version          int             `json:"version"`
+		Exit             int             `json:"exit_code"`
+		Detail           string          `json:"detail"`
+		Envelope         string          `json:"timeout_envelope"`
+		Image            json.RawMessage `json:"image"`
+		Snapshot         SnapshotReport  `json:"snapshot"`
+		Occupied         bool            `json:"lane_claim_retained"`
+		ManagedVM        string          `json:"managed_vm"`
+		LaunchPID        int             `json:"launch_pid"`
+		LaunchIdentity   string          `json:"launch_start_identity"`
+		CommandRequested bool            `json:"command_requested"`
+	}{1, state.ExitCode(), state.Detail(), fmt.Sprintf("timeout %s + cleanup up to 10 s", h.request.Timeout), nil, h.snapshot, h.claimed, h.claim.VM, h.claim.PID, h.claim.StartIdentity, h.executed}
+	fields, err := ownedValues(result)
+	if err != nil {
+		return err
+	}
+	fields["image"] = imageRaw
+	raw, err := strictjson.EncodeObject(fields, nil, nil)
 	if err != nil {
 		return err
 	}

@@ -2496,3 +2496,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #749: Acceptance fixtures must execute the one shared Pair image through testpair.At or tests/lib/pair-test-binary.sh, preserving inode identity even across volumes. A raw executable copy triggers another AMFI assessment before the CLI starts and can consume a fixture deadline; verify file identity rather than extending the timeout. Resolve the shared binary before installing a hermetic fixture environment.
 
 - #743 native image: privileged symlinks inherit the private guest umask. Darwin may execute through a root-owned unreadable link while readlink fails, breaking relocated Go root discovery. Set explicit searchable/readable modes on generated tool links and regress strict realpath as well as execution.
+
+- #743 native result audit: embedding a lossless manifest type in a default JSON marshal drops its unknown provenance. Persist it through the manifest codec and a raw-preserving envelope; test the final retained result, including nested raw values.

@@ -347,3 +347,56 @@ func TestRunLogsChargeOneSharedByteBudget(t *testing.T) {
 		t.Fatal("wrong remaining capacity", budget.remaining)
 	}
 }
+
+func TestHostResultPreservesImageProvenanceAndLaunchEvidence(t *testing.T) {
+	h, _, r := hostFixture(t)
+	raw, err := os.ReadFile(filepath.Join(h.root, "image.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := DecodeImageManifest(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.Unknown = map[string]json.RawMessage{"qualified_by": json.RawMessage(`{ "native": true }`)}
+	goTool := m.Tools["go"]
+	goTool.Unknown = map[string]json.RawMessage{"checksum_source": json.RawMessage(`"https://example.com/checksums"`)}
+	m.Tools["go"] = goTool
+	raw, err = EncodeImageManifest(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(h.root, "image.json"), raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	state := Run(context.Background(), r, h)
+	if state.ExitCode() != 0 {
+		t.Fatal(state.Detail())
+	}
+	if err := h.WriteResult(state); err != nil {
+		t.Fatal(err)
+	}
+	raw, err = os.ReadFile(filepath.Join(h.artifacts, "result.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result struct {
+		Image     json.RawMessage `json:"image"`
+		ManagedVM string          `json:"managed_vm"`
+		PID       int             `json:"launch_pid"`
+		Identity  string          `json:"launch_start_identity"`
+	}
+	if err := json.Unmarshal(raw, &result); err != nil {
+		t.Fatal(err)
+	}
+	got, err := DecodeImageManifest(result.Image)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got.Unknown["qualified_by"]) != `{ "native": true }` || string(got.Tools["go"].Unknown["checksum_source"]) != `"https://example.com/checksums"` {
+		t.Fatalf("lost image provenance: %s", result.Image)
+	}
+	if result.ManagedVM != ManagedVMName(r.Lane) || result.PID != 123 || result.Identity != "fixture-start" {
+		t.Fatalf("lost launch evidence: %+v", result)
+	}
+}
