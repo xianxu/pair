@@ -230,3 +230,9 @@ The counters are test seams around named traversals/encodes, not wall-clock asse
 ## Approval and checkpoint
 
 Draft for hub approval. No implementation or estimate yet. After approval, commit the finalized design, run `sdlc change-code --issue 752 --flow full --worktree=no`, answer plan-quality findings, then derive the estimate from the accepted plan.
+
+## Revisions
+
+### 2026-10-21 — hostile-page scene qualification
+
+- Actual disposable Chrome156 proved that a named same-origin iframe inside a closed shadow root is still discoverable with `window.open('', knownName)` and its recorded DOM is readable by the page. `window.frames` hiding and isolated globals alone are insufficient evidence. Ordinary and universal-access top isolated worlds cannot directly read an opaque-origin sandbox frame either. Finalize and qualify the smallest concrete scene isolation mechanism before requesting approval; no implementation began on the disproven assumption.
