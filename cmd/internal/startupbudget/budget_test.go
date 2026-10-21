@@ -71,7 +71,7 @@ func TestDeadlineCodecCanonicalRoundTrip(t *testing.T) {
 
 func TestDeadlineCodecRejectsNoncanonicalOrUnboundedInput(t *testing.T) {
 	for _, raw := range []string{
-		"", " ", "2026-10-21T12:00:00Z\n", " 2026-10-21T12:00:00Z",
+		"0001-01-01T00:00:00Z", "", " ", "2026-10-21T12:00:00Z\n", " 2026-10-21T12:00:00Z",
 		"2026-10-21T12:00:00+00:00", "2026-10-21T13:00:00+01:00",
 		"2026-10-21T12:00:00.1000Z", "2026-10-21T12:00:00.000Z",
 		"2026-10-21t12:00:00z", "2026-10-21T12:00:00,1Z",

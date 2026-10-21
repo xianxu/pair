@@ -44,6 +44,9 @@ func Decode(raw string) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, fmt.Errorf("invalid startup deadline: %w", err)
 	}
+	if deadline.IsZero() {
+		return time.Time{}, fmt.Errorf("supplied startup deadline is zero")
+	}
 	if Encode(deadline) != raw {
 		return time.Time{}, fmt.Errorf("noncanonical startup deadline")
 	}
