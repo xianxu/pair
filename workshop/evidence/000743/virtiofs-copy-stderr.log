@@ -1,0 +1,2 @@
+cp: /Volumes/My Shared Files/input/checkout/./cmd/internal/webcast/web/collab.js: could not copy extended attributes to /private/tmp/pair-vm-1ce1772b04fd95117acc849c6f4672eb/checkout/./cmd/internal/webcast/web/collab.js: Too many levels of symbolic links
+guest bootstrap refused unsafe or unusable roots
