@@ -2506,3 +2506,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #742 BR-3: An approved post-SHIP change to executable recognition criteria requires a full close review; narrow re-close is for fixes inside the reviewed contract. Reconcile the current Spec as well as appending the revision.
 
 - #742 live recheck: Exercise the reader's observeOutput before handleChunk in drive regressions. A render-only harness bypasses the activity-sequence fence and can pass while every native timer tick revokes admission. Interrupt proof uses operator-input generation plus freshly parsed work/composer/ownership; queued unparsed output cannot attest the old complete frame. Keep ordinary drives on their activity fence.
+
+- #752: Renew a lease at the ordered writer's successful persistence boundary, before replying; a held HTTP reply must not hide accepted activity from expiry. Use a mutation version as well as time to fence queued expiry, and recheck the idle deadline inside mutation admission. A global begin reservation ends at acceptance so a handoff can admit the next drawer while the previous response is held.

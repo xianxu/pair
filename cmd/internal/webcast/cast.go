@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
@@ -115,6 +116,7 @@ type Cast struct {
 	// isn't recorded. The recorder closes it with the recording (it is one
 	// of the recording's sinks), the cast when the browser has ended.
 	board      *board.Board
+	sketches   *board.SketchService
 	noteDrafts *notedraft.Service
 	// drive is remote driving's controller (#467); nil when the browser
 	// can't be driven (not recording, or a fake). Closed when the browser
@@ -154,6 +156,8 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 	var b Browser // set once launched; the board's requests come after
 	var recDir string
 	var drafts *notedraft.Service
+	var sketches *board.SketchService
+	var drawingController atomic.Value
 	launched := make(chan struct{})
 	browserForDraft := func(ctx context.Context) (Browser, error) {
 		select {
@@ -173,6 +177,8 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 		if cfg.NewLive != nil {
 			liveSink, live = cfg.NewLive()
 		}
+		var source sketchSourceProvider
+		liveSink, source = sketchSourceOutput(liveSink)
 		// Viewers' strokes and notes go into the recorder's queue and the
 		// board follows the recording, so it sees what viewers see.
 		bd = board.New(notes.Structural{}, func(r recording.Record, doc int) error {
@@ -182,6 +188,25 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 			return ErrNotRecording
 		})
 		bd.Logf = cfg.Logf
+		sketches = bd.NewSketchService(func(ctx context.Context, in board.SketchWrite) (board.SketchWriteResult, error) {
+			browser, err := browserForDraft(ctx)
+			if err != nil {
+				return board.SketchWriteResult{Outcome: board.SketchRefused, Err: err}, err
+			}
+			if writer, ok := browser.(sketchWriter); ok {
+				return writer.WriteSketch(ctx, in)
+			}
+			return board.SketchWriteResult{Outcome: board.SketchRefused, Err: ErrNotRecording}, ErrNotRecording
+		}, func(ctx context.Context, id, op string) (board.SketchObservation, error) {
+			browser, err := browserForDraft(ctx)
+			if err != nil {
+				return board.SketchObservation{}, err
+			}
+			if writer, ok := browser.(sketchWriter); ok {
+				return writer.ObserveSketch(ctx, id, op)
+			}
+			return board.SketchObservation{}, ErrNotRecording
+		}, source.CandidateSketchSource)
 		bd.WithAnnotationCleanup(func(ctx context.Context, generation uint64) error {
 			if cleaner, ok := b.(AnnotationCleaner); ok {
 				return cleaner.ClearAnnotations(ctx, generation)
@@ -200,7 +225,19 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 			return nil, err
 		}
 		out := recordingOutput(cfg, liveSink, bd, id, proxy)
-		ro = &RecordOptions{Operator: bd, NoteDrafts: drafts, ID: id, Logf: cfg.Logf, Out: func() (recorder.Opened, error) {
+		ro = &RecordOptions{Operator: bd, Sketches: sketches, SketchAuthority: func(epoch, generation uint64) (board.SketchAuthority, error) {
+			admission, err := bd.AdmitAnnotationGeneration(generation)
+			if err != nil {
+				return board.SketchAuthority{}, err
+			}
+			a := board.SketchAuthority{Author: recording.Author{ID: recording.OperatorID, Name: "Operator"}, Owner: recording.OperatorID, Epoch: epoch, Annotation: admission, Check: func() error { return drive.ErrDriveUnavailable }}
+			if ctrl, ok := drawingController.Load().(drive.Controller); ok {
+				if permit, err := ctrl.AdmitOperatorDrawing(epoch); err == nil {
+					a.Check = permit.Check
+				}
+			}
+			return a, nil
+		}, NoteDrafts: drafts, ID: id, Logf: cfg.Logf, Out: func() (recorder.Opened, error) {
 			opened, err := out()
 			if err == nil {
 				opened.Sink = &draftEvidenceSink{sink: opened.Sink, notes: drafts, ids: map[string]bool{}, logf: cfg.Logf}
@@ -249,7 +286,7 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 	}
 	mountCtx, cancel := context.WithCancel(context.Background())
 	c := &Cast{browser: b, pub: newPublisher(Update{State: b.State()}), cancel: cancel, done: make(chan struct{}), liveSink: liveSink,
-		board: bd, noteDrafts: drafts, readOriginPolicy: cfg.ReadOriginPolicy, recDir: recDir, check: cfg.Check, logf: cfg.Logf}
+		board: bd, sketches: sketches, noteDrafts: drafts, readOriginPolicy: cfg.ReadOriginPolicy, recDir: recDir, check: cfg.Check, logf: cfg.Logf}
 	if d, ok := b.(Driven); ok && ro != nil {
 		grace := cfg.DriveGrace
 		if grace <= 0 {
@@ -284,7 +321,12 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 	} else {
 		c.driveOff = "the cast isn't recorded"
 	}
+	if c.drive != nil {
+		drawingController.Store(c.drive)
+	}
 	srv := NewServer(token, b, cfg.Ping, live, cfg.Presence).WithBoard(bd).WithNoteDrafts(drafts, func(r *http.Request) string { return broadcast.NoteOwnerFromContext(r.Context()) }).WithPointer(pointerToken).WithDrive(c.drive, driveToken).WithDriveLog(cfg.Logf).WithLocks(locks)
+	srv.sketches = sketches
+	srv.sketchAsset = sketchAssetReader(recDir)
 	srv.proxy = proxy
 	c.server, c.token, c.pointerToken, c.driveToken = srv, token, pointerToken, driveToken
 	c.capCtx = mountCtx
@@ -355,6 +397,12 @@ type mountResult struct {
 // last.
 func (c *Cast) run(ctx context.Context, host *broadcast.Host, srv *Server, token string) {
 	defer close(c.done)
+	if c.sketches != nil {
+		sketchCtx, cancelSketch := context.WithCancel(ctx)
+		sketchDone := make(chan struct{})
+		go func() { defer close(sketchDone); c.sketches.Run(sketchCtx) }()
+		defer func() { cancelSketch(); <-sketchDone }()
+	}
 	states, unsubscribe := c.browser.Subscribe()
 	defer unsubscribe()
 	mounted := make(chan mountResult, 1)

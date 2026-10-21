@@ -14,6 +14,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
 	castassets "github.com/xianxu/pair/cmd/internal/webcast/assets"
+	"github.com/xianxu/pair/cmd/internal/webcast/board"
 	"github.com/xianxu/pair/cmd/internal/webcast/capability"
 	"github.com/xianxu/pair/cmd/internal/webcast/notedraft"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
@@ -68,6 +69,8 @@ const endedReason = "ended"
 // With a board (WithBoard) it also takes viewers' strokes and notes by POST
 // (#470); everything else is GET only.
 type Server struct {
+	sketches      *board.SketchService
+	sketchAsset   func(string, int, int) ([]byte, int, error)
 	noteDrafts    *notedraft.Service
 	noteOwner     func(*http.Request) string
 	noteStreamsMu sync.Mutex
@@ -135,7 +138,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// The only routes that read a body are the board's (#470) and remote
 	// driving's (#467) POSTs; every
 	// other path is GET-only and never reads one.
-	if r.Method == http.MethodPost && ok && link != linkNone && (s.boardRoute(w, r, rest, link) || s.driveRoute(w, r, rest, link.drives())) {
+	if r.Method == http.MethodPost && ok && link != linkNone && (s.sketchRoute(w, r, rest, link) || s.boardRoute(w, r, rest, link) || s.driveRoute(w, r, rest, link.drives())) {
 		return
 	}
 	if r.Method != http.MethodGet {

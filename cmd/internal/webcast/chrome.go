@@ -46,10 +46,12 @@ type LaunchOptions struct {
 
 // RecordOptions configure the cast's recorder.
 type RecordOptions struct {
-	NoteDrafts *notedraft.Service
-	Operator   *board.Board
-	ID         string          // the recording's id (its head)
-	Out        recorder.Output // opened at the first go-live
+	Sketches        *board.SketchService
+	SketchAuthority func(epoch, generation uint64) (board.SketchAuthority, error)
+	NoteDrafts      *notedraft.Service
+	Operator        *board.Board
+	ID              string          // the recording's id (its head)
+	Out             recorder.Output // opened at the first go-live
 	// ShotEvery is the fidelity screenshots' period; zero is the
 	// recorder's default.
 	ShotEvery time.Duration

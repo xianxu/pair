@@ -16,7 +16,7 @@ import (
 // fails assembly instead of silently shipping a divergent copy of the UI.
 var (
 	operatorExportNames = regexp.MustCompile(`^export \{ ([A-Za-z0-9_$, ]+) \};$`)
-	operatorExport      = regexp.MustCompile(`^export ((?:async )?function|const) ([A-Za-z_$][A-Za-z0-9_$]*)\b`)
+	operatorExport      = regexp.MustCompile(`^export ((?:async )?function|const|class) ([A-Za-z_$][A-Za-z0-9_$]*)\b`)
 	operatorImport      = regexp.MustCompile(`^import \{ ([A-Za-z0-9_$, ]+) \} from '([^']+)';$`)
 	operatorName        = regexp.MustCompile(`^[A-Za-z_$][A-Za-z0-9_$]*$`)
 )

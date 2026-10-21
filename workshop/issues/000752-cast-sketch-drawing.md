@@ -76,6 +76,13 @@ Primary surfaces: board/{sketch.go,sketch_authority.go,sketch_wire.go,writer.go,
 - Verification returned green: focused recording/strictjson tests, race-enabled driving tests, and 87 Node sketch model/policy/render/delivery tests. Source received an independent review with no concrete ownership/order/accounting violation found. Shared Board/recorder/routes and actual UI integration are still in progress; this checkpoint does not claim end-to-end completion.
 - Added the TL-required atlas invariant. Mandatory named-target Chrome regression and TL console smoke remain outstanding before landing.
 
+### 2026-10-21 — ordered service and private delivery checkpoint
+
+- Implemented Board ingress/origin receipts, original-owner late labels, a single frozen-source lease with one reusable cancelable timer, acknowledged reference/recorder writes, healthy observation barriers, scoped source/asset reads and strict drive-seat HTTP routes. Unknown persistence remains unknown. Added compact bounded operator journal/bootstrap with independent receiver verification.
+- Fresh service review found epoch/sketch lookup collisions, lease deadline/held-reply ordering, last-refusal retention and late unknown-source resurrection gaps; fixed with focused regressions. Actor acceptance now renews the lease and ends the global begin reservation, independently of transport replies; old-label work stays separate. Sketch chunks bypass unrelated historical note projection scans.
+- Returned verification: all Board, drive and recorder package tests pass; focused writer/service/journal race checks pass. HTTP race coverage includes pre-body role/seat/epoch refusal, pressure streaming, replay, old-author label during a new sketch, scoped reads and a held asset read retired by label/expiry. Cast fallback reuses the real Hub or adds one private source hub for absent/custom live factories.
+- The mandatory actual Chrome privacy regression passed (unchanged shared Renderer, private SVG2×3, recorded nested frame name/CSS127 border-box, named-target SecurityError and private blob fetch TypeError). Console UI/observer exclusion integration, two-viewer live streaming and TL console smoke are still pending. The scene's asset transfer envelope is aligned to the existing recorder fallback capture32 MiB, separate from the16 MiB source prefix.
+
 ## Estimate
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.*
