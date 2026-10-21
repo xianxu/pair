@@ -766,6 +766,13 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: false
+disputes:
+    - id: BR-3
+      rationale: 'Cache-enabled write-budget failure predates #739 and belongs to unclaimed #765. Matched cold/warm main already fails both unchanged caps. The initial branch increment is not stable: changed and unchanged test cohorts are each cheaper on branch, and a retained-trace full control reverses the delta. The measured bulk source is Go test-cache access logging rather than demonstrated new production writes. No cap increase or runner-policy scope growth; no claim of zero incremental production cost.'
+      evidence: 'Frozen main53a9d42e503efa47ecef42beec294a30ba87768f versus branch1b948b3c040f6979eaafa77b1ad2da127f524da4, Go1.27.1, go test core+tty, GOFLAGS=-p=2 -trimpath -v, separate initially empty private GOCACHE then warm reuse: main cold143224832/105287680, warm143204352/104529920; branch cold158978048/105304064, warm162770944/105287680; caps134217728/67108864, all assertions pass, budget-only failures. Attribution: changed37-name cohort main5779456 branch5304320, unchanged complement127647744/127021056. Cache-enabled go test -work ./cmd/internal/couchcore with retained trace: main137310208 branch134885376 physical bytes, main301.209s branch309.294s, assertions pass; traces130916787/129125877 bytes, dominated by stat records1146582/1126055, open170047/170358. Branch lower2424832 physical bytes. Full report, exact cohorts, logs and SHA256 metadata retained under /Volumes/TestScratch/tmp/pair-slot7/pair739-cache.QFbUSM and committed issue Log. Recorded final-code suite e94267fd passed11m2s log492cf5028e0c.'
+      after: 4
+      timestamp: "2026-10-21T10:04:13Z"
+      by: Xian Xu on Xian’s MacBook Pro at pair:7 (/Users/xianxu/workspace/worktree/pair-slot7/pair)
 ---
 
 # Gate ledger — pair#739 (boundary-review)
@@ -821,6 +828,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-4 — addressed — The unused SelectStartupHub helper is removed. TestNoProductionSymbolIsReferencedOnlyByTests passes on the pinned head.
 - BR-5 — addressed — Broker direct admission and both enqueue paths enforce the original hub/epoch permit under broker then automation locks. Resource dispatch transports its original permit through recipient resolution. Both named regressions pass; removing the guard or recapturing the resource permit independently makes the corresponding regression fail. The six-producer sweep and focused race tests pass.
 
+## Disputes
+
+Findings the implementer declined (`sdlc finding dispute`), each answered by the
+next review round.
+
+- **BR-3** — after round 4 (2026-10-21T10:04:13Z, Xian Xu on Xian’s MacBook Pro at pair:7 (/Users/xianxu/workspace/worktree/pair-slot7/pair))
+  rationale: Cache-enabled write-budget failure predates #739 and belongs to unclaimed #765. Matched cold/warm main already fails both unchanged caps. The initial branch increment is not stable: changed and unchanged test cohorts are each cheaper on branch, and a retained-trace full control reverses the delta. The measured bulk source is Go test-cache access logging rather than demonstrated new production writes. No cap increase or runner-policy scope growth; no claim of zero incremental production cost.
+  evidence: Frozen main53a9d42e503efa47ecef42beec294a30ba87768f versus branch1b948b3c040f6979eaafa77b1ad2da127f524da4, Go1.27.1, go test core+tty, GOFLAGS=-p=2 -trimpath -v, separate initially empty private GOCACHE then warm reuse: main cold143224832/105287680, warm143204352/104529920; branch cold158978048/105304064, warm162770944/105287680; caps134217728/67108864, all assertions pass, budget-only failures. Attribution: changed37-name cohort main5779456 branch5304320, unchanged complement127647744/127021056. Cache-enabled go test -work ./cmd/internal/couchcore with retained trace: main137310208 branch134885376 physical bytes, main301.209s branch309.294s, assertions pass; traces130916787/129125877 bytes, dominated by stat records1146582/1126055, open170047/170358. Branch lower2424832 physical bytes. Full report, exact cohorts, logs and SHA256 metadata retained under /Volumes/TestScratch/tmp/pair-slot7/pair739-cache.QFbUSM and committed issue Log. Recorded final-code suite e94267fd passed11m2s log492cf5028e0c.
+
 ## Open findings
 
-- **BR-3** [Important] `test-operating-envelope` Ordinary couchcore and couchtty suites exceed enforced write budgets
+(none — every finding has been disposed)
