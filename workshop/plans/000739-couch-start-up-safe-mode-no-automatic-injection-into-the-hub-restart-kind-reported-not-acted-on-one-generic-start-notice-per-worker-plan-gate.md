@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: 062c44b8-7e1f-4d59-a0dc-e4d4fcb5e6ba
+        repository: github.com/xianxu/pair
+        issue_id: "000739"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot7/pair
+        reviewed_head: 0ef51aff71d70e08bb0e3af79a62b8931fa28935
+        slot: pair:7
+        requested_at: "2026-10-21T06:55:40.071552Z"
+      phase: finished
+      pid: 78224
+      started_at: "2026-10-21T06:55:40.166391Z"
+      finished_at: "2026-10-21T06:56:17.326248Z"
+      session_id: 01a15d3e-836f-7f71-99e6-40c892831e25
+      outcome: returned
 gate: plan-quality
 issue: 739
 id_prefix: PQ
@@ -65,7 +85,37 @@ rounds:
           note: Named risky functions now have adversarial strategies and mechanical guards; integration invariants and operation-count assertions remain without repetitive case inventories.
           round: 2
       blocked: false
-content_hash: 99c67cbb2468d49a73502cc358e2c1efc80797881d4f709bc983e9f7e8fc4c38
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 0b91ef75-c02a-4a35-ba0a-19284554fb83
+            repository: github.com/xianxu/pair
+            issue_id: "000739"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot7/pair
+            reviewed_head: 0ef51aff71d70e08bb0e3af79a62b8931fa28935
+            slot: pair:7
+            requested_at: "2026-10-21T06:55:02.887733Z"
+          phase: finished
+          pid: 72240
+          started_at: "2026-10-21T06:55:02.983813Z"
+          finished_at: "2026-10-21T06:55:38.085099Z"
+          session_id: 01a15d3d-f23b-79b2-853b-10996f109622
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-20T23:55:38-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Named risky functions now specify adversarial input classes and mechanical guards, with shared producer invariants replacing prose case inventories.
+          round: 3
+      blocked: false
+content_hash: 489a49e5aa6be85da640d13baf63958a026fcb0312410967f7b2d2e1cde6abc9
 ---
 
 # Gate ledger — pair#739 (plan-quality)
@@ -85,6 +135,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - PQ-1 — addressed — Named risky functions now have adversarial strategies and mechanical guards; integration invariants and operation-count assertions remain without repetitive case inventories.
+
+## Round 3 — 2026-10-20T23:55:38-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Named risky functions now specify adversarial input classes and mechanical guards, with shared producer invariants replacing prose case inventories.
 
 ## Open findings
 
