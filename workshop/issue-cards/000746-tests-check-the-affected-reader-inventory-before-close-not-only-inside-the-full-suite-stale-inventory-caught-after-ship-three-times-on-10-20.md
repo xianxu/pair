@@ -1,6 +1,6 @@
 ---
 id: 000746
-status: working
+status: codecomplete
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.66
+tracker:
+    version: 1
+    completion:
+        token: close-fb8e56762c68
+        repository: github.com/xianxu/pair
+        reviewed_head: a4f0b6ae0c9dd679c3829679485b43239f2de7a4
+        evidence_commit: a6cef6f98c356b6bcd9e7d925a97795a5009d78b
 ---
 
 # tests: check the affected-reader inventory before close, not only inside the full suite (stale inventory caught after SHIP three times on 10-20)
