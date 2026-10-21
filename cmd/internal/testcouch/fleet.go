@@ -396,6 +396,11 @@ func (f *Fleet) Close(ctx context.Context) (result error) {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+	if f.t.Failed() {
+		// Native pane and readiness evidence can disappear during console or
+		// agent teardown. Freeze a bounded observation after admitted calls join.
+		f.t.Logf("native startup evidence before teardown: %s", f.captureStartupEvidence(ctx, nil))
+	}
 	if err := f.captureOwned(ctx); err != nil {
 		return err
 	}
@@ -432,6 +437,9 @@ func (f *Fleet) Close(ctx context.Context) (result error) {
 	if f.t.Failed() {
 		evidence, err := nativeFailureEvidence(f.Roots.Mutable["store"])
 		f.t.Logf("native failure evidence before root removal: %s; read_error=%v", evidence, err)
+		// The buffered wrapper writers are now joined. Capture their final
+		// startup records without attempting another native query after teardown.
+		f.t.Logf("native wrapper evidence after join: %s", f.captureStartupLog())
 	}
 	f.mu.Lock()
 	p := f.console

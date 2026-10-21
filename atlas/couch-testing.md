@@ -98,3 +98,30 @@ keeps its original attempt identity; these observations grant no cleanup authori
 Fleet failure logs print unknown before/after exits as `unobserved`. Endpoint
 termination cause is currently unavailable; an ended endpoint does not prove EOF
 or a particular child exit reason (#772).
+
+Failed fleets also snapshot startup evidence after active calls join and before
+terminal teardown. The private `PAIR_WRAP_LOG` uses the existing managed bounded
+diagnostic writer. Only `STARTUP-identity`, `STARTUP-error` and
+`AGENT-READY-write-fail` records enter the retained projection; other debug rows,
+argv, prompts and unrelated environment values are excluded. Effective identity
+comes from the wrapper's emitted scope/tag/session/nonce and actual PID, with
+missing or truncated values explicit. The collector never reconstructs identity
+from slot numbers or failure text. A mismatched recorded launch nonce prevents
+attribution and pane querying; an unknown nonce labels only the current observed
+identity. The final wrapper projection runs again after writers join to capture
+buffered terminal records, without another native query.
+
+At most four exact failure or recently emitted private thread identities are
+selected. Each scope census reads at most 129 directory entries, reports its
+128-entry scan limit and retains at most 32 readiness sibling names. The exact
+expected readiness path uses `artifactpath.Paths.AgentReadyChecked`; present
+records decode through the production readiness schema and project only identity
+fields, including a comparison with the emitted attempt. Private pane sidecars
+select the native `dump-screen` target. Queries use the owned socket environment
+and existing `zellijexec` owner and admission bound. All pane queries share one
+sub-deadline of at most one quarter of Close's remaining budget, preserving its
+original context for actual cleanup. Unavailable panes (including ones already
+removed by rollback), read errors and query errors remain explicit. File reads
+are confined through an opened private root, reject final symlinks and bound the
+wrapper tail to 64 KiB and each pane/native stream to 16 KiB. Pre-exec layout-shell
+stderr is not recorded by this collector.

@@ -253,3 +253,20 @@ TL ac4d118b-2fb9-4022-ba58-bf35b9d23f7f directs filing fixed10s readiness as its
 ### 2026-10-21 — approved diagnostic source contour (6e0eb216)
 
 Source inspection established that pre-exec pane-shell stderr and an effective exported-environment profile are not persisted; scrollback raw contains inner-agent PTY bytes only. TL6e0eb216-ce18-4777-9e56-8a739becb6cc confirms the minimal source contour: enable owned bounded PAIR_WRAP_LOG inside the fixture root; record allowlisted actual scope/tag/session/nonce and startup/readiness errors through existing wrapper diagnostics; query the genuine private pane with Zellij dump-screen before teardown; explicitly report unavailable if product rollback already removed it; capture readiness sibling census. Pre-exec shell stderr is explicitly out of scope. No new pane wrapper, probe, process, fake PTY, topology, startup deadline or retry is introduced. Diagnostic capture starts after admitted ActorCLI joins but before supervisor/agent teardown, then the existing final failure projection follows joined cleanup. All file sources are factory-private, physically confined and bounded; reject symlinks/escapes, cap file counts and retained bytes, and retain missing/read/query errors rather than reconstructing values. Extend stateful filesystem/native-query seam tests and value-only allowlist/bounds tests using actual emitted formats, not fictitious profiles. After focused checks and committed clean implementation, one native matrix per TL sequencing; #772 remains exact Codex flake, fixed-budget issue773 remains independent and unclaimed.
+
+### 2026-10-21 — diagnostic implementation concepts and growth bounds
+
+| PURE entity | Lives in | Status |
+|---|---|---|
+| startupIdentity value and selectStartupRecords | cmd/internal/testcouch/startup_evidence.go | new; allowlisted byte-to-value projection |
+| selectReadyNames and selectStartupSources | cmd/internal/testcouch/startup_evidence.go | new; bounded observed-fact selection, one visit per input |
+| startupDiagnosticDeadline | cmd/internal/testcouch/startup_evidence.go | new; quarter of caller remaining time, no renewed budget |
+| IsAgentReadyCandidate | cmd/internal/artifactpath/paths.go | new; diagnostic filename recognition only, no authority |
+
+| INTEGRATION | Lives in | Status | Wraps/reuses |
+|---|---|---|---|
+| wrapper startup identity/error publication and close | cmd/internal/wrapcmd/startup_diagnostics.go, wrap.go | new | actual allowlisted environment, existing bounded proxy diagnostic writer |
+| evidenceRoot, captureStartupLog and captureStartupEvidence | cmd/internal/testcouch/startup_evidence.go | new | rooted nonblocking regular-file reads, canonical artifact/ready decoders and lifecycle store |
+| dumpStartupPane and bounded startupOutput stream adapter | cmd/internal/testcouch/startup_evidence.go | new | existing native query runner, explicit private sockets/environment, one derived diagnostic context |
+
+Per startup, four allowlisted environment values are selected once; no per-byte work is added. Capture visits each bounded log line/identity once, holds at most five ranking candidates, retains four sources, scans at most129 directory entries and retains32 names. Log reads64KiB, per-source/native output16KiB; truncation/unavailable are explicit. N/2N tests count visits8/16 for log rows, names and identity selection. Stateful executable tests qualify argv, actual private socket env, native refusal/output cap and no ambient secret inheritance. Core state remains the existing OwnedRun and correlated mailbox; diagnostic values grant no lifecycle or cleanup authority.

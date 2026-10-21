@@ -82,4 +82,7 @@ func TestEnvironmentDoesNotInheritLiveAuthority(t *testing.T) {
 	if values["PATH"] != "/owned/bin" {
 		t.Fatalf("ambient fallback PATH: %q", values["PATH"])
 	}
+	if values["PAIR_WRAP_LOG"] != startupLogPath(p) {
+		t.Fatalf("wrapper diagnostics are not owned: %q", values["PAIR_WRAP_LOG"])
+	}
 }

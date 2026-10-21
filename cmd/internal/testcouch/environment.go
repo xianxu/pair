@@ -92,6 +92,7 @@ func runtimeEnvironment(p RootsPlan, bin, agent, runID, source, couch string) ([
 		"ZELLIJ_SOCKET_DIR=" + p.Mutable["sockets"], "ZELLIJ_CONFIG_DIR=" + p.Mutable["config"], "ZELLIJ_DATA_DIR=" + p.Mutable["data"],
 		"WF_SDLC_QUEUE_ROOT=" + p.Mutable["queue"], "WF_TEST_LOCK_FILE=" + p.Mutable["capacity"], "WF_SDLC_QUEUE_FLEET_ROOT=" + p.Mutable["fleet"],
 		"PAIR_TESTCOUCH_ROOT=" + p.Root, "PAIR_TESTCOUCH_CONTROL=" + p.Mutable["control"], "PAIR_TESTCOUCH_RUN_ID=" + runID, "PAIR_TESTCOUCH_COUCH=" + couch,
+		"PAIR_WRAP_LOG=" + startupLogPath(p),
 		"GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_TERMINAL_PROMPT=0", "GIT_ALLOW_PROTOCOL=file",
 		"GIT_AUTHOR_NAME=Couch Fixture", "GIT_AUTHOR_EMAIL=fixture@example.invalid", "GIT_COMMITTER_NAME=Couch Fixture", "GIT_COMMITTER_EMAIL=fixture@example.invalid",
 		"LANG=en_US.UTF-8", "LC_ALL=en_US.UTF-8", "SHELL=/bin/sh", "EDITOR=/usr/bin/true", "VISUAL=/usr/bin/true",
