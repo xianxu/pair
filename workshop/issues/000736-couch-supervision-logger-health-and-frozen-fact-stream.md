@@ -29,18 +29,19 @@ The logger discards its Open error and becomes permanently unavailable for that 
 
 ## Spec
 
-Expose logger health and a bounded last error through an existing Couch status surface first. Observe the actual live refusal, then fix that cause. Do not add speculative retries. Keep diagnostics optional, bounded, and off the interactive admission path. Per-message holds remain visible in retained receipts; document the logging and receipt locations accurately.
+Expose logger health and a bounded last error through an existing Couch status surface first. Observe the actual live refusal and hand the measured repair to #774, as approved after the one-branch gate refused continuing this landed issue. Do not add speculative retries. Keep diagnostics optional, bounded, and off the interactive admission path. Per-message holds remain visible in retained receipts; document the logging and receipt locations accurately.
 
 ## Done when
 
 - Existing status reports distinguish a working, unavailable, and failed-write supervision logger, with a useful bounded error and no message/prompt secrets.
 - Tests cover startup Open failure, subsequent write failure/recovery, and closed state without changing admission outcomes.
-- The live failure is observed and recorded, its root cause is corrected, and new supervision facts are verified to reach storage.
+- The live failure is observed and recorded through the landed health surface; its measured cause and approved recovery direction are preserved in the independent #774. Repair and fresh-live-write verification belong to that issue.
 
 ## Plan
 
 - [x] M1 — Expose memory-only logger health in resources; test, review and land instrumentation without staging.
-- [ ] M2 — Observe the actual refusal after the hub's coordinated restart; approve a cause-specific revision, reproduce it, fix it and verify fresh live facts.
+
+The former M2 repair boundary is superseded by #774 per the 2026-10-21 Revision; no uncompleted implementation milestone remains in this health-only issue.
 
 Durable plan: [implementation plan](../plans/000736-supervision-logger-health-plan.md).
 
@@ -136,3 +137,15 @@ new supervisor, fulfilled by the coordinated rebuild/restart; no negotiation or
 relaxed decoder is added. New-client/old-server absence remains truthful unknown.
 PQ-2's named-function strategies replace prose case inventories. No code exists
 yet; both findings are returned to the plan gate for disposition.
+
+### 2026-10-21 — health accepted live and cause handed off
+
+The operator restarted Couch at08:44:33 on main53a9d42e with M1. Hub's actual resources readout: supervision log unavailable, offered77/written0/dropped77, last write never, last error open08:44:34.8 diagnostic reservation identity or size changed. This is the M1 acceptance: the previously silent startup failure is now visible with counters, cause and operation/time. No logging-repair claim.
+
+Read-only stable bracketed metadata showed payload device16777229 versus checkpoint16777232, with identical inode728006625, size26061670 and mtime_ns1792450564739652454. The reservation was an older committed append (before26055958 plus5712=current26061670), not missing payload. #774 carries this measurement, the source trace, approved device-only recovery direction, adversarial tests and live-write acceptance. No live logger files/processes were changed.
+
+Retained recorded evidence: own M1 suite attempt5090197a974c2c52291cabd5828204b8 on61cc29d9 passed730.851s, log hash317f0f10249a0a3c739c657804df4323c796b476441b17945f8a862d0cf5cca4. Landed M1 merge4a078392 has recorded suite attemptd123e71bcc85f045d6cd44a44eee8334 passed661.660s, log hash17c1eb7e57cabf6a5015b0ddc9ae1341e6d720144ed905b3ea92bc33ab3263ae. Only issue/plan scope handoff prose changes here; source remains main's tested code.
+
+### 2026-10-21 — closure scope revision approved by hub
+
+Newer start-plan refuses continuing an issue whose M1 branch already landed in PR502, explicitly directing a fresh closure branch and a separate cause issue. Hub approved following that gate: close #736 around landed and live-verified M1 health instrumentation, with no claim the logger is repaired; #774 (no dependencies, code prerequisite already main) owns the former M2 fix and live fresh-fact proof. This replaces the earlier two-landings-on-one-issue plan, rather than bypassing the one-branch guard. The original M2 acceptance is preserved above as superseded history. Hub owns project updates and the live rebuild/restart.
