@@ -1,13 +1,21 @@
 ---
 id: 000769
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'd07b2ea7cf58b44fb3b53409f45ad177b72c994b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '72ac9bef83a48057a5110cb8fb864d6fd5e4fd4d' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-21T06:43:45-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Preserve wrap Darwin PTY final output without changing termination
@@ -34,6 +42,18 @@ Design output preservation for this owner while explicitly preserving its EOF, t
 
 Plan first; independently claim from main. Do not stack on #768.
 
+Durable design/conditional implementation plan: [wrap Darwin PTY output](../plans/000769-wrap-darwin-pty-output-plan.md). Await TL decision: both proposed protections suppress EOF for a still-live closed-stdio child. No change-code or production edits before an approved termination contract.
+
 ## Log
 
 Filed unclaimed per TL approval of #768 on 2026-10-21. Probe provenance and audited owner paths are in workshop/plans/000768-darwin-pty-final-output-plan.md, planning commit b55089f72c233e0532918172a29b60291f798cfb. Retention must not be generalized without resolving the termination-semantics risk above.
+
+### 2026-10-21 — Planning and native counterexample
+
+Claimed and started from main in canonical pair-slot4; #757 remains parked awaiting operator approval. Coordinated with pair:2 through authenticated #768 handoff and corrected native probe. Read its scribe-only ownership design without importing unlanded code. Fresh-context read-only audit confirmed masterPump EOF drives ownedGroup.Wait, which starts group termination before its sole reap; preserve original selector argv, actual target PID and synchronous start-error publication.
+
+Independently reproduced native openpty/fork/setsid/TIOCSCTTY child that writes final-marker, closes all stdio, acknowledges a pipe and blocks alive on a separate hold pipe. Baseline returned empty bytes and EOF; child /dev/tty open+close and parent-retained slave each returned exact marker but no EOF while held. After hold release, both protected variants returned EOF and status7. All children reaped and descriptors closed. Two bounded 200ms readiness observations are diagnostic only, never production policy. Both candidate protections therefore fail the unchanged live-target termination requirement. ARCH-PURPOSE/STATE: do not silently reinterpret it; plan presents conditional retention and requires TL/operator policy approval. No timeout change, polling mechanism, code change or change-code invocation.
+
+## Revisions
+
+- 2026-10-21: Added a gated design checkpoint after the native live-target counterexample. Existing Spec and Done when remain authoritative and unchanged pending TL decision; conditional plan is not implementation approval.
