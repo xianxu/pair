@@ -1,6 +1,6 @@
 ---
 id: 000762
-status: codecomplete
+status: done
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 201f005e08f8bfb425cca988e46d3fd364e956f0
         evidence_commit: 56763cef9c245a23c9de5fb5b29a342e013f88ef
+        landed_commit: 0706fb3f19ccdf10399c4a346778dc98ab807227
 ---
 
 # cast link locks: lifetime guess cap per link and an operator notice on forced code rotation
