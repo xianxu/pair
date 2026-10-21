@@ -53,6 +53,8 @@ Measure the native metadata across a wrapper-to-shell exec in a disposable sessi
 
 ## Log
 
+
+- 2026-10-21: closed — Resolved only independent #731/#748 lint catalog and atlas append conflicts by preserving both rules. Targeted repolint/workbenchshortcut and reader inventory passed; recorded full suite8ffd268d18ca5653a7e005cae3ed3a26 passed11m56s on b1594a72ced6e04ad55fdac5cdac2e9a9a84b605 (log13d7e4f63a7d), including stale-metadata refusal assertions. Held-car/cancellation diagnosis corrected in Log; no train213 result is used as #731 verification. (fixed-then-ship; full suite: Recorded suite8ffd268d18ca5653a7e005cae3ed3a26 passed on b1594a72ced6e04ad55fdac5cdac2e9a9a84b605, exit0 in11m56s, log SHA prefix13d7e4f63a7d; complete shell/editor and Go suite on the main-integrated conflict resolution.); review verdict: SHIP
 Deferred from pair#727 by the hub on 2026-10-20 (delivery 7225aa16-eefc-46c0-97b6-49c250d1ca29): land the reviewed resilience improvement, which leaves a working shell instead of a dead pane. No registry/role change belongs in #727. The earlier retirement-only proposal was withdrawn before implementation when the role and lock assumptions proved incomplete.
 
 ### 2026-10-20 — claim, native measurement and proposed plan

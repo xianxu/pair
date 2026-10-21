@@ -254,3 +254,79 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000409
+
+---
+
+## Re-review — 2026-10-21T00:23:47-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 731 — A pane that fell back to a native shell still classifies as a Pair terminal |
+| repo | pair |
+| issue file | workshop/issues/000731-a-pane-that-fell-back-to-a-native-shell-still-classifies-as-a-pair-terminal.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | e5e282d6e5748cdbd412a2c6352959433677963f..b1594a72ced6e04ad55fdac5cdac2e9a9a84b605 |
+| command | sdlc close --issue 731 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T00:23:47-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff preserves both sides of the catalog conflict resolution, retains the corrected acceptance contract, and introduces no new behavior or scope expansion. No blocking defects found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Issue line 45 retains the LiveOwnerIDs contract: confirmed mismatch/replacement rejects, unavailable inspection retains membership with bounded diagnostics, and diagnostic failure preserves classification. This matches terminal_owner.go:32–80; this window does not alter that policy.
+```
+
+1. **Strengths**
+
+   - `internal/repolint/local_catalog_test.go:21` retains both independent rules with their correct matcher bindings and incident references.
+   - `atlas/go-lint-catalog.md:146` preserves documentation for both ownership guards.
+   - Neither the implementation plan nor the issue’s Spec/Done when expands in this window.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed both rule regression suites and `TestTrackedGoFilesPassCatalog`. The rule tests exercise the composed scanner, confirming both registrations remain reachable. `git diff --check` passed. No production behavior correction requires a revert-to-red check in this window.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** both rules reuse the shared catalog/checker.
+   - **ARCH-PURE — pass:** resolution retains pure matchers and the existing injected test seam.
+   - **ARCH-PURPOSE — pass:** both conflict resolutions preserve each side’s intent.
+   - **ARCH-EVOLVE — pass:** no persisted schema or reader/writer changes.
+
+   No new user-facing surface requires a README update.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"079d504a-cc14-4746-ae87-3bd71144d9be","repository":"github.com/xianxu/pair","issue_id":"000731","recipe":"fix-review","round":4,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/0ea6e5037907c7e0","reviewed_head":"b1594a72ced6e04ad55fdac5cdac2e9a9a84b605","slot":"pair:6","requested_at":"2026-10-21T07:22:51.527951Z"},"phase":"finished","pid":27361,"started_at":"2026-10-21T07:22:51.687421Z","finished_at":"2026-10-21T07:23:46.924975Z","session_id":"01a15d57-692e-7683-875d-f7fabb95cd86","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.794494541s
+head: "b1594a72ced6e04ad55fdac5cdac2e9a9a84b605"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
