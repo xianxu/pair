@@ -28,6 +28,11 @@ var pairCatalog = append(append([]golint.Rule(nil), golint.Catalog...), golint.R
 	Incident: "pair#748",
 	Message:  "call ZellijSource.runContext to preserve bounded read recovery, the shared deadline and per-attempt evidence; runQueryAttempt belongs only to that entry point",
 	Match:    zellijReadAttemptBypasses,
+}, golint.Rule{
+	Name:     "controlled-zellij-close",
+	Incident: "pair#764",
+	Message:  "report or propagate ControlledZellij.Close cleanup errors; discarded cleanup can leave a controlled session alive",
+	Match:    discardedControlledZellijCloses,
 })
 
 // The bounded entry owns individual native attempts. New callers must not

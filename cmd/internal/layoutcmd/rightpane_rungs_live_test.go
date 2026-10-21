@@ -76,7 +76,7 @@ func TestRightPaneRungsZellijConformance(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		if err := fixture.Close(); err != nil {
-			t.Logf("fixture close: %v", err)
+			t.Errorf("fixture close: %v", err)
 		}
 	})
 	rt := &fullscreenLiveRuntime{ctx: ctx, session: fixture.Session, store: workbenchshortcut.FullscreenReturnStore{DataDir: t.TempDir(), Tag: "rungs"}}
