@@ -1969,8 +1969,9 @@ For targeted tests, `PAIR_TEST_BINARY=/absolute/path/to/plain-pair go test ...`
 uses an existing executable without rebuilding or deleting it. With the variable
 unset, Go consumers lazily build once per package; their `TestMain` calls
 `testpair.Run` after helper dispatch to remove only that owned fallback after
-all tests finish. Private executable names use hard links (copies across
-filesystems). Standalone shell consumers use the same builder, which locates
+all tests finish. Private executable names use hard links (symlinks across
+filesystems) to preserve the shared image; fresh copies can trigger another macOS
+security assessment before the CLI runs. Standalone shell consumers use the same builder, which locates
 its checkout independently of the caller's working directory.
 
 Native diagnostic-log open-file conformance skips with a named reason when `lsof`

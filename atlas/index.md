@@ -59,7 +59,7 @@
   fresh plain binary through `tests/lib/with-pair-test-binary.sh` and exports
   `PAIR_TEST_BINARY`; the development binary has different linker defaults.
   `Binary` shares it, while `At` hard-links a private executable name/directory
-  (copies across filesystems). Targeted Go runs build lazily once per package;
+  (symlinks across filesystems, preserving the shared executable image). Targeted Go runs build lazily once per package;
   their `TestMain` calls `testpair.Run` after helper dispatch to clean up only
   the owned fallback. Context variants preserve caller build deadlines. Shell
   consumers use `tests/lib/pair-test-binary.sh`, which owns the sole full-Pair
