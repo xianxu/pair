@@ -17,6 +17,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "024ca5fa", done: "12c8a82c"}
 ---
 
 # startup: terminal readiness truncates the caller to a fixed 10-second bound
