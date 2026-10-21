@@ -1,6 +1,6 @@
 ---
 id: 000757
-status: codecomplete
+status: done
 created: 2026-10-20
 updated: 2026-10-21
 estimate_hours: 6.657
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 0e4d26c70c40ef990988a2748c9bd219a42549ba
         evidence_commit: e68ece043f221dd9a3c1262dea43a992503a0a83
+        landed_commit: dfb44839f7a8c4006690e6d05c1a3e994b31194d
 ---
 
 # mock-to-real app template: per-screen real-or-mock dev router, refusing production build, fixtures contract tests (product-shaping)
