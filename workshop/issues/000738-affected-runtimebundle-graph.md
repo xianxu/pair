@@ -43,7 +43,8 @@ Trace the generated-runtime-bundle preparation prerequisite for affected package
 
 - [x] Reproduce missing embed assets in a private clean checkout and trace the graph owner.
 - [x] Wait for ariadne#517's bounded preparation seam to land.
-- [ ] Declare the existing runtime generator, qualify clean graph and broken-graph fallback, then obtain operator local-gates verification before landing.
+- [x] Declare the existing runtime generator and qualify clean graph plus broken-graph refusal against the current provider.
+- [ ] Obtain operator local-gates verification before landing.
 
 ## Log
 
@@ -118,3 +119,14 @@ or artifact format. Existing disposable graph-checkout cleanup owns outputs.
 The guard explicitly protects .sdlc/*, so operator local-gates verification and
 label are required on the concrete PR; the worker never self-labels. Keep the
 branch separate from #739 and no pair:0 staging.
+
+
+### 2026-10-21 — reviewable protected declaration
+
+PR#513 contains the bounded declaration, the actual-provider test and atlas
+map. Recorded affected check on4ee406f27cc97e39db933fd3db8ee09ec92dba60
+fell back to the full suite under current main's still-absent declaration and
+is queued as attempt80323f0ee9a2368b32f90e3fdc3bff3b. No pass is claimed.
+Review may overlap the queued recorded check under tl-worker rules. The only
+remaining Plan item is operator local-gates verification; it stays unchecked,
+and CI/merge still require the operator label. No agent will apply it.
