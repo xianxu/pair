@@ -7,7 +7,7 @@ created: 2026-10-21
 updated: 2026-10-21
 estimate_hours: 1.3
 collaboration-mode: collaboration
-card_mirror: '7c0afeed56e4e8245f02c21675528a350e73032f' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '543405ba45f3489f6d57fce2f04e0fc364de8ef9' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-21T05:20:49-07:00
 claimant:
     operator: Xian Xu
@@ -17,7 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
-actual_hours: 1.15
+actual_hours: 2.65
 ---
 
 # Preserve short-lived command output across Darwin PTY slave close
