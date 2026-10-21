@@ -242,6 +242,36 @@ function harness() {
     },
   };
 }
+test('unavailable drawing explains recovery and Done requires a sketch', async () => {
+  const { mountSketch } = await mod();
+  const h = harness();
+  h.setAuthority({allowed:false});
+  h.options.showUnavailable = true;
+  h.options.unavailableHint = () => 'Turn on annotation (👆) in Couch’s Chrome status group to sketch.';
+  const ui = mountSketch(h.doc, h.win, h.view, h.options);
+  const toolbar = h.root.querySelector('.sketch-toolbar');
+  const button = name => toolbar.children.find(n => n.textContent === name);
+  const notice = h.root.querySelector('.sketch-status');
+  assert.equal(toolbar.hidden, false);
+  assert.equal(button('Sketch').disabled, true);
+  assert.equal(button('Done').disabled, true);
+  assert.match(notice.textContent, /Turn on annotation.*👆.*Chrome/);
+  assert.equal(button('Sketch').title, notice.textContent);
+  h.setAuthority({allowed:true});ui.setAuthority(h.options.authority());
+  assert.equal(button('Sketch').disabled, false);
+  assert.equal(button('Done').disabled, true);
+  assert.equal(notice.textContent, '');
+  await ui.enter();assert.equal(button('Done').disabled, false);
+  await ui.leave();ui.labelInput.value='Availability smoke';await ui.saveLabel();
+  assert.equal(button('Done').disabled, true);
+  for (const [authority, expected] of [[{live:false},/Resume.*cast/],[{ended:true},/ended.*new cast/]]) {
+    h.setAuthority(authority);ui.setAuthority(h.options.authority());
+    assert.equal(button('Sketch').disabled,true);
+    assert.match(notice.textContent,expected);
+  }
+  ui.dispose();
+});
+
 test('shared mount streams pressure before pointerup, keeps one anchor, and Undo/Redo reach the model', async () => {
   const { mountSketch } = await mod();
   const h = harness(),

@@ -84,7 +84,7 @@ export function mountSketch(doc, win, view, options) {
   });
   const undoButton = button('Undo', () => undo()),
     redoButton = button('Redo', () => redo());
-  button('Done', () => leave('watch'));
+  const doneButton = button('Done', () => leave('watch'));
   const retryButton = button('Check confirmation', () => dispatch({ type: 'retry' }));
   const continueButton = button('Continue drawing', () => continueDrawing());
   const state = () => policy.snapshot();
@@ -105,11 +105,17 @@ export function mountSketch(doc, win, view, options) {
     observer.style.pointerEvents = 'none';
     panel.hidden = !labelTarget;
     toolbar.hidden =
-      !s.allowed && !['preparing', 'drawing', 'finishing', 'label-required', 'reconciling', 'paused'].includes(s.phase);
+      !options.showUnavailable && !s.allowed && !['preparing', 'drawing', 'finishing', 'label-required', 'reconciling', 'paused'].includes(s.phase);
     colors.disabled = ['preparing', 'drawing', 'finishing', 'label-required', 'reconciling', 'paused'].includes(s.phase);
     retryButton.hidden = s.phase !== 'reconciling';
     continueButton.hidden = !canContinue();
     sketchButton.disabled = !s.allowed || !s.live || s.ended;
+    const unavailable = s.ended ? 'This cast has ended. Start a new cast to sketch.'
+      : !s.live ? 'Resume the cast to sketch.'
+      : !s.allowed ? options.unavailableHint?.() || 'Ask the operator to enable annotation and grant you driving control to sketch.'
+      : '';
+    sketchButton.title = unavailable;
+    doneButton.disabled = !entering && !s.active;
     const status = statuses.get(s.active),
       busy = !!contact || !!gesture.snapshot().active || s.slots.some((x) => x.sketch === s.active && (x.inflight || x.queued));
     undoButton.disabled = !drawing || busy || !status?.visible_top;
@@ -118,7 +124,8 @@ export function mountSketch(doc, win, view, options) {
       message ||
       (s.slots.some((x) => x.finishing) || deferredExit !== null
         ? 'Saving…'
-        : s.phase === 'reconciling' ? 'Confirmation pending. Check before continuing.' : '');
+        : s.phase === 'reconciling' ? 'Confirmation pending. Check before continuing.'
+        : !s.active && !toolbar.hidden ? unavailable : '');
     if (finishDeadline && !s.slots.some((x) => x.finishing) && !entering) {
       win.clearTimeout(finishDeadline.timer);
       finishDeadline.resolve();

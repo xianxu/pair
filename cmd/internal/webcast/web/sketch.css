@@ -4,6 +4,9 @@
   gap: 6px;
   flex-wrap: wrap;
 }
+.sketch-toolbar[hidden] {
+  display: none;
+}
 .sketch-layer,
 .sketch-observer {
   position: absolute;

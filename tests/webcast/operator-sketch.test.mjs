@@ -74,8 +74,26 @@ async function lifecycleFixture(){
  const view={model:{seg:1,docSeg:1,paused:false,ended:false},onRecord:()=>()=>{},beforeAnnotationMode:previous};
  const adapter=mountOperatorSketch({host:new E('host'),root,box,report:m=>sent.push(m.request),view,annotation:{setMode(){}},palette:['#ff0000'],css:'',shellURL:'data:text/html;couch-sketch=1,private'},{body:root,createElement:tag=>new E(tag)},win);
  win.__couchcastSketchAuthority({revision:'1',epoch:1,holder:'operator',ready:true,active:true,generation:'1'});
- return {adapter,win,view,timers,listeners,sent,previous};
+ return {adapter,win,view,root,timers,listeners,sent,previous};
 }
+
+test('console disabled Sketch points to Chrome annotation toggle and distinguishes driving holder',async()=>{
+ const f=await lifecycleFixture();
+ const toolbar=f.root.querySelector('.sketch-toolbar');
+ const button=name=>toolbar.children.find(n=>n.textContent===name);
+ f.win.__couchcastSketchAuthority({revision:'2',epoch:1,holder:'operator',ready:false,active:true,generation:'1'});
+ assert.equal(toolbar.hidden,false);
+ assert.equal(button('Sketch').disabled,true);
+ assert.equal(button('Done').disabled,true);
+ assert.match(f.root.querySelector('.sketch-status').textContent,/annotation.*👆.*Chrome/);
+ f.win.__couchcastSketchAuthority({revision:'3',epoch:1,holder:'driver',ready:true,active:true,generation:'1'});
+ assert.match(f.root.querySelector('.sketch-status').textContent,/viewer.*driving.*release/i);
+ f.win.__couchcastSketchAuthority({revision:'4',epoch:1,holder:'operator',ready:true,active:true,generation:'1'});
+ assert.equal(button('Sketch').disabled,false);
+ assert.equal(button('Done').disabled,true);
+ assert.equal(f.root.querySelector('.sketch-status').textContent,'');
+ f.adapter.dispose();
+});
 
 test('preflight timeout removes failed frame and permits a fresh attempt',async()=>{
  const f=await lifecycleFixture();

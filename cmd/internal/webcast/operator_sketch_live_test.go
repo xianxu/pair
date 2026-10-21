@@ -104,9 +104,6 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 	if err = chrome.SetLive(true); err != nil {
 		t.Fatal(err)
 	}
-	if err = cast.board.SetAnnotationAllowed(ctx, true); err != nil {
-		t.Fatal(err)
-	}
 	var world int64
 	wait("operator world", func() bool {
 		done := make(chan struct{})
@@ -114,6 +111,15 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 		<-done
 		return world != 0
 	})
+	wait("operator live while annotation is off", func() bool {
+		return string(eval(world, `!!globalThis.__couchcastOperatorSketch?.state().live`)) == "true"
+	})
+	if got := string(eval(world, `(()=>{const ui=__couchcastOperatorSketch,root=ui.labelInput.getRootNode(),bar=root.querySelector('.sketch-toolbar'),buttons=[...bar.querySelectorAll('button')];return !ui.state().allowed&&!bar.hidden&&getComputedStyle(bar).display!=='none'&&buttons.find(b=>b.textContent==='Sketch').disabled&&buttons.find(b=>b.textContent==='Done').disabled&&/annotation.*👆.*Chrome/.test(root.querySelector('.sketch-status').textContent)})()`)); got != "true" {
+		t.Fatalf("annotation-off toolbar lacks actionable guidance or enables Done: %s", got)
+	}
+	if err = cast.board.SetAnnotationAllowed(ctx, true); err != nil {
+		t.Fatal(err)
+	}
 	wait("operator sketch permission", func() bool {
 		return string(eval(world, `!!globalThis.__couchcastOperatorSketch?.state().allowed`)) == "true"
 	})

@@ -198,6 +198,11 @@ granted drive-link seat, with annotation enabled. The server rechecks the authen
 generation and drawing epoch on ingress; client availability is only an affordance. Pointer and view-only links,
 and recording replay, render accepted paths without drawing permission or a palette endpoint.
 
+The console keeps unavailable drawing controls visible with recovery guidance: turn on the 👆 after ↗ in Couch's
+Chrome status group (not the earlier screen-broadcast 👆), or release another viewer's driving control. There is no
+annotation-toggle keyboard shortcut. Paused/ended casts explain resume/new-cast recovery; Done is disabled until
+there is a sketch or preparation to finish. Read-only viewer toolbars honor their hidden state.
+
 Choose a fixed colour, then Sketch, and wait for its held recorded scene. Pressure samples stream before pointer-up;
 mouse/touch use pressure 1, pen hover is ignored, and cancellation seals a truncated partial stroke. Physical release
 does not release a pending logical gesture: the accumulator token stays owned until its anchor and terminal drain
