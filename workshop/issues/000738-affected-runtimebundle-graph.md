@@ -4,10 +4,10 @@ status: working
 deps: [ariadne#517]
 github_issue:
 created: 2026-10-20
-updated: 2026-10-20
+updated: 2026-10-21
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'b43a4c223b737ec0123547c12006cd55be7cea1b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'f977449387674581f9303e2c291f4d0d09be5e28' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T19:58:34-07:00
 claimant:
     operator: Xian Xu
@@ -41,7 +41,7 @@ Trace the generated-runtime-bundle preparation prerequisite for affected package
 ## Plan
 
 - [x] Reproduce missing embed assets in a private clean checkout and trace the graph owner.
-- [ ] Wait for ariadne#517's bounded preparation seam to land.
+- [x] Wait for ariadne#517's bounded preparation seam to land.
 - [ ] Declare the existing runtime generator, qualify clean graph and broken-graph fallback, then obtain operator local-gates verification before landing.
 
 ## Log
@@ -75,3 +75,23 @@ the generator or accepting an incomplete graph. After that provider lands,
 #738 declares that command in .sdlc/affected.json and tests a genuinely clean
 graph plus a broken-graph control. This is a local-gates path: the operator
 verifies and labels it; the worker never self-labels. No staging is requested.
+
+
+### 2026-10-21 — provider landed; bounded consumer adoption
+
+Hub2765f7be reports ariadne#517 landed and authorizes resuming this parked
+consumer while #739 waits. Current provider documents graph_prepare argv with
+a default two-minute bound in the pinned head checkout before LoadGoGraph;
+failures retain full-suite fallback. Declare make runtimebundle-generate with
+an explicit two-minute bound. Extend the existing actual-provider qualification
+test: a tracked-only private Pair archive has no generated embeds, fails the
+native graph before preparation, then the declared real generator makes the
+Go-only selection exact; a broken import after preparation still fails graph
+loading. Upstream#517 owns and tests fallback orchestration; do not duplicate it
+in Pair. No dummy embed or borrowed generated output (ARCH-DRY).
+
+The only runtime change is the repository's declaration, not a new state owner
+or artifact format. Existing disposable graph-checkout cleanup owns outputs.
+The guard explicitly protects .sdlc/*, so operator local-gates verification and
+label are required on the concrete PR; the worker never self-labels. Keep the
+branch separate from #739 and no pair:0 staging.
