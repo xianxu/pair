@@ -133,7 +133,9 @@ func TestOwnershipFailureStillCleansExactOwnedProcess(t *testing.T) {
 
 func TestUncertainLeaderDescendantIsCollectedByExistingClose(t *testing.T) {
 	if os.Getenv("PAIR_TESTCOUCH_ORPHAN_CHILD") == "1" {
-		time.Sleep(30 * time.Second)
+		child, stop := context.WithTimeout(t.Context(), 30*time.Second)
+		defer stop()
+		<-child.Done()
 		return
 	}
 	root := t.TempDir()
