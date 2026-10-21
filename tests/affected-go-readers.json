@@ -134,7 +134,7 @@
       "cmd/internal/wrapcmd/agent_drive_live_test.go": "301ce9c83aa8d48990108e309d8ef9a13671050452b49b2a2e66a96baea1fa4d",
       "cmd/internal/wrapcmd/agent_drive_panel_test.go": "abe6fec6c3117ef12dda20ffd1db7d216d92c9e7eb7735fcaefcdfadad8b0d28",
       "cmd/internal/wrapcmd/agent_drive_test.go": "b1838a3b347482448772b7986a861c828cb9e39fae2087cf2d2972789074718d",
-      "cmd/internal/wrapcmd/codex_working_test.go": "daad46d98a135e70c9883613662734a154f27a1acd3824a19f61d3ee2b8823ab",
+      "cmd/internal/wrapcmd/codex_working_test.go": "64aed02e82fb4b23c676a17a7e7cf61987ae603a54ef8d5bd93ce8c6759895b4",
       "cmd/internal/wrapcmd/composer_recognizers_test.go": "d490166cd61d367d1d07967230cf179a1c30a92127e082216d3ee23ebdb4e2b0",
       "cmd/internal/wrapcmd/harness_tty_fixture_test.go": "d1153806700dfe6a6f197a325fbdbb76d0ba098da1924f3ed2bd29d25146e599",
       "cmd/internal/wrapcmd/harness_tty_integration_test.go": "8d813424b8ac869c49f79423978c66a73923177a352601e1aa08e2b1601eb2af",
@@ -151,7 +151,9 @@
       "cmd/internal/wrapcmd/terminal_tail_test.go": "9131f3b46d3d253300a272875be6a28aaf33ca9877940a4d3ee2061cf336413f",
       "cmd/internal/wrapcmd/translate_test.go": "19a77f27b5eeb7686ae076513a3e5064257d9f9c8ed36c3cc71e423e2f599e04",
       "cmd/internal/zellijtest/fake_test.go": "0820421bf6161904427c0ac989b550cbcfaa3a964538f6da00219b6aac5d042f",
-      "cmd/pair-go/main_test.go": "3006109d07471c179dd742acf66901abe00868868f680694b5f75d75073cd99b"
+      "cmd/pair-go/main_test.go": "3006109d07471c179dd742acf66901abe00868868f680694b5f75d75073cd99b",
+      "cmd/internal/webcast/sketch/geometry_test.go": "10213e9ec3f3ab537e9e65633b25ec48ecba88644890b55d86900acfbda42a09",
+      "cmd/internal/webcast/recording/sketch_corpus_test.go": "71affe4fe29adc0ed0f66f24e8e6a1972c362f27a24ce19af95bedc5cb956e30"
     },
     "local_or_literal_fixture": {
       "cmd/couch/binary_test.go": "43767cf88cd38b404edd7df16cc7a646359171649eaf63adfbe4952f68fc4aa6",
@@ -436,6 +438,7 @@
       "cmd/internal/workbenchshortcut/fullscreen_store_test.go": "ffebae268734817f88ccce538d559c4911fab590d709557fec28317b17e55339",
       "cmd/internal/wrapcmd/agent_drive_virtual_conformance_test.go": "710b24f50bc4d3ad26f7528901f1238c0aed83f5fa5e0a8f06fb21ae9e926582",
       "cmd/internal/wrapcmd/agent_restart_test.go": "c29c4dae74d9fd05a1cd549aef1c6db54b61e259f2caf5cbbd231b0b740726e0",
+      "cmd/internal/wrapcmd/codex_interrupt_test.go": "00cd21ecd3b7a56b74c78d4a1c84c253efa2a342a7f84f5371d134320913c245",
       "cmd/internal/wrapcmd/detach_acceptance_test.go": "120204bec235ba69e483583594a313a7d3fcec6a526f2b852d22634ac0f08e55",
       "cmd/internal/wrapcmd/idle_floor_test.go": "a34fdd40b965a4c9686e55726ca71f1cb57b2e518ae26c1e3286d461f29f274f",
       "cmd/internal/wrapcmd/launch_watcher_test.go": "4ddbed52ddd3fd879c69a721ed374c988a2193a6ad2d48b87c15367b668764f0",

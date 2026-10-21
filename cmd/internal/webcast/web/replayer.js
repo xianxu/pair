@@ -45,6 +45,7 @@ export class Replayer {
   // recs are the records in order; assetURL(hash) is where an asset's
   // body loads from; deps is inBrowser(frame), or a fake.
   constructor(recs, assetURL, deps) {
+    if (recs.some(r => r.k === 'sketch-snapshot')) throw new Error('snapshot bootstrap in raw replay source');
     this.recs = recs;
     this.assetURL = assetURL;
     this.deps = deps;
@@ -72,7 +73,12 @@ export class Replayer {
       if (this.recs[mid].t <= t) lo = mid + 1; else hi = mid;
     }
     this.reset();
-    for (const r of catchUp(this.recs.slice(0, lo))) this.feed(r);
+    this.model.allowSketchSnapshot = true;
+    try {
+      for (const r of catchUp(this.recs.slice(0, lo))) this.feed(r);
+    } finally {
+      this.model.allowSketchSnapshot = false;
+    }
     this.next = lo;
     this.at = t;
   }

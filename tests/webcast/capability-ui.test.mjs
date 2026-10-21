@@ -84,3 +84,14 @@ test('annotation request carries originating generation and clear cancels held g
  await h.event(h.root.querySelector('.note-buttons').children.at(-1),'click');
  assert.equal(h.posts.at(-1).headers['X-Couch-Annotation-Generation'],'13');
 });
+
+test('sketch bootstrap current control reaches driving UI without historical ctl chatter',()=>{
+ const h=harness();h.caps(false,true,3);
+ const ui=mountDrive(h.doc,h.win,h.v,{viewer:'me',key:'key'});
+ h.rec({k:'sketch-snapshot',control:{driver:{id:'me'},pending:[]}});
+ assert.equal(ui.view().capture,true);
+ h.rec({k:'sketch-snapshot',control:{pending:[{id:'me'}]}});
+ assert.equal(ui.view().capture,false);assert.equal(ui.view().state,'asking');
+ h.rec({k:'ctl',driver:{id:'other',name:'Other'},pending:[]});
+ assert.equal(ui.view().state,'other');
+});
