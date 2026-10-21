@@ -122,6 +122,11 @@ Primary surfaces: board/{sketch.go,sketch_wire.go,sketch_delivery.go,writer_sket
 - Retired-slot cleanup also reproduced RED (settled clear retained a slot; unknown-clear late begin emitted begin-accepted). Both are fixed, including512 clear/restart cycles, original-operation retention until settlement, no resurrection, and pruning of all per-sketch caches.
 - Final source-stable targeted run passes across all webcast packages, including shared Node/operator assembly (root5.101s). Focused policy/mount/operator tests70 pass; reader inventory and diff check pass. Committing corrected code before exact-head host conformance and the next recorded full check.
 
+### 2026-10-21 — corrected-head host conformance
+
+- On committed8be34c6fab5b1cc1c2431a7cadb1da915b2e793d, WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run 'SketchLive|OperatorSketchLive' -count=1 -v exited0 in9.541s. Scene privacy2.16s; actual console drawing2.51s; open-contact handoff label1.80s; two viewers2.91s. All assertions executed, including named-frame/blob denial, moved original/replacement, three pre-up pressure samples, replay/Undo/Redo and old-label/new-holder source continuity.
+- Supplied this fresh host evidence to BR-5 through sdlc finding dispute; the next mandatory review must explicitly dispose of the unverifiable finding. The operator console smoke remains unperformed and staging/landing held.
+
 ## Estimate
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.*

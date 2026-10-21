@@ -206,7 +206,7 @@ Each task uses the named function-verification strategy above. A checked task re
 ### Task 6 — conformance, review and landing
 
 - [x] Run `WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run 'SketchLive|OperatorSketchLive' -count=1 -v`: compare partial pressure/Undo/Redo/label/replay and assert actual console/private-scene behavior, including named-frame negative controls.
-- [ ] Rerun host conformance on the corrected implementation and supply exact evidence for BR-5; retain interrupted-contact and moved-original/replacement regressions.
+- [x] Rerun host conformance on the corrected implementation and supply exact evidence for BR-5; retain interrupted-contact and moved-original/replacement regressions.
 - [x] Update README, webcast/format atlas and index, including the invariant that the casting page never reaches the recorded scene, bindings or assets. Add only measured lessons.
 - [x] Audit production artifact dispositions and source-reader inputs; pass `make test-affected-inventory`, artifactpath/repolint and targeted webcast/Node checks.
 - [x] Open PR512 and pass the recorded local-check full fallback on the initial implementation.
@@ -272,3 +272,5 @@ BR-3: A full16-chunk queue reserves exactly one bounded truncated terminal behin
 Residency sweep removes receiver tombstones and prunes per-sketch metadata/drafts with UI slot lifetimes; settled cleared slots must not exhaust the per-cast active bound. Unknown in-flight identities survive retirement until settlement without resurrecting drawing.
 
 Final focused rework checks passed: all targeted webcast Go packages, shared Node/assembly, and audited reader inventory. Settled-retired slot release and all per-slot cache pruning now pass512 clear/restart cycles; unknown cleared begins keep their immutable receipt lookup until definite settlement and cannot emit begin-accepted afterward. Host conformance and recorded suite will now run on the committed fix.
+
+Host conformance on8be34c6fab5b1cc1c2431a7cadb1da915b2e793d executed all4 required live tests successfully (package9.541s); BR-5 receives this measured host evidence through its formal dispute. Stage/operator smoke and landing remain held.
