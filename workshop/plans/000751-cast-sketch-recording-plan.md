@@ -122,71 +122,63 @@ The pure core owns these transitions; caller UI cannot alter its history. The UI
 - ARCH-FUNERAL: new records remain in existing recording directories and die with recording retention; explicit writer caps bound residue. No sidecar files or live handles are added.
 - ARCH-EVOLVE: additive version-1 kinds leave fading pointer semantics and DOM hashes unchanged; nested raw fields survive rewrites, and a frozen legacy-reader test proves compatibility.
 
-## Tasks
+## Verification strategies (governing PQ-2 revision)
 
-### Task 1: Pin wire and compatibility behavior before adding the union
+| Risky function | Adversarial input class and mechanical guard |
+|---|---|
+| Decode / Encode / SketchCanonical | Fuzz nested JSON, duplicate/null/missing owned members and malformed numeric tuples; preserve raw unknown values, owned edits, byte-stable semantic identity and caller immutability. Frozen legacy registry runs real DecodeFile/ReadDir/Validate and keeps old DOM/pointer meaning. |
+| NextSketch / State.Apply | Generate legal histories then mutate one operation, counter or context; reject with identical complete before/after state, preserve accepted prefixes, and count only new-point visits at N/2N with zero path visits for Undo/Redo/retries. |
+| nextSketch / Model.apply | Consume every prefix of the Go-generated shared corpus, including error prefixes; require identical normalized projection and refusal atomicity. Canonical bytes and asynchronous digest generation agree on shared fixtures. |
+| ProjectPoint / PressureWidth | Shared affine/pressure vectors and invalid numeric domains; preserve original triples, return invalid explicitly, and keep width independent of anchor aspect ratio. |
+| CatchUp / snapshotSketchState / restoreSketchState | Repeated compaction and reconnect over long control chatter with fixed sketch history; compare complete projection at every prefix, bounded retained snapshot, exact operation/redo authority and no required historical DOM. Malformed bootstrap snapshots refuse before mutation. |
+| OrderedTime | Frozen clocks, all file-rank pairs and adjacent source begins, plus near-overflow inputs; merged source at begin includes exactly the preceding prefix, and refused events advance neither time nor kind. Both real producers use the helper. |
+| SketchBudget.Next | Generated exact encoded sizes at cap edges and maximum escaping-heavy terminal records; reject before mutation, charge retries zero, retain reservations for interrupted labels, and count zero history scans. |
+| board.Writer / recorder.mirror | Stateful collecting/refusing sinks and frozen clocks through production entry points; assert emitted order, no duplicate writes, pre-effect refusal, and unknown persistence after a possibly accepted write. |
 
-**Files:** Create recording/sketch.go, recording/sketch_codec.go, recording/sketch_test.go and recording/sketch_codec_test.go under `cmd/internal/webcast/`; modify recording/{record.go,codec.go,codec_test.go}.
+## Tasks (governing PQ-2 revision)
 
-- [ ] Add failing table tests for every kind, required metadata, pressure triple round-trip, exact tuple lengths, safe integer boundaries, invalid labels/boxes/counters and immutable Encode. Extend the existing exhaustive codec `sample()` for every registered kind.
-- [ ] Add nested unknown value fixtures at event, author, viewport and anchor levels. Assert raw value preservation, owned-field edits retain unrelated unknown fields, and duplicate keys/null known fields fail before state mutation.
-- [ ] Add a frozen pre-feature decoder/registry compatibility test exercising actual DecodeFile/ReadDir/Validate on a whole recording with all new kinds; old semantics keep DOM and existing pointer strokes. Do not implement a second fake legacy reducer merely to make the test green.
-- [ ] Run `go test ./cmd/internal/webcast/recording -run 'Sketch|Encode|Decode|Unknown' -count=1`; confirm new tests fail for absent kinds/preservation rather than malformed fixtures.
-- [ ] Implement the focused union and raw-preserving codec through existing registry seams and strictjson. Keep existing event kinds untouched. Run the command again and require PASS.
-- [ ] Commit the contract and tests with issue/Co-Authored-By/Agent trailers.
+### Task 1: Pin and implement the wire contract
 
-### Task 2: Implement pure sketch transitions and contextual ordering
+**Files:** recording/{sketch.go,sketch_codec.go,sketch_test.go,sketch_codec_test.go,record.go,codec.go,codec_test.go}.
 
-**Files:** Create recording/sketch_state.go and recording/sketch_state_test.go; modify recording/reduce.go, recording/control.go and their tests; create `tests/webcast/sketch-corpus.json` as the shared sequence contract.
+- [ ] Write failing codec/compatibility tests using the named strategies above; run `go test ./cmd/internal/webcast/recording -run 'Sketch|Encode|Decode|Unknown' -count=1` and confirm missing behavior.
+- [ ] Implement all eight focused preserving codecs and shared semantic canonicalization through strictjson, extend the exhaustive sample registry, rerun to PASS and commit.
 
-- [ ] Write transition tests for chunks, exact retry, forged same-digest conflict, sequence gaps, empty stroke, partial end, multiple strokes, Undo/Redo, new branch, required label and late metadata completion. Snapshot the complete projection before each refused event and assert unchanged afterward.
-- [ ] Add ordered context sequences for ctl request/grant/deny/revoke/release/leave/reset; operator and granted driver begin; same-ID reset retirement; pause/resume; navigation/tab/cast end; clear; expiry; repeat end after implicit seal. Include control-record validation failure while a stroke is open to prove interruption is atomic with ctl acceptance.
-- [ ] Build corpus cases with expected error indices and normalized sketch projection for every prefix, not only final state. Include a source anchor whose DOM node no longer exists in later segments.
-- [ ] Run `go test ./cmd/internal/webcast/recording -run 'Sketch|Control|Annotation|Pause' -count=1`, observe failures, implement the validated transition core and State integration, rerun to PASS.
-- [ ] Add instrumented N/2N append and Undo/Redo tests proving linear new-point work and constant-time history updates. Keep counters test-local or expose narrow test hooks; avoid timing assertions.
-- [ ] Commit the pure model/context contract.
+### Task 2: Implement pure sketch history
 
-### Task 3: Implement pressure geometry and the browser model
+**Files:** recording/{sketch_state.go,sketch_state_test.go,reduce.go,control.go}, their tests, tests/webcast/sketch-corpus.json.
 
-**Files:** Create `cmd/internal/webcast/sketch/geometry.go`, geometry_test.go, `cmd/internal/webcast/web/sketch-model.js`, `tests/webcast/sketch-model.test.mjs`, `tests/webcast/sketch-geometry.json`; modify web/{model.js,annotation-anchor.js}, existing anchor tests and server.go asset registration.
+- [ ] Write failing NextSketch/State.Apply tests and shared prefix corpus from the governing strategies.
+- [ ] Implement validated deltas, read-only projections and contextual transitions; run `go test ./cmd/internal/webcast/recording -run 'Sketch|Control|Annotation|Pause' -count=1` to PASS and commit.
 
-- [ ] Write shared geometry vectors for affine translation/scaling, unequal aspect ratios, points outside anchor, clipping-independent original paths, pressure 0/.5/1, fallback pressure and invalid boxes. Both Go and JS must consume the same vectors.
-- [ ] Write browser pure-core tests using every prefix of the shared sketch corpus, including exact errors, ctl ordering, clear and pause. Test rejected apply leaves complete Model state unchanged (including t, control and paths).
-- [ ] Run `go test ./cmd/internal/webcast/sketch -count=1` and `node --test tests/webcast/sketch-model.test.mjs`; confirm missing-module/behavior failures, then implement minimal geometry and JS core.
-- [ ] Use named `export function`/`export const` from the new shared module for compatibility with the operator script assembler; do not introduce export class/default dependencies. Add the file to both go:embed and server asset lookup as soon as Model imports it.
-- [ ] Route Model sketch events and context transitions through the core; retain old canonical DOM hashes and pointer store behavior. Test browser-safe limits and algorithmic counters against the Go contract.
-- [ ] Rerun targeted Node tests plus `go test ./cmd/internal/webcast -run 'TestNode|OperatorScript' -count=1`; require PASS and commit.
+### Task 3: Port the browser model and pressure geometry
 
-### Task 4: Preserve sketch causality through catch-up and live compaction
+**Files:** sketch/{geometry.go,geometry_test.go}, web/{sketch-model.js,model.js,annotation-anchor.js}, server.go, tests/webcast/{sketch-model.test.mjs,sketch-geometry.json}.
 
-**Files:** Modify recording/{catchup.go,contract.go,catchup_test.go}, web/replay.js, tests/webcast/replay.test.mjs, cmd/internal/webcast/replay_corpus_test.go and tests/webcast/catchup_corpus.json; extend existing Hub tests.
+- [ ] Write failing shared geometry/core tests using the named strategies, then implement named-function exports and both embedded asset registrations.
+- [ ] Run `go test ./cmd/internal/webcast/sketch -count=1`, `node --test tests/webcast/sketch-model.test.mjs`, and `go test ./cmd/internal/webcast -run 'TestNode|OperatorScript' -count=1` to PASS and commit.
 
-- [ ] Add a failing recording where an old sketch is interrupted by a historical ctl handoff, then multiple navigations/resumes occur. Compare whole reduction with catch-up at every prefix, including interrupted late label, clear and active pressure stroke.
-- [ ] Add repeated Hub segment compaction and reconnect tests proving retained sketch operation/redo history and ctl causality, without historical DOM dependencies. Recordings without sketches retain current compact ctl behavior.
-- [ ] Run `go test ./cmd/internal/webcast/recording ./cmd/internal/webcast -run 'CatchUp|Sketch|Hub' -count=1` and `node --test tests/webcast/replay.test.mjs tests/webcast/sketch-model.test.mjs`; observe failures.
-- [ ] Implement matching Go/JS retention, extend CheckCatchUp with normalized sketch equality, regenerate shared catch-up corpus through its existing producer, and rerun to PASS. Do not regenerate legacy DOM goldens to hide semantic drift.
-- [ ] Commit catch-up contract and fixtures.
+### Task 4: Snapshot bounded sketch/control catch-up
 
-### Task 5: Fence exact source time and reserve terminal capacity in both producers
+**Files:** recording/{catchup.go,contract.go,catchup_test.go,sketch_snapshot.go}, web/{replay.js,viewer.js,replayer.js,sketch-model.js}, replay_corpus_test.go, Hub tests, tests/webcast/{replay.test.mjs,catchup_corpus.json}.
 
-**Files:** Create recording/sketch_budget.go and sketch_budget_test.go; modify recording/{files.go,order_test.go}, recorder/{mirror.go,note_order_test.go}, board/{writer.go,writer_order_test.go}; add focused sketch producer tests where clearer.
+- [ ] Write failing snapshot/compaction/prefix equivalence tests from the governing strategies, then implement the approved snapshot revision below through the same reducer.
+- [ ] Run `go test ./cmd/internal/webcast/recording ./cmd/internal/webcast -run 'CatchUp|Sketch|Hub' -count=1` and `node --test tests/webcast/replay.test.mjs tests/webcast/sketch-model.test.mjs` to PASS; commit without changing legacy DOM goldens.
 
-- [ ] Add frozen-clock producer fixtures for event/notes/pointer/begin/DOM records in the same millisecond, including same-file neighbors. Merge emitted split files and assert Reduce(begin.t) includes exactly the source prefix and excludes all later changes. Cover both reference Writer and production mirror.
-- [ ] Add refusal-before-begin and refusal-after-begin fixtures proving failed events do not advance ordering; test timestamp overflow refusal.
-- [ ] Add pure budget tests around exact cap boundaries, duplicate zero-charge, 256 begins, outstanding interrupted labels and clear/end retirement. Near cap, reject new drawing/Undo/Redo while a maximum escaping-heavy label plus required end/interrupt still fit inside 32 MiB.
-- [ ] The adversarial label test uses 1024 `<` bytes (6146 JSON bytes before its record envelope under Go JSON escaping) and alternate escaping-heavy/control-permitted characters. Assert the encoded maximum terminal sequence <= computed reserve and reserve >=8 KiB; do not infer encoded bytes from input length.
-- [ ] Run `go test ./cmd/internal/webcast/recording ./cmd/internal/webcast/board ./cmd/internal/webcast/recorder -run 'Sketch|Order|Writer' -count=1`, observe failures, implement shared timestamp/budget logic and integrate each producer once, then rerun to PASS.
-- [ ] Verify failure after a sink may have accepted is represented as unknown outcome rather than a guaranteed absence. #752 will own transport status/retry behavior atop this state.
-- [ ] Commit producer invariants and measured reserve arithmetic.
+### Task 5: Fence source time and reserve capacity
 
-### Task 6: Document, verify and close the recording slice
+**Files:** recording/{sketch_budget.go,sketch_budget_test.go,files.go,order_test.go}, board/{writer.go,writer_order_test.go}, recorder/{mirror.go,note_order_test.go}, focused producer tests.
 
-**Files:** Modify atlas/webcast-format.md, atlas/webcast.md (only model/format pointers), atlas/index.md if adding a page, workshop/issues/000751-cast-sketch-recording.md, this durable plan and workshop/lessons.md for concrete review lessons.
+- [ ] Write failing OrderedTime/SketchBudget.Next/producer tests from the governing strategies, then integrate each shared helper once per producer.
+- [ ] Run `go test ./cmd/internal/webcast/recording ./cmd/internal/webcast/board ./cmd/internal/webcast/recorder -run 'Sketch|Order|Writer' -count=1` to PASS; commit measured reserve arithmetic and uncertainty contract.
 
-- [ ] Document new events, pressure tuples, operation identity, source fencing, ctl-derived interruption, catch-up retention, 32 MiB accounting and finalization reserve. Explain unknown fields on new kinds and old-reader limits: old catch-up must not be used to rewrite sketch history.
-- [ ] Run `go test ./cmd/internal/webcast/recording ./cmd/internal/webcast/sketch ./cmd/internal/webcast/board ./cmd/internal/webcast/recorder -count=1`, `go test ./cmd/internal/webcast -run 'TestNode|CatchUpCorpus|OperatorScript' -count=1`, and `node --test tests/webcast/sketch-model.test.mjs tests/webcast/replay.test.mjs`. Require PASS, inspect `git diff --check`, and log actual results.
-- [ ] Push the reviewed head and run `sdlc local-check run --name affected`. If known affected graph generation failure still applies, record its specific issue and use full `sdlc local-check run --name suite` without bypassing checks. No live device smoke is claimed for this model-only slice.
-- [ ] Close once through `sdlc close --issue 751 --verified '<measured commands and results>'`, fixing its fresh-context review findings. Use the hub-owned project policy rather than editing ops project files. Open/update PR and follow tl-worker landing protocol; report landed PR and model contracts to ops:0. Start #752 from landed main, never this unlanded branch.
+### Task 6: Document, verify and land
+
+**Files:** atlas/{webcast-format.md,webcast.md,index.md if needed}, issue, this plan, workshop/lessons.md for review lessons.
+
+- [ ] Document model/format/compatibility and snapshot contract. Run all four feature packages, webcast TestNode/CatchUpCorpus/OperatorScript, focused Node tests, reader/artifact inventories and `git diff --check`.
+- [ ] Push and run recorded affected check; use full suite for known pair#738 graph failure without bypass. Run `make test-affected-inventory` before close.
+- [ ] Close once with measured evidence; gates own fresh review. Fix findings, land through sdlc, report the outcome to ops:0, and start #752 only from landed main. TL owns project edits.
 
 ## Revisions
 
@@ -202,3 +194,13 @@ The parent design's provisional 4 KiB finalization reserve is superseded for thi
 - `SketchBudget.Next(record,encodedBytes,duplicate)` proposes counters/reservations and Commit installs them only after State accepts. Producer reconstruction uses one history pass; chunk admission does no rescans. Reserve label plus stroke-end plus interrupt conservatively, since end then a later handoff can both occur. Maximum escaping-heavy IDs can require more than 8 KiB; calculate and round up (possibly 16 KiB), never assume 8 KiB suffices.
 - `OrderedTime` currently has three callers (two producers and its test); extend it to return an overflow error, and consolidate each producer's unchecked annotation-clear `T+1` special case in the same helper. Refusals do not advance State.T or lastKind.
 - Geometry imports recording types, never the reverse. Keep browser module exports as named functions/constants. No new transport receipts, visible windows, or source-snapshot IO in this slice.
+
+### 2026-10-20 — PQ-1/PQ-2: reducer-derived snapshot and function strategies
+
+ops:0 delivery 432c999b-f034-4fe0-84f3-f36982901ab4 directs a derived snapshot instead of selective ctl retention or gap-tolerant validation. This supersedes the earlier catch-up paragraph and Task 4 mechanism. Original disk events remain append-only and complete. For sketch-bearing catch-up, reduce the accepted input prefix with the same State/NextSketch owner, retain existing DOM/asset/note/segment records without sketch or ctl history, and append one ephemeral `sketch-snapshot` bootstrap frame containing the current control and bounded sketch state. Non-sketch recordings keep current catch-up behavior. Replay seeking consumes the same frame, not a second history algorithm (ARCH-DRY/PURE/CONSTRAINTS).
+
+The snapshot carries source begin metadata, fixed colour/ownership, phases/interruption evidence, ordered strokes/chunks/pressure paths, open/sealed/truncated flags, visible and redo stacks, next sequence, operation receipts (claimed digest plus actual semantic identity), counts and active identity. Restore validates bounds, stack/reference consistency and owned copies before installing anything. It restores ctlSeen and the current holder atomically; subsequent ctl validates normally. Snapshot copying/flattening is off the append hot path. Repeated compaction can consume a prior snapshot and new records, so it never needs the original full log. Snapshot size is bounded by admitted sketch history (32 MiB plus bounded indexes/projection overhead); arbitrary control chatter adds no retained historical ctl population. Existing DOM/notes retention remains its existing contract.
+
+The bootstrap frame is not a new persisted event kind: no FileEvents registry entry and no writer admission. Add an explicit catch-up-only State/Model snapshot admission option; ordinary disk Decode sees an unknown kind and does not install it, raw browser replay refuses a bootstrap in source records, and ordered writers reject it. Catch-up verification, live viewer bootstrap, Player rebuild and Replayer seek opt into snapshot installation only; this option never relaxes normal ctl validation. A malformed frame refuses atomically. CatchUp keeps its []Record contract and emits the frame through the existing encode/SSE seam; no synthetic frame is written to the recording. For invalid source prefixes, retain the input for normal validation rather than claiming an accepted snapshot.
+
+PQ-2 replaces procedural case inventories with the governing named-function strategy table and concise tasks above. The invariant contracts, state/recovery table and numeric limits remain authoritative. Digest shape is validated in the pure core; receipts compare both the claim and actual semantic identity, so a forged unchanged digest cannot hide a changed body. SketchDigest/SketchCanonical are shared producer/test helpers; browser asynchronous digest generation is pinned to those bytes, avoiding synchronous crypto in Model.apply. Fixed colour is required in SketchBegin.Author.Color; no second colour field is introduced.
