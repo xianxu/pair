@@ -424,3 +424,92 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T01:42:00-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 755 — couch mock serve: live-reloading Go server for a project's versioned, clickable mocks (product-shaping) |
+| repo | pair |
+| issue file | workshop/issues/000755-couch-mock-serve-live-reloading-go-server-for-a-project-s-versioned-clickable-mocks-product-shaping.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | d00a7c4a03509e85cf34d2722d25538552727b20..438872758e60a6f4212cad05b293f677dabae63e |
+| command | sdlc close --issue 755 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T01:42:00-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The fix window preserves both sides of the reader-inventory conflict resolution and introduces no new defect. All three entries retain valid digests and appropriate classifications. Tracker changes record completed review and integration activity; they do not change the Spec, Done when, or implementation scope.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Retain the finalized disposition; filesystem implementation and regression tests are unchanged in this window.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Retain the finalized disposition; reload lifecycle implementation and regression tests are unchanged in this window.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Retain the finalized disposition; concurrent-selection tests are unchanged in this window.
+  - id: BR-4
+    disposition: withdrawn
+    note: |
+      Retain the prior withdrawal; this window changes neither browser behavior nor the previously accepted qualification evidence.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Retain the finalized disposition; staging ownership, reclamation, scan exclusions and their regression tests are unchanged in this window.
+```
+
+1. **Strengths**
+
+   - Conflict resolution preserves the browser reader and both sketch readers, including their audited digests ([inventory](/Volumes/TestScratch/review-checkouts/9f930db67db5a909/tests/affected-go-readers.json:155)).
+   - The issue revision accurately records integration work without widening the approved contract.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes:** Inventory check passed; all 13 inventory regression tests passed; diff whitespace checks passed. A read-only negative control confirmed the base inventory fails JSON parsing at the conflict marker, while the resolved inventory parses and preserves all three entries. Product behavior was not requalified because it is unchanged in this narrow window.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Existing inventory remains the single registry; no parallel mechanism added.
+   - **ARCH-PURE — pass:** No business logic or IO boundaries changed.
+   - **ARCH-PURPOSE — pass:** Resolution preserves both contributions completely.
+   - **ARCH-EVOLVE — pass:** Existing schema, classifications and digests remain intact; no persisted members are discarded.
+
+   No new public or architectural surface requires README or atlas updates.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"5d504d12-915f-4835-85d7-ab49f4f4fb53","repository":"github.com/xianxu/pair","issue_id":"000755","recipe":"fix-review","round":5,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/9f930db67db5a909","reviewed_head":"438872758e60a6f4212cad05b293f677dabae63e","slot":"pair:4","requested_at":"2026-10-21T08:39:06.92159Z"},"phase":"finished","pid":99298,"started_at":"2026-10-21T08:39:07.107061Z","finished_at":"2026-10-21T08:41:58.198419Z","session_id":"01a15d9d-3a2c-7321-9ec4-2088b00ed4e0","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.773277292s
+head: "438872758e60a6f4212cad05b293f677dabae63e"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
