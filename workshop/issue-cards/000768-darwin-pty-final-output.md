@@ -1,6 +1,6 @@
 ---
 id: 000768
-status: codecomplete
+status: done
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours: 1.3
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: b014d464b44e189062c9ca38e5764cc8feca048c
         evidence_commit: a273790e0965da908ccf934211be9ba9965f27a4
+        landed_commit: 68fac7f0bf4312610f1348601fe4f05765d865f0
 ---
 
 # Preserve short-lived command output across Darwin PTY slave close
