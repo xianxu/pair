@@ -46,10 +46,9 @@ func (k castKind) name() string {
 }
 
 const (
-	codesPress      = 180 * time.Millisecond // a pressed word's feedback
-	codeFlashes     = 3
-	codeFlashPhase  = 400 * time.Millisecond
-	codeNoticeQuiet = 30 * time.Second // per link, between guess-rotation notices
+	codesPress     = 180 * time.Millisecond // a pressed word's feedback
+	codeFlashes    = 3
+	codeFlashPhase = 400 * time.Millisecond
 )
 
 // castCodes is what the operator-only layer draws. Its mutex is a leaf.
@@ -71,9 +70,6 @@ type castCodes struct {
 	flash *codeFlash
 	// gens is the newest rotation seen per link (castlock.Rotation.Gen).
 	gens map[string]uint64
-	// noticed and quiet coalesce guess-rotation notices per link.
-	noticed map[string]time.Time
-	quiet   map[string]int
 }
 
 type codeFlash struct {
@@ -438,8 +434,7 @@ func (c *Console) rotateCastCodes(kind castKind, links []string) error {
 // onCodeRotated is a cast reporting a new code, on whichever goroutine
 // rotated it; attempt is the start that made the cast. A rotation from an
 // earlier attempt (a cast that has ended) is dropped. The newest Gen per link
-// wins; a guessing rotation is told in a notice, coalesced per link, without
-// the code.
+// wins; every current guessing rotation is told in a notice without the code.
 func (c *Console) onCodeRotated(kind castKind, attempt uint64, link string, r castlock.Rotation) {
 	key := linkKey(kind, attempt, link)
 	now := c.now()
@@ -464,7 +459,7 @@ func (c *Console) onCodeRotated(kind castKind, attempt uint64, link string, r ca
 	}
 	c.codes.mu.Lock()
 	if c.codes.gens == nil {
-		c.codes.gens, c.codes.noticed, c.codes.quiet = map[string]uint64{}, map[string]time.Time{}, map[string]int{}
+		c.codes.gens = map[string]uint64{}
 	}
 	if r.Gen <= c.codes.gens[key] {
 		c.codes.mu.Unlock()
@@ -483,25 +478,24 @@ func (c *Console) onCodeRotated(kind castKind, attempt uint64, link string, r ca
 	c.codes.flash = &codeFlash{cast: kind, link: link, code: r.Code, at: at, start: now}
 	notice := ""
 	if r.Reason == castlock.ReasonGuessing {
-		if last, ok := c.codes.noticed[key]; ok && now.Sub(last) < codeNoticeQuiet {
-			c.codes.quiet[key]++
+		if r.Capped {
+			notice = fmt.Sprintf("Too many wrong codes on the %s %s link: its code changed; the link is locked until you rotate its code.", kind.name(), link)
 		} else {
-			times := ""
-			if n := c.codes.quiet[key]; n > 0 {
-				times = fmt.Sprintf(" (%d more times since)", n)
-			}
-			c.codes.noticed[key], c.codes.quiet[key] = now, 0
-			notice = fmt.Sprintf("Too many wrong codes on the %s %s link: its code changed%s. Hover %s to see it.", kind.name(), link, times, kind.name())
+			notice = fmt.Sprintf("Too many wrong codes on the %s %s link: its code changed. Hover %s to see it.", kind.name(), link, kind.name())
 		}
 	}
 	c.codes.mu.Unlock()
+	// Publish before releasing the generation guard: an older callback must
+	// never overwrite the notice from a newer, capped rotation.
+	paintNotice := false
+	if notice != "" {
+		paintNotice = c.publishNoticeLocked(Notice{Kind: "status", Body: notice})
+	}
 	c.mu.Unlock() // before GoTracked, which takes c.mu
-	c.GoTracked(func() {
-		if notice != "" {
-			c.setNotice(notice)
-		}
-		c.flashCodes()
-	})
+	if paintNotice {
+		c.repaint()
+	}
+	c.GoTracked(c.flashCodes)
 }
 
 // flashCodes repaints at each phase of a code's flash; the layer decides
@@ -532,8 +526,6 @@ func (c *Console) forgetCastCodes(kind castKind) {
 	for key := range c.codes.gens {
 		if strings.HasPrefix(key, strconv.Itoa(int(kind))+"/") {
 			delete(c.codes.gens, key)
-			delete(c.codes.noticed, key)
-			delete(c.codes.quiet, key)
 		}
 	}
 	c.codes.mu.Unlock()

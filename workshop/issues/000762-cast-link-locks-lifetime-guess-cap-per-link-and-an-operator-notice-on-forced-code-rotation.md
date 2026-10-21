@@ -51,8 +51,8 @@ Out: URL-token expiry, the quick-tunnel default, and Access in front (pair#759's
 
 ## Plan
 
-- [ ] Add the per-lock third-forced-rotation refusal under its existing mutex; only successful operator rotation clears it. Preserve live sessions and RNG-failure refusal.
-- [ ] Publish every current guessing rotation through the existing Couch notice seam, with one combined cap notice; retain ended-cast/stale-generation guards and remove the quiet window.
+- [x] Add the per-lock third-forced-rotation refusal under its existing mutex; only successful operator rotation clears it. Preserve live sessions and RNG-failure refusal.
+- [x] Publish every current guessing rotation through the existing Couch notice seam, with one combined cap notice; retain ended-cast/stale-generation guards and remove the quiet window.
 - [ ] Pin exact thresholds, successful-unlock persistence, per-link isolation, session survival, explicit rotation/RNG failure and notice behavior; update the broadcast policy paragraph, verify and land.
 
 Actions: unlock, rotate explicitly, end cast.
@@ -78,3 +78,8 @@ The existing Lock mutex orders attempt/counter/rotation changes (ARCH-ORDER). On
 ### 2026-10-21 — lifetime count and cap notice clarified
 
 TL approval receipt2ea832e9-f345-48e2-ab4b-986934a358fd supersedes “without a successful unlock” in the Spec: successful unlocks do not reset the forced-rotation count. Only successful explicit operator rotation clears it. A legitimate viewer’s typos may eventually trip the cap during a long cast; accepted tradeoff is operator rotation. The third forced rotation emits one combined notice (“code changed; link locked until you rotate”), not two rows.
+
+- TDD reproduced correct-code admission after24 wrong codes in both4/6-digit locks; the new counter/cap fixes it under the existing mutex. Successful unlocks between rotations do not reset it. Tests cover exact threshold, no fourth rotation, per-link isolation, existing-session/channel survival, operator-reset/session revocation, failed operator recovery and failed third forced rotation. Counted32/64 capped attempts draw no additional entropy. Lock race tests passed3.337s; broadcast/webcast race packages passed112.417s/18.185s.
+- Notice tests reproduced the missing rapid second notice and asynchronous old-notice overwrite before fixes. Removed the quiet maps/window and published through the shared locked notice seam while the existing generation guard is held; repaint/flash remain outside locks. Targeted notice race tests passed2.367s for both cast kinds/all link kinds, concurrent callbacks, cap text/privacy and stale/ended guards. Final package/lint checks running before recorded suite and close.
+
+- Final targeted checks passed: couchtty race214.803s, artifactpath26.554s and repolint21.642s. Reader inventory and whitespace checks passed. Implementation adds35 production lines across existing files, within the quick shell. Preparing pushed-head recorded verification and mandatory close review; landing remains gated.
