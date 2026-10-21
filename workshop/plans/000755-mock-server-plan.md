@@ -120,3 +120,9 @@ Files: new `cmd/internal/mockserve/cli.go`; modify `cmd/internal/couchcmd/{cli,r
 ## Architecture decisions
 
 ARCH-DRY: one selection parser, one fixture file and one server scan, not scans per browser. ARCH-PURE: version/document/revision transformations tested directly, separate IO adapters. ARCH-PURPOSE: sample proves clickable multi-screen iteration, actual reload and revert. ARCH-MOCK: portable folder/HTTP integration and real private browser conformance. ARCH-CONSTRAINTS: enforced project/HTML bounds and counted scan growth. ARCH-SECURE: root-confined reads, explicit public routes and no remote write/auth surface. ARCH-ORDER: atomic selection and single revision transition publisher; uncertain writes retain observable disk state. ARCH-FUNERAL: owned temporary files, context-owned processes/workers and one persistent pointer. ARCH-EVOLVE: no rewriting project fixture schemas or unknown JSON fields.
+
+## Revisions
+
+### 2026-10-20 — operator approval relayed by TL
+
+Approved as planned, including highest-numbered version by default, separate git-tracked mock-N folders, one shared fixtures file, the state table and limits. Proceed on the full flow with one atomic close boundary. The operator's working convention is documentation, not a server rule: each feedback round is a commit to the current version, undo means reverting that commit, and mock-N+1 starts a new direction worth comparing. Record this convention in the sample/documentation; do not automate git or create a new version on every edit.
