@@ -217,7 +217,7 @@ The counters are test seams around named traversals/encodes, not wall-clock asse
 - [ ] Obtain TL-arranged live console input smoke before landing; send reviewable commands/URLs and exact built revision. Include current-driver and pointer/view behavior; #754 retains wider real iPad/echo acceptance.
 - [x] Update README controls/recovery, `atlas/webcast.md`, `atlas/webcast-format.md` and index as needed. Add the TL-required invariant to webcast atlas: the casting page never reaches the recorded scene, bindings or assets. Document ephemeral authority/delivery separately from append-only persisted events. Add lessons only for actual discoveries.
 - [x] Audit new production-file dispositions and each changed source-reader input; run `make test-affected-inventory`, artifactpath/repolint checks and all targeted webcast/Node tests.
-- [ ] Push PR, run recorded `sdlc local-check run --name affected` (full-suite fallback if graph still unavailable), close with evidence and `--no-project` because TL owns ops project. Mandatory fresh review is the close gate; fix all blocking findings and reverify final code.
+- [x] Push PR, run recorded `sdlc local-check run --name affected` (full-suite fallback if graph still unavailable), close with evidence and `--no-project` because TL owns ops project. Mandatory fresh review is the close gate; fix all blocking findings and reverify final code.
 - [ ] On SHIP promptly `sdlc merge --yes`; retain its runner through admission/integration/CI. Report landed PR and evidence once to hub, then proceed #756→#753→#754 as assigned. Do not claim UI/device coverage that did not run.
 
 ## Architectural check
@@ -254,3 +254,7 @@ TL delivery d053ca5e-cb78-44ee-b89c-d3db95f99841 explicitly holds staging until 
 ### 2026-10-21 — acceptance sequencing
 
 TL delivery b1d858cd-0dfc-445b-a623-c3e78b62a282 directs finishing the recorded check and close review while the operator restart holds staging. Close may record local code acceptance with smoke explicitly pending; the required real console smoke still precedes landing. No stage or merge is authorized until that hold clears.
+
+### 2026-10-21 — recorded verification
+
+The retained full fallback suite passed on10e2d7b59465d1f955becbc6ceb8184e03a6ab3c (11m11s, log SHA256 prefix c157a785c710). PR512 is open. The close gate now owns its mandatory review; that task remains subject to resolving its findings. TL console smoke and landing remain unchecked and held.

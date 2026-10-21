@@ -52,7 +52,7 @@ Primary surfaces: board/{sketch.go,sketch_authority.go,sketch_wire.go,writer.go,
 
 - [x] Claim/start-plan after dependencies land; write the slice-specific execution plan at [000752-cast-sketch-drawing-plan.md](../plans/000752-cast-sketch-drawing-plan.md).
 - [x] Implement both surfaces and verify protocol, pressure, recovery, privacy and placement through automated checks.
-- [ ] Complete recorded check and close review; TL console smoke remains a separate pre-landing hold.
+- [x] Complete automated implementation verification and the recorded check; run the close review at the acceptance gate. TL console smoke remains a separate pre-landing hold.
 
 ## Log
 
@@ -98,6 +98,11 @@ Primary surfaces: board/{sketch.go,sketch_authority.go,sketch_wire.go,writer.go,
 
 - PR512 is open on pushed implementation10e2d7b59465d1f955becbc6ceb8184e03a6ab3c; local make build returned exit0. Recorded affected selected the full suite because its fresh checkout lacks the generated runtime embed graph (known #738/ariadne#517 fallback); retaining its runner.
 - ops:0 delivery b1d858cd-0dfc-445b-a623-c3e78b62a282 explicitly requests recorded check and close review now, with console smoke the sole remaining acceptance step afterward. Staging remains held until the operator restart; no landing before smoke and TL go. Close verification will identify this pending live acceptance rather than claim it happened.
+
+### 2026-10-21 — recorded full suite
+
+- Retained local-check runner acquired capacity after366s and completed the full fallback suite exit0 in11m11s. Recorded sdlc-local/suite on10e2d7b59465d1f955becbc6ceb8184e03a6ab3c; log SHA256 prefix c157a785c710. All Go packages and shell/editor checks passed. Later commits only document the acceptance hold, so this evidence covers unchanged implementation.
+- Entering mandatory close review under the TL-directed pre-smoke order. Console smoke remains unperformed; stage and merge remain held until restart admission and that acceptance.
 
 ## Estimate
 
