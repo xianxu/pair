@@ -13,6 +13,26 @@ Clipboard writes, notifications, title/directory changes and bells are ordered,
 origin-bearing effects; snapshots cannot replay them. Clipboard reads are explicitly
 unsupported and receive an empty response.
 
+Backend snapshots cross a repair boundary in `terminal/cell_degrade.go` (#727).
+Unsafe cells become width-one U+FFFD in owned screen/history rows, including
+broken wide-cell neighbours; the backend is unchanged. Direct `Frame` and panel
+validation stays strict. The endpoint emits one bounded `cell-degraded`
+observation with codepoints and clipped metadata, never raw control sequences or
+hyperlinks. `termcmd/diagnostics.go` admits that evidence to the existing managed,
+buffered `term-diagnostics.jsonl` log under the selected Pair data directory;
+optional diagnostic IO cannot fail presentation.
+
+The right-terminal wrapper waits up to five seconds for a positive launch size;
+zero sizes during a session retain the last geometry. Its pure
+`termcmd.RecoveryTransition` owns the handoff decision: an unexpected wrapper
+failure joins children and producers, restores the presenter and host, then
+execs one native interactive shell with the original environment. Normal child
+exit, real host termination, unusable stdio or failed restoration grants no
+handoff. Real signals retain authority through teardown. `Alt+Shift+t` confirms
+the invoking tab's native pane inventory even when a cached terminal ID exists;
+a missing right terminal creates one pane using the shared pane command. An
+uncertain inventory causes no effect; previous/next shortcuts never recreate it.
+
 `Frame`, `View`, `Compose` and `Render` express screen composition and admission
 without IO. `Presenter` owns the physical parent writer and commits input admission
 only after presentation completes. A failed partial write invalidates that

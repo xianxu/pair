@@ -119,11 +119,15 @@ func addExistingReceiptLocations(ctx context.Context, cfg ContinuousConfig, dest
 		if !found {
 			continue
 		}
-		b, l, err := dest.RemoteObjectNames(id)
+		physical, err := (DriveArchiveLayout{Root: dest}).ValidateRecordedDriveLocation(record.Label, receipt.Destination)
 		if err != nil {
 			return err
 		}
-		if receipt.Destination != dest.String() || receipt.BundleID != id || receipt.Bundle.Name != b || receipt.Label.Name != l || receipt.Bundle.SHA256 != record.Label.SHA256 || receipt.Bundle.Size != record.Label.Bytes {
+		b, l, err := physical.RemoteObjectNames(id)
+		if err != nil {
+			return err
+		}
+		if receipt.BundleID != id || receipt.Bundle.Name != b || receipt.Label.Name != l || receipt.Bundle.SHA256 != record.Label.SHA256 || receipt.Bundle.Size != record.Label.Bytes {
 			return errors.New("upload receipt conflicts with configured destination or bundle label")
 		}
 		_, labelKey, err := BundleKeys(record.Label.Kind, record.Label.From, record.Label.To, id)
@@ -146,7 +150,7 @@ func addExistingReceiptLocations(ctx context.Context, cfg ContinuousConfig, dest
 		} else if !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
-		loc := BundleLocation{Backend: "drive", Locator: dest.String(), FolderID: receipt.FolderID, BundleKey: b, LabelKey: l, Available: true, Evidence: "verified", FirstObserved: receipt.VerifiedAt, LastObserved: receipt.VerifiedAt,
+		loc := BundleLocation{Backend: "drive", Locator: physical.String(), FolderID: receipt.FolderID, BundleKey: b, LabelKey: l, Available: true, Evidence: "verified", FirstObserved: receipt.VerifiedAt, LastObserved: receipt.VerifiedAt,
 			Proof: LocationProof{Method: "upload-receipt", SHA256: record.Label.SHA256, VerifiedAt: receipt.VerifiedAt}}
 		prior, exists := record.Locations[loc.Identity()]
 		marker, complete := view.CompleteDestinations[loc.Backend+"\n"+loc.Locator]

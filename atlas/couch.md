@@ -1791,22 +1791,25 @@ Key files: `couchtty/thread_presentation.go`, `console_presentation.go`,
 ### The hub leads its section (pair#491)
 
 Bare Couch’s hub is the slot it started from (`hubWorktree`, pair#463). Each hub is marked
-by its leading position and reverse-video colours (pair#521).
-- **Tab bar:** the hub is drawn first, then every other slot grouped by
-  repository: `ops  ariadne  :1  :2  blog  pair  :1  :2`. The hub stands alone,
-  so its repository's other slots stay in their alphabetical group (`ops:1`).
+by its leading position, reverse-video tab chip (pair#521), and underlined switcher row (pair#730).
+- **Tab bar:** the hub is drawn first. A primary hub's own slots follow it in
+  numeric order, then the remaining repositories alphabetically, each with its
+  slots: `ops  :1  ariadne  :1  :2  blog  pair  :1  :2` (pair#732). A numbered
+  hub keeps its standalone chip group.
   `[…]` still marks the active chip. Hub label, glyphs and brackets reverse
   their existing colours; red/attention/idle precedence stays the same. Gaps
   and folded `+N` counts keep normal colours.
 - **Switcher:** the hub is the first line. Every other row, and the message
   lines under it, sits one indent level (2 spaces) deeper. The hub main row
-  is inverted; selection adds bold beside the cursor arrow and preserves red
+  is underlined; only the selected row uses reverse video. A selected hub keeps
+  underline and adds bold beside the cursor arrow, preserving red
   for a blocked hub. Attention detail lines keep their usual styling.
 - **Data path:** couchcmd hands the root to `Console.SetHub` at startup. It is
   reduced as `MenuEventHub` into `MenuState.Hub`, which re-sorts the installed
   inventory (`reorderMenuInventory`). `PresentThreads(rows, git, hub)` puts the
-  hub row first, flags it `Hub` and adds the indent (`hubSection`). That one
-  order serves the switcher, the tab bar and clicks.
+  hub row first, flags it `Hub`, promotes its repository group and adds the
+  indent (`hubSection`). That one order serves the switcher, the tab bar and
+  clicks. Ownership sections retain command-line hub order.
 - **One chip per slot (#607):** a slot's chip is its current inventory row, as
   in the switcher. A pane still open on a replaced address (a reboot's old
   thread, until its client exits) gets no chip.

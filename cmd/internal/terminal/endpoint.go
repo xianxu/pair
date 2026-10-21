@@ -87,6 +87,7 @@ type Endpoint struct {
 	inputEnded                            bool
 	closeDone                             chan struct{}
 	observer                              Observer
+	cellDegraded                          bool
 }
 
 func NewEndpoint(id string, g Geometry, out ttyio.Writer, observers ...Observer) (*Endpoint, error) {
@@ -256,6 +257,7 @@ func (e *Endpoint) capture() Frame {
 				f.Cells[y*e.geometry.Cols+x] = *c
 			}
 		}
+		e.repairCapturedRow(f.Cells[y*e.geometry.Cols:(y+1)*e.geometry.Cols], "screen", y, 0)
 	}
 	return f
 }
@@ -268,6 +270,7 @@ func (e *Endpoint) captureHistory() HistoryWindow {
 	window := HistoryWindow{Cursor: HistoryCursor{ClearEpoch: h.ClearEpoch, NextID: h.NextID}, ContinuesToScreen: h.ContinuesToScreen, Rows: make([]HistoryRow, len(h.Rows))}
 	for i, row := range h.Rows {
 		window.Rows[i] = HistoryRow{ID: row.ID, Cells: row.Cells, Meta: RowMetadata{Wrapped: row.Meta.Wrapped, UsedColumns: row.Meta.UsedColumns}}
+		e.repairCapturedRow(window.Rows[i].Cells, "history", i, row.ID)
 	}
 	return window
 }

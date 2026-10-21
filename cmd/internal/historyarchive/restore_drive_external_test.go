@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -187,7 +188,7 @@ func TestRestorerDriveDuplicateNamesRefusedBeforeDownload(t *testing.T) {
 	}
 }
 
-func TestRestorerDriveBoundsPostListingGrowthBeforeTransfer(t *testing.T) {
+func TestRestorerDriveRefusesPostListingGrowthBeforeDecode(t *testing.T) {
 	restorer, request, records, fake, decoder := driveRestoreFixture(t, 1)
 	name := records[0].Label.ID + ".tar.zst.gpg"
 	fake.Before = func(_ context.Context, operation, _ string) error {
@@ -198,7 +199,9 @@ func TestRestorerDriveBoundsPostListingGrowthBeforeTransfer(t *testing.T) {
 	}
 	report, err := restorer.Run(context.Background(), request)
 	assertDriveRestoreRefused(t, report, err, request, decoder)
-	if fake.DownloadBatches != 1 || fake.DownloadedCipherBytes != 0 {
-		t.Fatalf("post-listing growth exceeded admitted transfer envelope: batches=%d bytes=%d", fake.DownloadBatches, fake.DownloadedCipherBytes)
+	// The coarse native cap permits a one-byte growth into private staging;
+	// our exact postcheck must reject it before decoding and remove the stage.
+	if fake.DownloadBatches != 1 || fake.DownloadedCipherBytes != records[0].Label.Bytes+1 || !strings.Contains(err.Error(), "exceeds admitted byte limit") {
+		t.Fatalf("post-listing growth escaped exact verification: batches=%d bytes=%d err=%v", fake.DownloadBatches, fake.DownloadedCipherBytes, err)
 	}
 }

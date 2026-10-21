@@ -142,3 +142,10 @@ Pair's pin then adopts them without a second rule implementation. Pair-specific
 package ownership policies belong in the local composed catalog, with the same
 incident and matcher tests plus this atlas mapping; they reuse the shared checker
 and leave the upstream catalog and sleep-debt matching unchanged.
+
+## Bounded Zellij read ownership (#748)
+
+The local `zellij-read-attempt-bypass` rule rejects direct `runQueryAttempt`
+calls in package launcher outside `ZellijSource.runContext`. Callers use the
+bounded entry to share its deadline, exact read allowlist and attempt evidence.
+It checks call-site syntax, not arbitrary function-value alias dataflow.

@@ -31,6 +31,8 @@
 
 - `.sdlc/affected.json`, `scripts/test-affected.py` — affected branch checks
   consume ariadne#473's main-authoritative selection through `make test-affected`.
+  `make test-affected-inventory` reuses the reader audit before close and before
+  affected execution; explicit per-file repair commands retain scanner coverage.
   Selected Go argv stays exact; fixed named source scanners run first for Go
   selections. Non-Go file-reader populations and unknown paths force full.
   `tests/affected-consumers.json` audits recipe inputs against the real planner;
@@ -59,7 +61,7 @@
   fresh plain binary through `tests/lib/with-pair-test-binary.sh` and exports
   `PAIR_TEST_BINARY`; the development binary has different linker defaults.
   `Binary` shares it, while `At` hard-links a private executable name/directory
-  (copies across filesystems). Targeted Go runs build lazily once per package;
+  (symlinks across filesystems, preserving the shared executable image). Targeted Go runs build lazily once per package;
   their `TestMain` calls `testpair.Run` after helper dispatch to clean up only
   the owned fallback. Context variants preserve caller build deadlines. Shell
   consumers use `tests/lib/pair-test-binary.sh`, which owns the sole full-Pair
@@ -184,7 +186,7 @@
 
 - [Storage retention](storage-retention.md) — Pair/Couch clocks, protected users, collection, migration and bounded 24-hour resource-monitor snapshots.
 
-- [History backup](history-backup.md) — Explicit encrypted bundles, verified local publication, private sharded catalog, bounded live SQLite snapshots and per-database freshness, retry guarantees and operator key recovery.
+- [History backup](history-backup.md) — Explicit encrypted bundles, verified local publication, private sharded catalog, bounded live SQLite snapshots and per-database freshness, pinned Drive month uploads, atomic dual-layout index discovery and recorded-location restore, retry guarantees and operator key recovery.
 - [Managed retention I/O](storage-retention-io.md) — Checked entrypoints, protected artifacts, guard call chains, meaningful-use rules and behavioral evidence.
 
 - [Terminal ownership](terminal.md) — Shared endpoint, presenter, profile, transport and qualification boundaries.

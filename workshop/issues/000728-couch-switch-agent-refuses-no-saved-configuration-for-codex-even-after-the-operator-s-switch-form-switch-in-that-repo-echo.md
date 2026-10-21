@@ -46,3 +46,13 @@ agent's last successful launch configuration in that repo. The refusal names exa
   "no saved configuration for codex; the operator must configure it in the switch form first", although the same
   command succeeded on ariadne:0 and ariadne:5 an hour earlier. So the saved configuration looks per slot (or per
   launch history), not per repo: a slot that never ran Codex has none.
+- 10-20 14:15 (TL): third case: the operator's switch-form switch of pair:8 (Qoder → Codex) failed with
+  "switch-agent: source changed or disconnected; retry switch" (launch-diagnostics failures.json, operation
+  2e048ac2508c98354822c8fa342aa0e3). pair:8's Qoder session was a recording only (no live wrapper). The switch should
+  handle a parked or disconnected source (start fresh on the new agent) instead of refusing.
+- 10-20 21:15 (TL, operator report): there is no way to change a running Codex slot's startup parameters and restart
+  it. Choosing the switch form with the **same** agent shows a parameters box, but the box **accepts no keyboard
+  input**. Scope for this issue now: (1) the parameters box in the switch form takes input; (2) "restart with new
+  parameters" for the same agent is a supported path (form and CLI: `couch --switch-agent repo:N --agent codex
+  --agent-args '…' --confirm` on the current agent), saved as that agent's remembered arguments; (3) the earlier cases
+  (no saved configuration; a parked or disconnected source). Operator-facing; the operator hits it now.

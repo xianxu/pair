@@ -125,6 +125,7 @@ func checkFixtureProducerInventory(t *testing.T, root string, sources map[string
 		"cmd/internal/couchcore/recovery_conformance_live_test.go":  "optional native fixture queries installed server; shell is an agent publisher",
 		"cmd/internal/couchcore/recovery_query_capture_test.go":     "cancellation wrapper publishes file readiness then execs the shared stateful fake; it emits no query reply",
 		"cmd/internal/clipcmd/admission_test.go":                    "shell emits only mutation failure; queries use shared stateful fake",
+		"cmd/internal/layoutcmd/terminal_recovery_live_test.go":     "optional native fixture queries the installed server; shell is only a pane-input receiver and emits no query reply",
 	}
 	for _, tree := range []string{"cmd", "tests"} {
 		err := filepath.WalkDir(filepath.Join(root, tree), func(path string, d fs.DirEntry, err error) error {

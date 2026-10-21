@@ -39,7 +39,7 @@ func TestPresentThreadsLeadsWithTheHubAndIndentsItsSection(t *testing.T) {
 		indents   []int
 	}{
 		{"no hub", "", "ariadne ariadne:1 blog ops ops:1 pair pair:1 pair:2", []int{0, 2, 0, 0, 2, 0, 2, 2}},
-		{"hub is a primary", "/src/ops", "ops ariadne ariadne:1 blog ops:1 pair pair:1 pair:2", []int{0, 2, 4, 2, 4, 2, 4, 4}},
+		{"hub is a primary", "/src/ops", "ops ops:1 ariadne ariadne:1 blog pair pair:1 pair:2", []int{0, 4, 2, 4, 2, 2, 4, 4}},
 		{"hub is a slot", presentationSlot("/src/ops", 1).Target.Slot.WorktreeRoot, "ops:1 ariadne ariadne:1 blog ops pair pair:1 pair:2", []int{0, 2, 4, 2, 2, 2, 4, 4}},
 		{"hub not in the inventory", "/src/elsewhere", "ariadne ariadne:1 blog ops ops:1 pair pair:1 pair:2", []int{0, 2, 0, 0, 2, 0, 2, 2}},
 	}

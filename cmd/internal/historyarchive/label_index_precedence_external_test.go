@@ -15,7 +15,7 @@ import (
 func precedenceFixture(t *testing.T, count int) (ha.ContinuousConfig, []ha.CatalogRecord, *archivetest.FakeRclone, ha.DriveDestination, []ha.UploadReceipt) {
 	t.Helper()
 	cfg, records, root := driveFixture(t, count)
-	fake := &archivetest.FakeRclone{}
+	fake := legacyIndexDriveFake(t, cfg, records)
 	if report, err := (ha.DriveMirror{Rclone: ha.Rclone{Runner: fake}}).Run(context.Background(), cfg, filepath.Join(root, "archive")); err != nil || report.Verified != count {
 		t.Fatalf("upload: %+v %v", report, err)
 	}

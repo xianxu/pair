@@ -19,7 +19,6 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/archivetestenv"
 	ha "github.com/xianxu/pair/cmd/internal/historyarchive"
-	"github.com/xianxu/pair/cmd/internal/historyarchive/archivetest"
 )
 
 func TestRestoreLiveRemoteOnlyRoundTrip(t *testing.T) {
@@ -72,7 +71,7 @@ func TestRestoreLiveRemoteOnlyRoundTrip(t *testing.T) {
 	}
 	id := records[0].Label.ID
 	cipherBytes := records[0].Label.Bytes
-	fake := &archivetest.FakeRclone{}
+	fake := legacyIndexDriveFake(t, cfg, records)
 	remote := ha.Rclone{Runner: fake}
 	store := filepath.Join(root, "archive-store")
 	upload, err := (ha.DriveMirror{Rclone: remote}).Run(ctx, cfg, store)

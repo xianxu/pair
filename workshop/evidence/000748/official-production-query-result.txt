@@ -1,0 +1,7 @@
+=== RUN   TestKnownBugNative2000Diagnostic748
+    known_bug_native_748_test.go:14: logical=2000 attempts=2012 bad-attempts=14 bad-final=2
+    known_bug_native_748_test.go:15: unresolved native final replies; retained capture
+--- FAIL: TestKnownBugNative2000Diagnostic748 (56.23s)
+FAIL
+FAIL	github.com/xianxu/pair/cmd/internal/launcher	56.417s
+FAIL
