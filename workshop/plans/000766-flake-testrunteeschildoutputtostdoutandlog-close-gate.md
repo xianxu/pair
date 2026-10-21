@@ -71,6 +71,76 @@ rounds:
       recipe: small-diff-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: d542dfc9-d402-402e-a06b-80bb9d80fb56
+            repository: github.com/xianxu/pair
+            issue_id: "000766"
+            recipe: small-diff-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/4202b18672497790
+            reviewed_head: db18fd758708d3245a884c0b833948a181c46007
+            slot: pair:4
+            requested_at: "2026-10-21T11:30:40.301817Z"
+          phase: finished
+          pid: 96734
+          started_at: "2026-10-21T11:30:40.398991Z"
+          finished_at: "2026-10-21T11:32:04.521291Z"
+          session_id: 01a15e3a-498c-7e82-9668-5c4d1793aa42
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: db18fd758708d3245a884c0b833948a181c46007
+        tracker_head: 6b0e2c8032670be7a355268c9b72ea0da64d0378
+        branch_point: 9c62cdcd9aa48f42961563ad1f3f296d03187ad7
+        since: "2026-10-21T04:13:24-07:00"
+        until: "2026-10-21T04:30:19-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-21T04:13:24-07:00"
+              end: "2026-10-21T04:30:19-07:00"
+              began: "2026-10-21T04:13:24-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot4/pair
+        sources:
+            - harness: codex
+              id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: daf4277ef61c9c0b147af9164e91a648020730ee40bd506a911e982274f3c134
+              started: "2026-10-20T17:08:30.923Z"
+              spawned: false
+              bytes: 24932508
+              windows:
+                - start: "2026-10-21T04:13:24-07:00"
+                  end: "2026-10-21T04:30:19-07:00"
+        cuts:
+            - dispatched: "2026-10-21T04:27:31-07:00"
+              finalized: "2026-10-21T04:29:05-07:00"
+              finalizing: false
+      "n": 2
+      timestamp: "2026-10-21T04:32:05-07:00"
+      dispatched: "2026-10-21T04:30:38-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: 'Verified the authoritative #768 card at tracker revision bdfb85c886b569c58c30cd66f09dc724fc365675 and published details at base revision 9c62cdcd9aa48f42961563ad1f3f296d03187ad7. Both explicitly retain production output preservation under #768; the added #766 Revisions passage accurately describes that handoff. This correction changes documentation only.'
+          round: 2
+      recipe: small-diff-review
+      isolation: fenced
+      reviewed: db18fd758708d3245a884c0b833948a181c46007
+      blocked: false
 ---
 
 # Gate ledger — pair#766 (boundary-review)
@@ -85,6 +155,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-1** [Important] `deferred-scope-traceability` (kind: unverifiable) Cannot verify the separately tracked production defect supporting fixture-only closure
   workshop/issues/000766-flake-testrunteeschildoutputtostdoutandlog.md:54 and :63 claim #768 owns production output loss, and atlas/go-lint-catalog.md repeats that handoff. These are all instances in this window. Inspection with git ls-tree at HEAD and main found no #768 details; git for-each-ref found no issue-tracker ref, and origin is readonly://review-checkout. The available sdlc issue show command requires a tracker fetch, so it cannot supply a read-only answer here. Provide #768's authoritative card and published details, with their revisions, or include the tracker snapshot in the review environment. ARCH-PURPOSE: verify that the acknowledged production exposure has a concrete tracked owner before accepting the scope reduction.
 
+## Round 2 — 2026-10-21T04:32:05-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Verified the authoritative #768 card at tracker revision bdfb85c886b569c58c30cd66f09dc724fc365675 and published details at base revision 9c62cdcd9aa48f42961563ad1f3f296d03187ad7. Both explicitly retain production output preservation under #768; the added #766 Revisions passage accurately describes that handoff. This correction changes documentation only.
+
 ## Open findings
 
-- **BR-1** [Important] `deferred-scope-traceability` (kind: unverifiable) Cannot verify the separately tracked production defect supporting fixture-only closure
+(none — every finding has been disposed)

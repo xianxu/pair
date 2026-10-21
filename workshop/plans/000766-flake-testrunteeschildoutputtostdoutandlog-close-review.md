@@ -85,3 +85,79 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T04:32:05-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 766 — flake: TestRunTeesChildOutputToStdoutAndLog |
+| repo | pair |
+| issue file | workshop/issues/000766-flake-testrunteeschildoutputtostdoutandlog.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 9c62cdcd9aa48f42961563ad1f3f296d03187ad7..db18fd758708d3245a884c0b833948a181c46007 |
+| command | sdlc close --issue 766 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T04:32:05-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned changes deliver the revised fixture-only scope: terminal ownership, a real PTY acknowledgement, exact tee comparison, native stress, and lint enforcement. The authoritative tracker card and published #768 details resolve the production-handoff concern. No blocking findings remain.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Verified the authoritative #768 card at tracker revision bdfb85c886b569c58c30cd66f09dc724fc365675 and published details at base revision 9c62cdcd9aa48f42961563ad1f3f296d03187ad7. Both explicitly retain production output preservation under #768; the added #766 Revisions passage accurately describes that handoff. This correction changes documentation only.
+```
+
+Done-when: current — the clauses cover the implemented fixture protocol, stress check, separate production tracking, and retirement upon successful closure.
+
+1. **Strengths**
+
+   - `scribecmd_test.go:105` exercises readiness and acknowledgement through real PTYs before emitting the final marker.
+   - `scribecmd_test.go:121` checks exact stdout/log equality.
+   - The lint tests cover rejected producers and accepted neighboring syntax; atlas documents the rule’s limits.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage:** Both changed packages passed ordinary and race-enabled tests on Darwin, including the 1000-launch stress test. `make test-affected-inventory` and `git diff --check` passed. The full repository suite was not rerun.
+
+6. **Architecture:**
+
+   - **ARCH-DRY: pass** — stress reuses the tee test; PTY setup remains shared.
+   - **ARCH-PURE: pass** — AST matching is pure; repository integration uses injected fixtures.
+   - **ARCH-PURPOSE: pass** — the revised fixture scope is delivered, with production exposure concretely tracked.
+   - **ARCH-EVOLVE: pass** — no persisted-format schema or reader behavior changes.
+
+   Atlas covers the new enforcement surface. No new user-facing command, flag, or configuration requires a README update.
+
+7. **Plan revisions:** None required.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"d542dfc9-d402-402e-a06b-80bb9d80fb56","repository":"github.com/xianxu/pair","issue_id":"000766","recipe":"small-diff-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/4202b18672497790","reviewed_head":"db18fd758708d3245a884c0b833948a181c46007","slot":"pair:4","requested_at":"2026-10-21T11:30:40.301817Z"},"phase":"finished","pid":96734,"started_at":"2026-10-21T11:30:40.398991Z","finished_at":"2026-10-21T11:32:04.521291Z","session_id":"01a15e3a-498c-7e82-9668-5c4d1793aa42","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.520878834s
+head: "db18fd758708d3245a884c0b833948a181c46007"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
