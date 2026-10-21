@@ -12,9 +12,11 @@ from pathlib import Path
 import pwd
 import re
 import signal
+import shlex
 import stat
 import subprocess
 import sys
+import uuid
 
 NIGHT_LIMIT = 16
 BYTE_LIMIT = 4 << 30
@@ -23,10 +25,18 @@ RUN_RESERVATION = (256 << 20) + 65536 + 4096
 NATIVE_HOME = Path(pwd.getpwuid(os.getuid()).pw_dir)
 
 
+class RetentionAttention(ValueError):
+    """Exit 10 wakes the scheduling hub before retained evidence is lost."""
+
+
+def traversal_error(error):
+    raise error
+
+
 def retained_bytes(root):
     total = 0
     entries = 0
-    for parent, directories, files in os.walk(root, followlinks=False):
+    for parent, directories, files in os.walk(root, followlinks=False, onerror=traversal_error):
         for name in directories + files:
             entries += 1
             if entries > 1600000:
@@ -40,17 +50,9 @@ def retained_bytes(root):
 
 
 def reserved_night_bytes(night):
-    size = retained_bytes(night)
-    try:
-        with (night / 'nightly.json').open('rb') as stream:
-            raw = stream.read(4097)
-        manifest = json.loads(raw) if len(raw) <= 4096 else None
-        code = manifest.get('exit_code') if isinstance(manifest, dict) else None
-    except (OSError, ValueError):
-        code = None
-    # An abruptly dead wrapper can leave SDLC writing under its own lifetime.
-    # Charge its full possible bundle until a joined completion is recorded.
-    return size if type(code) is int and 0 <= code <= 255 else max(size, RUN_RESERVATION)
+    # A terminal SDLC leader does not prove descendant completion. Keep every
+    # possible writer's capacity until the operator explicitly archives it.
+    return max(retained_bytes(night), RUN_RESERVATION)
 
 
 @contextlib.contextmanager
@@ -72,14 +74,20 @@ def reserve_nightly_artifacts(root, date):
         for path in root.iterdir():
             if path.name == '.lock':
                 continue
-            if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', path.name) or path.is_symlink() or not path.is_dir():
+            info = path.lstat()
+            if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', path.name) or not stat.S_ISDIR(info.st_mode):
                 raise ValueError('unexpected nightly evidence; inspect/archive before running')
             nights.append(path)
+        charge = sum(reserved_night_bytes(night) for night in nights)
+        if len(nights) >= NIGHT_LIMIT*3//4 or charge >= BYTE_LIMIT*3//4 or charge + RUN_RESERVATION > BYTE_LIMIT:
+            archive = root.with_name(root.name + '.archived-' + uuid.uuid4().hex)
+            command = shlex.join(['mv', str(root), str(archive)])
+            raise RetentionAttention(f'wake the hub: nightly retention near/at cap '
+                                     f'({len(nights)}/{NIGHT_LIMIT} nights, {charge}/{BYTE_LIMIT} reserved bytes); '
+                                     f'inspect/reconcile writers, then archive with: {command}')
         destination = root / date
         if destination.exists():
             raise ValueError(f'nightly date already reserved: {destination}; inspect existing evidence')
-        if len(nights) >= NIGHT_LIMIT or sum(reserved_night_bytes(night) for night in nights) + RUN_RESERVATION > BYTE_LIMIT:
-            raise ValueError('nightly retention saturated; inspect/archive evidence before running')
         destination.mkdir(mode=0o700)  # failed/partial nights keep their reservation
         yield destination
 
@@ -169,6 +177,9 @@ def cli():
 if __name__ == '__main__':
     try:
         sys.exit(cli())
+    except RetentionAttention as error:
+        print(f'nightly: {error}', file=sys.stderr)
+        sys.exit(10)
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         print(f'nightly: {error}', file=sys.stderr)
         sys.exit(125)

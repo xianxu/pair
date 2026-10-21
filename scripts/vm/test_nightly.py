@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import pwd
+import shlex
 import subprocess
 import tempfile
 import time
@@ -36,11 +37,19 @@ class NightlyTests(unittest.TestCase):
         self.bin.mkdir()
         fake = self.bin / 'sdlc'
         fake.write_text('''#!/usr/bin/env python3
-import json, os, signal, sys, time
+import json, os, signal, subprocess, sys, time
 from pathlib import Path
 record = Path(os.environ['CALLS'])
 with record.open('a') as f:
     f.write(json.dumps({'argv':sys.argv[1:], 'cwd':os.getcwd(), 'artifacts':os.environ.get('PAIR_VM_ARTIFACTS_DIR')})+'\\n')
+if os.environ.get('ORPHAN'):
+    destination = Path(os.environ['PAIR_VM_ARTIFACTS_DIR'])
+    destination.mkdir()
+    writer = "import os,time; from pathlib import Path; p=Path(os.environ['READY']); p.touch(); gate=Path(os.environ['GATE']);\\nwhile not gate.exists(): time.sleep(.01)\\nPath(os.environ['PAIR_VM_ARTIFACTS_DIR'],'late').write_text('late bytes'); Path(os.environ['DONE']).touch()"
+    subprocess.Popen([sys.executable, '-c', writer], start_new_session=True,
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    while not Path(os.environ['READY']).exists(): time.sleep(.01)
+    os.kill(os.getpid(), signal.SIGKILL)
 if os.environ.get('HOLD'):
     def stop(sig, frame):
         Path(os.environ['JOINED']).write_text('cleanup joined')
@@ -97,12 +106,28 @@ sys.exit(int(os.environ.get('EXIT','0')))
         manifest = json.loads((self.artifacts / '2026-10-21' / 'nightly.json').read_text())
         self.assertEqual((manifest['source'], manifest['exit_code']), (None, 128))
 
-    def test_sixteenth_small_night_is_admitted(self):
+    def test_near_night_limit_wakes_hub_without_launch(self):
         self.artifacts.mkdir()
-        for day in range(1, 16):
+        for day in range(1, 13):
             night = self.artifacts / f'2026-10-{day:02d}'
             night.mkdir()
             (night / 'nightly.json').write_text(json.dumps({'exit_code':125}))
+        result = self.run_night()
+        self.assertEqual(result.returncode, 10, result.stderr)
+        self.assertIn('mv ', result.stderr)
+        self.assertEqual(self.calls(), [])
+        command = shlex.split(result.stderr.split('archive with: ', 1)[1].strip())
+        self.assertEqual(command[:2], ['mv', str(self.artifacts)])
+        subprocess.run(command, check=True)
+        self.assertEqual(len(list(Path(command[2]).glob('2026-*'))), 12)
+        self.assertFalse(self.artifacts.exists())
+        self.assertEqual(self.run_night().returncode, 0)
+
+    def test_below_warning_threshold_still_admits(self):
+        old = self.artifacts/'2026-10-01'
+        old.mkdir(parents=True)
+        with (old/'sparse').open('wb') as stream:
+            stream.truncate((3 << 30)-1)
         result = self.run_night()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(len(self.calls()), 1)
@@ -112,7 +137,7 @@ sys.exit(int(os.environ.get('EXIT','0')))
         for day in range(1, 17):
             (self.artifacts / f'2026-10-{day:02d}').mkdir()
         result = self.run_night()
-        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.returncode, 10, result.stderr)
         self.assertIn('archive', result.stderr)
         self.assertEqual(len(list(self.artifacts.glob('2026-*'))), 16)
         self.assertEqual(self.calls(), [])
@@ -126,8 +151,74 @@ sys.exit(int(os.environ.get('EXIT','0')))
             stream.truncate((4 << 30) - 2*reservation + 1)
         (self.artifacts / '2026-10-02').mkdir()  # wrapper died; its child may still write
         result = self.run_night()
-        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.returncode, 10, result.stderr)
         self.assertIn('archive', result.stderr)
+        self.assertEqual(self.calls(), [])
+
+    def api(self):
+        api = {'__name__':'nightly_test'}
+        source = SCRIPT.read_text().split("<<'PYTHON'\n", 1)[1].rsplit('\nPYTHON', 1)[0]
+        exec(compile(source, str(SCRIPT), 'exec'), api)
+        return api
+
+    def test_sdlc_death_cannot_release_surviving_writers_reservation(self):
+        gate, done = self.root/'gate', self.root/'done'
+        self.addCleanup(gate.touch)
+        result = self.run_night(ORPHAN='1', GATE=str(gate), DONE=str(done))
+        self.assertEqual(result.returncode, 137, result.stderr)
+        night = self.artifacts/'2026-10-21'
+        charged = self.api()['reserved_night_bytes'](night)
+        gate.touch()
+        deadline = time.monotonic()+10
+        while not done.exists() and time.monotonic()<deadline:
+            time.sleep(.01)
+        self.assertTrue(done.exists(), 'surviving writer did not finish')
+        self.assertEqual((night/'vm'/'late').read_text(), 'late bytes')
+        self.assertGreaterEqual(charged, (256 << 20)+65536+4096)
+
+    def test_every_retained_night_keeps_full_reservation(self):
+        api = self.api()
+        night = self.root/'retained'
+        night.mkdir()
+        for code in (0, 1, 37, 125, 137, 143, None, 'invalid'):
+            with self.subTest(code=code):
+                (night/'nightly.json').write_text(json.dumps({'exit_code':code}))
+                self.assertGreaterEqual(api['reserved_night_bytes'](night), (256 << 20)+65536+4096)
+
+    def test_unreadable_evidence_directory_refuses_admission(self):
+        if os.geteuid() == 0:
+            self.skipTest('root bypasses native directory permissions')
+        hidden = self.artifacts/'2026-10-01'/'hidden'
+        hidden.mkdir(parents=True)
+        (hidden/'bytes').write_bytes(b'x'*1024)
+        hidden.chmod(0)
+        try:
+            result = self.run_night()
+        finally:
+            hidden.chmod(0o700)
+        self.assertNotEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.calls(), [])
+
+    def test_traversal_and_metadata_errors_propagate(self):
+        api = self.api()
+        night = self.root/'retained'
+        night.mkdir()
+        (night/'file').touch()
+        with mock.patch.object(os, 'scandir', side_effect=PermissionError('enumeration denied')):
+            with self.assertRaises(PermissionError):
+                api['retained_bytes'](night)
+        with mock.patch.object(Path, 'lstat', side_effect=OSError('metadata unknown')):
+            with self.assertRaises(OSError):
+                api['retained_bytes'](night)
+
+    def test_byte_warning_wakes_hub_without_launch(self):
+        night = self.artifacts/'2026-10-01'
+        night.mkdir(parents=True)
+        with (night/'sparse').open('wb') as stream:
+            stream.truncate(3 << 30)
+        result = self.run_night()
+        self.assertEqual(result.returncode, 10, result.stderr)
+        self.assertIn('mv ', result.stderr)
         self.assertEqual(self.calls(), [])
 
     def test_byte_saturation_refuses_before_launch(self):
@@ -136,7 +227,7 @@ sys.exit(int(os.environ.get('EXIT','0')))
         with (old / 'sparse').open('wb') as stream:
             stream.truncate(4 << 30)
         result = self.run_night()
-        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.returncode, 10, result.stderr)
         self.assertIn('archive', result.stderr)
         self.assertEqual(self.calls(), [])
 

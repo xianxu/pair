@@ -29,7 +29,7 @@ landed declaration parser before registration; these are handoff values:
 | Timeout | 30 minutes, including setup and the 20-minute VM execution plus cleanup |
 | Cancellation grace | SDLC provider's approved 30 seconds; runner cleanup up to 10 seconds |
 | Resource | runner-owned train lane through #509; no additional suite slot or VM lease |
-| Execution | one invocation; no retries or promotion counter |
+| Execution | one invocation; no retries or promotion counter; exit 10 wakes the hub |
 
 Map `version`, `cron`, `timeout`, `scope`, `missed`, `script_run` and `heavy`
 according to the landed #737 schema and #509 resource semantics. Do not guess
@@ -53,12 +53,24 @@ does not prove those records. No candidate declaration injection or hand-written
 status publisher is an acceptable bootstrap.
 
 Admission retains at most sixteen nightly directories and 4 GiB of logical
-evidence bytes. It reserves a worst-case runner bundle plus bounded metadata,
-so byte saturation may refuse before sixteen dates. Failed and partial nights
-count; incomplete nights reserve their full possible remaining writes even after the wrapper dies. One file lock owns artifact admission through check completion; another
-invocation refuses immediately. No evidence is evicted. Ordinary runner
-retention cannot prune these caller-owned bundles. At saturation, inspect and
-archive evidence explicitly under #745's promotion decision before resuming.
+evidence bytes. Every retained date charges max(actual measured bytes, the full
+worst-case runner bundle), regardless of manifest or exit code. SDLC leader exit
+cannot prove that descendants stopped writing. No reservation is released until
+explicit archive. Enumeration and metadata errors refuse; unreadable evidence
+never counts as zero.
+
+At twelve retained dates or 75% of reserved bytes (and at either hard cap), the
+command launches no check and exits **10: wake the hub**. Stderr reports the
+population and prints one shell-quoted `mv` command to move this entire evidence
+root to a unique sibling archive. The shared task must surface exit 10 to its TL;
+it is attention required, never a passed night. After inspecting failed/partial
+results and reconciling any surviving writers, run that exact emitted command.
+The next invocation creates a fresh evidence root. The archive keeps all dates,
+logs and metadata unchanged; the hub owns its subsequent #745 decision and
+explicit disposal. There is no automatic eviction. Ordinary runner retention
+cannot prune these caller-owned bundles. The artifact-admission lock is held
+through the check; do not archive while any invocation or unconfirmed writer is
+active. This is an explicit operator archive step, not another cleanup process.
 
 After #743 lands, bootstrap the named check on exact main and verify retained
 status/log, image identity, required cases and clean VM release. Give the hub
