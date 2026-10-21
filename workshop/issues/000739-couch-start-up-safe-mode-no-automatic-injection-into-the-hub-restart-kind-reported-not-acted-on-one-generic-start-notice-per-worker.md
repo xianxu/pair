@@ -220,6 +220,33 @@ is still unlanded. Hub c23219fb-e84d-4e8a-ae60-c54976d1f4f3 directs waiting for
 and reporting if #744 slips beyond the next morning. Landing stays blocked on
 that live evidence; the real fleet first use is the next restart after landing.
 
+### 2026-10-21 — stale cue rejected before native input
+
+Pre-close source audit identified a missing enforcement point in the promised
+per-launch contract: the same Binding/socket survives a fresh exec, so an old
+ordinal cue can reach the replacement endpoint before registry cancellation.
+The initial model ignored that receipt for the new witness but did not reject
+its native paste. A real private-endpoint regression proved the old cue was
+pasted while ordinal 8 still reported needed; the earlier replacement test only
+sent the new ordinal's cue and missed this adversary.
+
+The receiver now calls shared ValidateWorkerStartNotice before singleton queue
+mutation and before freezing every batch member. Canonical system self cues
+need the exact current ordinal/ID; unknown ordinals fail closed. Ordinary peer
+prose and other system messages are unaffected. Reds covered singleton, batch
+head and batch follower with missing/new ordinal; the stale follower previously
+pasted too. Green endpoint regression rejects old 7, releases its refused
+reservation, and pastes current 8 exactly once. Broad peer/session/negotiation/
+registry/background/worker tests passed normally and with race; focused cue
+race tests passed count 3. This repairs the accepted contract, not a new
+credential, queue or broker recovery policy.
+
+The superseded recorded suite on 1580bf16 was cancelled through local-check
+cancel after 501 s in queue, before taking machine capacity or running tests.
+No test failure, flake retry or suite pass is claimed from that cancelled run.
+The corrected pushed head needs a new recorded check. Live acceptance still
+waits for #744, now itself delayed by #761's observed detach JSON refusal.
+
 ## Revisions
 
 ### 2026-10-20 — operator-review startup boundary and two notice lifetimes

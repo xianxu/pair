@@ -347,3 +347,131 @@ func TestPeerWorkerCueLostCommitAckRetainsWitness(t *testing.T) {
 		t.Fatal("unknown launch ordinal advertised needed")
 	}
 }
+
+// A same-PID fresh exec preserves the full endpoint Binding/socket identity.
+// An already-issued old broker commit can therefore reach the new proxy before
+// the registry has processed old-session EOF/new-session admission.
+func TestPeerWorkerCueRejectsOldOrdinalBeforeNativeInput(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	namespace := t.TempDir()
+	binding := peerBatchTestBinding("pair:1")
+	f, _ := peerIntegrationFixture(t)
+	replacement := newPeerDelivery(binding, time.Now)
+	replacement.initWorkerCue(8)
+	f.proxy.peer = replacement
+	f.output(peerEmptyComposer())
+	socket, err := couchmessage.EndpointSocket(namespace, binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server, err := couchmessage.StartServer(ctx, socket, replacement.handleEndpoint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer server.Close()
+	old := couchmessage.Message{Origin: couchmessage.OriginSystem, From: binding, To: binding, ID: couchmessage.WorkerStartNoticeID(binding, 7), Body: couchmessage.WorkerStartNoticeBody, Deadline: time.Now().Add(couchmessage.AdmissionTimeout)}
+	remote := couchmessage.RemoteEndpoint{Namespace: namespace, Binding: binding}
+	observation, err := remote.Observe(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := remote.Reserve(ctx, old.ID, observation.Sequence); err != nil {
+		t.Fatal(err)
+	}
+	var response couchmessage.EndpointResponse
+	if err := couchmessage.Call(ctx, socket, couchmessage.EndpointRequest{Op: "commit", Binding: binding, ID: old.ID, Message: &old}, &response); err != nil {
+		t.Fatal(err)
+	}
+	var input bytes.Buffer
+	f.proxy.dispatchPeer(&input)
+	if strings.Contains(input.String(), couchmessage.WorkerStartNoticeBody) {
+		t.Fatalf("old launch 7 cue pasted into launch 8: commit error=%q receipt=%+v current witness=%+v", response.Error, replacement.receipt(), replacement.workerCueReport())
+	}
+	if response.Error == "" {
+		t.Fatal("old launch cue entered native delivery queue despite a new launch ordinal")
+	}
+	if got := replacement.workerCueReport(); got.State != couchmessage.WorkerCueNeeded || got.LaunchOrdinal != 8 {
+		t.Fatalf("stale cue consumed current witness: %+v", got)
+	}
+	// The old broker releases its refused reservation; the valid new launch
+	// then gets exactly its own one native cue.
+	if err := remote.Release(ctx, old.ID); err != nil {
+		t.Fatal(err)
+	}
+	current := old
+	current.ID = couchmessage.WorkerStartNoticeID(binding, 8)
+	observation, err = remote.Observe(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := remote.Reserve(ctx, current.ID, observation.Sequence); err != nil {
+		t.Fatal(err)
+	}
+	response = couchmessage.EndpointResponse{}
+	if err := couchmessage.Call(ctx, socket, couchmessage.EndpointRequest{Op: "commit", Binding: binding, ID: current.ID, Message: &current}, &response); err != nil || response.Error != "" {
+		t.Fatalf("current launch refused: %s %v", response.Error, err)
+	}
+	f.proxy.dispatchPeer(&input)
+	if strings.Count(input.String(), couchmessage.WorkerStartNoticeBody) != 1 {
+		t.Fatalf("current launch native cue count: %q", input.String())
+	}
+	if got := replacement.workerCueReport(); got.State != couchmessage.WorkerCueCommitted || got.ID != current.ID {
+		t.Fatalf("current launch witness missing: %+v", got)
+	}
+
+}
+
+func TestPeerWorkerCueAdmissionRejectsStaleAndUnknownLaunchInEveryBatchPosition(t *testing.T) {
+	for _, ordinal := range []uint64{0, 8} {
+		for _, position := range []string{"single", "batch head", "batch follower"} {
+			t.Run(fmt.Sprintf("launch_%d_%s", ordinal, position), func(t *testing.T) {
+				f, _ := peerIntegrationFixture(t)
+				binding := peerBatchTestBinding("pair:1")
+				d := newPeerDelivery(binding, time.Now)
+				d.initWorkerCue(ordinal)
+				f.proxy.peer = d
+				f.output(peerEmptyComposer())
+				stale := couchmessage.Message{Origin: couchmessage.OriginSystem, From: binding, To: binding, ID: couchmessage.WorkerStartNoticeID(binding, 7), Body: couchmessage.WorkerStartNoticeBody, Deadline: time.Now().Add(couchmessage.AdmissionTimeout)}
+				var out bytes.Buffer
+				var err error
+				if position == "batch follower" {
+					head := peerTestMessage(time.Now())
+					head.To = binding
+					head.From = peerBatchTestBinding("brain:0")
+					if err := d.reserve(head.ID, d.sequence); err != nil {
+						t.Fatal(err)
+					}
+					if err := d.prepareBatch(head); err != nil {
+						t.Fatal(err)
+					}
+					f.proxy.dispatchPeer(&out)
+					if !d.batchReady() || out.Len() != 0 {
+						t.Fatal("fixture did not reach ready preparation")
+					}
+					err = d.finalizeBatch(head.ID, []couchmessage.Message{head, stale})
+				} else {
+					if err := d.reserve(stale.ID, d.sequence); err != nil {
+						t.Fatal(err)
+					}
+					if position == "batch head" {
+						err = d.prepareBatch(stale)
+					} else {
+						err = d.enqueue(stale)
+					}
+				}
+				f.proxy.dispatchPeer(&out)
+				if err == nil || out.Len() != 0 {
+					t.Fatalf("stale/unknown cue admitted before native input: error=%v native=%q", err, out.String())
+				}
+				report := d.workerCueReport()
+				if ordinal == 0 && report != nil {
+					t.Fatal("unknown launch acquired cue witness")
+				}
+				if ordinal != 0 && (report == nil || report.State != couchmessage.WorkerCueNeeded) {
+					t.Fatalf("stale cue consumed current witness: %+v", report)
+				}
+			})
+		}
+	}
+}

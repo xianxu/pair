@@ -90,3 +90,21 @@ func TestWorkerCueReportsStrictAndCopied(t *testing.T) {
 		t.Fatal("report alias")
 	}
 }
+
+func TestWorkerStartNoticeAdmissionFencesLaunchAndPreservesOrdinaryMessages(t *testing.T) {
+	b := registryBinding("pair:1", "a", 7)
+	cue := Message{Origin: OriginSystem, From: b, To: b, ID: WorkerStartNoticeID(b, 7), Body: WorkerStartNoticeBody}
+	if err := ValidateWorkerStartNotice(cue, 7); err != nil {
+		t.Fatalf("current cue refused: %v", err)
+	}
+	for _, ordinal := range []uint64{0, 8} {
+		if err := ValidateWorkerStartNotice(cue, ordinal); err == nil {
+			t.Fatalf("launch %d accepted old cue", ordinal)
+		}
+	}
+	for _, ordinary := range []Message{func() Message { m := cue; m.Origin = OriginPeer; return m }(), func() Message { m := cue; m.Body = "ordinary system self message"; return m }(), func() Message { m := cue; m.From = registryBinding("brain:0", "hub", 8); return m }()} {
+		if err := ValidateWorkerStartNotice(ordinary, 0); err != nil {
+			t.Fatalf("ordinary messaging acquired launch gate: %v", err)
+		}
+	}
+}

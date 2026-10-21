@@ -43,7 +43,13 @@ func (d *peerDelivery) finalizeBatch(id string, messages []couchmessage.Message)
 	if head.Origin != original.Origin || head.ID != original.ID || head.From != original.From || head.To != original.To || head.Body != original.Body || !head.Deadline.Equal(original.Deadline) || !head.AcceptedAt.Equal(original.AcceptedAt) {
 		return errors.New("peer batch head changed")
 	}
-	for _, m := range messages[1:] {
+	for i, m := range messages {
+		if err := d.validateWorkerCueLocked(m); err != nil {
+			return err
+		}
+		if i == 0 {
+			continue
+		}
 		if _, ok := d.retainedLocked(m.ID); ok {
 			return errors.New("delivery already committed")
 		}

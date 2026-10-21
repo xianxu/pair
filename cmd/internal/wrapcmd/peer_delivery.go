@@ -393,6 +393,9 @@ func (d *peerDelivery) enqueueLocked(m couchmessage.Message) error {
 	if err := couchmessage.ValidateBody(m.Body); err != nil {
 		return err
 	}
+	if err := d.validateWorkerCueLocked(m); err != nil {
+		return err
+	}
 	if _, ok := d.retainedLocked(m.ID); ok {
 		return errors.New("delivery already committed")
 	}
@@ -776,4 +779,14 @@ func (d *peerDelivery) recordWorkerCueLocked(receipt couchmessage.Receipt) {
 	}); ok {
 		sink.WorkerCue(d.workerCue)
 	}
+}
+
+// validateWorkerCueLocked runs before queue membership changes. Unknown launch
+// evidence cannot admit a canonical automatic cue to this native input owner.
+func (d *peerDelivery) validateWorkerCueLocked(m couchmessage.Message) error {
+	ordinal := uint64(0)
+	if d.workerCue != nil {
+		ordinal = d.workerCue.LaunchOrdinal
+	}
+	return couchmessage.ValidateWorkerStartNotice(m, ordinal)
 }

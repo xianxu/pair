@@ -75,8 +75,7 @@ func AdvanceWorkerStartNotice(r WorkerCueReport, receipt Receipt) WorkerCueRepor
 		return r
 	}
 	m := receipt.Message
-	id := WorkerStartNoticeID(m.To, r.LaunchOrdinal)
-	if id == "" || m.Origin != OriginSystem || m.From != m.To || m.ID != id || m.Body != WorkerStartNoticeBody || (r.ID != "" && r.ID != id) {
+	if !isWorkerStartNotice(m) || ValidateWorkerStartNotice(m, r.LaunchOrdinal) != nil || (r.ID != "" && r.ID != m.ID) {
 		return r
 	}
 	if r.State == WorkerCueSubmitted {
@@ -95,6 +94,24 @@ func AdvanceWorkerStartNotice(r WorkerCueReport, receipt Receipt) WorkerCueRepor
 	default:
 		return r
 	}
-	r.ID = id
+	r.ID = m.ID
 	return r
+}
+
+// ValidateWorkerStartNotice fences canonical system self cues before native
+// admission. The full Binding/socket survives same-PID exec, so its launch
+// ordinal must also agree. Ordinary peer/system messages are unaffected.
+func ValidateWorkerStartNotice(m Message, ordinal uint64) error {
+	if !isWorkerStartNotice(m) {
+		return nil
+	}
+	id := WorkerStartNoticeID(m.To, ordinal)
+	if id == "" || m.ID != id {
+		return errors.New("worker start cue does not match the current wrapper launch")
+	}
+	return nil
+}
+
+func isWorkerStartNotice(m Message) bool {
+	return m.Origin == OriginSystem && m.From == m.To && m.Body == WorkerStartNoticeBody
 }
