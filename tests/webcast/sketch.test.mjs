@@ -20,7 +20,9 @@ function harness() {
       this.fills.push(this.globalAlpha);
     },
     paintedPoints: 0,
-    arc() {
+    arcs: [],
+    arc(x, y, radius) {
+      this.arcs.push({ radius, alpha: this.globalAlpha });
       this.paintedPoints++;
     },
     clearRect() {},
@@ -130,7 +132,7 @@ function harness() {
       record.sketch = body.sketch;
       if (body.id) record.id = body.id;
       if (kind === 'sketch-stroke-begin')
-        Object.assign(record, { at: { node: body.node, box: body.box }, width: 4 });
+        Object.assign(record, { at: { node: body.node, box: body.box }, width: 3 });
       if (kind === 'sketch-points') Object.assign(record, { chunk: body.chunk, pts: body.pts });
       if (kind === 'sketch-stroke-end' && body.truncated) record.truncated = true;
       if (kind === 'sketch-label') record.label = body.label;
@@ -735,3 +737,22 @@ test('actual accepted painter visits only new segments for 8/16 point chunks', a
 });
 for(const during of ['move','pointerup'])test(`full point queue during ${during} retains one truncated terminal and releases capture safely`,async()=>{const {mountSketch}=await mod();const h=harness(),send=h.options.send;let release;h.options.send=async(kind,body)=>{const r=await send(kind,body);if(kind==='sketch-points'&&body.chunk===0)return new Promise(ok=>release=()=>ok(r));return r;};const ui=mountSketch(h.doc,h.win,h.view,h.options);await ui.enter();h.event(ui.layer,'pointerdown');await h.flush();for(let i=0;i<16;i++){h.event(ui.layer,'pointermove',{clientX:20+i});h.tick(50);await h.flush();}h.event(ui.layer,'pointermove',{clientX:50});if(during==='move')h.tick(50);else assert.doesNotThrow(()=>h.event(ui.layer,'pointerup',{clientX:50,buttons:0}));assert.equal(ui.layer.hasPointerCapture(1),false);assert.equal(ui.state().phase,'reconciling');assert.match(h.root.querySelector('.sketch-status').textContent,/queue|buffer|confirm/i);release();for(let i=0;i<8;i++)await h.flush();const s=h.model.sketchProjection().sketches[0].strokes[0];assert.equal(s.sealed,true);assert.equal(s.truncated,true);assert.equal(h.sent.filter(x=>x.kind==='sketch-stroke-end').length,1);assert.equal(ui.state().phase,'drawing');ui.dispose();});
 for(const outcome of ['unknown','refused'])test(`saturated terminal survives ${outcome} via exact confirmation or explicit prefix recovery`,async()=>{const {mountSketch}=await mod();const h=harness(),send=h.options.send;let release,held=false;h.options.send=async(kind,body)=>{if(kind==='sketch-points'&&body.chunk===1&&!held){held=true;h.sent.push({kind,body:structuredClone(body)});return new Promise(ok=>release=()=>{const s=h.model.sketchProjection().sketches[0];ok({outcome,next_sequence:s.next_sequence,status:outcome==='refused'?{phase:s.phase,open_stroke:s.strokes[0].begin.id,visible_top:'',redo_top:''}:undefined});});}return send(kind,body);};h.options.status=async()=>({outcome:'not-observed'});const ui=mountSketch(h.doc,h.win,h.view,h.options);await ui.enter();h.event(ui.layer,'pointerdown');await h.flush();for(let i=0;i<18;i++){h.event(ui.layer,'pointermove',{clientX:20+i});h.tick(50);await h.flush();}assert.equal(ui.state().phase,'reconciling');release();await h.flush();if(outcome==='unknown')ui.retry();else{assert.equal(ui.canContinue(),true);await ui.continueDrawing();}for(let i=0;i<8;i++)await h.flush();const s=h.model.sketchProjection().sketches[0].strokes[0];assert.equal(s.sealed,true);assert.equal(s.truncated,true);assert.equal(h.sent.filter(r=>r.kind==='sketch-stroke-end').length,1);if(outcome==='refused')assert.equal(s.pts.length,1);else assert.ok(s.pts.length>1);assert.equal(ui.state().phase,'drawing');ui.dispose();});
+
+test('optimistic contact uses approved 3px base and original pen pressure, mouse/touch constant width', async () => {
+  const { mountSketch } = await mod();
+  for (const [pointerType, pressure] of [['pen', 0], ['pen', .2], ['pen', .8], ['pen', 1], ['mouse', 0], ['touch', .4]]) {
+    const h = harness();
+    // Keep the original contact unacknowledged so this checks the local ink
+    // contract independently of the fixture producer and persisted widths.
+    h.scene.hitTest = () => new Promise(() => {});
+    const ui = mountSketch(h.doc, h.win, h.view, h.options);
+    await ui.enter();
+    h.event(ui.layer, 'pointerdown', { pointerType, pressure });
+    await h.flush();
+    const local = h.context.arcs.filter(a => a.alpha < 1);
+    assert.ok(local.length > 0);
+    const p = pointerType === 'pen' ? pressure : 1;
+    for (const arc of local) assert.equal(arc.radius * 2, 3 * (.25 + .75 * p), `${pointerType} pressure ${pressure}`);
+    ui.dispose();
+  }
+});

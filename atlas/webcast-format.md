@@ -236,7 +236,7 @@ pointer `stroke`'s `[x,y,dt]` meaning. `sketch/geometry.go` and browser `annotat
 positive anchor boxes while retaining pressure; width is `base * (.25 + .75 * pressure)`, scaled with the viewer.
 Sketch/stroke/operation/tab/author identities are bounded to 128 UTF-8 bytes, labels to 1024 bytes. The owner is
 `operator` or an existing public session digest. Coordinates are finite and at most `1e7` in magnitude.
-The live tool records base width 4. An absent or false stroke-end `truncated` has the same semantic identity;
+The live tool records base width 3 CSS px, as specified by the approved design. An absent or false stroke-end `truncated` has the same semantic identity;
 true preserves cancellation evidence through exact retries, snapshots and replay.
 
 `SketchCanonical` defines known request fields excluding writer time, kind and digest. `SketchDigest` hashes those

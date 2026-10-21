@@ -133,6 +133,13 @@ Primary surfaces: board/{sketch.go,sketch_wire.go,sketch_delivery.go,writer_sket
 - Same exact ecef5f7af3515fead7c02d6464ae112b16498fe1: targeted fixture test passed (root0.533s; independent single0.13s and10/10 in3.062s). Registered unclaimed pair#767 with fail→pass evidence. Underlying FD cause is unproven; this is flake classification, not a fixture fix. Hub filing receipt submitted.
 - Started SDLC recorded full rerun on the same head, retained lease-1901225109; queued sixth behind existing runs. This binary launches a fresh suite for this recovery. Close review can proceed independently with the classified same-head failure and targeted pass explicit; recorded status remains failed/pending until the rerun qualifies. No stage, landing or claim of a clean recorded pass yet.
 
+### 2026-10-21 — close round2 contract correction
+
+- Review disposed BR-1 through BR-4 as addressed and withdrew BR-5 based on exact executable host evidence. It independently reverted the browser fix and reproduced25 failures, validating the lifecycle/queue regressions. All414 Node tests and targeted Go/race checks passed in review.
+- New BR-6 found my width alignment chose4 rather than the approved3 CSS px at #750 plan line200 and this plan's focused API. Restored producer and optimistic width3, corrected the actual-producer fixtures and format atlas, and retained generic historical width4 model fixtures. RED tests now pin contract pressure widths and mouse/touch3; this corrects the earlier consistency choice, not the approved contract.
+- BR-7 repeats the Core concepts family: effectful canvas and random journal initialization were mislabeled pure. Applying a complete function/type/effect classification sweep, rather than moving only the named rows.
+- Source changes invalidate the queued ecef5f7a recovery run; after committing the fix, replace only this checkout's obsolete lease-1901225109 with a recorded run on the corrected head. No other checkouts or suite holders are touched.
+
 ## Estimate
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.*

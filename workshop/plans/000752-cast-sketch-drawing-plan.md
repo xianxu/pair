@@ -26,18 +26,22 @@ Paths below are relative to `cmd/internal/webcast/`.
 
 ### Pure entities
 
+Classify each named entity by its actual effects and test dependencies, not its file. PURE here names value types or deterministic transformations of explicitly supplied/owned data, tested without IO doubles. A mixed file can appear in both tables: only the symbols named in the PURE row have that classification; locks, revocation channels, random IDs, callback invocation, canvas/DOM and external execution belong to INTEGRATION.
+
 | Name | Lives in | Status |
 | --- | --- | --- |
-| Strict sketch command union, normalized digest and replies | `board/sketch_wire.go` | new |
-| Strict Unicode byte validation | `../strictjson/unicode.go` | new |
-| Drawing authority and permit identity | `drive/drawing.go` | new |
-| Owned receipt/metadata/top queries and cancellation semantics | `recording/sketch_state.go`, `recording/sketch.go`, `recording/sketch_codec.go`, `recording/sketch_snapshot.go` | modified |
-| Source-document anchor index | `recording/sketch_anchors.go` | new |
-| Bounded source-prefix candidate and state byte accounting | `recording/sketch_source.go` | new |
-| Browser interaction/recovery policy | `web/sketch-policy.js` | new |
-| Render-only patch projection and incremental painter | `web/sketch-render.js` | new |
-| Browser reducer queries and anchor index | `web/sketch-model.js`, `web/model.js` | modified |
-| Operator journal/cursor and transfer receiver | `board/sketch_delivery.go`, `web/sketch-delivery.js` | new |
+| Strict command/reply value types, `ParseSketchCommand`, `ParseSketchReply`, `SketchCommandCanonical` and `SketchCommandDigest` | `board/sketch_wire.go` | new |
+| `ValidateUnicode` byte validation | `../strictjson/unicode.go` | new |
+| `DrawingAuthority` projection value type only | `drive/drawing.go` | new |
+| Receipt/metadata/top value types, `NextSketch`, `Reconcile`, `Receipt`, `Metadata`, `StackTops` and deterministic codec/snapshot transforms | `recording/sketch_state.go`, `recording/sketch.go`, `recording/sketch_codec.go`, `recording/sketch_snapshot.go` | modified |
+| Source-document anchor index and owned `HasAnchor`/`AnchorNodes` queries | `recording/sketch_anchors.go` | new |
+| Owned `SketchSource` value/read helpers and local `sketchSceneSize` byte accounting only | `recording/sketch_source.go` | new |
+| Deterministic gesture accumulator, `createSketchGesture` only | `web/sketch-policy.js` | new |
+| Accepted display-data model `createSketchDisplay` and `displayFromSketchProjection` only | `web/sketch-render.js` | new |
+| Affine point transformation `projectSketchPoint` only | `web/sketch-render.js` | new |
+| Deterministic sketch reducer metadata, projection and anchor-index queries | `web/sketch-model.js`, `web/model.js` | modified |
+| Cursor/display/batch value types and `sketchDisplayProjection` only | `board/sketch_delivery.go` | new |
+| Owned bounded byte-buffer/offset model, `createSketchTransfer` only | `web/sketch-delivery.js` | new |
 
 The command union owns ingress shape, not persisted shape: the client supplies node identity and observed box, never trusted author, owner, selector/path/text, source time or digest. Digest the normalized strict command (including operation, sequence and origin epoch); store that digest in the event. #751 independently compares actual final event semantics on reducer retry. A begin retry resolves its original server-assigned sketch/source before any current-source reconstruction.
 
@@ -49,21 +53,27 @@ Render patches contain already accepted facts: new point chunks and authoritativ
 
 | Name | Lives in | Status | Wraps |
 | --- | --- | --- | --- |
-| Controller witness and capability publication | `drive/controller.go`, `drive/controller_mem.go`, `drive/capability.go` | modified | driving holder, acknowledged ctl/reset, input release and seat lifetime; new witness in `drive/drawing.go` |
-| Board sketch authority/service and source lease | `board/sketch.go` | new | annotation proof, authenticated principal, frozen State and writer |
-| Board lifecycle, sketch journal and anchor projection hooks | `board/board.go`, `board/operator_view.go` | modified | existing reducer and serialized Board |
-| Settled reference writer | `board/writer_sketch.go` (new), `board/writer.go` (modified) | new / modified | existing stateful Writer, sink outcomes and barriers |
-| Settled recording writer and ingress queue | `recorder/sketch.go` (new), `recorder/recorder.go` (modified) | new / modified | actor preflight, mirror, sink and barrier |
-| Cast source/provider and scoped asset reader | `cast_sketch.go` (new), `cast.go`, `chrome.go` (modified) | new / modified | existing Hub and cast-owned fallback Hub; existing recording asset files |
-| Sketch HTTP and capability routes | `server_sketch.go` (new), `server.go`, `server_capabilities.go` (modified) | new / modified | seat authentication, castlock and bounded bodies/assets |
-| Shared tool and held browser scene | `web/sketch.js`, `web/sketch-scene.js`, `web/sketch.css` | new | Pointer Events, independent source Model/Renderer and label transitions |
-| Viewer/coordinator and recorded geometry adapters | `web/viewer.js`, `web/drive.js`, `web/annotate.js`, `web/render.js`, `web/index.html`, `web/viewer.css` | modified | live connection, mode suspension and existing placement helper |
-| Console transport and serialized runtime | `operator-sketch.js`, `chrome_operator_sketch.go`, `chrome_operator_sketch_binding.go`, `chrome_operator_sketch_wiring.go` | new | trusted context, async settled writes, metadata and private scene/journal delivery |
-| Existing console assembly and view integration | `operator.js`, `operator_script.go`, `chrome_operator.go` | modified | shared UI modules and existing worker |
-| Trusted original-node binding | `chrome_operator_original.go`, `recorder/operator_original.go` | modified | current-document note/sketch eligibility and exact debugger objects |
-| Opaque private scene | `chrome_sketch_scene.go`, `sketch_scene_script.go` | new | child isolated world, frozen Renderer, loader/context identity and transfer handles |
-| Scene recording exclusion | `chrome_sketch_exclusion.go`, `recorder/exclusion.go` (new), `recorder/drive.go`, `recorder/observer.js`, `recorder/recorder.go`, `chrome.go` (modified) | new / modified | frame admission, private asset URLs and existing recorder/drive lifetime |
-| Existing browser/CDP stateful doubles | existing `fake.go`, `fake_drive.go` and package test harness | reused unchanged | existing interfaces; new stateful writer/source behavior is in the rows above |
+| Controller witness and capability publication | `drive/controller.go`, `drive/controller_mem.go`, `drive/capability.go` | modified | driving holder, acknowledged ctl/reset, input release and seat lifetime; new admission/permit methods in `drive/drawing.go` check channel/lock-owned state |
+| Board sketch authority/service and source lease | `board/sketch.go` | new | annotation proof, authenticated principal, random sketch/source identities, lease clock and writer callbacks |
+| Board lifecycle, sketch journal and anchor projection hooks | `board/board.go`, `board/operator_view.go` | modified | existing reducer, serialized Board and subscriber publication |
+| Operator sketch journal lifecycle | `board/sketch_delivery.go` | new | `randomID()` epoch initialization/rotation, Board synchronization, retained entries and subscription channels; not the pure DTO/projection functions above |
+| Settled reference writer | `board/writer_sketch.go` (new), `board/writer.go` (modified) | new / modified | stateful Writer, context/lock admission, `SketchWrite.Preflight` authority/source callbacks, sink outcomes and barriers |
+| Settled recording writer and ingress queue | `recorder/sketch.go` (new), `recorder/recorder.go` (modified) | new / modified | actor preflight, cancellation, mirror, sink, accepted callbacks and barrier |
+| Ordered Hub source candidate provider | `recording/sketch_source.go` | new | `Hub.CandidateSketchSource` locks and observes the existing live Hub before building an owned candidate; accounting/read helpers alone are pure |
+| Cast source/provider and scoped asset reader | `cast_sketch.go` (new), `cast.go`, `chrome.go` (modified) | new / modified | existing Hub and cast-owned fallback Hub; existing recording asset file reads |
+| Sketch HTTP and capability routes | `server_sketch.go` (new), `server.go`, `server_capabilities.go` (modified) | new / modified | request/context IO, seat authentication, castlock and bounded bodies/assets |
+| Browser interaction/recovery policy driver | `web/sketch-policy.js` | new | `createSketchPolicy` invokes an injected operation-ID provider (production uses UUID generation) and emits transport effects; deterministic gesture logic is named separately above |
+| Canvas painter and scheduled paint adapter | `web/sketch-render.js` | new | `paintSketchPaths` mutates the supplied canvas context and invokes coordinate callbacks; `createSketchPaintScheduler` invokes schedule/paint callbacks |
+| Accepted-record display adapter | `web/sketch-render.js` | new | `createSketchRecordDisplay` observes a supplied live Model through projection/metadata queries; the underlying data-only display transforms are named separately above |
+| Browser delivery/ACK callback adapter | `web/sketch-delivery.js` | new | `createSketchDelivery` invokes `installBootstrap`/`applyBatch` and acknowledges only their successful completion; owned buffer/offset logic is named separately above |
+| Shared tool and held browser scene | `web/sketch.js`, `web/sketch-scene.js`, `web/sketch.css` | new | Pointer Events, independent source Model/Renderer, timers/animation scheduling, canvas/DOM and label transitions |
+| Viewer/coordinator and recorded geometry adapters | `web/viewer.js`, `web/drive.js`, `web/annotate.js`, `web/render.js`, `web/index.html`, `web/viewer.css` | modified | live connection, mode suspension, DOM/canvas layout and existing placement helper |
+| Console transport and serialized runtime | `operator-sketch.js`, `chrome_operator_sketch.go`, `chrome_operator_sketch_binding.go`, `chrome_operator_sketch_wiring.go` | new | trusted context, async settled writes, permission/metadata callbacks and private scene/journal delivery |
+| Existing console assembly and view integration | `operator.js`, `operator_script.go`, `chrome_operator.go` | modified | embedded shared UI assembly, DOM event subscriptions and existing delivery worker |
+| Trusted original-node binding | `chrome_operator_original.go`, `recorder/operator_original.go` | modified | current-document note/sketch eligibility, recorder actor, exact debugger objects and retry lifecycle |
+| Opaque private scene | `chrome_sketch_scene.go`, `sketch_scene_script.go` | new | embedded module reads/assembly, child CDP isolated world, frozen DOM Renderer, loader/context identity and transfer handles |
+| Scene recording exclusion | `chrome_sketch_exclusion.go`, `recorder/exclusion.go` (new), `recorder/drive.go`, `recorder/observer.js`, `recorder/recorder.go`, `chrome.go` (modified) | new / modified | frame admission barriers, private asset URLs, observer bootstrap and existing recorder/drive lifetime |
+| Existing browser/CDP stateful doubles | existing `fake.go`, `fake_drive.go` and package test harness | reused unchanged | stateful test substitutes for actual browser/CDP interfaces; integration verification, not PURE entities |
 
 Use the existing stateful `board.Writer` and fake browser/CDP harness to model queue start, persisted records, uncertainty and late replies. HTTP integration boots the real owned Server with Hub/Writer and fake browser. Live conformance uses disposable Chrome profiles and recorded assets. Storage stays in the existing portable recording directory; no new sidecar or user-profile dependency.
 
@@ -217,7 +227,7 @@ Each task uses the named function-verification strategy above. A checked task re
 ## Architectural check
 
 - **ARCH-DRY:** reuse NextSketch, existing driving seat, admission/body bounds, writer acknowledgment/barrier, CatchUp/Hub, anchor traversal and renderer; one shared tool for both surfaces. Server-derived render facts do not create another legal-transition owner.
-- **ARCH-PURE:** strict commands/digests, policy, geometry and cursor patches are pure; clocks, actor queues, HTTP/CDP and DOM remain injected integration seams.
+- **ARCH-PURE:** classification follows effects and test dependencies, not file placement. Only the named value types, strict parsing/digests, deterministic reducer/display/gesture/buffer transforms, affine geometry and local byte accounting are PURE. Controller locks/revocation checks, Hub observation, journal random initialization/publication, policy ID-provider invocation, delivery/Model callbacks, paint scheduling/canvas writes, clocks, actor queues and HTTP/CDP/DOM are INTEGRATION, including when colocated with pure helpers. Unit data/corpus checks cover the former; stateful boundary doubles and owned live conformance cover the latter.
 - **ARCH-PURPOSE:** privileged console and granted driver are both required; no fallback to remote-only drawing or freezing an arbitrary displayed page.
 - **ARCH-MOCK:** stateful Writer/Hub/fake browser/CDP share production interfaces and portable recording storage; owned Chrome conformance plus real console smoke qualify actual seams.
 - **ARCH-CONSTRAINTS:** explicit body/history/source/queue/transfer budgets and counted growth tests above; no full-history clone/status scan per chunk.
@@ -276,3 +286,18 @@ Final focused rework checks passed: all targeted webcast Go packages, shared Nod
 Host conformance on8be34c6fab5b1cc1c2431a7cadb1da915b2e793d executed all4 required live tests successfully (package9.541s); BR-5 receives this measured host evidence through its formal dispute. Stage/operator smoke and landing remain held.
 
 Corrected-head suite encountered only the unchanged fixture FD flake, now pair#767 with same-head targeted passes. The retained recorded rerun is queued; mandatory close review proceeds independently with this limitation explicit. All automated acceptance is not complete until the recorded rerun is settled. Stage and landing remain held.
+
+
+### 2026-10-21 03:55 PDT — BR-7 complete Core concepts effect/test classification sweep
+
+Rule applied to every existing row: an entity is PURE only when its named symbols transform supplied/owned data deterministically and need no IO double; a file containing such a helper is not itself classified PURE. Callback, identity-generator, lock/channel, live-owner, canvas/DOM or external-execution dependencies make the wrapper INTEGRATION. This revises classification and verification ownership only; code, approved behavior and the previously verified file/status map are unchanged.
+
+Audited all ten prior PURE rows. Kept strict commands/digests/replies, Unicode validation, receipt/reducer/codec/snapshot queries, anchor indexing and browser reducer queries as explicit deterministic symbols. Narrowed drawing authority to its value type (permit checks/admission remain with controller integration); source to owned reads/local accounting (Hub candidate observation moved to integration); policy to the deterministic gesture accumulator (the operation-ID callback driver moved to integration); rendering to display transforms/affine math (canvas painter, scheduler and live Model adapter moved to integration); and delivery to cursor/display DTOs, projection and byte-buffer offset logic (random journal ownership and install/apply callbacks moved to integration).
+
+Audited all fifteen prior INTEGRATION rows and retained their verified new/modified/reused statuses: controller, Board service/hooks, reference/recording writers, cast Hub/assets, HTTP routes, shared tool/scene, viewer/geometry adapters, console runtime/assembly, debugger original binding, opaque scene, recording exclusion and existing doubles each cross the stated state/IO/user-input boundary. The new explicit wrapper rows separate effects already present in those mixed files; they introduce no new implementation paths.
+
+Verification seams match the classification: command/Unicode/reducer/anchor/source-accounting/gesture/display/geometry/transfer checks compare owned bytes or values without IO mocks; policy-driver checks inject deterministic ID providers; journal/source-provider checks use the real in-memory Board/Hub and exercise random epoch/publication/ownership; delivery checks inject an actual display or stateful callback/refusal target; canvas/scheduler checks use the existing canvas/scheduler doubles; actor/controller/HTTP/CDP/DOM wrappers use the existing stateful Writer/browser/CDP harness and owned Chrome conformance. The function verification strategy table remains the detailed test map. ARCH-PURE no longer claims the canvas painter, random journal, Hub observation, live Model/ACK callbacks or production ID-provider driver are pure.
+
+### 2026-10-21 — approved width restored
+
+BR-6 restores the approved3 CSS px base on both producer and optimistic painter, rather than choosing the previous client4 value as the consistency oracle. Service regression fails at4 and passes at3, including persisted pressure0/.5/1 widths .75/1.875/3 and doubled viewer scale. The independent canvas test holds anchor preparation and verifies pressure0/.2/.8/1 using3*(.25+.75p), plus mouse/touch3. Actual producer doubles use3; arbitrary historical width4 fixtures remain supported. Final targeted Go/Node/assembly and reader inventory pass before commit.

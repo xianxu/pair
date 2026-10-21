@@ -351,7 +351,7 @@ export function mountSketch(doc, win, view, options) {
     optimistic.set(stroke, {
       sketch: active(),
       id: stroke,
-      width: 4,
+      width: 3,
       color: (options.palette || ['#ff0000'])[color],
       pts: [first],
       ended: false,

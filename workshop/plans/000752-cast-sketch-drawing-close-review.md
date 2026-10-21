@@ -122,3 +122,134 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T03:53:20-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 752 — cast-sketch: live console and driver drawing with pen pressure |
+| repo | pair |
+| issue file | workshop/issues/000752-cast-sketch-drawing.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | bc79cbaeae75b518dcfa789fc2bd0e40ccf06f97..e9ea2bbf3ed082d870a2f67af932ce78dff28d93 |
+| command | sdlc close --issue 752 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T03:53:20-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The prior console lifecycle and queue-saturation fixes have meaningful red/green regression evidence. File mappings, test-strategy prose, and documentation are improved. Two blockers remain: stroke width contradicts the approved contract, and the Core concepts table still classifies effectful components as PURE. Chrome cannot start in this environment, but the supplied successful host evidence covers unchanged executable code.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Inspected the before/after plan diff: Tasks 1–5 now reference the Function verification strategy table while retaining commands and independent invariants. The correction is recorded under Revisions.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Console delivery now supplies authoritative metadata to shared reconciliation. Lifecycle, stale-status, draft-retention and held-status tests pass. Reverting the browser fixes in a disposable copy makes the interrupted-contact label regression fail.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Saturation reserves one truncated terminal and enters visible reconciliation; finish detaches contact before synchronous effects. Move, pointer-up, unknown and refused-operation regressions pass. Reverting the fixes reproduces both missing recovery and the null.pointer crash.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      The revised integration table names board/sketch.go, recording/sketch_source.go, cast_sketch.go and board/writer_sketch.go correctly and identifies unchanged interfaces/doubles as reused. These path/status corrections match the pinned diff and are recorded under Revisions. A distinct PURE classification contradiction is reported below.
+  - id: BR-5
+    disposition: withdrawn
+    note: |
+      The supplied host run on 8be34c6fab5b1cc1c2431a7cadb1da915b2e793d executed all four required tests successfully. The diff from that commit to reviewed head changes only tracker/plan records, so the measurement covers this executable implementation. My rerun still fails before assertions with Chrome GPU/sandbox startup errors and CDP EOF; that does not contradict the supplied host results.
+findings:
+  - id: new
+    severity: Critical
+    family: approved-rendering-contract
+    title: |
+      Both live and persisted strokes violate the approved 3 px width contract
+    detail: |
+      board/sketch.go:305 persists Width: 4 and web/sketch.js:354 uses optimistic width 4. The approved design at workshop/history/plans/000750-cast-sketch-plan.md:200 and execution plan at workshop/plans/000752-cast-sketch-drawing-plan.md:85 require base width 3. This makes every pressure-derived width one-third thicker, including replay. A disposable Go test overlay changing the existing service assertion to the specified width fails with “durable width 4 differs from approved fixed sketch tool width 3.” ARCH-PURPOSE: restore 3 in both paths and pin the specified pressure widths in regression tests; the existing assertion at board/sketch_test.go:49 currently enshrines the incorrect value.
+  - id: new
+    severity: Critical
+    family: core-concept-map-matches-code
+    title: |
+      The Core concepts table still labels effectful components as PURE
+    detail: |
+      workshop/plans/000752-cast-sketch-drawing-plan.md:38 classifies the painter as PURE, but web/sketch-render.js:343 mutates an injected canvas context, and tests/webcast/sketch-render.test.mjs:92 supplies a canvas double. Row 40 also classifies the journal as PURE although board/sketch_delivery.go:136 obtains a random epoch through randomID(). ARCH-PURE: distinguish the pure geometry/projection entities from the INTEGRATION canvas and random-initialization adapters, and record the correction under Revisions. This is the 2nd finding in family core-concept-map-matches-code. State and apply the rule across every table row: classification must follow actual effects and test dependencies, not merely file placement; sweep the complete table rather than correcting only these examples.
+```
+
+1. **Strengths**
+
+   - Both surfaces reuse the shared tool, recovery policy, renderer and acknowledged service.
+   - Ownership tests exercise stale epochs, ABA handoffs and held persistence/release boundaries.
+   - Source preparation enforces independent prefix/state bounds before committing begin.
+   - README and atlas document controls, recovery, privacy and lifecycle ownership.
+
+2. **Critical findings**
+
+   The two findings above require contract-aligned width behavior and a corrected PURE/INTEGRATION classification.
+
+3. **Important findings**
+
+   None newly raised. TL console smoke and the corrected-head recorded full-suite rerun remain explicitly pending; this review does not establish their completion.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Passed:
+
+   - All **414** Node webcast tests.
+   - `go test ./cmd/internal/webcast/... ./cmd/internal/strictjson ./cmd/internal/artifactpath`.
+   - Race-enabled sketch/drawing tests for Board, drive and recorder.
+   - `git diff --check`.
+
+   Reverting three browser fix files in a disposable copy produced **25 failures**, including the original console-label and pointer-up defects. Temporary test copies and overlays were removed; the repository remains unchanged.
+
+6. **Architectural notes for upcoming work**
+
+   | Marker | Result |
+   |---|---|
+   | ARCH-DRY | Pass: shared UI, geometry and writer seams are reused. |
+   | ARCH-PURE | **Flag:** effectful painter/journal classification, detailed above. |
+   | ARCH-PURPOSE | **Flag:** implemented width contradicts the approved rendering contract. |
+   | ARCH-MOCK | Pass: stateful writer/controller/CDP doubles share production seams; host conformance evidence covers head. |
+   | ARCH-CONSTRAINTS | Pass: bounded queues retain terminal work; source, transfer and journal limits have coverage. |
+   | ARCH-SECURE | Pass on inspected structure and supplied conformance: authenticated ingress, scoped assets and opaque scene isolation. |
+   | ARCH-ORDER | Pass: corrected lifecycle reconciliation and terminal recovery have controlled-order regressions. |
+   | ARCH-FUNERAL | Pass: sources, timers, transfers, blobs and workers have retirement owners. |
+   | ARCH-EVOLVE | Pass: optional truncation preserves absent/false semantics and has legacy unknown-field preservation coverage. |
+
+7. **Plan revision recommendations**
+
+   Add `## Revisions` entries recording:
+
+   - Restoration of the approved 3 px base across optimistic and persisted strokes, with contract-based regression evidence.
+   - A complete Core concepts classification sweep separating pure geometry/projections from canvas, randomness and other integration effects.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"f33df438-785c-4978-be54-05bb60d101f3","repository":"github.com/xianxu/pair","issue_id":"000752","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/540ec201ce77f0f3","reviewed_head":"e9ea2bbf3ed082d870a2f67af932ce78dff28d93","slot":"pair:9","requested_at":"2026-10-21T10:49:10.097006Z"},"phase":"finished","pid":23898,"started_at":"2026-10-21T10:49:10.264146Z","finished_at":"2026-10-21T10:53:19.593029Z","session_id":"01a15e14-4afd-7230-8ed8-0e57f11ca24e","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.454134334s
+head: "e9ea2bbf3ed082d870a2f67af932ce78dff28d93"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
+	"github.com/xianxu/pair/cmd/internal/webcast/sketch"
 )
 
 func sketchServiceRig(t *testing.T) (*rig, *SketchService, SketchAuthority) {
@@ -46,8 +47,16 @@ func TestSketchServiceFrozenAnchorAndExactRetry(t *testing.T) {
 		t.Fatalf("stroke: %+v", got)
 	}
 	stroke := r.kinds("sketch-stroke-begin")[0].(*recording.SketchStrokeBegin)
-	if stroke.Width != 4 {
-		t.Fatalf("durable width %v differs from fixed sketch tool width 4", stroke.Width)
+	if stroke.Width != 3 {
+		t.Fatalf("durable width %v differs from approved fixed sketch tool width 3", stroke.Width)
+	}
+	for _, sample := range []struct{ pressure, width float64 }{{0, .75}, {.5, 1.875}, {1, 3}} {
+		for _, scale := range []float64{1, 2} {
+			got := sketch.PressureWidth(stroke.Width, sample.pressure) * scale
+			if want := sample.width * scale; got != want {
+				t.Fatalf("durable base %v pressure %v scale %v: width %v, want %v", stroke.Width, sample.pressure, scale, got, want)
+			}
+		}
 	}
 	if stroke.At.Text != "First" {
 		t.Fatalf("anchored against changed live source: %+v", stroke.At)
