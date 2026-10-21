@@ -1,6 +1,6 @@
 ---
 id: 000763
-status: codecomplete
+status: done
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 7b5e43b79ea17f9c2d8d79b5cb57bbdc3a1cd99b
         evidence_commit: 8b55087b04be9a8cedb3f8dc654c9edf356f270b
+        landed_commit: 145c8ad4563d71eca47a811293a7ae7072ad3566
 ---
 
 # Go reader audit: isolate certificates so independent changes merge cleanly
