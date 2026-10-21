@@ -16,6 +16,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: operator, spec: "813f0cf7", done: "34a6f408"}
 ---
 
 # Controlled Zellij fixture closes its PTY twice and hides cleanup errors
