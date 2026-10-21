@@ -1,6 +1,6 @@
 ---
 id: 000761
-status: codecomplete
+status: done
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours: 2.3535
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 01c4f854f9588a64ae956d14c962a09770b24766
         evidence_commit: e88939dab432dbb0a2b1af0d1567d58c9255fdde
+        landed_commit: e68a6c2a35e078f673b86ecad9543e4cebc096d3
 ---
 
 # Couch native detach intermittently loses post-client ownership proof
