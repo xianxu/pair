@@ -98,3 +98,29 @@ func TestZellijKnownBugReadWorkIsBoundedLinearly(t *testing.T) {
 		}
 	}
 }
+
+func TestZellijReadReplyKindRequiresCompleteOtherContract(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		want    zellijReplyKind
+		raw     string
+		crossed bool
+	}{
+		{"same panes", zellijPanesReply, "[]", false},
+		{"crossed panes", zellijClientsReply, "[]", true},
+		{"crossed clients", zellijPanesReply, "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n", true},
+		{"crossed listing", zellijPanesReply, "pair-a [Created 0s ago]\n", true},
+		{"crossed tab", zellijSessionsReply, `{"active_swap_layout_name":null,"is_swap_layout_dirty":false}`, true},
+		{"malformed", zellijPanesReply, "[{", false},
+		{"missing pane role", zellijClientsReply, `[{"id":0}]`, false},
+		{"missing tab fact", zellijPanesReply, `{"active_swap_layout_name":null}`, false},
+		{"duplicate tab fact", zellijPanesReply, `{"active_swap_layout_name":null,"is_swap_layout_dirty":false,"is_swap_layout_dirty":true}`, false},
+		{"unsupported read", zellijUnknownReply, "[]", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := crossedZellijReply(tc.want, []byte(tc.raw)); got != tc.crossed {
+				t.Fatalf("crossed=%v want=%v", got, tc.crossed)
+			}
+		})
+	}
+}
