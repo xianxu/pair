@@ -151,7 +151,7 @@
       "cmd/internal/wrapcmd/terminal_tail_test.go": "9131f3b46d3d253300a272875be6a28aaf33ca9877940a4d3ee2061cf336413f",
       "cmd/internal/wrapcmd/translate_test.go": "19a77f27b5eeb7686ae076513a3e5064257d9f9c8ed36c3cc71e423e2f599e04",
       "cmd/internal/zellijtest/fake_test.go": "0820421bf6161904427c0ac989b550cbcfaa3a964538f6da00219b6aac5d042f",
-      "cmd/pair-go/main_test.go": "b65e9e8666a4593b309e59cf75426ac3cbff821ba4999940e4a26ffea427552d"
+      "cmd/pair-go/main_test.go": "92b328484019f5aa5e6a3850c6dee60b7e4500aec392766ef0ddbbc7bbcb9523"
     },
     "local_or_literal_fixture": {
       "cmd/internal/vmcmd/guest_test.go": "cb51771b1411c99333281e1c8321d14f906fad84f26c05b382127471a2688c8a",
@@ -463,7 +463,8 @@
       "cmd/internal/vmcmd/host_test.go": "7156e595c80a82c839643a8c4da0b9a94d1ff68c6fe4c7e779ab92d48d37d153",
       "cmd/internal/vmcmd/snapshot_process_unix_test.go": "c1d0a44cc2d2fa19df6e7948371ad73426120c4e17089d1aa612cba5687759a9",
       "cmd/internal/vmcmd/process_owner_unix_test.go": "8adf216bec51c295b1ce89fdfad6000d59f670d9e4226b8080e37b9c0f848fa6",
-      "cmd/internal/vmcmd/results_test.go": "ae2f75ce600e3b200cfe06059ed4667a67220ff5e317af451e347bdc884a4665"
+      "cmd/internal/vmcmd/results_test.go": "ae2f75ce600e3b200cfe06059ed4667a67220ff5e317af451e347bdc884a4665",
+      "cmd/internal/vmcmd/provision_test.go": "e2cf28aaa286a381bb8047ec30ccd75ac94b2cf43f4db9b234420eb3be91d1a4"
     }
   }
 }
