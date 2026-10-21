@@ -1,13 +1,21 @@
 ---
 id: 000762
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'f73b1535a744494534047233e448fbbe1af5f0de' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '9cf2f3059d8a23d9f0bc418832e1ec6ede412cdb' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-21T02:33:09-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
 ---
 
 # cast link locks: lifetime guess cap per link and an operator notice on forced code rotation
@@ -42,8 +50,30 @@ Out: URL-token expiry, the quick-tunnel default, and Access in front (pair#759's
 
 ## Plan
 
-- [ ]
+- [ ] Add the per-lock third-forced-rotation refusal under its existing mutex; only successful operator rotation clears it. Preserve live sessions and RNG-failure refusal.
+- [ ] Publish every current guessing rotation through the existing Couch notice seam, with one combined cap notice; retain ended-cast/stale-generation guards and remove the quiet window.
+- [ ] Pin exact thresholds, successful-unlock persistence, per-link isolation, session survival, explicit rotation/RNG failure and notice behavior; update the broadcast policy paragraph, verify and land.
+
+Actions: unlock, rotate explicitly, end cast.
+
+| Internal state / failure mode | Visible state | Recovery action | Possible loss |
+|---|---|---|---|
+| Fewer than three forced rotations | normal code entry; every forced change has a notice | unlock with current code | old unredeemed code superseded |
+| Third forced rotation | code changed; link locked until operator rotation | rotate explicitly | new unlocks refused; existing sessions retained |
+| Randomness fails at spent budget or operator recovery | refusal retained; no false rotation success | rotate explicitly after repair | none; current sessions preserved on failed rotation |
+| Successful operator rotation | normal unlocks restored, old sessions revoked | unlock with new code | previous sessions disconnected, as before |
+| Cast ended | no valid unlock/session | start a new cast | in-memory locks end with cast |
+
+The existing Lock mutex orders attempt/counter/rotation changes (ARCH-ORDER). One bounded counter per link and a cap bit on the existing Rotation event add O(1) work per attempt, no scan or extra worker/store. Removing the quiet-window maps reduces residue. Tokens, lengths, rate limiter and session cap stay unchanged (ARCH-DRY/CONSTRAINTS/FUNERAL).
 
 ## Log
 
 ### 2026-10-21
+
+- Traced shared castlock.Lock, broadcast.LinkLocks and Couch onCodeRotated. Guessing currently rotates indefinitely; Couch has a30-second coalescing window. Scope is bounded changes in these existing owners; no new effect path or artifact family. Quick-flow plan posted to hub, proceeding unless objected.
+
+## Revisions
+
+### 2026-10-21 — lifetime count and cap notice clarified
+
+TL approval receipt2ea832e9-f345-48e2-ab4b-986934a358fd supersedes “without a successful unlock” in the Spec: successful unlocks do not reset the forced-rotation count. Only successful explicit operator rotation clears it. A legitimate viewer’s typos may eventually trip the cap during a long cast; accepted tradeoff is operator rotation. The third forced rotation emits one combined notice (“code changed; link locked until you rotate”), not two rows.
