@@ -54,6 +54,9 @@ Remaining acceptance gates: recorded suite must PASS before landing; close revie
 
 ## Log
 
+- 2026-10-21 13:08 PDT — Infrastructure interruption, not test evidence: corrected branch suite b5c731deb7f01cf15c9f1100770c9a41 passed10m34s on87b7c4fb39cf449a64224f8ced70241b2cd1a3a5. Merge integrated main to cd0872c06c8504aef472cd66c4bdb3e68f3bd7c1. Integrated attempt6c8c05bd08a636459168afac3eb528f5 failed23s with Go cache ENOSPC under /Volumes/AgentScratch/go-build; automatic main baseline1cba845146dd1c537fdce15fbb15231b failed1s for the same infrastructure cause. Neither is evidence against the code or a registered flake. Failed logs are retained under the Git common directory sdlc/test-stats/failed with those attempt IDs. Hub restored the default SSD cache; verified go env GOCACHE = /Users/xianxu/Library/Caches/go-build. Retried sdlc merge --yes on unchanged integrated head, without overrides: it printed "landing train: not ready: CI gate: CI gate: PR #528 has failing checks on its head". gh pr checks confirms the only failing status is sdlc-local/suite: unattributable-failure, exit2 in23s, log hash9166bc50e983; hosted conformance, merge-check and local-gates checks pass. Stopped this waiting runner cleanly (Ctrl-C, exit130). No replacement suite ran, no manual status, flake registration or guard workaround. Await supported infrastructure-attempt recovery from the hub. This Log commit documents the failure; it does not authorize retrying on a new documentation head to evade the same-head guard. Hub-coordinated advancing-writes live acceptance remains owed.
+
+
 
 
 
