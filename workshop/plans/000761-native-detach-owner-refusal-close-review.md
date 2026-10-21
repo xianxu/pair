@@ -427,3 +427,71 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T05:24:25-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 761 — Couch native detach intermittently loses post-client ownership proof |
+| repo | pair |
+| issue file | workshop/issues/000761-native-detach-owner-refusal.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | a17b2d66cca838921bfce0b90ceadfe2acdd26a2..01c4f854f9588a64ae956d14c962a09770b24766 |
+| command | sdlc close --issue 761 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T05:24:25-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The narrow interdiff correctly resolves the inventory migration conflict and adds evidence and review records. Independent comparison confirms all 471 prior reader path/disposition/hash tuples survive unchanged. No product behavior or approved scope changes; no new defects found. BR-1 and BR-2 remain previously disposed.
+
+```findings
+{}
+```
+
+1. **Strengths**
+   - Aggregate deletion matches the existing per-reader loader’s requirement to reject the legacy inventory.
+   - All 471 audited entries are preserved exactly, with no missing or additional entries.
+   - The new native evidence log matches its recorded SHA-256; earlier failed evidence remains retained.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes:** Inventory validation, `make test-affected-inventory`, all 20 inventory regression tests, and `git diff --check` passed. No behavior-changing correction in this window requires a fix-reversion test. Product tests were not rerun.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** Removes the obsolete aggregate instead of retaining parallel inventories.
+   - **ARCH-PURE — pass:** No business-logic or IO-boundary changes.
+   - **ARCH-PURPOSE — pass:** Conflict resolution preserves the complete audited inventory.
+   - **ARCH-EVOLVE — pass:** Uses main’s existing certificate format without changing audited values or reader semantics.
+
+   No new architectural or user-facing surface requires atlas or README changes.
+
+7. **Plan revision recommendations:** None. Spec and implementation plan are unchanged.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"37a8188b-e41d-4ea7-924f-3affe3da9759","repository":"github.com/xianxu/pair","issue_id":"000761","recipe":"fix-review","round":6,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/3b09cc4fbbfdab5c","reviewed_head":"01c4f854f9588a64ae956d14c962a09770b24766","slot":"pair:5","requested_at":"2026-10-21T12:22:08.059797Z"},"phase":"finished","pid":71225,"started_at":"2026-10-21T12:22:08.227067Z","finished_at":"2026-10-21T12:24:24.939928Z","session_id":"01a15e69-6800-7862-94ef-f8ca67850c69","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.877531459s
+head: "01c4f854f9588a64ae956d14c962a09770b24766"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
