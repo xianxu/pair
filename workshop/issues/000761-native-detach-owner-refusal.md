@@ -34,13 +34,15 @@ Diagnose the post-client-exit SessionOwnerUnknown result at couchcore/detach.go:
 - Reproduce or positively classify the observed refusal using an isolated real Zellij/Couch fleet.
 - Preserve strict pre/post ownership fences and add a regression at the actual failing boundary.
 - Recheck real detach/restart without leaving running owned generations.
+- Recognize only the approved false-miss signatures within the existing three-attempt/deadline bound; retain typed bounded stdout/stderr/exit/version in the same operation failure evidence on unresolved pane parsing.
 
 ## Plan
 
 Durable full-flow plan: [native pane evidence](../plans/000761-native-pane-evidence-plan.md). Product implementation waits for the expanded change-code gate.
 
-- Inspect the full diagnostic and native query evidence; use #744 shared fleet or existing TestStartupManagedAttachDetachTimingLive.
-- Fix the established class and run focused plus required verification.
+- [x] Capture and classify native false-selection output, preserving original failures and exact cleanup proof.
+- [ ] Implement both approved bounded signatures and operation-owned typed raw evidence, with adversarial boundary and persistence tests.
+- [ ] Document and complete native counter/control, focused checks, recorded suite and close readiness; publication remains gated by close and merge.
 
 ## Log
 
@@ -78,3 +80,7 @@ Observer copies suffice for bounded replies and include truncation flags; an own
 ### 2026-10-21 — TL19a8db73: operation-owned raw-query evidence
 
 Verified submitted approval of the investigation adds a shipping requirement independent of final diagnosis: when Couch cannot parse authoritative pane JSON, retain bounded stdout, stderr, native exit status and Zellij version in that operation failure evidence. Keep operator text concise. Select capture using the actual full-input parser result, never validation of a truncated observer prefix. Preserve SessionOwnerUnknown semantics and strict ownership fencing. Native diagnostic capture is underway; additive evidence plumbing is sized outside the quick shell and will get a durable full-flow plan before implementation.
+
+### 2026-10-21 — approved full-flow implementation contract
+
+TL3aacb9e7 approves the durable full plan plus socket-present exit1 recovery. The original two prose Plan bullets covered investigation and generic verification; the current checklist names the established reproduction and complete implementation/acceptance handoff. Done when now explicitly includes both approved bounded signatures and typed raw operation evidence. No ownership fence or three-attempt/deadline budget is relaxed.
