@@ -16,6 +16,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "eb22dab6", done: "b1a03087"}
 ---
 
 # couch detach got slower and looks sequential after the 10-21 restart: profile and fix the regression
