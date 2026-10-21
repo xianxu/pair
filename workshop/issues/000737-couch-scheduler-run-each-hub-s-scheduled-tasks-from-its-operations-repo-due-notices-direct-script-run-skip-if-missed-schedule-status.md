@@ -57,7 +57,8 @@ settled the contour with the operator on 10-20; its `design.md` is the reference
 ## Plan
 
 - [x] M1 — Shared manual task path, durable state, and read-only status; implementation tasks 1–4 in [the durable plan](../plans/000737-couch-scheduler-plan.md).
-- [ ] M2 — Automatic per-hub scheduling, authenticated notices, recovery, and day-long live acceptance; tasks 5–6 in the durable plan.
+- M2 — superseded by the one-writer re-plan (operator, 10-21). Prior REWORK findings and evidence retained; no SHIP claim.
+- [ ] M3 — One namespace-scoped scheduler writer, settlement before edits, owner-mediated manual transport, requalified M1 recovery, authenticated notices and required disposable/day-long acceptance; final revision in the durable plan.
 
 ## Log
 
@@ -82,6 +83,10 @@ settled the contour with the operator on 10-20; its `design.md` is the reference
 ### 2026-10-21 — Option A re-plan for TL review
 
 Authenticated ops:0 delivery `8935cb14-0bb2-47d2-a8db-5325ca4023aa` relays operator selection of one namespace-scoped writer. Appended the concrete M2 replacement to the durable plan: owner-only transitions/history, fact-only execution/discovery, manual service transport, existing state-lock lifetime fence with full affected M1 recovery requalification, settlement-before-edit and task-local busy/quarantine, gate-ready admission outside owner, and complete sequence/ownership/transport qualification. Cancelled exact superseded suite `lease-1820886732` through SDLC; cancellation confirmed. Old candidate/review evidence remains historical, not acceptance for A. Planning documents only; no production code, new suite, review, stage or restart. Submit plan to TL before code; its proposed terminal-output manual UX and supported fresh full-model boundary route are called out for decision. Project remains TL-owned.
+
+### 2026-10-21 — M3 authorized re-scope
+
+Ops:0 delivery `29bde47e-ecea-4daf-bf0f-0278b7fa6145` approves the concrete option-A plan and completion-time bounded manual output. Per the operator's decision relayed by TL, M2 is retired as superseded and the one-writer redesign is M3 with its own fresh review boundary. This is an explicit replacement of the concurrency model, not a patch round or reset of M2's cap/findings. Prior M2 ledger/sidecar remains intact and BR-14 must be qualified through M3. Proceed through change-code before implementation; live and disposable acceptance remain required.
 
 ## Estimate
 
@@ -190,3 +195,7 @@ Fall-back repeated local times run once. Remove waiting-hub: offline notify-only
 ### 2026-10-21 10:57 PDT — Operator-approved direction A; concrete plan awaits TL
 
 Reason: BR-14 exposed competing writer/finalization paths despite durable-read fences. Operator selected A via ops:0: all scheduler transitions and history publication/finalization belong to one namespace owner, reusing `.state.lock` as a lifetime fence; scripts/discovery return facts and manual requests use the existing service transport. The [new final revision of the durable plan](../plans/000737-couch-scheduler-plan.md) supersedes M2's prior concurrency model, inventories collapsed paths and retained independent locks, and requalifies M1's changed state-lock recovery contract. Catalogue edits are task-busy until settlement, with canonical terminal history adopted before competing edits; other tasks continue. Long scripts and hub-gate acquisition remain outside the owner. The candidate and exact cancelled stale suite are superseded; BR-14 is still open pending implementation and independent verification. The live day, disposable exit-10/timeout qualification and final gates remain required. This approval authorizes re-planning, not production edits; TL reviews this concrete revision before code.
+
+### 2026-10-21 — Concrete plan approved as new M3 (operator through ops:0)
+
+TL approved the complete revision and bounded completion-time manual output, and directs retiring M2 as superseded by the one-writer re-plan (operator, 10-21). M3 owns the replacement model and its independent fresh review boundary; M2's failed reviews are retained, not waived or reset. The approved scope includes all writer paths, owner-lifetime state-lock recovery requalification and required live/disposable acceptance. Change-code precedes M3 implementation.

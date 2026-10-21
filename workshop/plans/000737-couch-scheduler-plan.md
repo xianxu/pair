@@ -298,7 +298,9 @@ Count operations, not wall-clock speed: fixtures at N=8 and 16 reject more than 
 - [ ] Update atlas and issue Log, then run `sdlc milestone-close --issue 737 --milestone M1 --verified '<specific manual/helper/status evidence>'`; resolve gate findings before M2.
 
 
-### M2 — Automatic per-hub scheduling, delivery, recovery, and live acceptance
+### M2 — superseded by the one-writer re-plan (operator, 10-21)
+
+Historical tasks below describe the superseded model. They are not another open implementation/review boundary. The approved replacement is M3 in the final revision; prior M2 findings and REWORK evidence remain intact.
 
 ### Task 5: Joined scheduler service and authenticated due notices
 
@@ -732,3 +734,17 @@ The qualification checklist for the full replacement is: BR-14 removal/revision/
 **Review/acceptance remain distinct.** The previous M2 review route exhausted its explicitly authorized fourth invocation; this approval to draft A does not reset gate history or authorize another round-cap override. Ask TL for the supported fresh full-model review route after plan approval and implementation; retain BR-14 open until independently verified at that boundary. Do not modify gate configuration or erase findings. Existing disposable-fleet exit-10/timeout qualification, one real ops#1 testscratch day, TL-coordinated stage/restart, final suite and issue/landing gates still apply. No ops-main fake task or unilateral live restart. No code or further boundary invocation until TL approves this concrete re-plan.
 
 **Architecture checks.** ARCH-DRY/PURE: one settlement kernel and owner; scripts/discovery are fact producers. ARCH-PURPOSE/ORDER: every writer and competing terminal/edit sequence is in the inventory, including manual IPC and restart. ARCH-MOCK: reuse stateful runtime/broker/clock and native disposable fixtures on the same seams. ARCH-CONSTRAINTS/FUNERAL: existing task/job/output/history limits, bounded busy admission, no durable intent queue. ARCH-SECURE: private same-operator socket and configured-root validation; strict persisted/protocol decoding, no secret creation and no sandbox claim. ARCH-EVOLVE: optional intent fields only; preserve unknown fields at every nested rewrite; distinguish intent identity from canonical execution facts and do not reinterpret old records missing the new digest as matching arbitrary new intent.
+
+### 2026-10-21 — Approved replacement becomes M3, not another M2 round
+
+Authenticated TL delivery `29bde47e-ecea-4daf-bf0f-0278b7fa6145` approves the complete option-A revision and printing bounded manual output on completion, paged under the existing frame bound. The operator selected replacement of the concurrency model; TL explicitly directs a genuinely new milestone. **M2 is superseded by the one-writer re-plan (operator, 10-21)**. Its review cap/history/findings remain intact, with no SHIP claim, erasure or override. This supersedes the preceding draft's request for a further M2 review route: M3 has its own fresh boundary, reviewing the complete replacement and its inherited recovery obligations.
+
+### M3 — One writer, settlement before edits, service manual runs and required acceptance
+
+- [ ] Implement tasks 1–6 in the preceding option-A revision as M3, using their full concept/resource/consumer and qualification inventories. Commit subjects identify `#737 M3`.
+- [ ] Requalify every affected M1 ledger recovery cell under owner-lifetime `.state.lock`; retain the independent cache/history/process protections.
+- [ ] Prove BR-14's full terminal-history/failed-ledger/edit sequence class and every competing producer through the one production owner. Prior M2 fixes are inherited obligations, not automatic M3 proof.
+- [ ] Complete targeted/race/native checks, documentation and fresh recorded affected/full check on the pushed M3 candidate; run `sdlc milestone-close --issue 737 --milestone M3` for its fresh full-model boundary, without an M2 round-cap override. Retain unresolved inherited findings for this review to assess; do not edit gate verdicts.
+- [ ] Complete disposable-fleet exit-10/timeout qualification and the real ops#1 testscratch day with TL-coordinated staging/restart. Milestone review may precede the day under the already-approved sequencing; whole-issue close/landing still require acceptance.
+
+Proceed through `sdlc change-code --issue 737 --worktree=no` before production edits. No estimate is guessed to fit this re-scope: if the gate requires an updated estimate, derive it after the new plan-quality result. Project changes remain TL-owned.
