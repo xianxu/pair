@@ -13,14 +13,14 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
-actual_hours: 2.28
+actual_hours: 1.22
 tracker:
     version: 1
     completion:
-        token: close-775a05ecad75
+        token: close-3bce1c87e68e
         repository: github.com/xianxu/pair
-        reviewed_head: b1594a72ced6e04ad55fdac5cdac2e9a9a84b605
-        evidence_commit: a1d0d2e47559573011153de928523c3a31cefbef
+        reviewed_head: ae6dc590d696c87ed99f948c1d0d4b56c9762f5c
+        evidence_commit: f046fc278933cd1b5bdd611e692517f8926ad92a
 ---
 
 # A pane that fell back to a native shell still classifies as a Pair terminal
