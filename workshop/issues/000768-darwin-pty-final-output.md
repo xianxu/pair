@@ -45,7 +45,7 @@ Approved design: [durable plan](../plans/000768-darwin-pty-final-output-plan.md)
 - [x] Approve Darwin-only retained slave for scribe, scope, native acceptance clarification and full flow.
 - [x] Pin delayed-first-read loss with an out-of-band child stdio-close barrier; implement scribe-local start/lease ownership.
 - [x] Qualify normal drain, abort cleanup, interactive behavior, exit/signals and resource lifetimes.
-- [ ] Document audited remaining exposures, qualify the public built command, run the recorded suite and submit the verified branch to close review. SDLC then owns review and landing.
+- [x] Document audited remaining exposures, qualify the public built command and enqueue the recorded suite; submit the verified implementation to close review. Passing final-code suite evidence remains mandatory before landing.
 
 ## Log
 
@@ -107,3 +107,7 @@ Second mutation removed direct-child kill on initialization abort: the blocked H
 Reconciled current Spec and Plan with the TL-approved retained-slave design and clarified acceptance; original alternatives remain recorded in prior planning history/Revisions. CI on the code head is green, including macOS conformance and the local-gates guard (no guarded paths touched). The recorded full-suite runner is still queued; no replacement or duplicate run.
 
 Final documentation sweep removed the remaining package-comment reference to the retired standalone shim. This comment-only code-file edit changes no runtime behavior; retain the existing recorded runner on4f4cdc15. Integration verification will include the final source.
+
+### 2026-10-21 — queued-suite review overlap
+
+Current tl-worker contract explicitly permits close review to overlap a queued recorded suite, with a final-code pass before landing and requeue on review code fixes. Entering close on that basis while retaining lease-1672737506. Suite has not passed yet. Public native smoke is complete; requesting hub coordination for a staged real-shell check per LIVE CHECKS/PERMISSIONS before touching pair:0.
