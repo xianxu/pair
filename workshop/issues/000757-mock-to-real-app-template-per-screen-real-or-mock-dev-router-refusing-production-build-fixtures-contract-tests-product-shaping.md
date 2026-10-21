@@ -16,6 +16,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "90a93460", done: "d5f9337d"}
 ---
 
 # mock-to-real app template: per-screen real-or-mock dev router, refusing production build, fixtures contract tests (product-shaping)
