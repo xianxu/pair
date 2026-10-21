@@ -183,6 +183,11 @@ func TestScheduleLiveManualOwnerSurvivesRestartAndUnknownOwnerNeverReplays(t *te
 				if got.Active.Stage != "uncertain" || got.Last == nil || got.Last.Outcome != "unknown" {
 					t.Fatalf("unknown owner lost uncertainty: %+v", got)
 				}
+				record, _, err := (operationalrun.Store{Namespace: filepath.Dir(c.store.Dir)}).Read(t.Context(), operationalrun.RunKey{Hub: state.Key.HubID(), Task: state.Key.Task, ID: state.Active.ID})
+				if err != nil || record.Source != "manual" || record.Outcome != "unknown" {
+					t.Fatalf("unknown manual run missing history: %+v %v", record, err)
+				}
+
 			}
 		})
 	}
@@ -357,5 +362,25 @@ func TestScheduleRefreshPublishesManualCompletionsAcrossTwoHubs(t *testing.T) {
 	}
 	if c.refresh(ctx) == nil || c.view().Error == "" {
 		t.Fatal("corrupt authority must become visible and block refresh")
+	}
+}
+
+func TestScheduleViewFrozenBindingBufferDetached(t *testing.T) {
+	c := newScheduleCoordinator(t.TempDir(), []string{"/hub"}, time.UTC, time.Now)
+	binding := []byte(`{"nonce":"frozen"}`)
+	snapshot := couchschedule.StatusSnapshot{Version: 1, Hubs: []string{"/hub"}, Tasks: []couchschedule.TaskStatus{{Hub: "/hub", Task: "task", Active: &couchschedule.Attempt{NoticeBinding: binding}}}}
+	c.snapshot.Store(&snapshot)
+	first := c.view()
+	first.Tasks[0].Active.NoticeBinding[0] = '['
+	if string(snapshot.Tasks[0].Active.NoticeBinding) != `{"nonce":"frozen"}` {
+		t.Fatal("view binding buffer aliases cached snapshot")
+	}
+	second := c.view()
+	if string(second.Tasks[0].Active.NoticeBinding) != `{"nonce":"frozen"}` {
+		t.Fatal("view mutation changed later caller snapshot")
+	}
+	snapshot.Tasks[0].Active.NoticeBinding[0] = '['
+	if string(second.Tasks[0].Active.NoticeBinding) != `{"nonce":"frozen"}` {
+		t.Fatal("cached snapshot mutation changed detached view")
 	}
 }

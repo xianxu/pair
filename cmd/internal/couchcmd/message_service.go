@@ -19,6 +19,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/couchschedule"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/lifetimelease"
@@ -597,14 +598,19 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	} else if authority.hub != "" {
 		scheduleRoots = []string{authority.hub}
 	}
+	permits, err := schedulePermitsDir(OSRuntime{})
+	if err != nil {
+		service.Close()
+		return nil, fmt.Errorf("scheduler machine permits: %w", err)
+	}
 	coordinator := newScheduleCoordinator(namespace, scheduleRoots, time.Local, time.Now)
+	runner := &manualTaskRunner{namespace: namespace, permitsDir: permits, executor: couchschedule.Executor{}, now: time.Now}
+	scheduler := newAutomaticScheduler(coordinator, runner, scheduleNotice{service: service})
 	service.schedule.Store(coordinator)
 	service.workers.Add(1)
 	go func() {
 		defer service.workers.Done()
-		ticker := time.NewTicker(30 * time.Second)
-		defer ticker.Stop()
-		coordinator.run(service.lifetime, ticker.C)
+		scheduler.run(service.lifetime, nativeScheduleClock{})
 	}()
 	return service, nil
 }

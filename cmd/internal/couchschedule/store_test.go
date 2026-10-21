@@ -314,6 +314,11 @@ func phaseStateFixture(t *testing.T, source, stage string) TaskState {
 		s.Active.NoticeMayHaveHappened = true
 		s.Last = summary(s.Active, at.Add(time.Second), nil, "wake", "pending")
 	}
+	if stage == "delivery" {
+		s.Active.ReceiptID = "schedule-phase-run"
+		s.Active.NoticeBody = "task result"
+		s.Active.NoticeBinding = json.RawMessage(`{"nonce":"frozen"}`)
+	}
 	if stage == "uncertain" {
 		s.Last = summary(s.Active, at.Add(time.Second), nil, "unknown", "execution owner unavailable; no replay")
 	}

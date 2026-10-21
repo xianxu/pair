@@ -202,3 +202,18 @@ func TestStatusSnapshotIsSortedDetachedAndBounded(t *testing.T) {
 		t.Fatal("accepted unknown snapshot version")
 	}
 }
+
+func TestStatusFrozenBindingBufferDetached(t *testing.T) {
+	state := phaseStateFixture(t, "scheduled", "delivery")
+	original := string(state.Active.NoticeBinding)
+	snapshot := BuildStatus([]TaskState{state}, "UTC")
+	snapshot.Tasks[0].Active.NoticeBinding[0] = '['
+	if string(state.Active.NoticeBinding) != original {
+		t.Fatal("status binding buffer aliases source authority")
+	}
+	snapshot = BuildStatus([]TaskState{state}, "UTC")
+	state.Active.NoticeBinding[0] = '['
+	if string(snapshot.Tasks[0].Active.NoticeBinding) != original {
+		t.Fatal("source binding mutation changed published status")
+	}
+}

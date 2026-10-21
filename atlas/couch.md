@@ -20,11 +20,14 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 | Hub | A configured operations checkout and its `:0` slot. Explicit Couch hub arguments, or the implicit cwd hub, select scheduler roots; claiming a product repository does not make that repository a task root. |
 | TL | The technical lead working in a hub's `:0` slot. Couch routes team messages to that live slot; the TL is the agent role, not the operations repository or the supervisor process. |
 
-### Hub tasks (#737 M1)
+### Hub tasks (#737)
 
-M1 provides declaration discovery, durable task authority, manual execution,
-retained run history and a cached status projection. **Automatic due dispatch and
-hub-notice delivery remain M2 work in [#737](../workshop/issues/000737-couch-scheduler-run-each-hub-s-scheduled-tasks-from-its-operations-repo-due-notices-direct-script-run-skip-if-missed-schedule-status.md).** A displayed next due time in M1 is not evidence of an armed automatic runner.
+Couch discovers each configured hub's declarations, runs due tasks or delivers
+due notices, and publishes cached status plus retained execution history.
+The manual helper and automatic runner share execution and history owners.
+[#737](../workshop/issues/000737-couch-scheduler-run-each-hub-s-scheduled-tasks-from-its-operations-repo-due-notices-direct-script-run-skip-if-missed-schedule-status.md)
+remains under development: an occurrence-commit regression currently blocks
+staging, and its required live one-day acceptance remains open.
 
 Put a Go `package main` in the hub's `scripts/scheduled/<task>/`, with a UTF-8
 JSON file named `schedule` beside it:
@@ -99,7 +102,7 @@ work. The timeout covers
 admission, build and execution; cancellation and owner EOF stop and join owned
 work. A paused heavy queue does not pause light tasks.
 
-The approved M2 recurrence contract is minute/hour/day/month/weekday in the
+The recurrence contract is minute/hour/day/month/weekday in the
 machine timezone, with UTC occurrence identities. Spring-forward missing local
 times skip; a fall-back repeated local minute runs once, at its first matching
 instant. First discovery or a new declaration revision arms the next future
@@ -129,10 +132,29 @@ rules and projection, `catalog`/`store`/`state_json` for observed declarations a
 preserving authority, `build`/`build_manifest`/`cache` for captured artifacts, and
 `admission`/`execute`/`execute_unix` for the owned controller. `couchcmd/schedule_*`
 provides the message-service catalog/status lifetime, CLI and history boundary.
-`operationalrun` owns immutable bundles and identity-fenced collection;
-`gcruntime/operational.go` adds registered Couch namespaces to GC and
-`gcruntime/schedule.go` persists its bounded maintenance cursor. Automatic timer,
-worker fairness and broker-notice wiring belong to M2, not these M1 status paths.
+`operationalrun` owns execution bundles, monotonic notice finalization and
+identity-fenced collection; `gcruntime/operational.go` adds registered Couch
+namespaces to GC and `gcruntime/schedule.go` persists its bounded maintenance
+cursor. `schedule_automatic.go` owns the injected clock, two execution and two notice-admission job slots,
+four joined effect workers and interleaved hub queues. Long-running or queued
+heavy scripts cannot occupy notification admission. The next wake is the earlier of catalogue refresh,
+due time, notice observation or admission deadline; results wake it directly.
+`schedule_notice.go` uses the existing authenticated system mailbox and canonical
+receipts, with exact hub-binding checks under the ownership effect gate.
+
+Execution records and output are immutable. Notice delivery alone moves from
+pending to submitted, expired, dropped with a reason, or uncertain under the run
+task lock. Repeating the same terminal result is idempotent; another result
+refuses. Pending notices are protected from retention. The frozen body includes
+the due instant and bounded execution output. A known non-admission may retry
+once per second before its deadline; accepted notices follow the existing broker
+queue semantics, without an added queue TTL. On restart an unavailable system
+receipt becomes terminal delivery uncertainty, never a resend.
+
+Recovery covers crashes, abrupt process death, cooperating Couch processes and
+stale or partial leftovers. It supplies no security boundary against deliberate
+same-user writes inside private 0700 storage; that actor can rewrite authority
+directly. Ownership checks provide consistency within this operational model.
 
 ### Slot scratch (#708)
 

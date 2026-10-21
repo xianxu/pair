@@ -1,6 +1,7 @@
 package couchschedule
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
@@ -11,7 +12,8 @@ import (
 	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
 
-// stateObject requires every owned field and preserves additive members.
+// stateObject requires owned fields except explicit additive-version defaults,
+// and preserves additive members.
 func stateObject(raw []byte, target any) (map[string]json.RawMessage, error) {
 	typ := reflect.TypeOf(target).Elem()
 	known := strictjson.KnownFields(typ)
@@ -24,12 +26,21 @@ func stateObject(raw []byte, target any) (map[string]json.RawMessage, error) {
 			}
 		}
 	}
+	// M2 adds frozen payload fields to v1 attempts. Their absence is valid for
+	// old execution/notifying rows; phase validation still fences delivery.
+	attempt := typ == reflect.TypeOf(Attempt{})
+	if attempt {
+		nullable["notice_binding"] = true
+	}
 	owned, unknown, err := strictjson.SplitObject(raw, known, nullable)
 	if err != nil {
 		return nil, err
 	}
 	for name := range known {
 		if _, ok := owned[name]; !ok {
+			if attempt && (name == "notice_body" || name == "notice_binding") {
+				continue
+			}
 			return nil, fmt.Errorf("state requires %s", name)
 		}
 	}
@@ -39,6 +50,12 @@ func stateObject(raw []byte, target any) (map[string]json.RawMessage, error) {
 	}
 	if err = json.Unmarshal(clean, target); err != nil {
 		return nil, err
+	}
+	if attempt {
+		a := target.(*Attempt)
+		if bytes.Equal(bytes.TrimSpace(a.NoticeBinding), []byte("null")) {
+			a.NoticeBinding = nil
+		}
 	}
 	return unknown, nil
 }

@@ -106,6 +106,7 @@ func TestAdvanceDirectExitSemanticsAndNoReplay(t *testing.T) {
 				if len(effects) != 0 || s.Active == nil || s.Active.Stage != "notifying" {
 					t.Fatalf("notice must first persist intent: %v %+v", effects, s)
 				}
+				s = freezeForTest(s, due.Add(time.Second))
 				s, effects = Advance(s, Event{Kind: NoticeIntentDurable, At: due.Add(time.Second), Attempt: "run-1", Revision: "r1", HubOnline: true})
 				if len(effects) != 1 || effects[0].Kind != SendNotice {
 					t.Fatalf("want one notice: %v", effects)

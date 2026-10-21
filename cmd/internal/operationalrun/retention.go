@@ -149,7 +149,7 @@ func (s Store) SweepPage(ctx context.Context, now time.Time, after Cursor, apply
 					continue
 				}
 				records[id] = r
-				if terminal(r) && !r.EndedAt.After(now) {
+				if terminal(r) && r.Notice != "pending" && !r.EndedAt.After(now) {
 					ordered = append(ordered, r)
 				}
 			}
@@ -188,6 +188,8 @@ func (s Store) SweepPage(ctx context.Context, now time.Time, after Cursor, apply
 						row.Bytes = b.Record.Size + b.Output.Size
 					}
 					switch {
+					case r.Notice == "pending":
+						row.Reason = "notice delivery is pending"
 					case !terminal(r):
 						row.Reason = "run is active, incomplete or uncertain"
 					case r.EndedAt.After(now):

@@ -467,12 +467,13 @@ couch --schedule run landing-plan -- script-run
 couch --schedule history landing-plan --run RUN_ID
 ```
 
-Manual runs, history and cached status are available in #737 M1; automatic due
-runs and hub notices are the next milestone. Tasks run with your account's
+Couch runs due tasks or delivers due notices for each configured hub; manual
+runs share its cached execution and history. Missed runs skip by default, and
+uncertain execution or delivery never replays automatically. Tasks run with your account's
 filesystem and network access. Two machine-wide permits bound task execution;
 `heavy: true` also joins the existing full-suite test queue. Run output retains a
 256 KiB head/tail, with completed history kept for 30 days or the newest 300 runs
-per task. See [hub task declarations and ownership](atlas/couch.md#hub-tasks-737-m1)
+per task. See [hub task declarations and ownership](atlas/couch.md#hub-tasks-737)
 for the JSON format, team owner rules, build envelope and recurrence contract.
 
 Couch keeps agent-pane context titles and cmux activity heat titles current from

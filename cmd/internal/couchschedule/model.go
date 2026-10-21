@@ -1,11 +1,17 @@
 package couchschedule
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
+
+	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
 
 // TaskKey routes a task to its configured hub checkout, independently of slots.
@@ -44,18 +50,21 @@ type RunSummary struct {
 }
 
 type Attempt struct {
-	ID                    string                     `json:"id"`
-	Revision              string                     `json:"revision"`
-	Source                string                     `json:"source"`
-	Stage                 string                     `json:"stage"`
-	DueAt                 time.Time                  `json:"due_at"`
-	StartedAt             time.Time                  `json:"started_at"`
-	Deadline              time.Time                  `json:"deadline"`
-	NoticeDeadline        time.Time                  `json:"notice_deadline"`
-	ControllerPID         int                        `json:"controller_pid"`
-	ControllerStart       string                     `json:"controller_start"`
-	GroupPID              int                        `json:"group_pid"`
-	ParentPID             int                        `json:"parent_pid"`
+	ID              string    `json:"id"`
+	Revision        string    `json:"revision"`
+	Source          string    `json:"source"`
+	Stage           string    `json:"stage"`
+	DueAt           time.Time `json:"due_at"`
+	StartedAt       time.Time `json:"started_at"`
+	Deadline        time.Time `json:"deadline"`
+	NoticeDeadline  time.Time `json:"notice_deadline"`
+	ControllerPID   int       `json:"controller_pid"`
+	ControllerStart string    `json:"controller_start"`
+	GroupPID        int       `json:"group_pid"`
+	ParentPID       int       `json:"parent_pid"`
+	// Frozen before broker admission; retries reuse the same identity/body/binding.
+	NoticeBody            string                     `json:"notice_body"`
+	NoticeBinding         json.RawMessage            `json:"notice_binding"`
 	ReceiptID             string                     `json:"receipt_id"`
 	NoticeMayHaveHappened bool                       `json:"notice_may_have_happened"`
 	Unknown               map[string]json.RawMessage `json:"-"`
@@ -84,6 +93,7 @@ const (
 	ManualRequested     EventKind = "manual-requested"
 	ReservationDurable  EventKind = "reservation-durable"
 	TaskFinished        EventKind = "task-finished"
+	NoticeFrozen        EventKind = "notice-frozen"
 	NoticeIntentDurable EventKind = "notice-intent-durable"
 	NoticeObserved      EventKind = "notice-observed"
 	OwnerUnknown        EventKind = "owner-unknown"
@@ -94,17 +104,20 @@ const (
 )
 
 type Event struct {
-	Kind        EventKind
-	At          time.Time
-	Declaration *Declaration
-	Attempt     string
-	Revision    string
-	RunID       string
-	HubOnline   bool
-	Exit        int
-	Outcome     string
-	Notice      string
-	Location    *time.Location
+	Kind          EventKind
+	At            time.Time
+	Declaration   *Declaration
+	Attempt       string
+	Revision      string
+	RunID         string
+	HubOnline     bool
+	Exit          int
+	Outcome       string
+	Notice        string
+	ReceiptID     string
+	NoticeBody    string
+	NoticeBinding json.RawMessage
+	Location      *time.Location
 	// Next is an optional pre-parsed calendar function owned by the caller.
 	// It must be deterministic; it avoids reparsing unchanged declarations.
 	Next  func(time.Time) time.Time
@@ -227,7 +240,14 @@ func advance(state TaskState, event Event) (TaskState, []Effect) {
 		a.ControllerPID = owner.PID
 		a.ControllerStart = owner.Start
 	case ResultRecovered:
-		if a.Source != "manual" {
+		noticePhase := a.Source == "scheduled" && (a.Stage == "notifying" || a.Stage == "delivery")
+		// Pending history does not erase a previously frozen payload, admission
+		// deadline or receipt observation authority. Terminal history is truth
+		// after a crash between finalizing it and committing the ledger.
+		if noticePhase && event.Notice == "pending" {
+			break
+		}
+		if !noticePhase && a.Stage != "reserved" && a.Stage != "running" && a.Stage != "stopping" && a.Stage != "uncertain" {
 			break
 		}
 		var exit *int
@@ -236,12 +256,32 @@ func advance(state TaskState, event Event) (TaskState, []Effect) {
 			exit = &code
 		}
 		state.Last = summary(a, event.At, exit, event.Outcome, event.Notice)
-		state.Active = nil
+		if a.Source == "scheduled" && event.Notice == "pending" {
+			a.Stage = "notifying"
+			a.NoticeDeadline = event.At.Add(time.Minute)
+			a.NoticeMayHaveHappened = true
+		} else {
+			state.Active = nil
+		}
 	case ExecutionRefused:
-		// Only a controller's positively known pre-authorization refusal may
-		// clear reservation authority without a task-completion observation.
-		state.Last = summary(a, event.At, nil, "refused", event.Notice)
-		state.Active = nil
+		// A positively known pre-authorization refusal or expired reservation
+		// records an execution result without authorizing another execution.
+		if a.Stage != "reserved" {
+			break
+		}
+		outcome := "refused"
+		if event.Outcome == "timeout" {
+			outcome = "timeout"
+		}
+		state.Last = summary(a, event.At, nil, outcome, event.Notice)
+		if a.Source == "scheduled" && state.Spec.ScriptRun && a.Revision == state.Revision {
+			a.Stage = "notifying"
+			a.NoticeDeadline = event.At.Add(time.Minute)
+			a.NoticeMayHaveHappened = true
+			state.Last.Notice = "pending"
+		} else {
+			state.Active = nil
+		}
 	case ReservationDurable:
 		if a.Stage != "reserved" {
 			break
@@ -261,7 +301,10 @@ func advance(state TaskState, event Event) (TaskState, []Effect) {
 			break
 		}
 		a.Stage = "notifying"
-		a.NoticeDeadline = a.Deadline
+		a.NoticeDeadline = event.At.Add(time.Minute)
+		if a.Deadline.Before(a.NoticeDeadline) {
+			a.NoticeDeadline = a.Deadline
+		}
 		a.NoticeMayHaveHappened = true
 		state.Last = summary(a, event.At, nil, "completed", "pending")
 	case TaskFinished:
@@ -297,6 +340,15 @@ func advance(state TaskState, event Event) (TaskState, []Effect) {
 		a.NoticeDeadline = event.At.Add(time.Minute)
 		a.NoticeMayHaveHappened = true
 		state.Last.Notice = "pending"
+	case NoticeFrozen:
+		if a.Stage != "notifying" || !validFrozenNotice(event.ReceiptID, event.NoticeBody, event.NoticeBinding) {
+			break
+		}
+		if a.ReceiptID != "" && (a.ReceiptID != event.ReceiptID || a.NoticeBody != event.NoticeBody || !bytes.Equal(a.NoticeBinding, event.NoticeBinding)) {
+			break
+		}
+		a.ReceiptID, a.NoticeBody = event.ReceiptID, event.NoticeBody
+		a.NoticeBinding = append(json.RawMessage(nil), event.NoticeBinding...)
 	case NoticeIntentDurable:
 		if a.Stage != "notifying" {
 			break
@@ -311,10 +363,19 @@ func advance(state TaskState, event Event) (TaskState, []Effect) {
 			state.Active = nil
 			break
 		}
+		if !validFrozenNotice(a.ReceiptID, a.NoticeBody, a.NoticeBinding) {
+			break
+		}
 		a.Stage = "delivery"
+		a.NoticeMayHaveHappened = true
 		return state, []Effect{{Kind: SendNotice, Attempt: a.ID}}
 	case NoticeObserved:
 		if a.Stage != "delivery" {
+			break
+		}
+		if strings.HasPrefix(event.Notice, "dropped: ") && len(event.Notice) > len("dropped: ") && len(event.Notice) <= 4096 && utf8.ValidString(event.Notice) {
+			state.Last.Notice = event.Notice
+			state.Active = nil
 			break
 		}
 		switch event.Notice {
@@ -379,7 +440,7 @@ func validateTaskPhase(state TaskState) error {
 	matchingLast := state.Last != nil && state.Last.ID == a.ID && state.Last.Source == a.Source && state.Last.DueAt.Equal(a.DueAt) && state.Last.StartedAt.Equal(a.StartedAt)
 	switch a.Stage {
 	case "reserved", "running", "stopping", "uncertain":
-		if !a.NoticeDeadline.IsZero() || a.NoticeMayHaveHappened || a.ReceiptID != "" {
+		if !a.NoticeDeadline.IsZero() || a.NoticeMayHaveHappened || a.ReceiptID != "" || a.NoticeBody != "" || len(a.NoticeBinding) != 0 {
 			return fmt.Errorf("execution phase carries notice authority")
 		}
 		if a.Source == "scheduled" && a.Revision == state.Revision && !state.Spec.ScriptRun && a.Stage != "reserved" && a.Stage != "uncertain" {
@@ -389,6 +450,10 @@ func validateTaskPhase(state TaskState) error {
 			return fmt.Errorf("uncertain execution requires its unknown summary")
 		}
 	case "notifying", "delivery":
+		frozen := a.ReceiptID != "" || a.NoticeBody != "" || len(a.NoticeBinding) != 0
+		if (frozen || a.Stage == "delivery") && !validFrozenNotice(a.ReceiptID, a.NoticeBody, a.NoticeBinding) {
+			return fmt.Errorf("notice requires complete frozen identity and payload")
+		}
 		if a.Source != "scheduled" || !matchingLast || a.NoticeDeadline.IsZero() || !a.NoticeMayHaveHappened {
 			return fmt.Errorf("notice phase requires matching scheduled summary and intent")
 		}
@@ -445,4 +510,18 @@ func cancelActive(state TaskState) (TaskState, []Effect) {
 	}
 	state.Active.Stage = "stopping"
 	return state, []Effect{{Kind: StopTask, Attempt: state.Active.ID}}
+}
+
+// Binding is opaque to the core; the broker adapter validates its full identity.
+func validFrozenNotice(id, body string, binding json.RawMessage) bool {
+	if !ValidTaskName(id) || body == "" || len(body) > 8192 || !utf8.ValidString(body) || len(binding) == 0 || len(binding) > 4096 || !utf8.Valid(binding) {
+		return false
+	}
+	for _, r := range body {
+		if unicode.IsControl(r) && r != '\n' && r != '\t' {
+			return false
+		}
+	}
+	_, fields, err := strictjson.SplitObject(binding, nil, nil)
+	return err == nil && len(fields) > 0
 }

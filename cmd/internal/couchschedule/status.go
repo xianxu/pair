@@ -60,6 +60,7 @@ func BuildStatus(states []TaskState, location string) StatusSnapshot {
 		}
 		if s.Active != nil {
 			copy := *s.Active
+			copy.NoticeBinding = append(copy.NoticeBinding[:0:0], copy.NoticeBinding...)
 			row.Active = &copy
 			row.State = copy.Stage
 		}

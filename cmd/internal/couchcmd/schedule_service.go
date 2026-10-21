@@ -59,6 +59,7 @@ func (c *scheduleCoordinator) view() couchschedule.StatusSnapshot {
 	for i := range copy.Tasks {
 		if copy.Tasks[i].Active != nil {
 			active := *copy.Tasks[i].Active
+			active.NoticeBinding = append(active.NoticeBinding[:0:0], active.NoticeBinding...)
 			copy.Tasks[i].Active = &active
 		}
 		if copy.Tasks[i].Last != nil {
@@ -133,13 +134,23 @@ func (c *scheduleCoordinator) refresh(ctx context.Context) error {
 				}
 			}
 			state, _ = couchschedule.Advance(state, couchschedule.Event{Kind: couchschedule.OwnerUnknown, At: now, Attempt: a.ID, Revision: a.Revision})
+			if missing && state.Last != nil && state.Last.Outcome == "unknown" {
+				record := runRecordForSummary(state)
+				if err := (operationalrun.Store{Namespace: filepath.Dir(c.store.Dir)}).Publish(ctx, record.Key, record, nil); err != nil {
+					return err
+				}
+			}
 			ledger.Tasks[key] = state
 		}
 		seen := map[string]bool{}
 		for _, declaration := range declarations {
 			key := declaration.Key.ID()
 			seen[key] = true
-			state, effects := couchschedule.Advance(ledger.Tasks[key], couchschedule.Event{Kind: couchschedule.CatalogChanged, At: now, Declaration: &declaration, Location: c.location})
+			prior := ledger.Tasks[key]
+			state, effects := couchschedule.Advance(prior, couchschedule.Event{Kind: couchschedule.CatalogChanged, At: now, Declaration: &declaration, Location: c.location})
+			if err := c.finalizeCancelledScheduleNotice(ctx, prior, state); err != nil {
+				return err
+			}
 			if reason := localRefusals[key]; reason != "" {
 				state.Allowed = false
 				state.Refusal = reason
@@ -155,7 +166,11 @@ func (c *scheduleCoordinator) refresh(ctx context.Context) error {
 			if seen[key] {
 				continue
 			}
+			prior := state
 			state, effects := couchschedule.Advance(state, couchschedule.Event{Kind: couchschedule.CatalogChanged, At: now, Location: c.location})
+			if err := c.finalizeCancelledScheduleNotice(ctx, prior, state); err != nil {
+				return err
+			}
 			if state.Active == nil && !state.RemovedAt.IsZero() && !now.Before(state.RemovedAt.Add(30*24*time.Hour)) && (state.Last == nil || (state.Last.Outcome != "unknown" && state.Last.Outcome != "uncertain")) {
 				delete(ledger.Tasks, key)
 				continue
@@ -181,6 +196,11 @@ func (c *scheduleCoordinator) refresh(ctx context.Context) error {
 			return c.blocked(err)
 		}
 	}
+	return c.publish(ctx)
+}
+
+// publish refreshes only the memory projection, without rediscovering tasks.
+func (c *scheduleCoordinator) publish(ctx context.Context) error {
 	ledger, err := c.store.View(ctx)
 	if err != nil {
 		return c.blocked(err)
@@ -214,4 +234,13 @@ func (c *scheduleCoordinator) run(ctx context.Context, ticks <-chan time.Time) {
 			_ = c.refresh(ctx)
 		}
 	}
+}
+
+// A catalogue cancellation terminalizes notice history before releasing the
+// retained attempt. Known execution facts and output remain untouched.
+func (c *scheduleCoordinator) finalizeCancelledScheduleNotice(ctx context.Context, prior, next couchschedule.TaskState) error {
+	if prior.Active == nil || prior.Active.Source != "scheduled" || prior.Last == nil || prior.Last.Notice != "pending" || next.Active != nil || next.Last == nil {
+		return nil
+	}
+	return (operationalrun.Store{Namespace: filepath.Dir(c.store.Dir)}).FinalizeNotice(ctx, scheduleRunKey(prior), prior.Active.Revision, next.Last.Notice)
 }

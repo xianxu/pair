@@ -685,6 +685,8 @@ var NonArtifactSources = []string{
 	// #737 CLI/projection/history route the existing private message transport
 	// and explicit Couch namespaces; these sources introduce no Pair tag paths.
 	"cmd/internal/couchcmd/schedule_cli.go",
+	"cmd/internal/couchcmd/schedule_automatic.go",
+	"cmd/internal/couchcmd/schedule_notice.go",
 	"cmd/internal/couchcmd/schedule_history.go",
 	"cmd/internal/couchcmd/schedule_manual.go",
 	"cmd/internal/couchcmd/schedule_service.go",
@@ -694,6 +696,7 @@ var NonArtifactSources = []string{
 	// They have their own bounded retention class, never a Pair session owner.
 	"cmd/internal/operationalrun/collection.go",
 	"cmd/internal/operationalrun/output.go",
+	"cmd/internal/operationalrun/notice.go",
 	"cmd/internal/operationalrun/record.go",
 	"cmd/internal/operationalrun/retention.go",
 	"cmd/internal/operationalrun/staging.go",

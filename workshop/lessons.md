@@ -2490,3 +2490,10 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 
 - #737 BR-8: A family-level ownership check is not proof for every operation. Inventory publication, ordinary-error deletion and crash deletion separately; each must consume the captured identity. Test a successful hook that substitutes the stage immediately before promotion, requiring refusal, unchanged previous authority and preservation of the replacement.
+
+
+- #737 M2: Derive a completion candidate while holding existing authority, publish its run record, then commit the candidate. A saved pending result must not recreate notice authority after cancellation or declaration replacement. Retain worker completion evidence until both terminal history and ledger reconciliation succeed; test a failed ledger write after successful history finalization.
+- #737 M2: A persisted unknown attempt still needs a protected run-history record. Qualify abrupt restart through both status and history, and keep immutable unknown facts from becoming replay authority. Clone new mutable payload buffers at every published snapshot copy boundary.
+
+
+- #737 M2 transaction audit: a stable run ID does not make immutable publication retryable when the occurrence facts themselves were never committed. Establish the durable reservation or passive summary before creating its run bundle; retain the declaration revision and do not overwrite the sole facts before history is durable. Fault the first ledger commit after a published run, then retry at a different clock instant.

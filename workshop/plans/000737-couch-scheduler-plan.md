@@ -51,11 +51,12 @@ The key is rooted in the **hub checkout**, never its claimed product repositorie
 | `acquireExecutionPermits`, `executionLease` | `cmd/internal/couchschedule/admission.go` | delivered M1 | Per-task lease and two machine permits; declared heavy uses existing test-lock helper. |
 | `FakeTaskRuntime` | `cmd/internal/couchschedule/runtime_fake.go` | delivered M1 | Stateful execution double with held starts, exits and cancellation. |
 | `Store.Publish`, `Store.List`, `Store.Read`, `Store.SweepPage` | `cmd/internal/operationalrun/store.go`, `retention.go` | delivered M1 | Immutable execution bundles and shared operational retention. |
-| `scheduleCoordinator` | `cmd/internal/couchcmd/schedule_service.go` | delivered M1 catalogue/status; automatic effects planned M2 | Joined service lifetime, declaration refresh, recovery and published snapshots. |
-| `manualTaskRunner` | `cmd/internal/couchcmd/schedule_manual.go` | delivered M1 | Durable manual reservation, shared execution and run publication. |
-| `scheduleNotice` | `cmd/internal/couchcmd/schedule_notice.go` | planned M2, not implemented | Exact hub binding, broker admission and canonical receipt observation. |
+| `automaticScheduler`, `scheduleClock`, `nativeScheduleClock` | `cmd/internal/couchcmd/schedule_automatic.go` | implemented M2; live acceptance pending | Due transitions, injected cancelable timer stream, joined bounded effect workers, fair hub dispatch and saved-result recovery. |
+| `scheduleCoordinator` | `cmd/internal/couchcmd/schedule_service.go` | delivered M1; extended M2 | Joined service lifetime, declaration refresh, recovery and published snapshots. |
+| `manualTaskRunner` | `cmd/internal/couchcmd/schedule_manual.go` | delivered M1; extended M2 | Durable manual reservation; shared execution of persisted manual/scheduled reservations and run publication. |
+| `scheduleNotice` | `cmd/internal/couchcmd/schedule_notice.go` | implemented M2; live acceptance pending | Exact hub binding, broker admission and canonical receipt observation. |
 | `parseScheduleCLI`, `runScheduleCLI` | `cmd/internal/couchcmd/schedule_cli.go`, `schedule_status.go` | delivered M1 | Closed CLI grammar, status exchange, manual run and retained history. |
-| `Store.FinalizeNotice` | `cmd/internal/operationalrun/store.go` | planned M2, not implemented | Monotonic pending delivery finalization under the existing task lock. |
+| `Store.FinalizeNotice` | `cmd/internal/operationalrun/notice.go` | implemented M2; live acceptance pending | Monotonic pending delivery finalization under the existing task lock. |
 
 Reuse `couchcore.Runner`/`FakeRunner` for process identity and group lifetime where their contract fits. They inherit output today; do not pretend they already capture scheduled stdout. Add a focused scheduled-execution adapter and reuse `procutil` group/identity primitives rather than changing terminal/PTY execution semantics. `zellijexec.Run` is explicitly a read-only Zellij boundary and must not be reused unchanged for arbitrary tasks.
 
@@ -430,3 +431,48 @@ Proposed execution after TL approval: (1) pin BR-8 red with the existing product
 TL approved the inexpensive BR-8 consistency correction only: reuse the ledger ownership predicate immediately before Renameat. Pin refusal, unchanged prior authority and preserved replacement with the pre-rename hook; requalify that cell, not the whole matrix. The preceding proposed whole-matrix requalification is superseded. Further findings requiring a hostile same-user file swapper are outside this threat model and must be disputed through `sdlc finding dispute`, citing this revision. Crash-class gaps remain in scope.
 
 TL authorizes exactly one additional M1 boundary round beyond the default three (`WF_BOUNDARY_ROUND_CAP=4` for that invocation only). If that round finds another crash-class gap, stop and escalate rather than patching it in place. No ledger waiver is authorized. M2 remains paused until M1 closes. Cancelled this checkout's pre-correction recorded check through SDLC; other checkout runs were left alone.
+
+
+### 2026-10-21 — M2 implementation checkpoint (acceptance remains open)
+
+M1 finalized SHIP in authorized round four, with BR-8 disposed and no new findings. Its evidence commit is `3eaef955395b67863f0f8824ba53d587ef8a948c`. M2 now composes the existing reducer/store/executor with an injected clock and authenticated broker adapter. Core inventory above names implemented owners; it does not mark live acceptance complete.
+
+The shared runner executes already-persisted reservations and passes literal `script-run` for scheduled direct execution. Source, ID, revision, due/start/deadline are retained; manual calls still allocate their own reservation. Known execution and prelaunch results publish under the existing state lock before completion authority clears. Cancellation/stale revision produces terminal dropped history; a saved pending record cannot recreate notice authority after cancellation. Unknown execution gets a protected operational record even when the interrupted process never published one, without replay or rewriting unknown facts later.
+
+Notice payload, exact binding, stable ID and admission marker are persisted before effects. Known non-admission waits for a clock-driven one-second retry before its existing deadline; accepted input is observed through canonical broker receipts, including the active-callback fence. Pending delivery is finalized monotonically through the existing task lock and `.run-stage-*` staging family; output is never rewritten. Saved terminal history wins after a failed ledger commit. Completion results remain retained in the coordinator until their durable reconciliation succeeds. Startup store refusals retry at the existing 30-second scan bound, without stopping the scheduler permanently or running effects against an unavailable catalogue.
+
+Counted 8/16-task tests reproduced 30/54 hub binding resolutions before a per-pass hub cache; both now resolve only the two configured hubs. Hub queues are interleaved before rotation; a large hub cannot take both ready execution/admission slots ahead of another. Builds remain outside catalogue/due/status paths. Catalogue scans remain every 30 seconds; completion wakes publish/project without another discovery pass. Frozen binding bytes are cloned at both status projection boundaries.
+
+No live Couch restart, :0 stage, ops task change or project edit has occurred here. The required real one-day task, exit-10/timeout qualification and final recorded checks still precede M2/issue close. Cancelled the obsolete M1 recorded suite through SDLC once M2 changed code; other checkout runs were left alone. A new pushed-head check follows the implementation checkpoint.
+
+
+M2 worker-budget clarification: two execution jobs and two notice-admission jobs have independent bounded slots, serviced by four joined workers on the same coordinator lifetime. Machine execution permits remain exactly two and manual calls share them. A red held-execution regression showed that sharing two generic effect slots would delay due notices behind long/heavy scripts; independent admission prevents that coupling without adding a queue, journal or recovery worker.
+
+
+### 2026-10-21 04:56 UTC — M2 transaction inventory re-plan; implementation paused
+
+**Known failing checkpoint, not ready for staging or landing.** A final crash-ordering audit found a new M2 gap before a milestone review: notify-only and skipped occurrences can publish immutable history inside the same ledger transaction that first creates/consumes the occurrence. `BeforePersist` then fails, leaving no persisted occurrence facts but an existing run bundle. A one-second-later retry derives the same occurrence ID and different start/end facts; history refuses it forever as `immutable operational run already exists`. `TestScheduleDueHistorySurvivesFailedOccurrenceCommit` reproduces both online notify-only and offline skip cases. No input was dispatched before the failed commit. This is a sequencing problem under the approved crash/cooperating-process threat model, not a hostile-file substitution.
+
+Stop further production edits and bring this complete **transaction** inventory to the TL before another recovery correction. M1 remains closed; its staging families and ownership checks are unchanged. The earlier M2 checkpoint's final-check wording does not claim readiness: the new red regression blocks it.
+
+| Transaction | Durable facts before external publication/effect | Failure recovery today | Assessment |
+|---|---|---|---|
+| Manual reservation and script authorization | Existing persisted Active tuple, then owner acknowledgment | Exact tuple guards shared runner; unknown never re-executes | Covered by manual/reserved/native qualification |
+| Scheduled script reservation | Current due pass commits Active before workers execute | Result recovery uses exact source/revision/due/start | Covered |
+| Script/prelaunch result -> authority completion | Existing Active under state lock; publish result before assigning completion | Saved immutable record is adopted after ledger failure; cancellation finalizes pending as dropped | Covered by result/ledger-fault/stale-worker tests |
+| Notify-only occurrence -> completed/pending run record | **First Active reservation is only in the current uncommitted transaction** | Retry recomputes start/end and conflicts with the existing immutable record | **Gap: explicit reservation commit barrier required** |
+| Offline/missed/refused due summary -> run record | **Consumed due and Last facts are only in the current uncommitted transaction** | Same conflict; a later declaration revision could also replace the only available revision fact | **Gap: persist passive occurrence facts first** |
+| Pending -> terminal notice history -> ledger clear | Existing durable frozen delivery attempt; finalize metadata before clearing | Retain admission completion on failure; adopt saved terminal history after restart; never resend uncertain input | Covered by real broker, retained-result and native finalizer crash tests |
+| Catalogue cancellation of pending notice | Existing pending attempt/run under state/task locks | Terminalize history before clearing attempt; same final idempotent | Covered |
+| Lost execution owner -> unknown history/authority | Existing persisted Active source/revision/due/start | Publish protected unknown record and retain uncertain execution; no replay | Covered for both manual and scheduled restart |
+
+**Proposed invariant:** every immutable run publication refers to occurrence facts that are already durably present in Active or Last. No transition overwrites the sole retained facts until that occurrence's record is durable. The existing state lock remains the one lifetime resource; there is no journal, staging family, recovery worker or new queue.
+
+Proposed correction for TL review, not yet implemented:
+
+1. Separate due reservation/consumption from outcome publication with an explicit ledger commit barrier. Direct scripts retain the current shared worker path. Notify-only reservations are persisted before computing/publishing completion; if a prior attempt already published a matching record, adopt its immutable facts through the existing recovery transition before any admission.
+2. Preserve declaration revision on `RunSummary` as a typed additive fact (legacy missing field tolerated), because passive skipped outcomes have no Active tuple. A skipped/refused passive Last is committed before its run record; the next existing coordinator scan/step repairs a missing record from those exact facts. Before any automatic or manual reservation can overwrite that Last, ensure its record is durable. Catalogue replacement must not erase that revision. No output reconstruction is needed for these no-execution outcomes.
+3. Keep the completed native/prelaunch and terminal-notice paths as they are; do not weaken immutable publication or replace a prior run's execution facts to make retries pass. Stable IDs alone cannot repair changed facts, as the red test demonstrates.
+4. Qualify before/after the reservation barrier, after run publication/before completion commit, declaration replacement before passive-history repair, manual reservation racing passive-history repair, repeated restart, and existing no-replay/canonical-receipt cases. Run the new red test plus the existing scheduling targets; update the transaction inventory with the measured evidence before requesting staging.
+
+The tradeoff remains the approved conservative one: a crash after reservation but before knowing execution/admission may leave unknown and skip that occurrence; it cannot authorize replay. Passive skips can recover their history from durable Last facts. The required live day and final recorded checks remain open. No M2 boundary round, stage, restart or landing has been attempted.
