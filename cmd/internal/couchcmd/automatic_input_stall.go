@@ -2,6 +2,7 @@ package couchcmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -54,6 +55,13 @@ func (s *messageService) handleAutomaticInputStall(ctx context.Context, r couchm
 	}
 	s.stalls.records[caller.Slot] = automaticInputStallRecord{Binding: caller, Sequence: report.Sequence}
 	s.stalls.Unlock()
+	// Bind the reserved occurrence before status/desktop effects can block.
+	// Its verified owning hub and policy epoch come from memory only.
+	s.mu.Lock()
+	identity := s.workspaces[caller]
+	s.mu.Unlock()
+	hubRoot := s.authority.owner(identity)
+	permitted, permitEpoch := s.hubAutomationPermit(hubRoot)
 	outcome := "input still blocked"
 	if report.Released {
 		outcome = "lease released"
@@ -67,14 +75,17 @@ func (s *messageService) handleAutomaticInputStall(ctx context.Context, r couchm
 		if c.notice != nil {
 			c.notice(body)
 		}
-		if hub, ok := s.hubBindingFor(caller); ok {
-			if hub.Slot != caller.Slot {
-				if _, err := c.sendGenerated(ctx, caller, hub, r.ID, body, false); err != nil {
-					failures = append(failures, "hub notice: "+err.Error())
+		on, epoch := s.hubAutomationPermit(hubRoot)
+		if permitted && on && epoch == permitEpoch {
+			if hub, ok := s.hubBindingFor(caller); ok {
+				if hub.Slot != caller.Slot {
+					if _, err := c.sendGenerated(ctx, caller, hub, r.ID, body, false); err != nil && !errors.Is(err, errHubAutomationOff) {
+						failures = append(failures, "hub notice: "+err.Error())
+					}
 				}
+			} else {
+				failures = append(failures, "owning hub unavailable")
 			}
-		} else {
-			failures = append(failures, "owning hub unavailable")
 		}
 	} else {
 		failures = append(failures, "supervision output unavailable")

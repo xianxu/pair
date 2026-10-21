@@ -41,7 +41,12 @@ func resourceBrokerRig(t *testing.T) (resourceAlertDispatcher, *couchmessage.Bro
 	if err := b.Register(hub, ep); err != nil {
 		t.Fatal(err)
 	}
-	service := &messageService{broker: b}
+	service := &messageService{
+		broker:     b,
+		authority:  messageAuthority{hub: "/repo"},
+		automation: newHubAutomationOwner(map[string]bool{"/repo": true}, couchcore.StartupUnknown, nil),
+		workspaces: map[couchmessage.Binding]couchcore.WorkspaceIdentity{hub: {WorktreeRoot: "/repo"}},
+	}
 	coordinator := newSupervisionCoordinator(service, func(string) {})
 	d := resourceAlertDispatcher{resolve: func(couchcore.WorkspaceIdentity) (couchmessage.Binding, bool) { return hub, true }, send: func(ctx context.Context, to couchmessage.Binding, id, body string) (couchmessage.Receipt, error) {
 		return coordinator.sendGenerated(ctx, to, to, id, body, false)
@@ -162,15 +167,16 @@ func TestResourceAlertBrokerUncertainRetryUsesBrokerDedup(t *testing.T) {
 	}
 }
 func TestResourceAlertBrokerTemporaryRefusalRetries(t *testing.T) {
-	d, b, _, hub := resourceBrokerRig(t)
+	d, b, ep, hub := resourceBrokerRig(t)
 	state := resourceTestAlert(time.Now())
-	original := *hub
-	hub.Slot = "absent:0"
+	b.Disconnect(*hub)
 	_ = d.dispatch(context.Background(), &state)
 	if state.Episodes[0].Phase != "pending" {
 		t.Fatal("refusal resolved episode")
 	}
-	*hub = original
+	if err := b.Register(*hub, ep); err != nil {
+		t.Fatal(err)
+	}
 	_ = d.dispatch(context.Background(), &state)
 	if _, ok, _ := b.ReceiptSnapshot(state.Episodes[0].Effect.ID); !ok || state.Episodes[0].Phase != "notified" {
 		t.Fatal("restored hub did not admit")

@@ -7,13 +7,16 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func stallRequest(b couchmessage.Binding, sequence uint64) couchmessage.Request {
@@ -316,5 +319,109 @@ func TestAutomaticInputStallUnsubmittedComposerNotice(t *testing.T) {
 		if !strings.Contains(body, "unsubmitted-composer") || !strings.Contains(body, "sequence 2") {
 			t.Errorf("lost typed diagnostic evidence: %q", body)
 		}
+	}
+}
+
+func TestAutomaticInputStallAutomationOffRetiresOccurrenceKeepsOutputs(t *testing.T) {
+	r, b := hubMessageRig(t)
+	worker := b[2]
+	r.s.automation = newHubAutomationOwner(map[string]bool{"/repo0": true, "/repo1": false}, couchcore.StartupUnknown, nil)
+	var status, desktop atomic.Int64
+	r.s.supervision.Store(newSupervisionCoordinator(r.s, func(string) { status.Add(1) }))
+	r.s.SetDesktopNotify(func(context.Context, string, string) error { desktop.Add(1); return nil })
+	req := stallRequest(worker, 2)
+	got := stallCall(t, r, req)
+	if _, ok, _ := r.s.broker.ReceiptSnapshot(req.ID); ok {
+		t.Fatal("automation off admitted generated hub input")
+	}
+	if got.Code != "ok" || got.Error != "" {
+		t.Fatalf("intentional suppression manufactured a delivery failure: %+v", got)
+	}
+	if status.Load() != 1 || desktop.Load() != 1 {
+		t.Fatalf("suppression hid local output: status=%d desktop=%d", status.Load(), desktop.Load())
+	}
+	if _, err := r.s.controlAutomation("/repo1", "on"); err != nil {
+		t.Fatal(err)
+	}
+	for _, sequence := range []uint64{2, 1} {
+		got = stallCall(t, r, stallRequest(worker, sequence))
+		if got.Code != "ok" {
+			t.Fatal(got)
+		}
+	}
+	if _, ok, _ := r.s.broker.ReceiptSnapshot(req.ID); ok {
+		t.Fatal("turning automation on replayed old occurrence")
+	}
+	if status.Load() != 1 || desktop.Load() != 1 {
+		t.Fatal("reserved occurrence repeated desktop or status output")
+	}
+	// A distinct new stall remains eligible after explicit enabling.
+	next := stallRequest(worker, 3)
+	if got = stallCall(t, r, next); got.Code != "ok" {
+		t.Fatal(got)
+	}
+	if receipt, ok, _ := r.s.broker.ReceiptSnapshot(next.ID); !ok || receipt.Message.To != b[1] {
+		t.Fatalf("new occurrence lost hub delivery: %+v", receipt)
+	}
+	if status.Load() != 2 || desktop.Load() != 2 {
+		t.Fatal("new occurrence lost independent output")
+	}
+}
+
+func TestAutomaticInputStallPolicyEpochFencesBlockedStatusOutput(t *testing.T) {
+	r, b := hubMessageRig(t)
+	worker := b[2]
+	entered, release := make(chan struct{}), make(chan struct{})
+	var releaseOnce sync.Once
+	unblock := func() { releaseOnce.Do(func() { close(release) }) }
+	t.Cleanup(unblock)
+	var statuses, desktop atomic.Int64
+	r.s.supervision.Store(newSupervisionCoordinator(r.s, func(string) {
+		if statuses.Add(1) == 1 {
+			close(entered)
+			<-release
+		}
+	}))
+	r.s.SetDesktopNotify(func(context.Context, string, string) error { desktop.Add(1); return nil })
+	req := stallRequest(worker, 2)
+	done := make(chan couchmessage.Response, 1)
+	go func() {
+		var result couchmessage.Response
+		if err := couchmessage.Call(context.Background(), r.brokerSock, req, &result); err != nil {
+			result.Error = err.Error()
+		}
+		done <- result
+	}()
+	select {
+	case <-entered:
+	case <-testwait.After(t):
+		t.Fatal("status output did not enter")
+	}
+	if _, err := r.s.controlAutomation("/repo1", "off"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.s.controlAutomation("/repo1", "on"); err != nil {
+		t.Fatal(err)
+	}
+	unblock()
+	select {
+	case got := <-done:
+		if got.Code != "ok" {
+			t.Fatal(got)
+		}
+	case <-testwait.After(t):
+		t.Fatal("stall notice did not finish")
+	}
+	if _, known, _ := r.s.broker.ReceiptSnapshot(req.ID); known {
+		t.Fatal("stale reserved stall crossed off-on policy epoch")
+	}
+	if statuses.Load() != 1 || desktop.Load() != 1 {
+		t.Fatal("policy change hid independent local outputs")
+	}
+	if got := stallCall(t, r, stallRequest(worker, 3)); got.Code != "ok" {
+		t.Fatal(got)
+	}
+	if _, known, _ := r.s.broker.ReceiptSnapshot(stallRequest(worker, 3).ID); !known {
+		t.Fatal("fresh stall did not qualify after on")
 	}
 }

@@ -20,11 +20,12 @@ type hubAutomationOwner struct {
 	state   couchcore.HubAutomation
 	startup couchcore.StartupKind
 	missing []string
+	epochs  map[string]uint64
 }
 
 func newHubAutomationOwner(initial map[string]bool, startup couchcore.StartupKind, missing []string) *hubAutomationOwner {
 	state, _ := couchcore.NewHubAutomation(initial)
-	return &hubAutomationOwner{state: state, startup: startup, missing: append([]string(nil), missing...)}
+	return &hubAutomationOwner{state: state, startup: startup, missing: append([]string(nil), missing...), epochs: map[string]uint64{}}
 }
 
 func (s *messageService) controlAutomation(hub, action string) (couchcore.HubAutomationStatus, error) {
@@ -51,7 +52,11 @@ func (s *messageService) controlAutomation(hub, action string) (couchcore.HubAut
 			return status, err
 		}
 		owner.state = next
-		status, _ = couchcore.AutomationStatus(next, hub)
+		updated, _ := couchcore.AutomationStatus(next, hub)
+		if updated.Enabled != status.Enabled {
+			owner.epochs[hub]++
+		}
+		status = updated
 	}
 	status.Startup = string(owner.startup)
 	status.MissingHubs = append([]string(nil), owner.missing...)
@@ -61,8 +66,21 @@ func (s *messageService) controlAutomation(hub, action string) (couchcore.HubAut
 // hubAutomationOn is shared with the scheduler's reserve and authorization
 // boundaries. An unknown root never gains automatic-input authority.
 func (s *messageService) hubAutomationOn(hubRoot string) bool {
-	status, err := s.controlAutomation(hubRoot, "status")
-	return err == nil && status.Enabled
+	on, _ := s.hubAutomationPermit(hubRoot)
+	return on
+}
+
+// A delayed occurrence retains this epoch. An intervening off/on cannot revive
+// it merely because policy is on again at final admission.
+func (s *messageService) hubAutomationPermit(hubRoot string) (bool, uint64) {
+	owner := s.automation
+	if owner == nil {
+		return false, 0
+	}
+	owner.mu.Lock()
+	defer owner.mu.Unlock()
+	status, err := couchcore.AutomationStatus(owner.state, hubRoot)
+	return err == nil && status.Enabled, owner.epochs[hubRoot]
 }
 
 func (s *messageService) handleAutomation(ctx context.Context, r couchmessage.Request) couchmessage.Response {
@@ -169,4 +187,13 @@ func runAutomationCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, c
 		fmt.Fprintln(stdout, "missing hub:", hub)
 	}
 	return 0
+}
+
+// sendAutomaticSystem is the sole broker ingress for generated conversation
+// input. Worker-directed orientation and resend cues pass independently.
+func (s *messageService) sendAutomaticSystem(ctx context.Context, from, to couchmessage.Binding, id, body string) (couchmessage.Receipt, error) {
+	if s.generatedHubInputOff(to) {
+		return couchmessage.Receipt{}, errHubAutomationOff
+	}
+	return s.broker.SendSystem(ctx, from, id, couchmessage.Route{Target: to.Slot}, body)
 }

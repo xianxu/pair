@@ -91,3 +91,38 @@ func TestAutomationServiceAdmission(t *testing.T) {
 		})
 	}
 }
+
+func TestAutomationPermitFencesOffOn(t *testing.T) {
+	s := &messageService{automation: newHubAutomationOwner(map[string]bool{"/hub": true}, couchcore.StartupNormal, nil)}
+	on, epoch := s.hubAutomationPermit("/hub")
+	if !on {
+		t.Fatal("initial permit")
+	}
+	s.controlAutomation("/hub", "on")
+	_, same := s.hubAutomationPermit("/hub")
+	if same != epoch {
+		t.Fatal("idempotent on invalidated permit")
+	}
+	s.controlAutomation("/hub", "off")
+	s.controlAutomation("/hub", "on")
+	on, next := s.hubAutomationPermit("/hub")
+	if !on || next == epoch {
+		t.Fatal("off/on revived old permit")
+	}
+}
+
+func TestAutomationCannotControlAnotherConfiguredHub(t *testing.T) {
+	r, bindings := hubMessageRig(t)
+	req := callerRequest(bindings[0], "automation")
+	req.Body = "off"
+	req.Target = "/repo1"
+	got := r.s.handleAutomation(context.Background(), req)
+	if got.Code != "refused" || !r.s.hubAutomationOn("/repo0") || !r.s.hubAutomationOn("/repo1") {
+		t.Fatalf("foreign configured hub policy changed: %+v", got)
+	}
+	req.Target = "/repo0"
+	got = r.s.handleAutomation(context.Background(), req)
+	if got.Code != "ok" || r.s.hubAutomationOn("/repo0") || !r.s.hubAutomationOn("/repo1") {
+		t.Fatalf("own hub policy: %+v", got)
+	}
+}

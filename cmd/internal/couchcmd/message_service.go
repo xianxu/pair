@@ -31,6 +31,7 @@ import (
 // messageAuthority separates live evidence from registry mutation. All probes
 // are read-only; none call mutable Couch domain operations from request workers.
 type messageAuthority struct {
+	automation *hubAutomationOwner
 	// now is the broker clock; nil uses wall time.
 	now        func() time.Time
 	thread     func(context.Context, couchmessage.Binding) (string, error)
@@ -166,17 +167,18 @@ const (
 // timers in arrival order. Request goroutines read
 // only the published snapshot of connected bindings.
 type messageService struct {
-	lifecycle atomic.Pointer[lifecyclePublisher]
-	resources atomic.Pointer[resourceSampler]
-	hubMoves  atomic.Pointer[hubMoveService]
-	facts     atomic.Pointer[supervisionFactLog]
-	server    *couchmessage.Server
-	sessions  *couchmessage.SessionServer
-	broker    *couchmessage.Broker
-	cancel    context.CancelFunc
-	lifetime  context.Context
-	workers   sync.WaitGroup
-	authority messageAuthority
+	automation *hubAutomationOwner
+	lifecycle  atomic.Pointer[lifecyclePublisher]
+	resources  atomic.Pointer[resourceSampler]
+	hubMoves   atomic.Pointer[hubMoveService]
+	facts      atomic.Pointer[supervisionFactLog]
+	server     *couchmessage.Server
+	sessions   *couchmessage.SessionServer
+	broker     *couchmessage.Broker
+	cancel     context.CancelFunc
+	lifetime   context.Context
+	workers    sync.WaitGroup
+	authority  messageAuthority
 	// hubTargets is admission's warm source for target slots (pair#726); nil
 	// without hub ownership.
 	hubTargets *hubTargetMemo
@@ -312,6 +314,10 @@ func hubWorktree(getwd func() (string, error), resolve func(string) (couchcore.W
 // startMessageService is called only while the existing supervisor lease is
 // held. Socket cleanup and all child registration live inside that lifetime.
 func startMessageService(console *couchtty.Console, c *couchcore.Couch, configuredHubs ...*hubRuntime) (*messageService, error) {
+	return startMessageServiceWithStartup(console, c, nil, configuredHubs...)
+}
+
+func startMessageServiceWithStartup(console *couchtty.Console, c *couchcore.Couch, startup *couchcore.StartupObservation, configuredHubs ...*hubRuntime) (*messageService, error) {
 	resolver, ok := c.Slots.(couchcore.SlotWorkspaceResolver)
 	if !ok {
 		return nil, nil
@@ -517,12 +523,33 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	c.ProcessTable = procutil.Table
 	c.LeaseHolders = lifetimelease.Holders
 	facts := openSupervisionFacts(artifacts.PairLifecycleDataDir(), namespace)
+	initial := map[string]bool{}
+	seed := func(root string) {
+		initial[root] = startup != nil && startup.Hubs[root].Survived && !startup.Hubs[root].Unknown
+	}
+	if authority.hubs != nil {
+		for _, hub := range authority.hubs.snapshot().Hubs() {
+			seed(hub.Root)
+		}
+	} else if authority.hub != "" {
+		seed(authority.hub)
+	}
+	kind := couchcore.StartupUnknown
+	var missing []string
+	if startup != nil {
+		kind, missing = startup.Kind, startup.MissingHubs
+	}
+	authority.automation = newHubAutomationOwner(initial, kind, missing)
 	service, err := newMessageService(context.Background(), brokerSocket, registrySocket, authority, panes, console.MessageSlotGit, consoleSlotOperations(console, c, probe), facts)
 	if err != nil {
 		facts.Close()
 		return nil, err
 	}
 	probe.service.Store(service)
+	console.SetAutomationControl(func(root, action string) (bool, error) {
+		status, err := service.controlAutomation(root, action)
+		return status.Enabled, err
+	})
 	service.installAgentSwitchService(console, c, switchGuard)
 	service.installAgentDriveService(console)
 	service.installHubMoves(console, c)
@@ -621,6 +648,18 @@ func newMessageService(parent context.Context, brokerSocket, registrySocket stri
 		after: func(d time.Duration, f func()) { time.AfterFunc(d, f) }, slotOps: slotOps,
 		workspaces: map[couchmessage.Binding]couchcore.WorkspaceIdentity{},
 		prepared:   map[preparedKey]preparedAdmission{}}
+	s.automation = authority.automation
+	if s.automation == nil {
+		initial := map[string]bool{}
+		if authority.hubs != nil {
+			for _, hub := range authority.hubs.snapshot().Hubs() {
+				initial[hub.Root] = false
+			}
+		} else if authority.hub != "" {
+			initial[authority.hub] = false
+		}
+		s.automation = newHubAutomationOwner(initial, couchcore.StartupUnknown, nil)
+	}
 	if len(factLogs) > 0 {
 		s.facts.Store(factLogs[0])
 	}
@@ -688,14 +727,14 @@ func newMessageService(parent context.Context, brokerSocket, registrySocket stri
 	s.server = server
 	sessions, err := couchmessage.StartSessionServer(lifetime, registrySocket, couchmessage.SessionHandler{
 		Open: func(t couchmessage.SessionToken, h couchmessage.SessionHello) error {
-			return s.post(couchmessage.RegistryEvent{Kind: couchmessage.SessionOpened, Token: t, Binding: h.Binding, Build: h.Build}, true)
+			return s.post(couchmessage.RegistryEvent{Kind: couchmessage.SessionOpened, Token: t, Binding: h.Binding, Build: h.Build, WorkerCue: h.WorkerCue}, true)
 		},
 		Frame: func(t couchmessage.SessionToken, f couchmessage.SessionFrame) {
 			kind := couchmessage.SessionActivity
 			if f.Op == couchmessage.FrameSubmit {
 				kind = couchmessage.SessionSubmit
 			}
-			_ = s.post(couchmessage.RegistryEvent{Kind: kind, Token: t, Observation: *f.Observation, Settled: f.Settled, Picker: f.Picker, BackgroundWork: f.BackgroundWork}, false)
+			_ = s.post(couchmessage.RegistryEvent{Kind: kind, Token: t, Observation: *f.Observation, Settled: f.Settled, Picker: f.Picker, BackgroundWork: f.BackgroundWork, WorkerCue: f.WorkerCue}, false)
 		},
 		Closed: func(t couchmessage.SessionToken) {
 			_ = s.post(couchmessage.RegistryEvent{Kind: couchmessage.SessionClosed, Token: t}, false)
@@ -988,6 +1027,8 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 		return s.handleNativeExit(ctx, request)
 	case request.Op == "notify":
 		return s.handleNotify(ctx, request)
+	case request.Op == "automation":
+		return s.handleAutomation(ctx, request)
 	case request.Op == "switch-agent":
 		return s.handleAgentSwitch(ctx, request)
 	case couchmessage.IsSubmissionOp(request.Op):

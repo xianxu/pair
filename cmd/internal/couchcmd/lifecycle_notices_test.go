@@ -3,12 +3,12 @@ package couchcmd
 import (
 	"context"
 	"fmt"
-	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/testwait"
@@ -41,7 +41,7 @@ func TestLifecyclePublisherUsesCanonicalSystemReceiptAndRestartBarrier(t *testin
 	r.waitConnected(worker, true)
 	p := startLifecyclePublisher(r.s, func(string) {})
 	p.observe(couchtty.LifecycleObservation{Kind: "restart-armed"})
-	p.observe(couchtty.LifecycleObservation{Kind: "recovered", Path: "/repo2", Incarnation: "worker-one", Observation: 1, Initiation: "automatic"})
+	p.observe(couchtty.LifecycleObservation{Kind: "recovered", Path: "/repo2", Incarnation: "worker-one", Observation: 1, Initiation: "operator"})
 	// No summary is eligible while the existing restart pass is collecting.
 	p.mu.Lock()
 	queued := len(p.ready)
@@ -94,6 +94,7 @@ func TestLifecyclePublisherDropsMovedOwnership(t *testing.T) {
 			h, defs, slot := moveFixture(t)
 			r := newServiceRig(t)
 			r.s.authority.hubs = h
+			r.s.automation = newHubAutomationOwner(map[string]bool{defs[0].Root: true, defs[1].Root: true}, couchcore.StartupUnknown, nil)
 			r.s.hubMoves.Store(&hubMoveService{})
 			endpoints := []*controlledEndpoint{newControlledEndpoint(), newControlledEndpoint()}
 			var bindings []couchmessage.Binding
@@ -113,6 +114,7 @@ func TestLifecyclePublisherDropsMovedOwnership(t *testing.T) {
 			p := startLifecyclePublisher(r.s, func(string) {})
 			p.observe(couchtty.LifecycleObservation{Kind: "restart-armed"})
 			e := lifecycleSlotObservation(7, 1)
+			e.Initiation = "operator"
 			e.Target.Slot.PrimaryRoot = slot.Repository
 			p.observe(e)
 			var release func()
@@ -309,12 +311,14 @@ func TestLifecyclePublisherRetiresSubmittedAndPublishesNewFact(t *testing.T) {
 	ep.finish <- couchmessage.Receipt{Status: couchmessage.Submitted}
 	lifecycleCanonicalSubmitted(t, r, second)
 }
-func TestLifecyclePublisherTwentySlotRestartOneCanonicalSummary(t *testing.T) {
+func TestLifecyclePublisherTwentyExplicitActionsDuringRestartOneCanonicalSummary(t *testing.T) {
 	ep := newControlledEndpoint()
 	r, p, _ := lifecyclePublisherRig(t, ep)
 	p.observe(couchtty.LifecycleObservation{Kind: "restart-armed"})
 	for n := 2; n < 22; n++ {
-		p.observe(lifecycleSlotObservation(n, uint64(n)))
+		fact := lifecycleSlotObservation(n, uint64(n))
+		fact.Initiation = "operator"
+		p.observe(fact)
 	}
 	p.refresh()
 	p.observe(couchtty.LifecycleObservation{Kind: "restart-drained"})
@@ -359,12 +363,14 @@ func (e *lifecycleBusyEndpoint) Reserve(ctx context.Context, _ string, _ uint64)
 	}
 	return ctx.Err()
 }
-func TestLifecyclePublisherBusyTwentySlotRestart(t *testing.T) {
+func TestLifecyclePublisherBusyTwentyExplicitActionsDuringRestart(t *testing.T) {
 	ep := &lifecycleBusyEndpoint{controlledEndpoint: newControlledEndpoint(), busy: true, reserved: make(chan struct{}, 1)}
 	r, p, _ := lifecyclePublisherRig(t, ep)
 	p.observe(couchtty.LifecycleObservation{Kind: "restart-armed"})
 	for n := 2; n < 22; n++ {
-		p.observe(lifecycleSlotObservation(n, uint64(n)))
+		fact := lifecycleSlotObservation(n, uint64(n))
+		fact.Initiation = "operator"
+		p.observe(fact)
 	}
 	p.refresh()
 	p.observe(couchtty.LifecycleObservation{Kind: "restart-drained"})
@@ -434,10 +440,13 @@ func TestLifecyclePublisherDrainsResolvableMetadataBeforeFreeze(t *testing.T) {
 	// hide omission of the drain boundary's atomic metadata reduction.
 	p := &lifecyclePublisher{service: r.s, ready: map[uint64]couchcore.LifecycleNoticeEffect{}, attempts: map[uint64]lifecycleAttempt{}, roots: map[string]bool{}, identities: map[string]couchcore.WorkspaceIdentity{}, unresolved: map[string]unresolvedFact{}, diagnostics: map[string]string{}, wake: make(chan struct{}, 1), results: make(chan lifecycleAdmission, 128)}
 	p.observe(couchtty.LifecycleObservation{Kind: "restart-armed"})
-	p.observe(lifecycleSlotObservation(2, 1))
+	fact := lifecycleSlotObservation(2, 1)
+	fact.Initiation = "operator"
+	p.observe(fact)
 	p.refresh()
 	e := lifecycleSlotObservation(3, 2)
 	e.Target = couchcore.ThreadTarget{}
+	e.Initiation = "peer"
 	p.observe(e)
 	worker := r.world.add(3)
 	r.attach(worker, "worker3")
@@ -457,12 +466,16 @@ func TestLifecyclePublisherOrdinaryUnknownDoesNotHoldDrain(t *testing.T) {
 	ep := newControlledEndpoint()
 	r, p, _ := lifecyclePublisherRig(t, ep)
 	p.observe(couchtty.LifecycleObservation{Kind: "restart-armed"})
-	p.observe(lifecycleSlotObservation(2, 1))
+	fact := lifecycleSlotObservation(2, 1)
+	fact.Initiation = "operator"
+	p.observe(fact)
 	e := lifecycleSlotObservation(9, 2)
 	e.Target = couchcore.ThreadTarget{Kind: couchcore.ThreadTargetOrdinary}
+	e.Initiation = "peer"
 	p.observe(e)
 	e = lifecycleSlotObservation(10, 3)
 	e.Target = couchcore.ThreadTarget{}
+	e.Initiation = "peer"
 	p.observe(e)
 	p.observe(couchtty.LifecycleObservation{Kind: "restart-drained"})
 	m := lifecycleNextMessage(t, ep, p)
@@ -672,9 +685,11 @@ func TestLifecycleDrainReportsOnlyUntargetedFacts(t *testing.T) {
 	p.observe(couchtty.LifecycleObservation{Kind: "restart-armed"})
 	e := lifecycleSlotObservation(9, 1)
 	e.Target = couchcore.ThreadTarget{Kind: couchcore.ThreadTargetOrdinary}
+	e.Initiation = "peer"
 	p.observe(e)
 	e = lifecycleSlotObservation(10, 2)
 	e.Target = couchcore.ThreadTarget{}
+	e.Initiation = "peer"
 	p.observe(e)
 	p.observe(couchtty.LifecycleObservation{Kind: "restart-drained"})
 	for {
@@ -712,5 +727,171 @@ func TestLifecycleOrdinaryFactExpires(t *testing.T) {
 	}
 	if _, ok := p.unresolved["/untargeted"]; !ok {
 		t.Fatal("an untargeted fact expired before the drain")
+	}
+}
+
+func lifecycleManualPublisher(t *testing.T, endpoints ...couchmessage.DeliveryEndpoint) (*serviceRig, *lifecyclePublisher) {
+	t.Helper()
+	r := newServiceRig(t)
+	r.world.hub = "/repo1"
+	r.restart(nil)
+	hub := r.world.add(1)
+	if len(endpoints) > 0 {
+		r.world.endpoints[hub] = endpoints[0]
+	}
+	r.attach(hub, "hub")
+	r.wrapper(hub)
+	r.waitConnected(hub, true)
+	p := &lifecyclePublisher{service: r.s, ready: map[uint64]couchcore.LifecycleNoticeEffect{}, attempts: map[uint64]lifecycleAttempt{}, roots: map[string]bool{}, identities: map[string]couchcore.WorkspaceIdentity{}, unresolved: map[string]unresolvedFact{}, diagnostics: map[string]string{}, wake: make(chan struct{}, 1), results: make(chan lifecycleAdmission, 128)}
+	return r, p
+}
+
+func TestLifecyclePublisherAutomationOffRetiresBeforeOn(t *testing.T) {
+	for _, deferred := range []bool{false, true} {
+		t.Run(fmt.Sprint(deferred), func(t *testing.T) {
+			r, p := lifecycleManualPublisher(t)
+			if _, err := r.s.controlAutomation("/repo1", "off"); err != nil {
+				t.Fatal(err)
+			}
+			fact := lifecycleSlotObservation(2, 1)
+			if deferred {
+				fact.Target = couchcore.ThreadTarget{Kind: couchcore.ThreadTargetOrdinary, Address: fact.Address}
+			}
+			p.observe(fact)
+			if _, err := r.s.controlAutomation("/repo1", "on"); err != nil {
+				t.Fatal(err)
+			}
+			if deferred {
+				worker := r.world.add(2)
+				r.attach(worker, "worker")
+				r.wrapper(worker)
+				r.waitConnected(worker, true)
+			}
+			p.refresh()
+			if len(p.ready) != 0 {
+				t.Fatal("automation on replayed fact observed off")
+			}
+			fact.Observation = 2
+			p.observe(fact)
+			p.refresh()
+			if len(p.ready) != 1 {
+				t.Fatalf("future fact lost: %s", lifecyclePublisherState(p))
+			}
+		})
+	}
+}
+
+func TestLifecyclePublisherStartupBaselineDroppedEvenWhenOn(t *testing.T) {
+	r, p := lifecycleManualPublisher(t)
+	p.observe(couchtty.LifecycleObservation{Kind: "restart-armed"})
+	p.observe(lifecycleSlotObservation(2, 1))
+	p.observe(couchtty.LifecycleObservation{Kind: "restart-drained"})
+	p.refresh()
+	if len(p.ready) != 0 {
+		t.Fatal("startup baseline automatically injected into surviving hub")
+	}
+	if _, err := r.s.controlAutomation("/repo1", "off"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.s.controlAutomation("/repo1", "on"); err != nil {
+		t.Fatal(err)
+	}
+	p.refresh()
+	if len(p.ready) != 0 {
+		t.Fatal("startup facts reappeared after automation cycle")
+	}
+	explicit := lifecycleSlotObservation(3, 2)
+	explicit.Initiation = "operator"
+	p.observe(explicit)
+	p.refresh()
+	if len(p.ready) != 1 {
+		t.Fatal("new explicit lifecycle fact did not remain eligible")
+	}
+}
+
+func TestLifecyclePublisherAutomationEpochRetiresReadyBacklog(t *testing.T) {
+	r, p := lifecycleManualPublisher(t)
+	p.observe(lifecycleSlotObservation(2, 1))
+	p.refresh()
+	if len(p.ready) != 1 {
+		t.Fatal("expected ready job before policy changed")
+	}
+	if _, err := r.s.controlAutomation("/repo1", "off"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.s.controlAutomation("/repo1", "on"); err != nil {
+		t.Fatal(err)
+	}
+	p.refresh()
+	if len(p.ready) != 0 {
+		t.Fatal("off-on replayed a previously eligible job")
+	}
+	p.observe(lifecycleSlotObservation(2, 2))
+	p.refresh()
+	if len(p.ready) != 1 {
+		t.Fatal("policy cycle blocked future facts")
+	}
+}
+
+func TestLifecyclePublisherAutomationEpochFencesDelayedAdmission(t *testing.T) {
+	ep := newControlledEndpoint()
+	r, p := lifecycleManualPublisher(t, ep)
+	ownership, err := couchcore.NewHubOwnership([]couchcore.HubDefinition{{Root: "/repo1", Workspace: "/", Slot: couchcore.HubSlot{Repository: "/repo1"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := &hubRuntime{state: ownership}
+	r.s.authority.hubs = h
+	release, err := holdHubEffect(t.Context(), h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if release != nil {
+			release()
+		}
+	})
+	r.s.workers.Add(1)
+	go func() { defer r.s.workers.Done(); p.run(r.s.lifetime) }()
+	p.observe(lifecycleSlotObservation(2, 1))
+	oldID := ""
+	testwait.Until(t, "old job blocked before admission", func() bool {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		for _, a := range p.attempts {
+			if !a.started {
+				oldID = a.id
+				return true
+			}
+		}
+		return false
+	})
+	if _, err := r.s.controlAutomation("/repo1", "off"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.s.controlAutomation("/repo1", "on"); err != nil {
+		t.Fatal(err)
+	}
+	// Retire at the policy boundary before releasing the older delayed worker.
+	p.refresh()
+	release()
+	release = nil
+	testwait.Until(t, "suppressed admission retired", func() bool { p.mu.Lock(); defer p.mu.Unlock(); return len(p.attempts) == 0 && len(p.ready) == 0 })
+	p.mu.Lock()
+	diagnostics := len(p.diagnostics)
+	p.mu.Unlock()
+	if diagnostics != 0 {
+		t.Fatal("intentional suppression produced failure diagnostic")
+	}
+	// The broker never admitted the old body; a fresh fact starts a new input.
+	if _, known, _ := r.s.broker.ReceiptSnapshot(oldID); known {
+		t.Fatal("old policy epoch admitted generated input")
+	}
+	p.observe(lifecycleSlotObservation(2, 2))
+	message := lifecycleNextMessage(t, ep, p)
+	ep.finish <- couchmessage.Receipt{Status: couchmessage.Submitted}
+	lifecycleCanonicalSubmitted(t, r, message)
+	if ep.deliveries() != 1 {
+		t.Fatal("old body replayed")
 	}
 }

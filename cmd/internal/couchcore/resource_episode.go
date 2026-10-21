@@ -29,22 +29,26 @@ type ResourceDeliveryOutcome string
 const ResourceMetricOrphanNvim = "orphan-nvim"
 
 const (
-	ResourceDeliveryAdmitted ResourceDeliveryOutcome = "admitted"
-	ResourceDeliveryRefused  ResourceDeliveryOutcome = "refused"
-	ResourceDeliveryUnknown  ResourceDeliveryOutcome = "unknown"
+	ResourceDeliveryAdmitted   ResourceDeliveryOutcome = "admitted"
+	ResourceDeliveryRefused    ResourceDeliveryOutcome = "refused"
+	ResourceDeliveryUnknown    ResourceDeliveryOutcome = "unknown"
+	ResourceDeliverySuppressed ResourceDeliveryOutcome = "suppressed"
 )
 
 type ResourceEpisode struct {
-	Delivery ResourceDeliveryOutcome `json:"delivery,omitempty"`
-	Process  ResourceProcessKey      `json:"process"`
-	Slot     string                  `json:"slot"`
-	Key      string                  `json:"key"`
-	Metric   string                  `json:"metric"`
-	Phase    string                  `json:"phase"`
-	Since    time.Time               `json:"since"`
-	Last     time.Time               `json:"last"`
-	Samples  int                     `json:"samples"`
-	Effect   *ResourceEffect         `json:"effect,omitempty"`
+	// AutomationEpoch binds a pending publisher occurrence to volatile policy.
+	// It is not persisted metric evidence and clears only on metric recovery.
+	AutomationEpoch *uint64                 `json:"-"`
+	Delivery        ResourceDeliveryOutcome `json:"delivery,omitempty"`
+	Process         ResourceProcessKey      `json:"process"`
+	Slot            string                  `json:"slot"`
+	Key             string                  `json:"key"`
+	Metric          string                  `json:"metric"`
+	Phase           string                  `json:"phase"`
+	Since           time.Time               `json:"since"`
+	Last            time.Time               `json:"last"`
+	Samples         int                     `json:"samples"`
+	Effect          *ResourceEffect         `json:"effect,omitempty"`
 }
 type ResourceEpisodeEvent struct {
 	Delivery              ResourceDeliveryOutcome
@@ -57,7 +61,9 @@ type ResourceEpisodeEvent struct {
 	Effect                ResourceEffect
 }
 
-// Unknown breaks accumulation but cannot clear a pending/admitted incident.
+// Unknown breaks accumulation but cannot clear a pending, admitted, or
+// explicitly suppressed incident. Suppression consumes the occurrence until
+// positive metric recovery, without claiming delivery.
 func AdvanceResourceEpisode(e ResourceEpisode, v ResourceEpisodeEvent) (ResourceEpisode, *ResourceEffect) {
 	if e.Effect != nil {
 		x := *e.Effect
@@ -80,6 +86,9 @@ func AdvanceResourceEpisode(e ResourceEpisode, v ResourceEpisodeEvent) (Resource
 			return e, nil
 		}
 		switch outcome {
+		case ResourceDeliverySuppressed:
+			e.Phase = "suppressed"
+			e.Delivery = outcome
 		case ResourceDeliveryAdmitted:
 			e.Phase = "notified"
 			e.Delivery = outcome
@@ -103,9 +112,10 @@ func AdvanceResourceEpisode(e ResourceEpisode, v ResourceEpisodeEvent) (Resource
 		e.Last = v.At
 		e.Effect = nil
 		e.Delivery = ""
+		e.AutomationEpoch = nil
 		return e, nil
 	}
-	if e.Phase == "pending" || e.Phase == "notified" {
+	if e.Phase == "pending" || e.Phase == "notified" || e.Phase == "suppressed" {
 		return e, nil
 	}
 	if e.Phase == "clear" || !v.At.After(e.Last) || v.MaxGap > 0 && v.At.Sub(e.Last) > v.MaxGap {
