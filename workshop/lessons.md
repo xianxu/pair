@@ -2522,3 +2522,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #762: Rotating a guessed secret resets a per-code budget, so it cannot bound lifetime attempts by itself. Keep a separate bounded counter under the lock owner and reset only on explicit authorized recovery. When callbacks carry ordered generations, commit their visible notice under that same generation guard; spawning the notice effect can let older recovery advice overwrite the current cap.
 
 - #764: Retire owned PTY/process handles before closing, signalling or reaping them; shared detach/final cleanup must consume each exactly once, including failure paths. Join startup and cleanup errors, and make live-fixture cleanup failures affect the test result rather than merely logging them.
+
+- #764 BR-1: A fixture-only change can still add a repository enforcement surface. Every new Pair-local lint rule needs its owner, rejected and accepted patterns, and syntax-analysis limits mapped in atlas/go-lint-catalog.md; include that surface in the close atlas decision.

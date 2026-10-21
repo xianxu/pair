@@ -151,3 +151,24 @@ The local `zellij-read-attempt-bypass` rule rejects direct `runQueryAttempt`
 calls in package launcher outside `ZellijSource.runContext`. Callers use the
 bounded entry to share its deadline, exact read allowlist and attempt evidence.
 It checks call-site syntax, not arbitrary function-value alias dataflow.
+
+## Controlled Zellij cleanup (#764)
+
+The local `controlled-zellij-close` rule is owned by
+`internal/repolint/controlled_zellij_close_rule_test.go` and registered in
+`pairCatalog`. It rejects discarded `ControlledZellij.Close` results (blank,
+bare, deferred or goroutine calls) and checked errors that only emit diagnostics.
+Cleanup must fail the test through t/tb Error, Fatal or Fail, or propagate the
+error through return or a retained errors.Join result. Nonfatal errors preserve
+subsequent exact-server and private-root cleanup checks.
+
+The syntax guard follows the actual fixture import, direct constructors, local
+aliases, explicit types and same-file fields, including range elements. It does
+not prove arbitrary control flow, reassignments, cross-file declarations, dot
+imports, method values or function-return aliases. Unrelated closers stay outside
+its scope. Scanner regressions exercise both rejected and accepted patterns.
+
+The fixture itself shares one handle-retirement path between KillClient and
+Close: consume the PTY and client before closing/signalling/reaping, and retain
+real failures. Startup refusal joins cleanup errors; final cleanup still requires
+exact server-generation exit evidence before removing its owned cache root.

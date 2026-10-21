@@ -70,3 +70,5 @@ Observed during #761 on 830f29d9ef0892b6fb8d06869a4840eed28f7ad9. Relevant sourc
 - 2026-10-21: Close requires bullet acceptance criteria. Reformatted the original Done when verbatim as three bullets; no contract change.
 
 - Final lint self-check reproduced a panic for a success-only close guard with no else. Treat the absent failure branch as unhandled; added the 28th regression. Cancelled the obsolete queued suite and will record the corrected head.
+
+- Close review round 1: FIX-THEN-SHIP, no behavioral findings; BR-1 requests the new lint rule’s atlas mapping. Added owner, rejected/accepted patterns, syntax limits and shared fixture lifetime ownership to the catalog guide and index. Hosted CI including native conformance passed. Full suite remains queued; no code changed for this review fix.

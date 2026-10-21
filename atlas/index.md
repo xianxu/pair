@@ -28,7 +28,7 @@
 
 - `.sdlc/landing.json` — pair’s 60-minute landing-train pilot (#709), read from main by `sdlc merge`; inspect the line and recent trains with `sdlc landing status`. The operator verifies changes through the local-gates label; the TL owns the first multi-car conformance check.
 
-- [Go lint catalog](go-lint-catalog.md) — pinned upstream rules, repository coverage, reasoned exceptions and shrink-only sleep debt.
+- [Go lint catalog](go-lint-catalog.md) — pinned upstream rules, repository coverage, reasoned exceptions, fixture cleanup ownership and shrink-only sleep debt.
 
 - `.sdlc/affected.json`, `scripts/test-affected.py` — affected branch checks
   consume ariadne#473's main-authoritative selection through `make test-affected`.
