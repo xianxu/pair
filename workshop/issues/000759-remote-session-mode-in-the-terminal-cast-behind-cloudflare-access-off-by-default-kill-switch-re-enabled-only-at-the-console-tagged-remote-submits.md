@@ -82,6 +82,8 @@ Authenticated TL7c5b26ce-a932-4fb1-8d97-21c12f04fa05: APPROVED with changes. Upd
 
 - Plan-quality round1 blocked on PQ-1 persisted-format preservation/mixed-version contract and PQ-2 named-function test strategy. Addressed the full format/function classes in the plan, reusing strictjson duplicate detection and retained raw-object patterns; no policy/scope change. Rerun change-code before implementation.
 
+- Plan-quality round2 closed PQ-1 but retained PQ-2 for duplicate prose unit-case inventories. Swept all M1–M3 steps to reference one named-function/adversarial-class/mechanical-guard table, named actual transcript functions and added server/lint functions. No policy change or implementation.
+
 ## Revisions
 
 ### 2026-10-21 09:04 — approved current contract

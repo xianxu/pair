@@ -41,6 +41,40 @@ rounds:
           family: function-level-test-strategy
           round: 1
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 12986ceb-4953-4854-bac4-6a37a285c1de
+            repository: github.com/xianxu/pair
+            issue_id: "000759"
+            recipe: plan-quality
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot6/pair
+            reviewed_head: fa8ad915729dd247b8a3100ba3fe666df6e4c955
+            slot: pair:6
+            requested_at: "2026-10-21T16:13:24.116498Z"
+          phase: finished
+          pid: 39207
+          started_at: "2026-10-21T16:13:24.431338Z"
+          finished_at: "2026-10-21T16:14:06.957379Z"
+          session_id: 01a15f3d-2459-7730-b0c5-4c4653a1f610
+          outcome: returned
+      "n": 2
+      timestamp: "2026-10-21T09:14:07-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Named retained-raw-object codecs cover the changed formats, including nested preservation, strict validation, actual rewrite-path tests and explicit mixed-version limits.
+          round: 2
+        - id: PQ-2
+          disposition: not-addressed
+          note: 'The function table is substantially improved, but prose case inventories remain at plan lines 220, 234, 242 and 244, and the transcript strategy at line 265 still lacks a function name. This is the 2nd observation in family function-level-test-strategy. Apply one rule across the entire plan: every risky unit-test obligation belongs in one named-function/adversarial-class/mechanical-guard row; milestone steps reference those rows instead of repeating case inventories. Sweep all M1–M3 test instructions under that rule, retaining generated-sequence invariants and operation-count checks.'
+          round: 2
+      blocked: true
 ---
 
 # Gate ledger — pair#759 (plan-quality)
@@ -57,7 +91,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **PQ-2** [Important] `function-level-test-strategy` Replace prose case inventories with strategies attached to named functions.
   The Risk functions table names functions only selectively, while M1–M3 enumerate JWT, lifecycle, navigation and provenance cases in prose. Compress these into one adversarial-class/mechanical-guard line per named risky function, including verification, durable publication, session/replay admission, document handoff, reset and provenance projection; retain the generated-sequence invariants and operation-count checks.
 
+## Round 2 — 2026-10-21T09:14:07-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- PQ-1 — addressed — Named retained-raw-object codecs cover the changed formats, including nested preservation, strict validation, actual rewrite-path tests and explicit mixed-version limits.
+- PQ-2 — not-addressed — The function table is substantially improved, but prose case inventories remain at plan lines 220, 234, 242 and 244, and the transcript strategy at line 265 still lacks a function name. This is the 2nd observation in family function-level-test-strategy. Apply one rule across the entire plan: every risky unit-test obligation belongs in one named-function/adversarial-class/mechanical-guard row; milestone steps reference those rows instead of repeating case inventories. Sweep all M1–M3 test instructions under that rule, retaining generated-sequence invariants and operation-count checks.
+
 ## Open findings
 
-- **PQ-1** [Important] `persisted-format-preservation-contract` Specify preservation and mixed-version behavior for every changed persisted format.
 - **PQ-2** [Important] `function-level-test-strategy` Replace prose case inventories with strategies attached to named functions.
