@@ -1541,6 +1541,7 @@ var NonArtifactSources = []string{
 	// pair#602 compiler fixture: owns a temporary executable, no session artifacts.
 	"cmd/internal/testpair/binary.go",
 	"cmd/internal/testpair/environment.go",
+	"cmd/internal/testpair/shortroot.go",
 	// pair#744 disposable qualification owner: private test files/processes,
 	// read-only candidate/tool inputs and native fixture transcripts; no tagged
 	// Pair session-artifact filename constructors or consumers.

@@ -64,7 +64,6 @@
       "cmd/internal/broadcast/viewer_test.go": "44f01533272916cfe7085c4115d8481b74bb2f12db323db3ea69eb40aeb4f3f5",
       "cmd/internal/clipcmd/cli_admission_test.go": "256e2332dfb5202894f5ccb1a379e65875438962326a6e7a636b19bf43fa4f1d",
       "cmd/internal/couchcmd/shortcut_conformance_live_test.go": "67504844aa794941facbdbbc3b65227e6604a2f5bf5e2ea3ed5b45aaedcab9fd",
-      "cmd/internal/couchcmd/stale_store_test.go": "f55eb2e1aa16137380152f0a372f09eb28619fa932076e69168076c845e99642",
       "cmd/internal/couchcmd/startup_fleet_timing_live_test.go": "e3e6890f2a31b50af420aed8b3562a09799b9e71f8fee8c31d296b820dfa23bb",
       "cmd/internal/couchcmd/supervision_fact_storage_test.go": "89759b3d4d8cf053248fe56a20a90ee26e8afeca42148403402e8e7e87e7bf44",
       "cmd/internal/couchcore/launchhelper_test.go": "21c834b727d891d1d10b8618d6488a3139d6bb7c4e3eee7f4bf7f40d84e04cf1",
@@ -154,11 +153,12 @@
       "cmd/internal/wrapcmd/translate_test.go": "19a77f27b5eeb7686ae076513a3e5064257d9f9c8ed36c3cc71e423e2f599e04",
       "cmd/internal/zellijtest/fake_test.go": "0820421bf6161904427c0ac989b550cbcfaa3a964538f6da00219b6aac5d042f",
       "cmd/pair-go/main_test.go": "3006109d07471c179dd742acf66901abe00868868f680694b5f75d75073cd99b",
-      "cmd/couch/fleet_acceptance_test.go": "bceeb2e5118e45fe85095868401c08b0d203c0ceb51138fa4233558ecfc13402"
+      "cmd/couch/fleet_acceptance_test.go": "bceeb2e5118e45fe85095868401c08b0d203c0ceb51138fa4233558ecfc13402",
+      "cmd/internal/couchcmd/stale_store_test.go": "43e6e6f85140ad4ac094f917c3d202baba833b922a73938a7bd8a318cae7f65d",
+      "cmd/internal/testpair/shortroot_test.go": "fbb4c33069cd54c21ca89c9a5a3601cee7c0c32cbdd634b937b6a3a8129d1895"
     },
     "local_or_literal_fixture": {
       "cmd/couch/binary_test.go": "43767cf88cd38b404edd7df16cc7a646359171649eaf63adfbe4952f68fc4aa6",
-      "cmd/couch/main_test.go": "c5f817944268088fc3cfef3dfa12c1bd95bf62e7dd8bd20168cdb3a026827497",
       "cmd/couch/socket_pin_test.go": "6aafee134d2432809cd511fd21d8064c90bc9274251f9bf15fb9b339f3dd37c9",
       "cmd/internal/archivecmd/restore_test.go": "680a79061bd91f9ba984bb9acf8198bb9bc1f9f4e3dee5d49d75ec6301370b7b",
       "cmd/internal/artifactpath/capture_metadata_test.go": "2a45d3927698d388154d9aae591c5d7ab8f44918632907e2a5a2912314d7d9e0",
@@ -201,7 +201,6 @@
       "cmd/internal/couchcmd/resources_test.go": "d7300bfdf1f3edbc4519395e5b1d3a95552f5622303be0915c4cf27bc97e12bc",
       "cmd/internal/couchcmd/scratch_test.go": "363c4ff7ab924581f2d66444ecd0ed7806722f3dbdc2a947959fe6b4297b676c",
       "cmd/internal/couchcmd/session_stale_command_test.go": "d80e276f5af1f845fc7276ead03d0ce0f802b5176836e25028be9d52a775b604",
-      "cmd/internal/couchcmd/session_stale_live_test.go": "47f4803c789e66e980ccca9c40358e9cff0aa1f9fe8fb168e9fac257bf03ba87",
       "cmd/internal/couchcmd/shortcut_focus_test.go": "57aa62db31f5367de583a7d83fe409c4f312307eb207330b106bc21bd4cd7bf1",
       "cmd/internal/couchcmd/singleton_acceptance_test.go": "e7c76bb763b2fdb812f534e649540f3b747b06c0f3444861b18151b0355d9c10",
       "cmd/internal/couchcmd/singleton_derived_roots_test.go": "0a88ce37996b9dcb9799bc75b90e60a17536ad4420063835239cc41809684545",
@@ -472,7 +471,12 @@
       "cmd/internal/testcouch/fleet_test.go": "ff7acebbf09a236359274a47969a21a209ebd3110abd4af4721e931b243dbd57",
       "cmd/internal/testcouch/binaries_test.go": "53e7eeabc89699222cfc68b04028566e29edb739a9c7ae791663fd6332cba086",
       "cmd/internal/testcouch/terminal_test.go": "a5a86ea7b9c4d288081e2af1086d20b50e78f9bc09dc479e22689bf9ed7abda5",
-      "cmd/internal/testcouch/agentfixture/run_test.go": "1dff852bc4f0d2a475a1aba6454755f1e711e541f0dd9d8465e54515fbc2f97c"
+      "cmd/internal/testcouch/agentfixture/run_test.go": "1dff852bc4f0d2a475a1aba6454755f1e711e541f0dd9d8465e54515fbc2f97c",
+      "cmd/couch/main_test.go": "a1bb4507f46fd2f019d982e04f5ab9b37a72e3f8243acd9a47a1a0fbb624e77e",
+      "cmd/internal/couchcmd/session_stale_live_test.go": "373faf09c74a9b667866853394d1d7f32c09ea8bcbea24892b0361b159ee0396",
+      "cmd/internal/testcouch/actor_cancel_test.go": "bf9e47b05eefbfdf243fb3aa8225fe658b2144d709ea0b2a043ce57b28da1012",
+      "cmd/internal/testcouch/agentfixture/request_lifetime_test.go": "29a4fcef74b604dc78770b2af067de4bb4767541ac128c5f0d6e8ceee2494f2b",
+      "cmd/internal/testcouch/ownership_manifest_test.go": "e3570afed53b481427f4426d9ef71f073fee344a06b150e2de7a37f326125990"
     }
   }
 }

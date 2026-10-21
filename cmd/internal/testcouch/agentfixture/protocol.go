@@ -41,13 +41,14 @@ const (
 )
 
 type Command struct {
-	Timeout time.Duration `json:"timeout_ns,omitempty"`
-	PID     int           `json:"pid,omitempty"`
-	RunID   string        `json:"run_id,omitempty"`
-	ID      string        `json:"id"`
-	Kind    CommandKind   `json:"kind"`
-	Args    []string      `json:"args,omitempty"`
-	State   Phase         `json:"state,omitempty"`
+	Timeout          time.Duration `json:"timeout_ns,omitempty"`
+	DeadlineUnixNano int64         `json:"deadline_unix_nano,omitempty"`
+	PID              int           `json:"pid,omitempty"`
+	RunID            string        `json:"run_id,omitempty"`
+	ID               string        `json:"id"`
+	Kind             CommandKind   `json:"kind"`
+	Args             []string      `json:"args,omitempty"`
+	State            Phase         `json:"state,omitempty"`
 }
 type Result struct {
 	ID        string `json:"id"`
@@ -61,6 +62,9 @@ type Result struct {
 var requestID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$`)
 
 func ValidateCommand(c Command) error {
+	if c.DeadlineUnixNano < 0 || (c.DeadlineUnixNano != 0 && c.Kind != Exec) {
+		return errors.New("invalid fixture CLI admission deadline")
+	}
 	if c.Timeout < 0 || c.Timeout > MaxCLITimeout || (c.Timeout != 0 && c.Kind != Exec) {
 		return errors.New("invalid fixture CLI timeout")
 	}
@@ -162,7 +166,7 @@ func WriteCommand(control string, c Command) error {
 	if err := ValidateCommand(c); err != nil {
 		return err
 	}
-	for _, sub := range []string{"commands", "results"} {
+	for _, sub := range []string{"commands", "results", "cancellations"} {
 		if err := privateDirectory(filepath.Join(control, sub)); err != nil {
 			return err
 		}
@@ -206,6 +210,9 @@ func WriteCommand(control string, c Command) error {
 	if c.RunID == "" {
 		c.RunID = ready.RunID
 	}
+	if c.Kind == Exec && c.DeadlineUnixNano == 0 {
+		c.DeadlineUnixNano = time.Now().Add(commandCLITimeout(c)).UnixNano()
+	}
 	if c.Kind == Stop {
 		return atomicJSON(filepath.Join(control, shutdownFile), c, true)
 	}
@@ -242,6 +249,11 @@ func RetireResult(control, id string) error {
 	if !requestID.MatchString(id) {
 		return errors.New("invalid fixture request ID")
 	}
+	unlock, err := lockMailboxAdmission(control)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	path := filepath.Join(control, "results", id+".json")
 	raw, err := readBounded(path, 12*MaxOutputBytes+4096)
 	if err != nil {
@@ -254,7 +266,11 @@ func RetireResult(control, id string) error {
 	if result.ID != id {
 		return errors.New("fixture result correlation mismatch")
 	}
-	// The result fences its ID while the original command is released first.
+	// The result fences its ID while cancellation and the original command are
+	// released first. The lock prevents a new admission racing retirement.
+	if err := os.Remove(filepath.Join(control, "cancellations", id+".json")); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
 	// Writers can only reuse that ID once both immutable files are gone.
 	if err := os.Remove(filepath.Join(control, "commands", id+".json")); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
@@ -316,4 +332,53 @@ func privateDirectory(path string) error {
 		return errors.New("fixture directory is not a physical directory")
 	}
 	return nil
+}
+
+// CancelCommand requests cancellation of this immutable request. Its original
+// command remains the ID fence until a joined terminal result is consumed.
+// Cancellation owns one marker per admitted command, outside ordinary capacity.
+func CancelCommand(control, id string) error {
+	if !requestID.MatchString(id) {
+		return errors.New("invalid fixture request ID")
+	}
+	unlock, err := lockMailboxAdmission(control)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	if _, err := ReadResult(control, id); err == nil {
+		return nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	raw, err := readBounded(filepath.Join(control, "commands", id+".json"), MaxCommandBytes)
+	if err != nil {
+		return err
+	}
+	command, err := DecodeCommand(raw)
+	if err != nil {
+		return err
+	}
+	if command.ID != id || command.Kind != Exec {
+		return errors.New("fixture cancellation request correlation/kind mismatch")
+	}
+	return atomicJSON(filepath.Join(control, "cancellations", id+".json"), command, false)
+}
+
+func commandCanceled(control string, command Command) (bool, error) {
+	raw, err := readBounded(filepath.Join(control, "cancellations", command.ID+".json"), MaxCommandBytes)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	canceled, err := DecodeCommand(raw)
+	if err != nil {
+		return false, err
+	}
+	if canceled.ID != command.ID || canceled.Kind != Exec || canceled.PID != command.PID || canceled.RunID != command.RunID || canceled.DeadlineUnixNano != command.DeadlineUnixNano {
+		return false, errors.New("fixture cancellation correlation mismatch")
+	}
+	return true, nil
 }

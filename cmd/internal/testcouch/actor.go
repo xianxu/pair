@@ -66,12 +66,13 @@ func (f *Fleet) ActorCLI(ctx context.Context, n int, args ...string) (agentfixtu
 	if err != nil {
 		return agentfixture.Result{}, err
 	}
-	timeout, err := actorCLITimeout(ctx, time.Now(), f.Options.RuntimeBudget)
+	admitted := time.Now()
+	timeout, err := actorCLITimeout(ctx, admitted, f.Options.RuntimeBudget)
 	if err != nil {
 		return agentfixture.Result{}, err
 	}
 	id := fmt.Sprintf("cli-%d", nextCommand.Add(1))
-	if err = agentfixture.WriteCommand(dir, agentfixture.Command{ID: id, Kind: agentfixture.Exec, Timeout: timeout, Args: append([]string(nil), args...)}); err != nil {
+	if err = agentfixture.WriteCommand(dir, agentfixture.Command{ID: id, Kind: agentfixture.Exec, Timeout: timeout, DeadlineUnixNano: admitted.Add(timeout).UnixNano(), Args: append([]string(nil), args...)}); err != nil {
 		return agentfixture.Result{}, err
 	}
 	var result agentfixture.Result
@@ -84,6 +85,35 @@ func (f *Fleet) ActorCLI(ctx context.Context, n int, args ...string) (agentfixtu
 		return e == nil, e
 	})
 	if err == nil {
+		err = ctx.Err()
+	}
+	if err != nil {
+		callerErr := err
+		// Caller cancellation revokes the request, not just this observer.
+		// Cleanup has the same explicit 15s bound as fleet teardown and remains
+		// independent of the canceled context while the fixture joins its child.
+		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+		defer cancel()
+		if e := agentfixture.CancelCommand(dir, id); e != nil {
+			return result, errors.Join(callerErr, fmt.Errorf("fixture CLI cancellation uncertain: %w", e))
+		}
+		e := waitUntil(cleanup, func() (bool, error) {
+			var e error
+			result, e = agentfixture.ReadResult(dir, id)
+			if errors.Is(e, os.ErrNotExist) {
+				return false, nil
+			}
+			return e == nil, e
+		})
+		if e != nil {
+			return result, errors.Join(callerErr, fmt.Errorf("fixture CLI cancellation acknowledgment uncertain: %w", e))
+		}
+		if e := agentfixture.RetireResult(dir, id); e != nil {
+			return result, errors.Join(callerErr, fmt.Errorf("fixture CLI terminal retirement: %w", e))
+		}
+		return result, callerErr
+	}
+	if err == nil {
 		// This invocation is the last consumer of its unique correlated result.
 		// Reclaim it before another observation needs the bounded mailbox.
 		err = agentfixture.RetireResult(dir, id)
@@ -91,7 +121,7 @@ func (f *Fleet) ActorCLI(ctx context.Context, n int, args ...string) (agentfixtu
 			err = errors.Join(err, fmt.Errorf("fixture CLI: %s", result.Error))
 		}
 	}
-	return result, err
+	return result, errors.Join(err, ctx.Err())
 }
 
 // The actor child shares the caller's remaining bound rather than imposing a

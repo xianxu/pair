@@ -125,7 +125,7 @@ func Run(parent context.Context, c Config, stdin io.Reader, stdout io.Writer) (r
 	if !ok {
 		return errors.New("fixture stdin must be closable for joined cancellation")
 	}
-	for _, p := range []string{c.ControlDir, c.Home, c.CodexHome, filepath.Join(c.ControlDir, "commands"), filepath.Join(c.ControlDir, "results")} {
+	for _, p := range []string{c.ControlDir, c.Home, c.CodexHome, filepath.Join(c.ControlDir, "commands"), filepath.Join(c.ControlDir, "results"), filepath.Join(c.ControlDir, "cancellations")} {
 		if err := privateDirectory(p); err != nil {
 			return err
 		}
@@ -195,7 +195,11 @@ func Run(parent context.Context, c Config, stdin io.Reader, stdout io.Writer) (r
 	ticker := time.NewTicker(20 * time.Millisecond)
 	defer ticker.Stop()
 	finished := make(chan Result, MaxConcurrentCLI)
-	active := map[string]bool{}
+	type activeRequest struct {
+		command Command
+		cancel  context.CancelFunc
+	}
+	active := map[string]activeRequest{}
 	publishState := func() error {
 		if _, e := io.WriteString(stdout, Paint(state, c.Width, c.Height)); e != nil {
 			return e
@@ -260,12 +264,14 @@ func Run(parent context.Context, c Config, stdin io.Reader, stdout io.Writer) (r
 				return e
 			}
 		case r := <-finished:
-			if !active[r.ID] {
+			request, ok := active[r.ID]
+			if !ok {
 				return errors.New("fixture completion lacks active request")
 			}
 			if err := atomicJSON(filepath.Join(c.ControlDir, "results", r.ID+".json"), r, true); err != nil {
 				return err
 			}
+			request.cancel()
 			delete(active, r.ID)
 		case <-ticker.C:
 			// Shutdown has one reserved slot and is serviced before ordinary work.
@@ -295,6 +301,16 @@ func Run(parent context.Context, c Config, stdin io.Reader, stdout io.Writer) (r
 			if !errors.Is(stopErr, os.ErrNotExist) {
 				return stopErr
 			}
+
+			for _, request := range active {
+				canceled, err := commandCanceled(c.ControlDir, request.command)
+				if err != nil {
+					return err
+				}
+				if canceled {
+					request.cancel()
+				}
+			}
 			entries, e := os.ReadDir(filepath.Join(c.ControlDir, "commands"))
 			if e != nil {
 				return e
@@ -322,7 +338,7 @@ func Run(parent context.Context, c Config, stdin io.Reader, stdout io.Writer) (r
 				if !requestID.MatchString(id) {
 					return errors.New("invalid fixture mailbox filename")
 				}
-				if active[id] {
+				if _, ok := active[id]; ok {
 					continue
 				}
 				if _, err := os.Lstat(filepath.Join(c.ControlDir, "results", id+".json")); err == nil {
@@ -349,8 +365,17 @@ func Run(parent context.Context, c Config, stdin io.Reader, stdout io.Writer) (r
 				if e == nil && (command.PID != os.Getpid() || command.RunID != c.RunID) {
 					e = errors.New("fixture actor incarnation mismatch")
 				}
-				if e == nil && command.Kind == Exec && len(active) == MaxConcurrentCLI {
-					continue
+
+				if e == nil && command.Kind == Exec {
+					var canceled bool
+					canceled, e = commandCanceled(c.ControlDir, command)
+					if e == nil {
+						var start bool
+						start, e = decideCLIAdmission(command, canceled, len(active), time.Now())
+						if e == nil && !start {
+							continue
+						}
+					}
 				}
 
 				if e != nil {
@@ -362,11 +387,12 @@ func Run(parent context.Context, c Config, stdin io.Reader, stdout io.Writer) (r
 				}
 				switch command.Kind {
 				case Exec:
-					active[id] = true
+					child, stop := context.WithCancel(ctx)
+					active[id] = activeRequest{command: command, cancel: stop}
 					workers.Add(1)
 					go func(command Command) {
 						defer workers.Done()
-						r := runCLI(ctx, c.CouchBinary, command)
+						r := runCLI(child, c.CouchBinary, command)
 						select {
 						case finished <- r:
 						case <-ctx.Done():
@@ -416,7 +442,11 @@ func commandCLITimeout(c Command) time.Duration {
 }
 
 func runCLI(parent context.Context, executable string, c Command) Result {
-	ctx, cancel := context.WithTimeout(parent, commandCLITimeout(c))
+	deadline := time.Now().Add(commandCLITimeout(c))
+	if c.DeadlineUnixNano != 0 && time.Unix(0, c.DeadlineUnixNano).Before(deadline) {
+		deadline = time.Unix(0, c.DeadlineUnixNano)
+	}
+	ctx, cancel := context.WithDeadline(parent, deadline)
 	defer cancel()
 	out, errout := &boundedOutput{}, &boundedOutput{}
 	cmd := exec.CommandContext(ctx, executable, c.Args...)
@@ -453,4 +483,17 @@ func runCLI(parent context.Context, executable string, c Command) Result {
 		r.Error = err.Error()
 	}
 	return r
+}
+
+// decideCLIAdmission is the pure queued-request transition. Cancellation and
+// expiration are terminal even while all execution slots are occupied. Only a
+// live request with capacity can transition into the active map.
+func decideCLIAdmission(command Command, canceled bool, active int, now time.Time) (bool, error) {
+	if canceled {
+		return false, context.Canceled
+	}
+	if command.DeadlineUnixNano != 0 && now.UnixNano() >= command.DeadlineUnixNano {
+		return false, context.DeadlineExceeded
+	}
+	return active < MaxConcurrentCLI, nil
 }

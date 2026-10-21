@@ -199,6 +199,14 @@ Full retained log: /Volumes/TestScratch/tmp/pair-slot5/pair-744-native-diagnosti
 
 The earlier detach owner refusal remains recorded as unclaimed #761, without a product-fix or known-flake claim. The isolated worker early-exit attempt is also retained above and has not been given a root-cause claim. Current matrix is a complete native pass; required recorded suite and mandatory close review/merge remain outstanding. #722 stays parked until #744 lands.
 
+### 2026-10-21 — close finding class repairs
+
+BR-1 reproduced both service failures and the installed PTY refusal before migrating every real isolated-root consumer: stale_store service tests, installed CLI helper, opt-in stale-session native setup and shell wrapper. testpair.ShortRoot and the shell wrapper allocate owned short roots; no transport limit or live-parent rule changed. Real broker/wrapper listener confinement/cleanup and long-TMPDIR shell regressions pass; complete couchcmd99.641s, installed PTY13.852s and short-root race1.330s passed. Three existing reader hashes were individually audited; the new shell-reading test is non_go_full_fallback.
+
+BR-2 reproduced active ActorCLI returning while its actual child remained alive, queued cancellation failing to settle at four occupied slots, and lack of absolute-deadline decoding. The approved protocol now cancels and acknowledges one immutable request, accounts queue time in its absolute deadline, suppresses canceled queued spawning, and joins actual process-group work before terminal publication/retirement. A pure admission decision derives transitions from existing facts rather than maintaining duplicate state. Queued/running/deadline/racing-result cases and129 cancel/success same-ID cycles cover no inherited marker or retained files. Complete helper/fixture race checks passed10.382s/12.030s and final ActorCLI race1.308s.
+
+BR-3 corrects implemented value/function names, paint location and filesystem correlation classification in the current Core concepts tables with a dated Revision. BR-4 uses durablefile atomic snapshots, reports the first publication failure while retaining in-memory ownership, and still completes proved-clean teardown. Held-reader, failed-write/prior-evidence, and actual owned-process cleanup regressions passed; independent ownership race2.316s. Newly tracked fixture-local tests were individually audited as local_or_literal_fixture; no repository scanners or native-build inputs are hidden by those dispositions. A newly tracked short-root file exposed a stale suppression, removed before the final lint pass. Native final-head rerun, recorded suite and close remain next.
+
 ## Revisions
 
 ### 2026-10-20 — #747 native-proof sequencing

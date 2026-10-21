@@ -156,3 +156,10 @@ Verified submitted TL approval8aa5e124 accepts this ordering refinement. Exec ca
 | Cancellation / acknowledgment unavailable or cleanup budget exhausted | retain uncertain request evidence for owned fleet cleanup | explicit cleanup error; Close owns reconciliation |
 
 The already successful native run remains recorded. BR-1/BR-2 change the harness, so the final code head must run both three-worker personalities again before landing, alongside focused regressions and the requeued recorded suite. No timeout increase or live-root access is authorized.
+
+
+### 2026-10-21 — BR-1/BR-4: complete isolation consumers and recovery evidence
+
+BR-1 enumerates every COUCH_ISOLATED_ROOT consumer. Actual service tests in stale_store_test.go, installed CLI setup in cmd/couch/main_test.go, the opt-in stale-session native test and tests/with-isolated-pair.sh need owned short roots after the transport contract change. Pure/fake singleton, capture and deliberate invalid/overflow tests retain their intended inputs. testpair.ShortRoot supplies a canonical0700 short root with test-owned cleanup; the shell wrapper follows the same short-parent selection. Existing private-parent confinement and overlong-path refusal stay unchanged (ARCH-PURPOSE).
+
+BR-4 changes ownership.json publication to the existing durablefile atomic writer. ReduceRun still records authority in memory first. The fleet retains the first publication error, refuses further new operations, and reports it on startup/Close; cleanup still joins and reconciles exact owned generations and removes roots once proved clean. A historic publication failure alone does not leave otherwise-clean roots behind. Tests hold a previous snapshot reader through replacement, force real publication failure while checking prior evidence and retained memory, and prove an actual owned process is still cleaned with the error surfaced (ARCH-FUNERAL/DRY).

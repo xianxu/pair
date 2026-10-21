@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -15,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/durablefile"
 	"github.com/xianxu/pair/cmd/internal/testcouch/agentfixture"
 )
 
@@ -40,23 +42,24 @@ func validateOptions(o Options) error {
 // Fleet is the single lifetime owner. Public commands enter its creation gate;
 // Close revokes that gate before reconciling actual native process generations.
 type Fleet struct {
-	Roots       RootsPlan
-	Options     Options
-	Workspaces  Workspaces
-	Binaries    Binaries
-	Environment []string
-	RunID       string
-	t           testing.TB
-	mu          sync.Mutex
-	closeMu     sync.Mutex
-	closing     bool
-	starting    bool
-	active      int
-	idle        chan struct{}
-	ctx         context.Context
-	cancel      context.CancelFunc
-	model       OwnedRun
-	console     *terminalProcess
+	Roots          RootsPlan
+	Options        Options
+	Workspaces     Workspaces
+	Binaries       Binaries
+	Environment    []string
+	RunID          string
+	t              testing.TB
+	mu             sync.Mutex
+	closeMu        sync.Mutex
+	closing        bool
+	starting       bool
+	active         int
+	idle           chan struct{}
+	ctx            context.Context
+	cancel         context.CancelFunc
+	model          OwnedRun
+	publicationErr error
+	console        *terminalProcess
 }
 
 func New(t testing.TB, b Binaries, o Options) *Fleet {
@@ -104,7 +107,7 @@ func New(t testing.TB, b Binaries, o Options) *Fleet {
 		cleanup, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		if err := f.Close(cleanup); err != nil {
-			t.Errorf("native fleet cleanup failed; root retained at %s: %v", p.Root, err)
+			t.Errorf("native fleet cleanup or ownership evidence failed; root=%s: %v", p.Root, err)
 		}
 	})
 	if err = installRuntime(b, p); err != nil {
@@ -118,6 +121,9 @@ func New(t testing.TB, b Binaries, o Options) *Fleet {
 		t.Fatal(err)
 	}
 	f.record(RunEvent{Kind: "ready"})
+	if err := f.ownershipError(); err != nil {
+		t.Fatal(err)
+	}
 	t.Logf("native fleet isolation: root=%s run=%s agent=%s workers=%d", p.Root, f.RunID, o.AgentKind, o.Workers)
 	return f
 }
@@ -127,6 +133,9 @@ func (f *Fleet) begin(ctx context.Context) (context.Context, func(), error) {
 	defer f.mu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return nil, nil, err
+	}
+	if f.publicationErr != nil {
+		return nil, nil, f.publicationErr
 	}
 	if f.closing {
 		return nil, nil, fmt.Errorf("fleet is closing")
@@ -158,9 +167,19 @@ func (f *Fleet) record(e RunEvent) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.model = ReduceRun(f.model, e)
-	if data, err := json.MarshalIndent(f.model, "", "  "); err == nil {
-		_ = os.WriteFile(filepath.Join(f.Roots.Root, "ownership.json"), data, 0600)
+	data, err := json.MarshalIndent(f.model, "", "  ")
+	if err == nil {
+		err = durablefile.WriteAtomic(filepath.Join(f.Roots.Root, "ownership.json"), data, ".ownership-*")
 	}
+	if err != nil && f.publicationErr == nil {
+		f.publicationErr = fmt.Errorf("publish native ownership evidence: %w", err)
+	}
+}
+
+func (f *Fleet) ownershipError() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.publicationErr
 }
 
 func (f *Fleet) Prepare(ctx context.Context) error {
@@ -206,6 +225,9 @@ func (f *Fleet) Start(ctx context.Context) error {
 	f.console = p
 	f.mu.Unlock()
 	f.record(RunEvent{Kind: "own", Resource: Resource{ID: fmt.Sprint(cmd.Process.Pid), Generation: p.generation, Kind: "couch"}})
+	if err := f.ownershipError(); err != nil {
+		return err
+	}
 	if err = f.WaitAgent(ctx, 0); err != nil {
 		return fmt.Errorf("steward startup: %w; screen=%s; output=%s", err, p.Screen(), p.Output())
 	}
@@ -340,7 +362,10 @@ func (f *Fleet) RestartSupervisor(ctx context.Context) error {
 	return f.Start(ctx)
 }
 
-func (f *Fleet) Close(ctx context.Context) error {
+func (f *Fleet) Close(ctx context.Context) (result error) {
+	// Evidence publication failure never revokes in-memory cleanup authority.
+	// Finish actual cleanup, then surface the bounded first failure to the caller.
+	defer func() { result = errors.Join(result, f.ownershipError()) }()
 	f.closeMu.Lock()
 	defer f.closeMu.Unlock()
 	f.mu.Lock()

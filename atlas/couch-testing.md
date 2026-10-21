@@ -34,9 +34,13 @@ installed as physical executable files. Pinned native composer captures exercise
 the real wrapper, and submitted input produces parser-compatible native
 conversation files under private agent homes. Working/picker/idle controls and
 correlated CLI requests use an owned fixture mailbox. Consumed CLI results retire
-explicitly; unread requests/results stay capped at128, with at most four active
+explicitly; unread requests/results stay capped at 128, with at most four active
 CLI children and a separate shutdown slot. Admission is serialized by one owned
-mailbox lock, and atomic scratch names do not count as extra requests. A Stop result is not a
+mailbox lock, and atomic scratch names do not count as extra requests. Caller
+cancellation revokes its request, joins active CLI work and retires the terminal
+result; absolute deadlines include queue time. Ownership snapshots publish
+atomically, and publication errors remain visible while in-memory cleanup
+authority is retained. A Stop result is not a
 shutdown proof: the helper waits for the fixture's exact process generation to
 end after its CLI workers and cancellable native TTY reader join. These stand-ins
 qualify our transport and lifecycle adapter, not a real installed agent's reaction.
