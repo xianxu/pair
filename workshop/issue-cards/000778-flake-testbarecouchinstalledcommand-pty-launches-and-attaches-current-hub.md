@@ -5,7 +5,7 @@ created: 2026-10-21
 updated: 2026-10-21
 estimate_hours:
 github_issue:
-flake_tests: [github.com/xianxu/pair/cmd/couch.TestBareCouchInstalledCommand/pty_launches_and_attaches_current_hub]
+flake_tests: [github.com/xianxu/pair/cmd/couch.TestBareCouchInstalledCommand/pty_launches_and_attaches_current_hub, github.com/xianxu/pair/cmd/couch.TestBareCouchInstalledCommand]
 ---
 
 # flake: TestBareCouchInstalledCommand/pty_launches_and_attaches_current_hub
