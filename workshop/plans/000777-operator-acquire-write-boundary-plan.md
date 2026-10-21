@@ -37,7 +37,7 @@ The result is one tagged State, not combinations of ownership flags. The same mo
 | Registry store error classification | `cmd/internal/sessionsync/registry.go` | modified | store IO failures, distinguished from registry validation/busy refusals |
 | Public operator CLI | `cmd/internal/couchcmd/session_sync.go` | modified | argv, namespace resolution and JSON stdout |
 
-Operator lock files have a small package-private filesystem seam held by registryStore, defaulting to the real portable directory backend. Tests use that real backend with a counting/failure decorator and a stateful in-memory lock-file fake for publication/removal uncertainty. The fake stores complete path-to-bytes state and applies effects before returning injected uncertain errors; it is not a list of expected function calls. Real-filesystem and executable tests check conformance with it.
+Operator lock files have a small package-private filesystem seam held by registryStore, defaulting to the real portable directory backend. Tests use that real backend with a counting/failure decorator and a stateful in-memory lock-file fake for publication/removal uncertainty. The fake keeps separate visible and directory-confirmed path-to-bytes maps: effects change visible state before injected uncertain errors, successful directory sync advances durable state, and simulated crash restores durable state. It is not a list of expected function calls. Real-filesystem and executable tests check conformance with it.
 
 The writer keeps its current transaction and mutation order. No new writer lock, watcher, subprocess or retry worker is introduced. A private registry-access error wrapper identifies only actual store access failures for the new commands; existing verbs retain their current outward errors.
 
@@ -60,7 +60,7 @@ Acquire success exits 0 and emits one JSON object:
 
 `State` is `acquired` for newly published protection, or `already-held` when all observed protective locks belong to the same ID/token. An identical retry preserves ownership, exact LockText and its time; it does not refresh or create a different turn. New-versus-existing is deliberately allowed to change after a lost reply. A valid success proves all preceding registered writers have returned from their transaction and all subsequent writers observe operator protection. It does not claim the editor buffer is current: Parley must perform its approved unconditional post-ack freshness/read-completion check before admitting input.
 
-Release success uses the same OperatorLock envelope, echoes ID, canonical File and Turn, and has State `released` or `already-released`. Holder is the empty string after release. LockPath is the canonical sidecar pathname and LockText is empty, so the response does not advertise protection that no longer exists. No operator sidecar means `already-released`, without claiming the caller previously owned it. Non-protective legacy agent sidecars are preserved. Any foreign protective sidecar refuses release before any deletion. Several matching aliases are removed under the same transaction; partial removal is uncertain and an identical retry finishes only still-owned protection.
+Release success uses the same OperatorLock envelope, echoes ID, canonical File and Turn, and has State `released` or `already-released`. Holder is the empty string after release. LockPath is the canonical sidecar pathname and LockText is empty, so the response does not advertise protection that no longer exists. No operator sidecar means `already-released`, without claiming the caller previously owned it. Non-protective legacy agent sidecars are preserved. Any foreign protective sidecar refuses release before any deletion. Several matching aliases are removed under the same transaction; partial removal is uncertain and an identical retry finishes only still-owned protection. Both release states require directory confirmation for every admitted sidecar directory, including paths whose lock is already absent, so a retry reconciles an earlier unlink followed by failed fsync.
 
 | Failure | Code | Exit | Meaning / safe action |
 | --- | --- | --- | --- |
@@ -82,7 +82,7 @@ These are in-process commands: they do not contact or construct the Couch superv
 1. Validate ID/token, enter withRegistry, canonicalize FILE and verify registration ID/current regular document.
 2. Enumerate documentLockPaths once, including the canonical spelling. Inspect each admitted alias still naming that exact document with a 4096-byte bounded regular-file read. Unsafe/unreadable observations refuse; reused old paths do not grant authority.
 3. Apply the pure decision. Foreign protection anywhere refuses the complete operation. Matching ownership is returned verbatim after confirming its containing directory's durability. Otherwise acquire publishes one canonical sidecar with holder/time/document/turn fields.
-4. Publication reuses durablefile.WriteAtomicStaged with one deterministic per-document stage, owned exclusively while the registry flock is held. Publish complete bytes, fsync file, rename, fsync the sidecar directory, then encode success. An incomplete stage never counts as protection. The next operator transaction removes/reuses only that exact regular stage under the same exclusion; unsafe stage types refuse. Release removes only matched owned sidecars and fsyncs each affected directory before acknowledgment.
+4. Publication reuses durablefile.WriteAtomicStaged with one deterministic per-document stage, owned exclusively while the registry flock is held. Publish complete bytes, fsync file, rename, fsync the sidecar directory, then encode success. An incomplete stage never counts as protection. The next operator transaction removes/reuses only that exact regular stage under the same exclusion; unsafe stage types refuse. Release removes only matched owned sidecars and fsyncs every admitted sidecar directory before either success state, including already-absent locks. Matching acquire retries also confirm existing ownership's directory durability. Any confirmation failure remains uncertain, regardless of visible file presence or absence.
 5. Return and release the existing registry flock. The sidecar remains for the operator turn; it never expires. Release/submit/unchanged-turn cleanup is called by Parley's existing lifetime owner. A crash leaves protection for explicit same-turn recovery or existing operator recovery, not automatic expiry.
 
 The complete writer, including document/shadow/state/round effects, precedes acquisition acknowledgment if it acquired the registry first. If acquisition wins, Write and Apply read its sidecar in their existing guard and refuse before document/metadata mutation. Read/acknowledgment-only commands retain existing semantics.
@@ -131,14 +131,29 @@ Counted tests at 8 and 16 admitted aliases assert one registry transaction, at m
 
 ## Tasks — one close boundary
 
+The production test surfaces are named here; tasks below apply these strategies rather than maintaining a second prose inventory of cases.
+
+| Risky production function | Adversarial strategy and mechanical guard |
+| --- | --- |
+| `validateOperatorTurn` | Arbitrary ID/token strings; strict fixed-width lowercase-hex validation before IO |
+| `parseOperatorProof` | Fuzz arbitrary bounded sidecar bytes, seeded with ambiguous known fields; reject ambiguous ownership and preserve raw unknown lines |
+| `operatorLockText` | Pure encode/parse properties; exact nonce/identity recovery without consulting clock or a previous reply |
+| `decideOperatorLock` | Sequence-test competing turns and partial observations; foreign protection yields zero effects and stale ownership never deletes a new turn |
+| `(*Sync).AcquireOperator` | Controlled writer/contender ordering and publication failure/death; no ack crosses an earlier writer transaction and no future writer commits under acknowledged protection |
+| `(*Sync).ReleaseOperator` | Visible-versus-durable fake crash sequences; neither success state precedes directory-confirmed removal, and identical retry completes only owned effects |
+| `operatorLockFiles` methods | Real portable-folder conformance and stateful uncertain-effect fake; bound observations/effects, reject unsafe file types, and count linear work at 8/16 aliases |
+| `withRegistry` store-error wrapper | Filesystem-access versus authority-corruption injection; only access unavailability maps to Code/7, with all existing verb outcomes preserved |
+| `parseSessionSyncCLI` / `runSessionSyncCLI` | Closed argv grammar and executable JSON conformance; require identity/token and distinguish unavailable from explicit refusal without stderr inference |
+| `(*Sync).Rename` / `(*Sync).Forget` integration | Move/re-registration event sequences using persisted lock bytes; identity survives valid move and never transfers to a reused path or replacement registration |
+
 ### 1. Pin contract and write pure red tests
 
 Files: `cmd/internal/sessionsync/operator_lock_model.go`, `operator_lock_model_test.go`; issue and this plan.
 
 - [ ] Obtain final hub approval including the unavailable/7 taxonomy and copy the complete contract to parley.nvim:1 through the hub.
-- [ ] Add table tests for absent/new, same turn, foreign ID/token, legacy operator/agent, malformed/duplicate known fields, unknown-line preservation, matching multi-alias release, absent release and stale release after a new acquisition.
+- [ ] Add pure tests using the named parsing, identity and sequence strategies above.
 - [ ] Run `go test ./cmd/internal/sessionsync -run 'TestOperatorLockModel' -count=1`; record red before implementation.
-- [ ] Implement the pure request/proof/result and decision functions; rerun green and commit with Agent trailer.
+- [ ] Implement validateOperatorTurn, parseOperatorProof, operatorLockText and decideOperatorLock; rerun green and commit with Agent trailer.
 
 ### 2. Implement serialized ownership with adversarial ordering
 
@@ -146,18 +161,18 @@ Files: `cmd/internal/sessionsync/operator_lock.go`, `operator_lock_test.go`, `re
 
 - [ ] Add folder-backed transaction tests, stateful uncertain-effect fake and counted file decorator before production integration.
 - [ ] Force a real registered writer to pause between guard and mutation using the existing injected Now callback at prepareWrite (the second write clock boundary), while its registry flock remains held. Start acquisition, observe contention through the existing TryLock seam rather than sleeping, prove no acknowledgment until writer document/shadow/state/round completion, then prove the next writer refuses unchanged.
-- [ ] Test both Write and Apply, reverse acquire-first ordering, repeated/lost reply, death before/after publication via subprocess barriers, fsync uncertainty, partial release, registry-busy, corrupt store, unavailable store, alias/reused path and identity mismatch. Compare document plus all metadata before/after each refused operation.
+- [ ] Apply the AcquireOperator/ReleaseOperator adversarial strategies with reproducible subprocess barriers for death and an independent snapshot of document plus all metadata as the no-mutation oracle.
 - [ ] Implement new operations under withRegistry with staged durable sidecar publication and explicit error classification. Retain legacy writer warnings and route/CAS behavior.
-- [ ] Test copy lock bytes + filesystem move + existing Rename + release NEW by recovered token/ID, interrupted/retried rename, and forget/re-register refusing stale ownership. Verify old metadata/sidecar recovery tests stay green.
+- [ ] Apply the Rename/Forget identity sequence strategy using the existing move order and persisted lock bytes; keep existing metadata/sidecar recovery tests green.
 - [ ] Count real-backend operations at 8/16 aliases; run `go test ./cmd/internal/sessionsync -count=1` and the targeted race-enabled ownership cases. Commit passing implementation/evidence.
 
 ### 3. Expose CLI and executable conformance
 
 Files: `cmd/internal/couchcmd/session_sync.go`, existing session-sync CLI tests, new focused executable tests under `cmd/couch/` if that is the existing public-command owner.
 
-- [ ] Add strict parser/JSON tests for exact argv, required JSON/ID/token, duplicate/unknown flags, success states and typed refusal taxonomy; preserve retired release tests.
+- [ ] Add strict parser/JSON tests using the CLI grammar and result-classification strategy above; preserve retired release tests.
 - [ ] Implement the two verbs through the same in-process session-sync command owner. Namespace/store unavailability is machine-readable Code/7; authority/path failures are never normalized to it.
-- [ ] Run the built real couch executable against a disposable namespace and registered document. Exercise acquire/write-refusal/retry/release, lost-stdout recovery, rename-token recovery, stopped-supervisor success and unavailable-store failure. Use the shared testcouch isolation primitives for any supervisor case; never the live fleet.
+- [ ] Run the built real couch executable against a disposable namespace and registered document to conform ownership, uncertainty, migration and availability decisions to the model. Use shared testcouch isolation primitives for any supervisor case; never the live fleet.
 - [ ] Run `go test ./cmd/internal/couchcmd ./cmd/couch -run 'Test.*SessionSync.*Operator|Test.*OperatorLock' -count=1`; inspect actual selected test names and make the command match them before recording proof.
 - [ ] Ask hub whether the real public-command proof suffices for producer live acceptance or whether coordinated editor staging is needed; do not touch :0 without permission. #408 performs actual native insert conformance after producer landing.
 
@@ -173,3 +188,9 @@ Files: session-sync atlas page found through `atlas/index.md`, public couch skil
 ## Approval checkpoint
 
 Hub approval 061be603-8e01-4db6-99ab-0572a62d93f6 accepts this full-flow plan, its error taxonomy, and public-command conformance on disposable files as producer live acceptance. No :0 stage. The operator's actual editing after parley.nvim#408 lands is the end-to-end proof. No production edits yet; enter change-code's plan-quality gate, then derive the estimate.
+
+## Revisions
+
+### 2026-10-21 — plan gate durability and test-surface clarification
+
+PQ-1: directory confirmation is mandatory on both release success states, including already-absent sidecars, and on matching acquire retries. The uncertainty fake now distinguishes visible from durable state and simulates crash recovery. PQ-2: name the production test functions and give one adversarial strategy/mechanical guard per function; remove duplicate task-level case inventories. These refinements preserve the approved argv, states, error taxonomy and one-transaction mechanism.
