@@ -208,3 +208,93 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T14:41:46-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 737 — couch: scheduler: run each hub's scheduled tasks from its operations repo (due notices, direct script-run, skip-if-missed, --schedule --status) |
+| repo | pair |
+| issue file | workshop/issues/000737-couch-scheduler-run-each-hub-s-scheduled-tasks-from-its-operations-repo-due-notices-direct-script-run-skip-if-missed-schedule-status.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | e8bfd45c1ce022f5427a69871540a7dccf46fde2..16589ba4c7b896b51f50b2761a8160be58e6720f |
+| command | sdlc milestone-close --issue 737 --milestone M3 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T14:41:46-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned M3 implementation satisfies the reviewed one-writer design. BR-17 is addressed with a reachable regression that fails when the fix is removed. No new blocking findings emerged. Required live acceptance remains separate under the plan’s approved sequencing; this verdict does not establish whole-issue acceptance.
+
+```findings
+dispose:
+  - id: BR-17
+    disposition: addressed
+    note: |
+      schedule_owner.go retains catalogue failure evidence through tick, publication and terminal settlement until successful refresh. Catalogue-health regressions pass; removing the retained-error projection in a disposable checkout makes TestScheduleOwnerCatalogueHealthRetainedWhileFactsSettle fail with the original erased-diagnostic symptom.
+  - id: BR-15
+    disposition: addressed
+    note: |
+      settleObservedBatch expires known-undispatched reservations independently of pending catalogue edits. The reservation matrix passes; removing that branch makes manual/revision/expiry fail because the reservation remains stranded.
+  - id: BR-16
+    disposition: addressed
+    note: |
+      The plan explicitly supersedes earlier location tables. Its active map and atlas correctly locate StateOwner in couchschedule/owner.go and identify current transport and discovery declarations. Production-anchor and map-equality checks pass.
+```
+
+1. **Strengths**
+
+   - Canonical history precedes competing edits and ledger acknowledgement in `schedule_owner.go` and `settlement.go`.
+   - Execution workers return facts; the owner controls durable authorization and settlement.
+   - Manual transport preserves exact request identity, bounds output pages, and avoids resubmission after lost acknowledgement.
+   - README and atlas document the new owner, manual execution, and failure behavior.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed the scheduler-focused selection across Couch, scheduler core and protocol packages; owner/RPC/source-guard tests under race; and full scheduler, operational-history, artifact-path, durable-file and GC packages. `git diff --check` passed. BR-15 and BR-17 mutation checks failed as expected in disposable copies, which were removed. The reviewed checkout remained unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Shared settlement logic and owner-only production writers.
+   - **ARCH-PURE — pass:** Transition, settlement and intent logic remain deterministic; IO resides in adapters.
+   - **ARCH-PURPOSE — pass:** Production service, automatic dispatch and manual transport use the owner.
+   - **ARCH-MOCK — pass:** Stateful runtime/broker seams have native transport and controller qualification.
+   - **ARCH-CONSTRAINTS — pass:** Bounded workers, command/result capacity and output; counted growth tests cover batching.
+   - **ARCH-SECURE — pass:** Configured-root validation, strict decoding and durable-evidence checks guard admission.
+   - **ARCH-ORDER — pass:** Canonical-first transitions, retained completion facts and joined shutdown cover relevant orderings.
+   - **ARCH-FUNERAL — pass:** Existing history/cache collection remains applicable; worker lifetimes are joined.
+   - **ARCH-EVOLVE — pass:** Additive fields retain legacy defaults, with nested unknown-field preservation coverage.
+
+   Preserve the documented second-lander obligation for concrete #739 automation integration.
+
+7. **Plan revision recommendations:** None. Keep disposable-fleet and day-long acceptance tracked until their evidence is recorded.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"5cf5c526-6dab-4280-b373-7bba87ce9b16","repository":"github.com/xianxu/pair","issue_id":"000737","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/5858f8e2c508260c","reviewed_head":"16589ba4c7b896b51f50b2761a8160be58e6720f","slot":"pair:1","requested_at":"2026-10-21T21:39:02.074151Z"},"phase":"finished","pid":69298,"started_at":"2026-10-21T21:39:02.176578Z","finished_at":"2026-10-21T21:41:45.738683Z","session_id":"01a16067-42c4-71a1-8aba-072c4cc31373","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.999069375s
+head: "16589ba4c7b896b51f50b2761a8160be58e6720f"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

@@ -1624,6 +1624,50 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 5cf5c526-6dab-4280-b373-7bba87ce9b16
+            repository: github.com/xianxu/pair
+            issue_id: "000737"
+            recipe: milestone-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/5858f8e2c508260c
+            reviewed_head: 16589ba4c7b896b51f50b2761a8160be58e6720f
+            slot: pair:1
+            requested_at: "2026-10-21T21:39:02.074151Z"
+          phase: finished
+          pid: 69298
+          started_at: "2026-10-21T21:39:02.176578Z"
+          finished_at: "2026-10-21T21:41:45.738683Z"
+          session_id: 01a16067-42c4-71a1-8aba-072c4cc31373
+          outcome: returned
+      "n": 11
+      timestamp: "2026-10-21T14:41:46-07:00"
+      dispatched: "2026-10-21T14:39:00-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-17
+          disposition: addressed
+          note: schedule_owner.go retains catalogue failure evidence through tick, publication and terminal settlement until successful refresh. Catalogue-health regressions pass; removing the retained-error projection in a disposable checkout makes TestScheduleOwnerCatalogueHealthRetainedWhileFactsSettle fail with the original erased-diagnostic symptom.
+          round: 11
+        - id: BR-15
+          disposition: addressed
+          note: settleObservedBatch expires known-undispatched reservations independently of pending catalogue edits. The reservation matrix passes; removing that branch makes manual/revision/expiry fail because the reservation remains stranded.
+          round: 11
+        - id: BR-16
+          disposition: addressed
+          note: The plan explicitly supersedes earlier location tables. Its active map and atlas correctly locate StateOwner in couchschedule/owner.go and identify current transport and discovery declarations. Production-anchor and map-equality checks pass.
+          round: 11
+      boundary: M3
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 16589ba4c7b896b51f50b2761a8160be58e6720f
+      blocked: false
 ---
 
 # Gate ledger — pair#737 (boundary-review)
@@ -1755,7 +1799,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-17** [Critical] `unresolved-failure-visibility` (kind: defect) Ordinary ticks erase unresolved catalogue-discovery errors
   cmd/internal/couchcmd/schedule_owner_loop.go:474-482 ignores refresh's returned error and immediately runs tick; schedule_owner.go:344-352 then publishes a fresh snapshot with an empty Error. Renaming a configured hub away makes refresh report its discovery failure, but the subsequent successful tick clears that error without rediscovery succeeding. A temporary-overlay regression reproduced this on the pinned head. ARCH-ORDER and ARCH-SECURE: retain each failure until evidence from the corresponding operation resolves it; successful ledger reads do not establish successful catalogue discovery. Preserve settlement progress while retaining the discovery error, and add a failure -> tick -> successful rediscovery regression.
 
+## Round 11 — 2026-10-21T14:41:46-07:00 (codex) — passed
+
+### Disposed
+
+- BR-17 — addressed — schedule_owner.go retains catalogue failure evidence through tick, publication and terminal settlement until successful refresh. Catalogue-health regressions pass; removing the retained-error projection in a disposable checkout makes TestScheduleOwnerCatalogueHealthRetainedWhileFactsSettle fail with the original erased-diagnostic symptom.
+- BR-15 — addressed — settleObservedBatch expires known-undispatched reservations independently of pending catalogue edits. The reservation matrix passes; removing that branch makes manual/revision/expiry fail because the reservation remains stranded.
+- BR-16 — addressed — The plan explicitly supersedes earlier location tables. Its active map and atlas correctly locate StateOwner in couchschedule/owner.go and identify current transport and discovery declarations. Production-anchor and map-equality checks pass.
+
 ## Open findings
 
 - **BR-14** [Critical] `durable-artifact-crash-recovery` (kind: defect) Catalogue cancellation strands a notice whose terminal history already committed
-- **BR-17** [Critical] `unresolved-failure-visibility` (kind: defect) Ordinary ticks erase unresolved catalogue-discovery errors
