@@ -189,3 +189,82 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T11:12:40-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 774 — diagnostic checkpoints survive device remounts |
+| repo | pair |
+| issue file | workshop/issues/000774-diagnostic-device-rebind.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | b1b24c521885513a2730dd9906ad0539a2465da3..07ad9d66cd44f736cf71d4ee04395b6958179936 |
+| command | sdlc close --issue 774 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T11:12:40-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff correctly classifies the metadata helper without weakening inventory enforcement. The tracker revision records this correction without changing scope. No new defects found; recorded verification and hub acceptance remain separate gates.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The previously reviewed snapshot carry and strict check remain unchanged at pages.go:340 and collect.go:165. TestDeviceRebindCollectionKeepsFirstObservation passes at this head.
+```
+
+1. **Strengths**
+
+   - `cmd/internal/artifactpath/manifest.go:1286` correctly lists the helper as a non-artifact source; inspection confirms it owns no artifact pathname.
+   - The scanner and known-violation quarantine remain unchanged.
+   - Existing regression coverage detects the missing inventory entry.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Inventory regression passes at head.
+   - Substituting the base manifest through a temporary Go overlay makes that test fail specifically for the missing helper.
+   - BR-1 regression, `make test-affected-inventory`, and range whitespace checks pass.
+   - Repository files remained unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY: pass** — reuses the existing inventory.
+   - **ARCH-PURE: pass** — adds declarative classification only.
+   - **ARCH-PURPOSE: pass** — restores exhaustive classification without an exemption.
+   - **ARCH-EVOLVE: pass** — no persisted format or reader/writer changes.
+
+   No new architectural or user-facing surface requires atlas or README updates.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"deea3294-7502-416a-83d0-ef7773b5771e","repository":"github.com/xianxu/pair","issue_id":"000774","recipe":"fix-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/06553b75486709cd","reviewed_head":"07ad9d66cd44f736cf71d4ee04395b6958179936","slot":"pair:7","requested_at":"2026-10-21T18:11:26.7759Z"},"phase":"finished","pid":37782,"started_at":"2026-10-21T18:11:26.952401Z","finished_at":"2026-10-21T18:12:39.431824Z","session_id":"01a15fa9-3627-7d71-9754-ff9125ebdfda","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.273449625s
+head: "07ad9d66cd44f736cf71d4ee04395b6958179936"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
