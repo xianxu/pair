@@ -250,3 +250,7 @@ Tasks1–5 are implemented and covered by focused Go/Node, stateful writer/contr
 The opaque scene required automatic observer exclusion before bootstrap plus actor-acknowledged frame admission before normal recording setup. An exact private-asset URL registry excludes its blobs while retaining unrelated session fonts. These are lifecycle owners for the approved privacy invariant. The original console live fixture initially captured about:blank before its requested URL committed; its readiness now proves the committed fixture loader before creating the scoped scene. Production parent/context retirement remains strict.
 
 TL delivery d053ca5e-cb78-44ee-b89c-d3db95f99841 explicitly holds staging until the coordinated main-build restart. Prepare and check this branch, report readiness, and await TL go before sdlc stage. Required TL console smoke and recorded local check remain open.
+
+### 2026-10-21 — acceptance sequencing
+
+TL delivery b1d858cd-0dfc-445b-a623-c3e78b62a282 directs finishing the recorded check and close review while the operator restart holds staging. Close may record local code acceptance with smoke explicitly pending; the required real console smoke still precedes landing. No stage or merge is authorized until that hold clears.

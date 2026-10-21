@@ -51,7 +51,8 @@ Primary surfaces: board/{sketch.go,sketch_authority.go,sketch_wire.go,writer.go,
 ## Plan
 
 - [x] Claim/start-plan after dependencies land; write the slice-specific execution plan at [000752-cast-sketch-drawing-plan.md](../plans/000752-cast-sketch-drawing-plan.md).
-- [ ] Implement and verify the Spec and Done when through the normal SDLC gates.
+- [x] Implement both surfaces and verify protocol, pressure, recovery, privacy and placement through automated checks.
+- [ ] Complete recorded check and close review; TL console smoke remains a separate pre-landing hold.
 
 ## Log
 
@@ -92,6 +93,11 @@ Primary surfaces: board/{sketch.go,sketch_authority.go,sketch_wire.go,writer.go,
 - Final consistency regression exposed durable width3 versus optimistic width4; the service now persists4 and its focused test fails before the fix and passes after it. Other targeted Go packages and Node/assembly checks passed; broader checks are being finalized. Audited18 production-file artifact dispositions and individually audited source-reader inputs; no new Pair artifact family.
 - Additional actual StartCast regression PASS2.371s: completed ink remains on a common Save button with no ID and no note, follows that exact button by +200/+80 after leaving the held scene, and disappears for an identical replacement across worker retry turns. No fabricated binding or new production test hook. Shared Node tests214/214, original/assembly checks, targeted race checks, local make build, artifact classification and reader inventory pass.
 - Staging is explicitly held by ops:0 delivery d053ca5e-cb78-44ee-b89c-d3db95f99841 until the coordinated Couch restart preserves the current main build. Ready-state report will precede staging, and TL go plus real console smoke remain mandatory before landing.
+
+### 2026-10-21 — pre-smoke acceptance order
+
+- PR512 is open on pushed implementation10e2d7b59465d1f955becbc6ceb8184e03a6ab3c; local make build returned exit0. Recorded affected selected the full suite because its fresh checkout lacks the generated runtime embed graph (known #738/ariadne#517 fallback); retaining its runner.
+- ops:0 delivery b1d858cd-0dfc-445b-a623-c3e78b62a282 explicitly requests recorded check and close review now, with console smoke the sole remaining acceptance step afterward. Staging remains held until the operator restart; no landing before smoke and TL go. Close verification will identify this pending live acceptance rather than claim it happened.
 
 ## Estimate
 
@@ -155,3 +161,9 @@ design-buffer: 0.15
 total: 10.63
 ```
 
+
+## Revisions
+
+### 2026-10-21 — TL-directed pre-smoke close review
+
+Implementation and automated verification can close locally before the deferred real console smoke, per ops:0 delivery b1d858cd-0dfc-445b-a623-c3e78b62a282. The Done-when requirement for smoke before landing is unchanged. The operator restart owns staging admission; stage and landing remain held.
