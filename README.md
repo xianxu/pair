@@ -2041,6 +2041,15 @@ Every valid selection runs the environment-inventory guard `test-make-env` once
 The independent per-recipe audit in `tests/affected-consumers.json` asserts the
 real planner covers command roots, dependencies and file inputs. A separate
 Go-reader inventory refuses new or changed unmapped source readers for re-audit.
+Each certificate lives at `tests/affected-readers/<reader-path>.json`, with its
+explicit disposition and SHA256. After re-auditing a reader's inputs and scanner
+coverage, regenerate only that certificate with
+`make affected-readers READER=cmd/path/example_test.go DISPOSITION=local_or_literal_fixture`
+(or `fixed_scanner` / `non_go_full_fallback`, as audited). New readers must be
+tracked first; source scanners require every test registered in `SOURCE_GUARDS`.
+`make test-affected-inventory` checks all certificates without refreshing hashes.
+For a removed reader, run the exact `--remove` command printed by the audit.
+Independent reader edits share no certificate or generated index.
 An independent source-walker check requires preflight registration even for a
 reader labelled as a local fixture; a native seeded-violation regression drives
 the actual affected command in a disposable checkout.

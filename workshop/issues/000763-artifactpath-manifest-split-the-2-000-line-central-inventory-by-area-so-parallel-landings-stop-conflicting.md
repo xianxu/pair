@@ -49,8 +49,8 @@ no runtime, background process or new user-action state is introduced.
 
 ## Plan
 
-- [ ] Add failing per-reader loader/CLI, regeneration-isolation and real-Git merge regressions.
-- [ ] Migrate certificates exactly, retain audit semantics and wire named Make regeneration.
+- [x] Add failing per-reader loader/CLI, regeneration-isolation and real-Git merge regressions.
+- [x] Migrate certificates exactly, retain audit semantics and wire named Make regeneration.
 - [ ] Verify negative controls, document ownership, record suite, close and land.
 
 ## Log
@@ -70,3 +70,7 @@ no runtime, background process or new user-action state is introduced.
   still fails on a stale or missing hash, and atlas says where the entries live.
 
 - 2026-10-21 — Design checkpoint: current Spec/Done when/Plan supersede the initial manifest.go filing, as directed by the TL revision. Inspected main local-gates-guard protected patterns: tests/** and Makefile.local are not covered; planned change touches neither .sdlc nor workflows. Keep the existing protected list unchanged. Quick-flow plan posted to hub, proceeding unless objection.
+
+### Implementation checkpoint
+
+CLI PASS10/3.317s after layout regressions failed against the aggregate reader. Real Git branches changing adjacent reader tests merge cleanly with exact certificate bytes and final audit. Make target regression RED (target absent), now GREEN. Exact old/new reconstructed audit equivalence PASS462 paths/dispositions/digests. Named update leaves unrelated changed reader unaccepted; duplicate/schema/path/symlink/legacy refusals, unknown nested integer roundtrip and SOURCE_GUARDS fences retained. Affected runner12 PASS7.411s. Full18-test inventory with actual affected seeded violation still running; suite/review/CI/landing pending. No runtime code or guard configuration changed.
