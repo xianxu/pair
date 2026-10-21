@@ -473,7 +473,13 @@ checked before selection publication or directory creation. Escaping or unresolv
 symlinks refuse; children receive only validated physical paths.
 The resolved runtime propagates selected Pair/Couch/identity/isolation roots to
 children and feeds the same roots to listing, messaging and artifact readers.
-Existing socket addressing remains derived from the selected namespace.
+Socket endpoint hashes remain derived from the selected namespace. With explicit
+isolation, broker and wrapper sockets live in the physical `COUCH_ISOLATED_ROOT/m`
+directory; listener startup can sweep only that owned parent. Namespace or parent
+escapes and overlong socket addresses refuse before listener effects. With isolation
+unset, the existing per-UID socket addresses and startup sweep are unchanged.
+The [shared native fleet helper](couch-testing.md) owns this boundary for disposable
+multi-slot acceptance tests (#744).
 
 
 ### Durable numbered slots (#306)

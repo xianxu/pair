@@ -9,8 +9,9 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/creack/pty"
 	"github.com/xianxu/pair/cmd/internal/testcouch/agentfixture"
+	"github.com/xianxu/pair/cmd/internal/ttyio"
+	"golang.org/x/sys/unix"
 	"golang.org/x/term"
 )
 
@@ -31,15 +32,26 @@ func run() int {
 		fmt.Fprintln(os.Stderr, err)
 		return 2
 	}
-	if size, e := pty.GetsizeFull(os.Stdin); e == nil {
-		config.Width, config.Height = int(size.Cols), int(size.Rows)
+	// Resolve the descriptor before ttyio owns O_NONBLOCK. Calling os.File.Fd
+	// again during resize can change pollability on the shared TTY description.
+	inputFD := int(os.Stdin.Fd())
+	if size, e := unix.IoctlGetWinsize(inputFD, unix.TIOCGWINSZ); e == nil {
+		config.Width, config.Height = int(size.Col), int(size.Row)
 	}
-	previous, err := term.MakeRaw(int(os.Stdin.Fd()))
+	previous, err := term.MakeRaw(inputFD)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 2
 	}
-	defer term.Restore(int(os.Stdin.Fd()), previous)
+	defer term.Restore(inputFD, previous)
+	// Stdio belongs to this process, not the adapter: Close cancels and joins
+	// transport operations and restores flags while leaving the borrowed FDs open.
+	terminalIO, err := ttyio.NewFile(os.Stdin, os.Stdout, false)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 2
+	}
+	defer terminalIO.Close()
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 	defer cancel()
 	winches := make(chan os.Signal, 1)
@@ -55,8 +67,8 @@ func run() int {
 			case <-ctx.Done():
 				return
 			case <-winches:
-				if size, e := pty.GetsizeFull(os.Stdin); e == nil {
-					next := agentfixture.Size{Cols: int(size.Cols), Rows: int(size.Rows)}
+				if size, e := unix.IoctlGetWinsize(inputFD, unix.TIOCGWINSZ); e == nil {
+					next := agentfixture.Size{Cols: int(size.Col), Rows: int(size.Row)}
 					select {
 					case sizes <- next:
 					default:
@@ -74,9 +86,18 @@ func run() int {
 		}
 	}()
 	defer func() { cancel(); <-resized }()
-	if err := agentfixture.Run(ctx, config, os.Stdin, os.Stdout); err != nil {
+	if err := agentfixture.Run(ctx, config, terminalIO, terminalOutput{ctx: ctx, file: terminalIO}); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
 	return 0
 }
+
+// Output uses the process lifetime context so a stalled native terminal cannot
+// prevent cancellation from reaching Run's reader/worker joins.
+type terminalOutput struct {
+	ctx  context.Context
+	file *ttyio.File
+}
+
+func (w terminalOutput) Write(p []byte) (int, error) { return w.file.WriteContext(w.ctx, p) }

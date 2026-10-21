@@ -1531,6 +1531,28 @@ var NonArtifactSources = []string{
 	// pair#602 compiler fixture: owns a temporary executable, no session artifacts.
 	"cmd/internal/testpair/binary.go",
 	"cmd/internal/testpair/environment.go",
+	// pair#744 disposable qualification owner: private test files/processes,
+	// read-only candidate/tool inputs and native fixture transcripts; no tagged
+	// Pair session-artifact filename constructors or consumers.
+	"cmd/internal/pathscope/pathscope.go",
+	"cmd/internal/testcouch/actor.go",
+	"cmd/internal/testcouch/agentfixture/cmd/main.go",
+	"cmd/internal/testcouch/agentfixture/conversation.go",
+	"cmd/internal/testcouch/agentfixture/model.go",
+	"cmd/internal/testcouch/agentfixture/paint.go",
+	"cmd/internal/testcouch/agentfixture/protocol.go",
+	"cmd/internal/testcouch/agentfixture/run.go",
+	"cmd/internal/testcouch/binaries.go",
+	"cmd/internal/testcouch/cleanup.go",
+	"cmd/internal/testcouch/cohort.go",
+	"cmd/internal/testcouch/environment.go",
+	"cmd/internal/testcouch/fleet.go",
+	"cmd/internal/testcouch/ownership.go",
+	"cmd/internal/testcouch/process.go",
+	"cmd/internal/testcouch/provision.go",
+	"cmd/internal/testcouch/roots.go",
+	"cmd/internal/testcouch/runtime_files.go",
+	"cmd/internal/testcouch/terminal.go",
 	// pair#479 test wait helper: bounds a wait by the test deadline; names no file.
 	"cmd/internal/testwait/testwait.go",
 	// Test failure diagnostics inspect host load, not session artifacts.

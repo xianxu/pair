@@ -1,0 +1,74 @@
+# Disposable native Couch fleets
+
+`cmd/internal/testcouch` is the shared test-only owner for the native fleets used
+by #722, #740 and #741. The first consumer is
+`cmd/couch/fleet_acceptance_test.go`. Scenario policy remains with those issues;
+existing narrow unit fixtures remain useful. New multi-slot native acceptance
+should use this helper instead of copying supervisor/environment/cleanup code.
+
+Run portable tests with `go test ./cmd/internal/testcouch/...`. The explicit native
+qualification is `make test-couch-fleet` (`PAIR_NATIVE_COUCH_FLEET=1`); it requires
+Go, Git, installed SDLC/Weave, native Zellij and nvim. Missing tools fail an opt-in
+run. Without opt-in, only the native consumer skips. No real model, credentials,
+package installation or network is part of this test.
+
+## Ownership and interfaces
+
+`Build(t)` owns the candidate binaries and records their source head and native
+tool versions. `New(t, binaries, Options{Workers: 3, AgentKind: "claude"})` creates
+a fresh fleet; `Prepare(ctx)` uses actual Git and public adoption preview/apply,
+then real `couch --internal provision-workspace` and `sdlc workspace --json`.
+No setup marker, Couch binding or workspace identity is fabricated.
+
+`Start(ctx)` launches a real supervisor with one steward. `StartWorker(ctx, n)`
+asks that steward to run the public recordless Fresh CLI. `ActorCLI` runs inside
+the selected fixture process with its actual inherited actor environment; the
+test driver does not replay credentials. `Actors`, `Agent`, `Accepted`, `Screen`,
+`Input` and `Resize` observe or drive the owned actors. `Detach` uses the ordinary
+switcher detach-and-leave action, and `RestartSupervisor` starts the same private
+fleet again. Callers provide bounded contexts; `Close` is also registered as test
+cleanup.
+
+Claude and Codex are two personalities of one deterministic executable engine,
+installed as physical executable files. Pinned native composer captures exercise
+the real wrapper, and submitted input produces parser-compatible native
+conversation files under private agent homes. Working/picker/idle controls and
+correlated CLI requests use an owned fixture mailbox. A Stop result is not a
+shutdown proof: the helper waits for the fixture's exact process generation to
+end after its CLI workers and cancellable native TTY reader join. These stand-ins
+qualify our transport and lifecycle adapter, not a real installed agent's reaction.
+
+## Isolation and teardown
+
+One fresh root lease owns HOME, all XDG roots, Pair/Couch/identity state, native
+Zellij sockets/config/data, fixture control and all three private SDLC queue
+controls. The environment starts empty. PATH contains only owned candidate files
+and explicit tool links, with no installed-agent fallback. Canonical physical
+paths are checked against the ambient live-root deny-set before launch. Short
+owned roots keep AF_UNIX addresses within the native limit; TestScratch is
+preferred when available. Messaging uses the same explicit isolation selection
+for its private listener parent.
+
+The pure root, owned-generation, cohort and agent reducers live next to their
+tests. Native adapters own processes, filesystem operations and terminal IO.
+Cleanup closes the creation gate, joins current requests and the supervisor,
+stops and joins fixture command producers, then takes its final process census.
+Run markers are positive evidence; indexed ancestry and private TTY cohorts also
+cover platform binaries whose environment macOS withholds. Signals and absence
+outcomes are fenced to exact observed generations. Reused or unknown identities
+never authorize signalling another process.
+
+After all process generations are absent and direct IO is joined, the owner
+removes its roots. A cleanup timeout fails and retains its ownership manifest
+and root for diagnosis; the qualification stops after a failed subcase. Inspect
+and resolve that exact residue before starting another fleet. A parent SIGKILL or
+host crash cannot guarantee cleanup. There is no attach-arbitrary-root API or
+global sweeper in this helper.
+
+The initial qualification uses one steward plus three genuine workers, serially
+for each personality. The helper accepts 1–8 workers, bounded output and at most
+four concurrent fixture CLI children. Build/setup, scenario and cleanup budgets
+are separate. Preserve the complete native target log with source/tool/isolation
+evidence; a portable or skipped test is not native acceptance. #744's first
+native worker qualification exposed the recordless Fresh blocker tracked in
+#747; neither that failure nor a steward-only launch establishes a passing fleet.

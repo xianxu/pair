@@ -86,7 +86,6 @@ func New(t testing.TB, b Binaries, o Options) *Fleet {
 	// Worst-case wrapper name must fit before installing or launching anything.
 	if len(filepath.Join(p.Root, "m", "wrapper-2147483647-0000000000000000000000000000000000000000.sock")) > 103 {
 		_ = os.RemoveAll(p.Root)
-		//lint:allow tmp-literal — all broker/wrapper/native terminal sockets need an owner-private short path on macOS.
 		p, err = allocateRoots("/tmp", denied)
 		if err != nil {
 			t.Fatal(err)
@@ -208,12 +207,17 @@ func (f *Fleet) Start(ctx context.Context) error {
 }
 
 func (f *Fleet) StartWorker(ctx context.Context, n int) error {
+	ctx, done, err := f.begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer done()
 	if _, ok := f.Workspaces.Workers[n]; !ok {
 		return fmt.Errorf("worker %d was not provisioned", n)
 	}
 	result, err := f.ActorCLI(ctx, 0, "--reboot", fmt.Sprintf("fixture:%d", n), "--confirm", "--json")
 	if err != nil {
-		return err
+		return fmt.Errorf("worker %d CLI: %w; stdout=%s stderr=%s", n, err, result.Stdout, result.Stderr)
 	}
 	if result.ExitCode != 0 {
 		return fmt.Errorf("worker launch exit%d: %s %s", result.ExitCode, result.Stdout, result.Stderr)
@@ -254,6 +258,11 @@ func (f *Fleet) Resize(rows, cols uint16) error {
 }
 
 func (f *Fleet) Detach(ctx context.Context) error {
+	ctx, done, err := f.begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer done()
 	// Couch's public Alt+d detaches its presentation; no hidden process signal.
 	if err := f.Input([]byte{0, 0x1b, 'd'}); err != nil {
 		return err
@@ -270,6 +279,11 @@ func (f *Fleet) Detach(ctx context.Context) error {
 }
 
 func (f *Fleet) RestartSupervisor(ctx context.Context) error {
+	ctx, done, err := f.begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer done()
 	f.mu.Lock()
 	p := f.console
 	f.mu.Unlock()

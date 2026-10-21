@@ -20,7 +20,7 @@ func TestCandidatePathsRejectInvalidPlacement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"pair", "couch", "pair-launch-helper", "agent-fixture"} {
+	for _, name := range []string{"pair", "couch", "pair-launch-helper", "fixture-agent"} {
 		if paths[name] != filepath.Join(root, name) {
 			t.Fatalf("%s destination = %q", name, paths[name])
 		}

@@ -21,7 +21,7 @@ func TestDisposableCouchFleet(t *testing.T) {
 	}
 	binaries := testcouch.Build(t)
 	for _, agent := range []string{"claude", "codex"} {
-		t.Run(agent, func(t *testing.T) {
+		if !t.Run(agent, func(t *testing.T) {
 			fleet := testcouch.New(t, binaries, testcouch.Options{Workers: 3, AgentKind: agent})
 			setup, cancelSetup := context.WithTimeout(t.Context(), 180*time.Second)
 			if err := fleet.Prepare(setup); err != nil {
@@ -122,7 +122,9 @@ func TestDisposableCouchFleet(t *testing.T) {
 			if _, err := os.Stat(fleet.Roots.Root); !os.IsNotExist(err) {
 				t.Fatalf("owned root retained after successful cleanup: %v", err)
 			}
-		})
+		}) {
+			break
+		}
 	}
 }
 

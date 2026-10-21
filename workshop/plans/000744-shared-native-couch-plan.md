@@ -96,8 +96,8 @@ Risky pure functions: ValidateRoots → table/property tests over empty, ancesto
 
 ## Implementation tasks — one close boundary
 
-- [ ] Write confinement, ownership and agent-protocol tests first, observe the intended failures, then implement pure entities and portable stateful doubles. Run `go test ./cmd/internal/testcouch/... -count=1` with native opt-in absent.
-- [ ] Implement actual candidate/environment/provisioning adapters, using testpair and existing native patterns. Write the live-fleet guard before allowing any process start; prove a forged ambient root causes zero command effects.
+- [x] Write confinement, ownership and agent-protocol tests first, observe the intended failures, then implement pure entities and portable stateful doubles. Run `go test ./cmd/internal/testcouch/... -count=1` with native opt-in absent.
+- [x] Implement actual candidate/environment/provisioning adapters, using testpair and existing native patterns. Write the live-fleet guard before allowing any process start; prove a forged ambient root causes zero command effects.
 - [ ] Compose native Fleet/ActorCLI/frames/restart/Close and genuine worker startup. Qualify actual registration, concurrent actor commands and exact teardown through the first opt-in consumer in cmd/couch/fleet_acceptance_test.go; do not add a private fleet beside the shared owner.
 - [ ] Add `make test-couch-fleet` in Makefile.local with `PAIR_NATIVE_COUCH_FLEET=1` and an explicit overall timeout; no .sdlc declaration. Record current source head, native versions, isolation manifest, elapsed setup/runtime/cleanup, exact receipt/body evidence and full captured log/hash. Preserve failures; classify any repeated same-head flake through the existing SDLC rule.
 - [ ] Update atlas/couch.md and atlas/index.md (new atlas/couch-testing.md if needed) and audited reader/artifact inventories. Run focused races, guard/adapter tests and actual native qualification; then pushed-head required suite, mandatory close review and ordinary merge. Only after landing, resume #722, integrate landed main and replace its private prototype with this helper. #740/#741 retain their own acceptance and issue ownership.
@@ -117,3 +117,7 @@ Add a regression using actual StartServer in a disposable parent containing a fo
 ### 2026-10-20 — TL3d5e6782 approves the PQ-1 scope correction
 
 Verified submitted TL approval: the new transport parent is active only with COUCH_ISOLATED_ROOT set. With it unset, pin byte-for-byte existing live socket paths and unchanged sweep behavior in compatibility tests. Invalid or overlong isolated paths must refuse before any effect. Require the actual listener-startup foreign-residue regression in a disposable shared parent. The previous revision's pending-approval condition is now satisfied; rerun plan-quality before implementation.
+
+### 2026-10-20 — native qualification exposed #747
+
+The first genuine worker launch exposed reserved-vs-established recordless Fresh authority; the harness does not weaken that product check. TLd31f383f chose #747 independent landing on its actual emitted-profile regression, followed by #744 integrating landed main and running the real three-worker matrix for both issues. No composite or stacked source build. Public singleton adoption preview/apply is now part of real Prepare; native fixture shutdown uses cancellable TTY IO after a real-PTY regression reproduced blocking stdin Close. A failed personality stops qualification before a fresh fleet; old failed generations were recovered by exact ownership, leaving diagnostics only. These refine setup/teardown execution, with the same scenario scope and acceptance.

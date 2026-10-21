@@ -79,7 +79,7 @@ func Build(t testing.TB) Binaries {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b.Couch, b.Pair, b.Helper, b.Fixture = paths["couch"], paths["pair"], paths["pair-launch-helper"], paths["agent-fixture"]
+	b.Couch, b.Pair, b.Helper, b.Fixture = paths["couch"], paths["pair"], paths["pair-launch-helper"], paths["fixture-agent"]
 	for _, target := range []struct{ path, pkg string }{
 		{b.Couch, "./cmd/couch"}, {b.Helper, "./cmd/pair-launch-helper"}, {b.Fixture, "./cmd/internal/testcouch/agentfixture/cmd"},
 	} {
@@ -123,7 +123,7 @@ func candidatePaths(dir string) (map[string]string, error) {
 		return nil, fmt.Errorf("candidate placement requires a clean absolute owned directory: %q", dir)
 	}
 	result := make(map[string]string, 4)
-	for _, name := range []string{"pair", "couch", "pair-launch-helper", "agent-fixture"} {
+	for _, name := range []string{"pair", "couch", "pair-launch-helper", "fixture-agent"} {
 		result[name] = filepath.Join(dir, name)
 	}
 	return result, nil

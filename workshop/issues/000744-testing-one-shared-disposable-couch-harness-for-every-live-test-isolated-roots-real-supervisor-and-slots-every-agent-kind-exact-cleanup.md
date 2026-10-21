@@ -47,8 +47,8 @@ Normal tests qualify pure confinement/ownership/agent reducers with stateful pro
 
 ## Plan
 
-- [ ] TL reviews the durable design and state/recovery table before change-code; derive the estimate only after plan-quality.
-- [ ] Implement confinement and owned lifecycle plus deterministic agent/CLI protocol with focused adversarial tests.
+- [x] TL reviews the durable design and state/recovery table before change-code; derive the estimate only after plan-quality.
+- [x] Implement confinement and owned lifecycle plus deterministic agent/CLI protocol with focused adversarial tests.
 - [ ] Compose real provisioning/native runtime, then qualify the first shared-helper consumer and audit source-reader/artifact ownership.
 - [ ] Document and run required checks, close and land. Resume #722 only after this issue is on main.
 
@@ -82,6 +82,20 @@ Design 1.98 ×1.15 + impl 4.04 ×1.5 = 8.337 hours. Setup/runtime/cleanup budget
 
 ## Log
 
+### 2026-10-20 — clean waiting checkpoint
+
+Final audited PTY test hash refresh passed the reader inventory/fixed-preflight check (1test5.201s); helper races after the lifecycle creation-gate correction passed13.453s. Documentation, artifact/reader declarations and cheap guards are ready. TL sequencing is recorded above; wait for landed #747, integrate only landed main, then run both native personalities and the required pushed-head suite before mandatory close review/merge. No composite build, stage, native pass, full suite or SHIP is claimed. Claim retained; #722 remains parked until #744 lands.
+
+### 2026-10-20 — documentation and guard qualification while waiting for #747
+
+Added atlas/couch-testing.md, linked the shared helper and isolated message parent, and documented make test-couch-fleet in README. Audited artifact sources and reader classes; renamed the internal intermediate executable fixture-agent to avoid artifact-vocabulary collision. The main-package ignore guard now treats an existing source-directory collision as the go-build refusal it is, preserving file/missing-path negative controls. Artifactpath passed10.018s, reader audit9 tests61.265s, affected-runner11 tests15.368s, candidate/installer checks0.875s. Repolint initially found two fixed sleeps in the real-PTY regression and an unused suppression; replaced waits with observed control-turn and resized-frame events, removed the suppression, then native entrypoint races passed3.571s and repolint passed8.294s. Final reader hash refresh pending this test edit; no native retry until landed #747. Full required suite and mandatory close review remain outstanding.
+
+### 2026-10-20 — native worker blocker #747; exact failed-run recovery
+
+Second native target ran clean Pair/Couch candidates at25ac5f6fbf856a337fd03d53108ea4a66f9386ed with real SDLCf8d649244c434aa51a81330a0600d9997d64522b and Zellij0.45.1. Public adoption, genuine provisioning and Claude steward registration passed. Its actual reboot fixture:1 failed with reserved-vs-established registration; filed unclaimed #747 and hub receipt21fa0729 was submitted. Full log: /Volumes/TestScratch/tmp/pair-slot5/pair-744-native-ump2qlja/native.log, SHA256e4ef8082296fb7cbd03b6ad947f4e71fcf8ccf73fdec59256ea5089886c4593a. No passing native fleet claimed.
+
+Cleanup exposed a real native stdin issue: Stop returned but os.Stdin.Close did not unblock its already-blocked TTY reader. Added a real-PTY/self-exec regression (red on prior adapter), fixed Main with cancellable ttyio and cached native fd for resize, then verified fixture races. The driver had already entered Codex after the failed Claude cleanup; it refused the still-live same logical session name and cleaned its own root. The qualification now stops immediately after a failed personality, before another fleet starts. The retained Claude run was recovered with a temporary exact-owner/generation probe, all owned generations confirmed absent, and the probe deleted. Its diagnostic root /Volumes/TestScratch/pc-3857330288 remains with ownership Phasequiescent/zero resources; no live test process is retained. Current focused races pass helper4.965s, fixture1.809s, native fixture entrypoint3.899s and couchmessage30.356s; ordinary consumer opt-out passes0.456s. Native/full-suite/close remain pending #747. #722 stays parked with its claim.
+
 ### 2026-10-20 — first native attempt and cleanup review corrections
 
 The first native consumer failed at genuine provisioning before any slot launch: the public provisioning route reads the singleton selection, and a fresh store had not been adopted. Both Claude/Codex roots were removed successfully; no native qualification claimed. Added the real public adoption preview/validated digest/apply route before provisioning, with stateful refusal tests. A bounded cleanup review found marker-only census missed platform-binary descendants, Stop was not joined, and blanket late resource removal could erase unobserved generations. Fixed those classes with indexed ancestry/private-TTY closure, fixture generation publication, actual supervisor/agent shutdown joins, exact observed absence updates and a quiescent-before-root-removal reducer state. All testcouch/fixture race tests passed (10.723s/3.125s). Next: rerun native consumer and retain full log evidence; no full suite/close yet.
@@ -99,6 +113,10 @@ Full-flow change-code passed at c23595e57 after PQ-1 transport isolation correct
 
 
 ## Revisions
+
+### 2026-10-20 — #747 native-proof sequencing
+
+Verified submitted TLd31f383f: #747 lands independently on its real emitted-profile executable-boundary proof. Then #744 integrates landed main and runs the native three-worker matrix, doubling as #747 live proof. No composite scratch candidate and no issue-branch stacking. #744 docs and guards proceed while native acceptance waits; no changed Done when or bypass.
 
 ### 2026-10-20 — approved base plan; PQ-1 isolation correction pending
 
