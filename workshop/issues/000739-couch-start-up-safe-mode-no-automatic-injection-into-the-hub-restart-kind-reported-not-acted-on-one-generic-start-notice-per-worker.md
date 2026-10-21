@@ -63,7 +63,7 @@ this distinction and the per-Couch-lifetime alternative in the durable plan.
 
 - Tests pin: no injection into the hub on start; restart-kind classification from fixture Zellij state; exactly one
   generic notice per worker start.
-- Live: after the next full restart, the TL sees one report line and nothing else until the operator speaks.
+- Live: after the next full-shutdown/unknown start, the TL sees one report line and no generated hub input until automation is explicitly enabled. The separate tl-lead rule owns the first-operator-message decision; Couch never parses that message.
 - Cross-supervisor tests keep one worker alive through a private Couch restart
   and prove no duplicate generic cue; replacing/re-execing the worker creates one
   new opportunity. Unknown/uncertain delivery never authorizes duplicate input.
@@ -72,9 +72,9 @@ this distinction and the per-Couch-lifetime alternative in the durable plan.
 
 ## Plan
 
-- [ ] Qualify safe startup classification and attachment-only selection for all hubs.
-- [ ] Keep startup lifecycle summaries out of hub composers and preserve a usable switcher.
-- [ ] Add wrapper-owned one-shot worker orientation through negotiated session reporting.
+- [x] Qualify safe startup classification and attachment-only selection for all hubs.
+- [x] Keep startup lifecycle summaries out of hub composers and preserve a usable switcher.
+- [x] Add wrapper-owned one-shot worker orientation through negotiated session reporting.
 - [ ] Verify counts, compatibility and coordinated live behavior; close and land once.
 
 Durable plan: [startup safe mode](../plans/000739-startup-safe-mode-plan.md).
@@ -173,6 +173,36 @@ serialized. Unknown startup remains off. Core attachment-only startup, negotiate
 wrapper cue receipt and switcher Ctrl+G have separate targeted evidence from
 bounded worker tasks. No full suite, close, stage or live acceptance is claimed.
 
+### 2026-10-21 — verified component behavior
+
+Targeted core startup/automation/lifecycle/resource tests passed (5.346 s).
+Combined couchcmd automation/startup/producer/supervision/wait/stale tests passed
+(17.257 s), and the CLI/controller/source-owner group passed with race checks.
+The producer group passed under race, including delayed admission and status
+output, off/on during unknown-identity resolution, and resource pending retries.
+Suppression is an explicit terminal disposition, never a delivered claim.
+Every generated SendSystem now enters through sendAutomaticSystem, pinned by an
+AST source-reader guard. Human/worker sends use their unchanged normal path.
+
+Protocol/session/registry/background/peer targeted tests passed in both packages
+(5.770/5.889 s); new private-socket cue tests passed race count 3. They count
+native input across supervisor replacement before and after confirmation,
+receipt eviction, lost acknowledgment, batch followers and same-binding new
+launch ordinals. Bounded decoder fuzz passed with two workers for 3 s; it is
+bounded qualification, not a failure-rate or performance claim. Counted 20/40
+worker tests prove one child proof initially per needed launch, zero extra
+ready/process/git work on unchanged ticks, and one additional proof for one
+changed ordinal. Unknown role, launch proof and receipt remain conservative.
+
+Changed old expectations intentionally: implicit startup no longer creates or
+cold-resumes a missing, parked or orphan-adjacent hub. Explicit lifecycle tests
+remain. Lifecycle collector tests now use explicit operator/peer events during
+a held startup pass; new tests prove automatic baseline observations never
+flush. Background negotiation tests formerly hardcoded hello-v4 as newest and
+now name hello-v5, while old-peer strict downgrade behavior remains tested.
+The fast reader inventory is audited rather than waived; modified preflight
+names follow renamed semantics and the sole-ingress source guard.
+
 ## Revisions
 
 ### 2026-10-20 — operator-review startup boundary and two notice lifetimes
@@ -208,3 +238,33 @@ Operator approval relayed by ops:0 requires the name "start gate", an explicit `
 Operator renamed the control to hub automation, with explicit off/on/status [hub] and switcher control. Initial on only for positively surviving hubs on normal restart; full shutdown, unknown state and missing mixed-fleet hubs remain off. Off is a soft stop for scheduled runs as well as notices, with missed runs skipped and no replay/catch-up on on; running jobs finish. Human/worker input and status/desktop output stay independent. CLI is own-hub-only, operator switcher may select another hub. tl-lead's first-operator-message default is a separate ariadne rule; no Couch parsing or implicit flip.
 
 First plan-quality round returned PQ-1 Important for prose case inventories instead of named risky functions/adversarial strategies. Active plan compressed into function and producer strategy tables; all latest operator decisions are in the active Spec. No code admitted, no estimate derived. Hub relays #737's predicate seam once pair:1 is back; integration waits for that issue on main.
+
+### 2026-10-21 — concrete #737 provider/consumer ordering
+
+Hub message 752adf46-b8e6-4e99-b76a-dbcdf8e69331 confirms the agreed scheduler
+getter and second-lander wiring. #739 may publish its provider first; it does
+not claim unlanded scheduler coverage. #737 must wire reserveDue, script
+authorization and scheduleNotice before its own landing if it is second. No
+stacked development. The implementation's per-hub epoch is a memory-only fence
+for delayed notices across off/on, within the approved occurrence-owned policy.
+
+### 2026-10-21 — empty configured hub projection
+
+Final integration proved a never-started configured hub has no ThreadRecord and
+therefore no ordinary switcher actor row. Hub approval f7d34e39-4724-43c5-bba1-
+32359ac86584 permits a display-only parked/missing hub entry with one explicit
+recovery action, without a new selectable hub-row model. The existing Ctrl+Space
+Start form accepts the exact hub path and previews before starting. The entry
+names that action; no fake conversation address or primary-as-numbered identity
+is introduced. Bare-cwd startup separately binds the same verified HubOwnership
+to routing and Console, so Ctrl+G works there too; failed resolution stays
+unknown with a usable switcher and an explicit diagnostic.
+
+### 2026-10-21 — live wording aligned to final operator policy
+
+The original Done-when phrase "until the operator speaks" is superseded by the
+approved explicit automation policy. Full-shutdown/unknown starts stay off until
+an explicit control; normal surviving hubs start on. The separate tl-lead rule
+chooses the first-message action, and Couch never flips on a submission. Live
+acceptance remains owed and must be coordinated with the hub; no stage or
+restart is claimed here.

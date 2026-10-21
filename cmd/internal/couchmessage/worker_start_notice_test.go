@@ -1,6 +1,43 @@
 package couchmessage
 
-import "testing"
+import (
+	"bytes"
+	"testing"
+)
+
+func FuzzWorkerCueSessionFrames(f *testing.F) {
+	b := registryBinding("pair:1", "a", 7)
+	build := BuildIdentity{SHA256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}
+	for _, frame := range []SessionFrame{
+		{Op: FrameHelloV5, Binding: &b, Build: &build, WorkerCue: &WorkerCueReport{LaunchOrdinal: 1, State: WorkerCueNeeded}},
+		{Op: FrameHelloV4, Binding: &b, Build: &build},
+	} {
+		raw, err := EncodeSessionFrame(frame)
+		if err != nil {
+			f.Fatal(err)
+		}
+		f.Add(raw)
+	}
+	f.Add([]byte(`{"Op":"hello-v4","WorkerCue":{"LaunchOrdinal":1,"State":"needed"}}`))
+	f.Fuzz(func(t *testing.T, raw []byte) {
+		frame, err := DecodeSessionFrame(raw)
+		if err != nil {
+			return
+		}
+		encoded, err := EncodeSessionFrame(frame)
+		if err != nil {
+			t.Fatalf("accepted frame cannot encode: %v", err)
+		}
+		again, err := DecodeSessionFrame(encoded)
+		if err != nil {
+			t.Fatalf("canonical frame cannot decode: %v", err)
+		}
+		canonical, err := EncodeSessionFrame(again)
+		if err != nil || !bytes.Equal(encoded, canonical) {
+			t.Fatalf("unstable canonical frame: %v", err)
+		}
+	})
+}
 
 func TestWorkerStartNoticeIdentityAndMonotonicReceipt(t *testing.T) {
 	b := registryBinding("pair:1", "a", 7)

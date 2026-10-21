@@ -128,32 +128,32 @@ N/2N qualification: at 20/40 records, one added bulk startup classification call
 
 Files: new startup_policy.go/test; startup.go and existing startup tests; couchcmd run/hubs and startup rigs.
 
-- [ ] Write semantic reds against StartInteractive and pure classification, using the function strategies above; verify failure before code.
-- [ ] Implement bulk read-only collection, attachment-only implicit selection, per-hub initial automation/focus evidence and one report. Preserve explicit lifecycle operations.
-- [ ] Update Console no-handle initialization and extra-hub warm path; preserve background worker scheduler/reservations. Run targeted core/startup/reattach tests and commit.
+- [x] Write semantic reds against StartInteractive and pure classification, using the function strategies above; verify failure before code.
+- [x] Implement bulk read-only collection, attachment-only implicit selection, per-hub initial automation/focus evidence and one report. Preserve explicit lifecycle operations.
+- [x] Update Console no-handle initialization and extra-hub warm path; preserve background worker scheduler/reservations. Run targeted core/startup/reattach tests and commit.
 
 ### 2. Hub automation owner, CLI/UI, producer integration
 
 Files: new core hub_automation.go/test, new couchcmd automation.go/test; request/CLI and Console key dispatch; generated producers and their existing reducers.
 
-- [ ] Write pure event and actual CLI/UI reds; qualify authorization, status and no implicit changes.
-- [ ] Implement one shared off/on owner and explicit controls, initially seeded from startup evidence. Suppressed outcome is typed and terminal.
-- [ ] Sweep every producer in the table through it, with its function-level controlled regression and no-replay invariant; retain passive and human/peer communication.
-- [ ] Integrate #737 only after it lands on main; inject the agreed predicate into due-run admission and exit-10 input, qualifying skipped occurrences before claiming this task complete.
-- [ ] Run focused automation, producer, lifecycle and Console suites/race tests; commit coherent behavior.
+- [x] Write pure event and actual CLI/UI reds; qualify authorization, status and no implicit changes.
+- [x] Implement one shared off/on owner and explicit controls, initially seeded from startup evidence. Suppressed outcome is typed and terminal.
+- [x] Sweep every producer in the table through it, with its function-level controlled regression and no-replay invariant; retain passive and human/peer communication.
+- [x] Publish the tested #737 getter contract. The second lander wires and qualifies due-run/script/notice consumers on main; unlanded scheduler coverage is not claimed here (see the 2026-10-21 ordering Revision).
+- [x] Run focused automation, producer, lifecycle and Console suites/race tests; commit coherent behavior.
 
 ### 3. Wrapper-owned generic cue
 
 Files: new worker_start_notice.go/test; session protocol/transport/registry and focused negotiation tests; wrapper delivery/runtime and cue tests; coordinator.
 
-- [ ] Write cross-supervisor red with one live fake wrapper and real private sockets; use the cue function strategies to prove native-input counts.
-- [ ] Implement the fixed-size wrapper witness and hello-v5 reporting with existing negotiation fallback. Old unsupported wrappers remain unknown; ordinary messaging stays live.
-- [ ] Wire canonical system-origin cue admission to exact current worker/owner and launch ordinal. Keep the separate restart resend prompt intact.
-- [ ] Run focused protocol/session/supervision/peer tests, bounded frame fuzz and race checks; commit.
+- [x] Write cross-supervisor red with one live fake wrapper and real private sockets; use the cue function strategies to prove native-input counts.
+- [x] Implement the fixed-size wrapper witness and hello-v5 reporting with existing negotiation fallback. Old unsupported wrappers remain unknown; ordinary messaging stays live.
+- [x] Wire canonical system-origin cue admission to exact current worker/owner and launch ordinal. Keep the separate restart resend prompt intact.
+- [x] Run focused protocol/session/supervision/peer tests, bounded frame fuzz and race checks; commit.
 
 ### 4. Documentation, gates and operator rollout
 
-- [ ] Update README/atlas/index and shipped Couch skill/help for automation controls, initial state, status/report surface, suppression loss and the two worker notice lifetimes. tl-lead first-message rule is a separately owned ariadne issue, not Couch parsing.
+- [x] Update README/atlas/index and shipped Couch skill/help for automation controls, initial state, status/report surface, suppression loss and the two worker notice lifetimes. tl-lead first-message rule is a separately owned ariadne issue, not Couch parsing.
 - [ ] Audit source readers; run make test-affected-inventory and git diff --check; push tested head, run recorded local-check affected (known #738 graph fallback may select full suite). Classify failures; no gate waiver or blind rerun.
 - [ ] Close once via SDLC fresh review after verification. Estimate only after plan-quality passes; no single-pass milestone tags.
 - [ ] Hub/operator coordinate disposable-fleet acceptance and real restart: measured input/launch/notice counts and focus, plus manual automation controls and scheduled-run predicate. No real slot/restart/stage without concrete hub authorization. Record the agreed live evidence before claiming acceptance.
@@ -165,7 +165,7 @@ ARCH-DRY/PURE: reuse presence, warm attachment, broker/receiver and negotiation;
 
 ## Approval
 
-Operator approved the current contract through ops:0, including own-hub CLI authority and operator-only cross-hub switcher control. The final tl-lead rule operates the explicit control on the operator's first message unless told keep off; Couch itself never flips on input. #737 integration waits for its main landing and hub-relayed seam coordination. No implementation has started; plan-quality is pending the revised inputs.
+Operator approved the current contract through ops:0, including own-hub CLI authority and operator-only cross-hub switcher control. The final tl-lead rule operates the explicit control on the operator's first message unless told keep off; Couch itself never flips on input. #737 integration waits for its main landing and hub-relayed seam coordination. Plan-quality passed CLEAN and change-code admitted implementation on 6695cb081. Component verification is recorded in the issue Log; recorded checks and live rollout remain pending.
 
 ## Revisions
 
@@ -181,3 +181,31 @@ Every surviving hub reattaches and works with its own gate closed. Missing hubs 
 Operator follow-ups supersede always-closed/monotonic start-gate wording above: call it hub automation; initialize on for positively surviving hubs after a normal restart, off for full shutdown/unknown/missing hubs, and allow explicit off as a soft stop. Expose automation off/on/status [hub], plus switcher control. No automatic submission release. While off, skip scheduled due runs and generated wake notices; on resumes at the next due time without catch-up. Already-running scripts finish; human/worker input and desktop/status output are never gated. CLI names only the caller's own canonical hub; cross-hub control belongs to the operator switcher. tl-lead first-message interpretation is a separate ariadne change owned by the hub.
 
 PQ-1 required named risky functions and adversarial strategies rather than prose case inventories. The active plan now has one function-level strategy table and a producer contract table, without duplicated per-case task lists. The previous reviewer completed before the follow-ups and refused only that format issue; no code was admitted. Re-run plan-quality against this committed revision.
+
+### 2026-10-21 — scheduler seam and implementation ordering
+
+The hub relayed pair:1's concrete #737 seam: messageService owns one
+hubAutomationOn(hubRoot string) bool getter, injected at construction into the
+scheduler and scheduleNotice. reserveDue and reserved-script authorization both
+check it; off skips and advances NextDue; notice admission checks immediately
+before generated send. The second issue to land wires and qualifies those
+consumers, with no stacking. Thus if #739 lands first, its delivered surface is
+the tested provider; scheduler coverage remains explicitly owed by #737 before
+that feature lands. This supersedes the earlier ordering sentence that required
+#739 to wait for #737 main integration in every case.
+
+Implementation retains an owner epoch per hub. Delayed occurrences bind their
+observation's epoch; off/on cannot revive them. Epochs are memory-only and do
+not change the operator-visible two states or introduce recovery permissions.
+
+### 2026-10-21 — empty configured hub projection
+
+Final integration proved a never-started configured hub has no ThreadRecord and
+therefore no ordinary switcher actor row. Hub approval f7d34e39-4724-43c5-bba1-
+32359ac86584 permits a display-only parked/missing hub entry with one explicit
+recovery action, without a new selectable hub-row model. The existing Ctrl+Space
+Start form accepts the exact hub path and previews before starting. The entry
+names that action; no fake conversation address or primary-as-numbered identity
+is introduced. Bare-cwd startup separately binds the same verified HubOwnership
+to routing and Console, so Ctrl+G works there too; failed resolution stays
+unknown with a usable switcher and an explicit diagnostic.

@@ -16,7 +16,6 @@
       "cmd/internal/couchcmd/continuation_acceptance_test.go": "f74a199fa23033460703db33b8efd901d616f74423bd3089c3a93ea7a2d56269",
       "cmd/internal/couchcmd/cost_test.go": "08a2131f8a47978b5e46719c3c93749c7038d51fa01de08e4bc6935e2c21b7e5",
       "cmd/internal/couchcmd/readme_test.go": "a71011afa0b3447b4d62ffadd84bdedd7e8c19b56f49be92b9b83fb9b5242e67",
-      "cmd/internal/couchcmd/run_test.go": "2cb7e643c2b6c8aceab4ab99d4e0dc85682ee1a2e1a26d8c96e158f31fa44f3e",
       "cmd/internal/couchcmd/shortcut_workflow_test.go": "da1be9b8bbbdf64f6431d64e2070cab880fbe285fdcec56f4461a0ea5b85e5db",
       "cmd/internal/couchcmd/switchagent_acceptance_test.go": "0655e5426c7623c6f7d11221bdbf9cd5b9d3a2144d1a9eced0dc2c5c5561b9c2",
       "cmd/internal/couchcmd/wait_notice_test.go": "645940878adf4c4d1eba4164fcabf55c62f30a9f3e10934c584513db30f5ff99",
@@ -57,7 +56,9 @@
       "internal/repolint/catalog_test.go": "7525e40fa82f7cc69e4d76455ee82b9784cd2ddcf9697b416e5f5fc51a4b1ee4",
       "internal/repolint/native_fixture_roots_test.go": "5091833cae04e8b4c3b84ac60f6ff44b12d4cf559907f13ba1ae474c82ebbd48",
       "internal/repolint/repository_test.go": "18f811280dadcf9206df255f10aeb07b60b47e1a81234dc8796a934b75974bcc",
-      "probes/zellijprobe/probeshape_test.go": "346295cb17dcb7fad208f4134a80c67fe0cc95b9c08162fbf868d98f567cdaf0"
+      "probes/zellijprobe/probeshape_test.go": "346295cb17dcb7fad208f4134a80c67fe0cc95b9c08162fbf868d98f567cdaf0",
+      "cmd/internal/couchcmd/run_test.go": "623496569bb1e1302289c5016ae7ba7f726c4adc43803b225f4f345c22a98333",
+      "cmd/internal/couchcmd/automation_source_test.go": "9167bd27bfee5137d1cbae9245f94c8555a5831f927f4609d46443338029d794"
     },
     "non_go_full_fallback": {
       "cmd/internal/artifactpath/cross_scope_integration_test.go": "141dc4e3cd7632114dd20e263104176cdd470e86d6dd921dc2e9c9715077e18d",
@@ -193,8 +194,6 @@
       "cmd/internal/couchcmd/recovery_acceptance_test.go": "376464233773aeddf2398d5ac88d498c7907dfbe394ee732787cda19705e2886",
       "cmd/internal/couchcmd/renicer_test.go": "1f945312e6222adaa9732487498cc06de10d2bf97c95d1d9658bf3698652471d",
       "cmd/internal/couchcmd/replay_test.go": "01ef346e53e7526d5e4711f244808e4ef917fb3e410a83b2209cc50de4c68be7",
-      "cmd/internal/couchcmd/resources_alert_broker_test.go": "a658e27012eed2489f73060f27d95c2ecdae1f967b661a1119cef72321069046",
-      "cmd/internal/couchcmd/resources_alert_test.go": "b3e21259bf603e4183fb165a7e6437782920e0ba972fd6c58ccbba353c98d27b",
       "cmd/internal/couchcmd/resources_test.go": "d7300bfdf1f3edbc4519395e5b1d3a95552f5622303be0915c4cf27bc97e12bc",
       "cmd/internal/couchcmd/scratch_test.go": "363c4ff7ab924581f2d66444ecd0ed7806722f3dbdc2a947959fe6b4297b676c",
       "cmd/internal/couchcmd/session_stale_command_test.go": "d80e276f5af1f845fc7276ead03d0ce0f802b5176836e25028be9d52a775b604",
@@ -214,7 +213,6 @@
       "cmd/internal/couchcore/continuation_conformance_live_test.go": "358f365c376cc4186af43a046c2590f473bcd3560cbcb478a7860a00a2e2e516",
       "cmd/internal/couchcore/continuation_guard_test.go": "4d436d1593b0ee532c5857124e6583a567732ff8a99cb9b3e41402a83423fbdb",
       "cmd/internal/couchcore/continuation_source_test.go": "fa5c6f7928580cd6c575f9dca7fb033ff6f044eae9aa793ed4cc0cd28a0e209c",
-      "cmd/internal/couchcore/couch_test.go": "9db517b5f3e038da1e778b1d949473f72b93133be6a853d705d79ce0bfbc9f32",
       "cmd/internal/couchcore/hub_claim_test.go": "31dc10e3eba394295f58aec3d859310edbf02213aeca4a533847050df5c69654",
       "cmd/internal/couchcore/live_restart_test.go": "bc6638da95219bcb5df3d6bb901ccf63be2e037ba5f7c7dd7dd1c96c9f591bf2",
       "cmd/internal/couchcore/mutation_door_test.go": "3d6dec1b109c4153027ffffc0002fc3e4351c37bb5d61b620aeebd7b215f076e",
@@ -461,7 +459,10 @@
       "internal/repolint/repository_contract_test.go": "e87090a967b7390f69ca3ebfe44df639463c48f225fc2884a71c36680838f2db",
       "internal/testoracle/run_test.go": "1818f066cd7ced34648679d42604536da83642c7a40d1800e8ae1f9cfc6a3d36",
       "probes/zellijcalls/main_test.go": "382f78fb48fc70e5b522a8e5e38bc0fc8da82ebc75ec9c2f367c9ddfa7417693",
-      "probes/zellijprobe/reporoot_test.go": "de13aef753c6fc958f01e4a04ec9963672a58a76f5e63d08d6e2ea32de825018"
+      "probes/zellijprobe/reporoot_test.go": "de13aef753c6fc958f01e4a04ec9963672a58a76f5e63d08d6e2ea32de825018",
+      "cmd/internal/couchcore/couch_test.go": "83355c9fb80437bd85838309872c90f8b564b11936eb9a9c20d8c33328cd0da4",
+      "cmd/internal/couchcmd/resources_alert_test.go": "905334406cc523065962080faae8795ab72d45d8eacea000fe36e45d7be68365",
+      "cmd/internal/couchcmd/resources_alert_broker_test.go": "63c725ae0b7f8945455c79f86ed91758478284145bb90ce93fde3af036dca6b2"
     }
   }
 }

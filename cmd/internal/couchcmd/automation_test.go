@@ -126,3 +126,17 @@ func TestAutomationCannotControlAnotherConfiguredHub(t *testing.T) {
 		t.Fatalf("own hub policy: %+v", got)
 	}
 }
+
+func TestUnknownStartupCannotEnablePositiveHubHint(t *testing.T) {
+	observation := couchcore.StartupObservation{Kind: couchcore.StartupUnknown, Hubs: map[string]couchcore.StartupHubObservation{"/hub": {Survived: true}}}
+	if startupAutomationOn(&observation, "/hub") {
+		t.Fatal("unknown startup enabled automation from incomplete positive hint")
+	}
+	observation.Kind = couchcore.StartupNormal
+	if !startupAutomationOn(&observation, "/hub") {
+		t.Fatal("proved normal survivor stayed off")
+	}
+	if startupAutomationOn(&observation, "/missing") || startupAutomationOn(nil, "/hub") {
+		t.Fatal("missing evidence enabled automation")
+	}
+}

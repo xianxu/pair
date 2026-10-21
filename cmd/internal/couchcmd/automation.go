@@ -13,6 +13,14 @@ import (
 
 var errHubAutomationOff = errors.New("hub automation off")
 
+func startupAutomationOn(startup *couchcore.StartupObservation, root string) bool {
+	if startup == nil || startup.Kind != couchcore.StartupNormal {
+		return false
+	}
+	hub := startup.Hubs[root]
+	return hub.Survived && !hub.Unknown
+}
+
 // hubAutomationOwner holds volatile policy only; no callback performs IO while
 // its mutex is held. Startup evidence seeds it once, explicit controls change it.
 type hubAutomationOwner struct {

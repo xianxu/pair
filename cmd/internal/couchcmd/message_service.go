@@ -525,7 +525,7 @@ func startMessageServiceWithStartup(console *couchtty.Console, c *couchcore.Couc
 	facts := openSupervisionFacts(artifacts.PairLifecycleDataDir(), namespace)
 	initial := map[string]bool{}
 	seed := func(root string) {
-		initial[root] = startup != nil && startup.Hubs[root].Survived && !startup.Hubs[root].Unknown
+		initial[root] = startupAutomationOn(startup, root)
 	}
 	if authority.hubs != nil {
 		for _, hub := range authority.hubs.snapshot().Hubs() {

@@ -3,8 +3,11 @@ package couchcmd
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
@@ -12,8 +15,8 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 )
 
-// hubRuntime owns one immutable domain snapshot. It exists only for explicit
-// directory launches; nil retains the legacy implicit-cwd path.
+// hubRuntime owns one immutable domain snapshot for verified launch hubs.
+// A launch outside a checkout has no hub runtime.
 type hubRuntime struct {
 	effectOnce sync.Once
 	effects    chan struct{}
@@ -227,4 +230,68 @@ func holdHubEffect(ctx context.Context, h *hubRuntime) (func(), error) {
 		return nil, err
 	}
 	return func() { <-h.effects }, nil
+}
+
+// consoleHubRoots names the same launch hub the message authority uses. The
+// configured ownership retains the operator's launch order.
+func consoleHubRoots(c *couchcore.Couch, configured ...*hubRuntime) []string {
+	if len(configured) > 0 && configured[0] != nil {
+		hubs := configured[0].snapshot().Hubs()
+		roots := make([]string, 0, len(hubs))
+		for _, hub := range hubs {
+			roots = append(roots, hub.Root)
+		}
+		return roots
+	}
+	if root := hubWorktree(os.Getwd, c.ResolveTree); root != "" {
+		return []string{root}
+	}
+	return nil
+}
+
+// prepareConsoleHubs gives bare-cwd startup the same verified identity as a
+// single explicit hub. Workspace resolution is read-only; failure cannot guess
+// a primary slot or enroll/provision a checkout.
+func prepareConsoleHubs(ctx context.Context, c *couchcore.Couch, configured ...*hubRuntime) (*hubRuntime, []string, error) {
+	roots := consoleHubRoots(c, configured...)
+	if len(configured) > 0 && configured[0] != nil {
+		return configured[0], roots, nil
+	}
+	if len(roots) == 0 {
+		return nil, nil, nil
+	}
+	hubs, err := prepareExplicitHubs(ctx, c, roots)
+	if err != nil {
+		return nil, roots, fmt.Errorf("hub automation unavailable: %w", err)
+	}
+	return hubs, roots, nil
+}
+
+// startupSummary is a retained console notice, never an agent-system message.
+func startupSummary(startup couchcore.StartupObservation, launchHub string) string {
+	text := "startup: " + string(startup.Kind)
+	if startup.Diagnostic != nil {
+		text += "; " + startup.Diagnostic.Error()
+	}
+	if len(startup.MissingHubs) > 0 {
+		text += "; missing hubs: " + strings.Join(startup.MissingHubs, ", ")
+	}
+	text += fmt.Sprintf("; verified parked: %d", startup.ParkedCount)
+	if startup.ParkedUnknown {
+		text += " (additional sessions unknown)"
+	}
+	off := make([]string, 0, len(startup.Hubs))
+	for root := range startup.Hubs {
+		if !startupAutomationOn(&startup, root) {
+			off = append(off, root)
+		}
+	}
+	sort.Strings(off)
+	if len(off) > 0 {
+		text += "; hubs " + strings.Join(off, ", ") + " (hub automation off; say turn it on)"
+	} else if launchHub == "" {
+		text += "; hub automation off; say turn it on"
+	}
+
+	return text
 }

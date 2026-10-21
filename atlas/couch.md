@@ -12,6 +12,24 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 
 ## What exists today
 
+### Startup and hub automation (#739)
+
+`couchcore/startup_policy.go` classifies one read-only bulk session observation.
+Implicit startup only warm-attaches surviving hubs; missing or unknown hubs stay
+in the switcher. Explicit lifecycle operations keep their existing authority.
+`couchcmd/automation.go` owns per-hub memory policy, initialized on only for a
+positively surviving hub. Its authenticated CLI controls the caller's own hub;
+the switcher's Ctrl+G can control any configured hub. Turning automation off
+suppresses machine-generated hub input and scheduled due runs, while human and
+worker communication, status and desktop output remain independent. Suppressed
+occurrences are retired rather than replayed on enable.
+
+`couchmessage/worker_start_notice.go` models one wrapper launch's cue witness.
+Negotiated hello-v5 carries its bounded report; `wrapcmd` retains the exact
+system cue receipt independently of normal receipt eviction. Launch ordinals
+distinguish a same-PID re-exec. This is separate from the existing per-Couch
+restart resend prompt.
+
 ### Slot scratch (#708)
 
 [Slot scratch](couch-scratch.md) maps optional TestScratch temp settings, the

@@ -73,7 +73,7 @@ queue, or cross-supervisor delivery.
 
 ## What each verb costs
 
-- **light:** `--notify`, `--help`, `--skill`, `--actors`, `--send-to`, `--message-status`, `--operation-status`, `--peek` (its --transcripts option costs seconds), `--broadcast-list`, `--resources`, `--session-sync`, `--archived`, `--adopt-store`, `--broadcast-web-query`, `--broadcast-web-submit`, `--broadcast-web-replay` (then serves until stopped)
+- **light:** `--notify`, `--automation`, `--help`, `--skill`, `--actors`, `--send-to`, `--message-status`, `--operation-status`, `--peek` (its --transcripts option costs seconds), `--broadcast-list`, `--resources`, `--session-sync`, `--archived`, `--adopt-store`, `--broadcast-web-query`, `--broadcast-web-submit`, `--broadcast-web-replay` (then serves until stopped)
 - **seconds:** `--keys`, `--set-model`, `--interrupt`, `--resume-candidates`, `--move-slot`, `--list`, `--show`, `--reconcile`, `--reap`, `--reap-orphans` (it holds the console for SIGTERM's grace period), `--broadcast-web-fidelity` (a headless Chrome)
 - **heavy:** `couch` (launch), `--recover-plan-from-sdlc`, `--resume`, `--reboot`, `--relaunch`, `--reload-context`, `--prepare`, `--recover`, `--recover-park`, `--switch-agent`, `--recovery-confirmation`
 
@@ -697,6 +697,25 @@ acceptance.
 
 
 ## Several hubs in one Couch
+
+Startup attaches surviving sessions only; a missing hub stays in the switcher
+until the operator chooses recovery. The retained startup line reports normal,
+full-shutdown or unknown and names missing hubs. Hub automation starts on for a
+positively surviving hub after a normal restart, otherwise off. When off, Couch
+drops its own generated hub input and skips due scheduled runs. Human input,
+worker reports and desktop/status output still work. Nothing replays on enable.
+
+Use `couch --automation status` to inspect your own hub, or
+`couch --automation on` / `couch --automation off` on the operator's instruction.
+An optional hub argument must select your own canonical hub; a TL cannot change
+another hub. The operator can toggle the selected hub with Ctrl+G in the
+switcher. Input, reconnects and time never turn automation on implicitly. A lost
+control reply is uncertain: query status before choosing whether to repeat it.
+
+A newly started worker gets one generic cue to reread its issue Log and report
+to its hub. That witness belongs to the wrapper launch, so a surviving wrapper
+does not get another cue after a Couch-only restart. The separate prompt asking
+for a still-relevant unanswered report remains once per Couch lifetime.
 
 Launch with `couch . ../bench`: the first directory is main, and owns all slots
 unless another started hub claims them. Bare `couch` still uses cwd as its one
