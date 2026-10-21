@@ -1,13 +1,23 @@
 ---
 id: 000755
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-20
-updated: 2026-10-20
-estimate_hours:
+updated: 2026-10-21
+estimate_hours: 1.69
 collaboration-mode: collaboration
-card_mirror: '4e4db3e5363974d547dfc9f47ccdf3991ccd8b6d' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '6f42b06f20fa3dad7a1031dd58200d1a1bd1c67f' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-20T22:40:54-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
+actual_hours: 2.20
 ---
 
 # couch mock serve: live-reloading Go server for a project's versioned, clickable mocks (product-shaping)
@@ -37,8 +47,75 @@ through clickable mocks iterated by sketching. It needs one default way to serve
 
 ## Plan
 
-- [ ]
+- [x] Implement the versioned mock server and browser reload contract, with deterministic and real-browser verification.
+- [x] Wire standalone Couch commands, add the sample and conventions, run the recorded suite, close and land.
+
+Implementation details: [durable plan](../plans/000755-mock-server-plan.md).
 
 ## Log
 
+
+
+- 2026-10-21: closed — Second main integration conflicted only in reader inventory. Three-way resolution retains current main audited additions/changed digests and this branch mock/cost/CLI entries, with no product source conflict. Inventory and whitespace checks passed. Fresh recorded integrated full suite passed11m10s. Existing merge runner retained waiting for this reviewed resolution; no duplicate runner or bypass. (fixed-then-ship; full suite: Recorded full suite passed on integrated head 31384115c5407a4a5f2f3eabe253ff96bff9f651 in11m10s; log SHA256 prefix55a691e8912a; sdlc-local/suite recorded.); review verdict: SHIP
+- 2026-10-21: closed — Integrated origin/main after merge refusal. Only conflict was independent additions to tests/affected-go-readers.json; preserved all three browser/sketch paths and audited digests. Inventory check passed and recorded full suite passed on the integrated head (10m7s). Existing sandboxed Chrome qualification and original SHIP remain applicable to unchanged mock implementation. (fixed-then-ship; full suite: Recorded full suite passed on integrated head 438872758e60a6f4212cad05b293f677dabae63e in10m7s; log SHA256 prefix dceca752c530; sdlc-local/suite recorded.); review verdict: SHIP
 ### 2026-10-20
+- 2026-10-20: closed — BR-5 killed-owner recovery and OS-confirmed lock-contention regression passes; removing flock makes it fail. Reserved-file scan/cap regressions failed before the fix and pass after. Final package race passed 2.824s; reader inventory passed. Sandboxed private-profile Chrome reload/sample passed on committed code 584a03cf62abf80bad6e7041f5426a6fbd1cf906 (9.316s), raw output in workshop/plans/000755-mock-browser-evidence.md. Recorded affected/full-suite queued on pushed final code; pass required before landing.; review verdict: SHIP
+
+- Claimed in pair:4 after pair#733 landed. Read the operator-approved product-shaping design in ops. The server is standalone: no supervisor, terminal, stored Couch identity or visible browser launch. Surveyed the existing CLI, loopback HTTP lifecycle, browser/CDP qualification and source inventories. A bounded context exploration returned integration points without edits.
+- Alternatives: native file watching adds a dependency and recursive watch lifecycle; rescanning per browser multiplies project IO by browser count. Recommend one bounded content scan owned by the server, with browsers polling its cached revision (ARCH-DRY, ARCH-CONSTRAINTS). Use an HTML parser for authoritative root attributes rather than regex or browser-only tagging (ARCH-PURE).
+- TL read the committed plan and found it sound, but operator design review is required for product-shaping. Held all implementation pending the operator's answer, relayed through the TL, on whether the highest-numbered version should show by default. No `change-code` or implementation has run.
+- During the authorized hold, read pair#757 and pair#756 without edits or commits on either. #757's per-screen development routing, production refusal and fixture-shape contract are separate from #755; #756 consumes the two page attributes. Keep screen IDs stable across version folders and keep one project-root fixture file as planned. Ariadne#512 now contains the published pair#733 cleanup evidence; its landed branch remains preserved.
+- Operator approved the design as planned via TL, including highest-numbered default, version folders, shared fixtures, state table and limits. Approval and the non-enforced git feedback convention are recorded in the durable plan's Revisions. Implementation hold is released.
+- Plan-quality round 1 blocked on PQ-1 document bootstrap ordering and PQ-2 production-function test strategies; advisory PQ-3 noted unbounded empty-directory traversal. Verified all three against the written plan and appended governing refinements: baseline captured before document read and compared on first poll, named function strategies, and an all-entry traversal cap within the existing file envelope. No implementation started.
+
+- Implementation and sample are complete. Targeted HTTP/CLI, package race, artifactpath and repolint checks passed. Real private-profile Chrome qualified HTML/CSS/JS/fixture edit reload, clicks, switch/revert, invalid-fixture repair and held-first-poll edit/switch orderings, plus the checked-in three-screen/two-version sample and its empty/error/80-row cases. Metadata/script suppression negative controls failed as intended; cached-read rescan and doubled file-read mutations failed their regressions. Node client tests passed all five request/decision cases. Audited new readers as private/literal fixtures, except the actual sample browser reader which uses the conservative non-Go full fallback. Preparing the recorded pushed-head suite and mandatory close review.
+
+- PR507 is open and the recorded pushed-head affected check is started. Implementation checklist is complete; suite completion, close verdict and landing remain machine-gated. Using the TL-worker allowance to overlap the queued recorded suite with boundary review; no landing before a final-head recorded pass.
+
+- Close round1 returned REWORK with Critical BR-1: in-root ancestor links could reach private project-root files before the next scan. Reproduced nested and whole-version forms as deterministic HTTP200 private-file leaks. Cancelled only this checkout's queued check, then centralized component pinning/identity verification across HTTP document/assets, selection and scanner reads. Added post-startup and held-open replacement regressions; targeted confinement checks passed. Re-running package race, real-browser and inventory verification on the fix before a new recorded suite and close review.
+
+- BR-1 verification: post-scan HTTP aliases are refused; directory/file replacement tests pass and fail when identity guards are disabled (directory, in-parent leaf and scanner leaf cases). Package, artifactpath and repolint race checks passed; real-browser/sample qualification passed in8.357s. Re-audited the two private-fixture reader hashes and inventory passes. The shared read fix preserves one directory visit per scan and independent counted read/entry guards.
+
+- Close round2 disposed BR-1 and raised BR-2 BFCache polling restoration, BR-3 concurrent-pointer test expectations/worker cleanup, and BR-4 unavailable Chrome sandbox in the review environment. Cancelled the obsolete queued suite. Added explicit reload lifecycle generation/owner fencing; deterministic JS restore/late-completion/timer tests failed before the fix and pass after it. Concurrent reads now permit only typed identity-change refusal or whole values, with deterministic refusal and settled-value coverage and unconditional writer joining;20 race-enabled repetitions passed. Final pinned-head Chrome evidence will be recorded on the host before re-close.
+
+## Revisions
+
+### 2026-10-20 — concrete server contract for TL approval
+
+- Project layout: root `fixtures.json`, `mock-1/`, `mock-2/`, etc.; HTML pages and their CSS/JS/assets live inside each version. The state list remains human-authored in the project's `design.md`. Screen identity is the HTML path relative to its version, without `.html` (`index`, `runs/detail`); query strings describe scenarios within that screen. Numbered style variants such as `mock-7a` are allowed, matching the approved product design.
+- `serve <dir> [--port N]` binds only 127.0.0.1 (default port 0, print actual URL), serves until interrupted, and opens no browser. Initial selection is the highest numbered version unless `.mock-current` explicitly selects one. `use <dir> VERSION` validates an existing version and atomically replaces that small text pointer; last completed replacement wins. A missing/broken selection refuses visibly, never silently picks another version.
+- Root navigation redirects into the current version URL. Pages receive server-authored root data attributes and an injected reload client. A version switch moves open pages to the same screen in the selected version, or its index when that screen is absent; queries and fragments are preserved. A content edit reloads the current screen. Old versions remain on disk so switching back restores their identities; sketches remain owned by cast-sketch.
+- All screens fetch `/fixtures.json`, the one shared file. Serve version assets and that fixture only; do not expose arbitrary project-root files. Files and paths stay beneath the mock root; reject symlink entries rather than following them outside the project. No writes are accepted over HTTP.
+- One 500ms scan hashes bounded project contents, independent of browser count; each browser polls cached state every 500ms. Proposed local-prototype envelope: at most 1,024 files and 32 MiB total, with HTML at most 1 MiB. Over-limit, unreadable and invalid input produces an explicit error with repair guidance; runtime recovery observes the repaired tree. Count file visits and bytes at N/2N, and prove polling adds no scans. No claimed hard wall-clock bound for stalled filesystem IO.
+- This exceeds the quick code shell. Request full-flow approval for one atomic close boundary (plain checkboxes, no artificial Mx milestones). Headless browser qualification runs in a temporary profile; operator live look is after landing, as dispatched.
+
+- Host qualification on committed code head 8fefb5c78182993499354d9227052209570022ea passed both real Chrome tests (7.686s), with sandbox enabled and a private profile; raw output retained in workshop/plans/000755-mock-browser-evidence.md for BR-4. Final package race passed (1.910s), and affected-reader inventory passed after auditing the changed private-fixture test. Requeueing recorded verification and ordinary close review.
+
+- Close round3 accepted BR-2/3 and withdrew BR-4 using the pinned host measurement. New Important BR-5 identifies interrupted random-temp accumulation. Cancelled this checkout’s obsolete queued suite. TL approved fixed staging with a lifetime-held advisory lock and next-writer recovery; reserved files must be excluded from scan content/caps and git-ignored. Implementing deterministic interruption, concurrency and scan-exclusion coverage before requalification.
+
+- BR-5 implementation passes package race (2.090s): a real killed helper leaves one stage, OS-confirmed lock contention preserves the live stage/pointer, and the next writer reclaims residue after owner death. Removing flock makes that regression fail. Reserved-file content/caps regressions failed before the fix; after it, exactly MaxEntries public entries plus both reserved names preserve snapshot/digest/bytes while counting only two extra directory observations. Nested names remain ordinary content; unsafe lock/stage replacements refuse.
+
+- BR-5 final race run passed (2.824s) with every helper/pump/writer joined. Sandboxed Chrome requalification passed both reload/sample tests on committed code head 584a03cf62abf80bad6e7041f5426a6fbd1cf906 (9.316s); raw output appended to the browser evidence artifact. Reader inventory passed. Requeueing recorded suite and ordinary close.
+
+- Close round4 finalized SHIP with all five findings disposed. Recorded branch suite passed in10m50s on1a41927bc3d9689c62c58d032a8c7bef9b6c69a9 (log SHA256 prefix196a17a6e963). Entered merge; integration with origin/main conflicted only in tests/affected-go-readers.json. Resolved by preserving all three independent browser/sketch reader entries and their audited digests; inventory and whitespace checks passed. Recording a fresh suite on the integrated head before the required fix review, then re-entering merge.
+
+- Integrated suite passed on438872758e60a6f4212cad05b293f677dabae63e in10m7s (log SHA256 prefixdceca752c530), then fix review round5 finalized SHIP with no new findings. Immediate merge retry hit another inventory conflict against advanced main. Resolved with a three-way merge of audited path/classification/digest records: main’s changed terminal/reply readers plus this branch’s mock/cost/CLI entries; no product source conflict. Inventory and whitespace checks pass. Hub instructed prompt merge retry after resolution; retrying and following publish replay’s next action.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. The source is marked stale by estimate-source; values remain provisional. Derived after plan-quality cleared.
+
+Three bounded concerns: project/document core, HTTP/scanner lifecycle, browser reload. Go net/http, os.Root and x/net/html cover the first two: base design 1h each ×0.5 library availability ×0.2 settled-spec discount =0.10h each. Browser reload uses base design 1h ×0.2=0.20h; no library discount for its document-ordering policy. Base implementations 0.6/0.8/0.6h ×0.4 yield0.24/0.32/0.24h. Familiar Go/HTTP/JS and existing CDP seams justify1.0 familiarity. CLI/sample is a well-specced extension (design0.2×0.2, impl0.4×0.4); docs (design0.1×0.2, impl0.15×0.4) and the single review boundary (design0.1×0.2, impl0.3×0.4) are separate overhead. Thorough approved plan uses15% design buffer; there is no cross-repo propagation. Sum design0.48×1.15 + impl1.14 =1.692h, rounded1.69h. No new API discovery: browser qualification uses the existing CDP transport and private-profile pattern.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-go-module design=0.10 impl=0.24
+item: greenfield-go-module design=0.10 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.24
+item: smaller-go-module design=0.04 impl=0.16
+item: atlas-docs design=0.02 impl=0.06
+item: milestone-review design=0.02 impl=0.12
+design-buffer: 0.15
+total: 1.69
+```

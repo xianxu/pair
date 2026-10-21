@@ -1,0 +1,423 @@
+{
+  "project": {
+    "name": "Echo control board"
+  },
+  "runs": [
+    {
+      "id": "run-1",
+      "name": "Morning checks",
+      "status": "Ready"
+    },
+    {
+      "id": "run-2",
+      "name": "Archive audit",
+      "status": "Running"
+    }
+  ],
+  "empty": [],
+  "error": {
+    "message": "Runs are temporarily unavailable. Try again."
+  },
+  "longList": [
+    {
+      "id": "run-1",
+      "name": "Check 1",
+      "status": "Ready"
+    },
+    {
+      "id": "run-2",
+      "name": "Check 2",
+      "status": "Ready"
+    },
+    {
+      "id": "run-3",
+      "name": "Check 3",
+      "status": "Ready"
+    },
+    {
+      "id": "run-4",
+      "name": "Check 4",
+      "status": "Ready"
+    },
+    {
+      "id": "run-5",
+      "name": "Check 5",
+      "status": "Ready"
+    },
+    {
+      "id": "run-6",
+      "name": "Check 6",
+      "status": "Ready"
+    },
+    {
+      "id": "run-7",
+      "name": "Check 7",
+      "status": "Ready"
+    },
+    {
+      "id": "run-8",
+      "name": "Check 8",
+      "status": "Ready"
+    },
+    {
+      "id": "run-9",
+      "name": "Check 9",
+      "status": "Ready"
+    },
+    {
+      "id": "run-10",
+      "name": "Check 10",
+      "status": "Ready"
+    },
+    {
+      "id": "run-11",
+      "name": "Check 11",
+      "status": "Ready"
+    },
+    {
+      "id": "run-12",
+      "name": "Check 12",
+      "status": "Ready"
+    },
+    {
+      "id": "run-13",
+      "name": "Check 13",
+      "status": "Ready"
+    },
+    {
+      "id": "run-14",
+      "name": "Check 14",
+      "status": "Ready"
+    },
+    {
+      "id": "run-15",
+      "name": "Check 15",
+      "status": "Ready"
+    },
+    {
+      "id": "run-16",
+      "name": "Check 16",
+      "status": "Ready"
+    },
+    {
+      "id": "run-17",
+      "name": "Check 17",
+      "status": "Ready"
+    },
+    {
+      "id": "run-18",
+      "name": "Check 18",
+      "status": "Ready"
+    },
+    {
+      "id": "run-19",
+      "name": "Check 19",
+      "status": "Ready"
+    },
+    {
+      "id": "run-20",
+      "name": "Check 20",
+      "status": "Ready"
+    },
+    {
+      "id": "run-21",
+      "name": "Check 21",
+      "status": "Ready"
+    },
+    {
+      "id": "run-22",
+      "name": "Check 22",
+      "status": "Ready"
+    },
+    {
+      "id": "run-23",
+      "name": "Check 23",
+      "status": "Ready"
+    },
+    {
+      "id": "run-24",
+      "name": "Check 24",
+      "status": "Ready"
+    },
+    {
+      "id": "run-25",
+      "name": "Check 25",
+      "status": "Ready"
+    },
+    {
+      "id": "run-26",
+      "name": "Check 26",
+      "status": "Ready"
+    },
+    {
+      "id": "run-27",
+      "name": "Check 27",
+      "status": "Ready"
+    },
+    {
+      "id": "run-28",
+      "name": "Check 28",
+      "status": "Ready"
+    },
+    {
+      "id": "run-29",
+      "name": "Check 29",
+      "status": "Ready"
+    },
+    {
+      "id": "run-30",
+      "name": "Check 30",
+      "status": "Ready"
+    },
+    {
+      "id": "run-31",
+      "name": "Check 31",
+      "status": "Ready"
+    },
+    {
+      "id": "run-32",
+      "name": "Check 32",
+      "status": "Ready"
+    },
+    {
+      "id": "run-33",
+      "name": "Check 33",
+      "status": "Ready"
+    },
+    {
+      "id": "run-34",
+      "name": "Check 34",
+      "status": "Ready"
+    },
+    {
+      "id": "run-35",
+      "name": "Check 35",
+      "status": "Ready"
+    },
+    {
+      "id": "run-36",
+      "name": "Check 36",
+      "status": "Ready"
+    },
+    {
+      "id": "run-37",
+      "name": "Check 37",
+      "status": "Ready"
+    },
+    {
+      "id": "run-38",
+      "name": "Check 38",
+      "status": "Ready"
+    },
+    {
+      "id": "run-39",
+      "name": "Check 39",
+      "status": "Ready"
+    },
+    {
+      "id": "run-40",
+      "name": "Check 40",
+      "status": "Ready"
+    },
+    {
+      "id": "run-41",
+      "name": "Check 41",
+      "status": "Ready"
+    },
+    {
+      "id": "run-42",
+      "name": "Check 42",
+      "status": "Ready"
+    },
+    {
+      "id": "run-43",
+      "name": "Check 43",
+      "status": "Ready"
+    },
+    {
+      "id": "run-44",
+      "name": "Check 44",
+      "status": "Ready"
+    },
+    {
+      "id": "run-45",
+      "name": "Check 45",
+      "status": "Ready"
+    },
+    {
+      "id": "run-46",
+      "name": "Check 46",
+      "status": "Ready"
+    },
+    {
+      "id": "run-47",
+      "name": "Check 47",
+      "status": "Ready"
+    },
+    {
+      "id": "run-48",
+      "name": "Check 48",
+      "status": "Ready"
+    },
+    {
+      "id": "run-49",
+      "name": "Check 49",
+      "status": "Ready"
+    },
+    {
+      "id": "run-50",
+      "name": "Check 50",
+      "status": "Ready"
+    },
+    {
+      "id": "run-51",
+      "name": "Check 51",
+      "status": "Ready"
+    },
+    {
+      "id": "run-52",
+      "name": "Check 52",
+      "status": "Ready"
+    },
+    {
+      "id": "run-53",
+      "name": "Check 53",
+      "status": "Ready"
+    },
+    {
+      "id": "run-54",
+      "name": "Check 54",
+      "status": "Ready"
+    },
+    {
+      "id": "run-55",
+      "name": "Check 55",
+      "status": "Ready"
+    },
+    {
+      "id": "run-56",
+      "name": "Check 56",
+      "status": "Ready"
+    },
+    {
+      "id": "run-57",
+      "name": "Check 57",
+      "status": "Ready"
+    },
+    {
+      "id": "run-58",
+      "name": "Check 58",
+      "status": "Ready"
+    },
+    {
+      "id": "run-59",
+      "name": "Check 59",
+      "status": "Ready"
+    },
+    {
+      "id": "run-60",
+      "name": "Check 60",
+      "status": "Ready"
+    },
+    {
+      "id": "run-61",
+      "name": "Check 61",
+      "status": "Ready"
+    },
+    {
+      "id": "run-62",
+      "name": "Check 62",
+      "status": "Ready"
+    },
+    {
+      "id": "run-63",
+      "name": "Check 63",
+      "status": "Ready"
+    },
+    {
+      "id": "run-64",
+      "name": "Check 64",
+      "status": "Ready"
+    },
+    {
+      "id": "run-65",
+      "name": "Check 65",
+      "status": "Ready"
+    },
+    {
+      "id": "run-66",
+      "name": "Check 66",
+      "status": "Ready"
+    },
+    {
+      "id": "run-67",
+      "name": "Check 67",
+      "status": "Ready"
+    },
+    {
+      "id": "run-68",
+      "name": "Check 68",
+      "status": "Ready"
+    },
+    {
+      "id": "run-69",
+      "name": "Check 69",
+      "status": "Ready"
+    },
+    {
+      "id": "run-70",
+      "name": "Check 70",
+      "status": "Ready"
+    },
+    {
+      "id": "run-71",
+      "name": "Check 71",
+      "status": "Ready"
+    },
+    {
+      "id": "run-72",
+      "name": "Check 72",
+      "status": "Ready"
+    },
+    {
+      "id": "run-73",
+      "name": "Check 73",
+      "status": "Ready"
+    },
+    {
+      "id": "run-74",
+      "name": "Check 74",
+      "status": "Ready"
+    },
+    {
+      "id": "run-75",
+      "name": "Check 75",
+      "status": "Ready"
+    },
+    {
+      "id": "run-76",
+      "name": "Check 76",
+      "status": "Ready"
+    },
+    {
+      "id": "run-77",
+      "name": "Check 77",
+      "status": "Ready"
+    },
+    {
+      "id": "run-78",
+      "name": "Check 78",
+      "status": "Ready"
+    },
+    {
+      "id": "run-79",
+      "name": "Check 79",
+      "status": "Ready"
+    },
+    {
+      "id": "run-80",
+      "name": "Check 80",
+      "status": "Ready"
+    }
+  ]
+}

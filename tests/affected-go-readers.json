@@ -14,7 +14,6 @@
       "cmd/internal/contextcmd/panejson_kdl_test.go": "6e27b320ffeee8b7e1121177c9cd299f9f2a64a6f2755afb6d9b0ee1de6bacd6",
       "cmd/internal/continuationcmd/run_test.go": "2fa68b8ee428b46f628b2f4fde0a3bdfc3224d0d632a871f4b6bb166ac67211e",
       "cmd/internal/couchcmd/continuation_acceptance_test.go": "f74a199fa23033460703db33b8efd901d616f74423bd3089c3a93ea7a2d56269",
-      "cmd/internal/couchcmd/cost_test.go": "08a2131f8a47978b5e46719c3c93749c7038d51fa01de08e4bc6935e2c21b7e5",
       "cmd/internal/couchcmd/readme_test.go": "a71011afa0b3447b4d62ffadd84bdedd7e8c19b56f49be92b9b83fb9b5242e67",
       "cmd/internal/couchcmd/run_test.go": "2cb7e643c2b6c8aceab4ab99d4e0dc85682ee1a2e1a26d8c96e158f31fa44f3e",
       "cmd/internal/couchcmd/shortcut_workflow_test.go": "da1be9b8bbbdf64f6431d64e2070cab880fbe285fdcec56f4461a0ea5b85e5db",
@@ -57,7 +56,8 @@
       "internal/repolint/repository_test.go": "18f811280dadcf9206df255f10aeb07b60b47e1a81234dc8796a934b75974bcc",
       "probes/zellijprobe/probeshape_test.go": "346295cb17dcb7fad208f4134a80c67fe0cc95b9c08162fbf868d98f567cdaf0",
       "cmd/internal/termcmd/run_test.go": "ff6a33c762bf5335f5a29d9fb69ab1832b259762b57d20b845cee868039975e5",
-      "cmd/internal/workbenchshortcut/shortcut_test.go": "a7bbd29bcd5192b413934058a053199242f132808435f6535a30fbb442026675"
+      "cmd/internal/workbenchshortcut/shortcut_test.go": "a7bbd29bcd5192b413934058a053199242f132808435f6535a30fbb442026675",
+      "cmd/internal/couchcmd/cost_test.go": "2c35c86370248df778a72a54f66fc166431979a62c34ed95d1c7b4cb651bc017"
     },
     "non_go_full_fallback": {
       "cmd/internal/artifactpath/cross_scope_integration_test.go": "141dc4e3cd7632114dd20e263104176cdd470e86d6dd921dc2e9c9715077e18d",
@@ -153,7 +153,8 @@
       "cmd/internal/termcmd/admission_test.go": "2c8d0bc90a1ce559a7a3f5ee59ff4de30afecd766db0ef07b4830ce87b4563a7",
       "cmd/internal/termcmd/fullscreen_test.go": "9673f1ad20e0d405f5b512273221d09a73392f8ee70d7fb033837a45a7e170dc",
       "cmd/internal/webcast/sketch/geometry_test.go": "10213e9ec3f3ab537e9e65633b25ec48ecba88644890b55d86900acfbda42a09",
-      "cmd/internal/webcast/recording/sketch_corpus_test.go": "71affe4fe29adc0ed0f66f24e8e6a1972c362f27a24ce19af95bedc5cb956e30"
+      "cmd/internal/webcast/recording/sketch_corpus_test.go": "71affe4fe29adc0ed0f66f24e8e6a1972c362f27a24ce19af95bedc5cb956e30",
+      "cmd/internal/mockserve/browser_test.go": "6c55b7fa8fb1d4bdddac6f7bbe646d778eadb403da2c46e9aafcb164543cab3a"
     },
     "local_or_literal_fixture": {
       "cmd/couch/binary_test.go": "43767cf88cd38b404edd7df16cc7a646359171649eaf63adfbe4952f68fc4aa6",
@@ -179,7 +180,6 @@
       "cmd/internal/couchcmd/archive_schedule_test.go": "e7079cf66e7a99c3da315fe863b4814851bfd30335e5737757859b1706fc3d08",
       "cmd/internal/couchcmd/broadcast_test.go": "6962512b4ffd1d4527733ef53146cf13d4c88278a2a497a5c074c0f08a6981e4",
       "cmd/internal/couchcmd/capture_test.go": "0e6f6faa8750ec50c9e7ba300ba5c10c5c60ad2f483df5e252a12bd146145bda",
-      "cmd/internal/couchcmd/cli_test.go": "fa822b62af9b7997f2aa3152b3f582e1b5856072c124e098d00dc72a70268e0a",
       "cmd/internal/couchcmd/hubs_test.go": "1e477ea54c86a8088a42b6f39ccee29bcc1c20b6709b3726df8e336a8d047003",
       "cmd/internal/couchcmd/layout_cli_test.go": "defecf089faf82d2faeea202b08b7f88b47da486ba836224bc0e9f9d3c34df7c",
       "cmd/internal/couchcmd/live_restart_probe_test.go": "d756303cbdfd10192a49d1328b92443686cc21bfea265455226ea2dc5a76083a",
@@ -467,7 +467,12 @@
       "cmd/internal/layoutcmd/reply_admission_test.go": "d19a680915aa1858ca0e169ca7fa54ece32787689a5f3de7bab355c15436e65d",
       "cmd/internal/layoutcmd/rightpane_test.go": "1e296f2f8e27cdfecbd9d25c30bc30ef9455560284ac3417ee407267a1d89aa3",
       "cmd/internal/workbenchshortcut/terminal_owner_test.go": "9d7d9927f82b2a88ead8216e3bd72e04147a599231b06838f8196f5221504690",
-      "cmd/internal/workbenchshortcut/terminal_owner_live_test.go": "fa6b79d72449170e975c8ddd70f6c073d58ba0eff72c1835d6cef9747156280c"
+      "cmd/internal/workbenchshortcut/terminal_owner_live_test.go": "fa6b79d72449170e975c8ddd70f6c073d58ba0eff72c1835d6cef9747156280c",
+      "cmd/internal/couchcmd/cli_test.go": "83b88aaf00ee7861c6f7dc9bc2fac42e64a9e1f1f7b5853ba73c85b8f6f6dbad",
+      "cmd/internal/couchcmd/mock_test.go": "d00532d5f8a555d7f1ea3459734612caa3223399159b48487ff61b1cfb5eafd4",
+      "cmd/internal/mockserve/page_test.go": "1d3f976a2a576d9a7778f9c4faa6927802b250431e48267d860d4068b0abfe2b",
+      "cmd/internal/mockserve/server_test.go": "250858fc94ed58e0172f25d32c92c5675822c0c5cef95abe7ca2d0e13183ad1f",
+      "cmd/internal/mockserve/project_test.go": "fbc14ac42cdc5e2f13fa0adbb174603b878000ec7167cf96e2a06ae1d2239828"
     }
   }
 }
