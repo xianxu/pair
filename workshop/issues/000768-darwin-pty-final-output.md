@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-21
 updated: 2026-10-21
-estimate_hours:
+estimate_hours: 1.3
 collaboration-mode: collaboration
-card_mirror: 'd1b258c6b57be47406e1427b9f54535b2cea7b70' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'aefbf7c6d70eeae04a662a03d3d1de18bf5ac675' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-21T05:20:49-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # Preserve short-lived command output across Darwin PTY slave close
@@ -72,3 +73,19 @@ Filed unclaimed follow-ups #769 (wrap) and #770 (ptychild), each preserving prob
 ### 2026-10-21 — plan review round1
 
 PQ-1/PQ-2 addressed: initialization abort explicitly kills the owned direct child, closes master/slave before the sole wait, treats already-exited as benign and preserves the initialization error. The plan names startPTY, releaseSlave, run and abortPTY with adversarial test strategies rather than case inventories. Normal completion still waits for the direct child without stopping live closed-stdio targets.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; calibration source reports stale, so provisional. Two smaller Go modules cover the start/lease adapter and run/abort integration. Design bases0.2/0.3 receive thorough-spec factor0.2; implementation bases0.4/0.5 receive v3.1 factor0.4. Native Darwin qualification is one real-API discovery base0.6 ×0.4; docs and review use design0.1 ×0.2, impl0.1/0.3 ×0.4. creack/pty already supplies allocation; no greenfield allocation needed. Familiarity1.5 accounts for bounded unfamiliar kernel lifetime behavior; +15% design buffer. Computed1.301, rounded1.30 hours.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.5
+item: smaller-go-module design=0.04 impl=0.16
+item: smaller-go-module design=0.06 impl=0.20
+item: real-api-discovery design=0 impl=0.24
+item: atlas-docs design=0.02 impl=0.04
+item: milestone-review design=0.02 impl=0.12
+design-buffer: 0.15
+total: 1.30
+```
