@@ -426,7 +426,9 @@ SOURCE_GUARDS["examples/mock-to-real/internal/app"] = (
     "TestRealAppAndContract", "TestMissingRealHandler", "TestPreparedRoutesAndNavigationOwnSnapshot")
 SOURCE_GUARDS["examples/mock-to-real/internal/buildsample"] = (
     "TestProductionPartialAndCompletedPrivateCopy", "TestCanceledBuildPublishesNothing",
-    "TestActiveChildCancellationJoins", "TestReportFailureDoesNotLeaveArtifact")
+    "TestActiveChildCancellationJoins", "TestReportFailureDoesNotLeaveArtifact",
+    "TestExecutorFailureRetiresPartialCandidate", "TestExecutorSuccessValidatesThenPublishesOnce",
+    "TestExecutorCancellationJoinsBeforeRetirement")
 
 
 def _guard_argv(guards, prefix):

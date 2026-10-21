@@ -19,27 +19,6 @@ import (
 
 const maxFrontRequests = 64
 
-func parseRealOrigin(raw string) (*url.URL, error) {
-	u, err := url.Parse(raw)
-	if err != nil {
-		return nil, fmt.Errorf("invalid real app origin: %w", err)
-	}
-	if u.Scheme != "http" || u.User != nil || u.Host == "" || u.Path != "" || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.Opaque != "" {
-		return nil, fmt.Errorf("real app must be an HTTP loopback origin with an explicit port and no path, credentials, query or fragment")
-	}
-	host := u.Hostname()
-	ip := net.ParseIP(host)
-	if host != "localhost" && (ip == nil || !ip.IsLoopback()) {
-		return nil, fmt.Errorf("real app origin must be loopback")
-	}
-	port, err := strconv.Atoi(u.Port())
-	if err != nil || port < 1 || port > 65535 {
-		return nil, fmt.Errorf("real app origin needs a port from 1 to 65535")
-	}
-	u.Host = net.JoinHostPort(host, strconv.Itoa(port))
-	return u, nil
-}
-
 // developmentFront owns its transport, active requests and hijacked sockets.
 // The external real application's process is never owned or stopped here.
 type developmentFront struct {
@@ -63,12 +42,8 @@ func newDevelopmentFront(ctx context.Context, mock *Server, rawOrigin string) (*
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	f := &developmentFront{mock: mock, ctx: ctx, cancel: cancel, connections: map[*frontConnection]struct{}{}}
-	// localhost is pinned to loopback, never resolved from request-controlled data.
-	dialHost := origin.Hostname()
-	if dialHost == "localhost" {
-		dialHost = "127.0.0.1"
-	}
-	dialAddress := net.JoinHostPort(dialHost, origin.Port())
+	endpoint, _ := loopbackEndpoint(origin)
+	dialAddress := endpoint.String()
 	dialer := &net.Dialer{Timeout: 3 * time.Second, KeepAlive: 30 * time.Second}
 	f.transport = &http.Transport{DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
 		return dialer.DialContext(ctx, network, dialAddress)
@@ -80,10 +55,8 @@ func newDevelopmentFront(ctx context.Context, mock *Server, rawOrigin string) (*
 			pr.SetXForwarded()
 		},
 		ModifyResponse: func(res *http.Response) error {
-			location, err := res.Location()
-			if err == nil && location.IsAbs() && location.Scheme == origin.Scheme && location.Host == origin.Host {
-				location.Scheme, location.Host = "", ""
-				res.Header.Set("Location", location.String())
+			if raw := res.Header.Get("Location"); raw != "" {
+				res.Header.Set("Location", rewriteRealLocation(raw, origin))
 			}
 			return nil
 		},
@@ -259,7 +232,7 @@ func ServeWithReal(ctx context.Context, dir string, port int, out io.Writer, raw
 		return err
 	}
 	defer ln.Close()
-	if origin.Port() == strconv.Itoa(ln.Addr().(*net.TCPAddr).Port) {
+	if targetsListener(origin, ln.Addr().(*net.TCPAddr)) {
 		return fmt.Errorf("real app origin points to the development front itself")
 	}
 	f, err := newDevelopmentFront(ctx, s, rawOrigin)

@@ -674,6 +674,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/mockserve/screens.go",
 	"cmd/internal/mockserve/check.go",
 	"cmd/internal/mockserve/front.go",
+	"cmd/internal/mockserve/front_origin.go",
 	"cmd/internal/mockserve/front_route.go",
 	"cmd/internal/mockserve/cli.go",
 	"cmd/internal/mockserve/page.go",

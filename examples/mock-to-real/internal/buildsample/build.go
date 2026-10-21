@@ -23,7 +23,21 @@ import("context";"encoding/json";"flag";"fmt";"os";"os/signal";"syscall";"exampl
 func main(){listen:=flag.String("listen","127.0.0.1:8081","HTTP address");check:=flag.Bool("check",false,"validate application configuration and exit");flag.Parse();var screens []app.Screen;if e:=json.Unmarshal([]byte(PROJECTION),&screens);e!=nil{panic(e)};if _,e:=app.New(screens);e!=nil{fmt.Fprintln(os.Stderr,e);os.Exit(1)};if *check{return};ctx,cancel:=signal.NotifyContext(context.Background(),os.Interrupt,syscall.SIGTERM);defer cancel();if e:=app.Serve(ctx,*listen,screens);e!=nil{fmt.Fprintln(os.Stderr,e);os.Exit(1)}}
 `
 
-func Build(ctx context.Context, root, output string, report io.Writer) (err error) {
+// executor is the compiler/configuration-check seam. Run returns only after all
+// work it admitted has completed or acknowledged cancellation.
+type executor interface {
+	Run(context.Context, string, string, ...string) error
+}
+type realExecutor struct{}
+
+func (realExecutor) Run(ctx context.Context, dir, name string, args ...string) error {
+	return run(ctx, dir, name, args...)
+}
+
+func Build(ctx context.Context, root, output string, report io.Writer) error {
+	return buildWithExecutor(ctx, root, output, report, realExecutor{})
+}
+func buildWithExecutor(ctx context.Context, root, output string, report io.Writer, commands executor) (err error) {
 	if e := ctx.Err(); e != nil {
 		return e
 	}
@@ -87,10 +101,10 @@ func Build(ctx context.Context, root, output string, report io.Writer) (err erro
 		return e
 	}
 	candidate := filepath.Join(stage, "application")
-	if e := run(ctx, stage, "go", "build", "-trimpath", "-o", candidate, "./cmd/production"); e != nil {
+	if e := commands.Run(ctx, stage, "go", "build", "-trimpath", "-o", candidate, "./cmd/production"); e != nil {
 		return e
 	}
-	if e := run(ctx, stage, candidate, "--check"); e != nil {
+	if e := commands.Run(ctx, stage, candidate, "--check"); e != nil {
 		return e
 	}
 	if e := ctx.Err(); e != nil {

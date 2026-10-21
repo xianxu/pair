@@ -94,7 +94,7 @@ Keep one shared fixtures.json for mocks. The example's real backend uses its own
 | frontRoute / decideFrontRoute | cmd/internal/mockserve/front_route.go | new |
 | TransformDevelopmentPage | cmd/internal/mockserve/page.go | modified |
 | Shape, Infer, Match | examples/mock-to-real/internal/contract/shape.go | new |
-| app.Screen, catalogue.Read and prepared navigation policy | examples/mock-to-real/internal/app/app.go and internal/catalogue/catalogue.go | new |
+| app.Screen and prepared navigation policy | examples/mock-to-real/internal/app/app.go | new |
 
 Catalogue owns immutable route/alias maps and one computed progress value; no duplicated app-side Go-only declaration. frontRoute / decideFrontRoute yields mock document/asset, internal/private/refusal or real proxy without IO. Existing version selection remains its sole owner. Mock decoration remains a pure bounded HTML transform, shared with existing bootstrap work. Contract/projection tests use literal values and no IO mocks. Extensions to the catalogue are additive/read-only; future route patterns would be an explicit widened contract.
 
@@ -103,9 +103,10 @@ Catalogue owns immutable route/alias maps and one computed progress value; no du
 | Name | Lives in | Status | Wraps |
 |---|---|---|---|
 | Project catalogue observation | cmd/internal/mockserve/scan.go, server.go | modified | confined reads and existing scanner |
-| DevelopmentFront and upstream lifetime | cmd/internal/mockserve/front.go | new | real app HTTP/WebSockets |
+| developmentFront and upstream lifetime | cmd/internal/mockserve/front.go | new | real app HTTP/WebSockets |
 | CLI serve/check | cmd/internal/mockserve/cli.go, check.go; couchcmd help/tests | modified/new | command IO, no Couch runtime |
-| Go sample real backend and build | examples/mock-to-real/cmd/{app,build}, internal/sample | new | app listener, real handler responses and Go tool |
+| Sample catalogue consumption | examples/mock-to-real/internal/catalogue/catalogue.go | new | bounded io.Reader consumption and IO errors |
+| Go sample real backend and build | examples/mock-to-real/cmd/{app,build}, internal/{app,buildsample} | new | app listener, real handler responses and injected compiler executor |
 | Template qualification | cmd/internal/mocktemplate/template_test.go | new | private nested module, actual host and build |
 
 HTTP tests use a stateful local fake app with actual routing, redirects, cookies, errors, APIs and upgraded connections. Live conformance uses the real mock host and sample app on private loopback ports. No external framework installation is necessary; a framework-shaped fixture exercises asset/API/HMR routes without claiming qualification of every framework. Sample production builds/launches are owned and joined in private roots. Existing shared Pair candidate path is used, never a freshly copied Pair executable.
@@ -150,7 +151,9 @@ No per-request/per-scan durable artifact, cache, generated mock family or catalo
 | TransformPage / TransformDevelopmentPage | hostile bounded HTML and conflicting owned metadata | pure transform assertions and fuzz seeds preserving project scripts/identity; no real HTML modification |
 | Reload client lifecycle | status/version/repair observation races | existing deterministic JS generation fences plus bounded private-browser full-navigation conformance |
 | Infer / Shape.Match | arbitrary nested JSON and ambiguous array prototypes | seeded fuzzing and JSON-path failure assertions under depth/byte bounds; mutation demonstrates backend drift caught |
-| app.Screen / catalogue.Read / app.New / buildsample.Build | drift between catalogue and build/navigation/handler registration | build private source copies with partial and complete states; exact placeholder/link/report behavior and artifact sentinel absence |
+| app.Screen / app.New / catalogue.Read | drift between catalogue and navigation/handler registration; reader failure | pure prepared-route assertions plus bounded reader integration tests and private partial/complete sample copies |
+| buildsample.Build / executor.Run | compiler failure, partial candidate, validation failure and cancellation order | stateful compiler fake observes stage/candidate/publication; cancellation barriers prove join before retirement; actual Go builds retain live conformance and artifact sentinel checks |
+| rewriteRealLocation / targetsListener | origin-only, query/fragment, double-slash redirects and distinct loopback addresses | resolve references against a non-root front URL; exact pinned address/port tables reject genuine self-targets only |
 | Screen lookup / scan / shape work | N versus2N input/request growth | counted IO/node/transform operations, zero per-request scan/parse work; timing is not the oracle |
 | Nested template qualification | root Go suite silently omits nested module | root integration explicitly runs sample tests/build and real mock host against private owned roots |
 
@@ -177,7 +180,7 @@ Files: mockserve/front.go/front_test.go; scan.go/scan_test.go, server.go/server_
 
 ### 3. Worked Go sample, production convention and contracts
 
-Files: examples/mock-to-real/go.mod, cmd/app/main.go, cmd/build/main.go, internal/sample, internal/screens, internal/contract, mocks/{screens.json,fixtures.json,mock-1/*}, README.md and design.md, .gitignore.
+Files: examples/mock-to-real/go.mod, cmd/app/main.go, cmd/build/main.go, internal/{app,catalogue,jsonvalue,buildsample,contract}, mocks/{screens.json,fixtures.json,mock-1/*}, README.md and design.md, .gitignore.
 
 - [x] Implement independent real backend, typed shape contracts and single-catalogue sample consumer using their named verification strategies.
 - [x] Implement app-owned production build/report/projection, missing-screen page/back link and marked navigation; qualify partial and complete production artifacts in private roots.
@@ -212,6 +215,12 @@ ARCH-DRY: reuse host; one catalogue feeds dispatch/progress/report/sample produc
 - 2026-10-21: Aligned conceptual table names with actual focused implementation APIs; sample owns internal/app, catalogue, jsonvalue, contract and buildsample. No new product policy. Root qualification uses suite-owned testbinary.Cache for its distinct sample executable; every process joins before TestMain removes it.
 - The nested standalone Go module has audited source-reading tests that the old fixed preflight cannot address as root-module imports. Added explicit finite SOURCE_MODULES grouping: existing root scanner argv remains exact, nested audited packages run from their own module before provider-selected packages, and any preflight failure stops selected effects. Statefully recorded child-executable tests cover commands/failure propagation; no discovery or widening of the selected-package argv. Reader certificates remain per file.
 - Final adversarial regressions exposed blocked incomplete-upload cancellation and zero-padded self-origin ports. Normalize origin ports before self-target checks; owner cancellation wakes downstream reads/writes and joins its callback before returning. Both regressions observed RED before fixes.
+
+## Revisions — close round1
+
+- 2026-10-21: BR-1/BR-3 preserve resolved redirect destinations and compare complete pinned loopback endpoints; the same endpoint policy now drives dialing and identity. Regression tables observed behavioral RED for root/query/fragment/double-slash redirects and distinct-address same-port listeners before GREEN.
+- BR-2 corrects ARCH-PURE traceability: catalogue.Read consumes io.Reader and belongs to INTEGRATION; app.Screen/prepared navigation remain pure. Active paths name the delivered app/buildsample modules. Historical proposal remains explicitly nonbinding.
+- BR-4 adds a private injected compiler executor (ARCH-MOCK). Stateful candidate files and cancellation barriers pin compile/validation failure cleanup, validate-before-publish and worker joining; real compiler tests remain conformance. BR-5 will retain final-head host browser navigation and delivered-progress negative-control evidence before re-close.
 
 ## Historical initial proposal — superseded, retained for decision provenance
 

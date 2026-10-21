@@ -2550,3 +2550,6 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #744: Native transcript fixture producers must derive storage roots through sessioninventory.OSRuntime.NativeRoots (and WithCodexHome), just like consumers; run the native-authority shadow guard before the recorded suite. Do not exempt test helper production files from the guard.
 
 - #757: A generic HTTP front must own active uploads, writes and hijacked sockets through cancellation and join; cancelling only the upstream request does not unblock an unfinished downstream upload. Preserve this with a causally ready incomplete-upload regression. Nested Go modules need explicit root-suite and fixed-preflight ownership; root go test ./... alone omits them.
+
+- #757 close review: test proxy Location rewrites by resolving each returned reference against a non-root front URL; comparing Location strings alone misses empty-root, query-only and network-path authority changes. Endpoint self-target checks must use the same pinned address and port as the dialer.
+- #757 close review: a function consuming io.Reader belongs to the integration shell even when its only work is decoding; classify the actual API in Core concepts and keep compiler execution behind a stateful fake plus real-tool conformance.
