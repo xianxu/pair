@@ -29,8 +29,9 @@ func TestProvisionLockPinsBaseAndOfficialTools(t *testing.T) {
 
 type provisionFake struct {
 	*hostFakeDriver
-	saved   bool
-	saveErr error
+	saved    bool
+	saveErr  error
+	saveHook func()
 }
 
 func (f *provisionFake) SaveImage(_ context.Context, source, image string) error {
@@ -38,6 +39,9 @@ func (f *provisionFake) SaveImage(_ context.Context, source, image string) error
 		return errors.New("unsafe save")
 	}
 	f.saved = true
+	if f.saveHook != nil {
+		f.saveHook()
+	}
 	return f.saveErr
 }
 func TestProvisionRuntimeSealsOnlyQualifiedStoppedVM(t *testing.T) {
@@ -157,6 +161,57 @@ func TestProvisionActivationSuppressedByFinalValidationAndCloseFailure(t *testin
 			state := Run(context.Background(), r, p)
 			if state.ExitCode() == 0 || calls != 0 {
 				t.Fatalf("exit %d activation %d: %s", state.ExitCode(), calls, state.Detail())
+			}
+		})
+	}
+}
+
+func TestProvisionCancellationNeverActivates(t *testing.T) {
+	for _, stage := range []string{"execute", "export", "stop", "save", "delete", "publish"} {
+		t.Run(stage, func(t *testing.T) {
+			h, f, r := hostFixture(t)
+			old, err := os.ReadFile(filepath.Join(h.root, "image.json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			m, err := DecodeImageManifest(old)
+			if err != nil {
+				t.Fatal(err)
+			}
+			m.Image = "pair-conformance-cancelled"
+			tools, _ := json.Marshal(m.Tools)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			f.observe = func(event string) {
+				if event == stage {
+					cancel()
+				}
+			}
+			driver := &provisionFake{hostFakeDriver: f}
+			if stage == "save" {
+				driver.saveHook = cancel
+			}
+			h.driver = driver
+			activated := false
+			p := &provisionRuntime{hostRuntime: h, candidate: m.Image}
+			p.activate = func(cleanup context.Context) error {
+				if stage == "publish" {
+					cancel()
+				}
+				err := publishProvision(cleanup, h.root, m, tools)
+				activated = err == nil
+				return err
+			}
+			state := Run(ctx, r, p)
+			got, err := os.ReadFile(filepath.Join(h.root, "image.json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if state.ExitCode() == 0 || activated || string(got) != string(old) {
+				t.Fatalf("cancel at %s: exit=%d activated=%v manifestChanged=%v: %s", stage, state.ExitCode(), activated, string(got) != string(old), state.Detail())
+			}
+			if (stage == "execute" || stage == "export" || stage == "stop") && driver.saved {
+				t.Fatal("interrupted run sealed image")
 			}
 		})
 	}

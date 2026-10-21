@@ -109,7 +109,7 @@ func (f *fakeRuntime) Stop(ctx context.Context) error {
 	f.child = false
 	return err
 }
-func (f *fakeRuntime) Release(ctx context.Context) error {
+func (f *fakeRuntime) Release(ctx context.Context, _ RunState) error {
 	err := f.effect(ctx, Release)
 	if f.child {
 		return fmt.Errorf("released before stop joined")

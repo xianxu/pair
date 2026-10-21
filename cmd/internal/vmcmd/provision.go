@@ -53,7 +53,6 @@ type imageSaver interface {
 type provisionRuntime struct {
 	*hostRuntime
 	candidate  string
-	collected  bool
 	cleanGuest bool
 	activate   func(context.Context) error
 }
@@ -81,24 +80,48 @@ func (p *provisionRuntime) Collect(ctx context.Context) error {
 			return err
 		}
 	}
-	p.collected = true
 	return nil
 }
-func (p *provisionRuntime) Release(ctx context.Context) error {
+func (p *provisionRuntime) Release(ctx context.Context, state RunState) error {
 	var sealErr error
-	if p.collected && p.executed && p.executeExit == 0 && p.stopConfirmed && !p.inputsUnconfirmed {
-		saver, ok := p.driver.(imageSaver)
-		if !ok {
-			sealErr = fmt.Errorf("VM driver cannot seal a provisioned image")
-		} else {
-			sealErr = p.secondary(ctx, func() error { return saver.SaveImage(ctx, p.claim.VM, p.candidate) })
+	// The reducer alone authorizes success; physical cleanup evidence is still
+	// required before saving. Cleanup's detached context does not grant success.
+	eligible := state.phase == phaseReleasing && state.result == commandResult && state.exit == 0
+	if eligible && p.stopConfirmed && !p.inputsUnconfirmed {
+		sealErr = provisionInterruption(ctx)
+		if sealErr == nil {
+			saver, ok := p.driver.(imageSaver)
+			if !ok {
+				sealErr = fmt.Errorf("VM driver cannot seal a provisioned image")
+			} else {
+				sealErr = p.secondary(ctx, func() error { return saver.SaveImage(ctx, p.claim.VM, p.candidate) })
+			}
+		}
+		if sealErr == nil && p.activate != nil {
+			p.hostRuntime.beforeUnlock = func(ctx context.Context) error {
+				if err := provisionInterruption(ctx); err != nil {
+					return err
+				}
+				return p.activate(ctx)
+			}
 		}
 	}
-	if sealErr == nil && p.collected && p.executed && p.executeExit == 0 && p.stopConfirmed && !p.inputsUnconfirmed {
-		p.hostRuntime.beforeUnlock = p.activate
-	}
-	return errors.Join(sealErr, p.hostRuntime.Release(ctx))
+	return errors.Join(sealErr, p.hostRuntime.Release(ctx, state))
 }
+
+// Cleanup must continue after caller cancellation, but publication must not.
+// Inspect the original caller without renewing or replacing the cleanup budget.
+func provisionInterruption(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if scope, ok := ctx.Value(cleanupScopeKey{}).(*cleanupScope); ok {
+		return scope.base.Err()
+	}
+	return nil
+}
+
+const maxImageManifest = 64 << 10
 
 func readMachineImage(root string) ([]byte, error) {
 	dir, err := os.OpenRoot(root)
@@ -111,11 +134,11 @@ func readMachineImage(root string) ([]byte, error) {
 		return nil, err
 	}
 	defer f.Close()
-	raw, err := io.ReadAll(io.LimitReader(f, 65537))
+	raw, err := io.ReadAll(io.LimitReader(f, maxImageManifest+1))
 	if err != nil {
 		return nil, err
 	}
-	if len(raw) > 65536 {
+	if len(raw) > maxImageManifest {
 		return nil, fmt.Errorf("image manifest exceeds 64 KiB")
 	}
 	return raw, nil
@@ -127,11 +150,11 @@ func readProvisionFile(path string) ([]byte, error) {
 		return nil, err
 	}
 	defer f.Close()
-	raw, err := io.ReadAll(io.LimitReader(f, 65537))
+	raw, err := io.ReadAll(io.LimitReader(f, maxImageManifest+1))
 	if err != nil {
 		return nil, err
 	}
-	if len(raw) > 65536 {
+	if len(raw) > maxImageManifest {
 		return nil, fmt.Errorf("provision metadata exceeds 64 KiB")
 	}
 	return raw, nil
@@ -190,7 +213,7 @@ func publishProvision(ctx context.Context, root string, m ImageManifest, reporte
 		}
 	}
 	m.Tools = observed.Tools
-	if err := ctx.Err(); err != nil {
+	if err := provisionInterruption(ctx); err != nil {
 		return err
 	}
 	// Preserve future top-level provenance from the existing active manifest.
@@ -213,6 +236,9 @@ func publishProvision(ctx context.Context, root string, m ImageManifest, reporte
 	if err != nil {
 		return err
 	}
+	if len(raw) > maxImageManifest {
+		return fmt.Errorf("image manifest exceeds 64 KiB")
+	}
 	file, err := os.CreateTemp(root, ".image-*")
 	if err != nil {
 		return err
@@ -224,6 +250,9 @@ func publishProvision(ctx context.Context, root string, m ImageManifest, reporte
 	}
 	err = errors.Join(err, file.Close())
 	if err != nil {
+		return err
+	}
+	if err := provisionInterruption(ctx); err != nil {
 		return err
 	}
 	if err := os.Rename(name, filepath.Join(root, "image.json")); err != nil {

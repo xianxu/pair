@@ -16,6 +16,8 @@ import (
 // stop, Release must retain the durable occupied claim and VM/snapshot inputs,
 // closing only local handles so the next acquisition refuses unsafe reuse.
 // Release must never remove resources still consumed by a child or live VM.
+// Release receives the reducer's current state: cleanup completion alone must
+// never authorize a success-only side effect after failure or interruption.
 // These obligations also apply when a cleanup context expires.
 type Runtime interface {
 	Acquire(context.Context, RunRequest) error
@@ -25,7 +27,7 @@ type Runtime interface {
 	Execute(context.Context) (int, error)
 	Collect(context.Context) error
 	Stop(context.Context) error
-	Release(context.Context) error
+	Release(context.Context, RunState) error
 }
 
 const cleanupTimeout = 10 * time.Second
@@ -105,7 +107,7 @@ func Run(ctx context.Context, r RunRequest, rt Runtime) RunState {
 			err = rt.Stop(opCtx)
 			event.Kind = Stopped
 		case Release:
-			err = rt.Release(opCtx)
+			err = rt.Release(opCtx, state)
 			event.Kind = Released
 		default:
 			panic(fmt.Sprintf("vmcmd Run unknown effect %q", current))

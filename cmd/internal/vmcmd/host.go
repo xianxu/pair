@@ -329,7 +329,7 @@ func (h *hostRuntime) Stop(ctx context.Context) error {
 	h.stopConfirmed = err == nil
 	return err
 }
-func (h *hostRuntime) Release(ctx context.Context) (err error) {
+func (h *hostRuntime) Release(ctx context.Context, _ RunState) (err error) {
 	if h.position == nil {
 		return nil
 	}
