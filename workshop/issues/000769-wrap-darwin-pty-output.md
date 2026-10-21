@@ -57,6 +57,7 @@ The recorded suite must pass, close review must approve, and merge gates must co
 Filed unclaimed per TL approval of #768 on 2026-10-21. Probe provenance and audited owner paths are in workshop/plans/000768-darwin-pty-final-output-plan.md, planning commit b55089f72c233e0532918172a29b60291f798cfb. Retention must not be generalized without resolving the termination-semantics risk above.
 
 ### 2026-10-21 — Planning and native counterexample
+- 2026-10-21: closed — BR-1 addressed in README with help and approved Darwin lifetime; help/atlas/architecture/index swept. Native/race output, liveclosedstdio, stop/restart, original cmd/failure,18caller rows and5managed readiness/native-exit cases pass; direct local Codex0.163.0 and Claude2.1.306 version smokes match status0/exactone version/empty stderr. Lint, artifact inventory and affected-reader checks pass. Recorded full suite remains queued on unchanged code5434e0f4b; suite and CI pass required before landing.; review verdict: SHIP
 
 Claimed and started from main in canonical pair-slot4; #757 remains parked awaiting operator approval. Coordinated with pair:2 through authenticated #768 handoff and corrected native probe. Read its scribe-only ownership design without importing unlanded code. Fresh-context read-only audit confirmed masterPump EOF drives ownedGroup.Wait, which starts group termination before its sole reap; preserve original selector argv, actual target PID and synchronous start-error publication.
 
