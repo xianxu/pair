@@ -49,6 +49,7 @@ type Request struct {
 const CodeWarming = "warming"
 
 type Response struct {
+	Automation *couchcore.HubAutomationStatus `json:",omitempty"`
 	// RetryAfterMillis is a transient admission hint, only for CodeWarming.
 	RetryAfterMillis int                     `json:",omitempty"`
 	Resources        *couchcore.ResourceView `json:",omitempty"`
@@ -154,6 +155,21 @@ func validMessageID(id string) bool {
 }
 
 func ValidateRequest(r Request) error {
+	if r.Op == "automation" {
+		if r.Scope == "" || r.Tag == "" || r.Session == "" || r.Nonce == "" || (r.Body != "on" && r.Body != "off" && r.Body != "status") {
+			return errors.New("automation requires caller identity and on, off or status")
+		}
+		want := Request{Op: r.Op, Scope: r.Scope, Tag: r.Tag, Session: r.Session, Nonce: r.Nonce, Target: r.Target, Body: r.Body}
+		if r != want {
+			return errors.New("automation takes only caller identity, action and optional hub")
+		}
+		for _, field := range []string{r.Scope, r.Tag, r.Session, r.Nonce, r.Target} {
+			if len(field) > MaxBindingBytes {
+				return errors.New("request identity exceeds limit")
+			}
+		}
+		return nil
+	}
 	if r.Drive != nil && !IsDriveOp(r.Op) {
 		return errors.New("drive intent applies only to keys, set-model and interrupt")
 	}

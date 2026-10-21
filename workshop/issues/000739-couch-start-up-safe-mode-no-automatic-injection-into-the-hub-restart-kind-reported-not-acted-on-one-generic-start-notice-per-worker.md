@@ -149,6 +149,30 @@ Archive warnings are passive status/attention/desktop paths, not broker agent
 input. The unlanded #737 scheduler must share the gate for any future hub input;
 a peer seam query was refused without a receipt, so no agreement is claimed.
 
+### 2026-10-21 — implementation admission and checkpoint
+
+Plan-quality first returned PQ-1 (replace prose scenario enumeration with named
+risky-function/adversarial-strategy guards). The revised plan passed CLEAN;
+change-code then passed on 6695cb081 after deriving the v3.1 estimate. All unit,
+protocol and fake-backed tests are included in the estimate primitives: the
+wrapper/session integration row includes negotiation and receiver tests;
+supervision nudges belong to the episode/reminder family, and the common send
+source guard belongs to the inventory/docs row. The two UX iteration allowances
+cover completed operator shaping, not two future implementation rounds.
+
+The hub relayed #737's agreed seam: messageService owns
+hubAutomationOn(hubRoot string) bool; scheduler reserveDue, reserved-script
+authorization and scheduleNotice.Admit consult it. Whichever lands second wires
+the consumer on main, without stacking. The earlier refused query is superseded
+by this explicit agreement.
+
+Implementation in progress. Pure hub automation and CLI parser reds were
+observed, then focused tests passed. The controller rejects workers, stale or
+disconnected callers and foreign hubs; explicit concurrent switcher toggles are
+serialized. Unknown startup remains off. Core attachment-only startup, negotiated
+wrapper cue receipt and switcher Ctrl+G have separate targeted evidence from
+bounded worker tasks. No full suite, close, stage or live acceptance is claimed.
+
 ## Revisions
 
 ### 2026-10-20 — operator-review startup boundary and two notice lifetimes
