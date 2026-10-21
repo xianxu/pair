@@ -45,7 +45,9 @@ The version probe belongs in the thin failure adapter, not the pure evidence val
 
 Retry only an allowlisted idempotent read already admitted by zellijReadKind. Require direct successful collection/exit0, stderr exactly the native Session TARGET not found / active-sessions message for the requested argv target, and a fully validated stdout listing containing that exact target as live. Recognize plain listings through the existing strict decoder and colored listings through the exact native SGR envelope: green name, magenta duration, reset, optional native current/exited suffix. Validate every row, duration, duplicate and opaque name; reject any unrelated control/escape/trailing text. Do not broadly strip ANSI or accept the listing as ownership evidence.
 
-Only the established ErrZellijNoReply/errZellijCrossedReply loop gains this classified signature. Total attempts stay3 and share the existing logical deadline. A replacement response must still pass the real consumer parser and independent ownership agreement/generation fences. No mutation, unknown argv, collector error, arbitrary stderr, malformed JSON, absent target or exited-only target is replayed. Exit1 no-active-session remains fail-closed unless a later explicit approved revision says otherwise.
+The second admitted signature is direct exit1 with exactly empty stdout and stderr There is no active session!, only for the same allowlisted session-specific read and only while its exact socket is observed present. Reuse ResolveZellijSocketRoot and the existing contract_version_1 path spelling; validate the session basename and use ObserveSocket(os.Lstat), never a host scan or another native query. Unknown/non-socket/gone observations refuse.
+
+Only the established ErrZellijNoReply/errZellijCrossedReply loop gains these classified signatures. Total attempts stay3 and share the existing logical deadline. A replacement response must still pass the real consumer parser and independent ownership agreement/generation fences. No mutation, unknown argv, collector error, arbitrary stderr, malformed JSON, absent target or exited-only target is replayed. A genuinely gone session remains fail-closed. Socket presence permits only another read; it is never ownership or absence evidence.
 
 ## Evidence flow, bounds and lifecycle
 
@@ -79,6 +81,12 @@ Successful reads create no new retained state. Capture/error values die with ope
 ## Growth and trust
 
 At most3 query attempts per logical allowlisted read; no additional success-path commands. At most one version query and one bounded evidence value per failed pane proof. Add counted tests for zero/one version calls,3-attempt exhaustion and history at N/2N. CPU cost is linear in supplied bounded bytes, with one native-listing pass; no per-row requery. Concurrent operations own independent captures. Native bytes are untrusted; raw evidence is never used as a command or ownership capability. Existing stateful query fake and real private native controls share the actual invocation/decoder seam (ARCH-MOCK/DRY).
+
+## Revisions
+
+### 2026-10-21 — TL3aacb9e7 approves socket-present exit1 recovery
+
+The original plan kept exit1 no-active-session failures fail-closed pending classification. The focused1000-read control established24/1000 live false negatives; all24 retained the same exact server generation/socket before and after a successful diagnostic requery within the original deadline. Verified TL3aacb9e7 approves the exact exit1/empty-stdout/native-stderr signature only when the target socket exists, inside the unchanged3-attempt/deadline bound. Add positive/negative regressions and a1000-read counter run reporting every attempt and residual final failure. The current classifier section reflects this revision; no blanket nonzero retry is permitted.
 
 ## Approval and estimate
 

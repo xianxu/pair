@@ -37,6 +37,8 @@ Diagnose the post-client-exit SessionOwnerUnknown result at couchcore/detach.go:
 
 ## Plan
 
+Durable full-flow plan: [native pane evidence](../plans/000761-native-pane-evidence-plan.md). Product implementation waits for the expanded change-code gate.
+
 - Inspect the full diagnostic and native query evidence; use #744 shared fleet or existing TestStartupManagedAttachDetachTimingLive.
 - Fix the established class and run focused plus required verification.
 
@@ -51,6 +53,17 @@ A deliberate diagnostic rerun at dcdffcea8f14b4465f025c3d40839968082e2a32 added 
 Final #744 clean candidate bfa769c1dec8ee80eabba775220d7084ae1c4983 failed48.08s after genuine Claude four-actor membership and submitted/accepted ordinary message. Public refusal: detach1-fixture-3, observe Pair session before detach, session 📁1-3 ownership unresolved: invalid live pane JSON, operation-392b33c981ed0bbda69e1a8a9d6763ed. Full log /Volumes/TestScratch/tmp/pair-slot5/pair-744-native-final.nEqfD0/native.log SHA2561d4b86f5c114a28e372bb025ee7c5eaf30355f05d301802d0f1ecddc420ce7b5. Exact owned generations absent, IO joined, root removed; no Codex attempt after failure. The authoritative bytes were not retained, so truncation, wrong reply and concatenation remain unproved.
 
 Pair collection uses distinct stdout/stderr buffers and joins process/pipe collection; parser input is not limited by the observer's64KiB copy. Upstream taggedv0.45.1 emits pane JSON via serde pretty serialization into one Log; IPC reads a length-prefixed payload with read_exact. Numeric connection-ID reuse and late Log routing are established #748 context, but #761's offending bytes are still needed. Existing #748 recovery intentionally handles only empty or fully validated crossed kinds; malformed nonempty output remains a refusal. No product behavior changed during this trace.
+
+
+### 2026-10-21 — native reproduction and classified false misses
+
+Minimal native stimulus: start three private shell-only Zellij sessions; run four workers issuing1000 total actual read commands, alternating zellij --session NAME action list-panes --json --command (and --state), zellij --session NAME action list-clients, and zellij list-sessions --no-formatting. The existing production read boundary performs its own bounded attempts. Reproduction source and exact offending stdout/stderr are retained under workshop/evidence/000761; the source runs as a Go overlay in cmd/internal/launcher with TestNativeMixedCapture761. Each fixture owns private HOME/XDG/socket/config roots; no real agent, Pair wrapper or Couch broker is launched.
+
+Mixed run14.86s:1000logical reads/1003attempts,11failedfinal (2paneJSON/9client parses),3empty attempts recovered. Both malformed pane responses exited0 with186bytes of complete ANSI-colored native session listings; stderr said the requested target was not found while stdout listed that exact live target. Taggedv0.45.1 src/commands.rs send_action_to_session repeats get_sessions; after a false miss it calls list_sessions(false,false,true), whose exit0 prevents the following exit1. sessions.rs assert_socket classifies any unexpected ConnStatus response as false. This establishes native false-selection/fallback output, not truncation or interleaved JSON. The existing plain crossed-reply validator rejects the colored listing and misses this signature. Full /Volumes/TestScratch/tmp/pair-slot5/pair-761-mixed-13d5hzyj/queries.jsonl SHA2561f71a30b666ac7bf0088d23f57d535c5fb3ac811f3fdac24d698f3b6dd37d65c; all three exact server generations absent, root removed.
+
+The first one-session baseline had5exit1 final failures/1000 and no per-failure liveness observations. The focused bracketing control then retained24original exit1 failures/1000reads (2.4%), all exactly empty stdout/There is no active session! stderr. Each of24 diagnostic requeries succeeded under the original5s proof deadline; all24 kept PID11560 generation1792570266.40064 and its socket present before/after. Original failures remain counted. Focused JSONL /Volumes/TestScratch/tmp/pair-slot5/pair-761-exit1-errn9bsu/queries.jsonl SHA256aa179dbda866eaad83e59d7494694ccf840595fd9d6507f313544818aa8b0ed2. Exact cleanup passed. Baseline complete captures remain in pair-761-native-oe7dr7za; queries hash5974d31ba419fe9a0d9f201a774c248c91e11b8c4d7090c00be465f9aa9a19b2.
+
+TL a9a79b15 approves validated colored false-miss recovery and persisted evidence; TL3aacb9e7 additionally approves exact exit1 signature only while target socket is present, under unchanged3-attempt/deadline bounds. Full plan records both signatures and counter-run acceptance. No product fix or counter-run pass is claimed yet.
 
 ## Revisions
 
