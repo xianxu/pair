@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 )
 
@@ -178,5 +180,61 @@ func TestLiveTerminalOwnerInspectionCount(t *testing.T) {
 				t.Fatalf("mismatch duplicate scan: ids=%v err=%v command=%d identity=%d logs=%d", ids, err, w.commands, w.identities, logs)
 			}
 		})
+	}
+}
+
+func TestTerminalOwnerUnavailableDiagnostic(t *testing.T) {
+	for _, blocked := range []bool{false, true} {
+		t.Run(fmt.Sprint(blocked), func(t *testing.T) {
+			reg := TerminalPaneRegistry{DataDir: t.TempDir(), Tag: "owned"}
+			if err := reg.Register("4", 42); err != nil {
+				t.Fatal(err)
+			}
+			paths, err := artifactpath.ResolveScoped(reg.DataDir, reg.Tag)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if blocked {
+				if err := os.MkdirAll(paths.AdaptLog(), 0700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			world := &terminalProcessWorld{processes: map[int]*terminalProcess{42: {identity: "birth", commandErr: errors.New("PRIVATE ARGV ERROR")}}}
+			ids, err := reg.LiveOwnerIDs(func(int) bool { return true }, procutil.NewSource(world))
+			if err != nil || !reflect.DeepEqual(ids, []string{"4"}) {
+				t.Fatalf("diagnostic availability changed admission: %v %v", ids, err)
+			}
+			if blocked {
+				return
+			}
+			data, err := os.ReadFile(paths.AdaptLog())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Count(string(data), "inspection-unavailable") != 1 || !strings.Contains(string(data), "argv-unavailable=1") || strings.Contains(string(data), "PRIVATE") {
+				t.Fatalf("expected one bounded reason: %s", data)
+			}
+		})
+	}
+}
+
+func TestTerminalOwnerDeadAndInvalidPIDsSkipInspection(t *testing.T) {
+	reg := TerminalPaneRegistry{DataDir: t.TempDir(), Tag: "dead"}
+	for _, pid := range []int{-1, 0, 42} {
+		if err := reg.Register(fmt.Sprint(pid), pid); err != nil {
+			t.Fatal(err)
+		}
+	}
+	world := &terminalProcessWorld{}
+	aliveCalls := 0
+	ids, err := reg.LiveOwnerIDs(func(pid int) bool {
+		aliveCalls++
+		if pid != 42 {
+			t.Fatalf("invalid PID reached liveness: %d", pid)
+		}
+		return false
+	}, procutil.NewSource(world))
+	if err != nil || len(ids) != 0 || aliveCalls != 1 || world.commands != 0 || world.identities != 0 {
+		t.Fatalf("dead/invalid owners inspected: %v %v %+v", ids, err, world)
 	}
 }

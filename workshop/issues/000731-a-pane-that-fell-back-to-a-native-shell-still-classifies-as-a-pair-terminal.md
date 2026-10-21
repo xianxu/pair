@@ -47,7 +47,7 @@ Measure the native metadata across a wrapper-to-shell exec in a disposable sessi
 
 ## Plan
 
-- [x] Confirm the measured owner/role design with the hub; durable plan: [terminal-owner-role-plan](../plans/000731-a-pane-that-fell-back-to-a-native-shell-still-classifies-as-a-pair-terminal-plan.md).
+- [x] Confirm the measured owner/role design with the hub; durable plan: [terminal-owner-role-plan](../plans/000731-terminal-owner-role-plan.md).
 - [ ] Implement and qualify the shared owner observation and role projection under the approved plan, then close and land through SDLC.
 
 ## Log
@@ -73,3 +73,10 @@ The original native owner proposal denied unavailable inspection. The hub's appr
 - Owner and role regression tests failed before implementation, then passed. Stateful N/2N tests count one argv and two identity reads per unique live PID, including duplicates and rejected shells; no process-table enumeration. Added the pair#731 local lint rule after its four forbidden-reader cases failed; its regression now passes. Corrected an artifact manifest duplicate by reusing the existing scoped-adapt binding.
 - Disposable installed-Zellij regression passed with two registered helper panes: wrapper-to-shell exec preserves PID/birth and metadata, but loses admitted ownership while the control remains registered; shell input still works and unknown registry bytes survive. Exact owned session/helpers were collected. This remains a controlled native ownership test, not a production recovery fault injection.
 - Updated healthy terminal fixtures to register ownership explicitly; added stale unregistered terminal refusals across admission paths. Focused Couch tests passed. Term/layout agents report package passes; independent combined verification, diagnostic failure coverage, reader preflight, documentation and normal close/landing remain pending. No suite or merge runner is active at this checkpoint.
+
+### 2026-10-20 — qualification and source-reader audit
+
+- Combined uncached tests passed for workbenchshortcut, termcmd, layoutcmd, clipcmd, couchcmd, artifactpath and repolint (Couch53.542s). Focused owner/focus tests also passed with -race. Diagnostic adapter tests retain ownership when its scoped log path is blocked, and otherwise emit one reason without raw native errors; dead/invalid PIDs never reach native inspection.
+- Final controlled native conformance passed0.459s: PID67096 kept birth1792555508.235884 while argv changed pair term to sh -i; startup command/title remained unchanged, admitted IDs changed from [2 1] to [2], and registry bytes were unchanged. Session to-aab633161e5d and both helper generations were collected. A first root command used an incorrect test regex and ran no tests; it is excluded from evidence.
+- Audited changed reader files: clip/layout/Couch fixtures still read only private or literal inputs; term admission/fullscreen retain their non-Go full-fallback ownership; term run and shortcut tests retain their source scanners, with the new role test added to the fixed preflight. New owner fixtures consume private registries and the owned executable, not repository source. Refreshed hashes through the inventory's supported record command. Fast inventory check passes. The seeded detached-checkout inventory test still sees the last committed inventory until this checkpoint is committed; rerun it afterwards before publishing.
+- Updated architecture and local lint documentation. The previous recovery screen is unavailable; workflow state, approved plan, current branch and implementation checkpoint are recovered from SDLC/Git and this Log. No stale screen instruction was used as new authorization.
