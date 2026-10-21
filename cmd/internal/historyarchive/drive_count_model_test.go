@@ -94,7 +94,7 @@ func TestDriveInventoryObservationLinesAndThreshold(t *testing.T) {
 				t.Fatalf("threshold files=%d limit=%d warning=%q", files, limit, warning)
 			}
 			if warning != "" {
-				for _, part := range []string{strconv.Itoa(files), strconv.Itoa(limit), o.Destination, "Ask the hub to arrange year subfolders on Drive."} {
+				for _, part := range []string{strconv.Itoa(files), strconv.Itoa(limit), o.Destination, "Ask the hub to inspect this folder and its archive layout policy."} {
 					if strings.Count(warning, part) < 1 {
 						t.Fatalf("warning %q missing %q", warning, part)
 					}
@@ -116,7 +116,7 @@ func TestDriveInventoryObservationTextIsBoundedAndSafe(t *testing.T) {
 			}
 		}
 	}
-	if strings.Count(o.Warning(20000), "Ask the hub to arrange year subfolders on Drive.") != 1 {
+	if strings.Count(o.Warning(20000), "Ask the hub to inspect this folder and its archive layout policy.") != 1 {
 		t.Fatal("missing single recovery action")
 	}
 }
@@ -195,4 +195,34 @@ func FuzzDriveInventoryWarningSafety(f *testing.F) {
 			}
 		}
 	})
+}
+
+func TestLatestDriveInventories(t *testing.T) {
+	root := DriveInventoryObservation{Destination: "remote:root", FolderID: "root-id", Phase: "before", Files: 2}
+	after := root
+	after.Phase = "after"
+	after.Files = 4
+	leaf := DriveInventoryObservation{Destination: "remote:root/2026/10", FolderID: "month-id", Phase: "before", Files: 0}
+	for name, tc := range map[string]struct {
+		report *DriveReport
+		want   []DriveInventoryObservation
+	}{
+		"nil": {nil, nil}, "unknown": {&DriveReport{}, nil},
+		"legacy":              {&DriveReport{Inventory: &root}, []DriveInventoryObservation{root}},
+		"legacy and additive": {&DriveReport{Inventory: &after, Inventories: []DriveInventoryObservation{root, leaf, after, leaf}}, []DriveInventoryObservation{after, leaf}},
+		"after before":        {&DriveReport{Inventories: []DriveInventoryObservation{after, root, leaf}}, []DriveInventoryObservation{after, leaf}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := LatestDriveInventories(tc.report)
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("got=%+v want=%+v", got, tc.want)
+			}
+			if len(got) > 0 {
+				got[0].Files = -1
+				if reflect.DeepEqual(LatestDriveInventories(tc.report), got) {
+					t.Fatal("projection mutated report")
+				}
+			}
+		})
+	}
 }

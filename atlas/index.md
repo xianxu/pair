@@ -184,7 +184,7 @@
 
 - [Storage retention](storage-retention.md) — Pair/Couch clocks, protected users, collection, migration and bounded 24-hour resource-monitor snapshots.
 
-- [History backup](history-backup.md) — Explicit encrypted bundles, verified local publication, private sharded catalog, bounded live SQLite snapshots and per-database freshness, retry guarantees and operator key recovery.
+- [History backup](history-backup.md) — Explicit encrypted bundles, verified local publication, private sharded catalog, bounded live SQLite snapshots and per-database freshness, pinned Drive month uploads, atomic dual-layout index discovery and recorded-location restore, retry guarantees and operator key recovery.
 - [Managed retention I/O](storage-retention-io.md) — Checked entrypoints, protected artifacts, guard call chains, meaningful-use rules and behavioral evidence.
 
 - [Terminal ownership](terminal.md) — Shared endpoint, presenter, profile, transport and qualification boundaries.
