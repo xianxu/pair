@@ -148,6 +148,46 @@ and strokes) enter its queue as `recorder.Emit`, stamped on arrival and checked 
   out-of-process iframe, insertRule, a >10k `<style>`, a password, a click that navigates, pause and resume; the
   recording must validate, drop nothing, and hold each case.
 
+## Sketch recording model (#751)
+
+Persistent sketches extend version-1 recording events; the [format contract](webcast-format.md#persistent-sketches-751)
+lists all eight kinds, pressure triples, required labels and interruption rules. This slice provides persistence,
+replay state and geometry. #752 owns drawing UI, source preparation, privilege ingress and transport receipts;
+#753 owns historical image export.
+
+`recording/sketch.go` and `sketch_codec.go` own bounded wire records and preserving codecs. `sketch_state.go` owns
+indexed histories and operation receipts, integrated into `State.Apply` and control transitions. The browser port
+is `web/sketch-model.js`, loaded by `model.js`; shared prefix fixtures pin both accepted projections and refusals.
+Unknown wire members survive codec rewrites but stay outside authoritative core/snapshot state. Actual request
+semantics are reconciled beside the claimed digest, so a reused digest cannot disguise a changed command.
+`sketch/geometry.go` and browser `annotation-anchor.js` preserve pressure while projecting recorded anchors and points.
+
+`board.Writer` and `recorder/mirror.go` share `OrderedTime` and `SketchBudget`. Strict timestamp fences on both sides
+of `sketch-begin` freeze its preceding source prefix; clear also strictly follows earlier records, and overflow
+refuses admission. Exact retries are reconciled before timestamp/document checks and never append or charge twice.
+Historical labels use `Emit` with document zero, allowing valid interrupted work to be labeled without current DOM.
+The recorder shell admits all eight kinds through its existing ordered queue.
+
+The writer's 32 MiB cap includes exact encoded sketch bytes/newlines and outstanding terminal reservations.
+Each sketch initially reserves 16 KiB across label/end/interrupt components, verified against maximal `Encode`
+envelopes; reservations cannot be spent by new drawing. Completed labels, clear and recording end release unused
+capacity while historical bytes remain charged. Core `history_bytes` separately counts known-field encoding for its
+32 MiB bound; the producer budget additionally counts preserved unknown wire members. Admission inspects one entry;
+reopening uses the explicit one-pass `RebuildSketchBudget` helper.
+
+Sketch catch-up is derived state: `recording/sketch_snapshot.go` and browser snapshot restoration carry the current
+driving holder and bounded sketch histories in one ephemeral `sketch-snapshot` frame. `CatchUp`/browser `catchUp`
+reduce through the same model before compacting sketch/control history. Live bootstrap, Player rebuild and Replayer
+seek explicitly enable the frame; ordinary disk/source replay and ordered writers refuse it. Restore validates owned
+copies before installing state, and future control events retain strict validation. Disk history stays append-only;
+control chatter adds no retained history to the snapshot. Shared catch-up tests compare sketch projections separately
+from DOM hashes.
+
+Acceptance is not proof of persistence. `board.Writer` retains per-operation sink uncertainty and returns it on
+retries without reappending. The pure mirror accepts into its output queue; `Recorder.write` retains sink failure in
+`r.err`, and `Close` returns it. #752's receipt queries/acknowledgments must consult persistence outcome before reporting
+success. Both accept-then-error and reject-before-write sinks are covered by producer tests.
+
 ## The fidelity check (#478)
 
 Project Principle 6: fidelity is measured, not assumed. Each recording's frames (the real tab) are compared with
@@ -460,13 +500,14 @@ instead of the event stream.
   `connect`. Both return the surface `{model, renderer, onRecord}`, so layout, scaling, the pointer and
   `window.couchViewer` are unchanged.
 - **Seek rule:** the state at t is the catch-up of the records up to t, reduced. `catchUp` is a port of
-  `recording.CatchUp`, which keeps only the latest `hover` and `ptr` of the latest segment.
+  `recording.CatchUp`, which keeps only the latest `hover` and `ptr` of the latest segment. Sketch-bearing prefixes
+  additionally derive the current control and sketch history as one validated ephemeral snapshot (see Sketch recording model).
   - **Shared corpus:** `tests/webcast/catchup_corpus.json` reaches every branch of the rule and holds Go's answer at
     every cut. `TestCatchUpCorpus` keeps the answers true to Go and requires every special-cased kind; regenerate them
     with `-update-catchup`. The node test holds the port to the same answers, so a change to Go's rule fails at once
     until the port follows.
   - **Invariant:** node tests also check the format's catch-up invariant at every boundary cut of every fixture: the
-    same DOM, assets, `DocSeg` and current-document notes as the whole prefix.
+    same DOM, assets, `DocSeg`, notes and sketch projection as the whole prefix.
   - **Live:** the live check compares the port with Go's, record for record, on the fixtures. A forward seek within a stretch applies the records in
   between. A seek backward or across a `seg` rebuilds from the catch-up, so it replays at most one segment.
 - **Player:** `Player` is the replay's state (`t`, playing, speed 0.5–4×, an error state for a refused record). It has

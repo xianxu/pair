@@ -2,6 +2,7 @@ package recording
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -56,6 +57,17 @@ func TestSketchSnapshotRejectsMalformedAtomically(t *testing.T) {
 	applySketch(t, s, &SketchPoints{SketchOperation: sketchOp(2), Sketch: "sk", ID: "a", Pts: []SketchPoint{{1, 2, 1}}})
 	mutations := []func(*SketchSnapshot){
 		func(f *SketchSnapshot) { f.Sketches.Active = "missing" },
+		func(f *SketchSnapshot) {
+			view := &f.Sketches.Sketches[0]
+			event := &SketchUndo{SketchOperation: sketchOp(view.NextSequence), Sketch: "sk", ID: "missing"}
+			semantic, _ := SketchSemantic(event)
+			view.Receipts = append(view.Receipts, SketchReceipt{Operation: event.Operation, Sequence: event.Sequence, Digest: event.Digest, Semantic: semantic})
+			view.NextSequence++
+			f.Sketches.HistoryBytes += len(semantic) + 100
+		},
+		func(f *SketchSnapshot) { f.Control.Driver = &Author{ID: "different-driver"} },
+		func(f *SketchSnapshot) { f.Sketches.Sketches[0].Begin.Digest = strings.Repeat("b", 64) },
+		func(f *SketchSnapshot) { f.Sketches.Sketches[0].Strokes[0].Begin.Digest = strings.Repeat("b", 64) },
 		func(f *SketchSnapshot) { f.Sketches.Sketches[0].Strokes[0].Pts[0][0] = 9 },
 		func(f *SketchSnapshot) { f.Sketches.HistoryBytes = SketchHistoryLimit + 1 },
 		func(f *SketchSnapshot) { f.Sketches.Sketches[0].NextSequence++ },

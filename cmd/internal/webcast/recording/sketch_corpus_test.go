@@ -78,7 +78,13 @@ func makeSketchCorpus(t *testing.T) sketchCorpus {
 	if err != nil {
 		t.Fatal(err)
 	}
+	drivenBegin := sketchBegin()
+	drivenBegin.Author = who
+	drivenBegin.Owner = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 	c := sketchCorpus{Cases: []sketchCorpusCase{
+		corpusCase(t, "driver-reset", &Ctl{Op: CtlRequest, Who: who, Control: Control{Pending: []Author{who}}}, &Ctl{Op: CtlGrant, Who: who, Control: Control{Driver: &who}}, drivenBegin, sketchStroke(1, "a"), p(2, "a", 0, SketchPoint{1, 2, .4}), &Ctl{Op: CtlReset, Who: Author{ID: OperatorID}}, &SketchLabel{SketchOperation: sketchOp(3), Sketch: "sk", Label: "Reset"}),
+		corpusCase(t, "navigate-open", sketchBegin(), sketchStroke(1, "a"), p(2, "a", 0, SketchPoint{1, 2, .4}), &Seg{Seg: 2, Why: SegNavigate, Tab: Tab{ID: "tab2", URL: "http://x/2"}, VP: Viewport{W: 100, H: 100, DPR: 1}}, &SketchLabel{SketchOperation: sketchOp(3), Sketch: "sk", Label: "Navigated"}),
+		corpusCase(t, "cast-end-open", sketchBegin(), sketchStroke(1, "a"), p(2, "a", 0, SketchPoint{1, 2, .4}), &Stop{Why: StopEnd}, &SketchLabel{SketchOperation: sketchOp(3), Sketch: "sk", Label: "too late"}),
 		corpusCase(t, "clear-open", sketchBegin(), sketchStroke(1, "a"), p(2, "a", 0, SketchPoint{1, 2, .5}), &AnnotationClear{Who: Author{ID: OperatorID}}),
 		corpusCase(t, "nested-unknown", future, sketchStroke(1, "a"), p(2, "a", 0, SketchPoint{1, 2, .5})),
 		corpusCase(t, "history", sketchBegin(), sketchStroke(1, "a"), p(2, "a", 0, SketchPoint{1, 2, 0}, SketchPoint{3, 4, .5}), p(2, "a", 0, SketchPoint{1, 2, 0}, SketchPoint{3, 4, .5}), p(2, "a", 0, SketchPoint{99, 2, 0}), p(3, "a", 8, SketchPoint{5, 6, 1}), p(3, "a", 1, SketchPoint{5, 6, 1}), end(4, "a"), &SketchUndo{SketchOperation: sketchOp(5), Sketch: "sk", ID: "a"}, &SketchRedo{SketchOperation: sketchOp(6), Sketch: "sk", ID: "a"}, &SketchUndo{SketchOperation: sketchOp(7), Sketch: "sk", ID: "a"}, sketchStroke(8, "b"), end(9, "b"), &SketchRedo{SketchOperation: sketchOp(10), Sketch: "sk", ID: "a"}, &SketchLabel{SketchOperation: sketchOp(10), Sketch: "sk", Label: "Saved <design>"}, sketchStroke(11, "c")),

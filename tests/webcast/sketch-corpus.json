@@ -1,6 +1,1837 @@
 {
  "cases": [
   {
+   "name": "driver-reset",
+   "records": [
+    {
+     "t": 0,
+     "k": "head",
+     "format": "couch-webcast",
+     "v": 1,
+     "id": "driver-reset",
+     "started": "2026-10-11T00:00:00Z"
+    },
+    {
+     "t": 1,
+     "k": "seg",
+     "seg": 1,
+     "why": "live",
+     "tab": {
+      "id": "tab1",
+      "url": "http://x/"
+     },
+     "vp": {
+      "w": 1280,
+      "h": 800,
+      "dpr": 1
+     }
+    },
+    {
+     "t": 2,
+     "k": "doc",
+     "doc": 4,
+     "url": "http://x/",
+     "tree": {
+      "id": 4,
+      "y": "doc",
+      "c": [
+       {
+        "id": 5,
+        "y": "doctype",
+        "n": "html"
+       },
+       {
+        "id": 3,
+        "y": "el",
+        "n": "html",
+        "c": [
+         {
+          "id": 1,
+          "y": "el",
+          "n": "head"
+         },
+         {
+          "id": 2,
+          "y": "el",
+          "n": "body"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "t": 3,
+     "k": "ctl",
+     "op": "request",
+     "who": {
+      "id": "driver",
+      "name": "Ana",
+      "color": "#00ff00"
+     },
+     "pending": [
+      {
+       "id": "driver",
+       "name": "Ana",
+       "color": "#00ff00"
+      }
+     ]
+    },
+    {
+     "t": 4,
+     "k": "ctl",
+     "op": "grant",
+     "who": {
+      "id": "driver",
+      "name": "Ana",
+      "color": "#00ff00"
+     },
+     "driver": {
+      "id": "driver",
+      "name": "Ana",
+      "color": "#00ff00"
+     }
+    },
+    {
+     "t": 5,
+     "k": "sketch-begin",
+     "operation": "op-0",
+     "sequence": 0,
+     "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "id": "sk",
+     "author": {
+      "id": "driver",
+      "name": "Ana",
+      "color": "#00ff00"
+     },
+     "owner": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "doc": 1,
+     "tab": "tab1",
+     "vp": {
+      "w": 100,
+      "h": 100,
+      "dpr": 1
+     }
+    },
+    {
+     "t": 6,
+     "k": "sketch-stroke-begin",
+     "operation": "op-1",
+     "sequence": 1,
+     "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "sketch": "sk",
+     "id": "a",
+     "at": {
+      "node": 99,
+      "box": [
+       0,
+       0,
+       100,
+       100
+      ]
+     },
+     "width": 4
+    },
+    {
+     "t": 7,
+     "k": "sketch-points",
+     "operation": "op-2",
+     "sequence": 2,
+     "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "sketch": "sk",
+     "id": "a",
+     "chunk": 0,
+     "pts": [
+      [
+       1,
+       2,
+       0.4
+      ]
+     ]
+    },
+    {
+     "t": 8,
+     "k": "ctl",
+     "op": "reset",
+     "who": {
+      "id": "operator"
+     }
+    },
+    {
+     "t": 9,
+     "k": "sketch-label",
+     "operation": "op-3",
+     "sequence": 3,
+     "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "sketch": "sk",
+     "label": "Reset"
+    }
+   ],
+   "prefixes": [
+    {
+     "error": false,
+     "t": 0,
+     "control": {},
+     "projection": {
+      "active": "",
+      "history_bytes": 0,
+      "sketches": []
+     }
+    },
+    {
+     "error": false,
+     "t": 1,
+     "control": {},
+     "projection": {
+      "active": "",
+      "history_bytes": 0,
+      "sketches": []
+     }
+    },
+    {
+     "error": false,
+     "t": 2,
+     "control": {},
+     "projection": {
+      "active": "",
+      "history_bytes": 0,
+      "sketches": []
+     }
+    },
+    {
+     "error": false,
+     "t": 3,
+     "control": {
+      "pending": [
+       {
+        "id": "driver",
+        "name": "Ana",
+        "color": "#00ff00"
+       }
+      ]
+     },
+     "projection": {
+      "active": "",
+      "history_bytes": 0,
+      "sketches": []
+     }
+    },
+    {
+     "error": false,
+     "t": 4,
+     "control": {
+      "driver": {
+       "id": "driver",
+       "name": "Ana",
+       "color": "#00ff00"
+      }
+     },
+     "projection": {
+      "active": "",
+      "history_bytes": 0,
+      "sketches": []
+     }
+    },
+    {
+     "error": false,
+     "t": 5,
+     "control": {
+      "driver": {
+       "id": "driver",
+       "name": "Ana",
+       "color": "#00ff00"
+      }
+     },
+     "projection": {
+      "active": "sk",
+      "history_bytes": 328,
+      "sketches": [
+       {
+        "begin": {
+         "t": 5,
+         "k": "sketch-begin",
+         "operation": "op-0",
+         "sequence": 0,
+         "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "id": "sk",
+         "author": {
+          "id": "driver",
+          "name": "Ana",
+          "color": "#00ff00"
+         },
+         "owner": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+         "doc": 1,
+         "tab": "tab1",
+         "vp": {
+          "w": 100,
+          "h": 100,
+          "dpr": 1
+         }
+        },
+        "phase": "drawing",
+        "reason": "",
+        "label": "",
+        "strokes": [],
+        "visible": [],
+        "redo": [],
+        "next_sequence": 1,
+        "receipts": [
+         {
+          "operation": "op-0",
+          "sequence": 0,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-begin:{\"author\":{\"color\":\"#00ff00\",\"id\":\"driver\",\"name\":\"Ana\"},\"doc\":1,\"id\":\"sk\",\"operation\":\"op-0\",\"owner\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"sequence\":0,\"tab\":\"tab1\",\"vp\":{\"dpr\":1,\"h\":100,\"w\":100}}"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "error": false,
+     "t": 6,
+     "control": {
+      "driver": {
+       "id": "driver",
+       "name": "Ana",
+       "color": "#00ff00"
+      }
+     },
+     "projection": {
+      "active": "sk",
+      "history_bytes": 540,
+      "sketches": [
+       {
+        "begin": {
+         "t": 5,
+         "k": "sketch-begin",
+         "operation": "op-0",
+         "sequence": 0,
+         "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "id": "sk",
+         "author": {
+          "id": "driver",
+          "name": "Ana",
+          "color": "#00ff00"
+         },
+         "owner": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+         "doc": 1,
+         "tab": "tab1",
+         "vp": {
+          "w": 100,
+          "h": 100,
+          "dpr": 1
+         }
+        },
+        "phase": "drawing",
+        "reason": "",
+        "label": "",
+        "strokes": [
+         {
+          "begin": {
+           "t": 6,
+           "k": "sketch-stroke-begin",
+           "operation": "op-1",
+           "sequence": 1,
+           "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+           "sketch": "sk",
+           "id": "a",
+           "at": {
+            "node": 99,
+            "box": [
+             0,
+             0,
+             100,
+             100
+            ]
+           },
+           "width": 4
+          },
+          "pts": [],
+          "next_chunk": 0,
+          "sealed": false,
+          "truncated": false
+         }
+        ],
+        "visible": [],
+        "redo": [],
+        "next_sequence": 2,
+        "receipts": [
+         {
+          "operation": "op-0",
+          "sequence": 0,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-begin:{\"author\":{\"color\":\"#00ff00\",\"id\":\"driver\",\"name\":\"Ana\"},\"doc\":1,\"id\":\"sk\",\"operation\":\"op-0\",\"owner\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"sequence\":0,\"tab\":\"tab1\",\"vp\":{\"dpr\":1,\"h\":100,\"w\":100}}"
+         },
+         {
+          "operation": "op-1",
+          "sequence": 1,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-stroke-begin:{\"at\":{\"box\":[0,0,100,100],\"node\":99},\"id\":\"a\",\"operation\":\"op-1\",\"sequence\":1,\"sketch\":\"sk\",\"width\":4}"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "error": false,
+     "t": 7,
+     "control": {
+      "driver": {
+       "id": "driver",
+       "name": "Ana",
+       "color": "#00ff00"
+      }
+     },
+     "projection": {
+      "active": "sk",
+      "history_bytes": 727,
+      "sketches": [
+       {
+        "begin": {
+         "t": 5,
+         "k": "sketch-begin",
+         "operation": "op-0",
+         "sequence": 0,
+         "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "id": "sk",
+         "author": {
+          "id": "driver",
+          "name": "Ana",
+          "color": "#00ff00"
+         },
+         "owner": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+         "doc": 1,
+         "tab": "tab1",
+         "vp": {
+          "w": 100,
+          "h": 100,
+          "dpr": 1
+         }
+        },
+        "phase": "drawing",
+        "reason": "",
+        "label": "",
+        "strokes": [
+         {
+          "begin": {
+           "t": 6,
+           "k": "sketch-stroke-begin",
+           "operation": "op-1",
+           "sequence": 1,
+           "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+           "sketch": "sk",
+           "id": "a",
+           "at": {
+            "node": 99,
+            "box": [
+             0,
+             0,
+             100,
+             100
+            ]
+           },
+           "width": 4
+          },
+          "pts": [
+           [
+            1,
+            2,
+            0.4
+           ]
+          ],
+          "next_chunk": 1,
+          "sealed": false,
+          "truncated": false
+         }
+        ],
+        "visible": [],
+        "redo": [],
+        "next_sequence": 3,
+        "receipts": [
+         {
+          "operation": "op-0",
+          "sequence": 0,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-begin:{\"author\":{\"color\":\"#00ff00\",\"id\":\"driver\",\"name\":\"Ana\"},\"doc\":1,\"id\":\"sk\",\"operation\":\"op-0\",\"owner\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"sequence\":0,\"tab\":\"tab1\",\"vp\":{\"dpr\":1,\"h\":100,\"w\":100}}"
+         },
+         {
+          "operation": "op-1",
+          "sequence": 1,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-stroke-begin:{\"at\":{\"box\":[0,0,100,100],\"node\":99},\"id\":\"a\",\"operation\":\"op-1\",\"sequence\":1,\"sketch\":\"sk\",\"width\":4}"
+         },
+         {
+          "operation": "op-2",
+          "sequence": 2,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-points:{\"chunk\":0,\"id\":\"a\",\"operation\":\"op-2\",\"pts\":[[1,2,0.4]],\"sequence\":2,\"sketch\":\"sk\"}"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "error": false,
+     "t": 8,
+     "control": {},
+     "projection": {
+      "active": "",
+      "history_bytes": 727,
+      "sketches": [
+       {
+        "begin": {
+         "t": 5,
+         "k": "sketch-begin",
+         "operation": "op-0",
+         "sequence": 0,
+         "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "id": "sk",
+         "author": {
+          "id": "driver",
+          "name": "Ana",
+          "color": "#00ff00"
+         },
+         "owner": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+         "doc": 1,
+         "tab": "tab1",
+         "vp": {
+          "w": 100,
+          "h": 100,
+          "dpr": 1
+         }
+        },
+        "phase": "interrupted",
+        "reason": "reset",
+        "label": "",
+        "strokes": [
+         {
+          "begin": {
+           "t": 6,
+           "k": "sketch-stroke-begin",
+           "operation": "op-1",
+           "sequence": 1,
+           "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+           "sketch": "sk",
+           "id": "a",
+           "at": {
+            "node": 99,
+            "box": [
+             0,
+             0,
+             100,
+             100
+            ]
+           },
+           "width": 4
+          },
+          "pts": [
+           [
+            1,
+            2,
+            0.4
+           ]
+          ],
+          "next_chunk": 1,
+          "sealed": true,
+          "truncated": true
+         }
+        ],
+        "visible": [
+         "a"
+        ],
+        "redo": [],
+        "next_sequence": 3,
+        "receipts": [
+         {
+          "operation": "op-0",
+          "sequence": 0,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-begin:{\"author\":{\"color\":\"#00ff00\",\"id\":\"driver\",\"name\":\"Ana\"},\"doc\":1,\"id\":\"sk\",\"operation\":\"op-0\",\"owner\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"sequence\":0,\"tab\":\"tab1\",\"vp\":{\"dpr\":1,\"h\":100,\"w\":100}}"
+         },
+         {
+          "operation": "op-1",
+          "sequence": 1,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-stroke-begin:{\"at\":{\"box\":[0,0,100,100],\"node\":99},\"id\":\"a\",\"operation\":\"op-1\",\"sequence\":1,\"sketch\":\"sk\",\"width\":4}"
+         },
+         {
+          "operation": "op-2",
+          "sequence": 2,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-points:{\"chunk\":0,\"id\":\"a\",\"operation\":\"op-2\",\"pts\":[[1,2,0.4]],\"sequence\":2,\"sketch\":\"sk\"}"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "error": false,
+     "t": 9,
+     "control": {},
+     "projection": {
+      "active": "",
+      "history_bytes": 892,
+      "sketches": [
+       {
+        "begin": {
+         "t": 5,
+         "k": "sketch-begin",
+         "operation": "op-0",
+         "sequence": 0,
+         "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "id": "sk",
+         "author": {
+          "id": "driver",
+          "name": "Ana",
+          "color": "#00ff00"
+         },
+         "owner": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+         "doc": 1,
+         "tab": "tab1",
+         "vp": {
+          "w": 100,
+          "h": 100,
+          "dpr": 1
+         }
+        },
+        "phase": "interrupted",
+        "reason": "reset",
+        "label": "Reset",
+        "strokes": [
+         {
+          "begin": {
+           "t": 6,
+           "k": "sketch-stroke-begin",
+           "operation": "op-1",
+           "sequence": 1,
+           "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+           "sketch": "sk",
+           "id": "a",
+           "at": {
+            "node": 99,
+            "box": [
+             0,
+             0,
+             100,
+             100
+            ]
+           },
+           "width": 4
+          },
+          "pts": [
+           [
+            1,
+            2,
+            0.4
+           ]
+          ],
+          "next_chunk": 1,
+          "sealed": true,
+          "truncated": true
+         }
+        ],
+        "visible": [
+         "a"
+        ],
+        "redo": [],
+        "next_sequence": 4,
+        "receipts": [
+         {
+          "operation": "op-0",
+          "sequence": 0,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-begin:{\"author\":{\"color\":\"#00ff00\",\"id\":\"driver\",\"name\":\"Ana\"},\"doc\":1,\"id\":\"sk\",\"operation\":\"op-0\",\"owner\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"sequence\":0,\"tab\":\"tab1\",\"vp\":{\"dpr\":1,\"h\":100,\"w\":100}}"
+         },
+         {
+          "operation": "op-1",
+          "sequence": 1,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-stroke-begin:{\"at\":{\"box\":[0,0,100,100],\"node\":99},\"id\":\"a\",\"operation\":\"op-1\",\"sequence\":1,\"sketch\":\"sk\",\"width\":4}"
+         },
+         {
+          "operation": "op-2",
+          "sequence": 2,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-points:{\"chunk\":0,\"id\":\"a\",\"operation\":\"op-2\",\"pts\":[[1,2,0.4]],\"sequence\":2,\"sketch\":\"sk\"}"
+         },
+         {
+          "operation": "op-3",
+          "sequence": 3,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-label:{\"label\":\"Reset\",\"operation\":\"op-3\",\"sequence\":3,\"sketch\":\"sk\"}"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "navigate-open",
+   "records": [
+    {
+     "t": 0,
+     "k": "head",
+     "format": "couch-webcast",
+     "v": 1,
+     "id": "navigate-open",
+     "started": "2026-10-11T00:00:00Z"
+    },
+    {
+     "t": 1,
+     "k": "seg",
+     "seg": 1,
+     "why": "live",
+     "tab": {
+      "id": "tab1",
+      "url": "http://x/"
+     },
+     "vp": {
+      "w": 1280,
+      "h": 800,
+      "dpr": 1
+     }
+    },
+    {
+     "t": 2,
+     "k": "doc",
+     "doc": 4,
+     "url": "http://x/",
+     "tree": {
+      "id": 4,
+      "y": "doc",
+      "c": [
+       {
+        "id": 5,
+        "y": "doctype",
+        "n": "html"
+       },
+       {
+        "id": 3,
+        "y": "el",
+        "n": "html",
+        "c": [
+         {
+          "id": 1,
+          "y": "el",
+          "n": "head"
+         },
+         {
+          "id": 2,
+          "y": "el",
+          "n": "body"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "t": 3,
+     "k": "sketch-begin",
+     "operation": "op-0",
+     "sequence": 0,
+     "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "id": "sk",
+     "author": {
+      "id": "operator",
+      "color": "#ff0000"
+     },
+     "owner": "operator",
+     "doc": 1,
+     "tab": "tab1",
+     "vp": {
+      "w": 100,
+      "h": 100,
+      "dpr": 1
+     }
+    },
+    {
+     "t": 4,
+     "k": "sketch-stroke-begin",
+     "operation": "op-1",
+     "sequence": 1,
+     "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "sketch": "sk",
+     "id": "a",
+     "at": {
+      "node": 99,
+      "box": [
+       0,
+       0,
+       100,
+       100
+      ]
+     },
+     "width": 4
+    },
+    {
+     "t": 5,
+     "k": "sketch-points",
+     "operation": "op-2",
+     "sequence": 2,
+     "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "sketch": "sk",
+     "id": "a",
+     "chunk": 0,
+     "pts": [
+      [
+       1,
+       2,
+       0.4
+      ]
+     ]
+    },
+    {
+     "t": 6,
+     "k": "seg",
+     "seg": 2,
+     "why": "navigate",
+     "tab": {
+      "id": "tab2",
+      "url": "http://x/2"
+     },
+     "vp": {
+      "w": 100,
+      "h": 100,
+      "dpr": 1
+     }
+    },
+    {
+     "t": 7,
+     "k": "sketch-label",
+     "operation": "op-3",
+     "sequence": 3,
+     "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "sketch": "sk",
+     "label": "Navigated"
+    }
+   ],
+   "prefixes": [
+    {
+     "error": false,
+     "t": 0,
+     "control": {},
+     "projection": {
+      "active": "",
+      "history_bytes": 0,
+      "sketches": []
+     }
+    },
+    {
+     "error": false,
+     "t": 1,
+     "control": {},
+     "projection": {
+      "active": "",
+      "history_bytes": 0,
+      "sketches": []
+     }
+    },
+    {
+     "error": false,
+     "t": 2,
+     "control": {},
+     "projection": {
+      "active": "",
+      "history_bytes": 0,
+      "sketches": []
+     }
+    },
+    {
+     "error": false,
+     "t": 3,
+     "control": {},
+     "projection": {
+      "active": "sk",
+      "history_bytes": 261,
+      "sketches": [
+       {
+        "begin": {
+         "t": 3,
+         "k": "sketch-begin",
+         "operation": "op-0",
+         "sequence": 0,
+         "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "id": "sk",
+         "author": {
+          "id": "operator",
+          "color": "#ff0000"
+         },
+         "owner": "operator",
+         "doc": 1,
+         "tab": "tab1",
+         "vp": {
+          "w": 100,
+          "h": 100,
+          "dpr": 1
+         }
+        },
+        "phase": "drawing",
+        "reason": "",
+        "label": "",
+        "strokes": [],
+        "visible": [],
+        "redo": [],
+        "next_sequence": 1,
+        "receipts": [
+         {
+          "operation": "op-0",
+          "sequence": 0,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-begin:{\"author\":{\"color\":\"#ff0000\",\"id\":\"operator\"},\"doc\":1,\"id\":\"sk\",\"operation\":\"op-0\",\"owner\":\"operator\",\"sequence\":0,\"tab\":\"tab1\",\"vp\":{\"dpr\":1,\"h\":100,\"w\":100}}"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "error": false,
+     "t": 4,
+     "control": {},
+     "projection": {
+      "active": "sk",
+      "history_bytes": 473,
+      "sketches": [
+       {
+        "begin": {
+         "t": 3,
+         "k": "sketch-begin",
+         "operation": "op-0",
+         "sequence": 0,
+         "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "id": "sk",
+         "author": {
+          "id": "operator",
+          "color": "#ff0000"
+         },
+         "owner": "operator",
+         "doc": 1,
+         "tab": "tab1",
+         "vp": {
+          "w": 100,
+          "h": 100,
+          "dpr": 1
+         }
+        },
+        "phase": "drawing",
+        "reason": "",
+        "label": "",
+        "strokes": [
+         {
+          "begin": {
+           "t": 4,
+           "k": "sketch-stroke-begin",
+           "operation": "op-1",
+           "sequence": 1,
+           "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+           "sketch": "sk",
+           "id": "a",
+           "at": {
+            "node": 99,
+            "box": [
+             0,
+             0,
+             100,
+             100
+            ]
+           },
+           "width": 4
+          },
+          "pts": [],
+          "next_chunk": 0,
+          "sealed": false,
+          "truncated": false
+         }
+        ],
+        "visible": [],
+        "redo": [],
+        "next_sequence": 2,
+        "receipts": [
+         {
+          "operation": "op-0",
+          "sequence": 0,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-begin:{\"author\":{\"color\":\"#ff0000\",\"id\":\"operator\"},\"doc\":1,\"id\":\"sk\",\"operation\":\"op-0\",\"owner\":\"operator\",\"sequence\":0,\"tab\":\"tab1\",\"vp\":{\"dpr\":1,\"h\":100,\"w\":100}}"
+         },
+         {
+          "operation": "op-1",
+          "sequence": 1,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-stroke-begin:{\"at\":{\"box\":[0,0,100,100],\"node\":99},\"id\":\"a\",\"operation\":\"op-1\",\"sequence\":1,\"sketch\":\"sk\",\"width\":4}"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "error": false,
+     "t": 5,
+     "control": {},
+     "projection": {
+      "active": "sk",
+      "history_bytes": 660,
+      "sketches": [
+       {
+        "begin": {
+         "t": 3,
+         "k": "sketch-begin",
+         "operation": "op-0",
+         "sequence": 0,
+         "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "id": "sk",
+         "author": {
+          "id": "operator",
+          "color": "#ff0000"
+         },
+         "owner": "operator",
+         "doc": 1,
+         "tab": "tab1",
+         "vp": {
+          "w": 100,
+          "h": 100,
+          "dpr": 1
+         }
+        },
+        "phase": "drawing",
+        "reason": "",
+        "label": "",
+        "strokes": [
+         {
+          "begin": {
+           "t": 4,
+           "k": "sketch-stroke-begin",
+           "operation": "op-1",
+           "sequence": 1,
+           "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+           "sketch": "sk",
+           "id": "a",
+           "at": {
+            "node": 99,
+            "box": [
+             0,
+             0,
+             100,
+             100
+            ]
+           },
+           "width": 4
+          },
+          "pts": [
+           [
+            1,
+            2,
+            0.4
+           ]
+          ],
+          "next_chunk": 1,
+          "sealed": false,
+          "truncated": false
+         }
+        ],
+        "visible": [],
+        "redo": [],
+        "next_sequence": 3,
+        "receipts": [
+         {
+          "operation": "op-0",
+          "sequence": 0,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-begin:{\"author\":{\"color\":\"#ff0000\",\"id\":\"operator\"},\"doc\":1,\"id\":\"sk\",\"operation\":\"op-0\",\"owner\":\"operator\",\"sequence\":0,\"tab\":\"tab1\",\"vp\":{\"dpr\":1,\"h\":100,\"w\":100}}"
+         },
+         {
+          "operation": "op-1",
+          "sequence": 1,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-stroke-begin:{\"at\":{\"box\":[0,0,100,100],\"node\":99},\"id\":\"a\",\"operation\":\"op-1\",\"sequence\":1,\"sketch\":\"sk\",\"width\":4}"
+         },
+         {
+          "operation": "op-2",
+          "sequence": 2,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-points:{\"chunk\":0,\"id\":\"a\",\"operation\":\"op-2\",\"pts\":[[1,2,0.4]],\"sequence\":2,\"sketch\":\"sk\"}"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "error": false,
+     "t": 6,
+     "control": {},
+     "projection": {
+      "active": "",
+      "history_bytes": 660,
+      "sketches": [
+       {
+        "begin": {
+         "t": 3,
+         "k": "sketch-begin",
+         "operation": "op-0",
+         "sequence": 0,
+         "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "id": "sk",
+         "author": {
+          "id": "operator",
+          "color": "#ff0000"
+         },
+         "owner": "operator",
+         "doc": 1,
+         "tab": "tab1",
+         "vp": {
+          "w": 100,
+          "h": 100,
+          "dpr": 1
+         }
+        },
+        "phase": "interrupted",
+        "reason": "navigation",
+        "label": "",
+        "strokes": [
+         {
+          "begin": {
+           "t": 4,
+           "k": "sketch-stroke-begin",
+           "operation": "op-1",
+           "sequence": 1,
+           "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+           "sketch": "sk",
+           "id": "a",
+           "at": {
+            "node": 99,
+            "box": [
+             0,
+             0,
+             100,
+             100
+            ]
+           },
+           "width": 4
+          },
+          "pts": [
+           [
+            1,
+            2,
+            0.4
+           ]
+          ],
+          "next_chunk": 1,
+          "sealed": true,
+          "truncated": true
+         }
+        ],
+        "visible": [
+         "a"
+        ],
+        "redo": [],
+        "next_sequence": 3,
+        "receipts": [
+         {
+          "operation": "op-0",
+          "sequence": 0,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-begin:{\"author\":{\"color\":\"#ff0000\",\"id\":\"operator\"},\"doc\":1,\"id\":\"sk\",\"operation\":\"op-0\",\"owner\":\"operator\",\"sequence\":0,\"tab\":\"tab1\",\"vp\":{\"dpr\":1,\"h\":100,\"w\":100}}"
+         },
+         {
+          "operation": "op-1",
+          "sequence": 1,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-stroke-begin:{\"at\":{\"box\":[0,0,100,100],\"node\":99},\"id\":\"a\",\"operation\":\"op-1\",\"sequence\":1,\"sketch\":\"sk\",\"width\":4}"
+         },
+         {
+          "operation": "op-2",
+          "sequence": 2,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-points:{\"chunk\":0,\"id\":\"a\",\"operation\":\"op-2\",\"pts\":[[1,2,0.4]],\"sequence\":2,\"sketch\":\"sk\"}"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "error": false,
+     "t": 7,
+     "control": {},
+     "projection": {
+      "active": "",
+      "history_bytes": 829,
+      "sketches": [
+       {
+        "begin": {
+         "t": 3,
+         "k": "sketch-begin",
+         "operation": "op-0",
+         "sequence": 0,
+         "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "id": "sk",
+         "author": {
+          "id": "operator",
+          "color": "#ff0000"
+         },
+         "owner": "operator",
+         "doc": 1,
+         "tab": "tab1",
+         "vp": {
+          "w": 100,
+          "h": 100,
+          "dpr": 1
+         }
+        },
+        "phase": "interrupted",
+        "reason": "navigation",
+        "label": "Navigated",
+        "strokes": [
+         {
+          "begin": {
+           "t": 4,
+           "k": "sketch-stroke-begin",
+           "operation": "op-1",
+           "sequence": 1,
+           "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+           "sketch": "sk",
+           "id": "a",
+           "at": {
+            "node": 99,
+            "box": [
+             0,
+             0,
+             100,
+             100
+            ]
+           },
+           "width": 4
+          },
+          "pts": [
+           [
+            1,
+            2,
+            0.4
+           ]
+          ],
+          "next_chunk": 1,
+          "sealed": true,
+          "truncated": true
+         }
+        ],
+        "visible": [
+         "a"
+        ],
+        "redo": [],
+        "next_sequence": 4,
+        "receipts": [
+         {
+          "operation": "op-0",
+          "sequence": 0,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-begin:{\"author\":{\"color\":\"#ff0000\",\"id\":\"operator\"},\"doc\":1,\"id\":\"sk\",\"operation\":\"op-0\",\"owner\":\"operator\",\"sequence\":0,\"tab\":\"tab1\",\"vp\":{\"dpr\":1,\"h\":100,\"w\":100}}"
+         },
+         {
+          "operation": "op-1",
+          "sequence": 1,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-stroke-begin:{\"at\":{\"box\":[0,0,100,100],\"node\":99},\"id\":\"a\",\"operation\":\"op-1\",\"sequence\":1,\"sketch\":\"sk\",\"width\":4}"
+         },
+         {
+          "operation": "op-2",
+          "sequence": 2,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-points:{\"chunk\":0,\"id\":\"a\",\"operation\":\"op-2\",\"pts\":[[1,2,0.4]],\"sequence\":2,\"sketch\":\"sk\"}"
+         },
+         {
+          "operation": "op-3",
+          "sequence": 3,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-label:{\"label\":\"Navigated\",\"operation\":\"op-3\",\"sequence\":3,\"sketch\":\"sk\"}"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "cast-end-open",
+   "records": [
+    {
+     "t": 0,
+     "k": "head",
+     "format": "couch-webcast",
+     "v": 1,
+     "id": "cast-end-open",
+     "started": "2026-10-11T00:00:00Z"
+    },
+    {
+     "t": 1,
+     "k": "seg",
+     "seg": 1,
+     "why": "live",
+     "tab": {
+      "id": "tab1",
+      "url": "http://x/"
+     },
+     "vp": {
+      "w": 1280,
+      "h": 800,
+      "dpr": 1
+     }
+    },
+    {
+     "t": 2,
+     "k": "doc",
+     "doc": 4,
+     "url": "http://x/",
+     "tree": {
+      "id": 4,
+      "y": "doc",
+      "c": [
+       {
+        "id": 5,
+        "y": "doctype",
+        "n": "html"
+       },
+       {
+        "id": 3,
+        "y": "el",
+        "n": "html",
+        "c": [
+         {
+          "id": 1,
+          "y": "el",
+          "n": "head"
+         },
+         {
+          "id": 2,
+          "y": "el",
+          "n": "body"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "t": 3,
+     "k": "sketch-begin",
+     "operation": "op-0",
+     "sequence": 0,
+     "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "id": "sk",
+     "author": {
+      "id": "operator",
+      "color": "#ff0000"
+     },
+     "owner": "operator",
+     "doc": 1,
+     "tab": "tab1",
+     "vp": {
+      "w": 100,
+      "h": 100,
+      "dpr": 1
+     }
+    },
+    {
+     "t": 4,
+     "k": "sketch-stroke-begin",
+     "operation": "op-1",
+     "sequence": 1,
+     "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "sketch": "sk",
+     "id": "a",
+     "at": {
+      "node": 99,
+      "box": [
+       0,
+       0,
+       100,
+       100
+      ]
+     },
+     "width": 4
+    },
+    {
+     "t": 5,
+     "k": "sketch-points",
+     "operation": "op-2",
+     "sequence": 2,
+     "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "sketch": "sk",
+     "id": "a",
+     "chunk": 0,
+     "pts": [
+      [
+       1,
+       2,
+       0.4
+      ]
+     ]
+    },
+    {
+     "t": 6,
+     "k": "stop",
+     "why": "end"
+    },
+    {
+     "t": 7,
+     "k": "sketch-label",
+     "operation": "op-3",
+     "sequence": 3,
+     "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "sketch": "sk",
+     "label": "too late"
+    }
+   ],
+   "prefixes": [
+    {
+     "error": false,
+     "t": 0,
+     "control": {},
+     "projection": {
+      "active": "",
+      "history_bytes": 0,
+      "sketches": []
+     }
+    },
+    {
+     "error": false,
+     "t": 1,
+     "control": {},
+     "projection": {
+      "active": "",
+      "history_bytes": 0,
+      "sketches": []
+     }
+    },
+    {
+     "error": false,
+     "t": 2,
+     "control": {},
+     "projection": {
+      "active": "",
+      "history_bytes": 0,
+      "sketches": []
+     }
+    },
+    {
+     "error": false,
+     "t": 3,
+     "control": {},
+     "projection": {
+      "active": "sk",
+      "history_bytes": 261,
+      "sketches": [
+       {
+        "begin": {
+         "t": 3,
+         "k": "sketch-begin",
+         "operation": "op-0",
+         "sequence": 0,
+         "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "id": "sk",
+         "author": {
+          "id": "operator",
+          "color": "#ff0000"
+         },
+         "owner": "operator",
+         "doc": 1,
+         "tab": "tab1",
+         "vp": {
+          "w": 100,
+          "h": 100,
+          "dpr": 1
+         }
+        },
+        "phase": "drawing",
+        "reason": "",
+        "label": "",
+        "strokes": [],
+        "visible": [],
+        "redo": [],
+        "next_sequence": 1,
+        "receipts": [
+         {
+          "operation": "op-0",
+          "sequence": 0,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-begin:{\"author\":{\"color\":\"#ff0000\",\"id\":\"operator\"},\"doc\":1,\"id\":\"sk\",\"operation\":\"op-0\",\"owner\":\"operator\",\"sequence\":0,\"tab\":\"tab1\",\"vp\":{\"dpr\":1,\"h\":100,\"w\":100}}"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "error": false,
+     "t": 4,
+     "control": {},
+     "projection": {
+      "active": "sk",
+      "history_bytes": 473,
+      "sketches": [
+       {
+        "begin": {
+         "t": 3,
+         "k": "sketch-begin",
+         "operation": "op-0",
+         "sequence": 0,
+         "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "id": "sk",
+         "author": {
+          "id": "operator",
+          "color": "#ff0000"
+         },
+         "owner": "operator",
+         "doc": 1,
+         "tab": "tab1",
+         "vp": {
+          "w": 100,
+          "h": 100,
+          "dpr": 1
+         }
+        },
+        "phase": "drawing",
+        "reason": "",
+        "label": "",
+        "strokes": [
+         {
+          "begin": {
+           "t": 4,
+           "k": "sketch-stroke-begin",
+           "operation": "op-1",
+           "sequence": 1,
+           "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+           "sketch": "sk",
+           "id": "a",
+           "at": {
+            "node": 99,
+            "box": [
+             0,
+             0,
+             100,
+             100
+            ]
+           },
+           "width": 4
+          },
+          "pts": [],
+          "next_chunk": 0,
+          "sealed": false,
+          "truncated": false
+         }
+        ],
+        "visible": [],
+        "redo": [],
+        "next_sequence": 2,
+        "receipts": [
+         {
+          "operation": "op-0",
+          "sequence": 0,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-begin:{\"author\":{\"color\":\"#ff0000\",\"id\":\"operator\"},\"doc\":1,\"id\":\"sk\",\"operation\":\"op-0\",\"owner\":\"operator\",\"sequence\":0,\"tab\":\"tab1\",\"vp\":{\"dpr\":1,\"h\":100,\"w\":100}}"
+         },
+         {
+          "operation": "op-1",
+          "sequence": 1,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-stroke-begin:{\"at\":{\"box\":[0,0,100,100],\"node\":99},\"id\":\"a\",\"operation\":\"op-1\",\"sequence\":1,\"sketch\":\"sk\",\"width\":4}"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "error": false,
+     "t": 5,
+     "control": {},
+     "projection": {
+      "active": "sk",
+      "history_bytes": 660,
+      "sketches": [
+       {
+        "begin": {
+         "t": 3,
+         "k": "sketch-begin",
+         "operation": "op-0",
+         "sequence": 0,
+         "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "id": "sk",
+         "author": {
+          "id": "operator",
+          "color": "#ff0000"
+         },
+         "owner": "operator",
+         "doc": 1,
+         "tab": "tab1",
+         "vp": {
+          "w": 100,
+          "h": 100,
+          "dpr": 1
+         }
+        },
+        "phase": "drawing",
+        "reason": "",
+        "label": "",
+        "strokes": [
+         {
+          "begin": {
+           "t": 4,
+           "k": "sketch-stroke-begin",
+           "operation": "op-1",
+           "sequence": 1,
+           "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+           "sketch": "sk",
+           "id": "a",
+           "at": {
+            "node": 99,
+            "box": [
+             0,
+             0,
+             100,
+             100
+            ]
+           },
+           "width": 4
+          },
+          "pts": [
+           [
+            1,
+            2,
+            0.4
+           ]
+          ],
+          "next_chunk": 1,
+          "sealed": false,
+          "truncated": false
+         }
+        ],
+        "visible": [],
+        "redo": [],
+        "next_sequence": 3,
+        "receipts": [
+         {
+          "operation": "op-0",
+          "sequence": 0,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-begin:{\"author\":{\"color\":\"#ff0000\",\"id\":\"operator\"},\"doc\":1,\"id\":\"sk\",\"operation\":\"op-0\",\"owner\":\"operator\",\"sequence\":0,\"tab\":\"tab1\",\"vp\":{\"dpr\":1,\"h\":100,\"w\":100}}"
+         },
+         {
+          "operation": "op-1",
+          "sequence": 1,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-stroke-begin:{\"at\":{\"box\":[0,0,100,100],\"node\":99},\"id\":\"a\",\"operation\":\"op-1\",\"sequence\":1,\"sketch\":\"sk\",\"width\":4}"
+         },
+         {
+          "operation": "op-2",
+          "sequence": 2,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-points:{\"chunk\":0,\"id\":\"a\",\"operation\":\"op-2\",\"pts\":[[1,2,0.4]],\"sequence\":2,\"sketch\":\"sk\"}"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "error": false,
+     "t": 6,
+     "control": {},
+     "projection": {
+      "active": "",
+      "history_bytes": 660,
+      "sketches": [
+       {
+        "begin": {
+         "t": 3,
+         "k": "sketch-begin",
+         "operation": "op-0",
+         "sequence": 0,
+         "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "id": "sk",
+         "author": {
+          "id": "operator",
+          "color": "#ff0000"
+         },
+         "owner": "operator",
+         "doc": 1,
+         "tab": "tab1",
+         "vp": {
+          "w": 100,
+          "h": 100,
+          "dpr": 1
+         }
+        },
+        "phase": "interrupted",
+        "reason": "end",
+        "label": "",
+        "strokes": [
+         {
+          "begin": {
+           "t": 4,
+           "k": "sketch-stroke-begin",
+           "operation": "op-1",
+           "sequence": 1,
+           "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+           "sketch": "sk",
+           "id": "a",
+           "at": {
+            "node": 99,
+            "box": [
+             0,
+             0,
+             100,
+             100
+            ]
+           },
+           "width": 4
+          },
+          "pts": [
+           [
+            1,
+            2,
+            0.4
+           ]
+          ],
+          "next_chunk": 1,
+          "sealed": true,
+          "truncated": true
+         }
+        ],
+        "visible": [
+         "a"
+        ],
+        "redo": [],
+        "next_sequence": 3,
+        "receipts": [
+         {
+          "operation": "op-0",
+          "sequence": 0,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-begin:{\"author\":{\"color\":\"#ff0000\",\"id\":\"operator\"},\"doc\":1,\"id\":\"sk\",\"operation\":\"op-0\",\"owner\":\"operator\",\"sequence\":0,\"tab\":\"tab1\",\"vp\":{\"dpr\":1,\"h\":100,\"w\":100}}"
+         },
+         {
+          "operation": "op-1",
+          "sequence": 1,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-stroke-begin:{\"at\":{\"box\":[0,0,100,100],\"node\":99},\"id\":\"a\",\"operation\":\"op-1\",\"sequence\":1,\"sketch\":\"sk\",\"width\":4}"
+         },
+         {
+          "operation": "op-2",
+          "sequence": 2,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-points:{\"chunk\":0,\"id\":\"a\",\"operation\":\"op-2\",\"pts\":[[1,2,0.4]],\"sequence\":2,\"sketch\":\"sk\"}"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "error": true,
+     "t": 6,
+     "control": {},
+     "projection": {
+      "active": "",
+      "history_bytes": 660,
+      "sketches": [
+       {
+        "begin": {
+         "t": 3,
+         "k": "sketch-begin",
+         "operation": "op-0",
+         "sequence": 0,
+         "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "id": "sk",
+         "author": {
+          "id": "operator",
+          "color": "#ff0000"
+         },
+         "owner": "operator",
+         "doc": 1,
+         "tab": "tab1",
+         "vp": {
+          "w": 100,
+          "h": 100,
+          "dpr": 1
+         }
+        },
+        "phase": "interrupted",
+        "reason": "end",
+        "label": "",
+        "strokes": [
+         {
+          "begin": {
+           "t": 4,
+           "k": "sketch-stroke-begin",
+           "operation": "op-1",
+           "sequence": 1,
+           "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+           "sketch": "sk",
+           "id": "a",
+           "at": {
+            "node": 99,
+            "box": [
+             0,
+             0,
+             100,
+             100
+            ]
+           },
+           "width": 4
+          },
+          "pts": [
+           [
+            1,
+            2,
+            0.4
+           ]
+          ],
+          "next_chunk": 1,
+          "sealed": true,
+          "truncated": true
+         }
+        ],
+        "visible": [
+         "a"
+        ],
+        "redo": [],
+        "next_sequence": 3,
+        "receipts": [
+         {
+          "operation": "op-0",
+          "sequence": 0,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-begin:{\"author\":{\"color\":\"#ff0000\",\"id\":\"operator\"},\"doc\":1,\"id\":\"sk\",\"operation\":\"op-0\",\"owner\":\"operator\",\"sequence\":0,\"tab\":\"tab1\",\"vp\":{\"dpr\":1,\"h\":100,\"w\":100}}"
+         },
+         {
+          "operation": "op-1",
+          "sequence": 1,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-stroke-begin:{\"at\":{\"box\":[0,0,100,100],\"node\":99},\"id\":\"a\",\"operation\":\"op-1\",\"sequence\":1,\"sketch\":\"sk\",\"width\":4}"
+         },
+         {
+          "operation": "op-2",
+          "sequence": 2,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-points:{\"chunk\":0,\"id\":\"a\",\"operation\":\"op-2\",\"pts\":[[1,2,0.4]],\"sequence\":2,\"sketch\":\"sk\"}"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
    "name": "clear-open",
    "records": [
     {

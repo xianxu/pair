@@ -141,36 +141,36 @@ The pure core owns these transitions; caller UI cannot alter its history. The UI
 
 **Files:** recording/{sketch.go,sketch_codec.go,sketch_test.go,sketch_codec_test.go,record.go,codec.go,codec_test.go}.
 
-- [ ] Write failing codec/compatibility tests using the named strategies above; run `go test ./cmd/internal/webcast/recording -run 'Sketch|Encode|Decode|Unknown' -count=1` and confirm missing behavior.
-- [ ] Implement all eight focused preserving codecs and shared semantic canonicalization through strictjson, extend the exhaustive sample registry, rerun to PASS and commit.
+- [x] Write failing codec/compatibility tests using the named strategies above; run `go test ./cmd/internal/webcast/recording -run 'Sketch|Encode|Decode|Unknown' -count=1` and confirm missing behavior.
+- [x] Implement all eight focused preserving codecs and shared semantic canonicalization through strictjson, extend the exhaustive sample registry, rerun to PASS and commit.
 
 ### Task 2: Implement pure sketch history
 
 **Files:** recording/{sketch_state.go,sketch_state_test.go,reduce.go,control.go}, their tests, tests/webcast/sketch-corpus.json.
 
-- [ ] Write failing NextSketch/State.Apply tests and shared prefix corpus from the governing strategies.
-- [ ] Implement validated deltas, read-only projections and contextual transitions; run `go test ./cmd/internal/webcast/recording -run 'Sketch|Control|Annotation|Pause' -count=1` to PASS and commit.
+- [x] Write failing NextSketch/State.Apply tests and shared prefix corpus from the governing strategies.
+- [x] Implement validated deltas, read-only projections and contextual transitions; run `go test ./cmd/internal/webcast/recording -run 'Sketch|Control|Annotation|Pause' -count=1` to PASS and commit.
 
 ### Task 3: Port the browser model and pressure geometry
 
 **Files:** sketch/{geometry.go,geometry_test.go}, web/{sketch-model.js,model.js,annotation-anchor.js}, server.go, tests/webcast/{sketch-model.test.mjs,sketch-geometry.json}.
 
-- [ ] Write failing shared geometry/core tests using the named strategies, then implement named-function exports and both embedded asset registrations.
-- [ ] Run `go test ./cmd/internal/webcast/sketch -count=1`, `node --test tests/webcast/sketch-model.test.mjs`, and `go test ./cmd/internal/webcast -run 'TestNode|OperatorScript' -count=1` to PASS and commit.
+- [x] Write failing shared geometry/core tests using the named strategies, then implement named-function exports and both embedded asset registrations.
+- [x] Run `go test ./cmd/internal/webcast/sketch -count=1`, `node --test tests/webcast/sketch-model.test.mjs`, and `go test ./cmd/internal/webcast -run 'TestNode|OperatorScript' -count=1` to PASS and commit.
 
 ### Task 4: Snapshot bounded sketch/control catch-up
 
 **Files:** recording/{catchup.go,contract.go,catchup_test.go,sketch_snapshot.go}, web/{replay.js,viewer.js,replayer.js,sketch-model.js}, replay_corpus_test.go, Hub tests, tests/webcast/{replay.test.mjs,catchup_corpus.json}.
 
-- [ ] Write failing snapshot/compaction/prefix equivalence tests from the governing strategies, then implement the approved snapshot revision below through the same reducer.
-- [ ] Run `go test ./cmd/internal/webcast/recording ./cmd/internal/webcast -run 'CatchUp|Sketch|Hub' -count=1` and `node --test tests/webcast/replay.test.mjs tests/webcast/sketch-model.test.mjs` to PASS; commit without changing legacy DOM goldens.
+- [x] Write failing snapshot/compaction/prefix equivalence tests from the governing strategies, then implement the approved snapshot revision below through the same reducer.
+- [x] Run `go test ./cmd/internal/webcast/recording ./cmd/internal/webcast -run 'CatchUp|Sketch|Hub' -count=1` and `node --test tests/webcast/replay.test.mjs tests/webcast/sketch-model.test.mjs` to PASS; commit without changing legacy DOM goldens.
 
 ### Task 5: Fence source time and reserve capacity
 
 **Files:** recording/{sketch_budget.go,sketch_budget_test.go,files.go,order_test.go}, board/{writer.go,writer_order_test.go}, recorder/{mirror.go,note_order_test.go}, focused producer tests.
 
-- [ ] Write failing OrderedTime/SketchBudget.Next/producer tests from the governing strategies, then integrate each shared helper once per producer.
-- [ ] Run `go test ./cmd/internal/webcast/recording ./cmd/internal/webcast/board ./cmd/internal/webcast/recorder -run 'Sketch|Order|Writer' -count=1` to PASS; commit measured reserve arithmetic and uncertainty contract.
+- [x] Write failing OrderedTime/SketchBudget.Next/producer tests from the governing strategies, then integrate each shared helper once per producer.
+- [x] Run `go test ./cmd/internal/webcast/recording ./cmd/internal/webcast/board ./cmd/internal/webcast/recorder -run 'Sketch|Order|Writer' -count=1` to PASS; commit measured reserve arithmetic and uncertainty contract.
 
 ### Task 6: Document, verify and land
 
@@ -204,3 +204,7 @@ The snapshot carries source begin metadata, fixed colour/ownership, phases/inter
 The bootstrap frame is not a new persisted event kind: no FileEvents registry entry and no writer admission. Add an explicit catch-up-only State/Model snapshot admission option; ordinary disk Decode sees an unknown kind and does not install it, raw browser replay refuses a bootstrap in source records, and ordered writers reject it. Catch-up verification, live viewer bootstrap, Player rebuild and Replayer seek opt into snapshot installation only; this option never relaxes normal ctl validation. A malformed frame refuses atomically. CatchUp keeps its []Record contract and emits the frame through the existing encode/SSE seam; no synthetic frame is written to the recording. For invalid source prefixes, retain the input for normal validation rather than claiming an accepted snapshot.
 
 PQ-2 replaces procedural case inventories with the governing named-function strategy table and concise tasks above. The invariant contracts, state/recovery table and numeric limits remain authoritative. Digest shape is validated in the pure core; receipts compare both the claim and actual semantic identity, so a forged unchanged digest cannot hide a changed body. SketchDigest/SketchCanonical are shared producer/test helpers; browser asynchronous digest generation is pinned to those bytes, avoiding synchronous crypto in Model.apply. Fixed colour is required in SketchBegin.Author.Color; no second colour field is introduced.
+
+### 2026-10-20 — implementation verification refinements
+
+Fresh-eyes task review tightened the existing contract without changing product scope: label completion requires a cast that has not ended; duplicate retries preserve sink uncertainty; known-field model accounting excludes preserved unknown wire members while producer admission still charges actual encoded bytes. Snapshot restore verifies receipt history with NextSketch/nextSketch rather than reimplementing stack rules, and checks active author/control and digest/path consistency. Clear seals and truncates an open historical stroke before retiring its eligibility, so retained evidence remains restorable. Existing control UI consumes the restored holder as well as live ctl events. Task 1–5 checks completed; the recorded check and boundary review remain pending.

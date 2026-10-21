@@ -3,13 +3,19 @@ package sketch
 import (
 	"encoding/json"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
+	"github.com/xianxu/pair/internal/reporoot"
 	"math"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
 func TestSharedGeometry(t *testing.T) {
-	raw, err := os.ReadFile("../../../../tests/webcast/sketch-geometry.json")
+	root, err := reporoot.Current()
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(root, "tests/webcast/sketch-geometry.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

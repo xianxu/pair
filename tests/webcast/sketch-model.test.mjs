@@ -280,7 +280,7 @@ function reduceModel(Model, recs, options) {
 }
 test('catch-up snapshot installs owned history and strict current control; raw model refuses it', async () => {
   const { Model } = await import('../../cmd/internal/webcast/web/model.js');
-  const c = corpus.cases[0];
+  const c = corpus.cases.find(c => c.name === 'history');
   const recs = c.records.filter((_, i) => !c.prefixes[i].error).slice(0, 6);
   const source = reduceModel(Model, recs);
   const frame = {
@@ -302,7 +302,7 @@ test('catch-up snapshot installs owned history and strict current control; raw m
 });
 test('cast end invalidates an outstanding late label and unknowns never enter authority', async () => {
   const { Model } = await import('../../cmd/internal/webcast/web/model.js');
-  const c = corpus.cases[0];
+  const c = corpus.cases.find(c => c.name === 'history');
   const recs = c.records.slice(0, 4);
   const m = reduceModel(Model, recs);
   m.apply({ k: 'stop', t: 4, why: 'end' });
@@ -363,7 +363,7 @@ for (const c of corpus.cases)
 test('clear seals an open partial stroke so catch-up keeps valid cleared history', async () => {
   const { Model } = await import('../../cmd/internal/webcast/web/model.js');
   const { catchUp } = await import('../../cmd/internal/webcast/web/replay.js');
-  const recs = corpus.cases[0].records.slice(0, 6);
+  const recs = corpus.cases.find(c => c.name === 'history').records.slice(0, 6);
   recs.push({ k: 'annotation-clear', t: 20, who: { id: 'operator' } });
   const whole = reduceModel(Model, recs),
     caught = reduceModel(Model, catchUp(recs), { allowSketchSnapshot: true });
@@ -375,6 +375,15 @@ test('snapshot paths, chunks, labels and active source must agree with semantic 
   const recs = corpus.cases.find((c) => c.name === 'history').records.slice(0, 6);
   const source = reduceModel(Model, recs);
   for (const mutate of [
+    (f) => {
+      f.control = {driver: {id: 'another-driver'}};
+    },
+    (f) => {
+      f.sketches.sketches[0].begin.digest = 'b'.repeat(64);
+    },
+    (f) => {
+      f.sketches.sketches[0].strokes[0].begin.digest = 'b'.repeat(64);
+    },
     (f) => {
       f.sketches.sketches[0].strokes[0].pts[0][0] = 9;
     },
@@ -403,7 +412,7 @@ test('snapshot paths, chunks, labels and active source must agree with semantic 
     assert.deepEqual(target.sketchProjection(), before);
   }
   const target = reduceModel(Model, recs.slice(0, 3), { allowSketchSnapshot: true });
-  target.tab.id = 'different';
+  target.tab = {...target.tab, id: 'different'};
   assert.throws(() =>
     target.apply({
       t: source.t,
@@ -412,4 +421,19 @@ test('snapshot paths, chunks, labels and active source must agree with semantic 
       sketches: source.sketchProjection(),
     }),
   );
+});
+
+test('snapshot receipt operations must form a valid history through the transition owner', async () => {
+  const {Model}=await import('../../cmd/internal/webcast/web/model.js');
+  const {sketchCanonical}=await sketchModule();
+  const recs=corpus.cases.find(c=>c.name==='history').records.slice(0,4);
+  const source=reduceModel(Model,recs), projection=source.sketchProjection(), view=projection.sketches[0];
+  const invalid={...view.begin,k:'sketch-undo',sketch:view.begin.id,id:'missing',operation:'missing-undo',sequence:view.next_sequence};
+  const semantic='sketch-undo:'+sketchCanonical(invalid);
+  view.receipts.push({operation:invalid.operation,sequence:invalid.sequence,digest:invalid.digest,semantic});
+  view.next_sequence++;projection.history_bytes+=1000;
+  const target=reduceModel(Model,recs.slice(0,3),{allowSketchSnapshot:true});
+  const before=target.sketchProjection();
+  assert.throws(()=>target.apply({k:'sketch-snapshot',t:source.t,control:source.control,sketches:projection}));
+  assert.deepEqual(target.sketchProjection(),before);
 });

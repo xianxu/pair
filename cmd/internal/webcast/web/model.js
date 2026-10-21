@@ -113,6 +113,7 @@ export class Model {
       if (sketches.active) {
         const begin = sketches.sketches.get(sketches.active).begin;
         if (begin.doc !== this.docSeg || begin.tab !== this.tab.id) fail('snapshot active source differs');
+        if (begin.author.id !== (control.driver?.id || 'operator')) fail('snapshot active author is not driving');
       }
       this.control = control; this.sketches = sketches; this.ctlSeen = true; this.t = r.t;
       return;

@@ -142,6 +142,7 @@ func restoreSketchState(p SketchProjection) (SketchState, error) {
 		}
 		h := &sketchHistory{begin: begin, phase: v.Phase, reason: v.Reason, label: v.Label, strokes: map[string]*SketchStrokeView{}, visible: slices.Clone(v.Visible), redo: slices.Clone(v.Redo), next: v.NextSequence, receipts: map[string]SketchReceipt{}}
 		strokeSemantics := map[string]string{}
+		strokeDigests := map[string]string{}
 		pointWitness := map[string][]SketchPoint{}
 		chunkWitness := map[string]uint64{}
 		labelWitness := ""
@@ -167,7 +168,7 @@ func restoreSketchState(p SketchProjection) (SketchState, error) {
 					return fail("snapshot first receipt is not begin")
 				}
 				semantic, _ := SketchSemantic(begin)
-				if semantic != receipt.Semantic {
+				if semantic != receipt.Semantic || begin.Digest != receipt.Digest {
 					return fail("snapshot begin differs from receipt")
 				}
 			} else if _, ok := r.(*SketchBegin); ok {
@@ -178,6 +179,7 @@ func restoreSketchState(p SketchProjection) (SketchState, error) {
 					return fail("duplicate snapshot stroke begin")
 				}
 				strokeSemantics[stroke.ID] = receipt.Semantic
+				strokeDigests[stroke.ID] = receipt.Digest
 			}
 			switch event := r.(type) {
 			case *SketchPoints:
@@ -213,7 +215,7 @@ func restoreSketchState(p SketchProjection) (SketchState, error) {
 				return fail("snapshot points differ from receipts")
 			}
 			semantic, _ := SketchSemantic(view.Begin)
-			if strokeSemantics[view.Begin.ID] != semantic {
+			if strokeSemantics[view.Begin.ID] != semantic || strokeDigests[view.Begin.ID] != view.Begin.Digest {
 				return fail("snapshot stroke differs from receipt")
 			}
 			if view.NextChunk > uint64(len(view.Pts)) || uint64(len(view.Pts)) > view.NextChunk*SketchMaxPointsPerChunk || view.Truncated && !view.Sealed {
@@ -259,6 +261,9 @@ func restoreSketchState(p SketchProjection) (SketchState, error) {
 				return fail("snapshot active mismatch")
 			}
 		}
+		if err := validateSketchViewHistory(v); err != nil {
+			return SketchState{}, err
+		}
 		out.sketches[id] = h
 		out.order = append(out.order, id)
 	}
@@ -283,6 +288,13 @@ func (s *State) installSketchSnapshot(r *SketchSnapshot) error {
 	}
 	if next.active != "" {
 		active := next.sketches[next.active]
+		driver := r.Control.Driving()
+		if driver == "" {
+			driver = OperatorID
+		}
+		if active.begin.Author.ID != driver {
+			return errors.New("snapshot active author is not driving")
+		}
 		if active.begin.Doc != s.DocSeg || active.begin.Tab != s.Tab.ID {
 			return errors.New("snapshot active source differs")
 		}
@@ -290,5 +302,71 @@ func (s *State) installSketchSnapshot(r *SketchSnapshot) error {
 	s.Sketches = next
 	s.Control = cloneSketchControl(r.Control)
 	s.ctlSeen = true
+	return nil
+}
+
+// validateSketchViewHistory reuses the transition owner for operation ordering
+// and stack authority. Contextual seals/interruptions are snapshot facts: their
+// original ctl/seg/stop records intentionally do not survive live compaction.
+func validateSketchViewHistory(view SketchView) error {
+	var check SketchState
+	strokes := map[string]SketchStrokeView{}
+	for _, stroke := range view.Strokes {
+		strokes[stroke.Begin.ID] = stroke
+	}
+	driver := view.Begin.Author.ID
+	if driver == OperatorID {
+		driver = ""
+	}
+	context := SketchContext{Live: true, Doc: view.Begin.Doc, Tab: view.Begin.Tab, Driver: driver}
+	for _, receipt := range view.Receipts {
+		event, err := snapshotReceiptRecord(receipt)
+		if err != nil {
+			return err
+		}
+		history := check.sketches[view.Begin.ID]
+		if history != nil {
+			needsClosed := false
+			switch event := event.(type) {
+			case *SketchStrokeBegin, *SketchUndo, *SketchRedo, *SketchLabel:
+				needsClosed = true
+			case *SketchStrokeEnd:
+				needsClosed = event.ID == history.open
+			}
+			if needsClosed && history.open != "" && strokes[history.open].Truncated {
+				check.pause()
+			}
+			if _, label := event.(*SketchLabel); label && view.Reason != "" && history.phase == "drawing" {
+				check.interrupt(view.Reason)
+			}
+		}
+		delta, err := NextSketch(&check, event, context)
+		if err != nil {
+			return fmt.Errorf("snapshot receipt history: %w", err)
+		}
+		delta.commit()
+	}
+	history := check.sketches[view.Begin.ID]
+	if history == nil {
+		return errors.New("snapshot has no receipt history")
+	}
+	if history.open != "" && strokes[history.open].Sealed && strokes[history.open].Truncated {
+		check.pause()
+	}
+	if history.phase == "drawing" && view.Reason != "" {
+		check.interrupt(view.Reason)
+	}
+	if view.Phase == "cleared" {
+		check.clear()
+	}
+	if history.phase != view.Phase || history.reason != view.Reason || history.label != view.Label || !slices.Equal(history.visible, view.Visible) || !slices.Equal(history.redo, view.Redo) {
+		return errors.New("snapshot projection differs from receipt history")
+	}
+	for id, stroke := range history.strokes {
+		projected := strokes[id]
+		if projected.Sealed != stroke.Sealed || projected.Truncated != stroke.Truncated {
+			return errors.New("snapshot seal differs from receipt history")
+		}
+	}
 	return nil
 }
