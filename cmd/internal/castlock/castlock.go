@@ -7,7 +7,8 @@
 // session is a bearer for the life of one generation of sessions: an operator
 // rotation revokes every session and closes the generation's Revoked channel,
 // so streams admitted under it end. A rotation forced by guessing replaces only
-// the code; viewers already in keep watching.
+// the code; viewers already in keep watching. The third forced rotation caps
+// new unlocks until successful operator rotation; unlocking never resets it.
 //
 // Every state change happens under one mutex, so an unlock and a rotation are
 // totally ordered: an unlock is judged against the code current when it takes
@@ -32,6 +33,7 @@ import (
 const (
 	DefaultDigits      = 4
 	DefaultBudget      = 8
+	MaxForcedRotations = 3
 	DefaultMaxSessions = 64
 	// MaxCodeInput bounds what Unlock will look at; a code is a few digits.
 	MaxCodeInput = 32
@@ -58,6 +60,7 @@ type Rotation struct {
 	Code   string
 	Reason Reason
 	Gen    uint64
+	Capped bool // this rotation spent the link lifetime guess budget
 }
 
 // Config makes a Lock.
@@ -93,6 +96,7 @@ type Lock struct {
 	code     string
 	gen      uint64 // numbers code; bumped on every rotation
 	wrong    int
+	forced   int                          // only a successful operator rotation resets this
 	sessions map[[sha256.Size]byte]uint64 // session hash → issue order
 	issued   uint64
 	revoked  chan struct{} // the current generation's; closed on revoke
@@ -155,8 +159,8 @@ func (l *Lock) Unlock(now time.Time, input string) (session string, out Outcome)
 	if !ok {
 		return "", Malformed
 	}
-	if l.wrong >= l.cfg.Budget {
-		// A spent code whose rotation failed: refuse every attempt, right
+	if l.forced >= MaxForcedRotations || l.wrong >= l.cfg.Budget {
+		// A capped link, or a spent code whose rotation failed: refuse every attempt, right
 		// or wrong, until the operator rotates it (fail closed).
 		return "", Wrong
 	}
@@ -167,7 +171,8 @@ func (l *Lock) Unlock(now time.Time, input string) (session string, out Outcome)
 			if next, err := l.newCode(l.code); err == nil {
 				l.code, l.wrong = next, 0
 				l.gen++
-				rotated = &Rotation{Code: next, Reason: ReasonGuessing, Gen: l.gen}
+				l.forced++
+				rotated = &Rotation{Code: next, Reason: ReasonGuessing, Gen: l.gen, Capped: l.forced == MaxForcedRotations}
 			}
 		}
 		return "", Wrong
@@ -213,7 +218,7 @@ func (l *Lock) Rotate() (string, error) {
 		l.mu.Unlock()
 		return "", err
 	}
-	l.code, l.wrong = next, 0
+	l.code, l.wrong, l.forced = next, 0, 0
 	l.gen++
 	r := Rotation{Code: next, Reason: ReasonOperator, Gen: l.gen}
 	l.revokeLocked()

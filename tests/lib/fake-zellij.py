@@ -37,6 +37,8 @@ def target_pane(session, target):
 
 
 def dispatch(state, args, query):
+    if args == ["--version"]:
+        return "zellij 0.45.1\n"
     model = state["model"]
     sessions = model["sessions"]
     if "list-sessions" in args or "ls" in args:

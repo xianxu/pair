@@ -1659,8 +1659,7 @@ never see it.
   - Rotating disconnects everyone who used the old code.
   - Before pointing first makes the pointer link, its row shows `pointer (not made
     yet)`, with no actions; click `👆` to make it.
-- **Wrong guesses.** About 8 wrong tries on one code rotate it by themselves. Couch
-  says so, and viewers already in stay connected.
+- **Wrong guesses.** Every 8 wrong tries force a code change, with a Couch notice. After the third forced rotation, the link refuses new unlocks until you explicitly rotate it in the Codes menu. Successful unlocks do not reset that count; viewers already in stay connected. The third notice says the code changed and the link is locked until you rotate.
 - **What viewers see.** The codes show on your screen only, never in what the LIVE
   broadcast sends, and a notice says that a code changed, never what it is. A new code
   flashes three times over its cell.
@@ -2041,6 +2040,15 @@ Every valid selection runs the environment-inventory guard `test-make-env` once
 The independent per-recipe audit in `tests/affected-consumers.json` asserts the
 real planner covers command roots, dependencies and file inputs. A separate
 Go-reader inventory refuses new or changed unmapped source readers for re-audit.
+Each certificate lives at `tests/affected-readers/<reader-path>.json`, with its
+explicit disposition and SHA256. After re-auditing a reader's inputs and scanner
+coverage, regenerate only that certificate with
+`make affected-readers READER=cmd/path/example_test.go DISPOSITION=local_or_literal_fixture`
+(or `fixed_scanner` / `non_go_full_fallback`, as audited). New readers must be
+tracked first; source scanners require every test registered in `SOURCE_GUARDS`.
+`make test-affected-inventory` checks all certificates without refreshing hashes.
+For a removed reader, run the exact `--remove` command printed by the audit.
+Independent reader edits share no certificate or generated index.
 An independent source-walker check requires preflight registration even for a
 reader labelled as a local fixture; a native seeded-violation regression drives
 the actual affected command in a disposable checkout.
@@ -2066,6 +2074,15 @@ Existing sleep debt lives only in `internal/repolint/sleep-debt.json`: remove an
 entry when replacing its sleep, and never add entries or inline sleep exemptions.
 See the [Go lint catalog](atlas/go-lint-catalog.md) for scanner scope, module
 updates and the temporary debt contract.
+
+Ordinary Darwin+cgo package tests using `testdisk.RunWithWriteBudget` disable
+Go test-result caching before the measured callback. This avoids charging Go's
+filesystem-access trace to the fixture-write cap; build caching remains enabled.
+Plain `go test` therefore executes these measured packages again on a warm cache,
+just as `-count=1` does, while explicit repetition counts keep their meaning.
+The diagnostic says `test-result cache disabled` when a trace was requested.
+Real payload writes remain subject to the same caps. Benchmark/fuzz workloads
+and unsupported native counters keep their existing coverage policy.
 
 Pair and wrapper subprocess fixtures use `testpair.Environment(t, disposableRoot,
 explicitEntries...)`. It delegates to `tests/lib/pair-test-env.sh`, the shared
@@ -2414,6 +2431,14 @@ log before scratch cleanup. For manual Go runs, add `-artifacts -outputdir
 <owned-dir>` to retain the complete oracle files; successful calls remove theirs.
 The [oracle guide](tests/terminal-oracle/README.md) covers replay, headless controls
 and report limitations; a diagnostic pass does not establish a crash fix.
+
+For disposable multi-slot Couch acceptance, run `make test-couch-fleet`. It uses
+the shared native fleet helper with real Zellij, Pair/wrappers and provisioned
+workspaces, plus deterministic Claude/Codex fixtures. It requires installed
+SDLC/Weave, Git, Zellij and nvim, and uses private state and queue roots without
+models or credentials. Portable helper tests run normally; the native consumer
+opts in only through this target or `PAIR_NATIVE_COUCH_FLEET=1`.
+See [fleet ownership and evidence](atlas/couch-testing.md).
 
 `tests/terminal-performance.py --help` describes isolated baseline/candidate
 measurements using real Pair terminal processes and independent screen receipts.

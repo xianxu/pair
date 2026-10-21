@@ -1,0 +1,71 @@
+=== RUN   TestStartupManagedAttachDetachTimingLive
+    startup_detach_timing_live_test.go:125: native fixture base=/Volumes/TestScratch/tmp/pair-slot5/TestStartupManagedAttachDetachTimingLive3139024196/001
+    startup_detach_timing_live_test.go:188: isolated socket TMPDIR=/private/tmp/p218.1924825748; socket workload excludes co-tenant sessions
+    startup_detach_timing_live_test.go:222: diagnostic real_zellij=/opt/homebrew/Cellar/zellij/0.45.1/bin/zellij pair_bin=/Volumes/TestScratch/tmp/pair-slot5/TestStartupManagedAttachDetachTimingLive3139024196/001/bin config=/Users/xianxu/workspace/worktree/pair-slot5/pair/zellij evidence=/Volumes/TestScratch/tmp/pair-slot5/pair-761-native-owner.fhLcYT/run-86584-1792573021155414000
+pair startup snapshot: pid=86584 kind=named table_calls=1 command_calls=62 identity_calls=62 duration_ms=3.670
+pair startup snapshot: pid=86584 kind=named table_calls=1 command_calls=62 identity_calls=62 duration_ms=4.190
+    startup_detach_timing_live_test.go:337: native_owner_query label=before_first_resume attempt=1 stdout_bytes=3848 stderr_bytes=0 exit=0 error=<nil>
+    startup_detach_timing_live_test.go:337: native_owner_query label=before_first_resume attempt=2 stdout_bytes=3848 stderr_bytes=0 exit=0 error=<nil>
+pair startup snapshot: pid=86584 kind=named table_calls=1 command_calls=62 identity_calls=62 duration_ms=3.261
+pair startup snapshot: pid=86584 kind=named table_calls=1 command_calls=62 identity_calls=62 duration_ms=3.547
+    startup_detach_timing_live_test.go:359: NATIVE_OWNER_PROOF_PASS label=before_first_resume state=owned server={PID:86965 Identity:1792573021.266006 Session:pair-perf-742769cea5325f62 Socket:/private/tmp/p218.1924825748/zellij-501/contract_version_1/pair-perf-742769cea5325f62} actual_list_panes=2 version_queries=0 revalidated=true original_45s_budget=true
+    startup_detach_timing_live_test.go:400: managed_resume wall=84.257083ms exclusive_measured=0s residual=84.257083ms
+    startup_detach_timing_live_test.go:401: managed_resume_stages phase[1] attach-prepare=239.416µs
+    startup_detach_timing_live_test.go:401: managed_resume_stages phase[2] attach-admission=19.935834ms
+    startup_detach_timing_live_test.go:401: managed_resume_stages phase[3] attach-spawn=3.269541ms
+    startup_detach_timing_live_test.go:401: managed_resume_stages phase[4] attach-ack=18.494125ms
+    startup_detach_timing_live_test.go:401: managed_resume_stages phase[5] attach-live-check=17.983834ms
+    startup_detach_timing_live_test.go:401: managed_resume_stages phase[6] attach-registry+repair=398.958µs
+    startup_detach_timing_live_test.go:401: managed_resume_stages phase[7] attach-cleanup+release=6.945875ms
+    startup_detach_timing_live_test.go:401: managed_resume_stages wall=84.257083ms exclusive_measured=67.267583ms residual=16.9895ms
+    startup_detach_timing_live_test.go:402: owner/proc phases are nested inside launch stages; do not add the two measured totals
+    startup_detach_timing_live_test.go:435: managed_attach_ready after_parent_return=373.011333ms startup_total=457.364917ms
+    startup_detach_timing_live_test.go:441: child pair startup: phase=native-entry delta_ms=0.700 elapsed_ms=0.700
+    startup_detach_timing_live_test.go:441: child pair startup: phase=native-resolution delta_ms=11.534 elapsed_ms=12.234
+    startup_detach_timing_live_test.go:441: child pair startup: phase=launch-entry delta_ms=0.021 elapsed_ms=12.255
+    startup_detach_timing_live_test.go:441: child pair startup: phase=migration delta_ms=0.017 elapsed_ms=12.272
+    startup_detach_timing_live_test.go:441: child pair startup: phase=ancestry delta_ms=0.906 elapsed_ms=13.178
+    startup_detach_timing_live_test.go:441: child pair startup: phase=prelude delta_ms=0.006 elapsed_ms=13.184
+    startup_detach_timing_live_test.go:441: child pair startup: phase=discovery delta_ms=0.049 elapsed_ms=13.233
+    startup_detach_timing_live_test.go:441: child pair startup: phase=decision delta_ms=0.004 elapsed_ms=13.238
+    startup_detach_timing_live_test.go:441: child pair startup: phase=attach-verification delta_ms=17.800 elapsed_ms=31.037
+    startup_detach_timing_live_test.go:441: child pair startup: phase=attach-layout delta_ms=0.041 elapsed_ms=31.078
+    startup_detach_timing_live_test.go:441: child pair startup: phase=attach-retention delta_ms=24.114 elapsed_ms=55.192
+    startup_detach_timing_live_test.go:441: child pair startup: phase=attach-setup delta_ms=4.784 elapsed_ms=59.976
+    startup_detach_timing_live_test.go:441: child pair startup: phase=attach-revalidation delta_ms=16.008 elapsed_ms=75.984
+    startup_detach_timing_live_test.go:441: child pair startup: phase=attach-handoff delta_ms=0.015 elapsed_ms=75.999
+    startup_detach_timing_live_test.go:444: child deltas partition startup through blocking handoff entry; elapsed_ms is cumulative; parent registration overlaps child startup
+    startup_detach_timing_live_test.go:448: detach phase[1] proc.Exists=4µs
+    startup_detach_timing_live_test.go:448: detach phase[2] proc.Identity=68.5µs
+    startup_detach_timing_live_test.go:448: detach phase[3] proc.SignalGroup=22.333µs
+    startup_detach_timing_live_test.go:448: detach phase[4] proc.Exists=709ns
+    startup_detach_timing_live_test.go:448: detach phase[5] proc.Identity=34.208µs
+    startup_detach_timing_live_test.go:448: detach phase[6] proc.Exists=5.625µs
+    startup_detach_timing_live_test.go:448: detach wall=11.758917ms exclusive_measured=135.375µs residual=11.623542ms
+    startup_detach_timing_live_test.go:449: detach_stages wall=11.758917ms exclusive_measured=0s residual=11.758917ms
+    startup_detach_timing_live_test.go:463: sentinel_survived=true owned_session=pair-perf-742769cea5325f62 retired=true; parent phases exclude child's owner reads; use zellij shim trace and launcher owner timing companion
+pair startup snapshot: pid=86584 kind=named table_calls=1 command_calls=61 identity_calls=61 duration_ms=3.239
+    startup_detach_timing_live_test.go:337: native_owner_query label=after_first_detach attempt=1 stdout_bytes=3848 stderr_bytes=0 exit=0 error=<nil>
+    startup_detach_timing_live_test.go:337: native_owner_query label=after_first_detach attempt=2 stdout_bytes=3848 stderr_bytes=0 exit=0 error=<nil>
+pair startup snapshot: pid=86584 kind=named table_calls=1 command_calls=61 identity_calls=61 duration_ms=3.041
+pair startup snapshot: pid=86584 kind=named table_calls=1 command_calls=61 identity_calls=61 duration_ms=2.945
+    startup_detach_timing_live_test.go:464: NATIVE_OWNER_PROOF_PASS label=after_first_detach state=owned server={PID:86965 Identity:1792573021.266006 Session:pair-perf-742769cea5325f62 Socket:/private/tmp/p218.1924825748/zellij-501/contract_version_1/pair-perf-742769cea5325f62} actual_list_panes=2 version_queries=0 revalidated=true original_45s_budget=true
+    startup_detach_timing_live_test.go:465: first managed attach+detach PASS; beginning retained-session managed client reattach (not supervisor restart)
+    startup_detach_timing_live_test.go:490: second_managed_resume wall=222.269ms exclusive_measured=0s residual=222.269ms
+pair startup snapshot: pid=86584 kind=named table_calls=1 command_calls=61 identity_calls=61 duration_ms=3.204
+    startup_detach_timing_live_test.go:337: native_owner_query label=after_second_detach attempt=1 stdout_bytes=3848 stderr_bytes=0 exit=0 error=<nil>
+    startup_detach_timing_live_test.go:337: native_owner_query label=after_second_detach attempt=2 stdout_bytes=3848 stderr_bytes=0 exit=0 error=<nil>
+pair startup snapshot: pid=86584 kind=named table_calls=1 command_calls=61 identity_calls=61 duration_ms=3.215
+pair startup snapshot: pid=86584 kind=named table_calls=1 command_calls=61 identity_calls=61 duration_ms=2.708
+    startup_detach_timing_live_test.go:505: NATIVE_OWNER_PROOF_PASS label=after_second_detach state=owned server={PID:86965 Identity:1792573021.266006 Session:pair-perf-742769cea5325f62 Socket:/private/tmp/p218.1924825748/zellij-501/contract_version_1/pair-perf-742769cea5325f62} actual_list_panes=2 version_queries=0 revalidated=true original_45s_budget=true
+    startup_detach_timing_live_test.go:509: NATIVE_BEHAVIOR_PASS first managed attach/detach + retained-session reattach/detach; same_server=map[86965:1792573021.266006] original_45s_budget=true supervisor_restart=false
+pair startup snapshot: pid=86584 kind=named table_calls=1 command_calls=61 identity_calls=61 duration_ms=2.621
+    startup_detach_timing_live_test.go:278: native fixture cleanup diagnostic: close /dev/ptmx: file already closed
+    startup_detach_timing_live_test.go:292: native server cleanup pid=86965 generation=1792573021.266006 absent=true close_error=close /dev/ptmx: file already closed
+    startup_detach_timing_live_test.go:115: native root removed=/Volumes/TestScratch/tmp/pair-slot5/TestStartupManagedAttachDetachTimingLive3139024196/001
+    startup_detach_timing_live_test.go:115: native root removed=/private/tmp/p218.1924825748
+--- FAIL: TestStartupManagedAttachDetachTimingLive (3.56s)
+FAIL
+write budget couchcore: bytes=73728 cap=134217728 repeats=1
+FAIL	github.com/xianxu/pair/cmd/internal/couchcore	3.809s
+FAIL

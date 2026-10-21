@@ -161,6 +161,14 @@ func TestRecoverThreadNativeReplyUnknownStopsBeforeEffects(t *testing.T) {
 					t.Fatalf("unknown reply quiesced source: sessions=%v signals=%v", f.env.Artifacts.quiesced, f.env.Proc.Signals)
 				}
 				queries := f.native.Queries()
+				// Failed pane proofs perform one separately budgeted diagnostic
+				// version read. It grants no authority and consumes no pane retry.
+				if stage.ordinal <= 2 {
+					if len(queries) == 0 || !reflect.DeepEqual(queries[len(queries)-1].Args, []string{"--version"}) {
+						t.Fatalf("missing exact failure-only version observation: %+v", queries)
+					}
+					queries = queries[:len(queries)-1]
+				}
 				if len(queries) != stage.ordinal+attempts-1 {
 					t.Fatalf("unknown reply exceeded bounded reads: queries=%+v", queries)
 				}

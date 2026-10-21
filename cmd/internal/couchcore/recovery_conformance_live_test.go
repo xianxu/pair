@@ -84,6 +84,9 @@ func runRecoveryLiveFixture(t *testing.T, warm bool) {
 		capture.Mark("controlled-session-cleanup-enter")
 		err := fixture.Close()
 		capture.Mark(fmt.Sprintf("controlled-session-cleanup-return err=%v", err))
+		if err != nil {
+			t.Errorf("controlled zellij cleanup: %v", err)
+		}
 	})
 	base := t.TempDir()
 	repo := filepath.Join(base, "repo")

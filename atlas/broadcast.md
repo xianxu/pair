@@ -90,8 +90,7 @@ the operator says it on the call.
   - The page's own fetches send it with same-origin credentials.
   - **Trade-off:** a viewer who re-opens the link from a chat app
     (cross-site) is asked for the code again.
-- **Unlock attempts** are rate-limited per lock (a burst of 5, then 1/s),
-  so a guesser can force at most about one rotation every 8 seconds.
+- **Unlock attempts:** each link shares a burst of 5 then 1/s across clients, with 8 wrong codes per forced rotation. The third forced rotation (24 wrong codes) locks out every new unlock, including the correct code, until a successful explicit operator rotation. Successful unlocks do not reset this lifetime count; already-unlocked sessions survive forced rotations and the cap. Failed rotation randomness leaves the lock refusing. Couch notices name the cast/link on each forced rotation; the third combines “code changed” with “link locked until you rotate,” without exposing the code.
 - **Terminal broadcast.** Each link has its own 4-digit code:
   - `view`: the lock exists before `Mount`;
   - `pointer`: the lock is minted with the pointer token.
@@ -131,7 +130,7 @@ the operator says it on the call.
   - **Flash:** a new code flashes three times.
   - **Notices:** the status row and the notice line are broadcast, so a
     notice says that a code changed and never what it is.
-    - A guess-rotation notice is coalesced per link every 30 s.
+    - Every current guess rotation raises a notice; the third includes the operator-rotation recovery action.
     - Rotations apply in `Gen` order.
 - **Registry.** `broadcast.LinkLocks` is one per cast: a lock per link token,
   minted with the token (`Mint`), routed by `LockFor`, listed by `Codes`, and
@@ -145,7 +144,7 @@ the operator says it on the call.
   - The code travels out of band: said on the call.
   - A `#code` fragment is never sent to a server, and preview fetchers don't
     run the page's script.
-  - Guessing is bounded by the per-code budget and the per-lock rate.
+  - Guessing is bounded by the per-code budget, per-lock rate and per-link lifetime cap.
   - Rotating a code revokes every session that used it.
 - **What it does not protect against:**
   - a viewer who has the code: they can share what they see, or pass on
