@@ -48,8 +48,10 @@ The operator approved this framework-neutral revision and its four limits on 202
 
 ## Plan
 
-- [ ] Deliver the operator-confirmed framework-neutral revision of workshop/plans/000757-mock-to-real-plan.md, including optional front, read-only report and Go worked sample.
-- [ ] Verify, close and land the single atomic issue.
+- [x] Deliver the operator-confirmed framework-neutral revision of workshop/plans/000757-mock-to-real-plan.md, including optional front, read-only report and Go worked sample.
+- [x] Complete targeted implementation verification and prepare the single atomic review boundary.
+
+Recorded full-suite pass, mandatory close review, final-head CI and landing remain workflow gates after this implementation checklist.
 
 ## Log
 
@@ -73,6 +75,8 @@ Verification so far: mockserve race checks pass; root template+host checks pass;
 ### 2026-10-21 — final targeted verification
 
 Incomplete-upload cancellation and zero-padded origin probes both failed before fixes and pass afterward (mockserve targeted race1.966s; public Couch mock CLI0.373s). Combined mockserve/root-template race passed5.023s/5.558s and vet passed. Final private browser plus lifecycle/port/page-work verification passed; previous integrated browser run2.941s. Counted page traversal is bounded at N/2N. Contract traversal counts128→256 rows: inference2043→4091 visits for1026→2050 nodes (<=2 per node), matching1026→2050 (exactly1 per node); ambiguity comparisons are counted, not hidden reflect scans. Shape fuzz also passed76087 executions after this guard. Private selection lock/staging files are now git-ignored in the copyable sample. No full recorded suite/close yet.
+
+- Close preflight correctly refused the issue Plan's circular future close/land checkbox before any boundary review ran. Replaced it with the completed targeted-verification/preparation step and explicit remaining workflow gates; no passing suite/review/landing is claimed. Retained suite remains on unchanged code c34fc2c3; only issue documentation changed. TL granted3-hour priority (receipt044e3ddf-9cb2-443b-8ed9-f28a7f08b125); report landing immediately for revocation.
 
 ## Revisions
 
