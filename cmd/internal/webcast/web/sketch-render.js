@@ -297,6 +297,13 @@ export function createSketchDisplay() {
     work.patches += patches.length;
   }
   return {
+    metadata(sketch, stroke) {
+      const s = sketches.get(sketch);
+      if (!s) return null;
+      const p = s.strokes.get(stroke);
+      return { phase: s.header.phase, reason: s.header.reason, label: s.header.label,
+        ...(p ? { stroke: { sealed: p.sealed, truncated: p.truncated } } : {}) };
+    },
     hasAnchor: (document, node) =>
       safe(document) && document > 0 && safe(node) && node > 0 && anchors.get(document)?.has(node) === true,
     install,

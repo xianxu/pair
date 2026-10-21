@@ -201,7 +201,7 @@ Each task uses the named function-verification strategy above. A checked task re
 
 - [x] Use pointer/painter, FIFO-policy and independent-scene strategies; mount the same tool in viewer and console. Required-label transitions and source-document identity are enforced on both adapters. Count new samples/segments, not wall-clock speed.
 - [x] Pass `node --test tests/webcast/sketch-*.test.mjs tests/webcast/viewer.test.mjs tests/webcast/operator*.test.mjs tests/webcast/annotation-placement.test.mjs`, Go assembly tests, N/2N guards and owned browser fixtures, then commit.
-- [ ] Resolve round1 BR-2/BR-3 with red/green regressions for authoritative console lifecycle metadata and queue-full terminal recovery, covering move and pointer-up.
+- [x] Resolve round1 BR-2/BR-3 with red/green regressions for authoritative console lifecycle metadata and queue-full terminal recovery, covering move and pointer-up.
 
 ### Task 6 — conformance, review and landing
 
@@ -262,3 +262,13 @@ BR-2/BR-3: Reopened the UI verification class: console journal metadata must dri
 BR-5: The disposable review checkout could not start Chrome (GPU/sandbox initialization, CDP EOF); successful host conformance must be rerun on the corrected committed implementation and supplied to the next review. The operator console smoke remains a separate pre-landing hold.
 
 BR-1: Removed repeated case inventories from task prompts; tasks now reference the single function-strategy table and retain runnable commands plus independent invariants. New boundary work is explicitly unchecked until verified.
+
+### 2026-10-21 — lifecycle and terminal recovery implementation
+
+BR-2: Both adapters now supply read-only accepted sketch metadata to the shared tool. Stable stroke identity preserves sealed facts across synthetic views and stale replies; authenticated status supplies current sequence/tops before late labels, including expiry's contextual operation. Geometry retirement and original-owner label-draft retirement have separate lifetimes. Clear/end or accepted labels retire drafts; interruption preserves them. Asynchronous status is fenced by target, text, retirement and observed revision.
+
+BR-3: A full16-chunk queue reserves exactly one bounded truncated terminal behind admitted data, stops capture visibly and enters reconciliation. Pointer-up detaches its captured contact before synchronous effects and releases it in a finalizer. Unknown retries and definite-refusal continuation preserve accepted evidence and emit no duplicate seal.
+
+Residency sweep removes receiver tombstones and prunes per-sketch metadata/drafts with UI slot lifetimes; settled cleared slots must not exhaust the per-cast active bound. Unknown in-flight identities survive retirement until settlement without resurrecting drawing.
+
+Final focused rework checks passed: all targeted webcast Go packages, shared Node/assembly, and audited reader inventory. Settled-retired slot release and all per-slot cache pruning now pass512 clear/restart cycles; unknown cleared begins keep their immutable receipt lookup until definite settlement and cannot emit begin-accepted afterward. Host conformance and recorded suite will now run on the committed fix.

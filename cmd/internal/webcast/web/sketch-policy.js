@@ -27,6 +27,11 @@ export function createSketchPolicy({ operationId, maxQueuedChunks = 16 } = {}) {
     if (slot.uncertain || slot.recovering) return 'reconciling';
     return slot.phase;
   }
+  function releaseRetired(slot) {
+    if (!slot.retired || slot.inflight) return;
+    slots.delete(slot.id);
+    if (active === slot.id) active = null;
+  }
   function pump(slot, effects) {
     if (slot.inflight || slot.uncertain || slot.retired || !slot.queue.length) return;
     const next = slot.queue[0];
@@ -64,12 +69,13 @@ export function createSketchPolicy({ operationId, maxQueuedChunks = 16 } = {}) {
           epoch: s.epoch,
           phase: phase(s),
           queued: s.queue.length,
+          queuedPoints: s.queue.filter((c) => c.kind === 'points').length,
           inflight: s.inflight ? own(s.inflight) : null,
           nextSequence: s.sequence,
           retired: s.retired,
         })),
         pendingLabels: Array.from(slots.values())
-          .filter((s) => !s.retired && !s.labelled && ['interrupted', 'label-required'].includes(s.phase))
+          .filter((s) => !s.retired && !s.labelled && ['interrupted', 'label-required', 'paused'].includes(s.phase))
           .map((s) => s.id),
       };
     },
@@ -106,6 +112,7 @@ export function createSketchPolicy({ operationId, maxQueuedChunks = 16 } = {}) {
               if (slot.inflight) slot.uncertain = true;
             } else if (slot.phase === 'paused') slot.phase = slot.sourceReady ? 'drawing' : 'preparing';
             pump(slot, effects);
+            releaseRetired(slot);
           }
           break;
         }
@@ -208,6 +215,11 @@ export function createSketchPolicy({ operationId, maxQueuedChunks = 16 } = {}) {
             event.kind === 'points' &&
             slot.queue.filter((c) => c.kind === 'points').length >= maxQueuedChunks
           ) {
+            // Reserve one constant-size terminal behind the admitted chunks.
+            // Sampling stops synchronously; draining keeps this sequence's
+            // accepted prefix intact and seals it before input resumes.
+            slot.queue.push({ kind: 'stroke-end', body: { id: event.body.id, truncated: true } });
+            slot.recovering = true;
             effects.push({ type: 'stop-gesture', reason: 'queue-full' });
             break;
           }
@@ -224,8 +236,17 @@ export function createSketchPolicy({ operationId, maxQueuedChunks = 16 } = {}) {
             break;
           }
           const command = slot.inflight;
+          // A cleared scene cannot be resurrected by a delayed begin receipt.
+          // Keep its immutable command available until a definite settlement.
+          if (slot.retired) {
+            slot.inflight = null;
+            slot.uncertain = false;
+            operations.delete(event.operation);
+            releaseRetired(slot);
+            break;
+          }
           if (event.outcome === 'accepted' && event.next_sequence !== undefined) {
-            need(event.next_sequence === slot.sequence + 1, 'reply sequence differs');
+            need(safe(event.next_sequence) && event.next_sequence >= slot.sequence + 1, 'reply sequence differs');
           }
           if (event.outcome === 'accepted' && command.kind === 'begin' && event.sketch !== undefined) {
             need(
@@ -244,7 +265,9 @@ export function createSketchPolicy({ operationId, maxQueuedChunks = 16 } = {}) {
           operations.delete(event.operation);
           slot.uncertain = false;
           if (event.outcome === 'accepted') {
-            slot.sequence++;
+            // Receipt lookup reports the current authoritative sequence, which
+            // can include a contextual expiry after this command was accepted.
+            slot.sequence = event.next_sequence ?? slot.sequence + 1;
             if (command.kind === 'begin')
               effects.push({ type: 'begin-accepted', sketch: slot.id, reply: own(event) });
             if (command.kind === 'stroke-begin') slot.open = true;
@@ -268,7 +291,7 @@ export function createSketchPolicy({ operationId, maxQueuedChunks = 16 } = {}) {
           } else {
             slot.queue = [];
             slot.recovering = false;
-            slot.phase = 'interrupted';
+            if (!slot.retired) slot.phase = live ? 'interrupted' : 'paused';
             effects.push({ type: 'stop-gesture', reason: 'refused', error: event.error || '' });
             if (command.kind === 'begin') {
               slot.retired = true;
@@ -280,6 +303,27 @@ export function createSketchPolicy({ operationId, maxQueuedChunks = 16 } = {}) {
           pump(slot, effects);
           break;
         }
+        case 'observed':
+          if (!slot || slot.retired) break;
+          if (event.phase === 'cleared') {
+            slot.retired = true;
+            slot.phase = 'off';
+            slot.queue = [];
+            effects.push({ type: 'stop-gesture', reason: 'clear' }, { type: 'release-scene', sketch: slot.id });
+            releaseRetired(slot);
+            break;
+          }
+          if (event.sealed || event.phase === 'interrupted') slot.open = false;
+          if (event.phase === 'interrupted') {
+            slot.phase = 'interrupted';
+            slot.queue = slot.queue.filter((c) => c.kind === 'label');
+            slot.recovering = false;
+            slot.sourceReady = false;
+            effects.push({ type: 'stop-gesture', reason: 'authority' }, { type: 'release-scene', sketch: slot.id });
+          }
+          if (!slot.inflight && !slot.queue.length && safe(event.next_sequence))
+            slot.sequence = Math.max(slot.sequence, event.next_sequence);
+          break;
         case 'recover':
           if (
             !slot ||
@@ -323,6 +367,7 @@ export function createSketchPolicy({ operationId, maxQueuedChunks = 16 } = {}) {
             s.queue = [];
             s.phase = 'off';
             effects.push({ type: 'release-scene', sketch: s.id });
+            releaseRetired(s);
           }
           effects.push({ type: 'stop-gesture', reason: event.type });
           break;

@@ -36,7 +36,7 @@ export function createOperatorSketchTransport(report, win, generation) {
 export function createOperatorSketchReceiver(changed){
   const display=createSketchDisplay(),transfer=createSketchTransfer();let completed=null,retired=false;
   const delivery=createSketchDelivery({installBootstrap:value=>display.install(value),applyBatch:patches=>display.applyBatch(patches)});
-  return {paths:()=>display.paths({borrow:true}),hasAnchor:(document,node)=>display.hasAnchor(document,node),cursor:()=>delivery.cursor(),receive(message){
+  return {metadata:(sketch,stroke)=>display.metadata(sketch,stroke),paths:()=>display.paths({borrow:true}),hasAnchor:(document,node)=>display.hasAnchor(document,node),cursor:()=>delivery.cursor(),receive(message){
     if(retired)throw Error('Sketch context retired.');
     if(message.phase==='begin'){
       const current=transfer.cursor();
@@ -56,7 +56,7 @@ export function createOperatorSketchReceiver(changed){
     else if(payload.batch&&!payload.bootstrap)ack=delivery.receiveBatch(payload.batch);
     else throw Error('Invalid private drawing delivery.');
     ack={offset:result.offset,...ack};completed={handle:message.handle,epoch:message.epoch,total:message.total,offset:message.offset,base64:message.base64,ack};
-    transfer.retire();changed();return ack;
+    transfer.retire();if(!ack.needBootstrap)changed(payload);return ack;
   },retire(){retired=true;transfer.retire();delivery.retire();completed=null;display.install({sketches:[]});}};
 }
 
@@ -65,7 +65,7 @@ export function mountOperatorSketch({host,root,box,report,view,annotation,palett
   let authority={epoch:0,holder:'operator',ready:false,generation:null},frame=null,ready=null,disposed=false,bypass=false,sceneVersion=0,opening=null;
   const transport=createOperatorSketchTransport(envelope=>report({t:'sketch',request:envelope}),win,()=>authority.generation);
   let tool;
-  const receiver=createOperatorSketchReceiver(()=>tool?.refresh());
+  const receiver=createOperatorSketchReceiver(payload=>{tool?.reconcileSketches({authoritative:true,clear:payload.batch?.patches.some(p=>p.clear===true)});tool?.refresh();});
   const ask=(kind,body={},epoch=authority.epoch)=>transport.ask(kind,body,epoch,kind==='scene-prepare'?60000:5000);
   const bounds=()=>box.getBoundingClientRect();
   const scale=()=>ready?.vp?Math.min(bounds().width/ready.vp.w,bounds().height/ready.vp.h):1;
@@ -111,7 +111,7 @@ export function mountOperatorSketch({host,root,box,report,view,annotation,palett
     dispose(){sceneVersion++;ready=null;opening?.cancel();opening=null;if(frame){const owned=frame;frame=null;owned.remove();if(win.__couchcastPrivateSceneFrame===owned)delete win.__couchcastPrivateSceneFrame;ask('scene-dispose').catch(()=>{});}},
   };
   const current=()=>({allowed:authority.ready&&authority.holder==='operator',epoch:authority.epoch,live:!view.model.paused&&!view.model.ended&&view.model.seg>0,ended:!!view.model.ended});
-  tool=mountSketch(doc,win,view,{root,box,scene,palette,paths:receiver.paths,authority:current,send:(kind,body)=>ask(kind,body,body.epoch),status:body=>ask('sketch-status',body,body.epoch),onMode(active){bypass=true;try{annotation.setMode('watch');}finally{bypass=false;}if(frame)frame.hidden=!active;},onTool(mode){bypass=true;try{annotation.setMode(mode);}finally{bypass=false;}}});
+  tool=mountSketch(doc,win,view,{root,box,scene,palette,paths:receiver.paths,sketchMetadata:receiver.metadata,authority:current,send:(kind,body)=>ask(kind,body,body.epoch),status:body=>ask('sketch-status',body,body.epoch),onMode(active){bypass=true;try{annotation.setMode('watch');}finally{bypass=false;}if(frame)frame.hidden=!active;},onTool(mode){bypass=true;try{annotation.setMode(mode);}finally{bypass=false;}}});
   const previousBeforeMode=view.beforeAnnotationMode;
   const beforeMode=mode=>{if(disposed||bypass||!tool.state().active)return true;tool.leave(mode);return false;};
   view.beforeAnnotationMode=beforeMode;

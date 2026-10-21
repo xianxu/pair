@@ -14,6 +14,10 @@ export function mountSketch(doc, win, view, options) {
     placements = new Map();
   const pending = new Set(),
     statuses = new Map(),
+    confirmed = new Map(),
+    strokeIdentity = new Map(),
+    observed = new Map(),
+    needsStatus = new Set(),
     drafts = new Map(),
     optimistic = new Map(),
     recoveries = new Map(),
@@ -121,13 +125,18 @@ export function mountSketch(doc, win, view, options) {
     if (disposed) return;
     const effects = policy.dispatch(event);
     for (const e of effects) effect(e);
+    pruneSketchCaches();
     show();
   }
   function reply(command, result) {
     if (disposed) return;
     if (result?.outcome === 'refused' && result.status?.phase === 'drawing' && command.kind !== 'begin')
       recoveries.set(command.sketch, { ...result, epoch: command.epoch });
-    if (result?.status) statuses.set(result.sketch || command.sketch, structuredClone(result.status));
+    const key = result?.sketch || command.sketch;
+    if (result?.status) statuses.set(key, structuredClone(result.status));
+    if (result?.outcome === 'accepted') confirmed.set(key, {
+      sketch: key, operation: command.operation, sequence: command.sequence, epoch: command.epoch,
+    });
     if (result?.outcome === 'accepted' && command.kind === 'stroke-end') optimistic.delete(command.body.id);
     dispatch({
       type: 'reply',
@@ -136,6 +145,7 @@ export function mountSketch(doc, win, view, options) {
       epoch: command.epoch,
       final: result?.outcome === 'refused',
     });
+    reconcileSketches();
     if (
       result?.outcome === 'accepted' &&
       recoveryEnd &&
@@ -238,6 +248,10 @@ export function mountSketch(doc, win, view, options) {
         contact = null;
       }
     } else if (e.type === 'stop-gesture') {
+      if (e.reason === 'queue-full')
+        message = 'Stroke queue full. Confirming and sealing its accepted points.';
+      if (e.reason === 'refused')
+        message = 'Drawing stopped. Label this sketch or use Continue drawing when it is available.';
       if (e.reason === 'leave') finish(true);
       else cancel();
     } else if (e.type === 'release-scene') {
@@ -249,7 +263,8 @@ export function mountSketch(doc, win, view, options) {
         sceneSketch = null;
         setDrawingMode(false);
       }
-      if (labelTarget === e.sketch) {
+      const slot = state().slots.find((s) => s.sketch === e.sketch);
+      if (labelTarget === e.sketch && (!slot || slot.retired)) {
         labelTarget = null;
         drafts.delete(e.sketch);
       }
@@ -271,18 +286,6 @@ export function mountSketch(doc, win, view, options) {
         const local = optimistic.get(e.stroke);
         if (local) local.ended = true;
         queue('stroke-end', { id: e.stroke, ...(e.truncated ? { truncated: true } : {}) });
-      } else if (e.type === 'confirmation-pending') {
-        if (contact) {
-          recoveryEnd = { sketch: active(), id: contact.stroke };
-          if (timer !== null) win.clearTimeout(timer);
-          timer = null;
-          samples = [];
-          gesture.cancel();
-          const local = optimistic.get(contact.stroke);
-          if (local) local.ended = true;
-          if (layer.hasPointerCapture?.(contact.pointer)) layer.releasePointerCapture(contact.pointer);
-          contact = null;
-        }
       } else if (e.type === 'stop-gesture') {
         message = 'Stroke buffer full. Finish this stroke before continuing.';
         finish(true);
@@ -319,10 +322,14 @@ export function mountSketch(doc, win, view, options) {
         contact.count++;
       }
     }
-    flush();
-    gestureEffects(gesture.end({ truncated }));
-    if (layer.hasPointerCapture?.(contact.pointer)) layer.releasePointerCapture(contact.pointer);
+    const finished = contact;
     contact = null;
+    try {
+      flush();
+      gestureEffects(gesture.end({ truncated }));
+    } finally {
+      if (layer.hasPointerCapture?.(finished.pointer)) layer.releasePointerCapture(finished.pointer);
+    }
     show();
   }
   function point(e, pressure) {
@@ -465,15 +472,35 @@ export function mountSketch(doc, win, view, options) {
   }
   async function saveLabel() {
     if (!labelTarget) return;
-    const key = labelTarget;
-    const slot = state().slots.find((s) => s.sketch === key);
-    if (slot?.inflight || slot?.queued || statuses.get(key)?.open_stroke) {
+    const key = labelTarget, label = labelInput.value;
+    reconcileSketches();
+    let slot = state().slots.find((s) => s.sketch === key);
+    if (needsStatus.has(key) && !slot?.inflight && !slot?.queued) {
+      const lookup = confirmed.get(key);
+      if (!lookup) return;
+      const revision = observed.get(key);
+      try {
+        const result = await options.status(lookup);
+        if (disposed || result?.outcome !== 'accepted' || observed.get(key) !== revision) return;
+        if (result.status) statuses.set(key, structuredClone(result.status));
+        dispatch({ type: 'observed', sketch: key, next_sequence: result.next_sequence });
+        needsStatus.delete(key);
+        reconcileSketches();
+      } catch {
+        message = 'Confirmation pending. Check before continuing.';
+        show();
+        return;
+      }
+      slot = state().slots.find((s) => s.sketch === key);
+    }
+    if (disposed || labelTarget !== key || !slot || slot.retired || labelInput.value !== label) return;
+    if (slot.inflight || slot.queued || statuses.get(key)?.open_stroke) {
       message = 'Wait for the stroke confirmation before saving its label.';
       show();
       return;
     }
-    drafts.set(key, labelInput.value);
-    queue('label', { label: labelInput.value }, key);
+    drafts.set(key, label);
+    queue('label', { label }, key);
     await idle();
   }
   async function undo() {
@@ -648,6 +675,39 @@ export function mountSketch(doc, win, view, options) {
       paint().catch(() => {});
     },
   });
+  function pruneSketchCaches() {
+    const retained = new Set(state().slots.filter((s) => !s.retired).map((s) => s.sketch));
+    for (const cache of [statuses, confirmed, observed, strokeIdentity, needsStatus, drafts, recoveries])
+      for (const key of cache.keys()) if (!retained.has(key)) cache.delete(key);
+  }
+  // Compact journal facts and full viewer metadata share this read-only seam.
+  // Neither source decides command legality; the authenticated status supplies
+  // the sequence after contextual operations such as expiry.
+  function reconcileSketches({clear = false, authoritative = false} = {}) {
+    if (clear) dispatch({ type: 'clear' });
+    for (const slot of state().slots) {
+      if (slot.retired) continue;
+      const old = statuses.get(slot.sketch) || {};
+      if (old.open_stroke) strokeIdentity.set(slot.sketch, old.open_stroke);
+      const stroke = strokeIdentity.get(slot.sketch);
+      let info = options.sketchMetadata?.(slot.sketch, stroke) ||
+        view.model.sketchMetadata?.(slot.sketch, stroke);
+      if (!info && authoritative && observed.has(slot.sketch)) info = { phase: 'cleared' };
+      if (!info || (!info.phase && !info.begin)) continue;
+      const sealed = !!info.stroke?.sealed;
+      const signature = JSON.stringify([info.phase, info.reason, sealed]);
+      if (observed.get(slot.sketch) !== signature) {
+        observed.set(slot.sketch, signature);
+        if ((sealed || info.phase === 'interrupted') && info.next_sequence === undefined)
+          needsStatus.add(slot.sketch);
+        dispatch({ type: 'observed', sketch: slot.sketch, phase: info.phase, sealed,
+          next_sequence: info.next_sequence });
+      }
+      if (!state().slots.some(s => s.sketch === slot.sketch && !s.retired)) continue;
+      statuses.set(slot.sketch, { ...old, phase: info.phase, reason: info.reason, label: info.label,
+        ...(sealed || ['interrupted', 'cleared', 'complete'].includes(info.phase) ? { open_stroke: '' } : {}) });
+    }
+  }
   const unsubscribe = view.onRecord?.((r) => {
     if (disposed) return;
     if ((!scene.ready && !r.k.startsWith('sketch-')) || r.k === 'sketch-snapshot') {
@@ -658,7 +718,8 @@ export function mountSketch(doc, win, view, options) {
       displayModel = view.model;
       recordDisplay = createSketchRecordDisplay(displayModel);
     } else recordDisplay?.accept(r);
-    if (r.k === 'stop' && r.why === 'end') dispatch({ type: 'end' });
+    reconcileSketches();
+    if (view.model.ended || (r.k === 'stop' && r.why === 'end')) dispatch({ type: 'end' });
     else if (r.k === 'annotation-clear') dispatch({ type: 'clear' });
     else if (['ctl', 'seg', 'stop', 'sketch-interrupt'].includes(r.k) && active()) {
       const info = view.model.sketchMetadata?.(active()) || {};
@@ -678,6 +739,7 @@ export function mountSketch(doc, win, view, options) {
     redo,
     openLabel,
     setAuthority,
+    reconcileSketches,
     canContinue,
     continueDrawing,
     state,
@@ -703,6 +765,10 @@ export function mountSketch(doc, win, view, options) {
       ink.clear();
       seenInk.clear();
       statuses.clear();
+      confirmed.clear();
+      observed.clear();
+      strokeIdentity.clear();
+      needsStatus.clear();
       drafts.clear();
       recoveries.clear();
       if (typeof unsubscribe === 'function') unsubscribe();

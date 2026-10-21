@@ -110,6 +110,18 @@ Primary surfaces: board/{sketch.go,sketch_wire.go,sketch_delivery.go,writer_sket
 - BR-4: Corrected the complete Core concepts map against the branch patch; removed nonexistent file splits and unchanged-interface modification claims. BR-1: Compressed task case inventories into the one function-strategy map, retaining commands and independent invariants. Both corrections are recorded in plan Revisions.
 - BR-5 is an unverifiable host condition: review Chrome failed at GPU/sandbox startup and CDP EOF, while prior host runs passed. Rerun all required live tests on the corrected committed implementation and submit measured host evidence to the next review. TL smoke remains separate and unperformed; no stage or merge.
 
+### 2026-10-21 — rework regressions
+
+- BR-2 baseline actual StartCast handoff reproduced the permanent label block: final asynchronous-convergence oracle RED9.453s, exact message RED2.765s. The ordered actor had sealed/truncated the old contact and accepted the new holder begin before the label attempt.
+- BR-3 Node baselines reproduced queue-full remaining in drawing and pointer-up null.pointer. The fix reserves one truncated terminal behind at most16 queued point chunks and visibly reconciles; focused tests cover movement/up, unknown retries and refusal→Continue with exactly one seal.
+- BR-2 implementation connects journal metadata and stable sealed facts to shared policy, preserves interrupted drafts and obtains authoritative sequence before late label. New lifecycle tests cover empty/nonempty contacts through handoff, expiry, pause, clear and end, plus old/new drawer independence and held status races. Initial integrated rerun exposed repeated release-scene closing the label; fixed by separating scene and draft lifetime.
+- Latest live console pair ran twice without diagnostic wrappers: all4 runs pass, package6.642s. Old label persisted and new holder subsequently submitted an accepted stroke using its original source/permit. Shared Node/assembly targeted run passed1.838s. A final retired-slot/cache residency sweep is being verified before committing and rerunning all host/recorded checks.
+
+### 2026-10-21 — rework checkpoint
+
+- Retired-slot cleanup also reproduced RED (settled clear retained a slot; unknown-clear late begin emitted begin-accepted). Both are fixed, including512 clear/restart cycles, original-operation retention until settlement, no resurrection, and pruning of all per-sketch caches.
+- Final source-stable targeted run passes across all webcast packages, including shared Node/operator assembly (root5.101s). Focused policy/mount/operator tests70 pass; reader inventory and diff check pass. Committing corrected code before exact-head host conformance and the next recorded full check.
+
 ## Estimate
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.*

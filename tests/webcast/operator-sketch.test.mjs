@@ -171,3 +171,111 @@ test('authority validates canonical uint64 strings and safe epoch before advanci
  assert.deepEqual(hook(valid),{revision:'2',generation:'2',epoch:2,ready:true});
  f.adapter.dispose();
 });
+
+// Real shared controller/receiver over a stateful recording reducer. Its view
+// deliberately has only the console's synthetic fields, not Model APIs.
+async function drawingConsole({empty=false}={}){
+ const {mountOperatorSketch}=await import('../../cmd/internal/webcast/operator-sketch.js');
+ const {Model}=await import('../../cmd/internal/webcast/web/model.js');
+ const {Element}=await import('./dom-fixture.mjs');
+ class E extends Element{appendChild(n){this.append(n);n.parentNode=this;return n;}insertBefore(n){this.appendChild(n);queueMicrotask(()=>n.onload?.());return n;}remove(){if(this.parentNode)this.parentNode.children=this.parentNode.children.filter(v=>v!==this);}}
+ const root=new E('root'),box=new E('box');root.appendChild(box);
+ const model=new Model();let time=0,serial=0,seq=0,begins=0,revision=0,pendingPoint=null,statusOverride=null;
+ for(const r of [{k:'head',format:'couch-webcast',v:1,id:'console',started:'now'},{k:'seg',seg:1,why:'live',tab:{id:'tab',url:'u'},vp:{w:100,h:100,dpr:1}},{k:'doc',doc:1,url:'u',tree:{id:1,y:'doc',c:[{id:7,y:'el',n:'body'}]}}])model.apply({...r,t:time++});
+ const subscribers=new Set(),sent=[],timers=new Map();
+ const view={model:{seg:1,docSeg:1,paused:false,live:true,ended:false},onRecord(fn){subscribers.add(fn);return()=>subscribers.delete(fn);},fromPage:(x,y)=>[x,y],placementOf:p=>p.at.box};
+ const win={crypto:{randomUUID:()=>`op-${++serial}`},requestAnimationFrame:()=>1,setTimeout(fn){timers.set(++serial,fn);return serial;},clearTimeout(id){timers.delete(id);},addEventListener(){},removeEventListener(){}};
+ let adapter;
+ function transfer(payload){const bytes=Buffer.from(JSON.stringify(payload)),message={handle:`delivery-${++serial}`,epoch:'cast',total:bytes.length};adapter.receiver.receive({...message,phase:'begin'});return adapter.receiver.receive({...message,phase:'chunk',offset:0,base64:bytes.toString('base64')});}
+ function facts(record,beforeOpen=''){
+  if(record.k==='annotation-clear'){transfer({batch:{epoch:'cast',from:++seq,to:seq,patches:[{clear:true}]}});return;}
+  const sketch=record.k==='sketch-begin'?record.id:record.sketch||'s1';
+  const info=model.sketchMetadata(sketch,record.id&&record.k!=='sketch-begin'?record.id:beforeOpen);
+  if(!info.begin)return;
+  const patch={sketch,header:{...(record.k==='sketch-begin'?{begin:info.begin}:{}),phase:info.phase,reason:info.reason,label:info.label}};
+  if(info.stroke){const p=info.stroke;patch.stroke={...(record.k==='sketch-stroke-begin'?{begin:p.begin}:{id:p.begin.id}),sealed:p.sealed,truncated:p.truncated,visible:p.visible};if(record.k==='sketch-points')patch.points={id:p.begin.id,offset:p.length-record.pts.length,pts:record.pts};}
+  transfer({batch:{epoch:'cast',from:++seq,to:seq,patches:[patch]}});
+ }
+ function apply(record){const open=model.sketchMetadata(record.sketch||'s1').open_stroke;model.apply({...record,t:time++});facts(record,open);}
+ const status=sketch=>{const s=model.sketchMetadata(sketch);return {phase:s.phase,reason:s.reason,label:s.label,open_stroke:s.open_stroke||'',visible_top:s.visible_top||'',redo_top:s.redo_top||''};};
+ function answer(request,value){adapter.transport.reply({request:request.request,ok:true,value});}
+ function mutation(request){const b=request.body,k=request.kind;sent.push(structuredClone(request));
+  if(k==='sketch-status'){const result={outcome:'accepted',operation:b.operation,sketch:b.sketch||'s1',sequence:b.sequence,next_sequence:model.sketchMetadata(b.sketch||'s1').next_sequence,status:status(b.sketch||'s1')};const value=statusOverride?statusOverride(result,value=>answer(request,value)):result;if(value!==undefined)answer(request,value);return;}
+  if(k==='sketch-points'&&empty){pendingPoint=request;return;}
+  const sketch=k==='sketch-begin'?`s${++begins}`:b.sketch;
+  const record={k,operation:b.operation,sequence:b.sequence,digest:'a'.repeat(64)};
+  if(k==='sketch-begin')Object.assign(record,{id:sketch,author:{id:'operator',color:'#ff0000'},owner:'operator',doc:1,tab:'tab',vp:{w:100,h:100,dpr:1}});
+  else{record.sketch=sketch;if(b.id)record.id=b.id;if(k==='sketch-stroke-begin')Object.assign(record,{at:{node:b.node,box:b.box},width:4});if(k==='sketch-points')Object.assign(record,{chunk:b.chunk,pts:b.pts});if(k==='sketch-stroke-end'&&b.truncated)record.truncated=true;if(k==='sketch-label')record.label=b.label;}
+  apply(record);answer(request,{outcome:'accepted',operation:b.operation,sketch,sequence:b.sequence,next_sequence:model.sketchMetadata(sketch).next_sequence,status:status(sketch),...(k==='sketch-begin'?{source:{handle:'h',time:time-1,length:100,doc:1,tab:'tab',vp:{w:100,h:100,dpr:1}}}:{})});
+ }
+ adapter=mountOperatorSketch({host:new E('host'),root,box,view,annotation:{setMode(){}},palette:['#ff0000'],css:'',shellURL:'data:text/html,private',report:({request})=>queueMicrotask(()=>{try{if(request.kind==='scene-open'||request.kind==='scene-dispose')answer(request,{});else if(request.kind==='scene-prepare')answer(request,{ready:true,vp:{w:100,h:100,dpr:1},scroll:[0,0]});else if(request.kind==='scene-hit')answer(request,{node:7,box:[0,0,100,100]});else if(request.kind==='scene-placement')answer(request,[0,0,100,100]);else mutation(request);}catch(error){adapter.transport.reply({request:request.request,ok:false,error:error.message});}})},{body:root,createElement:tag=>new E(tag)},win);
+ transfer({bootstrap:{epoch:'cast',seq:0,display:{sketches:[]}}});
+ const authority=(allowed=true,epoch=1)=>win.__couchcastSketchAuthority({revision:String(++revision),generation:'1',epoch,holder:allowed?'operator':'driver',ready:true,active:true});authority();
+ const flush=async()=>{for(let i=0;i<120;i++)await Promise.resolve();};
+ const event=(kind,extra={})=>{for(const fn of adapter.tool.layer.listeners[kind]||[])fn({pointerId:1,pointerType:'pen',isPrimary:true,button:0,buttons:1,pressure:.5,clientX:20,clientY:20,preventDefault(){},...extra});};
+ function synthetic(){view.model={seg:model.seg,docSeg:model.docSeg,paused:!model.live,live:model.live,ended:model.ended,driver:model.control.driver?.id||''};for(const fn of subscribers)fn({k:'view',t:model.t},view.model);}
+ async function context(kind){if(kind==='handoff'){apply({k:'ctl',op:'request',who:{id:'driver'},pending:[{id:'driver'}]});apply({k:'ctl',op:'grant',who:{id:'driver'},driver:{id:'driver'},pending:[]});authority(false,2);}else if(kind==='expiry'){const next=model.sketchMetadata('s1').next_sequence;apply({k:'sketch-interrupt',sketch:'s1',reason:'expiry',operation:'expiry',sequence:next,digest:'b'.repeat(64)});}else if(kind==='clear')apply({k:'annotation-clear',who:{id:'operator'}});else apply({k:'stop',why:kind==='pause'?'pause':'end'});synthetic();if(pendingPoint){const p=pendingPoint;pendingPoint=null;answer(p,{outcome:'refused',operation:p.body.operation,sketch:p.body.sketch,sequence:p.body.sequence,next_sequence:model.sketchMetadata(p.body.sketch).next_sequence,status:status(p.body.sketch)});}await flush();}
+ await adapter.tool.enter();event('pointerdown');await flush();
+ return {adapter,model,root,sent,context,flush,event,authority,apply,synthetic,setStatus(fn){statusOverride=fn;}};
+}
+for(const kind of ['handoff','expiry','pause','clear','end'])for(const empty of [false,true])test(`console ${kind} reconciles authoritative ${empty?'empty':'nonempty'} open contact without Model helpers`,async()=>{const f=await drawingConsole({empty});await f.context(kind);assert.equal(f.adapter.tool.layer.hasPointerCapture(1),false);const retired=kind==='clear'||kind==='end';if(retired){assert.equal(f.adapter.tool.state().phase,'off');assert.deepEqual(f.adapter.tool.state().pendingLabels,[]);}else{assert.equal(f.adapter.tool.state().phase,kind==='pause'?'paused':'interrupted');f.adapter.tool.openLabel('s1');f.adapter.tool.labelInput.value='Late partial intent';await f.adapter.tool.saveLabel();assert.equal(f.model.sketchProjection().sketches[0].label,'Late partial intent');assert.equal(f.sent.filter(r=>r.kind==='sketch-label').length,1);}f.adapter.dispose();});
+
+test('late old console label cannot retire a newly prepared drawer scene', async () => {
+ const f=await drawingConsole();
+ await f.context('expiry');
+ await f.adapter.tool.enter();
+ assert.equal(f.adapter.tool.state().active,'s2');
+ assert.equal(f.adapter.scene.ready,true);
+ f.adapter.tool.openLabel('s1');f.adapter.tool.labelInput.value='Old intent';
+ await f.adapter.tool.saveLabel();
+ assert.equal(f.model.sketchProjection().sketches[0].label,'Old intent');
+ assert.equal(f.adapter.tool.state().active,'s2');
+ assert.equal(f.adapter.scene.ready,true);
+ assert.equal(f.adapter.tool.state().phase,'drawing');
+ f.adapter.dispose();
+});
+test('stale status open-stroke cannot reopen the journal sealed contact', async () => {
+ const f=await drawingConsole();
+ const stroke=f.model.sketchMetadata('s1').open_stroke;
+ await f.context('expiry');
+ f.setStatus(result=>({...result,status:{...result.status,phase:'drawing',open_stroke:stroke}}));
+ f.adapter.tool.openLabel('s1');f.adapter.tool.labelInput.value='Sealed intent';
+ await f.adapter.tool.saveLabel();
+ assert.equal(f.model.sketchProjection().sketches[0].label,'Sealed intent');
+ assert.equal(f.sent.filter(r=>r.kind==='sketch-label').length,1);
+ f.adapter.dispose();
+});
+
+test('already open label draft survives handoff and repeated synthetic refresh', async () => {
+ const f=await drawingConsole();f.adapter.tool.openLabel('s1');f.adapter.tool.labelInput.value='Draft before handoff';
+ await f.context('handoff');f.synthetic();f.adapter.tool.reconcileSketches();f.synthetic();
+ assert.equal(f.adapter.tool.labelInput.value,'Draft before handoff');
+ assert.equal(f.adapter.tool.labelInput.parentNode.hidden,false);
+ await f.adapter.tool.saveLabel();
+ assert.equal(f.model.sketchProjection().sketches[0].label,'Draft before handoff');f.adapter.dispose();
+});
+
+for(const change of ['clear','end','new-target'])test(`held label status cannot submit after ${change}`,async()=>{
+ const f=await drawingConsole();await f.context('expiry');
+ f.adapter.tool.openLabel('s1');f.adapter.tool.labelInput.value='Old draft';
+ let complete;f.setStatus((result,answer)=>{complete=()=>answer(result);});
+ const saving=f.adapter.tool.saveLabel();await f.flush();assert.equal(typeof complete,'function');
+ if(change==='new-target'){f.adapter.tool.openLabel('other');f.adapter.tool.labelInput.value='Other draft';}
+ else await f.context(change);
+ complete();await saving;
+ assert.equal(f.sent.filter(r=>r.kind==='sketch-label').length,0);
+ assert.equal(f.model.sketchProjection().sketches[0].label,'');f.adapter.dispose();
+});
+
+test('repeated clear/bootstrap cycles retain no historical receiver identities',()=>{
+ const receiver=createOperatorSketchReceiver(()=>{});let serial=0;
+ const transfer=payload=>{const raw=Buffer.from(JSON.stringify(payload)),base={handle:`cycle-${++serial}`,epoch:'cast',total:raw.length};receiver.receive({...base,phase:'begin'});receiver.receive({...base,phase:'chunk',offset:0,base64:raw.toString('base64')});};
+ for(let n=0;n<512;n++){
+  const id=`s${n}`;
+  transfer({bootstrap:{epoch:'cast',seq:n*2,display:{sketches:[{begin:{id,author:{id:'operator',color:'#ff0000'},doc:1,tab:'tab'},phase:'drawing',reason:'',label:'',strokes:[]}]}}});
+  assert.equal(receiver.metadata(id).phase,'drawing');
+  transfer({batch:{epoch:'cast',from:n*2+1,to:n*2+1,patches:[{clear:true}]}});
+  assert.equal(receiver.metadata(id),null);assert.deepEqual(receiver.paths(),[]);
+ }
+ receiver.retire();
+});

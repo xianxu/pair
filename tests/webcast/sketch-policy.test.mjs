@@ -54,7 +54,7 @@ test('FIFO unknown outcome blocks new operations and retries exact immutable ide
   assert.equal(second.kind, 'stroke-end');
   assert.equal(id, 2);
 });
-test('only barrier-proven refusal releases a slot; queue capacity fails visibly without growing', async () => {
+test('only barrier-proven refusal releases a slot; queue capacity reserves one visible terminal beyond bounded point chunks', async () => {
   const { createSketchPolicy } = await mod();
   const p = createSketchPolicy({ maxQueuedChunks: 2 });
   ready(p);
@@ -65,7 +65,8 @@ test('only barrier-proven refusal releases a slot; queue capacity fails visibly 
   assert.ok(
     p.dispatch({ type: 'queue', kind: 'points', body: { n: 3 } }).some((e) => e.type === 'stop-gesture'),
   );
-  assert.equal(p.snapshot().slots[0].queued, 2);
+  assert.equal(p.snapshot().slots[0].queuedPoints, 2);
+  assert.equal(p.snapshot().slots[0].queued, 3);
   p.dispatch({ type: 'reply', operation: first.operation, outcome: 'not-observed' });
   assert.equal(p.snapshot().slots[0].inflight.operation, first.operation);
   p.dispatch({ type: 'reply', operation: first.operation, outcome: 'refused', final: true });
@@ -289,4 +290,36 @@ test('refused work recovers only from current authoritative drawing status and s
     0,
   );
   assert.equal(p.snapshot().phase, 'interrupted');
+});
+test('saturated queue retains a single terminal behind bounded point chunks through unknown confirmation',async()=>{const {createSketchPolicy}=await mod();const p=createSketchPolicy({maxQueuedChunks:2});ready(p);const begin=p.dispatch({type:'queue',kind:'stroke-begin',body:{id:'p'}}).find(e=>e.type==='send').command;p.dispatch({type:'reply',operation:begin.operation,outcome:'accepted'});const first=p.dispatch({type:'queue',kind:'points',body:{id:'p',chunk:0,pts:[[0,0,.5]]}}).find(e=>e.type==='send').command;for(let i=1;i<=2;i++)p.dispatch({type:'queue',kind:'points',body:{id:'p',chunk:i,pts:[[i,0,.5]]}});p.dispatch({type:'queue',kind:'points',body:{id:'p',chunk:3,pts:[[3,0,.5]]}});assert.equal(p.snapshot().phase,'reconciling');p.dispatch({type:'queue',kind:'stroke-end',body:{id:'p'}});p.dispatch({type:'reply',operation:first.operation,outcome:'unknown'});let effects=p.dispatch({type:'reply',operation:first.operation,outcome:'accepted'}),sent=[];for(let i=0;i<4;i++){const next=effects.find(e=>e.type==='send')?.command;if(!next)break;sent.push(next);effects=p.dispatch({type:'reply',operation:next.operation,outcome:'accepted'});}assert.deepEqual(sent.map(x=>x.kind),['points','points','stroke-end']);assert.deepEqual(sent.at(-1).body,{id:'p',truncated:true});assert.equal(p.snapshot().phase,'drawing');});
+
+test('accepted receipt confirmation preserves sequence advanced by contextual expiry', async () => {
+  const {createSketchPolicy}=await mod();const p=createSketchPolicy();ready(p);
+  const command=p.dispatch({type:'queue',kind:'points',body:{id:'p',pts:[[1,2,.5]]}}).find(e=>e.type==='send').command;
+  p.dispatch({type:'reply',operation:command.operation,outcome:'unknown'});
+  p.dispatch({type:'observed',sketch:'s',phase:'interrupted',sealed:true});
+  p.dispatch({type:'reply',operation:command.operation,outcome:'accepted',next_sequence:command.sequence+2});
+  assert.equal(p.snapshot().phase,'interrupted');
+  const label=p.dispatch({type:'queue',kind:'label',body:{label:'Partial intent'}}).find(e=>e.type==='send').command;
+  assert.equal(label.sequence,command.sequence+2);
+});
+
+test('clear releases settled retired UI slots across more than 256 accepted begins',async()=>{
+ const {createSketchPolicy}=await mod();const p=createSketchPolicy();p.dispatch({type:'sync',allowed:true,live:true,epoch:1});
+ for(let n=0;n<512;n++){
+  p.dispatch({type:'enter',sketch:`s${n}`});
+  const command=p.dispatch({type:'queue',kind:'begin',body:{}}).find(e=>e.type==='send')?.command;
+  assert.ok(command,`begin ${n}`);
+  p.dispatch({type:'reply',operation:command.operation,outcome:'accepted',next_sequence:1});
+  p.dispatch({type:'clear'});assert.equal(p.snapshot().slots.length,0);
+ }
+});
+test('clear retains unknown operation identity until accepted settlement without resurrecting begin',async()=>{
+ const {createSketchPolicy}=await mod();const p=createSketchPolicy();p.dispatch({type:'sync',allowed:true,live:true,epoch:1});p.dispatch({type:'enter',sketch:'old'});
+ const command=p.dispatch({type:'queue',kind:'begin',body:{}}).find(e=>e.type==='send').command;
+ p.dispatch({type:'reply',operation:command.operation,outcome:'unknown'});p.dispatch({type:'clear'});
+ assert.equal(p.snapshot().slots.length,1);
+ assert.deepEqual(p.dispatch({type:'retry',sketch:'old'}).find(e=>e.type==='status').command,command);
+ const effects=p.dispatch({type:'reply',operation:command.operation,outcome:'accepted',sketch:'server-old',next_sequence:1});
+ assert.deepEqual(effects,[]);assert.equal(p.snapshot().slots.length,0);assert.equal(p.snapshot().active,null);
 });

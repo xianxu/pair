@@ -254,3 +254,13 @@ test('8/16 point chunks never rebuild or revisit anchor metadata', async () => {
     assert.equal(d.stats().points, n);
   }
 });
+
+test('display metadata is an owned constant-size lifecycle projection', async () => {
+ const {createSketchDisplay}=await mod();const d=createSketchDisplay();d.install(bootstrap());
+ const before=d.stats();
+ assert.deepEqual(d.metadata('s','p'),{phase:'drawing',reason:'',label:'',stroke:{sealed:false,truncated:false}});
+ d.apply({sketch:'s',header:{phase:'interrupted',reason:'handoff'},stroke:{id:'p',sealed:true,truncated:true}});
+ const value=d.metadata('s','p');value.stroke.sealed=false;value.phase='drawing';
+ assert.equal(d.metadata('s','p').phase,'interrupted');assert.equal(d.metadata('s','p').stroke.sealed,true);
+ assert.equal(d.metadata('missing'),null);assert.equal(d.stats().points,before.points);
+});

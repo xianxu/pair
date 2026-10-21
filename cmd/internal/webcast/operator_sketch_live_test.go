@@ -2,6 +2,8 @@ package webcast
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -15,6 +17,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
 	castassets "github.com/xianxu/pair/cmd/internal/webcast/assets"
+	"github.com/xianxu/pair/cmd/internal/webcast/board"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
@@ -250,5 +253,244 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 		if strings.Contains(string(b), "blob:null/") || strings.Contains(string(b), "couch-sketch=1") {
 			t.Fatalf("private source leaked into recording: %s", b)
 		}
+	}
+}
+
+// An accepted open operator contact is sealed by the ordered handoff, not by
+// a pointer-up. That authoritative seal must permit the old console's label
+// even while the new holder starts an independent sketch.
+func TestOperatorSketchLiveOpenContactHandoffLabel(t *testing.T) {
+	if os.Getenv("WEBCAST_LIVE_CHROME") == "" {
+		t.Skip("set WEBCAST_LIVE_CHROME=1")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	defer cancel()
+	page := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		fmt.Fprint(w, `<!doctype html><title>open-contact handoff</title><style>body{margin:0}button{position:absolute;left:80px;top:100px;width:240px;height:160px;padding:0;border:0}</style><button>Save</button>`)
+	}))
+	defer page.Close()
+	binary, err := FindChrome(os.Getenv, execLookPath, fileExists)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile, root := t.TempDir(), filepath.Join(t.TempDir(), "recordings")
+	var chrome *Chrome
+	cast, err := StartCast(ctx, CastConfig{RecordingsDir: root, Host: broadcast.NewHost(broadcast.HostConfig{Tunnel: &broadcast.FakeTunnel{}}), Logf: t.Logf, Launch: func(ctx context.Context, opts *RecordOptions) (Browser, error) {
+		opts.ShotEvery = -1
+		var err error
+		chrome, err = Launch(ctx, LaunchOptions{Binary: binary, Headless: true, ProfileDir: profile, StartURL: page.URL, Record: opts})
+		return chrome, err
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cast.End()
+	stop := context.AfterFunc(ctx, chrome.proc.Kill)
+	defer stop()
+	session := (liveHarness{chrome}).session(t, "")
+	call := func(method string, params, result any) {
+		t.Helper()
+		if err := chrome.conn.Call(ctx, session, method, params, result); err != nil {
+			t.Fatal(method, err)
+		}
+	}
+	eval := func(world int64, expression string) json.RawMessage {
+		t.Helper()
+		var result struct {
+			Result struct {
+				Value json.RawMessage `json:"value"`
+			} `json:"result"`
+			Exception json.RawMessage `json:"exceptionDetails"`
+		}
+		params := map[string]any{"expression": expression, "returnByValue": true, "awaitPromise": true}
+		if world != 0 {
+			params["contextId"] = world
+		}
+		call("Runtime.evaluate", params, &result)
+		if len(result.Exception) > 0 {
+			t.Fatalf("evaluate %s: %s", expression, result.Exception)
+		}
+		return result.Result.Value
+	}
+	wait := func(what string, condition func() bool) {
+		t.Helper()
+		for deadline := time.Now().Add(8 * time.Second); time.Now().Before(deadline); {
+			if condition() {
+				return
+			}
+			select {
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			case <-time.After(25 * time.Millisecond):
+			}
+		}
+		t.Fatalf("waiting for %s", what)
+	}
+	call("Emulation.setDeviceMetricsOverride", map[string]any{"width": 800, "height": 600, "deviceScaleFactor": 1, "mobile": false}, nil)
+	wait("fixture document", func() bool {
+		return string(eval(0, `document.readyState==='complete'&&!!document.querySelector('button')`)) == "true"
+	})
+	if err = chrome.SetLive(true); err != nil {
+		t.Fatal(err)
+	}
+	if err = cast.board.SetAnnotationAllowed(ctx, true); err != nil {
+		t.Fatal(err)
+	}
+	controller := cast.Drive()
+	if controller == nil {
+		t.Fatal("real cast controller missing")
+	}
+	if err = controller.SetDriveAllowed(ctx, true); err != nil {
+		t.Fatal(err)
+	}
+	var world int64
+	wait("operator world", func() bool {
+		done := make(chan struct{})
+		chrome.do(func(state *loopState) { world = state.contexts[session]; close(done) })
+		<-done
+		return world != 0
+	})
+	wait("recorded live document", func() bool { return cast.board.OperatorView().Doc > 0 })
+	wait("operator drawing authority", func() bool {
+		return string(eval(world, `!!globalThis.__couchcastOperatorSketch?.state().allowed`)) == "true"
+	})
+
+	defer func() {
+		if t.Failed() {
+			t.Logf("operator handoff diagnostic: %s", eval(world, `JSON.stringify({state:__couchcastOperatorSketch.state(),ui:__couchcastOperatorSketch.labelInput.getRootNode().querySelector('.sketch-status')?.textContent})`))
+		}
+	}()
+	eval(world, `(async()=>{await __couchcastOperatorSketch.enter();return true})()`)
+	wait("prepared operator scene", func() bool { return string(eval(world, `__couchcastOperatorSketch.state().phase`)) == `"drawing"` })
+	var oldID string
+	if err = json.Unmarshal(eval(world, `__couchcastOperatorSketch.state().active`), &oldID); err != nil || oldID == "" {
+		t.Fatalf("operator sketch id %q %v", oldID, err)
+	}
+	pen := func(kind string, x, pressure float64) {
+		t.Helper()
+		button := "none"
+		if kind == "mousePressed" {
+			button = "left"
+		}
+		call("Input.dispatchMouseEvent", map[string]any{"type": kind, "x": x, "y": 140, "button": button, "buttons": 1, "clickCount": 1, "pointerType": "pen", "force": pressure}, nil)
+	}
+	pen("mousePressed", 100, .2)
+	pen("mouseMoved", 115, .5)
+	pen("mouseMoved", 130, .8)
+	var records []recording.Record
+	read := func() *recording.State {
+		t.Helper()
+		rs, err := readSubmissionRecording(ctx, cast.RecordingPath())
+		if err != nil {
+			return nil
+		}
+		records = rs
+		state, err := recording.Reduce(rs, math.MaxInt64)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return state
+	}
+	wait("accepted open pressure contact", func() bool {
+		state := read()
+		if state == nil {
+			return false
+		}
+		view := state.Sketches.Snapshot()
+		return len(view.Sketches) == 1 && len(view.Sketches[0].Strokes) == 1 && len(view.Sketches[0].Strokes[0].Pts) >= 3 && !view.Sketches[0].Strokes[0].Sealed
+	})
+	wait("last open contact reply settled", func() bool {
+		return string(eval(world, `__couchcastOperatorSketch.state().slots.every(s=>!s.inflight&&!s.queued)`)) == "true"
+	})
+	for _, record := range records {
+		if record.Kind() == "sketch-stroke-end" {
+			t.Fatal("fixture released pointer before handoff")
+		}
+	}
+	seat, err := controller.Join("Next holder")
+	if err != nil {
+		t.Fatal(err)
+	}
+	detach, err := controller.Attach(seat.Viewer.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer detach()
+	if err = controller.Request(seat.Key); err != nil {
+		t.Fatal(err)
+	}
+	if err = controller.Grant(seat.Viewer.ID); err != nil {
+		t.Fatal(err)
+	}
+	wait("authoritative handoff seals partial contact", func() bool {
+		state := read()
+		if state == nil {
+			return false
+		}
+		view := state.Sketches.Snapshot()
+		if len(view.Sketches) != 1 || len(view.Sketches[0].Strokes) != 1 {
+			return false
+		}
+		sketch := view.Sketches[0]
+		metadata, _ := state.Sketches.Metadata(oldID)
+		return sketch.Begin.ID == oldID && sketch.Phase == "interrupted" && sketch.Reason == recording.SketchInterruptHandoff && metadata.OpenStroke == "" && sketch.Strokes[0].Sealed && sketch.Strokes[0].Truncated
+	})
+	authority := controller.DrawingAuthority()
+	permit, err := controller.AdmitDrawing(authority.Epoch, seat.Key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	identity, err := controller.AdmitDrawingMetadata(seat.Key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	annotation, err := cast.board.AdmitAnnotation()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ownerHash := sha256.Sum256([]byte(seat.Key))
+	nextAuthority := board.SketchAuthority{Author: permit.Principal(), Owner: hex.EncodeToString(ownerHash[:]), Epoch: authority.Epoch, Annotation: annotation, Check: permit.Check, MetadataCheck: identity.Check}
+	next := cast.sketches.Execute(ctx, nextAuthority, board.SketchCommand{Kind: "sketch-begin", Operation: "next-holder-begin", Epoch: authority.Epoch, Seg: cast.board.OperatorView().Seg, Color: 1})
+	if next.Outcome != board.SketchAccepted || next.Sketch == oldID {
+		t.Fatalf("new holder blocked by old open contact: %+v", next)
+	}
+	wait("old console loses drawing authority", func() bool { return string(eval(world, `!__couchcastOperatorSketch.state().allowed`)) == "true" })
+	// This is the ordinary label UI path; it must use journal-authoritative
+	// sealing rather than retaining open_stroke from the last points reply.
+	encodedID, _ := json.Marshal(oldID)
+	eval(world, `(()=>{const tool=__couchcastOperatorSketch;tool.openLabel(`+string(encodedID)+`);tool.labelInput.value='Partial before handoff';return true})()`)
+	// The journal is asynchronous. A temporary confirmation gate is valid;
+	// repeatedly pressing the ordinary Save action must cease being blocked
+	// once its authoritative seal arrives. Acceptance clears labelTarget, so
+	// later polls cannot submit another label mutation.
+	wait("old console label persisted during new-holder drawing", func() bool {
+		eval(world, `(async()=>{await __couchcastOperatorSketch.saveLabel();return true})()`)
+		state := read()
+		if state == nil {
+			return false
+		}
+		view := state.Sketches.Snapshot()
+		if len(view.Sketches) != 2 {
+			return false
+		}
+		return view.Sketches[0].Begin.ID == oldID && view.Sketches[0].Label == "Partial before handoff" && view.Active == next.Sketch && view.Sketches[1].Phase == "drawing"
+	})
+	if err = permit.Check(); err != nil {
+		t.Fatalf("old metadata label revoked new holder: %v", err)
+	}
+	if current := controller.DrawingAuthority(); current.Holder != seat.Viewer.ID || current.Epoch != authority.Epoch {
+		t.Fatalf("late label changed new holder authority: %+v", current)
+	}
+	// A valid permit must still reach the writer/source seam after the old
+	// label: keeping the controller witness alone would miss a lost scene lease.
+	current := read()
+	if current == nil {
+		t.Fatal("missing post-label recording")
+	}
+	oldAnchor := current.Sketches.Snapshot().Sketches[0].Strokes[0].Begin.At
+	stroke := cast.sketches.Execute(ctx, nextAuthority, board.SketchCommand{Kind: "sketch-stroke-begin", Operation: "next-holder-contact", Sequence: 1, Epoch: authority.Epoch, Sketch: next.Sketch, ID: "next-contact", Node: oldAnchor.Node, Box: *oldAnchor.Box})
+	if stroke.Outcome != board.SketchAccepted {
+		t.Fatalf("old label blocked new holder source/writer: %+v", stroke)
 	}
 }
