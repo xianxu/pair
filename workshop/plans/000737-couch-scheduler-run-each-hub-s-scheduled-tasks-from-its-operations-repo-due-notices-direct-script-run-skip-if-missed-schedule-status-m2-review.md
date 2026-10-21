@@ -340,3 +340,122 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000411
+
+---
+
+## Re-review — 2026-10-21T10:31:25-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 737 — couch: scheduler: run each hub's scheduled tasks from its operations repo (due notices, direct script-run, skip-if-missed, --schedule --status) |
+| repo | pair |
+| issue file | workshop/issues/000737-couch-scheduler-run-each-hub-s-scheduled-tasks-from-its-operations-repo-due-notices-direct-script-run-skip-if-missed-schedule-status.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 369451d79fe2072aa39ee8b3928bfbf9e6f40132..c999468484f4832f68db1d3ac41d639a3fd66e5b |
+| command | sdlc milestone-close --issue 737 --milestone M2 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T10:31:25-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-13 is addressed: authority consumers now require durable history, and removing that guarantee makes the regression suite fail. The existing tests pass, but a new production-path probe exposes a blocking recovery ordering: catalogue cancellation can strand an already-finalized notice after a failed ledger commit. README and atlas updates are present. Live acceptance remains outstanding under the documented sequencing.
+
+```findings
+dispose:
+  - id: BR-13
+    disposition: addressed
+    note: |
+      ReadDurable shares the task-locked read/validation/sync boundary; authority consumers use it, and finalization confirms directory durability. TestScheduleDurableAdoptionConsumerInventory passes at HEAD. A disposable Go overlay replacing ReadDurable with Read makes the consumer regression fail, including startup, completion, manual recovery, reserved execution and notify adoption.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Retained disposition verified: admission holds authority after acquiring the hub gate, rechecks the persisted deadline and tuple, and bounds broker waits. Admission regressions pass, including under race detection.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      Retained disposition verified: history failures quarantine the named task while preserving authority; consumer-isolation and healthy-peer dispatch tests pass.
+  - id: BR-11
+    disposition: addressed
+    note: |
+      Retained disposition verified: Advance preserves same-occurrence summary metadata, and recovery keeps record and summary namespaces separate. Preservation regressions pass.
+  - id: BR-12
+    disposition: addressed
+    note: |
+      Retained disposition verified: direct and cached adoption share timestamped recovery construction. The failed-commit canonical recovery regression passes.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: durable-artifact-crash-recovery
+    title: |
+      Catalogue cancellation strands a notice whose terminal history already committed
+    detail: |
+      cmd/internal/couchcmd/schedule_service.go:258-262 attempts dropped finalization without first adopting existing terminal history. A disposable production-path regression lets receipt polling finalize submitted, injects BeforePersist failure, then removes or revises the declaration before retry. Both cases remain stuck after three refresh/step cycles: FinalizeNotice returns "operational notice is not pending", Active remains delivery, Last remains pending, and task quarantine prevents further reconciliation at schedule_automatic.go:451-453. This is the 6th finding in family durable-artifact-crash-recovery. Earlier rounds fixed instances; do NOT fix only this instance. Enforce the rule that durably confirmed canonical terminal history wins before any cancellation or replacement transition. Sweep catalogue removal/revision/owner changes and every competing finalization consumer, preserve terminal facts, and add sequence regressions for failed authority commits followed by cancellation. ARCH-ORDER, ARCH-PURPOSE.
+```
+
+1. **Strengths**
+
+   - `ReadDurable` clearly separates inspection from authority-bearing consumption and confirms durability while holding the task lock.
+   - The 13-consumer regression checks retained authority, repeated failures, healthy peer dispatch, repaired canonical facts and no execution replay.
+   - README and atlas document automatic dispatch, lock ordering, uncertainty, durable adoption and retention behavior.
+
+2. **Critical findings**
+
+   - **Canonical terminal history loses precedence during catalogue cancellation**, at `schedule_service.go:258-262`. Reconcile confirmed history before applying cancellation; retain the existing terminal result rather than requesting a conflicting finalization. The failed-commit → catalogue-change sequence needs permanent coverage.
+
+3. **Important findings**
+
+   None additional.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Passed:
+
+   - All `TestSchedule` tests in `couchcmd`.
+   - Full `operationalrun` and `couchschedule` packages.
+   - Focused durability, admission, result and clock tests under race detection.
+   - Pinned-range whitespace check.
+
+   The durable-read mutation correctly failed. The additional production-path probe failed for **both declaration removal and revision**. Temporary overlays were removed; the checkout remains unchanged. Full-suite and day-long live acceptance were not established by this review.
+
+6. **Architectural notes for upcoming work**
+
+   - **ARCH-DRY — pass:** shared durable adoption boundary and execution path.
+   - **ARCH-PURE — pass:** deterministic reducer remains separate from clock, storage and broker adapters; reviewed core entities match their declared locations.
+   - **ARCH-PURPOSE — flag:** canonical-history recovery still fails across catalogue cancellation.
+   - **ARCH-MOCK — pass:** stateful runtime/clock seams and portable storage exercise production boundaries.
+   - **ARCH-CONSTRAINTS — pass:** independent bounded execution/notice slots and counted workload tests.
+   - **ARCH-SECURE — pass:** validated persisted inputs and explicit operator-level execution trust.
+   - **ARCH-ORDER — flag:** terminal-history publication followed by failed authority commit and catalogue change lacks a convergent transition.
+   - **ARCH-FUNERAL — pass:** existing retention owns bundles; pending protection and bounded caches are explicit.
+   - **ARCH-EVOLVE — pass:** additive metadata survives same-identity rewrites; known-field validation remains strict.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry specifying **canonical terminal history precedence across cancellation**, with sequence coverage for terminal publication → authority failure → removal, revision or owner change. Update the recovery inventory’s claim that existing reconciliation always adopts the durable record. Follow the plan’s escalation to TL/operator for this further ordering REWORK.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"8395756c-448f-4d66-b843-07bbdbe3ce8e","repository":"github.com/xianxu/pair","issue_id":"000737","recipe":"milestone-review","round":4,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/8e89470ef8f200df","reviewed_head":"c999468484f4832f68db1d3ac41d639a3fd66e5b","slot":"pair:1","requested_at":"2026-10-21T16:41:30.991914Z"},"phase":"finished","pid":24795,"started_at":"2026-10-21T16:41:31.090011Z","finished_at":"2026-10-21T17:31:24.711052Z","session_id":"01a15f56-dfdb-7f01-9f8f-741d4a6d77df","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.647768792s
+head: "c999468484f4832f68db1d3ac41d639a3fd66e5b"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
