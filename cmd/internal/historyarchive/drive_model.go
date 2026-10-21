@@ -59,24 +59,26 @@ func (d DriveDestination) RemoteObjectNames(id string) (string, string, error) {
 // UploadObject records exact bytes and the remote observation that verified them.
 // pair:m5-concept pure
 type UploadObject struct {
-	Name         string `json:"name"`
-	Size         int64  `json:"size"`
-	SHA256       string `json:"sha256"`
-	MD5          string `json:"md5"`
-	RemoteID     string `json:"remote_id"`
-	Verification string `json:"verification"`
+	Name         string                     `json:"name"`
+	Size         int64                      `json:"size"`
+	SHA256       string                     `json:"sha256"`
+	MD5          string                     `json:"md5"`
+	RemoteID     string                     `json:"remote_id"`
+	Verification string                     `json:"verification"`
+	Extensions   map[string]json.RawMessage `json:"-"`
 }
 
 // UploadReceipt attests a pair at one destination, separately from local authority.
 // pair:m5-concept pure
 type UploadReceipt struct {
-	Version     int          `json:"version"`
-	Destination string       `json:"destination"`
-	FolderID    string       `json:"folder_id"`
-	BundleID    string       `json:"bundle_id"`
-	Bundle      UploadObject `json:"bundle"`
-	Label       UploadObject `json:"label"`
-	VerifiedAt  time.Time    `json:"verified_at"`
+	Version     int                        `json:"version"`
+	Destination string                     `json:"destination"`
+	FolderID    string                     `json:"folder_id"`
+	BundleID    string                     `json:"bundle_id"`
+	Bundle      UploadObject               `json:"bundle"`
+	Label       UploadObject               `json:"label"`
+	VerifiedAt  time.Time                  `json:"verified_at"`
+	Extensions  map[string]json.RawMessage `json:"-"`
 }
 
 func validRemoteIdentity(s string) bool {
@@ -141,13 +143,20 @@ func DecodeUploadReceipt(raw []byte) (UploadReceipt, error) {
 	return r, ValidateUploadReceipt(r)
 }
 
-// MatchReceipt compares exact observations, ignoring only verification time.
+// MatchReceipt compares all known observations, ignoring verification time and
+// opaque extensions, whose semantics this version cannot interpret.
 func MatchReceipt(got, want UploadReceipt) bool {
 	if ValidateUploadReceipt(got) != nil || ValidateUploadReceipt(want) != nil {
 		return false
 	}
-	got.VerifiedAt = want.VerifiedAt
-	return got == want
+	return got.Version == want.Version && got.Destination == want.Destination &&
+		got.FolderID == want.FolderID && got.BundleID == want.BundleID &&
+		matchUploadObject(got.Bundle, want.Bundle) && matchUploadObject(got.Label, want.Label)
+}
+
+func matchUploadObject(got, want UploadObject) bool {
+	return got.Name == want.Name && got.Size == want.Size && got.SHA256 == want.SHA256 &&
+		got.MD5 == want.MD5 && got.RemoteID == want.RemoteID && got.Verification == want.Verification
 }
 
 // decodeJSONNoDuplicateKeys rejects case-fold-equivalent keys in every object, including
