@@ -27,7 +27,14 @@ func nativeFailureEvidence(store string) (string, error) {
 	}
 	var out strings.Builder
 	for _, failure := range history[:min(len(history), 4)] {
-		fmt.Fprintf(&out, "nonce=%s slot=%s stage=%s launch=%q final=%q cleanup=%q stream=%q output=%q\n", failure.Nonce, failure.Slot, failure.Stage, failure.LaunchError, failure.FinalError, failure.CleanupError, failure.Stream, failure.Output)
+		before, after := "unobserved", "unobserved"
+		if failure.BeforeExit != nil {
+			before = fmt.Sprint(*failure.BeforeExit)
+		}
+		if failure.AfterExit != nil {
+			after = fmt.Sprint(*failure.AfterExit)
+		}
+		fmt.Fprintf(&out, "nonce=%s slot=%s stage=%s before_exit=%s after_exit=%s launch=%q final=%q cleanup=%q stream=%q output=%q\n", failure.Nonce, failure.Slot, failure.Stage, before, after, failure.LaunchError, failure.FinalError, failure.CleanupError, failure.Stream, failure.Output)
 	}
 	return out.String(), nil
 }

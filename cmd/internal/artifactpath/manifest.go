@@ -905,6 +905,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/operationattempt_record.go",
 	"cmd/internal/couchcmd/lifecyclefailure_queue.go",
 	"cmd/internal/couchtty/console_lifecycle_failure.go",
+	"cmd/internal/couchtty/attach_failure.go",
 	"cmd/internal/couchcore/launchoutput.go",
 	"cmd/internal/couchcmd/capture.go",
 	"cmd/internal/couchtty/capture.go",

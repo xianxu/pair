@@ -225,3 +225,23 @@ Implementation steps after approval:
 - After classification and code checks, rerun final real Claude/Codex three-worker matrix once, retain all prior evidence/#747 checksum, record suite on pushed final head, full close, then merge on SHIP. Prior lease214519138 was canceled through SDLC while queued; no suite result claimed.
 
 Simplest rejected alternative: add the unknown call at the two reviewer-named returns. That leaves future early exits and partial retirement outside the lifetime authority, repeating this defect family. A new per-request process supervisor is also unnecessary: the existing fleet owner and correlated slot already carry cleanup authority. Public helper CLI, isolation, bounds and scenario scope are unchanged. No code changes until TL approves this re-plan.
+
+### 2026-10-21 — third-delta re-plan approval and BR-5 disposition
+
+TL approval ff2a11b1-7eaa-47eb-ab7c-3fa515f7801c approves the single post-publication lifetime guard above: disarm only after joined non-uncertain result AND retirement; all other returns latch typed uncertainty, preserve available evidence and delegate Close. The four new filesystem-backed tests are RED before implementation: read-only cancellation publication leaves a real CLI child alive; malformed acknowledgment returns decode error; held acknowledgment expires at the unchanged15s cleanup bound; command unlink permission failure leaves partial retirement. Every case previously returned without typed uncertainty. The implementation uses one deferred admitted-request guard, with no new fleet state/resource/protocol or timeout.
+
+BR-5 is an independently intermittent production attach/PTY-lifecycle failure, registered on unclaimed pair#772 for exact github.com/xianxu/pair/cmd/couch.TestDisposableCouchFleet/codex. Preserved reviewer failure103.75s and unchanged pass107.43s under workshop/evidence/000744/review-round3-native-{fail.log,pass.log,evidence.json}. The observed endpoint ended within7.1845s during worker3 attach, not a120s scenario timeout; existing projection cannot identify check site, endpoint termination cause, direct child exit or last output. No root cause is claimed. TL directs744 to land without waiting on772, with one approved scope addition: retain the next failure's exact attach site, actual endpoint ended observation/exit status when observed, and bounded recent output before rollback. Reuse LifecycleFailure's existing Stage/BeforeExit/Stream/Output/LaunchError fields; nil exits remain explicitly unobserved. Capture an immutable typed diagnostic error at attach rejection, adopt it into the same operation attempt/nonce, and include the existing fields in the harness's pre-cleanup projection. This is diagnostic evidence, not a fix or retry for772; endpoint termination cause unavailable from current API stays explicit. Regression tests exercise preflight/precommit snapshots, bounded copied output, observed versus unknown exit and unchanged attempt identity. After744 landing, this slot takes772 separately from main per TL dispatch.
+
+### 2026-10-21 — diagnostic addition core concepts
+
+| PURE entity | Lives in | Status | Test |
+|---|---|---|---|
+| attachFailure immutable diagnostic value and TerminalFailureEvidence owned projection | cmd/internal/couchtty/attach_failure.go | new | value-only copy/error projection regression in attach_failure_test.go |
+
+| INTEGRATION | Lives in | Status | Wraps/reuses |
+|---|---|---|---|
+| captureAttachFailure | cmd/internal/couchtty/attach_failure.go and console.go rejection sites | new | live child endpoint, bounded snapshot, nonblocking observed-exit inspection; stateful fake-child preflight/precommit tests |
+| lifecycleFailureForAttempt terminal evidence adoption | cmd/internal/couchcore/operationattempt_record.go | modified | existing LifecycleFailure fields and operation authority; owned copies, target/nonce preservation |
+| nativeFailureEvidence exit projection | cmd/internal/testcouch/cleanup.go | modified | existing failure store; observed/unobserved before/after exits, original pre-cleanup bytes/site |
+
+No new persisted noun, lifecycle status, operator action, timeout or retry is introduced. The diagnostic value owns its output and exit pointer; callers cannot mutate recorded evidence. After-exit observations remain distinct from the original rejection snapshot.

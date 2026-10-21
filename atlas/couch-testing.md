@@ -90,3 +90,11 @@ explicit cleanup uncertainty: command, result and cancellation evidence stay in
 the same bounded mailbox slot and all new fleet mutations refuse. Existing Close
 reconciles private-run process generations; only proved cleanup and root removal
 clear the failure. A reaped leader never grants numeric process-group kill authority.
+
+Rejected terminal attachment freezes the preflight or precommit failure site,
+actual endpoint ID and input-ended state, an observed exit status when already
+reaped, and the last 16 KiB of raw output before rollback. The operation recorder
+keeps its original attempt identity; these observations grant no cleanup authority.
+Fleet failure logs print unknown before/after exits as `unobserved`. Endpoint
+termination cause is currently unavailable; an ended endpoint does not prove EOF
+or a particular child exit reason (#772).

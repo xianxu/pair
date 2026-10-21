@@ -56,7 +56,7 @@ func (f *Fleet) WaitAgent(ctx context.Context, n int) error {
 
 // ActorCLI never manufactures credentials: the already-running fixture spawns
 // the real binary from its own inherited registered actor environment.
-func (f *Fleet) ActorCLI(ctx context.Context, n int, args ...string) (agentfixture.Result, error) {
+func (f *Fleet) ActorCLI(ctx context.Context, n int, args ...string) (result agentfixture.Result, outcome error) {
 	ctx, done, err := f.begin(ctx)
 	if err != nil {
 		return agentfixture.Result{}, err
@@ -75,7 +75,16 @@ func (f *Fleet) ActorCLI(ctx context.Context, n int, args ...string) (agentfixtu
 	if err = agentfixture.WriteCommand(dir, agentfixture.Command{ID: id, Kind: agentfixture.Exec, Timeout: timeout, DeadlineUnixNano: admitted.Add(timeout).UnixNano(), Args: append([]string(nil), args...)}); err != nil {
 		return agentfixture.Result{}, err
 	}
-	var result agentfixture.Result
+	// Publication transfers request lifetime to this invocation. Only proved
+	// joined completion AND successful retirement release that ownership; every
+	// other return hands the existing fleet owner an explicit uncertain outcome.
+	retired := false
+	defer func() {
+		if !retired {
+			outcome = errors.Join(agentfixture.ErrCleanupUncertain, outcome)
+			f.record(RunEvent{Kind: "unknown", Error: outcome.Error()})
+		}
+	}()
 	err = waitUntil(ctx, func() (bool, error) {
 		var e error
 		result, e = agentfixture.ReadResult(dir, id)
@@ -114,6 +123,7 @@ func (f *Fleet) ActorCLI(ctx context.Context, n int, args ...string) (agentfixtu
 		if e := agentfixture.RetireResult(dir, id); e != nil {
 			return result, errors.Join(callerErr, fmt.Errorf("fixture CLI terminal retirement: %w", e))
 		}
+		retired = true
 		return result, callerErr
 	}
 	if err == nil {
@@ -123,6 +133,7 @@ func (f *Fleet) ActorCLI(ctx context.Context, n int, args ...string) (agentfixtu
 		// This invocation is the last consumer of its unique correlated result.
 		// Reclaim it before another observation needs the bounded mailbox.
 		err = agentfixture.RetireResult(dir, id)
+		retired = err == nil
 		if result.Error != "" {
 			err = errors.Join(err, fmt.Errorf("fixture CLI: %s", result.Error))
 		}
@@ -137,7 +148,6 @@ func (f *Fleet) retainUncertainCLI(dir string, result agentfixture.Result) error
 	}
 	// Keep all three correlated files until Close reconciles the private run.
 	err = errors.Join(err, agentfixture.CancelCommand(dir, result.ID))
-	f.record(RunEvent{Kind: "unknown", Error: err.Error()})
 	return err
 }
 
