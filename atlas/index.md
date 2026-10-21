@@ -17,6 +17,7 @@
 - [Workspace provisioning](workspace-provisioning.md) — repeatable numbered worktree setup, local Couch state, Weave readiness and durable recovery (#305–306); the slot resource table, observation and reconcile plan (#387); repository-family admission and subdirectory propagation are mapped in [couch](couch.md).
 - [Workbench performance](workbench-performance.md) — normal-suite counted UI/message/attach invariants, scan ratchets, extension guide and separate live CPU acceptance.
 - [Couch slot scratch](couch-scratch.md) — opt-in TestScratch temp environments, current-selection diagnostics, age cleanup, socket pinning and reboot-only Zellij metadata routing (#708, #720).
+- [Supervision fact health](couch.md#supervision-fact-log-543) — request-time memory-only logger state, bounded backend errors, dropped/acknowledged counts and the coordinated CLI/supervisor upgrade (#736 M1).
 - [Agent scratch volume](agent-scratch-volume.md) — Go build cache and agent/test temp roots on an APFS volume fseventsd doesn't journal (#496): setup, verify, lifecycle, teardown.
 - [Review workbench](review-workbench.md) — embedded nvim document-review pane (#66): agent proposes edit records, nvim applies them undo-ably + journals rounds via docflow.
 - [Agentic document caller contract](couch-agentic-documents.md) — durable registration, read-only discovery, rename and forget for submitted markdown files; shared with Parley.

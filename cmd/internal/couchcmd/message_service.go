@@ -942,13 +942,14 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 		}
 		if sampler := s.resources.Load(); sampler != nil {
 			view := sampler.view()
+			view.SupervisionLog = s.facts.Load().health()
 			if snapshot := s.hostedIngest.Load(); snapshot != nil {
 				hosted := (*snapshot)()
 				hosted.ServerPID = os.Getpid()
 				hosted.ServerStartedAt = processStartedAt
 				view.HostedIngest = &hosted
-				view = projectResourceView(view)
 			}
+			view = projectResourceView(view)
 			return couchmessage.Response{Code: "ok", Resources: &view}
 		}
 		return couchmessage.Response{Code: "unsupported", Error: "resource sampler unavailable"}

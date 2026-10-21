@@ -88,6 +88,34 @@ worker; Open errors disappear, and factLogWriteFailed is a lifecycle no-op.
 A bounded read-only subagent review confirmed resources as the existing fresh,
 request-time status seam. Historical cause remains unknown.
 
+### 2026-10-20 — M1 implementation and targeted evidence
+
+Entry gate cleared plan-quality (PQ-1/PQ-2 addressed) and estimate-quality INFO.
+The two smaller-module estimate items include owner/lifecycle qualification and
+resource socket/projection qualification respectively; their implementation
+allowance also includes active check/landing handling. Review items cover the
+two review/PR boundaries, docs include inventory audit and usage, and M2 discovery
+is explicitly an analogy for live storage/lifecycle diagnosis. Hub-owned restart
+time is not worker implementation. M2's small-repair allowance must be rederived
+once the cause is measured.
+
+Semantic reds: a failed sink write remained active; actual resources JSON omitted
+supervision_log; resource cloning aliased the new pointer; and a worker stopped
+by parent cancellation still reported working. All are green with one health
+owner, no retry, no failed-row replay and memory-only publication. Open failures,
+short writes, later independent recovery, held IO, absorbing close and16/32-event
+counts run against the stateful sink. The real socket/CLI, actual strict decoder
+and frame-budget/clone tests pin the approved coordinated upgrade contract.
+
+go test -race ./cmd/internal/couchcmd -run 'Test(Supervision|Resources)|FuzzSupervisionHealthErrorBound'
+-count=1 passed3.358s. Targeted couchcore resources and couchmessage protocol
+checks passed3.898s/0.171s. Bounded2-worker error fuzz passed2062 executions
+(4.509s including shutdown); error capture remains sanitized, nonempty, valid
+UTF-8 and at most512 bytes. make test-affected-inventory and git diff --check
+passed. README and atlas explain health versus retained delivery receipts and
+the historical cause still owed. Recorded affected verification and M1 boundary
+review follow on the pushed head; nothing has been staged or accepted live.
+
 ## Revisions
 
 ### 2026-10-20 — separately land health before measured repair
