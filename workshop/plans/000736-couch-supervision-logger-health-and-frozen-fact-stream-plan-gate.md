@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: c92c3bd0-7ca3-4ac9-a82a-d6484950f600
+        repository: github.com/xianxu/pair
+        issue_id: "000736"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot7/pair
+        reviewed_head: 3362084cc2f9a386debacf89c502936973a3776f
+        slot: pair:7
+        requested_at: "2026-10-21T03:11:34.902944Z"
+      phase: finished
+      pid: 48305
+      started_at: "2026-10-21T03:11:35.056221Z"
+      finished_at: "2026-10-21T03:12:07.545635Z"
+      session_id: 01a15c71-5c08-7eb0-a3f8-f6a5ef6a713f
+      outcome: returned
 gate: plan-quality
 issue: 736
 id_prefix: PQ
@@ -75,7 +95,41 @@ rounds:
           note: Replaces case inventories with named production functions and compact adversarial-input strategies with mechanical guards.
           round: 2
       blocked: false
-content_hash: c0ff483370657cadbf1bd24c4b2f908d8d9be3c63ebe338be077d2d4ea317c2e
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 4f3b4729-7e69-463a-8b1b-d449671713b1
+            repository: github.com/xianxu/pair
+            issue_id: "000736"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot7/pair
+            reviewed_head: 3362084cc2f9a386debacf89c502936973a3776f
+            slot: pair:7
+            requested_at: "2026-10-21T03:10:52.637599Z"
+          phase: finished
+          pid: 17892
+          started_at: "2026-10-21T03:10:52.754989Z"
+          finished_at: "2026-10-21T03:11:31.683438Z"
+          session_id: 01a15c70-b69c-7da2-8123-147c9a32d0e1
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-20T20:11:32-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Explicit rebuilt-client requirement matches the strict decoder; both compatibility directions have named verification.
+          round: 3
+        - id: PQ-2
+          disposition: addressed
+          note: Named production functions now have adversarial input classes and mechanical test guards.
+          round: 3
+      blocked: false
+content_hash: d1e358987e5b500690e3b43c3555c40d5984ad230d3ded4d04769e7dc351e88e
 ---
 
 # Gate ledger — pair#736 (plan-quality)
@@ -98,6 +152,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - PQ-1 — addressed — Requires coordinated CLI/supervisor upgrade and strict-decoder tests for both compatibility directions; explicitly acknowledges old-client refusal.
 - PQ-2 — addressed — Replaces case inventories with named production functions and compact adversarial-input strategies with mechanical guards.
+
+## Round 3 — 2026-10-20T20:11:32-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Explicit rebuilt-client requirement matches the strict decoder; both compatibility directions have named verification.
+- PQ-2 — addressed — Named production functions now have adversarial input classes and mechanical test guards.
 
 ## Open findings
 
