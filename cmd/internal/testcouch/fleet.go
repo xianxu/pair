@@ -391,6 +391,10 @@ func (f *Fleet) Close(ctx context.Context) error {
 	if err := f.reconcileProcesses(ctx); err != nil {
 		return err
 	}
+	if f.t.Failed() {
+		evidence, err := nativeFailureEvidence(f.Roots.Mutable["store"])
+		f.t.Logf("native failure evidence before root removal: %s; read_error=%v", evidence, err)
+	}
 	f.mu.Lock()
 	p := f.console
 	f.mu.Unlock()

@@ -179,6 +179,18 @@ Diagnostic headdcdffcea8f14b4465f025c3d40839968082e2a32 completed the full Claud
 
 The Codex fixture's synthetic shortcuts footer painted the reserved left edge beneath the prompt. Production peerComposerText correctly refused that surface despite the bold prompt itself being recognizable. Added42 tests through the actual production terminal model, peerComposerState and qualifiedComposerText for both personalities, idle/working/picker phases, empty/occupied/multiline/wrapped drafts and three geometries. Eighteen Codex cases were RED before removing only the optional synthetic footer; production recognizers are unchanged. Independent targeted composer race run passed1.960s, and affected-reader inventory passed (new test reads only pure fixture paint/model state; no repository scanner). No native run remained active after the capacity interruption; continued from these retained results, without duplicate fleet launch.
 
+### 2026-10-21 — worker early exit and failure evidence before cleanup
+
+Native3046a4affc8ff1eb9bed7f89bad733a890073d41 stopped at worker2 public recovery: Pair exited before registering (exit1), operation31a19fcf-29b3-441f-a4ea-22ea3f2f70ea, attemptstart-2e7663c377216793. Full log /Volumes/TestScratch/tmp/pair-slot5/pair-744-native-imxp9u7d/native.log SHA256f24995581e7d6379ebca8ca58ac67f0815d7cc6de453f4457361664a763feda4. Cleanup succeeded but removed the referenced private failures.json, preventing classification of the exit. No matrix pass or root cause claimed.
+
+Cleanup now reads the existing bounded production LaunchFailureStore after every owned generation is absent, logging at most the newest four records and their bounded raw-output tails before root removal. It creates no retained diagnostic file or process. A real production-store regression pins newest-record/output preservation. Cancelled only this checkout's queued suite on3046a4af through sdlc local-check cancel because the diagnostic code changed; other runs were left intact. Requeue the final head after native qualification.
+
+Independent race verification also caught an assertion-domain bug: the256-cycle test counted transient .publish hard links as extra retained results. Production counters already exclude those. The regression now deliberately holds such a scratch file and independently counts only final .json request/result files, preserving the same one-request/one-result assertion without a cap/timeout change. Checks in progress before the diagnostic rerun.
+
+### 2026-10-21 — failure-evidence checks complete
+
+Independent whole helper race checks passed testcouch11.950s, agentfixture11.894s and native fixture entrypoint3.541s. Repository lint13.976s, artifactpath12.467s, audited run_test reader update, affected-reader inventory and whitespace checks passed. Commit/push before the launch-failure diagnostic rerun.
+
 ## Revisions
 
 ### 2026-10-20 — #747 native-proof sequencing

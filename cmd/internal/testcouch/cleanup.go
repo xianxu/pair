@@ -5,12 +5,32 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/testcouch/agentfixture"
 )
+
+// Read the existing bounded production history after all writers have joined,
+// before removing the owned root. No diagnostic copy outlives the test log.
+func nativeFailureEvidence(store string) (string, error) {
+	namespace, err := couchcore.ExistingCouchNamespace(store)
+	if err != nil {
+		return "", err
+	}
+	history, err := couchcore.NewLaunchFailureStore(namespace).Read()
+	if err != nil {
+		return "", err
+	}
+	var out strings.Builder
+	for _, failure := range history[:min(len(history), 4)] {
+		fmt.Fprintf(&out, "nonce=%s slot=%s stage=%s launch=%q final=%q cleanup=%q stream=%q output=%q\n", failure.Nonce, failure.Slot, failure.Stage, failure.LaunchError, failure.FinalError, failure.CleanupError, failure.Stream, failure.Output)
+	}
+	return out.String(), nil
+}
 
 // captureOwned observes one complete table and retains only the private run's
 // process generations. Reading this single marker never retains credentials.

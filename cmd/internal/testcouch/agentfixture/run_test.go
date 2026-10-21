@@ -466,6 +466,11 @@ func TestRunRetiredResultsKeepMailboxBoundedBeyondLifetimeQuota(t *testing.T) {
 	t.Cleanup(func() { cancel(); _ = writer.Close(); <-done })
 	waitFixture(t, func() bool { _, err := os.Stat(filepath.Join(config.ControlDir, "ready.json")); return err == nil })
 	maxPending, maxResults := 0, 0
+	// Atomic publication temporarily has both a scratch name and its linked
+	// final name. Neither the capacity contract nor this oracle counts scratch.
+	if err := os.WriteFile(filepath.Join(config.ControlDir, "results", ".publish-held"), []byte("in progress"), 0600); err != nil {
+		t.Fatal(err)
+	}
 	for i := 0; i < 2*MaxRequests; i++ {
 		id := fmt.Sprintf("serial-%03d", i)
 		if err := WriteCommand(config.ControlDir, Command{ID: id, Kind: SetState, State: Idle}); err != nil {
@@ -481,7 +486,7 @@ func TestRunRetiredResultsKeepMailboxBoundedBeyondLifetimeQuota(t *testing.T) {
 			return err == nil
 		})
 		for _, sub := range []string{"commands", "results"} {
-			entries, err := os.ReadDir(filepath.Join(config.ControlDir, sub))
+			entries, err := filepath.Glob(filepath.Join(config.ControlDir, sub, "*.json"))
 			if err != nil {
 				t.Fatal(err)
 			}
