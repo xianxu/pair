@@ -449,6 +449,7 @@ def go_test_argv(selection: TestSelection) -> list[str]:
 
 
 def run_selection(selection: TestSelection, make_argv: list[str]) -> None:
+    subprocess.run([*make_argv, "test-affected-inventory"], check=True)
     # This guard scans source text across import boundaries. Build owns the
     # same recipe; every other affected selection needs it once up front.
     if "build" not in selection.groups:

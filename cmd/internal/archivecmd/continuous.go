@@ -149,18 +149,22 @@ func runContinuous(ctx context.Context, args []string, stdout io.Writer, fail fu
 			fmt.Fprintln(stdout, warning)
 		}
 	}
-	var inventory *historyarchive.DriveInventoryObservation
 	if report.Drive != nil {
 		remote := report.Drive
-		inventory = remote.Inventory
 		fmt.Fprintf(stdout, "Drive: %d verified, %d already recorded, %d pending (%d deferred); %d downloaded checksum(s)\n", remote.Verified, remote.AlreadyRecorded, remote.Pending, remote.Deferred, remote.DownloadedChecksums)
 		for _, note := range remote.Notes {
 			fmt.Fprintf(stdout, "Drive: %s\n", note)
 		}
 	}
-	fmt.Fprintln(stdout, inventory.Line())
-	if warning := inventory.Warning(maxDriveFiles); warning != "" {
-		fmt.Fprintln(stdout, warning)
+	observations := historyarchive.LatestDriveInventories(report.Drive)
+	if len(observations) == 0 {
+		fmt.Fprintln(stdout, (*historyarchive.DriveInventoryObservation)(nil).Line())
+	}
+	for _, observation := range observations {
+		fmt.Fprintln(stdout, observation.Line())
+		if warning := observation.Warning(maxDriveFiles); warning != "" {
+			fmt.Fprintln(stdout, warning)
+		}
 	}
 	if err != nil {
 		return fail("continuous pass", err)

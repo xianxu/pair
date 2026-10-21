@@ -2,6 +2,10 @@
 
 ## Repo-specific rules
 
+- Before every `sdlc close` or narrow re-close, run `make test-affected-inventory`.
+  Audit each named reader's inputs before using the printed per-file repair command;
+  never refresh hashes in bulk to silence a stale inventory.
+
 - For development from Parley, use a branch in place at `~/workspace/pair` so
   the operator can smoke-test there. Do not create a separate worktree by
   default; preserve unrelated local edits when switching branches.

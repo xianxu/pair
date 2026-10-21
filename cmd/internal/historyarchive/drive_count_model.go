@@ -10,7 +10,7 @@ import (
 
 const DefaultDriveMaxFiles = 20000
 
-// DriveInventoryObservation records a file count at a configured Drive root.
+// DriveInventoryObservation records a file count at one physical Drive folder.
 // pair:m5-concept pure
 type DriveInventoryObservation struct {
 	Destination string `json:"destination"`
@@ -51,14 +51,14 @@ func (o *DriveInventoryObservation) Line() string {
 	if o == nil {
 		return "Drive file count unavailable"
 	}
-	return fmt.Sprintf("Drive file count: %d at %s (root ID %s; %s)", o.Files, driveCountText(o.Destination, 160), driveCountText(o.FolderID, 96), driveCountText(o.Phase, 24))
+	return fmt.Sprintf("Drive file count: %d at %s (folder ID %s; %s)", o.Files, driveCountText(o.Destination, 160), driveCountText(o.FolderID, 96), driveCountText(o.Phase, 24))
 }
 
 func (o *DriveInventoryObservation) Warning(limit int) string {
 	if o == nil || limit <= 0 || o.Files <= limit {
 		return ""
 	}
-	return fmt.Sprintf("%s exceeds file threshold %d. Ask the hub to arrange year subfolders on Drive.", o.Line(), limit)
+	return fmt.Sprintf("%s exceeds file threshold %d. Ask the hub to inspect this folder and its archive layout policy.", o.Line(), limit)
 }
 
 // driveCountText also strips invisible format controls before bounding display
@@ -90,6 +90,82 @@ func validateDriveInventoryObservation(o *DriveInventoryObservation) error {
 	}
 	if o.Phase != "before" && o.Phase != "after" {
 		return errors.New("invalid Drive inventory phase")
+	}
+	return nil
+}
+
+// LatestDriveInventories projects validated observations to one count per physical
+// destination, preserving first-seen order. An after observation wins regardless
+// of slice order. Inventory-only reports retain their historical count.
+func LatestDriveInventories(report *DriveReport) []DriveInventoryObservation {
+	if report == nil {
+		return nil
+	}
+	var latest []DriveInventoryObservation
+	positions := make(map[string]int)
+	add := func(o DriveInventoryObservation) {
+		if i, ok := positions[o.Destination]; ok {
+			if latest[i].Phase != "after" || o.Phase == "after" {
+				latest[i] = o
+			}
+			return
+		}
+		positions[o.Destination] = len(latest)
+		latest = append(latest, o)
+	}
+	if report.Inventory != nil {
+		add(*report.Inventory)
+	}
+	for _, o := range report.Inventories {
+		add(o)
+	}
+	return latest
+}
+
+func validateDriveInventories(report *DriveReport) error {
+	if report == nil {
+		return nil
+	}
+	// At most a before and after observation for each bounded physical folder.
+	// Identical repetitions are harmless, but still consume this input budget.
+	if len(report.Inventories) > 2*MaxIndexDestinations {
+		return errors.New("Drive inventory observation count exceeds bound")
+	}
+	destinations := make(map[string]string)
+	folders := make(map[string]string)
+	type phaseKey struct{ destination, phase string }
+	counts := make(map[phaseKey]int)
+	add := func(o DriveInventoryObservation) error {
+		if err := validateDriveInventoryObservation(&o); err != nil {
+			return err
+		}
+		if id, ok := destinations[o.Destination]; ok && id != o.FolderID {
+			return errors.New("conflicting Drive inventory destination binding")
+		}
+		remote, _, _ := strings.Cut(o.Destination, ":")
+		folderKey := remote + ":" + o.FolderID
+		if dest, ok := folders[folderKey]; ok && dest != o.Destination {
+			return errors.New("conflicting Drive inventory folder binding")
+		}
+		key := phaseKey{o.Destination, o.Phase}
+		if count, ok := counts[key]; ok && count != o.Files {
+			return errors.New("conflicting Drive inventory phase count")
+		}
+		destinations[o.Destination], folders[folderKey], counts[key] = o.FolderID, o.Destination, o.Files
+		if len(destinations) > MaxIndexDestinations {
+			return errors.New("Drive inventory destination count exceeds bound")
+		}
+		return nil
+	}
+	if report.Inventory != nil {
+		if err := add(*report.Inventory); err != nil {
+			return err
+		}
+	}
+	for _, o := range report.Inventories {
+		if err := add(o); err != nil {
+			return err
+		}
 	}
 	return nil
 }
