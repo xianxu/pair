@@ -18,7 +18,7 @@
 //
 // Drop-in replacement at zshrc's `exec script -q -F $LOG /bin/zsh` line:
 //
-//	exec pair scribe -log "$LOG" -- /bin/zsh   (or the bin/pair-scribe shim)
+//	exec pair scribe -log "$LOG" -- /bin/zsh
 //
 // Packaging: reached through the single binary's `pair scribe` route. The
 // dispatcher passes the real streams, enabling raw mode and resize propagation.

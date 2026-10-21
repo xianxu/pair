@@ -105,3 +105,5 @@ Second mutation removed direct-child kill on initialization abort: the blocked H
 ### 2026-10-21 — contract reconciliation
 
 Reconciled current Spec and Plan with the TL-approved retained-slave design and clarified acceptance; original alternatives remain recorded in prior planning history/Revisions. CI on the code head is green, including macOS conformance and the local-gates guard (no guarded paths touched). The recorded full-suite runner is still queued; no replacement or duplicate run.
+
+Final documentation sweep removed the remaining package-comment reference to the retired standalone shim. This comment-only code-file edit changes no runtime behavior; retain the existing recorded runner on4f4cdc15. Integration verification will include the final source.
