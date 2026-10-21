@@ -29,6 +29,8 @@ Known flaky tests (#394), registered with same-head fail→pass evidence:
 
 ## Spec
 
+Use a child builtin read on FD3 plus an exact per-lease token to prove inheritance before executing real Git. Write/rewind the parent-owned lease and retain negative controls for absent/wrong-token descriptors. A mode000 open lease deterministically rejects the old pathname-permission oracle while the already-open descriptor remains usable. Extend Pair’s existing golint catalog with a bounded string-literal guard for shell permission tests on /dev/fd; document its lexical scope.
+
 Investigate the inherited lease through OSProvisionIO and the identity fixture’s shell shim on macOS. Correct the evidenced root cause, preserving exactly one Git observation and meaningful inherited-lease proof; no retries, timeout increases or suppressed failures. Keep #752 parked and resume it first when the TL releases staging. ARCH-PURPOSE: a green repetition alone is not a root-cause fix.
 
 ## Done when
@@ -49,3 +51,5 @@ Investigate the inherited lease through OSProvisionIO and the identity fixture�
 ### 2026-10-21
 
 - 2026-10-21: Authenticated TL dispatch4dfe9de6-e6f4-4d8a-bce5-31ab01faa1c4; preserved #752 branch and switched through main-slot9 to fresh main-based #767 branch via claim/start-plan. Unchanged identity test passed100 repetitions in28.616s. Parent lease is cleanup-owned and forwarded unchanged into ExtraFiles; diagnosis must distinguish shell pathname permission from actual inherited descriptor usability.
+
+- 2026-10-21: Native scratch probe /Volumes/TestScratch/tmp/pair767-fd-9442s0hq reproduced1 false negative in14969 starts (worker0 sample968, seven other workers2000 each). After the old test -r failed, builtin read on FD3 returned lease-token with rc0; subsequent stat showed mode100600 uid501. This rules out early close/close-on-exec for the observed failure and identifies the pathname oracle as unsound. Apple Bash test.c calls sh_eaccess→sh_stataccess for /dev/fd, and XNU devfs_fdesc_support.c obtains attributes through a separate pathname/vnode path; direct read avoids that unnecessary permission observation. TL quick-plan receipt21ca07a9-38cf-4744-be1e-4a857d18ac9b.
