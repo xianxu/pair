@@ -13,14 +13,14 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
-actual_hours: 5.51
+actual_hours: 5.72
 tracker:
     version: 1
     completion:
-        token: close-646595dc4f3a
+        token: close-71ddea7fad07
         repository: github.com/xianxu/pair
-        reviewed_head: 96e8bc0d3416e030877ffc1ac46f86ba675ee592
-        evidence_commit: d8ea9f67fba5bbe45b47bf540216fd13be0759a2
+        reviewed_head: 1c3cfb28316d17d49f983716a0c13e28fb18c842
+        evidence_commit: d2c4d1e057e67eadebbcae68f6510af453864e79
 ---
 
 # Couch native detach intermittently loses post-client ownership proof
