@@ -654,3 +654,27 @@ zero production cost or precisely assign every physical byte. It rejects
 treating the initial aggregate delta as proof of added production writes.
 Logs, traces and hashes remain at the same private measurement root. #765
 owns the cache-enabled invocation envelope; #739 keeps all existing caps.
+
+
+### 2026-10-21 03:08 PDT — close SHIP; acceptance held
+
+Round5 SHIP, all findings disposed; BR-3 withdrawn after the reviewer
+independently verified retained trace/log hashes and counts. Recorded suite
+pass remains final-code evidence. No merge: disposable-fleet acceptance still
+waits for #744 after #761, and second-lander #737 integration stays explicit.
+Attribution report: /Volumes/TestScratch/tmp/pair-slot7/pair739-cache.QFbUSM/attribution-report.md.
+Final retained evidence SHA256:
+
+- base-changed.log: e6b05114e40e1dfc71325aefcf1db3de368c9ad75a943e13750cad0b764698dd
+- work-changed.log: f7521ebe473f098ba2e46af5c2243cb9426e6494cefcb81b89eb825eddfcf0eb
+- base-unchanged.log: c0aab6708f9018b99d6481df6a93c9457ac217790fdcf5af1a6656cb9826db8c
+- work-unchanged.log: 9d36a1fcfeae4942a21bcb709ea96ab76c2d51065fe2a225c4fc8a03e0184be4
+- base-trace.log: 9ffb59fe789c19244fdfe27a0408a715279377988e393aa5195ec8e67cd4ad8d
+- work-trace.log: 0967f05d917a1285edfd5a20923a5191f294b10a358a503b6c582219d078686e
+- base-testlog.txt: 8dfcc5a6b9e9b9d99ece981a5973a75882c3783c871b052121a35e82285ae485
+- work-testlog.txt: 8cb5b803f17edbe05e28edb5e7a1556da49b7d3454b09dd152f505705a8309ec
+
+Calibration caveat: this close adopted measured0.39h after excluding activity
+already adopted by interleaved #738 (which adopted9.91h). This is the binary
+provenance result, not a hand estimate; the cross-item attribution looks
+suspect and is reported to the hub for calibration, with no card override.
