@@ -471,8 +471,8 @@
       "cmd/internal/testcouch/agentfixture/model_test.go": "15c01e25c83df4d3281a02a7755270a8c287f28906379ff2fbe37c246a9d3907",
       "cmd/internal/testcouch/fleet_test.go": "ff7acebbf09a236359274a47969a21a209ebd3110abd4af4721e931b243dbd57",
       "cmd/internal/testcouch/binaries_test.go": "53e7eeabc89699222cfc68b04028566e29edb739a9c7ae791663fd6332cba086",
-      "cmd/internal/testcouch/terminal_test.go": "d9d60a49fd0e343fadda88ece9c7616e1245a29cc6ce762d07ba1794e50d6c41",
-      "cmd/internal/testcouch/agentfixture/run_test.go": "32b01da93809b1d1a2a48302f1b23ee98057d670c50418e28241a31ca7e3d7e6"
+      "cmd/internal/testcouch/agentfixture/run_test.go": "32b01da93809b1d1a2a48302f1b23ee98057d670c50418e28241a31ca7e3d7e6",
+      "cmd/internal/testcouch/terminal_test.go": "a5a86ea7b9c4d288081e2af1086d20b50e78f9bc09dc479e22689bf9ed7abda5"
     }
   }
 }

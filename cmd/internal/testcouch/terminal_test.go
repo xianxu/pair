@@ -47,6 +47,21 @@ func TestTerminalFailureStopsInputBeforeAnEffect(t *testing.T) {
 	}
 }
 
+func TestTerminalCapturesOwnedFullNoticeClipboard(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+	defer cancel()
+	cmd := exec.Command("/bin/sh", "-c", "printf '\\033]52;c;bmF0aXZlLW93bmVyLWRpYWdub3N0aWM=\\007'; read line")
+	cmd.Env = []string{"TERM=xterm-256color"}
+	p, err := startTerminal(cmd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close(ctx)
+	if err := waitUntil(ctx, func() (bool, error) { return p.copiedText() == "native-owner-diagnostic", p.failure() }); err != nil {
+		t.Fatalf("owned OSC52 notice not observed: %q %v", p.copiedText(), err)
+	}
+}
+
 func TestPhysicalDetachUsesNegotiatedKeyboardPolicy(t *testing.T) {
 	for _, flags := range []uint32{1, 3, 8, 10} {
 		key := physicalKey(flags, "\x1bd", 100, 3)

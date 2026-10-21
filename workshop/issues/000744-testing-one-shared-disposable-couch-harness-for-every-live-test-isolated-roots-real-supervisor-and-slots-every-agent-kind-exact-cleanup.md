@@ -167,6 +167,12 @@ The capacity sweep also reproduced two atomic-publication races: a transient .pu
 
 Independent whole helper races passed testcouch7.653s, agentfixture8.243s and native fixture entrypoint3.379s. Repository lint5.998s, artifactpath6.796s, individually audited run_test reader hash, make test-affected-inventory and whitespace checks all passed. Commit/push this bounded lifecycle correction before rerunning native; no full matrix/full suite/close pass claimed.
 
+### 2026-10-20 — real detach ownership refusal after bounded lifecycle correction
+
+Native head5aa2570ca7f9cb1be8771903df943618759ca492 passed exact Claude cohort and concurrent queries, then submitted receiptdf3c25fa-196c-4cc5-9d7a-82afca51f156 with independently accepted body at26.94s. Real switcher detach refused: leave couch: detach1-fixture-2: observe Pair session before retiring its incarnation: session ownership unresolved (remaining diagnostic clipped by the screen). Cleanup again confirmed all generations absent and removed the root. Full log /Volumes/TestScratch/tmp/pair-slot5/pair-744-native-xyneu9_b/native.log SHA2569030df57986142026b443b6bd53158a0f1a29a049bb378813f4a94f457bfb2e1. No complete matrix pass or product classification yet.
+
+Added diagnostic observation only: detect the explicit leave refusal, use the public Ctrl+Y copy-notice action, and capture the owned host's bounded OSC52 effect after a sequence fence. It exposes the full product reason rather than waiting120s on a clipped error. A real-PTY regression proves owned OSC52 capture; no operator clipboard is touched by the private emulator. Registration failure also includes its current screen. Next native run is a deliberate diagnostic reproduction of this product-boundary refusal, not a blind pass retry.
+
 ## Revisions
 
 ### 2026-10-20 — #747 native-proof sequencing

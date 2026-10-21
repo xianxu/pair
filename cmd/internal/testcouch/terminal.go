@@ -19,15 +19,17 @@ import (
 )
 
 type terminalProcess struct {
-	done       chan struct{}
-	cmd        *exec.Cmd
-	file       *os.File
-	endpoint   *terminal.Endpoint
-	generation string
-	output     buildOutput
-	mu         sync.Mutex
-	err        error
-	readErr    error
+	done              chan struct{}
+	cmd               *exec.Cmd
+	file              *os.File
+	endpoint          *terminal.Endpoint
+	generation        string
+	output            buildOutput
+	mu                sync.Mutex
+	err               error
+	readErr           error
+	clipboard         string
+	clipboardSequence uint64
 }
 
 func startTerminal(cmd *exec.Cmd) (*terminalProcess, error) {
@@ -61,7 +63,16 @@ func startTerminal(cmd *exec.Cmd) (*terminalProcess, error) {
 			n, e := stream.Read(buffer)
 			if n > 0 {
 				_, _ = p.output.Write(buffer[:n])
-				if _, feedErr := ep.Feed(buffer[:n], time.Now()); feedErr != nil {
+				out, feedErr := ep.Feed(buffer[:n], time.Now())
+				for _, effect := range out.Effects {
+					if effect.Kind == terminal.ClipboardEffect {
+						p.mu.Lock()
+						p.clipboard = string(effect.Data[:min(len(effect.Data), 16<<10)])
+						p.clipboardSequence = effect.Sequence
+						p.mu.Unlock()
+					}
+				}
+				if feedErr != nil {
 					p.mu.Lock()
 					p.readErr = feedErr
 					p.mu.Unlock()
@@ -120,6 +131,18 @@ func (p *terminalProcess) failure() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.readErr
+}
+
+func (p *terminalProcess) copiedText() string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.clipboard
+}
+
+func (p *terminalProcess) copiedVersion() uint64 {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.clipboardSequence
 }
 
 func (p *terminalProcess) Input(data []byte) error {

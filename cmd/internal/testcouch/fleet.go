@@ -209,7 +209,10 @@ func (f *Fleet) Start(ctx context.Context) error {
 	if err = f.WaitAgent(ctx, 0); err != nil {
 		return fmt.Errorf("steward startup: %w; screen=%s; output=%s", err, p.Screen(), p.Output())
 	}
-	return f.WaitActors(ctx, 1)
+	if err := f.WaitActors(ctx, 1); err != nil {
+		return fmt.Errorf("steward registration: %w; screen=%s", err, p.Screen())
+	}
+	return nil
 }
 
 func (f *Fleet) StartWorker(ctx context.Context, n int) error {
@@ -288,12 +291,29 @@ func (f *Fleet) Detach(ctx context.Context) error {
 	if err := p.press("\x1bd", 100, 3); err != nil {
 		return err
 	}
-	select {
-	case <-p.done:
-		return nil
-	case <-ctx.Done():
-		return fmt.Errorf("detach supervisor: %w; screen=%s", ctx.Err(), p.Screen())
-	}
+	return waitUntil(ctx, func() (bool, error) {
+		select {
+		case <-p.done:
+			return true, nil
+		default:
+		}
+		if strings.Contains(p.Screen(), "error: Couch: leave couch:") {
+			// The public copy action exposes the complete notice beyond the
+			// screen's clipped row. The isolated host records its OSC52 effect.
+			before := p.copiedVersion()
+			if err := p.press("\x19", 121, 5); err != nil {
+				return false, err
+			}
+			if err := waitUntil(ctx, func() (bool, error) { return p.copiedVersion() > before && p.copiedText() != "", p.failure() }); err != nil {
+				return false, fmt.Errorf("detach refused: %s; copy notice: %w", p.Screen(), err)
+			}
+			return false, fmt.Errorf("detach refused: %s", p.copiedText())
+		}
+		if err := ctx.Err(); err != nil {
+			return false, fmt.Errorf("detach supervisor: %w; screen=%s", err, p.Screen())
+		}
+		return false, p.failure()
+	})
 }
 
 func (f *Fleet) RestartSupervisor(ctx context.Context) error {
