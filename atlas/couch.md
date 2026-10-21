@@ -248,6 +248,23 @@ nonce, dispatched target, optional thread address, slot path, park/launch nonce,
 bounded exact process identities with executable kinds. Holders never collect argv.
 Generic failures have no inferred phase. Launch fields retain their existing
 16 KiB raw output tail, 4 KiB per error and separate pre/post-cleanup exit codes.
+Unresolved native pane queries also retain typed `zellij_*` evidence on that
+same operation: exact raw stdout/stderr prefixes (4 KiB each), original counts
+and truncation flags, nullable native exit, bounded argv/executable and version.
+Version observation uses the failed query's executable and remaining proof
+deadline. Concise notices/receipts keep raw bytes in the failure record, and
+successful operations perform no version query or failure write.
+
+Zellij0.45.1 can falsely miss a live session during its internal socket lookup.
+`launcher/zellij_read_recovery.go` recognizes two native signatures only for
+its existing idempotent read allowlist: exact missing-target stderr plus a
+validated plain/colored listing containing that live target, or exact exit1
+no-active-session output while the target socket is present. Reissues share
+the original deadline and three-attempt cap; the successful reply still passes
+strict parsing, independent owner agreement and exact-generation fencing.
+Socket presence permits another read and never grants ownership. Remove these
+compatibility signatures when the supported native release fixes lookup/IPC
+routing and the private native controls are requalified (#761, #748).
 
 `launchfailure_store.go` atomically publishes one JSON array at
 `<namespace>/launch-diagnostics/failures.json` (0600), under its private file lock.

@@ -1,0 +1,6 @@
+=== RUN   TestNativeFixedSingleCapture761
+    native761_diagnostic_test.go:56: root=/Volumes/TestScratch/p761-1510417027 session=p761-6d23fede69ed16c7
+    native761_diagnostic_test.go:193: logical limit=1000 attempts=1024 failed_final=0 malformed_json=0 servers_absent=true root_removed=true evidence=/Volumes/TestScratch/tmp/pair-slot5/pair-761-fixed-single-kfn404h_
+--- PASS: TestNativeFixedSingleCapture761 (8.48s)
+PASS
+ok  	github.com/xianxu/pair/cmd/internal/launcher	8.669s

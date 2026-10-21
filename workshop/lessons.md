@@ -7,6 +7,7 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #761: Classify native replies from the complete stdout, stderr and exit together. A successful process can print a fallback listing after falsely missing its target; retain exact bytes before recovery. Diagnostic observers own their snapshots before calling other observers, and typed evidence must survive context/generation refusal wrappers without becoming ownership authority. Keep diagnostic version reads separate from counted ownership attempts in stateful fakes and budget tests.
 - #763 BR-1: Unknown JSON values must survive decode and rewrite without machine-number conversion. Test precise fractions, over/underflow exponents, negative zero and huge integers nested in arrays/objects; a large-integer-only roundtrip misses float corruption. Reject non-JSON NaN/Infinity before effects, while keeping known-field types strict.
 
 - #750 design review: a held drawing scene must render the acknowledged source prefix on initial preparation as well as reconnect; freezing whatever the client currently shows can anchor paths to another moment. Record timer-driven interruptions as replay inputs, and reserve writer capacity for terminal events and required labels before admitting growing stroke data.
@@ -2521,8 +2522,15 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #742 live recheck: Exercise the reader's observeOutput before handleChunk in drive regressions. A render-only harness bypasses the activity-sequence fence and can pass while every native timer tick revokes admission. Interrupt proof uses operator-input generation plus freshly parsed work/composer/ownership; queued unparsed output cannot attest the old complete frame. Keep ordinary drives on their activity fence.
 
+- #761 suite: A new executable native-query fixture must use registered producer-specific shared reply cases and pass the complete zellijtest package before a suite. A focused fake-version test does not exercise TestEveryZellijFixtureReplyUsesProductionDecoder; run that contract with artifact/source-reader preflights whenever a test adds a shell or Python query producer.
+
+- #761 BR-1/BR-2: A native socket root can intentionally preserve symlink/parent traversal spelling. Never filepath.Join-clean it at a presence check; cover native-present/cleaned-absent and the reverse through actual admission. Unix socket fixtures must budget their complete path independently of inherited TMPDIR and qualify an intentionally long temp root; ordinary t.TempDir portability does not imply socket-path portability.
+
+- #761 BR-1 round2: A native-path identity fix must enumerate every path source and every construction step, including fallback TMPDIR and platform runtime roots. Preserving only the final append or explicit override leaves earlier normalization in force; share the pure append and test both socket arrangements for each branch.
 - #762: Rotating a guessed secret resets a per-code budget, so it cannot bound lifetime attempts by itself. Keep a separate bounded counter under the lock owner and reset only on explicit authorized recovery. When callbacks carry ordered generations, commit their visible notice under that same generation guard; spawning the notice effect can let older recovery advice overwrite the current cap.
 
 - #764: Retire owned PTY/process handles before closing, signalling or reaping them; shared detach/final cleanup must consume each exactly once, including failure paths. Join startup and cleanup errors, and make live-fixture cleanup failures affect the test result rather than merely logging them.
 
 - #764 BR-1: A fixture-only change can still add a repository enforcement surface. Every new Pair-local lint rule needs its owner, rejected and accepted patterns, and syntax-analysis limits mapped in atlas/go-lint-catalog.md; include that surface in the close atlas decision.
+
+- #766: A PTY consumer cannot recover bytes the kernel discarded at last slave close. Native tee fixtures must own producer lifetime through an output/input acknowledgement and establish the controlling-terminal reference on Darwin; distinguish first-read EOF from a wrapper closing its master early. Audit public generic-command exposure and file that product defect separately from a fixture repair.

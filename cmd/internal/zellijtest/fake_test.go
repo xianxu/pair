@@ -12,6 +12,17 @@ import (
 func sample() Model {
 	return Model{Sessions: map[string]Session{"test": {Panes: []Pane{DefaultPane(0, "sh"), DefaultPane(2, "nvim")}, Clients: []Client{{ID: 7, PaneID: "terminal_0", RunningCommand: "sh"}}, Tab: DefaultTab(), Layouts: []string{"base", "wide"}}}}
 }
+
+func TestFakeVersionIsObservedWithoutEffects(t *testing.T) {
+	f := New(t)
+	if got := invoke(t, f, "--version"); got != "zellij 0.45.1\n" {
+		t.Fatalf("version %q", got)
+	}
+	queries := f.Queries()
+	if len(queries) != 1 || len(queries[0].Args) != 1 || queries[0].Args[0] != "--version" || len(f.Effects()) != 0 {
+		t.Fatalf("version bypassed observation or caused effects: %+v %+v", queries, f.Effects())
+	}
+}
 func invoke(t *testing.T, f *Fixture, args ...string) string {
 	t.Helper()
 	c := exec.Command(f.Path(), args...)
