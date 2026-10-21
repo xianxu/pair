@@ -39,7 +39,7 @@ Expose logger health and a bounded last error through an existing Couch status s
 
 ## Plan
 
-- [ ] M1 — Expose memory-only logger health in resources; test, review and land instrumentation without staging.
+- [x] M1 — Expose memory-only logger health in resources; test, review and land instrumentation without staging.
 - [ ] M2 — Observe the actual refusal after the hub's coordinated restart; approve a cause-specific revision, reproduce it, fix it and verify fresh live facts.
 
 Durable plan: [implementation plan](../plans/000736-supervision-logger-health-plan.md).
@@ -75,6 +75,7 @@ total: 1.7225
 ## Log
 
 ### 2026-10-20
+- 2026-10-20: closed M1 — M1 instrumentation only: semantic reds for invisible failure, missing resource field, clone alias and canceled-worker health; targeted supervision/resources race tests pass3.358s, resource/protocol tests pass, bounded2-worker error fuzz2062 executions passes, fast reader inventory and diff checks pass. README/atlas map memory-only health, legacy strict-reader refusal, rebuilt CLI requirement and retained receipt reasons. Recorded affected attempt5090197a is queued on pushed61cc29d9 (known #738 full fallback), review overlaps per tl-worker; pass still required before landing. No stage; hub owns project and coordinated restart; live refusal/cause repair remains M2, no historical-fix claim.; review verdict: SHIP
 
 - Split from pair#735 by ops:0 approval. Start after #735 lands. Investigation scratch probe used a Go overlay in /Volumes/TestScratch/pair735-log-probe-75gnrui4; ephemeral evidence only, not required for future reproduction.
 
