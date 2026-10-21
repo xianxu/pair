@@ -48,7 +48,7 @@ Measure the native metadata across a wrapper-to-shell exec in a disposable sessi
 ## Plan
 
 - [x] Confirm the measured owner/role design with the hub; durable plan: [terminal-owner-role-plan](../plans/000731-terminal-owner-role-plan.md).
-- [ ] Implement and qualify the shared owner observation and role projection under the approved plan, then close and land through SDLC.
+- [x] Implement and qualify the shared owner observation and role projection under the approved plan, then close and land through SDLC.
 
 ## Log
 
@@ -80,3 +80,5 @@ The original native owner proposal denied unavailable inspection. The hub's appr
 - Final controlled native conformance passed0.459s: PID67096 kept birth1792555508.235884 while argv changed pair term to sh -i; startup command/title remained unchanged, admitted IDs changed from [2 1] to [2], and registry bytes were unchanged. Session to-aab633161e5d and both helper generations were collected. A first root command used an incorrect test regex and ran no tests; it is excluded from evidence.
 - Audited changed reader files: clip/layout/Couch fixtures still read only private or literal inputs; term admission/fullscreen retain their non-Go full-fallback ownership; term run and shortcut tests retain their source scanners, with the new role test added to the fixed preflight. New owner fixtures consume private registries and the owned executable, not repository source. Refreshed hashes through the inventory's supported record command. Fast inventory check passes. The seeded detached-checkout inventory test still sees the last committed inventory until this checkpoint is committed; rerun it afterwards before publishing.
 - Updated architecture and local lint documentation. The previous recovery screen is unavailable; workflow state, approved plan, current branch and implementation checkpoint are recovered from SDLC/Git and this Log. No stale screen instruction was used as new authorization.
+
+- Committed-head reader qualification passed all13 tests, including seeded violations through the real detached-checkout affected runner. PR503 is open. Recorded suite attempt0aa0002014a10c3ebaddb3b1fe334597 is queued on code head32ef80aa856c51b5d1a9523a953ac202937a84ea; no duplicate check is queued. Entering the permitted close-review overlap; a recorded pass still precedes landing.
