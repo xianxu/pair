@@ -1532,6 +1532,51 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: a5e8c7b1-7912-45bd-ad5e-a2ca9706713d
+            repository: github.com/xianxu/pair
+            issue_id: "000737"
+            recipe: milestone-review
+            round: 1
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/014ee292d49e2cff
+            reviewed_head: b7b6ebb2335e030df26295135431a5c5bd3b9a48
+            slot: pair:1
+            requested_at: "2026-10-21T21:05:14.151845Z"
+          phase: finished
+          pid: 66135
+          started_at: "2026-10-21T21:05:14.321707Z"
+          finished_at: "2026-10-21T21:10:08.785125Z"
+          session_id: 01a16048-51fd-7f62-ad04-cc8dff90fd6f
+          outcome: returned
+      "n": 9
+      timestamp: "2026-10-21T14:10:10-07:00"
+      dispatched: "2026-10-21T14:05:10-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      findings:
+        - kind: defect
+          id: BR-15
+          severity: Critical
+          title: Pending catalogue edits strand undispatched reservations indefinitely
+          detail: 'cmd/internal/couchcmd/schedule_owner_dispatch.go:132-135 skips reserved work whenever o.busy is set, while schedule_owner_batch.go:236-243 provides no deadline settlement for those reservations. With both workers occupied, reserve another task and edit its declaration before dispatch: refresh marks it busy, but neither subsequent ticks nor refreshes can settle it, even after its deadline. A temporary test overlay reproduced this in all six scheduled cases: script/notify-only crossed with revision/removal/owner-policy edits. ARCH-ORDER, ARCH-CONSTRAINTS and ARCH-PURPOSE: this is the 2nd finding in family `persisted-state-invariants`. Do NOT fix only this instance; establish the rule that every undispatched reservation has a bounded settlement path independent of dispatch eligibility, and sweep manual, scripted and notify-only reservations across edit, expiry and cancellation sequences. Preserve canonical-evidence precedence and settle known-unstarted work through the pure transition model before applying the edit.'
+          family: persisted-state-invariants
+          round: 9
+        - kind: defect
+          id: BR-16
+          severity: Critical
+          title: The replacement core-concepts table mislocates StateOwner
+          detail: 'workshop/plans/000737-couch-scheduler-plan.md:634 lists StateOwner in cmd/internal/couchschedule/{store,store_unix}.go, but neither file declares it; the type and its capability methods are implemented in cmd/internal/couchschedule/owner.go:13 onward. This contradicts the required core-concepts cross-check. ARCH-PURPOSE: this is the 2nd finding in family `core-concept-traceability`. Reconcile every active replacement-table row against its production declaration and mark superseded entries explicitly, rather than repairing only this row. Record the corrected implementation map in a Revisions entry.'
+          family: core-concept-traceability
+          round: 9
+      boundary: M3
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#737 (boundary-review)
@@ -1642,6 +1687,17 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-14** [Critical] `durable-artifact-crash-recovery` (kind: defect) Catalogue cancellation strands a notice whose terminal history already committed
   cmd/internal/couchcmd/schedule_service.go:258-262 attempts dropped finalization without first adopting existing terminal history. A disposable production-path regression lets receipt polling finalize submitted, injects BeforePersist failure, then removes or revises the declaration before retry. Both cases remain stuck after three refresh/step cycles: FinalizeNotice returns "operational notice is not pending", Active remains delivery, Last remains pending, and task quarantine prevents further reconciliation at schedule_automatic.go:451-453. This is the 6th finding in family durable-artifact-crash-recovery. Earlier rounds fixed instances; do NOT fix only this instance. Enforce the rule that durably confirmed canonical terminal history wins before any cancellation or replacement transition. Sweep catalogue removal/revision/owner changes and every competing finalization consumer, preserve terminal facts, and add sequence regressions for failed authority commits followed by cancellation. ARCH-ORDER, ARCH-PURPOSE.
 
+## Round 9 — 2026-10-21T14:10:10-07:00 (codex) — BLOCKED
+
+### Raised
+
+- **BR-15** [Critical] `persisted-state-invariants` (kind: defect) Pending catalogue edits strand undispatched reservations indefinitely
+  cmd/internal/couchcmd/schedule_owner_dispatch.go:132-135 skips reserved work whenever o.busy is set, while schedule_owner_batch.go:236-243 provides no deadline settlement for those reservations. With both workers occupied, reserve another task and edit its declaration before dispatch: refresh marks it busy, but neither subsequent ticks nor refreshes can settle it, even after its deadline. A temporary test overlay reproduced this in all six scheduled cases: script/notify-only crossed with revision/removal/owner-policy edits. ARCH-ORDER, ARCH-CONSTRAINTS and ARCH-PURPOSE: this is the 2nd finding in family `persisted-state-invariants`. Do NOT fix only this instance; establish the rule that every undispatched reservation has a bounded settlement path independent of dispatch eligibility, and sweep manual, scripted and notify-only reservations across edit, expiry and cancellation sequences. Preserve canonical-evidence precedence and settle known-unstarted work through the pure transition model before applying the edit.
+- **BR-16** [Critical] `core-concept-traceability` (kind: defect) The replacement core-concepts table mislocates StateOwner
+  workshop/plans/000737-couch-scheduler-plan.md:634 lists StateOwner in cmd/internal/couchschedule/{store,store_unix}.go, but neither file declares it; the type and its capability methods are implemented in cmd/internal/couchschedule/owner.go:13 onward. This contradicts the required core-concepts cross-check. ARCH-PURPOSE: this is the 2nd finding in family `core-concept-traceability`. Reconcile every active replacement-table row against its production declaration and mark superseded entries explicitly, rather than repairing only this row. Record the corrected implementation map in a Revisions entry.
+
 ## Open findings
 
 - **BR-14** [Critical] `durable-artifact-crash-recovery` (kind: defect) Catalogue cancellation strands a notice whose terminal history already committed
+- **BR-15** [Critical] `persisted-state-invariants` (kind: defect) Pending catalogue edits strand undispatched reservations indefinitely
+- **BR-16** [Critical] `core-concept-traceability` (kind: defect) The replacement core-concepts table mislocates StateOwner
