@@ -2432,6 +2432,11 @@ log before scratch cleanup. For manual Go runs, add `-artifacts -outputdir
 The [oracle guide](tests/terminal-oracle/README.md) covers replay, headless controls
 and report limitations; a diagnostic pass does not establish a crash fix.
 
+For a standalone Zellij 0.45.1 lookup-race reproduction, run
+`bash scripts/repro/zellij-false-miss.sh 1000 4`. It uses three private sessions
+without Pair or Couch; see the [repro guide](scripts/repro/README.md) for counters
+and liveness limits.
+
 For disposable multi-slot Couch acceptance, run `make test-couch-fleet`. It uses
 the shared native fleet helper with real Zellij, Pair/wrappers and provisioned
 workspaces, plus deterministic Claude/Codex fixtures. It requires installed

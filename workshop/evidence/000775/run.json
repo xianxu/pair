@@ -16,5 +16,5 @@
     "other_nonzero": 0
   },
   "cleanup": "pass; socket absence and private root removal; subsequent exact-session-name process search returned none",
-  "note": "Exit1 signature did not occur. Initial draft refused before measured queries due to incorrect socket version directory; its cleanup passed and native.log retains that failure."
+  "note": "Exit1 signature did not occur. Initial draft refused before measured queries due to incorrect socket version directory; its cleanup passed and initial-setup-failure.log retains that failure."
 }

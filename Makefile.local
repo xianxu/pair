@@ -621,3 +621,8 @@ test-build-go-atomic:
 # Offline rename matrix uses the same private candidate as the full suite.
 test-pair-rename:
 	bash tests/pair-rename.sh
+
+.PHONY: test-zellij-false-miss
+test: test-zellij-false-miss
+test-zellij-false-miss:
+	python3 -B tests/zellij-false-miss-test.py

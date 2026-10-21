@@ -2548,3 +2548,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #744 BR-6: test provisioning observations are production consumers of slot layout. Derive host, resting branch and setup markers through SlotLayout/SetupMarkerPath, and run TestEverySlotStateSiteIsAResource with provisioning preflights; an independent hand-written expected topology still duplicates policy.
 
 - #744: Native transcript fixture producers must derive storage roots through sessioninventory.OSRuntime.NativeRoots (and WithCodexHome), just like consumers; run the native-authority shadow guard before the recorded suite. Do not exempt test helper production files from the guard.
+
+- #775: For an exact external diagnostic, compare the complete stderr stream, including newline boundaries. grep -Fxq proves one line exists and accepts unrelated errors around it; cover both positive signatures and extra-line negatives through the actual worker. Standalone tooling also needs a discoverable README/atlas pointer.

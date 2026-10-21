@@ -286,3 +286,26 @@ cancellation, counted8/16 read bounds, and native qualification artifacts in
 the private one-attempt collector outside that owner. Other query consumers
 retain their existing contracts. Remove the workaround after the supported
 native release includes PR5630 and the controls are requalified.
+
+### Standalone native lookup reproduction (#775)
+
+`scripts/repro/zellij-false-miss.sh [queries=1000] [workers=4]` is an upstream-shareable
+Bash diagnostic requiring only Zellij0.45.1 and stock Unix utilities. It starts
+three private background shell sessions under temporary HOME/XDG/config/socket
+roots, then issues raw pane, client and session-list queries without measured-read
+retries. Its [ten-line guide](../scripts/repro/README.md) describes invocation.
+
+`exit0_target_listed` requires the complete target-not-found stderr response and
+an exact target token in the colored native listing. `exit1_alive_confirmed`
+requires the complete no-active-session response, a socket before/after the
+failure, and a subsequent successful dump-layout response beginning with `layout {`. Failed
+or malformed liveness queries stay `exit1_liveness_unconfirmed`; other nonzero
+results remain separate. These are observations, not continuous liveness proof
+or an ownership grant, and zero misses does not rule out the race. Raw anomalous
+results print before cleanup. Cleanup addresses only the private namespace;
+unconfirmed socket removal retains the named root and exits unsuccessfully.
+
+`python3 tests/zellij-false-miss-test.py` exercises the actual worker with a
+stateful CLI double and real private sockets, including whole-stderr byte
+matching and confirmed/unconfirmed liveness. The standalone script itself does
+not require Python. This diagnostic is separate from Pair's bounded recovery.
