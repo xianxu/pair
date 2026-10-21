@@ -1,8 +1,8 @@
 ---
 id: 000738
-status: blocked
+status: working
 created: 2026-10-20
-updated: 2026-10-20
+updated: 2026-10-21
 estimate_hours:
 github_issue:
 started: 2026-10-20T19:58:34-07:00
