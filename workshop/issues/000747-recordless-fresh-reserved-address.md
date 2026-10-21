@@ -16,6 +16,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "1ca39027", done: "018d5795"}
 ---
 
 # Recordless Fresh worker launch validates a reserved address as established
