@@ -66,6 +66,7 @@ The hub approved this dependency and parked #738 while assigning #736. No code,
 dummy embed, partial -e graph, or local-gates label was introduced.
 
 ### 2026-10-21 — red/green consumer qualification
+- 2026-10-21: closed — Actual-provider clean archive qualification passed14.966s: missing embeds red, declared real generator then exact graph selection green, broken-import rejection. Default obsolete provider emits explicit dependency skip; no skip counted as qualification. Fast inventory and git diff --check passed. BR-1 README and atlas now distinguish ordinary preparation errors/timeouts and broken graph full-suite fallback from parent cancellation abort without a passing status, verified against actual provider localcheck_affected.go; appended Revision supersedes earlier narrative. Recorded attempt80323f0ee9a2368b32f90e3fdc3bff3b is running on final code4ee406f2; later changes only prose/review artifacts. Final recorded pass required before landing. Only unchecked Plan item remains operator local-gates verification; never self-label. Atlas updated; hub owns project. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 
 Quick change-code admitted after main integration. New actual-provider test
 failed before the declaration with missing bounded runtime preparation: nil.

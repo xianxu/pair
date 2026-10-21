@@ -161,3 +161,80 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T02:55:39-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 738 — Affected package graph falls back to full suite before runtime bundle preparation |
+| repo | pair |
+| issue file | workshop/issues/000738-affected-runtimebundle-graph.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 3b5e8efb9c94035076c5edf5683db97422e6de76..71623e8e30520581a091fdd4536230ed43190e09 |
+| command | sdlc close --issue 738 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T02:55:39-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The declaration establishes runtime generation before graph discovery, and qualification passes against the actual preparation-capable provider. BR-1 is addressed: README, atlas, and the issue’s revision now correctly distinguish fallback from parent cancellation. No new findings. Operator verification remains an explicit prerequisite before landing.
+
+Done-when: current — covers clean discovery, reproduction without borrowed assets, and conservative graph-failure handling.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      README.md:2014–2019 documents preparation, its two-minute bound, fallback and cancellation; README.md:2056–2063 distinguishes #473 from #517. atlas/index.md:35–38 and the issue's Revisions:144–151 agree. Provider localcheck_affected.go:49–56 confirms cancellation aborts while graph errors select full; its fallback and cancellation regressions passed.
+```
+
+1. **Strengths**
+   - Reuses the existing generator through bounded configuration.
+   - `tests/affected-config-test.py:173–178` verifies absent assets and reproduces the original embed failure.
+   - The regression asserts exact selection after preparation and rejects a broken import afterward.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+   - Explicit qualification against provider `fa9761e6` passed, including 732 audited group/file inputs.
+   - The new regression failed with the base declaration in a temporary module.
+   - Provider fallback and cancellation tests passed.
+   - Default provider discovery visibly skipped; explicitly selecting the incompatible provider correctly failed.
+   - Reader inventory and `git diff --check` passed. No tracked files changed.
+
+6. **Architectural notes**
+   - **ARCH-DRY: pass** — existing generator and provider reused.
+   - **ARCH-PURE: pass** — added IO stays in integration qualification.
+   - **ARCH-PURPOSE: pass** — preparation reaches the graph owner before discovery.
+   - **ARCH-EVOLVE: pass** — additive configuration; no decoder or rewrite changes.
+
+7. **Plan revision recommendations:** None. Preserve the unchecked operator-verification item until its evidence exists.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"90a00c7b-862d-44be-81fe-7e447147abb3","repository":"github.com/xianxu/pair","issue_id":"000738","recipe":"small-diff-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/5077219bab1126df","reviewed_head":"71623e8e30520581a091fdd4536230ed43190e09","slot":"pair:7","requested_at":"2026-10-21T09:53:37.548218Z"},"phase":"finished","pid":8132,"started_at":"2026-10-21T09:53:37.740615Z","finished_at":"2026-10-21T09:55:39.352051Z","session_id":"01a15de1-713f-7a32-a8a6-f3ffcb616ebc","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.691918833s
+head: "71623e8e30520581a091fdd4536230ed43190e09"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
