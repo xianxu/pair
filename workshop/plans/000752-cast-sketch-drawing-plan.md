@@ -307,3 +307,26 @@ All4 host Chrome tests executed successfully on bccbfa399b9a829f347ee21d22a1c453
 ### 2026-10-21 — BR-8 voluntary-exit re-plan checkpoint
 
 The third boundary review reproduced loss of the pending gesture on all six Done/Escape/tool-change × open/released-contact combinations when anchor lookup resolves after leaving. ARCH-ORDER/ARCH-PURPOSE require a single exit owner: stop new capture, preserve the existing gesture and its terminal, settle its ordered work, then permit required-label completion. Implementation is paused for a concrete finishing-state design and TL approval; the audit includes pending anchor, queued and unknown work on both adapters, repeated exits and authoritative retirement. No new code has been written for this revision.
+
+### 2026-10-21 — BR-8 concrete finishing design (awaiting TL approval)
+
+ARCH-ORDER/ARCH-PURPOSE: one policy-owned finishing lifetime owns the voluntary exit. Done, Escape and tool change enter `finishing` before flushing contact. Retain the first requested destination, current stroke identity and a gesture-pending latch; repeated exits join this owner. New capture, Undo/Redo, entering another sketch and label submission are blocked. Only the already-owned stroke's late anchor/buffer/terminal can enter the existing bounded FIFO. The shared mount reports gesture completion after its effects are enqueued, or reports explicit unusable-anchor failure. Do not change generation or destroy the held scene for voluntary exit.
+
+The policy permits required label exactly once after gesture completion AND no open stroke, queued command, inflight identity, uncertainty or reserved recovery terminal. Unknown results retain the exact operation and exit intent through Check confirmation. Definitive geometry refusal uses the existing interrupted/Continue recovery with the accepted prefix; the retained exit resumes finishing and seals that prefix before labeling. Authority loss, pause, navigation, expiry, clear/end and disposal retain their existing stronger retirement rules and invalidate late anchor callbacks; these cannot restore voluntary drawing. Escape from a settled required-label dialog still returns to the same scene. No second legal recording FSM or unbounded work is introduced.
+
+The simpler alternative, await idle before dispatching leave, fails: the pending Promise set includes unrelated paint work and excludes a timed-out unknown command; it also leaves new capture admitted while waiting. A single policy latch plus stroke identity makes both capture exclusion and label readiness explicit.
+
+Actions: Done, Escape, select another tool, Check confirmation, Continue recovery, save label.
+
+| Internal state / failure mode | Visible state | Recovery action | Possible loss |
+| --- | --- | --- | --- |
+| Finishing with unresolved anchor or queued writes | Finishing stroke; capture and label disabled, scene retained | Wait for owned anchor/write settlement | None under normal settlement |
+| Finishing with unknown write | Confirmation pending, scene and exit intent retained | Check confirmation using the same operation | No accepted history lost; unconfirmed outcome stays explicit |
+| Definitive geometry refusal during finishing | Interrupted with accepted prefix retained | Continue recovery to reconcile/seal then label | Refused/unaccepted samples only, visibly reported |
+| Unusable anchor | Explicit no-usable-anchor notice, then required label for accepted history | Save label or Escape back to sketch | Unanchorable buffered gesture, explicitly reported |
+| All owned gesture/write work settled | Required label | Save label, or Escape to same sketch | None |
+| Authoritative interruption or retirement during finishing | Existing interrupted/paused/ended UI | Existing late-label/recovery action as eligible | Unsent samples follow authoritative interruption contract |
+
+Files: modify `cmd/internal/webcast/web/sketch-policy.js`, `web/sketch.js`, colocated Node harness/tests under `tests/webcast/`; update shared controls documentation and lessons. Both entities remain INTEGRATION as classified above. Reuse the stateful transport/model and console journal harnesses; no new production resource family.
+
+Verification sequence: write controlled failing tests first, then implement the one finishing owner. Sweep Done/Escape/tool-change × open/released contact × delayed-anchor/queued/unknown work through viewer Model and console synthetic/journal adapters. Hold anchor and write replies independently; assert no premature label, exactly one terminal, preserved points, immutable retry identity, blocked new capture, first exit intent and no late resurrection on authority/clear/dispose. Include unusable anchor and definitive refusal followed by recovery. Run focused Node/Go, all browser tests, existing live Chrome privacy/drawing/handoff/two-viewer conformance, inventory preflight and a fresh recorded final-head check before landing. Staging remains held.
