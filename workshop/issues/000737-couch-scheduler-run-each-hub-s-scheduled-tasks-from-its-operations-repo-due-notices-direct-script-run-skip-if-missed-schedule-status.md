@@ -1,13 +1,21 @@
 ---
 id: 000737
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '018f049e3fd3b434abe6d8f9ac1be9f16eb1712a' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '04c2010b5ff497cfc893db62c8c5b586277144bf' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-20T17:17:42-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch: scheduler: run each hub's scheduled tasks from its operations repo (due notices, direct script-run, skip-if-missed, --schedule --status)
@@ -21,7 +29,7 @@ settled the contour with the operator on 10-20; its `design.md` is the reference
 ## Spec
 
 - At start and on change, the supervisor reads each hub repo's `scripts/scheduled/<task>/` folders: a Go program
-  (`main`) plus a schedule declaration (cron-like time, timeout, scope `machine` default or `team` with an owner,
+  (`main.go` package, built to a content-keyed executable cache) plus a schedule declaration (cron-like time, timeout, scope `machine` default or `team` with an owner,
   optional run-once-if-missed).
 - Persisted next-due per task, per machine. Missed runs **skip** by default and wait for the next slot; opt-in
   run-once on start.
@@ -32,6 +40,8 @@ settled the contour with the operator on 10-20; its `design.md` is the reference
   section refuses with a clear reason.
 - `couch --schedule --status`: tasks, scope, last run and result, next due. Run history stays local and bounded.
 - Each hub only ever runs its own repo's tasks.
+- Manual/help entrypoint: `couch --schedule run <task> -- <args>`, sharing the content-keyed cached Go build and
+  execution path with the automatic scheduler (TL clarification, 2026-10-20).
 
 ## Done when
 
@@ -41,8 +51,23 @@ settled the contour with the operator on 10-20; its `design.md` is the reference
 
 ## Plan
 
-- [ ]
+- [ ] M1 — Shared manual task path, durable state, and read-only status; implementation tasks 1–4 in [the durable plan](../plans/000737-couch-scheduler-plan.md).
+- [ ] M2 — Automatic per-hub scheduling, authenticated notices, recovery, and day-long live acceptance; tasks 5–6 in the durable plan.
 
 ## Log
 
 ### 2026-10-20
+
+- Claimed and started in pair:1; planning only. Read the settled ops project/design, the updated Operators format, current Couch composition/notice/protocol seams, persistence/process APIs and relevant lessons.
+- TL confirmed team-owner validation belongs in this issue despite the older project reservation: absent Operators refuses team tasks, not machine tasks; no real team task/election added.
+- TL clarified cached Go-package entrypoints and a shared manual helper. General sandbox isolation is explicitly out of v1; trusted operator execution/network access, timeout/group cleanup/bounded output, and heavy-only machine admission are the contract.
+- Two read-only exploration agents returned code-backed integration digests. Existing broker/service/store primitives are reusable; generic scheduled execution, cached build ownership, occurrence persistence and per-task heavy admission need explicit new adapters. No production code, tests, task declarations, ops artifacts or estimates changed.
+- Durable implementation plan written to workshop/plans/000737-couch-scheduler-plan.md for TL/operator review before change-code. It keeps the current live Done when: a staged trivial ops task must run for a day; ops task provisioning and the staged restart require TL coordination.
+
+## Revisions
+
+### 2026-10-20 — clarified execution and owner scope (ops:0)
+
+Original Spec described a Go program named main and execution “under the sandbox and machine test budget.” TL clarified main is an abstract entrypoint: main.go packages are built once per content hash into a cache, and the shared helper is couch --schedule run <task> -- <args>. No general sandbox is promised in v1: reviewed code runs as the operator with network access, timeout, process-group stop and bounded output; only declared heavy tasks acquire the machine test lock. The current Spec reflects that superseding contract.
+
+The project/design previously reserved team scope beyond its owner field. TL confirmed the small deterministic owner check now: scope team requires an owner slug listed under team.md Operators, using lines of the form - <slug> (<name>): …; slug is normalized from git user.name. Missing section is tolerated but refuses a team task. No real team task or election is added.
