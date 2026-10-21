@@ -5,10 +5,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchsingleton"
@@ -235,15 +233,16 @@ func runProvisionCommand(ctx context.Context, dir string, env []string, tool str
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	cmd := exec.CommandContext(ctx, tool, args...)
-	cmd.Dir = dir
-	cmd.Env = append([]string{}, env...)
-	cmd.WaitDelay = 2 * time.Second
-	var out, diag buildOutput
-	cmd.Stdout = &out
-	cmd.Stderr = &diag
-	if err := cmd.Run(); err != nil {
-		return out.String(), fmt.Errorf("%s %v: %w\n%s\n%s", filepath.Base(tool), args, err, out.String(), diag.String())
+	// Even nil means an explicitly empty environment for provisioning.
+	runner := couchcore.OSProvisionIO{Env: append([]string{}, env...)}
+	raw, err := runner.Run(ctx, couchcore.ProvisionCommand{Dir: dir, Program: tool, Args: append([]string(nil), args...)})
+	var output buildOutput
+	_, _ = output.Write(raw)
+	if err != nil {
+		if len(err.Error()) >= buildOutputLimit {
+			err = fmt.Errorf("%w\n[diagnostics truncated]", err)
+		}
+		return output.String(), fmt.Errorf("%s %v: %w", filepath.Base(tool), args, err)
 	}
-	return out.String(), nil
+	return output.String(), nil
 }

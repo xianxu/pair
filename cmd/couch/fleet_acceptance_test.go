@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"sync"
@@ -11,6 +13,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/testcouch"
+	"github.com/xianxu/pair/cmd/internal/testcouch/agentfixture"
 )
 
 // TestDisposableCouchFleet is the shared helper's first native consumer.
@@ -22,6 +25,7 @@ func TestDisposableCouchFleet(t *testing.T) {
 	binaries := testcouch.Build(t)
 	for _, agent := range []string{"claude", "codex"} {
 		if !t.Run(agent, func(t *testing.T) {
+			started := time.Now()
 			fleet := testcouch.New(t, binaries, testcouch.Options{Workers: 3, AgentKind: agent})
 			setup, cancelSetup := context.WithTimeout(t.Context(), 180*time.Second)
 			if err := fleet.Prepare(setup); err != nil {
@@ -55,6 +59,13 @@ func TestDisposableCouchFleet(t *testing.T) {
 					t.Fatalf("missing %s in %+v", slot, actors)
 				}
 			}
+			for n := 0; n <= 3; n++ {
+				ready, err := fleet.Agent(n)
+				if err != nil || ready.Agent != agent {
+					t.Fatalf("actor %d personality: %+v %v", n, ready, err)
+				}
+			}
+			t.Logf("native cohort: agent=%s steward=fixture:0 workers=fixture:1,fixture:2,fixture:3 elapsed=%s", agent, time.Since(started))
 			// The same genuine actor may own simultaneous requests; each result is
 			// correlated separately and traverses the real CLI/broker transport.
 			var group sync.WaitGroup
@@ -81,26 +92,40 @@ func TestDisposableCouchFleet(t *testing.T) {
 				t.Fatalf("missing receipt: %+v", result)
 			}
 			id := fields[0]
-			waitFleet(t, ctx, func() bool {
+			if err := waitFleet(ctx, func() (bool, error) {
 				status, e := fleet.ActorCLI(ctx, 0, "--message-status", id, "--json")
 				if e != nil {
-					return false
+					return false, e
 				}
 				var response couchmessage.Response
-				return json.Unmarshal([]byte(status.Stdout), &response) == nil && response.Receipt != nil && response.Receipt.Status == couchmessage.Submitted
-			})
-			waitFleet(t, ctx, func() bool {
+				if err := json.Unmarshal([]byte(status.Stdout), &response); err != nil {
+					return false, err
+				}
+				if response.Receipt == nil {
+					return false, fmt.Errorf("missing receipt: %s", status.Stdout)
+				}
+				return response.Receipt.Status == couchmessage.Submitted, nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if err := waitFleet(ctx, func() (bool, error) {
 				accepted, e := fleet.Accepted(1)
 				if e != nil {
-					return false
+					if errors.Is(e, os.ErrNotExist) {
+						return false, nil
+					}
+					return false, e
 				}
 				for _, input := range accepted {
 					if strings.Contains(input.Body, message) {
-						return true
+						return true, nil
 					}
 				}
-				return false
-			})
+				return false, nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			t.Logf("native delivery: receipt=%s status=submitted recipient=fixture:1 accepted_body=%q elapsed=%s", id, message, time.Since(started))
 			if err := fleet.Resize(36, 132); err != nil {
 				t.Fatal(err)
 			}
@@ -110,7 +135,16 @@ func TestDisposableCouchFleet(t *testing.T) {
 			if err := fleet.RestartSupervisor(ctx); err != nil {
 				t.Fatal(err)
 			}
-			waitFleet(t, ctx, func() bool { actors, e := fleet.Actors(ctx); return e == nil && len(actors.Actors) == 4 })
+			if err := waitFleet(ctx, func() (bool, error) {
+				actors, e := fleet.Actors(ctx)
+				if errors.Is(e, agentfixture.ErrMailboxFull) {
+					return false, e
+				}
+				return e == nil && len(actors.Actors) == 4, nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			t.Logf("native detach/restart: all four actors returned elapsed=%s", time.Since(started))
 			cleanup, cancelCleanup := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancelCleanup()
 			if err := fleet.Close(cleanup); err != nil {
@@ -128,18 +162,30 @@ func TestDisposableCouchFleet(t *testing.T) {
 	}
 }
 
-func waitFleet(t *testing.T, ctx context.Context, check func() bool) {
-	t.Helper()
+func waitFleet(ctx context.Context, check func() (bool, error)) error {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		if check() {
-			return
+		if done, err := check(); done || err != nil {
+			return err
 		}
 		select {
 		case <-ctx.Done():
-			t.Fatal(ctx.Err())
+			return ctx.Err()
 		case <-ticker.C:
 		}
+	}
+}
+
+func TestFleetWaitStopsOnPermanentRefusal(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	calls := 0
+	err := waitFleet(ctx, func() (bool, error) {
+		calls++
+		return false, agentfixture.ErrMailboxFull
+	})
+	if !errors.Is(err, agentfixture.ErrMailboxFull) || calls != 1 {
+		t.Fatalf("permanent refusal retried: calls=%d err=%v", calls, err)
 	}
 }

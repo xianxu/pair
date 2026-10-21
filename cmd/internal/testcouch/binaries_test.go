@@ -4,9 +4,13 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/procutil"
 )
 
 func TestCandidatePathsRejectInvalidPlacement(t *testing.T) {
@@ -83,5 +87,64 @@ func TestBuildCommandBoundsDiagnosticsAndHonorsCancellation(t *testing.T) {
 	stop()
 	if _, err := buildCommand(cancelled, t.TempDir(), "/bin/sh", "-c", "exit 0"); err == nil {
 		t.Fatal("ignored build cancellation")
+	}
+}
+
+func TestCommandWrappersJoinCanceledDescendants(t *testing.T) {
+	for _, wrapper := range []string{"build", "provision"} {
+		t.Run(wrapper, func(t *testing.T) {
+			root := t.TempDir()
+			marker := filepath.Join(root, "child.pid")
+			observeCtx, observeCancel := context.WithTimeout(t.Context(), 10*time.Second)
+			defer observeCancel()
+			ctx, cancel := context.WithCancel(observeCtx)
+			defer cancel()
+			done := make(chan error, 1)
+			script := `trap 'wait; exit' TERM; sleep 30 & child=$!; printf '%s' "$child" > "$1"; wait`
+			go func() {
+				var err error
+				if wrapper == "build" {
+					_, err = buildCommand(ctx, root, "/bin/sh", "-c", script, "fixture", marker)
+				} else {
+					_, err = runProvisionCommand(ctx, root, []string{"PATH=/usr/bin:/bin"}, "/bin/sh", "-c", script, "fixture", marker)
+				}
+				done <- err
+			}()
+			pid := 0
+			generation := ""
+			if err := waitUntil(observeCtx, func() (bool, error) {
+				raw, err := os.ReadFile(marker)
+				if err != nil {
+					return false, nil
+				}
+				pid, err = strconv.Atoi(string(raw))
+				if err != nil {
+					return false, nil
+				}
+				generation = procutil.Identity(strconv.Itoa(pid))
+				return generation != "", nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = (nativeProcesses{}).Signal(pid, generation, syscall.SIGKILL) })
+			cancel()
+			select {
+			case err := <-done:
+				if err == nil {
+					t.Fatal("canceled command returned success")
+				}
+			case <-observeCtx.Done():
+				t.Fatal("command did not join cancellation")
+			}
+			rows, _, err := (procutil.NativeResourceReader{}).Table(observeCtx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, row := range rows {
+				if row.PID == pid && row.Identity == generation && !row.Zombie {
+					t.Fatalf("%s returned with owned descendant still running: pid=%d generation=%s", wrapper, pid, generation)
+				}
+			}
+		})
 	}
 }

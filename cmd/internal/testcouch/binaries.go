@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/testpair"
 	"github.com/xianxu/pair/internal/reporoot"
 )
@@ -98,9 +99,7 @@ func Build(t testing.TB) Binaries {
 		b.Evidence["source-head"] = strings.TrimSpace(head)
 	}
 	for _, tool := range tools {
-		versionCtx, stop := context.WithTimeout(ctx, 2*time.Second)
-		output, err := buildCommand(versionCtx, b.Source, *tool.target, "--version")
-		stop()
+		output, err := buildCommand(ctx, b.Source, *tool.target, "--version")
 		version := strings.TrimSpace(output)
 		if line, _, ok := strings.Cut(version, "\n"); ok {
 			version = line
@@ -183,12 +182,7 @@ func (b *buildOutput) String() string {
 	return result
 }
 func buildCommand(ctx context.Context, dir, tool string, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, tool, args...)
-	cmd.Dir = dir
-	cmd.WaitDelay = 2 * time.Second
 	var output buildOutput
-	cmd.Stdout = &output
-	cmd.Stderr = &output
-	err := cmd.Run()
+	_, err := (couchcore.OSProvisionIO{}).Run(ctx, couchcore.ProvisionCommand{Dir: dir, Program: tool, Args: append([]string(nil), args...), Progress: &output, StreamOutput: true})
 	return output.String(), err
 }

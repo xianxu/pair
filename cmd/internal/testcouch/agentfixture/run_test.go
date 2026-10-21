@@ -85,7 +85,11 @@ func TestRunSubmitTranscriptAndNativeResume(t *testing.T) {
 				return err == nil && json.Unmarshal(raw, &ready) == nil
 			})
 			writer.Write([]byte("\x1b[200~fixture peer body\x1b[201~"))
-			time.Sleep(30 * time.Millisecond)
+			waitFixture(t, func() bool {
+				raw, err := os.ReadFile(filepath.Join(config.ControlDir, "state.json"))
+				var state AgentState
+				return err == nil && json.Unmarshal(raw, &state) == nil && state.Draft == "fixture peer body"
+			})
 			if raw, _ := os.ReadFile(filepath.Join(config.ControlDir, "accepted.jsonl")); len(raw) != 0 {
 				t.Fatal("paste counted as acceptance", string(raw))
 			}
@@ -318,8 +322,8 @@ func TestRunStopAfterOrdinaryRequestQuotaExhausted(t *testing.T) {
 		entries, e := os.ReadDir(filepath.Join(config.ControlDir, "results"))
 		return e == nil && len(entries) == MaxRequests
 	})
-	if err := WriteCommand(config.ControlDir, Command{ID: "overflow", Kind: SetState, State: Idle}); err == nil {
-		t.Fatal("ordinary request accepted after quota exhaustion")
+	if err := WriteCommand(config.ControlDir, Command{ID: "overflow", Kind: SetState, State: Idle}); !errors.Is(err, ErrMailboxFull) {
+		t.Fatalf("full result mailbox not classified: %v", err)
 	}
 	if err := WriteCommand(config.ControlDir, Command{ID: "shutdown", Kind: Stop}); err != nil {
 		t.Fatalf("shutdown refused after %d completed ordinary requests: %v", MaxRequests, err)
@@ -426,10 +430,25 @@ func TestRunCLIUsesPerRequestBudget(t *testing.T) {
 	}
 	started := time.Now()
 	result := runCLI(context.Background(), "/bin/sh", Command{ID: "bounded", Kind: Exec, Timeout: 100 * time.Millisecond, Args: []string{"-c", "printf started; exec sleep 30"}})
-	if result.Error == "" || result.Stdout != "started" {
-		t.Fatalf("budget failed to cancel started child: %+v", result)
+	if result.Error == "" {
+		t.Fatalf("request budget did not cancel child: %+v", result)
 	}
 	if elapsed := time.Since(started); elapsed > 2*time.Second {
 		t.Fatalf("budget cancellation did not join promptly: %v", elapsed)
+	}
+}
+
+func TestWriteCommandClassifiesFullPendingMailbox(t *testing.T) {
+	config := fixtureConfig(t, "claude")
+	if err := atomicJSON(filepath.Join(config.ControlDir, "ready.json"), Ready{PID: os.Getpid(), RunID: config.RunID}, false); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < MaxRequests; i++ {
+		if err := WriteCommand(config.ControlDir, Command{ID: fmt.Sprintf("pending-%03d", i), Kind: SetState, State: Idle}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := WriteCommand(config.ControlDir, Command{ID: "overflow", Kind: SetState, State: Idle}); !errors.Is(err, ErrMailboxFull) {
+		t.Fatalf("full pending mailbox not classified: %v", err)
 	}
 }

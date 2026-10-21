@@ -24,6 +24,9 @@ const DefaultCLITimeout = 15 * time.Second
 const MaxCLITimeout = 24 * time.Hour
 const OwnershipFile = ".testcouch-owner"
 
+// ErrMailboxFull is terminal for this bounded fixture incarnation.
+var ErrMailboxFull = errors.New("fixture mailbox limit reached")
+
 // A reserved single-slot shutdown channel cannot be exhausted by ordinary work.
 const shutdownFile = "shutdown.json"
 const shutdownResultFile = "shutdown-result.json"
@@ -139,7 +142,7 @@ func WriteCommand(control string, c Command) error {
 			return err
 		}
 		if len(entries) >= MaxRequests {
-			return errors.New("fixture mailbox limit reached")
+			return ErrMailboxFull
 		}
 	}
 	if _, err := os.Lstat(filepath.Join(control, "results", c.ID+".json")); err == nil {

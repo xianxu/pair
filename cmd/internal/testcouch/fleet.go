@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
@@ -129,6 +130,11 @@ func (f *Fleet) begin(ctx context.Context) (context.Context, func(), error) {
 	}
 	if f.closing {
 		return nil, nil, fmt.Errorf("fleet is closing")
+	}
+	if f.console != nil {
+		if err := f.console.failure(); err != nil {
+			return nil, nil, fmt.Errorf("supervisor terminal: %w", err)
+		}
 	}
 	if f.active == 0 {
 		f.idle = make(chan struct{})
@@ -263,18 +269,30 @@ func (f *Fleet) Detach(ctx context.Context) error {
 		return err
 	}
 	defer done()
-	// Couch's public Alt+d detaches its presentation; no hidden process signal.
-	if err := f.Input([]byte{0, 0x1b, 'd'}); err != nil {
-		return err
-	}
 	f.mu.Lock()
 	p := f.console
 	f.mu.Unlock()
+	if p == nil {
+		return fmt.Errorf("supervisor is not started")
+	}
+	// Encode physical keys from the actual host's negotiated keyboard mode.
+	// ESC d is ordinary input, not Couch's disambiguated Alt+d chord.
+	if err := p.press("\x00", 32, 5); err != nil {
+		return err
+	}
+	if err := waitUntil(ctx, func() (bool, error) {
+		return strings.Contains(p.Screen(), "Ctrl+Y copy last notice / selected error"), p.failure()
+	}); err != nil {
+		return fmt.Errorf("open switcher: %w; screen=%s", err, p.Screen())
+	}
+	if err := p.press("\x1bd", 100, 3); err != nil {
+		return err
+	}
 	select {
 	case <-p.done:
 		return nil
 	case <-ctx.Done():
-		return ctx.Err()
+		return fmt.Errorf("detach supervisor: %w; screen=%s", ctx.Err(), p.Screen())
 	}
 }
 

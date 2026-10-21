@@ -121,3 +121,8 @@ Verified submitted TL approval: the new transport parent is active only with COU
 ### 2026-10-20 — native qualification exposed #747
 
 The first genuine worker launch exposed reserved-vs-established recordless Fresh authority; the harness does not weaken that product check. TLd31f383f chose #747 independent landing on its actual emitted-profile regression, followed by #744 integrating landed main and running the real three-worker matrix for both issues. No composite or stacked source build. Public singleton adoption preview/apply is now part of real Prepare; native fixture shutdown uses cancellable TTY IO after a real-PTY regression reproduced blocking stdin Close. A failed personality stops qualification before a fresh fleet; old failed generations were recovered by exact ownership, leaving diagnostics only. These refine setup/teardown execution, with the same scenario scope and acceptance.
+
+
+### 2026-10-20 — pre-rerun adapter audit after four native discoveries
+
+TL69cdbd1e requires a class-wide sweep before another native run. The issue Log records all key/query/deadline/sleep/poll findings and regressions. Execution refinements: physical console keys derive from observed negotiated mode and switcher state; actor CLI carries its caller budget; versions share the declared build budget; foreground command cancellation reuses the existing OSProvisionIO group owner; typed quota refusal terminates observation rather than masking exhaustion. Fixed sleeps do not establish acceptance. Retain the same native topology, explicit outer budgets and scenario contract; no timeout increases or product admission bypass. Shutdown grace/pipe-drain policies remain distinct from readiness allowances.

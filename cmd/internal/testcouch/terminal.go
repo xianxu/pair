@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -26,6 +27,7 @@ type terminalProcess struct {
 	output     buildOutput
 	mu         sync.Mutex
 	err        error
+	readErr    error
 }
 
 func startTerminal(cmd *exec.Cmd) (*terminalProcess, error) {
@@ -60,10 +62,18 @@ func startTerminal(cmd *exec.Cmd) (*terminalProcess, error) {
 			if n > 0 {
 				_, _ = p.output.Write(buffer[:n])
 				if _, feedErr := ep.Feed(buffer[:n], time.Now()); feedErr != nil {
+					p.mu.Lock()
+					p.readErr = feedErr
+					p.mu.Unlock()
 					return
 				}
 			}
 			if e != nil {
+				if !errors.Is(e, io.EOF) && !errors.Is(e, syscall.EIO) && !errors.Is(e, os.ErrClosed) && !errors.Is(e, context.Canceled) {
+					p.mu.Lock()
+					p.readErr = e
+					p.mu.Unlock()
+				}
 				return
 			}
 		}
@@ -106,7 +116,32 @@ func (p *terminalProcess) Close(ctx context.Context) error {
 		return ctx.Err()
 	}
 }
-func (p *terminalProcess) Input(data []byte) error { _, err := p.endpoint.WriteInput(data); return err }
+func (p *terminalProcess) failure() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.readErr
+}
+
+func (p *terminalProcess) Input(data []byte) error {
+	if err := p.failure(); err != nil {
+		return err
+	}
+	_, err := p.endpoint.WriteInput(data)
+	return err
+}
+func physicalKey(flags uint32, legacy string, code, modifier int) []byte {
+	if flags&(1|8) == 0 {
+		return []byte(legacy)
+	}
+	if flags&2 != 0 {
+		return []byte(fmt.Sprintf("\x1b[%d;%d:1u", code, modifier))
+	}
+	return []byte(fmt.Sprintf("\x1b[%d;%du", code, modifier))
+}
+
+func (p *terminalProcess) press(legacy string, code, modifier int) error {
+	return p.Input(physicalKey(p.endpoint.Modes().Keyboard, legacy, code, modifier))
+}
 func (p *terminalProcess) Resize(rows, cols uint16) error {
 	return p.endpoint.Resize(terminal.Geometry{Rows: int(rows), Cols: int(cols)}, func(terminal.Geometry) error { return pty.Setsize(p.file, &pty.Winsize{Rows: rows, Cols: cols}) })
 }

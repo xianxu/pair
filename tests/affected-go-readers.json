@@ -60,7 +60,6 @@
       "probes/zellijprobe/probeshape_test.go": "346295cb17dcb7fad208f4134a80c67fe0cc95b9c08162fbf868d98f567cdaf0"
     },
     "non_go_full_fallback": {
-      "cmd/couch/fleet_acceptance_test.go": "fcefc605dfaa896a48a76ab8cc4dee5400e6d1983af630e682699be37bc6219b",
       "cmd/internal/artifactpath/cross_scope_integration_test.go": "141dc4e3cd7632114dd20e263104176cdd470e86d6dd921dc2e9c9715077e18d",
       "cmd/internal/broadcast/viewer_test.go": "44f01533272916cfe7085c4115d8481b74bb2f12db323db3ea69eb40aeb4f3f5",
       "cmd/internal/clipcmd/cli_admission_test.go": "256e2332dfb5202894f5ccb1a379e65875438962326a6e7a636b19bf43fa4f1d",
@@ -154,7 +153,8 @@
       "cmd/internal/wrapcmd/terminal_tail_test.go": "9131f3b46d3d253300a272875be6a28aaf33ca9877940a4d3ee2061cf336413f",
       "cmd/internal/wrapcmd/translate_test.go": "19a77f27b5eeb7686ae076513a3e5064257d9f9c8ed36c3cc71e423e2f599e04",
       "cmd/internal/zellijtest/fake_test.go": "0820421bf6161904427c0ac989b550cbcfaa3a964538f6da00219b6aac5d042f",
-      "cmd/pair-go/main_test.go": "3006109d07471c179dd742acf66901abe00868868f680694b5f75d75073cd99b"
+      "cmd/pair-go/main_test.go": "3006109d07471c179dd742acf66901abe00868868f680694b5f75d75073cd99b",
+      "cmd/couch/fleet_acceptance_test.go": "bceeb2e5118e45fe85095868401c08b0d203c0ceb51138fa4233558ecfc13402"
     },
     "local_or_literal_fixture": {
       "cmd/couch/binary_test.go": "43767cf88cd38b404edd7df16cc7a646359171649eaf63adfbe4952f68fc4aa6",
@@ -419,10 +419,8 @@
       "cmd/internal/termcmd/recovery_test.go": "ede2b28e39bffdc2081442bf8af21cc3dda80265b3aac0c505ea8c557a086b88",
       "cmd/internal/termcmd/strip_test.go": "706d1f78fbe856ed2dececd91565fb833e92a7aafcf919f21a368ebf25c1fa5f",
       "cmd/internal/termcmd/writer_test.go": "43355691243d784157686def48d93cdefe26f8f5d8bb571cff43214461fbe071",
-      "cmd/internal/testcouch/binaries_test.go": "b07d47bc9bc63c20757de764da994025fcf898697db3d950a0dc93dd9b9515d2",
       "cmd/internal/testcouch/provision_test.go": "135abbb0ea802cf1c7c73a7a9a0c2ca4eada0013883460009e7962e4e8cb16b2",
       "cmd/internal/testcouch/runtime_files_test.go": "0d9db94f18690db825f95e1450af8dbd9e3b22ba84805c1d4550eba9ff76b847",
-      "cmd/internal/testcouch/terminal_test.go": "6589e64c2014f16c1c18625755de1edfd2b98ca7d462cb4ab6a8fcb42acc02cf",
       "cmd/internal/threadactivity/activity_test.go": "a7f9edb3c8a2b5b6058718edbdb5cbf2dd860de450a351d61e258f4498a7c817",
       "cmd/internal/threadrecord/previous_session_test.go": "0c20d14206977ef9ba05502ab96e7d58f9ffbd77ce21616a34886fb6224fa40f",
       "cmd/internal/threadrecord/record_test.go": "28ebd57eac08cdc3798508d08843a6b268b19b44ef69cbd4e1e35213fb1d1678",
@@ -471,8 +469,10 @@
       "probes/zellijcalls/main_test.go": "382f78fb48fc70e5b522a8e5e38bc0fc8da82ebc75ec9c2f367c9ddfa7417693",
       "probes/zellijprobe/reporoot_test.go": "de13aef753c6fc958f01e4a04ec9963672a58a76f5e63d08d6e2ea32de825018",
       "cmd/internal/testcouch/agentfixture/model_test.go": "15c01e25c83df4d3281a02a7755270a8c287f28906379ff2fbe37c246a9d3907",
-      "cmd/internal/testcouch/agentfixture/run_test.go": "ddda6505b03141895feb1d9063ad1e6ef3e13481f041c5edfc0bbed782de6585",
-      "cmd/internal/testcouch/fleet_test.go": "ff7acebbf09a236359274a47969a21a209ebd3110abd4af4721e931b243dbd57"
+      "cmd/internal/testcouch/fleet_test.go": "ff7acebbf09a236359274a47969a21a209ebd3110abd4af4721e931b243dbd57",
+      "cmd/internal/testcouch/agentfixture/run_test.go": "1bd1b47f178acc93e3f4bf6a2176a2b1da8eb9c4904e0a3d34d9226d5b072f2f",
+      "cmd/internal/testcouch/binaries_test.go": "53e7eeabc89699222cfc68b04028566e29edb739a9c7ae791663fd6332cba086",
+      "cmd/internal/testcouch/terminal_test.go": "d9d60a49fd0e343fadda88ece9c7616e1245a29cc6ce762d07ba1794e50d6c41"
     }
   }
 }

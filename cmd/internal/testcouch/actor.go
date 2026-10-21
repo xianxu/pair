@@ -145,6 +145,9 @@ func waitActorCount(ctx context.Context, count int, observe func(context.Context
 		response, err := observe(ctx)
 		last = err
 		if err != nil {
+			if errors.Is(err, agentfixture.ErrMailboxFull) {
+				return false, err
+			}
 			return false, nil
 		}
 		return len(response.Actors) >= count, nil
