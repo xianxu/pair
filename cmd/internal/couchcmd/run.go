@@ -16,6 +16,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/broadcast"
 	"github.com/xianxu/pair/cmd/internal/couchidentity"
 	"github.com/xianxu/pair/cmd/internal/couchsingleton"
+	"github.com/xianxu/pair/cmd/internal/sessionsync"
 	"io"
 	"os"
 	"os/exec"
@@ -378,8 +379,16 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		return runAdoptionCLI(invocation, rt, stdout, stderr)
 	}
 	if invocation.kind == cliSessionSync {
+		if a := invocation.sessionSync; a.operatorLockCommand() {
+			if err := (sessionsync.OperatorLockRequest{ID: a.id, Turn: a.turn}).ValidateTurn(); err != nil {
+				return operatorSessionSyncFailure(stdout, err)
+			}
+		}
 		prepared, lease, err := prepareRuntime(rt, false)
 		if err != nil {
+			if invocation.sessionSync.operatorLockCommand() {
+				return sessionSyncUnavailable(stdout, err)
+			}
 			fmt.Fprintln(stderr, "couch:", err)
 			return 1
 		}

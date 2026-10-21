@@ -84,6 +84,74 @@ A held operator lock always blocks agent writes. A valid lock timestamp older
 than 30 minutes adds its age and advice to ping the operator; it never expires
 the lock. Invalid/future timestamps retain the refusal with unknown age.
 
+## Registered operator acquisition (#777)
+
+The editor acquires and releases through the same registry transaction that
+registered `write` and `apply` hold through document, shadow, state and round
+publication:
+
+```text
+couch --session-sync operator-acquire FILE --id ID --turn TOKEN --json
+couch --session-sync operator-release FILE --id ID --turn TOKEN --json
+```
+
+ID is the current registration ID. TOKEN is a caller-generated 32-character
+lowercase hexadecimal nonce for this operator turn, retained across lost replies.
+FILE resolves to the current registered canonical document. Neither command falls
+back to an unregistered legacy file. These commands run in-process without a
+supervisor; a stopped daemon alone does not make acquisition unavailable.
+
+Success exits 0 with `Code: "ok"`, `Error: ""` and `OperatorLock` containing
+`ID`, canonical `File`, `Holder`, `Turn`, `LockPath`, exact `LockText` and `State`.
+Acquire states are `acquired` and `already-held`, both with Holder `operator`.
+The sidecar has additive `document: ID` and `turn: TOKEN` lines alongside holder
+and time. Same-turn retries preserve the exact bytes and timestamp; foreign,
+legacy or malformed operator protection is never adopted. Unknown sidecar lines
+survive retries and moves verbatim.
+
+Acknowledgment proves earlier registered writers completed before protection
+and future writers see it. The editor must then perform its unconditional
+freshness check and complete any clean native reread before admitting input
+(parley.nvim#408). Existing clients that create sidecars directly retain
+conservative lock checks and the writer's best-effort post-write warning; they
+do not participate in this new exclusion guarantee.
+
+Release states are `released` and `already-released`, with the requested ID,
+canonical File and Turn echoed, empty Holder/LockText and canonical LockPath.
+Absence does not assert past ownership. Release removes only that exact turn's
+matching sidecars; foreign protection refuses without deletion. Both release
+states confirm every admitted containing directory, including already-absent
+sidecars, so retry reconciles an unlink followed by failed directory fsync.
+Join an outstanding command before releasing; after release, begin a new turn
+with a fresh token rather than replaying an old acquisition.
+
+| Outcome | Code / exit | Caller action |
+| --- | --- | --- |
+| Foreign or unproven protection | `operator-lock` / 3 | Inspect; never delete or infer ownership |
+| Registration identity changed | `operator-identity` / 1 | Refresh identity explicitly |
+| Missing/unregistered/unsafe document or lock path | `operator-path` / 1 | Inspect the path; no legacy fallback |
+| Invalid ID/token | `operator-invalid` / 1 | Correct the request |
+| Registry busy or invalid authority | `registry-busy`, `registry-invalid` or other explicit refusal / 1 | Inspect or retry explicitly; never classify as unavailable |
+| Namespace/runtime/store access unavailable | `session-sync-unavailable` / 7 | Consumer may use its visibly unconfirmed availability policy |
+| Sidecar effects or durability uncertain | `operator-lock-uncertain` / 1 | Preserve the token; retry the identical command |
+
+Malformed argv retains the CLI's existing `usage`/exit 2 behavior. A missing or
+invalid success acknowledgment is never proof of protection. Parley's bounded
+500 ms call owns child termination/join; timeout can leave a published lock,
+and an identical acquisition recovers it. No sidecar expires automatically.
+
+For a move, acquire OLD, copy exact LockText to NEW before the existing registry
+rename, and retain ID. Recover TOKEN from the move journal's `turn:` line;
+release NEW with that same ID/token. Protection identity is path-independent;
+an old-path request cannot delete a replacement registration's lock. Parley
+still owns old-sidecar and move-journal cleanup. A private deterministic stage
+is bounded to one per document and reclaimed by the next successful operator
+transaction under the registry lock, including after a killed publisher.
+
+Producer acceptance uses the real public command on disposable adopted roots:
+daemon-absent acquire, lost reply, writer refusal, move/release and unavailable
+outcomes. The actual editor freshness/input proof follows in parley.nvim#408.
+
 The TL rebuilds Couch after #573 lands. The combined plain-note live check is
 scheduled after parley.nvim#332 is staged, with operator Couch/nvim restarts;
 automated Couch verification does not claim that editor acceptance.

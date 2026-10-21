@@ -58,9 +58,9 @@ Derivation: design 0.70 × 1.15 + implementation 1.36 = 2.165 h, rounded to 2.17
 
 ## Plan
 
-- [ ] Agree the pinned CLI, ownership, lost-ack, rename and release contract with parley.nvim:1 through the hub; approve the [durable plan](../plans/000777-operator-acquire-write-boundary-plan.md).
-- [ ] Implement pure turn/proof decisions and acquire/release inside the existing writer registry transaction, with deterministic writer/acquire ordering and uncertainty tests.
-- [ ] Expose strict public commands and machine-readable refusal/unavailable outcomes; prove real executable and move-copy recovery on disposable files.
+- [x] Agree the pinned CLI, ownership, lost-ack, rename and release contract with parley.nvim:1 through the hub; approve the [durable plan](../plans/000777-operator-acquire-write-boundary-plan.md).
+- [x] Implement pure turn/proof decisions and acquire/release inside the existing writer registry transaction, with deterministic writer/acquire ordering and uncertainty tests.
+- [x] Expose strict public commands and machine-readable refusal/unavailable outcomes; prove real executable and move-copy recovery on disposable files.
 - [ ] Document, run the required recorded check, close through SDLC, land on SHIP and report availability to the hub for parley.nvim#408.
 
 ## Log
@@ -78,3 +78,15 @@ Hub approval 061be603-8e01-4db6-99ab-0572a62d93f6 accepts the full plan and rela
 Plan-quality round 1 raised PQ-1 (already-absent release retries must confirm directory durability) and PQ-2 (name production test functions and compress case inventories to adversarial strategies). Verified the durability requirement against durablefile's file-plus-directory publication contract, then clarified both success/retry paths and the fake's visible/durable states. The revised plan adds function-level strategies and removes the duplicate task inventories. No contract or scope change; rerunning the gate before implementation.
 
 Plan-quality is CLEAN with PQ-1/PQ-2 addressed; change-code admitted full flow after the derived 2.17 h estimate (estimate-quality INFO: integration/conformance allowance is optimistic, and the review primitive also covers recorded verification/landing). First executable parser regression failed as expected on unknown operator-acquire. Pure ownership/proof tests then failed on missing model definitions and passed after the model implementation (`go test ./cmd/internal/sessionsync -run '^TestOperatorLockModel' -count=1`, 0.144 s). Transaction tests are now written and red on the missing AcquireOperator/ReleaseOperator methods; implementation follows. A bounded subagent owns only CLI parser/result wiring and its tests; the main session owns exclusion, uncertainty and migration.
+
+### 2026-10-21 — implementation and executable acceptance
+
+The existing registry transaction now owns operator acquire/release, exact ID/token decisions and bounded staged publication. Pure proof parsing preserves unknown lines, rejects ambiguous known fields and recovers tokens from move-journal bytes. Directory confirmation covers existing and absent retry states. Foreign protection is never adopted/deleted; registration/path refusals preserve document and metadata. Existing direct-sidecar warning remains, with its exclusion limit documented in the atlas and public Couch skill.
+
+Deterministic Write and Apply tests pause after the guard and again at the final round publication; a contender proves real flock contention at both boundaries. Future Write/Apply under acknowledged protection refuse with unchanged document/shadow/state/round. Visible-versus-durable fake sequences cover uncertain publication, absent release retry and partial alias deletion. Real child death before and after publication proves stage reclamation and exact lost-ack recovery. Real-backend counts at 8/16 aliases prove one observation per admitted spelling, one acquire publication and linear release effects. Move-copy/rename/release-NEW and forgotten/replaced identity are exercised.
+
+Verification returned: full sessionsync package PASS 8.619 s; targeted ownership race run PASS 1.846 s; combined operator CLI/public executable PASS couchcmd 1.469 s and cmd/couch 7.182 s; ownership-proof fuzz 108414 executions in 2 s PASS; tracked Go catalog PASS 3.970 s. Native public-command acceptance uses disposable adopted roots, proves the daemon absent before/after, discards an acquire reply then recovers exact bytes/time, refuses protected writes unchanged, moves/recover/releases the token, and distinguishes typed failures. No :0 stage.
+
+Executable tests first exposed runtime preparation before the session-sync handler returning plain exit 1; fixed that operator-only boundary through the same unavailable/7 JSON owner. An additional red test proved invalid turn data could otherwise reach namespace-unavailable; validate identity/token before runtime IO now, and the targeted operator selection passes 0.533 s. Existing malformed argv remains usage/2; valid argv with invalid ID/token is operator-invalid/1. The clarification went through the hub in receipt 83a7a713-7bb4-4988-a501-fc1dfa81d91c.
+
+The affected-reader audit identifies only the model test's literal invalid ../ token; it reads no repository source and its new per-reader certificate is local_or_literal_fixture, regenerated with make affected-readers. Inventory check and diff whitespace check pass. No local-gates-guard protected path is changed. Production, tests, docs and evidence are checkpointed before the required pushed-head recorded check.

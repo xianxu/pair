@@ -10,6 +10,12 @@ import (
 // The editor keeps Turn across lost replies, and uses a new nonce after release.
 type OperatorLockRequest struct{ File, ID, Turn string }
 
+// ValidateTurn checks the caller's identity before any namespace or store IO.
+// The transaction separately validates File against current registration facts.
+func (req OperatorLockRequest) ValidateTurn() error {
+	return validateOperatorTurn(operatorTurn{ID: req.ID, Token: req.Turn})
+}
+
 // OperatorLockState describes a completed operator ownership operation.
 type OperatorLockState string
 

@@ -67,7 +67,7 @@ Release success uses the same OperatorLock envelope, echoes ID, canonical File a
 | Foreign, legacy or malformed operator protection | `operator-lock` | 3 | No ownership acquired or removed; do not edit as confirmed or delete protection |
 | ID differs from current registration | `operator-identity` | 1 | Refresh registration explicitly; never substitute a new ID and replay blindly |
 | Unregistered/missing/invalid/nonregular document or unsafe lock path | `operator-path` | 1 | Inspect path; no legacy fallback or editable-unavailable classification |
-| Invalid ID/token/argv | `operator-invalid` (CLI usage may precede JSON) | 1 | Correct request; no effects |
+| Invalid ID/token | `operator-invalid` | 1 | Correct request; no effects; malformed argv retains existing `usage`/2 |
 | Registry contention | existing `registry-busy` | 1 | Explicit retry; existing 2 s producer wait remains bounded |
 | Namespace cannot be resolved, or registry store cannot be accessed | `session-sync-unavailable` | 7 | Consumer may use its approved visibly unconfirmed editing policy |
 | Invalid registry/metadata authority | explicit refusal, never unavailable | 1 | Repair/inspect; corruption is not transport absence |
@@ -115,7 +115,7 @@ Cancellation is process termination, not rollback: completed sidecar effects can
 
 ## Operating envelope and architecture
 
-This is once per new operator turn, not per character. Registry size D remains capped at 16 MiB/4096 documents; admitted spellings P retain the existing 256 bound. Each command performs one registry load/lookup O(D), one alias enumeration and at most one lock read per unique spelling O(P), and at most P removals/directory confirmations on release. Acquire publishes one bounded sidecar; it does not read every document, invoke a process, scan other buffers or load the delivery ledger. Memory is O(D + P*4096). Registry contention uses the existing 2 s bound; caller UI budget is 500 ms. Network/CPU-heavy work is absent. Filesystem permissions and fsync failure produce explicit refusal/uncertainty rather than more retries.
+This is once per new operator turn, not per character. Registry size D remains capped at 16 MiB/4096 documents; admitted spellings P are bounded by the existing 256 path intervals plus 256 additional aliases (each interval also records its File/Spelling). Each command performs one registry load/lookup O(D), one alias enumeration and at most one lock read per unique spelling O(P), and at most P removals/directory confirmations on release. Acquire publishes one bounded sidecar; it does not read every document, invoke a process, scan other buffers or load the delivery ledger. Memory is O(D + P*4096). Registry contention uses the existing 2 s bound; caller UI budget is 500 ms. Network/CPU-heavy work is absent. Filesystem permissions and fsync failure produce explicit refusal/uncertainty rather than more retries.
 
 Counted tests at 8 and 16 admitted aliases assert one registry transaction, at most one observation per unique lock pathname, one acquire publication, and at most P releases. Duplicate aliases do not cause quadratic rescans. The file seam's real-backend decorator counts operations; wall-clock timing is secondary evidence only.
 
@@ -150,38 +150,38 @@ The production test surfaces are named here; tasks below apply these strategies 
 
 Files: `cmd/internal/sessionsync/operator_lock_model.go`, `operator_lock_model_test.go`; issue and this plan.
 
-- [ ] Obtain final hub approval including the unavailable/7 taxonomy and copy the complete contract to parley.nvim:1 through the hub.
-- [ ] Add pure tests using the named parsing, identity and sequence strategies above.
-- [ ] Run `go test ./cmd/internal/sessionsync -run 'TestOperatorLockModel' -count=1`; record red before implementation.
-- [ ] Implement validateOperatorTurn, parseOperatorProof, operatorLockText and decideOperatorLock; rerun green and commit with Agent trailer.
+- [x] Obtain final hub approval including the unavailable/7 taxonomy and copy the complete contract to parley.nvim:1 through the hub.
+- [x] Add pure tests using the named parsing, identity and sequence strategies above.
+- [x] Run `go test ./cmd/internal/sessionsync -run 'TestOperatorLockModel' -count=1`; record red before implementation.
+- [x] Implement validateOperatorTurn, parseOperatorProof, operatorLockText and decideOperatorLock; rerun green and commit with Agent trailer.
 
 ### 2. Implement serialized ownership with adversarial ordering
 
 Files: `cmd/internal/sessionsync/operator_lock.go`, `operator_lock_test.go`, `registry.go`, `sync.go`; existing registry tests.
 
-- [ ] Add folder-backed transaction tests, stateful uncertain-effect fake and counted file decorator before production integration.
-- [ ] Force a real registered writer to pause between guard and mutation using the existing injected Now callback at prepareWrite (the second write clock boundary), while its registry flock remains held. Start acquisition, observe contention through the existing TryLock seam rather than sleeping, prove no acknowledgment until writer document/shadow/state/round completion, then prove the next writer refuses unchanged.
-- [ ] Apply the AcquireOperator/ReleaseOperator adversarial strategies with reproducible subprocess barriers for death and an independent snapshot of document plus all metadata as the no-mutation oracle.
-- [ ] Implement new operations under withRegistry with staged durable sidecar publication and explicit error classification. Retain legacy writer warnings and route/CAS behavior.
-- [ ] Apply the Rename/Forget identity sequence strategy using the existing move order and persisted lock bytes; keep existing metadata/sidecar recovery tests green.
-- [ ] Count real-backend operations at 8/16 aliases; run `go test ./cmd/internal/sessionsync -count=1` and the targeted race-enabled ownership cases. Commit passing implementation/evidence.
+- [x] Add folder-backed transaction tests, stateful uncertain-effect fake and counted file decorator before production integration.
+- [x] Force a real registered writer to pause between guard and mutation using the existing injected Now callback at prepareWrite (the second write clock boundary), while its registry flock remains held. Start acquisition, observe contention through the existing TryLock seam rather than sleeping, prove no acknowledgment until writer document/shadow/state/round completion, then prove the next writer refuses unchanged.
+- [x] Apply the AcquireOperator/ReleaseOperator adversarial strategies with reproducible subprocess barriers for death and an independent snapshot of document plus all metadata as the no-mutation oracle.
+- [x] Implement new operations under withRegistry with staged durable sidecar publication and explicit error classification. Retain legacy writer warnings and route/CAS behavior.
+- [x] Apply the Rename/Forget identity sequence strategy using the existing move order and persisted lock bytes; keep existing metadata/sidecar recovery tests green.
+- [x] Count real-backend operations at 8/16 aliases; run `go test ./cmd/internal/sessionsync -count=1` and the targeted race-enabled ownership cases. Commit passing implementation/evidence.
 
 ### 3. Expose CLI and executable conformance
 
 Files: `cmd/internal/couchcmd/session_sync.go`, existing session-sync CLI tests, new focused executable tests under `cmd/couch/` if that is the existing public-command owner.
 
-- [ ] Add strict parser/JSON tests using the CLI grammar and result-classification strategy above; preserve retired release tests.
-- [ ] Implement the two verbs through the same in-process session-sync command owner. Namespace/store unavailability is machine-readable Code/7; authority/path failures are never normalized to it.
-- [ ] Run the built real couch executable against a disposable namespace and registered document to conform ownership, uncertainty, migration and availability decisions to the model. Use shared testcouch isolation primitives for any supervisor case; never the live fleet.
-- [ ] Run `go test ./cmd/internal/couchcmd ./cmd/couch -run 'Test.*SessionSync.*Operator|Test.*OperatorLock' -count=1`; inspect actual selected test names and make the command match them before recording proof.
-- [ ] Ask hub whether the real public-command proof suffices for producer live acceptance or whether coordinated editor staging is needed; do not touch :0 without permission. #408 performs actual native insert conformance after producer landing.
+- [x] Add strict parser/JSON tests using the CLI grammar and result-classification strategy above; preserve retired release tests.
+- [x] Implement the two verbs through the same in-process session-sync command owner. Namespace/store unavailability is machine-readable Code/7; authority/path failures are never normalized to it.
+- [x] Run the built real couch executable against a disposable namespace and registered document to conform ownership, uncertainty, migration and availability decisions to the model. Use shared testcouch isolation primitives for any supervisor case; never the live fleet.
+- [x] Run `go test ./cmd/internal/couchcmd ./cmd/couch -run 'Test.*SessionSync.*Operator|Test.*OperatorLock' -count=1`; inspect actual selected test names and make the command match them before recording proof.
+- [x] Ask hub whether the real public-command proof suffices for producer live acceptance or whether coordinated editor staging is needed; do not touch :0 without permission. #408 performs actual native insert conformance after producer landing.
 
 ### 4. Document, verify, close and land
 
 Files: session-sync atlas page found through `atlas/index.md`, public couch skill session-sync contract, this plan/issue Log, per-reader affected certificates when test dependencies change.
 
-- [ ] Document the single acknowledgment boundary, exact CLI/JSON/errors, same-token retry, released semantics, stopped-supervisor behavior, legacy limit and rename recovery. Link from atlas index as needed.
-- [ ] Update affected-reader certificates using the repository regenerate target; do not change local-gate configuration or apply verification labels.
+- [x] Document the single acknowledgment boundary, exact CLI/JSON/errors, same-token retry, released semantics, stopped-supervisor behavior, legacy limit and rename recovery. Link from atlas index as needed.
+- [x] Update affected-reader certificates using the repository regenerate target; do not change local-gate configuration or apply verification labels.
 - [ ] Push via `sdlc pr`, run required recorded affected/suite check on the pushed head, complete SDLC close's one fresh review, resolve findings, and enter `sdlc merge --yes` promptly on SHIP.
 - [ ] Report PR/merge and producer contract availability to hub for parley.nvim#408; retain failure/uncertainty evidence in the Log. No self-reported passing checks before commands return.
 
@@ -194,3 +194,7 @@ Hub approval 061be603-8e01-4db6-99ab-0572a62d93f6 accepts this full-flow plan, i
 ### 2026-10-21 — plan gate durability and test-surface clarification
 
 PQ-1: directory confirmation is mandatory on both release success states, including already-absent sidecars, and on matching acquire retries. The uncertainty fake now distinguishes visible from durable state and simulates crash recovery. PQ-2: name the production test functions and give one adversarial strategy/mechanical guard per function; remove duplicate task-level case inventories. These refinements preserve the approved argv, states, error taxonomy and one-transaction mechanism.
+
+### 2026-10-21 — executable boundary and existing-limit clarification
+
+Executable conformance exposed runtime preparation before the session-sync handler: route its operator-only failure through the same unavailable/7 response as namespace resolution. Existing malformed-argv usage remains exit 2; valid-argv invalid ID/token stays operator-invalid/1. Correct the existing alias limit wording to distinguish path intervals from additional aliases. The approved ownership protocol, lifetime and producer/consumer split are unchanged.
