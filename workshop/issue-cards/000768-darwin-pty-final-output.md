@@ -1,6 +1,6 @@
 ---
 id: 000768
-status: working
+status: codecomplete
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours: 1.3
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+actual_hours: 1.15
+tracker:
+    version: 1
+    completion:
+        token: close-5702cb948118
+        repository: github.com/xianxu/pair
+        reviewed_head: 250cea921d9d614678de214f25edf4926aa461de
+        evidence_commit: 02000006b8594c31b5981d86d41c3a960e5ae02e
 ---
 
 # Preserve short-lived command output across Darwin PTY slave close
