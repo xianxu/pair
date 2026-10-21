@@ -247,6 +247,19 @@ No test failure, flake retry or suite pass is claimed from that cancelled run.
 The corrected pushed head needs a new recorded check. Live acceptance still
 waits for #744, now itself delayed by #761's observed detach JSON refusal.
 
+### 2026-10-21 — complete source-inventory preflight
+
+A targeted artifactpath.TestProductionArtifactReferencesAreExactlyClassified
+preflight found six new policy/coordination sources absent from the exhaustive
+production inventory. Each delegates through existing stores/transports and
+contains no Pair artifact filename constructor or vocabulary; audited them as
+NonArtifactSources. The exact guard now passes (1.641 s). The second recorded
+check on 670704af was still queued at 484 s and was cancelled through SDLC before
+capacity/tests, so no machine suite was wasted on this known failure. Also
+removed stale cold/Fresh startup and startup-summary prose from the shipped
+skill, atlas/index and the older detailed atlas map. Added the stale-generation
+admission and handoff-inventory lessons; no gate waiver or known-violation entry.
+
 ## Revisions
 
 ### 2026-10-20 — operator-review startup boundary and two notice lifetimes
