@@ -343,3 +343,87 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T21:23:47-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 737 — couch: scheduler: run each hub's scheduled tasks from its operations repo (due notices, direct script-run, skip-if-missed, --schedule --status) |
+| repo | pair |
+| issue file | workshop/issues/000737-couch-scheduler-run-each-hub-s-scheduled-tasks-from-its-operations-repo-due-notices-direct-script-run-skip-if-missed-schedule-status.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 2d298efea85f7a623d0a8d4a65b3260e0c626f18..10788616469fcb3405b066c24f6397e22dc87732 |
+| command | sdlc milestone-close --issue 737 --milestone M1 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T21:23:47-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+M1 satisfies the reviewed manual execution, durable state, history, and cached status contracts. BR-8 is verified addressed: removing the publication guard in a disposable pinned-head copy made its regression fail on all three required assertions. The fixed-head checks passed. No new findings; automatic dispatch and live acceptance remain explicitly scoped to M2.
+
+```findings
+dispose:
+  - id: BR-8
+    disposition: addressed
+    note: |
+      store_unix.go:169 checks captured staging identity immediately before Renameat, sharing the predicate with error cleanup. TestLedgerPublicationRefusesReplacement at store_recovery_test.go:374 passes on head; removing that guard in a disposable copy fails refusal, unchanged prior authority, and replacement preservation assertions. Ledger/Store race tests pass. The disposable copy was removed.
+```
+
+1. **Strengths**
+
+   - Publication and cleanup share one ownership predicate in `cmd/internal/couchschedule/store_unix.go:202`.
+   - Manual execution persists authorization before effects and publishes history before clearing authority.
+   - Status handlers read published memory; tests cover snapshot isolation and task-local refusals.
+   - README and atlas describe the commands, trusted execution model, retention, and M1/M2 boundary.
+
+2. **Critical findings:** None. BR-8 is addressed; BR-1 through BR-7 remain disposed.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed scheduler, operationalrun, durablefile, gcruntime, gccmd, couchmessage, and artifactpath packages; targeted schedule/skill CLI tests; Ledger/Store race tests; and native heavy-lock lifetime qualification using the pinned dependency’s real helper. The BR-8 mutation reproduced all three original failures. Range whitespace checks passed. Verification was scoped to these packages and targets.
+
+6. **Architectural notes for upcoming work**
+
+   | Principle | Result |
+   |---|---|
+   | ARCH-DRY | Pass: shared publication predicate, builder, executor, and retention owners. |
+   | ARCH-PURE | Pass: declaration, calendar, transition, digest, and projection logic remain independently testable without IO mocks. |
+   | ARCH-PURPOSE | Pass: M1 delivers its stated scope; automatic scheduling remains an explicit M2 obligation. |
+   | ARCH-MOCK | Pass: injected stateful runtime and portable stores are supported by native boundary qualification. |
+   | ARCH-CONSTRAINTS | Pass: task, output, cache, inventory, timeout, and execution limits have enforcement and coverage. |
+   | ARCH-SECURE | Pass within the documented threat model: strict parsing, constrained routing, argv execution, and ownership checks. |
+   | ARCH-ORDER | Pass: durability precedes execution; stale completions and uncertain ownership retain explicit handling. |
+   | ARCH-FUNERAL | Pass: staging recovery, cache eviction, run collection, and permanent-lock lifecycles are documented and implemented. |
+   | ARCH-EVOLVE | Pass: nested unknown-field preservation and strict known-field validation have regression coverage. |
+
+   M2 should exercise the existing transition model through production timer and broker wiring, including uncertain delivery and interrupted execution.
+
+7. **Plan revision recommendations:** None. The current revisions accurately distinguish delivered M1 entities, planned M2 work, and the approved BR-8 correction scope.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"1c842a53-f8bc-4def-8be4-8e625598d203","repository":"github.com/xianxu/pair","issue_id":"000737","recipe":"milestone-review","round":4,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/8588b74eadfc1e4e","reviewed_head":"10788616469fcb3405b066c24f6397e22dc87732","slot":"pair:1","requested_at":"2026-10-21T04:21:35.420948Z"},"phase":"finished","pid":88761,"started_at":"2026-10-21T04:21:35.582052Z","finished_at":"2026-10-21T04:23:47.199708Z","session_id":"01a15cb1-7559-7242-bb41-a279882c2195","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.466703083s
+head: "10788616469fcb3405b066c24f6397e22dc87732"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

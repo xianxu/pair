@@ -56,12 +56,13 @@ settled the contour with the operator on 10-20; its `design.md` is the reference
 
 ## Plan
 
-- [ ] M1 — Shared manual task path, durable state, and read-only status; implementation tasks 1–4 in [the durable plan](../plans/000737-couch-scheduler-plan.md).
+- [x] M1 — Shared manual task path, durable state, and read-only status; implementation tasks 1–4 in [the durable plan](../plans/000737-couch-scheduler-plan.md).
 - [ ] M2 — Automatic per-hub scheduling, authenticated notices, recovery, and day-long live acceptance; tasks 5–6 in the durable plan.
 
 ## Log
 
 ### 2026-10-20
+- 2026-10-20: closed M1 — Manual cached execution, history and status verified in prior M1 checks; BR-8 regression red before fix on refusal, unchanged authority and preserved replacement, now passes with Ledger/Store race coverage (2.181s). Explicit crash/cooperating-process threat model appended; only ledger cell requalified per TL. Recorded affected check queued on pushed head; TL authorized exactly round four, with no ledger waiver.; review verdict: SHIP
 
 - Claimed and started in pair:1; planning only. Read the settled ops project/design, the updated Operators format, current Couch composition/notice/protocol seams, persistence/process APIs and relevant lessons.
 - TL confirmed team-owner validation belongs in this issue despite the older project reservation: absent Operators refuses team tasks, not machine tasks; no real team task/election added.
