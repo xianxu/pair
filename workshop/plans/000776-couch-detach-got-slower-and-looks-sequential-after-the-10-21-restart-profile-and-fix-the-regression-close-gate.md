@@ -141,6 +141,79 @@ rounds:
       isolation: fenced
       reviewed: 1af622b6443e765282dc49d2e1d7209d338c49cd
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 26ffba91-606c-4d1f-b892-08d3dbe353cc
+            repository: github.com/xianxu/pair
+            issue_id: "000776"
+            recipe: fix-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/6e47b74298199faa
+            reviewed_head: 072ca58490ea0949c6b1111344d48e5e7ed99324
+            slot: pair:6
+            requested_at: "2026-10-21T20:43:05.554961Z"
+          phase: finished
+          pid: 34402
+          started_at: "2026-10-21T20:43:05.730585Z"
+          finished_at: "2026-10-21T20:44:18.161262Z"
+          session_id: 01a16034-0c1d-71a3-a276-9348c2a8f9e7
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 072ca58490ea0949c6b1111344d48e5e7ed99324
+        tracker_head: aebef2fced50518a7a887cc5b7534b4fbd930e93
+        branch_point: a9522724d4d84586afe222d201029d0713a89fc8
+        since: "2026-10-21T12:04:14-07:00"
+        until: "2026-10-21T13:42:28-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-21T12:04:14-07:00"
+              end: "2026-10-21T13:42:28-07:00"
+              began: "2026-10-21T12:04:14-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot6/pair
+        sources:
+            - harness: codex
+              id: 01a14b2c-9890-74f3-a738-58879659bef5
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: 4182fb4945513edaa508302393306307cf766224176feef8c99aa053d8b6d354
+              started: "2026-10-17T18:42:56.865Z"
+              spawned: false
+              bytes: 91938892
+              windows:
+                - start: "2026-10-21T12:04:14-07:00"
+                  end: "2026-10-21T13:42:28-07:00"
+        cuts:
+            - dispatched: "2026-10-21T13:05:15-07:00"
+              finalized: "2026-10-21T13:07:26-07:00"
+              finalizing: false
+            - dispatched: "2026-10-21T13:08:38-07:00"
+              finalized: "2026-10-21T13:09:45-07:00"
+              finalizing: true
+      "n": 3
+      timestamp: "2026-10-21T13:44:19-07:00"
+      dispatched: "2026-10-21T13:43:02-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: The corrected Done-when clause at issue lines 46–47 remains unchanged across this window and matches the deterministic completion, unavailable-probe, and native descendant-lease controls. Revisions retains the original clause and correction rationale.
+          round: 3
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 072ca58490ea0949c6b1111344d48e5e7ed99324
+      blocked: false
 ---
 
 # Gate ledger — pair#776 (boundary-review)
@@ -160,6 +233,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - BR-1 — addressed — The pinned before/after diff replaces the stale timing-or-parallelism requirement at issue lines 46–47 with completion before grace on confirmed group absence, conservative unavailable-probe handling, and native descendant lease cleanup. These requirements match provision_cancel_test.go:49,83 and provision_subprocess_test.go:145. The Revisions section preserves the approval and original clause.
+
+## Round 3 — 2026-10-21T13:44:19-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — The corrected Done-when clause at issue lines 46–47 remains unchanged across this window and matches the deterministic completion, unavailable-probe, and native descendant-lease controls. Revisions retains the original clause and correction rationale.
 
 ## Open findings
 

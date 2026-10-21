@@ -60,6 +60,7 @@ The recorded suite, mandatory close review and sdlc landing gates follow these c
 ## Log
 
 ### 2026-10-21
+- 2026-10-21: closed — Clock-order regression RED before correction; race-enabled provision/process/group, Leave and slot/fleet/workspace controls PASS22.245s including exited-leader descendant lease; catalog PASS4.070s. TERM precedes clock start; initial ESRCH skips clock; other paths stop it once; original 2s escalation preserved. Prior private fleet before/after evidence retained; fresh recorded check remains required before landing. (fixed-then-ship); review verdict: SHIP
 - 2026-10-21: closed — BR-1 acceptance clause aligned with TL-approved cancellation contract; no code change. Normal/shared-caller race PASS34.190s, catalog PASS5.932s, native descendant lease controls PASS; reviewer independently confirmed baseline overlay RED and tests/race GREEN. Private4-slot service shutdown2001ms before/12.3ms after with exact cleanup. Recorded suite c9c08a90b06acc5e10090d6338d6399b remains queued on identical production/tests; required recorded pass precedes landing. ENOSPC is infrastructure-only.; review verdict: SHIP
 
 

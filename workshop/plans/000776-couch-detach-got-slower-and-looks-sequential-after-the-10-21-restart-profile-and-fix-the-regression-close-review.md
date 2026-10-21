@@ -137,3 +137,77 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T13:44:19-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 776 — couch detach got slower and looks sequential after the 10-21 restart: profile and fix the regression |
+| repo | pair |
+| issue file | workshop/issues/000776-couch-detach-got-slower-and-looks-sequential-after-the-10-21-restart-profile-and-fix-the-regression.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 9d6cf03065a778e9e2c4b26fc5536515d4b83228..072ca58490ea0949c6b1111344d48e5e7ed99324 |
+| command | sdlc close --issue 776 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T13:44:19-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff correctly restores post-TERM grace ordering and provides a regression test that fails without the correction. BR-1 remains addressed. The tracker revision records the fix without changing approved scope; no new defects were found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The corrected Done-when clause at issue lines 46–47 remains unchanged across this window and matches the deterministic completion, unavailable-probe, and native descendant-lease controls. Revisions retains the original clause and correction rationale.
+```
+
+1. **Strengths**
+
+   - Clock construction follows TERM, with cleanup deferred on every constructed-clock path (`provision_io.go:115–120`).
+   - Tests assert ordering, exactly-once cleanup, and no clock construction for initial ESRCH (`provision_cancel_test.go:73–91`).
+   - Atlas accurately documents the corrected sequence (`atlas/workspace-provisioning.md:245`).
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage:** Race-enabled provision/process/group and Leave controls passed in 12.436s. Moving clock construction before TERM through a temporary overlay made the regression fail at the ordering assertion. Inventory audit and diff whitespace checks passed. Temporary artifacts were removed; checkout remains clean. The full recorded suite was not rerun in this review.
+
+6. **Architecture**
+
+   - **ARCH-DRY: pass** — shared cancellation helper remains authoritative.
+   - **ARCH-PURE: pass** — signal and clock dependencies are injected; production IO remains at the runner boundary.
+   - **ARCH-PURPOSE: pass** — preserves the approved grace and descendant-cleanup contract.
+   - **ARCH-EVOLVE: pass** — no persisted-format changes.
+
+   Atlas is updated; no new user-facing surface requires README changes.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"26ffba91-606c-4d1f-b892-08d3dbe353cc","repository":"github.com/xianxu/pair","issue_id":"000776","recipe":"fix-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/6e47b74298199faa","reviewed_head":"072ca58490ea0949c6b1111344d48e5e7ed99324","slot":"pair:6","requested_at":"2026-10-21T20:43:05.554961Z"},"phase":"finished","pid":34402,"started_at":"2026-10-21T20:43:05.730585Z","finished_at":"2026-10-21T20:44:18.161262Z","session_id":"01a16034-0c1d-71a3-a276-9348c2a8f9e7","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.949962291s
+head: "072ca58490ea0949c6b1111344d48e5e7ed99324"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
