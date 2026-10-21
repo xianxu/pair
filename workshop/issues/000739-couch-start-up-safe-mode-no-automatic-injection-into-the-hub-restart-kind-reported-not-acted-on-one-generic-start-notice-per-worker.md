@@ -375,6 +375,39 @@ is mechanically asserted. All targeted evidence precedes the final recorded
 check; no final full-suite pass or private live acceptance is yet claimed.
 
 
+
+### 2026-10-21 — first completed recorded suite, two branch failures fixed
+
+Attempt 1b71544c093cf5636404605c1bac6c19 on 1b948b3c completed the full
+suite in 10m8s, exit2, log hash prefix 0cfc2528dcda. Retained failure log:
+/Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/1b71544c093cf5636404605c1bac6c19.log.
+Failures were cmd/couch.TestBareCouchInstalledCommand (old automatic-launch
+expectation) and internal/repolint.TestTrackedGoFilesPassCatalog (an unused
+20ms registration timeout in StartupDoesNotResumeProvenHubConversation). All
+remaining reported packages passed, including core, tty, messaging and wrapper;
+the suite continued to completion. Existing affected-config source qualification
+and real-docflow smoke were skipped for unavailable sibling provider source in
+the disposable checkout. This is not a passing suite or a flake classification.
+
+Installed test red reproduced its unchanged15s timeout. Fix first waits for
+the actual empty switcher/full-shutdown status and proves no Pair launch, then
+drives the existing Ctrl+Space Start form with dot + Enter. Exact one-launch
+argv, rendered marker and real fixture wrapper readiness remain asserted.
+Three complete repetitions pass (15.141 s total); no deadline increase or new
+fleet harness. The no-resume test's unrelated registration-timeout override is
+removed: no registration should happen there. Focused core case passes0.325s;
+tracked lint catalog passes3.804s. Audited installed-test reader remains
+local_or_literal_fixture; fast inventory and whitespace checks pass.
+
+Round4 independently disposed BR-5, including mutation failures when each fix
+was removed. It reopened BR-3 for cache-enabled Go's access-log writes, despite
+-count=1 success; close is still REWORK, not finalized. Filed unclaimed #765
+(cache-test-write-envelope) per hub91039d1a. A frozen-main/branch comparison is
+running in private roots with separate empty caches, identical cold/warm modes,
+and no shared-cache clearing; its actual numbers are required before dispute.
+No test-runner policy or cap change is in #739.
+
+
 ## Revisions
 
 ### 2026-10-20 — operator-review startup boundary and two notice lifetimes

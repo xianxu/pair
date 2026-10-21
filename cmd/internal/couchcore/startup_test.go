@@ -69,7 +69,6 @@ func TestStartupDoesNotResumeProvenHubConversation(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	record := seedStartupParked(t, env, "couch-0000000000000001", "/repo")
 	env.Artifacts.SetPairSession(record.Address, "pair-"+string(record.Address.Tag), false)
-	env.Couch.resumeRegistrationTimeout = 20 * time.Millisecond
 	result, err := env.Couch.StartInteractive(context.Background(), StartArgs{Cwd: "/repo"})
 	if err != nil || result.Handle != nil || len(env.Runner.Ops) != 0 || env.Artifacts.BindingResolutions() != 0 {
 		t.Fatalf("proven hub resume: %+v err=%v ops=%v", result, err, env.Runner.Ops)

@@ -326,3 +326,113 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000410
+
+---
+
+## Re-review — 2026-10-21T02:21:57-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 739 — couch: start-up safe mode: no automatic injection into the hub, restart kind reported not acted on, one generic start notice per worker |
+| repo | pair |
+| issue file | workshop/issues/000739-couch-start-up-safe-mode-no-automatic-injection-into-the-hub-restart-kind-reported-not-acted-on-one-generic-start-notice-per-worker.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 79ea4ca9e5be10c67c5c356b7f7d4067ebd79a92..1b948b3c040f6979eaafa77b1ad2da127f524da4 |
+| command | sdlc close --issue 739 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T02:21:57-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-5 is addressed: both regressions pass and fail when their respective fixes are removed in a disposable copy. Startup, automation, and worker-cue behavior match the documented contract. However, BR-3 must be reopened: the ordinary five-package test command still fails both enforced write budgets.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The plan separates pure lifecycle transitions in couchcore/lifecycle_notice.go from the couchcmd publisher and correctly locates ObserveStartupContext in startup_policy.go. The referenced entities and changes exist.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      startup_observation_test.go now separately verifies an empty usable switcher without launches and attachment to a seeded surviving session. The couchcmd suite passes.
+  - id: BR-3
+    disposition: not-addressed
+    note: |
+      Family test-operating-envelope remains open (Important; ARCH-CONSTRAINTS). Plain go test across couchmessage, couchcmd, couchcore, couchtty and wrapcmd exits 1: couchcore writes 157257728 bytes against 134217728, and couchtty writes 88002560 against 67108864. Both suites pass with -count=1, which disables Go's cache-access logging; that control does not establish the failing ordinary invocation meets its envelope. Define and enforce the supported invocation across test callers, or bring cache-enabled execution within the existing caps.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      The unused SelectStartupHub helper is removed. TestNoProductionSymbolIsReferencedOnlyByTests passes on the pinned head.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Broker direct admission and both enqueue paths enforce the original hub/epoch permit under broker then automation locks. Resource dispatch transports its original permit through recipient resolution. Both named regressions pass; removing the guard or recapturing the resource permit independently makes the corresponding regression fail. The six-producer sweep and focused race tests pass.
+```
+
+1. **Strengths**
+
+   - `automation.go:203` provides one guarded generated-input ingress, backed by a source guard.
+   - `broker.go:779` checks policy at mailbox commit while preserving already-admitted canonical receipts.
+   - Worker-cue tests count native input across supervisor replacement, lost acknowledgments, receipt eviction, and launch-ordinal changes.
+   - README, atlas, help, and the shipped skill document the controls and distinct notice lifetimes.
+
+2. **Critical findings**
+
+   None.
+
+3. **Important findings**
+
+   **BR-3 remains open.** The guards at `couchcore/launchhelper_test.go:50` and `couchtty/reattach_testmain_test.go:21` reject the ordinary invocation despite passing assertions. Address the invocation-wide operating-envelope rule rather than another isolated fixture. Go’s source confirms cache-enabled runs add filesystem-access logging; the successful `-count=1` control disables that instrumentation.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - Passed: complete couchmessage, couchcmd, and wrapcmd suites.
+   - Passed: couchcore and couchtty with `-count=1`; ordinary invocation fails their write budgets.
+   - Passed: focused admission-ordering race tests, dead-symbol guard, affected-reader inventory, and diff whitespace check.
+   - Both BR-5 mutation checks failed as expected; the disposable copy was removed.
+   - Coordinated live acceptance remains pending under the issue’s explicit review-before-acceptance agreement.
+
+6. **Architectural notes**
+
+   | Principle | Assessment |
+   |---|---|
+   | ARCH-DRY | Pass: shared guarded ingress; no parallel policy stack found. |
+   | ARCH-PURE | Pass: policy reducers have direct pure tests; IO adapters remain separate. |
+   | ARCH-PURPOSE | Pass: all six generated-hub producer families transport permits. |
+   | ARCH-MOCK | Pass: stateful endpoints, native doubles, and private sockets exercise production seams. |
+   | ARCH-CONSTRAINTS | **Flag: BR-3**, ordinary test execution exceeds declared write envelopes. |
+   | ARCH-SECURE | Pass: exact bindings and original hub/epoch constrain admission; unknown evidence grants no authority. |
+   | ARCH-ORDER | Pass: controlled interleavings cover commit ordering, suppression, and canonical prior receipts. |
+   | ARCH-FUNERAL | Pass: new witnesses and policy state are bounded and process-owned. |
+   | ARCH-EVOLVE | Pass: no persisted-format migration; negotiated v5 omits new fields for older peers. |
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry for BR-3 recording both invocation modes, their different outcomes, and the rule that test callers will enforce. Keep live acceptance explicitly pending.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"bb52c787-b7cd-435b-8b1b-56ef28f56dcb","repository":"github.com/xianxu/pair","issue_id":"000739","recipe":"milestone-review","round":4,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/7c7ea792647487b0","reviewed_head":"1b948b3c040f6979eaafa77b1ad2da127f524da4","slot":"pair:7","requested_at":"2026-10-21T09:15:23.991786Z"},"phase":"finished","pid":2175,"started_at":"2026-10-21T09:15:24.08619Z","finished_at":"2026-10-21T09:21:56.901006Z","session_id":"01a15dbe-7149-7880-9411-0eee00f874fc","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.668953s
+head: "1b948b3c040f6979eaafa77b1ad2da127f524da4"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000409
