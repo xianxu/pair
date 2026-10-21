@@ -31,7 +31,9 @@ Make the helper lifecycle own and retire its client/PTY handles exactly once. Pr
 
 ## Done when
 
-A focused regression executes KillClient then Close and observes successful exact cleanup without a spurious closed-PTY error. A genuine shutdown/observation failure still surfaces. Audit callers that discard Close errors and keep native cleanup proof explicit.
+- A focused regression executes KillClient then Close and observes successful exact cleanup without a spurious closed-PTY error.
+- A genuine shutdown/observation failure still surfaces.
+- Audit callers that discard Close errors and keep native cleanup proof explicit.
 
 ## Plan
 
@@ -62,3 +64,9 @@ Observed during #761 on 830f29d9ef0892b6fb8d06869a4840eed28f7ad9. Relevant sourc
 - Verification: full pairlifecycletest and internal/repolint packages pass under -race; affected caller packages compile. Native TestStartupManagedAttachDetachTimingLive passed with private socket isolation (6.83 s), sentinel_survived=true and owned session retired=true, now enforcing Close errors. Artifact classification passes. Existing affected-reader scopes re-audited; only cleanup reporting changed, dispositions retained.
 
 - Recorded affected verification started on the pushed implementation head; existing missing generated runtime assets prevent package graph selection, so the runner selected the full suite. FIFO queued; close review may overlap under tl-worker rules. Full recorded pass remains required before landing.
+
+## Revisions
+
+- 2026-10-21: Close requires bullet acceptance criteria. Reformatted the original Done when verbatim as three bullets; no contract change.
+
+- Final lint self-check reproduced a panic for a success-only close guard with no else. Treat the absent failure branch as unhandled; added the 28th regression. Cancelled the obsolete queued suite and will record the corrected head.

@@ -192,6 +192,9 @@ func discardedControlledZellijCloses(file *ast.File) []ast.Node {
 // This checks syntax, not whether every nested execution path reaches the action.
 // Testing failure methods are recognized on conventional t/tb identifiers.
 func controlledCloseErrorHandled(body *ast.BlockStmt, bound *ast.Ident) bool {
+	if body == nil {
+		return false
+	}
 	referencesError := func(node ast.Node) bool {
 		found := false
 		ast.Inspect(node, func(n ast.Node) bool {

@@ -27,6 +27,7 @@ func TestControlledZellijCloseRule(t *testing.T) {
 		{"test error", fixtureImport, `func cleanup(z *fixture.ControlledZellij) { if err := z.Close(); err != nil { t.Errorf("cleanup: %v", err) } }`, "", 0},
 		{"test fatal", fixtureImport, `func cleanup(z *fixture.ControlledZellij) { if err := z.Close(); err != nil { t.Fatal(err) } }`, "", 0},
 		{"test fail", fixtureImport, `func cleanup(z *fixture.ControlledZellij) { if err := z.Close(); err != nil { t.Log(err); t.Fail() } }`, "", 0},
+		{"success only", fixtureImport, `func cleanup(z *fixture.ControlledZellij) { if err := z.Close(); err == nil { t.Log("closed") } }`, "", 1},
 		{"success else failure", fixtureImport, `func cleanup(z *fixture.ControlledZellij) { if err := z.Close(); err == nil { t.Log("closed") } else { t.Error(err) } }`, "", 0},
 		{"success hides error", fixtureImport, `func cleanup(z *fixture.ControlledZellij) { if err := z.Close(); nil == err { t.Log("closed") } else { t.Log(err) } }`, "", 1},
 		{"nil return hides error", fixtureImport, `func cleanup(z *fixture.ControlledZellij) error { if err := z.Close(); err != nil { t.Log(err); return nil }; return nil }`, "", 1},
