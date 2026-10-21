@@ -1,13 +1,21 @@
 ---
 id: 000765
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '12df5e43cc22082eae5d8d0ae4d926bda4a26e40' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'f4690ab343144de2fb68457785009444266f5e5d' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-21T03:09:03-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:7
+    worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Cache-enabled Go tests exceed physical write envelopes
@@ -30,8 +38,39 @@ Establish the supported invocation and physical-write accounting contract for or
 
 ## Plan
 
-- [ ]
+- [ ] Red native trace-heavy fixture and real go-test cache conformance, then suppress tracing only at the shared ordinary supported-budget boundary.
+- [ ] Keep caps/repetition/failure semantics; qualify fresh cache-enabled and uncached core/tty runs and real excess refusal.
+- [ ] Document result-cache policy, run recorded affected check, close and land.
+
 
 ## Log
 
 Filed unclaimed per ops:0's 91039d1a-2f91-4fef-94cb-461c59be997b. Evidence: #739 close-review round4 (2026-10-21 02:21 PDT), artifact workshop/plans/000739-couch-start-up-safe-mode-no-automatic-injection-into-the-hub-restart-kind-reported-not-acted-on-one-generic-start-notice-per-worker-close-review.md. The required recorded #739 suite is still completing and uses -count=1; its only reported behavioral failure so far is the separately in-scope installed-command startup assertion.
+
+
+## Revisions
+
+### 2026-10-21 — invocation envelope owner (ARCH-DRY)
+
+Measured main cold/warm core143224832/143204352 and tty105287680/104529920
+already exceed134217728/67108864 caps; assertions pass. Retained full-core
+control has137310208 physical bytes,130916787 of Go cache trace. Branch control
+is lower, so #739 attribution was withdrawn. Full logs/hashes remain under
+/Volumes/TestScratch/tmp/pair-slot7/pair739-cache.QFbUSM.
+
+Choose no test-result caching for ordinary native-budgeted runs: the shared
+RunWithWriteBudget clears registered test.testlogfile before m.Run and says so.
+Go's testing.go2813 opens/traces only when nonempty; cmd/go test.go2174 returns
+before cache.Put on a missing trace. Build caching is unaffected. Existing
+-count/-cpu repetitions, real fixture accounting/caps and failure statuses stay.
+Benchmarks/fuzz and unsupported native counters retain their current policy.
+A real tiny-module go-test twice fixture proves fresh execution, not a forged
+empty dependency log. Controlled trace-heavy reads must fit without their cache
+instrumentation; a real256KiB payload still exceeds a4KiB cap. No production
+surface or format changes. O(1) flag setup, no scan or per-operation wrapper.
+
+Alternative subtraction would mix logical file length with physical IO and
+could hide fixture writes. A new subprocess owner would add lifecycle and
+cache identity machinery for an existing shared TestMain seam. Neither needed.
+README/atlas describe the intentional result-cache tradeoff. Quick flow;
+headless acceptance, no staging or machine/cache clearing.
