@@ -152,24 +152,39 @@ def run(argv, timeout=300, capture=False, root=False):
 def link(name, target):
     path = PREFIX / 'bin' / name
     run(['/bin/ln', '-s', str(target), str(path)], root=True)
+    # Darwin enforces symlink read permissions for readlink/EvalSymlinks even
+    # when exec follows it. The guest's private umask must not make root-owned
+    # links unreadable to the ordinary test user. Change the link, not its target.
+    run(['/bin/chmod', '-h', '755', str(path)], root=True)
 
 
 def describe_go_layout(binary, entrypoint):
     root = binary.parent.parent
-    def describe(path):
+    def describe(path, follow=True):
         try:
-            info = path.stat()
+            info = path.stat() if follow else path.lstat()
             return {'exists': True, 'directory': stat.S_ISDIR(info.st_mode),
                     'mode': format(stat.S_IMODE(info.st_mode), '04o'),
                     'uid': info.st_uid, 'gid': info.st_gid}
         except OSError as error:
             return {'exists': False, 'errno': error.errno}
-    return {'entrypoint': str(entrypoint),
-            'entrypoint_resolved': os.path.realpath(entrypoint),
-            'installed_root': str(root),
-            'root': describe(root), 'pkg': describe(root / 'pkg'),
-            'pkg_tool': describe(root / 'pkg/tool'),
-            'store': describe(root.parent.parent)}
+    result = {'entrypoint': str(entrypoint),
+              'entrypoint_lstat': describe(entrypoint, follow=False),
+              'installed_root': str(root),
+              'root': describe(root), 'pkg': describe(root / 'pkg'),
+              'pkg_tool': describe(root / 'pkg/tool'),
+              'store': describe(root.parent.parent)}
+    try:
+        result['entrypoint_target'] = os.readlink(entrypoint)
+    except OSError as error:
+        result['entrypoint_readlink_errno'] = error.errno
+        result['entrypoint_resolve_errno'] = error.errno
+        return result
+    try:
+        result['entrypoint_resolved'] = os.path.realpath(entrypoint)
+    except OSError as error:
+        result['entrypoint_resolve_errno'] = error.errno
+    return result
 
 
 def go_version(binary, entrypoint):

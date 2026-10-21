@@ -8,6 +8,9 @@ import tempfile
 import unittest
 import contextlib
 import subprocess
+import os
+import stat
+import sys
 
 SCRIPT = pathlib.Path(__file__).with_name('provision.sh')
 
@@ -112,6 +115,49 @@ class ProvisionTests(unittest.TestCase):
             self.assertLess(len(diagnostic.getvalue()), 4096)
         finally:
             self.api['run'] = original_run
+
+    @unittest.skipUnless(sys.platform == 'darwin', 'Darwin symlink permission semantics')
+    def test_installed_links_remain_readable_under_private_umask(self):
+        original_run, original_prefix = self.api['run'], self.api['PREFIX']
+        def command(argv, **kwargs):
+            # Same filesystem operations as guest installation, without sudo:
+            # this test owns both the scratch root and all its links.
+            subprocess.run(argv, check=True)
+        try:
+            with tempfile.TemporaryDirectory() as scratch:
+                root = pathlib.Path(scratch)
+                (root / 'bin').mkdir()
+                target = root / 'tool'
+                target.write_bytes(b'fixture')
+                self.api['PREFIX'], self.api['run'] = root, command
+                previous_umask = os.umask(0o077)
+                try:
+                    self.api['link']('tool', target)
+                finally:
+                    os.umask(previous_umask)
+                entry = root / 'bin/tool'
+                self.assertEqual(stat.S_IMODE(entry.lstat().st_mode), 0o755)
+                self.assertEqual(os.readlink(entry), str(target))
+        finally:
+            self.api['run'], self.api['PREFIX'] = original_run, original_prefix
+
+    @unittest.skipUnless(sys.platform == 'darwin', 'Darwin symlink permission semantics')
+    def test_go_diagnostics_survive_unreadable_symlink(self):
+        with tempfile.TemporaryDirectory() as scratch:
+            root = pathlib.Path(scratch)
+            binary = root / 'go/bin/go'
+            binary.parent.mkdir(parents=True)
+            binary.write_bytes(b'fixture')
+            entry = root / 'entry'
+            entry.symlink_to(binary)
+            os.lchmod(entry, 0)
+            try:
+                info = self.api['describe_go_layout'](binary, entry)
+                self.assertEqual(info['entrypoint_lstat']['mode'], '0000')
+                self.assertEqual(info['entrypoint_resolve_errno'], 13)
+                self.assertEqual(info['entrypoint_readlink_errno'], 13)
+            finally:
+                os.lchmod(entry, 0o755)
 
     def test_version_requires_exact_token(self):
         self.api['verify_version']('zellij 0.45.1', '0.45.1')

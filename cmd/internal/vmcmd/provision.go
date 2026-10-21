@@ -322,7 +322,7 @@ func ProvisionCLI(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	if code != 0 {
-		fmt.Fprintln(stderr, state.Detail())
+		fmt.Fprintf(stderr, "Provisioning failed; inspect candidate %s if present; artifacts %s: %s\n", candidate, h.artifacts, state.Detail())
 		return code
 	}
 	fmt.Fprintln(stdout, "Qualified image:", candidate)

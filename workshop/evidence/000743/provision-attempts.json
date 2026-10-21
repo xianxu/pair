@@ -58,6 +58,35 @@
       },
       "stderr_sha256": "e1d8da50e13ca7f4fedb91d41d25856757d96cfb0bfa0e63d5ce1c12b4ea7447",
       "native_cleanup_observation": "subsequent Tart list contains only original stopped pair-test and cached source images; managed run VM absent; claim absent"
+    },
+    {
+      "case": "go-link-permission-diagnostics",
+      "bundle": "/Users/xianxu/.tart/pair-runner/positions/adhoc/artifacts/4225ced4e4bae33925312976d3b9789b",
+      "result": {
+        "version": 1,
+        "exit_code": 1,
+        "detail": "",
+        "timeout_envelope": "timeout 1h0m0s + cleanup up to 10 s",
+        "image": {
+          "version": 0,
+          "image": "ghcr.io/cirruslabs/macos-tahoe-base@sha256:4aaa751fa7538902d73c767f27a066fc87e83f183069da4e4b5022863abd4c77",
+          "base": "ghcr.io/cirruslabs/macos-tahoe-base@sha256:4aaa751fa7538902d73c767f27a066fc87e83f183069da4e4b5022863abd4c77",
+          "created_at": "0001-01-01T00:00:00Z",
+          "tools": null,
+          "qualified": false
+        },
+        "snapshot": {
+          "Head": "ba86e6f4c15c2200383c0abfb6ca50d9b4aeaf16",
+          "Files": 5926,
+          "Enumerations": 1,
+          "ClonedBytes": 68457956,
+          "CopiedBytes": 0,
+          "MetadataBytes": 69714640
+        },
+        "lane_claim_retained": false
+      },
+      "stderr_sha256": "fdaf5fdfe63475c9d6068cc4c7e7aee0b9647f09f94b18ff13a9832294bb529b",
+      "native_cleanup_observation": "subsequent Tart list contains only original stopped pair-test and source caches; managed run VM absent; claim absent"
     }
   ]
 }
