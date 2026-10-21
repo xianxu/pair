@@ -670,6 +670,8 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	"cmd/internal/remotesession/documents.go",
+	"cmd/internal/remotesession/protocol.go",
 	"cmd/internal/remotesession/store.go",
 	"cmd/internal/remotesession/origin_store.go",
 	"cmd/internal/remotesession/audit.go",

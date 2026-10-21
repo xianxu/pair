@@ -213,13 +213,14 @@ Operator approval received; run change-code before any task implementation. TL h
 
 Files: new `cmd/internal/remotesession/{state,policy,protocol,session,store,origin_store,access,audit,documents}.go` and colocated tests; `cmd/internal/artifactpath/remote.go`, `manifest.go`; dependency files if the reviewed verifier is new.
 
-- [ ] Use the agreed #759-security/#758-document adapter contract and stateful backend; coordinate the exact Go seam with its eventual owner. No real-nvim dependency for this security foundation.
-- [ ] Write the failing tests for the ReduceRemote and policy rows of the function-strategy table below; that table is the single unit-test obligation inventory.
-- [ ] Run `go test ./cmd/internal/remotesession -run 'TestRemoteState|TestRemotePolicy' -count=1`; observe red before implementation, then green.
-- [ ] Implement the typed reducer, durable store and session policy using the Store, codec and Sessions function-strategy rows; run their red/green tests.
-- [ ] Implement the stateful signed issuer/key backend and AccessVerifier.Verify strategy row; run `go test ./cmd/internal/remotesession -count=1` red/green.
-- [ ] Implement Audit, OriginStore and Replay using their named function-strategy rows, including the counted checks specified there.
+- [x] Use the agreed #759-security/#758-document adapter contract and stateful backend; coordinate the exact Go seam with its eventual owner. No real-nvim dependency for this security foundation.
+- [x] Write the failing tests for the ReduceRemote and policy rows of the function-strategy table below; that table is the single unit-test obligation inventory.
+- [x] Run `go test ./cmd/internal/remotesession -run 'TestRemoteState|TestRemotePolicy' -count=1`; observe red before implementation, then green.
+- [x] Implement the typed reducer, durable store and session policy using the Store, codec and Sessions function-strategy rows; run their red/green tests.
+- [x] Implement the stateful signed issuer/key backend and AccessVerifier.Verify strategy row; run `go test ./cmd/internal/remotesession -count=1` red/green.
+- [x] Implement Audit, OriginStore and Replay using their named function-strategy rows, including the counted checks specified there.
 - [ ] Update `atlas/remote-session.md` and `atlas/index.md`; commit coherent steps with agent trailers; `sdlc milestone-close --issue 759 --milestone M1` with evidence.
+
 
 ### M2 — Exclusive exposure, local reset and revocation
 
@@ -332,3 +333,8 @@ PQ-1 closed. PQ-2 remained because milestone prose duplicated adversarial test i
 ### 2026-10-21 — additive raw-number validation approved during M1
 
 TL87a8195f approved a shared preserve-number duplicate-validation entrypoint used only by the new retained-raw remote stores. Existing strict readers and their pinned acceptance remain unchanged. This resolves the observed valid-JSON unknown1e999 rejection without broadening legacy readers; known authority fields still undergo exact typed validation. Atlas records the distinction. Publication uncertainty is interpreted from actual durable evidence: current writers block after errors; an off record already published by an authorized host reset or confirmed ordinary teardown may recover off, with no automatic enable and no claim that failed sync rolls back rename.
+
+
+### 2026-10-21 — M1 document seam checkpoint
+
+The Go contract now lives in remotesession/documents.go and protocol.go: opaque registration/editor references, typed read/edit/submit/navigation, destination resolution before navigation, nonblocking owned-queue Dispatch and one-use Permit.EffectDoor sharing the supervisor's lifecycle mutex. The stateful private backend qualifies rebind/kill/forgotten-target ordering; it is not exposed and does not represent real-nvim acceptance. Join quiesces remote work, not the editor process. M1 foundation and seam are implemented, boundary review pending; all console/CLI/transport/runtime wiring stays in M2. The earlier approval checkpoint's “no implementation” statement describes that historical moment, not this progress.

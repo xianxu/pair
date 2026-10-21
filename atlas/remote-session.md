@@ -44,3 +44,13 @@ retain their previous behavior. This does not migrate older readers.
 
 See [the approved plan](../workshop/plans/000759-remote-security-plan.md) for the
 complete threat model, bounds, provenance contract and operator acceptance.
+
+`documents.go` defines the typed #758 seam and an opaque one-use Permit. Its
+EffectDoor uses the supervisor's exact lifecycle/admission mutex to linearize a
+nonblocking effect handoff against kill. Navigation receives no effect target
+until the supervisor resolves and authorizes a destination. Document adapters
+must recheck registration, generation and revision at that door. Dispatch itself
+is a nonblocking owned-queue handoff; workers call EffectDoor afterward, never
+recursively under the caller's admission lock. Join quiesces remote work rather
+than ending nvim. `protocol.go` accepts only read/edit/submit/navigation, opaque
+registered IDs and bounded typed fields; it has no path, command or reset input.
