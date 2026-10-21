@@ -201,3 +201,75 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T16:34:05-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 743 — conformance: run couch-zellij-conformance in a local Tart VM as a declared local check; GitHub job becomes a non-required main/weekly backstop |
+| repo | pair |
+| issue file | workshop/issues/000743-conformance-run-couch-zellij-conformance-in-a-local-tart-vm-as-a-declared-local-check-github-job-becomes-a-non-required-main-weekly-backstop.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 68288c87ac1c362de219be0617f52b6a625dcb2c..d457e072ad0e3d07dd098a13fe8774a6433cbe02 |
+| command | sdlc close --issue 743 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T16:34:05-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff preserves both sides of all three conflict resolutions. Certificate migration retains the audited reader classifications, and the revision additions record integration and verification without changing scope. No new defects found. BR-1 through BR-7 remain disposed; none required reopening.
+
+```findings
+{}
+```
+
+1. **Strengths**
+
+   - Both atlas links survive and resolve (`atlas/index.md:7`).
+   - VM and mock-server source classifications are retained (`cmd/internal/artifactpath/manifest.go:672`).
+   - All 13 migrated certificates exactly match their prior audited dispositions and hashes.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed the inventory check, all 21 reader regression tests, the full artifact-path suite, and targeted repository-lint and Couch resource guards. The reader tests include real Git merging, unknown-field preservation and seeded rejection through the actual affected runner. Live Tart execution was not repeated.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — Pass:** Uses main’s certificate mechanism; removes the retired aggregate.
+   - **ARCH-PURE — Pass:** No new mixing of business logic and IO.
+   - **ARCH-PURPOSE — Pass:** Resolutions preserve both features and all migrated reader records.
+   - **ARCH-EVOLVE — Pass:** Existing certificate metadata remains intact; strict validation and unknown-field regression tests pass.
+
+   No new user-facing surface requires a README update.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"075a4dde-6b0b-4a24-8d65-9872561fff07","repository":"github.com/xianxu/pair","issue_id":"000743","recipe":"fix-review","round":10,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/cf717fe7e728a997","reviewed_head":"d457e072ad0e3d07dd098a13fe8774a6433cbe02","slot":"pair:3","requested_at":"2026-10-21T23:31:47.574175Z"},"phase":"finished","pid":2764,"started_at":"2026-10-21T23:31:47.80256Z","finished_at":"2026-10-21T23:34:04.290435Z","session_id":"01a160ce-7fd0-7d01-949b-1431413fbc43","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.866809375s
+head: "d457e072ad0e3d07dd098a13fe8774a6433cbe02"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
