@@ -45,7 +45,7 @@ Done-when: current — fixing the root cause remains the acceptance criterion; t
 5. **Test coverage notes**
 
    Passed:
-   
+
    - All 500 `TestHubRandomInterleavings` cases and both new protocol tests.
    - Full `internal/repolint` suite.
    - Focused race checks covering protocol tests, both real watches, and seed 30.

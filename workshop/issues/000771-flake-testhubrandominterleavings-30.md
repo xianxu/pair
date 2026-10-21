@@ -52,6 +52,8 @@ Recorded full-suite success, close review and landing remain gates tracked in Lo
 ## Log
 
 ### 2026-10-21
+
+- Atlas-only recovery narrow re-close returned SHIP with one Minor advisory: trailing whitespace in the generated review record. Trimmed prose whitespace and added its prevention lesson; no executable change. Integrated protocol/all500-seed checks9.012s, lint4.869s and inventory pass. New recorded full fallback lease-1626987605 on37825526aaaf remains retained (exec80392), attemptd8d4426ccb53656af49ceca443824846; required pass still precedes landing.
 - 2026-10-21: closed — Atlas-only append conflict with landed #744 resolved preserving both sections; no Go conflict and no own source change. Integrated protocol/pointer/all500-seed checks pass9.012s, lint/catalog4.869s and inventory pass. Branch diff whitespace check passes excluding binary-owned review transcript. Prior final-source recorded full suite passed10m27s without rerun; new integrated affected check retained and required before landing. TL owns project. (fixed-then-ship) (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 
 - Final-source recorded full suite30ea382b372be802cb4c2b4568c24633e9122d8a PASSED10m27s, exit0, attempt1525ef6aee32b4dd0dca0ef93628db73, log hashbba801866917, no flake rerun. Its fallback suite proof made the reviewed docs-only head ready. Train238 subsequently held this car at build: integrating landed #744 confirms only an atlas append collision; Go catalog merges cleanly. Preserved both #744/#771 rule sections. Train238 retained only #768; #769 was also held. No unlanded code was stacked. Required checks/re-close follow this main integration; #752 remains parked.
