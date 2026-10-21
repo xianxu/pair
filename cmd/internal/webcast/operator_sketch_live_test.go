@@ -105,6 +105,16 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 		t.Fatal(err)
 	}
 	var world int64
+	clickTool := func(name string) {
+		t.Helper()
+		var xy [2]float64
+		if err := json.Unmarshal(eval(world, fmt.Sprintf(`(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode(),b=[...root.querySelectorAll('.sketch-toolbar button')].find(b=>b.textContent===%q),r=b.getBoundingClientRect();if(b.disabled||!b.contains(root.elementFromPoint(r.x+r.width/2,r.y+r.height/2)))throw Error('toolbar action unavailable');return [r.x+r.width/2,r.y+r.height/2]})()`, name)), &xy); err != nil {
+			t.Fatal(err)
+		}
+		for _, typ := range []string{"mousePressed", "mouseReleased"} {
+			call("Input.dispatchMouseEvent", map[string]any{"type": typ, "x": xy[0], "y": xy[1], "button": "left", "clickCount": 1}, nil)
+		}
+	}
 	wait("operator world", func() bool {
 		done := make(chan struct{})
 		chrome.do(func(s *loopState) { world = s.contexts[session]; close(done) })
@@ -140,8 +150,11 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 		}
 		return false
 	})
-	eval(world, `(async()=>{await __couchcastOperatorSketch.enter();return true})()`)
+	clickTool("Sketch")
 	wait("prepared console scene", func() bool { return string(eval(world, `__couchcastOperatorSketch.state().phase`)) == `"drawing"` })
+	if got := string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode();return ['Sketch','Undo','Redo','Done'].every(name=>{const b=[...root.querySelectorAll('.sketch-toolbar button')].find(b=>b.textContent===name),r=b.getBoundingClientRect();return r.width>0&&r.height>0&&r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight&&b.contains(root.elementFromPoint(r.x+r.width/2,r.y+r.height/2))})})()`)); got != "true" {
+		t.Fatalf("active sketch toolbar buttons are hidden or covered: %s; %s", got, eval(world, `JSON.stringify([...__couchcastOperatorSketch.labelInput.getRootNode().querySelectorAll('.sketch-toolbar button')].map(b=>{const r=b.getBoundingClientRect(),s=getComputedStyle(b),hit=b.getRootNode().elementFromPoint(r.x+r.width/2,r.y+r.height/2);return {text:b.textContent,rect:[r.x,r.y,r.width,r.height],position:s.position,z:s.zIndex,hit:hit?.className}}))`))
+	}
 	if got := string(eval(0, `typeof globalThis.__couchcastOperatorSketch==='undefined'&&typeof globalThis.__couchcastPrivateSceneFrame==='undefined'`)); got != "true" {
 		t.Fatalf("console hooks exposed in product world: %s", got)
 	}
@@ -193,11 +206,18 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 	wait("confirmed stroke", func() bool {
 		return string(eval(world, `__couchcastOperatorSketch.state().slots.every(s=>!s.inflight&&!s.queued)`)) == "true"
 	})
-	eval(world, `(async()=>{await __couchcastOperatorSketch.undo();return true})()`)
+	clickTool("Undo")
 	waitKind("sketch-undo")
-	eval(world, `(async()=>{await __couchcastOperatorSketch.redo();return true})()`)
+	wait("Redo enabled", func() bool {
+		return string(eval(world, `!Array.from(__couchcastOperatorSketch.labelInput.getRootNode().querySelectorAll('.sketch-toolbar button')).find(b=>b.textContent==='Redo').disabled`)) == "true"
+	})
+	clickTool("Redo")
 	waitKind("sketch-redo")
-	eval(world, `(async()=>{const s=__couchcastOperatorSketch;await s.leave('watch');s.labelInput.value='Move this console control';await s.saveLabel();return true})()`)
+	clickTool("Done")
+	wait("required label", func() bool {
+		return string(eval(world, `!__couchcastOperatorSketch.labelInput.parentElement.hidden`)) == "true"
+	})
+	eval(world, `(async()=>{const s=__couchcastOperatorSketch;s.labelInput.value='Move this console control';await s.saveLabel();return true})()`)
 	waitKind("sketch-label")
 	wait("held scene exit", func() bool { return string(eval(world, `!globalThis.__couchcastPrivateSceneFrame`)) == "true" })
 	type inkBounds struct {
