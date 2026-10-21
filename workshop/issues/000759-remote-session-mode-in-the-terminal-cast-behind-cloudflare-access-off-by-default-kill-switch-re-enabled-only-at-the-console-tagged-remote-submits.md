@@ -80,6 +80,8 @@ Approved durable design: [remote security plan](../plans/000759-remote-security-
 
 Authenticated TL7c5b26ce-a932-4fb1-8d97-21c12f04fa05: APPROVED with changes. Updated current Spec/Done when and plan, preserving earlier decisions in Revisions: ordinary 👽 click and CLI on/off toggle with new link passcode per enable and session revocation; any authenticated remote user may kill; exact verified Access-email/client-IP remote header, console untagged, receipt Origin/RemoteEdited unchanged; remove15min/5min Couch limits, use Access JWT lifetime and silent handshake with cap4; keep transcript plus audit. Persistent kill reset remains host-key only. No Cloudflare account/network setup changes. Integrated current main before implementation; go to change-code next.
 
+- Plan-quality round1 blocked on PQ-1 persisted-format preservation/mixed-version contract and PQ-2 named-function test strategy. Addressed the full format/function classes in the plan, reusing strictjson duplicate detection and retained raw-object patterns; no policy/scope change. Rerun change-code before implementation.
+
 ## Revisions
 
 ### 2026-10-21 09:04 — approved current contract
