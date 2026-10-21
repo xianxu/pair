@@ -1,13 +1,13 @@
 ---
 id: 000757
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-21
 estimate_hours: 6.657
 collaboration-mode: collaboration
-card_mirror: 'e5a1785e3700fa563f9727a9869fe65e51c2de43' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'd2b78fc1eed12179d97aabce6c36e7a806ef0046' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-21T02:15:21-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 5.43
 ---
 
 # mock-to-real app template: per-screen real-or-mock dev router, refusing production build, fixtures contract tests (product-shaping)
