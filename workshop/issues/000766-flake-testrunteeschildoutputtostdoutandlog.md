@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/scribecmd.TestRunTeesChildOutputToStdoutAndLog]
+flow: {kind: quick, provenance: operator, spec: "0432b67b", done: "a0bbe98b"}
 ---
 
 # flake: TestRunTeesChildOutputToStdoutAndLog
