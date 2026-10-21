@@ -1,0 +1,52 @@
+{
+  "cmd/internal/couchcore/detach.go": {
+    "old": "88ab8703df264f3bf0f04885d6344bb9487aaa61",
+    "current": "88ab8703df264f3bf0f04885d6344bb9487aaa61",
+    "identical": true
+  },
+  "cmd/internal/couchcore/park.go": {
+    "old": "bdabfe554623446360da41c673ef2f8836d02dbf",
+    "current": "bdabfe554623446360da41c673ef2f8836d02dbf",
+    "identical": true
+  },
+  "cmd/internal/couchcore/threadstore.go": {
+    "old": "f592596a97e150d91495c98fba45d6141a6e18e5",
+    "current": "f592596a97e150d91495c98fba45d6141a6e18e5",
+    "identical": true
+  },
+  "cmd/internal/couchcore/threadstore_location.go": {
+    "old": "aad02658910bc3bdd34a23b7efbd1af9d2317bc3",
+    "current": "aad02658910bc3bdd34a23b7efbd1af9d2317bc3",
+    "identical": true
+  },
+  "cmd/internal/couchcore/park_recovery_store.go": {
+    "old": "1fd36fb9d2f7fb7994d67e9210ed2958d1a8dd37",
+    "current": "1fd36fb9d2f7fb7994d67e9210ed2958d1a8dd37",
+    "identical": true
+  },
+  "cmd/internal/storagegc/coordinator.go": {
+    "old": "df0d3b037e37f986f6fecd08a60fb39e883deffc",
+    "current": "df0d3b037e37f986f6fecd08a60fb39e883deffc",
+    "identical": true
+  },
+  "cmd/internal/storagegc/stores.go": {
+    "old": "07faefaa55c3bf7feedddd76098724c7c4900688",
+    "current": "07faefaa55c3bf7feedddd76098724c7c4900688",
+    "identical": true
+  },
+  "cmd/internal/launcher/session_owner_os.go": {
+    "old": "f38120a5b5bd8bbbd055cc11a085476f716ffefd",
+    "current": "99a4a904fe21a0a5dc34a52232f0b4ae5db2a9f2",
+    "identical": false
+  },
+  "cmd/internal/launcher/session_owner_pass.go": {
+    "old": "ed60d4c2b297b7df7425779a4b897b103410baa6",
+    "current": "723d17382ae1fa42c54d15a30a79e5d31a7f0679",
+    "identical": false
+  },
+  "cmd/internal/launcher/session_quiescence.go": {
+    "old": "b0cc1d0cf34119f7f027b9988d776ef49132607d",
+    "current": "b0cc1d0cf34119f7f027b9988d776ef49132607d",
+    "identical": true
+  }
+}

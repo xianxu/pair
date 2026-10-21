@@ -1,0 +1,158 @@
+[
+  {
+    "total": 4,
+    "physical_gesture_ms": 3152.545,
+    "leave_ms": [
+      3014.998
+    ],
+    "configured_parallelism": [
+      6
+    ],
+    "console_lifecycle_queue_ms": [
+      0.01
+    ],
+    "stages": {
+      "claim": {
+        "count": 4,
+        "sum_ms": 0.063,
+        "max_ms": 0.033,
+        "median_ms": 0.012
+      },
+      "read+owner": {
+        "count": 4,
+        "sum_ms": 1873.001,
+        "max_ms": 793.033,
+        "median_ms": 451.324
+      },
+      "signal": {
+        "count": 4,
+        "sum_ms": 0.068,
+        "max_ms": 0.019,
+        "median_ms": 0.018
+      },
+      "process-exit": {
+        "count": 4,
+        "sum_ms": 171.749,
+        "max_ms": 75.982,
+        "median_ms": 42.818
+      },
+      "retirement": {
+        "count": 4,
+        "sum_ms": 4920.536,
+        "max_ms": 1489.178,
+        "median_ms": 1372.738
+      },
+      "thread.hold_wait": {
+        "count": 4,
+        "sum_ms": 0.013,
+        "max_ms": 0.004,
+        "median_ms": 0.003
+      },
+      "leave.lane_wait": {
+        "count": 4,
+        "sum_ms": 0.005,
+        "max_ms": 0.004,
+        "median_ms": 0.0
+      }
+    },
+    "per_thread": {
+      "35887dc62ae470c4/1-fixture-1": {
+        "leave.lane_wait_ms": 0.004,
+        "thread.hold_wait_ms": 0.003,
+        "claim_ms": 0.013,
+        "read+owner_ms": 295.12,
+        "signal_ms": 0.016,
+        "process-exit_ms": 58.421,
+        "retirement_ms": 685.882,
+        "detach_ms": 1039.465,
+        "leaveOne_ms": 1632.767,
+        "slot": "fixture:0"
+      },
+      "8136ec610628ed3d/1-fixture-2": {
+        "leave.lane_wait_ms": 0.0,
+        "thread.hold_wait_ms": 0.004,
+        "claim_ms": 0.006,
+        "read+owner_ms": 793.033,
+        "signal_ms": 0.013,
+        "process-exit_ms": 10.13,
+        "retirement_ms": 1400.165,
+        "detach_ms": 2203.355,
+        "leaveOne_ms": 3011.973,
+        "slot": "fixture:1"
+      },
+      "c394326f221d8ac6/1-fixture-3": {
+        "leave.lane_wait_ms": 0.0,
+        "thread.hold_wait_ms": 0.003,
+        "claim_ms": 0.033,
+        "read+owner_ms": 607.529,
+        "signal_ms": 0.019,
+        "process-exit_ms": 75.982,
+        "retirement_ms": 1345.31,
+        "detach_ms": 2028.897,
+        "leaveOne_ms": 2843.691,
+        "slot": "fixture:2"
+      },
+      "456692ca0a4cf993/1-fixture-4": {
+        "leave.lane_wait_ms": 0.0,
+        "thread.hold_wait_ms": 0.003,
+        "claim_ms": 0.012,
+        "read+owner_ms": 177.318,
+        "signal_ms": 0.019,
+        "process-exit_ms": 27.216,
+        "retirement_ms": 1489.178,
+        "detach_ms": 1693.75,
+        "leaveOne_ms": 2436.286,
+        "slot": "fixture:3"
+      }
+    },
+    "queries": {
+      "list-panes": {
+        "count": 24,
+        "sum_ms": 1521.739,
+        "max_ms": 117.356,
+        "failures": 0
+      }
+    },
+    "peak_concurrency": {
+      "detach": 4,
+      "leaveOne": 4,
+      "zellij.query": 4
+    },
+    "stage_overlap": {
+      "claim": {
+        "peak": 1,
+        "union_ms": 0.063,
+        "sum_ms": 0.063
+      },
+      "read+owner": {
+        "peak": 4,
+        "union_ms": 1008.243,
+        "sum_ms": 1873.001
+      },
+      "signal": {
+        "peak": 1,
+        "union_ms": 0.068,
+        "sum_ms": 0.068
+      },
+      "process-exit": {
+        "peak": 2,
+        "union_ms": 144.533,
+        "sum_ms": 171.749
+      },
+      "retirement": {
+        "peak": 4,
+        "union_ms": 2065.331,
+        "sum_ms": 4920.536
+      }
+    },
+    "instrumentation": [
+      {
+        "event": "instrumentation",
+        "flush_ns": 11023333,
+        "observer_ns": 144416,
+        "overflow": false
+      }
+    ],
+    "cleanup_confirmed": true
+  }
+]
