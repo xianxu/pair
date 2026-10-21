@@ -38,6 +38,25 @@ reviewer_runs:
       finished_at: "2026-10-21T20:09:08.884142Z"
       session_id: 01a16014-81a1-7001-9e7e-d93eed68c583
       outcome: returned
+    - version: 1
+      intent:
+        id: 57dd4ba6-3a80-4f56-98e0-c147864466d8
+        repository: github.com/xianxu/pair
+        issue_id: "000752"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot9/pair
+        reviewed_head: 68faf3959f6ec0794fe07b02c5a99fb5e5e47878
+        slot: pair:9
+        requested_at: "2026-10-21T20:20:38.012926Z"
+      phase: finished
+      pid: 55423
+      started_at: "2026-10-21T20:20:38.268623Z"
+      finished_at: "2026-10-21T20:21:13.643441Z"
+      session_id: 01a1601f-7ced-7603-80df-24b55016bcd8
+      outcome: returned
 gate: plan-quality
 issue: 752
 id_prefix: PQ
@@ -134,7 +153,32 @@ rounds:
           note: Tasks reference the shared function-strategy table, retaining verification commands and independent invariants instead of repeating test-case inventories.
           round: 3
       blocked: false
-content_hash: 8f65b8aa14939e8eb5ac3dd5f72f11a26afc7556c89698583683385383821a57
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 0ab0f916-3fc2-4a4c-a39d-c23c8838204a
+            repository: github.com/xianxu/pair
+            issue_id: "000752"
+            recipe: plan-quality
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot9/pair
+            reviewed_head: 68faf3959f6ec0794fe07b02c5a99fb5e5e47878
+            slot: pair:9
+            requested_at: "2026-10-21T20:19:56.264095Z"
+          phase: finished
+          pid: 33587
+          started_at: "2026-10-21T20:19:56.615048Z"
+          finished_at: "2026-10-21T20:20:30.950829Z"
+          session_id: 01a1601e-da52-7c40-a985-f00415b625a1
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-21T13:20:31-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      blocked: false
+content_hash: 2778405b87b76d5380fcf8b923f790a577f88a2116128587e06cdb50b61bf8e4
 ---
 
 # Gate ledger — pair#752 (plan-quality)
@@ -160,6 +204,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - PQ-1 — addressed — Tasks reference the shared function-strategy table, retaining verification commands and independent invariants instead of repeating test-case inventories.
+
+## Round 4 — 2026-10-21T13:20:31-07:00 (codex) — passed
 
 ## Open findings
 
