@@ -1,13 +1,13 @@
 ---
 id: 000749
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '7ddead28aaabe2d49d99d15d20ef7e5cc3f1fdaf' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'da7c5229ba524cb7c5cd57b8fd475bd6a49d9473' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T18:48:49-07:00
 claimant:
     operator: Xian Xu
@@ -18,6 +18,7 @@ claimant:
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/clipcmd.TestCopyOnSelectShellFixture]
 flow: {kind: quick, provenance: inferred, spec: "b7b60c55", done: "a0bbe98b"}
+actual_hours: 0.23
 ---
 
 # flake: TestCopyOnSelectShellFixture
