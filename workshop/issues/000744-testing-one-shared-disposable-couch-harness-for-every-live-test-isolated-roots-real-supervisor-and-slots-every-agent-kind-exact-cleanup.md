@@ -49,8 +49,8 @@ Normal tests qualify pure confinement/ownership/agent reducers with stateful pro
 
 - [x] TL reviews the durable design and state/recovery table before change-code; derive the estimate only after plan-quality.
 - [x] Implement confinement and owned lifecycle plus deterministic agent/CLI protocol with focused adversarial tests.
-- [ ] Compose real provisioning/native runtime, then qualify the first shared-helper consumer and audit source-reader/artifact ownership.
-- [ ] Document and run required checks, close and land. Resume #722 only after this issue is on main.
+- [x] Compose real provisioning/native runtime, then qualify the first shared-helper consumer and audit source-reader/artifact ownership.
+- [x] Document verification and prepare the recorded-suite/close handoff. Publication remains subject to the suite, close and merge gates.
 
 ## Estimate
 
@@ -191,6 +191,14 @@ Independent race verification also caught an assertion-domain bug: the256-cycle 
 
 Independent whole helper race checks passed testcouch11.950s, agentfixture11.894s and native fixture entrypoint3.541s. Repository lint13.976s, artifactpath12.467s, audited run_test reader update, affected-reader inventory and whitespace checks passed. Commit/push before the launch-failure diagnostic rerun.
 
+### 2026-10-21 — full native qualification PASS; #747 live proof
+
+Clean candidate5484106480a0123bd86913ea39273a339342a196 passed make test-couch-fleet in143.30s (Claude70.02s, Codex60.88s). Each personality used the genuine steward and three real non-hub workers, verified exact personalities/membership, three concurrent actor CLI calls, public receipt submission and independent accepted-body evidence, host resize, public switcher detach, supervisor restart with all four actors returned, and cleanup proving every owned generation absent/direct child+IO joined and both roots removed. Claude receipt62a0f057-9c21-48b0-846b-3e812c363b97; Codex receipt50108e66-b645-465c-8a65-cd72b1428896.
+
+Full retained log: /Volumes/TestScratch/tmp/pair-slot5/pair-744-native-diagnostic-k_3lukca/native.log, SHA25653cbdc9a79cdcfe4ba579b28f86057494a546b7efa6be342b2deb315fcaf4880. Native tools: Zellij0.45.1, nvim0.11.7, Git2.54.0, installed SDLCbdee3f351ca51b0ad9ef65c4ae4e845b00a6a847 modified=false, Weave versiondev. This is the agreed **#747 post-landing live proof**, after integrating its landed PR498; no composite build or candidate override. #747 owner independently verified the log/checksum.
+
+The earlier detach owner refusal remains recorded as unclaimed #761, without a product-fix or known-flake claim. The isolated worker early-exit attempt is also retained above and has not been given a root-cause claim. Current matrix is a complete native pass; required recorded suite and mandatory close review/merge remain outstanding. #722 stays parked until #744 lands.
+
 ## Revisions
 
 ### 2026-10-20 — #747 native-proof sequencing
@@ -229,3 +237,8 @@ Existing live tests migrate to it as they're next touched; new ones must use it.
 ### 2026-10-20 — TL3d5e6782 approves transport isolation correction
 
 The PQ-1 scope correction is approved, conditional on unset-isolation path/sweep compatibility, refusal before effects for invalid/overlong paths, and actual-listener foreign-residue coverage. Rerun the remembered full-flow plan gate. No code has been written.
+
+
+### 2026-10-21 — separate pre-close checklist from gated publication
+
+The original final Plan row read: “Document and run required checks, close and land. Resume #722 only after this issue is on main.” It mixed pre-close readiness with actions that cannot occur until the close gate itself completes. The active checklist now records the verified implementation/native work and prepared suite/close handoff. Required suite PASS, mandatory close review and normal merge remain mandatory, with pending/passed outcomes recorded in Log and SDLC; this bookkeeping correction neither waives a gate nor changes scope. #722 still resumes only over landed main.

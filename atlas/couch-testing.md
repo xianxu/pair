@@ -33,7 +33,10 @@ Claude and Codex are two personalities of one deterministic executable engine,
 installed as physical executable files. Pinned native composer captures exercise
 the real wrapper, and submitted input produces parser-compatible native
 conversation files under private agent homes. Working/picker/idle controls and
-correlated CLI requests use an owned fixture mailbox. A Stop result is not a
+correlated CLI requests use an owned fixture mailbox. Consumed CLI results retire
+explicitly; unread requests/results stay capped at128, with at most four active
+CLI children and a separate shutdown slot. Admission is serialized by one owned
+mailbox lock, and atomic scratch names do not count as extra requests. A Stop result is not a
 shutdown proof: the helper waits for the fixture's exact process generation to
 end after its CLI workers and cancellable native TTY reader join. These stand-ins
 qualify our transport and lifecycle adapter, not a real installed agent's reaction.
@@ -69,6 +72,10 @@ The initial qualification uses one steward plus three genuine workers, serially
 for each personality. The helper accepts 1–8 workers, bounded output and at most
 four concurrent fixture CLI children. Build/setup, scenario and cleanup budgets
 are separate. Preserve the complete native target log with source/tool/isolation
-evidence; a portable or skipped test is not native acceptance. #744's first
-native worker qualification exposed the recordless Fresh blocker tracked in
-#747; neither that failure nor a steward-only launch establishes a passing fleet.
+evidence; a portable or skipped test is not native acceptance. The initial
+Claude/Codex three-worker matrix passed with exact cleanup and supplies #747's
+post-landing launch proof. #744 retains its exact candidate/log hash; #761 tracks
+an earlier native detach ownership refusal separately. Fixture paint also passes
+the real wrapper's composer/text classification across personalities, phases,
+draft shapes and geometries. These results qualify deterministic fixtures, not
+an installed model service.
