@@ -235,3 +235,57 @@ production StartInteractive retains its existing candidate ranking and current
 proof checks. Correct the plan/atlas claim that the report selector drove
 attachment. This deletes unused surface without changing startup behavior
 (ARCH-PURPOSE).
+
+
+### 2026-10-21 01:59 PDT — proposed BR-5 admission ordering, awaiting hub
+
+The third close review disposed BR-4 and reproduced two remaining races:
+automation off in the broker families callback still produced a queued system
+receipt, and a resource alert captured its epoch but lost it across recipient
+resolution, so off/on revived the old alert. A pre-send check is not an
+admission boundary. Stop production edits pending approval of this revision.
+
+Proposed smallest correction (ARCH-ORDER, ARCH-DRY):
+
+- The resource making the invariant one-step is the existing hub-automation
+  owner's mutex. Every generated hub occurrence carries its expected canonical
+  hub, automation epoch and exact recipient binding through routing, observation
+  and reservation. The same permit must reach the mailbox commit, never be
+  recaptured as current after slow work. Worker-directed messages remain
+  independent; no persistent state or new visible state.
+- Extend only the internal generated-send seam with an optional admission
+  guard. At each broker mailbox mutation (direct admission, already-busy
+  enqueue, and busy-after-observation enqueue), under the existing broker
+  mutex, the guard verifies the actual exact recipient, locks the automation
+  owner, and checks enabled + expected epoch. Keep that lock through the
+  in-memory mailbox mutation, then release it. No routing, endpoint IO, native
+  write or callbacks with IO occur while the automation mutex is held.
+  Lock order is broker then automation; control mutates automation only and
+  never acquires the broker, avoiding an inverse dependency.
+- Off and first mailbox admission become ordered: off first suppresses the
+  occurrence, including an intervening off/on; admission first keeps its
+  canonical receipt and existing delivery/uncertainty rules. Already-admitted
+  work is not retracted or falsely reported undelivered. Receipt lookup and
+  wrapper-retained committed receipts retain their current semantics.
+- Sweep lifecycle, wait, stale reminder, resource, stall and supervision
+  adapters to transport the occurrence's original permit. Resource dispatch
+  must pass its stored epoch through resolve/send. Unknown or invalidated
+  permits retire through each producer's existing suppressed disposition, not
+  busy/retry. Scheduler #737 receives this same seam on second landing; no
+  independent policy stack.
+- Controlled red/green tests hold routing, Observe and Reserve, then complete
+  off or off/on before releasing. Cover direct and both enqueue paths,
+  unchanged-policy success, binding replacement, and the inverse ordering
+  (admission first remains canonical), plus per-producer epoch transport.
+  Preserve counts, worker/human exemptions, native timeouts, queue bounds and
+  no-replay behavior. No automatic retry or extra executor.
+
+Simpler alternative: another policy check immediately before SendSystem is
+insufficient, because broker routing/endpoint IO follows it (the measured red).
+Holding the automation mutex across all broker IO would serialize off behind
+slow external work and deadlock callbacks that control automation; reject it.
+The proposed guard holds it only over the actual in-memory commit.
+
+Visible states remain hub automation on/off with explicit on/off recovery; no
+new user state or data-loss mode beyond intentional retirement of suppressed
+occurrences. Live acceptance remains owed through #744 after #761.

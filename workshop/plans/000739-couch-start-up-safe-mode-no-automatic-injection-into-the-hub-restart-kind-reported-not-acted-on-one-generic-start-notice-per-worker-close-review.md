@@ -212,3 +212,117 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T01:59:09-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 739 — couch: start-up safe mode: no automatic injection into the hub, restart kind reported not acted on, one generic start notice per worker |
+| repo | pair |
+| issue file | workshop/issues/000739-couch-start-up-safe-mode-no-automatic-injection-into-the-hub-restart-kind-reported-not-acted-on-one-generic-start-notice-per-worker.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 79ea4ca9e5be10c67c5c356b7f7d4067ebd79a92..eb0befce2a38a7d0d497659fc9073a543373d7b3 |
+| command | sdlc close --issue 739 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T01:59:09-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-4 is addressed, and startup attachment, wrapper-owned cue delivery, compatibility, and documentation are well covered. One blocking ordering defect remains: automation checks occur before potentially delayed broker admission, allowing generated hub input after off completes or stale input after off/on.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The corrected Core concepts and IO seams tables match the delivered classifier, lifecycle reducer, publisher, and wrapper reporting locations.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Startup tests now assert attachment-only behavior and zero launches for missing or parked hubs; the full couchcmd rerun passes.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Ordinary couchcore and couchtty suites pass with their existing enforced write budgets.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      SelectStartupHub and its false consumer claims are removed. The complete artifactpath suite passes; restoring the helper in a temporary checkout makes TestNoProductionSymbolIsReferencedOnlyByTests fail specifically for SelectStartupHub.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: automation-admission-ordering
+    title: |
+      Automation authorization expires before generated input actually enters the mailbox
+    detail: |
+      cmd/internal/couchcmd/automation.go:203 checks policy before broker.SendSystem performs routing and endpoint IO, with no policy check serialized with mailbox admission. A controlled test turned automation off inside the broker's families callback: off completed, yet sendGenerated returned a queued system receipt. Separately, resources_alert.go:51 captures an epoch but does not carry it through send: cycling off/on inside recipient resolution admitted the old alert and marked its episode notified. Both regression tests fail on the pinned head. Carry the occurrence's expected hub/epoch through the shared ingress and enforce it at actual admission, retiring invalidated occurrences. Sweep lifecycle, wait, stale-reminder, resource, stall, and supervision producers under this rule, with controlled delays inside broker admission as well as before send (ARCH-ORDER, ARCH-PURPOSE).
+```
+
+1. **Strengths**
+
+   - Implicit startup preserves explicit lifecycle operations while refusing automatic cold resume or Fresh (`couchcore/startup.go:75`).
+   - Wrapper-owned cue witnesses retain committed and uncertain outcomes across supervisor replacement; private-socket tests count native input.
+   - README, atlas, help, and shipped Couch skill document automation controls and the two notice lifetimes.
+   - BR-4 removes unused surface without an allowlist exemption or dummy production caller.
+
+2. **Critical findings**
+
+   - The automation admission defect above requires an end-to-end occurrence permit. Adding another check before `SendSystem` leaves its internal IO window exposed.
+
+3. **Important findings**
+
+   None.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - Passed: artifactpath, couchcore, couchmessage, couchtty, wrapcmd, affected-reader inventory, and range whitespace checks.
+   - Couchcmd initially failed `TestBlockedThreadsReachTheConsoleView`; ten focused reruns and a complete package rerun passed.
+   - The two temporary ordering regressions failed with actual mailbox admission, demonstrating the uncovered behavior. Temporary copies were removed; the reviewed checkout remains unchanged.
+   - Coordinated live acceptance remains explicitly pending in the tracker.
+
+6. **Architectural notes**
+
+   | Principle | Assessment |
+   |---|---|
+   | ARCH-DRY | Pass: one generated-system broker ingress. |
+   | ARCH-PURE | Pass: declared pure policies and reducers have direct tests; IO remains in adapters. |
+   | ARCH-PURPOSE | **Flag:** automation suppression must hold through admission for every producer. |
+   | ARCH-MOCK | Pass: stateful dependency fixtures and private sockets exercise production seams. |
+   | ARCH-CONSTRAINTS | Pass: counted workload tests and ordinary package budgets pass. |
+   | ARCH-SECURE | Pass: own-hub controls validate current caller authority; unknown cue capability grants no delivery permission. |
+   | ARCH-ORDER | **Flag:** policy transitions and mailbox admission lack a shared ordering boundary. |
+   | ARCH-FUNERAL | Pass: new witnesses and tracking structures are bounded and process-owned. |
+   | ARCH-EVOLVE | Pass: negotiated session-v5 fields are omitted for older peers; no new persisted control format. |
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry defining the ordering of automation-off versus mailbox admission, how expected epochs survive broker IO, and the complete producer sweep. Require regression coverage for off and off/on during routing, observation, and reservation—not only before calling send.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"033c4dd3-3f70-40db-9154-fdcfc907c0b1","repository":"github.com/xianxu/pair","issue_id":"000739","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/d89f17a523e83bc7","reviewed_head":"eb0befce2a38a7d0d497659fc9073a543373d7b3","slot":"pair:7","requested_at":"2026-10-21T08:53:48.335096Z"},"phase":"finished","pid":32583,"started_at":"2026-10-21T08:53:48.427145Z","finished_at":"2026-10-21T08:59:09.086513Z","session_id":"01a15daa-ac12-7791-a28c-6eb3a1d60233","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.6540015s
+head: "eb0befce2a38a7d0d497659fc9073a543373d7b3"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000410
