@@ -1,6 +1,6 @@
 ---
 id: 000732
-status: codecomplete
+status: done
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 0ab34d5f2bc870cc2b2b5a5ac9e6c17d85b32b46
         evidence_commit: 1e185c3880f16b2bb99203c4d4c73ab6ddc67630
+        landed_commit: 7c6b4d817a023e2fbc88f64668f95ae778fc3fe1
 ---
 
 # couch: tab bar and switcher order: by hub, the hub's own slots right after it, then repos alphabetically
