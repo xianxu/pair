@@ -1,13 +1,13 @@
 ---
 id: 000750
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'a8cd0695c921167be4fabb5d012d675eaa3384e9' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '13689c6facf2d7698f5e4350e0f90fa2747da729' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T19:40:53-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     workspace: pair:9
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.42
 ---
 
 # cast-sketch: design the ✎ drawing tool for the Couch web cast (strokes + label, element-anchored vector paths, additive recording format, live view, agent-side view)
