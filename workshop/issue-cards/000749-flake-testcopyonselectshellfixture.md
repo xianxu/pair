@@ -1,6 +1,6 @@
 ---
 id: 000749
-status: codecomplete
+status: done
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 0f7a69d46759f31e0b3944ae30149f05dbb932ec
         evidence_commit: be4923ced56cd324d3f0cc4dd32a6a7543a206cf
+        landed_commit: b1735a52b255f28e41b888007dc744c8a3c737a7
 ---
 
 # flake: TestCopyOnSelectShellFixture
