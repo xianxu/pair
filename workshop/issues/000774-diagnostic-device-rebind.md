@@ -45,9 +45,11 @@ Audit the same persisted-identity class across current and retained generations;
 
 ## Plan
 
-- [ ] Send the cause-specific plan to the hub before implementation.
-- [ ] Reproduce the device change, implement the approved narrow recovery, and qualify negative controls and same-class consumers.
-- [ ] Run recorded checks, close review and land; coordinate live fresh-fact verification with the hub.
+- [x] Send the cause-specific plan to the hub before implementation.
+- [x] Reproduce the device change, implement the approved narrow recovery, and qualify negative controls and same-class consumers.
+- [x] Submit the pushed head to recorded verification and prepare close/landing; hub owns the remaining live check.
+
+Remaining acceptance gates: recorded suite must PASS before landing; close review, normal sdlc merge and hub-coordinated restart/write confirmation. Queued is not passed.
 
 ## Log
 
@@ -60,3 +62,5 @@ Audit the same persisted-identity class across current and retained generations;
 2026-10-21 — Implementation checkpoint: measured Open fixture RED with diagnostic reservation identity or size changed; retained preview RED with generation changed outside protocol (0.234s). Shared persisted classifier and locked current publication made both GREEN. Strict-live diagnostic RED (device refusal lacked its cause), then transaction-name RED for rotation/deletion/legacy append; named strict recovery now GREEN. Final focused cohort including current read-only preview, creation refusal, unknown-tail/intent/unsafe-path controls and failed checkpoint sync passed13.323s before final explicit Appending guard. Original reservation bytes and payload prefixes verified unchanged.
 
 Ad hoc bounded peer audit caught current collection mistakenly sharing retained rebind policy and mismatch errors being discarded. Both corrected: current stays strict within this invocation; retained metadata alone is rebound before a new deletion intent, and refusal includes checkpoint reason. Package run, targeted race, recorded check and boundary review still pending; no live-write success claimed. #744 remains unlanded, #773 and #739 native checks stay held.
+
+2026-10-21 — Targeted verification returned: diagnosticlog package PASS152.224s on the initial repair variant (before final transaction-name/creation controls), final focused race cohort PASS4.268s, final focused behavior cohort PASS13.323s, make test-affected-inventory PASS and diff check clean. PR528 created. Pushed code24378534fb56d364d708e389bbd963e6362958e1 is now in recorded affected's full-suite fallback, lease-2340917264 / attempt667b15abdf34e59ee63442d076ba30da, queued seventh when observed. Full-suite result is PENDING; no close/landing/live acceptance claimed. Boundary review may overlap this queue per tl-worker; landing still requires the pass.

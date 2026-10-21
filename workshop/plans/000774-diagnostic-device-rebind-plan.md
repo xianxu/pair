@@ -53,12 +53,14 @@ Covered: measured current failure, retained same-class reads/collection, strict 
 
 ## Checkable tasks
 
-- [ ] Add the measured Open/reopen fixture in checkpoint_identity_test.go and observe its semantic RED with go test ./cmd/internal/diagnosticlog -run DeviceRebind -count=1.
-- [ ] Add the pure classifier matrix and smallest current-rebind glue; run the same cohort GREEN. Save only under existing flock; no pending intents accepted.
-- [ ] Add retained preview/collection RED controls, apply the shared persisted comparison, then run GREEN. Keep live matches and in-flight recovery strict.
-- [ ] Add save-failure, unsafe-path, uncertain-tail and pending-intent negatives; run all diagnosticlog tests and targeted race tests.
-- [ ] Update README/atlas, run make test-affected-inventory, push and record affected check. Close once with binary-owned review, land through sdlc merge --yes, report PR/merge to hub. Hub owns live fresh-write acceptance.
+- [x] Add the measured Open/reopen fixture in checkpoint_identity_test.go and observe its semantic RED with go test ./cmd/internal/diagnosticlog -run DeviceRebind -count=1.
+- [x] Add the pure classifier matrix and smallest current-rebind glue; run the same cohort GREEN. Save only under existing flock; no pending intents accepted.
+- [x] Add retained preview/collection RED controls, apply the shared persisted comparison, then run GREEN. Keep live matches and in-flight recovery strict.
+- [x] Add save-failure, unsafe-path, uncertain-tail and pending-intent negatives; run all diagnosticlog tests and targeted race tests.
+- [x] Update README/atlas, run make test-affected-inventory, push and submit the recorded affected check. Required remaining gates: recorded pass, binary-owned close review, sdlc merge --yes, report PR/merge to hub. Hub owns live fresh-write acceptance.
 
 ## Revisions
 
 2026-10-21 — Implementation detail: retained collection publishes the same generation metadata with observed device BEFORE admitting a new deletion intent, so already-pending deletion stays strict across remount. This costs one bounded metadata publication per device-only retained generation, not just current. Current collection rows stay strict after their earlier recovery in the same invocation. Ad hoc audit independently caught that boundary and the need to preserve mismatch reasons on final reservation refusals. No new state/format or expanded transaction recovery.
+
+2026-10-21 — Checklist records implemented tasks and submission to verification, not gate outcomes. Recorded suite lease-2340917264 is queued, not passed. Review may overlap the queue under tl-worker; landing still requires the final code pass. Native acceptance remains owed to the hub.
