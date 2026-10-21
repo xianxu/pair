@@ -27,7 +27,8 @@ func stateObject(raw []byte, target any) (map[string]json.RawMessage, error) {
 		}
 	}
 	// M2 adds frozen payload fields to v1 attempts. Their absence is valid for
-	// old execution/notifying rows; phase validation still fences delivery.
+	// old execution/notifying rows; phase validation still fences delivery. M3
+	// additionally permits absent manual intent digests in legacy occurrences.
 	attempt := typ == reflect.TypeOf(Attempt{})
 	if attempt {
 		nullable["notice_binding"] = true
@@ -38,6 +39,9 @@ func stateObject(raw []byte, target any) (map[string]json.RawMessage, error) {
 	}
 	for name := range known {
 		if _, ok := owned[name]; !ok {
+			if (attempt || typ == reflect.TypeOf(RunSummary{})) && name == "manual_intent_digest" {
+				continue
+			}
 			if typ == reflect.TypeOf(RunSummary{}) && name == "revision" {
 				continue
 			}

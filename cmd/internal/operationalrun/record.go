@@ -28,6 +28,7 @@ func (k RunKey) valid() bool {
 func sameKey(a, b RunKey) bool { return a.Hub == b.Hub && a.Task == b.Task && a.ID == b.ID }
 
 type Record struct {
+	ManualIntentDigest  string                     `json:"manual_intent_digest,omitempty"`
 	Version             int                        `json:"version"`
 	Key                 RunKey                     `json:"key"`
 	DeclarationRevision string                     `json:"declaration_revision"`
@@ -67,6 +68,9 @@ func (r *Record) UnmarshalJSON(raw []byte) error {
 	return r.validate()
 }
 func (r Record) validate() error {
+	if r.ManualIntentDigest != "" && r.Source != "manual" {
+		return errors.New("manual intent digest requires manual source")
+	}
 	if r.Version != 1 || !r.Key.valid() || r.Outcome == "" || len(r.DeclarationRevision) > 4096 || len(r.Source) > 4096 || len(r.Notice) > 4096 {
 		return errors.New("invalid operational run record")
 	}
@@ -129,8 +133,9 @@ func (k RunKey) MarshalJSON() ([]byte, error) {
 	return strictjson.EncodeObject(fields, k.Unknown, keyKnown)
 }
 
-// Every field in a published envelope is present, including zero timestamps and
-// a nullable exit status. Unknown members carry no interpretation authority.
+// Published envelopes include zero timestamps and a nullable exit status. The
+// additive manual intent digest may be absent in legacy records. Unknown
+// members carry no interpretation authority.
 func decodeOwned(raw []byte, known, nullable map[string]bool, target any) (map[string]json.RawMessage, error) {
 	owned, unknown, e := strictjson.SplitObject(raw, known, nullable)
 	if e != nil {
@@ -138,6 +143,9 @@ func decodeOwned(raw []byte, known, nullable map[string]bool, target any) (map[s
 	}
 	for name := range known {
 		if _, ok := owned[name]; !ok {
+			if name == "manual_intent_digest" {
+				continue
+			}
 			return nil, errors.New("missing operational member: " + name)
 		}
 	}

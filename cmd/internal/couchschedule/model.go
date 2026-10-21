@@ -38,31 +38,33 @@ type Declaration struct {
 }
 
 type RunSummary struct {
-	Revision  string                     `json:"revision"`
-	ID        string                     `json:"id"`
-	Source    string                     `json:"source"`
-	DueAt     time.Time                  `json:"due_at"`
-	StartedAt time.Time                  `json:"started_at"`
-	EndedAt   time.Time                  `json:"ended_at"`
-	Exit      *int                       `json:"exit"`
-	Outcome   string                     `json:"outcome"`
-	Notice    string                     `json:"notice"`
-	Unknown   map[string]json.RawMessage `json:"-"`
+	ManualIntentDigest string                     `json:"manual_intent_digest,omitempty"`
+	Revision           string                     `json:"revision"`
+	ID                 string                     `json:"id"`
+	Source             string                     `json:"source"`
+	DueAt              time.Time                  `json:"due_at"`
+	StartedAt          time.Time                  `json:"started_at"`
+	EndedAt            time.Time                  `json:"ended_at"`
+	Exit               *int                       `json:"exit"`
+	Outcome            string                     `json:"outcome"`
+	Notice             string                     `json:"notice"`
+	Unknown            map[string]json.RawMessage `json:"-"`
 }
 
 type Attempt struct {
-	ID              string    `json:"id"`
-	Revision        string    `json:"revision"`
-	Source          string    `json:"source"`
-	Stage           string    `json:"stage"`
-	DueAt           time.Time `json:"due_at"`
-	StartedAt       time.Time `json:"started_at"`
-	Deadline        time.Time `json:"deadline"`
-	NoticeDeadline  time.Time `json:"notice_deadline"`
-	ControllerPID   int       `json:"controller_pid"`
-	ControllerStart string    `json:"controller_start"`
-	GroupPID        int       `json:"group_pid"`
-	ParentPID       int       `json:"parent_pid"`
+	ManualIntentDigest string    `json:"manual_intent_digest,omitempty"`
+	ID                 string    `json:"id"`
+	Revision           string    `json:"revision"`
+	Source             string    `json:"source"`
+	Stage              string    `json:"stage"`
+	DueAt              time.Time `json:"due_at"`
+	StartedAt          time.Time `json:"started_at"`
+	Deadline           time.Time `json:"deadline"`
+	NoticeDeadline     time.Time `json:"notice_deadline"`
+	ControllerPID      int       `json:"controller_pid"`
+	ControllerStart    string    `json:"controller_start"`
+	GroupPID           int       `json:"group_pid"`
+	ParentPID          int       `json:"parent_pid"`
 	// Frozen before broker admission; retries reuse the same identity/body/binding.
 	NoticeBody            string                     `json:"notice_body"`
 	NoticeBinding         json.RawMessage            `json:"notice_binding"`
@@ -105,21 +107,22 @@ const (
 )
 
 type Event struct {
-	Kind          EventKind
-	At            time.Time
-	Declaration   *Declaration
-	Attempt       string
-	Revision      string
-	RunID         string
-	HubOnline     bool
-	Exit          int
-	Outcome       string
-	Notice        string
-	ReceiptID     string
-	NoticeBody    string
-	NoticeBinding json.RawMessage
-	Location      *time.Location
-	Recovered     *RunSummary
+	ManualIntentDigest string
+	Kind               EventKind
+	At                 time.Time
+	Declaration        *Declaration
+	Attempt            string
+	Revision           string
+	RunID              string
+	HubOnline          bool
+	Exit               int
+	Outcome            string
+	Notice             string
+	ReceiptID          string
+	NoticeBody         string
+	NoticeBinding      json.RawMessage
+	Location           *time.Location
+	Recovered          *RunSummary
 	// Next is an optional pre-parsed calendar function owned by the caller.
 	// It must be deterministic; it avoids reparsing unchanged declarations.
 	Next  func(time.Time) time.Time
@@ -159,6 +162,12 @@ func Advance(state TaskState, event Event) (TaskState, []Effect) {
 	// metadata belongs to the persisted occurrence. Keep it on every same-ID
 	// rewrite; metadata from another schema (such as a run record) stays there.
 	if state.Last != nil && next.Last != nil && state.Last != next.Last && state.Last.ID == next.Last.ID {
+		if state.Last.ManualIntentDigest != "" {
+			if next.Last.ManualIntentDigest != "" && next.Last.ManualIntentDigest != state.Last.ManualIntentDigest {
+				return state, nil
+			}
+			next.Last.ManualIntentDigest = state.Last.ManualIntentDigest
+		}
 		next.Last.Unknown = strictjson.MergeRaw(state.Last.Unknown, next.Last.Unknown)
 	}
 	return next, effects
@@ -216,12 +225,14 @@ func advance(state TaskState, event Event) (TaskState, []Effect) {
 			return state, nil
 		}
 		source := "scheduled"
+		digest := ""
 		if manual {
+			digest = event.ManualIntentDigest
 			source = "manual"
 			due = time.Time{}
 		}
 		result := func(outcome, notice string) (TaskState, []Effect) {
-			state.Last = &RunSummary{Revision: state.Revision, ID: event.RunID, Source: source, DueAt: due, StartedAt: event.At, EndedAt: event.At, Outcome: outcome, Notice: notice}
+			state.Last = &RunSummary{ManualIntentDigest: digest, Revision: state.Revision, ID: event.RunID, Source: source, DueAt: due, StartedAt: event.At, EndedAt: event.At, Outcome: outcome, Notice: notice}
 			return state, nil
 		}
 		if !state.Allowed {
@@ -233,7 +244,7 @@ func advance(state TaskState, event Event) (TaskState, []Effect) {
 		if !manual && !state.Spec.ScriptRun && !event.HubOnline {
 			return result("skipped", "hub offline, skipped")
 		}
-		state.Active = &Attempt{ID: event.RunID, Revision: state.Revision, Source: source, Stage: "reserved", DueAt: due, StartedAt: event.At, Deadline: event.At.Add(state.Spec.Timeout)}
+		state.Active = &Attempt{ManualIntentDigest: digest, ID: event.RunID, Revision: state.Revision, Source: source, Stage: "reserved", DueAt: due, StartedAt: event.At, Deadline: event.At.Add(state.Spec.Timeout)}
 		return state, nil
 	}
 	// Passive outcomes have no Active tuple, but their persisted occurrence ID
@@ -264,11 +275,12 @@ func advance(state TaskState, event Event) (TaskState, []Effect) {
 	case ResultRecovered:
 		if event.Recovered != nil {
 			canonical := event.Recovered
-			if canonical.ID != a.ID || !validRecoveredSummary(*canonical) {
+			if canonical.ID != a.ID || !validRecoveredSummary(*canonical) || (a.ManualIntentDigest != "" && canonical.ManualIntentDigest != a.ManualIntentDigest) {
 				break
 			}
 			state.Last = cloneRunSummary(canonical)
 			if canonical.Outcome == "unknown" || canonical.Notice == "pending" {
+				a.ManualIntentDigest = canonical.ManualIntentDigest
 				a.Revision, a.Source = canonical.Revision, canonical.Source
 				a.DueAt, a.StartedAt = canonical.DueAt, canonical.StartedAt
 				if canonical.Outcome == "unknown" {
@@ -466,6 +478,9 @@ func advance(state TaskState, event Event) (TaskState, []Effect) {
 // emits no effects and is refused at the persistence boundary.
 func validateTaskPhase(state TaskState) error {
 	if last := state.Last; last != nil {
+		if last.ManualIntentDigest != "" && last.Source != "manual" {
+			return fmt.Errorf("manual intent digest requires manual summary")
+		}
 		if last.Source != "manual" && last.Source != "scheduled" {
 			return fmt.Errorf("invalid summary source")
 		}
@@ -486,6 +501,9 @@ func validateTaskPhase(state TaskState) error {
 	}
 	if a == nil {
 		return nil
+	}
+	if a.ManualIntentDigest != "" && a.Source != "manual" {
+		return fmt.Errorf("manual intent digest requires manual attempt")
 	}
 	if a.Source != "manual" && a.Source != "scheduled" {
 		return fmt.Errorf("invalid attempt source")
@@ -544,7 +562,7 @@ func futureDue(spec TaskSpec, event Event) time.Time {
 }
 
 func summary(a *Attempt, ended time.Time, exit *int, outcome, notice string) *RunSummary {
-	return &RunSummary{Revision: a.Revision, ID: a.ID, Source: a.Source, DueAt: a.DueAt, StartedAt: a.StartedAt, EndedAt: ended, Exit: exit, Outcome: outcome, Notice: notice}
+	return &RunSummary{ManualIntentDigest: a.ManualIntentDigest, Revision: a.Revision, ID: a.ID, Source: a.Source, DueAt: a.DueAt, StartedAt: a.StartedAt, EndedAt: ended, Exit: exit, Outcome: outcome, Notice: notice}
 }
 
 func cancelActive(state TaskState) (TaskState, []Effect) {
@@ -601,6 +619,9 @@ func cloneRunSummary(source *RunSummary) *RunSummary {
 }
 
 func validRecoveredSummary(s RunSummary) bool {
+	if s.ManualIntentDigest != "" && s.Source != "manual" {
+		return false
+	}
 	if s.Revision == "" || len(s.Revision) > 4096 || !utf8.ValidString(s.Revision) || strings.IndexFunc(s.Revision, unicode.IsControl) >= 0 || !ValidTaskName(s.ID) || (s.Source != "manual" && s.Source != "scheduled") || (s.Exit != nil && (*s.Exit < 0 || *s.Exit > 255)) || s.StartedAt.IsZero() || s.EndedAt.IsZero() {
 		return false
 	}

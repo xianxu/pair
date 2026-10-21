@@ -47,7 +47,7 @@ func missingRunBundle(namespace string, key operationalrun.RunKey, err error) bo
 }
 
 func runSummaryForRecord(r operationalrun.Record) couchschedule.RunSummary {
-	return couchschedule.RunSummary{ID: r.Key.ID, Revision: r.DeclarationRevision, Source: r.Source, DueAt: r.ScheduledAt, StartedAt: r.StartedAt, EndedAt: r.EndedAt, Exit: r.Exit, Outcome: r.Outcome, Notice: r.Notice}
+	return couchschedule.RunSummary{ID: r.Key.ID, Revision: r.DeclarationRevision, Source: r.Source, DueAt: r.ScheduledAt, StartedAt: r.StartedAt, EndedAt: r.EndedAt, Exit: r.Exit, Outcome: r.Outcome, Notice: r.Notice, ManualIntentDigest: r.ManualIntentDigest}
 }
 
 // ensurePassiveRun is called under the existing state lock before replacing a
