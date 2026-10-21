@@ -47,6 +47,8 @@ A list that only grows stops being read, which defeats notifications.
 
 ## Log
 
+- Close full review returned SHIP with zero blocking findings. Advisory BR-1 was the atlas/index.md summary still calling attention durable; corrected the summary and captured the index-sweep lesson. Reviewer passed normal/race attention tests and full affected-package tests; authoritative recorded suite remains queued.
+
 - Production-startup regression seeds a valid legacy attention/list.json, starts the real message service, verifies the empty-list notice, observes/clears a fresh event, and verifies legacy bytes unchanged. Passed on the implementation; failed against a temporary overlay of the original persistence path (missing empty-list notice), proving restart regression coverage.
 - Local-check affected fell back to suite because its disposable package-graph checkout lacks generated runtime assets; canceled that queued old-head suite to include the new startup test. Requeue on the pushed test-complete head.
 
