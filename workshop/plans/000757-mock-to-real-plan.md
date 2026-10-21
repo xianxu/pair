@@ -2,6 +2,201 @@
 collaboration-mode: discussion
 ---
 
+# Framework-neutral mock-to-real implementation plan — approved revision
+
+> **For agentic workers:** Consult AGENTS.md §3. Use superpowers-executing-plans and bounded independent agents where appropriate. Operator approved this framework-neutral revision at 11:00 PDT on 2026-10-21 (receipt 8d8b6147-e2fb-4e7f-ae90-2d150697de6c). TL/operator priority changed at12:54 PDT: park #769 and start #757 now (receipt2fe48cdc-1a0b-4a7d-a692-e2c3852ba839). Preserve PR524/reviews/suite, then re-enter its merge after the shared cache is cleared.
+
+**Goal:** Grow any HTTP web app screen by screen behind the existing mock host, while production uses the app's own build and never serves mock content.
+
+**Architecture:** `couch mock serve DIR --real http://localhost:3000` optionally fronts an already-running application. One versioned `screens.json` declares real/mock status and navigation routes. The existing host still owns mock versions, fixtures, scanning, confinement, selection and reload. A read-only `couch mock check DIR` reports missing screens. A standalone Go example demonstrates the convention without making Go a requirement of the host or production app.
+
+**Tech Stack:** Existing Go mock server, net/http/httputil, x/net/html for mock-page chrome, JSON; a separate standard-library Go sample and fixture-contract tests. No new framework runtime or application process supervisor.
+
+## Revisions and authority
+
+- 2026-10-21 11:00 PDT: operator APPROVED the framework-neutral draft and all four stated limits (TL receipt 8d8b6147-e2fb-4e7f-ae90-2d150697de6c). Mocks run in Go via Couch; the real app uses any stack and its own command. Production uses only that stack with unfinished-page/popup behavior; strict means no mock content ships, not build refusal. mock check reports; Go is a worked sample. This approval supersedes the pending-confirmation status in the historical entries below. Commit/implementation remain sequenced after #769 landing.
+
+- 2026-10-21 09:06 PDT: operator approval relayed by TL (receipt 9e25f576-8ab1-4752-a2c4-21084fb68b10). Supersedes production refusal: builds succeed with missing screens; missing production routes show a plain `Not implemented yet` page with a way back, links visibly identify missing screens, and no mock code, fixtures or MOCK badge ships. Build prints a missing-screen report. Two-command Go-specific development was initially approved.
+- 2026-10-21 09:07 PDT: TL relayed the operator's any-framework requirement and proposed moving development dispatch into `couch mock serve --real`, adding `couch mock check`, retaining Go as one example (receipt d475db2c-2dd9-4cee-8bd4-a20901b900ce). This supersedes the Go-only router/build-wrapper architecture. **Framework-neutral proposal awaits operator confirmation.** No change-code, estimate or implementation yet.
+- TL instructed scratch-only drafting while #769's retained runner waits; commit to #757 after #769 lands. If GitHub remains degraded at 10:30 PDT, report to hub for reconsideration (receipt 658d29be-e8b8-4a98-bf42-1212130e50fb).
+
+When committing, preserve the original plan as the explicitly superseded proposal and append this revision/current design; reconcile issue Spec and Done when with a dated Revisions entry. Do not erase the earlier decisions or Log.
+
+## Approved contract
+
+### 1. One screen catalogue
+
+Project root `screens.json`:
+
+```json
+{
+  "version": 1,
+  "screens": [
+    {"id":"index", "route":"/", "mock":"index.html", "state":"real"},
+    {"id":"runs", "route":"/runs", "mock":"runs.html", "state":"real"},
+    {"id":"detail", "route":"/runs/detail", "mock":"detail.html", "state":"mock"}
+  ]
+}
+```
+
+`state` is explicit; neither source-code discovery nor upstream HTTP errors infer it. A declared real screen returning an error stays a real application error. IDs, exact canonical routes and version-relative `.html` paths are unique. Root `/` is the one index screen. Canonical routes contain no query/fragment, traversal, reserved mock prefix or encoded separators. Mock paths use the existing ScreenFromPath rules. Dynamic route-pattern inference is outside this first convention; applications may choose representative concrete screen URLs and own their other routes.
+
+Known fields/types and duplicate keys are strict; unknown additive fields are tolerated at root and nested screen levels. Couch reads but never rewrites this file, so extension fields remain byte-for-byte on disk. Unsupported major versions refuse with a named repair error. Limits: 256 KiB catalogue, 256 screens, bounded route/ID lengths. `screens.json` is project content, counted within existing entry/byte caps and scan revision; it is private over HTTP. Check requires only this file, not fixtures or a mock folder, so production pipelines need not retain mock content.
+
+Without `--real`, preserve #755 behavior: pure versioned mock viewing, no catalogue required and no hybrid route interception. A catalogue file, if present, remains ordinary hashed private project content. With `--real`, catalogue is required and validated before listening. The front continues to require a valid #755 mock project even when every screen is real; retain the version folders/fixtures as design history. Only `check` and the app production build work without mock content. Removing that requirement would be a separate explicit lifecycle change.
+
+### 2. Framework-neutral development front
+
+The application starts with its own existing command. The single Couch command starts the front only; it does not start, restart, build or own that application. `--real` accepts an explicit HTTP loopback origin with a port and no credentials/path/query/fragment. Pin resolution to loopback and reject self-targeting once the front listener is known. Never route to an arbitrary destination taken from a request.
+
+Routing precedence is explicit and decided once per request from one immutable published catalogue/revision snapshot:
+
+1. Reject malformed/noncanonical paths before either disk access or upstream proxying. Reserved private project files, `/__couch_mock/*` unknowns and malformed `/mock-*` namespaces never fall through to the real app.
+2. Existing state and reload routes stay owned by Couch. Shared `/fixtures.json` and confined `/mock-N/...` assets stay mock-owned and GET/HEAD-only. Unknown `.html` document aliases in the mock namespace refuse locally instead of being served as undeclared screens; non-document assets remain confined to validated version folders.
+3. A declared canonical screen URL or its `/mock-N/<mock path>` alias resolves through the catalogue. Real screens redirect version aliases to the canonical URL and proxy there; mock screens redirect canonical URLs into the selected mock version and use existing confined mock delivery. Existing selected-version redirects preserve queries. Registering a screen means editing only its `state` and implementing that route in the app.
+4. All other non-reserved routes proxy to the configured app, including its assets, APIs, normal HTTP methods and WebSocket upgrades used by development tooling. This supports a framework's HTTP interfaces without guessing filename suffixes or duplicating API-prefix configuration. The catalogue is a navigation convention, not an authorization boundary around the real app.
+
+Mock HTML receives an authoritative visible MOCK badge plus `2 of 3 screens real` from the current catalogue; preserve existing data-mock-version/screen, bootstrap and reload. Real responses pass through unchanged, including CSP, compression, cookies and streaming. Print progress on startup/catalogue changes so it is available while viewing a real screen. **Accepted limit:** progress chrome is guaranteed on mock pages, not injected into arbitrary real HTML. Real pages may display catalogue-derived progress in the example.
+
+Known same-upstream absolute redirects are rewritten to the front origin; relative redirects keep ordinary semantics. Strip supplied forwarding headers and set proxy-owned forwarding information. Upstream failures produce an explicit gateway error and never mock fallback. External links remain external; there is no arbitrary HTML/JavaScript URL rewriting. Applications must use front-relative navigation and full document loads when crossing between real and mock screens. SPA transitions without an HTTP request cannot be intercepted by a generic front; the README and sample demonstrate the required navigation boundary.
+
+HTTP body streaming uses bounded buffers and context cancellation, not whole-response buffering. Reuse listener lifecycle and one existing scan/watch loop. Track upgraded connections owned by this front, close them on cancellation and join their copy loops; net/http Shutdown alone does not collect hijacked sockets. Keep ReadHeaderTimeout=5s, IdleTimeout=30s and MaxHeaderBytes=16KiB. Hybrid listener WriteTimeout=0 permits app SSE/streaming; existing standalone listener keeps its 10s write timeout. Hybrid active-request/upgrade admission is capped at64, with cancellation-owned lifetimes. Give the owned upstream transport 3s dial and 5s response-header budgets; no total body timer. Tests gate blocked streams and upgrades on explicit barriers, then cancel and assert joined cleanup. No polling loop beyond the existing scanner or browser reload loop.
+
+### 3. Missing screens in production
+
+`couch mock check DIR` parses the same catalogue and prints a deterministic progress summary plus each `state:mock` screen's ID and route. Missing implementations are informational: exit 0 so the app's normal build proceeds. Invalid/unreadable catalogue is a command error, not a missing-screen report. Check opens no listener, executes no build and reads no fixtures. It writes no files.
+
+Each framework owns its production routing and build. The documented convention is to derive a finite production screen list/status table from `screens.json`; `mock` means the implementation is missing, not permission to serve a mock. A missing route renders only `Not implemented yet` plus a link to the home screen. Links to missing routes carry visible `Not implemented` text. No generated mock URLs, mock scripts, fixture bytes or development badge are included in production artifacts. The generic check reports status; it cannot enforce arbitrary framework bundles. Documentation states that ownership explicitly.
+
+The Go worked sample enforces the convention: its production command invokes its own Go build after the report, even with detail missing. The sample reads the same JSON file as a consumer of its documented language-neutral schema; it has no second status declaration and no production dependency on Pair internals. Its build validates that input and emits a minimal projection. Production imports only real handlers and that generated catalogue projection containing IDs, routes and implementation states; mock paths, mock host/proxy, fixtures and development chrome are excluded from that projection/build. Production navigation and placeholder routing derive from that same projection. A compiled registration marked real but missing its real handler is a named configuration error; normal application handler failures are not placeholders. Add detail + switch its catalogue state to real, rebuild and prove the placeholder/report disappears. A private build output is owned by the build/test scope; no release wrapper lives in Couch.
+
+### 4. Fixture shape contracts remain useful across frameworks
+
+Keep one shared fixtures.json for mocks. The example's real backend uses its own application data, not fixture bytes. Contract tests decode real HTTP responses and compare required recursive JSON shapes with representative fixture subtrees. Required/nested fields, primitive/null types, all array items and size/depth limits are enforced; extra response fields allowed. Empty response arrays valid against a nonempty prototype; empty or heterogeneous fixture arrays refuse as ambiguous contract definitions. Never mutate fixture content. Document the language-neutral algorithm with the Go helper as a worked example; do not introduce a cross-language contract runner in this issue.
+
+## Alternatives and choice
+
+1. **Recommended:** optional front in existing Couch mock host; read-only check and documented production convention; one Go worked sample. Reuses ownership/security/reload and serves any HTTP app.
+2. App-specific middleware for each framework. Better integration with client routers, but requires adapters and expands the supported-framework matrix before evidence.
+3. Inject global navigation interception and chrome into arbitrary real pages. Appears transparent but breaks CSP/streaming/framework ownership and cannot prove all client-router behavior. Excluded; document full-document cross-boundary links instead.
+
+## Core concepts
+
+### Pure entities
+
+| Name | Lives in | Status |
+|---|---|---|
+| ScreenCatalogue, ParseCatalogue, ResolveScreen, Progress, MissingReport | cmd/internal/mockserve/screens.go | new |
+| RouteDecision | cmd/internal/mockserve/front_route.go | new |
+| DevelopmentChrome | cmd/internal/mockserve/page.go | modified |
+| FixtureShape, InferShape, MatchShape | examples/mock-to-real/internal/contract/shape.go | new |
+| ProductionScreenProjection and navigation policy | examples/mock-to-real/internal/screens/screens.go | new |
+
+Catalogue owns immutable route/alias maps and one computed progress value; no duplicated app-side Go-only declaration. RouteDecision yields mock document/asset, internal/private/refusal or real proxy without IO. Existing version selection remains its sole owner. Mock decoration remains a pure bounded HTML transform, shared with existing bootstrap work. Contract/projection tests use literal values and no IO mocks. Extensions to the catalogue are additive/read-only; future route patterns would be an explicit widened contract.
+
+### Integration points
+
+| Name | Lives in | Status | Wraps |
+|---|---|---|---|
+| Project catalogue observation | cmd/internal/mockserve/scan.go, server.go | modified | confined reads and existing scanner |
+| DevelopmentFront and upstream lifetime | cmd/internal/mockserve/front.go | new | real app HTTP/WebSockets |
+| CLI serve/check | cmd/internal/mockserve/cli.go, check.go; couchcmd help/tests | modified/new | command IO, no Couch runtime |
+| Go sample real backend and build | examples/mock-to-real/cmd/{app,build}, internal/sample | new | app listener, real handler responses and Go tool |
+| Template qualification | cmd/internal/mocktemplate/template_test.go | new | private nested module, actual host and build |
+
+HTTP tests use a stateful local fake app with actual routing, redirects, cookies, errors, APIs and upgraded connections. Live conformance uses the real mock host and sample app on private loopback ports. No external framework installation is necessary; a framework-shaped fixture exercises asset/API/HMR routes without claiming qualification of every framework. Sample production builds/launches are owned and joined in private roots. Existing shared Pair candidate path is used, never a freshly copied Pair executable.
+
+## State design
+
+Actions: start app, start front, edit catalogue/mock/fixtures, implement/register screen, retry request, run check/build, stop front/app.
+
+| Internal state / failure | Visible state | Recovery action | Possible loss |
+|---|---|---|---|
+| Plain mock serve without --real | existing versioned preview | edit mock/fixtures | existing reload transient state |
+| Valid catalogue, two real/one mock | clickable hybrid; MOCK/count on mock pages | implement/register detail | browser transient state on reload |
+| Upstream down | real requests gateway error; healthy mock pages still work | start app, retry request | in-flight app request may have unknown result; no automatic retry |
+| Real handler error | unchanged real application response | repair app, retry request | app-defined request effects |
+| Invalid catalogue at startup | named refusal before listener | edit catalogue then start front | no durable work lost |
+| Invalid catalogue during watch | explicit repair state; no stale routing/progress claim | repair catalogue | browser stays visible; new document traffic fails while invalid |
+| Broken mock project | existing visible repair/recovery state; front document/proxy traffic refuses until repaired | repair mock/fixtures | existing preview transient state; no stale routing decision |
+| Valid status edit | next scan publishes route/count/revision together | retry/navigate after reload | current mock page reload resets transient state |
+| Production has missing screens | build succeeds with report; placeholder and marked links | implement/register then rebuild | no mock data shipped |
+| Invalid catalogue or real registration mismatch | named check/build/start error | fix catalogue/registration | old build artifact may remain; no false success |
+| Backend shape drift | endpoint + JSON path test failure | repair backend or consciously revise fixture | no fixture rewrite |
+| Stop front with active request/upgrade | owned connections/copy loops end | start front again | in-flight requests/stream state |
+
+## Cost, bounds and lifecycle
+
+Reuse existing scan limits (1,024 entries, 32 MiB contents, 1 MiB HTML) and 500ms scan cadence. Catalogue counts as one ordinary file; parsing and immutable indexes are O(S+B), once per scan snapshot, not per request. One mutex publication pairs route catalogue with revision/health. Request route lookup O(1); only mock HTML transformation O(H), bounded at 1 MiB. Count reads/parse work at N/2N screens and assert zero scans/parses on N/2N requests. Existing scanner hashing O(B) and metadata sort O(F log F) stay unchanged; no second watcher. Shape comparisons O(J), <=1 MiB JSON and depth64.
+
+Retain current finite listener/header budgets; bound proxy header bytes and dial/header waits, use bounded stream buffers, and explicitly cap active front proxy/upgrade connections (proposed 64; excess visible 503). Cancellation closes idle transport and owned upgraded connections and joins all work. Do not reuse a global default transport with unowned idle pools. A handler may stream until cancellation; no whole-body aggregation or duration-based retry. The app is external and survives front shutdown.
+
+No per-request/per-scan durable artifact, cache, generated mock family or catalogue writer. Existing `.mock-current` family remains host-owned. Example's generated production projection is one fixed build-local file replaced by that build and removed with its private/staging root; output is one explicitly selected operator-owned artifact. Tests remove roots after joining children. fixtures/catalogue/mock folders are developer-owned git content, no automatic rewrite/removal.
+
+## Implementation tasks — only after approval and change-code
+
+### 1. Catalogue, report and route policy
+
+Files: mockserve/screens.go, screens_test.go, front_route.go, front_route_test.go, check.go/check_test.go; cli.go/cli_test.go and couchcmd/mock_test.go/run.go.
+
+- [ ] Write RED table tests for schema/duplicates/unknown fields/version/types/limits, root/aliases/collisions, deterministic report and incomplete exit0; run targeted mockserve tests and confirm failure.
+- [ ] Implement immutable catalogue and pure route decision; test all reserved/private/malformed paths precede upstream, all HTTP methods route appropriately, no upstream-error fallback.
+- [ ] Add `--real` and `mock check DIR` parsing/help and runtime-independent dispatch tests. Check requires only screens.json, reads no fixtures, creates no listener/file and spawns no child.
+- [ ] Add counted work tests for N/2N and fuzz seeds; verify targeted tests green and commit pure/CLI layer.
+
+### 2. Front, shared scan publication and browser behavior
+
+Files: mockserve/front.go/front_test.go; scan.go/scan_test.go, server.go/server_test.go, page.go/page_test.go, browser_test.go, reload.js/reload_test.js only if needed by catalogue-change reload.
+
+- [ ] Write RED stateful-fake tests for canonical + version-alias transitions, mock-only baseline, real assets/API/POST/query/redirect/cookie behavior, WebSocket exchange and request/upgrade cancellation.
+- [ ] Integrate catalogue bytes parsed from existing confined scan, paired with revision under existing owner. Preserve lock/staging exclusions, caps and plain mock behavior; no request scans or duplicate read owner.
+- [ ] Implement optional front and mock-only badge/count, leaving real response bytes/CSP/encoding unchanged. Reject non-loopback/self upstream and private/reserved fallback; name errors without retrying requests.
+- [ ] Prove scanner error/recovery and status-edit publication with barriers, upgrade cleanup and capacity refusal. Run targeted race tests plus node reload tests.
+- [ ] Add bounded private-profile browser test for mock-to-real-to-mock full navigation, version change, state flip and badge/count; include explicit SPA-navigation documentation boundary. No visible browser window.
+- [ ] Commit verified host feature.
+
+### 3. Worked Go sample, production convention and contracts
+
+Files: examples/mock-to-real/go.mod, cmd/app/main.go, cmd/build/main.go, internal/sample, internal/screens, internal/contract, mocks/{screens.json,fixtures.json,mock-1/*}, README.md and design.md, .gitignore.
+
+- [ ] Write RED nested tests for two real handlers + one mock declaration, production placeholders/back link/marked links, and fixture shape drift. Implement sample using the common catalogue convention, not an independent state list.
+- [ ] Use app's own build command with check report and fixed production projection; sample build succeeds with detail missing. Production code has no host/proxy/fixture/HTML mock embedding path.
+- [ ] Build/launch production in private root; request missing page and navigation; require plain placeholder, working way back and visible missing-link text. Probe mock/fixture/reload/version-asset paths and scan built artifact for unique fixture/mock sentinels.
+- [ ] In private source copy implement detail and mark real, rebuild, require real content and no missing report. Do not create a parallel hand-maintained screen list.
+- [ ] Contract tests hit actual backend independently of fixtures; mutate response field/type to prove RED, restore then run nested race tests green.
+- [ ] Document any-framework steps and full-document cross-boundary links; Go is one worked adapter, not a required production stack. Commit sample.
+
+### 4. Integration and one close boundary
+
+Files: cmd/internal/mocktemplate/template_test.go; artifactpath production-source classifications and per-reader certificates; README.md, atlas/mock-server.md, atlas/mock-to-real.md and atlas/index.md.
+
+- [ ] Root integration invokes nested tests/build and actual host/sample, so standard root suite cannot omit nested module. Use shared candidate image and private process ownership.
+- [ ] Audit every new reader and source path; run inventory/repolint/artifact checks and complete targeted race/browser qualification.
+- [ ] Update atlas/help/README for `--real`, check exit/report, SPA boundary and production ownership; sweep old production-refusal claims, retaining historical decisions only as superseded.
+- [ ] Push/PR, recorded affected/suite, close with binary-owned mandatory review, then merge and report hub. One atomic review boundary, no Mx tag.
+
+## Architecture lenses
+
+ARCH-DRY: reuse host; one catalogue feeds dispatch/progress/report/sample production projection. ARCH-PURE: parse/route/report/shape/decoration separate from IO. ARCH-PURPOSE: prove arbitrary HTTP app boundaries and both partial/complete production builds, not just sample screenshots. ARCH-MOCK: stateful app fake + real host/sample/browser conformance. ARCH-CONSTRAINTS: fixed file/body/header/concurrency bounds and counted hot paths. ARCH-SECURE: loopback destination, reserved path precedence, confined mock IO, no automatic fallback on real errors. ARCH-ORDER: atomic catalogue/revision publication and scoped request/upgrade ownership. ARCH-FUNERAL: no growing generated state, fixed build projection + scoped cleanup. ARCH-EVOLVE: additive catalogue fields preserved by read-only consumption, strict known fields and no hidden writer.
+
+## Accepted limits (operator approval 2026-10-21 11:00 PDT)
+
+- This is one front command for an app that is already running; it does not supervise the app.
+- Any HTTP framework can sit behind it; SPA client-side transitions require full navigation when crossing the boundary.
+- Badge/count are guaranteed on mocks; real HTML is passed through unchanged, with progress also printed in the console.
+- `mock check` is informational on missing screens and does not certify arbitrary framework production bundles; the Go example enforces and tests the production convention as a worked sample.
+
+## Revisions — priority and cache
+
+- 2026-10-21 12:54 PDT: TL/operator made #757 high priority and explicitly superseded the wait-for-#769 sequence. Park #769, keep PR524/suite/reviews, start #757 now. Its retained runner had already exited1 when train238 held its merge for conflict; no live process was stopped. Re-entry must follow the printed integrate/re-close recovery after the cache is cleared. All Go build/test subprocesses use private GOCACHE at $HOME/.cache/go-build-757 on main SSD, never TestScratch; remove that private cache when done.
+
+## Historical initial proposal — superseded, retained for decision provenance
+
+The following initial Go-only router and production-refusal proposal is nonbinding. The approved framework-neutral design above and dated Revisions replace it.
+
+<details>
+<summary>Initial proposal before operator revisions</summary>
+
 # Mock-to-real app template implementation plan
 
 > **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy). Execute the approved plan with superpowers-executing-plans and bounded independent agents where appropriate. Steps use checkboxes; this is one atomic close boundary.
@@ -122,3 +317,5 @@ Files: cmd/build/main.go, main_test.go in the module; cmd/internal/mocktemplate/
 ## Architecture decisions
 
 ARCH-DRY: existing mock host remains the one scan/selection/reload owner; the screen list is one dispatch/progress/build authority. ARCH-PURE: pure route/shape/decoration policy separate from HTTP/process effects. ARCH-PURPOSE: sample crosses real/mock links and actually refuses then succeeds at production build. ARCH-MOCK: stateful host fake plus real-host conformance, independent backend response tests. ARCH-CONSTRAINTS: explicit HTML/JSON/depth/HTTP bounds and counted work. ARCH-SECURE: loopback-only origin and closed routes; production does not compile a proxy or mock assets. ARCH-ORDER: immutable routing state, build validation before child/output effects, context-owned children joined. ARCH-FUNERAL: no unbounded generated family; explicit build output and scoped test roots. ARCH-EVOLVE: fixtures are read-only, extra response fields allowed, shape changes require deliberate fixture revision.
+
+</details>
