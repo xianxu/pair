@@ -1,13 +1,22 @@
 ---
 id: 000775
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'e82305ee9bf8b53e4c7365b7b1442b92805267c9' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '3f53eb28efe308678bcbabeb5f56586d12b8439a' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-21T10:56:40-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:5
+    worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
+    repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "db8c8a6c", done: "1839b87d"}
 ---
 
 # Standalone Zellij false-miss reproduction
