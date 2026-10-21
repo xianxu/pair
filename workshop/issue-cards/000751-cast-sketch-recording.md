@@ -1,6 +1,6 @@
 ---
 id: 000751
-status: working
+status: codecomplete
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours: 3.79
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:9
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
+actual_hours: 2.04
+tracker:
+    version: 1
+    completion:
+        token: close-1c004f181433
+        repository: github.com/xianxu/pair
+        reviewed_head: db8caaeba35cb82f5d4e3ac8ba0ca20397f5c185
+        evidence_commit: b3e26855a190b1f4fcbc09f459dfdc4f2c02e646
 ---
 
 # cast-sketch: recording model, pressure paths and undo history
