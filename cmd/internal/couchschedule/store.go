@@ -91,6 +91,11 @@ func (s StateStore) Update(ctx context.Context, change func(*Ledger) error) erro
 		return err
 	}
 	defer release()
+	return s.updateHeld(ctx, dir, change)
+}
+
+// updateHeld requires the existing permanent state lock throughout the call.
+func (s StateStore) updateHeld(ctx context.Context, dir *os.File, change func(*Ledger) error) error {
 	state, err := readLedger(ctx, dir)
 	if err != nil {
 		return err

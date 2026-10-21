@@ -34,10 +34,15 @@ func TestLedgerCrashHelper(t *testing.T) {
 		os.Exit(73)
 		return nil
 	}}
-	if step == "post-rename" {
-		store.BeforeDirectorySync = func() error { os.Exit(73); return nil }
+	owner, err := store.Own(t.Context())
+	if err != nil {
+		t.Fatal(err)
 	}
-	if err := store.Update(t.Context(), func(l *Ledger) error {
+	defer owner.Close()
+	if step == "post-rename" {
+		owner.store.BeforeDirectorySync = func() error { os.Exit(73); return nil }
+	}
+	if err := owner.Update(t.Context(), func(l *Ledger) error {
 		if l.Unknown == nil {
 			l.Unknown = map[string]json.RawMessage{}
 		}
@@ -48,6 +53,16 @@ func TestLedgerCrashHelper(t *testing.T) {
 	}
 }
 
+// Every recovery fixture now holds namespace ownership for its whole operation.
+func recoveryOwnerUpdate(store StateStore, ctx context.Context, change func(*Ledger) error) error {
+	owner, err := store.Own(ctx)
+	if err != nil {
+		return err
+	}
+	defer owner.Close()
+	return owner.Update(ctx, change)
+}
+
 func ledgerCrashCommand(t *testing.T, dir, step string) *exec.Cmd {
 	t.Helper()
 	cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestLedgerCrashHelper$", "-test.count=1")
@@ -56,7 +71,7 @@ func ledgerCrashCommand(t *testing.T, dir, step string) *exec.Cmd {
 }
 func initializeRecoveryLedger(t *testing.T, dir string) {
 	t.Helper()
-	if err := (StateStore{Dir: dir}).Update(t.Context(), func(l *Ledger) error {
+	if err := recoveryOwnerUpdate(StateStore{Dir: dir}, t.Context(), func(l *Ledger) error {
 		l.Unknown = map[string]json.RawMessage{"marker": json.RawMessage(`"old"`)}
 		return nil
 	}); err != nil {
@@ -103,7 +118,7 @@ func TestLedgerAbruptPublicationRecovery(t *testing.T) {
 			if step != "post-rename" && len(ledgerTemps(t, dir)) != 1 {
 				t.Fatal("View removed abandoned stage")
 			}
-			if err := store.Update(t.Context(), func(*Ledger) error { return nil }); err != nil {
+			if err := recoveryOwnerUpdate(store, t.Context(), func(*Ledger) error { return nil }); err != nil {
 				t.Fatal(err)
 			}
 			if left := ledgerTemps(t, dir); len(left) != 0 {
@@ -148,7 +163,7 @@ func TestLedgerRecoveryExcludesLiveWriter(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Millisecond)
 	defer cancel()
 	called := false
-	err = (StateStore{Dir: dir}).Update(ctx, func(*Ledger) error { called = true; return nil })
+	err = recoveryOwnerUpdate(StateStore{Dir: dir}, ctx, func(*Ledger) error { called = true; return nil })
 	if !errors.Is(err, context.DeadlineExceeded) || called {
 		t.Fatalf("live-writer exclusion: callback=%v err=%v", called, err)
 	}
@@ -162,7 +177,7 @@ func TestLedgerRecoveryExcludesLiveWriter(t *testing.T) {
 	if !errors.As(err, &exit) || exit.ExitCode() != 73 {
 		t.Fatalf("writer did not exit abruptly: %v", err)
 	}
-	if err := (StateStore{Dir: dir}).Update(t.Context(), func(*Ledger) error { return nil }); err != nil {
+	if err := recoveryOwnerUpdate(StateStore{Dir: dir}, t.Context(), func(*Ledger) error { return nil }); err != nil {
 		t.Fatal(err)
 	}
 	if left := ledgerTemps(t, dir); len(left) != 0 {
@@ -221,7 +236,7 @@ func TestLedgerRecoveryIdentityAndOwnershipFences(t *testing.T) {
 				}
 			}
 			called := false
-			err := store.Update(t.Context(), func(*Ledger) error { called = true; return nil })
+			err := recoveryOwnerUpdate(store, t.Context(), func(*Ledger) error { called = true; return nil })
 			if err == nil || called {
 				t.Fatalf("unsafe residue admitted: callback=%v err=%v", called, err)
 			}
@@ -251,7 +266,7 @@ func TestLedgerRecoveryIgnoresUnknownNamesAndSyncsCleanup(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := (StateStore{Dir: dir}).Update(t.Context(), func(*Ledger) error { return nil }); err != nil {
+	if err := recoveryOwnerUpdate(StateStore{Dir: dir}, t.Context(), func(*Ledger) error { return nil }); err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range unknown {
@@ -270,7 +285,7 @@ func TestLedgerRecoveryIgnoresUnknownNamesAndSyncsCleanup(t *testing.T) {
 		return nil
 	}}
 	called := false
-	if err := store.Update(t.Context(), func(*Ledger) error { called = true; return nil }); err == nil || called {
+	if err := recoveryOwnerUpdate(store, t.Context(), func(*Ledger) error { called = true; return nil }); err == nil || called {
 		t.Fatalf("cleanup durability error hidden: callback=%v err=%v", called, err)
 	}
 }
@@ -288,7 +303,7 @@ func TestLedgerRepeatedCrashesDoNotAccumulateStages(t *testing.T) {
 			t.Fatalf("crash %d accumulated stages: %v", i, left)
 		}
 	}
-	if err := (StateStore{Dir: dir}).Update(t.Context(), func(*Ledger) error { return nil }); err != nil {
+	if err := recoveryOwnerUpdate(StateStore{Dir: dir}, t.Context(), func(*Ledger) error { return nil }); err != nil {
 		t.Fatal(err)
 	}
 	if left := ledgerTemps(t, dir); len(left) != 0 {
@@ -309,7 +324,7 @@ func TestLedgerRecoveryInventoryBound(t *testing.T) {
 		}
 	}
 	called := false
-	err := (StateStore{Dir: dir}).Update(t.Context(), func(*Ledger) error { called = true; return nil })
+	err := recoveryOwnerUpdate(StateStore{Dir: dir}, t.Context(), func(*Ledger) error { called = true; return nil })
 	if err == nil || called {
 		t.Fatalf("oversized recovery scan admitted: callback=%v err=%v", called, err)
 	}
@@ -334,7 +349,7 @@ func TestLedgerRecoveryCancellationPreservesObservedStage(t *testing.T) {
 		return nil
 	}}
 	called := false
-	err := store.Update(ctx, func(*Ledger) error { called = true; return nil })
+	err := recoveryOwnerUpdate(store, ctx, func(*Ledger) error { called = true; return nil })
 	if !errors.Is(err, context.Canceled) || called {
 		t.Fatalf("cancelled recovery admitted: callback=%v err=%v", called, err)
 	}
@@ -360,7 +375,7 @@ func TestLedgerReturnedErrorCleanupPreservesReplacement(t *testing.T) {
 		}
 		return errors.New("publication refused after replacement")
 	}}
-	if err := store.Update(t.Context(), func(*Ledger) error { return nil }); err == nil {
+	if err := recoveryOwnerUpdate(store, t.Context(), func(*Ledger) error { return nil }); err == nil {
 		t.Fatal("publication fault hidden")
 	}
 	raw, err := os.ReadFile(replaced)
@@ -391,7 +406,7 @@ func TestLedgerPublicationRefusesReplacement(t *testing.T) {
 		}
 		return os.WriteFile(replaced, replacement, 0600)
 	}}
-	err = store.Update(t.Context(), func(l *Ledger) error {
+	err = recoveryOwnerUpdate(store, t.Context(), func(l *Ledger) error {
 		l.Unknown["marker"] = json.RawMessage(`"new"`)
 		return nil
 	})
