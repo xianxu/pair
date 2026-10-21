@@ -101,3 +101,110 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000411
+
+---
+
+## Re-review — 2026-10-21T14:27:45-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 737 — couch: scheduler: run each hub's scheduled tasks from its operations repo (due notices, direct script-run, skip-if-missed, --schedule --status) |
+| repo | pair |
+| issue file | workshop/issues/000737-couch-scheduler-run-each-hub-s-scheduled-tasks-from-its-operations-repo-due-notices-direct-script-run-skip-if-missed-schedule-status.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | e8bfd45c1ce022f5427a69871540a7dccf46fde2..e7044d90e3d1cda81cc0b99b137f6680a792a6c8 |
+| command | sdlc milestone-close --issue 737 --milestone M3 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T14:27:45-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+Both prior findings are addressed, with regression evidence for BR-15 and corrected production references for BR-16. One new blocker remains: an ordinary timer tick clears an unresolved catalogue-discovery error, making stale scheduler state appear healthy. Focused tests pass; an additional temporary-overlay probe reproduces this failure.
+
+```findings
+dispose:
+  - id: BR-15
+    disposition: addressed
+    note: |
+      schedule_owner_batch.go:236-255 settles expired undispatched reservations independently of busy/policy/capacity. The reservation matrix passes; removing this branch through a temporary overlay makes manual/revision/expiry fail. Removing the companion timeout-recovery correction also fails TestUnstartedTimeoutSummaryCanBeRecovered.
+  - id: BR-16
+    disposition: addressed
+    note: |
+      The plan's BR-16 revision at line 770 explicitly supersedes earlier location tables and supplies the complete current map. StateOwner now points to owner.go, where its declaration and capability methods exist; the production-anchor and plan/atlas equality checks pass.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: unresolved-failure-visibility
+    title: |
+      Ordinary ticks erase unresolved catalogue-discovery errors
+    detail: |
+      cmd/internal/couchcmd/schedule_owner_loop.go:474-482 ignores refresh's returned error and immediately runs tick; schedule_owner.go:344-352 then publishes a fresh snapshot with an empty Error. Renaming a configured hub away makes refresh report its discovery failure, but the subsequent successful tick clears that error without rediscovery succeeding. A temporary-overlay regression reproduced this on the pinned head. ARCH-ORDER and ARCH-SECURE: retain each failure until evidence from the corresponding operation resolves it; successful ledger reads do not establish successful catalogue discovery. Preserve settlement progress while retaining the discovery error, and add a failure -> tick -> successful rediscovery regression.
+```
+
+1. **Strengths**
+
+   - Undispatched reservation settlement now precedes dispatch eligibility checks, including pending catalogue edits.
+   - Canonical history takes precedence over competing expiry/cancellation events; tests cover publication and ledger-failure barriers.
+   - Writer capabilities, fact-only workers and bounded command handoffs give the replacement a clear ownership boundary.
+   - README and atlas document the manual transport, completion output and scheduler implementation map.
+
+2. **Critical findings**
+
+   - Discovery errors disappear without recovery, as detailed above. Store discovery health separately from successful state publication and clear it only after successful discovery.
+
+3. **Important findings**
+
+   None additional.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Passed:
+
+   - Full `couchschedule`, `operationalrun`, `couchmessage` and `artifactpath` package tests.
+   - `couchcmd` tests matching `TestSchedule`, uncached.
+   - Pinned-range `git diff --check`.
+
+   Both BR-15 mutation probes failed as expected. The new discovery-error probe also failed as described. Temporary overlays were removed; repository files remain unchanged. Live/day-long acceptance was not performed; the plan explicitly permits milestone review before that acceptance.
+
+6. **Architectural notes for upcoming work**
+
+   - **ARCH-DRY — pass:** shared settlement logic serves commands and batched observations.
+   - **ARCH-PURE — pass:** transitions and settlement decisions are directly testable without IO.
+   - **ARCH-PURPOSE — pass:** the replacement routes production scheduling and manual execution through one owner.
+   - **ARCH-MOCK — pass:** stateful runtime/broker doubles and native fixtures exercise shared seams.
+   - **ARCH-CONSTRAINTS — pass:** bounded workers, transport/output limits and counted growth tests support the declared envelope.
+   - **ARCH-SECURE — flag:** unresolved external-input failures lose their visible diagnostic state.
+   - **ARCH-ORDER — flag:** snapshot publication incorrectly treats an unrelated successful operation as recovery evidence.
+   - **ARCH-FUNERAL — pass:** existing retention and joined worker shutdown cover the artifact and process lifecycles examined.
+   - **ARCH-EVOLVE — pass:** additive intent fields and nested unknown-field preservation have round-trip coverage.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry defining failure ownership: catalogue errors survive timer ticks and ledger/status publication until successful rediscovery; independent completion settlement continues meanwhile. Record the corresponding recovery-sequence test.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"96709ecd-e829-4c93-bd0c-2b2c49841dda","repository":"github.com/xianxu/pair","issue_id":"000737","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/a4851ab06959ac89","reviewed_head":"e7044d90e3d1cda81cc0b99b137f6680a792a6c8","slot":"pair:1","requested_at":"2026-10-21T21:24:41.937989Z"},"phase":"finished","pid":84320,"started_at":"2026-10-21T21:24:42.033184Z","finished_at":"2026-10-21T21:27:44.751636Z","session_id":"01a1605a-22bd-7cc1-86a3-bbcb03574089","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.839922417s
+head: "e7044d90e3d1cda81cc0b99b137f6680a792a6c8"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

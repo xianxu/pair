@@ -1577,6 +1577,53 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 96709ecd-e829-4c93-bd0c-2b2c49841dda
+            repository: github.com/xianxu/pair
+            issue_id: "000737"
+            recipe: milestone-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/a4851ab06959ac89
+            reviewed_head: e7044d90e3d1cda81cc0b99b137f6680a792a6c8
+            slot: pair:1
+            requested_at: "2026-10-21T21:24:41.937989Z"
+          phase: finished
+          pid: 84320
+          started_at: "2026-10-21T21:24:42.033184Z"
+          finished_at: "2026-10-21T21:27:44.751636Z"
+          session_id: 01a1605a-22bd-7cc1-86a3-bbcb03574089
+          outcome: returned
+      "n": 10
+      timestamp: "2026-10-21T14:27:45-07:00"
+      dispatched: "2026-10-21T14:24:40-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-15
+          disposition: addressed
+          note: schedule_owner_batch.go:236-255 settles expired undispatched reservations independently of busy/policy/capacity. The reservation matrix passes; removing this branch through a temporary overlay makes manual/revision/expiry fail. Removing the companion timeout-recovery correction also fails TestUnstartedTimeoutSummaryCanBeRecovered.
+          round: 10
+        - id: BR-16
+          disposition: addressed
+          note: The plan's BR-16 revision at line 770 explicitly supersedes earlier location tables and supplies the complete current map. StateOwner now points to owner.go, where its declaration and capability methods exist; the production-anchor and plan/atlas equality checks pass.
+          round: 10
+      findings:
+        - kind: defect
+          id: BR-17
+          severity: Critical
+          title: Ordinary ticks erase unresolved catalogue-discovery errors
+          detail: 'cmd/internal/couchcmd/schedule_owner_loop.go:474-482 ignores refresh''s returned error and immediately runs tick; schedule_owner.go:344-352 then publishes a fresh snapshot with an empty Error. Renaming a configured hub away makes refresh report its discovery failure, but the subsequent successful tick clears that error without rediscovery succeeding. A temporary-overlay regression reproduced this on the pinned head. ARCH-ORDER and ARCH-SECURE: retain each failure until evidence from the corresponding operation resolves it; successful ledger reads do not establish successful catalogue discovery. Preserve settlement progress while retaining the discovery error, and add a failure -> tick -> successful rediscovery regression.'
+          family: unresolved-failure-visibility
+          round: 10
+      boundary: M3
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#737 (boundary-review)
@@ -1696,8 +1743,19 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-16** [Critical] `core-concept-traceability` (kind: defect) The replacement core-concepts table mislocates StateOwner
   workshop/plans/000737-couch-scheduler-plan.md:634 lists StateOwner in cmd/internal/couchschedule/{store,store_unix}.go, but neither file declares it; the type and its capability methods are implemented in cmd/internal/couchschedule/owner.go:13 onward. This contradicts the required core-concepts cross-check. ARCH-PURPOSE: this is the 2nd finding in family `core-concept-traceability`. Reconcile every active replacement-table row against its production declaration and mark superseded entries explicitly, rather than repairing only this row. Record the corrected implementation map in a Revisions entry.
 
+## Round 10 — 2026-10-21T14:27:45-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-15 — addressed — schedule_owner_batch.go:236-255 settles expired undispatched reservations independently of busy/policy/capacity. The reservation matrix passes; removing this branch through a temporary overlay makes manual/revision/expiry fail. Removing the companion timeout-recovery correction also fails TestUnstartedTimeoutSummaryCanBeRecovered.
+- BR-16 — addressed — The plan's BR-16 revision at line 770 explicitly supersedes earlier location tables and supplies the complete current map. StateOwner now points to owner.go, where its declaration and capability methods exist; the production-anchor and plan/atlas equality checks pass.
+
+### Raised
+
+- **BR-17** [Critical] `unresolved-failure-visibility` (kind: defect) Ordinary ticks erase unresolved catalogue-discovery errors
+  cmd/internal/couchcmd/schedule_owner_loop.go:474-482 ignores refresh's returned error and immediately runs tick; schedule_owner.go:344-352 then publishes a fresh snapshot with an empty Error. Renaming a configured hub away makes refresh report its discovery failure, but the subsequent successful tick clears that error without rediscovery succeeding. A temporary-overlay regression reproduced this on the pinned head. ARCH-ORDER and ARCH-SECURE: retain each failure until evidence from the corresponding operation resolves it; successful ledger reads do not establish successful catalogue discovery. Preserve settlement progress while retaining the discovery error, and add a failure -> tick -> successful rediscovery regression.
+
 ## Open findings
 
 - **BR-14** [Critical] `durable-artifact-crash-recovery` (kind: defect) Catalogue cancellation strands a notice whose terminal history already committed
-- **BR-15** [Critical] `persisted-state-invariants` (kind: defect) Pending catalogue edits strand undispatched reservations indefinitely
-- **BR-16** [Critical] `core-concept-traceability` (kind: defect) The replacement core-concepts table mislocates StateOwner
+- **BR-17** [Critical] `unresolved-failure-visibility` (kind: defect) Ordinary ticks erase unresolved catalogue-discovery errors
