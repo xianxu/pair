@@ -533,7 +533,6 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	service.SetBroadcastStatus(console.BroadcastStatus)
 	service.SetShares(console.Shares)
 	service.SetBlockedView(console.SetBlockedThreads)
-	console.SetAttentionStore(couchcore.AttentionStore{Dir: filepath.Join(namespace, "attention")})
 	service.SetAttention(console.ObserveAttention)
 	console.SetWrapperActivity(service.WrapperActivity)
 	service.showHub(console)

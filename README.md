@@ -1349,12 +1349,15 @@ slots blocked on a permission prompt or picker, and slots whose turn ended with
 a question to you. While the list has items, the right end of the status row
 shows `🔔N`, red if a slot is blocked on a prompt; click it to open the list too.
 The list opens at the top right. `Up`/`Down` (or `k`/`j`) move, `Enter` or a
-click jumps to the item's slot, `d` dismisses, and `Escape` closes. Picking a
-notification reads it, so it goes. A prompt or question stays until the slot
-stops waiting, whoever answered it. The list survives a Couch restart: messages
-come back as they were, and prompts and questions come back once the slot is
-seen still waiting. The list is never broadcast. The desktop notification still
-fires, and helps when the terminal is in the background.
+click jumps to the item's slot and removes the item, `d` dismisses, and
+`Escape` closes. Choose **Clear all** or press `c` to empty the list. Opening,
+dismissing or clearing a prompt/question hides that occurrence until the slot
+stops waiting; a fresh occurrence shows again. Notification messages expire
+after 12 hours; an unresolved live prompt/question never expires. The list is
+ephemeral: restart forgets messages and dismissals, then derives current live
+conditions again. The hub's Needs-you section holds the durable record. The
+list is never broadcast. Desktop notifications still help when the terminal
+is in the background.
 
 `Ctrl+Alt+b` **broadcasts** this screen, view-only, to anyone with the link
 (#395). The link is copied to your clipboard (it is never drawn on screen);
