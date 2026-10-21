@@ -1,6 +1,6 @@
 ---
 id: 000764
-status: working
+status: codecomplete
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours:
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.26
+tracker:
+    version: 1
+    completion:
+        token: close-f4f4a59156a7
+        repository: github.com/xianxu/pair
+        reviewed_head: 78f8424c691c2d0949931bc8d93af47617ba9456
+        evidence_commit: c76f5a79ccace5136cadbd78a58e190e55becf17
 ---
 
 # Controlled Zellij fixture closes its PTY twice and hides cleanup errors
