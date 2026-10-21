@@ -257,7 +257,7 @@ Each task uses the named function-verification strategy above. A checked task re
 - [x] Audit production artifact dispositions and source-reader inputs; pass `make test-affected-inventory`, artifactpath/repolint and targeted webcast/Node checks.
 - [x] Open PR512 and pass the recorded local-check full fallback on the initial implementation.
 - [x] Push corrected code, pass `make test-affected-inventory`, and finalize local close with evidence and `--no-project` because TL owns ops project. Resolve the binary-owned review findings; FIX-THEN-SHIP correction is reconciled.
-- [ ] Retain the recorded final-head check through the queue and require its pass before landing (current lease-2496662231 on607f31bf; existing graph/embed gap selects full suite).
+- [x] Retain the recorded final-code check through the queue: replacement attempt735922b215e89a192d144d44af5f4a35 on61e43e35 passed the full-suite fallback in10m2s; sdlc-local/suite success confirmed. See Revisions for interrupted-run recovery.
 - [ ] After TL staging go, stage/build and send verified revisions for the real console smoke. No landing until smoke succeeds; #754 retains wider iPad/echo acceptance.
 - [ ] On SHIP and release of the smoke hold, run `sdlc merge --yes`, retain its runner, report the landed PR to the hub and continue #756→#753→#754.
 
@@ -423,3 +423,8 @@ The next close verified BR-9 and disposed all prior criticals, returning FIX-THE
 ### 2026-10-21 — local acceptance finalized, final record retained
 
 BR-10 fix and evidence were bundled once, then issue recovery reconcile finalized the FIX-THEN-SHIP close. Cardcodecomplete and completion binding are confirmed. Split Task6 local acceptance from the still-pending final-head recorded pass so the checklist reflects the actual remaining gate; no repeated close review is needed for that record. TL staging/real console smoke still precedes landing.
+
+
+### 2026-10-21 — continuation recovery and final recorded pass
+
+The continuation restart ended the old queued runner without a saved result. Its session, lease, checkout and attempt were absent on recovery. Replacement lease-3343331055 retained FIFO admission and passed the full suite on prose-only head61e43e35e7794260aa860c3b3ff269e687351e14: exit0 in10m2s after1372s queued, saved attempt735922b215e89a192d144d44af5f4a35, log hash prefixc0f339cf4f5a. GitHub success is confirmed. This closes the final-code recorded-check task; TL restart/staging release, real console smoke and landing remain outstanding. No design or source change.
