@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/launcher"
 )
 
 // LifecycleFailureRecorder appends terminal failure evidence. It owns no
@@ -180,6 +182,12 @@ func lifecycleFailureForAttempt(a *OperationAttempt, cause error, at time.Time) 
 	var details LifecycleFailureDetails
 	if errors.As(cause, &details) {
 		f.Phase, f.Holders, f.Outcome = details.FailurePhase(), details.FailureHolders(), details.FailureOutcome()
+	}
+	var native interface {
+		NativeQueryEvidence() launcher.NativeQueryEvidence
+	}
+	if errors.As(cause, &native) {
+		f.setNativeQueryEvidence(native.NativeQueryEvidence())
 	}
 	return f
 }

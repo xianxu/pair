@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #761: Classify native replies from the complete stdout, stderr and exit together. A successful process can print a fallback listing after falsely missing its target; retain exact bytes before recovery. Diagnostic observers own their snapshots before calling other observers, and typed evidence must survive context/generation refusal wrappers without becoming ownership authority. Keep diagnostic version reads separate from counted ownership attempts in stateful fakes and budget tests.
+
 - #750 design review: a held drawing scene must render the acknowledged source prefix on initial preparation as well as reconnect; freezing whatever the client currently shows can anchor paths to another moment. Record timer-driven interruptions as replay inputs, and reserve writer capacity for terminal events and required labels before admitting growing stroke data.
 
 - Cached parent inventory is also a pass-wide capacity ledger: reserve a slot for every potentially completed create, retain it after an uncertain acknowledgment, and carry confirmed IDs forward. A per-attempt full-parent guard alone permits successive creates to exceed the reader limit. Test both root/year and year/month creation sequences near capacity. (#706 BR-1)

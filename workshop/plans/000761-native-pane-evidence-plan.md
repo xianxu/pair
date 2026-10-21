@@ -85,7 +85,7 @@ These names define the implementation seams; tests qualify the actual function r
 | retryableSessionLookupMiss(args, stdout, stderr, exit, socketPresent) | Generated combinations of reply kind, exact/mutated native signature and socket fact; independent allowlist oracle, fuzz seeds from both real captures, and actual invocation counters reject any mutation/unknown/nonmatching retry. |
 | parseColoredSessionListing(raw) | Arbitrary bytes, malformed/trailing ANSI and metadata/name ambiguity; whole-input parser plus fuzzing accepts only the exact supported native envelope and preserves opaque identities. |
 | sessionSocketPresent(name) | Unsafe basenames and missing/regular/symlink/unknown files in a private stateful socket folder; require SocketPresent from exact derived native namespace, with zero host scans or process calls. |
-| boundNativeQueryEvidence(observation) / cloneNativeQueryEvidence(value) | Generated oversize/malformed byte streams and nullable exit metadata; prefix/count/truncation invariants and independently mutated input/output slices prove hard limits and no aliases. |
+| NativeQueryEvidence.Bounded / boundNativeQueryEvidence(value) | Generated oversize/malformed byte streams and nullable exit metadata; prefix/count/truncation invariants and independently mutated input/output slices prove hard limits and no aliases. |
 | SessionOwnerProbe.probe | Controlled full replies and observer sequences, including replies larger than the observer cap; assert existing authority states and Unknown,nil semantics, select evidence only on the full parser result and preserve chained observations. |
 | queryZellijVersion(ctx, executable) | Stateful executable fixture records calls and held child lifetime; independent counters require zero success-path probes and at most one failure-path probe, with the original deadline and joined cancellation. |
 | lifecycleFailureForAttempt | Wrapped diagnostic error chains and distinct operation identities through actual recorder/Save/reopen; compare original byte/exit/version evidence and independently assert concise operator text and unchanged unrelated launch output. |
@@ -110,3 +110,8 @@ TL approved the narrow fix and evidence requirement; send this concrete full pla
 ### 2026-10-21 — PQ-1/PQ-2: executable function strategies and actual consumer name
 
 The initial plan listed test cases without assigning each risky helper a function-level adversarial strategy. The new table names every classifier/capture/IO/persistence seam with its input class and mechanical oracle; the task now executes those strategies. The launcher consumer is verifyCouchSessionCreate at couch_session.go195/238, not the prior nonexistent ensureCouchConversationTerminal name. Scope, approved retry signatures and authority semantics are unchanged.
+
+
+### 2026-10-21 — implementation naming and cancellation propagation
+
+BoundNativeQueryEvidence is implemented as the private boundNativeQueryEvidence behind NativeQueryEvidence.Bounded, which clips and clones in one bounded pass; a separate cloneNativeQueryEvidence would duplicate that traversal. Typed-cause propagation also covers SessionOwnerPass and the existing post-observation context fences, preserving cancellation identity without another version query. This is the same error-chain class and does not alter authority or recovery policy.

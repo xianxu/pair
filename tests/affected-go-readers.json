@@ -86,7 +86,6 @@
       "cmd/internal/launcher/native_name_absence_test.go": "a4ff359fbbf31515eb0b176c9e8ea1c9bc3743b3eca3ebf7769e6e9b30f7a4af",
       "cmd/internal/launcher/zellij_diagnostic_matrix_test.go": "295016d1757bb99210a908b86b0ec2fa4326f56bab65c8b58d1e2c37b764d1e6",
       "cmd/internal/launcher/zellij_empty_legacy_test.go": "779a6b4194a15709850042b7dd69bae77ab5055bd49539e898696296e898a601",
-      "cmd/internal/launcher/zellij_empty_reply_test.go": "723d1f44d6c1e27bbb81b1b65a746423dc30e1baab574ee4f2cdd5e68c4fd7d6",
       "cmd/internal/launcher/zellij_query_observer_test.go": "1e7459a9edd1dfdc78c228e973f011137c0a2addb85368779c892d0b12156c10",
       "cmd/internal/launcher/zellij_test.go": "fb41dd094a95aa8f0f03d769ba8f306e0fd4e386a84f61530237787d259239d7",
       "cmd/internal/layoutcmd/fullscreen_chord_live_test.go": "39d3d2e102d2fd3aaef8c3944ccf6f2e617d1c6bd49f80ca120908d62d8c6671",
@@ -150,10 +149,11 @@
       "cmd/internal/wrapcmd/scrollback_glyph_parity_test.go": "0866cdeaf57c515c854798bfbd6ba11007b9ae0df8c9c873725f998bac26cfb4",
       "cmd/internal/wrapcmd/terminal_tail_test.go": "9131f3b46d3d253300a272875be6a28aaf33ca9877940a4d3ee2061cf336413f",
       "cmd/internal/wrapcmd/translate_test.go": "19a77f27b5eeb7686ae076513a3e5064257d9f9c8ed36c3cc71e423e2f599e04",
-      "cmd/internal/zellijtest/fake_test.go": "0820421bf6161904427c0ac989b550cbcfaa3a964538f6da00219b6aac5d042f",
       "cmd/pair-go/main_test.go": "3006109d07471c179dd742acf66901abe00868868f680694b5f75d75073cd99b",
       "cmd/internal/webcast/sketch/geometry_test.go": "10213e9ec3f3ab537e9e65633b25ec48ecba88644890b55d86900acfbda42a09",
-      "cmd/internal/webcast/recording/sketch_corpus_test.go": "71affe4fe29adc0ed0f66f24e8e6a1972c362f27a24ce19af95bedc5cb956e30"
+      "cmd/internal/webcast/recording/sketch_corpus_test.go": "71affe4fe29adc0ed0f66f24e8e6a1972c362f27a24ce19af95bedc5cb956e30",
+      "cmd/internal/launcher/zellij_empty_reply_test.go": "6af76f9b170f3e27aa393ef7485f9e00a512b8c317bafb3552f2c788d79ae048",
+      "cmd/internal/zellijtest/fake_test.go": "bdf8071de55833edf880470fea4031c2a1e2b1f425142b3ab4e8590905eccbbd"
     },
     "local_or_literal_fixture": {
       "cmd/couch/binary_test.go": "43767cf88cd38b404edd7df16cc7a646359171649eaf63adfbe4952f68fc4aa6",
@@ -232,7 +232,6 @@
       "cmd/internal/couchcore/recoverplan_test.go": "e01dc0a181782c6bfb236f1dcb612e9977536673a695996f10ca708fac03685e",
       "cmd/internal/couchcore/recovery_conformance_live_test.go": "584f2018480aa65ee8b080fc5c733d21727ce0649fa98455692c2cba1c179e24",
       "cmd/internal/couchcore/recovery_live_environment_test.go": "cd2ed57d8a7962069120aa39c011aa65b686476c501ee6c9eadf4f564fd84dca",
-      "cmd/internal/couchcore/recovery_native_reply_test.go": "53f20f17f4abd73c5b819fd195ba50e30c25f52a6a843902c1a5296dab120fcb",
       "cmd/internal/couchcore/recovery_preflight_test.go": "67e9d020aa0a56c74c2d59e022275968fb24a67fa5241d8358af6ebf2a8b307b",
       "cmd/internal/couchcore/recovery_query_capture_test.go": "b696674eba5def8ebd7614e51dba7864485ebea3c31819b50fe9b7752174769a",
       "cmd/internal/couchcore/recovery_terminal_adapter_test.go": "4d7f430927a76b246bec738f67528b72f4fc6b014c1648f92c45d766d0cf9d12",
@@ -465,7 +464,11 @@
       "internal/repolint/repository_contract_test.go": "e87090a967b7390f69ca3ebfe44df639463c48f225fc2884a71c36680838f2db",
       "internal/testoracle/run_test.go": "1818f066cd7ced34648679d42604536da83642c7a40d1800e8ae1f9cfc6a3d36",
       "probes/zellijcalls/main_test.go": "382f78fb48fc70e5b522a8e5e38bc0fc8da82ebc75ec9c2f367c9ddfa7417693",
-      "probes/zellijprobe/reporoot_test.go": "de13aef753c6fc958f01e4a04ec9963672a58a76f5e63d08d6e2ea32de825018"
+      "probes/zellijprobe/reporoot_test.go": "de13aef753c6fc958f01e4a04ec9963672a58a76f5e63d08d6e2ea32de825018",
+      "cmd/internal/couchcore/nativequery_failure_test.go": "70e6d57ebd506b878b716c7338205a7c159baf307825e28689b37349130c5686",
+      "cmd/internal/launcher/zellij_lookup_miss_test.go": "067d90e398564713a006e9805a3be9260ad40a840554e2289f062fe7e64c0e2f",
+      "cmd/internal/couchcore/recovery_native_reply_test.go": "f15eaa5f77664006ea46e753b670ffa15523c82e4c7a5816280b732ae9ff8603",
+      "cmd/internal/launcher/zellij_query_evidence_test.go": "1d354980a68a0502371d5ff414adbe813ab47f6b0b7b267b1826b688943167b8"
     }
   }
 }
