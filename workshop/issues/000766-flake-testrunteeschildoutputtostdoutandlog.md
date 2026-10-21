@@ -34,7 +34,9 @@ Find and fix the actual PTY output-loss cause, pin it with a regression that rej
 
 ## Done when
 
-- The root cause is fixed (never a retry loop or a longer timeout); closing this issue unregisters the tests.
+- The tee fixture opens its controlling terminal, acknowledges captured readiness through real PTY input, and preserves the final marker identically in stdout and log.
+- Native stress rejects the original observed output-loss rate; no retry loop or timeout increase is introduced.
+- Production generic-command exposure is recorded separately, and successful closure retires this fixture flake registration.
 
 ## Plan
 
@@ -49,8 +51,13 @@ Find and fix the actual PTY output-loss cause, pin it with a regression that rej
 - Claimed and started from main; #757 remains preserved. Source already drains before cmd.Wait and has no waiter closing the master. Initial 100 + 2000 ordinary repetitions and 1000 race repetitions passed. Native standalone delayed-first-read probe reproduces empty output after child exit; isolating the exact terminal state/lifetime before choosing a fix. No implementation changes yet.
 
 - Native diagnosis: original test count=10000 failed 10 times (each missing stdout, exit zero). An instrumented Run copy with GOMAXPROCS=1 failed 41/5000; every failure's first master read was n=0, EOF. Scribe's tee never received the bytes. Opening /dev/tty in the child before output passed 300 delayed-read probes. XNU last-slave-close can discard unread data without the child's S_CTTYREF; /dev/tty establishes its exit-time drain reference. Primary references: https://bugs.ruby-lang.org/issues/20682 and https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/tty_tty.c . A wait-before-read diagnostic can itself block in child exit-time ttywait; it is not a valid drain strategy.
-- Production exposure audit (TL prerequisite): YES. docs/pair-scribe.md publicly admits arbitrary CMD arguments, cmd/pair-go/main.go routes directly into Run, so one-shot scribe commands and final shell exec can lose final output. Normal /bin/zsh hooks retain the shell's slave for ordinary subprocesses. pair wrap also admits arbitrary commands, and Couch launch failures need final diagnostics; those other paths are exposure candidates, not reproduced findings. There is no public generic pair run family. A separate unclaimed product issue is being filed; #766 stays fixture-only per TL approval.
+- Production exposure audit (TL prerequisite): YES. docs/pair-scribe.md publicly admits arbitrary CMD arguments, cmd/pair-go/main.go routes directly into Run, so one-shot scribe commands and final shell exec can lose final output. Normal /bin/zsh hooks retain the shell's slave for ordinary subprocesses. pair wrap also admits arbitrary commands, and Couch launch failures need final diagnostics; those other paths are exposure candidates, not reproduced findings. There is no public generic pair run family. Unclaimed product issue #768 is filed; #766 stays fixture-only per TL approval.
 
 ## Revisions
 
 - 2026-10-21: TL approved fixture-only repair after the production audit. The regression producer explicitly opens /dev/tty, writes a readiness marker, waits for the parent tee to acknowledge via real PTY input, then writes a final marker and exits. This pins terminal lifetime plus the bidirectional copy boundary without sleeps, retries or timeout changes. Add a bounded native stress pin and a local lint guard against restoring the bare printf fixture; map the rule in atlas. Production launch policy is deferred to the separately filed product issue.
+
+- Fixture state: child opens controlling terminal → emits ready → waits for captured acknowledgement → emits final marker → exits/drains. The parent replies only after the ready bytes reach stdout; exit 91/92/93 exposes open/read/protocol failure. Exact stdout/log equality rejects tee loss. No timer, retry or production code change. ARCH-FUNERAL/ORDER: the producer retains terminal lifetime through capture; the test asserts the completion boundary. Work is constant per fixed-size native launch; the 1000-launch stress pin is linear in launch count.
+- The newly added 1000-launch stress check happened to pass on the old fixture in one run, consistent with intermittency; the original exact test had already failed 10/10000, and the instrumented native wrapper 41/5000. No lucky rerun is used as root-cause proof. The explicit terminal reference and two-way handshake are the repair; stress guards the observed failure rate.
+
+- Done when reconciled to the TL-approved fixture-only scope before the first code commit: the original generic flake template promised a root fix without distinguishing the producer fixture from public production exposure. #768 owns the latter; acceptance now names the actual fixture protocol, stress and retirement evidence.
