@@ -153,3 +153,6 @@ Fall-back repeated local times run once. Remove waiting-hub: offline notify-only
 
 
 - 2026-10-21 checkpoint verification: scheduling/skill/help/message-skill targets excluding the explicitly retained `TestScheduleDueHistorySurvivesFailedOccurrenceCommit` pass under race (35.710s). The blocker itself fails in both online/offline cases (0.954s). Core scheduler, operational runs, durable publisher, artifact inventory, GC runtime and GC CLI packages pass (33.991s/44.531s/0.143s/15.091s/11.093s/6.260s); final focused automatic/clock/result/budget race checks pass (2.763s). No passing full-suite/affected record is claimed, and no gate bypass is used. Diff whitespace check clean. Commit/push this known-failing checkpoint before the TL re-plan question.
+
+
+- 2026-10-21 TL approved the whole M2 transaction re-plan: durable occurrence facts first, history before sole-fact overwrite, additive summary revision. Existing same-ID occurrence history is canonical and adopted without timestamp comparison/rewrite; preserve unknown/no replay. Implementing the barrier and shared occurrence publication/recovery; any further ordering gap at review returns to TL against this rule. M2 remains open, no staging/restart authorized here.
