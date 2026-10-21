@@ -68,25 +68,40 @@ function flags(value, current = { visible: false, sealed: false, truncated: fals
 
 export function displayFromSketchProjection(projection) {
   return {
-    sketches: projection.sketches.filter(s => s.phase !== 'cleared').map((s) => ({
-      begin: sketchBegin(s.begin),
-      phase: s.phase,
-      reason: s.reason,
-      label: s.label,
-      strokes: s.strokes.map((p) => ({
-        begin: strokeBegin(p.begin),
-        pts: copyPoints(p.pts),
-        visible: s.visible.includes(p.begin.id) || (!p.sealed && p.pts.length > 0 && s.phase === 'drawing'),
-        sealed: p.sealed,
-        truncated: p.truncated,
+    sketches: projection.sketches
+      .filter((s) => s.phase !== 'cleared')
+      .map((s) => ({
+        begin: sketchBegin(s.begin),
+        phase: s.phase,
+        reason: s.reason,
+        label: s.label,
+        strokes: s.strokes.map((p) => ({
+          begin: strokeBegin(p.begin),
+          pts: copyPoints(p.pts),
+          visible: s.visible.includes(p.begin.id) || (!p.sealed && p.pts.length > 0 && s.phase === 'drawing'),
+          sealed: p.sealed,
+          truncated: p.truncated,
+        })),
       })),
-    })),
   };
 }
 
 export function createSketchDisplay() {
-  let sketches = new Map();
-  const work = { points: 0, patches: 0, bootstraps: 0 };
+  let sketches = new Map(),
+    anchors = new Map();
+  const work = { points: 0, patches: 0, bootstraps: 0, anchorVisits: 0 };
+  function anchor(index, document, node, delta) {
+    if (!safe(document) || document === 0) return;
+    let nodes = index.get(document);
+    if (!nodes) {
+      nodes = new Map();
+      index.set(document, nodes);
+    }
+    const count = (nodes.get(node) || 0) + delta;
+    if (count > 0) nodes.set(node, count);
+    else nodes.delete(node);
+    if (!nodes.size) index.delete(document);
+  }
   const snapshot = () => ({
     sketches: Array.from(sketches.values(), (s) => ({
       ...structuredClone(s.header),
@@ -95,14 +110,17 @@ export function createSketchDisplay() {
   });
   function install(view) {
     need(view && Array.isArray(view.sketches) && view.sketches.length <= 256, 'invalid bootstrap');
-    const next = new Map();
+    const next = new Map(),
+      nextAnchors = new Map();
+    let anchorVisits = 0;
     for (const s of view.sketches) {
       const begin = sketchBegin(s.begin);
       need(
         !next.has(begin.id) && Array.isArray(s.strokes) && s.strokes.length <= 64,
         'duplicate or excessive sketches/strokes',
       );
-      const strokes = new Map();
+      const strokes = new Map(),
+        anchorNodes = new Set();
       let count = 0;
       for (const p of s.strokes) {
         const b = strokeBegin(p.begin);
@@ -111,12 +129,17 @@ export function createSketchDisplay() {
           'invalid bootstrap path',
         );
         count += p.pts.length;
+        anchorNodes.add(b.at.node);
+        anchorVisits++;
         strokes.set(b.id, { begin: b, pts: copyPoints(p.pts), ...flags(p) });
       }
       need(count <= 16384, 'sketch point bound');
-      next.set(begin.id, { header: { begin, ...metadata(s) }, strokes, points: count });
+      next.set(begin.id, { header: { begin, ...metadata(s) }, strokes, points: count, anchorNodes });
+      if (s.phase !== 'cleared') for (const node of anchorNodes) anchor(nextAnchors, begin.doc, node, 1);
     }
     sketches = next;
+    anchors = nextAnchors;
+    work.anchorVisits += anchorVisits;
     work.bootstraps++;
   }
   function applyBatch(patches) {
@@ -237,29 +260,51 @@ export function createSketchDisplay() {
       (clear ? 0 : sketches.size) + Array.from(changes.values()).filter((s) => !s.original).length <= 256,
       'sketch count bound',
     );
-    if (clear) sketches.clear();
+    if (clear) {
+      sketches.clear();
+      anchors.clear();
+    }
     for (const [key, s] of changes) {
-      const target = s.original || { header: s.header, strokes: new Map() };
+      const target = s.original || { header: s.header, strokes: new Map(), anchorNodes: new Set() };
+      const wasActive = !!s.original && target.header.phase !== 'cleared';
+      const active = s.header.phase !== 'cleared';
+      if (wasActive && !active)
+        for (const node of target.anchorNodes) {
+          anchor(anchors, target.header.begin.doc, node, -1);
+          work.anchorVisits++;
+        }
       target.header = s.header;
       target.points = s.points;
       for (const [sid, p] of s.strokes) {
         const st = p.original || { begin: p.begin, pts: [] };
+        if (!p.original) {
+          work.anchorVisits++;
+          const node = p.begin.at.node;
+          if (!target.anchorNodes.has(node)) {
+            target.anchorNodes.add(node);
+            if (wasActive && active) anchor(anchors, target.header.begin.doc, node, 1);
+          }
+        }
         st.pts.push(...p.tail);
         for (const k of ['visible', 'sealed', 'truncated']) st[k] = p[k];
         target.strokes.set(sid, st);
       }
+      if (!wasActive && active)
+        for (const node of target.anchorNodes) anchor(anchors, target.header.begin.doc, node, 1);
       sketches.set(key, target);
     }
     work.points += appended;
     work.patches += patches.length;
   }
   return {
+    hasAnchor: (document, node) =>
+      safe(document) && document > 0 && safe(node) && node > 0 && anchors.get(document)?.has(node) === true,
     install,
     apply: (patch) => applyBatch([patch]),
     applyBatch,
     snapshot,
     stats: () => ({ ...work }),
-    paths() {
+    paths({ borrow = false } = {}) {
       const out = [];
       for (const s of sketches.values()) {
         if (s.header.phase === 'cleared') continue;
@@ -268,10 +313,10 @@ export function createSketchDisplay() {
             out.push({
               sketch: s.header.begin.id,
               id: p.begin.id,
-              at: structuredClone(p.begin.at),
+              at: borrow ? p.begin.at : structuredClone(p.begin.at),
               width: p.begin.width,
               color: s.header.begin.author.color,
-              pts: copyPoints(p.pts),
+              pts: borrow ? p.pts : copyPoints(p.pts),
               sealed: p.sealed,
               truncated: p.truncated,
               source: pick(s.header.begin, ['doc', 'tab', 'vp', 't']),
@@ -360,5 +405,58 @@ export function createSketchPaintScheduler({ schedule, paint }) {
     stats() {
       return { ...work };
     },
+  };
+}
+
+// Feed only records already accepted by Model.apply. Legality, stacks and
+// contextual seals come from the reducer's constant-size owned metadata.
+export function createSketchRecordDisplay(model) {
+  const display = createSketchDisplay();
+  let active = '',
+    open = '';
+  function bootstrap() {
+    const projection = model.sketchProjection();
+    display.install(displayFromSketchProjection(projection));
+    active = projection.active;
+    open = model.sketchMetadata(active).open_stroke || '';
+  }
+  bootstrap();
+  return {
+    accept(r) {
+      if (r.k === 'sketch-snapshot') {
+        bootstrap();
+        return;
+      }
+      if (r.k === 'annotation-clear') {
+        display.apply({ clear: true });
+        active = '';
+        open = '';
+        return;
+      }
+      const contextual = ['seg', 'stop', 'ctl'].includes(r.k);
+      if (!r.k.startsWith('sketch-') && !contextual) return;
+      const key = r.k === 'sketch-begin' ? r.id : r.sketch || active;
+      const stroke = r.id && r.k !== 'sketch-begin' ? r.id : open;
+      const info = model.sketchMetadata(key, stroke);
+      if (!info.begin || info.phase === 'cleared') return;
+      const patch = {
+        sketch: key,
+        header: { begin: info.begin, phase: info.phase, reason: info.reason, label: info.label },
+      };
+      if (info.stroke) {
+        const p = info.stroke;
+        patch.stroke = { begin: p.begin, visible: p.visible, sealed: p.sealed, truncated: p.truncated };
+        if (r.k === 'sketch-points' && p.next_chunk === r.chunk + 1)
+          patch.points = { id: r.id, offset: p.length - r.pts.length, pts: r.pts };
+      }
+      display.apply(patch);
+      active = info.active;
+      open = active ? model.sketchMetadata(active).open_stroke || '' : '';
+    },
+    // Borrowed display paths are read synchronously by the painter. This is
+    // display-only data, not the authoritative Model or a receipt projection.
+    paths: () => display.paths({ borrow: true }),
+    snapshot: () => display.snapshot(),
+    stats: () => display.stats(),
   };
 }

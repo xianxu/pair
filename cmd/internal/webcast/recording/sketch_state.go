@@ -54,11 +54,13 @@ type sketchHistory struct {
 // SketchState owns history by identity, with O(new points) append and constant
 // stack changes. The zero value is ready for use.
 type SketchState struct {
-	active       string
-	historyBytes int
-	order        []string
-	sketches     map[string]*sketchHistory
-	work         struct{ points, stacks uint64 }
+	active         string
+	historyBytes   int
+	order          []string
+	sketches       map[string]*sketchHistory
+	work           struct{ points, stacks uint64 }
+	anchors        map[int]map[NodeID]bool
+	anchorRevision uint64
 }
 
 func sketchID(r Record) string {
@@ -253,6 +255,7 @@ func NextSketch(s *SketchState, r Record, c SketchContext) (SketchDelta, error) 
 					h.strokes[v.ID] = &SketchStrokeView{Begin: owned, Pts: []SketchPoint{}}
 					h.order = append(h.order, v.ID)
 					h.open = v.ID
+					s.addAnchor(h.begin.Doc, owned.At.Node)
 					h.redo = nil
 				}
 			case *SketchPoints:
@@ -344,6 +347,10 @@ func (s *SketchState) pause() {
 	}
 }
 func (s *SketchState) clear() {
+	if len(s.anchors) > 0 {
+		s.anchors = nil
+		s.anchorRevision++
+	}
 	for _, id := range s.order {
 		s.seal(s.sketches[id], true)
 		s.sketches[id].phase = "cleared"

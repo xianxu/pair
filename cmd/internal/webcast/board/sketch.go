@@ -302,7 +302,7 @@ func (s *SketchService) Execute(ctx context.Context, a SketchAuthority, c Sketch
 			}
 			box := c.Box
 			at.Box = &box
-			record = &recording.SketchStrokeBegin{SketchOperation: op, Sketch: c.Sketch, ID: c.ID, At: at, Width: 3}
+			record = &recording.SketchStrokeBegin{SketchOperation: op, Sketch: c.Sketch, ID: c.ID, At: at, Width: 4}
 		case "sketch-points":
 			record = &recording.SketchPoints{SketchOperation: op, Sketch: c.Sketch, ID: c.ID, Chunk: c.Chunk, Pts: append([]recording.SketchPoint(nil), c.Pts...)}
 		case "sketch-stroke-end":

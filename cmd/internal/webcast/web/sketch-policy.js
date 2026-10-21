@@ -24,7 +24,7 @@ export function createSketchPolicy({ operationId, maxQueuedChunks = 16 } = {}) {
   const current = () => slots.get(active);
   function phase(slot) {
     if (!slot) return 'off';
-    if (slot.uncertain) return 'reconciling';
+    if (slot.uncertain || slot.recovering) return 'reconciling';
     return slot.phase;
   }
   function pump(slot, effects) {
@@ -91,6 +91,7 @@ export function createSketchPolicy({ operationId, maxQueuedChunks = 16 } = {}) {
             if (changed || !allowed || ended) {
               slot.queue = slot.queue.filter((c) => c.kind === 'label' && !ended);
               slot.phase = 'interrupted';
+              slot.recovering = false;
               slot.sourceReady = false;
               effects.push(
                 { type: 'stop-gesture', reason: ended ? 'ended' : 'authority' },
@@ -186,6 +187,7 @@ export function createSketchPolicy({ operationId, maxQueuedChunks = 16 } = {}) {
               slot.epoch !== epoch ||
               slot.id !== active ||
               slot.uncertain ||
+              slot.recovering ||
               (event.kind === 'begin' ? slot.phase !== 'preparing' : slot.phase !== 'drawing'))
           ) {
             effects.push({ type: 'refused', reason: 'Drawing is unavailable.' });
@@ -246,21 +248,26 @@ export function createSketchPolicy({ operationId, maxQueuedChunks = 16 } = {}) {
             if (command.kind === 'begin')
               effects.push({ type: 'begin-accepted', sketch: slot.id, reply: own(event) });
             if (command.kind === 'stroke-begin') slot.open = true;
-            if (command.kind === 'stroke-end') slot.open = false;
+            if (command.kind === 'stroke-end') {
+              slot.open = false;
+              slot.recovering = false;
+            }
             if (command.kind === 'label') {
+              const completesTool = slot.phase === 'label-required';
               slot.labelled = true;
               slot.retired = true;
               slot.phase = 'off';
               slot.queue = [];
               effects.push({ type: 'release-scene', sketch: slot.id });
               if (slot.id === active) {
-                effects.push({ type: 'select-tool', tool: slot.tool });
+                if (completesTool) effects.push({ type: 'select-tool', tool: slot.tool });
                 active = null;
               }
               slots.delete(slot.id);
             }
           } else {
             slot.queue = [];
+            slot.recovering = false;
             slot.phase = 'interrupted';
             effects.push({ type: 'stop-gesture', reason: 'refused', error: event.error || '' });
             if (command.kind === 'begin') {
@@ -273,6 +280,32 @@ export function createSketchPolicy({ operationId, maxQueuedChunks = 16 } = {}) {
           pump(slot, effects);
           break;
         }
+        case 'recover':
+          if (
+            !slot ||
+            slot.retired ||
+            slot.inflight ||
+            slot.uncertain ||
+            slot.phase !== 'interrupted' ||
+            !slot.sourceReady ||
+            !allowed ||
+            !live ||
+            ended ||
+            slot.id !== active ||
+            slot.epoch !== epoch ||
+            event.epoch !== epoch ||
+            event.phase !== 'drawing' ||
+            event.next_sequence !== slot.sequence ||
+            typeof event.open_stroke !== 'string'
+          )
+            break;
+          slot.phase = 'drawing';
+          slot.open = !!event.open_stroke;
+          slot.recovering = slot.open;
+          if (slot.open)
+            slot.queue.push({ kind: 'stroke-end', body: { id: event.open_stroke, truncated: true } });
+          pump(slot, effects);
+          break;
         case 'retry':
           if (slot?.inflight) {
             slot.uncertain = true;

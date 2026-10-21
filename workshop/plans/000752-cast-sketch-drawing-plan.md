@@ -171,52 +171,52 @@ The counters are test seams around named traversals/encodes, not wall-clock asse
 
 **Files:** create `board/sketch_wire.go`, `board/sketch_wire_test.go`; extend `recording/sketch_state.go`/tests and focused Unicode validation helper; add `web/sketch-policy.js`/tests.
 
-- [ ] Write `TestSketchCommandUnionRejectsOwnedFields`, `TestSketchCommandUnicodeAndBounds`, `TestSketchReceiptQueriesOwnedAndConstantWork`; seed parser fuzz with all commands, duplicate keys, unsafe integers, nonfinite triples, lone surrogates and valid pairs.
-- [ ] Run `go test ./cmd/internal/webcast/board ./cmd/internal/webcast/recording -run 'SketchCommand|SketchReceiptQueries' -count=1`; observe missing parser/query failures before implementation.
-- [ ] Implement strict command values/digest/replies and O(1) immutable receipt, metadata and stack-top queries. Keep existing persisted event behavior except the explicit additive truncation fact below.
-- [ ] Add optional stroke-end truncation with red tests for cancel→next stroke/Undo/Redo/label, absent/false/true/null/type validation, same-operation conflict, old-reader roundtrip, snapshot receipt replay and the terminal reserve. Extend/regenerate the shared Go/JS corpus with cancellation. This is an additive fact required by the approved pointercancel behavior.
-- [ ] Add generated browser policy sequences for unknown/refused/exact retry, label leave/Escape, pause and handoff. Run focused Go/Node tests, then commit this bounded task.
+- [x] Write `TestSketchCommandUnionRejectsOwnedFields`, `TestSketchCommandUnicodeAndBounds`, `TestSketchReceiptQueriesOwnedAndConstantWork`; seed parser fuzz with all commands, duplicate keys, unsafe integers, nonfinite triples, lone surrogates and valid pairs.
+- [x] Run `go test ./cmd/internal/webcast/board ./cmd/internal/webcast/recording -run 'SketchCommand|SketchReceiptQueries' -count=1`; observe missing parser/query failures before implementation.
+- [x] Implement strict command values/digest/replies and O(1) immutable receipt, metadata and stack-top queries. Keep existing persisted event behavior except the explicit additive truncation fact below.
+- [x] Add optional stroke-end truncation with red tests for cancel→next stroke/Undo/Redo/label, absent/false/true/null/type validation, same-operation conflict, old-reader roundtrip, snapshot receipt replay and the terminal reserve. Extend/regenerate the shared Go/JS corpus with cancellation. This is an additive fact required by the approved pointercancel behavior.
+- [x] Add generated browser policy sequences for unknown/refused/exact retry, label leave/Escape, pause and handoff. Run focused Go/Node tests, then commit this bounded task.
 
 ### Task 2 — driving permit resource and UI authority feed
 
 **Files:** create `drive/drawing.go`/tests and `board/sketch_authority.go`; extend controller/capability, wire capabilities and server tests.
 
-- [ ] Write held-transition tests `TestDrawingPermitABARetiresOldOrigin`, `TestDrawingPermitWaitsForControlAndRelease`, `TestPendingControlKeepsDrawingPermit`, `TestDrawingResetAndCloseFence`, `TestSketchAuthorityArrivesBeforeOrAfterCtl`.
-- [ ] Run `go test ./cmd/internal/webcast/drive ./cmd/internal/webcast -run 'DrawingPermit|DrawingReset|SketchAuthority' -count=1`; verify red, implement the sketch-only witness and existing-feed projection, then rerun.
-- [ ] Verify console-local availability with remote drive disabled, failure-frozen release, view/pointer denial and current-seat authentication. Preserve normal driving regression tests. Commit.
+- [x] Write held-transition tests `TestDrawingPermitABARetiresOldOrigin`, `TestDrawingPermitWaitsForControlAndRelease`, `TestPendingControlKeepsDrawingPermit`, `TestDrawingResetAndCloseFence`, `TestSketchAuthorityArrivesBeforeOrAfterCtl`.
+- [x] Run `go test ./cmd/internal/webcast/drive ./cmd/internal/webcast -run 'DrawingPermit|DrawingReset|SketchAuthority' -count=1`; verify red, implement the sketch-only witness and existing-feed projection, then rerun.
+- [x] Verify console-local availability with remote drive disabled, failure-frozen release, view/pointer denial and current-seat authentication. Preserve normal driving regression tests. Commit.
 
 ### Task 3 — acknowledged source/writer/Board service
 
 **Files:** create `recording/sketch_source.go`/tests, `board/sketch.go`/tests, `recorder/sketch.go`/tests; extend Hub, reference Writer, cast/browser/fakes, board lifecycle.
 
-- [ ] Write source tests for exact begin fencing, following same-clock mutation, later navigation compaction, independent8/16 MiB boundaries, zero-mutation refusal and absent/custom live factory fallback.
-- [ ] Write generated operation sequences and held queue/sink/reply tests through BOTH reference Writer and Recorder: accepted/refused/unknown retries, same-ID conflicts, handoff variants, old-owner metadata label, clear/pause/resume/end, expiry racing last mutation and Close joining work.
-- [ ] Run `go test ./cmd/internal/webcast/recording ./cmd/internal/webcast/board ./cmd/internal/webcast/recorder -run 'SketchSource|SketchWrite|SketchLease|SketchHandoff' -count=1`; prove red before adding source/settlement service.
-- [ ] Implement writer preflight→commit→flush→receipt, exact source retention/lease and healthy-barrier status. Anchor only against frozen State. Run N/2N counters and existing note/control ordering tests; commit.
+- [x] Write source tests for exact begin fencing, following same-clock mutation, later navigation compaction, independent8/16 MiB boundaries, zero-mutation refusal and absent/custom live factory fallback.
+- [x] Write generated operation sequences and held queue/sink/reply tests through BOTH reference Writer and Recorder: accepted/refused/unknown retries, same-ID conflicts, handoff variants, old-owner metadata label, clear/pause/resume/end, expiry racing last mutation and Close joining work.
+- [x] Run `go test ./cmd/internal/webcast/recording ./cmd/internal/webcast/board ./cmd/internal/webcast/recorder -run 'SketchSource|SketchWrite|SketchLease|SketchHandoff' -count=1`; prove red before adding source/settlement service.
+- [x] Implement writer preflight→commit→flush→receipt, exact source retention/lease and healthy-barrier status. Anchor only against frozen State. Run N/2N counters and existing note/control ordering tests; commit.
 
 ### Task 4 — routes and private operator delivery
 
 **Files:** create `server_sketch.go`/tests, `board/sketch_delivery.go`/tests, `web/sketch-delivery.js`/tests; extend cast locks/routes, recorder/operator, chrome_operator and operator assembler.
 
-- [ ] Write HTTP tests proving link/seat/epoch refusal before body reads, per-owner status/source isolation, bounded source/asset chunk offsets and terminal error mapping. Use stateful Server+Writer+Hub stack.
-- [ ] Write operator tests for trusted-context admission, new-context late replies, metadata label after document retirement, coalesced journal drain, duplicate ACK, gap bootstrap, worker fairness, exact maximum bootstrap and handle cleanup.
-- [ ] Run `go test ./cmd/internal/webcast/... -run 'SketchRoute|OperatorSketch|SketchDelivery|OperatorScript' -count=1` and `node --test tests/webcast/sketch-delivery.test.mjs`; observe red, implement, rerun plus existing operator/castlock suites, commit.
+- [x] Write HTTP tests proving link/seat/epoch refusal before body reads, per-owner status/source isolation, bounded source/asset chunk offsets and terminal error mapping. Use stateful Server+Writer+Hub stack.
+- [x] Write operator tests for trusted-context admission, new-context late replies, metadata label after document retirement, coalesced journal drain, duplicate ACK, gap bootstrap, worker fairness, exact maximum bootstrap and handle cleanup.
+- [x] Run `go test ./cmd/internal/webcast/... -run 'SketchRoute|OperatorSketch|SketchDelivery|OperatorScript' -count=1` and `node --test tests/webcast/sketch-delivery.test.mjs`; observe red, implement, rerun plus existing operator/castlock suites, commit.
 
 ### Task 5 — shared held scene, painter and tool on both surfaces
 
 **Files:** create `web/sketch.js`, `web/sketch-scene.js`, `web/sketch-render.js`, `web/sketch.css` and focused tests; extend viewer/drive/annotate/placement/render/operator and embedded asset registry.
 
-- [ ] Write pointer policy tests for coalesced pressure, hover, capture, cancel/up, mouse/touch fallback, optimistic echo, bounded backpressure and current-sketch Undo/Redo. Test renderer output against #751 shared geometry corpus.
-- [ ] Write held-scene tests proving source/live independence at initial prepare AND reconnect, nested scroll/viewport/animation hold, asset readiness failure/disposal and restoration to fresh live catch-up. Generalize source identity proof with negative cross-document placement controls. Add opaque SceneSession loader/context fences, CSP refusal, nested-frame names/CSS fidelity and parent named-target DOM/blob denial.
-- [ ] Mount shared UI and tool coordinator in viewer and isolated console; replace single operator callback with subscriptions. Add label-required leave/Escape and independent interrupted-label affordance; never expose transport internals in product UI.
-- [ ] Run `node --test tests/webcast/sketch-*.test.mjs tests/webcast/viewer.test.mjs tests/webcast/operator*.test.mjs tests/webcast/annotation-placement.test.mjs`; run Go module-assembly tests and browser fixture. Compare render patches with reducer projections at every prefix, run N/2N work counters, commit.
+- [x] Write pointer policy tests for coalesced pressure, hover, capture, cancel/up, mouse/touch fallback, optimistic echo, bounded backpressure and current-sketch Undo/Redo. Test renderer output against #751 shared geometry corpus.
+- [x] Write held-scene tests proving source/live independence at initial prepare AND reconnect, nested scroll/viewport/animation hold, asset readiness failure/disposal and restoration to fresh live catch-up. Generalize source identity proof with negative cross-document placement controls. Add opaque SceneSession loader/context fences, CSP refusal, nested-frame names/CSS fidelity and parent named-target DOM/blob denial.
+- [x] Mount shared UI and tool coordinator in viewer and isolated console; replace single operator callback with subscriptions. Add label-required leave/Escape and independent interrupted-label affordance; never expose transport internals in product UI.
+- [x] Run `node --test tests/webcast/sketch-*.test.mjs tests/webcast/viewer.test.mjs tests/webcast/operator*.test.mjs tests/webcast/annotation-placement.test.mjs`; run Go module-assembly tests and browser fixture. Compare render patches with reducer projections at every prefix, run N/2N work counters, commit.
 
 ### Task 6 — end-to-end proof, documentation and landing
 
-- [ ] Owned headless Chrome tests `TestSketchLiveTwoViewers` and `TestOperatorSketchLiveScenePrivacy`: real Server/recording sees an incomplete pressure stroke before pointer-up; echo once; Undo/Redo/label and historical replay agree. Exercise privileged console scene with the same renderer; adversarial page sees no binding/credentials/private assets and receives no drawing input. Run `WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run 'SketchLive|OperatorSketchLive' -count=1 -v` against a disposable profile, including named-frame attacks as a real negative control.
+- [x] Owned headless Chrome tests `TestSketchLiveTwoViewers` and `TestOperatorSketchLiveScenePrivacy`: real Server/recording sees an incomplete pressure stroke before pointer-up; echo once; Undo/Redo/label and historical replay agree. Exercise privileged console scene with the same renderer; adversarial page sees no binding/credentials/private assets and receives no drawing input. Run `WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run 'SketchLive|OperatorSketchLive' -count=1 -v` against a disposable profile, including named-frame attacks as a real negative control.
 - [ ] Obtain TL-arranged live console input smoke before landing; send reviewable commands/URLs and exact built revision. Include current-driver and pointer/view behavior; #754 retains wider real iPad/echo acceptance.
-- [ ] Update README controls/recovery, `atlas/webcast.md`, `atlas/webcast-format.md` and index as needed. Add the TL-required invariant to webcast atlas: the casting page never reaches the recorded scene, bindings or assets. Document ephemeral authority/delivery separately from append-only persisted events. Add lessons only for actual discoveries.
-- [ ] Audit new production-file dispositions and each changed source-reader input; run `make test-affected-inventory`, artifactpath/repolint checks and all targeted webcast/Node tests.
+- [x] Update README controls/recovery, `atlas/webcast.md`, `atlas/webcast-format.md` and index as needed. Add the TL-required invariant to webcast atlas: the casting page never reaches the recorded scene, bindings or assets. Document ephemeral authority/delivery separately from append-only persisted events. Add lessons only for actual discoveries.
+- [x] Audit new production-file dispositions and each changed source-reader input; run `make test-affected-inventory`, artifactpath/repolint checks and all targeted webcast/Node tests.
 - [ ] Push PR, run recorded `sdlc local-check run --name affected` (full-suite fallback if graph still unavailable), close with evidence and `--no-project` because TL owns ops project. Mandatory fresh review is the close gate; fix all blocking findings and reverify final code.
 - [ ] On SHIP promptly `sdlc merge --yes`; retain its runner through admission/integration/CI. Report landed PR and evidence once to hub, then proceed #756→#753→#754 as assigned. Do not claim UI/device coverage that did not run.
 
@@ -242,3 +242,11 @@ Approved by ops:0 on 2026-10-21 (delivery96710fe7-a135-4b67-81e3-9189c71f5d63), 
 
 - Actual disposable Chrome156 proved that a named same-origin iframe inside a closed shadow root is still discoverable with `window.open('', knownName)` and its recorded DOM is readable by the page. `window.frames` hiding and isolated globals alone are insufficient evidence. Ordinary and universal-access top isolated worlds cannot directly read an opaque-origin sandbox frame either. Finalize and qualify the smallest concrete scene isolation mechanism before requesting approval; no implementation began on the disproven assumption.
 - Qualified alternatives with actual shared Model/Renderer in Chrome156.0.8078.47: making all contexts unnamed from birth prevents named targeting but changes recorded name/CSS semantics; removing names after loading still leaks. Chosen opaque `data:` shell plus child isolated world renders normal/nested recorded frames, name-based CSS and private blob images unchanged. Parent named targeting receives SecurityError and cannot see binding/renderer globals. This is the bounded revised scene plan; no further incremental privacy mechanism is assumed. Reproduce that evidence as the mandatory live regression rather than depending on scratch artifacts.
+
+### 2026-10-21 — verified implementation checkpoint
+
+Tasks1–5 are implemented and covered by focused Go/Node, stateful writer/controller tests, generated corpus/fuzz checks and counted N/2N guards. The function-strategy table above is the verification map; task case lists are implementation prompts, not additional duplicated test inventories. Actual evidence is in the issue Log. Shared completed-path placement additionally needs an indexed source-document anchor set, including empty/undone strokes; the trusted original-node binding admits only current-document anchors and never identifies an identical replacement by text. The parent console receiver waits for journal synchronization before original-node binding, avoiding exhausted retries during a bounded bootstrap.
+
+The opaque scene required automatic observer exclusion before bootstrap plus actor-acknowledged frame admission before normal recording setup. An exact private-asset URL registry excludes its blobs while retaining unrelated session fonts. These are lifecycle owners for the approved privacy invariant. The original console live fixture initially captured about:blank before its requested URL committed; its readiness now proves the committed fixture loader before creating the scoped scene. Production parent/context retirement remains strict.
+
+TL delivery d053ca5e-cb78-44ee-b89c-d3db95f99841 explicitly holds staging until the coordinated main-build restart. Prepare and check this branch, report readiness, and await TL go before sdlc stage. Required TL console smoke and recorded local check remain open.

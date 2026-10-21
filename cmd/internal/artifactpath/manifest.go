@@ -1001,6 +1001,31 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/codes_menu.go",
 	"cmd/internal/webcast/browser.go",
 	"cmd/internal/webcast/cast.go",
+	// #752 sketch wire/admission, ordered receipts, drawing witnesses and
+	// delivery journals live in memory or the existing recording stream.
+	"cmd/internal/strictjson/unicode.go",
+	"cmd/internal/webcast/board/sketch.go",
+	"cmd/internal/webcast/board/sketch_delivery.go",
+	"cmd/internal/webcast/board/sketch_wire.go",
+	"cmd/internal/webcast/board/writer_sketch.go",
+	"cmd/internal/webcast/drive/drawing.go",
+	"cmd/internal/webcast/recorder/sketch.go",
+	"cmd/internal/webcast/recording/sketch_anchors.go",
+	"cmd/internal/webcast/recording/sketch_source.go",
+	// #752 console/private-scene adapters use CDP scopes and opaque blobs;
+	// the scene script reads embedded viewer modules, not runtime artifacts.
+	"cmd/internal/webcast/chrome_operator_sketch.go",
+	"cmd/internal/webcast/chrome_operator_sketch_binding.go",
+	"cmd/internal/webcast/chrome_operator_sketch_wiring.go",
+	"cmd/internal/webcast/chrome_sketch_exclusion.go",
+	"cmd/internal/webcast/chrome_sketch_scene.go",
+	"cmd/internal/webcast/recorder/exclusion.go",
+	"cmd/internal/webcast/server_sketch.go",
+	"cmd/internal/webcast/sketch_scene_script.go",
+	// #752 bounded asset reads use recording.AssetName under the caller's
+	// recording directory: the existing #457/#459 recording-owned assets,
+	// removed with that recording, introduce no Pair artifact family.
+	"cmd/internal/webcast/cast_sketch.go",
 	// #523: capability admission, ordered stream operations and projections;
 	// cast lifetime state only, no new artifact paths.
 	"cmd/internal/webcast/board/annotation.go",

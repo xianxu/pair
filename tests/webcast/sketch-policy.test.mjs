@@ -235,3 +235,58 @@ test('definitively refused begins release their provisional UI slot without a ne
   }
   assert.equal(p.snapshot().phase, 'off');
 });
+test('interrupted label completion never selects a tool even without a newer sketch slot', async () => {
+  const { createSketchPolicy } = await mod();
+  const p = createSketchPolicy();
+  ready(p);
+  p.dispatch({ type: 'sync', allowed: false, live: true, epoch: 2 });
+  const send = p
+    .dispatch({ type: 'queue', sketch: 's', kind: 'label', body: { label: 'old intent' } })
+    .find((e) => e.type === 'send');
+  const effects = p.dispatch({ type: 'reply', operation: send.command.operation, outcome: 'accepted' });
+  assert.equal(
+    effects.some((e) => e.type === 'select-tool'),
+    false,
+  );
+  assert.equal(p.snapshot().active, null);
+});
+test('refused work recovers only from current authoritative drawing status and seals before input', async () => {
+  const { createSketchPolicy } = await mod();
+  const p = createSketchPolicy();
+  ready(p);
+  const start = p
+    .dispatch({ type: 'queue', kind: 'stroke-begin', body: { id: 'p' } })
+    .find((e) => e.type === 'send').command;
+  p.dispatch({ type: 'reply', operation: start.operation, outcome: 'accepted' });
+  const points = p
+    .dispatch({ type: 'queue', kind: 'points', body: { id: 'p', pts: [[1, 2, 0.5]] } })
+    .find((e) => e.type === 'send').command;
+  p.dispatch({ type: 'reply', operation: points.operation, outcome: 'refused', final: true });
+  const effects = p.dispatch({
+    type: 'recover',
+    sketch: 's',
+    epoch: 1,
+    phase: 'drawing',
+    next_sequence: 1,
+    open_stroke: 'p',
+  });
+  const seal = effects.find((e) => e.type === 'send');
+  assert.equal(seal.command.sequence, 1);
+  assert.deepEqual(seal.command.body, { id: 'p', truncated: true });
+  assert.equal(p.snapshot().phase, 'reconciling');
+  p.dispatch({ type: 'reply', operation: seal.command.operation, outcome: 'accepted' });
+  assert.equal(p.snapshot().phase, 'drawing');
+  p.dispatch({ type: 'sync', allowed: false, live: true, epoch: 2 });
+  assert.equal(
+    p.dispatch({
+      type: 'recover',
+      sketch: 's',
+      epoch: 1,
+      phase: 'drawing',
+      next_sequence: 2,
+      open_stroke: '',
+    }).length,
+    0,
+  );
+  assert.equal(p.snapshot().phase, 'interrupted');
+});

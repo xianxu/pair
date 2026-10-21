@@ -271,6 +271,11 @@ func restoreSketchState(p SketchProjection) (SketchState, error) {
 		for _, sid := range h.visible {
 			h.shown[sid] = true
 		}
+		if h.phase != "cleared" {
+			for _, stroke := range h.strokes {
+				out.addAnchor(h.begin.Doc, stroke.Begin.At.Node)
+			}
+		}
 		out.sketches[id] = h
 		out.order = append(out.order, id)
 	}

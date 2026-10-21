@@ -1569,6 +1569,32 @@ While anyone drives:
 
 Only the drive link offers driving; the view-only and pointer links never do.
 
+**Persistent sketches (#752).** With annotation enabled, **Sketch** is available
+to the casting-Chrome operator when nobody else drives, or to the currently
+granted drive-link viewer. View-only and pointer links watch accepted sketches.
+Choose a colour before starting; it stays fixed for that sketch. The tool holds
+the acknowledged recorded moment while the live cast continues. Pen pressure
+is preserved, mouse and touch use full pressure, and paths stream to observers
+before the pointer is released. Normal page input pauses without giving up the
+driving seat.
+
+**Undo** and **Redo** affect the current unfinished sketch after its stroke is
+confirmed. **Done**, Escape, or choosing another tool asks for a nonblank label;
+Escape from that prompt returns to the same held sketch. The requested tool
+opens only after **Save label** is confirmed. A handoff interrupts drawing and
+keeps a separate **Label unfinished sketch** action while the original UI and
+credentials survive. Accepted partial paths remain in the recording.
+
+If confirmation is uncertain, use **Check confirmation** before drawing more.
+It checks the original operation rather than creating a second stroke. A
+definite refusal can offer **Continue drawing** when the same drawing turn and
+held source remain valid; any accepted partial stroke is sealed before Undo or
+more drawing becomes available. Pause suspends drawing; navigation, handoff,
+clear, cast end, or two minutes without an accepted sketch mutation retire its
+source. Source preparation or history limits can refuse new work visibly.
+Recordings and read-only replay retain accepted sketches; unsent samples and
+unconfirmed label drafts are not durable. [Limits and private-scene flow](atlas/webcast.md#sketch-drawing-752).
+
 **Recording (#458).** From the first time you go live, the cast tab is recorded
 to `<couch store>/webcast/recordings/<id>/` (the format is in
 `atlas/webcast-format.md`): the page's DOM and every change to it, in every frame,

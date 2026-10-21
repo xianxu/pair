@@ -237,7 +237,12 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 				}
 			}
 			return a, nil
-		}, NoteDrafts: drafts, ID: id, Logf: cfg.Logf, Out: func() (recorder.Opened, error) {
+		}, DrawingAuthority: func() drive.DrawingAuthority {
+			if ctrl, ok := drawingController.Load().(drive.Controller); ok {
+				return ctrl.DrawingAuthority()
+			}
+			return drive.DrawingAuthority{}
+		}, SketchAsset: sketchAssetReader(recDir), NoteDrafts: drafts, ID: id, Logf: cfg.Logf, Out: func() (recorder.Opened, error) {
 			opened, err := out()
 			if err == nil {
 				opened.Sink = &draftEvidenceSink{sink: opened.Sink, notes: drafts, ids: map[string]bool{}, logf: cfg.Logf}
@@ -436,6 +441,9 @@ func (c *Cast) run(ctx context.Context, host *broadcast.Host, srv *Server, token
 				driving = nil
 			}
 			c.fenceBrokenCapability()
+			if refresh, ok := c.browser.(interface{ RefreshDrawingAuthority() }); ok {
+				refresh.RefreshDrawingAuthority()
+			}
 		case st, open := <-states:
 			if !open {
 				running = false

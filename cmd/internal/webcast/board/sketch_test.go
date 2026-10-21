@@ -46,6 +46,9 @@ func TestSketchServiceFrozenAnchorAndExactRetry(t *testing.T) {
 		t.Fatalf("stroke: %+v", got)
 	}
 	stroke := r.kinds("sketch-stroke-begin")[0].(*recording.SketchStrokeBegin)
+	if stroke.Width != 4 {
+		t.Fatalf("durable width %v differs from fixed sketch tool width 4", stroke.Width)
+	}
 	if stroke.At.Text != "First" {
 		t.Fatalf("anchored against changed live source: %+v", stroke.At)
 	}

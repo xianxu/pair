@@ -20,9 +20,11 @@ type operatorDelivery struct {
 	reply   recorder.OperatorReply
 }
 type operatorTarget struct {
-	session string
-	context int64
-	active  bool
+	session        string
+	context        int64
+	active         bool
+	sketchScope    SketchSceneScope
+	sketchLifetime <-chan struct{}
 }
 
 // Delivery revision is independent of authority generation: switching the
@@ -101,11 +103,22 @@ func (c *Chrome) startOperator(b *board.Board) {
 	}
 	views, cancel := b.SubscribeOperator()
 	permissions, cancelPermissions := b.SubscribeAnnotationCapability()
+	sketchRuntime := c.initOperatorSketch(b)
+	var sketchWake, sketchRecords <-chan struct{}
+	cancelSketch := func() {}
+	if sketchRuntime != nil {
+		sketchWake = sketchRuntime.Wake()
+		sketchRecords, cancelSketch = b.SubscribeSketchDelivery()
+	}
 	c.work.Add(1)
 	go func() {
 		defer c.work.Done()
 		defer cancel()
 		defer cancelPermissions()
+		defer cancelSketch()
+		if sketchRuntime != nil {
+			defer sketchRuntime.Close(context.WithoutCancel(c.ctx))
+		}
 		// One worker and one 250ms timer reconcile unacknowledged contexts; normal
 		// notifications may reconcile sooner. Each call has callTimeout, with no
 		// overlapping delivery goroutines. ACK disables timer selection; context
@@ -114,12 +127,14 @@ func (c *Chrome) startOperator(b *board.Board) {
 		defer retry.Stop()
 		states := map[operatorContextID]*operatorPermission{}
 		originals := map[operatorContextID]*operatorOriginals{}
+		drawingPermissions := map[operatorContextID]*operatorDrawingPermission{}
 		var revision uint64
 		next := func() uint64 { revision++; return revision }
 		var retryC <-chan time.Time
 		view := b.OperatorView()
 		for {
 			var reply *operatorDelivery
+			normalDelivery := true
 			select {
 			case <-c.ctx.Done():
 				return
@@ -129,6 +144,13 @@ func (c *Chrome) startOperator(b *board.Board) {
 				}
 				view = v
 			case <-c.operatorRefresh:
+			case <-sketchWake:
+				normalDelivery = false
+			case _, ok := <-sketchRecords:
+				if !ok {
+					return
+				}
+				normalDelivery = false
 			case _, ok := <-permissions:
 				if !ok {
 					return
@@ -142,7 +164,8 @@ func (c *Chrome) startOperator(b *board.Board) {
 			select {
 			case c.requests <- func(s *loopState) {
 				for session, id := range s.contexts {
-					targets = append(targets, operatorTarget{session, id, s.sessions[session] == castTab(s)})
+					scope := c.operatorSketchScope(s, session, id)
+					targets = append(targets, operatorTarget{session: session, context: id, active: s.sessions[session] == castTab(s), sketchScope: scope.scope, sketchLifetime: scope.life})
 				}
 				close(done)
 			}:
@@ -156,6 +179,7 @@ func (c *Chrome) startOperator(b *board.Board) {
 			}
 			live := map[operatorContextID]bool{}
 			originalsPending := false
+			var sketchTargets []operatorSketchTarget
 			for _, target := range targets {
 				key := operatorContextID{target.session, target.context}
 				live[key] = true
@@ -167,6 +191,33 @@ func (c *Chrome) startOperator(b *board.Board) {
 				snapshot := b.AnnotationCapability()
 				permission.want(snapshot.Generation, target.active, snapshot.Phase == capability.On && target.active, next)
 				c.deliverOperatorPermission(target, permission, next)
+				if sketchRuntime != nil {
+					p := drawingPermissions[key]
+					if p == nil {
+						p = &operatorDrawingPermission{}
+						drawingPermissions[key] = p
+					}
+					c.deliverOperatorDrawing(target, b, p, next)
+					sketchTargets = append(sketchTargets, operatorSketchTarget{Scope: target.sketchScope, Lifetime: target.sketchLifetime, Active: target.active})
+					if target.active {
+						cache := originals[key]
+						if cache == nil {
+							cache = &operatorOriginals{}
+							originals[key] = cache
+						}
+						revision := b.SketchAnchorRevision()
+						if cache.sketchRevision != revision || cache.sketchDocument != view.Doc {
+							originalsPending = true
+							cache.sketchPending = true
+							if sketchRuntime.originalsReady(target) {
+								cache.acceptSketchAnchors(view.Doc, revision, b.SketchAnchorNodes(view.Doc))
+							}
+						}
+					}
+				}
+				if !normalDelivery {
+					continue
+				}
 				name := "__couchcastOperatorView"
 				var value any = view
 				if reply != nil {
@@ -188,20 +239,33 @@ func (c *Chrome) startOperator(b *board.Board) {
 						cache = &operatorOriginals{}
 						originals[key] = cache
 					}
-					originalsPending = c.deliverOperatorOriginals(target, view, cache) || originalsPending
+					bindingView := view
+					bindingView.Revision += cache.sketchRevision
+					originalsPending = c.deliverOperatorOriginals(target, bindingView, cache) || originalsPending
 				}
+			}
+			if sketchRuntime != nil {
+				sketchRuntime.Reconcile(sketchTargets)
+				sketchRuntime.Turn(c.ctx)
 			}
 			retryC = nil
 			if originalsPending {
+				retryC = retry.C
+			}
+			if sketchRuntime != nil && sketchRuntime.Pending() {
 				retryC = retry.C
 			}
 			for key, p := range states {
 				if !live[key] {
 					delete(states, key)
 					delete(originals, key)
+					delete(drawingPermissions, key)
 					continue
 				}
 				if p.phase != operatorPermissionReady {
+					retryC = retry.C
+				}
+				if drawing := drawingPermissions[key]; drawing != nil && drawing.permission.phase != operatorPermissionReady {
 					retryC = retry.C
 				}
 			}

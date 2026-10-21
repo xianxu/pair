@@ -68,3 +68,11 @@ func TestOperatorNamedClassModuleAssembly(t *testing.T) {
 	}
 	runOperatorJS(t, "const m="+js+"; if(new m.Scene().value()!==42)throw Error('named class');")
 }
+
+func TestOperatorSketchSharedBundleExecutes(t *testing.T) {
+	script := buildOperatorScript()
+	if !strings.Contains(script, "mountOperatorSketch") || !strings.Contains(script, "__couchcastSketchDelivery") {
+		t.Fatal("shared sketch adapter absent from console")
+	}
+	runOperatorJS(t, "globalThis.document=undefined;"+strings.Split(script, "\n"+controlJS)[0])
+}

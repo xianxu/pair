@@ -211,6 +211,37 @@ export function sketchContextEffect(s, action, reason = '') {
     s.active = '';
   }
 }
+// Constant-size owned display facts; points and receipt history stay private.
+export function sketchMetadata(s, sketch = s.active, stroke = '') {
+  const h = s.sketches.get(sketch);
+  if (!h) return { active: s.active };
+  const p = h.strokes.get(stroke);
+  return {
+    active: s.active,
+    begin: structuredClone(h.begin),
+    phase: h.phase,
+    reason: h.reason,
+    label: h.label,
+    open_stroke: h.open,
+    visible_top: h.visible.at(-1) || '',
+    redo_top: h.redo.at(-1) || '',
+    next_sequence: h.next,
+    ...(p
+      ? {
+          stroke: {
+            begin: structuredClone(p.begin),
+            length: p.pts.length,
+            next_chunk: p.next_chunk,
+            visible:
+              h.phase !== 'cleared' &&
+              ((h.open === stroke && p.pts.length > 0) || h.visible.includes(stroke)),
+            sealed: p.sealed,
+            truncated: p.truncated,
+          },
+        }
+      : {}),
+  };
+}
 export function sketchProjection(s) {
   return {
     active: s.active,

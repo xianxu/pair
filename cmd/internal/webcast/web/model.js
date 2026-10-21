@@ -5,7 +5,7 @@
 // canonical hash, so a drift is a red test. Sketch history and control
 // transitions share their own pure core, outside legacy DOM hashes.
 
-import { SKETCH_KINDS, createSketchState, nextSketch, sketchProjection, sketchContextEffect, nextSketchControl, restoreSketchState, snapshotControl } from './sketch-model.js';
+import { SKETCH_KINDS, createSketchState, nextSketch, sketchProjection, sketchMetadata, sketchContextEffect, nextSketchControl, restoreSketchState, snapshotControl } from './sketch-model.js';
 
 export const VERSION = 1;
 
@@ -107,6 +107,7 @@ export class Model {
   node(id) { return this.nodes.get(id); }
 
   sketchProjection() { return sketchProjection(this.#sketches); }
+  sketchMetadata(sketch, stroke) { return sketchMetadata(this.#sketches, sketch, stroke); }
 
   apply(r) {
     if (!this.head) {

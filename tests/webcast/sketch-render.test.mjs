@@ -158,4 +158,99 @@ test('8/16 dirty chunks schedule one paint, disposal cancels late frame work', a
   }
 });
 
-test('compact bootstrap shows accepted open partials and omits cleared historical sketches', async()=>{const {displayFromSketchProjection}=await mod();const p={sketches:[{begin:{id:'s',author:{id:'a',color:'#ff0000'},doc:1,tab:'t'},phase:'drawing',reason:'',label:'',visible:[],strokes:[{begin:{id:'p',at:{node:1,box:[0,0,10,10]},width:4},pts:[[1,2,.5]],sealed:false,truncated:false}]}]};assert.equal(displayFromSketchProjection(p).sketches[0].strokes[0].visible,true);p.sketches[0].phase='cleared';assert.deepEqual(displayFromSketchProjection(p),{sketches:[]});});
+test('compact bootstrap shows accepted open partials and omits cleared historical sketches', async () => {
+  const { displayFromSketchProjection } = await mod();
+  const p = {
+    sketches: [
+      {
+        begin: { id: 's', author: { id: 'a', color: '#ff0000' }, doc: 1, tab: 't' },
+        phase: 'drawing',
+        reason: '',
+        label: '',
+        visible: [],
+        strokes: [
+          {
+            begin: { id: 'p', at: { node: 1, box: [0, 0, 10, 10] }, width: 4 },
+            pts: [[1, 2, 0.5]],
+            sealed: false,
+            truncated: false,
+          },
+        ],
+      },
+    ],
+  };
+  assert.equal(displayFromSketchProjection(p).sketches[0].strokes[0].visible, true);
+  p.sketches[0].phase = 'cleared';
+  assert.deepEqual(displayFromSketchProjection(p), { sketches: [] });
+});
+test('anchor membership retains empty and undone accepted strokes with exact source document', async () => {
+  const { createSketchDisplay } = await mod();
+  const d = createSketchDisplay();
+  d.install(bootstrap());
+  assert.equal(d.hasAnchor(1, 7), true);
+  assert.equal(d.hasAnchor(2, 7), false);
+  assert.equal(d.hasAnchor(1, 8), false);
+  assert.equal(d.hasAnchor('1', 7), false);
+  d.apply({ sketch: 's', stroke: { id: 'p', sealed: true, visible: false } });
+  assert.equal(d.hasAnchor(1, 7), true);
+  d.apply({
+    sketch: 's',
+    stroke: {
+      begin: { id: 'empty', at: { node: 8, box: [0, 0, 1, 1] }, width: 4 },
+      sealed: true,
+      visible: false,
+    },
+  });
+  assert.equal(d.hasAnchor(1, 8), true);
+  d.apply({ sketch: 's', header: { phase: 'cleared' } });
+  assert.equal(d.hasAnchor(1, 7), false);
+  assert.equal(d.hasAnchor(1, 8), false);
+});
+test('anchor index install/clear and rejected batches are atomic, shared anchor membership survives other clears', async () => {
+  const { createSketchDisplay } = await mod();
+  const d = createSketchDisplay();
+  const view = bootstrap();
+  const second = structuredClone(view.sketches[0]);
+  second.begin.id = 'other';
+  view.sketches.push(second);
+  d.install(view);
+  d.apply({ sketch: 's', header: { phase: 'cleared' } });
+  assert.equal(d.hasAnchor(1, 7), true);
+  const before = d.stats();
+  assert.throws(() =>
+    d.applyBatch([
+      { sketch: 'other', stroke: { begin: { id: 'new', at: { node: 99, box: [0, 0, 1, 1] }, width: 4 } } },
+      { sketch: 'other', points: { id: 'p', offset: 9, pts: [[1, 2, 0.5]] } },
+    ]),
+  );
+  assert.equal(d.hasAnchor(1, 99), false);
+  assert.equal(d.hasAnchor(1, 7), true);
+  assert.deepEqual(d.stats(), before);
+  assert.throws(() =>
+    d.applyBatch([{ clear: true }, { sketch: 'absent', points: { id: 'p', offset: 0, pts: [[1, 2, 0.5]] } }]),
+  );
+  assert.equal(d.hasAnchor(1, 7), true);
+  const broken = bootstrap();
+  broken.sketches[0].strokes[0].pts = [[NaN, 2, 0.5]];
+  assert.throws(() => d.install(broken));
+  assert.equal(d.hasAnchor(1, 7), true);
+  d.apply({ clear: true });
+  assert.equal(d.hasAnchor(1, 7), false);
+  const cleared = bootstrap();
+  cleared.sketches[0].phase = 'cleared';
+  d.install(cleared);
+  assert.equal(d.hasAnchor(1, 7), false);
+});
+test('8/16 point chunks never rebuild or revisit anchor metadata', async () => {
+  const { createSketchDisplay } = await mod();
+  for (const n of [8, 16]) {
+    const d = createSketchDisplay();
+    d.install(bootstrap());
+    const visits = d.stats().anchorVisits;
+    assert.equal(visits, 1);
+    for (let i = 0; i < n; i++) d.apply({ sketch: 's', points: { id: 'p', offset: i, pts: [[i, 2, 0.5]] } });
+    assert.equal(d.stats().anchorVisits, visits);
+    assert.equal(d.hasAnchor(1, 7), true);
+    assert.equal(d.stats().points, n);
+  }
+});

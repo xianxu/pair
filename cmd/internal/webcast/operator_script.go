@@ -64,6 +64,9 @@ func assembleOperatorModule(source string, imports map[string]string) (string, e
 //go:embed operator.js
 var operatorJS string
 
+//go:embed operator-sketch.js
+var operatorSketchJS string
+
 //go:embed operator-policy.js
 var suppressionJS string
 
@@ -84,5 +87,8 @@ func buildOperatorScript() string {
 	}
 	palette, _ := json.Marshal(broadcast.PointerPalette())
 	css, _ := json.Marshal(read("annotate.css"))
-	return "(()=>{const collab=" + module(string(broadcast.CollabJS()), nil) + ";const policy=" + module(read("annotation-policy.js"), nil) + ";const anchor=" + module(read("annotation-anchor.js"), nil) + ";const placement=" + module(read("annotation-placement.js"), map[string]string{"./annotation-anchor.js": "anchor"}) + ";const capture=" + module(read("capture-draft.js"), nil) + ";const annotate=" + module(read("annotate.js"), map[string]string{"./collab.js": "collab", "./annotation-policy.js": "policy", "./capture-draft.js": "capture"}) + ";const operator=" + module(operatorJS, map[string]string{"./web/annotation-placement.js": "placement"}) + ";const suppression=" + module(suppressionJS, nil) + ";globalThis.__couchcastSuppressionPolicy=suppression.suppressionPolicy;globalThis.__couchcastMountOperator=(parts)=>operator.mountOperator(parts,{annotate,palette:" + string(palette) + ",css:" + string(css) + "});})();\n" + controlJS
+	sketchCSS, _ := json.Marshal(read("sketch.css"))
+	shellURL, _ := json.Marshal(SketchSceneShellURL())
+	sketchModules := ";const sketchPolicy=" + module(read("sketch-policy.js"), nil) + ";const sketchRender=" + module(read("sketch-render.js"), map[string]string{"./annotation-anchor.js": "anchor"}) + ";const sketchDelivery=" + module(read("sketch-delivery.js"), nil) + ";const sketchUI=" + module(read("sketch.js"), map[string]string{"./sketch-policy.js": "sketchPolicy", "./sketch-render.js": "sketchRender"}) + ";const operatorSketch=" + module(operatorSketchJS, map[string]string{"./web/sketch.js": "sketchUI", "./web/sketch-render.js": "sketchRender", "./web/sketch-delivery.js": "sketchDelivery"})
+	return "(()=>{const collab=" + module(string(broadcast.CollabJS()), nil) + ";const policy=" + module(read("annotation-policy.js"), nil) + ";const anchor=" + module(read("annotation-anchor.js"), nil) + ";const placement=" + module(read("annotation-placement.js"), map[string]string{"./annotation-anchor.js": "anchor"}) + ";const capture=" + module(read("capture-draft.js"), nil) + ";const annotate=" + module(read("annotate.js"), map[string]string{"./collab.js": "collab", "./annotation-policy.js": "policy", "./capture-draft.js": "capture"}) + sketchModules + ";const operator=" + module(operatorJS, map[string]string{"./web/annotation-placement.js": "placement"}) + ";const suppression=" + module(suppressionJS, nil) + ";globalThis.__couchcastSuppressionPolicy=suppression.suppressionPolicy;globalThis.__couchcastMountOperator=(parts)=>operator.mountOperator(parts,{annotate,palette:" + string(palette) + ",css:" + string(css) + ",sketch:{mount:operatorSketch.mountOperatorSketch,css:" + string(sketchCSS) + ",shellURL:" + string(shellURL) + "}});})();\n" + controlJS
 }
