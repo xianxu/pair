@@ -69,7 +69,6 @@ func TestMain(m *testing.M) { %s }
 		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
 		defer cancel()
 		args := append([]string{"test", "./" + mode}, extra...)
-		//lint:allow test-go-build — this conformance test must invoke the real Go test result cache; a prebuilt helper cannot qualify cmd/go cache publication
 		cmd := exec.CommandContext(ctx, "go", args...)
 		cmd.Dir, cmd.Env = fixture, append(append([]string{}, env...), "PAIR_CACHE_MARKER="+marker)
 		cmd.WaitDelay = 2 * time.Second

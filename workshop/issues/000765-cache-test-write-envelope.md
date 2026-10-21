@@ -122,3 +122,14 @@ remains executed through actual Go in the private module. No scanner waiver.
 Fast inventory now passes on the tracked file. Cancelled obsolete queued
 attempt37fb730c9fd3c77230a42eba0028629c through local-check cancel before any
 test capacity was acquired. It is not a passing/failing suite attempt.
+
+Fixed-preflight execution then found the new conformance test had an unused
+test-go-build suppression: its dynamic native test argv does not match that
+rule. Removed the stale suppression and re-recorded the same reader scope.
+The failed preflight is not counted as passing evidence.
+
+Corrected fixed preflight passed exit0 (49.776s), including the registered
+actual Go conformance12.074s and catalog5.090s; selected testdisk then passed
+11.345s. Separate catalog repeat passed3.862s. No failed check is represented
+as a pass. All remaining broad uncached coverage is owned by the recorded
+full suite on the corrected head.
