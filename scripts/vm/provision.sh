@@ -26,6 +26,7 @@ import pathlib
 import posixpath
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tarfile
@@ -153,6 +154,40 @@ def link(name, target):
     run(['/bin/ln', '-s', str(target), str(path)], root=True)
 
 
+def describe_go_layout(binary, entrypoint):
+    root = binary.parent.parent
+    def describe(path):
+        try:
+            info = path.stat()
+            return {'exists': True, 'directory': stat.S_ISDIR(info.st_mode),
+                    'mode': format(stat.S_IMODE(info.st_mode), '04o'),
+                    'uid': info.st_uid, 'gid': info.st_gid}
+        except OSError as error:
+            return {'exists': False, 'errno': error.errno}
+    return {'entrypoint': str(entrypoint),
+            'entrypoint_resolved': os.path.realpath(entrypoint),
+            'installed_root': str(root),
+            'root': describe(root), 'pkg': describe(root / 'pkg'),
+            'pkg_tool': describe(root / 'pkg/tool'),
+            'store': describe(root.parent.parent)}
+
+
+def go_version(binary, entrypoint):
+    # Keep the original failure authoritative; direct execution is diagnostic
+    # evidence to distinguish layout failure from executable-path discovery.
+    layout = json.dumps(describe_go_layout(binary, entrypoint), sort_keys=True)
+    print('go installation layout: ' + layout, file=sys.stderr)
+    try:
+        return run([str(entrypoint), 'version'], timeout=30, capture=True)
+    except Exception:
+        try:
+            direct = run([str(binary), 'version'], timeout=30, capture=True)
+            print('go direct-binary probe succeeded: ' + direct, file=sys.stderr)
+        except Exception as probe_error:
+            print('go direct-binary probe failed: ' + str(probe_error), file=sys.stderr)
+        raise
+
+
 def main():
     global DEADLINE
     DEADLINE = time.monotonic() + 1200
@@ -228,7 +263,10 @@ def main():
                 if name == 'node':
                     link('npm', binary.parent / 'npm')
                     link('npx', binary.parent / 'npx')
-            output = run([str(PREFIX / 'bin' / name), 'version' if name == 'go' else '--version'], timeout=30, capture=True)
+            if name == 'go':
+                output = go_version(binary, PREFIX / 'bin/go')
+            else:
+                output = run([str(PREFIX / 'bin' / name), '--version'], timeout=30, capture=True)
             verify_version(output, pin['version'])
             # sha256 identifies the installed executable; archive digest is retained separately.
             actual = hashlib.sha256(binary.read_bytes()).hexdigest()

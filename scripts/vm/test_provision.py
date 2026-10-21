@@ -6,6 +6,8 @@ import pathlib
 import tarfile
 import tempfile
 import unittest
+import contextlib
+import subprocess
 
 SCRIPT = pathlib.Path(__file__).with_name('provision.sh')
 
@@ -67,6 +69,49 @@ class ProvisionTests(unittest.TestCase):
             path.write_bytes(b'corruption')
             with self.assertRaises(ValueError):
                 self.api['verify_checksum'](path, expected)
+
+    def test_go_layout_reports_real_tree_and_missing_tool_directory(self):
+        self.assertTrue('describe_go_layout' in self.api)
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            binary = root / 'store/go-1.26.3/go/bin/go'
+            binary.parent.mkdir(parents=True)
+            binary.write_bytes(b'fixture')
+            entry = root / 'bin/go'
+            entry.parent.mkdir()
+            entry.symlink_to(binary)
+            describe = self.api['describe_go_layout']
+            missing = describe(binary, entry)
+            self.assertEqual(missing['entrypoint_resolved'], str(binary))
+            self.assertEqual(missing['installed_root'], str(binary.parent.parent))
+            self.assertFalse(missing['pkg_tool']['exists'])
+            tools = binary.parent.parent / 'pkg/tool'
+            tools.mkdir(parents=True)
+            tools.chmod(0o755)
+            present = describe(binary, entry)
+            self.assertTrue(present['pkg_tool']['exists'])
+            self.assertEqual(present['pkg_tool']['mode'], '0755')
+
+    def test_direct_go_probe_cannot_turn_failed_entrypoint_into_success(self):
+        calls = []
+        original_run = self.api['run']
+        failure = subprocess.CalledProcessError(2, ['/fixture/bin/go', 'version'])
+        def command(argv, **kwargs):
+            calls.append(argv)
+            if len(calls) == 1:
+                raise failure
+            return 'go version go1.26.3 darwin/arm64'
+        self.api['run'] = command
+        try:
+            with contextlib.redirect_stderr(io.StringIO()) as diagnostic:
+                with self.assertRaises(subprocess.CalledProcessError) as caught:
+                    self.api['go_version'](pathlib.Path('/fixture/store/go/bin/go'), pathlib.Path('/fixture/bin/go'))
+            self.assertIs(caught.exception, failure)
+            self.assertEqual(calls, [['/fixture/bin/go', 'version'], ['/fixture/store/go/bin/go', 'version']])
+            self.assertIn('go direct-binary probe succeeded', diagnostic.getvalue())
+            self.assertLess(len(diagnostic.getvalue()), 4096)
+        finally:
+            self.api['run'] = original_run
 
     def test_version_requires_exact_token(self):
         self.api['verify_version']('zellij 0.45.1', '0.45.1')
