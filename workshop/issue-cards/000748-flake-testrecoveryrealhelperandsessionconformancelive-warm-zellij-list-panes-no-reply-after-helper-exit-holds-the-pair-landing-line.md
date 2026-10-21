@@ -1,6 +1,6 @@
 ---
 id: 000748
-status: working
+status: codecomplete
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+actual_hours: 1.11
+tracker:
+    version: 1
+    completion:
+        token: close-87262e673124
+        repository: github.com/xianxu/pair
+        reviewed_head: fb794ec500174a160dd447ac51b4695972c48cb0
+        evidence_commit: bceca9f7b0b73f741efea90eedd4d51bcdebbfa6
 ---
 
 # flake: TestRecoveryRealHelperAndSessionConformanceLive/warm (zellij list-panes no reply after helper exit) holds the pair landing line
