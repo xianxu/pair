@@ -1,6 +1,6 @@
 ---
 id: 000774
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-21
@@ -8,7 +8,15 @@ updated: 2026-10-21
 estimate_hours:
 severity: high
 collaboration-mode: collaboration
-card_mirror: '6987c52fe94e29275eaf4d7c142817a3ca70d2ec' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '5a4b5c5c7e852629ac1e11fef9b074d02a6008dd' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-21T08:53:21-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:7
+    worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
+    repository: github.com/xianxu/pair
 ---
 
 # diagnostic checkpoints survive device remounts
@@ -43,3 +51,7 @@ Audit the same persisted-identity class across current and retained generations;
 ## Log
 
 2026-10-21: filed and claimed by pair:7 per ops:0 after #736 start-plan refused continuing its already-landed M1 branch. No dependency: M1 code is already on main, and #736 is to close around the verified logger-health instrumentation. This cause fix has priority over parked #773 (draft PR525, pushed checkpoint c4f5b1990; no own runner). Direction is approved, detailed plan still due before code.
+
+## Revisions
+
+2026-10-21 09:05 PDT — Hub approved the persisted-versus-live boundary and conservative interrupted-transaction limit; durable plan: workshop/plans/000774-diagnostic-device-rebind-plan.md. #736 closure SHIP/PR526 is parked per hub: queued suite cancelled by supported lease, waiting merge interrupted per contract, deferral pushed on its own branch. #774 starts from fresh main, no stacking or second checkout.
