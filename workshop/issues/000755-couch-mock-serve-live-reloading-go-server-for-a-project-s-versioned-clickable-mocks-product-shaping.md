@@ -85,6 +85,10 @@ Implementation details: [durable plan](../plans/000755-mock-server-plan.md).
 
 - Host qualification on committed code head 8fefb5c78182993499354d9227052209570022ea passed both real Chrome tests (7.686s), with sandbox enabled and a private profile; raw output retained in workshop/plans/000755-mock-browser-evidence.md for BR-4. Final package race passed (1.910s), and affected-reader inventory passed after auditing the changed private-fixture test. Requeueing recorded verification and ordinary close review.
 
+- Close round3 accepted BR-2/3 and withdrew BR-4 using the pinned host measurement. New Important BR-5 identifies interrupted random-temp accumulation. Cancelled this checkout’s obsolete queued suite. TL approved fixed staging with a lifetime-held advisory lock and next-writer recovery; reserved files must be excluded from scan content/caps and git-ignored. Implementing deterministic interruption, concurrency and scan-exclusion coverage before requalification.
+
+- BR-5 implementation passes package race (2.090s): a real killed helper leaves one stage, OS-confirmed lock contention preserves the live stage/pointer, and the next writer reclaims residue after owner death. Removing flock makes that regression fail. Reserved-file content/caps regressions failed before the fix; after it, exactly MaxEntries public entries plus both reserved names preserve snapshot/digest/bytes while counting only two extra directory observations. Nested names remain ordinary content; unsafe lock/stage replacements refuse.
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. The source is marked stale by estimate-source; values remain provisional. Derived after plan-quality cleared.

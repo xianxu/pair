@@ -67,6 +67,11 @@ func (p *Project) Scan(ctx context.Context) (Snapshot, error) {
 				if p.scanWork != nil {
 					p.scanWork(1, 0)
 				}
+				// These two root entries are private writer coordination, never content.
+				// Count their enumeration above, but do not inspect or descend into them.
+				if dir == "." && (de.Name() == selectionLockName || de.Name() == selectionStageName) {
+					continue
+				}
 				result.Entries++
 				if result.Entries > MaxEntries {
 					return fmt.Errorf("project exceeds %d entries", MaxEntries)

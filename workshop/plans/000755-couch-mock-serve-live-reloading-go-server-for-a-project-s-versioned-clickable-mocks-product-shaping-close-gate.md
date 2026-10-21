@@ -346,6 +346,186 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: af847332-9ef2-46cb-b622-d83f57b31291
+            repository: github.com/xianxu/pair
+            issue_id: "000755"
+            recipe: milestone-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/f338fd9be858bcae
+            reviewed_head: 897dbb6cdc7c683b03f6e99ccc0a1c7decd1ad62
+            slot: pair:4
+            requested_at: "2026-10-21T06:49:00.415541Z"
+          phase: finished
+          pid: 43045
+          started_at: "2026-10-21T06:49:00.5162Z"
+          finished_at: "2026-10-21T06:52:29.481412Z"
+          session_id: 01a15d38-6a5f-7dd1-ae46-046dfff405d2
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 897dbb6cdc7c683b03f6e99ccc0a1c7decd1ad62
+        tracker_head: deb9ee1ae285970fca7df7cb1a4bba599ffa91d3
+        branch_point: 79ea4ca9e5be10c67c5c356b7f7d4067ebd79a92
+        since: "2026-10-20T22:40:54-07:00"
+        until: "2026-10-20T23:48:22-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-20T22:40:54-07:00"
+              end: "2026-10-20T23:48:22-07:00"
+              began: "2026-10-20T22:40:54-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot4/pair
+        sources:
+            - harness: codex
+              id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: ac4f6223080617f9289e430c44cf5b58f8870b888cbc0a24f38938e60ccf5871
+              started: "2026-10-20T17:08:30.923Z"
+              spawned: false
+              bytes: 17114026
+              windows:
+                - start: "2026-10-20T22:40:54-07:00"
+                  end: "2026-10-20T23:48:22-07:00"
+            - harness: codex
+              id: 01a15cfa-72c5-7572-8b02-f2056ee548f6
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              parent_id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              digest: 5401f0f3bd86c869cb32d5df44c87f0fd8258346cda55aaceb20581356217caf
+              started: "2026-10-21T05:41:19.814Z"
+              spawned: true
+              bytes: 652919
+              windows:
+                - start: "2026-10-21T05:41:19.814Z"
+                  end: "2026-10-20T23:48:22-07:00"
+            - harness: codex
+              id: 01a15d07-3ccf-7023-ade8-9f85cedd4787
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 6e1e1b3acdc4e7f6c4b3ee9921c792a7dbc8ab590b6fc7513e8a02c4152ccab9
+              started: "2026-10-21T05:55:18.212Z"
+              spawned: false
+              bytes: 545233
+              windows:
+                - start: "2026-10-21T05:55:18.212Z"
+                  end: "2026-10-20T23:48:22-07:00"
+            - harness: codex
+              id: 01a15d09-e16e-7973-869b-447feb0de7d4
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 7666bc2cfa2b5266548b5bf7684a18adcdc8aa89a2cb40d27161f6eb7b38336f
+              started: "2026-10-21T05:58:11.397Z"
+              spawned: false
+              bytes: 505167
+              windows:
+                - start: "2026-10-21T05:58:11.397Z"
+                  end: "2026-10-20T23:48:22-07:00"
+            - harness: codex
+              id: 01a15d0b-c808-77a0-8a74-b058604cf1e8
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 775a5ebd6ce47b7647d64baca6dc6d6075af73394146897950b4df76ba0ae6fb
+              started: "2026-10-21T06:00:16.2Z"
+              spawned: false
+              bytes: 518046
+              windows:
+                - start: "2026-10-21T06:00:16.2Z"
+                  end: "2026-10-20T23:48:22-07:00"
+            - harness: codex
+              id: 01a15d0c-4f3e-7c23-9eb6-c0e3bfaee8ee
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 68125bf8491fa1a9237a8a23b25136ec9a96c11f2527fd3bb588f3a4b2fad9d3
+              started: "2026-10-21T06:00:50.659Z"
+              spawned: false
+              bytes: 447230
+              windows:
+                - start: "2026-10-21T06:00:50.659Z"
+                  end: "2026-10-20T23:48:22-07:00"
+            - harness: codex
+              id: 01a15d0d-9ec0-70d1-a196-c8d913b2f3c9
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              parent_id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              digest: a3213c5c1610c6162b59f80e20c949d2754f33f228bb0a53adea5038abd561b8
+              started: "2026-10-21T06:02:16.226Z"
+              spawned: true
+              bytes: 399198
+              windows:
+                - start: "2026-10-21T06:02:16.226Z"
+                  end: "2026-10-20T23:48:22-07:00"
+            - harness: codex
+              id: 01a15d0e-032a-7401-bb22-542ec2559bee
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              parent_id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              digest: 0272946db24a77027059fa1d2499a9e4300652ebd31f14effb6ccfbfb574c63a
+              started: "2026-10-21T06:02:41.947Z"
+              spawned: true
+              bytes: 554824
+              windows:
+                - start: "2026-10-21T06:02:41.947Z"
+                  end: "2026-10-20T23:48:22-07:00"
+            - harness: codex
+              id: 01a15d12-f90c-7480-af77-512cb85c5c24
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              parent_id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              digest: b3af1b23f47d568ec119d8edf4e2a83b475d100a1b6e3d6a8cf9ac9c1b41ac8c
+              started: "2026-10-21T06:08:07.079Z"
+              spawned: true
+              bytes: 545002
+              windows:
+                - start: "2026-10-21T06:08:07.079Z"
+                  end: "2026-10-20T23:48:22-07:00"
+        cuts:
+            - dispatched: "2026-10-20T23:18:15-07:00"
+              finalized: "2026-10-20T23:23:07-07:00"
+              finalizing: false
+            - dispatched: "2026-10-20T23:33:18-07:00"
+              finalized: "2026-10-20T23:37:26-07:00"
+              finalizing: false
+      "n": 3
+      timestamp: "2026-10-20T23:52:30-07:00"
+      dispatched: "2026-10-20T23:48:58-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-2
+          disposition: addressed
+          note: The production client handles persisted pageshow with generation/request ownership fencing. All 11 client tests pass; running the current harness against the pre-fix script in memory produces six lifecycle failures, including restoration and stale-completion cases.
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: TestUseAtomicSelectionReaders accepts only whole values or typed ErrPathChanged refusal and unconditionally joins its writer. TestConcurrentSelectionReadRefusesChangedIdentity deterministically exercises replacement and verifies the settled selection. Twenty race-enabled repetitions of the selection/confinement tests passed.
+          round: 3
+        - id: BR-4
+          disposition: withdrawn
+          note: workshop/plans/000755-mock-browser-evidence.md records the exact browser command, passing subtests, exit zero, and sandbox-enabled private-profile qualification on 8fefb5c78182993499354d9227052209570022ea. Git inspection confirms the reviewed head differs only in documentation. Local qualification still fails initial DOM predicates with CDP read EOF; the supplied host measurement answers the requested invariant for identical executable code.
+          round: 3
+      findings:
+        - kind: defect
+          id: BR-5
+          severity: Important
+          title: Interrupted selection writers leave staging files without a reclamation path
+          detail: 'cmd/internal/mockserve/project.go:227-244 creates a fresh .mock-current-<nonce>.tmp for every selection, with removal owned only by a defer. Process termination before rename/defer leaves that file permanently; no startup, subsequent writer, or scanner path reclaims abandoned staging files. These files consume the scanner''s 1,024-entry allowance (scan.go:70-72), so repeated interrupted commands eventually prevent serving an otherwise valid project. ARCH-FUNERAL: define bounded, concurrency-safe staging ownership/reclamation, preserve active writers and the published pointer, and add interrupted-writer recovery coverage.'
+          family: transient-artifact-reclamation
+          round: 3
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#755 (boundary-review)
@@ -375,8 +555,19 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-4** [Important] `browser-qualification-evidence` (kind: unverifiable) Real-browser acceptance behavior could not be qualified in this environment
   WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/mockserve -run 'TestMockBrowserReload|TestSampleBrowser' -count=1 failed all initial DOM checks with CDP read EOF. A separate private-profile Chrome diagnostic exited with signal 5 and "sandbox initialization failed: Operation not permitted". This prevents verification of the planned browser click/edit/switch/recovery behavior; provide passing output for the pinned reviewed head on a host where Chrome can initialize its sandbox, or enable that capability in the review environment. ARCH-PURPOSE.
 
+## Round 3 — 2026-10-20T23:52:30-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-2 — addressed — The production client handles persisted pageshow with generation/request ownership fencing. All 11 client tests pass; running the current harness against the pre-fix script in memory produces six lifecycle failures, including restoration and stale-completion cases.
+- BR-3 — addressed — TestUseAtomicSelectionReaders accepts only whole values or typed ErrPathChanged refusal and unconditionally joins its writer. TestConcurrentSelectionReadRefusesChangedIdentity deterministically exercises replacement and verifies the settled selection. Twenty race-enabled repetitions of the selection/confinement tests passed.
+- BR-4 — withdrawn — workshop/plans/000755-mock-browser-evidence.md records the exact browser command, passing subtests, exit zero, and sandbox-enabled private-profile qualification on 8fefb5c78182993499354d9227052209570022ea. Git inspection confirms the reviewed head differs only in documentation. Local qualification still fails initial DOM predicates with CDP read EOF; the supplied host measurement answers the requested invariant for identical executable code.
+
+### Raised
+
+- **BR-5** [Important] `transient-artifact-reclamation` (kind: defect) Interrupted selection writers leave staging files without a reclamation path
+  cmd/internal/mockserve/project.go:227-244 creates a fresh .mock-current-<nonce>.tmp for every selection, with removal owned only by a defer. Process termination before rename/defer leaves that file permanently; no startup, subsequent writer, or scanner path reclaims abandoned staging files. These files consume the scanner's 1,024-entry allowance (scan.go:70-72), so repeated interrupted commands eventually prevent serving an otherwise valid project. ARCH-FUNERAL: define bounded, concurrency-safe staging ownership/reclamation, preserve active writers and the published pointer, and add interrupted-writer recovery coverage.
+
 ## Open findings
 
-- **BR-2** [Critical] `document-lifecycle-restartability` (kind: defect) Back/forward-cache restoration permanently disables live reload
-- **BR-3** [Important] `concurrency-test-contract` (kind: defect) Concurrent selection regression fails under the new identity checks
-- **BR-4** [Important] `browser-qualification-evidence` (kind: unverifiable) Real-browser acceptance behavior could not be qualified in this environment
+- **BR-5** [Important] `transient-artifact-reclamation` (kind: defect) Interrupted selection writers leave staging files without a reclamation path

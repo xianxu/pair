@@ -1,13 +1,17 @@
 package mockserve
 
 import (
+	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func writeProjectFile(t *testing.T, dir, name, data string) {
@@ -98,7 +102,7 @@ func TestUseAtomicSelection(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if len(entries) != 4 {
+	if len(entries) != 5 {
 		t.Fatalf("temp residue: %v", entries)
 	}
 	// Rename failure must remove the temporary file.
@@ -112,7 +116,7 @@ func TestUseAtomicSelection(t *testing.T) {
 		t.Fatal("expected rename failure")
 	}
 	entries, _ = os.ReadDir(d)
-	if len(entries) != 4 {
+	if len(entries) != 5 {
 		t.Fatal("temp residue", entries)
 	}
 }
@@ -271,5 +275,253 @@ func TestConcurrentSelectionReadRefusesChangedIdentity(t *testing.T) {
 	b, err := p.readBounded(".mock-current", selectionLimit)
 	if err != nil || string(b) != "mock-2\n" {
 		t.Fatalf("confirmed selection %q %v", b, err)
+	}
+}
+
+func TestSelectionInterruptedWriterHelper(t *testing.T) {
+	dir := os.Getenv("PAIR_MOCK_INTERRUPTED_WRITER")
+	if dir == "" {
+		return
+	}
+	p, err := OpenProject(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	p.beforeSelectionCommit = func() { fmt.Println("staged"); select {} }
+	if err := p.Use("mock-2"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestUseRecoversKilledWriter(t *testing.T) {
+	p, dir := testProject(t)
+	writeProjectFile(t, dir, "mock-2/index.html", "two")
+	if err := p.Use("mock-1"); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestSelectionInterruptedWriterHelper$")
+	cmd.Env = append(os.Environ(), "PAIR_MOCK_INTERRUPTED_WRITER="+dir)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd.Stderr = os.Stderr
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	var stopOnce sync.Once
+	stopHelper := func() { stopOnce.Do(func() { cmd.Process.Kill(); cmd.Wait() }) }
+	defer stopHelper()
+	ready := make(chan bool, 1)
+	go func() { s := bufio.NewScanner(stdout); ready <- s.Scan() && s.Text() == "staged" }()
+	select {
+	case ok := <-ready:
+		if !ok {
+			t.Fatal("helper never staged")
+		}
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	stage, err := os.ReadFile(filepath.Join(dir, ".mock-current.tmp"))
+	if err != nil || string(stage) != "mock-2\n" {
+		t.Fatalf("stage %q: %v", stage, err)
+	}
+	pointer, err := os.ReadFile(filepath.Join(dir, ".mock-current"))
+	if err != nil || string(pointer) != "mock-1\n" {
+		t.Fatalf("pointer %q: %v", pointer, err)
+	}
+	waiting := make(chan struct{})
+	p.selectionContended = func() { close(waiting) }
+	writerDone := make(chan struct{})
+	var writerErr error
+	go func() { defer close(writerDone); writerErr = p.Use("mock-1") }()
+	// Release the helper's OS lock and join the waiting writer on every exit,
+	// before testProject's cleanup closes the project handle.
+	defer func() { stopHelper(); <-writerDone }()
+	select {
+	case <-waiting:
+	case <-writerDone:
+		t.Fatalf("writer bypassed live lock: %v", writerErr)
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	same, err := os.ReadFile(filepath.Join(dir, ".mock-current.tmp"))
+	if err != nil || string(same) != string(stage) {
+		t.Fatalf("live staging changed %q: %v", same, err)
+	}
+	pointer, err = os.ReadFile(filepath.Join(dir, ".mock-current"))
+	if err != nil || string(pointer) != "mock-1\n" {
+		t.Fatalf("live pointer changed %q: %v", pointer, err)
+	}
+	stopHelper()
+	select {
+	case <-writerDone:
+		if writerErr != nil {
+			t.Fatal(writerErr)
+		}
+	case <-ctx.Done():
+		t.Fatal("lock was not released after kill")
+	}
+	if _, err := os.Lstat(filepath.Join(dir, ".mock-current.tmp")); !os.IsNotExist(err) {
+		t.Fatalf("stage survived recovery: %v", err)
+	}
+	pointer, err = os.ReadFile(filepath.Join(dir, ".mock-current"))
+	if err != nil || string(pointer) != "mock-1\n" {
+		t.Fatalf("recovered pointer %q: %v", pointer, err)
+	}
+}
+
+func TestSelectionReservedNamesExcludedFromScan(t *testing.T) {
+	p, dir := testProject(t)
+	// Exactly fill the public entry allowance before adding the two reserved names.
+	for i := 3; i < MaxEntries; i++ {
+		writeProjectFile(t, dir, fmt.Sprintf("entry-%d", i), "")
+	}
+	baseline, err := p.Scan(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{".mock-current.lock", ".mock-current.tmp"} {
+		f, err := os.Create(filepath.Join(dir, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := f.Truncate(MaxBytes + 1); err != nil {
+			t.Fatal(err)
+		}
+		f.Close()
+	}
+	entries, bytes := 0, int64(0)
+	p.scanWork = func(e int, b int64) { entries += e; bytes += b }
+	after, err := p.Scan(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after != baseline || entries != MaxEntries+2 || bytes != baseline.Bytes {
+		t.Fatalf("reserved names affected snapshot/work: before=%+v after=%+v entries=%d bytes=%d", baseline, after, entries, bytes)
+	}
+	writeProjectFile(t, dir, ".mock-current.tmp", "changed interrupted data")
+	after, err = p.Scan(t.Context())
+	if err != nil || after != baseline {
+		t.Fatalf("staging edit caused reload: %+v %v", after, err)
+	}
+}
+
+func TestUseRejectsUnsafeLock(t *testing.T) {
+	for _, kind := range []string{"symlink", "directory", "replacement"} {
+		t.Run(kind, func(t *testing.T) {
+			p, dir := testProject(t)
+			target := filepath.Join(dir, ".mock-current.lock")
+			switch kind {
+			case "symlink":
+				writeProjectFile(t, dir, "secret", "untouched")
+				if err := os.Symlink("secret", target); err != nil {
+					t.Fatal(err)
+				}
+			case "directory":
+				if err := os.Mkdir(target, 0700); err != nil {
+					t.Fatal(err)
+				}
+			case "replacement":
+				writeProjectFile(t, dir, ".mock-current.lock", "")
+				p.beforeOpen = func(name string) {
+					if name != ".mock-current.lock" {
+						return
+					}
+					if err := os.Rename(target, target+".old"); err != nil {
+						t.Fatal(err)
+					}
+					writeProjectFile(t, dir, ".mock-current.lock", "")
+				}
+			}
+			if err := p.Use("mock-1"); err == nil {
+				t.Fatal("unsafe lock accepted")
+			}
+			if _, err := os.Lstat(filepath.Join(dir, ".mock-current")); !os.IsNotExist(err) {
+				t.Fatalf("selection changed: %v", err)
+			}
+		})
+	}
+}
+
+func TestSelectionReservedScopeAndKinds(t *testing.T) {
+	for _, kind := range []string{"directory", "symlink"} {
+		t.Run(kind, func(t *testing.T) {
+			p, dir := testProject(t)
+			before, err := p.Scan(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, name := range []string{selectionLockName, selectionStageName} {
+				if kind == "directory" {
+					writeProjectFile(t, dir, name+"/nested", "private")
+				} else if err := os.Symlink("/missing-private-path", filepath.Join(dir, name)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			after, err := p.Scan(t.Context())
+			if err != nil || after != before {
+				t.Fatalf("private kind changed scan: %+v %v", after, err)
+			}
+			if err := p.Use("mock-1"); err == nil {
+				t.Fatal("nonregular lock accepted")
+			}
+		})
+	}
+	p, dir := testProject(t)
+	before, err := p.Scan(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeProjectFile(t, dir, "mock-1/"+selectionLockName, "content")
+	writeProjectFile(t, dir, "mock-1/"+selectionStageName, "more")
+	after, err := p.Scan(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if before.Digest == after.Digest || after.Entries != before.Entries+2 || after.Bytes != before.Bytes+11 {
+		t.Fatalf("nested names excluded: before=%+v after=%+v", before, after)
+	}
+}
+
+func TestUseRejectsUnsafeStage(t *testing.T) {
+	for _, kind := range []string{"directory", "symlink", "replacement"} {
+		t.Run(kind, func(t *testing.T) {
+			p, dir := testProject(t)
+			target := filepath.Join(dir, selectionStageName)
+			switch kind {
+			case "directory":
+				if err := os.Mkdir(target, 0700); err != nil {
+					t.Fatal(err)
+				}
+			case "symlink":
+				writeProjectFile(t, dir, "secret", "untouched")
+				if err := os.Symlink("secret", target); err != nil {
+					t.Fatal(err)
+				}
+			case "replacement":
+				p.beforeSelectionCommit = func() {
+					if err := os.Rename(target, target+".old"); err != nil {
+						t.Fatal(err)
+					}
+					writeProjectFile(t, dir, selectionStageName, "mock-99\n")
+				}
+			}
+			if err := p.Use("mock-1"); err == nil {
+				t.Fatal("unsafe stage accepted")
+			}
+			if _, err := os.Lstat(filepath.Join(dir, ".mock-current")); !os.IsNotExist(err) {
+				t.Fatalf("selection changed: %v", err)
+			}
+			if kind == "symlink" {
+				data, err := os.ReadFile(filepath.Join(dir, "secret"))
+				if err != nil || string(data) != "untouched" {
+					t.Fatalf("symlink target affected: %q %v", data, err)
+				}
+			}
+		})
 	}
 }

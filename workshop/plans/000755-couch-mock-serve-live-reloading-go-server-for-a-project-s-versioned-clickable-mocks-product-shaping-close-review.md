@@ -216,3 +216,115 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000410
+
+---
+
+## Re-review — 2026-10-20T23:52:30-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 755 — couch mock serve: live-reloading Go server for a project's versioned, clickable mocks (product-shaping) |
+| repo | pair |
+| issue file | workshop/issues/000755-couch-mock-serve-live-reloading-go-server-for-a-project-s-versioned-clickable-mocks-product-shaping.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 79ea4ca9e5be10c67c5c356b7f7d4067ebd79a92..897dbb6cdc7c683b03f6e99ccc0a1c7decd1ad62 |
+| command | sdlc close --issue 755 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T23:52:30-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The prior behavior fixes are verified, and the documented host browser evidence answers BR-4 for unchanged executable code. Selection, confinement, reload ordering, CLI dispatch, and documentation are well covered. One Important lifecycle gap remains: interrupted selection commands can leave staging files indefinitely, eventually exhausting the scanner’s entry limit.
+
+```findings
+dispose:
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The production client handles persisted pageshow with generation/request ownership fencing. All 11 client tests pass; running the current harness against the pre-fix script in memory produces six lifecycle failures, including restoration and stale-completion cases.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      TestUseAtomicSelectionReaders accepts only whole values or typed ErrPathChanged refusal and unconditionally joins its writer. TestConcurrentSelectionReadRefusesChangedIdentity deterministically exercises replacement and verifies the settled selection. Twenty race-enabled repetitions of the selection/confinement tests passed.
+  - id: BR-4
+    disposition: withdrawn
+    note: |
+      workshop/plans/000755-mock-browser-evidence.md records the exact browser command, passing subtests, exit zero, and sandbox-enabled private-profile qualification on 8fefb5c78182993499354d9227052209570022ea. Git inspection confirms the reviewed head differs only in documentation. Local qualification still fails initial DOM predicates with CDP read EOF; the supplied host measurement answers the requested invariant for identical executable code.
+findings:
+  - id: new
+    severity: Important
+    kind: defect
+    family: transient-artifact-reclamation
+    title: |
+      Interrupted selection writers leave staging files without a reclamation path
+    detail: |
+      cmd/internal/mockserve/project.go:227-244 creates a fresh .mock-current-<nonce>.tmp for every selection, with removal owned only by a defer. Process termination before rename/defer leaves that file permanently; no startup, subsequent writer, or scanner path reclaims abandoned staging files. These files consume the scanner's 1,024-entry allowance (scan.go:70-72), so repeated interrupted commands eventually prevent serving an otherwise valid project. ARCH-FUNERAL: define bounded, concurrency-safe staging ownership/reclamation, preserve active writers and the published pointer, and add interrupted-writer recovery coverage.
+```
+
+1. **Strengths**
+
+   - Shared directory/file identity checks protect HTTP, scanner, and selection reads; adversarial replacement tests remain green.
+   - Bootstrap revisions precede document reads, and deterministic client tests cover restoration, duplicate events, queued timers, and late completions.
+   - Cached state requests perform no scans; counted filesystem tests validate bounded traversal and content reads.
+   - README and atlas updates cover commands, layout, limits, identity attributes, and reload behavior.
+
+2. **Critical findings**
+
+   None.
+
+3. **Important findings**
+
+   The staging-file lifecycle finding above. Add automatic reclamation or a bounded staging design that cannot remove another active writer’s files.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Passed:
+
+   - Race-enabled `mockserve`, `couchcmd`, and `artifactpath` package tests.
+   - Twenty repetitions of selection/confinement regressions.
+   - All 11 Node client tests.
+   - Artifactpath/repolint checks and affected-reader inventory.
+
+   The pre-fix JavaScript negative control failed six regressions as expected. Local browser tests remain environment-limited; the recorded host qualification covers identical code. Interrupted-writer residue is currently untested.
+
+6. **Architectural notes for upcoming work**
+
+   - **ARCH-DRY — pass:** shared parsing, filesystem admission, fixtures, and scan publication.
+   - **ARCH-PURE — pass:** parsing, document transformation, and revision decisions are tested independently of IO.
+   - **ARCH-PURPOSE — pass:** sample and qualification cover clickable screens, edits, selection, and revert.
+   - **ARCH-MOCK — pass:** portable project folders and private HTTP/browser boundaries support integration qualification.
+   - **ARCH-CONSTRAINTS — pass:** explicit entry/byte bounds and cached polling are exercised.
+   - **ARCH-SECURE — pass:** confined reads, explicit public routes, and adversarial replacement coverage.
+   - **ARCH-ORDER — pass:** restoration ownership and concurrent selection outcomes are explicit and exercised.
+   - **ARCH-FUNERAL — flag:** abandoned selection staging files have no end.
+   - **ARCH-EVOLVE — pass:** strict single-value selection format; fixture bytes are not rewritten.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry defining selection staging ownership, recovery after process death before publication, reclamation bounds, and concurrency-safe cleanup tests. Update the lifecycle passage at plan line 62 to describe that mechanism.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"af847332-9ef2-46cb-b622-d83f57b31291","repository":"github.com/xianxu/pair","issue_id":"000755","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/f338fd9be858bcae","reviewed_head":"897dbb6cdc7c683b03f6e99ccc0a1c7decd1ad62","slot":"pair:4","requested_at":"2026-10-21T06:49:00.415541Z"},"phase":"finished","pid":43045,"started_at":"2026-10-21T06:49:00.5162Z","finished_at":"2026-10-21T06:52:29.481412Z","session_id":"01a15d38-6a5f-7dd1-ae46-046dfff405d2","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.5454375s
+head: "897dbb6cdc7c683b03f6e99ccc0a1c7decd1ad62"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000410

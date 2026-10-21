@@ -1,7 +1,6 @@
 package mockserve
 
 import (
-	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
@@ -9,6 +8,8 @@ import (
 	"os"
 	"path"
 	"strings"
+
+	"golang.org/x/sys/unix"
 )
 
 // ErrPathChanged means an observed entry was replaced before its handle was admitted.
@@ -18,6 +19,8 @@ const MaxEntries = 1024
 const MaxBytes int64 = 32 << 20
 const MaxHTMLBytes int64 = 1 << 20
 const selectionLimit int64 = 256
+const selectionLockName = ".mock-current.lock"
+const selectionStageName = ".mock-current.tmp"
 
 // Version is a validated mock directory name, ordered by number then variant.
 type Version struct{ name, number, variant string }
@@ -83,6 +86,10 @@ type Project struct {
 	scanWork func(int, int64)
 	// beforeOpen is a deterministic boundary for concurrent-replacement tests.
 	beforeOpen func(string)
+	// beforeSelectionCommit observes the completed stage while its writer holds the lock.
+	beforeSelectionCommit func()
+	// selectionContended observes an OS-confirmed lock conflict.
+	selectionContended func()
 }
 
 func OpenProject(dir string) (*Project, error) {
@@ -206,40 +213,122 @@ func (p *Project) existsScreen(version, screenPath string) bool {
 	_, e := p.readBounded(version+"/"+screenPath, MaxHTMLBytes)
 	return e == nil
 }
+
+// selectionLock admits one persistent regular-file inode before and after taking
+// its advisory lock. Writers never unlink this inode: a process exit releases the
+// OS lock without creating an independent lock domain for the next writer.
+func (p *Project) selectionLock() (*os.File, error) {
+	for {
+		observed, err := p.root.Lstat(selectionLockName)
+		if errors.Is(err, os.ErrNotExist) {
+			f, createErr := p.root.OpenFile(selectionLockName, os.O_CREATE|os.O_EXCL|os.O_RDWR|unix.O_NOFOLLOW|unix.O_NONBLOCK, 0600)
+			if errors.Is(createErr, os.ErrExist) {
+				continue
+			}
+			if createErr != nil {
+				return nil, createErr
+			}
+			f.Close()
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if !observed.Mode().IsRegular() {
+			return nil, fmt.Errorf("%s is not a regular file", selectionLockName)
+		}
+		if p.beforeOpen != nil {
+			p.beforeOpen(selectionLockName)
+		}
+		f, err := p.root.OpenFile(selectionLockName, os.O_RDWR|unix.O_NOFOLLOW|unix.O_NONBLOCK, 0600)
+		if err != nil {
+			return nil, err
+		}
+		actual, err := f.Stat()
+		if err != nil || !actual.Mode().IsRegular() || !os.SameFile(observed, actual) {
+			f.Close()
+			return nil, fmt.Errorf("%w: selection lock", ErrPathChanged)
+		}
+		err = unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB)
+		if errors.Is(err, unix.EWOULDBLOCK) || errors.Is(err, unix.EAGAIN) {
+			if p.selectionContended != nil {
+				p.selectionContended()
+			}
+			for {
+				err = unix.Flock(int(f.Fd()), unix.LOCK_EX)
+				if !errors.Is(err, unix.EINTR) {
+					break
+				}
+			}
+		}
+		if err != nil {
+			f.Close()
+			return nil, err
+		}
+		current, err := p.root.Lstat(selectionLockName)
+		if err != nil || !current.Mode().IsRegular() || !os.SameFile(actual, current) {
+			f.Close()
+			return nil, fmt.Errorf("%w: selection lock after acquisition", ErrPathChanged)
+		}
+		return f, nil
+	}
+}
+
 func (p *Project) Use(version string) error {
-	if _, e := ParseVersion(version); e != nil {
-		return e
+	if _, err := ParseVersion(version); err != nil {
+		return err
 	}
-	st, e := p.root.Lstat(version)
-	if e != nil {
-		return e
+	lock, err := p.selectionLock()
+	if err != nil {
+		return err
 	}
-	if !st.IsDir() {
-		return fmt.Errorf("%s is not a directory", version)
+	defer lock.Close()
+	if _, err = p.readBounded(version+"/index.html", MaxHTMLBytes); err != nil {
+		return err
 	}
-	if _, e = p.readBounded(version+"/index.html", MaxHTMLBytes); e != nil {
-		return e
+	// Only a writer holding the persistent lock can reclaim an interrupted stage.
+	old, err := p.root.Lstat(selectionStageName)
+	if err == nil {
+		if !old.Mode().IsRegular() {
+			return fmt.Errorf("%s is not a regular file", selectionStageName)
+		}
+		if err = p.root.Remove(selectionStageName); err != nil {
+			return err
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
 	}
-	nonce := make([]byte, 16)
-	if _, e = rand.Read(nonce); e != nil {
-		return e
+	f, err := p.root.OpenFile(selectionStageName, os.O_CREATE|os.O_EXCL|os.O_WRONLY|unix.O_NOFOLLOW|unix.O_NONBLOCK, 0600)
+	if err != nil {
+		return err
 	}
-	name := fmt.Sprintf(".mock-current-%x.tmp", nonce)
-	f, e := p.root.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
-	if e != nil {
-		return e
+	defer p.root.Remove(selectionStageName)
+	actual, err := f.Stat()
+	if err != nil {
+		f.Close()
+		return err
 	}
-	defer p.root.Remove(name)
-	_, e = io.WriteString(f, version+"\n")
-	if e == nil {
-		e = f.Sync()
+	if !actual.Mode().IsRegular() {
+		f.Close()
+		return fmt.Errorf("selection stage is not a regular file")
 	}
-	ce := f.Close()
-	if e != nil {
-		return e
+	_, err = io.WriteString(f, version+"\n")
+	if err == nil {
+		err = f.Sync()
 	}
-	if ce != nil {
-		return ce
+	closeErr := f.Close()
+	if err != nil {
+		return err
 	}
-	return p.root.Rename(name, ".mock-current")
+	if closeErr != nil {
+		return closeErr
+	}
+	if p.beforeSelectionCommit != nil {
+		p.beforeSelectionCommit()
+	}
+	current, err := p.root.Lstat(selectionStageName)
+	if err != nil || !current.Mode().IsRegular() || !os.SameFile(actual, current) {
+		return fmt.Errorf("%w: selection stage", ErrPathChanged)
+	}
+	return p.root.Rename(selectionStageName, ".mock-current")
 }
