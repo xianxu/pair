@@ -1,13 +1,13 @@
 ---
 id: 000776
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '2db2f70873120537394808f4fe3f3e3cac419a07' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '6b209f28ee97d1d31535aaf4a59d8fa7a7a272d9' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-21T12:04:14-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "eb22dab6", done: "b1a03087"}
+actual_hours: 0.96
 ---
 
 # couch detach got slower and looks sequential after the 10-21 restart: profile and fix the regression
