@@ -14,14 +14,14 @@ claimant:
     workspace: pair:9
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
-actual_hours: 0.15
+actual_hours: 2.28
 tracker:
     version: 1
     completion:
-        token: close-71bd4be48707
+        token: close-11461e019396
         repository: github.com/xianxu/pair
-        reviewed_head: 07063d275d8b1f05d3093c2bdf937e958f419722
-        evidence_commit: e4bef8e50fee7379be4297eeb2495ebfbd1076d9
+        reviewed_head: 458897c5274b5313c32017e02f4effb6b73024cf
+        evidence_commit: 0c73fd04a3e02e01e108a0b72de0e042be3410fb
 ---
 
 # flake: TestProvisionFixtureIdentityUsesOneGitProcess
