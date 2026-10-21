@@ -1,6 +1,6 @@
 ---
 id: 000750
-status: codecomplete
+status: done
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: dd124babe4dc06ace24fec60cc5bfbc2504cc336
         evidence_commit: a2de95623012ebe1bc43ce7c00ccc2a1071b4eca
+        landed_commit: c6350d209438e4f626cb8b1fdae2a7a6e1f342a0
 ---
 
 # cast-sketch: design the ✎ drawing tool for the Couch web cast (strokes + label, element-anchored vector paths, additive recording format, live view, agent-side view)
