@@ -1,6 +1,6 @@
 ---
 id: 000747
-status: codecomplete
+status: done
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 0af77fd818b77daf156d5e2e879124e9db66c01e
         evidence_commit: 65b203efe127cd1aaa451e8ed85d994598c3803a
+        landed_commit: ac6a85bd113700168eb83a85937f9e98360b20b1
 ---
 
 # Recordless Fresh worker launch validates a reserved address as established
