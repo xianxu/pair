@@ -1,13 +1,13 @@
 ---
 id: 000738
-status: blocked
+status: working
 deps: [ariadne#517]
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '273803a254cce5c4ae0221160909f0774be8f341' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'b43a4c223b737ec0123547c12006cd55be7cea1b' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T19:58:34-07:00
 claimant:
     operator: Xian Xu

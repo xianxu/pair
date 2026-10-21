@@ -57,8 +57,9 @@ func TestContinuousCLIDriveCountProjection(t *testing.T) {
 	saved := ContinuousPassFunc
 	t.Cleanup(func() { ContinuousPassFunc = saved })
 	observation := &historyarchive.DriveInventoryObservation{Destination: "pair-backup:backups/pair-history", FolderID: "folder-1", Phase: "after", Files: 8}
+	var observations []historyarchive.DriveInventoryObservation
 	ContinuousPassFunc = func(context.Context, historyarchive.ContinuousPass) (historyarchive.ContinuousReport, error) {
-		return historyarchive.ContinuousReport{Drive: &historyarchive.DriveReport{Inventory: observation}}, nil
+		return historyarchive.ContinuousReport{Drive: &historyarchive.DriveReport{Inventory: observation, Inventories: observations}}, nil
 	}
 	var out, diag bytes.Buffer
 	if code := RunContext(context.Background(), []string{"continuous", "--json"}, &out, &diag, nil); code != 0 {
@@ -75,6 +76,18 @@ func TestContinuousCLIDriveCountProjection(t *testing.T) {
 	if code := RunContext(context.Background(), []string{"continuous"}, &out, &diag, nil); code != 0 || !strings.Contains(out.String(), observation.Line()) || !strings.Contains(out.String(), observation.Warning(7)) {
 		t.Fatalf("code=%d out=%s diag=%s", code, &out, &diag)
 	}
+	before := *observation
+	before.Phase = "before"
+	before.Files = 99
+	leaf := *observation
+	leaf.Destination += "/2026/10"
+	leaf.FolderID = "month-id"
+	observations = []historyarchive.DriveInventoryObservation{*observation, before, leaf, leaf}
+	out.Reset()
+	if code := RunContext(context.Background(), []string{"continuous"}, &out, &diag, nil); code != 0 || strings.Count(out.String(), leaf.Line()) != 2 || strings.Contains(out.String(), before.Line()) || strings.Contains(out.String(), "total") {
+		t.Fatalf("folder projection: code=%d out=%s diag=%s", code, &out, &diag)
+	}
+	observations = nil
 	observation = nil
 	out.Reset()
 	if code := RunContext(context.Background(), []string{"continuous"}, &out, &diag, nil); code != 0 || !strings.Contains(out.String(), observation.Line()) || strings.Contains(out.String(), "threshold") {

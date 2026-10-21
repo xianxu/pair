@@ -142,3 +142,12 @@ Pair's pin then adopts them without a second rule implementation. Pair-specific
 package ownership policies belong in the local composed catalog, with the same
 incident and matcher tests plus this atlas mapping; they reuse the shared checker
 and leave the upstream catalog and sleep-debt matching unchanged.
+
+The Pair-local `terminal-registry-owner` rule (pair#731) rejects direct kill-only `LiveIDs` calls in terminal, layout, clipboard and Couch production functions. Native routing uses `LiveOwnerIDs`; explicit registry storage tests and the shared adapter retain the generic predicate seam.
+
+## Bounded Zellij read ownership (#748)
+
+The local `zellij-read-attempt-bypass` rule rejects direct `runQueryAttempt`
+calls in package launcher outside `ZellijSource.runContext`. Callers use the
+bounded entry to share its deadline, exact read allowlist and attempt evidence.
+It checks call-site syntax, not arbitrary function-value alias dataflow.

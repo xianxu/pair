@@ -35,10 +35,27 @@ func (r indexInventoryRunner) Run(ctx context.Context, args []string, limit int)
 
 var indexSyncTime = time.Date(2030, 1, 2, 3, 4, 5, 0, time.UTC)
 
+func legacyIndexDriveFake(t *testing.T, cfg ha.ContinuousConfig, records []ha.CatalogRecord) *archivetest.FakeRclone {
+	t.Helper()
+	fake := &archivetest.FakeRclone{Objects: map[string][]archivetest.FakeRemoteObject{}}
+	for _, record := range records {
+		for name, key := range map[string]string{record.Label.ID + ".tar.zst.gpg": record.BundleKey, record.Label.ID + ".json": record.LabelKey} {
+			raw, err := os.ReadFile(filepath.Join(cfg.Sink, key))
+			if err != nil {
+				t.Fatal(err)
+			}
+			fake.Objects[name] = []archivetest.FakeRemoteObject{{ID: name, Data: raw}}
+		}
+	}
+	return fake
+}
+
 func uploadedIndexFixture(t *testing.T, n int, keepReceipts bool) (ha.ContinuousConfig, []ha.CatalogRecord, *archivetest.FakeRclone) {
 	t.Helper()
 	cfg, records, root := driveFixture(t, n)
-	fake := &archivetest.FakeRclone{}
+	// Keep the original recovery matrix explicitly on the supported legacy
+	// layout. Month and mixed-layout qualification is separate in #706 M2.
+	fake := legacyIndexDriveFake(t, cfg, records)
 	report, err := (ha.DriveMirror{Rclone: ha.Rclone{Runner: fake}}).Run(context.Background(), cfg, filepath.Join(root, "archive"))
 	if err != nil || report.Verified != n {
 		t.Fatalf("upload: %+v %v", report, err)
@@ -87,7 +104,8 @@ func TestDriveIndexSyncRemoteOnlyBoundedCalls(t *testing.T) {
 					}
 				}
 			}
-			if fake.Invocations > 4 || fake.Lists != 2 || fake.DownloadBatches != 1 || fake.DownloadedCipherBytes != 0 || fake.HashBatches != 0 {
+			// Final root re-resolution confirms the configured folder binding.
+			if fake.Invocations > 5 || fake.Lists != 2 || fake.DownloadBatches != 1 || fake.DownloadedCipherBytes != 0 || fake.HashBatches != 0 {
 				t.Fatalf("unbounded/network ciphertext work: %+v", fake)
 			}
 			for _, p := range []string{cfg.Catalog, cfg.Sink, cfg.Catalog + ".uploads"} {

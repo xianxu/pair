@@ -94,6 +94,24 @@ func TestDriveInterruptOutcomes(t *testing.T) {
 			t.Fatalf("deadline %#v %#v", r, fx)
 		}
 	})
+	t.Run("unknown screen is not a turn end", func(t *testing.T) {
+		s := start(t)
+		for _, screen := range []Screen{
+			{Epoch: 3, Complete: true},
+			{Epoch: 4, Complete: true, Dismissable: true},
+			{Epoch: 5, Complete: false, Idle: true},
+			{Epoch: 6, Complete: true, TurnActive: true, Idle: true},
+		} {
+			s, _ = ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: screen})
+			if s.Terminal() {
+				t.Fatalf("screen without positive idle completion confirmed interruption: %+v: %+v", screen, s.Result())
+			}
+		}
+		s, _ = ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 7, Complete: true, Idle: true}})
+		if s.Result().Outcome != OutcomeConfirmed {
+			t.Fatalf("fresh idle composer did not confirm interruption: %+v", s.Result())
+		}
+	})
 	t.Run("refused without a working turn", func(t *testing.T) {
 		for _, screen := range []Screen{{Epoch: 1, Complete: true, Idle: true}, {Epoch: 1, Complete: true, TurnActive: true}, {Epoch: 1, Complete: true, Dismissable: true}} {
 			s, _ := NewDrive(Request{Interrupt: true}, "claude", now.Add(time.Minute))

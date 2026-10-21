@@ -18,27 +18,16 @@ import (
 // funnel Ctrl+Return and chip clicks use. The panel is drawn on the
 // operator-only layer, so a broadcast never shows it.
 
-// AttentionStore persists the list; couchcore.AttentionStore in production.
-type AttentionStore interface {
-	Load() ([]couchcore.AttentionItem, error)
-	Save([]couchcore.AttentionItem) error
-}
-
 // attentionState is a leaf: its lock is taken under c.mu (the status model)
 // and on the presenter goroutine (the layer), and never takes another.
 type attentionState struct {
 	mu    sync.Mutex
 	list  couchcore.AttentionList
-	store AttentionStore
-	// saving: a saver goroutine runs; dirty: the list changed since it took
-	// its snapshot. One runner saves the newest snapshot, so saves land in
-	// order and no caller waits on the disk.
-	saving, dirty bool
-	open          bool
-	sel           int            // index into the open panel's items
-	box           NotesMenu      // the open panel as last laid out
-	ids           []string       // the panel's item IDs; menu item n is ids[n-1]
-	shown         []attentionRow // what the panel lists, newest first
+	open  bool
+	sel   int            // index into the open panel's items
+	box   NotesMenu      // the open panel as last laid out
+	ids   []string       // the panel's item IDs; menu item n is ids[n-1]
+	shown []attentionRow // what the panel lists, newest first
 }
 
 type attentionRow struct {
@@ -55,68 +44,42 @@ var (
 
 const attentionTitle = "Waiting on you"
 
-// SetAttentionStore loads the saved list, before Run. A list that can't be
-// read starts empty, said in a notice; Couch still starts.
-func (c *Console) SetAttentionStore(store AttentionStore) {
-	items, err := store.Load()
-	c.attn.mu.Lock()
-	c.attn.store = store
-	c.attn.list = couchcore.RestoreAttention(items, c.now())
-	c.attn.mu.Unlock()
-	if err != nil {
-		c.setNotice("Attention list not restored: " + err.Error())
-	}
-	c.repaint()
-}
-
 // ObserveAttention folds one source fact into the list. It never blocks on
-// the console or the disk: the save runs in the background saver.
+// the disk: the list is ephemeral and folds entirely in memory.
 func (c *Console) ObserveAttention(f couchcore.AttentionFact) {
 	cols, rows := c.attentionScreen()
 	c.attn.mu.Lock()
 	c.attn.list = c.attn.list.Apply(f, c.now())
 	c.layoutAttentionLocked(cols, rows)
 	c.attn.mu.Unlock()
-	c.saveAttention()
 	c.repaint()
 }
 
-// saveAttention marks the list changed and starts the saver if none runs.
-// The saver is a tracked worker, so shutdown waits for the last save; it is
-// started after c.attn.mu is released, since GoTracked takes c.mu.
-func (c *Console) saveAttention() {
+// expireAttention shares the existing activity tick and never touches IO.
+func (c *Console) expireAttention() {
+	cols, rows := c.attentionScreen()
 	c.attn.mu.Lock()
-	start := c.attn.store != nil && !c.attn.saving
-	if c.attn.store != nil {
-		c.attn.dirty = true
-		c.attn.saving = c.attn.saving || start
-	}
+	before := c.attn.list.Len()
+	c.attn.list = c.attn.list.Expire(c.now())
+	changed := before != c.attn.list.Len()
+	c.layoutAttentionLocked(cols, rows)
 	c.attn.mu.Unlock()
-	if start {
-		c.GoTracked(c.runAttentionSaves)
+	if changed {
+		c.repaint()
 	}
 }
 
-// runAttentionSaves saves the newest snapshot until no change is pending.
-func (c *Console) runAttentionSaves() {
-	for {
-		c.attn.mu.Lock()
-		if !c.attn.dirty {
-			c.attn.saving = false
-			c.attn.mu.Unlock()
-			return
-		}
-		c.attn.dirty = false
-		store, saved := c.attn.store, c.attn.list.Saved(c.now())
-		c.attn.mu.Unlock()
-		if err := store.Save(saved); err != nil {
-			c.setNotice("Attention list not saved: " + err.Error())
-		}
-	}
+func (c *Console) clearAttention() {
+	cols, rows := c.attentionScreen()
+	c.attn.mu.Lock()
+	c.attn.list = c.attn.list.Clear()
+	c.layoutAttentionLocked(cols, rows)
+	c.attn.mu.Unlock()
+	c.repaint()
 }
 
 // attentionRows is the panel's rows, newest first: the slot, what it waits
-// on, and when, with a chip of its kind's color. A visited item says so.
+// on, and when, with a chip of its kind's color.
 func attentionRows(items []couchcore.AttentionItem) []attentionRow {
 	rows := make([]attentionRow, 0, len(items))
 	for _, item := range items {
@@ -133,12 +96,8 @@ func attentionRows(items []couchcore.AttentionItem) []attentionRow {
 		case couchcore.AttentionQuestion:
 			bg = attentionQuestionBg
 		}
-		state := ""
-		if item.Visited {
-			state = " (visited)"
-		}
 		rows = append(rows, attentionRow{item: item, bg: bg,
-			text: item.Since.Local().Format("15:04") + "  " + item.Label + state + "  " + text})
+			text: item.Since.Local().Format("15:04") + "  " + item.Label + "  " + text})
 	}
 	return rows
 }
@@ -159,11 +118,15 @@ func (c *Console) layoutAttentionLocked(cols, screenRows int) {
 		return
 	}
 	rows := attentionRows(c.attn.list.Items())
-	c.attn.shown, c.attn.ids = rows, make([]string, len(rows))
-	items := make([]menuItem, len(rows))
+	c.attn.shown, c.attn.ids = rows, nil
+	var items []menuItem
+	if len(rows) > 0 {
+		c.attn.ids = append(c.attn.ids, "")
+		items = append(items, menuItem{ID: 1, Text: "Clear all (c)"})
+	}
 	for i, r := range rows {
-		c.attn.ids[i] = r.item.ID
-		items[i] = menuItem{ID: i + 1, Text: r.text, Chip: true, Bg: r.bg}
+		c.attn.ids = append(c.attn.ids, r.item.ID)
+		items = append(items, menuItem{ID: i + 2, Text: r.text, Chip: true, Bg: r.bg})
 	}
 	c.attn.box = renderMenuAt(attentionTitle, items, cols, screenRows, true)
 	if !c.attn.box.Open() {
@@ -175,10 +138,11 @@ func (c *Console) layoutAttentionLocked(cols, screenRows int) {
 
 // toggleAttention is Ctrl+Alt+a and a click on 🔔N.
 func (c *Console) toggleAttention() {
+	c.expireAttention()
 	cols, rows := c.attentionScreen()
 	c.attn.mu.Lock()
 	c.attn.open = !c.attn.open && c.attn.list.Len() > 0
-	c.attn.sel = 0
+	c.attn.sel = 1
 	c.layoutAttentionLocked(cols, rows)
 	open := c.attn.open
 	c.attn.mu.Unlock()
@@ -212,6 +176,11 @@ func (c *Console) selectAttention(n int) {
 		c.attn.mu.Unlock()
 		return
 	}
+	if c.attn.ids[n] == "" {
+		c.attn.mu.Unlock()
+		c.clearAttention()
+		return
+	}
 	var item couchcore.AttentionItem
 	var ok bool
 	c.attn.list, item, ok = c.attn.list.Select(c.attn.ids[n])
@@ -220,7 +189,6 @@ func (c *Console) selectAttention(n int) {
 	if !ok {
 		return
 	}
-	c.saveAttention()
 	c.jumpToAttention(item)
 }
 
@@ -247,12 +215,11 @@ func (c *Console) dismissAttention(n int) {
 	c.attn.list = c.attn.list.Dismiss(c.attn.ids[n])
 	c.layoutAttentionLocked(cols, rows)
 	c.attn.mu.Unlock()
-	c.saveAttention()
 	c.repaint()
 }
 
 // routeAttentionKey takes the keyboard while the panel is open: Up/Down (or
-// k/j) move, Enter jumps, d or Backspace dismisses, Escape closes. Any other
+// k/j) move, Enter jumps, d or Backspace dismisses, c clears all, Escape closes. Any other
 // key goes on to its usual place. It reports whether it took the key.
 func (c *Console) routeAttentionKey(raw, canonical []byte) bool {
 	c.attn.mu.Lock()
@@ -277,6 +244,9 @@ func (c *Console) routeAttentionKey(raw, canonical []byte) bool {
 		move = 1
 	case k.Kind == KeyEnter:
 		c.selectAttention(sel)
+		return true
+	case k.Kind == KeyRune && k.Rune == 'c':
+		c.clearAttention()
 		return true
 	case k.Kind == KeyBackspace || k.Kind == KeyRune && k.Rune == 'd':
 		c.dismissAttention(sel)

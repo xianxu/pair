@@ -78,7 +78,7 @@ func FuzzParseCLIIsClosed(f *testing.F) {
 			}
 			return
 		}
-		if got.kind <= cliInvalid || got.kind > cliHelp {
+		if got.kind <= cliInvalid || got.kind > cliMock {
 			t.Fatalf("successful parse escaped closed kinds: %#v", got)
 		}
 	})

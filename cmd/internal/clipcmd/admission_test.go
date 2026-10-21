@@ -95,7 +95,7 @@ func TestClipboardAdmissionRefusesBeforeStaging(t *testing.T) {
 }
 
 func TestAutoQuoteAdmissionUsesCombinedSourceContext(t *testing.T) {
-	for _, scenario := range []string{"healthy", "multiple-tabs", "unanimous-clients", "disagreeing-clients", "missing-client", "missing-source", "missing-draft", "other-tab-draft", "ambiguous-draft", "wrong-clients", "wrong-panes", "changed-source", "changed-draft", "plain-nvim", "right-terminal", "registered-split"} {
+	for _, scenario := range []string{"healthy", "multiple-tabs", "unanimous-clients", "disagreeing-clients", "missing-client", "missing-source", "missing-draft", "other-tab-draft", "ambiguous-draft", "wrong-clients", "wrong-panes", "changed-source", "changed-draft", "plain-nvim", "right-terminal", "unregistered-terminal", "registered-split"} {
 		t.Run(scenario, func(t *testing.T) {
 			f, rt, opts := clipboardFixture(t)
 			model := f.Model()
@@ -126,7 +126,7 @@ func TestAutoQuoteAdmissionUsesCombinedSourceContext(t *testing.T) {
 				s.Panes = append(s.Panes, p)
 			case "plain-nvim":
 				s.Panes[0]["terminal_command"] = "nvim /tmp/other.md"
-			case "right-terminal":
+			case "right-terminal", "unregistered-terminal":
 				s.Panes[0]["terminal_command"] = "pair term"
 			case "registered-split":
 				s.Panes[0]["terminal_command"] = nil
@@ -151,7 +151,7 @@ func TestAutoQuoteAdmissionUsesCombinedSourceContext(t *testing.T) {
 				f.SetFaults(zellijtest.Fault{Ordinal: 4, Model: &model})
 			}
 			var runtime Runtime = rt
-			if scenario == "registered-split" {
+			if scenario == "registered-split" || scenario == "right-terminal" {
 				runtime = &registeredAdmissionRuntime{admissionRuntime: rt}
 			}
 			code := RunCopyOnSelectOrchestrate(CopyOnSelectOptions{Clipboard: opts}, runtime, io.Discard)
@@ -185,7 +185,7 @@ func TestAutoQuoteAdmissionUsesCombinedSourceContext(t *testing.T) {
 			switch scenario {
 			case "wrong-clients", "disagreeing-clients", "missing-client":
 				want = 1
-			case "wrong-panes", "missing-source", "missing-draft", "other-tab-draft", "ambiguous-draft":
+			case "wrong-panes", "missing-source", "missing-draft", "other-tab-draft", "ambiguous-draft", "unregistered-terminal":
 				want = 2
 			}
 			observations := 0

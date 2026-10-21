@@ -1072,6 +1072,7 @@ func (c *Console) Run() (code int) {
 		case result := <-c.slotGitResults:
 			c.finishSlotGit(result)
 		case <-activityTicker.C:
+			c.expireAttention()
 			c.advanceActivity(RefreshScheduleEvent{Kind: RefreshRequested})
 		case <-c.activityRequests:
 			c.advanceActivity(RefreshScheduleEvent{Kind: RefreshRequested})

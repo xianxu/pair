@@ -84,14 +84,14 @@ func validateContinuousCommandReport(r ContinuousCommandReport) error {
 	if r.MaxDriveFiles < 0 {
 		return fmt.Errorf("max Drive files cannot be negative")
 	}
-	if r.Report.Drive != nil && r.Report.Drive.Inventory != nil {
+	if r.Report.Drive != nil && (r.Report.Drive.Inventory != nil || len(r.Report.Drive.Inventories) != 0) {
 		if noPass {
 			return fmt.Errorf("%s cannot carry Drive inventory", r.Outcome)
 		}
 		if r.MaxDriveFiles == 0 {
 			return fmt.Errorf("Drive inventory requires a positive file threshold")
 		}
-		if err := validateDriveInventoryObservation(r.Report.Drive.Inventory); err != nil {
+		if err := validateDriveInventories(r.Report.Drive); err != nil {
 			return err
 		}
 	}

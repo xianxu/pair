@@ -14,6 +14,8 @@ const DriveBudget = 30 * time.Second
 
 type DriveObservation struct {
 	Instance string
+	// Sequence fences operator input for an Interruptible proof and all
+	// activity for other proofs. Native working redraws do not revoke interrupt.
 	Sequence uint64
 	Idle     bool
 	// Recoverable positively identifies a known composer without an active turn,
