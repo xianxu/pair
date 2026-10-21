@@ -1,6 +1,6 @@
 ---
 id: 000767
-status: working
+status: codecomplete
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours:
@@ -14,6 +14,14 @@ claimant:
     workspace: pair:9
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.15
+tracker:
+    version: 1
+    completion:
+        token: close-71bd4be48707
+        repository: github.com/xianxu/pair
+        reviewed_head: 07063d275d8b1f05d3093c2bdf937e958f419722
+        evidence_commit: e4bef8e50fee7379be4297eeb2495ebfbd1076d9
 ---
 
 # flake: TestProvisionFixtureIdentityUsesOneGitProcess
