@@ -42,7 +42,7 @@ Durable full-flow plan: [native pane evidence](../plans/000761-native-pane-evide
 
 - [x] Capture and classify native false-selection output, preserving original failures and exact cleanup proof.
 - [x] Implement both approved bounded signatures and operation-owned typed raw evidence, with adversarial boundary and persistence tests.
-- [ ] Document and complete native counter/control, focused checks, recorded suite and close readiness; publication remains gated by close and merge.
+- [x] Document native counter/control and focused checks, push the candidate, and request its recorded suite for close review; a passing final-head suite and SHIP still gate publication.
 
 ## Log
 
@@ -144,3 +144,7 @@ Verified submitted approval of the investigation adds a shipping requirement ind
 ### 2026-10-21 — approved full-flow implementation contract
 
 TL3aacb9e7 approves the durable full plan plus socket-present exit1 recovery. The original two prose Plan bullets covered investigation and generic verification; the current checklist names the established reproduction and complete implementation/acceptance handoff. Done when now explicitly includes both approved bounded signatures and typed raw operation evidence. No ownership fence or three-attempt/deadline budget is relaxed.
+
+### 2026-10-21 — close readiness with queued suite
+
+The worker contract explicitly allows close review to overlap a queued recorded suite, while requiring its final-head pass before landing and a replacement suite for any code fix. The readiness checklist now records requesting that check, rather than implying its result has already arrived. Replacement suite on72a985824c8c4053d23ae13204396c71f64cb176 is queued first behind an admitted ariadne suite. Native controls and producer-contract repair are verified; the prior failed suite remains retained. This changes verification scheduling only, not Done when, SHIP or landing requirements.
