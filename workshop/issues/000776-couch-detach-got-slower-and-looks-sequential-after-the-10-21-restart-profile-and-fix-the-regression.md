@@ -72,3 +72,8 @@ Eight-slot attempt failed before detach at worker4 registration: missing expecte
 Core Detach/Leave/threadstore, storage coordinator/RegisterStore and process/quiescence implementations are unchanged between856876acd and the pinned head. No culprit is established. At operator scale29 slots, fan-out6 suggests roughly five waves;7–8s is a TL extrapolation, not a measurement. Next profile must attribute the inner retirement work before changing concurrency.
 
 Evidence copied below; original scratch /Volumes/TestScratch/detach-compare.O0eTeh retains temporary clones, observer patch, logs and traces. These records contain only disposable fixture metadata, not operator transcripts. Private fleets are already removed. Evidence remains with this issue for review; temporary clones can be collected after the investigation.
+
+
+### 2026-10-21 — bounded inner-step capture
+
+Before the next capture, recorded exact observer seams in retirement-substeps-plan.json beside this issue evidence. Reuse pinned eaa758a6: current main a9522724 changes only issue details, with no product-code delta. Exactly one four-total-slot private capture; no eight-slot retry. Preserve nil-context and lock semantics. Whole-supervisor user/system CPU around Leave is aggregate CPU including background goroutines, never per-slot CPU. The collector remains bounded, metadata-only and in memory, with flush outside the measured core. Separate coordinator pre-lock directory syncs from actual lock wait and held work. No product fix is proposed yet.
