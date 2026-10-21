@@ -2,6 +2,7 @@ package couchschedule
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -365,5 +366,44 @@ func TestLedgerReturnedErrorCleanupPreservesReplacement(t *testing.T) {
 	raw, err := os.ReadFile(replaced)
 	if err != nil || string(raw) != "replacement" {
 		t.Fatalf("returned-error cleanup removed replacement: %q %v", raw, err)
+	}
+}
+
+// Substitution is outside the hostile-actor threat model, but this hook pins
+// the inexpensive publication consistency check shared with error cleanup.
+func TestLedgerPublicationRefusesReplacement(t *testing.T) {
+	dir := catalogRoot(t)
+	initializeRecoveryLedger(t, dir)
+	authority := filepath.Join(dir, "state.json")
+	before, err := os.ReadFile(authority)
+	if err != nil {
+		t.Fatal(err)
+	}
+	replacement := []byte(`{"version":1,"tasks":{}}`)
+	var replaced string
+	store := StateStore{Dir: dir, stateStep: func(step, name string) error {
+		if step != "pre-rename" {
+			return nil
+		}
+		replaced = filepath.Join(dir, name)
+		if err := os.Rename(replaced, replaced+".saved"); err != nil {
+			return err
+		}
+		return os.WriteFile(replaced, replacement, 0600)
+	}}
+	err = store.Update(t.Context(), func(l *Ledger) error {
+		l.Unknown["marker"] = json.RawMessage(`"new"`)
+		return nil
+	})
+	if err == nil {
+		t.Error("publication accepted substituted stage")
+	}
+	after, err := os.ReadFile(authority)
+	if err != nil || !bytes.Equal(before, after) {
+		t.Errorf("previous authority changed: before=%s after=%s err=%v", before, after, err)
+	}
+	got, err := os.ReadFile(replaced)
+	if err != nil || !bytes.Equal(got, replacement) {
+		t.Errorf("replacement not preserved: got=%s err=%v", got, err)
 	}
 }

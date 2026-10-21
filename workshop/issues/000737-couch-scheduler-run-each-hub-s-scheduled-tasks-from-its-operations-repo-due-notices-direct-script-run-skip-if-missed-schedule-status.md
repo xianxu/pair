@@ -140,3 +140,6 @@ Fall-back repeated local times run once. Remove waiting-hub: offline notify-only
 
 
 - 2026-10-21 TL decision: explicit crash/cooperating-process/stale-leftover threat model, excluding deliberate same-user substitution in private 0700 storage. Approved only the cheap ledger publication identity check and three-part regression, with cell-local requalification. Authorized one additional M1 boundary round (cap 4 for that invocation), no waiver; any new crash-class gap returns to TL. M2 remains paused. Cancelled only this checkout's pre-correction recorded check.
+
+
+- 2026-10-21 BR-8 correction: `TestLedgerPublicationRefusesReplacement` failed before the fix on all three required assertions (nil success, changed previous authority, consumed replacement). Extracted the existing descriptor-relative ledger ownership predicate and reused it immediately before Renameat and in ordinary-error cleanup. `go test ./cmd/internal/couchschedule -run '^Test(Ledger|Store)' -race -count=1` passes (2.181s), including abrupt-death/live-owner/cleanup regressions for this cell; diff check clean. No other matrix cells changed or requalified. Push/recorded check and the TL-authorized fourth boundary round follow; M2 remains paused.

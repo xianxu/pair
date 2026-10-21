@@ -166,6 +166,9 @@ func publishSchedule(ctx context.Context, dir *os.File, raw []byte, beforeDirSyn
 	if err = ledgerStateStep(step, "pre-rename", name); err != nil {
 		return err
 	}
+	if err = verifyLedgerPublicationStage(dir, name, created); err != nil {
+		return err
+	}
 	if err = unix.Renameat(int(dir.Fd()), name, int(dir.Fd()), "state.json"); err != nil {
 		return fmt.Errorf("schedule rename %s: %w", name, err)
 	}
@@ -188,14 +191,23 @@ func ledgerStateStep(hook func(string, string) error, step, name string) error {
 // In particular, rename has consumed the original name on success: any later
 // file at that name is not the publication's deferred-cleanup authority.
 func removeLedgerPublicationStage(dir *os.File, name string, created unix.Stat_t) {
-	var current unix.Stat_t
-	if unix.Fstatat(int(dir.Fd()), name, &current, unix.AT_SYMLINK_NOFOLLOW) != nil {
-		return
-	}
-	if created.Dev != current.Dev || created.Ino != current.Ino || created.Mode != current.Mode || created.Uid != current.Uid || created.Nlink != 1 || current.Nlink != 1 || current.Mode&unix.S_IFMT != unix.S_IFREG {
+	if verifyLedgerPublicationStage(dir, name, created) != nil {
 		return
 	}
 	_ = unix.Unlinkat(int(dir.Fd()), name, 0)
+}
+
+// Publication and error cleanup must refer to the inode this writer created.
+// This is a consistency fence, not isolation from hostile same-user writers.
+func verifyLedgerPublicationStage(dir *os.File, name string, created unix.Stat_t) error {
+	var current unix.Stat_t
+	if err := unix.Fstatat(int(dir.Fd()), name, &current, unix.AT_SYMLINK_NOFOLLOW); err != nil {
+		return fmt.Errorf("schedule publication stage %s: %w", name, err)
+	}
+	if created.Dev != current.Dev || created.Ino != current.Ino || created.Mode != current.Mode || created.Uid != current.Uid || created.Nlink != 1 || current.Nlink != 1 || current.Mode&unix.S_IFMT != unix.S_IFREG {
+		return errors.New("schedule publication stage replaced")
+	}
+	return nil
 }
 
 var ledgerStageName = regexp.MustCompile(`^\.state-[0-9a-f]{32}\.tmp$`)
