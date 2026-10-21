@@ -43,8 +43,8 @@ Investigate the inherited lease through OSProvisionIO and the identity fixture�
 
 ## Plan
 
-- [ ] Reproduce with child-side descriptor diagnostics and identify the failing boundary.
-- [ ] Add a controlled regression, correct the root cause and encode the mistake class in the lint catalog if applicable.
+- [x] Reproduce with child-side descriptor diagnostics and identify the failing boundary.
+- [x] Add a controlled regression, correct the root cause and encode the mistake class in Pair’s composed golint catalog.
 - [ ] Verify repetitions, inventory and recorded affected check; close/review, retire registration and land.
 
 ## Log
@@ -54,3 +54,12 @@ Investigate the inherited lease through OSProvisionIO and the identity fixture�
 - 2026-10-21: Authenticated TL dispatch4dfe9de6-e6f4-4d8a-bce5-31ab01faa1c4; preserved #752 branch and switched through main-slot9 to fresh main-based #767 branch via claim/start-plan. Unchanged identity test passed100 repetitions in28.616s. Parent lease is cleanup-owned and forwarded unchanged into ExtraFiles; diagnosis must distinguish shell pathname permission from actual inherited descriptor usability.
 
 - 2026-10-21: Native scratch probe /Volumes/TestScratch/tmp/pair767-fd-9442s0hq reproduced1 false negative in14969 starts (worker0 sample968, seven other workers2000 each). After the old test -r failed, builtin read on FD3 returned lease-token with rc0; subsequent stat showed mode100600 uid501. This rules out early close/close-on-exec for the observed failure and identifies the pathname oracle as unsound. Apple Bash test.c calls sh_eaccess→sh_stataccess for /dev/fd, and XNU devfs_fdesc_support.c obtains attributes through a separate pathname/vnode path; direct read avoids that unnecessary permission observation. TL quick-plan receipt21ca07a9-38cf-4744-be1e-4a857d18ac9b.
+
+- 2026-10-21: Controlled RED: mode000 inherited lease rejected with exit42, wrong-token readable lease incorrectly accepted. GREEN: builtin direct-FD token read passes readable/mode000, rejects absent/wrong-token before real Git; accepted identity calls each append exactly one Git invocation. Lint RED3/3 permission-probe fixtures then GREEN6/6 including direct read and unrelated paths. Full repolint passes8.623s after adding the new source to Git; identity-family100 repetitions pass101.617s. Prior unchanged identity+lease-family50 repetitions passed152.632s. Inventory passed after auditing the changed reader: only local temporary lease/call log and fixture sources, no new repository traversal; refreshed only its certificate.
+- Native corrected probe completed16000/16000 starts with zero failures (8×2000), exceeding14969 observed old-gate starts. Retained source and diagnostic limitations in workshop/evidence/000767. Strengthened retained probe to count attempts/failures and return nonzero on any child failure; a second16000-start pass is running before the final checkpoint. No production OSProvisionIO lifetime or timeout changes.
+
+## Revisions
+
+### 2026-10-21 — root-cause refinement
+
+Native evidence narrowed the fix from possible FD lifetime repair to the test’s pathname-permission oracle. Added direct inherited-token proof, deterministic mode000 and absent/wrong-token controls, a local catalog rule and a retained native probe. Scope remains the original flake; #752 staging has priority when released.

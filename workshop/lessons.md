@@ -2526,3 +2526,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #764: Retire owned PTY/process handles before closing, signalling or reaping them; shared detach/final cleanup must consume each exactly once, including failure paths. Join startup and cleanup errors, and make live-fixture cleanup failures affect the test result rather than merely logging them.
 
 - #764 BR-1: A fixture-only change can still add a repository enforcement surface. Every new Pair-local lint rule needs its owner, rejected and accepted patterns, and syntax-analysis limits mapped in atlas/go-lint-catalog.md; include that surface in the close atlas decision.
+
+- #767: Prove inherited descriptor usability by operating on the descriptor, with an exact token or identity and absent/wrong-descriptor controls. On macOS a shell permission probe of /dev/fd/3 returned false while builtin read immediately recovered the correct token. Permission inspection is a separate pathname observation, not inheritance proof; an already-open descriptor also remains usable after chmod000. The Pair golint catalog rejects literal shell permission gates on /dev/fd/N.
