@@ -40,6 +40,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/keyhelp"
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/mockserve"
 	"github.com/xianxu/pair/cmd/internal/runtimebundle"
 	"github.com/xianxu/pair/cmd/internal/scrollbackcmd"
 	"github.com/xianxu/pair/cmd/internal/submission"
@@ -316,6 +317,11 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		}
 		fmt.Fprintf(stderr, "couch: %v\n", err)
 		return 2
+	}
+	if invocation.kind == cliMock {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		return mockserve.Run(ctx, invocation.args, stdout, stderr)
 	}
 	if invocation.kind == cliHelp {
 		usage(stdout)
@@ -1428,6 +1434,7 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "couch - supervise agent actors, one per working tree")
 	fmt.Fprintln(w)
 	verbLine(w, launchVerb, "usage: couch [path ...] [--layout2|--layout3]")
+	verbLine(w, "mock", "       couch mock serve DIR [--port N] | mock use DIR mock-N")
 	verbLine(w, "--list", "       couch --list")
 	verbLine(w, "--show", "       couch --show <thread>")
 	verbLine(w, "--reconcile", "       couch --reconcile repo:N")

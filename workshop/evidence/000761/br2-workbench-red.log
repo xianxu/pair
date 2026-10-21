@@ -1,0 +1,10 @@
+--- FAIL: TestWorkbenchPerformanceOwnerPassCountsEveryNativeFence (0.00s)
+    --- FAIL: TestWorkbenchPerformanceOwnerPassCountsEveryNativeFence/callers=1 (0.00s)
+        workbench_attach_invariant_test.go:155: listen unix /Volumes/TestScratch/tmp/pair-slot5/pair-761-br2-class-n90kxn86/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/poc-3160615124/session-0: bind: invalid argument
+    --- FAIL: TestWorkbenchPerformanceOwnerPassCountsEveryNativeFence/callers=3 (0.00s)
+        workbench_attach_invariant_test.go:155: listen unix /Volumes/TestScratch/tmp/pair-slot5/pair-761-br2-class-n90kxn86/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/poc-1268073743/session-0: bind: invalid argument
+    --- FAIL: TestWorkbenchPerformanceOwnerPassCountsEveryNativeFence/callers=21 (0.00s)
+        workbench_attach_invariant_test.go:155: listen unix /Volumes/TestScratch/tmp/pair-slot5/pair-761-br2-class-n90kxn86/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/poc-501548060/session-0: bind: invalid argument
+FAIL
+FAIL	github.com/xianxu/pair/cmd/internal/launcher	0.117s
+FAIL

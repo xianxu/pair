@@ -7,7 +7,13 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 export PAIR_TEST_ZELLIJ_REPLIES="$ROOT/tests/lib/zellij_fixture_replies.py"
 layout_terminal_shell=$(grep 'exec pair term' "$ROOT/zellij/layouts/main-3.kdl" | sed 's/^[[:space:]]*args "-c" "//; s/"$//; s/\\"/"/g')
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/pair-term-shortcuts.XXXXXX")
-trap 'rm -rf "$tmp"' EXIT
+owner_driver=
+cleanup() {
+  touch "$tmp/owner.stop"
+  if [ -n "$owner_driver" ]; then wait "$owner_driver" || return 1; fi
+  rm -rf "${tmp:?}"
+}
+trap cleanup EXIT
 
 export PAIR_HOME="$tmp/home"
 export PAIR_DATA_DIR="$tmp/data"
@@ -20,7 +26,13 @@ export PAIR_DRAFT_PATH="$tmp/draft.md"
 export PAIR_DRAFT_PANE_PATH="$PAIR_DATA_DIR/draft-pane-t.json"
 export PAIR_LAST_LEFT_PANE_PATH="$PAIR_DATA_DIR/last-left-pane-t"
 export PAIR_LAYOUT_MODE_PATH="$PAIR_DATA_DIR/layout-mode-t"
-cp "$ROOT/bin/pair" "$PAIR_HOME/bin/pair"
+bash "$ROOT/tests/lib/pair-test-binary.sh" "$PAIR_HOME/bin/pair"
+if [ -n "${PAIR_TEST_BINARY:-}" ]; then
+  python3 - "$PAIR_TEST_BINARY" "$PAIR_HOME/bin/pair" <<'PY'
+import os,sys
+assert os.path.samefile(*sys.argv[1:]), 'shortcut fixture must execute the shared image, never a per-run copy (#749)'
+PY
+fi
 
 fakebin="$tmp/fakebin"
 mkdir -p "$fakebin"
@@ -33,6 +45,8 @@ root = pathlib.Path(os.environ['PAIR_TERM_FIXTURE_ROOT'])
 args = sys.argv[1:]
 if args[:1] == ['action']:
     command, params = args[1], args[2:]
+    if command == 'rename-pane':
+        sys.exit(0)
     panes = json.loads((root / 'panes.json').read_text())
     if command in {'list-panes', 'current-tab-info'}:
         with (root / 'queries.log').open('a') as log:
@@ -124,6 +138,72 @@ check_eq() {
 }
 
 write_panes terminal
+# A healthy right pane needs an actual registered wrapper, not just the startup
+# command/title in the fake inventory (#731). Keep the shared production image
+# alive on an owned PTY; its private shell acknowledges readiness and exits at
+# teardown. This does not start a native Zellij session.
+python3 - "$PAIR_HOME/bin/pair" "$tmp" <<'PY' &
+import errno, fcntl, os, pathlib, pty, select, shlex, signal, struct, subprocess, sys, termios, time
+pair, root = sys.argv[1], pathlib.Path(sys.argv[2])
+master, slave = pty.openpty()
+fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', 30, 120, 0, 0))
+env = dict(os.environ, SHELL='/bin/sh', ENV='', BASH_ENV='', TERM='xterm-256color')
+owner = subprocess.Popen([pair, 'term'], stdin=slave, stdout=slave, stderr=slave, env=env)
+os.close(slave)
+output = bytearray()
+def drain():
+    if select.select([master], [], [], 0.05)[0]:
+        try:
+            output.extend(os.read(master, 65536))
+            del output[:-8192]
+        except OSError as error:
+            if error.errno != errno.EIO:
+                raise
+try:
+    deadline = time.monotonic() + 10
+    sent = False
+    while not (root / 'owner.shell').exists():
+        drain()
+        if output and not sent:
+            command = 'printf "%s\\n" "$$" > ' + shlex.quote(str(root / 'owner.shell')) + '\n'
+            os.write(master, command.encode())
+            sent = True
+        if owner.poll() is not None or time.monotonic() >= deadline:
+            raise RuntimeError('terminal owner startup: ' + repr(bytes(output)))
+    (root / 'owner.ready').write_text(str(owner.pid))
+    while not (root / 'owner.stop').exists():
+        drain()
+        if owner.poll() is not None:
+            raise RuntimeError('terminal owner ended during shortcut fixture')
+finally:
+    os.write(master, b'exit\n')
+    deadline = time.monotonic() + 10
+    while owner.poll() is None and time.monotonic() < deadline:
+        drain()
+    if owner.poll() is None:
+        owner.send_signal(signal.SIGTERM)
+    try:
+        result = owner.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        owner.kill()
+        owner.wait()
+        raise RuntimeError('terminal owner failed to stop')
+    finally:
+        os.close(master)
+    if result != 0:
+        raise RuntimeError('terminal owner exit: ' + str(result))
+PY
+owner_driver=$!
+python3 - "$tmp/owner.ready" "$owner_driver" <<'PY'
+import os, pathlib, select, sys, time
+ready, driver = pathlib.Path(sys.argv[1]), int(sys.argv[2])
+deadline = time.monotonic() + 15
+while not ready.exists():
+    os.kill(driver, 0)
+    if time.monotonic() >= deadline:
+        raise SystemExit('terminal owner readiness was not acknowledged')
+    select.select([], [], [], 0.05)
+PY
 run_shortcut "Alt+t"
 check_eq "right Alt+t stays local to pair term" "$(actions)" ""
 
@@ -221,6 +301,20 @@ check_eq "review Alt+r does not rename tab" "$(actions)" ""
 write_panes review
 run_shortcut "Alt+Shift+d"
 check_eq "review Alt+Shift+d is not hijacked by terminal split" "$(actions)" ""
+
+# The same metadata with no owner must not authorize shortcut effects.
+mv "$PAIR_DATA_DIR/terminal-panes-t" "$tmp/owner.registry"
+write_panes terminal
+run_shortcut "Alt+Shift+d"
+check_eq "stale terminal template cannot split without ownership" "$(actions)" ""
+write_panes draft
+run_shortcut "Alt+Shift+Left"
+check_eq "stale terminal template cannot receive a delivered tab chord" "$(actions)" ""
+refusal=0
+run_shortcut "Alt+k" 2>"$tmp/owner-refusal.log" || refusal=$?
+check_eq "stale terminal focus reports a refusal" "$refusal" "1"
+check_eq "stale terminal template cannot receive focus" "$(actions)" ""
+mv "$tmp/owner.registry" "$PAIR_DATA_DIR/terminal-panes-t"
 
 grep -Fq 'bind "Alt Shift Enter" { WriteChars "\u{1b}[13;4u"; }' "$ROOT/zellij/config.kdl" \
   && pass "Alt+Shift+Enter forwards distinct KKP sequence" \

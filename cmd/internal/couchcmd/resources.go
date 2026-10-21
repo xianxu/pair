@@ -394,6 +394,10 @@ func cloneResourceWorkspace(w couchcore.WorkspaceIdentity) couchcore.WorkspaceId
 	return w
 }
 func cloneResourceView(v couchcore.ResourceView) couchcore.ResourceView {
+	if v.SupervisionLog != nil {
+		health := *v.SupervisionLog
+		v.SupervisionLog = &health
+	}
 	if v.HostedIngest != nil {
 		hosted := *v.HostedIngest
 		hosted.Clients = append([]couchcore.HostedIngestClient(nil), hosted.Clients...)

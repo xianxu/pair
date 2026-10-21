@@ -1,0 +1,16 @@
+package launcher
+import("context";"encoding/json";"fmt";"os";"path/filepath";"testing";"time";"github.com/xianxu/pair/cmd/internal/pairlifecycletest";"github.com/xianxu/pair/cmd/internal/testpair";"github.com/xianxu/pair/cmd/internal/zellijreply")
+func TestKnownBugNative2000Diagnostic748(t *testing.T){
+ root:=t.TempDir();short,err:=os.MkdirTemp("/tmp","p748-");if err!=nil{t.Fatal(err)};defer os.RemoveAll(short)
+ vals:=[]string{"TMPDIR=/tmp","SHELL=/bin/sh"}
+ for _,key:=range []string{"HOME","XDG_CONFIG_HOME","XDG_DATA_HOME","XDG_CACHE_HOME","XDG_RUNTIME_DIR","ZELLIJ_SOCKET_DIR","ZELLIJ_CONFIG_DIR"}{dir:=filepath.Join(short,key);if err:=os.MkdirAll(dir,0700);err!=nil{t.Fatal(err)};vals=append(vals,key+"="+dir)}
+ testpair.ApplyEnvironment(t,root,vals...)
+ ctx,cancel:=context.WithTimeout(t.Context(),4*time.Minute);defer cancel()
+ session:=fmt.Sprintf("p748-%d",os.Getpid());f,err:=pairlifecycletest.StartControlledZellij(ctx,session);if err!=nil{t.Fatal(err)};defer f.Close()
+ log,err:=os.Create("EVIDENCE_JSONL");if err!=nil{t.Fatal(err)};defer log.Close()
+ attempts,badAttempts,badFinal:=0,0,0
+ ctx=WithZellijQueryObserver(ctx,func(e ZellijQueryObservation){attempts++;if e.Err!=nil{badAttempts++;_=json.NewEncoder(log).Encode(e)}})
+ for i:=0;i<2000;i++{raw,err:=(ZellijSource{}).runContext(ctx,"--session",session,"action","list-panes","--json","--command");if err==nil{var panesCount int;panes,parseErr:=zellijreply.ParsePanes(raw,zellijreply.PaneRequirements{Command:true,State:true,Geometry:true,Tab:true});panesCount=len(panes);err=parseErr;if err==nil&&panesCount==0{err=fmt.Errorf("healthy controlled session returned no panes")}};if err!=nil{badFinal++;_=json.NewEncoder(log).Encode(map[string]any{"logical":i,"final_error":err.Error()})};if ctx.Err()!=nil{t.Fatal(ctx.Err())}}
+ t.Logf("logical=2000 attempts=%d bad-attempts=%d bad-final=%d",attempts,badAttempts,badFinal)
+ if badFinal>0{t.Fatal("unresolved native final replies; retained capture")}
+}

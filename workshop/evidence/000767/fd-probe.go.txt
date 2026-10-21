@@ -1,0 +1,71 @@
+package main
+
+import (
+	"bytes"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"sync"
+	"sync/atomic"
+	"syscall"
+)
+
+func main() {
+	if len(os.Args) < 2 || os.Args[1] == "" {
+		panic("usage: probe PRIVATE_DIR [old]")
+	}
+	root := os.Args[1]
+	script := filepath.Join(root, "probe.sh")
+	body := `#!/bin/sh
+IFS= read -r token <&3 && test "$token" = "lease-token" || { printf 'bad token=%s\n' "$token" >&2; exit 42; }
+`
+	if len(os.Args) > 2 && os.Args[2] == "old" {
+		body = `#!/bin/sh
+if ! test -r /dev/fd/3; then
+ IFS= read -r token <&3
+ printf 'READABLE_GATE_FALSE token=%s read_rc=%s\n' "$token" "$?" >&2
+ /usr/bin/stat -f 'mode=%p uid=%u inode=%i' /dev/fd/3 >&2
+ exit 42
+fi
+`
+	}
+	if err := os.WriteFile(script, []byte(body), 0700); err != nil {
+		panic(err)
+	}
+	var attempts, failures atomic.Int64
+	var wg sync.WaitGroup
+	for worker := 0; worker < 8; worker++ {
+		wg.Add(1)
+		go func(worker int) {
+			defer wg.Done()
+			f, e := os.CreateTemp(root, "lease")
+			if e != nil {
+				panic(e)
+			}
+			defer f.Close()
+			f.WriteString("lease-token\n")
+			for i := 0; i < 2000; i++ {
+				f.Seek(0, 0)
+				cmd := exec.Command(script)
+				cmd.ExtraFiles = []*os.File{f}
+				cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+				var out bytes.Buffer
+				cmd.Stdout = &out
+				cmd.Stderr = &out
+				attempts.Add(1)
+				if e := cmd.Run(); e != nil {
+					failures.Add(1)
+					fmt.Printf("worker%d sample%d: %v: %s", worker, i, e, out.String())
+					return
+				}
+			}
+			fmt.Printf("worker%d PASS2000\n", worker)
+		}(worker)
+	}
+	wg.Wait()
+	fmt.Printf("attempts=%d failures=%d\n", attempts.Load(), failures.Load())
+	if failures.Load() != 0 {
+		os.Exit(1)
+	}
+}

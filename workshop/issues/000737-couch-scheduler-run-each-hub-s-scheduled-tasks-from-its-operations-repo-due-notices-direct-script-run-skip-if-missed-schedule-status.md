@@ -120,6 +120,24 @@ M3 checkpoint combined verification: broad Schedule/Skill/HelpAndSkill/MessageSk
 
 Final committed-head inventory proof: implementation checkpoint f0685773ea65110c45548a8f232c0bfa5dacfc72 is pushed. `python3 tests/affected-go-readers-test.py` passes all 8 tests (43.674s), including the actual affected runner's seeded cross-package refusal in a detached checkout of this committed HEAD, now containing the production writer scanner and its preflight registration. Final independent owner restart/additive/no-intent race selection passes (2.102s). Tree is clean before this log-only update; no recorded check is live. Save the continuation before queuing the recorded check, then continue to candidate check/M3 review and TL-coordinated acceptance; this checkpoint is not M3 completion.
 
+### 2026-10-21 — Restart recovery, noon integration and measurement evidence
+
+Operator Couch restart interrupted the writer response, not the durable checkpoint: continuation dd1109784863d347b580f46e2d0bf4d4e7d1a54b is committed/pushed; the candidate source remains f0685773ea65110c45548a8f232c0bfa5dacfc72. No local-check lease exists, no suite was started, and no pass is inferred. Authenticated TL resume delivery b4675883-03ab-4753-904c-949f2e180026 directs continuing. Milestone dry-run refused the noon integrate gate (missing eaa758a6f); integrating main before a fresh check/review, preserving scheduler+mock CLI, current atlas/artifact inventory, and main's per-reader certificate replacement. The legacy aggregate inventory is removed in favor of 32 audited scheduler certificates; the native seeded preflight probe must be rerun after this merge commit because its disposable checkout reads HEAD.
+
+TL filed the superseded-milestone measurement bug in ariadne and directs retaining exact evidence (authenticated 712a57a6-522d-421b-858f-e284575deee7). No replacement hours are typed. Exact relevant output of `sdlc actual --issue 737 --milestone M3` (ANSI color removed):
+
+```text
+  [ok] measured actual for #737: 0.00h   (window 2026-10-20T17:17:42-07:00 → 2026-10-21T11:48:39-07:00 (M3's phases))
+  build 0.00h · converge 0.00h · uncounted tail 0.00h (cuts: dispatch)
+  attribution warning: 203 sessions excluded: no verified ownership provenance; examples: excluded claude session 17350ce9-42a4-48db-b08d-a3da52fc6187: no verified ownership provenance; excluded claude session 20f5ccdf-6712-4edf-bc16-227b773e3465: no verified ownership provenance; excluded claude session 21edf2ba-67d8-48c5-b842-82c3f8f0e686: no verified ownership provenance
+  attribution warning: provenance: active-time-v3-engagement-v1; 1 ownership intervals; 21 admitted sessions; unbound brain excluded: 0 sessions, 0.00 minutes; code dd1109784863d347b580f46e2d0bf4d4e7d1a54b; tracker f2c4947d1a0e074de96f5d3e556271b200e94013
+  attribution warning: #737 201.0m/18% mention fallback without issue commit boundary (2026-10-20 19:16 → 2026-10-20 22:37)
+  attribution warning: #737 37.3m/3% mention fallback without issue commit boundary (2026-10-21 10:53 → 2026-10-21 11:31)
+  → close (or milestone-close, for a --milestone measurement) ADOPTS this when --actual is omitted (#178, #234)
+```
+
+The same output also lists skipped malformed Codex/Qoder sources; the measurement's window/phase attribution is the reported bug, not evidence of zero work. Use the precise actual gate exception with this reason if needed, retaining unknown actuals rather than adopting a known-bug zero or inventing hours. TL coordinates live acceptance after gates pass. No stage/restart/acceptance or M3 review has occurred.
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only; calibration currently marked stale/provisional by estimate-source. Already-scaled implementation hours use 40% of v2/v2.1 ranges; design uses the thorough-spec 0.2 multiplier, plus 0.5 library credit only for cron/kernel and bounded durable catalog/store. Familiarity 1.0; thorough-plan design buffer 15%. Passive day-long live observation is not focused ship time.

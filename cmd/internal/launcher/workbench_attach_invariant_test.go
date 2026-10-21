@@ -142,11 +142,7 @@ func TestWorkbenchPerformanceOwnerPassCountsEveryNativeFence(t *testing.T) {
 		t.Run(fmt.Sprintf("callers=%d", n), func(t *testing.T) {
 			reader := &attachProcessReader{commands: map[int]procutil.CommandInfo{}}
 			world := newOwnerPassWorld(n)
-			dir, err := os.MkdirTemp("", "poc-")
-			if err != nil {
-				t.Fatal(err)
-			}
-			t.Cleanup(func() { _ = os.RemoveAll(dir) })
+			dir := nativeSocketFixtureRoot(t, fmt.Sprintf("session-%d", n-1))
 			for i := 0; i < n; i++ {
 				name := fmt.Sprintf("session-%d", i)
 				socket := filepath.Join(dir, name)
@@ -154,7 +150,11 @@ func TestWorkbenchPerformanceOwnerPassCountsEveryNativeFence(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				t.Cleanup(func() { _ = listener.Close() })
+				t.Cleanup(func() {
+					if err := listener.Close(); err != nil {
+						t.Error(err)
+					}
+				})
 				reader.rows = append(reader.rows, procutil.Process{PID: i + 10, Name: "zellij", Identity: "generation"})
 				reader.commands[i+10] = procutil.CommandInfo{Args: []string{"zellij", "--server", socket}}
 			}

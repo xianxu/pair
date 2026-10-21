@@ -165,6 +165,7 @@ func (s *State) applyCtl(r *Ctl) error {
 		return err
 	}
 	if !s.ctlSeen && !s.whole {
+		s.sketchControl(r)
 		s.Control, s.ctlSeen = r.Control, true
 		return nil
 	}
@@ -176,6 +177,7 @@ func (s *State) applyCtl(r *Ctl) error {
 		return fmt.Errorf("ctl %s %s states driver %q pending %v; the op gives driver %q pending %v",
 			r.Op, r.Who.ID, r.Driving(), ids(r.Pending), next.Driving(), ids(next.Pending))
 	}
+	s.sketchControl(r)
 	s.Control, s.ctlSeen = r.Control, true
 	return nil
 }
@@ -233,4 +235,13 @@ func ids(as []Author) []string {
 		out[i] = a.ID
 	}
 	return out
+}
+
+// sketchControl is called only after the entire control transition validates.
+func (s *State) sketchControl(r *Ctl) {
+	if r.Op == CtlReset {
+		s.Sketches.interrupt(SketchInterruptReset)
+	} else if s.Control.Driving() != r.Control.Driving() {
+		s.Sketches.interrupt(SketchInterruptHandoff)
+	}
 }

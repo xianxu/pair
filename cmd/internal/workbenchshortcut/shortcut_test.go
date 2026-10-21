@@ -472,6 +472,21 @@ func TestRoleForPaneWithRegisteredTerminals(t *testing.T) {
 	}
 }
 
+func TestTerminalRoleRequiresLiveRegistration(t *testing.T) {
+	for _, pane := range []zellijpane.Pane{
+		{ID: "4", TerminalCommand: "pair term", PaneCommand: "sh -i", Title: "terminal"},
+		{ID: "4", Title: "terminal 1"},
+		{ID: "4", TerminalCommand: "pair term"},
+	} {
+		if got := RoleForPaneWith(pane, []string{"7"}); got != PaneRoleOther {
+			t.Errorf("unregistered pane %+v has role %v; startup command/title must not grant terminal authority", pane, got)
+		}
+		if got := RoleForPaneWith(pane, []string{"4"}); got != PaneRoleRightTerminal {
+			t.Errorf("registered pane has role %v; live-owner projection owns admission", got)
+		}
+	}
+}
+
 // Every global chord must carry help text. This is the "cannot ship undocumented"
 // property for the 8 chords whose wording lives nowhere else — they reach nvim via
 // the GENERATED workbench_actions.lua, not literal keymap.set calls, so parsing

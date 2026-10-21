@@ -28,7 +28,7 @@ func TestPlanFullscreenUsesCallerAndPreservesHalf(t *testing.T) {
 	for _, caller := range []string{"1", "2", "3", "4"} {
 		for _, last := range []string{"", "3", "4", "99"} {
 			panes := fullscreenPanes()
-			plan, err := PlanFullscreen(panes, caller, last, nil, "stale")
+			plan, err := PlanFullscreen(panes, caller, last, []string{"3", "4"}, "stale")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -51,7 +51,7 @@ func TestPlanFullscreenCollapsesObservedHalf(t *testing.T) {
 	on := true
 	panes[4].IsFullscreen = &on
 	for _, recorded := range []string{"1", "2", "4", "99", "", "plugin_0"} {
-		plan, err := PlanFullscreen(panes, "4", "3", nil, recorded)
+		plan, err := PlanFullscreen(panes, "4", "3", []string{"3", "4"}, recorded)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -64,7 +64,7 @@ func TestPlanFullscreenCollapsesObservedHalf(t *testing.T) {
 		}
 	}
 	panes = append(panes[:2], panes[3:]...)
-	plan, err := PlanFullscreen(panes, "4", "3", nil, "99")
+	plan, err := PlanFullscreen(panes, "4", "3", []string{"3", "4"}, "99")
 	if err != nil || plan.Operation != FullscreenCollapse || plan.ReturnID != "" {
 		t.Fatalf("no draft: %+v %v", plan, err)
 	}
@@ -72,13 +72,13 @@ func TestPlanFullscreenCollapsesObservedHalf(t *testing.T) {
 
 func TestPlanFullscreenRefusesUnknownIdentityAndDirection(t *testing.T) {
 	for _, caller := range []string{"", "99", "plugin_0"} {
-		if _, err := PlanFullscreen(fullscreenPanes(), caller, "", nil, ""); err == nil {
+		if _, err := PlanFullscreen(fullscreenPanes(), caller, "", []string{"3", "4"}, ""); err == nil {
 			t.Fatalf("accepted ambiguous/stale caller %q", caller)
 		}
 	}
 	panes := fullscreenPanes()
 	panes[4].IsFullscreen = nil
-	if _, err := PlanFullscreen(panes, "2", "4", nil, ""); err == nil {
+	if _, err := PlanFullscreen(panes, "2", "4", []string{"3", "4"}, ""); err == nil {
 		t.Fatal("unknown fullscreen treated as tiled")
 	}
 	plan, err := PlanFullscreen(panes[:3], "2", "", nil, "")

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/rowtext"
+	"golang.org/x/sys/unix"
 	"io"
 	"os"
 	"os/exec"
@@ -303,8 +304,9 @@ func archiveDownloadName(name string) bool {
 
 // DownloadBatch fetches only selected flat objects into caller-owned private
 // staging. The exclusive filter file is removed on success and failure alike.
-// Oversized objects are filtered by rclone and must be detected by the caller
-// when verifying the expected staged objects.
+// Callers admit exact listed sizes before invoking the copy. This adapter checks
+// staged byte limits afterwards; callers additionally verify per-label size/hash.
+// Rclone's rounded SizeSuffix flags are only a coarse transfer backstop.
 func (r Rclone) DownloadBatch(ctx context.Context, pin PinnedDrive, names []string, destination, filterFile string, maxBytes, maxSize int64) (err error) {
 	if len(names) == 0 || len(names) > maxFlatInventoryEntries || maxBytes <= 0 || maxBytes > 4<<30 || maxSize <= 0 || maxSize > 2<<30 || !filepath.IsAbs(destination) || !filepath.IsAbs(filterFile) {
 		return errors.New("invalid download batch bounds or paths")
@@ -348,11 +350,48 @@ func (r Rclone) DownloadBatch(ctx context.Context, pin PinnedDrive, names []stri
 	if err != nil {
 		return err
 	}
-	// rclone rejects --files-from-raw combined with --max-size. Exact rooted
-	// rules retain the file-size filter and exclude every unselected object.
-	args := r.pinnedArgs(pin, "copy", pin.Root, destination, "--filter-from", filterFile, "--transfers", "8", "--max-transfer", strconv.FormatInt(maxBytes, 10)+"B", "--cutoff-mode", "hard", "--max-size", strconv.FormatInt(maxSize, 10)+"B")
-	_, err = r.runner().Run(ctx, args, 16<<10)
-	return err
+	// SizeSuffix values round through human-readable units in rclone. An exact
+	// --max-size can silently exclude a valid odd-sized bundle; an exact
+	// --max-transfer can truncate it. Keep exact-name selection and use only a
+	// power-of-two backstop, strictly above the admitted total (minimum 1 MiB).
+	args := r.pinnedArgs(pin, "copy", pin.Root, destination, "--filter-from", filterFile, "--transfers", "8", "--max-transfer", strconv.FormatInt(downloadTransferBackstop(maxBytes), 10)+"B", "--cutoff-mode", "hard")
+	if _, err = r.runner().Run(ctx, args, 16<<10); err != nil {
+		return fmt.Errorf("download from %s (folder %s) into %s: %w", pin.Root, pin.FolderID, destination, err)
+	}
+	dir, err := openSafeDir(destination, false)
+	if err != nil {
+		return fmt.Errorf("open download directory %s: %w", destination, err)
+	}
+	defer func() { err = errors.Join(err, dir.Close()) }()
+	var used int64
+	for _, name := range names {
+		if err = ctx.Err(); err != nil {
+			return err
+		}
+		file, e := openRegularAt(dir, name, unix.O_RDONLY)
+		if e != nil {
+			return fmt.Errorf("downloaded object from %s (folder %s): %w", pin.Root, pin.FolderID, &os.PathError{Op: "open", Path: filepath.Join(destination, name), Err: e})
+		}
+		info, e := file.Stat()
+		e = errors.Join(e, file.Close())
+		if e != nil {
+			return fmt.Errorf("stat downloaded object %s: %w", filepath.Join(destination, name), e)
+		}
+		if info.Size() > maxSize || info.Size() > maxBytes-used {
+			return fmt.Errorf("downloaded object %s exceeds admitted byte limit (size %d, file limit %d, remaining batch %d)", filepath.Join(destination, name), info.Size(), maxSize, maxBytes-used)
+		}
+		used += info.Size()
+	}
+	return nil
+}
+
+// total has already passed DownloadBatch's positive, at-most-4-GiB admission.
+func downloadTransferBackstop(total int64) int64 {
+	limit := int64(1 << 20)
+	for limit <= total {
+		limit *= 2
+	}
+	return limit
 }
 
 // DownloadSHA256Batch hashes the exact flat names in the private raw file list.

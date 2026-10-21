@@ -109,7 +109,8 @@ func TestOwnerAdmissionUsesStatefulNativeReplies(t *testing.T) {
 			switch fault {
 			case "wrong-kind":
 				raw := `{"active_swap_layout_name":null,"is_swap_layout_dirty":false}`
-				f.SetFaults(zellijtest.Fault{Ordinal: 1, Reply: &raw})
+				version := "zellij 0.45.1\n"
+				f.SetFaults(zellijtest.Fault{Ordinal: 1, Reply: &raw}, zellijtest.Fault{Ordinal: 2, Reply: &raw}, zellijtest.Fault{Ordinal: 3, Reply: &raw}, zellijtest.Fault{Ordinal: 4, Reply: &version})
 			case "changed-owner":
 				other := ownerFixtureModel("nvim /tmp/data/repos/0123456789abcdef/draft-1-repo-2.md")
 				f.SetFaults(zellijtest.Fault{Ordinal: 2, Model: &other})
@@ -126,7 +127,17 @@ func TestOwnerAdmissionUsesStatefulNativeReplies(t *testing.T) {
 			}
 			want := 2
 			if fault == "wrong-kind" {
-				want = 1
+				want = 4 // Three pane attempts plus one explicitly scheduled version query.
+				queries := f.Queries()
+				for i, q := range queries {
+					expected := "--session pair-a action list-panes --json --command"
+					if i == 3 {
+						expected = "--version"
+					}
+					if strings.Join(q.Args, " ") != expected {
+						t.Fatalf("unexpected query %d: %v", i, q.Args)
+					}
+				}
 			}
 			if len(f.Queries()) != want || len(f.Effects()) != 0 {
 				t.Fatalf("queries=%v effects=%v", f.Queries(), f.Effects())

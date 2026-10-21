@@ -11,6 +11,28 @@ python3 - "$d/source" "$d/alias" <<'PY'
 import os,sys
 assert os.path.samefile(*sys.argv[1:]), 'private placement must preserve inode'
 PY
+# #749: a cross-volume fixture must also execute the shared image. Copying a
+# fresh Mach-O made AMFI assessment consume copy-on-select's entire deadline.
+mkdir "$d/exdev-bin"
+cat > "$d/exdev-bin/python3" <<'SH'
+#!/bin/sh
+shift # The helper's Python source arrives on stdin (python3 - SOURCE DEST).
+exec "$PAIR_TEST_REAL_PYTHON" -c '
+import errno, os, sys
+def cross_device(*args, **kwargs):
+    raise OSError(errno.EXDEV, "forced cross-device link")
+os.link = cross_device
+exec(compile(sys.stdin.read(), "pair-test-binary.sh", "exec"))
+' "$@"
+SH
+chmod +x "$d/exdev-bin/python3"
+PATH="$d/exdev-bin:$PATH" PAIR_TEST_REAL_PYTHON="$(command -v python3)" PAIR_TEST_BINARY="$d/source" \
+  bash "$root/tests/lib/pair-test-binary.sh" "$d/cross-volume-alias"
+python3 - "$d/source" "$d/cross-volume-alias" <<'PY'
+import os,sys
+assert os.path.samefile(*sys.argv[1:]), 'cross-volume placement must not copy the candidate'
+assert os.path.islink(sys.argv[2]), 'cross-volume alias must point to the shared image'
+PY
 if PAIR_TEST_BINARY=relative bash "$root/tests/lib/pair-test-binary.sh" "$d/invalid"; then exit 1; fi
 if PAIR_TEST_BINARY="$d/source" bash "$root/tests/lib/pair-test-binary.sh" "$d/alias"; then exit 1; fi
 mkdir "$d/fake"

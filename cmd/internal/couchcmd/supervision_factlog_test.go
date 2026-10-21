@@ -20,6 +20,8 @@ type factSink struct {
 	block, entered chan struct{}
 	once           sync.Once
 	fail           bool
+	short          bool
+	attempts       int
 	closed         bool
 }
 
@@ -32,8 +34,12 @@ func (s *factSink) Write(p []byte) (int, error) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.attempts++
 	if s.fail {
 		return 0, errors.New("disk failed")
+	}
+	if s.short {
+		return s.Buffer.Write(p[:len(p)/2])
 	}
 	return s.Buffer.Write(p)
 }
@@ -143,7 +149,9 @@ func TestSupervisionFactLogPrivacyAndClock(t *testing.T) {
 		t.Fatal("bad opaque domain identities")
 	}
 	l.offer(supervisionFact{Event: "session_write", Subject: subject, Incarnation: l.incarnation(b)})
+	l.mu.Lock()
 	now = now.Add(-time.Hour)
+	l.mu.Unlock()
 	l.offer(supervisionFact{Event: "session_write", Subject: subject, Incarnation: l.incarnation(b)})
 	supervisionEventually(t, "rows not written", func() bool { return len(sink.rows(t)) == 2 })
 	rows := sink.rows(t)

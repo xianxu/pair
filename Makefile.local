@@ -1,6 +1,11 @@
 # Repo-specific Makefile targets.
 # This file is included by Makefile — add your own targets here.
 
+# Shared native fleet qualification; ordinary suites retain the portable tests.
+.PHONY: test-couch-fleet
+test-couch-fleet:
+	PAIR_NATIVE_COUCH_FLEET=1 go test ./cmd/couch -run '^TestDisposableCouchFleet$$' -count=1 -v -timeout=12m
+
 # Share Go package compilation across worktrees without discarding caller flags
 # (for example -p=3). Set PAIR_GO_TRIMPATH= for diagnostic source paths.
 PAIR_GO_TRIMPATH ?= -trimpath
@@ -241,6 +246,15 @@ test-affected-shell: $(PAIR_AFFECTED_SHELL)
 test-affected-runner:
 	python3 -B tests/test-affected-test.py
 	python3 -B tests/affected-go-readers-test.py
+# Re-audit inputs before refreshing one certificate; never bless unrelated hashes.
+.PHONY: affected-readers
+affected-readers:
+	$(if $(and $(READER),$(DISPOSITION)),,$(error use make affected-readers READER=<path> DISPOSITION=<audited-kind>))
+	python3 -B tests/affected-go-readers-test.py --record "$(READER)" --disposition "$(DISPOSITION)"
+
+.PHONY: test-affected-inventory
+test-affected-inventory:
+	python3 -B tests/affected-go-readers-test.py --check
 test-affected-config:
 	python3 -B tests/affected-config-test.py
 

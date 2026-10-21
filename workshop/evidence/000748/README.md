@@ -1,0 +1,23 @@
+# #748 retained investigation and qualification
+
+`ci-failed-query-capture.json` is the original observer capture from GitHub job118965862227, run39521409698. Full raw job-log SHA256 and timeline are in the issue Log.
+
+The raw protocol control sends 2,000 independent sequential native requests:45 wrong first replies, including5 crossed kinds. `native-first-replies.json` retains two healthy controls and every bad first reply; full local raw JSONL SHA256 is f2d28181109f21844496a3cb472ef52b851522c879c8f23119a54713b8b4ac1c. Every failure is counted, never retried by the test. The process ends with the expected diagnostic failure.
+
+The production CLI control uses ZellijSource.runContext for2,000 logical JSON-pane reads:2,003 subprocess attempts,3 erroneous empty attempts,0 bad final answers after strict pane validation (required command/state/geometry/tab fields and nonempty controlled-session inventory). The query boundary recovers those attempts; the test never retries a logical read. These controls exercise different paths/rates and do not establish a45→3 first-reply rate improvement. Both use unchanged installed Zellij0.45.1 and private fixture roots.
+
+To reproduce either diagnostic, copy its `.go.txt` file to a scratch file, replace EVIDENCE_JSONL with an owned output path, and map a new virtual Go test path through a Go `-overlay` JSON Replace entry. Raw control package/path: `cmd/internal/couchcore/recovery_raw_diagnostic_test.go`, test TestRecoveryNativeRawDiagnostic748. Product control: `cmd/internal/launcher/known_bug_native_748_test.go`, test TestKnownBugNative2000Diagnostic748. Run `go test -overlay OVERLAY ./cmd/internal/PACKAGE -run '^TEST$' -count=1 -v`; raw control needs PAIR_LIVE_COUCH=1. Scratch paths are explicit because the fixture deliberately scrubs arbitrary environment variables. The fixture owns shutdown/removal; no operator session/image/settings are used.
+
+The deterministic red-before-green regression is `launcher.TestZellijKnownBugReadRecoversEmptyAndCrossedReplies`: exact empty→crossed→valid schedules exercise the production process/query boundary using the existing stateful frame fake. Exhaustion and no-effects recovery tests cover3 failed attempts. `warm20-result.txt` records20 consecutive native warm passes. No changed test deadline, sleeps or test retries are involved.
+
+`upstream-5630-server.patch` is the actual merged server diff from upstream PR5630, including monotonic ID allocation and a ConnStatus fast path before registration. Its mixed PR title is not a description of every included change. Remove the bounded compatibility mitigation only after the supported native release includes the upstream correction and these controls are requalified.
+
+Close-review correction: the earlier native control only counted command errors and was insufficient to claim valid final answers. The retained source/results now validate each returned payload with production ParsePanes requirements before declaring it healthy. The fake now records every child before schedule/argv validation; unsafe-retry-mutant-result.txt proves the nonzero/mutation/unknown-flag regression rejects a deliberately unsafe retry gate.
+
+## Official release provenance and residual
+
+Installed Homebrew0.45.1 binary SHA256:604c684330fe097bc1363ada020d1b9b0ad17caa48d633e838869dfe9fc49e9c. Official CI asset SHA256:ca5f9333735bdbc59a621f1d8ed8e24798845302a28ff175d253d4793d5a4a2c, verified against upstream zellij-aarch64-apple-darwin.sha256sum before executing a temporary download. The installed binary was not replaced.
+
+The official binary's strict production control completed2,000 reads/2,012 attempts with14 attempt errors and2 failed final reads (logical223 and510), both exit1 with “There is no active session!”. They remain fail-closed outside the approved exit-zero corruption signature; no test retry discarded them. Official exact park→warm and20consecutive warm cases passed. Current retained official result/events and warm summary are separate from the earlier Homebrew sample.
+
+Independent full review also observed mixed stress samples:2,016 attempts/17 attempt errors/1 failed final, then2,007/7/0. These observations qualify a bounded mitigation, not universally successful native operation. The hub explicitly accepted residual failures with the3-attempt contract unchanged. The raw45/2,000 first-reply control and real CLI controls have different geometry and cannot establish an exact before/after rate. Remove the workaround after the supported Zellij release includes PR5630 and controls are requalified. #743's image should pin the checksum-verified official asset used by CI.

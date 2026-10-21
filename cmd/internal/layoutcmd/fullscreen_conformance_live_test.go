@@ -66,10 +66,7 @@ func TestFullscreenZellijConformance(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		if err := fixture.Close(); err != nil {
-			// A short-lived session may have no resurrection directory yet:
-			// delete-session --force kills it but returns 2 for that missing
-			// directory. Verify server disappearance independently of this code.
-			t.Logf("fixture close: %v; checking server disappearance", err)
+			t.Errorf("fixture close: %v; checking server disappearance", err)
 		}
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cleanupCancel()

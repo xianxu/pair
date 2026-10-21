@@ -19,7 +19,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
-//go:embed web/index.html web/viewer.js web/viewer.css web/model.js web/render.js web/css.js web/annotate.js web/annotation-policy.js web/annotation-anchor.js web/annotation-placement.js web/capture-draft.js web/annotate.css web/placeholders.js web/drive.js web/drive.css web/replay.js web/replay.css web/replayer.js web/fidelity.html web/fidelity.js
+//go:embed web/index.html web/viewer.js web/viewer.css web/model.js web/sketch-model.js web/render.js web/css.js web/annotate.js web/annotation-policy.js web/annotation-anchor.js web/annotation-placement.js web/capture-draft.js web/annotate.css web/placeholders.js web/drive.js web/drive.css web/replay.js web/replay.css web/replayer.js web/fidelity.html web/fidelity.js
 var webFS embed.FS
 
 // contentSecurityPolicy: the page runs only its own script, talks only to
@@ -30,12 +30,13 @@ var webFS embed.FS
 const contentSecurityPolicy = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' blob:; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"
 
 var assets = map[string]struct{ file, contentType string }{
-	"":           {"web/index.html", "text/html; charset=utf-8"},
-	"viewer.js":  {"web/viewer.js", "text/javascript; charset=utf-8"},
-	"viewer.css": {"web/viewer.css", "text/css; charset=utf-8"},
-	"model.js":   {"web/model.js", "text/javascript; charset=utf-8"},
-	"render.js":  {"web/render.js", "text/javascript; charset=utf-8"},
-	"css.js":     {"web/css.js", "text/javascript; charset=utf-8"},
+	"":                {"web/index.html", "text/html; charset=utf-8"},
+	"viewer.js":       {"web/viewer.js", "text/javascript; charset=utf-8"},
+	"viewer.css":      {"web/viewer.css", "text/css; charset=utf-8"},
+	"model.js":        {"web/model.js", "text/javascript; charset=utf-8"},
+	"sketch-model.js": {"web/sketch-model.js", "text/javascript; charset=utf-8"},
+	"render.js":       {"web/render.js", "text/javascript; charset=utf-8"},
+	"css.js":          {"web/css.js", "text/javascript; charset=utf-8"},
 	// Pointing and notes (#470): this package's module and style, and the
 	// swatches and dialog shared with the terminal viewer.
 	"annotation-anchor.js":    {"web/annotation-anchor.js", "text/javascript; charset=utf-8"},

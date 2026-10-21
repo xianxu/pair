@@ -10,6 +10,7 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/xianxu/ariadne v0.0.0-20261018104241-81c832d5e000
 	golang.org/x/image v0.46.0
+	golang.org/x/net v0.55.0
 	golang.org/x/sys v0.48.0
 	golang.org/x/term v0.43.0
 )

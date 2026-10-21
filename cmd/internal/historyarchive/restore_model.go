@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -37,6 +38,7 @@ type RestoreRequest struct {
 type RestoreBundlePlan struct {
 	Label               BundleLabel
 	BundleKey, LabelKey string
+	DriveLocations      []BundleLocation
 }
 
 // pair:m5-concept pure
@@ -106,7 +108,32 @@ func PlanRestore(index LabelIndex, req RestoreRequest) (RestorePlan, error) {
 		plan.CipherBytes += label.Bytes
 		plan.RawBytes += label.RawBytes
 		plan.Request.IDs = append(plan.Request.IDs, id)
-		plan.Bundles = append(plan.Bundles, RestoreBundlePlan{Label: label, BundleKey: b, LabelKey: l})
+		bundle := RestoreBundlePlan{Label: label, BundleKey: b, LabelKey: l}
+		for _, loc := range record.Locations {
+			if loc.Backend != "drive" {
+				continue
+			}
+			loc.Extensions, err = mergeExtensions(nil, loc.Extensions)
+			if err != nil {
+				return RestorePlan{}, err
+			}
+			loc.Proof.Extensions, err = mergeExtensions(nil, loc.Proof.Extensions)
+			if err != nil {
+				return RestorePlan{}, err
+			}
+			bundle.DriveLocations = append(bundle.DriveLocations, loc)
+		}
+		sort.Slice(bundle.DriveLocations, func(i, j int) bool {
+			a, b := bundle.DriveLocations[i], bundle.DriveLocations[j]
+			if a.Available != b.Available {
+				return a.Available
+			}
+			if !a.LastObserved.Equal(b.LastObserved) {
+				return a.LastObserved.After(b.LastObserved)
+			}
+			return a.Identity() < b.Identity()
+		})
+		plan.Bundles = append(plan.Bundles, bundle)
 	}
 	if len(plan.Bundles) == 0 {
 		return RestorePlan{}, errors.New("restore requires at least one bundle ID; use find first")

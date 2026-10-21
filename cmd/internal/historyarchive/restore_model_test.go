@@ -1,6 +1,7 @@
 package historyarchive
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -204,5 +205,61 @@ func TestNextRestoreStrictTransitionMatrix(t *testing.T) {
 	}
 	if state.Phase != RestorePublished {
 		t.Fatalf("complete ordered sequence did not publish: %+v", state)
+	}
+}
+
+func TestPlanRestoreRetainsDeterministicIndependentDriveLocations(t *testing.T) {
+	index, ids := restoreModelIndex(1)
+	record := index.Records[ids[0]]
+	for n, id := range []string{"z", "a", "old", "unavailable"} {
+		loc := BundleLocation{Backend: "drive", Locator: "backup:pair-history", FolderID: id, BundleKey: ids[0] + ".tar.zst.gpg", LabelKey: ids[0] + ".json", Available: id != "unavailable", Evidence: "observed", FirstObserved: record.Label.From, LastObserved: record.Label.From.Add(time.Hour), Extensions: map[string]json.RawMessage{"future": json.RawMessage(`{"x":1}`)}, Proof: LocationProof{Extensions: map[string]json.RawMessage{"future": json.RawMessage(`1`)}}}
+		if n == 2 {
+			loc.LastObserved = loc.FirstObserved
+		}
+		record.Locations[loc.Identity()] = loc
+	}
+	index.Records[ids[0]] = record
+	plan, err := PlanRestore(index, RestoreRequest{IDs: ids, To: "/restore"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	locations := plan.Bundles[0].DriveLocations
+	if len(locations) != 4 || locations[0].FolderID != "a" || locations[1].FolderID != "z" || locations[2].FolderID != "old" || locations[3].FolderID != "unavailable" {
+		t.Fatalf("unstable preference: %+v", locations)
+	}
+	locations[0].Extensions["future"][0] = '['
+	locations[0].Proof.Extensions["future"][0] = '2'
+	original := index.Records[ids[0]].Locations[locations[0].Identity()]
+	if string(original.Extensions["future"]) != `{"x":1}` || string(original.Proof.Extensions["future"]) != `1` {
+		t.Fatal("planner aliases raw location/proof fields")
+	}
+}
+
+func TestRestoreDriveAcquisitionReservesSharedGroupBudgetsBeforeIO(t *testing.T) {
+	for _, kind := range []string{"entries", "bytes"} {
+		t.Run(kind, func(t *testing.T) {
+			index, ids := restoreModelIndex(3)
+			plan, err := PlanRestore(index, RestoreRequest{IDs: ids, To: "/private/restore"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for n := range plan.Bundles {
+				bundle := &plan.Bundles[n]
+				loc := BundleLocation{Backend: "drive", Locator: "backup:pair-history", FolderID: fmt.Sprintf("folder-%d", n), BundleKey: bundle.Label.ID + ".tar.zst.gpg", LabelKey: bundle.Label.ID + ".json", Evidence: "observed", FirstObserved: bundle.Label.From, LastObserved: bundle.Label.From}
+				bundle.DriveLocations = []BundleLocation{loc}
+			}
+			budget := RestoreExtractionBudget{Entries: MaxRestoreEntries - 29}
+			if kind == "bytes" {
+				budget.Entries = 0
+				for n := range plan.Bundles {
+					plan.Bundles[n].Label.Bytes = MaxCiphertextBytes
+				}
+			}
+			r := Restorer{Config: ContinuousConfig{DriveRemote: "backup", DriveFolder: "pair-history"}}
+			err = r.acquireDriveRestoreInputs(context.Background(), plan, plan.Bundles, &budget)
+			if err == nil || !strings.Contains(err.Error(), "budget exhausted") {
+				t.Fatalf("shared %s budget not refused before IO: %v", kind, err)
+			}
+		})
 	}
 }

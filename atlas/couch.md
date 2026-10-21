@@ -461,6 +461,23 @@ nonce, dispatched target, optional thread address, slot path, park/launch nonce,
 bounded exact process identities with executable kinds. Holders never collect argv.
 Generic failures have no inferred phase. Launch fields retain their existing
 16 KiB raw output tail, 4 KiB per error and separate pre/post-cleanup exit codes.
+Unresolved native pane queries also retain typed `zellij_*` evidence on that
+same operation: exact raw stdout/stderr prefixes (4 KiB each), original counts
+and truncation flags, nullable native exit, bounded argv/executable and version.
+Version observation uses the failed query's executable and remaining proof
+deadline. Concise notices/receipts keep raw bytes in the failure record, and
+successful operations perform no version query or failure write.
+
+Zellij0.45.1 can falsely miss a live session during its internal socket lookup.
+`launcher/zellij_read_recovery.go` recognizes two native signatures only for
+its existing idempotent read allowlist: exact missing-target stderr plus a
+validated plain/colored listing containing that live target, or exact exit1
+no-active-session output while the target socket is present. Reissues share
+the original deadline and three-attempt cap; the successful reply still passes
+strict parsing, independent owner agreement and exact-generation fencing.
+Socket presence permits another read and never grants ownership. Remove these
+compatibility signatures when the supported native release fixes lookup/IPC
+routing and the private native controls are requalified (#761, #748).
 
 `launchfailure_store.go` atomically publishes one JSON array at
 `<namespace>/launch-diagnostics/failures.json` (0600), under its private file lock.
@@ -686,7 +703,13 @@ checked before selection publication or directory creation. Escaping or unresolv
 symlinks refuse; children receive only validated physical paths.
 The resolved runtime propagates selected Pair/Couch/identity/isolation roots to
 children and feeds the same roots to listing, messaging and artifact readers.
-Existing socket addressing remains derived from the selected namespace.
+Socket endpoint hashes remain derived from the selected namespace. With explicit
+isolation, broker and wrapper sockets live in the physical `COUCH_ISOLATED_ROOT/m`
+directory; listener startup can sweep only that owned parent. Namespace or parent
+escapes and overlong socket addresses refuse before listener effects. With isolation
+unset, the existing per-UID socket addresses and startup sweep are unchanged.
+The [shared native fleet helper](couch-testing.md) owns this boundary for disposable
+multi-slot acceptance tests (#744).
 
 
 ### Durable numbered slots (#306)
@@ -849,24 +872,22 @@ counts enter the existing COUCH_TRACE diagnostics as `notify-suppressed`, and
 ordinary BEL is unchanged. Each aggregate names the pane endpoint and cumulative
 count; a fresh attachment starts a new counter. No notification text is logged.
 
-**Attention list (pair#673, supersedes pair#352).** Couch keeps a durable list
-of what waits on the operator, and Ctrl+Alt+a (or a click on the status row's
-🔔N badge) opens it as a top-right panel; Enter jumps to the item's slot, `d`
-dismisses it. Three sources feed it through the message service:
-`couch --notify` (a notify item that stays until visited or dismissed), the
-blocked-prompt set `publishBlocked` already computes (prompt items), and the
-wait watcher's question episodes (question items; a turn moves the activity and
-ends the episode). The pure reducer `couchcore.AttentionList` diffs each
-condition set per kind, so a prompt or question item leaves when its condition
-clears, whoever answered; it caps the list at 50, dropping the oldest notify
-first. `couchcore.AttentionStore` persists it as versioned JSON at
-`NAMESPACE/attention/list.json` (`durablefile.WriteAtomicStaged`, O_NOFOLLOW,
-size cap, strict decode). After a restart, condition items stay hidden for a
-two-minute grace until their source raises them again, keeping `Since` and
-`Visited`. The badge sits at the status row's right end so it never covers slot
-content, in the blocked color while a prompt item is open. See
-`couchcore/attention_list.go`, `attention_store.go`, `couchcmd/attention.go`
-and `couchtty/console_attention.go`.
+**Attention list (pair#673, ephemeral lifecycle pair#733).** Ctrl+Alt+a or the
+status row's 🔔N badge opens the top-right panel. Enter/click opens and removes
+an item, `d` dismisses, and the always-visible Clear all row or `c` empties it.
+Three sources report facts through the message service: hub notifications,
+blocked prompts (`publishBlocked`), and wait-watcher question episodes.
+`couchcore.AttentionList` owns the pure transitions: removing a live condition
+suppresses it until that kind/thread leaves its source set; a later occurrence
+is fresh. Only notification events expire at 12 hours, on the existing activity
+tick and fact/panel admission. Current live conditions do not expire. Restart
+starts with no remembered events or suppressions and re-derives live state.
+The legacy `NAMESPACE/attention/list.json` is neither read nor written; no saver
+worker remains. Count and in-memory payload byte bounds still evict oldest
+notifications first. The badge stays red while a visible prompt is outstanding;
+the panel is operator-only. The hub's Needs-you section is the durable record.
+See `couchcore/attention_list.go`, `attention_store.go` (byte-size encoding only),
+`couchcmd/attention.go`, and `couchtty/console_attention.go`.
 
 `couch --actors`, `--send-to repo[:N]|hub [--agent NAME] --message TEXT|--message-file PATH` and `--message-status ID`
 use bounded Unix stream RPC, without constructing another mutable supervisor.
@@ -1419,7 +1440,30 @@ these rules. Parley's sole file-ping watcher is parley.nvim#321.
 The message service records best-effort JSONL at `<namespace>/supervision.jsonl`.
 `supervision_facts.go` owns its v1 schema; `supervision_factlog.go` owns one bounded
 writer, and `supervision_fact_events.go` adapts existing observations. There is no
-new watcher, candidate tracking, or online labeling. Rows record:
+new watcher, candidate tracking, or online labeling.
+
+`couch --resources [--json]` adds request-time `supervision_log` health (#736 M1).
+The existing fact owner captures bounded sanitized backend errors and acknowledged
+write counts; `health()` copies owner memory under its mutex, never reading the
+file or waiting on the sink. Pure `factLogLifecycle.advance` distinguishes opening,
+working, unavailable, failed-write and closed. A later independent successful row
+restores working; the failed row is never retried and its last error remains
+historical. Closed absorbs late IO completions. Counters report offers, complete
+sink acknowledgments and existing drops, not power-loss durability or a drained
+queue. The fact file's default location is `~/.local/share/pair/couch/supervision.jsonl`.
+Retained `couch --message-status ID --json` receipts, rather than this fact stream,
+explain per-message waiting decisions. The historical freeze still awaits the
+coordinated restart's measured error and a cause-specific M2 repair.
+
+The optional health field requires the rebuilt CLI with the new supervisor;
+older strict resource decoders reject it. A new CLI accepts an older server's
+absent field and renders health unavailable. No negotiation, retry, persisted
+format migration or decoder relaxation is involved; other operations' responses
+and admission decisions are unchanged. `resources_projection.go` retains this
+bounded value when trimming detail rows; both projection and cloning isolate it
+from the cached process sample.
+
+Rows record:
 
 - `hub_delivery`: endpoint completion to the hub, wording hint (landed,
   waiting-for-operator, progress, unknown), generated flag and confirmed,
@@ -2587,18 +2631,28 @@ once (`Request.shapeProof`), and start admission (`Admits`), the pre-write
 recheck (`WriteAdmits`) and the turn gate (`DriveState.TurnTolerant`) all derive
 from it. The interrupt's proof is `Interruptible`: positive evidence of work,
 never the turn flag alone, because a bare submission or an open Claude panel
-also sets that flag. The proof needs three things. First, the lifecycle
-reducer's one `Working()` predicate: open, not completed, activity seen, and no
-stop grace pending. `turnWorking` mirrors that predicate off the master loop.
-Second, the agent's own composer on screen, which rules out a panel. Third, the
-agent's own "esc to interrupt" hint in the bottom viewport rows
-(`agentdrive.AdvertisesInterrupt`), which also covers a turn end the lifecycle
-missed. It also needs a complete frame, no picker, and the wrapper owning
+also sets that flag. Claude uses the lifecycle reducer's `Working()` predicate
+(open, not completed, activity seen, no stop grace), a recognized composer and
+its own bottom-viewport interrupt hint. Codex uses the current coherent native
+work status above its qualified composer: `RecognizeCodexWorking` recognizes
+`Working ` and `Waiting for ` status prefixes plus `esc to interrupt`, with
+either captured spinner bullet. Counters, truncated summaries and following
+command-detail rows do not supply authority and are ignored. The same recognizer feeds lifecycle observation and interrupt admission;
+Codex admission does not depend on cached notification flags. Interrupt observations
+carry the last operator-input value of the mailbox activity sequence, so normal
+work redraws do not revoke a queued interrupt. Observation, wrapper admission
+and the writer use the same sequence selector; typing, Esc, image input and
+submit advance it. Other drive shapes retain the all-activity sequence. Reader
+output not yet parsed blocks interrupt proof until the current frame is known. Status position
+is relative to the composer because modern Codex can leave most of the viewport
+blank below it. MCP startup, quoted status text and partial redraws do not prove
+work; partial redraws also do not publish a stop transition (#742). It also needs a complete frame, no picker, and the wrapper owning
 input. It may take a residual
 automatic-input wait, as recovery does, but never an active owner. `Admits`
 checks the interrupt first and exclusively, so an idle agent never gets
 Ctrl+C. The drive writes one internal `interrupt` key (`\x03`) and is done
-when the turn ends. It is unconfirmed at the deadline and never resent. A second
+only after a fresh complete idle composer proves the turn ended. Unknown or
+picker screens cannot confirm it. It is unconfirmed at the deadline and never resent. A second
 interrupt refuses because no turn is working. `couchmessage.IsDriveOp` names
 the three drive ops wherever the protocol, service, CLI and console dispatch
 them.
@@ -2702,7 +2756,13 @@ requests retain their exact executors. Actual cold native resume and the thin
 `Reboot`/`ResumeCandidate` facades enter `executePreparedRecovery`
 (`recovery_prepared.go`). Native resume carries no Prompt. Fresh allocates a new
 tag and uses the normal #522 Prompt to point at previous-screen, branch and issue
-evidence. The raw unreadable-primary archive escape stops and launches nothing.
+evidence. The raw unreadable-primary archive escape stops and launches nothing. Recordless numbered-slot
+Fresh uses this same recovery launch tail: its new record and creating start
+claim commit a tagged Fresh intent together, then the producer rereads the
+committed record and supplies the existing RecoveryAuthority. Pair validates the
+exact helper, nonce, address, revision, agent and cwd before advancing that
+address's reserved marker. It does not treat FreshRequired alone as authority to
+establish an address (#747).
 
 Preparation resolves the normal saved profile, preserves available screen and
 durable selection, and obtains exact, expiring stop acceptance before retirement.

@@ -91,7 +91,7 @@ func TestTerminalRecoveryZellijConformance(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		if err := fixture.Close(); err != nil {
-			t.Logf("disposable fixture cleanup: %v", err)
+			t.Errorf("disposable fixture cleanup: %v", err)
 		}
 	})
 	rt := &fullscreenLiveRuntime{ctx: ctx, session: fixture.Session, queryLog: t.Logf}

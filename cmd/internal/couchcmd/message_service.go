@@ -538,7 +538,6 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	service.SetBroadcastStatus(console.BroadcastStatus)
 	service.SetShares(console.Shares)
 	service.SetBlockedView(console.SetBlockedThreads)
-	console.SetAttentionStore(couchcore.AttentionStore{Dir: filepath.Join(namespace, "attention")})
 	service.SetAttention(console.ObserveAttention)
 	console.SetWrapperActivity(service.WrapperActivity)
 	service.showHub(console)
@@ -985,13 +984,14 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 		}
 		if sampler := s.resources.Load(); sampler != nil {
 			view := sampler.view()
+			view.SupervisionLog = s.facts.Load().health()
 			if snapshot := s.hostedIngest.Load(); snapshot != nil {
 				hosted := (*snapshot)()
 				hosted.ServerPID = os.Getpid()
 				hosted.ServerStartedAt = processStartedAt
 				view.HostedIngest = &hosted
-				view = projectResourceView(view)
 			}
+			view = projectResourceView(view)
 			return couchmessage.Response{Code: "ok", Resources: &view}
 		}
 		return couchmessage.Response{Code: "unsupported", Error: "resource sampler unavailable"}

@@ -346,6 +346,7 @@ func TestFlashPaneOverrides(t *testing.T) {
 func TestCopyOnSelectOrchestrateSkipsRightTerminal(t *testing.T) {
 	f := newFake()
 	f.panes = terminalFocusedPanes
+	f.terminalPaneIDs = []string{"4"}
 	if code := RunCopyOnSelectOrchestrate(copyOpts(), f, io.Discard); code != 0 {
 		t.Fatalf("exit = %d, want 0", code)
 	}
