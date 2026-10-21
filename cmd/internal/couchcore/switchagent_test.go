@@ -1,9 +1,11 @@
 package couchcore
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -19,9 +21,7 @@ func TestSwitchAgentPreviewAndCommitKeepExistingAddress(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return true, nil }
 	source := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
-	env.Couch.RepoAgentDefault = func(_, agent string) (LaunchProfile, bool, error) {
-		return LaunchProfile{Agent: agent, Argv: []string{"--model", "spark"}}, true, nil
-	}
+	seedSwitchRepoArguments(t, env.Couch, source.StartingPath, LaunchProfile{Agent: "codex", Argv: []string{"--model", "spark"}})
 	prepared, err := env.Couch.PrepareAgentSwitch(context.Background(), source.Address, "codex", nil)
 	if err != nil {
 		t.Fatal(err)
@@ -112,7 +112,7 @@ func TestFreshExistingCleanupRequiresProvedAbsence(t *testing.T) {
 	}
 }
 
-func TestUncertainSwitchStartDoesNotChangePathDefaults(t *testing.T) {
+func TestUncertainSwitchStartDoesNotChangeRepositoryDefaults(t *testing.T) {
 	t.Parallel()
 
 	env := newTestEnv(t, "/repo")
@@ -122,7 +122,8 @@ func TestUncertainSwitchStartDoesNotChangePathDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	before, found, err := env.Couch.Threads.GetPathLaunchPreference(identity, source.StartingPath)
+	seedSwitchRepoArguments(t, env.Couch, source.StartingPath, LaunchProfile{Agent: "claude", Argv: []string{"--verbose"}})
+	before, err := env.Couch.Threads.previewRepoPreferences()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,11 +141,11 @@ func TestUncertainSwitchStartDoesNotChangePathDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	after, stillFound, err := env.Couch.Threads.GetPathLaunchPreference(identity, source.StartingPath)
+	after, err := env.Couch.Threads.previewRepoPreferences()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if found != stillFound || !reflect.DeepEqual(before, after) {
+	if !reflect.DeepEqual(before, after) {
 		t.Fatal("uncertain target changed defaults")
 	}
 	if unknown.LatestLaunchProfile.Agent != "claude" || unknown.VerifiedPark == nil || !hasOccupiedIncarnation(unknown) {
@@ -212,6 +213,11 @@ func TestSwitchAgentFailedRegistrationPreservesForeignSessionAndDefaults(t *test
 
 	env := newTestEnv(t, "/repo")
 	source := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
+	seedSwitchRepoArguments(t, env.Couch, source.StartingPath, LaunchProfile{Agent: "claude", Argv: []string{"--verbose"}})
+	beforePreferences, err := env.Couch.Threads.previewRepoPreferences()
+	if err != nil {
+		t.Fatal(err)
+	}
 	env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) {
 		return false, errors.New("different launch nonce")
 	}
@@ -234,6 +240,13 @@ func TestSwitchAgentFailedRegistrationPreservesForeignSessionAndDefaults(t *test
 	// of the proposed terminal and a dead helper allow rollback without touching it.
 	if after.LatestLaunchProfile.Agent != "claude" || after.VerifiedPark == nil || hasOccupiedIncarnation(after) {
 		t.Fatal(after)
+	}
+	afterPreferences, err := env.Couch.Threads.previewRepoPreferences()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(beforePreferences, afterPreferences) {
+		t.Fatal("failed registration changed repository preferences")
 	}
 }
 
@@ -265,7 +278,7 @@ func TestSwitchAgentForkFailureKeepsParkedSource(t *testing.T) {
 	}
 }
 
-func TestSwitchAgentUsesSharedStartingPathPreferenceAndPreservesOtherAgents(t *testing.T) {
+func TestSwitchAgentUsesRepositoryPreferencesAndPreservesOtherAgents(t *testing.T) {
 	t.Parallel()
 
 	for _, target := range []string{"claude", "codex", "agy", "muse"} {
@@ -290,6 +303,18 @@ func TestSwitchAgentUsesSharedStartingPathPreferenceAndPreservesOtherAgents(t *t
 			if err := writePathLaunchPreferenceForTest(env.Couch.Threads, previous); err != nil {
 				t.Fatal(err)
 			}
+			legacyPath := env.Couch.Threads.pathLaunchPreferencePath(identity, source.StartingPath)
+			legacyBefore, err := os.ReadFile(legacyPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for agent, args := range previous.ArgvByAgent {
+				seedSwitchRepoArguments(t, env.Couch, source.StartingPath, LaunchProfile{Agent: agent, Argv: args})
+			}
+			before, err := env.Couch.Threads.previewRepoPreferences()
+			if err != nil {
+				t.Fatal(err)
+			}
 			p, err := env.Couch.PrepareAgentSwitch(context.Background(), source.Address, target, nil)
 			if err != nil {
 				t.Fatal(err)
@@ -307,14 +332,41 @@ func TestSwitchAgentUsesSharedStartingPathPreferenceAndPreservesOtherAgents(t *t
 			if err != nil {
 				t.Fatal(err)
 			}
-			next, found, err := env.Couch.Threads.GetPathLaunchPreference(identity, source.StartingPath)
-			if err != nil || !found || next.LastAgent != target || len(next.ArgvByAgent[target]) != 0 {
-				t.Fatal(next, err)
+			notAdopted, err := env.Couch.Threads.previewRepoPreferences()
+			if err != nil {
+				t.Fatal(err)
 			}
-			for other, args := range previous.ArgvByAgent {
-				if other != target && !reflect.DeepEqual(next.ArgvByAgent[other], args) {
-					t.Fatal("other preference changed", next)
+			if !reflect.DeepEqual(before, notAdopted) {
+				t.Fatal("registered child changed repository preferences before adoption")
+			}
+			started, ok := result.Started()
+			if !ok {
+				t.Fatal("successful switch omitted adopted child")
+			}
+			if started.Configuration == nil {
+				t.Fatal("successful explicit switch lost accepted configuration before adoption")
+			}
+			env.Couch.PublishAdoptedConfiguration(started)
+			if warning := started.Warning(); warning != "" {
+				t.Fatal("adoption did not remember accepted parameters", warning)
+			}
+			next, err := env.Couch.Threads.previewRepoPreferences()
+			if err != nil {
+				t.Fatal(err)
+			}
+			for agent, args := range previous.ArgvByAgent {
+				want := args
+				if agent == target {
+					want = []string{}
 				}
+				resolved, err := ResolveRepoArguments(repoRecordPointer(next, identity), agent, nil)
+				if err != nil || !resolved.Found || !reflect.DeepEqual(resolved.Argv, want) {
+					t.Fatalf("agent%s args%+v want%v err%v", agent, resolved, want, err)
+				}
+			}
+			legacyAfter, err := os.ReadFile(legacyPath)
+			if err != nil || !bytes.Equal(legacyBefore, legacyAfter) {
+				t.Fatal("legacy preference changed", err)
 			}
 			_, workingFound, err := env.Couch.Threads.GetPathLaunchPreference(identity, source.WorkingPath)
 			if err != nil || workingFound {
@@ -370,9 +422,7 @@ func TestSwitchAgentPrefillAllowsEditingRememberedResumeParameters(t *testing.T)
 
 	env := newTestEnv(t, "/repo")
 	source := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
-	env.Couch.RepoAgentDefault = func(_, agent string) (LaunchProfile, bool, error) {
-		return LaunchProfile{Agent: agent, Argv: []string{"resume", "old-session"}}, true, nil
-	}
+	seedSwitchRepoArguments(t, env.Couch, source.StartingPath, LaunchProfile{Agent: "codex", Argv: []string{"resume", "old-session"}})
 	p, err := env.Couch.PrepareAgentSwitch(context.Background(), source.Address, "codex", nil)
 	if err != nil {
 		t.Fatal("remembered parameters must be editable", err)
@@ -393,4 +443,16 @@ type switchGuardFunc func(context.Context, ThreadAddress, string) error
 
 func (f switchGuardFunc) ConfirmAgentSwitch(ctx context.Context, a ThreadAddress, source string) error {
 	return f(ctx, a, source)
+}
+
+func seedSwitchRepoArguments(t *testing.T, c *Couch, path string, profile LaunchProfile) string {
+	t.Helper()
+	identity, err := c.resolveRepoIdentity(context.Background(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Threads.rememberRepoConfiguration(identity, profile, nil); err != nil {
+		t.Fatal(err)
+	}
+	return identity
 }

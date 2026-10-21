@@ -960,37 +960,8 @@ func (s *ThreadStore) advanceSuccessfulStart(address ThreadAddress, expectedRevi
 		if incarnation.RepoIdentity == "" {
 			return errors.New("successful start has no repository identity")
 		}
-		repoIdentity := incarnation.RepoIdentity
-		physicalPath := current.StartingPath
-		preferencePath := s.pathLaunchPreferencePath(repoIdentity, physicalPath)
-		preferenceRaw, preferenceExists, err := s.readOptionalPayload(preferencePath)
-		if err != nil {
-			return err
-		}
-		var currentPreference *PathLaunchPreference
-		if preferenceExists {
-			var decoded PathLaunchPreference
-			if err := strictThreadStoreJSON(preferenceRaw, &decoded); err != nil {
-				return err
-			}
-			if err := validatePathLaunchPreference(decoded); err != nil {
-				return err
-			}
-			if decoded.RepoIdentity != repoIdentity || decoded.PhysicalPath != physicalPath {
-				return errors.New("path launch preference path/address mismatch")
-			}
-			currentPreference = &decoded
-		}
-		nextPreference, err := RecordSuccessfulLaunch(currentPreference, repoIdentity, physicalPath, *profile)
-		if err != nil {
-			return err
-		}
-		nextPreferenceRaw, err := json.MarshalIndent(nextPreference, "", "  ")
-		if err != nil {
-			return err
-		}
-		nextPreferenceRaw = append(nextPreferenceRaw, '\n')
-
+		// Registration records the execution that actually started. Accepted
+		// repository configuration is published only after final console adoption.
 		nextManifest := manifest
 		nextManifest.Generation++
 		nextManifestRaw, err := json.MarshalIndent(nextManifest, "", "  ")
@@ -1000,12 +971,6 @@ func (s *ThreadStore) advanceSuccessfulStart(address ThreadAddress, expectedRevi
 		nextManifestRaw = append(nextManifestRaw, '\n')
 		expectedThread := append([]byte(nil), threadRaw...)
 		afterThread := append([]byte(nil), nextThreadRaw...)
-		var expectedPreference *[]byte
-		if preferenceExists {
-			copy := append([]byte(nil), preferenceRaw...)
-			expectedPreference = &copy
-		}
-		afterPreference := append([]byte(nil), nextPreferenceRaw...)
 		var expectedManifest *[]byte
 		if manifestExists {
 			copy := append([]byte(nil), manifestRaw...)
@@ -1014,7 +979,6 @@ func (s *ThreadStore) advanceSuccessfulStart(address ThreadAddress, expectedRevi
 		afterManifest := append([]byte(nil), nextManifestRaw...)
 		journal := storeJournal{SchemaVersion: 1, Entries: []storeJournalEntry{
 			{Path: relativeStorePath(s.root, s.recordPath(address)), Expected: &expectedThread, After: &afterThread},
-			{Path: relativeStorePath(s.root, preferencePath), Expected: expectedPreference, After: &afterPreference},
 			{Path: relativeStorePath(s.root, s.manifestPath()), Expected: expectedManifest, After: &afterManifest},
 		}}
 		if err := s.commitJournalLocked(journal); err != nil {

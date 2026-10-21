@@ -2220,11 +2220,6 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 		c.forceSwitch(startedHandleID)
 		return false
 	}
-	if result, ok := completed.value.(couchcore.SwitchAgentResult); ok && err == nil {
-		if result.Warning != "" {
-			c.reduceMenu(MenuEvent{Kind: MenuEventNotice, Error: result.Warning})
-		}
-	}
 	c.requestMenuRefresh()
 	if panelFocused {
 		c.showMenu()

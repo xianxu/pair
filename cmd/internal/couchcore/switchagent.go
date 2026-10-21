@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
 )
@@ -29,12 +30,15 @@ type SwitchAgentRequest struct {
 }
 
 type PreparedAgentSwitch struct {
-	SourceRevision uint64        `json:"source_revision"`
-	Address        ThreadAddress `json:"address"`
-	SourceAgent    string        `json:"source_agent"`
-	WorkingPath    string        `json:"working_path"`
-	Profile        LaunchProfile `json:"profile"`
-	Fingerprint    string        `json:"fingerprint"`
+	Configured     bool               `json:"configured"`
+	Conflict       bool               `json:"conflict,omitempty"`
+	Borrowed       *BorrowedArguments `json:"borrowed,omitempty"`
+	SourceRevision uint64             `json:"source_revision"`
+	Address        ThreadAddress      `json:"address"`
+	SourceAgent    string             `json:"source_agent"`
+	WorkingPath    string             `json:"working_path"`
+	Profile        LaunchProfile      `json:"profile"`
+	Fingerprint    string             `json:"fingerprint"`
 	record         ThreadRecord
 	repoIdentity   string
 	// state is the classification this preparation was ADMITTED on, carried to
@@ -60,14 +64,26 @@ type SwitchAgentResult struct {
 	Outcome SwitchAgentOutcome
 	Record  ActorRecord
 	Handle  Handle
-	Warning string
+	Notice  string
 }
 
 func (r SwitchAgentResult) Started() (StartResult, bool) {
 	if r.Outcome != SwitchStarted {
 		return StartResult{}, false
 	}
-	return StartResult{Record: r.Record, Handle: r.Handle}, true
+	return (StartResult{Record: r.Record, Handle: r.Handle}).Started()
+}
+
+func (r SwitchAgentResult) Warning() string {
+	started, _ := r.Started()
+	var parts []string
+	if r.Notice != "" {
+		parts = append(parts, r.Notice)
+	}
+	if notice := started.Warning(); notice != "" {
+		parts = append(parts, notice)
+	}
+	return strings.Join(parts, "; ")
 }
 
 // classifyForAction answers "what is this thread, right now" through the SAME
@@ -225,31 +241,41 @@ func (c *Couch) prepareAgentSwitch(ctx context.Context, address ThreadAddress, a
 	if err != nil {
 		return PreparedAgentSwitch{}, err
 	}
-	preference, found, err := c.Threads.getPathLaunchPreference(repoIdentity, record.StartingPath, record.Address.RepoScope)
+	doc, _, err := c.previewRepositoryPreferences(ctx)
+	if err != nil && argv == nil {
+		return PreparedAgentSwitch{}, err
+	}
+	if err != nil {
+		doc = RepoPreferences{}
+	}
+	var saved *RepoLaunchPreference
+	if value, found := doc.Repositories[repoIdentity]; found {
+		saved = &value
+	}
+	arguments, err := ResolveRepoArguments(saved, agent, argv)
 	if err != nil {
 		return PreparedAgentSwitch{}, err
 	}
-	input := LaunchProfileInputs{ExplicitAgent: agent, ExplicitArgv: argv}
-	if found {
-		input.Path = &preference
-	}
-	_, hasPathArgs := preference.ArgvByAgent[agent]
-	if c.RepoAgentDefault != nil && (!known || !hasPathArgs) {
-		profile, exists, err := c.repoLaunchDefault(record.StartingPath, record.StartingPath, agent, repoIdentity, record.Address.RepoScope)
-		if err != nil {
-			return PreparedAgentSwitch{}, err
-		}
-		if exists {
-			input.RepoDefault = &profile
-		}
-	}
-	if known && !hasPathArgs && input.RepoDefault == nil {
-		return PreparedAgentSwitch{}, fmt.Errorf("switch-agent: no saved configuration for %s; the operator must configure it in the switch form first", agent)
-	}
-	resolution, err := ResolveLaunchProfile(input)
+	own, err := ResolveRepoArguments(saved, agent, nil)
 	if err != nil {
 		return PreparedAgentSwitch{}, err
 	}
+	var borrowed *BorrowedArguments
+	if known && !own.Found {
+		if own.Conflict {
+			return PreparedAgentSwitch{}, fmt.Errorf("switch-agent: repository arguments for %s conflict; explicitly accept startup parameters in the switch form", agent)
+		}
+		return PreparedAgentSwitch{}, fmt.Errorf("switch-agent: no saved configuration for %s in this repository; accept the switch form's marked offer or pass --agent-args explicitly", agent)
+	}
+	if argv == nil && !own.Found && !own.Conflict && !known {
+		if offer, found, borrowErr := ChooseBorrowedArguments(doc.Repositories, repoIdentity, agent); borrowErr != nil {
+			return PreparedAgentSwitch{}, borrowErr
+		} else if found {
+			borrowed = &offer
+			arguments.Argv = cloneArgv(offer.Argv)
+		}
+	}
+	resolution := LaunchProfileResolution{Profile: LaunchProfile{Agent: agent, Argv: cloneArgv(arguments.Argv)}}
 	if len(launcher.FormatLaunchParameters(resolution.Profile.Argv)) > 4096 {
 		return PreparedAgentSwitch{}, errors.New("switch-agent: startup parameters exceed 4096 bytes")
 	}
@@ -269,8 +295,9 @@ func (c *Couch) prepareAgentSwitch(ctx context.Context, address ThreadAddress, a
 		Profile            LaunchProfile
 		PreferenceRevision uint64
 		RepoIdentity       string
-		Default            *LaunchProfile
-	}{record, resolution.Profile, preference.Revision, repoIdentity, input.RepoDefault}
+		Borrowed           *BorrowedArguments
+		Conflict           bool
+	}{record, resolution.Profile, own.Revision, repoIdentity, borrowed, own.Conflict}
 	raw, err := json.Marshal(evidence)
 	if err != nil {
 		return PreparedAgentSwitch{}, err
@@ -279,6 +306,7 @@ func (c *Couch) prepareAgentSwitch(ctx context.Context, address ThreadAddress, a
 	return PreparedAgentSwitch{
 		Address: address, SourceAgent: source, WorkingPath: record.WorkingPath, SourceRevision: record.Revision,
 		Profile: resolution.Profile, Fingerprint: hex.EncodeToString(digest[:]), record: persisted, repoIdentity: repoIdentity,
+		Configured: own.Found, Conflict: own.Conflict, Borrowed: borrowed,
 		state: state,
 	}, nil
 }
@@ -379,7 +407,7 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (_ 
 		}
 		thread = parked.Thread
 		if parked.CleanupError != nil {
-			result.Warning = parked.CleanupError.Error()
+			result.Notice = parked.CleanupError.Error()
 		}
 	}
 	// Clear whatever the last couch left behind, on the same terms resume and
@@ -415,7 +443,8 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (_ 
 	}
 	startedAt := c.Clock.Now()
 	thread, err = c.Threads.CommitStartClaim(thread.Address, thread.Revision, prepared.repoIdentity, startedAt, StartEvent{
-		Kind: StartClaimed, Nonce: nonce, Owner: SupervisorOwner{PID: owner.PID, Identity: owner.Identity}, Profile: &prepared.Profile,
+		RememberConfiguration: true,
+		Kind:                  StartClaimed, Nonce: nonce, Owner: SupervisorOwner{PID: owner.PID, Identity: owner.Identity}, Profile: &prepared.Profile,
 	})
 	if err != nil {
 		result.Outcome = SwitchStartFailed

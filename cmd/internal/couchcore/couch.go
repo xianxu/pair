@@ -81,7 +81,6 @@ type Couch struct {
 	Reaper            OrphanReaper
 	PairLifecycle     *PairLifecycleController
 	RootAgent         string
-	RepoAgentDefault  func(repoRoot, agent string) (LaunchProfile, bool, error)
 	FreshRegistration func(context.Context, ThreadAddress, string, string) (bool, error)
 	SwitchContext     SwitchContextResolver
 	SwitchGuard       AgentSwitchGuard
@@ -343,60 +342,48 @@ func (c *Couch) resolveOrdinaryStartResolutionWithStore(ctx context.Context, arg
 	if err != nil {
 		return StartResolution{}, err
 	}
-	return c.resolveStartProfileWithStore(args, canonicalPath, tree, repoIdentity, string(tree), threads)
+	return c.resolveStartProfileWithStore(ctx, args, canonicalPath, tree, repoIdentity, string(tree), threads)
 }
 
-func (c *Couch) resolveStartProfile(args StartArgs, canonicalPath string, tree Worktree, repoIdentity, defaultRoot string) (StartResolution, error) {
-	return c.resolveStartProfileWithStore(args, canonicalPath, tree, repoIdentity, defaultRoot, c.Threads)
+func (c *Couch) resolveStartProfile(ctx context.Context, args StartArgs, canonicalPath string, tree Worktree, repoIdentity, defaultRoot string) (StartResolution, error) {
+	return c.resolveStartProfileWithStore(ctx, args, canonicalPath, tree, repoIdentity, defaultRoot, c.Threads)
 }
 
-func (c *Couch) resolveStartProfileWithStore(args StartArgs, canonicalPath string, tree Worktree, repoIdentity, defaultRoot string, threads *ThreadStore) (StartResolution, error) {
-	scope, err := launcher.ResolveRepoScope(string(tree))
+func (c *Couch) resolveStartProfileWithStore(ctx context.Context, args StartArgs, canonicalPath string, tree Worktree, repoIdentity, defaultRoot string, threads *ThreadStore) (StartResolution, error) {
+	// Repository configuration is namespace state. Preview is always read-only,
+	// including recovery callers whose thread records use a local backend.
+	doc, _, err := c.previewRepositoryPreferences(ctx)
+	if err != nil && args.ExtraArgs == nil {
+		return StartResolution{}, fmt.Errorf("read repository arguments: %w", err)
+	}
+	// Accepted explicit arguments do not depend on readable defaults. The final
+	// adoption publisher reports storage failure while preserving that child.
 	if err != nil {
-		return StartResolution{}, err
+		doc = RepoPreferences{}
 	}
-	readPreference := threads.getPathLaunchPreference
-	if c.Slots != nil {
-		readPreference = threads.PreviewPathLaunchPreference
-	}
-	preference, found, err := readPreference(repoIdentity, canonicalPath, scope.Key)
-	if err != nil {
-		return StartResolution{}, fmt.Errorf("read launch preference: %w", err)
-	}
-	var pathPreference *PathLaunchPreference
-	if found {
-		pathPreference = &preference
+	var saved *RepoLaunchPreference
+	if record, found := doc.Repositories[repoIdentity]; found {
+		saved = &record
 	}
 	rootAgent := c.RootAgent
 	if rootAgent == "" {
 		rootAgent = "claude"
 	}
-	selected, err := ResolveLaunchProfile(LaunchProfileInputs{
-		ExplicitAgent: args.Stack, Path: pathPreference, RootAgent: rootAgent,
+	var explicit *[]string
+	if args.ExtraArgs != nil {
+		explicit = &args.ExtraArgs
+	}
+	resolution, err := ResolveStartResolution(StartResolutionInput{
+		CanonicalPath: canonicalPath, Worktree: tree, Issue: args.Issue,
+		LaunchProfileInputs: LaunchProfileInputs{
+			ExplicitAgent: args.Stack, ExplicitArgv: explicit, Repo: saved, RootAgent: rootAgent,
+		},
+		RepoIdentity: repoIdentity,
 	})
 	if err != nil {
 		return StartResolution{}, err
 	}
-	if !launcher.IsSupportedAgent(selected.Profile.Agent) {
-		return StartResolution{}, fmt.Errorf("unsupported launch agent %q", selected.Profile.Agent)
-	}
-	var repoDefault *LaunchProfile
-	if c.RepoAgentDefault != nil {
-		value, ok, defaultErr := c.repoLaunchDefault(canonicalPath, defaultRoot, selected.Profile.Agent, repoIdentity, scope.Key)
-		if defaultErr != nil {
-			return StartResolution{}, fmt.Errorf("read %s repository default: %w", selected.Profile.Agent, defaultErr)
-		}
-		if ok {
-			repoDefault = &value
-		}
-	}
-	return ResolveStartResolution(StartResolutionInput{
-		CanonicalPath: canonicalPath, Worktree: tree, Issue: args.Issue,
-		LaunchProfileInputs: LaunchProfileInputs{
-			ExplicitAgent: args.Stack, Path: pathPreference, RootAgent: rootAgent, RepoDefault: repoDefault,
-		},
-		RepoIdentity: repoIdentity,
-	})
+	return resolution, nil
 }
 
 // pairRegistrationTimeout is the HANG CEILING on the wait for a launched pair
@@ -586,10 +573,11 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 	// capacity decision: clear the reservation, append the creating
 	// incarnation, and record the start claim.
 	thread, err = c.Threads.CommitStartClaim(threadAddress, thread.Revision, resolution.RepoIdentity, startedAt, StartEvent{
-		Kind:    StartClaimed,
-		Nonce:   nonce,
-		Owner:   SupervisorOwner{PID: owner.PID, Identity: owner.Identity},
-		Profile: &profile.Profile,
+		RememberConfiguration: true,
+		Kind:                  StartClaimed,
+		Nonce:                 nonce,
+		Owner:                 SupervisorOwner{PID: owner.PID, Identity: owner.Identity},
+		Profile:               &profile.Profile,
 	})
 	if err != nil {
 		return ActorRecord{}, nil, errors.Join(fmt.Errorf("record start transaction: %w", err), c.rollbackPristineStart(threadAddress))

@@ -71,16 +71,13 @@ func (s *ThreadStore) rememberRepoConfiguration(repoIdentity string, profile Lau
 		if err != nil {
 			return err
 		}
+		doc, err = foldRepoPreferenceSources(doc, sources)
+		if err != nil {
+			return err
+		}
 		var current *RepoLaunchPreference
 		if found, ok := doc.Repositories[repoIdentity]; ok {
 			current = &found
-		}
-		if len(sources) > 0 {
-			folded, err := FoldPathPreferences(current, repoIdentity, sources)
-			if err != nil {
-				return err
-			}
-			current = &folded
 		}
 		next, err := RememberRepoArguments(current, repoIdentity, profile)
 		if err != nil {
@@ -93,4 +90,37 @@ func (s *ThreadStore) rememberRepoConfiguration(repoIdentity string, profile Lau
 		}
 		return global.writeStoreAtomicLocked(global.repoPreferencesPath(), raw)
 	})
+}
+
+// One namespace inventory may contain sources from several repositories. Group
+// it once so accepting a target records all verified fold markers without
+// treating another repository's legacy values as confirmed configuration.
+func foldRepoPreferenceSources(doc RepoPreferences, sources []LegacyRepoPreference) (RepoPreferences, error) {
+	if len(sources) > MaxRepoPreferenceSources {
+		return RepoPreferences{}, errors.New("repository preferences: too many legacy sources (inspect/archive settings)")
+	}
+	groups := make(map[string][]LegacyRepoPreference)
+	for _, source := range sources {
+		id := source.Preference.RepoIdentity
+		groups[id] = append(groups[id], source)
+	}
+	next := RepoPreferences{SchemaVersion: doc.SchemaVersion, Unknown: doc.Unknown, Repositories: make(map[string]RepoLaunchPreference, len(doc.Repositories))}
+	for id, record := range doc.Repositories {
+		next.Repositories[id] = record
+	}
+	for id, group := range groups {
+		var current *RepoLaunchPreference
+		if record, ok := next.Repositories[id]; ok {
+			current = &record
+		}
+		folded, err := FoldPathPreferences(current, id, group)
+		if err != nil {
+			return RepoPreferences{}, err
+		}
+		next.Repositories[id] = folded
+	}
+	if _, err := EncodeRepoPreferences(next); err != nil {
+		return RepoPreferences{}, err
+	}
+	return next, nil
 }

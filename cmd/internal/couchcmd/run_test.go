@@ -111,10 +111,41 @@ func (t testRT) NewCouchWith(couchcore.Runner, couchcore.CouchNamespace) (*couch
 	}
 	c.Identities = couchidentity.IdentityStore{HostDir: filepath.Join(t.dir, "host-test"), StoreDir: t.dir}
 	c.RootAgent = t.env["PAIR_AGENT"]
-	c.RepoAgentDefault = func(repoRoot, agent string) (couchcore.LaunchProfile, bool, error) {
-		value, ok := t.agentDefaults[repoRoot+"\x00"+agent]
-		return couchcore.LaunchProfile{Agent: value.Agent, Argv: append([]string(nil), value.Args...)}, ok, nil
+	if len(t.agentDefaults) > 0 {
+		if err := c.Threads.RecoverStoreJournal(); err != nil {
+			return nil, err
+		}
+		doc := couchcore.RepoPreferences{SchemaVersion: couchcore.RepoPreferencesSchemaVersion, Repositories: map[string]couchcore.RepoLaunchPreference{}}
+		for key, value := range t.agentDefaults {
+			root, agent, ok := strings.Cut(key, "\x00")
+			if !ok {
+				return nil, errors.New("invalid repository argument fixture key")
+			}
+			id := filepath.Join(root, ".git")
+			var current *couchcore.RepoLaunchPreference
+			if existing, ok := doc.Repositories[id]; ok {
+				current = &existing
+			}
+			argv := append([]string{}, value.Args...)
+			next, err := couchcore.RememberRepoArguments(current, id, couchcore.LaunchProfile{Agent: agent, Argv: argv})
+			if err != nil {
+				return nil, err
+			}
+			doc.Repositories[id] = next
+		}
+		raw, err := couchcore.EncodeRepoPreferences(doc)
+		if err != nil {
+			return nil, err
+		}
+		path := filepath.Join(c.Namespace.Dir(), "threadstore", "repo-preferences.json")
+		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+			return nil, err
+		}
+		if err := os.WriteFile(path, raw, 0600); err != nil {
+			return nil, err
+		}
 	}
+
 	if t.configureCouch != nil {
 		t.configureCouch(c)
 	}

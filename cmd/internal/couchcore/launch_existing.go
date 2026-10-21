@@ -315,6 +315,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		chosen := c.Layout
 		registeredLayout = &chosen
 	}
+	configuration := acceptedConfigurationForStart(thread, in)
 	stage = "promote registration"
 	registeredThread, err := c.Threads.AdvanceStart(thread.Address, thread.Revision, StartEvent{
 		Kind: StartRegistered, Nonce: in.Nonce, Layout: registeredLayout,
@@ -349,6 +350,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		}
 		return record, h, fail(h, cause, func() error { return c.failPostAckStart(thread.Address, h, shape, nil) })
 	}
+	record.configuration = configuration
 	steps.mark("promotion+registry")
 	return record, h, nil
 }

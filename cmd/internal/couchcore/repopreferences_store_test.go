@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -9,6 +10,41 @@ import (
 	"sync"
 	"testing"
 )
+
+func TestRepoPreferencePublicationFoldsNamespaceSourcesBeforeAcceptance(t *testing.T) {
+	store, _ := repoPreferenceStoreFixture(t)
+	var sources []LegacyRepoPreference
+	for _, repo := range []string{"/repo/.git", "/other/.git"} {
+		raw, err := json.Marshal(PathLaunchPreference{SchemaVersion: 1, RepoIdentity: repo, PhysicalPath: filepath.Dir(repo), LastAgent: "codex", ArgvByAgent: map[string][]string{"codex": {"legacy"}}, Revision: 1})
+		if err != nil {
+			t.Fatal(err)
+		}
+		source, err := DecodeLegacyRepoPreference(repo+"/source", raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sources = append(sources, source)
+	}
+	if err := store.rememberRepoConfiguration("/repo/.git", LaunchProfile{Agent: "codex", Argv: []string{"accepted"}}, sources); err != nil {
+		t.Fatal(err)
+	}
+	doc, err := store.previewRepoPreferences()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, repo := range []string{"/repo/.git", "/other/.git"} {
+		p := doc.Repositories[repo]
+		if len(p.LegacySources) != 1 {
+			t.Fatalf("source lost for %s: %+v", repo, p)
+		}
+		if p.Agents["codex"].Confirmed != (repo == "/repo/.git") {
+			t.Fatalf("acceptance leaked: %+v", p)
+		}
+	}
+	if got := doc.Repositories["/repo/.git"].Agents["codex"].Argv; !reflect.DeepEqual(got, []string{"accepted"}) {
+		t.Fatal(got)
+	}
+}
 
 func repoPreferenceStoreFixture(t *testing.T) (*ThreadStore, CouchNamespace) {
 	t.Helper()

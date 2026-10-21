@@ -247,21 +247,6 @@ func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.Cou
 		c.ContinuationGeneration = status.Generation
 	}
 
-	c.RepoAgentDefault = func(repoRoot, agent string) (couchcore.LaunchProfile, bool, error) {
-		scopeDir := launcher.ScopedLaunchDataDir(dataDir, repoRoot)
-		raw, err := os.ReadFile(launcher.AgentDefaultPath(scopeDir, agent))
-		if errors.Is(err, os.ErrNotExist) {
-			return couchcore.LaunchProfile{}, false, nil
-		}
-		if err != nil {
-			return couchcore.LaunchProfile{}, false, err
-		}
-		value, err := launcher.ParseAgentDefault(agent, string(raw))
-		if err != nil {
-			return couchcore.LaunchProfile{}, false, err
-		}
-		return couchcore.LaunchProfile{Agent: value.Agent, Argv: value.Args}, true, nil
-	}
 	return c, nil
 }
 
@@ -1014,6 +999,11 @@ func wireResolver(console *couchtty.Console, c *couchcore.Couch, configuredHubs 
 				}
 				if call.Operation.Effect == couchcore.EffectConsole {
 					result, err := console.ExecuteConsoleOperation(call)
+					if err == nil && call.Operation.Name == "attach" {
+						if start, ok := call.TypedPayload.(couchcore.StartResult); ok {
+							c.PublishAdoptedConfiguration(start)
+						}
+					}
 					if err != nil && call.Operation.Name == "attach" {
 						if start, ok := call.TypedPayload.(couchcore.StartResult); ok {
 							// Attach runs on the console goroutine, and the abort may

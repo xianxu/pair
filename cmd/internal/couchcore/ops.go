@@ -120,8 +120,9 @@ type Operation struct {
 
 // StartResult is what `start` returns before the caller waits on the child.
 type StartResult struct {
-	Record ActorRecord
-	Handle Handle
+	Configuration *AcceptedConfiguration `json:"-"`
+	Record        ActorRecord
+	Handle        Handle
 }
 
 // StartedChild is implemented by any operation result that hands the console a
@@ -139,11 +140,26 @@ type StartedChild interface {
 }
 
 // Started makes a StartResult its own adoption payload.
-func (s StartResult) Started() (StartResult, bool) { return s, true }
+func (s StartResult) Started() (StartResult, bool) {
+	if s.Configuration == nil {
+		s.Configuration = s.Record.configuration
+	}
+	return s, true
+}
 
-// Warning reports why a successful attachment borrowed the terminal without
-// replacing its retained client record. The notice is not persisted.
-func (s StartResult) Warning() string { return s.Record.AttachmentNotice }
+// Warning combines attachment notices and a failed accepted-configuration
+// publication. These notices are not persisted.
+func (s StartResult) Warning() string {
+	s, _ = s.Started()
+	warning := s.Configuration.publicationWarning()
+	if warning == "" {
+		return s.Record.AttachmentNotice
+	}
+	if s.Record.AttachmentNotice == "" {
+		return warning
+	}
+	return s.Record.AttachmentNotice + "\n" + warning
+}
 
 // StopResult reports what stopping actually did: a record for an already-dead
 // actor is forgotten without a signal, and saying so avoids implying a running

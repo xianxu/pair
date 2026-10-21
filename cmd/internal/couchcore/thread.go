@@ -35,12 +35,14 @@ const (
 // the transaction; ThreadIncarnation PID/Identity is empty before fork and
 // names the blocked helper after fork. Exec preserves that PID/start token.
 type ThreadStartClaim struct {
-	RecoveryIntent *threadrecord.RecoveryIntent  `json:"recovery_intent,omitempty"`
-	SessionBinding *couchidentity.SessionBinding `json:"session_binding,omitempty"`
-	Nonce          string                        `json:"nonce"`
-	OwnerPID       int                           `json:"owner_pid"`
-	OwnerIdentity  string                        `json:"owner_identity"`
-	LaunchProfile  *LaunchProfile                `json:"launch_profile,omitempty"`
+	// RememberConfiguration is explicit acceptance intent, independent of launch shape.
+	RememberConfiguration bool                          `json:"remember_configuration,omitempty"`
+	RecoveryIntent        *threadrecord.RecoveryIntent  `json:"recovery_intent,omitempty"`
+	SessionBinding        *couchidentity.SessionBinding `json:"session_binding,omitempty"`
+	Nonce                 string                        `json:"nonce"`
+	OwnerPID              int                           `json:"owner_pid"`
+	OwnerIdentity         string                        `json:"owner_identity"`
+	LaunchProfile         *LaunchProfile                `json:"launch_profile,omitempty"`
 }
 
 type ThreadIncarnation struct {
@@ -172,9 +174,10 @@ func toPersistedThreadRecord(record ThreadRecord) threadrecord.Record {
 		}
 		if incarnation.Start != nil {
 			out.Incarnations[i].Start = &threadrecord.StartClaim{
-				SessionBinding: cloneSessionBinding(incarnation.Start.SessionBinding),
-				RecoveryIntent: threadrecord.CloneRecoveryIntent(incarnation.Start.RecoveryIntent),
-				Nonce:          incarnation.Start.Nonce, OwnerPID: incarnation.Start.OwnerPID, OwnerIdentity: incarnation.Start.OwnerIdentity,
+				RememberConfiguration: incarnation.Start.RememberConfiguration,
+				SessionBinding:        cloneSessionBinding(incarnation.Start.SessionBinding),
+				RecoveryIntent:        threadrecord.CloneRecoveryIntent(incarnation.Start.RecoveryIntent),
+				Nonce:                 incarnation.Start.Nonce, OwnerPID: incarnation.Start.OwnerPID, OwnerIdentity: incarnation.Start.OwnerIdentity,
 			}
 			if incarnation.Start.LaunchProfile != nil {
 				profile := cloneLaunchProfile(*incarnation.Start.LaunchProfile)
@@ -249,9 +252,10 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 		}
 		if incarnation.Start != nil {
 			out.Incarnations[i].Start = &ThreadStartClaim{
-				SessionBinding: cloneSessionBinding(incarnation.Start.SessionBinding),
-				RecoveryIntent: threadrecord.CloneRecoveryIntent(incarnation.Start.RecoveryIntent),
-				Nonce:          incarnation.Start.Nonce, OwnerPID: incarnation.Start.OwnerPID, OwnerIdentity: incarnation.Start.OwnerIdentity,
+				RememberConfiguration: incarnation.Start.RememberConfiguration,
+				SessionBinding:        cloneSessionBinding(incarnation.Start.SessionBinding),
+				RecoveryIntent:        threadrecord.CloneRecoveryIntent(incarnation.Start.RecoveryIntent),
+				Nonce:                 incarnation.Start.Nonce, OwnerPID: incarnation.Start.OwnerPID, OwnerIdentity: incarnation.Start.OwnerIdentity,
 			}
 			if incarnation.Start.LaunchProfile != nil {
 				profile := LaunchProfile{Agent: incarnation.Start.LaunchProfile.Agent, Argv: cloneArgv(incarnation.Start.LaunchProfile.Argv)}

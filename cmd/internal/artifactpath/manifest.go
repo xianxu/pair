@@ -1378,7 +1378,9 @@ var NonArtifactSources = []string{
 	// #728 Couch-owned repository settings and pure codec; these are namespace
 	// control metadata, not Pair invocation/history artifacts or per-tag paths.
 	"cmd/internal/couchcore/repopreferences.go",
+	"cmd/internal/couchcore/repopreferences_adoption.go",
 	"cmd/internal/couchcore/repopreferences_codec.go",
+	"cmd/internal/couchcore/repopreferences_migration.go",
 	"cmd/internal/couchcore/repopreferences_store.go",
 	"cmd/internal/couchcore/layout.go",
 	"cmd/internal/couchcore/lifecycledebris.go",

@@ -240,48 +240,30 @@ func (e *testEnv) cannedTree(tree, cwd string) {
 	e.Git.replies[GitCall{Dir: cwd, Args: "rev-parse --git-common-dir"}] = ".git"
 }
 
-func TestSpawnPreparedRefusesPreferenceAndDefaultDriftBeforeEffects(t *testing.T) {
+func TestSpawnPreparedRefusesRepositoryPreferenceDriftBeforeEffects(t *testing.T) {
 	t.Parallel()
-
-	t.Run("path preference", func(t *testing.T) {
-		env := newTestEnv(t, "/repo")
-		prepared, err := env.Couch.PrepareStart(context.Background(), StartArgs{Worktree: "/repo", Stack: "claude"})
-		if err != nil {
-			t.Fatal(err)
-		}
-		preference := PathLaunchPreference{
-			SchemaVersion: PathLaunchPreferenceSchemaVersion,
-			RepoIdentity:  "/repo/.git", PhysicalPath: "/repo", LastAgent: "claude",
-			ArgvByAgent: map[string][]string{"claude": {"--model", "opus"}}, Revision: 1,
-		}
-		if err := writePathLaunchPreferenceForTest(env.Couch.Threads, preference); err != nil {
-			t.Fatal(err)
-		}
-		if _, _, err := env.Couch.SpawnPrepared(context.Background(), StartArgs{Worktree: "/repo"}, prepared.Resolution.Fingerprint); !errors.Is(err, ErrStartResolutionChanged) {
-			t.Fatalf("preference drift err = %v", err)
-		}
-		assertPreparedStartHadNoEffects(t, env)
-	})
-
-	t.Run("repository default", func(t *testing.T) {
-		env := newTestEnv(t, "/repo")
-		calls := 0
-		env.Couch.RepoAgentDefault = func(_, agent string) (LaunchProfile, bool, error) {
-			calls++
-			return LaunchProfile{Agent: agent, Argv: []string{"--generation", strconv.Itoa(calls)}}, true, nil
-		}
-		prepared, err := env.Couch.PrepareStart(context.Background(), StartArgs{Worktree: "/repo", Stack: "claude"})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, _, err := env.Couch.SpawnPrepared(context.Background(), StartArgs{Worktree: "/repo"}, prepared.Resolution.Fingerprint); !errors.Is(err, ErrStartResolutionChanged) {
-			t.Fatalf("default drift err = %v", err)
-		}
-		if calls != 2 {
-			t.Fatalf("repository default calls = %d, want prepare and revalidation", calls)
-		}
-		assertPreparedStartHadNoEffects(t, env)
-	})
+	for _, mode := range []string{"new configuration", "changed configuration", "transient revision"} {
+		t.Run(mode, func(t *testing.T) {
+			env := newTestEnv(t, "/repo")
+			profile := LaunchProfile{Agent: "claude", Argv: []string{"--model", "before"}}
+			if mode != "new configuration" {
+				seedSwitchRepoArguments(t, env.Couch, "/repo", profile)
+			}
+			args := StartArgs{Worktree: "/repo", Stack: "claude"}
+			prepared, err := env.Couch.PrepareStart(context.Background(), args)
+			if err != nil {
+				t.Fatal(err)
+			}
+			seedSwitchRepoArguments(t, env.Couch, "/repo", LaunchProfile{Agent: "claude", Argv: []string{"--model", "after"}})
+			if mode == "transient revision" {
+				seedSwitchRepoArguments(t, env.Couch, "/repo", profile)
+			}
+			if _, _, err := env.Couch.SpawnPrepared(context.Background(), args, prepared.Resolution.Fingerprint); !errors.Is(err, ErrStartResolutionChanged) {
+				t.Fatalf("repository drift accepted: %v", err)
+			}
+			assertPreparedStartHadNoEffects(t, env)
+		})
+	}
 }
 
 func assertPreparedStartHadNoEffects(t *testing.T, env *testEnv) {
@@ -1528,18 +1510,20 @@ func TestSpawnFailureLeavesTheTreeFree(t *testing.T) {
 
 func TestSpawnFailureDoesNotCommitLaunchPreferences(t *testing.T) {
 	t.Parallel()
-
 	env := newTestEnv(t, "/repo")
 	env.Couch.RootAgent = "codex"
-	env.Couch.RepoAgentDefault = func(_, agent string) (LaunchProfile, bool, error) {
-		return LaunchProfile{Agent: agent, Argv: []string{"--search"}}, true, nil
+	seedSwitchRepoArguments(t, env.Couch, "/repo", LaunchProfile{Agent: "codex", Argv: []string{"--search"}})
+	before, err := env.Couch.Threads.previewRepoPreferences()
+	if err != nil {
+		t.Fatal(err)
 	}
 	env.Runner.FailNextStart(errors.New("boom"))
-	if _, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"}); err == nil {
+	if _, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo", ExtraArgs: []string{"--model", "unadopted"}}); err == nil {
 		t.Fatal("expected start failure")
 	}
-	if _, found, err := env.Couch.Threads.GetPathLaunchPreference("fake-repo", "/repo"); err != nil || found {
-		t.Fatalf("failed start wrote path preference: found=%v err=%v", found, err)
+	after, err := env.Couch.Threads.previewRepoPreferences()
+	if err != nil || !reflect.DeepEqual(before, after) {
+		t.Fatalf("failed start changed repository settings: %+v %v", after, err)
 	}
 }
 

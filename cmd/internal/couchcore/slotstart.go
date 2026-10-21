@@ -39,7 +39,7 @@ func (c *Couch) resolveManagedStart(ctx context.Context, args StartArgs) (StartR
 			return StartResolution{}, err
 		}
 		if current.Record != nil {
-			resolution, err := c.resolveStartProfile(args, current.Record.WorkingPath, Worktree(target.Slot.WorktreeRoot), target.Slot.RepoIdentity, target.Slot.PrimaryRoot)
+			resolution, err := c.resolveStartProfile(ctx, args, current.Record.WorkingPath, Worktree(target.Slot.WorktreeRoot), target.Slot.RepoIdentity, target.Slot.PrimaryRoot)
 			if err != nil {
 				return StartResolution{}, err
 			}
@@ -150,7 +150,7 @@ func (c *Couch) resolveManagedStart(ctx context.Context, args StartArgs) (StartR
 	if err != nil {
 		return StartResolution{}, err
 	}
-	resolution, err := c.resolveStartProfile(args, cwd, Worktree(path), id.RepoIdentity, primary)
+	resolution, err := c.resolveStartProfile(ctx, args, cwd, Worktree(path), id.RepoIdentity, primary)
 	if err != nil {
 		return StartResolution{}, err
 	}
@@ -354,7 +354,11 @@ func (c *Couch) revalidateCreatedSlot(ctx context.Context, accepted StartResolut
 	if currentSlot != slot {
 		return ErrStartResolutionChanged
 	}
-	current, err := c.resolveStartProfile(StartArgs{Stack: accepted.RequestedAgent, Issue: accepted.Issue}, accepted.CanonicalPath, Worktree(slot.WorktreeRoot), slot.RepoIdentity, slot.PrimaryRoot)
+	args := StartArgs{Stack: accepted.RequestedAgent, Issue: accepted.Issue}
+	if accepted.RequestedArgv != nil {
+		args.ExtraArgs = cloneArgv(*accepted.RequestedArgv)
+	}
+	current, err := c.resolveStartProfile(ctx, args, accepted.CanonicalPath, Worktree(slot.WorktreeRoot), slot.RepoIdentity, slot.PrimaryRoot)
 	if err != nil {
 		return err
 	}

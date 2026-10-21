@@ -18,7 +18,10 @@ const (
 type ArgvSource string
 
 const (
-	ArgvSourceExplicit    ArgvSource = "explicit"
+	ArgvSourceExplicit ArgvSource = "explicit"
+	// Keep Pair's existing trusted-profile protocol unchanged. Couch now owns
+	// the repository default's data; the launcher receives its usual source tag.
+	ArgvSourceRepository  ArgvSource = "repo-default"
 	ArgvSourcePath        ArgvSource = "path"
 	ArgvSourceRepoDefault ArgvSource = "repo-default"
 )
@@ -44,6 +47,7 @@ type PathLaunchPreference struct {
 type LaunchProfileInputs struct {
 	ExplicitAgent string
 	ExplicitArgv  *[]string
+	Repo          *RepoLaunchPreference
 	Path          *PathLaunchPreference
 	RootAgent     string
 	RepoDefault   *LaunchProfile
@@ -75,8 +79,25 @@ func ResolveLaunchProfile(in LaunchProfileInputs) (LaunchProfileResolution, erro
 	}
 
 	if in.ExplicitArgv != nil {
+		if in.Repo != nil {
+			if _, err := ResolveRepoArguments(in.Repo, out.Profile.Agent, in.ExplicitArgv); err != nil {
+				return LaunchProfileResolution{}, err
+			}
+		}
 		out.Profile.Argv = cloneArgv(*in.ExplicitArgv)
 		out.ArgvSource = ArgvSourceExplicit
+		return out, nil
+	}
+	if in.Repo != nil {
+		resolved, err := ResolveRepoArguments(in.Repo, out.Profile.Agent, nil)
+		if err != nil {
+			return LaunchProfileResolution{}, err
+		}
+		if resolved.Conflict {
+			return LaunchProfileResolution{}, fmt.Errorf("repository arguments for %s conflict; explicitly accept startup parameters", out.Profile.Agent)
+		}
+		out.Profile.Argv = cloneArgv(resolved.Argv)
+		out.ArgvSource = ArgvSourceRepository
 		return out, nil
 	}
 	if in.Path != nil {

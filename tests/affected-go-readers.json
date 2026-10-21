@@ -16,7 +16,6 @@
       "cmd/internal/couchcmd/continuation_acceptance_test.go": "f74a199fa23033460703db33b8efd901d616f74423bd3089c3a93ea7a2d56269",
       "cmd/internal/couchcmd/cost_test.go": "08a2131f8a47978b5e46719c3c93749c7038d51fa01de08e4bc6935e2c21b7e5",
       "cmd/internal/couchcmd/readme_test.go": "a71011afa0b3447b4d62ffadd84bdedd7e8c19b56f49be92b9b83fb9b5242e67",
-      "cmd/internal/couchcmd/run_test.go": "2cb7e643c2b6c8aceab4ab99d4e0dc85682ee1a2e1a26d8c96e158f31fa44f3e",
       "cmd/internal/couchcmd/shortcut_workflow_test.go": "da1be9b8bbbdf64f6431d64e2070cab880fbe285fdcec56f4461a0ea5b85e5db",
       "cmd/internal/couchcmd/switchagent_acceptance_test.go": "0655e5426c7623c6f7d11221bdbf9cd5b9d3a2144d1a9eced0dc2c5c5561b9c2",
       "cmd/internal/couchcmd/wait_notice_test.go": "645940878adf4c4d1eba4164fcabf55c62f30a9f3e10934c584513db30f5ff99",
@@ -57,7 +56,9 @@
       "internal/repolint/catalog_test.go": "7525e40fa82f7cc69e4d76455ee82b9784cd2ddcf9697b416e5f5fc51a4b1ee4",
       "internal/repolint/native_fixture_roots_test.go": "5091833cae04e8b4c3b84ac60f6ff44b12d4cf559907f13ba1ae474c82ebbd48",
       "internal/repolint/repository_test.go": "18f811280dadcf9206df255f10aeb07b60b47e1a81234dc8796a934b75974bcc",
-      "probes/zellijprobe/probeshape_test.go": "346295cb17dcb7fad208f4134a80c67fe0cc95b9c08162fbf868d98f567cdaf0"
+      "probes/zellijprobe/probeshape_test.go": "346295cb17dcb7fad208f4134a80c67fe0cc95b9c08162fbf868d98f567cdaf0",
+      "cmd/internal/couchcore/preference_boundary_test.go": "432e83e2c9c1bf50442d7d89ead8697b719c22d38d5f23184b5c1d890848b4e4",
+      "cmd/internal/couchcmd/run_test.go": "742f04d1c79f7a6b9671e023121d6eac1e1d780d9ee98c32f9f8238a42bb0dd6"
     },
     "non_go_full_fallback": {
       "cmd/internal/artifactpath/cross_scope_integration_test.go": "141dc4e3cd7632114dd20e263104176cdd470e86d6dd921dc2e9c9715077e18d",
@@ -214,7 +215,6 @@
       "cmd/internal/couchcore/continuation_conformance_live_test.go": "358f365c376cc4186af43a046c2590f473bcd3560cbcb478a7860a00a2e2e516",
       "cmd/internal/couchcore/continuation_guard_test.go": "4d436d1593b0ee532c5857124e6583a567732ff8a99cb9b3e41402a83423fbdb",
       "cmd/internal/couchcore/continuation_source_test.go": "fa5c6f7928580cd6c575f9dca7fb033ff6f044eae9aa793ed4cc0cd28a0e209c",
-      "cmd/internal/couchcore/couch_test.go": "9db517b5f3e038da1e778b1d949473f72b93133be6a853d705d79ce0bfbc9f32",
       "cmd/internal/couchcore/hub_claim_test.go": "31dc10e3eba394295f58aec3d859310edbf02213aeca4a533847050df5c69654",
       "cmd/internal/couchcore/live_restart_test.go": "bc6638da95219bcb5df3d6bb901ccf63be2e037ba5f7c7dd7dd1c96c9f591bf2",
       "cmd/internal/couchcore/mutation_door_test.go": "3d6dec1b109c4153027ffffc0002fc3e4351c37bb5d61b620aeebd7b215f076e",
@@ -231,7 +231,6 @@
       "cmd/internal/couchcore/recovery_conformance_live_test.go": "584f2018480aa65ee8b080fc5c733d21727ce0649fa98455692c2cba1c179e24",
       "cmd/internal/couchcore/recovery_live_environment_test.go": "cd2ed57d8a7962069120aa39c011aa65b686476c501ee6c9eadf4f564fd84dca",
       "cmd/internal/couchcore/recovery_native_reply_test.go": "53f20f17f4abd73c5b819fd195ba50e30c25f52a6a843902c1a5296dab120fcb",
-      "cmd/internal/couchcore/recovery_preflight_test.go": "67e9d020aa0a56c74c2d59e022275968fb24a67fa5241d8358af6ebf2a8b307b",
       "cmd/internal/couchcore/recovery_query_capture_test.go": "b696674eba5def8ebd7614e51dba7864485ebea3c31819b50fe9b7752174769a",
       "cmd/internal/couchcore/recovery_terminal_adapter_test.go": "4d7f430927a76b246bec738f67528b72f4fc6b014c1648f92c45d766d0cf9d12",
       "cmd/internal/couchcore/renice_test.go": "03d1ff30e1098b7337df3162c84b5846d219d91d2e307fa17f47e585b3caa3b5",
@@ -240,7 +239,6 @@
       "cmd/internal/couchcore/resource_detached_test.go": "bbdb71183247e424c7be052f0544082f4c5b1bb39fd778f9a8455c32294f0ce4",
       "cmd/internal/couchcore/resource_orphan_test.go": "356d41c95d452fef285b3a0f3e3f1baa2020b30ca99cb413d95d190e604fd01f",
       "cmd/internal/couchcore/resource_test.go": "0ac53ee75df4bf5b061c3e153254f46a83ee5dedf854d7ddcf33b9d14c5dcf88",
-      "cmd/internal/couchcore/resume_launch_test.go": "2037969a58c888e44c839e414c69a1862122df398b33fcd9b629bc245c7db24d",
       "cmd/internal/couchcore/resume_route_test.go": "ec8aec60ffe48432061977818a3025ad66b08d8befd0886faecb82b2c4f30a41",
       "cmd/internal/couchcore/resume_test.go": "5ce624386475a764af9a1dd806788f27f83fab0b8274692b09c068bcc461a70b",
       "cmd/internal/couchcore/runner_group_darwin_test.go": "e98bada48b97a161abc6728945ce215b4d50d9e69d0ccf5ade46a8c4f9af7a9b",
@@ -260,7 +258,6 @@
       "cmd/internal/couchcore/teardown_live_test.go": "78a030a9c12238dbcde3ccf9c4295720d57d560905a862caadf2c39cb944e92f",
       "cmd/internal/couchcore/terminal_disposal_test.go": "e89a11c280ddbb69481acad63c66f884b06742fdf10d1f2b97aa547b8799ed33",
       "cmd/internal/couchcore/thread_test.go": "cf6142db882e065790a8c06c7ce10e99f089c547a750b9cc360ecefe1d8a1312",
-      "cmd/internal/couchcore/threadstore_test.go": "e5ee669f4a6b003464b7c76d8489497eee42daea4d6dd9e1a0360e0cc73f1649",
       "cmd/internal/couchcore/transition_refusal_test.go": "277ac03f28617e63724881d85d59c25b6246abc974ce0435990762ac628346b5",
       "cmd/internal/couchcore/workspaceref_test.go": "98e4ad0e5dadaf277d0acfa2842804ff112ec0b73dd24c0a9cf2052ad3c8a251",
       "cmd/internal/couchidentity/identity_test.go": "56b3fffc9b688d1015f21745aa0c127bc545289740642ee9b56c734e5262bb1a",
@@ -462,7 +459,11 @@
       "internal/repolint/repository_contract_test.go": "e87090a967b7390f69ca3ebfe44df639463c48f225fc2884a71c36680838f2db",
       "internal/testoracle/run_test.go": "1818f066cd7ced34648679d42604536da83642c7a40d1800e8ae1f9cfc6a3d36",
       "probes/zellijcalls/main_test.go": "382f78fb48fc70e5b522a8e5e38bc0fc8da82ebc75ec9c2f367c9ddfa7417693",
-      "probes/zellijprobe/reporoot_test.go": "de13aef753c6fc958f01e4a04ec9963672a58a76f5e63d08d6e2ea32de825018"
+      "probes/zellijprobe/reporoot_test.go": "de13aef753c6fc958f01e4a04ec9963672a58a76f5e63d08d6e2ea32de825018",
+      "cmd/internal/couchcore/couch_test.go": "3e59a65bfdb672c0328c757e00d813373e227d42eef1a04f44dbfd1506c272cd",
+      "cmd/internal/couchcore/recovery_preflight_test.go": "da4f5eb4c02d24c1c55848f5c0c85fc00f99942777d92349ceed6a7bc38a322f",
+      "cmd/internal/couchcore/resume_launch_test.go": "fde85872cf5560887e4c6a7a7de59fda822f383e444479fa337bf695b116984d",
+      "cmd/internal/couchcore/threadstore_test.go": "2102b557b6fe76f9a32c913eb28e371e4575ff2b5b46ee192a8781e0b9ac6a31"
     }
   }
 }

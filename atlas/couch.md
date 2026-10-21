@@ -191,7 +191,8 @@ requires machine-local filesystems; distributed/shared homes are unsupported.
 `couchcore.ThreadStore` is
 the shared lifecycle interface. Primary and arbitrary-path records use the global
 store; numbered slots use `<environment>/.couch/` with one current conversation
-record, separate preferences, and retained history. Each backend uses the existing
+record and retained history. Repository arguments live in the global Couch namespace,
+shared by every slot of that repository. Each backend uses the existing
 lock, revision checks and recoverable journal. The supervisor lease still belongs
 to the selected global namespace beneath the account lease.
 
@@ -3975,42 +3976,46 @@ pane is the layer couch replaces" -- an actor-cluster-era claim that `#170`'s
 rescope to couch-lite invalidated: couch-lite switches agent sessions and never
 took over handing the operator a shell at their cwd.
 
-`ResolveLaunchProfile` keeps two provenance axes independent. Agent precedence
-is explicit start selection → the path preference's `last_agent` → the root
-actor's `$PAIR_AGENT`; argv precedence is that selected agent's path entry →
-its Pair-owned repository default. Agent choices derive from
-`launcher.AgentInventory`, so Couch has no harness enum and can never apply one
-agent's argv to another.
+Couch selects an agent from the explicit request or the root actor's
+`$PAIR_AGENT`; native resume keeps its retained thread profile. Startup arguments
+come from explicit accepted argv (including empty), then that agent's record in
+Couch's repository configuration. The repository key is the verified physical
+Git common directory, so slots share per-agent arguments while independent
+repositories remain isolated. `launcher.AgentInventory` supplies supported agents.
 
-Primary and ordinary-path preferences are strict revisioned records below
-`threadstore/path-preferences/`, addressed by a digest of normalized repository
-identity plus canonical physical path while retaining both values in the
-record for validation. Numbered workspaces route that same API to their
-`<environment>/.couch/preferences.json`, keyed to the nested main checkout;
-sibling dependency clones are not enrolled as threads. `repoLaunchDefault`
-resolves numbered workspaces' missing per-agent values from the primary checkout
-across create, fresh and Switch agent. It retains the explicitly known primary
-root during first creation before enrollment. First-use agent selection remains
-the current Couch agent, not a copy of :0's preference; registered launches then
-establish independent per-workspace values. Resume consumes its incarnation's
-exact recorded profile, while fresh replacement preserves per-agent history and
-validates parameters before replacing the current record. The resolved profile travels to Pair as a strict
-tag-bound `PAIR_COUCH_LAUNCH_PROFILE`. `PAIR_USE_REPO_DEFAULT=1` accompanies it
-only for matching repo-default provenance; path provenance supplies one
-authoritative empty value. `ExecRunner` overlays supplied child keys after
-removing inherited duplicates, so stale launch policy cannot cross the process
-boundary. Pair consumes both keys before launch and does not persist
-Couch-resolved argv back as a new repository default (`AgentArgsFromCouch` guards
-ordinary launches as well as fresh/resume paths).
+`repopreferences.go` owns pure resolution, folding and marked borrowing;
+`repopreferences_codec.go` preserves unknown fields with strict known types.
+The global ThreadStore document `threadstore/repo-preferences.json` is bounded to
+4 MiB and 256 repositories, with 4096-byte formatted arguments per agent.
+`repopreferences_store.go` serializes accepted updates under the namespace lock,
+regardless of which backend holds the conversation. Missing own-repo settings may
+yield a marked, deterministic same-agent suggestion from another confirmed
+repository; CLI never implicitly accepts it. Explicit acceptance saves it locally.
 
-The pending start claim carries the exact profile across Couch failure, but it
-does not count as history. Established registration promotes that profile onto
-the incarnation and journals the thread record, per-path/per-agent history, and
-manifest generation as one recoverable transaction. Failed fork,
-acknowledgement, or registration paths write neither preference. A restarted
-Couch therefore selects the last successful agent and exact argv at that path
-without reopening Pair's saved-config picker (ARCH-DRY, ARCH-PURE,
-ARCH-PURPOSE).
+`repopreferences_migration.go` reads bounded legacy Couch path-preferences and
+enrolled slot `.couch/preferences.json` files, independently verifies Git identity
+and containment, and folds them in memory. Equal legacy values agree; differing
+values expose a conflict requiring explicit arguments. Confirmed values outrank
+late legacy sources. Source identities, exact bytes and digests survive in the
+canonical document; original files stay untouched and receive no new writes.
+Committed sources are not read again. Preview never creates locks/directories,
+replays journals, enrolls retention or reads Pair's per-folder defaults.
+
+The resolved selector-free argv travels explicitly in the existing strict,
+tag-bound `PAIR_COUCH_LAUNCH_PROFILE`. Its existing repo-default provenance marker
+is retained for protocol compatibility, not a fallback into Pair's preference
+store. Pair's standalone defaults and per-folder behavior remain independent.
+`preference_boundary_test.go` rejects a Couch dependency on Pair preference readers.
+
+The start claim records explicit `remember_configuration` intent independently
+of fresh/resume shape. Registration promotes exact execution history and journals
+thread + manifest; it writes no preferences. Only successful final console attach
+calls `PublishAdoptedConfiguration`. Its shared ephemeral completion publishes
+once and reaches StartResult, SwitchAgentResult and warning/receipt wrappers. A
+publication failure keeps the adopted child and visibly says startup parameters
+were not remembered. Failed attachment/registry adoption, automatic resume,
+warm attachment and recovery never learn merely because they ran. There is no
+durable retry/outbox after the disclosed adoption/publication crash gap.
 
 ## Couch metadata and resolution
 

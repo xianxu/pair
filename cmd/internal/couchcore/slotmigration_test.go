@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -25,6 +26,33 @@ func migrationFixture(t *testing.T) (*ThreadStore, SlotRepository, ThreadRecord)
 	return s, repository, r
 }
 
+// rememberLegacyPreferenceBytes adds insignificant whitespace so preservation is
+// checked against the original image, rather than an equivalent re-encoding.
+func rememberLegacyPreferenceBytes(t *testing.T, s *ThreadStore, preference PathLaunchPreference) []byte {
+	t.Helper()
+	path := s.pathLaunchPreferencePath(preference.RepoIdentity, preference.PhysicalPath)
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw = append([]byte(" \n"), append(raw, '\n', '\t')...)
+	if err := os.WriteFile(path, raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	return raw
+}
+
+func assertLegacyPreferenceUnchanged(t *testing.T, s, local *ThreadStore, preference PathLaunchPreference, want []byte) {
+	t.Helper()
+	actual, err := os.ReadFile(s.pathLaunchPreferencePath(preference.RepoIdentity, preference.PhysicalPath))
+	if err != nil || !bytes.Equal(actual, want) {
+		t.Fatalf("legacy preference bytes changed: got %q, want %q, error %v", actual, want, err)
+	}
+	if _, err := os.Lstat(local.pathLaunchPreferencePath(preference.RepoIdentity, preference.PhysicalPath)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("enrollment created a local preference: %v", err)
+	}
+}
+
 func TestSlotMigrationPreservesAddressAndCutsOver(t *testing.T) {
 	t.Parallel()
 
@@ -33,6 +61,7 @@ func TestSlotMigrationPreservesAddressAndCutsOver(t *testing.T) {
 	if err := writePathLaunchPreferenceForTest(s, preference); err != nil {
 		t.Fatal(err)
 	}
+	rawPreference := rememberLegacyPreferenceBytes(t, s, preference)
 	if err := s.EnrollSlotRepository(context.Background(), repository); err != nil {
 		t.Fatal(err)
 	}
@@ -44,10 +73,7 @@ func TestSlotMigrationPreservesAddressAndCutsOver(t *testing.T) {
 	if err != nil || got.Address != r.Address || got.Revision != r.Revision {
 		t.Fatalf("record = %+v, %v", got, err)
 	}
-	pref, found, err := backend.GetPathLaunchPreference(preference.RepoIdentity, r.StartingPath)
-	if err != nil || !found || pref.Revision != preference.Revision {
-		t.Fatalf("preference %+v %v %v", pref, found, err)
-	}
+	assertLegacyPreferenceUnchanged(t, s, backend, preference, rawPreference)
 	if _, err := os.Stat(s.recordPath(r.Address)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("legacy payload retained: %v", err)
 	}
@@ -166,6 +192,7 @@ func TestSlotMigrationZeroCurrentPreservesPreferencesAndHistory(t *testing.T) {
 	if err := writePathLaunchPreferenceForTest(s, preference); err != nil {
 		t.Fatal(err)
 	}
+	rawPreference := rememberLegacyPreferenceBytes(t, s, preference)
 	if err := s.EnrollSlotRepository(context.Background(), repository); err != nil {
 		t.Fatal(err)
 	}
@@ -183,10 +210,7 @@ func TestSlotMigrationZeroCurrentPreservesPreferencesAndHistory(t *testing.T) {
 	if _, err := os.Stat(local.recordPath(r.Address)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("invented current: %v", err)
 	}
-	pref, found, err := local.GetPathLaunchPreference(preference.RepoIdentity, r.StartingPath)
-	if err != nil || !found || pref.Revision != 2 {
-		t.Fatalf("preference %+v %v %v", pref, found, err)
-	}
+	assertLegacyPreferenceUnchanged(t, s, local, preference, rawPreference)
 }
 
 func TestSlotMigrationLeavesPrimaryArchiveRoutable(t *testing.T) {
@@ -363,7 +387,7 @@ func TestSlotRoutingIncludesContainedAndUnprovisionedCWD(t *testing.T) {
 	}
 }
 
-func TestSlotMigrationMovesSubdirectoryRecordAndPreference(t *testing.T) {
+func TestSlotMigrationMovesSubdirectoryRecordAndPreservesPreference(t *testing.T) {
 	t.Parallel()
 
 	s, repository, r := migrationFixture(t)
@@ -382,6 +406,7 @@ func TestSlotMigrationMovesSubdirectoryRecordAndPreference(t *testing.T) {
 	if err := writePathLaunchPreferenceForTest(s, pref); err != nil {
 		t.Fatal(err)
 	}
+	rawPreference := rememberLegacyPreferenceBytes(t, s, pref)
 	if err := s.EnrollSlotRepository(context.Background(), repository); err != nil {
 		t.Fatal(err)
 	}
@@ -393,10 +418,7 @@ func TestSlotMigrationMovesSubdirectoryRecordAndPreference(t *testing.T) {
 	if err != nil || got.StartingPath != sub || got.WorkingPath != sub {
 		t.Fatalf("CWD lost: %+v %v", got, err)
 	}
-	actual, found, err := s.GetPathLaunchPreference(pref.RepoIdentity, sub)
-	if err != nil || !found || actual.PhysicalPath != sub {
-		t.Fatalf("preference lost: %+v %v %v", actual, found, err)
-	}
+	assertLegacyPreferenceUnchanged(t, s, local, pref, rawPreference)
 	snap, err := s.Snapshot()
 	if err != nil || len(snap.Records) != 1 || snap.Records[0].StartingPath != sub {
 		t.Fatalf("snapshot lost/duplicated CWD: %+v %v", snap, err)
@@ -435,22 +457,28 @@ func TestSlotMigrationRetainsConflictingPreferenceSources(t *testing.T) {
 	t.Parallel()
 
 	s, repository, r := migrationFixture(t)
-	for _, path := range []string{r.StartingPath, filepath.Join(r.StartingPath, "sub")} {
-		pref := PathLaunchPreference{SchemaVersion: PathLaunchPreferenceSchemaVersion, RepoIdentity: repository.Identity.RepoIdentity, PhysicalPath: path, LastAgent: "codex", ArgvByAgent: map[string][]string{"codex": {}}, Revision: 1}
+	preferences := []PathLaunchPreference{}
+	rawPreferences := [][]byte{}
+	for i, path := range []string{r.StartingPath, filepath.Join(r.StartingPath, "sub")} {
+		pref := PathLaunchPreference{SchemaVersion: PathLaunchPreferenceSchemaVersion, RepoIdentity: repository.Identity.RepoIdentity, PhysicalPath: path, LastAgent: "codex", ArgvByAgent: map[string][]string{"codex": {string(rune('a' + i))}}, Revision: 1}
 		if err := writePathLaunchPreferenceForTest(s, pref); err != nil {
 			t.Fatal(err)
 		}
+		preferences = append(preferences, pref)
+		rawPreferences = append(rawPreferences, rememberLegacyPreferenceBytes(t, s, pref))
 	}
-	if err := s.EnrollSlotRepository(context.Background(), repository); err == nil {
-		t.Fatal("ambiguous preference paths silently collapsed")
+	if err := s.EnrollSlotRepository(context.Background(), repository); err != nil {
+		t.Fatalf("independent legacy preferences blocked thread enrollment: %v", err)
 	}
-	if _, err := os.Stat(s.recordPath(r.Address)); err != nil {
-		t.Fatal("refusal lost current conversation", err)
+	local, err := s.storeForAddress(r.Address)
+	if err != nil || local == s {
+		t.Fatalf("current thread was not migrated: %v", err)
 	}
-	for _, path := range []string{r.StartingPath, filepath.Join(r.StartingPath, "sub")} {
-		if _, found, err := s.GetPathLaunchPreference(repository.Identity.RepoIdentity, path); err != nil || !found {
-			t.Fatalf("refusal lost preference %s: %v", path, err)
-		}
+	if got, err := local.GetThread(r.Address); err != nil || got.Address != r.Address || got.Revision != r.Revision {
+		t.Fatalf("current thread changed: %+v %v", got, err)
+	}
+	for i, pref := range preferences {
+		assertLegacyPreferenceUnchanged(t, s, local, pref, rawPreferences[i])
 	}
 }
 
