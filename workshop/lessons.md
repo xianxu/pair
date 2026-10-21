@@ -13,6 +13,8 @@ representative evidence, not an exhaustive index.
 
 
 - A durable plan names each risky function and its adversarial input class plus mechanical guard. Prefer fuzz, generated event sequences and independent invariants over prose case inventories; keep resource and operation-count assertions explicit. (#706 PQ-1)
+- Additive wire fields still break an older strict decoder. Inspect the actual mixed-version reader before promising compatibility; pin the legacy refusal and current-reader absence behavior, and name the coordinated upgrade contract when that is the intended rollout. (#736 PQ-1)
+
 - #735: Replay native recordings with resize events as well as bytes before blaming footer wording. A duplicate geometry update may receive no native repaint; preserve existing cursor/frame evidence on a synchronized no-op, while a retry after an aborted real resize must still restore synchronization and await a fresh cursor. Regress both paths and expose the missing evidence in retained wait receipts without copying screen contents.
 
 - Splitting an acceptance task into a child issue requires sweeping copied Spec tasks and Done when for parent-only checks. A Log saying the parent still owns console/deployment acceptance does not override an active child Spec clause requiring it. Keep the old clause only as superseded Revisions history. (#723 BR-1)
@@ -2482,5 +2484,6 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #748 BR-1/BR-2: A fake must count every invocation before rejecting undeclared work; otherwise extra children can be invisible to a budget assertion. Mutate the admission gate and require the regression to fail. A native successful process/error count is not a valid-answer oracle: parse and validate each returned payload with the consumer’s production requirements before claiming zero bad final answers.
 
 - #748 suite: Every new production file, including a pure byte-validation helper, needs an exhaustive artifact-source disposition. Run artifactpath.TestProductionArtifactReferencesAreExactlyClassified with the lint/reader preflights before starting the full suite; a missing NonArtifactSources entry should not first surface after queueing a full check.
+- #733 BR-1: A lifecycle wording sweep includes atlas/index.md as well as README, the detailed feature map and architecture.md. Index summaries are contract-bearing descriptions too; changing the detailed page does not update its index entry.
 - #746 BR-1: A generated repair command must satisfy the same current constraints as its executor, ahead of historical classification. Execute emitted commands in private fixtures for each classification transition; checking only their text or the manual command misses advice that cannot work.
 - #749: Acceptance fixtures must execute the one shared Pair image through testpair.At or tests/lib/pair-test-binary.sh, preserving inode identity even across volumes. A raw executable copy triggers another AMFI assessment before the CLI starts and can consume a fixture deadline; verify file identity rather than extending the timeout. Resolve the shared binary before installing a hermetic fixture environment.
