@@ -75,3 +75,6 @@ Fix the demonstrated copy-on-select fixture/process ownership failure without a 
 
 - Reason: tl-worker permits the close review to overlap a queued recorded check; changes from review requeue verification on the changed code.
 - Delta: PR #499 opened and affected verification queued on pushed implementation 814eb8d40. Close review may proceed now, but landing requires recorded success on the final code.
+
+- Close review returned SHIP with no findings. Reviewer independently passed clipcmd/testpair, both cross-volume shell fixtures and helper contract, then restored each old copy path as a negative control and observed identity failures.
+- Pair:6 follow-up: #706 unchanged-head rerun 6b103276af005138432f4c32cafc62bc passed every test, including shell copy-on-select and Go clipcmd, at 63d530dbaffb52fea561cbbdbdeff9581c1fa66b. Raw passing log .git/sdlc/local-checks/63d530dbaffb52fea561cbbdbdeff9581c1fa66b/suite.log is retained. SDLC correctly refuses success over the earlier unattributable shell failure (none); no bypass was used. This additional fail/pass supports the intermittent launch-assessment diagnosis, not a pass for this changed code.
