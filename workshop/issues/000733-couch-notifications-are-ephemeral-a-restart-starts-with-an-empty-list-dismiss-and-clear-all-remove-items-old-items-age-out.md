@@ -16,7 +16,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "a85081df", done: "05d0bfec"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # couch: notifications are ephemeral: a restart starts with an empty list, dismiss and clear-all remove items, old items age out
@@ -52,6 +52,8 @@ A list that only grows stops being read, which defeats notifications.
 - Red/green: original selection left condition rows visited and dismissal re-raised them; both regressions now pass. Added 12h boundary/live-condition preservation, clear-all with keyboard and mouse under overflow, restart reset, fresh-occurrence, and existing-activity-tick expiry tests. Removed persistence/saver path and obsolete store tests.
 
 ### 2026-10-20
+- 2026-10-20: closed — Targeted Attention/Notify tests and concept/artifact guards passed in couchcore, couchtty, couchcmd and artifactpath. Production startup ignores valid legacy list, observes/clears new event without disk writes; original persistence overlay fails this regression. Select/dismiss/clear suppress live occurrences until clear; only notification rows expire at 12h, including existing activity-tick wiring. Recorded affected check queued, required pass before landing; operator live look at next restart after landing per TL dispatch.; review verdict: SHIP
+- 2026-10-20: flow upgraded quick → full — 106 added lines in code files (limit 100)
 
 - Claimed and started planning. TL approved notification-only expiry and episode-scoped suppression; clear-all/open/dismiss do not change the underlying slot state. #730 generated-workflow-only stash dropped as authorized.
 
