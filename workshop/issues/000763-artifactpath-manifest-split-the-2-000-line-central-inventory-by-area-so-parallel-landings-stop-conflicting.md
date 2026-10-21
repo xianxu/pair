@@ -1,13 +1,21 @@
 ---
 id: 000763
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'cf2587baaae908f681098c1374cefe8d7d6a3397' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'ee726e6ca790898f2592232f980675e022bc6df5' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-21T01:47:34-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 ---
 
 # artifactpath manifest: split the 2,000-line central inventory by area so parallel landings stop conflicting
@@ -16,30 +24,33 @@ card_mirror: 'cf2587baaae908f681098c1374cefe8d7d6a3397' # card fields mirrored f
 
 ## Spec
 
-`cmd/internal/artifactpath/manifest.go` is a single 1,969-line inventory that nearly every change touching an
-artifact path must edit (28 main commits in two days). Parallel slots keep conflicting on it at landing:
-- pair#731 (pair:6) needed a second integration that only unioned independent term/webcast reader entries;
-- pair#755 (pair:4), 10-21: after both suites and both reviews passed, merge refused a reader-inventory conflict
-  twice as main advanced during its queue wait (bc79cbae, then bade54de). Each resolution costs a fresh full suite
-  plus a fix review (~40 min queue + 10 min suite).
-
-Make the inventory conflict-free by construction, keeping its exhaustiveness check:
-- Split the entries so each area owns its own file (e.g. `manifest_webcast.go`, `manifest_term.go`, …, or one
-  file per family), each contributing to the same registry; the source-coverage test still requires every token use
-  to be declared exactly once and fails on duplicates across files.
-- Keep entries sorted within a file, and document in the package comment where a new entry goes.
-- No behaviour change: the same families, allowances and counts; the coverage test passes unchanged in meaning.
+Per the TL's Revisions below, split the Go-reader audit, not artifactpath/manifest.go.
+Store one versioned JSON certificate per reader at tests/affected-readers/<reader-path>.json.
+Each retains its explicit disposition and exact SHA256; discovery and SOURCE_GUARDS
+coverage remain unchanged. --record and --remove modify only the named certificate.
+make affected-readers READER=<path> DISPOSITION=<audited-kind> regenerates that one
+certificate after explicit re-audit; it never bulk-accepts changed reader inputs.
+Reject malformed/duplicate keys, invalid certificate paths/schema/digests and missing,
+changed or removed readers. Preserve unknown certificate fields when recording again.
+Migrate existing dispositions and hashes exactly; no legacy aggregate remains writable.
+ARCH-DRY/PURE: reconstruct the existing audit value in one loader; retain the auditor.
+ARCH-EVOLVE: preserve unknown JSON fields; strict known fields and duplicate keys.
+ARCH-FUNERAL: certificate lifetime is its reader's lifetime; explicit --remove retires it.
+The batch tool scans tracked test sources once and loads one certificate per reader;
+no runtime, background process or new user-action state is introduced.
 
 ## Done when
 
-- No single file holds all entries; two changes adding entries for different areas touch different files.
-- The coverage test proves the union is identical to today's manifest (a one-time equivalence test against the
-  pre-split list, removable afterwards), and fails on a duplicate declared in two files.
-- atlas notes where inventory entries live.
+- Different reader edits touch different certificates and merge cleanly in a real Git two-branch regression.
+- Migration preserves every old path/disposition/hash; stale, missing, malformed and source-scanner coverage controls still refuse.
+- Named regeneration preserves unknown fields, cannot waive SOURCE_GUARDS, and never refreshes unrelated changed hashes.
+- make affected-readers and atlas/README explain the audited per-reader repair; targeted tests, recorded suite and close review pass.
 
 ## Plan
 
-- [ ]
+- [ ] Add failing per-reader loader/CLI, regeneration-isolation and real-Git merge regressions.
+- [ ] Migrate certificates exactly, retain audit semantics and wire named Make regeneration.
+- [ ] Verify negative controls, document ownership, record suite, close and land.
 
 ## Log
 
@@ -56,3 +67,5 @@ Make the inventory conflict-free by construction, keeping its exhaustiveness che
   changed reader still requires re-audit. Keep `manifest.go` as is unless it also shows real conflicts.
   Done when: two branches changing different reader tests merge without conflict (test it with git), the audit check
   still fails on a stale or missing hash, and atlas says where the entries live.
+
+- 2026-10-21 — Design checkpoint: current Spec/Done when/Plan supersede the initial manifest.go filing, as directed by the TL revision. Inspected main local-gates-guard protected patterns: tests/** and Makefile.local are not covered; planned change touches neither .sdlc nor workflows. Keep the existing protected list unchanged. Quick-flow plan posted to hub, proceeding unless objection.
