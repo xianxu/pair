@@ -2487,3 +2487,6 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #737 BR-7: A crash-cleanup class spans all writers, not only the first cache failure. Enumerate build views, authority snapshots, cache stages, run publication stages and journal stages, including interruption before the first authoritative file exists. Every temporary family needs a lifetime resource, bounded recovery and abrupt-death/live-owner/replacement evidence. A parent's lease alone cannot protect a surviving tool writer; keep the resource held across the command boundary.
 
 - #737 BR-7 ownership sweep: Deferred cleanup needs the same identity authority as crash recovery. Keep the created directory/file identity through error return and verify it before deletion or publication; include the shared atomic publisher, and preserve the original error. A saved process-group number alone must not authorize later repeated signalling after uncertain cleanup.
+
+
+- #737 BR-8: A family-level ownership check is not proof for every operation. Inventory publication, ordinary-error deletion and crash deletion separately; each must consume the captured identity. Test a successful hook that substitutes the stage immediately before promotion, requiring refusal, unchanged previous authority and preservation of the replacement.

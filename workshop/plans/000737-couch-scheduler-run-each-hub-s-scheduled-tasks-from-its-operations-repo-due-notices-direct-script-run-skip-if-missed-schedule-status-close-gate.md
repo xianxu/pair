@@ -360,6 +360,169 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: b74f92ea-7f5f-4db0-bfe8-5441c44b7545
+            repository: github.com/xianxu/pair
+            issue_id: "000737"
+            recipe: milestone-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/7b9140d58209a636
+            reviewed_head: 2a71a0fad074c43b370b1d8a66bfdfadfe97c17e
+            slot: pair:1
+            requested_at: "2026-10-21T04:10:13.606693Z"
+          phase: finished
+          pid: 30358
+          started_at: "2026-10-21T04:10:13.708019Z"
+          finished_at: "2026-10-21T04:12:58.646653Z"
+          session_id: 01a15ca7-0c4a-7b32-9494-0b30657baaca
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 2a71a0fad074c43b370b1d8a66bfdfadfe97c17e
+        tracker_head: a5e16637f11beadfef44c626fd594baffa32997a
+        branch_point: 2d298efea85f7a623d0a8d4a65b3260e0c626f18
+        since: "2026-10-20T17:17:42-07:00"
+        until: "2026-10-20T21:09:28-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-20T17:17:42-07:00"
+              end: "2026-10-20T21:09:28-07:00"
+              began: "2026-10-20T17:17:42-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot1/pair
+        sources:
+            - harness: codex
+              id: 01a15a4d-a5f6-7e32-9f09-082ad1e172f0
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: e9905ab495725773a7d067e6efae1e7b652d2f0caebcd8e2b29d4ca8b39a5da3
+              started: "2026-10-20T17:14:55.765Z"
+              spawned: false
+              bytes: 13339568
+              windows:
+                - start: "2026-10-20T17:17:42-07:00"
+                  end: "2026-10-20T21:09:28-07:00"
+            - harness: codex
+              id: 01a15bd2-f5c9-7251-9c7e-cba357006b38
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a15a4d-a5f6-7e32-9f09-082ad1e172f0
+              digest: 84f6a41df52983e16bee241ca605b481f13aa5df2904241564e3200f4a36856b
+              started: "2026-10-21T00:18:34.683Z"
+              spawned: true
+              bytes: 4382534
+              windows:
+                - start: "2026-10-21T00:18:34.683Z"
+                  end: "2026-10-20T21:09:28-07:00"
+            - harness: codex
+              id: 01a15bd3-91ad-7770-8227-419b821d5986
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a15a4d-a5f6-7e32-9f09-082ad1e172f0
+              digest: 919ee469d1e3a35e14406d8df492331353327481c60693bcf1be422065040cbc
+              started: "2026-10-21T00:19:14.859Z"
+              spawned: true
+              bytes: 4998826
+              windows:
+                - start: "2026-10-21T00:19:14.859Z"
+                  end: "2026-10-20T21:09:28-07:00"
+            - harness: codex
+              id: 01a15be0-4dec-70a0-a17e-61b630b10dca
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a15a4d-a5f6-7e32-9f09-082ad1e172f0
+              digest: 4d2222da17d24cc7612d70ad585754b0d70b27cbd03c04adff1c93e5c17e440d
+              started: "2026-10-21T00:33:09.272Z"
+              spawned: true
+              bytes: 3483876
+              windows:
+                - start: "2026-10-21T00:33:09.272Z"
+                  end: "2026-10-20T21:09:28-07:00"
+            - harness: codex
+              id: 01a15c40-c87b-7d42-8375-bfd5ecbd7a53
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: a3b269236061b4495ff4f5eb5c065aa81cd5d6dfbaf9222bc67300f4a25c3bfc
+              started: "2026-10-21T02:18:32.36Z"
+              spawned: false
+              bytes: 731519
+              windows:
+                - start: "2026-10-21T02:18:32.36Z"
+                  end: "2026-10-20T21:09:28-07:00"
+            - harness: codex
+              id: 01a15c43-ba56-74b0-90bf-eba6239eef02
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: c535f95d699a28f090a389e2df5a02d209b9a7922aa84ff5c20e32475399b95b
+              started: "2026-10-21T02:21:45.369Z"
+              spawned: false
+              bytes: 518971
+              windows:
+                - start: "2026-10-21T02:21:45.369Z"
+                  end: "2026-10-20T21:09:28-07:00"
+            - harness: codex
+              id: 01a15c45-809b-7fb3-a021-892d99ec3b1d
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: b261c2a1db7e2401a2a58ce9c12df197749550821c9655313b509884af09b668
+              started: "2026-10-21T02:23:41.668Z"
+              spawned: false
+              bytes: 487844
+              windows:
+                - start: "2026-10-21T02:23:41.668Z"
+                  end: "2026-10-20T21:09:28-07:00"
+            - harness: codex
+              id: 01a15c45-e52f-7763-8852-144173152199
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: b766e2ab9af6806b5e6afb3df7c118c516bfaf10ab272731bdcc89753d815897
+              started: "2026-10-21T02:24:07.329Z"
+              spawned: false
+              bytes: 520797
+              windows:
+                - start: "2026-10-21T02:24:07.329Z"
+                  end: "2026-10-20T21:09:28-07:00"
+        cuts:
+            - boundary: M1
+              dispatched: "2026-10-20T20:08:11-07:00"
+              finalized: "2026-10-20T20:12:31-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-20T20:36:36-07:00"
+              finalized: "2026-10-20T20:40:39-07:00"
+              finalizing: false
+      "n": 3
+      timestamp: "2026-10-20T21:12:59-07:00"
+      dispatched: "2026-10-20T21:10:12-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-7
+          disposition: addressed
+          note: Build captures now use owner-held slots, ledger residues recover under the state lock, and operational collection staging recovers under the task lock. The native crash tests pass; independently disabling capture, ledger, and collection recovery in a disposable pinned-head copy makes the corresponding regressions fail.
+          round: 3
+      findings:
+        - kind: defect
+          id: BR-8
+          severity: Critical
+          title: Ledger publication promotes a substituted staging inode into authoritative state
+          detail: 'cmd/internal/couchschedule/store_unix.go:169 renames the temporary pathname without checking that it still identifies the file originally opened by publishSchedule. A disposable pinned-head regression replaced that pathname at the existing pre-rename hook: StateStore.Update returned nil and state.json contained the replacement''s empty tasks map instead of the intended ledger. This can discard retained execution authority. This is the 3rd finding in family durable-artifact-crash-recovery. Earlier rounds fixed instances; enforce the rule that every staging publication and deletion must verify its captured ownership identity, and sweep the complete writer inventory. Add a descriptor-relative identity check before ledger rename and a regression asserting refusal, unchanged prior authority, and preservation of the replacement. ARCH-SECURE, ARCH-PURPOSE.'
+          family: durable-artifact-crash-recovery
+          round: 3
+      boundary: M1
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#737 (boundary-review)
@@ -400,6 +563,17 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-7** [Important] `durable-artifact-crash-recovery` (kind: defect) Build captures and ledger staging still have only deferred cleanup
   cmd/internal/couchschedule/build.go:86 creates couch-build-* directories outside the managed cache, and store_unix.go:132 creates .state-*.tmp snapshots; both rely solely on deferred removal. Temporary overlay subprocess tests exiting abruptly reproduced both abandoned shapes, and a subsequent successful StateStore.Update left the old snapshot untouched. This is the 2nd finding in family durable-artifact-crash-recovery, with two remaining staging families found. State the rule that every scheduler-owned staging artifact needs owner-safe crash cleanup, enumerate all staging writers, and sweep the class in this round. Add identity-fenced recovery under the appropriate locks and abrupt-death regressions; build captures and repeated ledger residues otherwise accumulate outside the declared retention bounds. ARCH-FUNERAL, ARCH-PURPOSE.
 
+## Round 3 — 2026-10-20T21:12:59-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-7 — addressed — Build captures now use owner-held slots, ledger residues recover under the state lock, and operational collection staging recovers under the task lock. The native crash tests pass; independently disabling capture, ledger, and collection recovery in a disposable pinned-head copy makes the corresponding regressions fail.
+
+### Raised
+
+- **BR-8** [Critical] `durable-artifact-crash-recovery` (kind: defect) Ledger publication promotes a substituted staging inode into authoritative state
+  cmd/internal/couchschedule/store_unix.go:169 renames the temporary pathname without checking that it still identifies the file originally opened by publishSchedule. A disposable pinned-head regression replaced that pathname at the existing pre-rename hook: StateStore.Update returned nil and state.json contained the replacement's empty tasks map instead of the intended ledger. This can discard retained execution authority. This is the 3rd finding in family durable-artifact-crash-recovery. Earlier rounds fixed instances; enforce the rule that every staging publication and deletion must verify its captured ownership identity, and sweep the complete writer inventory. Add a descriptor-relative identity check before ledger rename and a regression asserting refusal, unchanged prior authority, and preservation of the replacement. ARCH-SECURE, ARCH-PURPOSE.
+
 ## Open findings
 
-- **BR-7** [Important] `durable-artifact-crash-recovery` (kind: defect) Build captures and ledger staging still have only deferred cleanup
+- **BR-8** [Critical] `durable-artifact-crash-recovery` (kind: defect) Ledger publication promotes a substituted staging inode into authoritative state

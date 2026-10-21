@@ -244,3 +244,102 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T21:12:59-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 737 — couch: scheduler: run each hub's scheduled tasks from its operations repo (due notices, direct script-run, skip-if-missed, --schedule --status) |
+| repo | pair |
+| issue file | workshop/issues/000737-couch-scheduler-run-each-hub-s-scheduled-tasks-from-its-operations-repo-due-notices-direct-script-run-skip-if-missed-schedule-status.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 2d298efea85f7a623d0a8d4a65b3260e0c626f18..2a71a0fad074c43b370b1d8a66bfdfadfe97c17e |
+| command | sdlc milestone-close --issue 737 --milestone M1 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T21:12:59-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+M1 delivers the manual execution path, durable history, cached status, and corresponding README/atlas documentation. BR-7’s abandoned-artifact recovery is now covered by meaningful regressions. One reproduced publication bug blocks shipping: the ledger can publish a substituted temporary file as authoritative state while reporting success.
+
+```findings
+dispose:
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Build captures now use owner-held slots, ledger residues recover under the state lock, and operational collection staging recovers under the task lock. The native crash tests pass; independently disabling capture, ledger, and collection recovery in a disposable pinned-head copy makes the corresponding regressions fail.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: durable-artifact-crash-recovery
+    title: |
+      Ledger publication promotes a substituted staging inode into authoritative state
+    detail: |
+      cmd/internal/couchschedule/store_unix.go:169 renames the temporary pathname without checking that it still identifies the file originally opened by publishSchedule. A disposable pinned-head regression replaced that pathname at the existing pre-rename hook: StateStore.Update returned nil and state.json contained the replacement's empty tasks map instead of the intended ledger. This can discard retained execution authority. This is the 3rd finding in family durable-artifact-crash-recovery. Earlier rounds fixed instances; enforce the rule that every staging publication and deletion must verify its captured ownership identity, and sweep the complete writer inventory. Add a descriptor-relative identity check before ledger rename and a regression asserting refusal, unchanged prior authority, and preservation of the replacement. ARCH-SECURE, ARCH-PURPOSE.
+```
+
+1. **Strengths**
+
+   - Crash recovery uses the actual production locks and native process-death fixtures.
+   - Captured-source builds have tests proving later source edits cannot change the compiled snapshot.
+   - Manual acceptance covers argument forwarding, exit 10, history, timeout, and process-group cleanup.
+   - Documentation clearly distinguishes available M1 commands from planned M2 automatic scheduling.
+
+2. **Critical findings**
+
+   - [store_unix.go:169](/Volumes/TestScratch/review-checkouts/7b9140d58209a636/cmd/internal/couchschedule/store_unix.go:169): the captured creation identity currently protects deferred removal, but does not protect publication. Apply that ownership fence immediately before rename. The sibling shared-file and operational-bundle publishers already perform corresponding checks.
+
+3. **Important findings**
+
+   None additional.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Passed the full `couchschedule`, `operationalrun`, `durablefile`, `gcruntime`, `couchmessage`, and `artifactpath` packages; targeted scheduling/skill CLI tests; and range `git diff --check`.
+
+   Recovery regressions failed when their production recovery calls were disabled. The additional ledger replacement regression failed against the pinned head despite the existing suites passing. Experiments ran in a disposable copy that was removed; the review checkout remains unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared execution, build, and persistence owners serve the manual path.
+   - **ARCH-PURE — pass:** declaration, calendar, transition, and projection logic remain separate from IO.
+   - **ARCH-PURPOSE — flag:** the complete staging-safety sweep still omits ledger publication identity.
+   - **ARCH-MOCK — pass:** injected stateful execution and folder-backed storage have native qualification tests.
+   - **ARCH-CONSTRAINTS — pass:** explicit task, capture, output, cache, and concurrency bounds have focused coverage.
+   - **ARCH-SECURE — flag:** a temporary pathname is treated as publication authority after its inode changes.
+   - **ARCH-ORDER — pass:** M1 reservation, owner acknowledgement, completion, and uncertain recovery have explicit events.
+   - **ARCH-FUNERAL — pass:** the previously identified staging families now have locked recovery paths.
+   - **ARCH-EVOLVE — pass:** inspected ledger, run, journal, and manifest codecs preserve additive members.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry recording the reproduced ledger substitution and the publication/deletion ownership rule across the writer inventory. Follow the existing revision’s instruction to return another staging gap to the TL with the complete inventory, including the missing pre-rename regression.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"b74f92ea-7f5f-4db0-bfe8-5441c44b7545","repository":"github.com/xianxu/pair","issue_id":"000737","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/7b9140d58209a636","reviewed_head":"2a71a0fad074c43b370b1d8a66bfdfadfe97c17e","slot":"pair:1","requested_at":"2026-10-21T04:10:13.606693Z"},"phase":"finished","pid":30358,"started_at":"2026-10-21T04:10:13.708019Z","finished_at":"2026-10-21T04:12:58.646653Z","session_id":"01a15ca7-0c4a-7b32-9494-0b30657baaca","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.494502417s
+head: "2a71a0fad074c43b370b1d8a66bfdfadfe97c17e"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
