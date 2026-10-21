@@ -133,6 +133,9 @@ Authenticated submitted hub receipt3708133b-f037-4efe-bdb2-4bd40dd5e457 carries 
 
 Read-only preflight at20:37–20:45: ~/.tart/tmp was empty (no partial state identified to delete), cached Tahoe digest remains1b093499716409d29e8b5336844528e1cae375db97d2ad8e5aeff78cf0da201e, pair-test is stopped, Tart2.32.1, native storage approximately366GiB available. Reinspect before effects; no broad prune/removal. Next: notify hub immediately before approved native effects, resolve/verify current base, provision through the approved ad-hoc lifetime/claim mechanism, qualify the actual runner. Preserve the two-replan/third-mechanism-change stop condition. No native qualification or M1 close is claimed.
 
+- 21:19 resume: restored state/worker contract and submitted native-work notice 434de602-80f1-4272-ac1a-a2a2ab5efcbd. Anonymous OCI manifest bytes matched Docker-Content-Digest for current Tahoe base sha256:4aaa751fa7538902d73c767f27a066fc87e83f183069da4e4b5022863abd4c77; completed digest-pinned pull with TART_NO_AUTO_PRUNE=1. Temporary directory was empty; removed nothing. pair-test remains stopped and untouched.
+- Added guest-only vendor-pinned provisioning and an explicit vm provision route reusing the existing Run/host/driver lifetime and ad-hoc position. No new lifecycle mechanism. Ad-hoc fresh component review caught missing unpublished-candidate accounting and post-Run lease reacquisition outside the timeout envelope; corrected to full candidate accounting and activation before existing lease release, after final validation/log closes. Reviewer rechecked both resolved, no further Critical/Important. Added controlled regressions for both plus activation suppression after final validation/log-close failure. Portable provisioning trust-boundary tests pass (five cases); actual image/runner qualification still outstanding.
+
 ## Revisions
 
 - 2026-10-20 13:30 (TL, from the operator's decisions in ops side doc `2026-10-20-19-conformance-structure.md`):

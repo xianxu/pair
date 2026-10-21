@@ -52,6 +52,7 @@ func Families() []CommandFamily {
 	return []CommandFamily{
 		{Name: "launch", Summary: "session lifecycle and public pair launcher flow", Status: "handoff"},
 		// flat helpers
+		{Name: "vm provision", Summary: "provision and qualify the pinned isolated VM image", Status: "implemented", Streaming: true},
 		{Name: "vm run", Summary: "run a command in an isolated disposable VM", Status: "implemented", Streaming: true},
 		{Name: "archive", Summary: "create verified encrypted history backups", Status: "implemented", Streaming: true},
 		{Name: "gc", Summary: "preview or collect expired Pair storage", Status: "implemented", Streaming: true},

@@ -49,7 +49,7 @@ func NewNativeDriver() (VMDriver, error) {
 }
 
 func newNativeDriver(executable, home, path string) *nativeDriver {
-	return &nativeDriver{executable: executable, home: home, env: []string{"HOME=" + home, "PATH=" + path, "LANG=C", "LC_ALL=C"}, identity: procutil.Identity, own: configureSnapshotCommand}
+	return &nativeDriver{executable: executable, home: home, env: []string{"HOME=" + home, "PATH=" + path, "LANG=C", "LC_ALL=C", "TART_NO_AUTO_PRUNE=1"}, identity: procutil.Identity, own: configureSnapshotCommand}
 }
 
 func managedVM(name string) bool {
@@ -116,56 +116,72 @@ func (d *nativeDriver) operationOwned(ctx, cleanupBound context.Context, args ..
 func (d *nativeDriver) Inspect(ctx context.Context, name string) (VMStatus, error) {
 	return d.inspectOwned(ctx, nil, name)
 }
-func (d *nativeDriver) inspectOwned(ctx, cleanupBound context.Context, name string) (VMStatus, error) {
+
+type nativeVMEntry struct {
+	Name    string
+	Running bool
+	State   string
+}
+
+func (d *nativeDriver) inventory(ctx, cleanupBound context.Context) ([]nativeVMEntry, error) {
 	inner, cancel := context.WithCancel(ctx)
 	defer cancel()
 	out := &snapshotOutput{remaining: 4 << 20, cancel: cancel}
 	var stderr bytes.Buffer
 	code, err := d.runOwned(inner, cleanupBound, out, &snapshotLimitedWriter{writer: &stderr, remaining: 65536}, "list", "--format", "json")
 	if err != nil || code != 0 {
-		return VMStatus{}, fmt.Errorf("Tart list unavailable (exit %d): %w", code, errors.Join(err, fmt.Errorf("%s", stderr.String())))
+		return nil, fmt.Errorf("Tart list unavailable (exit %d): %w", code, errors.Join(err, fmt.Errorf("%s", stderr.String())))
 	}
 	raw := out.buffer.Bytes()
 	if err := strictjson.RejectDuplicateKeys(raw); err != nil {
-		return VMStatus{}, err
+		return nil, err
 	}
 	if len(bytes.TrimSpace(raw)) == 0 || bytes.TrimSpace(raw)[0] != '[' {
-		return VMStatus{}, fmt.Errorf("Tart list must be an array")
+		return nil, fmt.Errorf("Tart list must be an array")
 	}
 	var entries []json.RawMessage
 	if err := json.Unmarshal(raw, &entries); err != nil {
-		return VMStatus{}, err
+		return nil, err
 	}
 	known := map[string]bool{"Name": true, "Running": true, "State": true}
-	found := VMStatus{}
+	result := make([]nativeVMEntry, 0, len(entries))
+	seen := map[string]bool{}
 	for _, entry := range entries {
 		fields, _, err := requiredObject(entry, known)
 		if err != nil {
-			return VMStatus{}, err
+			return nil, err
 		}
 		encoded, err := strictjson.EncodeObject(fields, nil, known)
 		if err != nil {
-			return VMStatus{}, err
+			return nil, err
 		}
-		var item struct {
-			Name    string
-			Running bool
-			State   string
-		}
+		var item nativeVMEntry
 		if err := strictjson.Decode(encoded, &item); err != nil {
-			return VMStatus{}, err
+			return nil, err
 		}
+		if item.Name == "" || seen[item.Name] {
+			return nil, fmt.Errorf("invalid or duplicate Tart VM name")
+		}
+		seen[item.Name] = true
+		result = append(result, item)
+	}
+	return result, nil
+}
+func (d *nativeDriver) inspectOwned(ctx, cleanupBound context.Context, name string) (VMStatus, error) {
+	entries, err := d.inventory(ctx, cleanupBound)
+	if err != nil {
+		return VMStatus{}, err
+	}
+	found := VMStatus{}
+	for _, item := range entries {
 		if item.Name != name {
 			continue
 		}
-		if found.Exists {
-			return VMStatus{}, fmt.Errorf("ambiguous duplicate Tart VM %q", name)
-		}
 		found.Exists = true
 		switch {
-		case item.Running && strings.EqualFold(item.State, "running"):
+		case item.Running || strings.EqualFold(item.State, "running"):
 			found.State = VMRunning
-		case !item.Running && strings.EqualFold(item.State, "stopped"):
+		case strings.EqualFold(item.State, "stopped"):
 			found.State = VMStopped
 		}
 	}
@@ -173,7 +189,7 @@ func (d *nativeDriver) inspectOwned(ctx, cleanupBound context.Context, name stri
 }
 
 func (d *nativeDriver) Clone(ctx context.Context, image, name string) error {
-	if !managedVM(name) || !imageNamePattern.MatchString(image) || managedVM(image) {
+	if !managedVM(name) || (!imageNamePattern.MatchString(image) && !baseReferencePattern.MatchString(image)) || managedVM(image) {
 		return fmt.Errorf("refusing unmanaged VM clone")
 	}
 	return d.operation(ctx, "clone", image, name)
@@ -357,4 +373,34 @@ if [ ! -f "$path" ]; then exit 44; fi
 		}
 		return append([]byte(nil), out.buffer.Bytes()...), true, nil
 	})
+}
+
+func (d *nativeDriver) SaveImage(ctx context.Context, source, image string) error {
+	if !managedVM(source) || !imageNamePattern.MatchString(image) || managedVM(image) {
+		return fmt.Errorf("refusing unmanaged image save")
+	}
+	entries, err := d.inventory(ctx, ctx)
+	if err != nil {
+		return err
+	}
+	sourceStopped := false
+	images := 0
+	for _, item := range entries {
+		if item.Name == source {
+			sourceStopped = !item.Running && strings.EqualFold(item.State, "stopped")
+		}
+		if item.Name == image {
+			return fmt.Errorf("image target already exists")
+		}
+		if imageNamePattern.MatchString(item.Name) && !managedVM(item.Name) {
+			images++
+		}
+	}
+	if !sourceStopped {
+		return fmt.Errorf("image source must be stopped")
+	}
+	if images >= 2 {
+		return fmt.Errorf("two managed images already retained (including unpublished candidates); inspect before refresh")
+	}
+	return d.operationOwned(ctx, ctx, "clone", source, image)
 }

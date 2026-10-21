@@ -21,6 +21,9 @@ const maxLaneArtifacts int64 = 4 << 30
 // hostRuntime owns one lane's host files and durable launch uncertainty. The
 // injected driver owns native child handles; Run owns the ordering of effects.
 type hostRuntime struct {
+	beforeUnlock    func(context.Context) error
+	provisionSource string // private pinned-base input, used only by explicit provisioning
+
 	guestResults                                     string
 	stdoutLog, stderrLog                             *runLog
 	inputsUnconfirmed                                bool
@@ -171,26 +174,21 @@ func (h *hostRuntime) Acquire(ctx context.Context, r RunRequest) (err error) {
 	return nil
 }
 func (h *hostRuntime) Prepare(ctx context.Context) error {
-	root, err := os.OpenRoot(h.root)
-	if err != nil {
-		return err
-	}
-	defer root.Close()
-	file, err := root.Open("image.json")
-	if err != nil {
-		return fmt.Errorf("qualified VM image unavailable: %w", err)
-	}
-	raw, readErr := io.ReadAll(io.LimitReader(file, 65537))
-	closeErr := file.Close()
-	if err := errors.Join(readErr, closeErr); err != nil {
-		return err
-	}
-	if len(raw) > 65536 {
-		return fmt.Errorf("image manifest exceeds 64 KiB")
-	}
-	h.image, err = DecodeImageManifest(raw)
-	if err != nil {
-		return err
+	var err error
+	if h.provisionSource != "" {
+		if !baseReferencePattern.MatchString(h.provisionSource) {
+			return fmt.Errorf("provision base must be digest-pinned")
+		}
+		h.image = ImageManifest{Image: h.provisionSource, Base: h.provisionSource}
+	} else {
+		raw, readErr := readMachineImage(h.root)
+		if readErr != nil {
+			return fmt.Errorf("qualified VM image unavailable: %w", readErr)
+		}
+		h.image, err = DecodeImageManifest(raw)
+		if err != nil {
+			return err
+		}
 	}
 	if h.request.Artifacts != "" {
 		h.artifacts = h.request.Artifacts
@@ -339,6 +337,9 @@ func (h *hostRuntime) Release(ctx context.Context) (err error) {
 			if log != nil {
 				err = errors.Join(err, log.Close())
 			}
+		}
+		if err == nil && h.beforeUnlock != nil {
+			err = h.beforeUnlock(ctx)
 		}
 	}()
 	if h.inputsUnconfirmed || (h.claimed && !h.stopConfirmed) {

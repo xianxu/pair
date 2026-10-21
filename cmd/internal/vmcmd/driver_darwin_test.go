@@ -416,3 +416,47 @@ func TestNativeResultsExportRejectsSymlinkCatalogPaths(t *testing.T) {
 		})
 	}
 }
+
+func TestNativeProvisionPinsBaseAndNeverPrunes(t *testing.T) {
+	d := fakeNativeDriver(t)
+	if err := os.WriteFile(filepath.Join(d.home, "list"), []byte(`[]`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	if err := d.Clone(ctx, "ghcr.io/example/base@sha256:"+strings.Repeat("a", 64), ManagedVMName(AdhocLane)); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Clone(ctx, "ghcr.io/example/base:latest", ManagedVMName(AdhocLane)); err == nil {
+		t.Fatal("floating base admitted")
+	}
+	if got := d.command(ctx, "list").Env; !strings.Contains(strings.Join(got, "\n"), "TART_NO_AUTO_PRUNE=1") {
+		t.Fatal("automatic cache pruning enabled")
+	}
+	if err := d.SaveImage(ctx, "pair-test", "pair-conformance-test"); err == nil {
+		t.Fatal("foreign image source admitted")
+	}
+	for _, state := range []string{"running", "mystery", "stopped"} {
+		raw := `[{"Name":"pair-conformance-run-adhoc","State":"` + state + `","Running":false}]`
+		if err := os.WriteFile(filepath.Join(d.home, "list"), []byte(raw), 0600); err != nil {
+			t.Fatal(err)
+		}
+		err := d.SaveImage(ctx, ManagedVMName(AdhocLane), "pair-conformance-qualified")
+		if (err == nil) != (state == "stopped") {
+			t.Fatalf("%s: %v", state, err)
+		}
+	}
+}
+
+func TestNativeProvisionCountsUnpublishedCandidates(t *testing.T) {
+	d := fakeNativeDriver(t)
+	raw := `[{"Name":"pair-conformance-run-adhoc","State":"stopped","Running":false},{"Name":"pair-conformance-orphan-one","State":"stopped","Running":false},{"Name":"pair-conformance-orphan-two","State":"running","Running":true}]`
+	if err := os.WriteFile(filepath.Join(d.home, "list"), []byte(raw), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.SaveImage(context.Background(), ManagedVMName(AdhocLane), "pair-conformance-new"); err == nil {
+		t.Fatal("unpublished image population ignored")
+	}
+	if _, err := os.Stat(filepath.Join(d.home, "cloned")); !os.IsNotExist(err) {
+		t.Fatal("cloned above image cap")
+	}
+}

@@ -459,7 +459,7 @@
       "internal/testoracle/run_test.go": "1818f066cd7ced34648679d42604536da83642c7a40d1800e8ae1f9cfc6a3d36",
       "probes/zellijcalls/main_test.go": "382f78fb48fc70e5b522a8e5e38bc0fc8da82ebc75ec9c2f367c9ddfa7417693",
       "probes/zellijprobe/reporoot_test.go": "de13aef753c6fc958f01e4a04ec9963672a58a76f5e63d08d6e2ea32de825018",
-      "cmd/internal/vmcmd/driver_darwin_test.go": "262cdab49f167502e85af109fae3c052b95e6f0c64d8d3f9bce4bfe5da3f6280",
+      "cmd/internal/vmcmd/driver_darwin_test.go": "b0965d81c77d9ae1e545b4382c028a29ae1a8479e6da9e7c3418aa65762d5a1f",
       "cmd/internal/vmcmd/host_test.go": "7156e595c80a82c839643a8c4da0b9a94d1ff68c6fe4c7e779ab92d48d37d153",
       "cmd/internal/vmcmd/snapshot_process_unix_test.go": "c1d0a44cc2d2fa19df6e7948371ad73426120c4e17089d1aa612cba5687759a9",
       "cmd/internal/vmcmd/process_owner_unix_test.go": "8adf216bec51c295b1ce89fdfad6000d59f670d9e4226b8080e37b9c0f848fa6",

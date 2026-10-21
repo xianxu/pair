@@ -96,6 +96,8 @@ func runWithLegacyRuntime(args []string, stdout, stderr io.Writer, rt legacyRunt
 // unknown name is a programming error.
 func runStreamingSubcommand(name string, rest []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	switch name {
+	case "vm provision":
+		return vmcmd.ProvisionCLI(rest, stdout, stderr)
 	case "vm run":
 		return vmcmd.RunCLI(rest, stdout, stderr)
 	case "archive":
