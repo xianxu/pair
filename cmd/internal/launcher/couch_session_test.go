@@ -481,11 +481,11 @@ func TestCouchSessionAttachStopsAtFirstUnknownListing(t *testing.T) {
 				fixture.SetModel(zellijtest.Model{Sessions: map[string]zellijtest.Session{
 					opts.Args.CouchSession.Name: {Tab: zellijtest.DefaultTab()},
 				}})
-				// This observation is the wrong reply kind. Every later native response
-				// would be valid, so retrying would erase the refusal and reach attach.
+				// Exhaust the bounded read policy at this authority boundary;
+				// later explicit observations remain healthy.
 				wrongKind := `{"active_swap_layout_name":null,"is_swap_layout_dirty":false}`
 				// Each authority boundary now reads one complete native inventory.
-				fixture.SetFaults(zellijtest.Fault{Ordinal: failedCall, Reply: &wrongKind})
+				fixture.SetFaults(zellijtest.Fault{Ordinal: failedCall, Reply: &wrongKind}, zellijtest.Fault{Ordinal: failedCall + 1, Reply: &wrongKind}, zellijtest.Fault{Ordinal: failedCall + 2, Reply: &wrongKind})
 				rt := &couchSessionListingRuntime{
 					couchSessionRuntime: &couchSessionRuntime{fakeRuntime: newFakeRuntime()},
 					source:              ZellijSource{Path: fixture.Path()},
@@ -504,8 +504,8 @@ func TestCouchSessionAttachStopsAtFirstUnknownListing(t *testing.T) {
 				if rt.listingCalls != failedCall {
 					t.Fatalf("unknown observation replaced: listing calls=%d want=%d", rt.listingCalls, failedCall)
 				}
-				if got := len(fixture.Queries()); got != failedCall {
-					t.Fatalf("query count=%d want=%d", got, failedCall)
+				if got := len(fixture.Queries()); got != failedCall+2 {
+					t.Fatalf("query count=%d want=%d", got, failedCall+2)
 				}
 			})
 		}
