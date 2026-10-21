@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: b1a774cd-87a3-4b20-9934-f5445e7389e6
+        repository: github.com/xianxu/pair
+        issue_id: "000728"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot3/pair
+        reviewed_head: 8eebab9e809f136945c35c75257ac729f157bdfd
+        slot: pair:3
+        requested_at: "2026-10-21T16:06:23.201568Z"
+      phase: finished
+      pid: 72102
+      started_at: "2026-10-21T16:06:23.367572Z"
+      finished_at: "2026-10-21T16:07:05.842759Z"
+      session_id: 01a15f36-b719-7d80-903b-03851bcc4d45
+      outcome: returned
 gate: plan-quality
 issue: 728
 id_prefix: PQ
@@ -75,7 +95,41 @@ rounds:
           note: The governing function-level strategies explicitly supersede the historical case inventories while retaining public acceptance outcomes.
           round: 2
       blocked: false
-content_hash: 63c850fd924e2b5eb6587670951524370fd5a9c07b9b6a6ffb6c809e249810e4
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: f5ce42dc-54f0-42c3-b4a3-42ebcc7757c8
+            repository: github.com/xianxu/pair
+            issue_id: "000728"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot3/pair
+            reviewed_head: 8eebab9e809f136945c35c75257ac729f157bdfd
+            slot: pair:3
+            requested_at: "2026-10-21T16:05:46.430655Z"
+          phase: finished
+          pid: 46253
+          started_at: "2026-10-21T16:05:46.615769Z"
+          finished_at: "2026-10-21T16:06:19.985037Z"
+          session_id: 01a15f36-27ad-7800-abf7-a70fdb449f8a
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-21T09:06:20-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: The governing revision defines the pure restart transition, typed evidence producers, cleanup authority and interruption behavior.
+          round: 3
+        - id: PQ-2
+          disposition: addressed
+          note: Governing named function strategies explicitly replace the historical test inventories.
+          round: 3
+      blocked: false
+content_hash: 806edf606bda31b33caa54d120c1268e48b57b406f44966ed56bc5ecfd1e06d6
 ---
 
 # Gate ledger — pair#728 (plan-quality)
@@ -98,6 +152,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - PQ-1 — addressed — The governing revision names the pure transition authority, typed evidence producers, cleanup-gated fallback, interruption recovery and invariant-based sequence strategy.
 - PQ-2 — addressed — The governing function-level strategies explicitly supersede the historical case inventories while retaining public acceptance outcomes.
+
+## Round 3 — 2026-10-21T09:06:20-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — The governing revision defines the pure restart transition, typed evidence producers, cleanup authority and interruption behavior.
+- PQ-2 — addressed — Governing named function strategies explicitly replace the historical test inventories.
 
 ## Open findings
 
