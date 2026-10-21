@@ -12,6 +12,11 @@ import (
 // Copy the shared catalog before extending it: Pair rules must not alter the
 // upstream catalog used by sleepSites to identify existing sleep debt.
 var pairCatalog = append(append([]golint.Rule(nil), golint.Catalog...), golint.Rule{
+	Name:     "fixture-cli-group-completion",
+	Incident: "pair#744",
+	Message:  "observe CLI process-group quiescence through cliGroupError after Wait; leader completion alone cannot acknowledge descendants",
+	Match:    fixtureCLIUnobservedGroups,
+}, golint.Rule{
 	Name:     "wrapper-child-release",
 	Incident: "pair#715",
 	Message:  "retain wrapper child ownership and join it with Wait before returning; Process.Release permits writes after wrapper shutdown",

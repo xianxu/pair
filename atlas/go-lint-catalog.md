@@ -217,3 +217,17 @@ capacity or literal zero and rejects other capacity expressions. It does not
 resolve aliases, helpers or computed channel types. Real timers elsewhere are
 outside its scope. Findings and suppression use the shared catalog behavior;
 other consumers' shared catalog is unchanged.
+
+## Fixture CLI group completion (#744)
+
+The Pair-local `fixture-cli-group-completion` rule is owned by
+`internal/repolint/fixture_cli_group_rule_test.go` and registered in pairCatalog.
+It rejects Wait calls in agentfixture.runCLI when the owner no longer invokes
+cliGroupError. A completed command leader does not prove descendant quiescence.
+The accepted owner observes every successfully started completion and retains
+explicit uncertainty when the group is live or unknown.
+
+This narrow syntax guard detects deletion of the observation, including ordinary
+error paths and misleading comments. It does not prove ordering, control flow,
+exec.Cmd aliases or indirect calls; the real completion-path regressions cover
+success, signal, cancellation and leader-first descendants with open/closed pipes.

@@ -7,6 +7,10 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #744 close: a cross-process command belongs to its caller through cancellation and terminal acknowledgment, including time spent queued. Preserve the absolute admission deadline, suppress canceled queued work, join active child effects, and retire correlated files only after completion. When tightening a shared isolation contract, enumerate existing consumers as well as new-helper tests; keep recovery snapshots atomic and surface persistence errors while preserving in-memory teardown authority.
+
+- Before an expensive native harness rerun, sweep the complete adapter: derive physical keys from negotiated terminal modes, parse all captured query replies, propagate caller deadlines, reserve shutdown capacity, and treat permanent observation refusals as terminal. Test cancellation at the descendant boundary and use observed state rather than sleeps for negative assertions. (#744)
+- A native fleet's run marker is positive ownership evidence, not an exhaustive census: macOS can return an empty environment for platform binaries. Close and join all command/native producers before the final generation-fenced census; include descendants and private TTY cohorts, and apply absence only to the exact observed resource set. Process absence precedes root deletion; it does not itself mean cleanup completed. (#744)
 - #761: Classify native replies from the complete stdout, stderr and exit together. A successful process can print a fallback listing after falsely missing its target; retain exact bytes before recovery. Diagnostic observers own their snapshots before calling other observers, and typed evidence must survive context/generation refusal wrappers without becoming ownership authority. Keep diagnostic version reads separate from counted ownership attempts in stateful fakes and budget tests.
 - #763 BR-1: Unknown JSON values must survive decode and rewrite without machine-number conversion. Test precise fractions, over/underflow exponents, negative zero and huge integers nested in arrays/objects; a large-integer-only roundtrip misses float corruption. Reject non-JSON NaN/Infinity before effects, while keeping known-field types strict.
 
@@ -2538,3 +2542,10 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #766: A PTY consumer cannot recover bytes the kernel discarded at last slave close. Native tee fixtures must own producer lifetime through an output/input acknowledgement and establish the controlling-terminal reference on Darwin; distinguish first-read EOF from a wrapper closing its master early. Audit public generic-command exposure and file that product defect separately from a fixture repair.
 
 - #771: A request barrier orders only that request channel, not another ready select case. Manual timer delivery must rendezvous with the receiver before a completion barrier; an enqueued buffered value is not consumption proof. Reproduce the ordering with a controlled loop and quiescence, preserving the real timer-select path in integration tests.
+- #744 BR-2: a reaped command leader and drained pipes do not prove its process group is quiescent. Check descendants on every completion path; retain explicit uncertainty and correlated evidence when incarnation-safe cleanup cannot be proved.
+
+- #744 BR-2 round3: once asynchronous work is admitted, every return must resolve the same lifetime owner. Result-content checks miss publication, read, timeout and partial-retirement failures; arm a single default-uncertain outcome until joined acknowledgment and retirement prove completion.
+
+- #744 BR-6: test provisioning observations are production consumers of slot layout. Derive host, resting branch and setup markers through SlotLayout/SetupMarkerPath, and run TestEverySlotStateSiteIsAResource with provisioning preflights; an independent hand-written expected topology still duplicates policy.
+
+- #744: Native transcript fixture producers must derive storage roots through sessioninventory.OSRuntime.NativeRoots (and WithCodexHome), just like consumers; run the native-authority shadow guard before the recorded suite. Do not exempt test helper production files from the guard.
