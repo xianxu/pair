@@ -69,3 +69,12 @@ the hub reads couch --resources and supplies the observed failure. M2's precise
 cause-specific implementation is revised only after that evidence, never guessed.
 M1 does not close the issue or claim the historical logging failure is repaired.
 The hub owns rebuilding pair:0, the restart and the project file.
+
+### 2026-10-20 — plan-quality compatibility correction
+
+PQ-1 found the existing strict response decoder rejects additive fields for old
+clients. The plan now explicitly requires the rebuilt CLI for resources on the
+new supervisor, fulfilled by the coordinated rebuild/restart; no negotiation or
+relaxed decoder is added. New-client/old-server absence remains truthful unknown.
+PQ-2's named-function strategies replace prose case inventories. No code exists
+yet; both findings are returned to the plan gate for disposition.

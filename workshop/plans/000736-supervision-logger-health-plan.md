@@ -84,20 +84,17 @@ health field. Reading a snapshot while sink IO blocks must still return.
 - ARCH-SECURE: no payload enters health; terminal controls removed before JSON/text projection. Test distinctive prompt text through normal fact generation and assert absence in health.
 - ARCH-STATE: all lifecycle changes use advance; sink worker remains lexically owned and joined by Close. No time grants recovery authority.
 - ARCH-FUNERAL: no new durable artifacts; health dies with the existing owner. Tests own/release blocked sinks and temporary sockets.
-- ARCH-EVOLVE: additive optional in-memory wire field only; no persisted decoder or rewrite changes. Old servers render unknown, and old clients ignore the additive value.
+- ARCH-EVOLVE: additive optional in-memory wire field only; no persisted decoder or rewrite changes. Compatibility correction and test strategies are in the Revisions below; the initial old-client claim was wrong.
 
 ## M1 — instrument and land
 
-1. Add failing lifecycle/health tests in supervision_factlog_test.go (or a focused
-   supervision_health_test.go) for open held/failure, sink held, write failure,
-   short write, later independent success and closed absorbing late completion.
-   Assert one open attempt, one attempt per offered row, no automatic replay.
+1. Add red tests in a focused supervision_health_test.go using the named-function
+   strategies below; keep detailed cases in executable tests.
 2. Run targeted tests and retain the semantic red before implementation.
 3. Implement the bounded health value, capture and memory-only snapshot at the
    existing mutex; add success transition. Entropy/open/write errors remain local.
-4. Test/render health through resources_cli_test.go and resources_projection_test.go:
-   text and JSON, older server nil field, unchanged sampler cache, held sink,
-   no hosted-ingest prerequisite, sanitized bounded error, admission unaffected.
+4. Implement and qualify resource projection through resources_cli_test.go and
+   resources_projection_test.go using the named-function strategies below.
 5. Run go test ./cmd/internal/couchcmd -run 'Test(Supervision|Resources)' -count=1;
    broaden to the affected packages required by the actual diff. Update README
    and atlas for health inspection, factual JSONL location, retained receipts and
@@ -128,3 +125,31 @@ Hub approval: instrumentation first, no stage; planned coordinated restart after
 #742 and pair:0 rebuild. The hub reads resources and supplies actual failure.
 The worker owns deterministic tests and review/landing. The operator/hub owns
 the running supervisor and any restart. No historical-cause claim before M2.
+
+## Revisions
+
+### 2026-10-20 — PQ-1 compatibility and PQ-2 executable strategies
+
+PQ-1 confirmed: couchmessage.Call at transport.go:293 uses strictjson.Decode,
+whose decoder rejects unknown response fields. M1 requires the rebuilt Couch CLI
+for resources queries against the new supervisor. The already-approved coordinated
+rebuild/restart supplies both. An old CLI against the new supervisor refuses
+resources decoding; it is not promised compatible. A new CLI against an old server
+accepts the absent optional health field and renders health unavailable. Other
+response operations never publish this field, so peer sends and admission do not
+acquire this resource-only compatibility requirement. No negotiation, retry or
+decoder relaxation is added. Pin both directions with the actual strict decoder
+and a retained legacy ResourceView shape. Document the requirement in README/atlas.
+
+PQ-2 replaces the case inventories with these named-function strategies:
+
+| Production function | Adversarial input and mechanical guard |
+|---|---|
+| factLogLifecycle.advance | Exhaustive state/event sequences prove closed is absorbing and only successful independent writes recover failed-write. |
+| supervisionFactLog.health | Block the stateful sink while repeatedly reading snapshots; counters remain coherent and reads cause zero extra open/write attempts at16/32 events. |
+| supervisionFactLog.recordError | Arbitrary Unicode/control error strings are sanitized and UTF-8 bounded before publication; normal fact payload never enters this function. |
+| supervisionFactLog.run | The controlled sink orders full/short/error acknowledgments and owner closure; record only acknowledged success without replay or additional open attempts. |
+| messageService.handle | Real socket/CLI reads fresh owner health over a stale process cache while the sink is held; unrelated admission still completes. |
+| projectResourceView | Oversized detail collections retain bounded health, respect frame budget and leave the cached sample untouched. |
+| renderResources | Typed absent/transient/failure values render one truthful state and action with no terminal controls or payload content. |
+| couchmessage.Call | The actual strict decoder pins new-client/old-server absence and old-reader/new-field refusal; no false compatibility claim. |
