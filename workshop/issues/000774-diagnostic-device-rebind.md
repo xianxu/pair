@@ -17,6 +17,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "6d28cfe7", done: "a9d7dd71"}
 ---
 
 # diagnostic checkpoints survive device remounts
