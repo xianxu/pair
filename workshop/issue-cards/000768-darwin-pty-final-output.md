@@ -13,14 +13,14 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
-actual_hours: 1.15
+actual_hours: 2.65
 tracker:
     version: 1
     completion:
-        token: close-5702cb948118
+        token: close-2ea7b554164d
         repository: github.com/xianxu/pair
-        reviewed_head: 250cea921d9d614678de214f25edf4926aa461de
-        evidence_commit: 02000006b8594c31b5981d86d41c3a960e5ae02e
+        reviewed_head: b014d464b44e189062c9ca38e5764cc8feca048c
+        evidence_commit: a273790e0965da908ccf934211be9ba9965f27a4
 ---
 
 # Preserve short-lived command output across Darwin PTY slave close
