@@ -80,3 +80,84 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T02:51:32-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 738 — Affected package graph falls back to full suite before runtime bundle preparation |
+| repo | pair |
+| issue file | workshop/issues/000738-affected-runtimebundle-graph.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 3b5e8efb9c94035076c5edf5683db97422e6de76..ee61d9db3024123a67b207a2c4a7f707e44cbd77 |
+| command | sdlc close --issue 738 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T02:51:32-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The bounded preparation declaration works against the actual provider, and the clean-checkout qualification passes. BR-1’s prerequisite and preparation omissions are repaired, but its fallback documentation now incorrectly includes cancellation. Correct that distinction before closing. Operator verification remains explicitly unchecked.
+
+Done-when: current — the clauses cover clean discovery, reproduction without borrowed assets, and conservative handling of genuine graph failures.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: not-addressed
+    note: |
+      README.md:2014–2018 now documents preparation and its bound, and README.md:2056–2060 correctly distinguishes #473 from #517. However, README.md:2018 says cancellation retains full-suite fallback. The provider's runAffectedCheck instead returns “graph interrupted” when its parent context is cancelled, before selection or suite execution (cmd/sdlc/localcheck_affected.go:50–51). TestAffectedGraphPreparationCancellationAndPipeDrain confirms cancellation returns an error without a successful affected or suite status; that test passed during this review. Enumerated documentation instances needing this distinction are README.md:2017–2018's explicit cancellation claim and atlas/index.md:36–37's blanket preparation-failure claim. Document ordinary preparation errors/timeouts and broken graphs as suite fallbacks, while cancellation aborts without recording a pass. Apply that distinction consistently to the issue's Revisions narrative.
+```
+
+1. **Strengths**
+
+   - `.sdlc/affected.json:7` reuses the existing generator with an explicit two-minute limit.
+   - `tests/affected-config-test.py:173–180` establishes absent generated assets and reproduces the missing-embed failure before preparation.
+   - The regression asserts exact selection after generation and rejects a deliberately broken import afterward.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** BR-1 remains open for the cancellation documentation mismatch described above. No new finding is raised for the same family.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Default `make test-affected-config` visibly skipped because its available provider predates #517.
+   - Explicit qualification against provider `fa9761e6b45a3bce3dc32872fd42e50b2797f837` passed, including 732 audited group/file inputs.
+   - Provider fallback and cancellation regressions passed.
+   - `git diff --check` passed. No repository files were modified.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY: pass** — existing generator and provider implementation are reused.
+   - **ARCH-PURE: pass** — added IO remains in integration qualification.
+   - **ARCH-PURPOSE: pass** — preparation reaches the graph owner’s seam and enables clean graph discovery.
+   - **ARCH-EVOLVE: pass** — additive configuration; no decoder or rewrite path changes in this window.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry clarifying that ordinary preparation failure, preparation timeout, and broken graphs select the suite; parent cancellation aborts without recording successful verification. Preserve the unchecked operator-verification item until its evidence exists.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"f2d0de05-4a96-4254-a1d3-d475c36c1f22","repository":"github.com/xianxu/pair","issue_id":"000738","recipe":"small-diff-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/1b1daa9387674f98","reviewed_head":"ee61d9db3024123a67b207a2c4a7f707e44cbd77","slot":"pair:7","requested_at":"2026-10-21T09:49:34.323055Z"},"phase":"finished","pid":47914,"started_at":"2026-10-21T09:49:34.440888Z","finished_at":"2026-10-21T09:51:31.650467Z","session_id":"01a15ddd-baa7-7d90-be73-7cd90d93d8d9","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.839706458s
+head: "ee61d9db3024123a67b207a2c4a7f707e44cbd77"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

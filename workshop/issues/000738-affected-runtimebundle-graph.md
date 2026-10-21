@@ -139,3 +139,13 @@ and its newer provider prerequisite. Documented the same-private-checkout
 generator, two-minute bound and conservative fallback, distinguishing basic
 affected support (#473) from preparation qualification (#517). No runtime or
 test change; the already queued recorded code check remains applicable.
+
+
+### 2026-10-21 — BR-1 cancellation distinction
+
+Correct the earlier broad fallback narrative: ordinary preparation errors,
+preparation timeout and broken graphs select the full suite. Cancelling the
+parent check instead aborts without recording a passing affected or suite
+status (provider localcheck_affected.go returns graph interrupted). README
+and atlas state this distinction; the earlier Revisions wording is superseded.
+No provider behavior, test or runtime declaration changes.

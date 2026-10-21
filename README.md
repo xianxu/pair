@@ -2015,7 +2015,8 @@ With preparation-capable SDLC (ariadne#517), `graph_prepare` runs
 `make runtimebundle-generate` in the same private head checkout before loading
 the Go graph, with a two-minute bound. This creates the missing embedded runtime
 in a fresh checkout; it never borrows generated files. Preparation failure,
-timeout, cancellation or a still-broken graph keeps the full-suite fallback.
+timeout or a still-broken graph keeps the full-suite fallback. Parent-context
+cancellation aborts the check without recording a passing affected or suite status.
 Before close or re-close, run `make test-affected-inventory`. It audits tracked
 Go test readers without building Go or running the seeded guard tests, and is
 also the affected runner's first step. Failures name each reader and print its
