@@ -44,7 +44,9 @@ Alternatives: polling callback counts changes the model and can hide missing eff
 
 - [x] Reproduce request-before-timer ordering with a controlled fake loop and retain RED evidence.
 - [x] Correct manual-clock rendezvous, covering active/canceled/fired/ended behavior and both real watches; add the local lint rule and atlas scope.
-- [ ] Verify500 seeds repeatedly, broadcast under race detection, lint/inventory and recorded suite; close and land to retire the broad registration.
+- [x] Verify500 seeds repeatedly, broadcast under race detection and lint/inventory.
+
+Recorded full-suite success, close review and landing remain gates tracked in Log; the recorded pass must precede landing.
 
 ## Log
 
@@ -55,3 +57,9 @@ Alternatives: polling callback counts changes the model and can hide missing eff
 
 - #767 landed PR520 and its registry entry retired before starting this main-based issue. Authenticated TL dispatch8b70bb19 assigns this issue next while #752 remains parked.
 - The failed train234 full candidate was d6efc430bb4fbd8b1e943981688eec3914f8c1ca (#765+#768, not held #767). Attempt88fb48b8719d5a57732691bd0fe8cb2f failed in9m47s, log hashf1a767397c5d. Same-head exact seed30 count100 passed1.126s and all500 seeds passed10.528s. The parser coarsened indented subtest output to the top test, so the child registration was replaced by one parent registration. This broad scope is temporary pending this fix; the original failure remains recorded.
+
+## Revisions
+
+### 2026-10-21 — verification sequencing
+
+All500 seeds count20 passed275.755s (10000 seeded executions) and the full broadcast race run passed147.847s. Split the completed targeted verification from the suite/review/landing gates so close can overlap the queued recorded check under tl-worker. The affected runner selected the full suite due the existing runtimebundle embed graph gap; retained exec14819 on source30ea382b372be802cb4c2b4568c24633e9122d8a must pass before landing. No scope or product policy changed.
