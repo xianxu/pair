@@ -64,3 +64,76 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T13:09:45-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 776 — couch detach got slower and looks sequential after the 10-21 restart: profile and fix the regression |
+| repo | pair |
+| issue file | workshop/issues/000776-couch-detach-got-slower-and-looks-sequential-after-the-10-21-restart-profile-and-fix-the-regression.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | a9522724d4d84586afe222d201029d0713a89fc8..1af622b6443e765282dc49d2e1d7209d338c49cd |
+| command | sdlc close --issue 776 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T13:09:45-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The cancellation change matches the revised acceptance contract, preserves descendant cleanup and error handling, and passes targeted and race tests. BR-1 is addressed by a documentation correction; no new defects were found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The pinned before/after diff replaces the stale timing-or-parallelism requirement at issue lines 46–47 with completion before grace on confirmed group absence, conservative unavailable-probe handling, and native descendant lease cleanup. These requirements match provision_cancel_test.go:49,83 and provision_subprocess_test.go:145. The Revisions section preserves the approval and original clause.
+```
+
+1. **Strengths**
+   - Only ESRCH permits early completion; other probe results preserve escalation (`provision_io.go:109`).
+   - Deterministic tests cover group disappearance, surviving descendants, unavailable probes and signal errors.
+   - The native test verifies inherited lease ownership before cancellation and release after `Run` joins.
+   - Retained profiling evidence clearly states attribution and sampling limits.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage:** Provision process/group and Leave controls passed in 4.691s; the same set passed with race detection in 6.092s. A temporary overlay restoring unconditional grace waiting made `whole_group_gone` fail with TERM+KILL instead of TERM. Temporary files were removed; the checkout remains unchanged. The separately recorded full suite remains a landing prerequisite.
+
+6. **Architecture**
+   - **ARCH-DRY: pass** — one shared cancellation helper.
+   - **ARCH-PURE: pass** — signal and clock dependencies are injected; production IO stays in the runner.
+   - **ARCH-PURPOSE: pass** — addresses the measured post-Leave wait while retaining cleanup guarantees.
+   - **ARCH-EVOLVE: pass** — no persisted format changes.
+
+   Atlas documents the cancellation behavior. No new command, flag or configuration requires a README update.
+
+7. **Plan revision recommendations:** None; the existing Revisions section records the corrected acceptance contract.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"145d4c4f-c047-43d0-a2bf-b38ea31df120","repository":"github.com/xianxu/pair","issue_id":"000776","recipe":"small-diff-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/4f8f627c22e4a810","reviewed_head":"1af622b6443e765282dc49d2e1d7209d338c49cd","slot":"pair:6","requested_at":"2026-10-21T20:08:40.713486Z"},"phase":"finished","pid":74128,"started_at":"2026-10-21T20:08:40.818485Z","finished_at":"2026-10-21T20:09:44.411139Z","session_id":"01a16014-8999-7e71-b2a8-1bf4f7e029c8","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.818690042s
+head: "1af622b6443e765282dc49d2e1d7209d338c49cd"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
