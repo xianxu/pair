@@ -134,3 +134,7 @@ ARCH-DRY/PURE: one planner and one trusted geometry owner; existing styling and 
 - [ ] Stage the concrete built head for the operator via hub, record the live result; checkpoint/push and run recorded affected (or suite fallback), close once through SDLC, then merge through its retained runner and report landing.
 
 Targeted commands: go test ./cmd/internal/couchtty -run 'Test.*Status|Test.*Wrap|Test.*Chrome|Test.*Anchor' -count=1; go test ./cmd/internal/terminal ./cmd/internal/broadcast -count=1; scoped race runs for changed Console/Presenter/guard cases; existing Node viewer tests and make test-affected-inventory. Native test names are added beside the exact scenario, not a second full-suite loop. All source-reading tests receive per-reader audit/certificates after git add. Final recorded checks and CI remain mandatory.
+
+## Revisions
+
+- 2026-10-21: TL a01bc13f-f20c-4084-86d5-2f1e85796a01 approves this full design and test set; proceed to change-code. Operator stage must wait until #752 lands because it currently holds pair:0; TL sequences the look with #737's live day. No staging before hub clears that dependency.

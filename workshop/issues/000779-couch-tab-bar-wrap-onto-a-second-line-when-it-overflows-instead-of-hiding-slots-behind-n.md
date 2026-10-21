@@ -59,3 +59,5 @@ Initial read-only audit: one-row assumptions exist in couchtty rendering/geometr
 ## Revisions
 
 - 2026-10-21: TL c5c04f63 approves full-flow shared trusted chrome height, row1 attention badge, final-row notices and clipped-but-clickable active at absurd widths. Attention must be prioritized over ordinary chips; overflow explicitly marks hidden attention (+N !). Durable plan records the full consumer sweep and awaits TL approval.
+
+- 2026-10-21: TL a01bc13f approves the durable plan and authorizes change-code. Stage is explicitly sequenced after #752 lands and the hub clears pair:0; TL will coordinate with #737's live day. No code/estimate yet; full-flow plan-quality gate precedes the derived estimate.
