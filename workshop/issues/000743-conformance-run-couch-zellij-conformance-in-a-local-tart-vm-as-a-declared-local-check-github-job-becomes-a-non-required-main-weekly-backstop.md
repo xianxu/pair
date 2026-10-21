@@ -117,6 +117,8 @@ Full-flow durable design: [local VM conformance plan](../plans/000743-local-vm-c
 
 - Paused-composition checkpoint checks: vmcmd race passed (21.586s), production artifact/source guards passed (1.782s), dispatcher documentation/routing passed (0.232s) and Pair streaming route passed (0.262s). These passing checks do not resolve the accepted safety findings above. Affected-reader guard is still running; new driver/host/process readers access only private or literal-invalid fixtures and were re-audited, as was the changed main-route reader.
 
+- Authenticated hub receipt 7869dd0e-f350-4711-86e7-ff320ce1f1c2 approves the second lifecycle re-plan, recommended bounded-export option, and no quota mount. Third mechanism change requires stopping for options before code. Re-entered start-plan; revised change-code plan-quality admission is next. Final affected-reader audit for the paused checkpoint passed all eight tests (69.830s).
+
 ## Revisions
 
 - 2026-10-20 13:30 (TL, from the operator's decisions in ops side doc `2026-10-20-19-conformance-structure.md`):
