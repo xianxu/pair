@@ -29,13 +29,15 @@ settled the contour with the operator on 10-20; its `design.md` is the reference
 ## Spec
 
 - At start and on change, the supervisor reads each hub repo's `scripts/scheduled/<task>/` folders: a Go program
-  (`main.go` package, built to a content-keyed executable cache) plus a schedule declaration (cron-like time, timeout, scope `machine` default or `team` with an owner,
+  (`main.go` package, built to a content-keyed executable cache) plus a schedule declaration (cron-like time,
+  timeout, scope `machine` default or `team` with an owner,
   optional run-once-if-missed).
 - Persisted next-due per task, per machine. Missed runs **skip** by default and wait for the next slot; opt-in
   run-once on start.
-- When due: if the task has a `script-run` subcommand, run it directly in the hub repo with its timeout, under the
-  sandbox and machine test budget (exit 0 quiet, logged; 10 wake the hub with its output; anything else a failure
-  notice). Otherwise deliver a notice to the team's hub: "scheduled: <task> is due; see `<path>/main --help`".
+- When due: if the task offers `script-run`, run it in the hub repo as the operator, with its timeout,
+  process-group stop and bounded output. There is no general sandbox; network is allowed. Tasks declaring
+  themselves heavy take the existing machine test lock (0 quiet/logged, 10 wake the hub with output, other
+  failure notice). Otherwise deliver a due notice directing the hub to the shared helper for task help.
 - Team-scoped tasks run only on the hub of their owner operator; an owner not listed in `team.md`'s Operators
   section refuses with a clear reason.
 - `couch --schedule --status`: tasks, scope, last run and result, next due. Run history stays local and bounded.
@@ -63,6 +65,7 @@ settled the contour with the operator on 10-20; its `design.md` is the reference
 - TL clarified cached Go-package entrypoints and a shared manual helper. General sandbox isolation is explicitly out of v1; trusted operator execution/network access, timeout/group cleanup/bounded output, and heavy-only machine admission are the contract.
 - Two read-only exploration agents returned code-backed integration digests. Existing broker/service/store primitives are reusable; generic scheduled execution, cached build ownership, occurrence persistence and per-task heavy admission need explicit new adapters. No production code, tests, task declarations, ops artifacts or estimates changed.
 - Durable implementation plan written to workshop/plans/000737-couch-scheduler-plan.md for TL/operator review before change-code. It keeps the current live Done when: a staged trivial ops task must run for a day; ops task provisioning and the staged restart require TL coordination.
+- One fresh-context plan edit identified six incomplete contracts, now resolved in the revised plan: broker expiry, lost system receipts, watched controller/group lifetime, manual/global execution permits, captured build inputs, and disconnected-hub reservation. Broader fleet drain is explicitly outside the proposed v1 shutdown guarantee. Operator review still precedes implementation; no tests were run for these documentation-only changes.
 
 ## Revisions
 

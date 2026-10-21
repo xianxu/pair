@@ -7,6 +7,10 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- Check the real broker's admission, expiry and restart contracts before promising them in a plan. Cancelling a sender does not necessarily expire queued input, and a stable receipt ID does not imply recoverable receipt storage. Pin lost-receipt uncertainty without resending potentially accepted input. (#737 plan review)
+
+- A process whose lifetime releases a resource lease must stay outside the work group it terminates and exit after confirmed descendant cleanup. Test the actual resource release as well as process disappearance; otherwise a resistant descendant can outlive its budget owner. (#737 plan review)
+
 - #735: Replay native recordings with resize events as well as bytes before blaming footer wording. A duplicate geometry update may receive no native repaint; preserve existing cursor/frame evidence on a synchronized no-op, while a retry after an aborted real resize must still restore synchronization and await a fresh cursor. Regress both paths and expose the missing evidence in retained wait receipts without copying screen contents.
 
 - Splitting an acceptance task into a child issue requires sweeping copied Spec tasks and Done when for parent-only checks. A Log saying the parent still owns console/deployment acceptance does not override an active child Spec clause requiring it. Keep the old clause only as superseded Revisions history. (#723 BR-1)
