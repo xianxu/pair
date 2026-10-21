@@ -95,6 +95,9 @@ export function checkSketchRecord(r) {
         'invalid points or chunk',
       );
       break;
+    case 'sketch-stroke-end':
+      if ('truncated' in r) need(typeof r.truncated === 'boolean', 'invalid truncation flag');
+      break;
     case 'sketch-label':
       need(
         typeof r.label === 'string' &&
@@ -113,7 +116,7 @@ const fields = {
   'sketch-begin': ['id', 'author', 'owner', 'doc', 'tab', 'vp'],
   'sketch-stroke-begin': ['sketch', 'id', 'at', 'width'],
   'sketch-points': ['sketch', 'id', 'chunk', 'pts'],
-  'sketch-stroke-end': ['sketch', 'id'],
+  'sketch-stroke-end': ['sketch', 'id', 'truncated'],
   'sketch-undo': ['sketch', 'id'],
   'sketch-redo': ['sketch', 'id'],
   'sketch-label': ['sketch', 'label'],
@@ -154,7 +157,7 @@ function canonicalJSON(o) {
   return JSON.stringify(Object.is(o, -0) ? 0 : o);
 }
 export function sketchCanonical(r) {
-  const out = known(r, ['operation', 'sequence', ...(fields[r.k] || [])]);
+  const out = known(r, ['operation', 'sequence', ...(fields[r.k] || [])], ['truncated']);
   if (out.author) out.author = known(out.author, ['id', 'name', 'color'], ['name', 'color']);
   if (out.vp) out.vp = known(out.vp, ['w', 'h', 'dpr']);
   if (out.at)
@@ -304,7 +307,7 @@ export function nextSketch(s, r, c) {
       if (stroke.sealed) effect = () => {};
       else {
         need(h.open === r.id, 'stroke is not open');
-        effect = () => seal(s, h, false);
+        effect = () => seal(s, h, r.truncated === true);
       }
     } else {
       need(h.phase === 'drawing' && s.active === id, 'history is closed');
@@ -679,7 +682,7 @@ function validateSketchViewHistory(view) {
     if (history) {
       const needsClosed =
         ['sketch-stroke-begin', 'sketch-undo', 'sketch-redo', 'sketch-label'].includes(event.k) ||
-        (event.k === 'sketch-stroke-end' && event.id === history.open);
+        (event.k === 'sketch-stroke-end' && event.id === history.open && !event.truncated);
       if (needsClosed && history.open && strokes.get(history.open)?.truncated) {
         sketchContextEffect(check, 'pause');
       }

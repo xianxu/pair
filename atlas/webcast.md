@@ -39,6 +39,8 @@ left waiting is a frozen tab. Without `Page.enable` the script never reaches the
 
 ## Operator annotation (#494)
 
+The casting page never reaches the recorded scene, bindings or assets.
+
 The cast Chrome uses the viewer's `mountAnnotation` (`web/annotate.js`) and
 `collab.js` dialog, swatches and geometry inside the existing excluded closed
 shadow host. `operator_script.go` assembles these trusted embedded modules into

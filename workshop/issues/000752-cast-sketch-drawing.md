@@ -69,6 +69,13 @@ Primary surfaces: board/{sketch.go,sketch_authority.go,sketch_wire.go,writer.go,
 - ops:0 approved the full execution plan (delivery96710fe7-a135-4b67-81e3-9189c71f5d63), including opaque scene and named-target regression. TL will do console smoke when staged; requested atlas invariant that the casting page never reaches the recorded scene, bindings or assets. Proceeding to plan-quality, then estimate, before implementation.
 
 
+### 2026-10-21 — first implementation checkpoint
+
+- Added strict ingress/replies, small owned reducer queries and additive truncated stroke-end semantics with Go/JS corpus coverage. Added a lock-free driving-turn witness and separate seat-lifetime metadata witness; A→B→A, pending-only transitions, held control/release and Close are covered.
+- Frozen source preflight owns the exact fenced begin prefix and reduced scene, refuses independent 16 MiB prefix / 8 MiB state budgets without mutation, survives navigation compaction, and indexes only source-bound asset hashes. ARCH-ORDER/ARCH-CONSTRAINTS shaped this seam; node/sheet accounting visits each once.
+- Verification returned green: focused recording/strictjson tests, race-enabled driving tests, and 87 Node sketch model/policy/render/delivery tests. Source received an independent review with no concrete ownership/order/accounting violation found. Shared Board/recorder/routes and actual UI integration are still in progress; this checkpoint does not claim end-to-end completion.
+- Added the TL-required atlas invariant. Mandatory named-target Chrome regression and TL console smoke remain outstanding before landing.
+
 ## Estimate
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.*

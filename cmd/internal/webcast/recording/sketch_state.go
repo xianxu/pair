@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 )
 
@@ -42,6 +43,7 @@ type sketchHistory struct {
 	begin                      *SketchBegin
 	phase, reason, label, open string
 	strokes                    map[string]*SketchStrokeView
+	shown                      map[string]bool
 	order, visible, redo       []string
 	next                       uint64
 	receipts                   map[string]SketchReceipt
@@ -223,7 +225,7 @@ func NextSketch(s *SketchState, r Record, c SketchContext) (SketchDelta, error) 
 				if h.open != v.ID {
 					return fail("stroke is not open")
 				}
-				effect = func() { s.seal(h, false) }
+				effect = func() { s.seal(h, v.Truncated) }
 			}
 		default:
 			if h.phase != "drawing" || s.active != sketchID(r) {
@@ -278,12 +280,22 @@ func NextSketch(s *SketchState, r Record, c SketchContext) (SketchDelta, error) 
 				if h.open != "" || len(h.visible) == 0 || h.visible[len(h.visible)-1] != v.ID {
 					return fail("undo requires the visible stack top")
 				}
-				effect = func() { h.visible = h.visible[:len(h.visible)-1]; h.redo = append(h.redo, v.ID); s.work.stacks++ }
+				effect = func() {
+					h.visible = h.visible[:len(h.visible)-1]
+					h.redo = append(h.redo, v.ID)
+					h.shown[v.ID] = false
+					s.work.stacks++
+				}
 			case *SketchRedo:
 				if h.open != "" || len(h.redo) == 0 || h.redo[len(h.redo)-1] != v.ID {
 					return fail("redo requires the redo stack top")
 				}
-				effect = func() { h.redo = h.redo[:len(h.redo)-1]; h.visible = append(h.visible, v.ID); s.work.stacks++ }
+				effect = func() {
+					h.redo = h.redo[:len(h.redo)-1]
+					h.visible = append(h.visible, v.ID)
+					h.shown[v.ID] = true
+					s.work.stacks++
+				}
 			case *SketchInterrupt:
 				effect = func() { s.interrupt(v.Reason) }
 			default:
@@ -309,6 +321,10 @@ func (s *SketchState) seal(h *sketchHistory, truncated bool) {
 	stroke.Truncated = truncated
 	if len(stroke.Pts) > 0 {
 		h.visible = append(h.visible, h.open)
+		if h.shown == nil {
+			h.shown = map[string]bool{}
+		}
+		h.shown[h.open] = true
 	}
 	h.open = ""
 }
@@ -418,4 +434,166 @@ func normalizeSketchPoint(p SketchPoint) SketchPoint {
 		}
 	}
 	return p
+}
+
+// SketchMetadata and SketchStrokeMetadata are owned small query values. They
+// never contain historical points, receipt collections or mutable core maps.
+type SketchMetadata struct {
+	ID           string   `json:"id"`
+	Author       Author   `json:"author"`
+	Owner        string   `json:"owner"`
+	Doc          int      `json:"doc"`
+	Tab          string   `json:"tab"`
+	VP           Viewport `json:"vp"`
+	T            int64    `json:"t"`
+	Phase        string   `json:"phase"`
+	Reason       string   `json:"reason"`
+	Label        string   `json:"label"`
+	NextSequence uint64   `json:"next_sequence"`
+	OpenStroke   string   `json:"open_stroke"`
+}
+type SketchStackTops struct {
+	VisibleTop   string `json:"visible_top"`
+	RedoTop      string `json:"redo_top"`
+	VisibleCount int    `json:"visible_count"`
+	RedoCount    int    `json:"redo_count"`
+}
+type SketchStrokeMetadata struct {
+	ID         string  `json:"id"`
+	At         NoteAt  `json:"at"`
+	Width      float64 `json:"width"`
+	T          int64   `json:"t"`
+	PointCount int     `json:"point_count"`
+	NextChunk  uint64  `json:"next_chunk"`
+	Visible    bool    `json:"visible"`
+	Sealed     bool    `json:"sealed"`
+	Truncated  bool    `json:"truncated"`
+}
+type SketchChange struct {
+	Kind         string                `json:"kind"`
+	Sketch       SketchMetadata        `json:"sketch"`
+	Stroke       *SketchStrokeMetadata `json:"stroke,omitempty"`
+	Chunk        uint64                `json:"chunk,omitempty"`
+	Points       []SketchPoint         `json:"points,omitempty"`
+	PointsOffset int                   `json:"points_offset,omitempty"`
+}
+
+func (s *SketchState) Receipt(id, operation string) (SketchReceipt, bool) {
+	h := s.sketches[id]
+	if h == nil {
+		return SketchReceipt{}, false
+	}
+	r, ok := h.receipts[operation]
+	return r, ok
+}
+func (s *SketchState) Metadata(id string) (SketchMetadata, bool) {
+	h := s.sketches[id]
+	if h == nil {
+		return SketchMetadata{}, false
+	}
+	b := h.begin
+	return SketchMetadata{ID: id, Author: b.Author, Owner: b.Owner, Doc: b.Doc, Tab: b.Tab, VP: b.VP, T: b.T, Phase: h.phase, Reason: h.reason, Label: h.label, NextSequence: h.next, OpenStroke: h.open}, true
+}
+func (s *SketchState) StackTops(id string) (SketchStackTops, bool) {
+	h := s.sketches[id]
+	if h == nil {
+		return SketchStackTops{}, false
+	}
+	v := SketchStackTops{VisibleCount: len(h.visible), RedoCount: len(h.redo)}
+	if len(h.visible) > 0 {
+		v.VisibleTop = h.visible[len(h.visible)-1]
+	}
+	if len(h.redo) > 0 {
+		v.RedoTop = h.redo[len(h.redo)-1]
+	}
+	return v, true
+}
+func (s *SketchState) StrokeMetadata(id, stroke string) (SketchStrokeMetadata, bool) {
+	h := s.sketches[id]
+	if h == nil {
+		return SketchStrokeMetadata{}, false
+	}
+	v := h.strokes[stroke]
+	if v == nil {
+		return SketchStrokeMetadata{}, false
+	}
+	at := v.Begin.At
+	at.Classes = slices.Clone(at.Classes)
+	at.Path = slices.Clone(at.Path)
+	at.Stable = maps.Clone(at.Stable)
+	if at.Box != nil {
+		b := *at.Box
+		at.Box = &b
+	}
+	visible := h.phase != "cleared" && (h.shown[stroke] || h.open == stroke && len(v.Pts) > 0)
+	return SketchStrokeMetadata{ID: stroke, At: at, Width: v.Begin.Width, T: v.Begin.T, PointCount: len(v.Pts), NextChunk: v.NextChunk, Visible: visible, Sealed: v.Sealed, Truncated: v.Truncated}, true
+}
+
+// Change is read after acceptance at the writer boundary. It copies only the
+// incoming chunk and the touched stroke's anchor, never prior point history.
+type SketchBeforeChange struct{ Sketch, Stroke string }
+
+func (s *SketchState) BeforeChange() SketchBeforeChange {
+	out := SketchBeforeChange{Sketch: s.active}
+	if h := s.sketches[s.active]; h != nil {
+		out.Stroke = h.open
+	}
+	return out
+}
+
+func (s *SketchState) Change(r Record, before SketchBeforeChange) (SketchChange, bool) {
+	if sketchMetadata(r) == nil {
+		switch r.(type) {
+		case *Seg, *Stop, *Ctl, *AnnotationClear:
+		default:
+			return SketchChange{}, false
+		}
+		if _, clear := r.(*AnnotationClear); clear {
+			return SketchChange{Kind: r.Kind()}, true
+		}
+		if h := s.sketches[before.Sketch]; h != nil && s.active == before.Sketch && h.open == before.Stroke && h.phase == "drawing" {
+			return SketchChange{}, false
+		}
+	}
+	id := sketchID(r)
+	if id == "" {
+		id = before.Sketch
+	}
+	meta, ok := s.Metadata(id)
+	if !ok {
+		return SketchChange{}, false
+	}
+	out := SketchChange{Kind: r.Kind(), Sketch: meta}
+	sid := ""
+	if before.Sketch == id {
+		sid = before.Stroke
+	}
+	switch v := r.(type) {
+	case *SketchStrokeBegin:
+		sid = v.ID
+	case *SketchPoints:
+		sid = v.ID
+		out.Points = slices.Clone(v.Pts)
+		for i := range out.Points {
+			out.Points[i] = normalizeSketchPoint(out.Points[i])
+		}
+		out.Chunk = v.Chunk
+		if stroke := s.sketches[id].strokes[v.ID]; stroke != nil {
+			out.PointsOffset = len(stroke.Pts) - len(v.Pts)
+		}
+	case *SketchStrokeEnd:
+		sid = v.ID
+	case *SketchUndo:
+		sid = v.ID
+	case *SketchRedo:
+		sid = v.ID
+	}
+	if sid != "" {
+		stroke, exists := s.StrokeMetadata(id, sid)
+		if !exists {
+			return SketchChange{}, false
+		}
+		out.Stroke = &stroke
+	}
+	return out, true
 }
