@@ -2395,18 +2395,28 @@ once (`Request.shapeProof`), and start admission (`Admits`), the pre-write
 recheck (`WriteAdmits`) and the turn gate (`DriveState.TurnTolerant`) all derive
 from it. The interrupt's proof is `Interruptible`: positive evidence of work,
 never the turn flag alone, because a bare submission or an open Claude panel
-also sets that flag. The proof needs three things. First, the lifecycle
-reducer's one `Working()` predicate: open, not completed, activity seen, and no
-stop grace pending. `turnWorking` mirrors that predicate off the master loop.
-Second, the agent's own composer on screen, which rules out a panel. Third, the
-agent's own "esc to interrupt" hint in the bottom viewport rows
-(`agentdrive.AdvertisesInterrupt`), which also covers a turn end the lifecycle
-missed. It also needs a complete frame, no picker, and the wrapper owning
+also sets that flag. Claude uses the lifecycle reducer's `Working()` predicate
+(open, not completed, activity seen, no stop grace), a recognized composer and
+its own bottom-viewport interrupt hint. Codex uses the current coherent native
+work status above its qualified composer: `RecognizeCodexWorking` recognizes
+`Working ` and `Waiting for ` status prefixes plus `esc to interrupt`, with
+either captured spinner bullet. Counters, truncated summaries and following
+command-detail rows do not supply authority and are ignored. The same recognizer feeds lifecycle observation and interrupt admission;
+Codex admission does not depend on cached notification flags. Interrupt observations
+carry the last operator-input value of the mailbox activity sequence, so normal
+work redraws do not revoke a queued interrupt. Observation, wrapper admission
+and the writer use the same sequence selector; typing, Esc, image input and
+submit advance it. Other drive shapes retain the all-activity sequence. Reader
+output not yet parsed blocks interrupt proof until the current frame is known. Status position
+is relative to the composer because modern Codex can leave most of the viewport
+blank below it. MCP startup, quoted status text and partial redraws do not prove
+work; partial redraws also do not publish a stop transition (#742). It also needs a complete frame, no picker, and the wrapper owning
 input. It may take a residual
 automatic-input wait, as recovery does, but never an active owner. `Admits`
 checks the interrupt first and exclusively, so an idle agent never gets
 Ctrl+C. The drive writes one internal `interrupt` key (`\x03`) and is done
-when the turn ends. It is unconfirmed at the deadline and never resent. A second
+only after a fresh complete idle composer proves the turn ended. Unknown or
+picker screens cannot confirm it. It is unconfirmed at the deadline and never resent. A second
 interrupt refuses because no turn is working. `couchmessage.IsDriveOp` names
 the three drive ops wherever the protocol, service, CLI and console dispatch
 them.
@@ -2510,7 +2520,13 @@ requests retain their exact executors. Actual cold native resume and the thin
 `Reboot`/`ResumeCandidate` facades enter `executePreparedRecovery`
 (`recovery_prepared.go`). Native resume carries no Prompt. Fresh allocates a new
 tag and uses the normal #522 Prompt to point at previous-screen, branch and issue
-evidence. The raw unreadable-primary archive escape stops and launches nothing.
+evidence. The raw unreadable-primary archive escape stops and launches nothing. Recordless numbered-slot
+Fresh uses this same recovery launch tail: its new record and creating start
+claim commit a tagged Fresh intent together, then the producer rereads the
+committed record and supplies the existing RecoveryAuthority. Pair validates the
+exact helper, nonce, address, revision, agent and cwd before advancing that
+address's reserved marker. It does not treat FreshRequired alone as authority to
+establish an address (#747).
 
 Preparation resolves the normal saved profile, preserves available screen and
 durable selection, and obtains exact, expiring stop acceptance before retirement.

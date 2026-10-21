@@ -26,6 +26,12 @@ func Decode(line []byte) (Record, error) {
 		return &Unknown{Header: Header{T: *env.T, K: *env.K}, Raw: bytes.Clone(line)}, nil
 	}
 	r := def.new()
+	if sketchRecordSchema(*env.K) != nil {
+		if err := decodeSketch(line, r); err != nil {
+			return nil, fmt.Errorf("%s: %w", *env.K, err)
+		}
+		return r, nil
+	}
 	if err := json.Unmarshal(line, r); err != nil {
 		return nil, fmt.Errorf("%s: %w", *env.K, err)
 	}
@@ -37,6 +43,9 @@ func Decode(line []byte) (Record, error) {
 func Encode(r Record) ([]byte, error) {
 	if u, ok := r.(*Unknown); ok {
 		return bytes.Clone(u.Raw), nil
+	}
+	if sketchMetadata(r) != nil {
+		return encodeSketch(r)
 	}
 	// Records are shared by fan-out readers. Copy the concrete envelope before
 	// stamping its kind; the payload remains read-only and need not be cloned.

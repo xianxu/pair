@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/threadrecord"
 )
 
 type slotCurrentObservation struct {
@@ -339,7 +340,7 @@ func (c *Couch) StartFreshSlot(ctx context.Context, path, agent string) (StartRe
 // before quiescing), so it is not re-resolved here; it is distinct from
 // accepted, which also triggers revalidateCreatedSlot.
 func (c *Couch) startFreshSlot(ctx context.Context, path, agent string, requireEmpty bool, accepted *StartResolution, preflight *LaunchProfileResolution) (StartResult, error) {
-	return c.startFreshSlotWithPrompt(ctx, path, agent, requireEmpty, accepted, preflight, "", freshSlotOrdinary)
+	return c.startFreshSlotWithRecovery(ctx, path, agent, requireEmpty, accepted, preflight, nil, freshSlotOrdinary)
 }
 
 type freshSlotMode uint8
@@ -349,7 +350,7 @@ const (
 	freshSlotRecordlessRecovery
 )
 
-func (c *Couch) startFreshSlotWithPrompt(ctx context.Context, path, agent string, requireEmpty bool, accepted *StartResolution, preflight *LaunchProfileResolution, prompt string, mode freshSlotMode) (StartResult, error) {
+func (c *Couch) startFreshSlotWithRecovery(ctx context.Context, path, agent string, requireEmpty bool, accepted *StartResolution, preflight *LaunchProfileResolution, orient *threadrecord.RecoveryOrientation, mode freshSlotMode) (StartResult, error) {
 	var local *ThreadStore
 	var slot SlotIdentity
 	var readiness WorkspaceReadiness
@@ -420,16 +421,43 @@ func (c *Couch) startFreshSlotWithPrompt(ctx context.Context, path, agent string
 	if err != nil {
 		return StartResult{}, err
 	}
+	var recoveryIntent threadrecord.RecoveryIntent
 	record, nonce, err := c.claimFreshRecord(ctx, freshClaimInput{
 		ScopeKey: scope.Key, Cwd: cwd, RepoIdentity: slot.RepoIdentity, TagPrefix: filepath.Base(slot.PrimaryRoot),
 		Profile: profile, Used: used, Store: local,
-		Commit: func(record ThreadRecord) error { return local.replaceSlotCurrent(old, record, authority) },
+		Commit: func(record ThreadRecord) error {
+			if mode == freshSlotRecordlessRecovery {
+				intent, err := persistedRecoveryIntent(threadrecord.RecoveryIntent{
+					Mode: threadrecord.RecoveryFresh, Address: toPersistedThreadAddress(record.Address),
+					SourceRevision: record.Revision, CreatedAt: record.CreatedAt, Agent: profile.Profile.Agent,
+					SelectedKey: fmt.Sprintf("fresh:%s:%d", record.Address.Tag, record.Revision), Orientation: orient,
+				})
+				if err != nil {
+					return err
+				}
+				recoveryIntent = intent
+				record.RecoveryIntent = threadrecord.CloneRecoveryIntent(&intent)
+				record.Incarnations[0].Start.RecoveryIntent = threadrecord.CloneRecoveryIntent(&intent)
+			}
+			return local.replaceSlotCurrent(old, record, authority)
+		},
 	})
 	if err != nil {
 		return StartResult{}, err
 	}
+	if mode == freshSlotRecordlessRecovery {
+		// The commit callback adds the authority; use its durable value, not
+		// claimFreshRecord's pre-commit copy.
+		record, err = local.GetThread(record.Address)
+		if err != nil {
+			return StartResult{}, err
+		}
+		selection := RecoverySelection{Kind: RecoveryFresh, Target: ResumeTarget{Path: path}, Reference: fmt.Sprintf("%s:%d", slot.Repo, slot.Number)}
+		recovered, err := c.launchRecoveryClaim(ctx, record, nonce, selection, profile.Profile, recoveryIntent, RecoveryChoice{Agent: profile.Profile.Agent}, recoveryClaimed, nil, readiness)
+		return recovered.Start, err
+	}
 	actor, handle, err := c.launchClaimedThread(claimedLaunch{
-		Context: ctx, Thread: record, Nonce: nonce, StartedAt: c.Clock.Now(), Profile: profile, Prompt: prompt, Readiness: readiness,
+		Context: ctx, Thread: record, Nonce: nonce, StartedAt: c.Clock.Now(), Profile: profile, Readiness: readiness,
 		Args: StartArgs{Worktree: Worktree(slot.WorktreeRoot), Cwd: cwd},
 		AfterPrepare: func() error {
 			if mode == freshSlotOrdinary {

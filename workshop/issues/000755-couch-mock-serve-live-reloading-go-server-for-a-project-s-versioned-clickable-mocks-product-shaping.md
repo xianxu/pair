@@ -93,6 +93,8 @@ Implementation details: [durable plan](../plans/000755-mock-server-plan.md).
 
 - BR-5 final race run passed (2.824s) with every helper/pump/writer joined. Sandboxed Chrome requalification passed both reload/sample tests on committed code head 584a03cf62abf80bad6e7041f5426a6fbd1cf906 (9.316s); raw output appended to the browser evidence artifact. Reader inventory passed. Requeueing recorded suite and ordinary close.
 
+- Close round4 finalized SHIP with all five findings disposed. Recorded branch suite passed in10m50s on1a41927bc3d9689c62c58d032a8c7bef9b6c69a9 (log SHA256 prefix196a17a6e963). Entered merge; integration with origin/main conflicted only in tests/affected-go-readers.json. Resolved by preserving all three independent browser/sketch reader entries and their audited digests; inventory and whitespace checks passed. Recording a fresh suite on the integrated head before the required fix review, then re-entering merge.
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. The source is marked stale by estimate-source; values remain provisional. Derived after plan-quality cleared.

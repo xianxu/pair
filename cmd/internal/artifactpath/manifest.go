@@ -1126,6 +1126,12 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/recording/internal/fixturegen/main.go",
 	"cmd/internal/webcast/recording/internal/fixturegen/notes.go",
 	"cmd/internal/webcast/recording/record.go",
+	"cmd/internal/webcast/recording/sketch.go",
+	"cmd/internal/webcast/recording/sketch_budget.go",
+	"cmd/internal/webcast/recording/sketch_codec.go",
+	"cmd/internal/webcast/recording/sketch_snapshot.go",
+	"cmd/internal/webcast/recording/sketch_state.go",
+	"cmd/internal/webcast/sketch/geometry.go",
 	"cmd/internal/webcast/recording/reduce.go",
 	"cmd/internal/webcast/recording/validate.go",
 	// #458 recorder: writes records, screenshots and asset bodies into the
