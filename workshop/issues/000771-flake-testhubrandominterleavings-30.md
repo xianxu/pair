@@ -7,7 +7,7 @@ created: 2026-10-21
 updated: 2026-10-21
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '189c52b9254b43087614a4ce1d6f8ac991ce9f7a' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '7a6666e69c9ff2ef13893c1c91daf63b3912293e' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-21T09:04:08-07:00
 claimant:
     operator: Xian Xu
@@ -18,7 +18,7 @@ claimant:
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/broadcast.TestHubRandomInterleavings]
 flow: {kind: quick, provenance: inferred, spec: "f0fe9253", done: "a0bbe98b"}
-actual_hours: 0.14
+actual_hours: 1.27
 ---
 
 # flake: TestHubRandomInterleavings/30
