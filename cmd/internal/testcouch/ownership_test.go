@@ -1,9 +1,44 @@
 package testcouch
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/testcouch/agentfixture"
 	"testing"
 )
+
+func TestUncertainCompletionKeepsFailureUntilRootsAreRemoved(t *testing.T) {
+	r := Resource{ID: "cli", Generation: "one"}
+	s := ReduceRun(OwnedRun{}, RunEvent{Kind: "own", Resource: r})
+	s = ReduceRun(s, RunEvent{Kind: "unknown", Error: "CLI cleanup uncertain"})
+	s = ReduceRun(s, RunEvent{Kind: "gone", Resource: r})
+	if s.Error == "" {
+		t.Fatal("resource absence silently reopened failed fleet")
+	}
+	s = ReduceRun(s, RunEvent{Kind: "own", Resource: r})
+	if s.Error == "" {
+		t.Fatal("late ownership cleared uncertainty")
+	}
+	s = ReduceRun(s, RunEvent{Kind: "closing"})
+	s = ReduceRun(s, RunEvent{Kind: "gone", Resource: r})
+	if s.Error == "" {
+		t.Fatal("closing cleared uncertainty before root removal")
+	}
+	s = ReduceRun(s, RunEvent{Kind: "roots-removed"})
+	if s.Error != "" || s.Phase != "cleaned" {
+		t.Fatalf("completed cleanup retained failure: %+v", s)
+	}
+}
+
+func TestUncertainFleetRefusesNewWork(t *testing.T) {
+	f := &Fleet{ctx: t.Context(), model: ReduceRun(OwnedRun{}, RunEvent{Kind: "unknown", Error: "CLI cleanup uncertain"})}
+	_, done, err := f.begin(context.Background())
+	if err == nil {
+		done()
+		t.Fatal("uncertain fleet admitted new work")
+	}
+}
 
 func TestOwnershipReconcilesLateStartAndStaleOutcome(t *testing.T) {
 	s := OwnedRun{}
@@ -63,4 +98,18 @@ func FuzzOwnedRunStaleCompletion(f *testing.F) {
 			t.Fatal("stale outcome released ownership")
 		}
 	})
+}
+
+func TestUncertainFleetRefusesConsoleMutations(t *testing.T) {
+	f := &Fleet{ctx: t.Context(), model: ReduceRun(OwnedRun{}, RunEvent{Kind: "unknown", Error: "CLI cleanup uncertain"})}
+	for name, run := range map[string]func() error{
+		"input":  func() error { return f.Input([]byte("x")) },
+		"resize": func() error { return f.Resize(24, 80) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := run(); !errors.Is(err, agentfixture.ErrCleanupUncertain) {
+				t.Fatalf("uncertain console mutation: %v", err)
+			}
+		})
+	}
 }

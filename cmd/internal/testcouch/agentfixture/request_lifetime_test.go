@@ -32,6 +32,32 @@ func startLifetimeFixture(t *testing.T) Config {
 	return config
 }
 
+func TestUncertainResultCannotRetireCorrelatedFiles(t *testing.T) {
+	c := fixtureConfig(t, "claude")
+	if err := atomicJSON(filepath.Join(c.ControlDir, "ready.json"), Ready{PID: os.Getpid(), RunID: c.RunID}, false); err != nil {
+		t.Fatal(err)
+	}
+	command := Command{ID: "uncertain", Kind: Exec, Args: []string{"--actors"}}
+	if err := WriteCommand(c.ControlDir, command); err != nil {
+		t.Fatal(err)
+	}
+	if err := CancelCommand(c.ControlDir, command.ID); err != nil {
+		t.Fatal(err)
+	}
+	result := map[string]any{"id": command.ID, "exit_code": -1, "cleanup_uncertain": true, "error": "fixture CLI cleanup uncertain"}
+	if err := atomicJSON(filepath.Join(c.ControlDir, "results", command.ID+".json"), result, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := RetireResult(c.ControlDir, command.ID); err == nil {
+		t.Fatal("uncertain request was retired")
+	}
+	for _, sub := range []string{"commands", "results", "cancellations"} {
+		if _, err := os.Stat(filepath.Join(c.ControlDir, sub, command.ID+".json")); err != nil {
+			t.Fatalf("uncertain %s evidence lost: %v", sub, err)
+		}
+	}
+}
+
 func TestRequestCancellationAcknowledgesJoinedChild(t *testing.T) {
 	config := startLifetimeFixture(t)
 	marker := filepath.Join(config.Root, "child-pid")

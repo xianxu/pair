@@ -137,6 +137,9 @@ func (f *Fleet) begin(ctx context.Context) (context.Context, func(), error) {
 	if f.publicationErr != nil {
 		return nil, nil, f.publicationErr
 	}
+	if f.model.Error != "" || f.model.Phase == "stuck" {
+		return nil, nil, fmt.Errorf("%w: %s", agentfixture.ErrCleanupUncertain, f.model.Error)
+	}
 	if f.closing {
 		return nil, nil, fmt.Errorf("fleet is closing")
 	}
@@ -269,6 +272,11 @@ func (f *Fleet) Screen() string {
 	return p.Screen()
 }
 func (f *Fleet) Input(data []byte) error {
+	_, done, err := f.begin(context.Background())
+	if err != nil {
+		return err
+	}
+	defer done()
 	f.mu.Lock()
 	p := f.console
 	closing := f.closing
@@ -279,6 +287,11 @@ func (f *Fleet) Input(data []byte) error {
 	return p.Input(data)
 }
 func (f *Fleet) Resize(rows, cols uint16) error {
+	_, done, err := f.begin(context.Background())
+	if err != nil {
+		return err
+	}
+	defer done()
 	f.mu.Lock()
 	p := f.console
 	f.mu.Unlock()

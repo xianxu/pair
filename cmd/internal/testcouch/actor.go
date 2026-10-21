@@ -108,12 +108,18 @@ func (f *Fleet) ActorCLI(ctx context.Context, n int, args ...string) (agentfixtu
 		if e != nil {
 			return result, errors.Join(callerErr, fmt.Errorf("fixture CLI cancellation acknowledgment uncertain: %w", e))
 		}
+		if e := f.retainUncertainCLI(dir, result); e != nil {
+			return result, errors.Join(callerErr, e)
+		}
 		if e := agentfixture.RetireResult(dir, id); e != nil {
 			return result, errors.Join(callerErr, fmt.Errorf("fixture CLI terminal retirement: %w", e))
 		}
 		return result, callerErr
 	}
 	if err == nil {
+		if e := f.retainUncertainCLI(dir, result); e != nil {
+			return result, e
+		}
 		// This invocation is the last consumer of its unique correlated result.
 		// Reclaim it before another observation needs the bounded mailbox.
 		err = agentfixture.RetireResult(dir, id)
@@ -122,6 +128,17 @@ func (f *Fleet) ActorCLI(ctx context.Context, n int, args ...string) (agentfixtu
 		}
 	}
 	return result, errors.Join(err, ctx.Err())
+}
+
+func (f *Fleet) retainUncertainCLI(dir string, result agentfixture.Result) error {
+	err := result.CleanupFailure()
+	if err == nil {
+		return nil
+	}
+	// Keep all three correlated files until Close reconciles the private run.
+	err = errors.Join(err, agentfixture.CancelCommand(dir, result.ID))
+	f.record(RunEvent{Kind: "unknown", Error: err.Error()})
+	return err
 }
 
 // The actor child shares the caller's remaining bound rather than imposing a
@@ -180,7 +197,7 @@ func waitActorCount(ctx context.Context, count int, observe func(context.Context
 		response, err := observe(ctx)
 		last = err
 		if err != nil {
-			if errors.Is(err, agentfixture.ErrMailboxFull) {
+			if errors.Is(err, agentfixture.ErrMailboxFull) || errors.Is(err, agentfixture.ErrCleanupUncertain) {
 				return false, err
 			}
 			return false, nil

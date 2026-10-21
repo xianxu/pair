@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -27,6 +28,9 @@ const OwnershipFile = ".testcouch-owner"
 
 // ErrMailboxFull is terminal for this bounded fixture incarnation.
 var ErrMailboxFull = errors.New("fixture mailbox limit reached")
+
+// ErrCleanupUncertain requires owned fleet cleanup, not request retirement.
+var ErrCleanupUncertain = errors.New("fixture CLI cleanup uncertain")
 
 // A reserved single-slot shutdown channel cannot be exhausted by ordinary work.
 const shutdownFile = "shutdown.json"
@@ -51,12 +55,20 @@ type Command struct {
 	State            Phase         `json:"state,omitempty"`
 }
 type Result struct {
-	ID        string `json:"id"`
-	Stdout    string `json:"stdout,omitempty"`
-	Stderr    string `json:"stderr,omitempty"`
-	ExitCode  int    `json:"exit_code"`
-	Error     string `json:"error,omitempty"`
-	Truncated bool   `json:"truncated,omitempty"`
+	ID               string `json:"id"`
+	Stdout           string `json:"stdout,omitempty"`
+	Stderr           string `json:"stderr,omitempty"`
+	ExitCode         int    `json:"exit_code"`
+	Error            string `json:"error,omitempty"`
+	Truncated        bool   `json:"truncated,omitempty"`
+	CleanupUncertain bool   `json:"cleanup_uncertain,omitempty"`
+}
+
+func (r Result) CleanupFailure() error {
+	if r.CleanupUncertain {
+		return fmt.Errorf("%w: %s", ErrCleanupUncertain, r.Error)
+	}
+	return nil
 }
 
 var requestID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$`)
@@ -266,6 +278,9 @@ func RetireResult(control, id string) error {
 	if result.ID != id {
 		return errors.New("fixture result correlation mismatch")
 	}
+	if err := result.CleanupFailure(); err != nil {
+		return err
+	}
 	// The result fences its ID while cancellation and the original command are
 	// released first. The lock prevents a new admission racing retirement.
 	if err := os.Remove(filepath.Join(control, "cancellations", id+".json")); err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -346,10 +361,12 @@ func CancelCommand(control, id string) error {
 		return err
 	}
 	defer unlock()
-	if _, err := ReadResult(control, id); err == nil {
+	result, resultErr := ReadResult(control, id)
+	if resultErr == nil && !result.CleanupUncertain {
 		return nil
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return err
+	}
+	if resultErr != nil && !errors.Is(resultErr, os.ErrNotExist) {
+		return resultErr
 	}
 	raw, err := readBounded(filepath.Join(control, "commands", id+".json"), MaxCommandBytes)
 	if err != nil {

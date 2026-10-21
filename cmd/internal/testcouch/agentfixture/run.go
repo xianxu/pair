@@ -470,10 +470,22 @@ func runCLI(parent context.Context, executable string, c Command) Result {
 		identity = procutil.StrictIdentity(strconv.Itoa(cmd.Process.Pid))
 	}
 	ownerMu.Unlock()
+	var cleanupErr error
 	if err == nil {
 		err = cmd.Wait()
+		// Wait joins the direct child and output pumps, not its descendants.
+		// Observe every outcome, including success with closed inherited pipes.
+		// Once the leader is reaped, a numeric group is no longer kill authority.
+		groupErr := syscall.Kill(-cmd.Process.Pid, 0)
+		var members bool
+		var inspectionErr error
+		if errors.Is(groupErr, syscall.EPERM) {
+			members, inspectionErr = procutil.ProcessGroupMembers(cmd.Process.Pid)
+		}
+		cleanupErr = cliGroupError(groupErr, members, inspectionErr)
+		err = errors.Join(err, cleanupErr)
 	}
-	r := Result{ID: c.ID, Stdout: out.String(), Stderr: errout.String(), Truncated: out.exceeded || errout.exceeded}
+	r := Result{ID: c.ID, Stdout: out.String(), Stderr: errout.String(), Truncated: out.exceeded || errout.exceeded, CleanupUncertain: cleanupErr != nil}
 	if err != nil {
 		r.ExitCode = -1
 		var exit *exec.ExitError
@@ -482,7 +494,20 @@ func runCLI(parent context.Context, executable string, c Command) Result {
 		}
 		r.Error = err.Error()
 	}
+	if r.CleanupUncertain {
+		r.ExitCode = -1
+	}
 	return r
+}
+
+// cliGroupError classifies supplied observations without granting signal
+// authority. Darwin may report EPERM for an empty group; failed inspection is
+// uncertainty, and other platforms conservatively report members present.
+func cliGroupError(signalErr error, members bool, inspectionErr error) error {
+	if errors.Is(signalErr, syscall.ESRCH) || (errors.Is(signalErr, syscall.EPERM) && inspectionErr == nil && !members) {
+		return nil
+	}
+	return errors.Join(ErrCleanupUncertain, signalErr, inspectionErr)
 }
 
 // decideCLIAdmission is the pure queued-request transition. Cancellation and

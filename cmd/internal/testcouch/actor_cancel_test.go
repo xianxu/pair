@@ -11,10 +11,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/testcouch/agentfixture"
 )
 
-func TestActorCLICancellationJoinsAndRetiresOwnedRequest(t *testing.T) {
+func startActorCLIFixture(t *testing.T) (*Fleet, string) {
+	t.Helper()
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -55,6 +57,14 @@ func TestActorCLICancellationJoinsAndRetiresOwnedRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 	f := &Fleet{Roots: RootsPlan{Root: root, Mutable: map[string]string{"control": filepath.Join(root, "control")}}, Workspaces: Workspaces{Primary: worktree}, Options: Options{RuntimeBudget: time.Hour}, ctx: t.Context()}
+	return f, dir
+}
+
+func TestActorCLICancellationJoinsAndRetiresOwnedRequest(t *testing.T) {
+	f, dir := startActorCLIFixture(t)
+	root := f.Roots.Root
+	waitCtx, end := context.WithTimeout(t.Context(), 4*time.Second)
+	defer end()
 	caller, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
 	marker := filepath.Join(root, "pid")
@@ -87,5 +97,45 @@ func TestActorCLICancellationJoinsAndRetiresOwnedRequest(t *testing.T) {
 		if err != nil || len(entries) != 0 {
 			t.Fatalf("ActorCLI retained %s: count=%d err=%v", sub, len(entries), err)
 		}
+	}
+}
+
+func TestActorCLIUncertainDescendantRetainsSlotAndStopsNewWork(t *testing.T) {
+	f, dir := startActorCLIFixture(t)
+	marker := filepath.Join(f.Roots.Root, "descendant-pid")
+	result, err := f.ActorCLI(t.Context(), 0, "-c", `sleep 30 >/dev/null 2>&1 & printf '%s' "$!" > "$1"; exit 0`, "fixture", marker)
+	raw, readErr := os.ReadFile(marker)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	pid, parseErr := strconv.Atoi(string(raw))
+	if parseErr != nil {
+		t.Fatal(parseErr)
+	}
+	generation := procutil.StrictIdentity(strconv.Itoa(pid))
+	t.Cleanup(func() {
+		if generation != "" && procutil.StrictIdentity(strconv.Itoa(pid)) == generation {
+			if e := syscall.Kill(pid, syscall.SIGKILL); e != nil && e != syscall.ESRCH {
+				t.Error(e)
+			}
+		}
+	})
+	if !errors.Is(err, agentfixture.ErrCleanupUncertain) || !result.CleanupUncertain {
+		t.Fatalf("uncertainty lost: result=%+v error=%v", result, err)
+	}
+	for _, sub := range []string{"commands", "results", "cancellations"} {
+		if _, e := os.Stat(filepath.Join(dir, sub, result.ID+".json")); e != nil {
+			t.Fatalf("lost %s: %v", sub, e)
+		}
+	}
+	if e := agentfixture.RetireResult(dir, result.ID); !errors.Is(e, agentfixture.ErrCleanupUncertain) {
+		t.Fatalf("uncertain slot retired: %v", e)
+	}
+	forbidden := filepath.Join(f.Roots.Root, "must-not-start")
+	if _, e := f.ActorCLI(t.Context(), 0, "-c", `printf wrong > "$1"`, "fixture", forbidden); !errors.Is(e, agentfixture.ErrCleanupUncertain) {
+		t.Fatalf("new work admitted: %v", e)
+	}
+	if _, e := os.Stat(forbidden); !os.IsNotExist(e) {
+		t.Fatalf("failed fleet executed more work: %v", e)
 	}
 }

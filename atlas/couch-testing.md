@@ -83,3 +83,10 @@ an earlier native detach ownership refusal separately. Fixture paint also passes
 the real wrapper's composer/text classification across personalities, phases,
 draft shapes and geometries. These results qualify deterministic fixtures, not
 an installed model service.
+
+Every fixture Exec checks group quiescence after its direct child and output join,
+including normal exit, signal and cancellation. A live or unreadable group is
+explicit cleanup uncertainty: command, result and cancellation evidence stay in
+the same bounded mailbox slot and all new fleet mutations refuse. Existing Close
+reconciles private-run process generations; only proved cleanup and root removal
+clear the failure. A reaped leader never grants numeric process-group kill authority.
