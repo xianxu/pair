@@ -1,5 +1,5 @@
 === RUN   TestKnownBugNative2000Diagnostic748
-    known_bug_native_748_test.go:14: logical=2000 attempts=2001 bad-attempts=1 bad-final=0
---- PASS: TestKnownBugNative2000Diagnostic748 (32.76s)
+    known_bug_native_748_test.go:14: logical=2000 attempts=2003 bad-attempts=3 bad-final=0
+--- PASS: TestKnownBugNative2000Diagnostic748 (46.28s)
 PASS
-ok  	github.com/xianxu/pair/cmd/internal/launcher	32.938s
+ok  	github.com/xianxu/pair/cmd/internal/launcher	46.476s

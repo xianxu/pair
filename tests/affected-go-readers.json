@@ -86,7 +86,7 @@
       "cmd/internal/launcher/native_name_absence_test.go": "a4ff359fbbf31515eb0b176c9e8ea1c9bc3743b3eca3ebf7769e6e9b30f7a4af",
       "cmd/internal/launcher/zellij_diagnostic_matrix_test.go": "295016d1757bb99210a908b86b0ec2fa4326f56bab65c8b58d1e2c37b764d1e6",
       "cmd/internal/launcher/zellij_empty_legacy_test.go": "779a6b4194a15709850042b7dd69bae77ab5055bd49539e898696296e898a601",
-      "cmd/internal/launcher/zellij_empty_reply_test.go": "3953f9131b0bcd5facdbb47a299c245c25d0d368d4e6151bb2a5db711882e698",
+      "cmd/internal/launcher/zellij_empty_reply_test.go": "723d1f44d6c1e27bbb81b1b65a746423dc30e1baab574ee4f2cdd5e68c4fd7d6",
       "cmd/internal/launcher/zellij_query_observer_test.go": "1e7459a9edd1dfdc78c228e973f011137c0a2addb85368779c892d0b12156c10",
       "cmd/internal/launcher/zellij_test.go": "fb41dd094a95aa8f0f03d769ba8f306e0fd4e386a84f61530237787d259239d7",
       "cmd/internal/layoutcmd/fullscreen_chord_live_test.go": "39d3d2e102d2fd3aaef8c3944ccf6f2e617d1c6bd49f80ca120908d62d8c6671",

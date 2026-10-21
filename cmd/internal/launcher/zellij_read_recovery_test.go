@@ -56,12 +56,28 @@ func TestZellijKnownBugReadBoundAndNonRetryableResults(t *testing.T) {
 				frames[i] = emptyReplyFrame{Args: tc.args, Stdout: tc.raw, Exit: tc.exit}
 			}
 			f := newEmptyReplyFake(t, frames...)
-			_, err := f.source.runContext(t.Context(), tc.args...)
+			out, err := f.source.runContext(t.Context(), tc.args...)
 			if f.calls(t) != tc.calls {
 				t.Fatalf("calls=%d want=%d", f.calls(t), tc.calls)
 			}
-			if tc.calls == 3 && err == nil {
-				t.Fatal("exhausted invalid replies granted authority")
+			switch tc.name {
+			case "empty", "mutation", "unknown-flags":
+				if !errors.Is(err, ErrZellijNoReply) {
+					t.Fatalf("lost no-reply error: %v", err)
+				}
+			case "crossed":
+				if !errors.Is(err, errZellijCrossedReply) {
+					t.Fatalf("lost crossed-reply error: %v", err)
+				}
+			case "nonzero":
+				var exit *exec.ExitError
+				if !errors.As(err, &exit) || exit.ExitCode() != 7 {
+					t.Fatalf("lost exit7: %v", err)
+				}
+			default:
+				if err != nil || string(out) != tc.raw {
+					t.Fatalf("malformed bytes changed: %q %v", out, err)
+				}
 			}
 		})
 	}

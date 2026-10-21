@@ -93,6 +93,11 @@ func TestZellijEmptyReplyHelperProcess(t *testing.T) {
 	if err != nil {
 		fail(err)
 	}
+	// Count every child, including invocations that exceed the declared schedule.
+	// Otherwise a forbidden replay could fail here without changing calls().
+	if err = os.WriteFile(state, []byte(strconv.Itoa(n+1)), 0600); err != nil {
+		fail(err)
+	}
 	if n >= len(frames) {
 		fail(fmt.Errorf("unexpected automatic invocation %d", n+1))
 	}
@@ -106,9 +111,6 @@ func TestZellijEmptyReplyHelperProcess(t *testing.T) {
 	}
 	if !reflect.DeepEqual(args, frame.Args) {
 		fail(fmt.Errorf("invocation %d args %q, want %q", n, args, frame.Args))
-	}
-	if err = os.WriteFile(state, []byte(strconv.Itoa(n+1)), 0600); err != nil {
-		fail(err)
 	}
 	if len(frame.Events) == 0 {
 		fmt.Fprint(os.Stdout, frame.Stdout)
@@ -263,9 +265,14 @@ func TestZellijEmptyReplyOwnerProbeGrantsNoAuthority(t *testing.T) {
 				raw = valid
 				want = "session server changed during observation"
 			}
-			fake := newEmptyReplyFake(t, emptyReplyFrame{Args: panes, Stdout: raw})
+			frames := []emptyReplyFrame{{Args: panes, Stdout: raw}}
+			if change {
+				// The generation bracket surrounds both valid confirmation reads.
+				frames = append(frames, emptyReplyFrame{Args: panes, Stdout: raw})
+			}
+			fake := newEmptyReplyFake(t, frames...)
 			got, err := (SessionOwnerProbe{IO: &emptyReplyOwnerIO{source: fake.source, hasServer: true, changeGeneration: change, server: SessionServerIdentity{PID: 37, Identity: "generation", Session: name, Socket: "/fake/socket"}}}).Probe(context.Background(), name, "/tmp/data", "0123456789abcdef", "1-repo-1")
-			if err != nil || got.State != SessionOwnerUnknown || got.Diagnostic != want || fake.calls(t) != 1 {
+			if err != nil || got.State != SessionOwnerUnknown || got.Diagnostic != want || fake.calls(t) != len(frames) {
 				t.Fatalf("nonempty observation = %+v %v", got, err)
 			}
 		})

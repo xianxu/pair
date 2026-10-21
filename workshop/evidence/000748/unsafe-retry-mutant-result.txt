@@ -1,0 +1,10 @@
+--- FAIL: TestZellijKnownBugReadBoundAndNonRetryableResults (0.89s)
+    --- FAIL: TestZellijKnownBugReadBoundAndNonRetryableResults/nonzero (0.14s)
+        zellij_read_recovery_test.go:61: calls=3 want=1
+    --- FAIL: TestZellijKnownBugReadBoundAndNonRetryableResults/mutation (0.13s)
+        zellij_read_recovery_test.go:61: calls=3 want=1
+    --- FAIL: TestZellijKnownBugReadBoundAndNonRetryableResults/unknown-flags (0.15s)
+        zellij_read_recovery_test.go:61: calls=3 want=1
+FAIL
+FAIL	github.com/xianxu/pair/cmd/internal/launcher	1.073s
+FAIL
