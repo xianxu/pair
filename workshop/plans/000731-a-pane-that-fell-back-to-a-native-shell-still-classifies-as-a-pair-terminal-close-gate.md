@@ -107,6 +107,112 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: b61faeaa-46fd-4d3f-ba04-6273a4afa1b6
+            repository: github.com/xianxu/pair
+            issue_id: "000731"
+            recipe: milestone-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/07953dfb79ac5bb6
+            reviewed_head: f09a8ae39e6891f9c3882967d48c2de3e83da2ae
+            slot: pair:6
+            requested_at: "2026-10-21T04:11:05.869467Z"
+          phase: finished
+          pid: 37355
+          started_at: "2026-10-21T04:11:05.967209Z"
+          finished_at: "2026-10-21T04:14:36.679396Z"
+          session_id: 01a15ca7-d8c7-7101-8fb2-fef5affa86f9
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: f09a8ae39e6891f9c3882967d48c2de3e83da2ae
+        tracker_head: a5e16637f11beadfef44c626fd594baffa32997a
+        branch_point: 49566452104f129c38c8db5e4e985a0a5ae5087e
+        since: "2026-10-20T20:32:00-07:00"
+        until: "2026-10-20T21:10:39-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-20T20:32:00-07:00"
+              end: "2026-10-20T21:10:39-07:00"
+              began: "2026-10-20T20:32:00-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot6/pair
+        sources:
+            - harness: codex
+              id: 01a14b2c-9890-74f3-a738-58879659bef5
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: 5891b442f013234b4d45b2854387cf005d6303ddfea302a732b7bf946238f31b
+              started: "2026-10-17T18:42:56.865Z"
+              spawned: false
+              bytes: 70945726
+              windows:
+                - start: "2026-10-20T20:32:00-07:00"
+                  end: "2026-10-20T21:10:39-07:00"
+            - harness: codex
+              id: 01a15c96-3f91-7301-bd36-aff56db004d4
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: 58ba196d37dd4eac35327b3d22351ac1740992def0366b5f1ab1bfa42b5fd99e
+              started: "2026-10-21T03:51:53.145Z"
+              spawned: true
+              bytes: 567936
+              windows:
+                - start: "2026-10-21T03:51:53.145Z"
+                  end: "2026-10-20T21:10:39-07:00"
+            - harness: codex
+              id: 01a15c96-7553-7931-bc6e-f0d533f98ad6
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: 537d12a2f020ea6a6fcac4c64a44a186a0d7a03443e03db36fd53ce7f4ed5d21
+              started: "2026-10-21T03:52:06.916Z"
+              spawned: true
+              bytes: 446295
+              windows:
+                - start: "2026-10-21T03:52:06.916Z"
+                  end: "2026-10-20T21:10:39-07:00"
+            - harness: codex
+              id: 01a15c97-53d1-79a2-a7d9-2966d169f1bc
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: fce406d0c93449ebac41d8ae994efa6427872894f3c8201e54c214bb78649005
+              started: "2026-10-21T03:53:03.877Z"
+              spawned: true
+              bytes: 758070
+              windows:
+                - start: "2026-10-21T03:53:03.877Z"
+                  end: "2026-10-20T21:10:39-07:00"
+        cuts:
+            - dispatched: "2026-10-20T21:07:02-07:00"
+              finalized: "2026-10-20T21:09:07-07:00"
+              finalizing: false
+      "n": 2
+      timestamp: "2026-10-20T21:14:37-07:00"
+      dispatched: "2026-10-20T21:11:04-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Issue line 44 now names LiveOwnerIDs and explicitly covers confirmed mismatch/replacement, unavailable-inspection retention, bounded diagnostics, and diagnostic-write failure. This matches terminal_owner.go:32–80 and the owner/diagnostic regression tests. The correction is prose-only; the pinned before/after diff changes no runtime policy.
+          round: 2
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: f09a8ae39e6891f9c3882967d48c2de3e83da2ae
+      blocked: false
 ---
 
 # Gate ledger — pair#731 (boundary-review)
@@ -121,6 +227,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-1** [Important] `acceptance-criteria-contract-alignment` (kind: defect) Done-when still promises the superseded unconditional ownership policy
   workshop/issues/000731-a-pane-that-fell-back-to-a-native-shell-still-classifies-as-a-pair-terminal.md:44 requires LiveIDs and RoleForPaneWith to stop granting ownership after fallback. LiveIDs remains an injected-predicate storage reader, and terminal_owner.go:56 implements LiveOwnerIDs with the approved unavailable-inspection exception documented at issue line 68. Update Done when to name LiveOwnerIDs, require rejection of confirmed shell argv or identity changes, and explicitly cover retained ownership plus bounded diagnostics when inspection is unavailable. This is an ARCH-PURPOSE traceability gap.
 
+## Round 2 — 2026-10-20T21:14:37-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Issue line 44 now names LiveOwnerIDs and explicitly covers confirmed mismatch/replacement, unavailable-inspection retention, bounded diagnostics, and diagnostic-write failure. This matches terminal_owner.go:32–80 and the owner/diagnostic regression tests. The correction is prose-only; the pinned before/after diff changes no runtime policy.
+
 ## Open findings
 
-- **BR-1** [Important] `acceptance-criteria-contract-alignment` (kind: defect) Done-when still promises the superseded unconditional ownership policy
+(none — every finding has been disposed)

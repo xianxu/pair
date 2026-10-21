@@ -16,7 +16,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "a4f91cf6", done: "e7484f0b"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # A pane that fell back to a native shell still classifies as a Pair terminal
@@ -55,6 +55,8 @@ Measure the native metadata across a wrapper-to-shell exec in a disposable sessi
 Deferred from pair#727 by the hub on 2026-10-20 (delivery 7225aa16-eefc-46c0-97b6-49c250d1ca29): land the reviewed resilience improvement, which leaves a working shell instead of a dead pane. No registry/role change belongs in #727. The earlier retirement-only proposal was withdrawn before implementation when the role and lock assumptions proved incomplete.
 
 ### 2026-10-20 — claim, native measurement and proposed plan
+- 2026-10-20: closed — BR-1 acceptance text now names LiveOwnerIDs and explicitly pins confirmed mismatch denial versus unavailable-inspection retention and bounded diagnostics. Seven affected packages, owner/focus race tests, 13 reader tests and private native exec conformance passed. One recorded suite attempt0aa0002014a10c3ebaddb3b1fe334597 remains queued on the unchanged code; recorded green is required before landing.; review verdict: SHIP
+- 2026-10-20: flow upgraded quick → full — 138 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 - Hub dispatched #731 after #706 landed; verified unowned, claimed, and ran start-plan from main. No #706 work remains in flight. Bare start-plan caught up the sibling Ariadne build, as required by the fleet tool rule.
 - Hub d78ab148-d0d9-49e4-9255-f5983c3ee9a6 approved bounded disposable native diagnosis. Installed Zellij0.45.1 private session p731-31448 used private HOME, config/data/cache/runtime and ZELLIJ_SOCKET_DIR. A controlled registered pair term executable gated syscall.Exec into /bin/sh. PID31490 and birth remained unchanged; startup command and terminal title survived; pane_command changed to sh -i. LiveIDs and both existing role projections still granted RightTerminal. A command executed by the interactive shell acknowledged the same PID. Cleanup closed the exact session/client; private list-sessions reported none, and the exact owned PIDs were gone. Capture: the inline native metadata capture below. This is native metadata evidence, not a production fault-recovery test. Temporary probe source was removed from cmd; retained owned diagnostic source/binary are under /Volumes/TestScratch/tmp/pair731.p79ksE.

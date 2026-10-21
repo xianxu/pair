@@ -93,3 +93,88 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-20T21:14:37-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 731 — A pane that fell back to a native shell still classifies as a Pair terminal |
+| repo | pair |
+| issue file | workshop/issues/000731-a-pane-that-fell-back-to-a-native-shell-still-classifies-as-a-pair-terminal.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 49566452104f129c38c8db5e4e985a0a5ae5087e..f09a8ae39e6891f9c3882967d48c2de3e83da2ae |
+| command | sdlc close --issue 731 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-20T21:14:37-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The implementation satisfies the approved ownership policy, and BR-1’s acceptance-criteria mismatch is corrected. Confirmed shell handoffs lose ownership; unavailable inspection retains the live registry answer with bounded diagnostics. No blocking findings remain.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Issue line 44 now names LiveOwnerIDs and explicitly covers confirmed mismatch/replacement, unavailable-inspection retention, bounded diagnostics, and diagnostic-write failure. This matches terminal_owner.go:32–80 and the owner/diagnostic regression tests. The correction is prose-only; the pinned before/after diff changes no runtime policy.
+```
+
+1. **Strengths**
+
+   - [terminal_owner.go:32](/Volumes/TestScratch/review-checkouts/07953dfb79ac5bb6/cmd/internal/workbenchshortcut/terminal_owner.go:32) distinguishes confirmed mismatch from unavailable inspection and brackets argv reads with identity observations.
+   - [shortcut.go:757](/Volumes/TestScratch/review-checkouts/07953dfb79ac5bb6/cmd/internal/workbenchshortcut/shortcut.go:757) requires registration for terminal routing while preserving other Pair roles. The reader sweep confirmed all four production consumers use the shared owner filter.
+   - [terminal_owner_live_test.go:81](/Volumes/TestScratch/review-checkouts/07953dfb79ac5bb6/cmd/internal/workbenchshortcut/terminal_owner_live_test.go:81) exercises real exec metadata, usable shell input, preservation of another owner and unknown registry bytes, and exact process cleanup.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   All seven reviewed packages passed: workbenchshortcut, termcmd, layoutcmd, clipcmd, couchcmd, artifactpath, and repolint.
+
+   Native conformance passed with `TMPDIR=/tmp`; the inherited temporary path initially exceeded the Unix socket limit. The passing run confirmed unchanged PID/birth identity and stale startup metadata, changed shell argv, removed ownership, preserved control ownership, and verified cleanup.
+
+   Tests cover replacement during inspection, unavailable reads, diagnostic failure, duplicate-PID inspection bounds, stale metadata, and cached-routing refusal. BR-1 requires no runtime mutation test because its correction only reconciles documentation.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared owner adapter covers every production registry reader.
+   - **ARCH-PURE — pass:** argv and role decisions remain pure; process and storage IO use explicit seams.
+   - **ARCH-PURPOSE — pass:** ownership filtering covers cached routing as well as metadata-based paths.
+   - **ARCH-MOCK — pass:** stateful process doubles exercise exec, replacement, and unreadability; live conformance checks native behavior.
+   - **ARCH-CONSTRAINTS — pass:** counters enforce per-unique-PID bounds without process-table enumeration.
+   - **ARCH-SECURE — pass:** typed argv inspection avoids command-string heuristics; diagnostics omit raw argv and errors.
+   - **ARCH-ORDER — pass:** observations retain no authoritative state between reads; controlled callbacks exercise identity changes during inspection.
+   - **ARCH-FUNERAL — pass:** no new durable artifact family; diagnostics reuse managed retention and native fixtures verify cleanup.
+   - **ARCH-EVOLVE — pass:** registry format remains unchanged, with unknown bytes preserved.
+
+   Atlas documents the ownership contract and lint rule. No new command, flag, configuration key, or usage step requires a README addition.
+
+7. **Plan revision recommendations:** None. Existing revisions explain the shared runtime wiring and approved compatibility policy.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"b61faeaa-46fd-4d3f-ba04-6273a4afa1b6","repository":"github.com/xianxu/pair","issue_id":"000731","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/07953dfb79ac5bb6","reviewed_head":"f09a8ae39e6891f9c3882967d48c2de3e83da2ae","slot":"pair:6","requested_at":"2026-10-21T04:11:05.869467Z"},"phase":"finished","pid":37355,"started_at":"2026-10-21T04:11:05.967209Z","finished_at":"2026-10-21T04:14:36.679396Z","session_id":"01a15ca7-d8c7-7101-8fb2-fef5affa86f9","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.534207667s
+head: "f09a8ae39e6891f9c3882967d48c2de3e83da2ae"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
