@@ -22,5 +22,15 @@
     "lane_claim_retained": false,
     "events": 409,
     "required_cases": 28
+  },
+  {
+    "nonce": "d1259cdad7fe14c2e0984efb009ed8ef",
+    "head": "3b665b4be9dec6ac03691502d3ddad5983d0b9b7",
+    "exit_code": 1,
+    "lane_claim_retained": false,
+    "expected_failure": true,
+    "input_mutation": "m2-known-bad-input.diff",
+    "observed_refusal": "conformance skip: TestLiveConsoleNvimPreservesContentAndChrome",
+    "events": 6
   }
 ]
