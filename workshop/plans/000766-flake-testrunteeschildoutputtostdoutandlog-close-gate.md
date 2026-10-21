@@ -141,6 +141,83 @@ rounds:
       isolation: fenced
       reviewed: db18fd758708d3245a884c0b833948a181c46007
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: b2af8ed2-16e0-405d-b664-fe956dd245c7
+            repository: github.com/xianxu/pair
+            issue_id: "000766"
+            recipe: fix-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/0be09c17e6dd9a45
+            reviewed_head: 1dfc48d5c387881c796f19a784ff7cd72178405a
+            slot: pair:4
+            requested_at: "2026-10-21T12:55:32.71034Z"
+          phase: finished
+          pid: 71708
+          started_at: "2026-10-21T12:55:32.809523Z"
+          finished_at: "2026-10-21T12:56:34.756453Z"
+          session_id: 01a15e87-fdc8-71b0-a9d3-38e6264c11c3
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: 1dfc48d5c387881c796f19a784ff7cd72178405a
+        tracker_head: bc31ec2aff128db0a8f13c1ba7ddaf0e3d2c41e2
+        branch_point: 42bfa761430c9e27413135f2453997b1350b4907
+        since: "2026-10-21T04:13:24-07:00"
+        until: "2026-10-21T05:21:43-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-21T04:13:24-07:00"
+              end: "2026-10-21T05:21:43-07:00"
+              began: "2026-10-21T04:13:24-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot4/pair
+        sources:
+            - harness: codex
+              id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 274c2c00f0ef544da3da0cbe17d10726863000640d324129ee1bfc0b53eca378
+              started: "2026-10-20T17:08:30.923Z"
+              spawned: false
+              bytes: 26246862
+              windows:
+                - start: "2026-10-21T04:13:24-07:00"
+                  end: "2026-10-21T05:21:43-07:00"
+        queue_waits:
+            - attempt_id: 2f50987f350712f204f7dcb148a43db0
+              slot: pair:4
+              record_digest: 10ed2d6fb6a0badf202a49096748b1cd552ac147969ee63ef00dae8d0bbaaf43
+              start: "2026-10-21T11:26:57.678267Z"
+              end: "2026-10-21T11:59:59.421095Z"
+              queue_seconds: 1981.742828
+              raw_seconds: 1981.742828
+              exact: true
+        cuts:
+            - dispatched: "2026-10-21T04:27:31-07:00"
+              finalized: "2026-10-21T04:29:05-07:00"
+              finalizing: false
+            - dispatched: "2026-10-21T04:30:38-07:00"
+              finalized: "2026-10-21T04:32:05-07:00"
+              finalizing: true
+      "n": 3
+      timestamp: "2026-10-21T05:56:35-07:00"
+      dispatched: "2026-10-21T05:55:31-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 1dfc48d5c387881c796f19a784ff7cd72178405a
+      blocked: false
 ---
 
 # Gate ledger — pair#766 (boundary-review)
@@ -160,6 +237,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - BR-1 — addressed — Verified the authoritative #768 card at tracker revision bdfb85c886b569c58c30cd66f09dc724fc365675 and published details at base revision 9c62cdcd9aa48f42961563ad1f3f296d03187ad7. Both explicitly retain production output preservation under #768; the added #766 Revisions passage accurately describes that handoff. This correction changes documentation only.
+
+## Round 3 — 2026-10-21T05:56:35-07:00 (codex) — passed
 
 ## Open findings
 

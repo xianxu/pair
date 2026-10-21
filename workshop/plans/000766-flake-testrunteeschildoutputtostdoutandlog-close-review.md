@@ -161,3 +161,75 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T05:56:35-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 766 — flake: TestRunTeesChildOutputToStdoutAndLog |
+| repo | pair |
+| issue file | workshop/issues/000766-flake-testrunteeschildoutputtostdoutandlog.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 74c39ddff75d86fe9b33af1be5a9f9360117629b..1dfc48d5c387881c796f19a784ff7cd72178405a |
+| command | sdlc close --issue 766 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T05:56:35-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff correctly resolves the inventory conflict: it removes the retired aggregate and adds the two missing reader certificates. All 469 audit entries retain identical dispositions and hashes. Review records introduce no behavior change, and the added Revisions passage records integration without expanding scope. BR-1 remains addressed.
+
+```findings
+{}
+```
+
+Done-when: current — existing acceptance criteria still cover the fixture repair; certificate migration preserves its verification under main’s existing inventory convention.
+
+1. **Strengths**
+
+   - Both new certificates preserve their original `local_or_literal_fixture` classification and match their source hashes.
+   - Exhaustive comparison confirms no missing, additional, or changed audit entries.
+   - The conflict resolution follows the certificate layout already documented in README and atlas.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage:** `make test-affected-inventory` and pinned-range `git diff --check` passed. No executable implementation changed; the full suite was not rerun.
+
+6. **Architecture:**
+
+   - **ARCH-DRY: pass** — removes the obsolete aggregate without creating a parallel inventory.
+   - **ARCH-PURE: pass** — introduces no business logic or IO coupling.
+   - **ARCH-PURPOSE: pass** — preserves both issue-specific audits while respecting main’s migration.
+   - **ARCH-EVOLVE: pass** — all existing audit values survive the resolution unchanged; no reader or schema changes occur.
+
+   No new architectural or user-facing surface requires further atlas or README updates.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"b2af8ed2-16e0-405d-b664-fe956dd245c7","repository":"github.com/xianxu/pair","issue_id":"000766","recipe":"fix-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/0be09c17e6dd9a45","reviewed_head":"1dfc48d5c387881c796f19a784ff7cd72178405a","slot":"pair:4","requested_at":"2026-10-21T12:55:32.71034Z"},"phase":"finished","pid":71708,"started_at":"2026-10-21T12:55:32.809523Z","finished_at":"2026-10-21T12:56:34.756453Z","session_id":"01a15e87-fdc8-71b0-a9d3-38e6264c11c3","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.649187666s
+head: "1dfc48d5c387881c796f19a784ff7cd72178405a"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
