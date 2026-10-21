@@ -1,8 +1,8 @@
 ---
 id: 000742
-status: codecomplete
+status: done
 created: 2026-10-20
-updated: 2026-10-20
+updated: 2026-10-21
 estimate_hours:
 github_issue:
 started: 2026-10-20T12:53:03-07:00
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: e767dc64d4e161b2539ae87251d276872b9a7bee
         evidence_commit: f91119135c857a50ac87ebada22ae59e61c8c783
+        landed_commit: c72583a87f41de17736593c035a7d4f12a6519a4
 ---
 
 # Couch interrupt refuses a working Codex turn
