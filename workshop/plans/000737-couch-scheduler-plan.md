@@ -498,3 +498,5 @@ Parent integration tests also preserve an older passive declaration through manu
 ### 2026-10-21 — TL acceptance sequencing
 
 The live day uses ops#1's hourly `scripts/scheduled/testscratch`, after it lands on ops main. pair:0 remains staged for #742 until that lands after #747. Then finish the M2 boundary review and recorded suite, integrate current main, and run `sdlc stage --build`; TL coordinates one operator Couch restart onto that build. No independent restart or early :0 change. The day-long acceptance remains required before issue close. Exit-10/timeout qualification must use a disposable fleet or manual scratch hub, never a synthetic task on ops main. Proposed to TL: after pair#744's harness lands, scratch Go tasks qualify due exit-10 authenticated notice/history and timeout history/process-group cleanup in an isolated native fleet.
+
+TL subsequently approved that exact pair#744 scratch-fleet qualification: one authenticated notice plus terminal history for exit 10; timeout history plus process-group cleanup for the deadline case. Nothing is added to ops main; the live day remains testscratch.
