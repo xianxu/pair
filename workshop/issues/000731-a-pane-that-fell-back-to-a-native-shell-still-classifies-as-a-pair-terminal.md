@@ -7,7 +7,7 @@ created: 2026-10-20
 updated: 2026-10-21
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'a42e324296a47ffefdb9a15bc0b24b9512cf443c' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'ee54cc904bcd4a60d2d8f8ef17a116e1db5791d1' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T20:32:00-07:00
 claimant:
     operator: Xian Xu
@@ -17,7 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
-actual_hours: 2.28
+actual_hours: 1.22
 ---
 
 # A pane that fell back to a native shell still classifies as a Pair terminal
