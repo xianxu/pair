@@ -119,3 +119,39 @@ func TestTerminalRepliesNeverBecomeAuthoredInput(t *testing.T) {
 		t.Fatal(s)
 	}
 }
+
+func TestZellijVersionReplyNeverBecomesAuthoredInput(t *testing.T) {
+	reply := "\x1bP>|Zellij(4501)\x1b\\"
+	for _, agent := range []string{"claude", "codex"} {
+		t.Run(agent, func(t *testing.T) {
+			for split := 0; split <= len(reply); split++ {
+				s := AgentState{Agent: agent, Phase: Idle}
+				for _, part := range []string{reply[:split], reply[split:]} {
+					var accepted []string
+					var err error
+					s, accepted, err = ReduceAgent(s, []byte(part))
+					if err != nil || len(accepted) != 0 || s.Draft != "" {
+						t.Fatalf("split %d: terminal reply became input: %+v %#v %v", split, s, accepted, err)
+					}
+				}
+				if s.Escape != "" {
+					t.Fatalf("split %d: completed reply remains pending: %+v", split, s)
+				}
+				s, accepted, err := ReduceAgent(s, []byte("ordinary message\r"))
+				if err != nil || !reflect.DeepEqual(accepted, []string{"ordinary message"}) || s.Accepted != 1 || s.Draft != "" {
+					t.Fatalf("split %d: authored message lost: %+v %#v %v", split, s, accepted, err)
+				}
+			}
+		})
+	}
+}
+
+func TestDCSReplyRemainsBounded(t *testing.T) {
+	for _, agent := range []string{"claude", "codex"} {
+		before := AgentState{Agent: agent, Phase: Idle}
+		after, accepted, err := ReduceAgent(before, []byte("\x1bP"+strings.Repeat("x", MaxEscapeBytes)))
+		if err == nil || after != before || len(accepted) != 0 {
+			t.Fatalf("%s: unbounded control string admitted: %+v %#v %v", agent, after, accepted, err)
+		}
+	}
+}

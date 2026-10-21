@@ -419,8 +419,6 @@
       "cmd/internal/termcmd/recovery_test.go": "ede2b28e39bffdc2081442bf8af21cc3dda80265b3aac0c505ea8c557a086b88",
       "cmd/internal/termcmd/strip_test.go": "706d1f78fbe856ed2dececd91565fb833e92a7aafcf919f21a368ebf25c1fa5f",
       "cmd/internal/termcmd/writer_test.go": "43355691243d784157686def48d93cdefe26f8f5d8bb571cff43214461fbe071",
-      "cmd/internal/testcouch/agentfixture/model_test.go": "33cdee84e4a157b98ce79bb0adb581f5f14eba29bfc36422283b7a35df87121e",
-      "cmd/internal/testcouch/agentfixture/run_test.go": "42b28fd91c106ee750f175c0131423ab609da8024ed2d5c753fd4a682199b383",
       "cmd/internal/testcouch/binaries_test.go": "b07d47bc9bc63c20757de764da994025fcf898697db3d950a0dc93dd9b9515d2",
       "cmd/internal/testcouch/fleet_test.go": "502ded274a02edcb84a57758d1cc1b0e1dfd354c7567cdd85521687efc56d344",
       "cmd/internal/testcouch/provision_test.go": "135abbb0ea802cf1c7c73a7a9a0c2ca4eada0013883460009e7962e4e8cb16b2",
@@ -472,7 +470,9 @@
       "internal/repolint/repository_contract_test.go": "e87090a967b7390f69ca3ebfe44df639463c48f225fc2884a71c36680838f2db",
       "internal/testoracle/run_test.go": "1818f066cd7ced34648679d42604536da83642c7a40d1800e8ae1f9cfc6a3d36",
       "probes/zellijcalls/main_test.go": "382f78fb48fc70e5b522a8e5e38bc0fc8da82ebc75ec9c2f367c9ddfa7417693",
-      "probes/zellijprobe/reporoot_test.go": "de13aef753c6fc958f01e4a04ec9963672a58a76f5e63d08d6e2ea32de825018"
+      "probes/zellijprobe/reporoot_test.go": "de13aef753c6fc958f01e4a04ec9963672a58a76f5e63d08d6e2ea32de825018",
+      "cmd/internal/testcouch/agentfixture/model_test.go": "15c01e25c83df4d3281a02a7755270a8c287f28906379ff2fbe37c246a9d3907",
+      "cmd/internal/testcouch/agentfixture/run_test.go": "87595a5bcacbd1cbcf382fb1ee9e7aa42f5db04c9f36072934a5f4f6b2ca4dac"
     }
   }
 }

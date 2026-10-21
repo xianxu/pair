@@ -112,6 +112,20 @@ Full-flow change-code passed at c23595e57 after PQ-1 transport isolation correct
 ### 2026-10-20
 
 
+### 2026-10-20 — landed #747 integration and native delivery failure
+
+Integrated landed main containing PR498 into clean head 4ef7301c08078dee9c7a50f1f5dc0a0552c3c448. Native qualification brought up a genuine Claude steward plus all three workers, then timed out waiting for ordinary receipt submission. Full log /Volumes/TestScratch/tmp/pair-slot5/pair-744-native-k8fbki9y/native.log, SHA256786982c4cbaa630a33122cb2690725153fbb5a5502f7c2a95831257ff938847b. All fixture composers held the Zellij DCS version-reply payload >|Zellij(4501); receipt remained queued for an empty composer. Repeated status queries consumed the fixture's ordinary mailbox budget, which incorrectly blocked Stop too. No matrix pass or close claimed. TL2f8fbc72 approved regression-backed corrections and requires identifying the query producer before classifying the DCS defect as fixture-only.
+
+A temporary exact-owner/generation recovery probe reconciled only run82d0fab94f658ef6d73cd5acd1a8110a. The native test returned PASS0.66s with Phasequiescent and zero owned resources; diagnostic root /Volumes/TestScratch/pc-3751337488 is retained. Probe removed immediately afterward. No retained live test fleet or new native run pending.
+
+### 2026-10-20 — native negotiation provenance
+
+The pinned Claude composer capture itself contains XTVERSION ESC[>0q at byte59, emitted once by agentfixture/run.go before deterministic repaint. Native Zellij returns its solicited DCS response through the same pane PTY to the fixture. Every retained raw scrollback contains one such query; no Pair/Couch-originated or replayed query is demonstrated. The fixture parser dropped the DCS opener but treated its payload as authored input. Whole/every-two-piece-split regressions now prove both personalities ignore the completed bounded control string and still accept a following ordinary message. This is fixture negotiation handling; no independent product bug is established by this evidence.
+
+### 2026-10-20 — negotiation and shutdown regressions verified
+
+DCS whole/split framing and counted shutdown regressions pass, including 128 completed ordinary requests followed by Stop, sixteen stale shutdowns without actor exit or retained-result growth, and unrelated pending-result absence. Shutdown owns one reserved request/result slot; the ordinary quota stays128. Independent full fixture race run passed agentfixture2.229s and native entrypoint3.442s. Audited model_test.go and run_test.go changes read only their existing private fixtures; refreshed those two local_or_literal_fixture hashes individually. Next: commit these corrections and rerun native matrix from that clean head.
+
 ## Revisions
 
 ### 2026-10-20 — #747 native-proof sequencing

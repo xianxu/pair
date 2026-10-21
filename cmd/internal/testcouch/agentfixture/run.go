@@ -267,6 +267,33 @@ func Run(parent context.Context, c Config, stdin io.Reader, stdout io.Writer) (r
 				return err
 			}
 		case <-ticker.C:
+			// Shutdown has one reserved slot and is serviced before ordinary work.
+			// Keep it generation-fenced even when the ordinary mailbox is full.
+			shutdown, stopErr := readBounded(filepath.Join(c.ControlDir, shutdownFile), MaxCommandBytes)
+			if stopErr == nil {
+				command, err := DecodeCommand(shutdown)
+				if err != nil {
+					return err
+				}
+				result := Result{ID: command.ID}
+				if command.Kind != Stop || command.PID != os.Getpid() || command.RunID != c.RunID {
+					result.ExitCode = -1
+					result.Error = "fixture shutdown incarnation/kind mismatch"
+				}
+				if err := os.Remove(filepath.Join(c.ControlDir, shutdownFile)); err != nil {
+					return err
+				}
+				if err := atomicJSON(filepath.Join(c.ControlDir, shutdownResultFile), result, false); err != nil {
+					return err
+				}
+				if result.Error != "" {
+					continue
+				}
+				return nil
+			}
+			if !errors.Is(stopErr, os.ErrNotExist) {
+				return stopErr
+			}
 			entries, e := os.ReadDir(filepath.Join(c.ControlDir, "commands"))
 			if e != nil {
 				return e

@@ -43,8 +43,10 @@ func ReduceAgent(before AgentState, input []byte) (AgentState, []string, error) 
 			if len(s.Escape) > MaxEscapeBytes {
 				return before, nil, errors.New("terminal escape exceeds limit")
 			}
-			if strings.HasPrefix(s.Escape, "\x1b]") {
-				if b == 7 || strings.HasSuffix(s.Escape, "\x1b\\") {
+			if strings.HasPrefix(s.Escape, "\x1b]") || strings.HasPrefix(s.Escape, "\x1bP") {
+				// OSC and DCS replies are control strings, including native
+				// Zellij XTVERSION. Their ST may arrive in a later read.
+				if (s.Escape[1] == ']' && b == 7) || strings.HasSuffix(s.Escape, "\x1b\\") {
 					s.Escape = ""
 				}
 				continue
@@ -64,7 +66,7 @@ func ReduceAgent(before AgentState, input []byte) (AgentState, []string, error) 
 				s.Escape = ""
 				continue
 			}
-			if len(s.Escape) == 2 && b != '[' && b != ']' {
+			if len(s.Escape) == 2 && b != '[' && b != ']' && b != 'P' {
 				s.Escape = ""
 			}
 			continue

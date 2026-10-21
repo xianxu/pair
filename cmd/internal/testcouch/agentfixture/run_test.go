@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -286,5 +288,110 @@ func TestRunRepaintsAfterNativeResize(t *testing.T) {
 	cancel()
 	if err := <-done; err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestRunStopAfterOrdinaryRequestQuotaExhausted(t *testing.T) {
+	config := fixtureConfig(t, "claude")
+	input, writer := io.Pipe()
+	defer writer.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- Run(ctx, config, input, io.Discard); close(done) }()
+	t.Cleanup(func() {
+		cancel()
+		_ = writer.Close()
+		select {
+		case <-done:
+		case <-time.After(4 * time.Second):
+			t.Error("fixture failed to join during test cleanup")
+		}
+	})
+	waitFixture(t, func() bool { _, e := os.Stat(filepath.Join(config.ControlDir, "ready.json")); return e == nil })
+	for i := 0; i < MaxRequests; i++ {
+		if err := WriteCommand(config.ControlDir, Command{ID: fmt.Sprintf("ordinary-%03d", i), Kind: SetState, State: Idle}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	waitFixture(t, func() bool {
+		entries, e := os.ReadDir(filepath.Join(config.ControlDir, "results"))
+		return e == nil && len(entries) == MaxRequests
+	})
+	if err := WriteCommand(config.ControlDir, Command{ID: "overflow", Kind: SetState, State: Idle}); err == nil {
+		t.Fatal("ordinary request accepted after quota exhaustion")
+	}
+	if err := WriteCommand(config.ControlDir, Command{ID: "shutdown", Kind: Stop}); err != nil {
+		t.Fatalf("shutdown refused after %d completed ordinary requests: %v", MaxRequests, err)
+	}
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(4 * time.Second):
+		t.Fatal("shutdown failed to join fixture")
+	}
+	result, err := ReadResult(config.ControlDir, "shutdown")
+	if err != nil || result.Error != "" || result.ExitCode != 0 {
+		t.Fatalf("shutdown result=%+v error=%v", result, err)
+	}
+	entries, err := os.ReadDir(filepath.Join(config.ControlDir, "results"))
+	if err != nil || len(entries) != MaxRequests {
+		t.Fatalf("result count=%d error=%v", len(entries), err)
+	}
+}
+
+func TestRunStaleShutdownDoesNotStopCurrentActor(t *testing.T) {
+	config := fixtureConfig(t, "claude")
+	input, writer := io.Pipe()
+	defer writer.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- Run(ctx, config, input, io.Discard); close(done) }()
+	t.Cleanup(func() {
+		cancel()
+		_ = writer.Close()
+		select {
+		case <-done:
+		case <-time.After(4 * time.Second):
+			t.Error("fixture failed to join during test cleanup")
+		}
+	})
+	waitFixture(t, func() bool { _, e := os.Stat(filepath.Join(config.ControlDir, "ready.json")); return e == nil })
+	for i := 0; i < 16; i++ {
+		id := fmt.Sprintf("stale-stop-%02d", i)
+		if err := WriteCommand(config.ControlDir, Command{ID: id, Kind: Stop, PID: os.Getpid() + 100000}); err != nil {
+			t.Fatal(err)
+		}
+		var stale Result
+		waitFixture(t, func() bool { var err error; stale, err = ReadResult(config.ControlDir, id); return err == nil })
+		if !strings.Contains(stale.Error, "incarnation") {
+			t.Fatalf("stale shutdown result=%+v", stale)
+		}
+		if _, err := ReadResult(config.ControlDir, "ordinary-pending"); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("reserved result poisoned ordinary pending observation: %v", err)
+		}
+		select {
+		case err := <-done:
+			t.Fatalf("stale shutdown stopped current actor: %v", err)
+		default:
+		}
+	}
+	entries, err := os.ReadDir(filepath.Join(config.ControlDir, "results"))
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("stale shutdown grew ordinary results: count=%d error=%v", len(entries), err)
+	}
+	if err := WriteCommand(config.ControlDir, Command{ID: "current-stop", Kind: Stop}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(4 * time.Second):
+		t.Fatal("current shutdown did not join")
 	}
 }

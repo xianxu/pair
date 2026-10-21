@@ -21,6 +21,10 @@ const MaxRequests = 128
 const MaxConcurrentCLI = 4
 const OwnershipFile = ".testcouch-owner"
 
+// A reserved single-slot shutdown channel cannot be exhausted by ordinary work.
+const shutdownFile = "shutdown.json"
+const shutdownResultFile = "shutdown-result.json"
+
 type CommandKind string
 
 const (
@@ -120,6 +124,9 @@ func WriteCommand(control string, c Command) error {
 		}
 	}
 	for _, sub := range []string{"commands", "results"} {
+		if c.Kind == Stop {
+			break
+		}
 		entries, err := os.ReadDir(filepath.Join(control, sub))
 		if err != nil {
 			return err
@@ -150,6 +157,9 @@ func WriteCommand(control string, c Command) error {
 	if c.RunID == "" {
 		c.RunID = ready.RunID
 	}
+	if c.Kind == Stop {
+		return atomicJSON(filepath.Join(control, shutdownFile), c, true)
+	}
 	return atomicJSON(filepath.Join(control, "commands", c.ID+".json"), c, true)
 }
 func ReadResult(control, id string) (Result, error) {
@@ -158,6 +168,10 @@ func ReadResult(control, id string) (Result, error) {
 		return result, errors.New("invalid fixture request ID")
 	}
 	raw, err := readBounded(filepath.Join(control, "results", id+".json"), 12*MaxOutputBytes+4096)
+	reserved := errors.Is(err, os.ErrNotExist)
+	if reserved {
+		raw, err = readBounded(filepath.Join(control, shutdownResultFile), 4096)
+	}
 	if err != nil {
 		return result, err
 	}
@@ -165,6 +179,9 @@ func ReadResult(control, id string) (Result, error) {
 		return result, err
 	}
 	if result.ID != id {
+		if reserved {
+			return Result{}, os.ErrNotExist
+		}
 		return Result{}, errors.New("fixture result correlation mismatch")
 	}
 	return result, nil
