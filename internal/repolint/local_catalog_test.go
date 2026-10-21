@@ -12,6 +12,11 @@ import (
 // Copy the shared catalog before extending it: Pair rules must not alter the
 // upstream catalog used by sleepSites to identify existing sleep debt.
 var pairCatalog = append(append([]golint.Rule(nil), golint.Catalog...), golint.Rule{
+	Name:     "additive-pty-environment",
+	Incident: "pair#759",
+	Message:  "ptychild.Start adds Env to the live environment; use testpair.ApplyEnvironment before launching an isolated fixture, not Environment alone",
+	Match:    matchAdditivePTYEnvironment,
+}, golint.Rule{
 	Name:     "remote-console-reset",
 	Incident: "pair#759",
 	Message:  "remote reset authority belongs only to the owned host KeyPress branch; do not export, alias or invoke it from IPC, paste or another caller",

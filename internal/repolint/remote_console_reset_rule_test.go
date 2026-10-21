@@ -42,6 +42,12 @@ func matchRemoteConsoleReset(file *ast.File) []ast.Node {
 				allowed = file.Name.Name == "couchtty" && owner("routeInputEvent", "Console") && remoteResetInKeyCase(stack)
 			case "SetRemoteSession":
 				allowed = file.Name.Name == "couchcmd" && owner("configureRemoteSession", "messageService")
+			case "NewSupervisor":
+				qualifier, ok := selector.X.(*ast.Ident)
+				if !ok || !pairImportIs(file, qualifier.Name, "github.com/xianxu/pair/cmd/internal/remotesession") {
+					return true
+				}
+				allowed = file.Name.Name == "couchcmd" && owner("configureRemoteSession", "messageService")
 			case "consoleReset":
 				allowed = file.Name.Name == "remotesession" && (owner("consoleReset", "Supervisor") || owner("NewSupervisor", ""))
 			default:
@@ -54,6 +60,23 @@ func matchRemoteConsoleReset(file *ast.File) []ast.Node {
 		})
 	}
 	return matches
+}
+
+func pairImportIs(file *ast.File, qualifier, path string) bool {
+	for _, imp := range file.Imports {
+		value, err := strconv.Unquote(imp.Path.Value)
+		if err != nil || value != path {
+			continue
+		}
+		name := path[strings.LastIndex(path, "/")+1:]
+		if imp.Name != nil {
+			name = imp.Name.Name
+		}
+		if name == qualifier {
+			return true
+		}
+	}
+	return false
 }
 func remoteResetReceiver(fn *ast.FuncDecl) string {
 	if fn.Recv == nil || len(fn.Recv.List) != 1 {

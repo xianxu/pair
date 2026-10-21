@@ -166,3 +166,121 @@ Transport qualification reproduced an inherited reopen race (2–4 connector ope
 Console tests send actual host CSI-u Ctrl+Alt+R through the decoder; paste/reply/release/repeat cannot reset. A real broadcast viewer verifies capability text absent from broadcast/chrome while the operator sees it. QR encoding is cached per link/geometry with1024-byte input/185×93-cell bounds and text fallback. The remote-console-reset AST rule rejects foreign call/alias, key routing from paste and asynchronous/returned closure escape; only a real testing entrypoint receives a test exemption. Tracked Go catalog PASS3.599s after staging the new files. Shipped skill reference retrieval failed before the new command/policy section and succeeds after it; help/skill cost consistency also went RED then PASS0.362s.
 
 M2 is still open: complete integration/ownership review, actual broker-key negative path, broader regression checks and milestone-close remain. M3 document dispatch/provenance/audit integration follows. No public tunnel, Cloudflare account/network changes, phone scan or real-nvim drill.
+
+
+### 2026-10-21 — portable fixture inherited-writer incident and read-only audit
+
+The initial portable broker/wrapper test incorrectly supplied an empty-base testpair.Environment slice to additive ptychild.Start; this overlays rather than replaces the parent environment. Two helpers reached the live-PID refusal before native-agent launch/peer runtime/ready/PID publication or signals, but earlier retention/diagnostic metadata opens had already used the inherited live identity. This was a fixture isolation defect. No live file was removed, restored or hand-edited. TL581d8392 requested the exact write list and cleanup proposals before any live removal. The read-only report below was sent to the hub and proposes preserving all live files, leaving benign stale helper entries to existing normal identity-checked pruning. No automatic live cleanup is authorized. Private test resume waits on completion of that audit, not a blind passing retry.
+
+The class fix is direct testpair.ApplyEnvironment before the additive launcher, a new additive-pty-environment catalog rule (RED missing matcher, then GREEN including late/conditional clearing), plus an actual child poisoned-identity regression. The latter is still pending. The local rule does not pretend to be whole-program dataflow: it detects the direct Environment+ptychild.Start misuse; runtime assertions defend actual child authority.
+
+```text
+#759 inherited writer audit (READ ONLY)
+Observed UTC: 2026-10-21T18:50:17.363282+00:00
+
+Scope: first two fixture runs used testpair.Environment with additive ptychild.Start; inherited Pair identity survived. No baseline hashes exist for these runs. A later ApplyEnvironment run finished privately before the stop message; no test is running now.
+
+Inherited authority:
+PAIR_DATA_DIR=/Users/xianxu/.local/share/pair/repos/50f39cf60172c338
+PAIR_TAG=1-pair-59
+PAIR_SCOPE_KEY=50f39cf60172c338
+PAIR_RETENTION_START_ID=2a40c2b999f854dfda330076f15bad3f
+COUCH_LIFETIME_LEASE=
+PAIR_WRAP_LOG=
+
+Completed source path before refusal:
+1. wrapcmd.Run -> storagegc.AcquireSelectedProcess: acquire role wrapper under selected live owner; save process registration, optional AcknowledgeStart. Deferred ReleaseProcess removes only exact returned ID on normal return. Outer fixture Child.Close can terminate helper before release; current dead helper registration remains.
+2. lifetimelease.HoldFromEnv: no COUCH_LIFETIME_LEASE, so no lease open.
+3. selfBuildIdentity reads test executable; resolvePaths computes live tag paths.
+4. adapt.OpenBuffered and openWrapEvents -> diagnosticlog.Open: shared diagnostic metadata/registry opens; writer list saved BEFORE later content recovery/append checks. Buffered start/defer-close records are attempted, but stable content below shows no fixture append.
+5. No --scrollback-log argument: inherited events pathname alone never opens/truncates raw/events. No PAIR_WRAP_LOG, so no debug writer. Agent is claude, so codex lifecycle journal branch not entered.
+6. notifytransport.Start: shared namespace lock may be opened; clearDeadBinding reads live pair-wrap-pid and checks live PID46104, refuses before socket publication, PID replacement, native child spawn, peer runtime, agent ready, or watcher.
+
+Observed exact paths:
+/Users/xianxu/.local/share/pair/.retention/owners/b4bbee2925a959ce3f900b7b69204977151e4ed74688b382542a0576c8e3038a.json
+  mode=-rw------- size=1011 mtime_ns=1792608343449030049 sha256=bc24b74bc62c1334a3337cf75bf5b3f7874e0dc4f524d88caa6275050961f52e
+/Users/xianxu/.local/share/pair/.retention/coordinator.lock
+  mode=-rw------- size=0 mtime_ns=1789355372583740462 sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+/Users/xianxu/.local/share/pair/repos/50f39cf60172c338/pair-wrap-pid-1-pair-59
+  mode=-rw------- size=5 mtime_ns=1792519273559846131 sha256=5df79e007f23c9e1898413fd69da82ac47ea647d54356474ddf799e6daeb9d21
+/Users/xianxu/.local/share/pair/repos/50f39cf60172c338/adapt-1-pair-59.jsonl
+  ABSENT
+/Users/xianxu/.local/share/pair/repos/50f39cf60172c338/adapt-1-pair-59.jsonl.pair-diagnostics.lock
+  mode=-rw------- size=0 mtime_ns=1792262574590950449 sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+/Users/xianxu/.local/share/pair/repos/50f39cf60172c338/adapt-1-pair-59.jsonl.pair-diagnostics/state.json
+  mode=-rw------- size=647 mtime_ns=1792608343477095325 sha256=105f832cf7ef0356130a10a634e1e54d759192c08ade887a499c2908f960a72d
+/Users/xianxu/.local/share/pair/repos/50f39cf60172c338/adapt-1-pair-59.jsonl.pair-diagnostics/.append-reservation
+  mode=-rw------- size=428 mtime_ns=1792354738758113171 sha256=5ee194523cfaa6b8fcd341e99eb5951350ff6c8057ad555a8bf1c5dc65261b3f
+/Users/xianxu/.local/share/pair/repos/50f39cf60172c338/adapt-1-pair-59.jsonl.pair-diagnostics/.metadata-publication
+  ABSENT
+/Users/xianxu/.local/share/pair/.retention/diagnostics/c9ae1881130a8876949ac66fdc44890dccbad5e0465d21e73944429f391f94f4.json
+  mode=-rw------- size=315 mtime_ns=1792262574603057694 sha256=b18069f615b95e7a2882e6843d5d092a2a57315ad48701ab66cc61826922e627
+/Users/xianxu/.local/share/pair/repos/50f39cf60172c338/wrap-events-1-pair-59.jsonl
+  mode=-rw------- size=215250 mtime_ns=1792451118573808616 sha256=6ab8eccab32a55afa7386460e2da973eb40b402645680106c1ad86bee5fdcc57
+/Users/xianxu/.local/share/pair/repos/50f39cf60172c338/wrap-events-1-pair-59.jsonl.pair-diagnostics.lock
+  mode=-rw------- size=0 mtime_ns=1792262574721873665 sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+/Users/xianxu/.local/share/pair/repos/50f39cf60172c338/wrap-events-1-pair-59.jsonl.pair-diagnostics/state.json
+  mode=-rw------- size=564 mtime_ns=1792608343486745432 sha256=2b87fe2206cf49d421f3399908cc9af090f9780265db863705ce2005f6581edb
+/Users/xianxu/.local/share/pair/repos/50f39cf60172c338/wrap-events-1-pair-59.jsonl.pair-diagnostics/.append-reservation
+  mode=-rw------- size=429 mtime_ns=1792451118573384530 sha256=39fa079ea2649e3a4568973cb5b1d4af2cec1804c75d587656786ca229fdb69b
+/Users/xianxu/.local/share/pair/repos/50f39cf60172c338/wrap-events-1-pair-59.jsonl.pair-diagnostics/.metadata-publication
+  ABSENT
+/Users/xianxu/.local/share/pair/.retention/diagnostics/607da4b23b0451f5f4559cde53bf863141e48f1039c1ed58e99a162236829c37.json
+  mode=-rw------- size=333 mtime_ns=1792262574728782876 sha256=0c9697603e17bb53cee585792b0ae27a2da7f039d710c65c711d8c6391840c09
+/Users/xianxu/.local/share/pair/.retention/diagnostics/registry.lock
+  mode=-rw------- size=0 mtime_ns=1789521610017501600 sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+/tmp/pair-notify-501/lock
+  mode=-rw------- size=0 mtime_ns=1792517306129354172 sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+
+Relevant parsed current metadata (no transcript bodies):
+Owner process registrations: [{"id": "d1bbccb1c0eedb485afd17110d447f47", "process": {"birth": "darwin:1792519270.611533", "pid": 44457}, "role": "launcher"}, {"id": "795dd63a5a97cae38ad62d8875c7e18f", "process": {"birth": "darwin:1792519273.410231", "pid": 46120}, "role": "draft-editor"}, {"id": "461d99c359ec1b367b122e9c52564b1f", "process": {"birth": "darwin:1792519273.384564", "pid": 46104}, "role": "wrapper"}, {"id": "2935cc1f3313367c28d5e79863a63339", "process": {"birth": "darwin:1792519274.311823", "pid": 46502}, "role": "session-watch"}, {"id": "9e30ef8507d1ed61448eef67a037fb42", "process": {"birth": "darwin:1792597478.880490", "pid": 12920}, "role": "launcher"}, {"id": "d6806df75e3fec46cb9861ecf9e788f3", "process": {"birth": "darwin:1792608343.433006", "pid": 10438}, "role": "wrapper"}]
+Owner start reservations: []
+/Users/xianxu/.local/share/pair/repos/50f39cf60172c338/adapt-1-pair-59.jsonl
+  writers=[{"birth": "darwin:1792519273.384564", "pid": 46104, "root": "/Users/xianxu/.local/share/pair"}, {"birth": "darwin:1792519274.311823", "pid": 46502, "root": "/Users/xianxu/.local/share/pair"}, {"birth": "darwin:1792608343.433006", "pid": 10438, "root": "/Users/xianxu/.local/share/pair"}]
+  current={"identity": {"device": 16777232, "inode": 770640032}, "last_write": "2026-10-18T20:18:58.758028Z", "mod_time": "2026-10-18T13:18:58.758183296-07:00", "name": "", "size": 33962, "start": "2026-10-17T18:42:54.654134Z"}
+  pending=null creating=null deleting=null appending=null
+/Users/xianxu/.local/share/pair/repos/50f39cf60172c338/wrap-events-1-pair-59.jsonl
+  writers=[{"birth": "darwin:1792519273.384564", "pid": 46104, "root": "/Users/xianxu/.local/share/pair"}, {"birth": "darwin:1792608343.433006", "pid": 10438, "root": "/Users/xianxu/.local/share/pair"}]
+  current={"identity": {"device": 16777232, "inode": 832108174}, "last_write": "2026-10-19T23:05:18.571856Z", "mod_time": "2026-10-19T16:05:18.573808616-07:00", "name": "", "size": 215250, "start": "2026-10-19T22:56:21.090975Z"}
+  pending=null creating=null deleting=null appending=null
+
+Confirmed effects and limits:
+CONFIRMED: dead helper PID10438 birth darwin:1792608343.433006 is retained as wrapper registration id d6806df75e3fec46cb9861ecf9e788f3 in owner metadata and as diagnostic writer in both state.json files. ps -p10438 produced no process. These metadata files have current attempt-time mtimes. Existing owner IDs/PIDs are preserved in parsed snapshot above. No baseline means removal of any previously dead writer cannot be ruled out: diagnostic Open prunes definitelyDead entries while adding its own.
+NO EVIDENCE of successful content append: adapt stable path absent; wrap-events stable path has old mtime and no TestRemoteKeys record in its complete215250-byte content. Both current last_write times, reservation mtimes, diagnostic registry entries and existing segment mtimes predate attempt. No pending/creating/deleting/appending transactions remain. This does not establish byte-for-byte baseline equality.
+GC: AcquireRoleProcessTarget/ReleaseProcess do not invoke Sweep or RecoverUse; they load/save the selected owner. diagnostic Open may recover metadata-publication and pending generation transactions if present; no pending transaction is observed now and no pre-run snapshot exists, so a stale publication-stage cleanup cannot be disproved. Native gcruntime.StartAfterReady is AFTER notification refusal and was not reached. No collection/deletion of live transcript artifacts is evidenced.
+
+Proposed cleanup per changed path (NO cleanup performed):
+/Users/xianxu/.local/share/pair/.retention/owners/b4bbee2925a959ce3f900b7b69204977151e4ed74688b382542a0576c8e3038a.json: prefer leaving benign dead helper registration for normal identity-checked storagegc.Coordinator.RecoverUse. Existing exact ReleaseProcess(owner,id) exists, but do not invoke without TL approval and codec/unknown-field preservation check. Never replace raw owner JSON; preserve every real process ID and unknown field.
+/Users/xianxu/.local/share/pair/repos/50f39cf60172c338/adapt-1-pair-59.jsonl.pair-diagnostics/state.json and /Users/xianxu/.local/share/pair/repos/50f39cf60172c338/wrap-events-1-pair-59.jsonl.pair-diagnostics/state.json: leave dead helper writer for normal diagnosticlog.Open definitelyDead pruning; no public exact foreign-writer prune API found. Writer.Close deliberately retains process registrations across handles and exec; it does not prune them. Do not hand-edit shared JSON or touch real PID46104/46502.
+Stable logs, .append-reservation, .metadata-publication (absent), registry entries, coordinator/diagnostic/notify locks, PID binding: leave unchanged; no evidence justifies cleanup.
+
+Current fixture correction: direct testpair.ApplyEnvironment precedes additive Child.Start, with explicit disposable HOME/workspace/namespace and no inherited PAIR_TAG,PAIR_DATA_DIR,PAIR_RETENTION_START_ID or COUCH_LIFETIME_LEASE. Root is adding a catalog guard; poisoned inherited identity regression still pending. No more fixture run until parent disposition.
+
+Additional writer-authority interpretation:
+diagnostic diskState.Writers is a collection, not a single owner. Open removes entries only when definitelyDead, then appends its own Registration if absent; PID46104 remains present in BOTH diagnostic states, PID46502 remains in adapt. The helper appended independent PID10438 writer authority; it did not replace the live PID46104 entry. Writer limit1024 is checked only after building the list; observed counts are3 adapt,2 wrap-events, so the extra entry is not near that ceiling. Unknown/unreadable identities stay (definitelyDead requires positive gone or a confirmed birth mismatch).
+Observed generation/capacity fields below describe NOW, not proven unchanged fields:
+/Users/xianxu/.local/share/pair/repos/50f39cf60172c338/adapt-1-pair-59.jsonl.pair-diagnostics/state.json
+  {"appending": null, "creating": null, "current": {"identity": {"device": 16777232, "inode": 770640032}, "last_write": "2026-10-18T20:18:58.758028Z", "mod_time": "2026-10-18T13:18:58.758183296-07:00", "name": "", "size": 33962, "start": "2026-10-17T18:42:54.654134Z"}, "deleting": null, "limits": {"max_bytes": 67108864, "max_generations": 3}, "pending": null, "version": 2}
+/Users/xianxu/.local/share/pair/repos/50f39cf60172c338/wrap-events-1-pair-59.jsonl.pair-diagnostics/state.json
+  {"appending": null, "creating": null, "current": {"identity": {"device": 16777232, "inode": 832108174}, "last_write": "2026-10-19T23:05:18.571856Z", "mod_time": "2026-10-19T16:05:18.573808616-07:00", "name": "", "size": 215250, "start": "2026-10-19T22:56:21.090975Z"}, "deleting": null, "limits": {"max_bytes": 67108864, "max_generations": 3}, "pending": null, "version": 2}
+No sealed field exists in the parsed current diskState. Current generation names are empty (stable pathname generation); observed current identities/sizes/last_write are historical and match the reported old stable wrap-events metadata, while adapt stable path is absent. No pending transition exists now. Without pre-run snapshots I cannot rule out prior metadata recovery or stale-writer pruning, nor assert the limits/generation fields were untouched. Added stale diagnostic writer can conservatively delay any operation requiring complete writer proof until normal positive-dead pruning; it cannot displace the retained real writer, and no new generation/seal/capacity exhaustion is evidenced.
+Existing prune semantics inspected: storagegc.Coordinator.RecoverUse removes registrations only with ProcessDead, keeps unknown/live, and may also recover use/start intents; it is broader than exact helper cleanup. storagegc.Coordinator.ReleaseProcess removes exact ID only; no unknown-field preservation guarantee was established here. diagnosticlog.Open prunes definitelyDead before registering itself; Writer.Close marks the handle closed and joins maintenance, deliberately retaining all process registrations across handles/exec. Therefore leave these benign dead entries for normal supported cleanup unless TL explicitly approves a separately reviewed exact operation.
+```
+
+Audit clarification before checkpoint: diagnostic writers are a collection, not an exclusive replacement. The helper added its own entry and retained real PID46104 (and46502 in adapt); no pending generation transaction is observed. No pre-run baseline exists, so unknown earlier dead-writer pruning or stage recovery cannot be ruled out. Recommendation remains no live deletion or raw JSON rewrite. Full report was too large for Couch’s8192-byte message limit; concise exact-path disposition sent separately.
+
+
+### 2026-10-21 — fixture incident disposition
+
+TL69a142dc-87db-47a9-8fdb-263be6e98a4c (submitted receipt verified) approved leaving all live files untouched: the three dead-PID10438 registrations are retired only by normal identity-checked retention recovery / diagnostic positive-dead pruning. No hand edits and no ReleaseProcess. Preserve the audit file and this Log as evidence. Resume only private fixture work with the actual child poisoned-identity regression, then continue M2.
+
+
+### 2026-10-21 — private fixture class fix and held M2 checkpoint
+
+Corrected portable boundary test PASS normal0.658s and race1.982s. It uses the actual broker, Console operation queue, executeAgentDrive, Unix RemoteEndpoint, wrapcmd.Run and PTY, with retained Claude usage-panel captures as the only agent behavior. One positively admitted Esc reaches the private agent (exact1-byte receipt); its reset-shaped CSI-u output reaches the display without clearing the real Supervisor's killed latch or invoking the host reset closure. Unsupported Ctrl+Alt+R steps and raw escape text are refused; actual host-key reset remains separately positive in couchtty. The helper validates poisoned inherited Pair identity/retention/diagnostic fields are absent before any production wrapper startup, and the poisoned path stays empty. Direct ApplyEnvironment precedes the additive launcher; owned wrapper SIGTERM/join precedes Console teardown. Initial contaminated attempts remain the incident above, not a passing retry reclassified as isolated.
+
+Added counted8/16 lifecycle cycles: one open/close per epoch, maximum one active connector, no double close. Cleanup error returns uncertainty and blocks reset/on. The first uncertainty-fixture assertion incorrectly counted confirmed closes as attempted closes; replaced it with the fake's explicit CloseStarted rendezvous. Supervisor race PASS1.370s. Added a seeded foreign reset caller through the actual repository scanner, foreign imported constructor rejection, and explicit late/conditional environment-clearing negatives. After staging all new files, catalog PASS4.636s. Broader checks: entire couchtty PASS45.329s; entire couchmessage PASS28.031s; targeted couchcmd compatibility/help/CLI PASS0.586s; wrapper-drive regressions PASS0.493s. Final artifactpath rerun follows the newly tracked fixture.
+
+M2 remains unclosed. Hold the #759 branch and all milestone gates while the TL's separately authorized current-main detach profile runs in private scratch. No detach investigation artifact/code rides this issue branch; the separate profile has its own scratch evidence and hub reporting. No public remote exposure, Cloudflare account/configuration change, live phone scan or real-nvim drill.
+
+Final artifactpath PASS17.079s after staging the boundary fixture. Preserved the exact audit report as a durable plan sidecar at workshop/plans/000759-remote-security-plan.side/inherited-writer-audit.txt as well as the Log snapshot, so a scratch-disk restart cannot erase the evidence. No live cleanup.

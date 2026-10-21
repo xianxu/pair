@@ -3,6 +3,7 @@ package remotesession
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -166,5 +167,54 @@ func TestSupervisorResetThenKillWritesInAcceptedOrder(t *testing.T) {
 	phase, _ := s.store.Snapshot()
 	if phase != latchKilled || s.Snapshot().Status != "disabled" {
 		t.Fatal("late reset overrode kill")
+	}
+}
+
+func TestSupervisorOneTransportPerEpochAtNAnd2N(t *testing.T) {
+	for _, n := range []int{8, 16} {
+		t.Run(fmt.Sprint(n), func(t *testing.T) {
+			tunnel := &broadcast.FakeTunnel{}
+			s, _ := supervisorFixture(t, tunnel)
+			for range n {
+				if err := s.On(); err != nil {
+					t.Fatal(err)
+				}
+				awaitRemote(t, s, "on")
+				s.Off()
+				awaitRemote(t, s, "off")
+			}
+			stats := tunnel.Stats()
+			if stats.Opens != n || stats.Closes != n || stats.DoubleCloses != 0 || stats.MaxOpen != 1 {
+				t.Fatalf("N=%d stats=%+v", n, stats)
+			}
+		})
+	}
+}
+func TestSupervisorCleanupErrorNeverResets(t *testing.T) {
+	closeStarted := make(chan struct{}, 1)
+	tunnel := &broadcast.FakeTunnel{CloseError: errors.New("cleanup uncertain"), CloseStarted: closeStarted}
+	host, err := broadcast.NewProtectedHost(&broadcast.FakeProtectedTunnel{FakeTunnel: tunnel})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, reset, err := NewSupervisor(SupervisorConfig{Namespace: t.TempDir(), Origin: "https://remote.example.com", Host: host})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.On(); err != nil {
+		t.Fatal(err)
+	}
+	awaitRemote(t, s, "on")
+	s.Kill()
+	if err := s.Join(t.Context()); err == nil {
+		t.Fatal("uncertain cleanup claimed confirmed")
+	}
+	if s.Snapshot().Status != "blocked" || s.Snapshot().CanReset || reset() == nil || s.On() == nil {
+		t.Fatal("uncertain cleanup regained authority")
+	}
+	select {
+	case <-closeStarted:
+	default:
+		t.Fatal("cleanup did not attempt handle close")
 	}
 }
