@@ -87,11 +87,17 @@ type schedulerNoticeFake struct {
 }
 
 func (n *schedulerNoticeFake) Binding(string) (json.RawMessage, bool) { return nil, false }
-func (n *schedulerNoticeFake) Admit(_ context.Context, _ string, _ json.RawMessage, id, _ string) (string, error) {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	n.admissions = append(n.admissions, id)
-	return "submitted", nil
+func (n *schedulerNoticeFake) Admit(ctx context.Context, _ string, _ json.RawMessage, id, _ string, authority scheduleNoticeAuthority) (string, error) {
+	send := func() (string, error) {
+		n.mu.Lock()
+		defer n.mu.Unlock()
+		n.admissions = append(n.admissions, id)
+		return "submitted", nil
+	}
+	if authority != nil {
+		return authority(ctx, send)
+	}
+	return send()
 }
 func (n *schedulerNoticeFake) Observe(string) (string, bool, bool) { return "", false, false }
 func (n *schedulerNoticeFake) count() int                          { n.mu.Lock(); defer n.mu.Unlock(); return len(n.admissions) }

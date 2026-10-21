@@ -149,6 +149,12 @@ func Advance(state TaskState, event Event) (TaskState, []Effect) {
 	if validateTaskPhase(next) != nil {
 		return state, nil
 	}
+	// Known facts may be replaced from canonical history, but additive summary
+	// metadata belongs to the persisted occurrence. Keep it on every same-ID
+	// rewrite; metadata from another schema (such as a run record) stays there.
+	if state.Last != nil && next.Last != nil && state.Last != next.Last && state.Last.ID == next.Last.ID {
+		next.Last.Unknown = strictjson.MergeRaw(state.Last.Unknown, next.Last.Unknown)
+	}
 	return next, effects
 }
 
@@ -157,12 +163,10 @@ func advance(state TaskState, event Event) (TaskState, []Effect) {
 		return state, nil
 	}
 	if state.Active != nil {
-		copy := *state.Active
-		state.Active = &copy
+		state.Active = cloneAttempt(state.Active)
 	}
 	if state.Last != nil {
-		copy := *state.Last
-		state.Last = &copy
+		state.Last = cloneRunSummary(state.Last)
 	}
 	if event.Kind == CatalogChanged {
 		d := event.Declaration
@@ -573,18 +577,20 @@ func validFrozenNotice(id, body string, binding json.RawMessage) bool {
 	return err == nil && len(fields) > 0
 }
 
+func cloneAttempt(source *Attempt) *Attempt {
+	result := *source
+	result.NoticeBinding = append(json.RawMessage(nil), source.NoticeBinding...)
+	result.Unknown = strictjson.CloneRaw(source.Unknown)
+	return &result
+}
+
 func cloneRunSummary(source *RunSummary) *RunSummary {
 	result := *source
 	if source.Exit != nil {
 		code := *source.Exit
 		result.Exit = &code
 	}
-	if source.Unknown != nil {
-		result.Unknown = make(map[string]json.RawMessage, len(source.Unknown))
-		for key, value := range source.Unknown {
-			result.Unknown[key] = append(json.RawMessage(nil), value...)
-		}
-	}
+	result.Unknown = strictjson.CloneRaw(source.Unknown)
 	return &result
 }
 

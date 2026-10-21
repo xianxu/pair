@@ -34,7 +34,7 @@ func TestScheduleNoticeAuthenticatedExactSystemDelivery(t *testing.T) {
 	if err := json.Unmarshal(frozen, &got); err != nil || got != hub {
 		t.Fatal(got, err)
 	}
-	notice, err := n.Admit(t.Context(), "/repo1", frozen, "schedule-stable-id", "Task due at 2026-10-21T00:00:00Z")
+	notice, err := n.Admit(t.Context(), "/repo1", frozen, "schedule-stable-id", "Task due at 2026-10-21T00:00:00Z", nil)
 	if err != nil || notice != "" {
 		t.Fatal(notice, err)
 	}
@@ -55,7 +55,7 @@ func TestScheduleNoticeAuthenticatedExactSystemDelivery(t *testing.T) {
 		notice, known, active := n.Observe(m.ID)
 		return notice == "submitted" && known && !active
 	})
-	if notice, err := n.Admit(t.Context(), "/repo1", frozen, m.ID, m.Body); err != nil || notice != "submitted" {
+	if notice, err := n.Admit(t.Context(), "/repo1", frozen, m.ID, m.Body, nil); err != nil || notice != "submitted" {
 		t.Fatal(notice, err)
 	}
 	if ep.deliveries() != 1 {
@@ -80,7 +80,7 @@ func TestScheduleNoticeFrozenReplacementAndOffline(t *testing.T) {
 	r.wrapper(next)
 	r.waitConnected(next, true)
 	r.waitConnected(old, false)
-	if notice, err := n.Admit(t.Context(), "/repo1", frozen, "stale-notice", "due"); notice != "dropped: hub changed" || err != nil {
+	if notice, err := n.Admit(t.Context(), "/repo1", frozen, "stale-notice", "due", nil); notice != "dropped: hub changed" || err != nil {
 		t.Fatal(notice, err)
 	}
 	if ep.deliveries() != 0 || nextEP.deliveries() != 0 {
@@ -95,7 +95,7 @@ func TestScheduleNoticeFrozenReplacementAndOffline(t *testing.T) {
 	if _, ok := n.Binding("/repo1"); ok {
 		t.Fatal("offline binding")
 	}
-	if notice, err := n.Admit(t.Context(), "/repo1", current, "offline-notice", "due"); notice != "dropped: hub unavailable" || err != nil {
+	if notice, err := n.Admit(t.Context(), "/repo1", current, "offline-notice", "due", nil); notice != "dropped: hub unavailable" || err != nil {
 		t.Fatal(notice, err)
 	}
 }
@@ -121,7 +121,7 @@ func TestScheduleNoticeTerminalReceiptWaitsForActiveCallback(t *testing.T) {
 	}()
 	r, n, hub := scheduleNoticeRig(t, ep)
 	frozen, _ := n.Binding("/repo1")
-	if notice, err := n.Admit(t.Context(), "/repo1", frozen, "active-notice", "due"); notice != "" || err != nil {
+	if notice, err := n.Admit(t.Context(), "/repo1", frozen, "active-notice", "due", nil); notice != "" || err != nil {
 		t.Fatal(notice, err)
 	}
 	select {
@@ -166,7 +166,7 @@ func TestScheduleNoticeBusyHubRetainsCanonicalQueue(t *testing.T) {
 	ep := &lifecycleBusyEndpoint{controlledEndpoint: newControlledEndpoint(), busy: true, reserved: make(chan struct{}, 1)}
 	r, n, _ := scheduleNoticeRig(t, ep)
 	frozen, _ := n.Binding("/repo1")
-	if notice, err := n.Admit(t.Context(), "/repo1", frozen, "busy-notice", "due"); notice != "" || err != nil {
+	if notice, err := n.Admit(t.Context(), "/repo1", frozen, "busy-notice", "due", nil); notice != "" || err != nil {
 		t.Fatal(notice, err)
 	}
 	receipt, known, _ := r.s.broker.ReceiptSnapshot("busy-notice")
@@ -211,7 +211,7 @@ func TestScheduleNoticeCancelledGateHasNoAdmission(t *testing.T) {
 	defer release()
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	notice, err := n.Admit(ctx, "/repo1", frozen, "gate-notice", "due")
+	notice, err := n.Admit(ctx, "/repo1", frozen, "gate-notice", "due", nil)
 	if notice != "not-admitted" || !errors.Is(err, context.Canceled) {
 		t.Fatal(notice, err)
 	}
@@ -232,7 +232,7 @@ func TestScheduleNoticeCanonicalRefusalIsKnownNonAdmission(t *testing.T) {
 	frozen, _ := n.Binding("/repo1")
 	ctx, cancel := context.WithTimeout(t.Context(), 40*time.Millisecond)
 	defer cancel()
-	notice, err := n.Admit(ctx, "/repo1", frozen, "refused-notice", "due")
+	notice, err := n.Admit(ctx, "/repo1", frozen, "refused-notice", "due", nil)
 	var refused *couchmessage.RefusedError
 	if notice != "not-admitted" || !errors.As(err, &refused) || ep.deliveries() != 0 {
 		t.Fatal(notice, err)

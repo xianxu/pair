@@ -261,7 +261,7 @@ func TestScheduleDamagedManualHistoryRefusesOnlyItsTask(t *testing.T) {
 						// Same-ID history is canonical; timestamps are not identity guards.
 						seenBad = row.State == "waiting" && row.Active == nil && row.Last != nil && row.Last.StartedAt.Equal(record.StartedAt)
 					} else {
-						seenBad = row.State == "refused" && row.Active != nil && row.Active.Stage == "uncertain" && strings.Contains(row.Reason, "manual result")
+						seenBad = row.State == "refused" && row.Active != nil && row.Active.Stage == state.Active.Stage && strings.Contains(row.Reason, "history manual recovery")
 					}
 				} else if row.Hub == roots[1] {
 					seenGood = row.State == "waiting"

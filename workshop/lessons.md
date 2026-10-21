@@ -2497,3 +2497,7 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 
 - #737 M2 transaction audit: a stable run ID does not make immutable publication retryable when the occurrence facts themselves were never committed. Establish the durable reservation or passive summary before creating its run bundle; retain the declaration revision and do not overwrite the sole facts before history is durable. Fault the first ledger commit after a published run, then retry at a different clock instant.
+
+- #737 BR-9: Authorization before a blocking gate does not authorize the later effect. Acquire the outer gate first, then retain current authority through bounded broker admission; one persisted deadline spans every wait. Test cancellation and expiry while the gate is held, plus independent authority progress and deadline release during a blocked broker reservation.
+- #737 BR-10: Isolate history failure at every consumer, not only discovery or one recovery helper. Preserve the task's authority and pending completion evidence, show its named quarantine, and exercise startup, passive repair, completion, cancellation and finalization beside a healthy second hub. Shared authority-store failures remain global.
+- #737 BR-11: Additive-format compatibility spans same-identity rewrites, not only codec round trips. Preserve unknown members centrally across recovery/completion/notice transitions, separate schema namespaces, and detach nested maps/raw bytes in both reducer results and published snapshots.

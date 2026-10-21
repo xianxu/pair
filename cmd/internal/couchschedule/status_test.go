@@ -2,6 +2,7 @@ package couchschedule
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -215,5 +216,40 @@ func TestStatusFrozenBindingBufferDetached(t *testing.T) {
 	state.Active.NoticeBinding[0] = '['
 	if string(snapshot.Tasks[0].Active.NoticeBinding) != original {
 		t.Fatal("source binding mutation changed published status")
+	}
+}
+
+func TestStatusUnknownMetadataDetached(t *testing.T) {
+	for _, field := range []string{"summary", "attempt"} {
+		t.Run(field, func(t *testing.T) {
+			state := phaseStateFixture(t, "scheduled", "delivery")
+			original := json.RawMessage(`{ "nested" : [{"value":42}] }`)
+			unknown := map[string]json.RawMessage{"future": original}
+			if field == "summary" {
+				state.Last.Unknown = unknown
+			} else {
+				state.Active.Unknown = unknown
+			}
+			snapshot := BuildStatus([]TaskState{state}, "UTC")
+			copied := snapshot.Tasks[0].Last.Unknown
+			if field == "attempt" {
+				copied = snapshot.Tasks[0].Active.Unknown
+			}
+			copied["future"][0] = '['
+			copied["added"] = json.RawMessage(`true`)
+			if string(unknown["future"]) != `{ "nested" : [{"value":42}] }` || unknown["added"] != nil {
+				t.Fatal("status metadata mutation changed authoritative state")
+			}
+			snapshot = BuildStatus([]TaskState{state}, "UTC")
+			copied = snapshot.Tasks[0].Last.Unknown
+			if field == "attempt" {
+				copied = snapshot.Tasks[0].Active.Unknown
+			}
+			unknown["future"][0] = '['
+			unknown["added"] = json.RawMessage(`true`)
+			if string(copied["future"]) != `{ "nested" : [{"value":42}] }` || copied["added"] != nil {
+				t.Fatal("source metadata mutation changed published status")
+			}
+		})
 	}
 }

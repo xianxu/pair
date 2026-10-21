@@ -41,6 +41,30 @@ func (s StateStore) View(ctx context.Context) (Ledger, error) {
 	return readLedger(ctx, dir)
 }
 
+// WithAuthority holds the existing writer lock through a bounded external
+// admission. The callback only reads this snapshot; it must not call Update.
+// This deliberately does not rewrite state after an external effect.
+func (s StateStore) WithAuthority(ctx context.Context, inspect func(Ledger) error) error {
+	if inspect == nil {
+		return errors.New("schedule authority requires callback")
+	}
+	dir, err := openScheduleDir(ctx, s.Dir, true)
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+	release, err := lockSchedule(ctx, dir)
+	if err != nil {
+		return err
+	}
+	defer release()
+	state, err := readLedger(ctx, dir)
+	if err != nil {
+		return err
+	}
+	return inspect(state)
+}
+
 func readLedger(ctx context.Context, dir *os.File) (Ledger, error) {
 	raw, err := readScheduleFile(ctx, dir, "state.json", maxScheduleStateBytes)
 	if errors.Is(err, os.ErrNotExist) {

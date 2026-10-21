@@ -19,7 +19,7 @@ import (
 type offlineScheduleNotices struct{}
 
 func (offlineScheduleNotices) Binding(string) (json.RawMessage, bool) { return nil, false }
-func (offlineScheduleNotices) Admit(context.Context, string, json.RawMessage, string, string) (string, error) {
+func (offlineScheduleNotices) Admit(context.Context, string, json.RawMessage, string, string, scheduleNoticeAuthority) (string, error) {
 	panic("offline admission")
 }
 func (offlineScheduleNotices) Observe(string) (string, bool, bool) { panic("offline observation") }

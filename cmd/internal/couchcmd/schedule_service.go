@@ -3,8 +3,6 @@ package couchcmd
 import (
 	"context"
 	"errors"
-	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -14,6 +12,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchschedule"
 	"github.com/xianxu/pair/cmd/internal/operationalrun"
 	"github.com/xianxu/pair/cmd/internal/procutil"
+	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
 
 // scheduleCoordinator owns catalog refresh and immutable status publication.
@@ -59,11 +58,13 @@ func (c *scheduleCoordinator) view() couchschedule.StatusSnapshot {
 	for i := range copy.Tasks {
 		if copy.Tasks[i].Active != nil {
 			active := *copy.Tasks[i].Active
+			active.Unknown = strictjson.CloneRaw(active.Unknown)
 			active.NoticeBinding = append(active.NoticeBinding[:0:0], active.NoticeBinding...)
 			copy.Tasks[i].Active = &active
 		}
 		if copy.Tasks[i].Last != nil {
 			last := *copy.Tasks[i].Last
+			last.Unknown = strictjson.CloneRaw(last.Unknown)
 			if last.Exit != nil {
 				code := *last.Exit
 				last.Exit = &code
@@ -91,7 +92,7 @@ func (c *scheduleCoordinator) refresh(ctx context.Context) error {
 	}
 	now := c.now()
 	var stopped []couchschedule.Attempt
-	localRefusals := map[string]string{}
+	localRefusals := map[string]error{}
 	err = c.store.Update(ctx, func(ledger *couchschedule.Ledger) error {
 		for key, state := range ledger.Tasks {
 			if state.Active == nil || state.Active.Source != "manual" {
@@ -114,15 +115,10 @@ func (c *scheduleCoordinator) refresh(ctx context.Context) error {
 			}
 			// A wholly absent bundle has no completion evidence. A missing member
 			// of an existing bundle is damage, not permission to forget authority.
-			missing := errors.Is(err, os.ErrNotExist)
-			if missing {
-				_, statErr := os.Lstat(filepath.Join(filepath.Dir(c.store.Dir), "schedule", state.Key.HubID(), state.Key.Task, "runs", a.ID))
-				if !errors.Is(statErr, os.ErrNotExist) {
-					missing = false
-				}
-			}
-			if err != nil && !missing && !errors.Is(err, operationalrun.ErrBusy) {
-				localRefusals[key] = fmt.Sprintf("manual result recovery: %v", err)
+			missing := missingRunBundle(filepath.Dir(c.store.Dir), operationalrun.RunKey{Hub: state.Key.HubID(), Task: state.Key.Task, ID: a.ID}, err)
+			if err != nil && !missing {
+				localRefusals[key] = err
+				continue
 			} else {
 				// Empty/mismatching native identity is inconclusive about work-group
 				// lifetime. Retain unknown authority rather than clearing/replaying.
@@ -140,14 +136,26 @@ func (c *scheduleCoordinator) refresh(ctx context.Context) error {
 			key := declaration.Key.ID()
 			seen[key] = true
 			prior := ledger.Tasks[key]
+			if err := localRefusals[key]; err != nil {
+				if err := quarantineTaskHistory(ctx, ledger, prior, "manual recovery", err); err != nil {
+					return err
+				}
+				continue
+			}
+			if err := retainedHistoryQuarantine(ctx, filepath.Dir(c.store.Dir), prior); err != nil {
+				if err := quarantineTaskHistory(ctx, ledger, prior, "catalogue recovery", err); err != nil {
+					return err
+				}
+				continue
+			}
 			state, effects := couchschedule.Advance(prior, couchschedule.Event{Kind: couchschedule.CatalogChanged, At: now, Declaration: &declaration, Location: c.location})
 			if err := c.finalizeCancelledScheduleNotice(ctx, prior, state); err != nil {
-				return err
+				if err := quarantineTaskHistory(ctx, ledger, prior, "catalogue cancellation", err); err != nil {
+					return err
+				}
+				continue
 			}
-			if reason := localRefusals[key]; reason != "" {
-				state.Allowed = false
-				state.Refusal = reason
-			}
+
 			ledger.Tasks[key] = state
 			for _, effect := range effects {
 				if effect.Kind == couchschedule.StopTask && state.Active != nil {
@@ -160,18 +168,30 @@ func (c *scheduleCoordinator) refresh(ctx context.Context) error {
 				continue
 			}
 			prior := state
+			if err := localRefusals[key]; err != nil {
+				if err := quarantineTaskHistory(ctx, ledger, prior, "manual recovery", err); err != nil {
+					return err
+				}
+				continue
+			}
+			if err := retainedHistoryQuarantine(ctx, filepath.Dir(c.store.Dir), prior); err != nil {
+				if err := quarantineTaskHistory(ctx, ledger, prior, "catalogue recovery", err); err != nil {
+					return err
+				}
+				continue
+			}
 			state, effects := couchschedule.Advance(state, couchschedule.Event{Kind: couchschedule.CatalogChanged, At: now, Location: c.location})
 			if err := c.finalizeCancelledScheduleNotice(ctx, prior, state); err != nil {
-				return err
+				if err := quarantineTaskHistory(ctx, ledger, prior, "catalogue cancellation", err); err != nil {
+					return err
+				}
+				continue
 			}
 			if state.Active == nil && !state.RemovedAt.IsZero() && !now.Before(state.RemovedAt.Add(30*24*time.Hour)) && (state.Last == nil || (state.Last.Outcome != "unknown" && state.Last.Outcome != "uncertain")) {
 				delete(ledger.Tasks, key)
 				continue
 			}
-			if reason := localRefusals[key]; reason != "" {
-				state.Allowed = false
-				state.Refusal = reason
-			}
+
 			ledger.Tasks[key] = state
 			for _, effect := range effects {
 				if effect.Kind == couchschedule.StopTask && state.Active != nil {

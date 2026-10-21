@@ -18,9 +18,12 @@ type resultScheduleNotices struct{ admissions int }
 func (*resultScheduleNotices) Binding(string) (json.RawMessage, bool) {
 	return json.RawMessage(`{"slot":"hub"}`), true
 }
-func (n *resultScheduleNotices) Admit(context.Context, string, json.RawMessage, string, string) (string, error) {
-	n.admissions++
-	return "submitted", nil
+func (n *resultScheduleNotices) Admit(ctx context.Context, _ string, _ json.RawMessage, _ string, _ string, authority scheduleNoticeAuthority) (string, error) {
+	send := func() (string, error) { n.admissions++; return "submitted", nil }
+	if authority != nil {
+		return authority(ctx, send)
+	}
+	return send()
 }
 func (*resultScheduleNotices) Observe(string) (string, bool, bool) { return "submitted", true, false }
 
@@ -121,7 +124,7 @@ func TestScheduleResultSavedExecutionAdoptedWithoutReplay(t *testing.T) {
 func TestScheduleResultNoticeFinalizeSurvivesLedgerWriteFailure(t *testing.T) {
 	a, fake, s, notices := scheduledDeliveryFixture(t)
 	at := s.Active
-	notice, err := notices.Admit(t.Context(), s.Key.Hub, at.NoticeBinding, at.ReceiptID, at.NoticeBody)
+	notice, err := notices.Admit(t.Context(), s.Key.Hub, at.NoticeBinding, at.ReceiptID, at.NoticeBody, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,11 +202,11 @@ func TestScheduleResultMismatchedCompletionRefusesAdoption(t *testing.T) {
 			key := s.Key.ID()
 			a.inFlight[key] = true
 			a.results <- scheduleJobResult{job: scheduleJob{state: s}}
-			if err := a.step(t.Context()); err == nil {
-				t.Fatal("mismatched completion adopted")
+			if err := a.step(t.Context()); err != nil {
+				t.Fatalf("task-local mismatch blocked scheduler: %v", err)
 			}
 			next := readScheduledResultState(t, a, s.Key)
-			if next.Active == nil || next.Active.Stage != "running" || next.Active.ID != s.Active.ID || next.Last != nil {
+			if next.Allowed || next.Refusal == "" || next.Active == nil || next.Active.Stage != "running" || next.Active.ID != s.Active.ID || next.Last != nil {
 				t.Fatalf("mismatched evidence changed authority: %+v", next)
 			}
 			if _, ok := a.pending[key]; !ok || !a.inFlight[key] {

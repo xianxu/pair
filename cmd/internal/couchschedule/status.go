@@ -51,18 +51,11 @@ func BuildStatus(states []TaskState, location string) StatusSnapshot {
 			row.EntryID = s.Key.ID()
 		}
 		if s.Last != nil {
-			copy := *s.Last
-			if copy.Exit != nil {
-				code := *copy.Exit
-				copy.Exit = &code
-			}
-			row.Last = &copy
+			row.Last = cloneRunSummary(s.Last)
 		}
 		if s.Active != nil {
-			copy := *s.Active
-			copy.NoticeBinding = append(copy.NoticeBinding[:0:0], copy.NoticeBinding...)
-			row.Active = &copy
-			row.State = copy.Stage
+			row.Active = cloneAttempt(s.Active)
+			row.State = row.Active.Stage
 		}
 		if !s.Allowed {
 			row.State = "refused"

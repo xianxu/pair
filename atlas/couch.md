@@ -141,6 +141,11 @@ heavy scripts cannot occupy notification admission. The next wake is the earlier
 due time, notice observation or admission deadline; results wake it directly.
 `schedule_notice.go` uses the existing authenticated system mailbox and canonical
 receipts, with exact hub-binding checks under the ownership effect gate.
+Notice admission has one lock order: hub-effect gate, then scheduler authority.
+The persisted notice deadline bounds both waits and broker admission; final
+tuple validation and SendSystem share the authority lifetime, so catalogue
+cancellation cannot commit between them. Gate waiters hold no scheduler
+authority. Accepted/uncertain effects retain their canonical receipt semantics.
 
 Due reservation or consumption commits before its run bundle is published.
 Passive summaries retain their declaration revision, and automatic/manual
@@ -151,6 +156,11 @@ immutable. A failed ledger acknowledgment therefore cannot manufacture new run
 facts or repeat execution. Unknown classification commits before its protected
 history is published. Terminal passive history proofs are bounded to current
 tasks and never become cached pending-notice authority.
+Task-history damage quarantines the named task in status while retaining its
+authority and pending completion facts; healthy hubs continue. Shared ledger
+failures still block scheduling. Recovery preserves additive summary metadata
+for the same occurrence, separately from operational-record metadata, and
+published status snapshots detach nested unknown fields.
 
 Execution records and output are immutable. Notice delivery alone moves from
 pending to submitted, expired, dropped with a reason, or uncertain under the run

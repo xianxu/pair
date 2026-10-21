@@ -99,6 +99,7 @@ func (r *manualTaskRunner) run(ctx context.Context, root, task string, args []st
 	store := couchschedule.StateStore{Dir: filepath.Join(r.namespace, "schedule"), BeforePersist: r.beforePersist}
 	key := declaration.Key
 	var reserved couchschedule.TaskState
+	var historyErr error
 	err = store.Update(ctx, func(ledger *couchschedule.Ledger) error {
 		state := ledger.Tasks[key.ID()]
 		if state.Active != nil {
@@ -106,7 +107,8 @@ func (r *manualTaskRunner) run(ctx context.Context, root, task string, args []st
 		}
 		state, _ = couchschedule.Advance(state, couchschedule.Event{Kind: couchschedule.CatalogChanged, At: now, Declaration: &declaration, Location: time.Local})
 		if err := ensurePassiveRun(ctx, r.namespace, state); err != nil {
-			return err
+			historyErr = err
+			return quarantineTaskHistory(ctx, ledger, state, "manual replacement", err)
 		}
 		state, _ = couchschedule.Advance(state, couchschedule.Event{Kind: couchschedule.ManualRequested, At: now, RunID: id})
 		if state.Active == nil || state.Active.ID != id {
@@ -118,6 +120,9 @@ func (r *manualTaskRunner) run(ctx context.Context, root, task string, args []st
 	})
 	if err != nil {
 		return zero, err
+	}
+	if historyErr != nil {
+		return zero, historyErr
 	}
 	return r.runReserved(ctx, reserved, args)
 }
@@ -170,12 +175,12 @@ func (r *manualTaskRunner) runReserved(ctx context.Context, reserved couchschedu
 			return r.adoptStoredOccurrence(viewCtx, store, reserved, record, output)
 		}
 		if !errors.Is(readErr, os.ErrNotExist) {
-			return zero, fmt.Errorf("existing run evidence unavailable; no replay: %w", readErr)
+			return zero, persistTaskHistoryFailure(viewCtx, store, reserved.Key, "execution evidence", fmt.Errorf("existing run evidence unavailable; no replay: %w", readErr))
 		}
 		switch history.(type) {
 		case operationalrun.Store, *operationalrun.Store:
-			if _, statErr := os.Lstat(filepath.Join(r.namespace, "schedule", runKey.Hub, runKey.Task, "runs", runKey.ID)); !errors.Is(statErr, os.ErrNotExist) {
-				return zero, errors.New("existing run bundle is damaged; no replay")
+			if !missingRunBundle(r.namespace, runKey, readErr) {
+				return zero, persistTaskHistoryFailure(viewCtx, store, reserved.Key, "execution evidence", errors.New("existing run bundle is damaged; no replay"))
 			}
 		}
 	}
@@ -273,7 +278,7 @@ func (r *manualTaskRunner) runReserved(ctx context.Context, reserved couchschedu
 		canonical, output, err := publishRunOccurrence(cleanup, history, record, result.Output)
 		if err != nil {
 			_ = r.markUnknown(cleanup, store, reserved)
-			return result, fmt.Errorf("run result publication uncertain; no replay: %w", err)
+			return result, persistTaskHistoryFailure(cleanup, store, reserved.Key, "completion publication", fmt.Errorf("run result publication uncertain; no replay: %w", err))
 		}
 		return r.adoptStoredOccurrence(cleanup, store, reserved, canonical, output)
 	}
@@ -308,10 +313,12 @@ func (r *manualTaskRunner) runReserved(ctx context.Context, reserved couchschedu
 		published = true
 		canonical, err = finalizeCancelledOccurrence(cleanup, history, state, canonical)
 		if err != nil {
+			publicationErr = err
 			return err
 		}
 		next, err = recoverRunOccurrence(state, canonical, r.now())
 		if err != nil {
+			publicationErr = err
 			return err
 		}
 		result = executionResultForRecord(canonical, output)
@@ -321,7 +328,7 @@ func (r *manualTaskRunner) runReserved(ctx context.Context, reserved couchschedu
 	if err != nil {
 		if publicationErr != nil {
 			_ = r.markUnknown(cleanup, store, reserved)
-			return result, fmt.Errorf("run result publication uncertain; no replay: %w", publicationErr)
+			return result, persistTaskHistoryFailure(cleanup, store, reserved.Key, "completion publication", fmt.Errorf("run result publication uncertain; no replay: %w", publicationErr))
 		}
 		if published {
 			return result, fmt.Errorf("run record saved but authority completion uncertain; inspect history: %w", err)
@@ -369,6 +376,7 @@ func (r *manualTaskRunner) finishPrelaunch(ctx context.Context, store couchsched
 	record.Unknown = map[string]json.RawMessage{"error": errorRaw}
 	history := r.historyPort()
 	result := couchschedule.ExecutionResult{Exit: -1}
+	var historyErr error
 	if err := store.Update(cleanup, func(ledger *couchschedule.Ledger) error {
 		current := ledger.Tasks[state.Key.ID()]
 		if !sameReservedAttempt(current, state) {
@@ -378,17 +386,22 @@ func (r *manualTaskRunner) finishPrelaunch(ctx context.Context, store couchsched
 		// losing callback must never publish refusal over a live winner's run ID.
 		canonical, output, err := publishRunOccurrence(cleanup, history, record, nil)
 		if err != nil {
-			return fmt.Errorf("pre-execution refusal publication failed: %w", err)
+			historyErr = err
+			return quarantineTaskHistory(cleanup, ledger, current, "prelaunch publication", err)
 		}
 		next, err := recoverRunOccurrence(current, canonical, r.now())
 		if err != nil {
-			return err
+			historyErr = err
+			return quarantineTaskHistory(cleanup, ledger, current, "prelaunch adoption", err)
 		}
 		result = executionResultForRecord(canonical, output)
 		ledger.Tasks[state.Key.ID()] = next
 		return nil
 	}); err != nil {
 		return couchschedule.ExecutionResult{Exit: -1}, err
+	}
+	if historyErr != nil {
+		return result, historyErr
 	}
 	if result.Outcome == "unknown" {
 		return result, errors.New("execution result unknown; no replay")
@@ -518,22 +531,28 @@ func finalizeCancelledOccurrence(ctx context.Context, history runPublisher, stat
 }
 func (r *manualTaskRunner) adoptStoredOccurrence(ctx context.Context, store couchschedule.StateStore, reserved couchschedule.TaskState, record operationalrun.Record, output []byte) (couchschedule.ExecutionResult, error) {
 	result := executionResultForRecord(record, output)
+	var historyErr error
 	err := store.Update(ctx, func(ledger *couchschedule.Ledger) error {
 		state := ledger.Tasks[reserved.Key.ID()]
 		var err error
 		record, err = finalizeCancelledOccurrence(ctx, r.historyPort(), state, record)
 		if err != nil {
-			return err
+			historyErr = err
+			return quarantineTaskHistory(ctx, ledger, state, "canonical finalization", err)
 		}
 		next, err := recoverRunOccurrence(state, record, r.now())
 		if err != nil {
-			return err
+			historyErr = err
+			return quarantineTaskHistory(ctx, ledger, state, "canonical adoption", err)
 		}
 		ledger.Tasks[state.Key.ID()] = next
 		return nil
 	})
 	if err != nil {
 		return result, fmt.Errorf("canonical occurrence adoption failed; no replay: %w", err)
+	}
+	if historyErr != nil {
+		return result, historyErr
 	}
 	if result.Outcome == "unknown" {
 		return result, errors.New("execution result unknown; no replay")

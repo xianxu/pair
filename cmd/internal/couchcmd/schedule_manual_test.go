@@ -89,7 +89,7 @@ func TestScheduleManualLostHistoryRetainsUnknownWithoutReplay(t *testing.T) {
 		t.Fatal(err)
 	}
 	state := ledger.Tasks[(couchschedule.TaskKey{Hub: root, Task: "report"}).ID()]
-	if state.Active == nil || state.Active.Stage != "uncertain" || state.Last.Outcome != "unknown" {
+	if state.Allowed || state.Refusal == "" || state.Active == nil || state.Active.Stage != "uncertain" || state.Last.Outcome != "unknown" {
 		t.Fatalf("lost result did not retain authority: %+v", state)
 	}
 	runner.newID = func() (string, error) { return "manual-2", nil }

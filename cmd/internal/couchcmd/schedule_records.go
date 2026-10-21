@@ -6,10 +6,45 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/couchschedule"
 	"github.com/xianxu/pair/cmd/internal/operationalrun"
 )
+
+type taskHistoryError struct{ cause error }
+
+func (e *taskHistoryError) Error() string { return e.cause.Error() }
+func (e *taskHistoryError) Unwrap() error { return e.cause }
+
+// quarantineTaskHistory handles only task-scoped history failures, inside a
+// ledger transaction. The caller supplies the state whose authority and facts
+// must survive. Ledger access/commit errors are handled by the transaction.
+func quarantineTaskHistory(ctx context.Context, ledger *couchschedule.Ledger, state couchschedule.TaskState, operation string, err error) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return err
+	}
+	state.Allowed = false
+	state.Refusal = fmt.Sprintf("task %s history %s: %v", state.Key.Task, operation, err)
+	if len(state.Refusal) > 4096 {
+		state.Refusal = state.Refusal[:4096]
+	}
+	ledger.Tasks[state.Key.ID()] = state
+	return nil
+}
+
+// Only a wholly absent bundle permits recovery from retained passive/unknown
+// facts. A missing record or output member is damage, never reconstruction.
+func missingRunBundle(namespace string, key operationalrun.RunKey, err error) bool {
+	if !errors.Is(err, os.ErrNotExist) {
+		return false
+	}
+	_, statErr := os.Lstat(filepath.Join(namespace, "schedule", key.Hub, key.Task, "runs", key.ID))
+	return errors.Is(statErr, os.ErrNotExist)
+}
 
 func runSummaryForRecord(r operationalrun.Record) couchschedule.RunSummary {
 	return couchschedule.RunSummary{ID: r.Key.ID, Revision: r.DeclarationRevision, Source: r.Source, DueAt: r.ScheduledAt, StartedAt: r.StartedAt, EndedAt: r.EndedAt, Exit: r.Exit, Outcome: r.Outcome, Notice: r.Notice}
@@ -37,7 +72,7 @@ func ensureRetainedRun(ctx context.Context, namespace string, state couchschedul
 		record, _, err = history.PublishOccurrence(ctx, key, record, nil)
 		return record, err
 	}
-	if !errors.Is(err, os.ErrNotExist) {
+	if !missingRunBundle(namespace, key, err) {
 		return record, err
 	}
 	passive := last.Source == "scheduled" && (last.Outcome == "skipped" || last.Outcome == "refused" || last.Outcome == "completed")
@@ -84,32 +119,62 @@ func ensureUncertainRuns(ctx context.Context, store couchschedule.StateStore) er
 				err = errors.New("result identity differs from retained authority")
 			}
 			if err != nil {
-				if ctx.Err() != nil {
-					return ctx.Err()
+				if err := quarantineTaskHistory(ctx, l, s, "unknown recovery", err); err != nil {
+					return err
 				}
-				// The state store is available; damage or contention in one task's
-				// history must not turn into a refusal of every configured hub.
-				s.Allowed = false
-				s.Refusal = fmt.Sprintf("%s result recovery: %v", s.Active.Source, err)
-				if len(s.Refusal) > 4096 {
-					s.Refusal = s.Refusal[:4096]
-				}
-				l.Tasks[key] = s
 				continue
 			}
 			if record.Notice == "pending" {
 				if err := (operationalrun.Store{Namespace: filepath.Dir(store.Dir)}).FinalizeNotice(ctx, record.Key, record.DeclarationRevision, "uncertain"); err != nil {
-					return err
+					if err := quarantineTaskHistory(ctx, l, s, "unknown notice finalization", err); err != nil {
+						return err
+					}
+					continue
 				}
 				record.Notice = "uncertain"
 			}
 			summary := runSummaryForRecord(record)
 			next, _ := couchschedule.Advance(s, couchschedule.Event{Kind: couchschedule.ResultRecovered, At: record.EndedAt, Attempt: s.Active.ID, Revision: s.Active.Revision, Recovered: &summary})
 			if next.Last == nil || next.Last.ID != record.Key.ID {
-				return errors.New("canonical uncertain history refused by task state")
+				if err := quarantineTaskHistory(ctx, l, s, "unknown adoption", errors.New("canonical uncertain history refused by task state")); err != nil {
+					return err
+				}
+				continue
 			}
 			l.Tasks[key] = next
 		}
 		return nil
 	})
+}
+
+// A synchronous caller still receives its task error, while other consumers can
+// observe the same refusal through the shared status projection.
+func persistTaskHistoryFailure(ctx context.Context, store couchschedule.StateStore, key couchschedule.TaskKey, operation string, cause error) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	if err := store.Update(ctx, func(l *couchschedule.Ledger) error {
+		return quarantineTaskHistory(ctx, l, l.Tasks[key.ID()], operation, cause)
+	}); err != nil {
+		return err
+	}
+	return cause
+}
+
+// Catalogue refresh must not erase a visible history quarantine while the
+// retained evidence is still unreadable. Existing repair rules handle wholly
+// absent passive/unknown bundles; execution output is never reconstructed.
+func retainedHistoryQuarantine(ctx context.Context, namespace string, state couchschedule.TaskState) error {
+	if state.Allowed || !strings.Contains(state.Refusal, " history ") {
+		return nil
+	}
+	if state.Last != nil && (state.Active == nil || state.Last.ID == state.Active.ID) {
+		_, err := ensureRetainedRun(ctx, namespace, state, retainedUnknownSummary(state))
+		return err
+	}
+	if state.Active != nil {
+		_, _, err := (operationalrun.Store{Namespace: namespace}).Read(ctx, operationalrun.RunKey{Hub: state.Key.HubID(), Task: state.Key.Task, ID: state.Active.ID})
+		return err
+	}
+	return nil
 }

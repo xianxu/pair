@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -116,7 +115,8 @@ func (a *automaticScheduler) finishNotice(ctx context.Context, s couchschedule.T
 }
 func (a *automaticScheduler) applyAdmission(ctx context.Context, result scheduleJobResult) error {
 	c := a.coordinator
-	return c.store.Update(ctx, func(l *couchschedule.Ledger) error {
+	var historyErr error
+	err := c.store.Update(ctx, func(l *couchschedule.Ledger) error {
 		s := l.Tasks[result.job.state.Key.ID()]
 		if s.Active == nil || s.Active.ID != result.job.state.Active.ID || s.Active.Stage != "delivery" {
 			return nil
@@ -131,13 +131,22 @@ func (a *automaticScheduler) applyAdmission(ctx context.Context, result schedule
 		next, _ := couchschedule.Advance(s, couchschedule.Event{Kind: couchschedule.NoticeObserved, At: c.now(), Attempt: s.Active.ID, Revision: s.Active.Revision, Notice: notice, HubOnline: a.online(s.Key.Hub)})
 		if next.Active == nil {
 			if err := a.finishNotice(ctx, s, next); err != nil {
-				return err
+				historyErr = err
+				return quarantineTaskHistory(ctx, l, s, "admission finalization", err)
 			}
 		}
 		l.Tasks[s.Key.ID()] = next
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	if historyErr != nil {
+		return &taskHistoryError{historyErr}
+	}
+	return nil
 }
+
 func (a *automaticScheduler) online(root string) bool { _, ok := a.notices.Binding(root); return ok }
 
 // recover runs once before any effect worker starts. A retained scheduled
@@ -146,44 +155,18 @@ func (a *automaticScheduler) online(root string) bool { _, ok := a.notices.Bindi
 func (a *automaticScheduler) recover(ctx context.Context) error {
 	c := a.coordinator
 	err := c.store.Update(ctx, func(l *couchschedule.Ledger) error {
-		for key, s := range l.Tasks {
-			var err error
-			s, err = a.ensurePassive(ctx, s)
-			if err != nil {
-				return err
+		for _, prior := range l.Tasks {
+			s, err := a.ensurePassive(ctx, prior)
+			if err == nil && s.Active != nil && s.Active.Source == "scheduled" {
+				s, err = a.recoverExecutionHistory(ctx, s, true)
 			}
-			if s.Active == nil || s.Active.Source != "scheduled" {
-				l.Tasks[key] = s
+			if err != nil {
+				if err := quarantineTaskHistory(ctx, l, prior, "startup recovery", err); err != nil {
+					return err
+				}
 				continue
 			}
-			at := s.Active
-			record, _, err := a.history().Read(ctx, operationalrun.RunKey{Hub: s.Key.HubID(), Task: s.Key.Task, ID: at.ID})
-			if err == nil {
-				if _, err = adoptScheduledRecord(s, record); err != nil {
-					return err
-				}
-				if record.Notice == "pending" {
-					notice := "uncertain"
-					if at.Stage == "stopping" || s.Revision != at.Revision || !s.Allowed {
-						notice = "dropped: task cancelled"
-					}
-					if err = a.history().FinalizeNotice(ctx, record.Key, at.Revision, notice); err != nil {
-						return err
-					}
-					record.Notice = notice
-				}
-				s, err = adoptScheduledRecord(s, record)
-				if err != nil {
-					return err
-				}
-			} else if errors.Is(err, os.ErrNotExist) {
-				if !retainedUnknownSummary(s) {
-					s, _ = couchschedule.Advance(s, couchschedule.Event{Kind: couchschedule.OwnerUnknown, At: c.now(), Attempt: at.ID, Revision: at.Revision})
-				}
-			} else {
-				return err
-			}
-			l.Tasks[key] = s
+			l.Tasks[s.Key.ID()] = s
 		}
 		return nil
 	})
@@ -193,43 +176,58 @@ func (a *automaticScheduler) recover(ctx context.Context) error {
 	return ensureUncertainRuns(ctx, c.store)
 }
 
-// reconcileExecution consumes saved completion evidence without repeating work.
+// recoverExecutionHistory consumes saved evidence without repeating work.
+func (a *automaticScheduler) recoverExecutionHistory(ctx context.Context, s couchschedule.TaskState, startup bool) (couchschedule.TaskState, error) {
+	at := s.Active
+	key := operationalrun.RunKey{Hub: s.Key.HubID(), Task: s.Key.Task, ID: at.ID}
+	record, _, err := a.history().Read(ctx, key)
+	if err != nil {
+		if !missingRunBundle(filepath.Dir(a.coordinator.store.Dir), key, err) {
+			return s, err
+		}
+		if !retainedUnknownSummary(s) {
+			s, _ = couchschedule.Advance(s, couchschedule.Event{Kind: couchschedule.OwnerUnknown, At: a.coordinator.now(), Attempt: at.ID, Revision: at.Revision})
+		}
+		return s, nil
+	}
+	if _, err = adoptScheduledRecord(s, record); err != nil {
+		return s, err
+	}
+	if record.Notice == "pending" && (startup || at.Stage == "stopping" || s.Revision != at.Revision || !s.Allowed) {
+		notice := "uncertain"
+		if at.Stage == "stopping" || s.Revision != at.Revision || !s.Allowed {
+			notice = "dropped: task cancelled"
+		}
+		if err = a.history().FinalizeNotice(ctx, record.Key, at.Revision, notice); err != nil {
+			return s, err
+		}
+		record.Notice = notice
+	}
+	return adoptScheduledRecord(s, record)
+}
+
 func (a *automaticScheduler) reconcileExecution(ctx context.Context, result scheduleJobResult) error {
 	c := a.coordinator
+	var historyErr error
 	err := c.store.Update(ctx, func(l *couchschedule.Ledger) error {
-		key := result.job.state.Key.ID()
-		s := l.Tasks[key]
+		s := l.Tasks[result.job.state.Key.ID()]
 		at := s.Active
 		if at == nil || at.ID != result.job.state.Active.ID || at.Stage == "notifying" || at.Stage == "delivery" {
 			return nil
 		}
-		record, _, err := a.history().Read(ctx, operationalrun.RunKey{Hub: s.Key.HubID(), Task: s.Key.Task, ID: at.ID})
-		if err == nil {
-			if _, err = adoptScheduledRecord(s, record); err != nil {
-				return err
-			}
-			if record.Notice == "pending" && (at.Stage == "stopping" || s.Revision != at.Revision || !s.Allowed) {
-				if err = a.history().FinalizeNotice(ctx, record.Key, at.Revision, "dropped: task cancelled"); err != nil {
-					return err
-				}
-				record.Notice = "dropped: task cancelled"
-			}
-			s, err = adoptScheduledRecord(s, record)
-			if err != nil {
-				return err
-			}
-		} else if errors.Is(err, os.ErrNotExist) {
-			if !retainedUnknownSummary(s) {
-				s, _ = couchschedule.Advance(s, couchschedule.Event{Kind: couchschedule.OwnerUnknown, At: c.now(), Attempt: at.ID, Revision: at.Revision})
-			}
-		} else {
-			return err
+		next, err := a.recoverExecutionHistory(ctx, s, false)
+		if err != nil {
+			historyErr = err
+			return quarantineTaskHistory(ctx, l, s, "execution reconciliation", err)
 		}
-		l.Tasks[key] = s
+		l.Tasks[s.Key.ID()] = next
 		return nil
 	})
 	if err != nil {
 		return err
+	}
+	if historyErr != nil {
+		return &taskHistoryError{historyErr}
 	}
 	return ensureUncertainRuns(ctx, c.store)
 }
@@ -319,7 +317,10 @@ func (a *automaticScheduler) reserveDue(ctx context.Context, online func(string)
 			var err error
 			s, err = a.ensurePassive(ctx, s)
 			if err != nil {
-				return err
+				if err := quarantineTaskHistory(ctx, l, s, "passive repair", err); err != nil {
+					return err
+				}
+				continue
 			}
 			s, _ = couchschedule.Advance(s, couchschedule.Event{Kind: couchschedule.ClockObserved, At: now, RunID: scheduledRunID(s), HubOnline: online(s.Key.Hub), Location: c.location})
 			l.Tasks[key] = s
@@ -354,6 +355,9 @@ func (a *automaticScheduler) step(ctx context.Context) error {
 	}
 drained:
 	for key, result := range a.pending {
+		if c.now().Before(a.retryAt[key]) {
+			continue
+		}
 		var err error
 		if result.job.notice {
 			err = a.applyAdmission(ctx, result)
@@ -361,6 +365,11 @@ drained:
 			err = a.reconcileExecution(ctx, result)
 		}
 		if err != nil {
+			var historyErr *taskHistoryError
+			if errors.As(err, &historyErr) {
+				a.retryAt[key] = c.now().Add(time.Second)
+				continue
+			}
 			return c.blocked(err)
 		}
 		if result.job.notice && result.notice == "not-admitted" {
@@ -380,6 +389,9 @@ drained:
 	var candidates []scheduleJob
 	executionSlots, noticeSlots := 0, 0
 	for key := range a.inFlight {
+		if _, completed := a.pending[key]; completed {
+			continue
+		}
 		if a.jobKinds[key] {
 			noticeSlots++
 		} else {
@@ -421,12 +433,21 @@ drained:
 		keys = append(interleaveScheduleHubs(ready[0], l.Tasks, a.cursor[0]), interleaveScheduleHubs(ready[1], l.Tasks, a.cursor[1])...)
 		keys = append(keys, ready[2]...)
 
+	taskLoop:
 		for _, key := range keys {
 			s := l.Tasks[key]
+			prior := s
 			var err error
 			s, err = a.ensurePassive(ctx, s)
 			if err != nil {
-				return err
+				if err := quarantineTaskHistory(ctx, l, prior, "passive repair", err); err != nil {
+					return err
+				}
+				continue
+			}
+			if !s.Allowed {
+				l.Tasks[key] = s
+				continue
 			}
 			at := s.Active
 			if at != nil && at.Source == "scheduled" && !a.inFlight[key] {
@@ -441,14 +462,28 @@ drained:
 						record, _, err := a.history().Read(ctx, operationalrun.RunKey{Hub: s.Key.HubID(), Task: s.Key.Task, ID: at.ID})
 						if err == nil {
 							s, err = adoptScheduledRecord(s, record)
-						} else if errors.Is(err, os.ErrNotExist) {
+						} else if missingRunBundle(filepath.Dir(c.store.Dir), operationalrun.RunKey{Hub: s.Key.HubID(), Task: s.Key.Task, ID: at.ID}, err) {
 							next, _ := couchschedule.Advance(s, couchschedule.Event{Kind: couchschedule.ReservationDurable, At: c.now(), Attempt: at.ID, Revision: at.Revision, HubOnline: hubOnline(s.Key.Hub)})
 							s, err = a.publishSummary(ctx, next)
 						}
 						if err != nil {
-							return err
+							if err := quarantineTaskHistory(ctx, l, prior, "occurrence reconciliation", err); err != nil {
+								return err
+							}
+							continue taskLoop
 						}
 					}
+				case "running", "stopping", "uncertain":
+					// No worker owns this retained attempt: consume repaired evidence only.
+					// Missing history classifies uncertainty; it never restarts execution.
+					next, err := a.recoverExecutionHistory(ctx, s, false)
+					if err != nil {
+						if err := quarantineTaskHistory(ctx, l, prior, "retained execution recovery", err); err != nil {
+							return err
+						}
+						continue taskLoop
+					}
+					s = next
 				case "delivery":
 					notice, known, active := a.notices.Observe(at.ReceiptID)
 					if !active && (!known || notice != "") {
@@ -458,7 +493,10 @@ drained:
 						next, _ := couchschedule.Advance(s, couchschedule.Event{Kind: couchschedule.NoticeObserved, At: c.now(), Attempt: at.ID, Revision: at.Revision, Notice: notice})
 						if next.Active == nil {
 							if err := a.finishNotice(ctx, s, next); err != nil {
-								return err
+								if err := quarantineTaskHistory(ctx, l, prior, "notice finalization", err); err != nil {
+									return err
+								}
+								continue taskLoop
 							}
 						}
 						s = next
@@ -480,7 +518,10 @@ drained:
 				if online && at.ReceiptID == "" {
 					_, output, err := a.history().Read(ctx, scheduleRunKey(s))
 					if err != nil {
-						return err
+						if err := quarantineTaskHistory(ctx, l, prior, "occurrence reconciliation", err); err != nil {
+							return err
+						}
+						continue taskLoop
 					}
 					s, _ = couchschedule.Advance(s, couchschedule.Event{Kind: couchschedule.NoticeFrozen, At: c.now(), Attempt: at.ID, Revision: at.Revision, ReceiptID: "schedule-" + at.ID, NoticeBody: scheduleNoticeBody(s, output), NoticeBinding: binding})
 				}
@@ -488,7 +529,10 @@ drained:
 				next, effects := couchschedule.Advance(s, couchschedule.Event{Kind: couchschedule.NoticeIntentDurable, At: c.now(), Attempt: at.ID, Revision: at.Revision, HubOnline: online})
 				if next.Active == nil {
 					if err := a.finishNotice(ctx, s, next); err != nil {
-						return err
+						if err := quarantineTaskHistory(ctx, l, prior, "notice finalization", err); err != nil {
+							return err
+						}
+						continue taskLoop
 					}
 				} else if len(effects) == 1 && effects[0].Kind == couchschedule.SendNotice {
 					candidates = append(candidates, scheduleJob{state: next, notice: true})
@@ -501,6 +545,9 @@ drained:
 		return nil
 	})
 	if err != nil {
+		return c.blocked(err)
+	}
+	if err := ensureUncertainRuns(ctx, c.store); err != nil {
 		return c.blocked(err)
 	}
 	for _, job := range candidates {
@@ -580,16 +627,66 @@ func scheduleNoticeBody(s couchschedule.TaskState, output []byte) string {
 	return body
 }
 
-func (a *automaticScheduler) authorizeNotice(ctx context.Context, want couchschedule.TaskState) error {
-	ledger, err := a.coordinator.store.View(ctx)
-	if err != nil {
-		return err
+// admitNotice uses one persisted budget for queue/gate/authority/broker waits.
+// The adapter takes the hub-effect gate first, then this callback holds the
+// scheduler authority lock until SendSystem has returned. No path may take
+// those locks in reverse. Receipt reconciliation happens after both release.
+func (a *automaticScheduler) admitNotice(ctx context.Context, clock scheduleClock, want couchschedule.TaskState) (string, error) {
+	at := want.Active
+	if at == nil {
+		return "dropped: task authority changed", nil
 	}
-	state := ledger.Tasks[want.Key.ID()]
-	if !state.Allowed || state.Revision != want.Active.Revision || state.Active == nil || state.Active.ID != want.Active.ID || state.Active.Stage != "delivery" || state.Active.ReceiptID != want.Active.ReceiptID || state.Active.NoticeBody != want.Active.NoticeBody || string(state.Active.NoticeBinding) != string(want.Active.NoticeBinding) {
-		return errors.New("notice authority changed before admission")
+	if !clock.Now().Before(at.NoticeDeadline) {
+		return "expired", nil
 	}
-	return nil
+	bounded, cancel := context.WithCancel(ctx)
+	timer := clock.NewTimer(at.NoticeDeadline.Sub(clock.Now()))
+	joined := make(chan struct{})
+	go func() {
+		defer close(joined)
+		select {
+		case <-timer.C():
+			cancel()
+		case <-bounded.Done():
+		}
+	}()
+	defer func() { cancel(); timer.Stop(); <-joined }()
+	authority := func(ctx context.Context, send func() (string, error)) (string, error) {
+		notice := "not-admitted"
+		var admissionErr error
+		err := a.coordinator.store.WithAuthority(ctx, func(ledger couchschedule.Ledger) error {
+			if !clock.Now().Before(at.NoticeDeadline) {
+				notice = "expired"
+				return nil
+			}
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			state := ledger.Tasks[want.Key.ID()]
+			if !sameNoticeAuthority(state, want) {
+				notice = "dropped: task authority changed"
+				return nil
+			}
+			notice, admissionErr = send()
+			return nil
+		})
+		if err != nil {
+			return notice, err
+		}
+		return notice, admissionErr
+	}
+	notice, err := a.notices.Admit(bounded, want.Key.Hub, at.NoticeBinding, at.ReceiptID, at.NoticeBody, authority)
+	// Known non-admission at the elapsed boundary expires. An accepted or
+	// uncertain broker result retains its receipt authority regardless of time.
+	if notice == "not-admitted" && !clock.Now().Before(at.NoticeDeadline) {
+		return "expired", nil
+	}
+	return notice, err
+}
+
+func sameNoticeAuthority(state, want couchschedule.TaskState) bool {
+	at := want.Active
+	return at != nil && state.Allowed && state.Revision == at.Revision && state.Active != nil && state.Active.ID == at.ID && state.Active.Stage == "delivery" && state.Active.ReceiptID == at.ReceiptID && state.Active.NoticeBody == at.NoticeBody && string(state.Active.NoticeBinding) == string(at.NoticeBinding) && state.Active.NoticeDeadline.Equal(at.NoticeDeadline)
 }
 
 // scheduleTimer is a single cancelable clock seam; tests drive exact instants.
@@ -646,13 +743,7 @@ func (a *automaticScheduler) run(ctx context.Context, clock scheduleClock) {
 				case job := <-a.jobs:
 					result := scheduleJobResult{job: job}
 					if job.notice {
-						at := job.state.Active
-						if err := a.authorizeNotice(ctx, job.state); err != nil {
-							result.notice = "dropped: task authority changed"
-							result.err = err
-						} else {
-							result.notice, result.err = a.notices.Admit(ctx, job.state.Key.Hub, at.NoticeBinding, at.ReceiptID, at.NoticeBody)
-						}
+						result.notice, result.err = a.admitNotice(ctx, clock, job.state)
 					} else if a.runner != nil {
 						_, result.err = a.runner.runReserved(ctx, job.state, []string{"script-run"})
 					}
