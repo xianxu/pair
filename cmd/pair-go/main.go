@@ -27,6 +27,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
 	"github.com/xianxu/pair/cmd/internal/termcmd"
 	"github.com/xianxu/pair/cmd/internal/titlepoller"
+	"github.com/xianxu/pair/cmd/internal/vmcmd"
 	"github.com/xianxu/pair/cmd/internal/wrapcmd"
 )
 
@@ -95,6 +96,8 @@ func runWithLegacyRuntime(args []string, stdout, stderr io.Writer, rt legacyRunt
 // unknown name is a programming error.
 func runStreamingSubcommand(name string, rest []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	switch name {
+	case "vm run":
+		return vmcmd.RunCLI(rest, stdout, stderr)
 	case "archive":
 		return archivecmd.Run(rest, stdout, stderr)
 	case "gc":

@@ -151,7 +151,7 @@
       "cmd/internal/wrapcmd/terminal_tail_test.go": "9131f3b46d3d253300a272875be6a28aaf33ca9877940a4d3ee2061cf336413f",
       "cmd/internal/wrapcmd/translate_test.go": "19a77f27b5eeb7686ae076513a3e5064257d9f9c8ed36c3cc71e423e2f599e04",
       "cmd/internal/zellijtest/fake_test.go": "0820421bf6161904427c0ac989b550cbcfaa3a964538f6da00219b6aac5d042f",
-      "cmd/pair-go/main_test.go": "3006109d07471c179dd742acf66901abe00868868f680694b5f75d75073cd99b"
+      "cmd/pair-go/main_test.go": "b65e9e8666a4593b309e59cf75426ac3cbff821ba4999940e4a26ffea427552d"
     },
     "local_or_literal_fixture": {
       "cmd/internal/vmcmd/guest_test.go": "43602d96646f35e8949e5dba352d04d080e4543d40e922452250b75a9b310d9c",
@@ -458,7 +458,10 @@
       "internal/repolint/repository_contract_test.go": "e87090a967b7390f69ca3ebfe44df639463c48f225fc2884a71c36680838f2db",
       "internal/testoracle/run_test.go": "1818f066cd7ced34648679d42604536da83642c7a40d1800e8ae1f9cfc6a3d36",
       "probes/zellijcalls/main_test.go": "382f78fb48fc70e5b522a8e5e38bc0fc8da82ebc75ec9c2f367c9ddfa7417693",
-      "probes/zellijprobe/reporoot_test.go": "de13aef753c6fc958f01e4a04ec9963672a58a76f5e63d08d6e2ea32de825018"
+      "probes/zellijprobe/reporoot_test.go": "de13aef753c6fc958f01e4a04ec9963672a58a76f5e63d08d6e2ea32de825018",
+      "cmd/internal/vmcmd/driver_darwin_test.go": "2f24bf1c8ed943c38145fdb4265a6413e12c01811512262742a674b6713538ed",
+      "cmd/internal/vmcmd/host_test.go": "be6a7d0671a263bb1c1c942403efeac23b0f68776250384370990f9bc8eb390f",
+      "cmd/internal/vmcmd/snapshot_process_unix_test.go": "37450f98a44197434fb59b2f2143b28390e9b177eff2dcdd65039bfbed1b7559"
     }
   }
 }

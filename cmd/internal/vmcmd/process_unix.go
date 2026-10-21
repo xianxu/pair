@@ -39,15 +39,12 @@ func configureSnapshotCommand(cmd *exec.Cmd) func() error {
 		return os.ErrProcessDone
 	}
 	return func() error {
-		if err := stop(); err != nil {
-			return err
-		}
 		if cmd.Process == nil {
 			return nil
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
-		return awaitSnapshotGroupGone(ctx, func() (bool, error) {
+		return confirmOwnedGroupCleanup(ctx, stop, func() (bool, error) {
 			err := syscall.Kill(-cmd.Process.Pid, 0)
 			if errors.Is(err, syscall.ESRCH) {
 				return false, nil
@@ -85,4 +82,18 @@ func awaitSnapshotGroupGone(ctx context.Context, present func() (bool, error)) e
 		case <-timer.C:
 		}
 	}
+}
+
+// An EPERM signal result can mean an owned group has only non-signalable
+// zombies on Darwin. Cleanup waits for positive absence; a signal result alone
+// never releases ownership, and a still-present or unobservable group refuses.
+func confirmOwnedGroupCleanup(ctx context.Context, signal func() error, present func() (bool, error)) error {
+	signalErr := signal()
+	if signalErr != nil && !errors.Is(signalErr, syscall.EPERM) && !errors.Is(signalErr, os.ErrProcessDone) {
+		return signalErr
+	}
+	if err := awaitSnapshotGroupGone(ctx, present); err != nil {
+		return errors.Join(signalErr, err)
+	}
+	return nil
 }

@@ -667,6 +667,11 @@ var SourceClassifications = []SourceClassification{
 // pair:m5-concept pure
 var NonArtifactSources = []string{
 	// #743 VM request/image/launch ownership data is outside Pair artifacts.
+	"cmd/internal/vmcmd/cli.go",
+	"cmd/internal/vmcmd/driver.go",
+	"cmd/internal/vmcmd/driver_darwin.go",
+	"cmd/internal/vmcmd/driver_other.go",
+	"cmd/internal/vmcmd/host.go",
 	"cmd/internal/vmcmd/request.go",
 	"cmd/internal/vmcmd/image.go",
 	"cmd/internal/vmcmd/state.go",

@@ -219,3 +219,52 @@ Authenticated hub receipt 40831bf5-2c90-4de8-bd36-19f9ba4437ee confirms train 19
 ### 2026-10-20 16:51 — Execution timeout and bounded cleanup
 
 Authenticated hub receipt d13df378-0a0a-4040-98a3-c20e29d43dbc approves the explicit envelope **timeout N + cleanup up to 10 s**. The requested timeout includes acquisition, preparation, startup/readiness and execution. Collection, stop/join and release share one separate cancellation-independent ten-second budget. This supersedes the earlier total-run wording; no cleanup reservation is subtracted from execution. Help text and retained results expose the envelope. Expired or unconfirmed cleanup retains the durable occupied launch claim and VM/snapshot inputs, reports the managed VM and inspection recovery, and makes the next run refuse reuse.
+
+### 2026-10-20 17:03 — Proposed M1 lifetime/collection re-plan (awaiting hub approval)
+
+Implementation is paused at this checkpoint. The new host/driver/CLI composition is incomplete and must not qualify M1 or land. Fresh component review found leader-only recovery, discarded secondary subprocess uncertainty, and artifact validation before the last writer. A subsequent ownership audit also found that signalling a numeric process group after its leader has been reaped can target a replacement generation. The same ownership mistake spans snapshot Git commands, synchronous Tart commands and the long-lived Tart run child; fix the class together rather than patching only Launch.
+
+**Alternatives and recommendation.** Keep direct children unreaped until group termination has been requested (recommended); use the existing native process observations to detect terminal state without Wait, and only then join. This keeps the kernel PID generation pinned, adds no supervisor or public protocol, and preserves native exit status. A permanent self-owned guardian could pin each group instead, but adds another subprocess/protocol and parent-death behavior to qualify. Comparing a cached start identity immediately before signalling is insufficient by itself: reaping releases the stable resource and a later numeric group operation still races reuse. Reusing execalarm/broadcast guards does not solve this: execalarm execs the command and does not own descendant cleanup; broadcast's current guard also waits/reaps before a later group signal.
+
+**Result storage choice.** Recommend removing the writable host result share and pulling bounded results over the existing guest-agent transport. The current post-hoc walk cannot enforce a storage ceiling while a guest can write its shared host directory. A quota-bearing mounted APFS image could enforce it but adds native mounts, cleanup and another resource population; a polling size watcher only detects overshoot. Bounded transport keeps the ordinary run's host artifact ceiling structural and needs no new quota/mount service. This changes the approved sharing detail and requires hub approval before implementation.
+
+#### Revised concepts and integration
+
+| Concept | Location | Change |
+|---|---|---|
+| Owned subprocess lifetime | vmcmd/process_unix.go plus platform observation helpers | one shared Start/observe/terminate-before-reap/Wait owner for Git and Tart; explicit pipes joined under context |
+| Cleanup uncertainty | vmcmd/claim.go, host.go, driver.go | additive blocking claim stage, preserving exact Tart PID/start identity; older strict readers refuse the new stage |
+| Bounded guest result transport | vmcmd/driver.go, driver_darwin.go, guest.go, guest-run.sh, host.go | guest-local result directory; only read-only input share; streamed byte/entry caps at host writes |
+| Final host evidence | vmcmd/host.go | close all VM writers, then validate retained host artifacts and publish terminal result |
+
+The process owner retains the direct child until no further numeric group signals can occur. Native terminal observation reads that one pinned child rather than rescanning the whole process table; unsupported/unavailable observation preserves uncertainty. Cancellation, stdout/stderr writer failure and ordinary parent exit all request group termination while the PID is pinned. Wait/reap follows the final signal, then observation-only group disappearance and pipe/goroutine joins. No signal follows reaping. Preserve the original command exit code when it was already terminal. A request deadline still permits only the approved shared ten-second cleanup envelope; nested helpers consume the same cleanup deadline rather than renewing private budgets.
+
+Recovery needs positive absence of the entire recorded launch group as well as the exact prior leader generation and stopped VM. Readiness polling stops immediately on subprocess cleanup uncertainty. Preparation, readiness, execution and collection transport all propagate the same typed uncertainty. Before releasing the local lease, persist a blocking cleanup-unknown claim stage when any owned group cannot be confirmed gone; retain exact main-child identity and input files. That stage refuses automatic recovery until explicit inspection/repair. Startup uncertainty before identity publication stays launching and already refuses reuse. This is a failure/recovery state extension, not a claim that an unknown process is gone.
+
+Guest result export uses a bounded manifest and per-member streams through Tart exec; paths are guest-local and host destinations are rooted, fresh and singly owned. No guest-writable host directory is exposed. Every retained byte is charged at its host writer against the combined per-run cap; entry count and per-diagnostic limits remain bounded. Collection may read changing guest files, so strict completeness validation still applies; transport overflow or incomplete required evidence fails the run. Stop/join precedes the final host-only artifact validation and terminal result publication. A command failure survives any collection/cleanup failure. M2 owns its strict required-case catalog and complete JSON streams; the generic runner must preserve stdout/stderr separately rather than merge diagnostic text into a JSON population.
+
+#### Visible failure states
+
+| Internal failure | Visible state | Recovery action | Possible loss |
+|---|---|---|---|
+| Native terminal observation unavailable or any group unconfirmed | cleanup unconfirmed; exact lane/VM and inputs retained | inspect/repair exact managed residue, then rerun | partial output; no success evidence |
+| Owner dies before pinned generation/group cleanup | occupied startup/launch claim | inspect exact claim, require leader + group absence and stopped VM | partial output; no second launch |
+| Result transfer exceeds cap or manifest invalid | collection failed | inspect retained bounded diagnostics; repair command, rerun | guest-only excess/incomplete output |
+| Host artifact validation fails after confirmed stop | infrastructure failure | inspect bounded retained bundle, rerun after repair | no passing evidence |
+
+#### Named regression strategy and execution steps
+
+| Function / seam | Regression that must fail first |
+|---|---|
+| Shared process owner | controlled direct-parent exit with surviving descendant and closed output; retain an unreaped-generation barrier; require signal-before-Wait, no signal-after-Wait, final EOF/absence and exact exit status |
+| Native Recover | direct leader gone but controlled group descendant remains and VM stopped; refuse until entire recorded group absent |
+| AwaitGuest + host uncertainty | injected unconfirmed readiness/exec/export subprocess; zero retry after uncertainty; main Tart Stop success cannot clear the blocking claim or delete inputs |
+| Guest export / host byte writer | exact total cap and one byte over; oversized single member, duplicate/escape/symlink member, too many entries and truncated manifest; host disk writes never exceed admitted cap |
+| Final retained evidence | Stop mutates a guest result after preliminary collection; no pass without final host-only validation; independently seeded stdout/stderr stay separate |
+| CLI/result composition | exact requested timeout plus one shared cleanup cap; retained failure reports managed VM/claim and envelope; no native image effects on help/parse failure |
+
+- [ ] After hub approval, re-run start-plan for the revised design and change-code's plan-quality check before further implementation; re-cost only if the gate requests it.
+- [ ] Add the named shared-owner red regressions, implement the smallest native observation adapters and unified owner, then sweep Git and every Tart callsite together. Do not extend to unrelated repository process owners in this issue.
+- [ ] Add the recovery/uncertainty red regressions, implement the blocking claim stage and propagation through every owned operation, update pure codec/state tests and recovery documentation.
+- [ ] Add bounded export and final-evidence red regressions, replace the writable result share with guest-local results and capped transport, then qualify CLI composition through the stateful fake.
+- [ ] Run targeted vmcmd race/dispatcher/main-route/source/reader guards; obtain one fresh component review, then resume the original native-image qualification only after explicit operator approval. Keep all M1/M2/M3 review boundaries and the hosted-conformance hold unchanged.

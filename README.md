@@ -2087,6 +2087,8 @@ From a non-agent Pair pane, detach with `Alt+d`. For Couch-managed work, use the
 
 ## Storage retention
 
+🤖{Use `pair vm run --checkout /absolute/repo -- COMMAND ARGS...` to run a literal command against a private tracked checkout in a disposable macOS Tart VM. A qualified machine image must already be installed; ordinary runs do not provision it. The default ad-hoc lane is separate from the train/nightly lane (`--lane train`). `--timeout 20m` covers waiting through execution, followed by cleanup up to 10 seconds. Inspect the printed artifact path and managed VM when cleanup remains unconfirmed; the durable claim prevents another run from reusing that lane. `--artifacts /absolute/fresh-directory` retains caller-owned results. See [VM runner](atlas/vm.md) for isolation, budgets and qualification state.}
+
 `pair gc` previews Pair-owned storage by retention bucket, with byte totals and
 reasons for keeping or collecting each group. Use `pair gc --json` for exact
 paths. Preview does not change your files or initialize retention clocks.

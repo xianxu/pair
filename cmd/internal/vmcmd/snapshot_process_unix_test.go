@@ -4,6 +4,7 @@ package vmcmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -151,5 +152,32 @@ func TestSnapshotGroupConfirmationWaitsForPositiveAbsence(t *testing.T) {
 	stop()
 	if err := awaitSnapshotGroupGone(expired, func() (bool, error) { return true, nil }); err == nil {
 		t.Fatal("occupied group accepted after expiry")
+	}
+}
+
+func TestOwnedGroupCleanupRequiresProofAfterAmbiguousSignal(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	probeError := errors.New("group inspection unavailable")
+	for _, tc := range []struct {
+		name    string
+		present func() (bool, error)
+		want    error
+	}{
+		{"gone", func() (bool, error) { return false, nil }, nil},
+		{"unknown", func() (bool, error) { return false, probeError }, probeError},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := confirmOwnedGroupCleanup(ctx, func() error { return syscall.EPERM }, tc.present)
+			if tc.want == nil && err != nil || tc.want != nil && !errors.Is(err, tc.want) {
+				t.Fatalf("ambiguous signal outcome: %v", err)
+			}
+		})
+	}
+	short, stop := context.WithTimeout(ctx, 10*time.Millisecond)
+	defer stop()
+	err := confirmOwnedGroupCleanup(short, func() error { return syscall.EPERM }, func() (bool, error) { return true, nil })
+	if !errors.Is(err, syscall.EPERM) || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("lost occupied-group uncertainty: %v", err)
 	}
 }

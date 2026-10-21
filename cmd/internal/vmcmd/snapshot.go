@@ -377,7 +377,7 @@ func snapshotGitInput(ctx context.Context, root string, input io.Reader, output 
 	}
 	err := cmd.Run()
 	if cleanupErr := collect(); cleanupErr != nil {
-		err = errors.Join(err, fmt.Errorf("collect Git process group: %w", cleanupErr))
+		err = errors.Join(err, fmt.Errorf("%w: collect Git process group: %v", ErrUnconfirmedProcessCleanup, cleanupErr))
 	}
 	if out.overflow {
 		return nil, errors.Join(fmt.Errorf("Git snapshot output exceeded 16 MiB"), err)

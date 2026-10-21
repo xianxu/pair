@@ -4,6 +4,8 @@
 
 ## Map
 
+- [VM runner](vm.md) — machine-wide train/ad-hoc positions, private tracked snapshots, bounded execution/cleanup and retained startup uncertainty (#743).
+
 - [Architecture](architecture.md) — what the pieces are and how they fit together.
 - [Zellij reply admission](zellij-reply-safety.md) — strict native observations, bounded confirmation, lifecycle authority and the staged caller safety map (#647).
 - [Session identity and storage](session-identity.md) — Pair's scoped address claims, deterministic native-session forests, durable resume targets, launch-specific probation and optional parsed projections, Couch's independent ThreadStore authority, Couch C/N/M allocation and live ownership proof, the standalone `📁` naming scheme, and legacy flat-data recovery.
