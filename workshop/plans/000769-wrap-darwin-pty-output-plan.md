@@ -4,26 +4,26 @@ collaboration-mode: discussion
 
 # Preserve wrap Darwin PTY output — design decision and implementation plan
 
-> **For agentic workers:** Consult AGENTS.md Section 3. This is a design checkpoint, not implementation authorization. Do not run change-code until the TL resolves the termination-policy decision below.
+> **For agentic workers:** Consult AGENTS.md Section 3. TL approved the parent lease and revised termination contract on 2026-10-21. Complete the production-caller inventory, then use full-flow change-code before implementation.
 
 **Goal:** Preserve exact final output without silently changing wrap's terminal completion, owned-group cleanup or launch publication.
 
-**Architecture:** Existing masterPump owns output; ownedGroup owns stop and the sole reap, with the leader unreaped to fence its process-group identity. A Darwin-only retained slave is the smallest output-preserving candidate, but it changes a live closed-stdio target's completion boundary. The child-helper alternative has the same limitation. No implementation currently satisfies the original unchanged-termination requirement.
+**Architecture:** Existing masterPump owns output; ownedGroup owns stop and the sole reap, with the leader unreaped to fence its process-group identity. A Darwin-only retained slave preserves output; the approved lifetime contract keeps a live closed-stdio target owned until exit or explicit stop. The child-helper alternative has the same EOF limitation and unnecessary launch machinery.
 
 **Tech stack:** Go, creack/pty, native Darwin PTYs, existing ttyio and ownedGroup.
 
-## Decision required before implementation
+## Approved decision and alternatives
 
 Both output protections retain a kernel slave reference. Consequently neither delivers the old last-slave EOF while a target closes all stdio and remains alive. Do not claim that opening and closing /dev/tty before exec solves this: the implicit controlling-terminal reference survives the descriptor close.
 
-Recommendation, **only if the TL/operator accepts the policy change**: use a wrap-local Darwin parent slave lease, consistent with #768's ownership approach. A live closed-stdio target stays owned until its exit or an explicit existing wrapper stop; final output drains before group cleanup and reap. Keep ordinary target exit, inherited descendants, cancellation, restart and publication behavior otherwise unchanged. This is not approved scope yet.
+**Approved by TL (receipt 7829dd7f-d4d5-4cae-b69b-b06f40e2a7f2):** use a wrap-local Darwin parent slave lease, consistent with #768's ownership approach. A live closed-stdio target stays owned until its exit or an explicit existing wrapper stop; final output drains before group cleanup and reap. Keep ordinary target exit, inherited descendants, cancellation, restart and publication behavior otherwise unchanged. The Spec and Done when now record this approved scope.
 
-If preserving current EOF-driven termination is mandatory, reject both candidates and keep code unchanged while seeking an independently justified mechanism. Do not add proc-fd polling, delays, idle deadlines, silent fallback, output retries or a heuristic EOF replacement to meet the wording.
+The original unchanged-EOF requirement was superseded by explicit TL approval: process exit is the authoritative end. Do not add proc-fd polling, delays, idle deadlines, silent fallback, output retries or a heuristic EOF replacement to meet the wording.
 
 | Option | Final output | Live target closes stdio | Decision |
 |---|---|---|---|
 | Existing pty.Start | Can lose unread bytes | EOF starts group stop | Cannot meet output goal |
-| Parent retained slave | Preserved in native probe | No EOF until target exit/revoke | Recommended only with explicit policy approval |
+| Parent retained slave | Preserved in native probe | No EOF until target exit/revoke | Approved |
 | Child /dev/tty open/close before exec | Preserved in native probe | Same missing EOF | Extra helper and exec-error handshake without solving the policy conflict; reject |
 
 ## Evidence and coordination
@@ -44,25 +44,25 @@ Sources: [Ruby #20682](https://bugs.ruby-lang.org/issues/20682), Apple [controll
 
 ## Core concepts
 
-Pure entities: no new parser or persisted model is proposed. Existing selector and exit-cause functions remain the authority. A policy revision, if approved, must be reflected in Spec and Done when before code.
+Pure entities: no new parser or persisted model is proposed. Existing selector and exit-cause functions remain the authority. The approved policy is reflected in Spec and Done when before code.
 
 | Integration | Lives in | Status | Wraps |
 |---|---|---|---|
-| Wrap PTY start/lease adapter, conditional on approval | cmd/internal/wrapcmd/pty_darwin.go, pty_other.go, pty.go | new | pty.Open, original exec.Cmd.Start, master/slave lifetime |
+| Wrap PTY start/lease adapter, approved | cmd/internal/wrapcmd/pty_darwin.go, pty_other.go, pty.go | new | pty.Open, original exec.Cmd.Start, master/slave lifetime |
 | Native lock/start boundary | cmd/internal/wrapcmd/native_lock.go | unchanged | Selector validation and lock acquisition using original argv |
 | Output/cleanup owner | cmd/internal/wrapcmd/wrap.go | modified | masterPump, ttyio, initialization abort and final cleanup |
 | Owned group | cmd/internal/wrapcmd/owned_group.go | unchanged | Existing stop, grace and sole reap; no early competing waiter |
 
 ARCH-DRY: align lease semantics with #768 without inventing a cross-owner framework or importing another command package. Review the landed #768 implementation before writing the wrap adapter. Preserve original cmd.Path/Err/Args, env, cwd, ExtraFiles and SysProcAttr; fill only nil stdio and retain direct exec/start errors. Locks and all launch consumers see the real original command and PID. No helper executable or shell interpolation.
 
-## Conditional lifetime contract
+## Lifetime contract
 
 Actions: run, interact/resize, stop, restart, inspect failure, explicitly launch again.
 
 | Internal state / failure | Visible state | Recovery action | Possible loss |
 |---|---|---|---|
 | Ordinary streaming | Existing terminal session | Interact/resize or stop | Existing interruption limits |
-| Live child closes all stdio | **Needs approval:** session remains owned; no output | Stop, or let child exit | Unlike today, no automatic stop on descriptor closure |
+| Live child closes all stdio | Session remains owned; no further output | Stop, or let child exit | Unlike today, no automatic stop on descriptor closure |
 | Direct leader exits, descendant holds slave/ignores HUP | Drain final output, then existing owned-group stop and reap | Inspect result | Descendant is stopped as today; no detached survival promise |
 | Wrapper cancellation/restart | Existing group stop; terminal restored after join | Explicitly launch again, or existing restart | Interrupted output may be incomplete |
 | PTY/open/exec/setup failure | Existing launch failure; no ready publication for failed launch | Inspect failure, explicitly launch again | No successful launch claimed |
@@ -70,16 +70,16 @@ Actions: run, interact/resize, stop, restart, inspect failure, explicitly launch
 
 One owner retains and releases each descriptor exactly once, including setup failure. No early cmd.Wait: its unreaped leader fences group identity. Normal Darwin leader exit must drain/revoke and deliver EOF even with inherited slave holders; qualify rather than assume it. On abort, close master/lease before waiting so a child blocked in exit-time drain cannot deadlock cleanup. Existing group signal/grace/status policy remains authoritative.
 
-## Conditional implementation tasks
+## Implementation tasks
 
-These tasks become executable only after approval and reconciliation of the issue contract. One atomic review boundary; use full flow for the changed process-lifetime policy, even if the implementation fits the quick shell.
+TL approved these tasks and the reconciled issue contract. One atomic review boundary; use full flow for the changed process-lifetime policy, even if the implementation fits the quick shell.
 
 ### 1. Native owner regression and policy pin
 
 Files: cmd/internal/wrapcmd/pty_darwin_test.go, run_test.go, existing owned_group_test.go and native_exit_report_test.go.
 
 - [ ] Write a test-only native child and out-of-band acknowledgement barrier. It writes a small exact marker, closes all child slave descriptors, then allows first production master read. Assert exact stdout/raw capture, normal EOF and status 0/7; old start path must fail byte assertion.
-- [ ] Pin the approved live closed-stdio behavior with an independent hold pipe. No timing-based ordering. If unchanged EOF behavior remains required, do not proceed with retention.
+- [ ] Pin the approved live closed-stdio behavior with an independent hold pipe. No timing-based ordering. Assert retention until controlled hold release or explicit wrapper stop, with a separate liveness witness.
 - [ ] Hold an inherited slave in an ignored-HUP descendant. Verify final bytes, EOF, group cleanup and sole leader reap through the real owner. Include SIGTERM-resistant descendant and existing escalation policy.
 
 ### 2. Adapter and owner integration
@@ -107,8 +107,10 @@ Files: atlas/terminal.md, atlas/architecture.md, atlas/index.md, atlas/go-lint-c
 - ARCH-FUNERAL: lease creator is the starter, last consumer is output/abort cleanup; owner return releases it and joins owned children. No durable artifact, new daemon or retained background waiter.
 - ARCH-SECURE: original argv and child identity, no shell wrapper or untrusted PID discovery.
 - ARCH-EVOLVE: no persisted format changes.
-- ARCH-PURPOSE: unchanged-termination is a real requirement; do not silently weaken it. This plan remains gated on a policy decision because neither investigated mechanism satisfies it.
+- ARCH-PURPOSE: implement the explicitly approved process-lifetime policy and qualify all production callers rather than silently relying on the old EOF proxy.
 
 ## Revisions
 
 - 2026-10-21: Initial design records pair:2's corrected helper counterexample and pair:4's independent native reproduction. No implementation selected or approved; request TL decision on the live closed-stdio contract before change-code.
+
+- 2026-10-21: TL approved wrap-local parent retention, process-exit/explicit-stop lifetime, full flow and unchanged group/start/publication contracts. Reconciled issue Spec/Done when; add exhaustive caller inventory plus native normal-exit/daemonization coverage before code.

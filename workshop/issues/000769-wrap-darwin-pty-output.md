@@ -30,19 +30,20 @@ Termination-semantics risk: Master EOF invokes ownedGroup.Wait and stops a still
 
 ## Spec
 
-Design output preservation for this owner while explicitly preserving its EOF, termination and publication contract. Compare child controlling-tty helper versus retained-slave lifecycle. Preserve direct argument semantics, status/signals, exact output and cleanup ownership. No deadline tuning or retry after EOF.
+Preserve Darwin final output with a wrap-local parent slave lease aligned with #768. A live target that closes all stdio remains owned until the target exits or an explicit wrapper stop; descriptor EOF was a proxy, not the authoritative process end. Preserve ownedGroup stop and sole reap, direct argument semantics, original PID, start errors, publication, status/signals, exact output and cleanup ownership. No new polling, deadline tuning or retry after EOF. Document the changed live closed-stdio behavior in wrap help and atlas, enumerate every production wrap caller, and qualify their native normal-exit and daemonization behavior.
 
 ## Done when
 
 - A native regression forces all child slave descriptors closed before first read and verifies exact final bytes, EOF and status.
-- Live closed-stdio targets, inherited-slave descendants (including ignored SIGHUP), cancellation and abort have explicit tested termination semantics.
+- A live closed-stdio target remains owned until its own exit or explicit stop; inherited-slave descendants (including ignored SIGHUP), cancellation, restart and abort have native tested termination semantics.
+- Every production wrap caller, including Couch agent launch, has an enumerated native test for normal agent exit and target daemonization; help and atlas explain the changed lifetime policy.
 - Existing owner lifecycle consumers and executable startup errors remain correct; resources are reaped/released exactly once.
 
 ## Plan
 
 Plan first; independently claim from main. Do not stack on #768.
 
-Durable design/conditional implementation plan: [wrap Darwin PTY output](../plans/000769-wrap-darwin-pty-output-plan.md). Await TL decision: both proposed protections suppress EOF for a still-live closed-stdio child. No change-code or production edits before an approved termination contract.
+Durable design/conditional implementation plan: [wrap Darwin PTY output](../plans/000769-wrap-darwin-pty-output-plan.md). TL approved parent retention and the revised live closed-stdio lifetime contract on 2026-10-21. Full flow; reconcile the caller inventory and run change-code before implementation.
 
 ## Log
 
@@ -57,3 +58,5 @@ Independently reproduced native openpty/fork/setsid/TIOCSCTTY child that writes 
 ## Revisions
 
 - 2026-10-21: Added a gated design checkpoint after the native live-target counterexample. Existing Spec and Done when remain authoritative and unchanged pending TL decision; conditional plan is not implementation approval.
+
+- 2026-10-21: TL approved the live closed-stdio behavior change (receipt 7829dd7f-d4d5-4cae-b69b-b06f40e2a7f2): keep target owned until exit/explicit stop. Reconciled Spec and Done when; require help/atlas documentation and exhaustive production-caller native normal-exit/daemonization pins. Preserve original argv/PID/start errors/publication and ownedGroup stop/reap; full flow, no new polling or deadlines.
