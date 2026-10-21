@@ -1,13 +1,22 @@
 ---
 id: 000749
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '8163903d42f3543e343a99f1c41b3506f0c0d79c' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '7ddead28aaabe2d49d99d15d20ef7e5cc3f1fdaf' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-20T18:48:49-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
+flake_tests: [github.com/xianxu/pair/cmd/internal/clipcmd.TestCopyOnSelectShellFixture]
 ---
 
 # flake: TestCopyOnSelectShellFixture
@@ -20,14 +29,22 @@ Known flaky tests (#394), registered with same-head fail→pass evidence:
 
 ## Spec
 
+Fix the demonstrated copy-on-select fixture/process ownership failure without a retry loop or longer timeout. Keep private clipboard and native-command fakes, join the exact detached work before assertions and cleanup, and preserve hook/orchestrator behavior coverage. Diagnose the actual blocked boundary before selecting the fix (ARCH-PURPOSE, ARCH-FUNERAL).
+
 ## Done when
 
 - The root cause is fixed (never a retry loop or a longer timeout); closing this issue unregisters the tests.
 
 ## Plan
 
-- [ ]
+- [ ] Reproduce with a fresh test binary; capture the hook/orchestrator boundary and establish root cause.
+- [ ] Pin the mechanism with a regression, implement the minimal fix, run targeted and recorded verification, close and land.
 
 ## Log
 
 ### 2026-10-20
+
+- TL dispatched #749 as the top Pair blocker; preserve #733 SHIP branch and re-enter after #749 lands. Per explicit TL instruction stopped #733 merge runner cleanly and retained its failure/evidence in its Log, then claimed/started this branch from main in canonical pair:4.
+- #733 integration suite attempt 0082d1dc13f7dff65c18d760ca43ba06 at 13bd7df51123cc82c79953ca2e8423511c0a5b49 failed tests/copy-on-select-test.sh: detached copy orchestrator did not finish; 4m46s, complete log sha256 8b7c811b0f82. Fresh TestCopyOnSelectShellFixture on that source also reproduced hook timeout=3.
+- Pair:6 supplied #706 attempt 11c40c358b4966a8b6d78660cd2dab3d at 63d530dbaffb52fea561cbbdbdeff9581c1fa66b: private pair-real clip copy-on-select timed out after 3s; exit 2 in 4m46s. Complete log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/11c40c358b4966a8b6d78660cd2dab3d.log, sha256 826acd5c3f915860d5b7c0dc547427583f584e7b09749e57af901a2c037f4c89. Archive diff touches no clip/fixture files.
+- Diagnostic script built a fresh binary via the shared builder. One instrumented fresh-binary run passed (hook first launch 0.497s; later 0.039/0.043s). An earlier instrumented probe accidentally used the stale checkout bin/pair; discarded its cross-case results and made the candidate explicit. No tracked test or production edits yet.
