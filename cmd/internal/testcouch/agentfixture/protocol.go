@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/strictjson"
+	"golang.org/x/sys/unix"
 )
 
 const MaxCommandBytes = 16 << 10
@@ -124,6 +125,39 @@ func ActorDirectory(base, worktree string) string {
 	return filepath.Join(base, hex.EncodeToString(digest[:16]))
 }
 
+func countMailboxEntries(entries []os.DirEntry) int {
+	count := 0
+	for _, entry := range entries {
+		if !strings.HasPrefix(entry.Name(), ".publish-") {
+			count++
+		}
+	}
+	return count
+}
+
+// lockMailboxAdmission serializes only local validation and publication. The
+// inode remains owned by the private mailbox root and is never unlinked early.
+func lockMailboxAdmission(control string) (func(), error) {
+	path := filepath.Join(control, ".admission.lock")
+	fd, err := unix.Open(path, unix.O_CREAT|unix.O_RDWR|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0600)
+	if err != nil {
+		return nil, err
+	}
+	file := os.NewFile(uintptr(fd), path)
+	for {
+		err = unix.Flock(fd, unix.LOCK_EX)
+		if errors.Is(err, unix.EINTR) {
+			continue
+		}
+		break
+	}
+	if err != nil {
+		_ = file.Close()
+		return nil, err
+	}
+	return func() { _ = unix.Flock(fd, unix.LOCK_UN); _ = file.Close() }, nil
+}
+
 func WriteCommand(control string, c Command) error {
 	if err := ValidateCommand(c); err != nil {
 		return err
@@ -133,6 +167,11 @@ func WriteCommand(control string, c Command) error {
 			return err
 		}
 	}
+	unlock, err := lockMailboxAdmission(control)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	for _, sub := range []string{"commands", "results"} {
 		if c.Kind == Stop {
 			break
@@ -141,7 +180,7 @@ func WriteCommand(control string, c Command) error {
 		if err != nil {
 			return err
 		}
-		if len(entries) >= MaxRequests {
+		if countMailboxEntries(entries) >= MaxRequests {
 			return ErrMailboxFull
 		}
 	}
@@ -196,6 +235,33 @@ func ReadResult(control, id string) (Result, error) {
 	}
 	return result, nil
 }
+
+// RetireResult releases a consumed immutable ordinary result. The shutdown
+// result owns a separate single slot and is never removed through this API.
+func RetireResult(control, id string) error {
+	if !requestID.MatchString(id) {
+		return errors.New("invalid fixture request ID")
+	}
+	path := filepath.Join(control, "results", id+".json")
+	raw, err := readBounded(path, 12*MaxOutputBytes+4096)
+	if err != nil {
+		return err
+	}
+	var result Result
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return err
+	}
+	if result.ID != id {
+		return errors.New("fixture result correlation mismatch")
+	}
+	// The result fences its ID while the original command is released first.
+	// Writers can only reuse that ID once both immutable files are gone.
+	if err := os.Remove(filepath.Join(control, "commands", id+".json")); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return os.Remove(path)
+}
+
 func atomicJSON(path string, v any, exclusive bool) error {
 	raw, err := json.Marshal(v)
 	if err != nil {

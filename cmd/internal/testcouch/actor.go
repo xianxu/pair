@@ -83,8 +83,13 @@ func (f *Fleet) ActorCLI(ctx context.Context, n int, args ...string) (agentfixtu
 		}
 		return e == nil, e
 	})
-	if err == nil && result.Error != "" {
-		err = fmt.Errorf("fixture CLI: %s", result.Error)
+	if err == nil {
+		// This invocation is the last consumer of its unique correlated result.
+		// Reclaim it before another observation needs the bounded mailbox.
+		err = agentfixture.RetireResult(dir, id)
+		if result.Error != "" {
+			err = errors.Join(err, fmt.Errorf("fixture CLI: %s", result.Error))
+		}
 	}
 	return result, err
 }

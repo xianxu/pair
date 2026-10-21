@@ -313,6 +313,10 @@ func TestRunStopAfterOrdinaryRequestQuotaExhausted(t *testing.T) {
 		}
 	})
 	waitFixture(t, func() bool { _, e := os.Stat(filepath.Join(config.ControlDir, "ready.json")); return e == nil })
+	if err := os.WriteFile(filepath.Join(config.ControlDir, "commands", ".publish-held"), []byte("publication in progress"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
 	for i := 0; i < MaxRequests; i++ {
 		if err := WriteCommand(config.ControlDir, Command{ID: fmt.Sprintf("ordinary-%03d", i), Kind: SetState, State: Idle}); err != nil {
 			t.Fatal(err)
@@ -450,5 +454,133 @@ func TestWriteCommandClassifiesFullPendingMailbox(t *testing.T) {
 	}
 	if err := WriteCommand(config.ControlDir, Command{ID: "overflow", Kind: SetState, State: Idle}); !errors.Is(err, ErrMailboxFull) {
 		t.Fatalf("full pending mailbox not classified: %v", err)
+	}
+}
+
+func TestRunRetiredResultsKeepMailboxBoundedBeyondLifetimeQuota(t *testing.T) {
+	config := fixtureConfig(t, "claude")
+	input, writer := io.Pipe()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- Run(ctx, config, input, io.Discard); close(done) }()
+	t.Cleanup(func() { cancel(); _ = writer.Close(); <-done })
+	waitFixture(t, func() bool { _, err := os.Stat(filepath.Join(config.ControlDir, "ready.json")); return err == nil })
+	maxPending, maxResults := 0, 0
+	for i := 0; i < 2*MaxRequests; i++ {
+		id := fmt.Sprintf("serial-%03d", i)
+		if err := WriteCommand(config.ControlDir, Command{ID: id, Kind: SetState, State: Idle}); err != nil {
+			t.Fatal(err)
+		}
+		waitFixture(t, func() bool {
+			select {
+			case err := <-done:
+				t.Fatalf("fixture ended at cycle%d: %v", i, err)
+			default:
+			}
+			_, err := ReadResult(config.ControlDir, id)
+			return err == nil
+		})
+		for _, sub := range []string{"commands", "results"} {
+			entries, err := os.ReadDir(filepath.Join(config.ControlDir, sub))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if sub == "commands" {
+				maxPending = max(maxPending, len(entries))
+			} else {
+				maxResults = max(maxResults, len(entries))
+			}
+			if len(entries) > 1 {
+				t.Fatalf("cycle%d %s retained%d entries", i, sub, len(entries))
+			}
+		}
+		if err := RetireResult(config.ControlDir, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Logf("cycles=%d max_pending=%d max_results=%d", 2*MaxRequests, maxPending, maxResults)
+}
+
+func TestRunRefusesInFlightAndUnreadDuplicateIDs(t *testing.T) {
+	config := fixtureConfig(t, "claude")
+	input, writer := io.Pipe()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- Run(ctx, config, input, io.Discard); close(done) }()
+	t.Cleanup(func() { cancel(); _ = writer.Close(); <-done })
+	waitFixture(t, func() bool { _, err := os.Stat(filepath.Join(config.ControlDir, "ready.json")); return err == nil })
+	marker := filepath.Join(config.Root, "running")
+	release := filepath.Join(config.Root, "release")
+	command := Command{ID: "duplicate", Kind: Exec, Args: []string{"-c", `printf started > "$1"; while [ ! -e "$2" ]; do sleep 0.01; done`, "fixture", marker, release}}
+	if err := WriteCommand(config.ControlDir, command); err != nil {
+		t.Fatal(err)
+	}
+	waitFixture(t, func() bool { _, err := os.Stat(marker); return err == nil })
+	if err := WriteCommand(config.ControlDir, command); err == nil {
+		t.Fatal("duplicate in-flight ID admitted")
+	}
+	if err := os.WriteFile(release, []byte("release"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	waitFixture(t, func() bool { _, err := ReadResult(config.ControlDir, command.ID); return err == nil })
+	if err := WriteCommand(config.ControlDir, command); err == nil {
+		t.Fatal("unread completed ID admitted")
+	}
+	if err := RetireResult(config.ControlDir, command.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteCommand(config.ControlDir, Command{ID: command.ID, Kind: SetState, State: Idle}); err != nil {
+		t.Fatalf("retired ID remained reserved: %v", err)
+	}
+	waitFixture(t, func() bool { _, err := ReadResult(config.ControlDir, command.ID); return err == nil })
+}
+
+func TestWriteCommandConcurrentAdmissionCountsOnlyPublishedRequests(t *testing.T) {
+	for round := 0; round < 8; round++ {
+		t.Run(fmt.Sprintf("round-%d", round), func(t *testing.T) {
+			config := fixtureConfig(t, "claude")
+			if err := atomicJSON(filepath.Join(config.ControlDir, "ready.json"), Ready{PID: os.Getpid(), RunID: config.RunID}, false); err != nil {
+				t.Fatal(err)
+			}
+			for i := 0; i < MaxRequests-1; i++ {
+				if err := WriteCommand(config.ControlDir, Command{ID: fmt.Sprintf("filled-%03d", i), Kind: SetState, State: Idle}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := os.WriteFile(filepath.Join(config.ControlDir, "commands", ".publish-held"), []byte("in progress"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			start := make(chan struct{})
+			outcomes := make(chan error, 32)
+			for i := 0; i < 32; i++ {
+				go func(i int) {
+					<-start
+					outcomes <- WriteCommand(config.ControlDir, Command{ID: fmt.Sprintf("racer-%03d", i), Kind: SetState, State: Idle})
+				}(i)
+			}
+			close(start)
+			accepted := 0
+			for i := 0; i < 32; i++ {
+				if err := <-outcomes; err == nil {
+					accepted++
+				} else if !errors.Is(err, ErrMailboxFull) {
+					t.Fatalf("unexpected admission error: %v", err)
+				}
+			}
+			entries, err := os.ReadDir(filepath.Join(config.ControlDir, "commands"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			published := 0
+			for _, entry := range entries {
+				if !strings.HasPrefix(entry.Name(), ".publish-") {
+					published++
+				}
+			}
+			if accepted != 1 || published != MaxRequests {
+				t.Fatalf("accepted=%d actual_pending=%d; want one admission to128", accepted, published)
+			}
+			t.Logf("writers=32 accepted=%d actual_pending=%d", accepted, published)
+		})
 	}
 }

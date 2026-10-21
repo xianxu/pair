@@ -195,9 +195,7 @@ func Run(parent context.Context, c Config, stdin io.Reader, stdout io.Writer) (r
 	ticker := time.NewTicker(20 * time.Millisecond)
 	defer ticker.Stop()
 	finished := make(chan Result, MaxConcurrentCLI)
-	active := 0
-	processed := 0
-	seen := map[string]bool{}
+	active := map[string]bool{}
 	publishState := func() error {
 		if _, e := io.WriteString(stdout, Paint(state, c.Width, c.Height)); e != nil {
 			return e
@@ -262,10 +260,13 @@ func Run(parent context.Context, c Config, stdin io.Reader, stdout io.Writer) (r
 				return e
 			}
 		case r := <-finished:
-			active--
+			if !active[r.ID] {
+				return errors.New("fixture completion lacks active request")
+			}
 			if err := atomicJSON(filepath.Join(c.ControlDir, "results", r.ID+".json"), r, true); err != nil {
 				return err
 			}
+			delete(active, r.ID)
 		case <-ticker.C:
 			// Shutdown has one reserved slot and is serviced before ordinary work.
 			// Keep it generation-fenced even when the ordinary mailbox is full.
@@ -298,8 +299,16 @@ func Run(parent context.Context, c Config, stdin io.Reader, stdout io.Writer) (r
 			if e != nil {
 				return e
 			}
-			if len(entries) > MaxRequests {
+			if countMailboxEntries(entries) > MaxRequests {
 				return errors.New("fixture command mailbox exceeds limit")
+			}
+			retained, e := os.ReadDir(filepath.Join(c.ControlDir, "results"))
+			if e != nil {
+				return e
+			}
+			resultCount := countMailboxEntries(retained)
+			if resultCount+len(active) > MaxRequests {
+				return errors.New("fixture result reservations exceed limit")
 			}
 			for _, entry := range entries {
 				name := entry.Name()
@@ -313,11 +322,23 @@ func Run(parent context.Context, c Config, stdin io.Reader, stdout io.Writer) (r
 				if !requestID.MatchString(id) {
 					return errors.New("invalid fixture mailbox filename")
 				}
-				if seen[id] {
-					return errors.New("duplicate fixture request ID")
+				if active[id] {
+					continue
+				}
+				if _, err := os.Lstat(filepath.Join(c.ControlDir, "results", id+".json")); err == nil {
+					// Keep the original command as its ID fence until consumption.
+					continue
+				} else if !errors.Is(err, os.ErrNotExist) {
+					return err
+				}
+				if resultCount+len(active) >= MaxRequests {
+					continue
 				}
 				path := filepath.Join(c.ControlDir, "commands", name)
 				raw, e := readBounded(path, MaxCommandBytes)
+				if errors.Is(e, os.ErrNotExist) {
+					continue
+				} // retired after directory snapshot
 				var command Command
 				if e == nil {
 					command, e = DecodeCommand(raw)
@@ -328,26 +349,20 @@ func Run(parent context.Context, c Config, stdin io.Reader, stdout io.Writer) (r
 				if e == nil && (command.PID != os.Getpid() || command.RunID != c.RunID) {
 					e = errors.New("fixture actor incarnation mismatch")
 				}
-				if e == nil && command.Kind == Exec && active == MaxConcurrentCLI {
+				if e == nil && command.Kind == Exec && len(active) == MaxConcurrentCLI {
 					continue
 				}
-				if processed >= MaxRequests {
-					return errors.New("fixture lifetime request limit reached")
-				}
-				processed++
-				seen[id] = true
-				if err := os.Remove(path); err != nil {
-					return err
-				}
+
 				if e != nil {
 					if err := atomicJSON(filepath.Join(c.ControlDir, "results", id+".json"), Result{ID: id, ExitCode: -1, Error: e.Error()}, true); err != nil {
 						return err
 					}
+					resultCount++
 					continue
 				}
 				switch command.Kind {
 				case Exec:
-					active++
+					active[id] = true
 					workers.Add(1)
 					go func(command Command) {
 						defer workers.Done()
@@ -365,6 +380,7 @@ func Run(parent context.Context, c Config, stdin io.Reader, stdout io.Writer) (r
 					if e = atomicJSON(filepath.Join(c.ControlDir, "results", id+".json"), Result{ID: id}, true); e != nil {
 						return e
 					}
+					resultCount++
 				case Stop:
 					if e = atomicJSON(filepath.Join(c.ControlDir, "results", id+".json"), Result{ID: id}, true); e != nil {
 						return e

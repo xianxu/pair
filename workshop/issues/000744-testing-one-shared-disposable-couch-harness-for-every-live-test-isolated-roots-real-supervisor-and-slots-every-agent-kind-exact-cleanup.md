@@ -151,6 +151,22 @@ Next: finish combined checks and reader audit, commit/push, then native rerun; n
 
 Independent whole helper race run passed testcouch7.367s, agentfixture2.161s and native fixture entrypoint3.427s. Targeted console/observer/keyboard checks passed; repository lint6.317s and artifactpath6.188s passed. Individually audited changed native consumer (real repository/runtime inputs, non_go_full_fallback), run/terminal/binary tests (only private local fixtures, local_or_literal_fixture), refreshed those four reader hashes, then make test-affected-inventory passed. Issue validation and whitespace checks passed. Commit/push this complete sweep before the next native run; no native/full-suite/close pass yet.
 
+### 2026-10-20 — sweep rerun reaches restart, exposes result-retirement lifetime
+
+Clean native head83f2c0b39939cb9e05b0f1b7011fd153f3d60004 passed exact Claude steward/three-worker personality membership at24.93s, concurrent queries, submitted receiptce13c3ff-8400-4dbb-923d-a85fbec60b8f and independent accepted body at26.04s, then physical detach. Restart readiness hit the unchanged128-request lifetime/result quota and the new typed refusal ended immediately. Full log /Volumes/TestScratch/tmp/pair-slot5/pair-744-native-nkp9k3yo/native.log SHA256c5b166c22a60d032247b8e7785b258e9bb108996bea617f7793eb42ae9904148. Cleanup succeeded; root removed and every owned generation absent.
+
+The durable plan adds explicit reclamation of matched consumed query results, preserving128 unread/pending capacity and reserved shutdown. Active Exec IDs plus unread result files replace lifetime bookkeeping; admission reserves completion capacity. Counted retirement and unread-cap regressions precede the next native run. No timeout/cap increase and no full-matrix/close pass claimed.
+
+### 2026-10-20 — bounded query retirement and concurrent publication guards
+
+Fixture regression reproduced the old lifetime failure at cycle128. The correction completes256 serial consume/retire cycles while retaining at most one pending command and one unread result, with active Exec IDs bounded at4 and no lifetime tombstones/counter. Keep original command/result ID fences through explicit consumption, including stale directory-entry retirement races. ActorCLI retires its own matched result after reading it.
+
+The capacity sweep also reproduced two atomic-publication races: a transient .publish file falsely made127 pending look full; ignoring it without serialized admission let32 concurrent writers admit3 and reach130. One owned per-actor advisory admission inode now serializes check/publication, and counters exclude atomic scratch names. Eight rounds of32 writers admit exactly one request to128. Unread128 still refuses ordinary work, reserved Stop still joins, stale shutdowns remain fenced, and no timeout/cap was increased. Agent fixture race run passed8.260s and native entrypoint3.456s; independent combined verification follows before commit/native rerun.
+
+### 2026-10-20 — result reclamation checks complete
+
+Independent whole helper races passed testcouch7.653s, agentfixture8.243s and native fixture entrypoint3.379s. Repository lint5.998s, artifactpath6.796s, individually audited run_test reader hash, make test-affected-inventory and whitespace checks all passed. Commit/push this bounded lifecycle correction before rerunning native; no full matrix/full suite/close pass claimed.
+
 ## Revisions
 
 ### 2026-10-20 — #747 native-proof sequencing
