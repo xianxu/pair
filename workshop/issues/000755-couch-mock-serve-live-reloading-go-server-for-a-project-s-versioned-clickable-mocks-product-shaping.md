@@ -56,6 +56,8 @@ Implementation details: [durable plan](../plans/000755-mock-server-plan.md).
 
 - Claimed in pair:4 after pair#733 landed. Read the operator-approved product-shaping design in ops. The server is standalone: no supervisor, terminal, stored Couch identity or visible browser launch. Surveyed the existing CLI, loopback HTTP lifecycle, browser/CDP qualification and source inventories. A bounded context exploration returned integration points without edits.
 - Alternatives: native file watching adds a dependency and recursive watch lifecycle; rescanning per browser multiplies project IO by browser count. Recommend one bounded content scan owned by the server, with browsers polling its cached revision (ARCH-DRY, ARCH-CONSTRAINTS). Use an HTML parser for authoritative root attributes rather than regex or browser-only tagging (ARCH-PURE).
+- TL read the committed plan and found it sound, but operator design review is required for product-shaping. Held all implementation pending the operator's answer, relayed through the TL, on whether the highest-numbered version should show by default. No `change-code` or implementation has run.
+- During the authorized hold, read pair#757 and pair#756 without edits or commits on either. #757's per-screen development routing, production refusal and fixture-shape contract are separate from #755; #756 consumes the two page attributes. Keep screen IDs stable across version folders and keep one project-root fixture file as planned. Ariadne#512 now contains the published pair#733 cleanup evidence; its landed branch remains preserved.
 
 ## Revisions
 
