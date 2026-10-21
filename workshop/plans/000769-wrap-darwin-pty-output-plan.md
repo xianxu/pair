@@ -44,6 +44,20 @@ Sources: [Ruby #20682](https://bugs.ruby-lang.org/issues/20682), Apple [controll
 
 ## Core concepts
 
+### Production-caller inventory and native qualification
+
+| Caller / production authority | Native qualification and expected normal exit / daemonization |
+|---|---|
+| Public pair wrap / pair-go wrap, cmd/pair-go/main.go:106 | Shared testpair binary with explicit argv: exact marker and leader status, wrapper completes after leader exit. Same-group inherited-slave descendants stop; detached-session daemon does not hold wrapper open and is cleaned by the fixture. |
+| Pair workbench, launcher/createflow.go:824,975; zellij/layouts/main-2.kdl:44 and main-3.kdl:55 | Extend agent_command_acceptance_test.go to execute each actual KDL stanza and its production encoded command through the real Pair binary for normal exit and daemonization, verifying capture/status and group outcome. |
+| Couch new, cold resume, prepared recovery, switch and continuation: couch.go:694, resume.go:632, recovery_prepared.go:540, switchagent.go:428, continuation.go:437 -> launchTrackedThread | Each caller converges launch_existing.go:96,175 -> pair --couch-session-v1 resume TAG/layout -> production launcher createflow -> the two KDL stanzas above. Keep existing fake route/launch-profile assertions for each caller, and add native qualification of their common encoded-command/layout boundary. This composition tests the real child lifetime, without pretending fake Couch registration is a live acceptance check. |
+| In-pane fresh restart, wrap.go:2673 and Run | Execute freshAgentInvocation's emitted replacement argv with the shared binary for normal exit and daemonization; existing native TestSIGUSR2ReExecsWrapperWithoutReplacingPaneProcess covers signal-triggered old-group stop and replacement decision. |
+| Compatibility basename pair-wrap, entrypoint/alias.go and mode.go | Symlink shared executable as pair-wrap, qualify the same explicit-command native cases. No separate standalone cmd/pair-wrap survives. |
+| Development launch, bin/pair-dev:35 and bin/couch-dev:29 | Execs public pair/couch and converges above; no separate wrap start. Existing dev-rebuild/entrypoint tests plus the native public/layout qualification cover it. |
+| Couch warm reattach | Does not create a wrapper: launch_existing.go:96 omits layout/profile authority. Existing warm/cold route tests pin this exclusion; no new native child should be launched by the warm branch. |
+
+Native daemonization has two distinct outcomes: a descendant retaining slave stdio in the original owned group (including ignored HUP/TERM) is stopped by existing ownedGroup cleanup; a setsid descendant outside that group is not adopted or signalled, does not delay wrapper completion on Darwin leader revoke, and is explicitly killed/reaped by the test's independent owner. Do not broaden process ownership.
+
 Pure entities: no new parser or persisted model is proposed. Existing selector and exit-cause functions remain the authority. The approved policy is reflected in Spec and Done when before code.
 
 | Integration | Lives in | Status | Wraps |
@@ -70,6 +84,10 @@ Actions: run, interact/resize, stop, restart, inspect failure, explicitly launch
 
 One owner retains and releases each descriptor exactly once, including setup failure. No early cmd.Wait: its unreaped leader fences group identity. Normal Darwin leader exit must drain/revoke and deliver EOF even with inherited slave holders; qualify rather than assume it. On abort, close master/lease before waiting so a child blocked in exit-time drain cannot deadlock cleanup. Existing group signal/grace/status policy remains authoritative.
 
+Encapsulated lease model: startPTYWithOpen acquires master/slave in a local unstarted scope; open or original cmd.Start failure closes locally and returns no handle. Success transfers a startedPTY{master, optional slave, sync.Once release, stable releaseErr} to runWithPTY. Its only slave transition is Held -> Released through releaseSlave, enforced by sync.Once for EOF, abort and repeated/concurrent cleanup. Non-Darwin is an empty lease. No event may reacquire a released lease. The master remains with existing ttyio/masterPump ownership, whose close is idempotent at os.File/ttyio boundaries.
+
+run delegates to runWithPTY(args, streams, startPTY), an instance-local starter seam. The existing startNativePTY callback captures the returned handle while keeping its original command/selector signature. Register group.Wait immediately for a started child, then defer slave release so it executes BEFORE the group's deferred Wait on every initialization failure. Normal masterPump completion releases the slave before explicit group.Wait; deferred release is a harmless idempotent check. Remove wrap.go:2982's direct Process.Wait and use the registered group's stop/reap instead: no direct Process.Wait or new waiter may compete with ownedGroup. Stop/restart may request StartStop concurrently, but never release or reap; EOF/abort owner does that. Sequence tests inject starter/closeable failures and barriers, not global mutable start hooks.
+
 ## Implementation tasks
 
 TL approved these tasks and the reconciled issue contract. One atomic review boundary; use full flow for the changed process-lifetime policy, even if the implementation fits the quick shell.
@@ -78,18 +96,17 @@ TL approved these tasks and the reconciled issue contract. One atomic review bou
 
 Files: cmd/internal/wrapcmd/pty_darwin_test.go, run_test.go, existing owned_group_test.go and native_exit_report_test.go.
 
-- [ ] Write a test-only native child and out-of-band acknowledgement barrier. It writes a small exact marker, closes all child slave descriptors, then allows first production master read. Assert exact stdout/raw capture, normal EOF and status 0/7; old start path must fail byte assertion.
-- [ ] Pin the approved live closed-stdio behavior with an independent hold pipe. No timing-based ordering. Assert retention until controlled hold release or explicit wrapper stop, with a separate liveness witness.
-- [ ] Hold an inherited slave in an ignored-HUP descendant. Verify final bytes, EOF, group cleanup and sole leader reap through the real owner. Include SIGTERM-resistant descendant and existing escalation policy.
+- [ ] runWithPTY: barrier-controlled native child closes all stdio before first master read; compare exact stdout/raw capture, EOF and status0/7; original immediate-close start must fail. Hold a live closed-stdio child via independent pipe, then release or invoke stop/restart. Qualify inherited ignored-HUP/TERM group descendants and detached-session daemon; assert original ownership boundary and single leader reap.
+- [ ] Production caller composition (table above): actual public/alias/fresh argv and both production layout stanzas drive real wrapped children for normal and daemonized exit; assert exact capture, status, wrapper completion and independently witnessed descendant/group outcomes. Reuse existing Couch fake route assertions to prove every named caller reaches that qualified boundary.
 
 ### 2. Adapter and owner integration
 
 Files: cmd/internal/wrapcmd/pty.go, pty_darwin.go, pty_other.go, wrap.go; tests alongside each seam.
 
-- [ ] Add the smallest original-command starter with optional idempotent slave lease. Non-Darwin preserves upstream pty.Start. Stateful closeable fakes assert stable close errors and exact release counts, including allocation/start failure.
-- [ ] Pass the starter through startNativePTY without rewriting selector argv. Keep publication after successful real target start. Test missing, non-executable and malformed target; argv/env/cwd/ExtraFiles; native lock refusals; no false ready record.
-- [ ] Thread lease ownership through output drain, startup abort, signal stop, restart, stdout/read failure and deferred group cleanup. Assert exactly one reap/release, descriptor close before abort wait and no late worker after owner return.
-- [ ] Run real resize/input, small delayed-first-read and concurrent large-output/backpressure tests. Run targeted package and race checks; no timeout bump or retry.
+- [ ] startPTYWithOpen(cmd, open): adversarial allocation/start failure and original command configurations; stateful resource owner/native child assert no leaked descriptors/child and preserved Path/Err/Args/env/cwd/ExtraFiles/SysProcAttr. Missing/non-executable/malformed target fails synchronously, before readiness publication; native lock refusal never calls starter.
+- [ ] startedPTY.releaseSlave(): repeated and concurrent release, native revoked descriptor and reported closer failure; assert Held -> Released exactly once, stable error, no reacquisition. Count successful/failed leases at8/16 lifetimes.
+- [ ] runWithPTY cleanup and ownedGroup.Wait: inject initialization failure after successful Start, stdout/read failure, stop/restart before/after EOF and repeated cleanup. Assert master/slave close before the sole group reap, original error precedence and joined workers. Remove direct Process.Wait; no early waiter or group-identity fence violation.
+- [ ] Existing resize/input and large-output paths: real terminal input/size plus concurrent 128KiB output qualify unchanged backpressure, not a larger write behind the small delayed-read barrier. Run targeted package/race checks, no timeout bump or retry.
 
 ### 3. Enforcement, docs and landing
 
@@ -114,3 +131,4 @@ Files: atlas/terminal.md, atlas/architecture.md, atlas/index.md, atlas/go-lint-c
 - 2026-10-21: Initial design records pair:2's corrected helper counterexample and pair:4's independent native reproduction. No implementation selected or approved; request TL decision on the live closed-stdio contract before change-code.
 
 - 2026-10-21: TL approved wrap-local parent retention, process-exit/explicit-stop lifetime, full flow and unchanged group/start/publication contracts. Reconciled issue Spec/Done when; add exhaustive caller inventory plus native normal-exit/daemonization coverage before code.
+- 2026-10-21: Address plan gate PQ-1/PQ-2/PQ-3: enumerate all production caller families and native composition seams, define function-level adversarial strategies, and specify the encapsulated lease transition plus sole group-reap authority, including removal of the existing direct Process.Wait on initialization failure.

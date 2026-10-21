@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-21
 updated: 2026-10-21
-estimate_hours:
+estimate_hours: 1.861
 collaboration-mode: collaboration
-card_mirror: '72ac9bef83a48057a5110cb8fb864d6fd5e4fd4d' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '53af7dc451c1254e0abe8020fedd38c1bbfea6a4' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-21T06:43:45-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # Preserve wrap Darwin PTY final output without changing termination
@@ -45,6 +46,10 @@ Plan first; independently claim from main. Do not stack on #768.
 
 Durable design/conditional implementation plan: [wrap Darwin PTY output](../plans/000769-wrap-darwin-pty-output-plan.md). TL approved parent retention and the revised live closed-stdio lifetime contract on 2026-10-21. Full flow; reconcile the caller inventory and run change-code before implementation.
 
+- [ ] Pin final-output loss and approved lifetime with native child/descriptor barriers; enumerate and qualify every production caller.
+- [ ] Implement the wrap-local Darwin slave lease through normal drain and abort, preserving original command, locks, publication and ownedGroup stop/reap.
+- [ ] Document help/atlas behavior; qualify lifecycle, inventory, recorded suite, close review and landing gates.
+
 ## Log
 
 Filed unclaimed per TL approval of #768 on 2026-10-21. Probe provenance and audited owner paths are in workshop/plans/000768-darwin-pty-final-output-plan.md, planning commit b55089f72c233e0532918172a29b60291f798cfb. Retention must not be generalized without resolving the termination-semantics risk above.
@@ -60,3 +65,21 @@ Independently reproduced native openpty/fork/setsid/TIOCSCTTY child that writes 
 - 2026-10-21: Added a gated design checkpoint after the native live-target counterexample. Existing Spec and Done when remain authoritative and unchanged pending TL decision; conditional plan is not implementation approval.
 
 - 2026-10-21: TL approved the live closed-stdio behavior change (receipt 7829dd7f-d4d5-4cae-b69b-b06f40e2a7f2): keep target owned until exit/explicit stop. Reconciled Spec and Done when; require help/atlas documentation and exhaustive production-caller native normal-exit/daemonization pins. Preserve original argv/PID/start errors/publication and ownedGroup stop/reap; full flow, no new polling or deadlines.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md, Method A only (calibration reported stale). Existing creack/pty and #768's established pattern remove a greenfield/library assumption. Native PTY and group ownership are familiar from #766; use familiarity1.0. Three smaller modules cover adapter/lease, owner integration and caller qualification. Design uses thorough-plan discount0.2 plus15% buffer; implementation uses40% of v2 ranges. Native API discovery remains a separate primitive because kernel exit/revoke qualification matters. No cross-repo implementation.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.30 impl=0.12
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: real-api-discovery design=0 impl=0.24
+item: atlas-docs design=0.02 impl=0.08
+item: milestone-review design=0.04 impl=0.20
+design-buffer: 0.15
+total: 1.861
+```
