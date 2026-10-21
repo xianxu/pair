@@ -42,10 +42,11 @@ agent's last successful launch configuration in that repo. The refusal names exa
 
 ## Plan
 
-The latest governing Revisions and [durable plan](../plans/000728-shared-agent-startup-preferences-plan.md#2026-10-21-0004--governing-couch-only-repository-preference-design) supersede the historical shared-store proposal. Code remains held for the operator's Restart mode decision.
+The latest governing Revisions and [durable plan](../plans/000728-shared-agent-startup-preferences-plan.md#2026-10-21-0004--governing-couch-only-repository-preference-design) supersede the historical shared-store proposal. The operator approved the governing Couch-only plan and edited-resume/fresh-fallback revision on 2026-10-21 08:54; entering change-code before implementation.
 
 - [ ] M1 — Couch-owned repository arguments, bounded migration and explicitly accepted borrowed suggestions; Pair stays independent.
-- [ ] M2 — Editable field, explicit CLI arguments and guarded live/proven-vacant switching/restart, with the operator-selected Resume/Fresh semantics and real acceptance.
+- [ ] M2 — Editable field/provenance, explicit CLI arguments and guarded live/proven-vacant switching, with typed restart intent.
+- [ ] M3 — Edited same-native-conversation restart, visible missing-conversation fresh fallback and real acceptance.
 
 ## Log
 
@@ -117,3 +118,7 @@ The durable plan's 2026-10-21 00:04 governing revision completely replaces share
 - Same-agent restart follows the operator's still-pending Resume/Fresh choice. Proven-vacant sources work; live/unknown/foreign/busy/dirty/replaced sources retain appropriate refusal and recovery, with no duplicate launch.
 - Preferences learn only after final adopted success; failed adoption preserves old values. Publication failure keeps the agent running and visibly warns that arguments were not remembered, including remote succeeded-with-warning receipts.
 - Required recorded checks, mandatory boundary reviews and hub-authorized real operator acceptance (original echo:2/echo:3 targets if still selected and safe, otherwise hub-selected replacements) precede landing.
+
+### 2026-10-21 08:54 — Operator approval and final restart contract
+
+Authenticated submitted hub76a8370a-46db-4150-a6ee-f0362d42e550 approves the revised Couch-only design and resolves Restart: preserve the same native conversation with edited flags; when no previous conversation is found, start fresh with those flags and report "no previous conversation found; started fresh with the new parameters". Started-but-not-remembered behavior remains accepted. Plan Revisions now includes explicit absence versus unrelated failure/unknown ownership, final adoption learning, exact combined warning transport, native-ID/race/fallback tests and the extra M3 edited-resume review boundary. No Pair preference/store/default changes, no new Fresh selector, no new resume engine. #743 is parked codecomplete for its operator label; its final code suite passed, so it needs no restarted runner. Next is change-code plan-quality, scoped estimate after quality passes, then M1 TDD.
