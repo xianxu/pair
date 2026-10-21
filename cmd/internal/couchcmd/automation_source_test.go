@@ -44,6 +44,19 @@ func TestAutomaticSystemSendHasOnePolicyOwner(t *testing.T) {
 				if name != "automation.go" || fn.Name.Name != "sendAutomaticSystem" {
 					t.Errorf("unowned automatic input in %s:%s", name, fn.Name.Name)
 				}
+				if len(call.Args) != 6 {
+					t.Errorf("automatic input lacks its required commit guard in %s:%s", name, fn.Name.Name)
+					return true
+				}
+				guard, ok := call.Args[5].(*ast.CallExpr)
+				if !ok {
+					t.Errorf("automatic input bypasses its commit guard in %s:%s", name, fn.Name.Name)
+					return true
+				}
+				owner, ok := guard.Fun.(*ast.SelectorExpr)
+				if !ok || owner.Sel.Name != "automationAdmissionGuard" {
+					t.Errorf("automatic input uses another commit policy in %s:%s", name, fn.Name.Name)
+				}
 				return true
 			})
 		}

@@ -467,9 +467,9 @@ func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
 		} else if w.svc.generatedHubInputOff(hub) {
 			sendErr = errHubAutomationOff
 		} else if coordinator != nil {
-			_, sendErr = coordinator.sendGenerated(ctx, b, hub, id, body, false)
+			_, sendErr = coordinator.sendGenerated(ctx, b, hub, id, body, false, permit)
 		} else {
-			_, sendErr = w.svc.sendAutomaticSystem(ctx, b, hub, id, body)
+			_, sendErr = w.svc.sendAutomaticSystem(ctx, b, hub, id, body, permit)
 		}
 		if sendErr != nil && !errors.Is(sendErr, errHubAutomationOff) {
 			continue // hub busy or out of allowance: retried next tick

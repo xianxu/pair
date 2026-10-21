@@ -147,7 +147,7 @@ func (w *sessionStaleWatcher) tick(parent context.Context) {
 				sendErr = fmt.Errorf("supervision unavailable")
 			} else {
 				sendCtx, stop := context.WithTimeout(ctx, 5*time.Second)
-				_, sendErr = coordinator.sendGenerated(sendCtx, before.live.Binding, before.live.Binding, id, body, false)
+				_, sendErr = coordinator.sendGenerated(sendCtx, before.live.Binding, before.live.Binding, id, body, false, permit)
 				stop()
 			}
 		}

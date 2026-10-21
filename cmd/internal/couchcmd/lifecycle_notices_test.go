@@ -895,3 +895,34 @@ func TestLifecyclePublisherAutomationEpochFencesDelayedAdmission(t *testing.T) {
 		t.Fatal("old body replayed")
 	}
 }
+
+func TestLifecyclePublisherOriginalPermitReachesMailboxCommit(t *testing.T) {
+	endpoint := newControlledEndpoint()
+	r, p := lifecycleManualPublisher(t, endpoint)
+	hub, ok := r.s.hubBindingAt("/repo1")
+	if !ok {
+		t.Fatal("fixture needs verified hub")
+	}
+	seen := flipAutomationAtReserve(t, r.s, hub, "/repo1")
+	r.s.workers.Add(1)
+	go func() { defer r.s.workers.Done(); p.run(r.s.lifetime) }()
+	p.observe(lifecycleSlotObservation(2, 1))
+	id := awaitAutomationReserve(t, seen)
+	testwait.Until(t, "suppressed lifecycle admission retired", func() bool { p.mu.Lock(); defer p.mu.Unlock(); return len(p.attempts) == 0 && len(p.ready) == 0 })
+	if _, known, _ := r.s.broker.ReceiptSnapshot(id); known {
+		t.Fatal("stale lifecycle body entered mailbox")
+	}
+	p.mu.Lock()
+	diagnostics := len(p.diagnostics)
+	p.mu.Unlock()
+	if diagnostics != 0 {
+		t.Fatal("intentional suppression produced failure diagnostic")
+	}
+	p.observe(lifecycleSlotObservation(2, 2))
+	message := lifecycleNextMessage(t, endpoint, p)
+	endpoint.finish <- couchmessage.Receipt{Status: couchmessage.Submitted}
+	lifecycleCanonicalSubmitted(t, r, message)
+	if endpoint.deliveries() != 1 {
+		t.Fatal("suppressed lifecycle body replayed")
+	}
+}

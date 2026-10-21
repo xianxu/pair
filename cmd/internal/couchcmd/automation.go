@@ -199,9 +199,36 @@ func runAutomationCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, c
 
 // sendAutomaticSystem is the sole broker ingress for generated conversation
 // input. Worker-directed orientation and resend cues pass independently.
-func (s *messageService) sendAutomaticSystem(ctx context.Context, from, to couchmessage.Binding, id, body string) (couchmessage.Receipt, error) {
-	if s.generatedHubInputOff(to) {
-		return couchmessage.Receipt{}, errHubAutomationOff
+func (s *messageService) sendAutomaticSystem(ctx context.Context, from, to couchmessage.Binding, id, body string, permit hubInputPermit) (couchmessage.Receipt, error) {
+	return s.broker.SendSystem(ctx, from, id, couchmessage.Route{Target: to.Slot}, body, s.automationAdmissionGuard(to, permit))
+}
+
+// automationAdmissionGuard pins the exact recipient and the occurrence's original
+// hub/epoch through broker IO. Resolve cached role before entering the broker;
+// the returned guard performs memory-only work under broker -> automation locks.
+// The #737 total order is hub-effect gate -> scheduler authority -> broker ->
+// automation. No callback here may acquire an earlier lock or perform IO.
+func (s *messageService) automationAdmissionGuard(to couchmessage.Binding, permit hubInputPermit) couchmessage.AdmissionGuard {
+	target := s.captureHubInputPermit(to)
+	validTarget := target.root == permit.root && (target.root != "" || target.enabled)
+	owner := s.automation
+	return func(actual couchmessage.Binding) (func(), error) {
+		if !permit.enabled || !validTarget || actual != to {
+			return nil, errHubAutomationOff
+		}
+		if permit.root == "" {
+			// A known worker has no hub-automation dependency.
+			return func() {}, nil
+		}
+		if owner == nil {
+			return nil, errHubAutomationOff
+		}
+		owner.mu.Lock()
+		status, err := couchcore.AutomationStatus(owner.state, permit.root)
+		if err != nil || !status.Enabled || owner.epochs[permit.root] != permit.epoch {
+			owner.mu.Unlock()
+			return nil, errHubAutomationOff
+		}
+		return owner.mu.Unlock, nil
 	}
-	return s.broker.SendSystem(ctx, from, id, couchmessage.Route{Target: to.Slot}, body)
 }

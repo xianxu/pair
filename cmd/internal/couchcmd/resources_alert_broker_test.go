@@ -48,8 +48,8 @@ func resourceBrokerRig(t *testing.T) (resourceAlertDispatcher, *couchmessage.Bro
 		workspaces: map[couchmessage.Binding]couchcore.WorkspaceIdentity{hub: {WorktreeRoot: "/repo"}},
 	}
 	coordinator := newSupervisionCoordinator(service, func(string) {})
-	d := resourceAlertDispatcher{resolve: func(couchcore.WorkspaceIdentity) (couchmessage.Binding, bool) { return hub, true }, send: func(ctx context.Context, to couchmessage.Binding, id, body string) (couchmessage.Receipt, error) {
-		return coordinator.sendGenerated(ctx, to, to, id, body, false)
+	d := resourceAlertDispatcher{permit: func(couchcore.WorkspaceIdentity) hubInputPermit { return service.captureHubInputPermit(hub) }, resolve: func(couchcore.WorkspaceIdentity) (couchmessage.Binding, bool) { return hub, true }, send: func(ctx context.Context, to couchmessage.Binding, id, body string, permit hubInputPermit) (couchmessage.Receipt, error) {
+		return coordinator.sendGenerated(ctx, to, to, id, body, false, permit)
 	}}
 	return d, b, ep, &hub
 }
@@ -136,9 +136,9 @@ func TestResourceAlertBrokerUncertainRetryUsesBrokerDedup(t *testing.T) {
 	state := resourceTestAlert(time.Now())
 	send := d.send
 	calls := 0
-	d.send = func(ctx context.Context, to couchmessage.Binding, id, body string) (couchmessage.Receipt, error) {
+	d.send = func(ctx context.Context, to couchmessage.Binding, id, body string, permit hubInputPermit) (couchmessage.Receipt, error) {
 		calls++
-		r, err := send(ctx, to, id, body)
+		r, err := send(ctx, to, id, body, permit)
 		if calls == 1 && err == nil {
 			return couchmessage.Receipt{}, couchmessage.ErrUncertain
 		}

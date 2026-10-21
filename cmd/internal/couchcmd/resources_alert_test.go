@@ -31,7 +31,7 @@ func TestResourceAlertSanitizesTheOrphanRoot(t *testing.T) {
 	hub := couchmessage.Binding{Slot: "ops:0"}
 	state := orphanNvimAlertState(time.Now(), "unsafe\x1b[2J\r\nforged")
 	var body string
-	d := resourceAlertDispatcher{resolve: func(couchcore.WorkspaceIdentity) (couchmessage.Binding, bool) { return hub, true }, send: func(_ context.Context, to couchmessage.Binding, id, text string) (couchmessage.Receipt, error) {
+	d := resourceAlertDispatcher{resolve: func(couchcore.WorkspaceIdentity) (couchmessage.Binding, bool) { return hub, true }, send: func(_ context.Context, to couchmessage.Binding, id, text string, _ hubInputPermit) (couchmessage.Receipt, error) {
 		body = text
 		return couchmessage.Receipt{Message: couchmessage.Message{ID: id, From: to, To: to, Body: text}, Status: couchmessage.Queued}, nil
 	}}
@@ -54,7 +54,7 @@ func TestResourceAlertAdvisoryRetriesSameEffectUntilAdmission(t *testing.T) {
 	state := couchcore.ResourceState{Episodes: []couchcore.ResourceEpisode{{Phase: "pending", Effect: &couchcore.ResourceEffect{ID: "same-effect", Slot: "pair:9"}}}}
 	sends := 0
 	var firstBody string
-	d := resourceAlertDispatcher{resolve: func(couchcore.WorkspaceIdentity) (couchmessage.Binding, bool) { return hub, true }, send: func(_ context.Context, to couchmessage.Binding, id, body string) (couchmessage.Receipt, error) {
+	d := resourceAlertDispatcher{resolve: func(couchcore.WorkspaceIdentity) (couchmessage.Binding, bool) { return hub, true }, send: func(_ context.Context, to couchmessage.Binding, id, body string, permit hubInputPermit) (couchmessage.Receipt, error) {
 		sends++
 		if to != hub || id != "same-effect" {
 			t.Fatal("changed effect or hub")
@@ -87,7 +87,7 @@ func TestResourceAlertAdvisoryRetriesSameEffectUntilAdmission(t *testing.T) {
 }
 func TestResourceAlertUnavailableHubRemainsPending(t *testing.T) {
 	state := couchcore.ResourceState{Episodes: []couchcore.ResourceEpisode{{Phase: "pending", Effect: &couchcore.ResourceEffect{ID: "one"}}}}
-	d := resourceAlertDispatcher{resolve: func(couchcore.WorkspaceIdentity) (couchmessage.Binding, bool) { return couchmessage.Binding{}, false }, send: func(context.Context, couchmessage.Binding, string, string) (couchmessage.Receipt, error) {
+	d := resourceAlertDispatcher{resolve: func(couchcore.WorkspaceIdentity) (couchmessage.Binding, bool) { return couchmessage.Binding{}, false }, send: func(context.Context, couchmessage.Binding, string, string, hubInputPermit) (couchmessage.Receipt, error) {
 		t.Fatal("sent without owning hub")
 		return couchmessage.Receipt{}, nil
 	}}
@@ -112,9 +112,11 @@ func TestResourceAlertAutomationOffConsumesWithoutResolvingOrReplay(t *testing.T
 	resolves, sends := 0, 0
 	hub := couchmessage.Binding{Slot: "ops:0"}
 	d := resourceAlertDispatcher{
-		permit:  func(couchcore.WorkspaceIdentity) (bool, uint64) { return enabled, 0 },
+		permit: func(couchcore.WorkspaceIdentity) hubInputPermit {
+			return hubInputPermit{root: "/repo", enabled: enabled}
+		},
 		resolve: func(couchcore.WorkspaceIdentity) (couchmessage.Binding, bool) { resolves++; return hub, true },
-		send: func(context.Context, couchmessage.Binding, string, string) (couchmessage.Receipt, error) {
+		send: func(context.Context, couchmessage.Binding, string, string, hubInputPermit) (couchmessage.Receipt, error) {
 			sends++
 			return couchmessage.Receipt{}, couchmessage.ErrUnavailable
 		},
@@ -154,7 +156,7 @@ func TestResourceAlertSuppressionDuringSendRetiresOccurrence(t *testing.T) {
 	sends := 0
 	d := resourceAlertDispatcher{
 		resolve: func(couchcore.WorkspaceIdentity) (couchmessage.Binding, bool) { return hub, true },
-		send: func(context.Context, couchmessage.Binding, string, string) (couchmessage.Receipt, error) {
+		send: func(context.Context, couchmessage.Binding, string, string, hubInputPermit) (couchmessage.Receipt, error) {
 			sends++
 			return couchmessage.Receipt{}, fmt.Errorf("send: %w", errHubAutomationOff)
 		},
@@ -235,5 +237,73 @@ func TestResourceAlertPendingOccurrenceCannotCrossAutomationEpoch(t *testing.T) 
 	}
 	if _, known, _ := r.s.broker.ReceiptSnapshot(id); known {
 		t.Fatal("old occurrence admitted after policy changed")
+	}
+}
+
+func TestResourceAlertOriginalPermitSurvivesRecipientResolution(t *testing.T) {
+	r, b := hubMessageRig(t)
+	r.s.supervision.Store(newSupervisionCoordinator(r.s, func(string) {}))
+	r.world.mu.Lock()
+	workspace := r.world.slots[b[2].Thread()].workspace
+	r.world.mu.Unlock()
+	state := orphanNvimAlertState(time.Unix(1, 0), "/src/pair")
+	state.Episodes[0].Effect.Workspace = workspace
+	d := newResourceAlertDispatcher(r.s)
+	resolve := d.resolve
+	d.resolve = func(id couchcore.WorkspaceIdentity) (couchmessage.Binding, bool) {
+		hub, ok := resolve(id)
+		if _, err := r.s.controlAutomation("/repo1", "off"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := r.s.controlAutomation("/repo1", "on"); err != nil {
+			t.Fatal(err)
+		}
+		return hub, ok
+	}
+	if err := d.dispatch(context.Background(), &state); err != nil {
+		t.Fatal(err)
+	}
+	if state.Episodes[0].Phase != "suppressed" || state.Episodes[0].Delivery != couchcore.ResourceDeliverySuppressed {
+		t.Fatalf("resolve discarded original occurrence permit: %+v", state.Episodes[0])
+	}
+	if _, known, _ := r.s.broker.ReceiptSnapshot(state.Episodes[0].Effect.ID); known {
+		t.Fatal("old resource occurrence reached mailbox")
+	}
+}
+
+func TestResourceAlertPendingOccurrenceKeepsOriginalHub(t *testing.T) {
+	r, b := hubMessageRig(t)
+	r.s.supervision.Store(newSupervisionCoordinator(r.s, func(string) {}))
+	r.world.mu.Lock()
+	workspace := r.world.slots[b[2].Thread()].workspace
+	r.world.mu.Unlock()
+	r.disconnect(b[1])
+	state := orphanNvimAlertState(time.Unix(1, 0), "/src/pair")
+	state.Episodes[0].Effect.Workspace = workspace
+	d := newResourceAlertDispatcher(r.s)
+	if err := d.dispatch(context.Background(), &state); err != nil {
+		t.Fatal(err)
+	}
+	if state.Episodes[0].Phase != "pending" {
+		t.Fatal("fixture requires pending occurrence")
+	}
+	h := r.s.authority.hubs
+	h.mu.Lock()
+	next, err := h.state.Apply(couchcore.HubMove{Slots: []couchcore.HubSlot{{Repository: "/repo", Number: 2}}, Caller: "/repo1", Target: "/repo0", Revision: h.state.Revision()})
+	if err == nil {
+		h.state = next
+	}
+	h.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := d.dispatch(context.Background(), &state); err != nil {
+		t.Fatal(err)
+	}
+	if state.Episodes[0].Phase != "suppressed" {
+		t.Fatalf("pending occurrence changed owning hub: %+v", state.Episodes[0])
+	}
+	if _, known, _ := r.s.broker.ReceiptSnapshot(state.Episodes[0].Effect.ID); known {
+		t.Fatal("old resource occurrence entered new hub mailbox")
 	}
 }

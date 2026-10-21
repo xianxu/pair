@@ -345,6 +345,36 @@ remains required. #738 is unblocked per hub2765f7be and may interleave after
 this checkpoint; local-gates verification will be operator-owned.
 
 
+### 2026-10-21 — BR-5 implementation and measured verification
+
+Reproduced service routing off/off-on admitting a stale queued notice, and
+the prior early check refusing a canonical admission after off. After the fix,
+service routing, original-recipient/role, mutex extent and canonical receipt
+controls pass under race x3 (1.848 s). Broker nine controlled routing, Observe,
+Reserve, family and both-enqueue cases were red with no guard calls and green
+after commit guards; guard lock/receipt and enqueue success controls pass.
+Complete couchmessage package passes (25.150 s), focused guard race x3 passes
+(1.249 s), and worker cue tests pass (0.429 s).
+
+Producer regressions reproduce resource off/on during resolution and a pending
+resource changing hub at an equal epoch. Original hub/epoch now survive pending
+refusals and clear only on metric recovery. Lifecycle, wait (direct and
+coordinator), stale, stall and supervision each cycle off/on at Reserve and
+assert suppression, retirement and fresh-occurrence behavior. Resource's own
+controlled delay is resolution; shared broker tests qualify its commit path.
+Broad producer group passes (4.579 s) and race passes (7.566 s); core episode
+normal/race pass (0.295/1.581 s). Full artifactpath passes (7.109 s).
+
+The one generated-ingress source guard now requires the commit policy. A
+compile-valid mutation passing nil reproduced its expected bypass failure;
+restored production code afterward. Three changed readers retain their audited
+dispositions (source guard fixed_scanner; resource fixture tests
+local_or_literal_fixture). No new production file, artifact path or protocol
+field. The total scheduler lock order is in atlas and broker/owner lock extent
+is mechanically asserted. All targeted evidence precedes the final recorded
+check; no final full-suite pass or private live acceptance is yet claimed.
+
+
 ## Revisions
 
 ### 2026-10-20 — operator-review startup boundary and two notice lifetimes
@@ -492,3 +522,13 @@ The proposed guard holds it only over the actual in-memory commit.
 Visible states remain hub automation on/off with explicit on/off recovery; no
 new user state or data-loss mode beyond intentional retirement of suppressed
 occurrences. Live acceptance remains owed through #744 after #761.
+
+
+### 2026-10-21 02:01 PDT — BR-5 correction approved
+
+Hub b88aa936 approves the original-permit/commit-guard revision above, with
+total lock order hub-effect gate → scheduler authority → broker → automation
+recorded in atlas and cheaply asserted. Implement now, then take #738 while
+the private live check waits for #744. No new external protocol, persistence,
+queue, retry, executor or visible state. The second #737/#739 lander verifies
+their combined locks and getter/notice wiring.

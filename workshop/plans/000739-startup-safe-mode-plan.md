@@ -53,6 +53,7 @@ Scope: implicit bare/directory/multi-hub startup, primary/numbered hubs, warm wo
 | `HubAutomation`; `AdvanceHubAutomation`, `AutomationStatus` | new `couchcore/hub_automation.go` | new |
 | `WorkerCueReport`; `AdvanceWorkerStartNotice`, `WorkerStartNoticeID`, `ValidateWorkerStartNotice` | new `couchmessage/worker_start_notice.go` | new |
 | `LifecycleNoticeState`; `AdvanceLifecycleNotices` suppression/discard transitions | `couchcore/lifecycle_notice.go` | modified |
+| `ResourceEpisode`; `AdvanceResourceEpisode` suppression and volatile original hub/epoch | `couchcore/resource_episode.go` | modified |
 
 Startup values use existing parsed ThreadRecord and SessionObservation. A positively attributed live fleet session supports normal restart; complete absence supports full shutdown. Unknown/unreadable/incomplete/orphaned evidence without a proved survivor stays unknown. Per-hub positively surviving proof is needed to initialize that hub on; an absent hub stays off even when other workers survived. Parked counts include verified parked records only; unknown is not zero. These are current observations, not historical proof of host power-off, and never authorize a later attachment without its current exact-session guard.
 
@@ -67,7 +68,8 @@ Startup values use existing parsed ThreadRecord and SessionObservation. A positi
 | `ObserveStartupContext` | new `couchcore/startup_policy.go` | new | read-only Preview snapshot + bulk SessionPresenceResolver |
 | implicit `StartInteractive` | `couchcore/startup.go` | modified | existing current-session guards and warm attachment |
 | initial/extra hub adoption, `beginConsole` | `couchcmd/run.go`, `hubs.go`, Console reattach | modified | existing terminal/lifecycle workers, no new pool |
-| `sendAutomaticSystem`, automation CLI/UI controller | new `couchcmd/automation.go`, current generated-send consumers | new/modified | verified hub bindings + one memory owner + normal broker |
+| `sendAutomaticSystem`, `automationAdmissionGuard`, automation CLI/UI controller | new `couchcmd/automation.go`, current generated-send consumers | new/modified | verified hub bindings + one memory owner + normal broker |
+| `AdmissionGuard`; broker `tryAdmission`, `enqueueLocked` | `couchmessage/broker.go` | modified | broker then automation lock over first in-memory mailbox commit only; no endpoint IO |
 | `runAutomationCLI`, `handleAutomation` | new `couchcmd/automation.go`, CLI/request dispatch | new | authenticated own-hub control; no process effect |
 | lifecycle automation admission and suppression ownership, `lifecyclePublisher.observe/run` | `couchcmd/lifecycle_notices.go` | modified | existing cancellable publisher workers, owner epochs and broker; Console observation provenance unchanged |
 | negotiated cue reporting | session protocol/transport/registry + `message_service.go` | modified | versioned private Unix session connection |
@@ -117,6 +119,7 @@ Every automatic conversation input goes through the shared policy, with a typed 
 | `ObserveStartupContext`, `StartInteractive` | Mutating native/record evidence at selection/effect boundary → stateful fakes, unchanged retained records, zero cold/Fresh/native-target reads and counted bulk calls |
 | `AdvanceHubAutomation`, `AutomationStatus` | Arbitrary explicit/irrelevant event sequences across independent hubs → pure transition properties, no input-driven change or implicit replay |
 | `handleAutomation`, `runAutomationCLI` | Forged/current/stale caller and hub aliases → actual private socket/CLI and strict decoder, own-hub mutation only |
+| `automationAdmissionGuard`, broker `tryAdmission`/`enqueueLocked` | Controlled policy changes during families/Observe/Reserve and both queue paths → original hub/epoch/exact Binding checked at commit under broker then automation; TryLock and receipt-publication assertions pin lock extent; prior canonical receipts remain unchanged |
 | Console automation key/adoption | Incrementally delivered key encodings and completion reordering → fake host/input plus real reducer; outside-switcher bytes preserved; focus never stolen |
 | `AdvanceWorkerStartNotice`, `WorkerStartNoticeID` | Launch identity/receipt uncertainty/reconnect sequences → pure properties plus one sticky witness; count native submissions, not only send calls |
 | `EncodeSessionFrame`, `DecodeSessionFrame`, `SessionClient.session` | Malformed/version-conflicting bounded frames → seeded fuzz plus stateful negotiation sockets; no new field sent to old peers, no timeout downgrade |
@@ -289,3 +292,20 @@ The proposed guard holds it only over the actual in-memory commit.
 Visible states remain hub automation on/off with explicit on/off recovery; no
 new user state or data-loss mode beyond intentional retirement of suppressed
 occurrences. Live acceptance remains owed through #744 after #761.
+
+
+### 2026-10-21 02:01 PDT — BR-5 correction approved and cross-issue lock order
+
+Hub b88aa936-7bcc-40c4-a9f6-e4d7432377f8 approves the preceding proposal. The
+required total order with #737 is hub-effect gate, scheduler authority, broker,
+automation. The scheduler may read automation under earlier locks, but no
+automation-held callback acquires those earlier locks or performs IO. Atlas
+records the order; broker tests assert broker/policy ownership through receipt
+publication, while service tests assert automation is not retained across
+routing. The second lander verifies the actual combined scheduler wiring.
+Implementation does not claim unlanded #737 behavior.
+
+Resource pending policy retains its original hub alongside its existing epoch,
+both json-excluded volatile fields; changing hub while pending retires the old
+occurrence. No persisted format or new UI state. Already-admitted receipts
+remain canonical after off; the guard governs only new mailbox mutations.

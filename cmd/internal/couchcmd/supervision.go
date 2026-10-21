@@ -111,10 +111,7 @@ func (c *supervisionCoordinator) admitted(id string, receipt *couchmessage.Recei
 // sendGenerated shares normal Broker.Send policy, including its busy queue.
 // Metadata exists only while admission/delivery is outstanding; the broker is
 // the single capacity owner. No report or reply is dropped to fit a cache.
-func (c *supervisionCoordinator) sendGenerated(ctx context.Context, from, to couchmessage.Binding, id, body string, prompt bool) (couchmessage.Receipt, error) {
-	if c.service.generatedHubInputOff(to) {
-		return couchmessage.Receipt{}, errHubAutomationOff
-	}
+func (c *supervisionCoordinator) sendGenerated(ctx context.Context, from, to couchmessage.Binding, id, body string, prompt bool, permit hubInputPermit) (couchmessage.Receipt, error) {
 	c.mu.Lock()
 	c.remember(id, from, c.now(), true)
 	if prompt {
@@ -123,7 +120,7 @@ func (c *supervisionCoordinator) sendGenerated(ctx context.Context, from, to cou
 		c.sends[id] = v
 	}
 	c.mu.Unlock()
-	receipt, err := c.service.sendAutomaticSystem(ctx, from, to, id, body)
+	receipt, err := c.service.sendAutomaticSystem(ctx, from, to, id, body, permit)
 	if err != nil {
 		c.admitted(id, nil)
 	} else {
@@ -236,6 +233,8 @@ func (c *supervisionCoordinator) tick(ctx context.Context, now time.Time, muted 
 		if c.service.isHubBinding(r.Binding) {
 			continue
 		}
+		permit := c.service.captureOwnerHubInputPermit(r.Binding)
+		permits[r.Binding] = permit
 		_, available[r.Binding] = c.service.hubBindingFor(r.Binding)
 		f := supervisionFacts{binding: r.Binding, known: r.Known, resting: r.Resting, pending: r.Pending, quiet: now.Sub(r.LastActivity)}
 		if live != nil {
@@ -245,8 +244,6 @@ func (c *supervisionCoordinator) tick(ctx context.Context, now time.Time, muted 
 			}
 		}
 		f.muted = muted[r.Binding.Slot]
-		permit := c.service.captureOwnerHubInputPermit(r.Binding)
-		permits[r.Binding] = permit
 		f.automationOff = !permit.enabled
 		f.submission, _ = c.service.broker.Submission(r.Binding)
 		facts = append(facts, f)
@@ -288,7 +285,11 @@ func (c *supervisionCoordinator) tick(ctx context.Context, now time.Time, muted 
 		}
 		id, err := newRequestID()
 		if err == nil {
-			_, err = c.sendGenerated(ctx, from, to, id, body, fx.kind == supervisionPrompt)
+			permit := permits[fx.binding]
+			if fx.kind == supervisionPrompt {
+				permit = c.service.captureHubInputPermit(to)
+			}
+			_, err = c.sendGenerated(ctx, from, to, id, body, fx.kind == supervisionPrompt, permit)
 		}
 		if err != nil {
 			if fx.kind == supervisionNudge && errors.Is(err, errHubAutomationOff) {

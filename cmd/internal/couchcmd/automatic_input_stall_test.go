@@ -425,3 +425,37 @@ func TestAutomaticInputStallPolicyEpochFencesBlockedStatusOutput(t *testing.T) {
 		t.Fatal("fresh stall did not qualify after on")
 	}
 }
+
+func TestAutomaticInputStallOriginalPermitReachesMailboxCommit(t *testing.T) {
+	r, b := hubMessageRig(t)
+	var statuses, desktop atomic.Int64
+	r.s.supervision.Store(newSupervisionCoordinator(r.s, func(string) { statuses.Add(1) }))
+	r.s.SetDesktopNotify(func(context.Context, string, string) error { desktop.Add(1); return nil })
+	seen := flipAutomationAtReserve(t, r.s, b[1], "/repo1")
+	request := stallRequest(b[2], 2)
+	if got := stallCall(t, r, request); got.Code != "ok" {
+		t.Fatalf("policy suppression became failure: %+v", got)
+	}
+	if id := awaitAutomationReserve(t, seen); id != request.ID {
+		t.Fatal("reserved another occurrence")
+	}
+	if _, known, _ := r.s.broker.ReceiptSnapshot(request.ID); known {
+		t.Fatal("stale stall input entered mailbox")
+	}
+	if statuses.Load() != 1 || desktop.Load() != 1 {
+		t.Fatal("suppression hid passive outputs")
+	}
+	if got := stallCall(t, r, request); got.Code != "ok" {
+		t.Fatal(got)
+	}
+	if statuses.Load() != 1 || desktop.Load() != 1 {
+		t.Fatal("retired stall replayed")
+	}
+	next := stallRequest(b[2], 3)
+	if got := stallCall(t, r, next); got.Code != "ok" {
+		t.Fatal(got)
+	}
+	if receipt, known, _ := r.s.broker.ReceiptSnapshot(next.ID); !known || receipt.Message.To != b[1] {
+		t.Fatal("fresh occurrence lost valid admission")
+	}
+}

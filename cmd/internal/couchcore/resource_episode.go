@@ -36,8 +36,9 @@ const (
 )
 
 type ResourceEpisode struct {
-	// AutomationEpoch binds a pending publisher occurrence to volatile policy.
+	// AutomationHub and AutomationEpoch bind a pending publisher occurrence to volatile policy.
 	// It is not persisted metric evidence and clears only on metric recovery.
+	AutomationHub   string                  `json:"-"`
 	AutomationEpoch *uint64                 `json:"-"`
 	Delivery        ResourceDeliveryOutcome `json:"delivery,omitempty"`
 	Process         ResourceProcessKey      `json:"process"`
@@ -113,6 +114,7 @@ func AdvanceResourceEpisode(e ResourceEpisode, v ResourceEpisodeEvent) (Resource
 		e.Effect = nil
 		e.Delivery = ""
 		e.AutomationEpoch = nil
+		e.AutomationHub = ""
 		return e, nil
 	}
 	if e.Phase == "pending" || e.Phase == "notified" || e.Phase == "suppressed" {

@@ -3,10 +3,13 @@ package couchcmd
 import (
 	"context"
 	"errors"
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func setTestAutomation(t *testing.T, s *messageService, root, action string) {
@@ -21,7 +24,7 @@ func TestSupervisionGeneratedHubInputOffLeavesWorkerInputIndependent(t *testing.
 	c, _ := installTestSupervision(w, func(string) {})
 	setTestAutomation(t, w.s, "/repo1", "off")
 	const id = "suppressed-system-input"
-	if _, err := c.sendGenerated(context.Background(), w.worker, w.hub, id, "automatic hub input", false); !errors.Is(err, errHubAutomationOff) {
+	if _, err := c.sendGenerated(context.Background(), w.worker, w.hub, id, "automatic hub input", false, w.s.captureHubInputPermit(w.hub)); !errors.Is(err, errHubAutomationOff) {
 		t.Fatalf("off hub admitted automatic input: %v", err)
 	}
 	if _, known, _ := w.s.broker.ReceiptSnapshot(id); known {
@@ -43,7 +46,7 @@ func TestSupervisionGeneratedHubInputOffLeavesWorkerInputIndependent(t *testing.
 		from couchmessage.Binding
 		body string
 	}{{"worker-resend", w.hub, startupResendPrompt}, {couchmessage.WorkerStartNoticeID(w.worker, 7), w.worker, couchmessage.WorkerStartNoticeBody}} {
-		if _, err := c.sendGenerated(context.Background(), entry.from, w.worker, entry.id, entry.body, false); err != nil {
+		if _, err := c.sendGenerated(context.Background(), entry.from, w.worker, entry.id, entry.body, false, w.s.captureHubInputPermit(w.worker)); err != nil {
 			t.Fatalf("worker input was gated: %v", err)
 		}
 		supervisionWaitReceipt(t, w.serviceRig, entry.from, entry.id, couchmessage.Submitted)
@@ -170,7 +173,7 @@ func TestSupervisionUnknownTargetWorkspaceCannotBypassAutomation(t *testing.T) {
 		t.Fatal("fixture needs connected actor before workspace publication")
 	}
 	const id = "unknown-workspace-automatic"
-	if _, err := c.sendGenerated(context.Background(), w.worker, w.hub, id, "automatic input during registration", false); err == nil {
+	if _, err := c.sendGenerated(context.Background(), w.worker, w.hub, id, "automatic input during registration", false, w.s.captureHubInputPermit(w.hub)); err == nil {
 		t.Fatal("unknown workspace bypassed automation")
 	}
 	if _, known, _ := w.s.broker.ReceiptSnapshot(id); known {
@@ -198,5 +201,122 @@ func TestSupervisionAutomationOffRetiresNudgeAndKeepsConsoleEscalation(t *testin
 	w.mu.Unlock()
 	if got != 0 || len(notices) != 1 {
 		t.Fatalf("on replayed nudge/escalation: deliveries=%d notices=%v", got, notices)
+	}
+}
+
+// A producer has already chosen its occurrence and entered broker IO when
+// Reserve runs. The policy cycle must invalidate that original permit, while
+// the reservation is released through the ordinary broker cleanup.
+type automationReserveFlip struct {
+	couchmessage.DeliveryEndpoint
+	once    sync.Once
+	seen    chan string
+	service *messageService
+	root    string
+	flipErr error
+}
+
+func (e *automationReserveFlip) Reserve(ctx context.Context, id string, sequence uint64) error {
+	if err := e.DeliveryEndpoint.Reserve(ctx, id, sequence); err != nil {
+		return err
+	}
+	e.once.Do(func() {
+		_, e.flipErr = e.service.controlAutomation(e.root, "off")
+		if e.flipErr == nil {
+			_, e.flipErr = e.service.controlAutomation(e.root, "on")
+		}
+		e.seen <- id
+	})
+	return e.flipErr
+}
+func flipAutomationAtReserve(t *testing.T, s *messageService, hub couchmessage.Binding, root string) <-chan string {
+	t.Helper()
+	ep := &automationReserveFlip{DeliveryEndpoint: s.authority.endpoint(hub), service: s, root: root, seen: make(chan string, 1)}
+	s.broker.Disconnect(hub)
+	if err := s.broker.Register(hub, ep); err != nil {
+		t.Fatal(err)
+	}
+	return ep.seen
+}
+func awaitAutomationReserve(t *testing.T, seen <-chan string) string {
+	t.Helper()
+	select {
+	case id := <-seen:
+		return id
+	case <-testwait.After(t):
+		t.Fatal("producer never entered controlled broker reservation")
+		return ""
+	}
+}
+
+func TestWaitOriginalPermitReachesMailboxCommit(t *testing.T) {
+	for _, coordinated := range []bool{false, true} {
+		t.Run(fmt.Sprint(coordinated), func(t *testing.T) {
+			w := newWaitRig(t, true, true, claudeQuestionTail)
+			if coordinated {
+				installTestSupervision(w, func(string) {})
+			}
+			seen := flipAutomationAtReserve(t, w.s, w.hub, "/repo1")
+			if got := w.tickAt(11 * time.Minute); len(got) != 0 {
+				t.Fatalf("stale wait admitted during broker IO: %+v", got)
+			}
+			id := awaitAutomationReserve(t, seen)
+			if _, known, _ := w.s.broker.ReceiptSnapshot(id); known {
+				t.Fatal("stale wait entered mailbox")
+			}
+			if !w.watcher.seen[w.worker].notified {
+				t.Fatal("suppressed wait retained retry")
+			}
+			if _, ok := w.watcher.questions[bindingThread(w.worker)]; !ok {
+				t.Fatal("suppression removed passive attention")
+			}
+			if got := w.tickAt(12 * time.Minute); len(got) != 0 {
+				t.Fatal("suppressed wait replayed")
+			}
+		})
+	}
+}
+
+func TestSessionStaleOriginalPermitReachesMailboxCommit(t *testing.T) {
+	r := newSessionStaleRig(t)
+	seen := flipAutomationAtReserve(t, r.s, r.hub, "/repo1")
+	r.watcher.tick(context.Background())
+	id := awaitAutomationReserve(t, seen)
+	if _, known, _ := r.s.broker.ReceiptSnapshot(id); known {
+		t.Fatal("stale reminder crossed broker IO policy cycle")
+	}
+	select {
+	case m := <-r.endpoint.deliveries:
+		t.Fatalf("stale reminder delivered: %+v", m)
+	default:
+	}
+	r.watcher.tick(context.Background())
+	if r.checks.Load() != 1 || r.logs.Load() != 0 {
+		t.Fatalf("suppressed reminder replayed or became failure: checks=%d logs=%d", r.checks.Load(), r.logs.Load())
+	}
+}
+
+func TestSupervisionOriginalPermitReachesMailboxCommit(t *testing.T) {
+	w := newWaitRig(t, true, true, nil)
+	var notices []string
+	c, at := installTestSupervision(w, func(text string) { notices = append(notices, text) })
+	c.mu.Lock()
+	c.state.report(w.worker, "completed-report", at, 0, true)
+	c.mu.Unlock()
+	seen := flipAutomationAtReserve(t, w.s, w.hub, "/repo1")
+	c.tick(context.Background(), at.Add(31*time.Minute), nil)
+	id := awaitAutomationReserve(t, seen)
+	if _, known, _ := w.s.broker.ReceiptSnapshot(id); known {
+		t.Fatal("stale supervision nudge entered mailbox")
+	}
+	if !c.state.notified(w.worker) || len(notices) != 1 {
+		t.Fatal("suppressed nudge lost retirement or passive escalation")
+	}
+	c.tick(context.Background(), at.Add(32*time.Minute), nil)
+	w.mu.Lock()
+	delivered := len(w.delivered)
+	w.mu.Unlock()
+	if delivered != 0 {
+		t.Fatal("old supervision nudge replayed")
 	}
 }

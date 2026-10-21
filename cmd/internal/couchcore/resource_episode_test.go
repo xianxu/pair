@@ -126,3 +126,19 @@ func TestResourceEpisodeStaleSuppressionCannotRetireReplacement(t *testing.T) {
 		t.Fatalf("stale suppression changed replacement: %+v", next)
 	}
 }
+
+func TestResourceEpisodeRecoveryClearsOriginalAutomationPermit(t *testing.T) {
+	epoch := uint64(7)
+	original := ResourceEpisode{Phase: "suppressed", Delivery: ResourceDeliverySuppressed, Key: "cpu/worker", Metric: "idle-cpu", AutomationHub: "/old-hub", AutomationEpoch: &epoch, Effect: &ResourceEffect{ID: "old"}}
+	recovered, _ := AdvanceResourceEpisode(original, ResourceEpisodeEvent{At: time.Unix(1, 0), Known: true})
+	if recovered.AutomationHub != "" || recovered.AutomationEpoch != nil {
+		t.Fatal("metric recovery retained old publisher authority")
+	}
+	if original.AutomationHub != "/old-hub" || original.AutomationEpoch == nil || *original.AutomationEpoch != 7 {
+		t.Fatal("recovery mutated original occurrence")
+	}
+	fresh, effect := AdvanceResourceEpisode(recovered, ResourceEpisodeEvent{At: time.Unix(2, 0), Known: true, High: true, RequiredSamples: 1})
+	if effect == nil || fresh.AutomationHub != "" || fresh.AutomationEpoch != nil {
+		t.Fatal("fresh incident inherited old occurrence permit")
+	}
+}

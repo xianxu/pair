@@ -24,6 +24,26 @@ suppresses machine-generated hub input and scheduled due runs, while human and
 worker communication, status and desktop output remain independent. Suppressed
 occurrences are retired rather than replayed on enable.
 
+Generated occurrences retain their original canonical hub and automation epoch
+through routing and endpoint IO. `sendAutomaticSystem` pins the exact recipient
+and supplies the internal broker `AdmissionGuard`. Direct admission and both
+busy enqueue paths check it under the broker mutex; the guard holds the
+automation mutex only across the in-memory mailbox commit. Off before that
+commit retires the occurrence, even after off/on. Admission before off keeps its
+canonical receipt and ordinary delivery rules. Neither mutex covers endpoint IO,
+and no admitted message is retracted or retried by changing automation.
+
+The shared lock order with #737 is **hub-effect gate → scheduler authority →
+broker → automation**. Scheduler notice admission may consult the automation
+getter while holding the earlier scheduler locks, but releases that read before
+entering the broker. Broker commit guards acquire only automation, never an
+earlier lock, and contain no IO or broker reentry. Automation controls acquire
+only automation. The second lander wires #737's due/script/notice consumers and
+verifies this order; its unlanded behavior is not claimed by #739's provider.
+Broker tests assert both mutexes remain held through receipt publication; policy
+tests prove the automation mutex is free during routing and released after the
+commit. The source guard rejects a generated send with a missing/nil policy.
+
 `couchmessage/worker_start_notice.go` models one wrapper launch's cue witness.
 Negotiated hello-v5 carries its bounded report; `wrapcmd` retains the exact
 system cue receipt independently of normal receipt eviction. Launch ordinals

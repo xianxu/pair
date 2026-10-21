@@ -113,14 +113,14 @@ func TestBrokerSystemOriginThroughQueueAndDedup(t *testing.T) {
 		t.Fatalf("peer send: %+v %v", first, err)
 	}
 	delivered(t, ep)
-	r, err := b.SendSystem(context.Background(), sender, "system", Route{Target: hub.Slot}, "Slots update")
+	r, err := b.SendSystem(context.Background(), sender, "system", Route{Target: hub.Slot}, "Slots update", nil)
 	if err != nil || r.Message.Origin != OriginSystem {
 		t.Fatalf("system send: %+v %v", r, err)
 	}
 	if _, err := b.Send(context.Background(), sender, "system", Route{Target: hub.Slot}, "Slots update"); err == nil {
 		t.Fatal("peer deduplicated system ID")
 	}
-	if _, err := b.SendSystem(context.Background(), sender, "peer", Route{Target: hub.Slot}, first.Message.Body); err == nil {
+	if _, err := b.SendSystem(context.Background(), sender, "peer", Route{Target: hub.Slot}, first.Message.Body, nil); err == nil {
 		t.Fatal("system deduplicated peer ID")
 	}
 	ep.outcomes <- Receipt{Status: Submitted}
@@ -130,7 +130,7 @@ func TestBrokerSystemOriginThroughQueueAndDedup(t *testing.T) {
 	}
 	ep.outcomes <- Receipt{Status: Submitted}
 	waitStatus(t, b, sender, "system", Submitted)
-	done, err := b.SendSystem(context.Background(), sender, "system", Route{Target: hub.Slot}, "Slots update")
+	done, err := b.SendSystem(context.Background(), sender, "system", Route{Target: hub.Slot}, "Slots update", nil)
 	if err != nil || done.Status != Submitted || done.Message.Origin != OriginSystem {
 		t.Fatalf("system dedup: %+v %v", done, err)
 	}
@@ -145,7 +145,7 @@ func TestSystemAdmissionCannotAdoptEndpointReceipt(t *testing.T) {
 	ep.retained.Add(Receipt{Message: Message{Origin: OriginSystem, ID: "forged", From: from, To: to, Body: "work", Deadline: now.Add(PasteTimeout), AcceptedAt: now}, Status: Submitted})
 	_ = b.Register(from, newFakeEndpoint(now))
 	_ = b.Register(to, ep)
-	if _, err := b.SendSystem(context.Background(), from, "forged", Route{Target: to.Slot}, "work"); err == nil {
+	if _, err := b.SendSystem(context.Background(), from, "forged", Route{Target: to.Slot}, "work", nil); err == nil {
 		t.Fatal("in-progress system admission authorized an endpoint receipt")
 	}
 	b.mu.Lock()
@@ -175,7 +175,7 @@ func TestPromotionRequiresCanonicalOriginAndIdentity(t *testing.T) {
 			if kind == "forged-system" {
 				origin = OriginPeer
 			}
-			r, err := b.send(context.Background(), sender, "queued", Route{Target: hub.Slot}, "work", origin)
+			r, err := b.send(context.Background(), sender, "queued", Route{Target: hub.Slot}, "work", origin, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -231,7 +231,7 @@ func TestInflightAdmissionOriginConflict(t *testing.T) {
 	_ = b.Register(to, ep)
 	done := make(chan error, 1)
 	go func() {
-		_, err := b.SendSystem(context.Background(), from, "same", Route{Target: to.Slot}, "work")
+		_, err := b.SendSystem(context.Background(), from, "same", Route{Target: to.Slot}, "work", nil)
 		done <- err
 	}()
 	<-entered
@@ -338,7 +338,7 @@ func TestSystemPromotionCannotReplaceCancelledCanonicalReceipt(t *testing.T) {
 		t.Fatal(err)
 	}
 	delivered(t, ep.FakeDeliveryEndpoint)
-	queued, err := b.SendSystem(context.Background(), from, "queued", Route{Target: to.Slot}, "work")
+	queued, err := b.SendSystem(context.Background(), from, "queued", Route{Target: to.Slot}, "work", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

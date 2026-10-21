@@ -95,7 +95,7 @@ func (c *supervisionCoordinator) cueWorker(ctx context.Context, live couchmessag
 		return
 	}
 	id := couchmessage.WorkerStartNoticeID(to, report.LaunchOrdinal)
-	if _, err := c.sendGenerated(ctx, to, to, id, couchmessage.WorkerStartNoticeBody, false); err != nil {
+	if _, err := c.sendGenerated(ctx, to, to, id, couchmessage.WorkerStartNoticeBody, false, c.service.captureHubInputPermit(to)); err != nil {
 		skip("admission was refused or uncertain; no automatic retry")
 	}
 }

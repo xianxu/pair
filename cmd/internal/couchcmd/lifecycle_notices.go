@@ -460,7 +460,7 @@ func (p *lifecyclePublisher) run(ctx context.Context) {
 			p.attempts[token] = lifecycleAttempt{id: id, hub: fx.Hub, from: b, cancel: cancel}
 			p.mu.Unlock()
 			workers.Add(1)
-			go func(token uint64, body string, b couchmessage.Binding, id, root string, expectedEpoch uint64) {
+			go func(token uint64, body string, b couchmessage.Binding, id string, permit hubInputPermit) {
 				defer workers.Done()
 				var r couchmessage.Receipt
 				release, err := holdHubEffect(admissionCtx, p.service.authority.hubs)
@@ -474,11 +474,10 @@ func (p *lifecyclePublisher) run(ctx context.Context) {
 					}
 					p.mu.Unlock()
 					if valid {
-						on, epoch := p.service.hubAutomationPermit(root)
-						if !on || epoch != expectedEpoch {
+						if !permit.current(p.service) {
 							err = errHubAutomationOff
 						} else {
-							r, err = p.service.sendAutomaticSystem(admissionCtx, b, b, id, body)
+							r, err = p.service.sendAutomaticSystem(admissionCtx, b, b, id, body, permit)
 						}
 					} else {
 						err = couchmessage.ErrUnavailable // proven not admitted
@@ -491,7 +490,7 @@ func (p *lifecyclePublisher) run(ctx context.Context) {
 				case p.results <- lifecycleAdmission{token: token, receipt: r, err: err}:
 				case <-ctx.Done():
 				}
-			}(token, fx.Body, b, id, fx.Hub, expected.epoch)
+			}(token, fx.Body, b, id, hubInputPermit{root: fx.Hub, enabled: expected.enabled, epoch: expected.epoch})
 		}
 		select {
 		case <-ctx.Done():

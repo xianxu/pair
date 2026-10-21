@@ -200,7 +200,7 @@ func TestPeerWorkerCuePrivateSupervisorReplacementCountsNativeInput(t *testing.T
 			defer stopClient()
 			await(couchmessage.WorkerCueNeeded)
 			id := couchmessage.WorkerStartNoticeID(binding, 7)
-			if _, err := broker.SendSystem(lifetime, binding, id, couchmessage.Route{Target: binding.Slot}, couchmessage.WorkerStartNoticeBody); err != nil {
+			if _, err := broker.SendSystem(lifetime, binding, id, couchmessage.Route{Target: binding.Slot}, couchmessage.WorkerStartNoticeBody, nil); err != nil {
 				t.Fatal(err)
 			}
 			if !waitFor(t, func() bool { return d.workerCueReport().State == couchmessage.WorkerCueCommitted }) {
@@ -283,7 +283,7 @@ func TestPeerWorkerCuePrivateSupervisorReplacementCountsNativeInput(t *testing.T
 				t.Fatal("same-PID reexec reused cue ID")
 			}
 			replacementID := couchmessage.WorkerStartNoticeID(binding, 8)
-			if _, err := broker.SendSystem(lifetime, binding, replacementID, couchmessage.Route{Target: binding.Slot}, couchmessage.WorkerStartNoticeBody); err != nil {
+			if _, err := broker.SendSystem(lifetime, binding, replacementID, couchmessage.Route{Target: binding.Slot}, couchmessage.WorkerStartNoticeBody, nil); err != nil {
 				t.Fatal(err)
 			}
 			if !waitFor(t, func() bool { return replacement.workerCueReport().State == couchmessage.WorkerCueCommitted }) {
