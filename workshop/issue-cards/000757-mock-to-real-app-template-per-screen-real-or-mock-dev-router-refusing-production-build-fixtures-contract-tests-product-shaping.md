@@ -1,6 +1,6 @@
 ---
 id: 000757
-status: working
+status: codecomplete
 created: 2026-10-20
 updated: 2026-10-21
 estimate_hours: 6.657
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+actual_hours: 5.43
+tracker:
+    version: 1
+    completion:
+        token: close-5e1659b51579
+        repository: github.com/xianxu/pair
+        reviewed_head: 0e4d26c70c40ef990988a2748c9bd219a42549ba
+        evidence_commit: e68ece043f221dd9a3c1262dea43a992503a0a83
 ---
 
 # mock-to-real app template: per-screen real-or-mock dev router, refusing production build, fixtures contract tests (product-shaping)
