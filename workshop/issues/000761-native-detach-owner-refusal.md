@@ -16,6 +16,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "0c1c0f31", done: "f1e23da3"}
 ---
 
 # Couch native detach intermittently loses post-client ownership proof
