@@ -222,3 +222,97 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T11:05:07-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 759 — remote-session: 👽 mode in the terminal cast behind Cloudflare Access, off by default, kill switch re-enabled only at the console, tagged remote submits |
+| repo | pair |
+| issue file | workshop/issues/000759-remote-session-mode-in-the-terminal-cast-behind-cloudflare-access-off-by-default-kill-switch-re-enabled-only-at-the-console-tagged-remote-submits.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 9404e4e27c3cdd6eda6d2974f2aad57439a18e2c..2b756859f919eba69768c49f84a37f2b6773ea60 |
+| command | sdlc milestone-close --issue 759 --milestone M1 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T11:05:07-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range delivers the documented M1 security foundation. BR-4’s correction matches the actual declarations, and the delivered concept rows now distinguish pure values from integration owners accurately. No new blocking findings. This verdict covers M1, not the remote editor’s later runtime integration or live acceptance.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Retained: plan line 104 classifies Sessions as INTEGRATION, matching its entropy and mutex ownership; pure identity predicates remain in policy.go.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Retained: session_sequence_test.go exercises generated fake-time sequences, held admission boundaries, and controlled 8/16-client capacity waves; race tests pass.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Retained: publication.go uses canonical bounded staging slots; publication_test.go covers all four owners, interrupted recovery, foreign-file preservation, and unsafe-slot refusal.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      The pinned before/after diff splits the former protocol.go row: plan lines 94–95 now place DocumentResult in documents.go, matching its declaration at documents.go:18. All delivered rows were checked against declarations and effects; the correction is recorded under Revisions at line 354. This is prose-only.
+```
+
+1. **Strengths**
+
+   - Lifecycle decisions remain separate from IO, with explicit effects and stale-completion handling in `state.go`.
+   - Access verification uses established signature libraries, pinned issuer/key retrieval, bounded caching, and real-signature fixtures.
+   - Durable records preserve unknown fields through actual rewrite paths while rejecting malformed authority.
+   - Document permits enforce one-use, epoch-bound handoff; stateful backend tests cover queued kill and editor rebinding.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed `go test -race ./cmd/internal/remotesession ./cmd/internal/strictjson ./cmd/internal/artifactpath` and pinned-range `git diff --check`. Tests exercise real policy, transitions, persistence, and stateful dependency seams. No live Cloudflare or real-nvim acceptance is claimed.
+
+6. **Architectural notes for upcoming work**
+
+   - **ARCH-DRY — pass:** shared publication, JSON-validation, and artifact-path helpers consolidate common behavior.
+   - **ARCH-PURE — pass:** delivered classifications match implementation; pure tests require no external doubles.
+   - **ARCH-PURPOSE — pass:** M1 delivers the agreed foundation; M2/M3 work remains explicitly planned.
+   - **ARCH-MOCK — pass:** signed issuer and document fixtures retain state across interactions; live conformance remains a later acceptance obligation.
+   - **ARCH-CONSTRAINTS — pass:** session, replay, JWKS, record, and segment bounds have corresponding checks.
+   - **ARCH-SECURE — pass:** typed request allowlists, opaque permits, pinned verification, and unsafe-file refusal enforce the inspected boundaries.
+   - **ARCH-ORDER — pass for M1:** reducer and permit tests exercise stale events and controlled ordering. M2 must route production lifecycle changes through this model.
+   - **ARCH-FUNERAL — pass:** staging slots, audit segments, and in-memory structures have explicit bounds and lifecycle owners.
+   - **ARCH-EVOLVE — pass:** retained raw fields survive supported-format rewrites; known types, duplicates, and authority versions remain strict.
+
+   Atlas covers the new architectural surface. README updates are appropriately deferred until runnable CLI/UI surface lands.
+
+7. **Plan revision recommendations:** None; the required BR-4 revision is present.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"e092ef35-523b-493c-bc12-51cc8fc02b73","repository":"github.com/xianxu/pair","issue_id":"000759","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/465e2159e9c01b91","reviewed_head":"2b756859f919eba69768c49f84a37f2b6773ea60","slot":"pair:6","requested_at":"2026-10-21T18:03:35.149757Z"},"phase":"finished","pid":24468,"started_at":"2026-10-21T18:03:35.295749Z","finished_at":"2026-10-21T18:05:07.071351Z","session_id":"01a15fa2-037f-7611-a4cb-1bc12fd2e7c2","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.363439333s
+head: "2b756859f919eba69768c49f84a37f2b6773ea60"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

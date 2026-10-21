@@ -52,7 +52,7 @@ machine; 👽 mode assumes they're not.
 Approved durable design: [remote security plan](../plans/000759-remote-security-plan.md). Operator approval with changes is recorded below; change-code is next.
 
 - [x] Operator approved threat model and plan with explicit toggle/header/session/transcript changes; #758 stateful-backend sequencing settled.
-- [ ] M1 — Verified Access identity, pure lifecycle/session policy, durable latch, bounded audit and replay state.
+- [x] M1 — Verified Access identity, pure lifecycle/session policy, durable latch, bounded audit and replay state.
 - [ ] M2 — Exclusive protected exposure, console-only reset, CLI refusal and kill/late-completion conformance.
 - [ ] M3 — Trusted remote provenance through submit/accounting, document-adapter integration, operator live security drill and landing.
 
@@ -62,6 +62,7 @@ Approved durable design: [remote security plan](../plans/000759-remote-security-
 
 
 ### 2026-10-21 — planning only
+- 2026-10-21: closed M1 — Round2 disposed BR-1/2/3 addressed and found no new runtime defect; BR-4 complete delivered-entity audit now maps each declaration/classification/file correctly and future M2/M3 code explicitly planned. No runtime changes since passing1811e47e: package normal/race, signed issuer, generated controlled sessions, bounded crash-stage recovery, independent lifecycle/replay/permit invariants and catalog/artifactpath evidence retained. Foundation only, no exposure or real-nvim acceptance claimed.; review verdict: SHIP
 
 - Authenticated dispatch 942390da-f154-4785-bd03-d6108e1ae119; card unowned, claimed and start-plan completed in pair:6. Read ops remote-session project.md and design.md before design. No project edits, Cloudflare account/configuration/network changes or live tunnel starts.
 - Source audit: current production cast links have a numeric-code lock in addition to URL tokens (#495); earlier shorthand saying bearer-only was corrected to TL. View-only, pointer annotations, and Chrome drive have separate tokens/codes and capability checks. Tokens and unlock sessions have no server wall-clock TTL; URL tokens last until cast end. All link kinds share a per-link cross-IP bucket (burst5, then1/sec), rotate the numeric code after8 wrong well-formed attempts, preserve already-unlocked sessions on forced rotation, and keep URL token unchanged. The existing default quick-tunnel exposure question was reported separately to TL, not silently folded into this item's code scope.
