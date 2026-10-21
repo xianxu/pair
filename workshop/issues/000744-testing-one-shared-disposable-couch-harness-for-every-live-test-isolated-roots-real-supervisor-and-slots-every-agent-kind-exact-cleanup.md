@@ -219,6 +219,12 @@ TL3eba5889 dispatches the final qualification/landing sequence after train232 la
 
 Preflight verification: whole testcouch/agentfixture/native-entrypoint races PASS11.092s/12.847s/3.587s; couchmessage25.174s, testpair11.077s, artifactpath10.516s, repolint8.910s and actual fixture composer conformance0.416s PASS. Commit/push integration before one clean-head make test-couch-fleet run for Claude and Codex, retaining the full log, head/tool versions, receipts/body proof and exact cleanup. Preserve the original143.30s successful #747 post-landing proof and its53cbdc9a79cdcfe4ba579b28f86057494a546b7efa6be342b2deb315fcaf4880 checksum plus the later failed final attempt; the new result does not erase either. Required recorded suite, full close and normal merge follow; #722 remains parked and #739 waits for main.
 
+### 2026-10-21 — final native matrix PASS after prerequisite landing
+
+Clean sourceb60b2f7b064fe5a8b57c38388f23a8e419f4600b passed make test-couch-fleet once: test107.35s (Claude50.57s, Codex49.62s), whole command108.881s, exit0, identical head and clean tree afterward. Each genuine steward plus3 workers passed concurrent ActorCLI, public ordinary message receipt/submitted and independent accepted-body proof, resize, physical detach, supervisor restart returning all4 actors, and cleanup proving every owned generation absent/direct child and IO joined. Claude receiptadb100ec-5ff6-4f12-bb1e-be1495ca96ef; Codexcb696b96-d463-4256-be0c-ac0a1232df5e. Both owned roots were removed. No native retry, timeout increase or remaining live test fleet.
+
+Retained full log workshop/evidence/000744/final-post761-native.log SHA256d444a2fd8f8300ea4fc666ac9f3b43a819ee655546e68b50b7bd68a28e74b6c3, with exact-head command/result JSON beside it. Tools: Zellij0.45.1, nvim0.11.7, Git2.54.0, installed SDLC65859e6cf429aa9e672921a1c781361bc0902452 modified=false, Weave dev. The earlier #747 live proof remains explicitly retained at5484106480a0123bd86913ea39273a339342a196, log53cbdc9a79cdcfe4ba579b28f86057494a546b7efa6be342b2deb315fcaf4880; this post-BR/prerequisite run also preserves that coverage. Prior failed bfa769c1 final attempt stays recorded. Whitespace checks pass for code/docs; byte-exact raw terminal captures intentionally retain their native whitespace and were excluded from that formatting check. Required recorded suite and full close/merge remain next. #739 waits for landing, #722 stays parked.
+
 ## Revisions
 
 ### 2026-10-20 — #747 native-proof sequencing
