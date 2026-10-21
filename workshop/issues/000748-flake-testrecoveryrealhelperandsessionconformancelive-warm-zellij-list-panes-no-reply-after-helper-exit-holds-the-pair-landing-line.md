@@ -43,7 +43,11 @@ socket that's gone?), and fix the test or the product, whichever is wrong. Recor
 
 ## Plan
 
-- [ ]
+- [ ] Add red deterministic read sequences for empty/crossed replies, exhaustion, cancellation, nonzero exit, malformed data and non-read argv. Reuse the stateful CLI-frame fake and existing strict reply parsers.
+- [ ] In launcher's query boundary, allow at most three total attempts for allowlisted idempotent reads: full unformatted session listing, list-clients, JSON list-panes with existing command/state flags. Retry only exit-zero empty replies or a validated different reply kind. Share the original five-second/caller deadline across attempts; no sleeps. Observe each attempt and retain final typed refusal.
+- [ ] Update existing immediate-refusal tests to exhaust the three-attempt policy; retain no-effects and healthy-recovery assertions. Verify counted bounds at N/2N, cancellation before later effects, and no retries for mutation/unrecognized argv, nonzero/collector errors, malformed same-kind payload or conflicting valid observations.
+- [ ] Run native control through the production query boundary for 2,000 logical requests and retain first-attempt plus final-answer counts; run exact park→warm geometry and 20 consecutive warm cases. Update atlas, lesson/prevention guard, and #636 with the supported cause; run affected check and close review before landing.
+
 
 ## Log
 
@@ -64,3 +68,23 @@ ARCH-ORDER: pinned v0.45.1 frees the lowest numeric client ID before all duplica
 A detach-only change cannot establish the required cause fix: stock CLI actions run ConnStatus discovery even with an explicit session, recreating the cleanup race independently. Serialized native requests already fail. No stock retirement acknowledgement exists. Keeping typed unknown/refusal is correct; replacing it with empty inventory, retries, a sleep or a timeout increase would be wrong.
 
 Verified actual upstream PR5630 server diff (retained): monotonic client IDs and initial ConnStatus fast path before ID registration; latest published release remains 0.45.1. The mixed PR's title/body do not mention these changes, but its actual diff does. Prior #640 operator disposition declined a local Zellij build pending release. A cause fix therefore needs hub scope/dependency-policy guidance before coding: qualify a pinned patched native dependency, or explicitly revise the healthy-native success contract. Current Done-when remains unmet; no fix or deterministic forced native schedule is claimed.
+
+## Revisions
+
+### 2026-10-20 — hub-authorized bounded product mitigation
+
+Authenticated receipt `d8569808-2a30-4c3d-847f-84bbcc7455d5` supersedes the original prohibition on all read retries: the hub explicitly chooses a narrow live-product workaround for unreleased upstream PR5630. No test rerun or unknown-as-success exemption is authorized. The original native binary remains 0.45.1. Interpret the bound as three total subprocess attempts, not three extra attempts. A retry is a fresh idempotent observation only; mutations and the existing two-observation agreement fence retain their semantics.
+
+ARCH-DRY/PURE: reuse `validateSessionListing`, `zellijreply.ParseClients`, `ParsePanes`, and `ParseTab` for pure reply-kind classification; keep the bounded loop at `ZellijSource.runContext`, with the current process collector as one-attempt IO. Do not introduce a second IPC transport. Only the exact enumerated read argv are eligible. Valid same-kind replies remain subject to all existing caller validation/independent confirmation; malformed/duplicate-key or missing-decision-field payloads remain errors without automatic replay unless they form a complete different supported reply kind.
+
+ARCH-ORDER/CONSTRAINTS: one logical read owns one unchanged caller/five-second budget, at most three sequential children, no concurrent children and no backoff. At 8 and 16 logical requests, subprocess count is at most 24 and 48. Caller cancellation stops before the next spawn; each completed attempt emits its own bounded observer record. No persistent runtime state is added (ARCH-FUNERAL); existing fixture temp roots and child joins own cleanup. PR5630 removal note belongs next to the workaround.
+
+Actions: perform read, cancel, explicitly invoke a later recovery after refusal.
+
+| Internal state / failure mode | Visible state | Recovery action | Possible loss |
+| --- | --- | --- | --- |
+| Valid expected reply on attempt 1–3 | Existing healthy recovery result | Perform read | No new loss; existing agreement/ownership checks apply |
+| Exit-zero empty or complete other-kind reply, attempts remain | Read still pending within original budget | Cancel | No mutation dispatched by this read |
+| Three signature failures, deadline/cancel, collector/nonzero error, malformed payload or later agreement mismatch | Existing typed unknown/refusal | Explicit later recovery | No unsafe absence/ownership authority; operation remains refused |
+
+The hub separately authorized #743's image pull/build in receipt `3708133b-f037-4efe-bdb2-4bd40dd5e457`, only AFTER #748 finishes. Preserve pair-test; verify digest; remove only that interrupted pull's identified partial state; delete nothing else in ~/.tart without asking. #743 remains parked meanwhile.
