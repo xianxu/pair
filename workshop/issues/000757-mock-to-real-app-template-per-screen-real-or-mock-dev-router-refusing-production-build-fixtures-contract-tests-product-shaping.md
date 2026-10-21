@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-21
-estimate_hours:
+estimate_hours: 6.657
 collaboration-mode: collaboration
-card_mirror: '759cd5f5efe753f8ced70aa4eebf89058e9fe0c2' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'e5a1785e3700fa563f9727a9869fe65e51c2de43' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-21T02:15:21-07:00
 claimant:
     operator: Xian Xu
@@ -72,3 +72,30 @@ Claimed and started after #755 landed as PR507. Read the product-shaping design 
 - 2026-10-21 12:54 PDT — TL/operator made #757 high priority and authorized parking #769 and starting this issue now, superseding the prior wait-for-landing sequence. PR524, reviews and passed suite preserved; its runner had already exited1 after train238 conflict hold, so no cancellation was needed. Private GOCACHE=$HOME/.cache/go-build-757 on main SSD for builds/tests, to be removed at completion. No Go cache on TestScratch.
 
 - 2026-10-21: Full-flow plan review round1 requested PQ-1 exact missing-declared-mock delivery policy and PQ-2 named per-function test strategies. Added startup/watch/selection repair and request-time503 semantics without index/upstream fallback in hybrid mode, preserving standalone behavior; compressed active tasks into function/strategy table. Re-running plan-quality before code.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration is marked stale by estimate-source, so provisional. Full scope includes already-incurred spec/operator work and the framework-neutral pivot, implementation, native browser/HTTP qualification and one close/landing boundary; queue idle is excluded.
+
+Eight bounded new concerns: catalogue, pure dispatch, proxy ownership, scan publication, mock chrome, fixture shape, sample production projection/build, and root/browser qualification. Standard library JSON/net/http/httputil and existing x/net/html/host ownership are available, so each greenfield primitive uses1.0 raw design ×0.5 library availability ×0.2 thorough-spec =0.10; impl0.8 ×0.4 =0.32. Upstream HTTP/WebSocket API wiring adds1.0 ×0.2 design and1.5 ×0.4 implementation, plus separate runtime API discovery0.6 ×0.4. Familiarity1.0: Go/host/test ownership known; protocol edge qualification remains explicitly budgeted. Issue authoring uses1.0 design without discount because it accounts for shaping already done. Scope pivot0.3/0.3raw, docs0.2 ×0.2/0.2raw, review0.2 ×0.2/0.5raw. Thorough plan design buffer15%; no cross-repo implementation.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=1.0 impl=0.12
+item: greenfield-go-module design=0.10 impl=0.32
+item: greenfield-go-module design=0.10 impl=0.32
+item: greenfield-go-module design=0.10 impl=0.32
+item: greenfield-go-module design=0.10 impl=0.32
+item: greenfield-go-module design=0.10 impl=0.32
+item: greenfield-go-module design=0.10 impl=0.32
+item: greenfield-go-module design=0.10 impl=0.32
+item: greenfield-go-module design=0.10 impl=0.32
+item: api-integration design=0.20 impl=0.60
+item: real-api-discovery design=0 impl=0.24
+item: scope-pivot design=0.30 impl=0.12
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.04 impl=0.20
+design-buffer: 0.15
+total: 6.657
+```
