@@ -141,6 +141,96 @@ rounds:
       isolation: fenced
       reviewed: 7999245e29ebddadb321e849b30dba9a2bba8dfe
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 8f812837-dca2-494e-af5e-63a4803ba2fa
+            repository: github.com/xianxu/pair
+            issue_id: "000765"
+            recipe: fix-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/1b86d6938dddef80
+            reviewed_head: 7a44ba96a8802861c3991ed9791bd55b549ed8cd
+            slot: pair:7
+            requested_at: "2026-10-21T12:01:03.074385Z"
+          phase: finished
+          pid: 981
+          started_at: "2026-10-21T12:01:03.167655Z"
+          finished_at: "2026-10-21T12:02:12.007717Z"
+          session_id: 01a15e56-19be-7a20-8632-8b16eac9de71
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: 7a44ba96a8802861c3991ed9791bd55b549ed8cd
+        tracker_head: 0aab972f36f571ce296206e54aab9275d5e86609
+        branch_point: 77e3f916635177b73cf0666bd6310b49c0300c14
+        since: "2026-10-21T03:09:03-07:00"
+        until: "2026-10-21T05:00:39-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-21T03:09:03-07:00"
+              end: "2026-10-21T05:00:39-07:00"
+              began: "2026-10-21T03:09:03-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot7/pair
+        sources:
+            - harness: codex
+              id: 01a13398-d940-72d3-8d80-c203fc8bd296
+              slot: pair:7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot7/pair
+              digest: dcc300f3f6d5ea308cdd95513b14d65e5feb5ae497f438f4e034186194ec97e1
+              started: "2026-10-13T04:50:49.58Z"
+              spawned: false
+              bytes: 229426288
+              windows:
+                - start: "2026-10-21T03:09:03-07:00"
+                  end: "2026-10-21T05:00:39-07:00"
+        queue_waits:
+            - attempt_id: 565ab9c18cb876ea6bb5b1f1ce3d832b
+              slot: pair:7
+              record_digest: 7d57a5a58cc06115fc88fac12388ca034c49d959df4677ec79dd51193a56c912
+              start: "2026-10-21T10:26:11.522402Z"
+              end: "2026-10-21T10:57:22.469283Z"
+              queue_seconds: 1870.946881
+              raw_seconds: 1870.946881
+              exact: true
+            - attempt_id: 4b7476afad2ec562731e223ce7e4f83b
+              slot: pair:7
+              record_digest: 557ed4d74daf7f219e9fbba045831b04fc8dd141dbfdfa640b0a83c6feb03bc1
+              start: "2026-10-21T11:14:26.105756Z"
+              end: "2026-10-21T11:49:34.917572Z"
+              queue_seconds: 2108.811816
+              raw_seconds: 2108.811816
+              exact: true
+        cuts:
+            - dispatched: "2026-10-21T03:19:13-07:00"
+              finalized: "2026-10-21T03:20:42-07:00"
+              finalizing: false
+            - dispatched: "2026-10-21T03:26:33-07:00"
+              finalized: "2026-10-21T03:32:18-07:00"
+              finalizing: true
+      "n": 3
+      timestamp: "2026-10-21T05:02:12-07:00"
+      dispatched: "2026-10-21T05:01:01-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: The conformance reader retains its matching inventory hash and SOURCE_GUARDS registration. The inventory check and registered conformance test pass. Removing either registration in memory makes the audit fail.
+          round: 3
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 7a44ba96a8802861c3991ed9791bd55b549ed8cd
+      blocked: false
 ---
 
 # Gate ledger — pair#765 (boundary-review)
@@ -160,6 +250,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - BR-1 — addressed — SOURCE_GUARDS registers TestGoCacheWriteBudgetConformance and the audited inventory contains its current digest. make test-affected-inventory passes; independently removing either registration in memory makes the existing audit fail with the expected diagnostic. The registered conformance test passes.
+
+## Round 3 — 2026-10-21T05:02:12-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — The conformance reader retains its matching inventory hash and SOURCE_GUARDS registration. The inventory check and registered conformance test pass. Removing either registration in memory makes the audit fail.
 
 ## Open findings
 

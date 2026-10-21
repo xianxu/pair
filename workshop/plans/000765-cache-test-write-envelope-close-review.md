@@ -151,3 +151,80 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000411
+
+---
+
+## Re-review — 2026-10-21T05:02:12-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 765 — Cache-enabled Go tests exceed physical write envelopes |
+| repo | pair |
+| issue file | workshop/issues/000765-cache-test-write-envelope.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | b00543b68e2c2b84de08d453c7451fd684073c51..7a44ba96a8802861c3991ed9791bd55b549ed8cd |
+| command | sdlc close --issue 765 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T05:02:12-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff preserves both sides of the inventory conflict without changing audited hashes or behavior. BR-1 remains addressed. Issue revisions record evidence and integration progress, with no scope expansion. No new defects found.
+
+Done-when: current — the criteria still cover invocation accounting, cache behavior, and enforcement of real fixture-write caps.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The conformance reader retains its matching inventory hash and SOURCE_GUARDS registration. The inventory check and registered conformance test pass. Removing either registration in memory makes the audit fail.
+```
+
+1. **Strengths**
+   - `tests/affected-go-readers.json:60–61` preserves both conflict-side entries and their original hashes.
+   - Both readers remain registered in the fixed preflight.
+   - Added revision entries distinguish branch validation from integration validation.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+   - `make test-affected-inventory` passed.
+   - Removing either reader’s inventory entry or preflight registration in memory triggered the expected rejection.
+   - `TestGoCacheWriteBudgetConformance` passed in 9.119s.
+   - Diff whitespace check passed. Full suite was not rerun during this narrow review.
+
+6. **Architectural notes**
+   - **ARCH-DRY: pass** — existing inventory and preflight owners remain authoritative.
+   - **ARCH-PURE: pass** — no new logic or IO coupling.
+   - **ARCH-PURPOSE: pass** — the resolution retains both readers’ enforcement.
+   - **ARCH-EVOLVE: pass** — schema, existing entries, and field meanings are preserved.
+   - No new architectural or user-facing surface requires atlas or README updates.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"8f812837-dca2-494e-af5e-63a4803ba2fa","repository":"github.com/xianxu/pair","issue_id":"000765","recipe":"fix-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/1b86d6938dddef80","reviewed_head":"7a44ba96a8802861c3991ed9791bd55b549ed8cd","slot":"pair:7","requested_at":"2026-10-21T12:01:03.074385Z"},"phase":"finished","pid":981,"started_at":"2026-10-21T12:01:03.167655Z","finished_at":"2026-10-21T12:02:12.007717Z","session_id":"01a15e56-19be-7a20-8632-8b16eac9de71","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.502564542s
+head: "7a44ba96a8802861c3991ed9791bd55b549ed8cd"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
