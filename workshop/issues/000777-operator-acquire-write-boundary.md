@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-21
 updated: 2026-10-21
-estimate_hours:
+estimate_hours: 2.17
 collaboration-mode: collaboration
-card_mirror: '575a1b4a08ce264372c7bf53bed00be7a9645670' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'b8b4c755376e7baf82e3dfb312aa5c8c48e756b5' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-21T14:41:07-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # session-sync: serialize operator acquisition with the writer commit boundary
@@ -33,6 +34,27 @@ Define and implement a single exclusion resource/linearization boundary shared b
 - A deterministic writer pause between guard and mutation races operator acquisition and proves no writer commit crosses an acknowledged operator lock.
 - Registered write/apply paths and migration protection use the intended shared exclusion contract; refusal leaves document and metadata consistent.
 - Consumer-facing acquisition/acknowledgment semantics and failure recovery are documented and communicated to parley.nvim:1.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. The named calibration is marked stale by estimate-source, so these hours are provisional. Scope is the producer plus its executable proof and documentation; parley.nvim#408's implementation is excluded.
+
+The pure ownership model uses the greenfield-Go primitive: base design 1.0 h, halved for existing registry/ParseHolder/durablefile building blocks, then multiplied by 0.2 for the approved detailed contract = 0.10 h. Its base implementation 0.6 h becomes 0.24 h at the v3.1 40% scale. Transaction/CLI integration with uncertain retries uses API-integration base design 2.0 h × 0.2 and implementation 1.5 h × 0.4. A separate smaller module covers real executable conformance (base 0.3/0.5 h), not the integration's unit/folder tests. Spec, docs and the one close review use their own primitives below. Familiar Go/filesystem/CLI territory gives familiarity 1.0; the thorough plan gives a 15% design buffer. No new library discovery is needed: existing in-repository primitives supply the mechanism.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.10 impl=0.04
+item: greenfield-go-module design=0.10 impl=0.24
+item: api-integration design=0.40 impl=0.60
+item: smaller-go-module design=0.06 impl=0.20
+item: atlas-docs design=0.02 impl=0.08
+item: milestone-review design=0.02 impl=0.20
+design-buffer: 0.15
+total: 2.17
+```
+
+Derivation: design 0.70 × 1.15 + implementation 1.36 = 2.165 h, rounded to 2.17 h.
 
 ## Plan
 
