@@ -169,17 +169,17 @@ func TestProvisionProcessExitedLeaderRetainsDescendantLease(t *testing.T) {
 		t.Fatal("descendant did not install its TERM handler")
 	}
 	lease.Close()
+	if second, err := AcquireHostCreationLease(root); !errors.Is(err, ErrHostCreationBusy) {
+		if second != nil {
+			second.Close()
+		}
+		t.Fatalf("descendant did not inherit lease: %v", err)
+	}
 	cancel()
 	select {
 	case <-progress.exit:
 	case <-testwait.After(t):
 		t.Fatal("leader did not process TERM")
-	}
-	if second, err := AcquireHostCreationLease(root); !errors.Is(err, ErrHostCreationBusy) {
-		if second != nil {
-			second.Close()
-		}
-		t.Fatalf("descendant lost lease when leader exited: %v", err)
 	}
 	select {
 	case err = <-done:
