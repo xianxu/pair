@@ -1,6 +1,6 @@
 ---
 id: 000746
-status: codecomplete
+status: done
 created: 2026-10-20
 updated: 2026-10-20
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: a4f0b6ae0c9dd679c3829679485b43239f2de7a4
         evidence_commit: a6cef6f98c356b6bcd9e7d925a97795a5009d78b
+        landed_commit: 21700eeee773e3580017dc4aad13cd39901955d1
 ---
 
 # tests: check the affected-reader inventory before close, not only inside the full suite (stale inventory caught after SHIP three times on 10-20)
