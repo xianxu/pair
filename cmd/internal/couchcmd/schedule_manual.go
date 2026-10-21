@@ -128,10 +128,10 @@ func (r *manualTaskRunner) run(ctx context.Context, root, task string, args []st
 			if state.Active == nil || state.Active.ID != id || state.Revision != declaration.Revision {
 				return errors.New("manual task reservation changed")
 			}
-			active := *state.Active
-			state.Active = &active
-			active.ControllerPID = owner.PID
-			active.ControllerStart = owner.Start
+			state, _ = couchschedule.Advance(state, couchschedule.Event{Kind: couchschedule.OwnerRecorded, At: r.now(), Attempt: id, Revision: declaration.Revision, Owner: &owner})
+			if state.Active == nil || state.Active.ControllerPID <= 0 || state.Active.ControllerStart == "" || state.Active.ControllerPID != owner.PID || state.Active.ControllerStart != owner.Start {
+				return errors.New("manual execution owner observation refused")
+			}
 			state, effects := couchschedule.Advance(state, couchschedule.Event{Kind: couchschedule.ReservationDurable, At: r.now(), Attempt: id, Revision: declaration.Revision})
 			if len(effects) != 1 || effects[0].Kind != couchschedule.StartTask {
 				return errors.New("manual task authorization expired")

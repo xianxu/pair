@@ -99,6 +99,7 @@ func TestScheduleRemovedStateAgesFromFirstRemovalAndProtectsOwners(t *testing.T)
 	protected := l.Tasks[key.ID()]
 	protected.Key.Task = "uncertain"
 	protected.Active = &couchschedule.Attempt{ID: "old-owner", Revision: protected.Revision, Source: "scheduled", Stage: "uncertain", StartedAt: removed, Deadline: removed.Add(time.Minute)}
+	protected.Last = &couchschedule.RunSummary{ID: protected.Active.ID, Source: protected.Active.Source, DueAt: protected.Active.DueAt, StartedAt: protected.Active.StartedAt, Outcome: "unknown"}
 	if err := c.store.Update(t.Context(), func(l *couchschedule.Ledger) error { l.Tasks[protected.Key.ID()] = protected; return nil }); err != nil {
 		t.Fatal(err)
 	}

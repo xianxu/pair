@@ -1,15 +1,20 @@
 package couchschedule
 
 import (
+	"encoding/hex"
 	"fmt"
 	"path/filepath"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 )
 
 type TaskStatus struct {
 	Hub      string      `json:"hub"`
 	Task     string      `json:"task"`
+	Entry    string      `json:"entry,omitempty"`
+	EntryID  string      `json:"entry_id,omitempty"`
 	Revision string      `json:"revision"`
 	Scope    string      `json:"scope"`
 	Owner    string      `json:"owner,omitempty"`
@@ -40,6 +45,11 @@ func BuildStatus(states []TaskState, location string) StatusSnapshot {
 			hubs[s.Key.Hub] = true
 		}
 		row := TaskStatus{Hub: s.Key.Hub, Task: s.Key.Task, Revision: s.Revision, Scope: s.Spec.Scope, Owner: s.Spec.Owner, Cron: s.Spec.Cron, Location: location, State: "waiting", Reason: s.Refusal, NextDue: s.NextDue}
+		if !s.Allowed && !ValidTaskName(s.Key.Task) {
+			row.Task = ""
+			row.Entry = refusedTaskDisplay(s.Key.Task)
+			row.EntryID = s.Key.ID()
+		}
 		if s.Last != nil {
 			copy := *s.Last
 			if copy.Exit != nil {
@@ -64,7 +74,10 @@ func BuildStatus(states []TaskState, location string) StatusSnapshot {
 		if a.Hub != b.Hub {
 			return a.Hub < b.Hub
 		}
-		return a.Task < b.Task
+		if a.Task != b.Task {
+			return a.Task < b.Task
+		}
+		return a.EntryID < b.EntryID
 	})
 	return snapshot
 }
@@ -83,7 +96,19 @@ func (s StatusSnapshot) Validate() error {
 	}
 	for _, t := range s.Tasks {
 		key := TaskKey{Hub: t.Hub, Task: t.Task}.ID()
-		if !hubs[t.Hub] || !filepath.IsAbs(t.Hub) || filepath.Clean(t.Hub) != t.Hub || !ValidTaskName(t.Task) || seen[key] {
+		diagnostic := t.Task == "" && t.Entry != ""
+		if diagnostic {
+			key = t.Hub + "\x00entry:" + t.EntryID
+		}
+		if !hubs[t.Hub] || !filepath.IsAbs(t.Hub) || filepath.Clean(t.Hub) != t.Hub || seen[key] {
+			return fmt.Errorf("invalid schedule status task identity")
+		}
+		if diagnostic {
+			decoded, err := hex.DecodeString(t.EntryID)
+			if t.State != "refused" || t.Reason == "" || t.Active != nil || t.Last != nil || !t.NextDue.IsZero() || len(decoded) != 32 || err != nil || hex.EncodeToString(decoded) != t.EntryID || len(t.Entry) > 1024 || strings.IndexFunc(t.Entry, func(r rune) bool { return r < 0x20 || r > 0x7e }) >= 0 {
+				return fmt.Errorf("invalid refused schedule entry")
+			}
+		} else if !ValidTaskName(t.Task) || t.Entry != "" || t.EntryID != "" {
 			return fmt.Errorf("invalid schedule status task identity")
 		}
 		seen[key] = true
@@ -94,4 +119,27 @@ func (s StatusSnapshot) Validate() error {
 		}
 	}
 	return nil
+}
+
+const refusedTaskPrefix = ":entry:"
+
+// Catalog names are filesystem bytes; invalid names never become routable task
+// names. Encoding every invalid name makes their persisted identity lossless,
+// including a literal filename resembling an encoded name.
+func refusedTaskIdentity(name string) string {
+	return refusedTaskPrefix + hex.EncodeToString([]byte(name))
+}
+
+func refusedTaskDisplay(identity string) string {
+	name := identity
+	if strings.HasPrefix(identity, refusedTaskPrefix) {
+		if raw, err := hex.DecodeString(strings.TrimPrefix(identity, refusedTaskPrefix)); err == nil {
+			name = string(raw)
+		}
+	}
+	label := strconv.QuoteToASCII(name)
+	if len(label) > 1024 {
+		label = label[:1021] + "..."
+	}
+	return label
 }

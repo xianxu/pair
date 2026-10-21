@@ -136,7 +136,11 @@ func renderScheduleStatus(out io.Writer, s couchschedule.StatusSnapshot) error {
 		fmt.Fprintln(&b, "No scheduled tasks.")
 	}
 	for _, t := range s.Tasks {
-		fmt.Fprintf(&b, "%s\t%s\tscope=%s owner=%s\tcron=%s location=%s\t%s next=%s", rowtext.Sanitize(t.Hub), rowtext.Sanitize(t.Task), rowtext.Sanitize(t.Scope), rowtext.Sanitize(t.Owner), rowtext.Sanitize(t.Cron), rowtext.Sanitize(t.Location), rowtext.Sanitize(t.State), scheduleTime(t.NextDue))
+		label := t.Task
+		if t.Entry != "" {
+			label = t.Entry
+		}
+		fmt.Fprintf(&b, "%s\t%s\tscope=%s owner=%s\tcron=%s location=%s\t%s next=%s", rowtext.Sanitize(t.Hub), rowtext.Sanitize(label), rowtext.Sanitize(t.Scope), rowtext.Sanitize(t.Owner), rowtext.Sanitize(t.Cron), rowtext.Sanitize(t.Location), rowtext.Sanitize(t.State), scheduleTime(t.NextDue))
 		if t.Reason != "" {
 			fmt.Fprintf(&b, " reason=%s", rowtext.Sanitize(t.Reason))
 		}

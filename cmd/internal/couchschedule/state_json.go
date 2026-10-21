@@ -58,6 +58,9 @@ func encodeStateObject(value any, unknown map[string]json.RawMessage) ([]byte, e
 }
 
 func validateStoredTask(id string, t TaskState) error {
+	if err := validateTaskPhase(t); err != nil {
+		return err
+	}
 	if id != t.Key.ID() || !filepath.IsAbs(t.Key.Hub) || filepath.Clean(t.Key.Hub) != t.Key.Hub || t.Key.Task == "" || t.Revision == "" {
 		return fmt.Errorf("invalid task identity")
 	}
@@ -80,7 +83,7 @@ func validateStoredTask(id string, t TaskState) error {
 			return fmt.Errorf("invalid active attempt")
 		}
 		switch a.Stage {
-		case "reserved", "queued", "building", "running", "notifying", "delivery", "stopping", "uncertain":
+		case "reserved", "running", "notifying", "delivery", "stopping", "uncertain":
 		default:
 			return fmt.Errorf("invalid attempt stage")
 		}

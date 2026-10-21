@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -89,6 +90,7 @@ const (
 	CancelRequested     EventKind = "cancel-requested"
 	ExecutionRefused    EventKind = "execution-refused"
 	ResultRecovered     EventKind = "result-recovered"
+	OwnerRecorded       EventKind = "owner-recorded"
 )
 
 type Event struct {
@@ -105,7 +107,8 @@ type Event struct {
 	Location    *time.Location
 	// Next is an optional pre-parsed calendar function owned by the caller.
 	// It must be deterministic; it avoids reparsing unchanged declarations.
-	Next func(time.Time) time.Time
+	Next  func(time.Time) time.Time
+	Owner *OwnerIdentity
 }
 
 type EffectKind string
@@ -124,6 +127,17 @@ type Effect struct {
 // Advance consumes one observed event without IO or ambient time. Effects are
 // emitted only by explicit durability acknowledgements, never reservation.
 func Advance(state TaskState, event Event) (TaskState, []Effect) {
+	if validateTaskPhase(state) != nil {
+		return state, nil
+	}
+	next, effects := advance(state, event)
+	if validateTaskPhase(next) != nil {
+		return state, nil
+	}
+	return next, effects
+}
+
+func advance(state TaskState, event Event) (TaskState, []Effect) {
 	if event.At.IsZero() {
 		return state, nil
 	}
@@ -202,6 +216,16 @@ func Advance(state TaskState, event Event) (TaskState, []Effect) {
 		return state, nil
 	}
 	switch event.Kind {
+	case OwnerRecorded:
+		owner := event.Owner
+		if a.Stage != "reserved" || owner == nil || owner.PID <= 0 || owner.Start == "" || (a.ControllerPID != 0 && (a.ControllerPID != owner.PID || a.ControllerStart != owner.Start)) {
+			break
+		}
+		if a.Source == "scheduled" && !state.Spec.ScriptRun {
+			break
+		}
+		a.ControllerPID = owner.PID
+		a.ControllerStart = owner.Start
 	case ResultRecovered:
 		if a.Source != "manual" {
 			break
@@ -241,7 +265,7 @@ func Advance(state TaskState, event Event) (TaskState, []Effect) {
 		a.NoticeMayHaveHappened = true
 		state.Last = summary(a, event.At, nil, "completed", "pending")
 	case TaskFinished:
-		if a.Stage != "running" && a.Stage != "building" && a.Stage != "queued" && a.Stage != "stopping" {
+		if a.Stage != "running" && a.Stage != "stopping" {
 			break
 		}
 		outcome := event.Outcome
@@ -319,6 +343,69 @@ func Advance(state TaskState, event Event) (TaskState, []Effect) {
 	return state, nil
 }
 
+// validateTaskPhase is the one source/stage/companion contract for transitions
+// and both ledger codecs. Empty bootstrap state is valid; malformed authority
+// emits no effects and is refused at the persistence boundary.
+func validateTaskPhase(state TaskState) error {
+	if last := state.Last; last != nil {
+		if last.Source != "manual" && last.Source != "scheduled" {
+			return fmt.Errorf("invalid summary source")
+		}
+		switch last.Outcome {
+		case "quiet", "wake", "failed", "timeout", "cancelled", "skipped", "refused", "completed", "unknown":
+		default:
+			return fmt.Errorf("invalid summary outcome")
+		}
+	}
+	a := state.Active
+	if last := state.Last; last != nil {
+		if last.Notice == "pending" && (a == nil || (a.Stage != "notifying" && a.Stage != "delivery")) {
+			return fmt.Errorf("pending summary requires its active notice attempt")
+		}
+		if last.Outcome == "unknown" && (a == nil || a.Stage != "uncertain") {
+			return fmt.Errorf("unknown summary requires retained execution authority")
+		}
+	}
+	if a == nil {
+		return nil
+	}
+	if a.Source != "manual" && a.Source != "scheduled" {
+		return fmt.Errorf("invalid attempt source")
+	}
+	if (a.ControllerPID == 0) != (a.ControllerStart == "") || a.ControllerPID < 0 {
+		return fmt.Errorf("execution owner PID and start token must be paired")
+	}
+	notice := a.Stage == "notifying" || a.Stage == "delivery"
+	matchingLast := state.Last != nil && state.Last.ID == a.ID && state.Last.Source == a.Source && state.Last.DueAt.Equal(a.DueAt) && state.Last.StartedAt.Equal(a.StartedAt)
+	switch a.Stage {
+	case "reserved", "running", "stopping", "uncertain":
+		if !a.NoticeDeadline.IsZero() || a.NoticeMayHaveHappened || a.ReceiptID != "" {
+			return fmt.Errorf("execution phase carries notice authority")
+		}
+		if a.Source == "scheduled" && a.Revision == state.Revision && !state.Spec.ScriptRun && a.Stage != "reserved" && a.Stage != "uncertain" {
+			return fmt.Errorf("notify-only task has an execution phase")
+		}
+		if a.Stage == "uncertain" && (!matchingLast || state.Last.Outcome != "unknown") {
+			return fmt.Errorf("uncertain execution requires its unknown summary")
+		}
+	case "notifying", "delivery":
+		if a.Source != "scheduled" || !matchingLast || a.NoticeDeadline.IsZero() || !a.NoticeMayHaveHappened {
+			return fmt.Errorf("notice phase requires matching scheduled summary and intent")
+		}
+		switch state.Last.Outcome {
+		case "completed", "wake", "failed", "timeout", "cancelled", "refused":
+		default:
+			return fmt.Errorf("summary outcome cannot produce a notice")
+		}
+	default:
+		return fmt.Errorf("invalid attempt stage")
+	}
+	if notice && state.Last.Notice != "pending" {
+		return fmt.Errorf("active notice requires pending summary delivery")
+	}
+	return nil
+}
+
 func futureDue(spec TaskSpec, event Event) time.Time {
 	if event.Next != nil {
 		return event.Next(event.At)
@@ -342,7 +429,12 @@ func cancelActive(state TaskState) (TaskState, []Effect) {
 	if state.Active == nil || state.Active.Stage == "uncertain" || state.Active.Stage == "stopping" {
 		return state, nil
 	}
-	if state.Active.Stage == "reserved" || state.Active.Stage == "notifying" {
+	if state.Active.Stage == "reserved" {
+		state.Active = nil
+		return state, nil
+	}
+	if state.Active.Stage == "notifying" {
+		state.Last.Notice = "dropped: task cancelled"
 		state.Active = nil
 		return state, nil
 	}

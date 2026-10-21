@@ -107,6 +107,9 @@ func (c Catalog) Discover(ctx context.Context, configuredRoots []string) ([]Decl
 			}
 			name := entry.Name()
 			d := Declaration{Key: TaskKey{Hub: root, Task: name}, Allowed: true}
+			if !ValidTaskName(name) {
+				d.Key.Task = refusedTaskIdentity(name)
+			}
 			refuse := func(err error) { d.Allowed = false; d.Reason = err.Error() }
 			if !ValidTaskName(name) || folded[strings.ToLower(name)] > 1 {
 				refuse(fmt.Errorf("invalid or case-colliding task name %q", name))

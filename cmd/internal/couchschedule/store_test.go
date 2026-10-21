@@ -299,3 +299,108 @@ func FuzzStateJSON(f *testing.F) {
 		}
 	})
 }
+
+func phaseStateFixture(t *testing.T, source, stage string) TaskState {
+	t.Helper()
+	s := storedTask(t)
+	s.Spec.ScriptRun = true
+	at := s.NextDue
+	s.Active = &Attempt{ID: "phase-run", Revision: s.Revision, Source: source, Stage: stage, StartedAt: at, Deadline: at.Add(time.Minute)}
+	if source == "scheduled" {
+		s.Active.DueAt = at
+	}
+	if stage == "notifying" || stage == "delivery" {
+		s.Active.NoticeDeadline = at.Add(2 * time.Minute)
+		s.Active.NoticeMayHaveHappened = true
+		s.Last = summary(s.Active, at.Add(time.Second), nil, "wake", "pending")
+	}
+	if stage == "uncertain" {
+		s.Last = summary(s.Active, at.Add(time.Second), nil, "unknown", "execution owner unavailable; no replay")
+	}
+	return s
+}
+
+func phaseWire(t *testing.T, s TaskState) []byte {
+	t.Helper()
+	raw, err := json.Marshal(struct {
+		Version int                  `json:"version"`
+		Tasks   map[string]TaskState `json:"tasks"`
+	}{1, map[string]TaskState{s.Key.ID(): s}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return raw
+}
+
+func TestStateJSONLegalSourceStageCombinations(t *testing.T) {
+	for _, source := range []string{"manual", "scheduled"} {
+		for _, stage := range []string{"reserved", "queued", "building", "running", "stopping", "uncertain", "notifying", "delivery"} {
+			t.Run(source+"/"+stage, func(t *testing.T) {
+				s := phaseStateFixture(t, source, stage)
+				wantValid := stage != "queued" && stage != "building" && (source != "manual" || (stage != "notifying" && stage != "delivery"))
+				l := Ledger{Version: 1, Tasks: map[string]TaskState{s.Key.ID(): s}}
+				_, encodeErr := EncodeLedger(l)
+				_, decodeErr := DecodeLedger(phaseWire(t, s))
+				if (encodeErr == nil) != wantValid || (decodeErr == nil) != wantValid {
+					t.Fatalf("valid=%v encode=%v decode=%v", wantValid, encodeErr, decodeErr)
+				}
+			})
+		}
+	}
+}
+
+func TestStateJSONRefusesInconsistentCompanions(t *testing.T) {
+	for _, tc := range []struct {
+		name, stage string
+		damage      func(*TaskState)
+	}{
+		{"notice missing summary", "notifying", func(s *TaskState) { s.Last = nil }},
+		{"delivery missing summary", "delivery", func(s *TaskState) { s.Last = nil }},
+		{"notice wrong run", "notifying", func(s *TaskState) { s.Last.ID = "other" }},
+		{"notice wrong source", "delivery", func(s *TaskState) { s.Last.Source = "manual" }},
+		{"notice wrong start", "notifying", func(s *TaskState) { s.Last.StartedAt = s.Last.StartedAt.Add(time.Hour) }},
+		{"notice wrong due", "delivery", func(s *TaskState) { s.Last.DueAt = s.Last.DueAt.Add(time.Hour) }},
+		{"notice lacks deadline", "notifying", func(s *TaskState) { s.Active.NoticeDeadline = time.Time{} }},
+		{"notice lacks intent", "delivery", func(s *TaskState) { s.Active.NoticeMayHaveHappened = false }},
+		{"quiet has notice", "notifying", func(s *TaskState) { s.Last.Outcome = "quiet" }},
+		{"unknown lacks summary", "uncertain", func(s *TaskState) { s.Last = nil }},
+		{"unknown wrong summary", "uncertain", func(s *TaskState) { s.Last.Outcome = "quiet" }},
+		{"unpaired pid", "running", func(s *TaskState) { s.Active.ControllerPID = 42 }},
+		{"unpaired start token", "running", func(s *TaskState) { s.Active.ControllerStart = "token" }},
+		{"execution carries notice", "running", func(s *TaskState) { s.Active.NoticeMayHaveHappened = true }},
+		{"execution carries receipt", "running", func(s *TaskState) { s.Active.ReceiptID = "receipt" }},
+		{"nonexecution running", "running", func(s *TaskState) { s.Spec.ScriptRun = false }},
+		{"pending summary without notice", "running", func(s *TaskState) { s.Last = summary(s.Active, s.Active.StartedAt, nil, "wake", "pending") }},
+		{"pending summary without active", "notifying", func(s *TaskState) { s.Active = nil }},
+		{"unknown summary without retained owner", "uncertain", func(s *TaskState) { s.Active = nil }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := phaseStateFixture(t, "scheduled", tc.stage)
+			tc.damage(&s)
+			if _, err := EncodeLedger(Ledger{Version: 1, Tasks: map[string]TaskState{s.Key.ID(): s}}); err == nil {
+				t.Fatal("encoded inconsistent authority")
+			}
+			if _, err := DecodeLedger(phaseWire(t, s)); err == nil {
+				t.Fatal("decoded inconsistent authority")
+			}
+		})
+	}
+}
+
+func TestStoreMalformedPhaseBlocksAuthorityWithoutCallback(t *testing.T) {
+	s := phaseStateFixture(t, "manual", "notifying")
+	s.Last = nil
+	dir := catalogRoot(t)
+	if err := os.WriteFile(filepath.Join(dir, "state.json"), phaseWire(t, s), 0600); err != nil {
+		t.Fatal(err)
+	}
+	store := StateStore{Dir: dir}
+	if _, err := store.View(t.Context()); err == nil {
+		t.Fatal("malformed stored phase projected as runnable authority")
+	}
+	called := false
+	err := store.Update(t.Context(), func(*Ledger) error { called = true; return nil })
+	if err == nil || called {
+		t.Fatalf("malformed authority reached reducer: callback=%v err=%v", called, err)
+	}
+}

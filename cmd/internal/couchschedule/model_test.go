@@ -1,6 +1,8 @@
 package couchschedule
 
 import (
+	"bytes"
+	"encoding/json"
 	"reflect"
 	"testing"
 	"time"
@@ -16,6 +18,46 @@ func taskFixture(t *testing.T, direct bool) (TaskState, time.Time) {
 		t.Fatalf("first discovery must only arm future due: %+v %v", s, effects)
 	}
 	return s, now.Add(time.Minute)
+}
+
+func TestAdvanceInvalidOutputRollsBackWithoutMutatingInput(t *testing.T) {
+	s := phaseStateFixture(t, "scheduled", "running")
+	s.Last = &RunSummary{ID: "previous", Source: "scheduled", Outcome: "quiet"}
+	before, err := json.Marshal(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	next, effects := Advance(s, Event{Kind: TaskFinished, At: s.Active.StartedAt.Add(time.Second), Attempt: s.Active.ID, Revision: s.Active.Revision, Exit: 10, Outcome: "invalid-outcome", HubOnline: true})
+	after, err := json.Marshal(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before, after) || !reflect.DeepEqual(next, s) || len(effects) != 0 {
+		t.Fatalf("invalid transition mutated or advanced input: before=%s after=%s effects=%v", before, after, effects)
+	}
+}
+
+func TestAdvanceChangedDeclarationKeepsOldExecutionPhaseLegal(t *testing.T) {
+	s := phaseStateFixture(t, "scheduled", "running")
+	replacement := Declaration{Key: s.Key, Revision: "new-revision", Spec: s.Spec, Allowed: true}
+	replacement.Spec.ScriptRun = false
+	next, effects := Advance(s, Event{Kind: CatalogChanged, At: s.Active.StartedAt.Add(time.Second), Declaration: &replacement})
+	if len(effects) != 1 || effects[0].Kind != StopTask || next.Active == nil || next.Active.Stage != "stopping" || next.Active.Revision == next.Revision {
+		t.Fatalf("old execution not retained for cleanup: %+v %v", next, effects)
+	}
+	if _, err := EncodeLedger(Ledger{Version: 1, Tasks: map[string]TaskState{next.Key.ID(): next}}); err != nil {
+		t.Fatalf("valid cross-revision cleanup refused: %v", err)
+	}
+}
+
+func TestAdvanceNoticeCancellationTerminatesPendingCompanion(t *testing.T) {
+	for _, kind := range []EventKind{CancelRequested, CatalogChanged} {
+		s := phaseStateFixture(t, "scheduled", "notifying")
+		next, effects := Advance(s, Event{Kind: kind, At: s.Active.StartedAt.Add(time.Second), Attempt: s.Active.ID, Revision: s.Active.Revision})
+		if next.Active != nil || next.Last == nil || next.Last.Notice != "dropped: task cancelled" || len(effects) != 0 {
+			t.Fatalf("cancellation left dangling notice: %+v %v", next, effects)
+		}
+	}
 }
 
 func TestAdvanceOfflineNotifySkipsButDirectReserves(t *testing.T) {
@@ -182,5 +224,56 @@ func TestAdvanceMissingNativeExitIsNullable(t *testing.T) {
 	s, _ = Advance(s, Event{Kind: TaskFinished, At: due.Add(time.Second), Attempt: "manual", Revision: "r1", Exit: -1, Outcome: "cancelled"})
 	if s.Last == nil || s.Last.Exit != nil {
 		t.Fatalf("no native exit was invented as a number: %+v", s.Last)
+	}
+}
+
+func TestAdvanceMalformedNoticeStateCannotPanicOrEmit(t *testing.T) {
+	for _, stage := range []string{"notifying", "delivery"} {
+		for _, kind := range []EventKind{OwnerUnknown, NoticeIntentDurable, NoticeObserved, CancelRequested, CatalogChanged} {
+			t.Run(stage+"/"+string(kind), func(t *testing.T) {
+				s := phaseStateFixture(t, "manual", stage)
+				s.Last = nil
+				next, effects := Advance(s, Event{Kind: kind, At: s.Active.StartedAt, Attempt: s.Active.ID, Revision: s.Active.Revision, HubOnline: true, Notice: "submitted"})
+				if !reflect.DeepEqual(s, next) || len(effects) != 0 {
+					t.Fatalf("malformed authority advanced: %+v %v", next, effects)
+				}
+			})
+		}
+	}
+}
+
+func TestAdvanceOwnsExecutionIdentityBeforeAuthorization(t *testing.T) {
+	s, due := taskFixture(t, true)
+	s, _ = Advance(s, Event{Kind: ManualRequested, At: due, RunID: "manual-owner"})
+	before := s
+	owner := OwnerIdentity{PID: 42, Start: "exact-start"}
+	recorded, effects := Advance(s, Event{Kind: OwnerRecorded, At: due, Attempt: s.Active.ID, Revision: s.Active.Revision, Owner: &owner})
+	if len(effects) != 0 || recorded.Active.ControllerPID != 42 || recorded.Active.ControllerStart != "exact-start" || before.Active.ControllerPID != 0 {
+		t.Fatalf("owner not transition-owned/pure: %+v %v", recorded.Active, effects)
+	}
+	running, effects := Advance(recorded, Event{Kind: ReservationDurable, At: due, Attempt: s.Active.ID, Revision: s.Active.Revision})
+	if len(effects) != 1 || effects[0].Kind != StartTask || running.Active.ControllerPID != 42 {
+		t.Fatalf("authorization lost owner: %+v %v", running.Active, effects)
+	}
+	for _, tc := range []struct {
+		name              string
+		state             TaskState
+		attempt, revision string
+		owner             *OwnerIdentity
+	}{
+		{"missing owner", s, s.Active.ID, s.Active.Revision, nil},
+		{"bad PID", s, s.Active.ID, s.Active.Revision, &OwnerIdentity{PID: -1, Start: "token"}},
+		{"missing token", s, s.Active.ID, s.Active.Revision, &OwnerIdentity{PID: 42}},
+		{"stale attempt", s, "foreign", s.Active.Revision, &owner},
+		{"stale revision", s, s.Active.ID, "foreign", &owner},
+		{"replaced identity", recorded, s.Active.ID, s.Active.Revision, &OwnerIdentity{PID: 43, Start: "other"}},
+		{"already running", running, s.Active.ID, s.Active.Revision, &OwnerIdentity{PID: 43, Start: "other"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			next, effects := Advance(tc.state, Event{Kind: OwnerRecorded, At: due, Attempt: tc.attempt, Revision: tc.revision, Owner: tc.owner})
+			if !reflect.DeepEqual(next, tc.state) || len(effects) != 0 {
+				t.Fatalf("invalid identity observation advanced: %+v %v", next, effects)
+			}
+		})
 	}
 }
