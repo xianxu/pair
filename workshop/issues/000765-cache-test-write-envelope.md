@@ -207,3 +207,14 @@ existing format rather than changing it in #765 (ARCH-DRY/ARCH-EVOLVE). The
 earlier integration suite remains historical evidence, not a pass for this
 new main. Record the new integrated full suite, then narrow re-close and merge
 through the normal gate; no grant revoke or test bypass.
+
+
+### 2026-10-21 — post-#763 full suite PASS
+
+Attempt290d0c9b3fb71b55fbfd2a570aaf7448 on migrated head
+92b364b719939a5fbc4eccf10c67b50d5a01820f passed exit0 in10m32s. Log SHA
+prefixa80ebd7143f3 saved under .git/sdlc/local-checks/<head>/suite.log.
+Core200.203s, tty40.469s; all scripts and packages completed without failure.
+This qualifies the adopted per-reader owner as well as the unchanged budget
+policy. Narrow fixed-then-ship close uses this actual pass; no prior suite is
+substituted for the migration. Return to normal merge after SHIP.
