@@ -2532,3 +2532,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #764: Retire owned PTY/process handles before closing, signalling or reaping them; shared detach/final cleanup must consume each exactly once, including failure paths. Join startup and cleanup errors, and make live-fixture cleanup failures affect the test result rather than merely logging them.
 
 - #764 BR-1: A fixture-only change can still add a repository enforcement surface. Every new Pair-local lint rule needs its owner, rejected and accepted patterns, and syntax-analysis limits mapped in atlas/go-lint-catalog.md; include that surface in the close atlas decision.
+
+- #766: A PTY consumer cannot recover bytes the kernel discarded at last slave close. Native tee fixtures must own producer lifetime through an output/input acknowledgement and establish the controlling-terminal reference on Darwin; distinguish first-read EOF from a wrapper closing its master early. Audit public generic-command exposure and file that product defect separately from a fixture repair.

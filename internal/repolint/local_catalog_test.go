@@ -33,6 +33,11 @@ var pairCatalog = append(append([]golint.Rule(nil), golint.Catalog...), golint.R
 	Incident: "pair#764",
 	Message:  "report or propagate ControlledZellij.Close cleanup errors; discarded cleanup can leave a controlled session alive",
 	Match:    discardedControlledZellijCloses,
+}, golint.Rule{
+	Name:     "scribe-pty-printf",
+	Incident: "pair#766",
+	Message:  "use a terminal-aware producer and acknowledge its readiness before final output; direct printf can fail before producing the test marker",
+	Match:    scribePTYPrintfCalls,
 })
 
 // The bounded entry owns individual native attempts. New callers must not

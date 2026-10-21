@@ -172,3 +172,19 @@ The fixture itself shares one handle-retirement path between KillClient and
 Close: consume the PTY and client before closing/signalling/reaping, and retain
 real failures. Startup refusal joins cleanup errors; final cleanup still requires
 exact server-generation exit evidence before removing its owned cache root.
+
+## Scribe terminal-aware output producer (#766)
+
+The Pair-local `scribe-pty-printf` rule, owned by
+`internal/repolint/scribe_pty_printf_rule_test.go`, rejects a bare or absolute
+`printf` executable after `--` in inline string arguments to scribecmd's
+`runWithPTY` and `runWithPTYReply` test helpers. A short-lived producer can lose
+unread output at Darwin's last slave close. The tee fixture instead opens
+`/dev/tty`, exchanges a readiness/acknowledgement through the real PTYs, then
+emits its final marker. Its native stress regression checks the actual stdout
+and log bytes.
+
+This guard checks direct syntax only; argv variables, aliases, computed arguments
+and shell protocol correctness are outside its scope. Other commands and helpers
+are unaffected. Public scribe's generic-command exposure is tracked separately
+in #768; this fixture rule does not claim a production launch-policy fix.
