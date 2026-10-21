@@ -211,3 +211,34 @@ func TestGuestScriptCreatesFreshGuestLocalResultsAndManifest(t *testing.T) {
 		t.Fatal(err, string(raw))
 	}
 }
+
+func TestGuestScriptCopiesShareWithoutExtendedAttributes(t *testing.T) {
+	source, work, results, script := guestFixture(t)
+	if err := os.Symlink("tracked", filepath.Join(source, "tracked-link")); err != nil {
+		t.Fatal(err)
+	}
+	// VirtioFS reports ELOOP for symlink extended attributes. Model only that
+	// boundary, retaining real cp for content/link preservation on every platform.
+	prefix := `uname() { printf 'Darwin\n'; }
+cp() {
+ local arg metadata=1
+ local -a ordinary=()
+ for arg in "$@"; do
+  case "$arg" in -X) metadata=0;; *) ordinary+=("$arg");; esac
+ done
+ if [ "$metadata" = 1 ]; then printf 'virtiofs symlink extended attributes: ELOOP\n' >&2; return 1; fi
+ command cp "${ordinary[@]}"
+}
+`
+	if err := os.WriteFile(script, append([]byte(prefix), GuestScript...), 0600); err != nil {
+		t.Fatal(err)
+	}
+	out, err := executeGuest(source, work, results, script, "/bin/sh", "-c", `test -L tracked-link && test "$(cat tracked-link)" = original`)
+	if err != nil {
+		t.Fatalf("share copy: %v %s", err, out)
+	}
+	target, err := os.Readlink(filepath.Join(work, "checkout", "tracked-link"))
+	if err != nil || target != "tracked" {
+		t.Fatal(target, err)
+	}
+}

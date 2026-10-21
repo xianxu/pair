@@ -38,7 +38,12 @@ export XDG_CACHE_HOME="$work/cache" XDG_STATE_HOME="$work/state"
 export ZELLIJ_SOCKET_DIR="$work/sockets" PAIR_DATA_DIR="$work/pair"
 export COUCH_ISOLATED_ROOT="$work/couch" WF_SDLC_QUEUE_ROOT="$work/queue"
 mkdir "$HOME" "$TMPDIR" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME" "$XDG_STATE_HOME" "$ZELLIJ_SOCKET_DIR" "$PAIR_DATA_DIR" "$COUCH_ISOLATED_ROOT" "$WF_SDLC_QUEUE_ROOT" "$work/checkout" || fail
-cp -R -P "$source/." "$work/checkout/" || fail
+# Snapshot content has no metadata contract. Darwin cp's default xattr copy
+# fails on VirtioFS symlinks with ELOOP; preserve links/bytes without metadata.
+case "$(uname -s)" in
+    Darwin) cp -R -P -X "$source/." "$work/checkout/" || fail ;;
+    *) cp -R -P "$source/." "$work/checkout/" || fail ;;
+esac
 cd "$work/checkout" || fail
 "$@"
 command_exit=$?
