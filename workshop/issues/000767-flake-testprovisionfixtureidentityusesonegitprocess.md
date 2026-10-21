@@ -7,7 +7,7 @@ created: 2026-10-21
 updated: 2026-10-21
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '28c95ab273df133f66761cdf4b90655e9969f538' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '9d9271574d2884b5916b79614faeaf8315fc9ef1' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-21T05:33:20-07:00
 claimant:
     operator: Xian Xu
@@ -18,7 +18,7 @@ claimant:
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/couchcore.TestProvisionFixtureIdentityUsesOneGitProcess]
 flow: {kind: quick, provenance: inferred, spec: "d4a43449", done: "50383ae7"}
-actual_hours: 0.15
+actual_hours: 2.28
 ---
 
 # flake: TestProvisionFixtureIdentityUsesOneGitProcess
