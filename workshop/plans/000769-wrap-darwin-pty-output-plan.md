@@ -96,23 +96,23 @@ TL approved these tasks and the reconciled issue contract. One atomic review bou
 
 Files: cmd/internal/wrapcmd/pty_darwin_test.go, run_test.go, existing owned_group_test.go and native_exit_report_test.go.
 
-- [ ] runWithPTY: barrier-controlled native child closes all stdio before first master read; compare exact stdout/raw capture, EOF and status0/7; original immediate-close start must fail. Hold a live closed-stdio child via independent pipe, then release or invoke stop/restart. Qualify inherited ignored-HUP/TERM group descendants and detached-session daemon; assert original ownership boundary and single leader reap.
-- [ ] Production caller composition (table above): actual public/alias/fresh argv and both production layout stanzas drive real wrapped children for normal and daemonized exit; assert exact capture, status, wrapper completion and independently witnessed descendant/group outcomes. Reuse existing Couch fake route assertions to prove every named caller reaches that qualified boundary.
+- [x] runWithPTY: barrier-controlled native child closes all stdio before first master read; compare exact stdout/raw capture, EOF and status0/7; original immediate-close start must fail. Hold a live closed-stdio child via independent pipe, then release or invoke stop/restart. Qualify inherited ignored-HUP/TERM group descendants and detached-session daemon; assert original ownership boundary and single leader reap.
+- [x] Production caller composition (table above): actual public/alias/fresh argv and both production layout stanzas drive real wrapped children for normal and daemonized exit; assert exact capture, status, wrapper completion and independently witnessed descendant/group outcomes. Reuse existing Couch fake route assertions to prove every named caller reaches that qualified boundary.
 
 ### 2. Adapter and owner integration
 
 Files: cmd/internal/wrapcmd/pty.go, pty_darwin.go, pty_other.go, wrap.go; tests alongside each seam.
 
-- [ ] startPTYWithOpen(cmd, open): adversarial allocation/start failure and original command configurations; stateful resource owner/native child assert no leaked descriptors/child and preserved Path/Err/Args/env/cwd/ExtraFiles/SysProcAttr. Missing/non-executable/malformed target fails synchronously, before readiness publication; native lock refusal never calls starter.
-- [ ] startedPTY.releaseSlave(): repeated and concurrent release, native revoked descriptor and reported closer failure; assert Held -> Released exactly once, stable error, no reacquisition. Count successful/failed leases at8/16 lifetimes.
-- [ ] runWithPTY cleanup and ownedGroup.Wait: inject initialization failure after successful Start, stdout/read failure, stop/restart before/after EOF and repeated cleanup. Assert master/slave close before the sole group reap, original error precedence and joined workers. Remove direct Process.Wait; no early waiter or group-identity fence violation.
-- [ ] Existing resize/input and large-output paths: real terminal input/size plus concurrent 128KiB output qualify unchanged backpressure, not a larger write behind the small delayed-read barrier. Run targeted package/race checks, no timeout bump or retry.
+- [x] startPTYWithOpen(cmd, open): adversarial allocation/start failure and original command configurations; stateful resource owner/native child assert no leaked descriptors/child and preserved Path/Err/Args/env/cwd/ExtraFiles/SysProcAttr. Missing/non-executable/malformed target fails synchronously, before readiness publication; native lock refusal never calls starter.
+- [x] startedPTY.releaseSlave(): repeated and concurrent release, native revoked descriptor and reported closer failure; assert Held -> Released exactly once, stable error, no reacquisition. Count successful/failed leases at8/16 lifetimes.
+- [x] runWithPTY cleanup and ownedGroup.Wait: inject initialization failure after successful Start, stdout/read failure, stop/restart before/after EOF and repeated cleanup. Assert master/slave close before the sole group reap, original error precedence and joined workers. Remove direct Process.Wait; no early waiter or group-identity fence violation.
+- [x] Existing resize/input and large-output paths: real terminal input/size plus concurrent 128KiB output qualify unchanged backpressure, not a larger write behind the small delayed-read barrier. Run targeted package/race checks, no timeout bump or retry.
 
 ### 3. Enforcement, docs and landing
 
 Files: atlas/terminal.md, atlas/architecture.md, atlas/index.md, atlas/go-lint-catalog.md if adding enforcement, individual affected-reader certificates for changed tests.
 
-- [ ] Document approved lifecycle, Darwin limits and cleanup ownership; update every touched summary. Evaluate existing #768 lint/enforcement before adding a duplicate rule; an owner-start regression must reject an immediate slave-close mutation.
+- [x] Document approved lifecycle, Darwin limits and cleanup ownership; update every touched summary. Evaluate existing #768 lint/enforcement before adding a duplicate rule; an owner-start regression must reject an immediate slave-close mutation.
 - [ ] Audit changed reader tests and production source dispositions. Run test-affected-inventory and targeted artifactpath/repolint preflights.
 - [ ] Push final head and run the required recorded check. Arrange TL-required live qualification for changed operator terminal behavior, then close review, suite/CI gates and retained merge runner. Report landing once confirmed.
 

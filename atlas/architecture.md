@@ -130,8 +130,11 @@ Two new architectural surfaces landed with #92 M1:
   (`wrap` and `term` own pane-local shortcuts; `scribe` owns shell logging) — use `cmd/pair-go`'s
   `runStreamingSubcommand` seam, which hands the runner real
   `os.Stdin/Stdout/Stderr`. `Families().Streaming` marks which. The proxies keep
-  standalone shims (`bin/pair-wrap` for the KDL PATH-exec, `bin/pair-scribe` for
-  the user's `~/.zshrc`) that call the same `wrapcmd.Run` / `scribecmd.Run`.
+  compatibility invocation names that call the same `wrapcmd.Run` /
+  `scribecmd.Run`; current agent layouts invoke `pair wrap --from-launch-env`.
+  On Darwin, wrap retains a slave lease to preserve final output. A live child
+  closing stdio remains owned until exit or explicit stop; then the existing
+  owned-group stop/reap runs after drain. See [terminal ownership](terminal.md).
 
 Pair-owned call-sites were repointed to `pair <sub>` in #92 M2: the changelog
 opener's detached distiller and `nvim/scrollback.lua` (`pair scrollback-render` /

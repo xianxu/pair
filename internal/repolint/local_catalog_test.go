@@ -10,8 +10,8 @@ import (
 // upstream catalog used by sleepSites to identify existing sleep debt.
 var pairCatalog = append(append([]golint.Rule(nil), golint.Catalog...), golint.Rule{
 	Name:     "wrapper-child-release",
-	Incident: "pair#715",
-	Message:  "retain wrapper child ownership and join it with Wait before returning; Process.Release permits writes after wrapper shutdown",
+	Incident: "pair#715, pair#769",
+	Message:  "retain wrapper child ownership and join through its command/group owner; Process.Release abandons ownership and Process.Wait bypasses the sole reap authority",
 	Match:    wrapperChildReleases,
 }, golint.Rule{
 	Name:     "lifecycle-failure-address",
@@ -95,7 +95,7 @@ func wrapperChildReleases(file *ast.File) []ast.Node {
 			return true
 		}
 		release, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr)
-		if !ok || release.Sel.Name != "Release" {
+		if !ok || release.Sel.Name != "Release" && release.Sel.Name != "Wait" {
 			return true
 		}
 		process, ok := ast.Unparen(release.X).(*ast.SelectorExpr)

@@ -186,6 +186,18 @@ normalization and Return adaptation remain product behavior. Its terminal
 observer consumes the normalized queued visual stream, while raw capture remains
 separate; observation does not claim physical-write acknowledgment.
 
+On Darwin, the agent wrapper retains one parent-side slave descriptor until its
+master output finishes. This prevents last-slave-close from discarding a short
+command's final bytes. A live target that closes all its stdio stays owned until
+it exits or the wrapper is explicitly stopped; closing stdio alone no longer
+initiates group termination. Session-leader exit drains/revokes the terminal,
+then existing `ownedGroup` cleanup stops its remaining process-group members and
+reaps the leader exactly once. Descendants that created a separate session/group
+are not adopted. `wrapcmd/pty_darwin.go` preserves the original command and startup
+errors, and `pty.go` releases the optional slave lease once before normal or abort
+reaping. Other platforms keep upstream PTY start behavior. `pair wrap --help`
+describes this lifetime policy.
+
 ## No destination is an answer, not a failure (#265)
 
 `ErrNoDestination` (`destination.go`) is the presenter's typed answer when it

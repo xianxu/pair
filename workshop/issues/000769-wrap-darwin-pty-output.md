@@ -44,10 +44,10 @@ Preserve Darwin final output with a wrap-local parent slave lease aligned with #
 
 Plan first; independently claim from main. Do not stack on #768.
 
-Durable design/conditional implementation plan: [wrap Darwin PTY output](../plans/000769-wrap-darwin-pty-output-plan.md). TL approved parent retention and the revised live closed-stdio lifetime contract on 2026-10-21. Full flow; reconcile the caller inventory and run change-code before implementation.
+Durable implementation plan: [wrap Darwin PTY output](../plans/000769-wrap-darwin-pty-output-plan.md). TL approved parent retention and the revised live closed-stdio lifetime contract on 2026-10-21. Full flow; reconcile the caller inventory and run change-code before implementation.
 
-- [ ] Pin final-output loss and approved lifetime with native child/descriptor barriers; enumerate and qualify every production caller.
-- [ ] Implement the wrap-local Darwin slave lease through normal drain and abort, preserving original command, locks, publication and ownedGroup stop/reap.
+- [x] Pin final-output loss and approved lifetime with native child/descriptor barriers; enumerate and qualify every production caller.
+- [x] Implement the wrap-local Darwin slave lease through normal drain and abort, preserving original command, locks, publication and ownedGroup stop/reap.
 - [ ] Document help/atlas behavior; qualify lifecycle, inventory, recorded suite, close review and landing gates.
 
 ## Log
@@ -59,6 +59,19 @@ Filed unclaimed per TL approval of #768 on 2026-10-21. Probe provenance and audi
 Claimed and started from main in canonical pair-slot4; #757 remains parked awaiting operator approval. Coordinated with pair:2 through authenticated #768 handoff and corrected native probe. Read its scribe-only ownership design without importing unlanded code. Fresh-context read-only audit confirmed masterPump EOF drives ownedGroup.Wait, which starts group termination before its sole reap; preserve original selector argv, actual target PID and synchronous start-error publication.
 
 Independently reproduced native openpty/fork/setsid/TIOCSCTTY child that writes final-marker, closes all stdio, acknowledges a pipe and blocks alive on a separate hold pipe. Baseline returned empty bytes and EOF; child /dev/tty open+close and parent-retained slave each returned exact marker but no EOF while held. After hold release, both protected variants returned EOF and status7. All children reaped and descriptors closed. Two bounded 200ms readiness observations are diagnostic only, never production policy. Both candidate protections therefore fail the unchanged live-target termination requirement. ARCH-PURPOSE/STATE: do not silently reinterpret it; plan presents conditional retention and requires TL/operator policy approval. No timeout change, polling mechanism, code change or change-code invocation.
+
+
+### 2026-10-21 — Implementation and native qualification
+
+Full-flow change-code passed with CLEAN plan review (all PQ-1/PQ-2/PQ-3 addressed) and INFO estimate review. The estimate is issue-wide, including already-incurred policy/spec work; review allocation includes active verification/landing work, not machine queue idle. Native caller qualification is the optimistic component noted by the reviewer.
+
+Implemented wrap-local Darwin parent slave ownership, idempotent/stable-error release, instance-local runWithPTY starter, and release-before-sole-ownedGroup reap. Removed the pre-existing competing Process.Wait on transport initialization failure. Original command argv/PID/start failures and lock/publication paths remain intact. Non-Darwin delegates to upstream start. Help and atlas describe the approved live closed-stdio policy; extended the existing wrapper-child-release lint class to reject direct Process.Wait, with three initial RED examples then GREEN. Partial opener allocation failure also produced a native RED before cleanup correction.
+
+The first deterministic native regression failed on upstream pty.Start for status0 and7: both final markers were empty after child stdio-close acknowledgement and before first master read. The protected adapter/production runner now preserves exact bytes/status and 128KiB concurrent output; causal request/ACK proves a closed-stdio target remains executing until release. Direct native TERM/USR2 tests assert drain, stop/restart flags, reaping and native lock lifetime. Resource tests cover32 concurrent release requests, stable close errors,8/16 simultaneous leases and start/open failures. No timeout bump, polling, retry or competing production waiter.
+
+Caller coverage: public pair/pair-go, pair-wrap compatibility, emitted fresh replacement, and both actual KDL stanzas driven by production createflow all execute the shared candidate with normal, same-group ignored-HUP/TERM descendant, and escaped setsid daemon cases (18 rows). They assert exact raw marker/status7; same-group cleanup escalates, escaped daemon remains independently responsive after wrapper return. Shared pairlifecycletest fixture avoids duplicated protocols. Existing Couch route checks for new/cold resume/recovery/switch/continuation and warm exclusion passed5.587s, proving those callers converge on the qualified launcher/layout boundary.
+
+Combined targeted race command passed wrapcmd33.079s and launcher11.670s; managed actual-Run race scenarios passed3.886s (normal, inherited-slave detached descendant, missing target, closedstdio SIGTERM, closedstdio SIGUSR2). Managed tests assert exact native PID/start/ordinal readiness, final stdout/raw bytes/status7 and one matching native-exit report; failed start publishes none, controlled stop/restart reports no self exit. Full repolint passed18.286s, artifactpath20.133s. Reader audit: launcher caller test reads actual KDL, so register its two tests in SOURCE_GUARDS and fixed_scanner certificate; managed/native owner tests read only private fixtures and are local_or_literal_fixture. No local-gate protected configuration changed. make test-affected-inventory passed after recording the three audited certificates. go vet passed for wrapcmd/launcher. An expanded optional vet run also inspected unchanged pairlifecycletest tests and flagged the intentionally discarded String snapshot at live_zellij_diagnostics_test.go:20; Git confirms the same line on HEAD, and its native race-snapshot unit test passes. No unrelated source edit or gate bypass.
 
 ## Revisions
 

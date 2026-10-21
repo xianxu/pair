@@ -1,5 +1,7 @@
 # Lessons
 
+- #769 plan review: A child /dev/tty open-and-close retains an implicit kernel reference; it changes live closed-stdio EOF just like a parent slave lease. Qualify a live-child hold counterexample before promising unchanged terminal completion, and reconcile Spec/Done when when the owner approves a process-lifetime policy change. Preserve one reap authority on setup failures as well as normal completion; a direct Process.Wait can bypass an already-deferred ownedGroup.Wait.
+
 This is the compact rulebook distilled from the incident history. Keep rules
 that prevent a class of failure; put incident detail, transcripts, and one-off
 recipes in the issue or plan that owns them. References in parentheses point to
