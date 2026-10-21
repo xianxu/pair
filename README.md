@@ -485,7 +485,7 @@ couch --peek repo:N --all [--transcripts]
                                            complete current recording projection [heavy]; bounded, plain text
 couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
-couch --resources [--json] cached process sample plus fresh hosted-ingest totals
+couch --resources [--json] cached process sample plus fresh hosted-ingest and supervision-log health
 couch --reap-orphans [--confirm] [--json]
                          the unattributed embedded nvim --resources named, and the processes a teardown left
                          running (an agent's setsid'd runner: a background build, test or merge); without
@@ -1230,6 +1230,24 @@ generation; gaps are not inactivity. The [offline labeling script](scripts/super
 compares observed writes within ten minutes without changing Couch decisions.
 See [the fact-log contract](atlas/couch.md#supervision-fact-log-543) for coverage and retention.
 
+`couch --resources [--json]` also reads the supervision logger's current health
+from memory: opening, working, unavailable, failed-write or closed, with offered,
+acknowledged-write and dropped counts, the last successful write, and a bounded
+last storage error. A recovered logger keeps its historical last error; its state
+shows whether writes currently work. These counters do not promise fsync durability
+or replay of lost facts. For unavailable/failed-write, report the shown error to
+the hub; for closed, ask the hub to restart Couch. An opening logger can be
+inspected again. Storage work never runs in this query or gates message admission.
+
+Use the rebuilt CLI with the rebuilt supervisor for this health field: an old CLI
+strictly rejects the added resource response field. A new CLI querying an older
+server prints `health unavailable`; absence is not a healthy empty stream. The
+default fact file is `~/.local/share/pair/couch/supervision.jsonl` (under the active
+Pair data directory if configured). It records completed observations, not every
+message hold: inspect `couch --message-status ID --json` for a retained delivery's
+current waiting reason. Logger health instrumentation alone does not repair a
+historically frozen stream; #736's measured cause fix follows its live observation.
+
 Wrapper diagnostics batch at64KiB or every five seconds while dirty; raw capture
 and its offset sidecar flush every250ms. Orderly shutdown drains both. A process
 crash can lose pending buffers; optional diagnostics have no power-loss durability
@@ -1349,12 +1367,15 @@ slots blocked on a permission prompt or picker, and slots whose turn ended with
 a question to you. While the list has items, the right end of the status row
 shows `🔔N`, red if a slot is blocked on a prompt; click it to open the list too.
 The list opens at the top right. `Up`/`Down` (or `k`/`j`) move, `Enter` or a
-click jumps to the item's slot, `d` dismisses, and `Escape` closes. Picking a
-notification reads it, so it goes. A prompt or question stays until the slot
-stops waiting, whoever answered it. The list survives a Couch restart: messages
-come back as they were, and prompts and questions come back once the slot is
-seen still waiting. The list is never broadcast. The desktop notification still
-fires, and helps when the terminal is in the background.
+click jumps to the item's slot and removes the item, `d` dismisses, and
+`Escape` closes. Choose **Clear all** or press `c` to empty the list. Opening,
+dismissing or clearing a prompt/question hides that occurrence until the slot
+stops waiting; a fresh occurrence shows again. Notification messages expire
+after 12 hours; an unresolved live prompt/question never expires. The list is
+ephemeral: restart forgets messages and dismissals, then derives current live
+conditions again. The hub's Needs-you section holds the durable record. The
+list is never broadcast. Desktop notifications still help when the terminal
+is in the background.
 
 `Ctrl+Alt+b` **broadcasts** this screen, view-only, to anyone with the link
 (#395). The link is copied to your clipboard (it is never drawn on screen);

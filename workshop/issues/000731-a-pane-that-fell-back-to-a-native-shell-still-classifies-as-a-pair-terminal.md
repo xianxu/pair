@@ -71,6 +71,14 @@ Final-head affected attempt4e0911c5874d0fb462a6898c6d9e8a8e fell back to the ful
 
 The fixture now holds the shared production Pair image on an owned PTY, with a private interactive shell readiness acknowledgement and joined teardown; no native Zellij session is started. Existing split/tab/focus assertions pass unchanged. Added explicit unregistered-metadata refusal cases for split, delivered tab and focus, including focus's nonzero result. The final focused shell run passed all cases and cleanup. Audited other shell consumers: the remaining route fixture substitutes its CLI and does not claim native terminal ownership. No production code, timeout or assertion was weakened. Entering narrow fixed-then-ship review, then one fresh recorded check on its final head.
 
+### 2026-10-20 — held train car, corrected diagnosis and main integration
+
+Branch full attempt38e6e85e8d3cfef8a14ccfe7f5730fc0 passed10m19s on58d6aff5452808c7220dbe48e04fbc781b67b4a7, log prefix1be62050cbca. The merge runner reported ready, then printed a train213 banner listing #731/#751, instance-conformance success and an integrated suite on919642ae15a67d913bb415202543c5d2979724ac. I later noticed missing #731 assertions and source in that train and incorrectly called it a composition defect, then used the supported own-check cancellation. That stopped #751's suite; no composition issue was filed.
+
+The hub corrected the diagnosis (delivery cd4adcef-dd5f-4bc7-bcce-11d13024916c). Authoritative landing events show #731 HELD at23:10:36.692517 because its merge conflicts; only #751 was riding. The captured runner stream had no held-car warning, and the hub is filing that reporting/cancel-scope gap. I corrected both hub and pair:9, acknowledged the mistaken cancellation, and left #751's independent retry untouched. The interrupted train is not #731 verification evidence.
+
+Fetched origin/main and merged it into the issue branch. Conflicts are the independent appended #731/#748 rules in internal/repolint/local_catalog_test.go and their atlas documentation. Resolution keeps both entries and the incoming bounded-Zellij matcher. Full combined-head verification and narrow re-close follow. #728 was reassigned to pair:3; after #731 lands, report and wait for the hub's next item.
+
 ## Revisions
 
 ### 2026-10-20 — approved inspection-unavailable compatibility

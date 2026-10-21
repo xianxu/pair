@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -37,6 +38,12 @@ func TestRecoveryFreshMissingRecordCarriesOrientationAndStrictReadiness(t *testi
 		claim := current.Incarnations[0].Start
 		if claim == nil {
 			t.Fatal("helper acknowledged without committed claim")
+		}
+		if !requireLauncherAcceptsRecovery(t, env.Runner, id) {
+			return errors.New("recordless Fresh child lacks committed recovery authority")
+		}
+		if current.RecoveryIntent == nil || claim.RecoveryIntent == nil || !reflect.DeepEqual(current.RecoveryIntent, claim.RecoveryIntent) || !reflect.DeepEqual(current.RecoveryIntent, &launched.Recovery.Intent) {
+			return errors.New("recordless Fresh intent differs between committed record, start and child")
 		}
 		env.Proc.Set(current.Incarnations[0].PID, current.Incarnations[0].Identity)
 		var intent launcher.CouchSessionIntent
@@ -230,5 +237,25 @@ func TestRecoveryFreshMissingRecordNeverRepairsBesideForeignOwner(t *testing.T) 
 	}
 	if _, err := os.Stat(admin); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("unproved owner's host repaired: %v", err)
+	}
+}
+
+func TestRecoveryFreshMissingRecordConfirmedFailureRetainsIntent(t *testing.T) {
+	env, local := slotRecoveryOperationFixture(t)
+	env.Runner.AfterAcknowledge = func(id string) error {
+		env.Runner.SetExited(id, 23)
+		return nil
+	}
+	_, err := env.Couch.startFreshRecoveryWithoutRecord(t.Context(), RecoverySelection{Target: ResumeTarget{Path: local.slot.WorktreeRoot}, Kind: RecoveryFresh})
+	if err == nil {
+		t.Fatal("exited helper became successful Fresh startup")
+	}
+	var unconfirmed *RecoveryLaunchUnconfirmed
+	if errors.As(err, &unconfirmed) {
+		t.Fatalf("confirmed dead helper remained unconfirmed: %v", err)
+	}
+	current, readErr := local.observeSlotCurrent()
+	if readErr != nil || current.Record == nil || len(current.Record.Incarnations) != 0 || current.Record.RecoveryIntent == nil || current.Record.RecoveryIntent.Kind() != RecoveryFresh {
+		t.Fatalf("confirmed failure lost Fresh selection or retained creating helper: %+v %v", current.Record, readErr)
 	}
 }

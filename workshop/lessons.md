@@ -7,10 +7,14 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #750 design review: a held drawing scene must render the acknowledged source prefix on initial preparation as well as reconnect; freezing whatever the client currently shows can anchor paths to another moment. Record timer-driven interruptions as replay inputs, and reserve writer capacity for terminal events and required labels before admitting growing stroke data.
+
 - Cached parent inventory is also a pass-wide capacity ledger: reserve a slot for every potentially completed create, retain it after an uncertain acknowledgment, and carry confirmed IDs forward. A per-attempt full-parent guard alone permits successive creates to exceed the reader limit. Test both root/year and year/month creation sequences near capacity. (#706 BR-1)
 
 
 - A durable plan names each risky function and its adversarial input class plus mechanical guard. Prefer fuzz, generated event sequences and independent invariants over prose case inventories; keep resource and operation-count assertions explicit. (#706 PQ-1)
+- Additive wire fields still break an older strict decoder. Inspect the actual mixed-version reader before promising compatibility; pin the legacy refusal and current-reader absence behavior, and name the coordinated upgrade contract when that is the intended rollout. (#736 PQ-1)
+
 - #735: Replay native recordings with resize events as well as bytes before blaming footer wording. A duplicate geometry update may receive no native repaint; preserve existing cursor/frame evidence on a synchronized no-op, while a retry after an aborted real resize must still restore synchronization and await a fresh cursor. Regress both paths and expose the missing evidence in retained wait receipts without copying screen contents.
 
 - Splitting an acceptance task into a child issue requires sweeping copied Spec tasks and Done when for parent-only checks. A Log saying the parent still owns console/deployment acceptance does not override an active child Spec clause requiring it. Keep the old clause only as superseded Revisions history. (#723 BR-1)
@@ -2475,9 +2479,18 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #706 integration with #725: after bringing in a new hash-pinned reader inventory, audit every changed/new matching test before the next expensive suite. Rejected path literals and private temporary walks can intentionally match the lexical tripwire; classify their actual input scope and refresh only audited hashes, rather than weakening the scanner or bulk-accepting the tree.
 - #727/#725 integration: When main adds a digest-based source-reader inventory, audit every added or changed test reader before re-entering a train. Classify fixture literals separately from repository scanners; refresh hashes only after checking input scope and retaining every fixed preflight test. Run the real inventory negative controls on a committed integration HEAD, because their disposable checkout reads HEAD rather than the working tree.
 
+- #747: A fake that manufactures registration after helper acknowledgment can hide a producer/launcher authority gap. Feed the actual emitted profile and committed creating record to the real authority validator and marker transition before permitting fake registration. Recordless recovery must carry the same genuine Fresh intent as record-backed recovery; prompt presence is descriptive data, not permission.
+- #748: Distinguish a native query's successful process exit from a valid reply. Zellij0.45.1 can recycle connection IDs before stale cleanup finishes, including with sequential callers. Keep any approved compatibility replay at the idempotent read boundary, allowlist argv/signatures, share one deadline, retain each attempt, and prove exhaustion refuses without effects. A green test rerun or detach-only ordering change does not fix native response misrouting.
+
+- #748 BR-1/BR-2: A fake must count every invocation before rejecting undeclared work; otherwise extra children can be invisible to a budget assertion. Mutate the admission gate and require the regression to fail. A native successful process/error count is not a valid-answer oracle: parse and validate each returned payload with the consumer’s production requirements before claiming zero bad final answers.
+
+- #748 suite: Every new production file, including a pure byte-validation helper, needs an exhaustive artifact-source disposition. Run artifactpath.TestProductionArtifactReferencesAreExactlyClassified with the lint/reader preflights before starting the full suite; a missing NonArtifactSources entry should not first surface after queueing a full check.
+- #733 BR-1: A lifecycle wording sweep includes atlas/index.md as well as README, the detailed feature map and architecture.md. Index summaries are contract-bearing descriptions too; changing the detailed page does not update its index entry.
 - #746 BR-1: A generated repair command must satisfy the same current constraints as its executor, ahead of historical classification. Execute emitted commands in private fixtures for each classification transition; checking only their text or the manual command misses advice that cannot work.
 - #749: Acceptance fixtures must execute the one shared Pair image through testpair.At or tests/lib/pair-test-binary.sh, preserving inode identity even across volumes. A raw executable copy triggers another AMFI assessment before the CLI starts and can consume a fixture deadline; verify file identity rather than extending the timeout. Resolve the shared binary before installing a hermetic fixture environment.
 
 - #731 BR-1: When an approved plan revision changes an acceptance policy or introduces a replacement API, reconcile Done when in the same checkpoint. A Revisions entry alone leaves an executable contract contradiction for close review.
 
 - #731 suite: When strengthening a shared admission predicate, enumerate both Go and shell entrypoints that execute the real CLI. Healthy fixtures must establish the new authority through the production seam; keep a separate stale-metadata negative control rather than merely changing expected effects.
+
+- #731 train213: A batch banner lists candidates, not final admitted membership. Before diagnosing a missing patch or cancelling a train check, inspect the authoritative per-car landing event/outcome. A held conductor can still be running another car; an apparently own-check cancellation may stop that rider.

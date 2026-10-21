@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/xianxu/pair/cmd/internal/orientation"
+	"github.com/xianxu/pair/cmd/internal/threadrecord"
 )
 
 // startFreshRecoveryWithoutRecord carries the remaining workspace evidence into
@@ -35,11 +35,8 @@ func (c *Couch) startFreshRecoveryWithoutRecord(ctx context.Context, selection R
 		return RecoveryResumeResult{}, err
 	}
 	branch, issue := (OSRecoveryEvidenceReader{Git: c.Git}).recoveryBranchIssue(ctx, ThreadRecord{StartingPath: target.Slot.WorktreeRoot, WorkingPath: cwd})
-	prompt, err := orientation.BuildRecoveryOrientation(orientation.RecoveryOrientationContext{SlotAddress: fmt.Sprintf("%s:%d", target.Slot.Repo, target.Slot.Number), Branch: branch, Issue: issue})
-	if err != nil {
-		return RecoveryResumeResult{}, err
-	}
-	started, err := c.startFreshSlotWithPrompt(ctx, selection.Target.Path, selection.Agent, false, nil, nil, prompt, freshSlotRecordlessRecovery)
+	orient := &threadrecord.RecoveryOrientation{Branch: branch, Issue: issue, Unavailable: "Previous TTY capture unavailable; use branch and issue evidence."}
+	started, err := c.startFreshSlotWithRecovery(ctx, selection.Target.Path, selection.Agent, false, nil, nil, orient, freshSlotRecordlessRecovery)
 	return RecoveryResumeResult{Mode: Fresh, Start: started, Notice: "started fresh; previous TTY capture unavailable; use branch and issue evidence; any unproved owners were left untouched under their original identities; workspace setup was not refreshed"}, err
 }
 
