@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -97,9 +98,11 @@ func TestExecutionUncertainStreamHelper(t *testing.T) {
 	if writeOwnerFrame(os.Stdout, ownerFrame{Kind: "result", Result: &r}) != nil {
 		os.Exit(95)
 	}
-	for {
-		time.Sleep(time.Second)
-	}
+	// Keep a native event wait alive without intercepting the parent's TERM/KILL.
+	hold := make(chan os.Signal, 1)
+	signal.Notify(hold, syscall.SIGUSR1)
+	defer signal.Stop(hold)
+	<-hold
 }
 
 func TestExecutionManualOwnedRun(t *testing.T) {

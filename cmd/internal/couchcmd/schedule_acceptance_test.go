@@ -18,7 +18,28 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchschedule"
 	"github.com/xianxu/pair/cmd/internal/operationalrun"
 	"github.com/xianxu/pair/cmd/internal/procutil"
+	"github.com/xianxu/pair/internal/testbinary"
 )
+
+var scheduleCouchCache testbinary.Cache
+
+func scheduleCouchBinary(t testing.TB) string {
+	t.Helper()
+	dir, err := scheduleCouchCache.Directory(func(dir string) error {
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+		defer cancel()
+		//lint:allow test-go-build — the suite-owned cache builds Couch once for both native consumers and TestMain removes it after every consumer joins
+		build := exec.CommandContext(ctx, "go", "build", "-o", filepath.Join(dir, "couch"), "../../couch")
+		if output, err := build.CombinedOutput(); err != nil {
+			return fmt.Errorf("build real Couch: %w\n%s", err, output)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return filepath.Join(dir, "couch")
+}
 
 // This qualifies the installed command's private owner dispatch, not a test
 // binary impersonating the owner. All authority, permits and tasks are disposable.
@@ -29,11 +50,7 @@ func TestScheduleNativeManualAcceptance(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
-	binary := filepath.Join(base, "couch")
-	build := exec.CommandContext(ctx, "go", "build", "-o", binary, "../../couch")
-	if output, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build real Couch: %v\n%s", err, output)
-	}
+	binary := scheduleCouchBinary(t)
 	root := filepath.Join(base, "hub")
 	taskDir := filepath.Join(root, "scripts", "scheduled", "report")
 	if err := os.MkdirAll(taskDir, 0700); err != nil {

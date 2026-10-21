@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -49,9 +51,11 @@ func TestOperationalStageOwnerHelper(t *testing.T) {
 	// Retain the native process and actual task flock until the parent kills
 	// it. SIGKILL bypasses normal defers and leaves a real abandoned stage.
 	fmt.Println("ready")
-	for {
-		time.Sleep(time.Second)
-	}
+	// Keep a native event wait alive without intercepting the parent's TERM/KILL.
+	hold := make(chan os.Signal, 1)
+	signal.Notify(hold, syscall.SIGUSR1)
+	defer signal.Stop(hold)
+	<-hold
 }
 
 func TestCollectionStageRecoveredWithoutJournal(t *testing.T) {

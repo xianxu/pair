@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strconv"
@@ -32,10 +31,7 @@ func TestScheduleOwnerNativeManualTransportAcceptance(t *testing.T) {
 	}
 	ctx, stop := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer stop()
-	binary := filepath.Join(base, "couch")
-	if output, err := exec.CommandContext(ctx, "go", "build", "-o", binary, "../../couch").CombinedOutput(); err != nil {
-		t.Fatalf("build native Couch: %v\n%s", err, output)
-	}
+	binary := scheduleCouchBinary(t)
 	root := filepath.Join(base, "hub")
 	dir := filepath.Join(root, "scripts", "scheduled", "report")
 	if err := os.MkdirAll(dir, 0700); err != nil {
