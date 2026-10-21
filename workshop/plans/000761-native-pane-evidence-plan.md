@@ -119,3 +119,7 @@ BoundNativeQueryEvidence is implemented as the private boundNativeQueryEvidence 
 ### 2026-10-21 — BR-1/BR-2: preserve native spelling and budget test sockets
 
 The exact-socket condition includes symlink/parent traversal semantics: append the validated native version/name components without filepath.Join cleaning. Add positive and negative filesystem regressions through the real read retry boundary. The test fixture must choose a short owned root independently of inherited TMPDIR, prefer TestScratch when it fits, and retain strict cleanup; run with an intentionally long TMPDIR. This implements the existing exact-target condition and portable test contract, with unchanged public behavior and retry budget. Requeue the suite on the fixed code, rerun native counters there and re-close against both ledger findings.
+
+### 2026-10-21 — BR-1 source-complete root spelling
+
+Explicit, runtime and temporary roots must all preserve native symlink/parent-segment and separator spelling before the socket condition. Reuse one pure component append in all applicable constructors and the final version/name path; keep root/name validation unchanged. For each source, run positive and negative filesystem arrangements through actual retry admission and require exact command counts. Pure platform-parametric tables exercise Linux and Darwin selection and reject prior normalization. Earlier explicit-only coverage is insufficient. BR-2 remains addressed; no timeout, attempt, public state or failure-evidence contract changes.

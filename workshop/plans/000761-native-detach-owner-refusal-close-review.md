@@ -103,3 +103,98 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T02:34:26-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 761 — Couch native detach intermittently loses post-client ownership proof |
+| repo | pair |
+| issue file | workshop/issues/000761-native-detach-owner-refusal.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | bc79cbaeae75b518dcfa789fc2bd0e40ccf06f97..f7e4c03f134362d8173bb73725f014677aa464be |
+| command | sdlc close --issue 761 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T02:34:26-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The retry and evidence plumbing are well bounded, and BR-2 is addressed. BR-1 remains open: explicit socket-root spelling is preserved, but the TMPDIR fallback still cleans symlink/parent segments before retry admission. A filesystem regression on the pinned head reproduced both false rejection and false admission.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: not-addressed
+    note: |
+      The explicit-root regressions pass and fail when its fix is removed, but family native-path-spelling-preservation remains incomplete. zellij_read_recovery.go:114 calls ResolveZellijSocketRoot, whose TMPDIR fallback at zellij_socket.go:28 still uses filepath.Join. With ZELLIJ_SOCKET_DIR unset and TMPDIR containing alias/../sockets, a disposable pinned-head regression observed native-present/admission-false and native-absent/admission-true. Preserve native spelling across all three root sources: explicit override, Linux runtime directory, and temporary-directory fallback; add positive and negative fallback regressions.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      All three launcher Unix listener sites use the budgeted private allocator. The long-TMPDIR regression passes and fails with bind: invalid argument when the lookup fixture returns to inherited temporary allocation. The full launcher package also passed under a 261-byte inherited TMPDIR; temporary review checkouts were removed.
+```
+
+1. **Strengths**
+
+   Retry admission validates the complete signature and retains the existing attempt/deadline bounds. Evidence capture preserves full-input parser decisions, independent byte ownership, and concise operator errors. Persistence tests exercise an actual owner refusal through recording, Save, and reopen.
+
+2. **Critical findings**
+
+   **BR-1 remains open — ARCH-SECURE, ARCH-PURPOSE.** At `cmd/internal/launcher/zellij_read_recovery.go:114`, the fallback root has already been cleaned by `cmd/internal/launcher/zellij_socket.go:28`. For `TMPDIR=<base>/alias/../sockets`, where `alias` points to `<base>/real/child`, the native path resolves beneath `real/sockets`; the check resolves beneath `<base>/sockets`.
+
+   Apply the spelling-preservation rule throughout root construction, then test both socket arrangements through actual retry admission. The existing regressions cover only the explicit override.
+
+3. **Important findings**
+
+   None.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Passed: full launcher under long TMPDIR; focused launcher race tests; native-query persistence tests; full `zellijtest`; artifactpath; repolint; affected-reader inventory.
+
+   Both prior fixes have meaningful mutation tests. The additional fallback regression fails on the pinned head. Whitespace checks pass outside captured evidence; native stdout captures intentionally retain trailing spaces. The required recorded suite remains a separate landing prerequisite.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** existing decoders, runner, and failure store are reused.
+   - **ARCH-PURE — pass:** classification, bounding, and normalization remain directly testable.
+   - **ARCH-PURPOSE — flag:** BR-1’s path-source enumeration missed the temporary-directory fallback.
+   - **ARCH-MOCK — pass:** stateful fixtures share the production boundary; scheduled native conformance exists.
+   - **ARCH-CONSTRAINTS — pass:** retry, deadline, evidence, history, and socket-path bounds are exercised.
+   - **ARCH-SECURE — flag:** fallback spelling can select a different socket.
+   - **ARCH-ORDER — pass:** ownership agreement, generation fences, and cancellation remain enforced.
+   - **ARCH-FUNERAL — pass:** evidence uses existing bounded retention; fixture cleanup is explicit.
+   - **ARCH-EVOLVE — pass:** additive fields retain strict decoding and unknown-field preservation.
+
+   Atlas changes cover the new diagnostic surface. No new command, flag, or configuration key requires a README update.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry stating that native spelling must survive **explicit, runtime-directory, and temporary-directory root construction**, with positive and negative filesystem regressions for every applicable branch. Correct the current BR-1 completion claim accordingly.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"90800df8-3dc0-4e8e-b16c-44bc6b4e8105","repository":"github.com/xianxu/pair","issue_id":"000761","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/0cfbfc9bba29a20d","reviewed_head":"f7e4c03f134362d8173bb73725f014677aa464be","slot":"pair:5","requested_at":"2026-10-21T09:29:49.668376Z"},"phase":"finished","pid":16967,"started_at":"2026-10-21T09:29:49.854414Z","finished_at":"2026-10-21T09:34:25.288721Z","session_id":"01a15dcb-a7a7-7c11-8b4e-cc36cb9adf62","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.609373375s
+head: "f7e4c03f134362d8173bb73725f014677aa464be"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

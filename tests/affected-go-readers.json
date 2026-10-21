@@ -468,7 +468,8 @@
       "cmd/internal/couchcore/nativequery_failure_test.go": "70e6d57ebd506b878b716c7338205a7c159baf307825e28689b37349130c5686",
       "cmd/internal/couchcore/recovery_native_reply_test.go": "f15eaa5f77664006ea46e753b670ffa15523c82e4c7a5816280b732ae9ff8603",
       "cmd/internal/launcher/zellij_lookup_miss_test.go": "c979731f872fd00c9c95d39f1e6da57b4166c27eefe735f4046f0334314b3e61",
-      "cmd/internal/launcher/workbench_attach_invariant_test.go": "bcf8e416bed738d1ca210f622aae8c9aa6298b9ce1a59b179982dbc8ef8db1ed"
+      "cmd/internal/launcher/workbench_attach_invariant_test.go": "bcf8e416bed738d1ca210f622aae8c9aa6298b9ce1a59b179982dbc8ef8db1ed",
+      "cmd/internal/launcher/zellij_socket_test.go": "21d895ebef9e0e4723b3c5b6aed7b8cdbe74de6cbd9af309929cc883be1e19c7"
     }
   }
 }
