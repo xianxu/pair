@@ -310,4 +310,6 @@ unconfirmed socket removal retains the named root and exits unsuccessfully.
 `python3 tests/zellij-false-miss-test.py` exercises the actual worker with a
 stateful CLI double and real private sockets, including whole-stderr byte
 matching and confirmed/unconfirmed liveness. The standalone script itself does
-not require Python. This diagnostic is separate from Pair's bounded recovery.
+not require Python. `make zellij-false-miss` explicitly runs the regressions and
+the default native diagnostic; neither is added to `make test`. This manual
+diagnostic is separate from Pair's bounded recovery.

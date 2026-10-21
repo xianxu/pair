@@ -1,6 +1,6 @@
 ## Zellij 0.45.1 false session misses
 Requires Bash, stock Unix utilities, and `zellij 0.45.1`; no Pair or Couch.
-Run `bash /path/to/zellij-false-miss.sh 1000 4`; it needs no checkout.
+Run `bash /path/to/zellij-false-miss.sh 1000 4` without a checkout; in Pair, `make zellij-false-miss` runs regressions and that diagnostic explicitly.
 Arguments are decimal queries (1–100000) and workers (1–16), default1000/4; leading zeros normalize to decimal.
 Three background sessions use fresh HOME, XDG, config, and socket roots; use a short TMPDIR if the socket-path check refuses.
 Queries mix list-panes JSON, list-clients, and unformatted list-sessions.
