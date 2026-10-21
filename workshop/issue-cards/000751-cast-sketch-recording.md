@@ -1,8 +1,8 @@
 ---
 id: 000751
-status: codecomplete
+status: done
 created: 2026-10-20
-updated: 2026-10-20
+updated: 2026-10-21
 estimate_hours: 3.79
 github_issue:
 started: 2026-10-20T21:40:18-07:00
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: db8caaeba35cb82f5d4e3ac8ba0ca20397f5c185
         evidence_commit: b3e26855a190b1f4fcbc09f459dfdc4f2c02e646
+        landed_commit: 6a615f28c20aef8789243c7a2098ecb7e2b631ea
 ---
 
 # cast-sketch: recording model, pressure paths and undo history
