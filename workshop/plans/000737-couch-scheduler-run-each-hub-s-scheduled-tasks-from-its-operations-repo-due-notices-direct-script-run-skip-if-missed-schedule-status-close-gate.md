@@ -683,6 +683,186 @@ rounds:
       isolation: fenced
       reviewed: 10788616469fcb3405b066c24f6397e22dc87732
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: bc0371b0-1975-48a7-b8fc-e851b329c8f4
+            repository: github.com/xianxu/pair
+            issue_id: "000737"
+            recipe: milestone-review
+            round: 1
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/4cd79521962a6ba7
+            reviewed_head: 11db21abcaa8e29ad26e7914f8c6ecf86aec6d68
+            slot: pair:1
+            requested_at: "2026-10-21T07:01:06.065439Z"
+          phase: finished
+          pid: 25993
+          started_at: "2026-10-21T07:01:06.294104Z"
+          finished_at: "2026-10-21T07:07:18.426758Z"
+          session_id: 01a15d43-7dda-7903-a57d-6d47ed804ece
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 11db21abcaa8e29ad26e7914f8c6ecf86aec6d68
+        tracker_head: 8ad72e59f205333629047a953ea2e6eaa42cefe1
+        branch_point: 2d298efea85f7a623d0a8d4a65b3260e0c626f18
+        since: "2026-10-20T17:17:42-07:00"
+        until: "2026-10-21T00:00:01-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-20T17:17:42-07:00"
+              end: "2026-10-21T00:00:01-07:00"
+              began: "2026-10-20T17:17:42-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot1/pair
+        sources:
+            - harness: codex
+              id: 01a15a4d-a5f6-7e32-9f09-082ad1e172f0
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: 53aafcca6ff90d876eab50f4fca2749e7172390f8ee1afe087431a9242a53131
+              started: "2026-10-20T17:14:55.765Z"
+              spawned: false
+              bytes: 19032561
+              windows:
+                - start: "2026-10-20T17:17:42-07:00"
+                  end: "2026-10-21T00:00:01-07:00"
+            - harness: codex
+              id: 01a15bd2-f5c9-7251-9c7e-cba357006b38
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a15a4d-a5f6-7e32-9f09-082ad1e172f0
+              digest: 56cb851cc0c000731264aea96f8cdb07ca78ed6fd637908f32e482409f1ea486
+              started: "2026-10-21T00:18:34.683Z"
+              spawned: true
+              bytes: 6217909
+              windows:
+                - start: "2026-10-21T00:18:34.683Z"
+                  end: "2026-10-21T00:00:01-07:00"
+            - harness: codex
+              id: 01a15bd3-91ad-7770-8227-419b821d5986
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a15a4d-a5f6-7e32-9f09-082ad1e172f0
+              digest: c5a168bbfda1a53fd7eda6ec03ea3ecc08dca8852bda4f1868992570919a4e85
+              started: "2026-10-21T00:19:14.859Z"
+              spawned: true
+              bytes: 6803546
+              windows:
+                - start: "2026-10-21T00:19:14.859Z"
+                  end: "2026-10-21T00:00:01-07:00"
+            - harness: codex
+              id: 01a15be0-4dec-70a0-a17e-61b630b10dca
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              parent_id: 01a15a4d-a5f6-7e32-9f09-082ad1e172f0
+              digest: e3452498ecaeb9c010124a71304f43b0f3a8abbd469e3eca0f7dcebd2bb76bdd
+              started: "2026-10-21T00:33:09.272Z"
+              spawned: true
+              bytes: 4829922
+              windows:
+                - start: "2026-10-21T00:33:09.272Z"
+                  end: "2026-10-21T00:00:01-07:00"
+            - harness: codex
+              id: 01a15c40-c87b-7d42-8375-bfd5ecbd7a53
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: a3b269236061b4495ff4f5eb5c065aa81cd5d6dfbaf9222bc67300f4a25c3bfc
+              started: "2026-10-21T02:18:32.36Z"
+              spawned: false
+              bytes: 731519
+              windows:
+                - start: "2026-10-21T02:18:32.36Z"
+                  end: "2026-10-21T00:00:01-07:00"
+            - harness: codex
+              id: 01a15c43-ba56-74b0-90bf-eba6239eef02
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: c535f95d699a28f090a389e2df5a02d209b9a7922aa84ff5c20e32475399b95b
+              started: "2026-10-21T02:21:45.369Z"
+              spawned: false
+              bytes: 518971
+              windows:
+                - start: "2026-10-21T02:21:45.369Z"
+                  end: "2026-10-21T00:00:01-07:00"
+            - harness: codex
+              id: 01a15c45-809b-7fb3-a021-892d99ec3b1d
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: b261c2a1db7e2401a2a58ce9c12df197749550821c9655313b509884af09b668
+              started: "2026-10-21T02:23:41.668Z"
+              spawned: false
+              bytes: 487844
+              windows:
+                - start: "2026-10-21T02:23:41.668Z"
+                  end: "2026-10-21T00:00:01-07:00"
+            - harness: codex
+              id: 01a15c45-e52f-7763-8852-144173152199
+              slot: pair:1
+              cwd: /Users/xianxu/workspace/worktree/pair-slot1/pair
+              digest: b766e2ab9af6806b5e6afb3df7c118c516bfaf10ab272731bdcc89753d815897
+              started: "2026-10-21T02:24:07.329Z"
+              spawned: false
+              bytes: 520797
+              windows:
+                - start: "2026-10-21T02:24:07.329Z"
+                  end: "2026-10-21T00:00:01-07:00"
+        cuts:
+            - boundary: M1
+              dispatched: "2026-10-20T20:08:11-07:00"
+              finalized: "2026-10-20T20:12:31-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-20T20:36:36-07:00"
+              finalized: "2026-10-20T20:40:39-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-20T21:10:12-07:00"
+              finalized: "2026-10-20T21:12:59-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-20T21:21:32-07:00"
+              finalized: "2026-10-20T21:23:47-07:00"
+              finalizing: true
+      "n": 5
+      timestamp: "2026-10-21T00:07:19-07:00"
+      dispatched: "2026-10-21T00:01:03-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      findings:
+        - kind: defect
+          id: BR-9
+          severity: Critical
+          title: Notice admission can proceed after its deadline or committed cancellation
+          detail: 'cmd/internal/couchcmd/schedule_automatic.go:650-654 checks authority before calling Admit, while schedule_notice.go:45 then waits for holdHubEffect using the service context. There is no persisted-deadline cancellation or task-authority recheck after that wait. Two deterministic probes using the production scheduler, real broker, held ownership gate, and injected clock reproduced broker admission after NoticeDeadline and after catalogue removal had committed, finalized history, and cleared Active. ARCH-ORDER and ARCH-CONSTRAINTS: enforce one rule across queued and blocked effects—admission must remain authorized until the actual broker boundary. Bound gate/admission work by the persisted deadline and serialize or cancel pending admission against declaration cancellation, preserving uncertainty for already accepted effects. Add both interleavings as permanent regression tests and return this ordering gap to the TL under the approved transaction revision.'
+          family: effect-authorization-fencing
+          round: 5
+        - kind: defect
+          id: BR-10
+          severity: Critical
+          title: One damaged task history prevents every scheduler worker from starting
+          detail: 'cmd/internal/couchcmd/schedule_automatic.go:151-153 returns a task-local passive-history error from the entire recovery transaction; run starts workers only after recovery succeeds. A probe created offline-skip history for two hubs, truncated one task''s record.json, and reopened the scheduler: recover returned the JSON error, preventing all workers from starting. Similar global propagation remains in scheduled completion and notice-history paths. This is the 2nd finding in family task-refusal-isolation. Earlier corrections handled instances; do not patch only recover. State and enforce the rule that task-history failures preserve that task''s authority and expose a local refusal, while shared authority-store failures block globally. Enumerate startup recovery, passive repair, completion reconciliation, cancellation finalization, and notice finalization; sweep those consumers and test that a healthy second hub continues. ARCH-PURPOSE.'
+          family: task-refusal-isolation
+          round: 5
+        - kind: defect
+          id: BR-11
+          severity: Critical
+          title: Same-occurrence recovery silently deletes unknown summary fields
+          detail: 'cmd/internal/couchschedule/model.go:235 and :260 replace Last with the recovered summary, while cmd/internal/couchcmd/schedule_records.go:14-15 constructs that summary without the existing Last.Unknown members. A persisted scheduled-delivery summary containing future_summary_field={"value":42} lost that field after automaticScheduler.recover processed the same occurrence. Codec preservation tests do not cover this rewrite. This is the 2nd finding in family additive-persisted-format-compatibility. Do not fix only this caller: enforce preservation of unknown members whenever an existing persisted object is updated for the same identity, keeping distinct schema namespaces separate. Sweep manual, scheduled, passive, and uncertain canonical-adoption paths, with reopen-and-rewrite regressions. ARCH-EVOLVE.'
+          family: additive-persisted-format-compatibility
+          round: 5
+      boundary: M2
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#737 (boundary-review)
@@ -740,6 +920,19 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - BR-8 — addressed — store_unix.go:169 checks captured staging identity immediately before Renameat, sharing the predicate with error cleanup. TestLedgerPublicationRefusesReplacement at store_recovery_test.go:374 passes on head; removing that guard in a disposable copy fails refusal, unchanged prior authority, and replacement preservation assertions. Ledger/Store race tests pass. The disposable copy was removed.
 
+## Round 5 — 2026-10-21T00:07:19-07:00 (codex) — BLOCKED
+
+### Raised
+
+- **BR-9** [Critical] `effect-authorization-fencing` (kind: defect) Notice admission can proceed after its deadline or committed cancellation
+  cmd/internal/couchcmd/schedule_automatic.go:650-654 checks authority before calling Admit, while schedule_notice.go:45 then waits for holdHubEffect using the service context. There is no persisted-deadline cancellation or task-authority recheck after that wait. Two deterministic probes using the production scheduler, real broker, held ownership gate, and injected clock reproduced broker admission after NoticeDeadline and after catalogue removal had committed, finalized history, and cleared Active. ARCH-ORDER and ARCH-CONSTRAINTS: enforce one rule across queued and blocked effects—admission must remain authorized until the actual broker boundary. Bound gate/admission work by the persisted deadline and serialize or cancel pending admission against declaration cancellation, preserving uncertainty for already accepted effects. Add both interleavings as permanent regression tests and return this ordering gap to the TL under the approved transaction revision.
+- **BR-10** [Critical] `task-refusal-isolation` (kind: defect) One damaged task history prevents every scheduler worker from starting
+  cmd/internal/couchcmd/schedule_automatic.go:151-153 returns a task-local passive-history error from the entire recovery transaction; run starts workers only after recovery succeeds. A probe created offline-skip history for two hubs, truncated one task's record.json, and reopened the scheduler: recover returned the JSON error, preventing all workers from starting. Similar global propagation remains in scheduled completion and notice-history paths. This is the 2nd finding in family task-refusal-isolation. Earlier corrections handled instances; do not patch only recover. State and enforce the rule that task-history failures preserve that task's authority and expose a local refusal, while shared authority-store failures block globally. Enumerate startup recovery, passive repair, completion reconciliation, cancellation finalization, and notice finalization; sweep those consumers and test that a healthy second hub continues. ARCH-PURPOSE.
+- **BR-11** [Critical] `additive-persisted-format-compatibility` (kind: defect) Same-occurrence recovery silently deletes unknown summary fields
+  cmd/internal/couchschedule/model.go:235 and :260 replace Last with the recovered summary, while cmd/internal/couchcmd/schedule_records.go:14-15 constructs that summary without the existing Last.Unknown members. A persisted scheduled-delivery summary containing future_summary_field={"value":42} lost that field after automaticScheduler.recover processed the same occurrence. Codec preservation tests do not cover this rewrite. This is the 2nd finding in family additive-persisted-format-compatibility. Do not fix only this caller: enforce preservation of unknown members whenever an existing persisted object is updated for the same identity, keeping distinct schema namespaces separate. Sweep manual, scheduled, passive, and uncertain canonical-adoption paths, with reopen-and-rewrite regressions. ARCH-EVOLVE.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-9** [Critical] `effect-authorization-fencing` (kind: defect) Notice admission can proceed after its deadline or committed cancellation
+- **BR-10** [Critical] `task-refusal-isolation` (kind: defect) One damaged task history prevents every scheduler worker from starting
+- **BR-11** [Critical] `additive-persisted-format-compatibility` (kind: defect) Same-occurrence recovery silently deletes unknown summary fields
