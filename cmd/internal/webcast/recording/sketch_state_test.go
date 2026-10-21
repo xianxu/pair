@@ -3,6 +3,7 @@ package recording
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"reflect"
 	"strings"
 	"testing"
@@ -217,4 +218,36 @@ func TestSketchBoundsAndCountedWork(t *testing.T) {
 		seq++
 	}
 	refuseSketch(t, s, &SketchPoints{SketchOperation: sketchOp(seq), Sketch: "sk", ID: "s1", Chunk: 64, Pts: []SketchPoint{{1, 1, 1}}})
+}
+
+func TestSketchSignedZeroModelAccountingAndOwnedProjection(t *testing.T) {
+	var states []*State
+	for _, zero := range []float64{0, math.Copysign(0, -1)} {
+		s := sketchFixture(t)
+		applySketch(t, s, sketchBegin())
+		stroke := sketchStroke(1, "a")
+		stroke.At.Box[0] = zero
+		applySketch(t, s, stroke)
+		points := &SketchPoints{SketchOperation: sketchOp(2), Sketch: "sk", ID: "a", Pts: []SketchPoint{{zero, zero, zero}}}
+		raw, err := Encode(points)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if math.Signbit(zero) && !strings.Contains(string(raw), "-0") {
+			t.Fatal("wire lost original signed zero")
+		}
+		applySketch(t, s, points)
+		if math.Signbit(zero) && !math.Signbit(points.Pts[0][0]) {
+			t.Fatal("admission mutated caller")
+		}
+		states = append(states, s)
+	}
+	a, b := states[0].Sketches.Snapshot(), states[1].Sketches.Snapshot()
+	if a.HistoryBytes != b.HistoryBytes {
+		t.Fatalf("signed zero model bytes %d != %d", a.HistoryBytes, b.HistoryBytes)
+	}
+	v := b.Sketches[0]
+	if math.Signbit(v.Strokes[0].Begin.At.Box[0]) || math.Signbit(v.Strokes[0].Pts[0][0]) || math.Signbit(v.Strokes[0].Pts[0][2]) {
+		t.Fatal("authoritative zero is not normalized")
+	}
 }

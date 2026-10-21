@@ -30,6 +30,16 @@ func FuzzSketchCodec(f *testing.F) {
 		}
 	}
 	for _, line := range []string{
+		strings.Replace(sketchWireSamples()[0], `"id":"sk"`, `"id":"\ud800"`, 1),
+		strings.Replace(sketchWireSamples()[0], `"id":"sk"`, `"id":"\udfff"`, 1),
+		strings.Replace(sketchWireSamples()[0], `"id":"sk"`, `"id":"\ud83d\ude00"`, 1),
+		strings.Replace(sketchWireSamples()[0], `"name":"Drawer"`, `"name":"`+string([]byte{0xff})+`"`, 1),
+		strings.Replace(sketchWireSamples()[1], `"node":3`, `"node":3,"stable":{"custom":"\ud800"}`, 1),
+		strings.Replace(sketchWireSamples()[1], `"node":3`, `"node":3,"stable":{"\ud800":"value"}`, 1),
+		strings.Replace(sketchWireSamples()[1], `"node":3`, `"node":3,"path":["\udfff"]`, 1),
+		strings.Replace(sketchWireSamples()[0], `"author":{`, `"future":"\ud800","author":{`, 1),
+		strings.Replace(sketchWireSamples()[0], `"author":{`, `"future":"`+string([]byte{0xff})+`","author":{`, 1),
+
 		strings.Replace(sketchWireSamples()[0], `"author":{`, `"unknown": { "array": [1,  2, {"key":true}] },"author":{"future": { "spacing":  1 },`, 1),
 		strings.Replace(sketchWireSamples()[0], `"vp":{`, `"vp":{"future": [1,  2],`, 1),
 		strings.Replace(sketchWireSamples()[1], `"node":3`, `"node":3,"future": { "nested": [true,  false] },"stable":{"id":"button","future": { "nested": true }}`, 1),

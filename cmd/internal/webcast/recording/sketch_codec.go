@@ -1,12 +1,15 @@
 package recording
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
+	"strconv"
+	"unicode/utf8"
 
 	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
@@ -84,6 +87,9 @@ func splitSketchObject(raw []byte, schema *sketchSchema) ([]byte, *sketchWire, e
 	if err != nil {
 		return nil, nil, err
 	}
+	if err := checkSketchOwnedKeyUnicode(raw, known); err != nil {
+		return nil, nil, err
+	}
 	for _, k := range schema.required {
 		if _, ok := owned[k]; !ok {
 			return nil, nil, fmt.Errorf("missing %s", k)
@@ -100,6 +106,11 @@ func splitSketchObject(raw []byte, schema *sketchSchema) ([]byte, *sketchWire, e
 			if child != nil {
 				wire.children[k] = child
 			}
+		}
+	}
+	for key, value := range owned {
+		if err := checkSketchUnicode(value); err != nil {
+			return nil, nil, fmt.Errorf("%s: %w", key, err)
 		}
 	}
 	if len(unknown) == 0 {
@@ -119,6 +130,93 @@ func splitSketchObject(raw []byte, schema *sketchSchema) ([]byte, *sketchWire, e
 	}
 	return clean, wire, nil
 }
+
+// checkSketchUnicode inspects original JSON string bytes before encoding/json
+// can replace malformed UTF-8 or unpaired UTF-16 escapes with U+FFFD. Its input
+// contains only owned values; additive unknown values retain their raw bytes.
+func checkSketchUnicode(raw []byte) error {
+	if !utf8.Valid(raw) {
+		return errors.New("invalid UTF-8 in owned sketch string")
+	}
+	for i := 0; i < len(raw); i++ {
+		if raw[i] != '"' {
+			continue
+		}
+		i++
+		for i < len(raw) && raw[i] != '"' {
+			if raw[i] != '\\' {
+				i++
+				continue
+			}
+			if i+1 >= len(raw) {
+				return errors.New("truncated JSON escape")
+			}
+			if raw[i+1] != 'u' {
+				i += 2
+				continue
+			}
+			if i+6 > len(raw) {
+				return errors.New("truncated Unicode escape")
+			}
+			unit, err := strconv.ParseUint(string(raw[i+2:i+6]), 16, 16)
+			if err != nil {
+				return err
+			}
+			i += 6
+			if unit >= 0xdc00 && unit <= 0xdfff {
+				return errors.New("unpaired low surrogate in owned sketch string")
+			}
+			if unit < 0xd800 || unit > 0xdbff {
+				continue
+			}
+			if i+6 > len(raw) || raw[i] != '\\' || raw[i+1] != 'u' {
+				return errors.New("unpaired high surrogate in owned sketch string")
+			}
+			low, err := strconv.ParseUint(string(raw[i+2:i+6]), 16, 16)
+			if err != nil {
+				return err
+			}
+			if low < 0xdc00 || low > 0xdfff {
+				return errors.New("unpaired high surrogate in owned sketch string")
+			}
+			i += 6
+		}
+	}
+	return nil
+}
+
+// A stable-map key is itself owned when its value is a semantic string.
+// Inspect the original key token too; a decoded map key has already lost
+// malformed source bytes. Unknown member names remain outside this check.
+func checkSketchOwnedKeyUnicode(raw []byte, known map[string]bool) error {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	if _, err := dec.Token(); err != nil {
+		return err
+	}
+	for dec.More() {
+		start := dec.InputOffset()
+		token, err := dec.Token()
+		if err != nil {
+			return err
+		}
+		end := dec.InputOffset()
+		key, ok := token.(string)
+		if !ok {
+			return errors.New("JSON member name required")
+		}
+		if known[key] {
+			if err := checkSketchUnicode(bytes.TrimLeft(raw[start:end], ", \t\r\n")); err != nil {
+				return err
+			}
+		}
+		var value json.RawMessage
+		if err := dec.Decode(&value); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func checkSketchTuples(raw []byte, r Record) error {
 	var m map[string]json.RawMessage
 	json.Unmarshal(raw, &m)

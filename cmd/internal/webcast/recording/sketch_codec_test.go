@@ -233,3 +233,54 @@ func TestSketchFrozenLegacyReaderCompatibility(t *testing.T) {
 }
 
 func stringInt(n int) string { b, _ := json.Marshal(n); return string(b) }
+
+func TestSketchOwnedUnicodeIsStrictAndUnknownUnicodePreserved(t *testing.T) {
+	begin, stroke, label := sketchWireSamples()[0], sketchWireSamples()[1], sketchWireSamples()[6]
+	cases := []string{
+		strings.Replace(begin, `"id":"sk"`, `"id":"\ud800"`, 1),
+		strings.Replace(begin, `"tab":"tab"`, `"tab":"\udfff"`, 1),
+		strings.Replace(begin, `"operation":"op"`, `"operation":"\ud800x"`, 1),
+		strings.Replace(begin, `"name":"Drawer"`, `"name":"\ud800\ud800"`, 1),
+		strings.Replace(begin, `"name":"Drawer"`, `"name":"`+string([]byte{0xff})+`"`, 1),
+		strings.Replace(stroke, `"node":3`, `"node":3,"tag":"\ud800"`, 1),
+		strings.Replace(stroke, `"node":3`, `"node":3,"stable":{"id":"\ud800"}`, 1),
+		strings.Replace(stroke, `"node":3`, `"node":3,"stable":{"custom":"\udfff"}`, 1),
+		strings.Replace(stroke, `"node":3`, `"node":3,"stable":{"\ud800":"value"}`, 1),
+		strings.Replace(stroke, `"node":3`, `"node":3,"classes":["\ud800"]`, 1),
+		strings.Replace(stroke, `"node":3`, `"node":3,"path":["\udfff"]`, 1),
+		strings.Replace(label, `Move this button`, `\ud800`, 1),
+	}
+	for i, raw := range cases {
+		if _, err := Decode([]byte(raw)); err == nil {
+			t.Errorf("accepted invalid owned Unicode case %d: %q", i, raw)
+		}
+	}
+	for _, raw := range []string{
+		strings.Replace(begin, `"id":"sk"`, `"id":"\ud83d\ude00"`, 1),
+		strings.Replace(label, `Move this button`, `valid literal � and escaped \ufffd and emoji \ud83d\ude00`, 1),
+		strings.Replace(label, `Move this button`, `literal escape \\ud800`, 1),
+	} {
+		if _, err := Decode([]byte(raw)); err != nil {
+			t.Errorf("refused legal Unicode %q: %v", raw, err)
+		}
+	}
+	unknowns := []struct{ raw, value string }{
+		{strings.Replace(begin, `"author":{`, `"future":"\ud800","author":{`, 1), `"future":"\ud800"`},
+		{strings.Replace(begin, `"author":{`, `"author":{"future":"\udfff",`, 1), `"future":"\udfff"`},
+		{strings.Replace(begin, `"vp":{`, `"vp":{"future":["\ud800"],`, 1), `"future":["\ud800"]`},
+		{strings.Replace(stroke, `"node":3`, `"node":3,"future":"\ud800"`, 1), `"future":"\ud800"`},
+		{strings.Replace(stroke, `"node":3`, `"node":3,"stable":{"future":{"raw":"\ud800"}}`, 1), `"future":{"raw":"\ud800"}`},
+		{strings.Replace(begin, `"author":{`, `"future":"`+string([]byte{0xff})+`","author":{`, 1), `"future":"` + string([]byte{0xff}) + `"`},
+	}
+	for _, tc := range unknowns {
+		r, err := Decode([]byte(tc.raw))
+		if err != nil {
+			t.Errorf("tightened unknown Unicode: %v", err)
+			continue
+		}
+		encoded, err := Encode(r)
+		if err != nil || !bytes.Contains(encoded, []byte(tc.value)) {
+			t.Errorf("lost raw unknown Unicode: %q %v", encoded, err)
+		}
+	}
+}

@@ -10,6 +10,7 @@ export const SKETCH_KINDS = [
   'sketch-interrupt',
 ];
 const enc = new TextEncoder();
+const unicodeString = (value) => typeof value === 'string' && !/\p{Cs}/u.test(value);
 const hex64 = (x) => typeof x === 'string' && /^[0-9a-f]{64}$/.test(x);
 const ident = (x) =>
   typeof x === 'string' && x.length > 0 && enc.encode(x).length <= 128 && !/[\p{Cc}\p{Cf}\p{Cs}]/u.test(x);
@@ -57,13 +58,10 @@ export function checkSketchRecord(r) {
   switch (r.k) {
     case 'sketch-stroke-begin':
       for (const key of ['tag', 'route', 'kind', 'sel', 'text'])
-        if (r.at && key in r.at) need(typeof r.at[key] === 'string', 'invalid anchor string');
+        if (r.at && key in r.at) need(unicodeString(r.at[key]), 'invalid anchor string');
       for (const key of ['classes', 'path'])
         if (r.at && key in r.at)
-          need(
-            Array.isArray(r.at[key]) && r.at[key].every((v) => typeof v === 'string'),
-            'invalid anchor array',
-          );
+          need(Array.isArray(r.at[key]) && r.at[key].every(unicodeString), 'invalid anchor array');
       if (r.at && 'stable' in r.at) {
         need(
           r.at.stable && typeof r.at.stable === 'object' && !Array.isArray(r.at.stable),
@@ -71,6 +69,10 @@ export function checkSketchRecord(r) {
         );
         for (const key of ['id', 'data-testid', 'data-test', 'data-cy'])
           if (key in r.at.stable) need(typeof r.at.stable[key] === 'string', 'invalid stable identity');
+        for (const [key, value] of Object.entries(r.at.stable)) {
+          if (typeof value === 'string')
+            need(unicodeString(key) && unicodeString(value), 'invalid stable Unicode');
+        }
       }
       need(
         Number.isSafeInteger(r.at?.node) &&
@@ -226,6 +228,9 @@ export function sketchProjection(s) {
 function ownedRecord(r) {
   return { ...JSON.parse(sketchCanonical(r)), t: r.t, k: r.k, digest: r.digest };
 }
+function ownedPoints(points) {
+  return points.map((point) => point.map((value) => (value === 0 ? 0 : value)));
+}
 function wireSize(r) {
   const o = JSON.parse(sketchCanonical(r));
   o.t = r.t;
@@ -326,7 +331,7 @@ export function nextSketch(s, r, c) {
           need(stroke && h.open === r.id && !stroke.sealed, 'stroke is not open');
           need(r.chunk === stroke.next_chunk, 'chunk out of sequence');
           need(r.pts.length <= 4096 - stroke.pts.length && r.pts.length <= 16384 - h.points, 'point limit');
-          const pts = r.pts.map((p) => [...p]);
+          const pts = ownedPoints(r.pts);
           effect = () => {
             stroke.pts.push(...pts);
             stroke.next_chunk++;
@@ -506,7 +511,8 @@ export function restoreSketchState(p) {
       receipts: new Map(),
       points: 0,
     };
-    const strokes = new Map(), strokeDigests = new Map();
+    const strokes = new Map(),
+      strokeDigests = new Map();
     const pointWitness = new Map(),
       chunkWitness = new Map();
     let labelWitness = '';
@@ -541,7 +547,8 @@ export function restoreSketchState(p) {
       need((r.k === 'sketch-begin' ? r.id : r.sketch) === id, 'snapshot receipt belongs to another sketch');
       if (i === 0)
         need(
-          r.k === 'sketch-begin' && v.begin.k + ':' + sketchCanonical(v.begin) === receipt.semantic &&
+          r.k === 'sketch-begin' &&
+            v.begin.k + ':' + sketchCanonical(v.begin) === receipt.semantic &&
             v.begin.digest === receipt.digest,
           'snapshot begin differs from receipt',
         );
@@ -614,7 +621,7 @@ export function restoreSketchState(p) {
       }
       h.strokes.set(view.begin.id, {
         begin: ownedRecord(view.begin),
-        pts: structuredClone(view.pts),
+        pts: ownedPoints(view.pts),
         next_chunk: view.next_chunk,
         sealed: view.sealed,
         truncated: view.truncated,
@@ -653,20 +660,25 @@ export function restoreSketchState(p) {
 // interruption facts provide the seals the original reducer already accepted.
 function validateSketchViewHistory(view) {
   const check = createSketchState();
-  const strokes = new Map(view.strokes.map(stroke => [stroke.begin.id, stroke]));
+  const strokes = new Map(view.strokes.map((stroke) => [stroke.begin.id, stroke]));
   const context = {
-    live: true, doc: view.begin.doc, tab: view.begin.tab,
+    live: true,
+    doc: view.begin.doc,
+    tab: view.begin.tab,
     driver: view.begin.author.id === 'operator' ? '' : view.begin.author.id,
   };
   for (const receipt of view.receipts) {
     const split = receipt.semantic.indexOf(':');
     const event = {
       ...JSON.parse(receipt.semantic.slice(split + 1)),
-      k: receipt.semantic.slice(0, split), t: 0, digest: receipt.digest,
+      k: receipt.semantic.slice(0, split),
+      t: 0,
+      digest: receipt.digest,
     };
     const history = check.sketches.get(view.begin.id);
     if (history) {
-      const needsClosed = ['sketch-stroke-begin', 'sketch-undo', 'sketch-redo', 'sketch-label'].includes(event.k) ||
+      const needsClosed =
+        ['sketch-stroke-begin', 'sketch-undo', 'sketch-redo', 'sketch-label'].includes(event.k) ||
         (event.k === 'sketch-stroke-end' && event.id === history.open);
       if (needsClosed && history.open && strokes.get(history.open)?.truncated) {
         sketchContextEffect(check, 'pause');
@@ -683,13 +695,20 @@ function validateSketchViewHistory(view) {
   if (history.open && open?.sealed && open.truncated) sketchContextEffect(check, 'pause');
   if (history.phase === 'drawing' && view.reason) sketchContextEffect(check, 'interrupt', view.reason);
   if (view.phase === 'cleared') sketchContextEffect(check, 'clear');
-  const equal = (a,b) => a.length === b.length && a.every((v,i) => v === b[i]);
-  need(history.phase === view.phase && history.reason === view.reason && history.label === view.label &&
-    equal(history.visible, view.visible) && equal(history.redo, view.redo),
-    'snapshot projection differs from receipt history');
-  for (const [id,stroke] of history.strokes) {
+  const equal = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+  need(
+    history.phase === view.phase &&
+      history.reason === view.reason &&
+      history.label === view.label &&
+      equal(history.visible, view.visible) &&
+      equal(history.redo, view.redo),
+    'snapshot projection differs from receipt history',
+  );
+  for (const [id, stroke] of history.strokes) {
     const projected = strokes.get(id);
-    need(projected?.sealed === stroke.sealed && projected.truncated === stroke.truncated,
-      'snapshot seal differs from receipt history');
+    need(
+      projected?.sealed === stroke.sealed && projected.truncated === stroke.truncated,
+      'snapshot seal differs from receipt history',
+    );
   }
 }

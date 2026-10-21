@@ -1,6 +1,376 @@
 {
  "cases": [
   {
+   "name": "signed-zero",
+   "records": [
+    {
+     "t": 0,
+     "k": "head",
+     "format": "couch-webcast",
+     "v": 1,
+     "id": "signed-zero",
+     "started": "2026-10-11T00:00:00Z"
+    },
+    {
+     "t": 1,
+     "k": "seg",
+     "seg": 1,
+     "why": "live",
+     "tab": {
+      "id": "tab1",
+      "url": "http://x/"
+     },
+     "vp": {
+      "w": 1280,
+      "h": 800,
+      "dpr": 1
+     }
+    },
+    {
+     "t": 2,
+     "k": "doc",
+     "doc": 4,
+     "url": "http://x/",
+     "tree": {
+      "id": 4,
+      "y": "doc",
+      "c": [
+       {
+        "id": 5,
+        "y": "doctype",
+        "n": "html"
+       },
+       {
+        "id": 3,
+        "y": "el",
+        "n": "html",
+        "c": [
+         {
+          "id": 1,
+          "y": "el",
+          "n": "head"
+         },
+         {
+          "id": 2,
+          "y": "el",
+          "n": "body"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "t": 3,
+     "k": "sketch-begin",
+     "operation": "op-0",
+     "sequence": 0,
+     "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "id": "sk",
+     "author": {
+      "id": "operator",
+      "color": "#ff0000"
+     },
+     "owner": "operator",
+     "doc": 1,
+     "tab": "tab1",
+     "vp": {
+      "w": 100,
+      "h": 100,
+      "dpr": 1
+     }
+    },
+    {
+     "t": 4,
+     "k": "sketch-stroke-begin",
+     "operation": "op-1",
+     "sequence": 1,
+     "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "sketch": "sk",
+     "id": "a",
+     "at": {
+      "node": 99,
+      "box": [
+       -0,
+       -0,
+       100,
+       100
+      ]
+     },
+     "width": 4
+    },
+    {
+     "t": 5,
+     "k": "sketch-points",
+     "operation": "op-2",
+     "sequence": 2,
+     "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "sketch": "sk",
+     "id": "a",
+     "chunk": 0,
+     "pts": [
+      [
+       -0,
+       -0,
+       -0
+      ]
+     ]
+    }
+   ],
+   "prefixes": [
+    {
+     "error": false,
+     "t": 0,
+     "control": {},
+     "projection": {
+      "active": "",
+      "history_bytes": 0,
+      "sketches": []
+     }
+    },
+    {
+     "error": false,
+     "t": 1,
+     "control": {},
+     "projection": {
+      "active": "",
+      "history_bytes": 0,
+      "sketches": []
+     }
+    },
+    {
+     "error": false,
+     "t": 2,
+     "control": {},
+     "projection": {
+      "active": "",
+      "history_bytes": 0,
+      "sketches": []
+     }
+    },
+    {
+     "error": false,
+     "t": 3,
+     "control": {},
+     "projection": {
+      "active": "sk",
+      "history_bytes": 261,
+      "sketches": [
+       {
+        "begin": {
+         "t": 3,
+         "k": "sketch-begin",
+         "operation": "op-0",
+         "sequence": 0,
+         "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "id": "sk",
+         "author": {
+          "id": "operator",
+          "color": "#ff0000"
+         },
+         "owner": "operator",
+         "doc": 1,
+         "tab": "tab1",
+         "vp": {
+          "w": 100,
+          "h": 100,
+          "dpr": 1
+         }
+        },
+        "phase": "drawing",
+        "reason": "",
+        "label": "",
+        "strokes": [],
+        "visible": [],
+        "redo": [],
+        "next_sequence": 1,
+        "receipts": [
+         {
+          "operation": "op-0",
+          "sequence": 0,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-begin:{\"author\":{\"color\":\"#ff0000\",\"id\":\"operator\"},\"doc\":1,\"id\":\"sk\",\"operation\":\"op-0\",\"owner\":\"operator\",\"sequence\":0,\"tab\":\"tab1\",\"vp\":{\"dpr\":1,\"h\":100,\"w\":100}}"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "error": false,
+     "t": 4,
+     "control": {},
+     "projection": {
+      "active": "sk",
+      "history_bytes": 473,
+      "sketches": [
+       {
+        "begin": {
+         "t": 3,
+         "k": "sketch-begin",
+         "operation": "op-0",
+         "sequence": 0,
+         "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "id": "sk",
+         "author": {
+          "id": "operator",
+          "color": "#ff0000"
+         },
+         "owner": "operator",
+         "doc": 1,
+         "tab": "tab1",
+         "vp": {
+          "w": 100,
+          "h": 100,
+          "dpr": 1
+         }
+        },
+        "phase": "drawing",
+        "reason": "",
+        "label": "",
+        "strokes": [
+         {
+          "begin": {
+           "t": 4,
+           "k": "sketch-stroke-begin",
+           "operation": "op-1",
+           "sequence": 1,
+           "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+           "sketch": "sk",
+           "id": "a",
+           "at": {
+            "node": 99,
+            "box": [
+             0,
+             0,
+             100,
+             100
+            ]
+           },
+           "width": 4
+          },
+          "pts": [],
+          "next_chunk": 0,
+          "sealed": false,
+          "truncated": false
+         }
+        ],
+        "visible": [],
+        "redo": [],
+        "next_sequence": 2,
+        "receipts": [
+         {
+          "operation": "op-0",
+          "sequence": 0,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-begin:{\"author\":{\"color\":\"#ff0000\",\"id\":\"operator\"},\"doc\":1,\"id\":\"sk\",\"operation\":\"op-0\",\"owner\":\"operator\",\"sequence\":0,\"tab\":\"tab1\",\"vp\":{\"dpr\":1,\"h\":100,\"w\":100}}"
+         },
+         {
+          "operation": "op-1",
+          "sequence": 1,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-stroke-begin:{\"at\":{\"box\":[0,0,100,100],\"node\":99},\"id\":\"a\",\"operation\":\"op-1\",\"sequence\":1,\"sketch\":\"sk\",\"width\":4}"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "error": false,
+     "t": 5,
+     "control": {},
+     "projection": {
+      "active": "sk",
+      "history_bytes": 658,
+      "sketches": [
+       {
+        "begin": {
+         "t": 3,
+         "k": "sketch-begin",
+         "operation": "op-0",
+         "sequence": 0,
+         "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "id": "sk",
+         "author": {
+          "id": "operator",
+          "color": "#ff0000"
+         },
+         "owner": "operator",
+         "doc": 1,
+         "tab": "tab1",
+         "vp": {
+          "w": 100,
+          "h": 100,
+          "dpr": 1
+         }
+        },
+        "phase": "drawing",
+        "reason": "",
+        "label": "",
+        "strokes": [
+         {
+          "begin": {
+           "t": 4,
+           "k": "sketch-stroke-begin",
+           "operation": "op-1",
+           "sequence": 1,
+           "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+           "sketch": "sk",
+           "id": "a",
+           "at": {
+            "node": 99,
+            "box": [
+             0,
+             0,
+             100,
+             100
+            ]
+           },
+           "width": 4
+          },
+          "pts": [
+           [
+            0,
+            0,
+            0
+           ]
+          ],
+          "next_chunk": 1,
+          "sealed": false,
+          "truncated": false
+         }
+        ],
+        "visible": [],
+        "redo": [],
+        "next_sequence": 3,
+        "receipts": [
+         {
+          "operation": "op-0",
+          "sequence": 0,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-begin:{\"author\":{\"color\":\"#ff0000\",\"id\":\"operator\"},\"doc\":1,\"id\":\"sk\",\"operation\":\"op-0\",\"owner\":\"operator\",\"sequence\":0,\"tab\":\"tab1\",\"vp\":{\"dpr\":1,\"h\":100,\"w\":100}}"
+         },
+         {
+          "operation": "op-1",
+          "sequence": 1,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-stroke-begin:{\"at\":{\"box\":[0,0,100,100],\"node\":99},\"id\":\"a\",\"operation\":\"op-1\",\"sequence\":1,\"sketch\":\"sk\",\"width\":4}"
+         },
+         {
+          "operation": "op-2",
+          "sequence": 2,
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "semantic": "sketch-points:{\"chunk\":0,\"id\":\"a\",\"operation\":\"op-2\",\"pts\":[[0,0,0]],\"sequence\":2,\"sketch\":\"sk\"}"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
    "name": "driver-DOM",
    "records": [
     {
@@ -8260,7 +8630,7 @@
     "pts": [
      [
       1e-7,
-      0,
+      -0,
       0.5
      ],
      [

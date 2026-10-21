@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
 	"slices"
 )
 
@@ -141,16 +140,10 @@ func NextSketch(s *SketchState, r Record, c SketchContext) (SketchDelta, error) 
 	}
 	// Canonical known fields bound authoritative state; preserved wire-only
 	// unknown members remain on original records and are charged by SketchBudget.
-	value := reflect.ValueOf(r)
-	copy := reflect.New(value.Elem().Type())
-	copy.Elem().Set(value.Elem())
-	known := copy.Interface().(Record)
-	known.header().K = r.Kind()
-	raw, err := json.Marshal(known)
+	size, err := sketchModelEncodedBytes(r, semantic)
 	if err != nil {
 		return SketchDelta{}, err
 	}
-	size := len(raw) + 1
 	if size > SketchHistoryLimit-s.historyBytes {
 		return fail("sketch history byte limit")
 	}
@@ -272,6 +265,9 @@ func NextSketch(s *SketchState, r Record, c SketchContext) (SketchDelta, error) 
 					return fail("sketch point limit")
 				}
 				pts := slices.Clone(v.Pts)
+				for i := range pts {
+					pts[i] = normalizeSketchPoint(pts[i])
+				}
 				effect = func() {
 					stroke.Pts = append(stroke.Pts, pts...)
 					stroke.NextChunk++
@@ -363,6 +359,13 @@ func cloneSketchStroke(b *SketchStrokeBegin) (*SketchStrokeBegin, error) {
 	}
 	owned := r.(*SketchStrokeBegin)
 	owned.wire = nil
+	if owned.At.Box != nil {
+		for i, v := range *owned.At.Box {
+			if v == 0 {
+				owned.At.Box[i] = 0
+			}
+		}
+	}
 	return owned, nil
 }
 func (s *SketchState) Snapshot() SketchProjection {
@@ -393,4 +396,26 @@ func SketchReceiptKey(r Record) string {
 		return ""
 	}
 	return sketchID(r) + "\x00" + o.Operation
+}
+
+// Model accounting uses the canonical known projection and envelope. Canonical
+// numeric zeros match JavaScript; SketchBudget alone counts original wire bytes.
+func sketchModelEncodedBytes(r Record, semantic string) (int, error) {
+	var known map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(semantic[len(r.Kind())+1:]), &known); err != nil {
+		return 0, err
+	}
+	known["t"], _ = json.Marshal(r.Time())
+	known["k"], _ = json.Marshal(r.Kind())
+	known["digest"], _ = json.Marshal(sketchMetadata(r).Digest)
+	raw, err := json.Marshal(known)
+	return len(raw) + 1, err
+}
+func normalizeSketchPoint(p SketchPoint) SketchPoint {
+	for i, v := range p {
+		if v == 0 {
+			p[i] = 0
+		}
+	}
+	return p
 }

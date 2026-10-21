@@ -260,7 +260,7 @@ stroke end and 4 KiB for interruption. The maximum-envelope regression uses actu
 identities/counters and a 1024-byte HTML-escaping-heavy label. Ending a stroke releases its end allowance; the next
 stroke must reserve it again. Explicit interruption retains label capacity; derived interruption conservatively
 retains the full remainder. Label, clear and cast end release unused reservations; used history bytes remain charged.
-The pure core separately bounds known-field encoded history to 32 MiB, keeping `history_bytes` in snapshots; this
+The pure core separately bounds canonical known-field encoded history to 32 MiB, normalizing signed zero to positive zero in model accounting and owned point/anchor projections, and keeping `history_bytes` in snapshots; this
 counter excludes preserved unknown wire members, which the producer's exact byte budget charges.
 
 Reducer acceptance and sink persistence are separate. A sink error after acceptance leaves state and byte charges

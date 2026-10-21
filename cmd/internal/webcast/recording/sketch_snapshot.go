@@ -238,6 +238,9 @@ func restoreSketchState(p SketchProjection) (SketchState, error) {
 				return SketchState{}, err
 			}
 			owned.Pts = append([]SketchPoint{}, view.Pts...)
+			for i := range owned.Pts {
+				owned.Pts[i] = normalizeSketchPoint(owned.Pts[i])
+			}
 			h.strokes[view.Begin.ID] = &owned
 			h.order = append(h.order, view.Begin.ID)
 			h.points += len(view.Pts)

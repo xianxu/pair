@@ -503,3 +503,97 @@ test('sketch catch-up preserves the existing control baseline before driver-attr
     assert.equal(reduceModel(Model, compacted, { allowSketchSnapshot: true }).control.driver.id, driver.id);
   }
 });
+
+test('Model exposes owned projections and keeps sketch and driving authority private', async () => {
+  const { Model } = await import('../../cmd/internal/webcast/web/model.js');
+  const recs = corpus.cases.find((c) => c.name === 'history').records.slice(0, 6);
+  const m = reduceModel(Model, recs),
+    before = m.sketchProjection();
+  const leaked = m.sketches;
+  if (leaked) {
+    const history = leaked.sketches.get('sk');
+    history.strokes.get('a').pts[0][0] = 999;
+    history.next = 999;
+    history.visible.push('forged');
+    history.receipts.clear();
+  }
+  assert.deepEqual(
+    m.sketchProjection(),
+    before,
+    'public handles cannot change accepted paths, sequence or stacks',
+  );
+  assert.equal(m.sketches, undefined);
+  const projection = m.sketchProjection();
+  projection.sketches[0].strokes[0].pts[0][0] = 999;
+  projection.sketches[0].next_sequence = 999;
+  projection.sketches[0].visible.push('forged');
+  assert.deepEqual(m.sketchProjection(), before);
+  const control = m.control;
+  control.driver = { id: 'forged' };
+  control.pending.push({ id: 'forged' });
+  assert.deepEqual(m.control, { driver: null, pending: [] }, 'control getter owns its nested objects');
+  assert.throws(() => {
+    m.control = control;
+  });
+  assert.equal(m.ctlSeen, undefined);
+  m.ctlSeen = false;
+  m.apply({ k: 'ctl', t: 20, op: 'request', who: { id: 'driver' }, pending: [{ id: 'driver' }] });
+  m.ctlSeen = false;
+  assert.throws(() =>
+    m.apply({ k: 'ctl', t: 21, op: 'grant', who: { id: 'other' }, driver: { id: 'other' } }),
+  );
+});
+
+test('owned paths normalize signed zero without changing captured caller points or anchor boxes', async () => {
+  const { Model } = await import('../../cmd/internal/webcast/web/model.js');
+  const recs = structuredClone(corpus.cases.find((c) => c.name === 'history').records.slice(0, 6));
+  recs[4].at.box = [-0, -0, 10, 10];
+  recs[5].pts = [[-0, -0, -0]];
+  const source = reduceModel(Model, recs),
+    projection = source.sketchProjection();
+  for (const value of projection.sketches[0].strokes[0].pts[0]) assert.equal(Object.is(value, -0), false);
+  for (const value of projection.sketches[0].strokes[0].begin.at.box.slice(0, 2))
+    assert.equal(Object.is(value, -0), false);
+  assert.ok(recs[5].pts[0].every((value) => Object.is(value, -0)));
+  assert.ok(recs[4].at.box.slice(0, 2).every((value) => Object.is(value, -0)));
+  projection.sketches[0].strokes[0].pts[0] = [-0, -0, -0];
+  const target = reduceModel(Model, recs.slice(0, 3), { allowSketchSnapshot: true });
+  target.apply({ k: 'sketch-snapshot', t: source.t, control: source.control, sketches: projection });
+  assert.ok(target.sketchProjection().sketches[0].strokes[0].pts[0].every((value) => !Object.is(value, -0)));
+  assert.ok(projection.sketches[0].strokes[0].pts[0].every((value) => Object.is(value, -0)));
+});
+
+test('all semantic Unicode evidence rejects lone surrogates while unknown future values have no effect', async () => {
+  const { checkSketchRecord, sketchCanonical } = await sketchModule();
+  const r = {
+    ...begin(),
+    k: 'sketch-stroke-begin',
+    sketch: 's',
+    id: 'p',
+    width: 4,
+    at: { node: 1, box: [0, 0, 10, 10] },
+  };
+  for (const bad of ['\ud800', '\udfff']) {
+    for (const key of ['tag', 'route', 'kind', 'sel', 'text'])
+      assert.throws(() => checkSketchRecord({ ...r, at: { ...r.at, [key]: bad } }), key);
+    for (const key of ['classes', 'path'])
+      assert.throws(() => checkSketchRecord({ ...r, at: { ...r.at, [key]: [bad] } }), key);
+    for (const stable of [{ futureString: bad }, { [bad]: 'semantic' }, { id: bad }])
+      assert.throws(() => checkSketchRecord({ ...r, at: { ...r.at, stable } }));
+    assert.throws(() => checkSketchRecord({ ...begin(), author: { ...begin().author, name: bad } }));
+    assert.throws(() => checkSketchRecord({ ...r, k: 'sketch-label', label: bad }));
+    const future = {
+      ...r,
+      at: { ...r.at, stable: { future: { bad }, [bad]: { future: true } }, future: bad },
+      future: bad,
+    };
+    assert.doesNotThrow(() => checkSketchRecord(future));
+    assert.equal(sketchCanonical(future), sketchCanonical(r));
+  }
+  assert.doesNotThrow(() =>
+    checkSketchRecord({
+      ...r,
+      at: { ...r.at, text: '\ud83d\ude80\ufffd', stable: { '\ud83d\ude80': '\ufffd' } },
+    }),
+  );
+});

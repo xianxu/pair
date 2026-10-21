@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"flag"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -81,7 +82,11 @@ func makeSketchCorpus(t *testing.T) sketchCorpus {
 	drivenBegin := sketchBegin()
 	drivenBegin.Author = who
 	drivenBegin.Owner = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	zeroStroke := sketchStroke(1, "a")
+	zeroStroke.At.Box[0] = math.Copysign(0, -1)
+	zeroStroke.At.Box[1] = math.Copysign(0, -1)
 	c := sketchCorpus{Cases: []sketchCorpusCase{
+		corpusCase(t, "signed-zero", sketchBegin(), zeroStroke, p(2, "a", 0, SketchPoint{math.Copysign(0, -1), math.Copysign(0, -1), math.Copysign(0, -1)})),
 		corpusCase(t, "driver-DOM", &Ctl{Op: CtlRequest, Who: who, Control: Control{Pending: []Author{who}}}, &Ctl{Op: CtlGrant, Who: who, Control: Control{Driver: &who}}, drivenBegin, &Click{Source: Source{By: who.ID}, ID: 3, X: 1, Y: 2}),
 		corpusCase(t, "driver-reset", &Ctl{Op: CtlRequest, Who: who, Control: Control{Pending: []Author{who}}}, &Ctl{Op: CtlGrant, Who: who, Control: Control{Driver: &who}}, drivenBegin, sketchStroke(1, "a"), p(2, "a", 0, SketchPoint{1, 2, .4}), &Ctl{Op: CtlReset, Who: Author{ID: OperatorID}}, &SketchLabel{SketchOperation: sketchOp(3), Sketch: "sk", Label: "Reset"}),
 		corpusCase(t, "navigate-open", sketchBegin(), sketchStroke(1, "a"), p(2, "a", 0, SketchPoint{1, 2, .4}), &Seg{Seg: 2, Why: SegNavigate, Tab: Tab{ID: "tab2", URL: "http://x/2"}, VP: Viewport{W: 100, H: 100, DPR: 1}}, &SketchLabel{SketchOperation: sketchOp(3), Sketch: "sk", Label: "Navigated"}),
@@ -92,7 +97,7 @@ func makeSketchCorpus(t *testing.T) sketchCorpus {
 		corpusCase(t, "control-and-clear", sketchBegin(), sketchStroke(1, "a"), p(2, "a", 0, SketchPoint{1, 2, .3}), &Ctl{Op: CtlRequest, Who: who, Control: Control{Pending: []Author{who}}}, &Ctl{Op: CtlGrant, Who: who}, &Ctl{Op: CtlGrant, Who: who, Control: Control{Driver: &who}}, end(3, "a"), &SketchLabel{SketchOperation: sketchOp(4), Sketch: "sk", Label: "Partial"}, &Seg{Seg: 2, Why: SegNavigate, Tab: Tab{ID: "tab1", URL: "http://x/2"}, VP: Viewport{W: 100, H: 100, DPR: 1}}, &AnnotationClear{Who: Author{ID: OperatorID}}, &SketchLabel{SketchOperation: sketchOp(5), Sketch: "sk", Label: "too late"}),
 		corpusCase(t, "pause-resume-expiry", sketchBegin(), sketchStroke(1, "a"), p(2, "a", 0, SketchPoint{-10, 2, 1}), &Stop{Why: StopPause}, p(3, "a", 1, SketchPoint{1, 1, 1}), end(3, "a"), &Seg{Seg: 2, Why: SegResume, Tab: Tab{ID: "tab1", URL: "http://x/"}, VP: Viewport{W: 100, H: 100, DPR: 1}}, sketchStroke(4, "b"), p(5, "b", 0, SketchPoint{0, 0, 0}), &SketchInterrupt{SketchOperation: sketchOp(6), Sketch: "sk", Reason: SketchInterruptExpiry}, &SketchLabel{SketchOperation: sketchOp(7), Sketch: "sk", Label: "Expired"}, &Stop{Why: StopEnd}),
 	}, Canonical: []sketchCanonicalVector{}}
-	for _, r := range []Record{sketchBegin(), sketchStroke(1, "a"), p(2, "a", 0, SketchPoint{1e-7, -0., .5}, SketchPoint{1e7, -1e7, 1}), &SketchLabel{SketchOperation: sketchOp(3), Sketch: "sk", Label: "<>&\u2028\u2029 漢字"}} {
+	for _, r := range []Record{sketchBegin(), sketchStroke(1, "a"), p(2, "a", 0, SketchPoint{1e-7, math.Copysign(0, -1), .5}, SketchPoint{1e7, -1e7, 1}), &SketchLabel{SketchOperation: sketchOp(3), Sketch: "sk", Label: "<>&\u2028\u2029 漢字"}} {
 		raw, err := Encode(r)
 		if err != nil {
 			t.Fatal(err)
