@@ -62,3 +62,31 @@ func TestRemotePolicyRequiresHTTPSOrigin(t *testing.T) {
 		}
 	}
 }
+
+func TestRemotePolicyBrowserGETWithoutOrigin(t *testing.T) {
+	p, err := newRemotePolicy("https://remote.example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		method, origin, upgrade string
+		want                    bool
+	}{
+		{method: "GET", want: true}, {method: "HEAD", want: true},
+		{method: "GET", origin: "https://evil.example"},
+		{method: "GET", upgrade: "websocket"}, {method: "POST"},
+	} {
+		r, _ := http.NewRequest(tc.method, "https://remote.example.com/remote/cap/", nil)
+		r.Header.Set("Cf-Connecting-IP", "192.0.2.1")
+		if tc.origin != "" {
+			r.Header.Set("Origin", tc.origin)
+		}
+		if tc.upgrade != "" {
+			r.Header.Set("Upgrade", tc.upgrade)
+		}
+		_, err := p.requestIP(r)
+		if (err == nil) != tc.want {
+			t.Fatalf("%+v: %v", tc, err)
+		}
+	}
+}

@@ -207,6 +207,7 @@ type messageService struct {
 	switches      atomic.Pointer[agentSwitchService]
 	drives        atomic.Pointer[agentDriveService]
 	desktopNotify atomic.Pointer[func(context.Context, string, string) error]
+	remote        atomic.Pointer[remoteControl]
 	// attention reports facts to the Console's attention list (pair#673).
 	attention atomic.Pointer[func(couchcore.AttentionFact)]
 	// Retained across disconnects; only a verified replacement supersedes a slot.
@@ -527,6 +528,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	service.installAgentDriveService(console)
 	service.installHubMoves(console, c)
 	service.SetDesktopNotify(console.NotifyDesktop)
+	service.configureRemoteSession(console, namespace, os.Getenv)
 	console.SetMessageBroker(service.broker)
 	console.SetCopyObserver(facts.clipboardCopy)
 	console.SetCopyKeyObserver(facts.clipboardKey)
@@ -988,6 +990,8 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 		return s.handleNativeExit(ctx, request)
 	case request.Op == "notify":
 		return s.handleNotify(ctx, request)
+	case couchmessage.IsRemoteOp(request.Op):
+		return s.handleRemote(request)
 	case request.Op == "switch-agent":
 		return s.handleAgentSwitch(ctx, request)
 	case couchmessage.IsSubmissionOp(request.Op):

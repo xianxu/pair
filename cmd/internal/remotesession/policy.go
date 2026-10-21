@@ -64,7 +64,9 @@ func newRemotePolicy(origin string) (remotePolicy, error) {
 // Unix origin. JWT does not sign this header. Do not substitute XFF/RemoteAddr.
 func (p remotePolicy) requestIP(r *http.Request) (string, error) {
 	origins := r.Header.Values("Origin")
-	if r.Host != p.host || len(origins) != 1 || origins[0] != p.origin {
+	read := (r.Method == http.MethodGet || r.Method == http.MethodHead) && r.Header.Get("Upgrade") == ""
+	validOrigin := len(origins) == 1 && origins[0] == p.origin
+	if r.Host != p.host || (!validOrigin && !(read && len(origins) == 0)) {
 		return "", errors.New("remote origin refused")
 	}
 	for _, name := range []string{"Cf-Worker", "Cf-Ew-Via"} {

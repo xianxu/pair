@@ -91,8 +91,10 @@ const dimSGR = "\x1b[2m"
 
 // StatusModel is everything the row shows.
 type StatusModel struct {
-	Broadcast BroadcastCell
-	Pointer   PointerCell
+	// RemoteStatus is the protected document session's secret-free state.
+	RemoteStatus string
+	Broadcast    BroadcastCell
+	Pointer      PointerCell
 	// Notes is the broadcast's open sticky notes (#447), drawn as 💭N after
 	// the capability controls; not a click target.
 	Notes   int
@@ -171,8 +173,9 @@ func (s ColumnSpan) Contains(column int) bool { return column >= s.Start && colu
 // comfortable widths and disagree at exactly the narrow ones where clipping
 // happens -- the case a mis-mapped click is least catchable by eye (ARCH-DRY).
 type RenderedStatusRow struct {
-	Body  string
-	Chips []ChipSpan
+	RemoteSession ColumnSpan
+	Body          string
+	Chips         []ChipSpan
 	// Control is the broadcast cell's red span, from the same clipping pass;
 	// empty when no broadcast is running.
 	Control ColumnSpan
@@ -287,6 +290,29 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 			if used > start {
 				notes = ColumnSpan{Start: start, End: used}
 			}
+		}
+	}
+	var remoteSpan ColumnSpan
+	if m.RemoteStatus != "" {
+		if used > 0 {
+			appendText(" ", "")
+		}
+		label := "👽 remote"
+		style := dimSGR
+		switch m.RemoteStatus {
+		case "on":
+			style = broadcast.PointerSGR
+		case "disabled", "blocked":
+			label += " !"
+			style = blockedSGR
+		case "off":
+		default:
+			label += " …"
+		}
+		if width-used >= textwidth.Width(label) {
+			start := used
+			appendText(label, style)
+			remoteSpan = ColumnSpan{Start: start, End: used}
 		}
 	}
 	var webcastSpan, webFocusSpan, webPointerLinkSpan, webDriveLinkSpan, webNotesSpan, webDriveSpan ColumnSpan
@@ -442,7 +468,7 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		appendText(badge, sgr)
 		attention = ColumnSpan{Start: start, End: used}
 	}
-	return RenderedStatusRow{Body: row.String(), Chips: chips, Control: control, Pointer: pointer, Notes: notes, Webcast: webcastSpan, WebFocus: webFocusSpan, WebPointerLink: webPointerLinkSpan, WebDriveLink: webDriveLinkSpan, WebNotes: webNotesSpan, WebDrive: webDriveSpan, Attention: attention}
+	return RenderedStatusRow{Body: row.String(), Chips: chips, Control: control, Pointer: pointer, Notes: notes, Webcast: webcastSpan, WebFocus: webFocusSpan, WebPointerLink: webPointerLinkSpan, WebDriveLink: webDriveLinkSpan, WebNotes: webNotesSpan, WebDrive: webDriveSpan, Attention: attention, RemoteSession: remoteSpan}
 }
 
 // AttentionGlyph leads the attention badge (pair#673).

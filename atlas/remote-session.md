@@ -1,14 +1,16 @@
 # Remote session security
 
-The #759 foundation is under development. It does not expose a remote editor or
-start a tunnel yet. #758 supplies the real document/nvim adapter after its
-interface integration; private stateful backends qualify the security boundary.
+The #759 implementation is under development and defaults off. M2 wires the
+protected security surface; document routes and broker provenance remain M3.
+#758 supplies the real document/nvim adapter after interface integration; private
+stateful backends qualify that seam without being exposed publicly.
 
 `cmd/internal/remotesession/state.go` decides lifecycle transitions without IO.
 A durable arm acknowledgement precedes opening. Kill fences admission before
 teardown; stale successful opens are disposed, while duplicate acknowledged
 completions do not close the active owner. Reset remains a private event, reserved
-for the owned host-TTY key path when console wiring lands.
+for the owned host-TTY key path. An idle kill also waits for durable publication
+before reset; poisoned storage/cleanup completions become blocked.
 
 `store.go` publishes the private latch through durablefile. On restart, armed
 means killed; an on-disk latch never grants access. Any uncertain publication
@@ -21,7 +23,8 @@ automatically enable anything.
 expiry supplies the time bound; no Couch idle or absolute session timer applies.
 `replay.go` keeps a sequence high-water mark and at most256 results per session;
 uncertain/in-flight entries remain pinned, and evicted requests cannot execute
-again. The supervisor will own serialization and atomic mutation admission.
+again. The supervisor owns lifecycle serialization; M3 adds document dispatch
+against its exact admission mutex.
 
 `access.go` uses coreos/go-oidc and go-jose for signature/issuer/audience validation.
 `access_keys.go` pins the Cloudflare team's HTTPS key URL, bounds response size,
@@ -63,3 +66,40 @@ nonregular and oversized slots refuse. Stages never grant authority. Across the
 latch, origin store and two audit segments, published files plus all staging
 slots have a fixed aggregate maximum66MiB+8KiB; normal successful writes remove
 their stages. The leased Couch namespace supplies sole-writer ownership.
+
+`supervisor.go` owns persistent command ordering separately from IO: accepted
+reset/off/kill publications execute in order, while kill revokes the current
+epoch before waiting for any write or connector cleanup. Confirmed teardown
+joins the protected mount and remote requests. `broadcast/protected.go` reuses
+the guarded named connector and lease with a private Unix origin, required
+Access ingress and one opening per owner. There is no anonymous/TCP fallback,
+public readiness probe, shared remote mount or automatic reconnect. Teardown
+uncertainty permanently blocks that Host instance.
+
+`server.go` currently serves only authenticated security status, handshake,
+logout and kill. Every request verifies Access and trusted-proxy IP. Same-origin
+GET need not carry Origin; mutations require exact Origin plus JSON and a custom
+header. Kill has a separate bounded lane independent of session capacity and the
+per-enable passcode. Cookie resume preserves the original assertion expiry and
+never returns the HttpOnly credential as JSON. Failed assertions revoke a
+presented session. Request bodies have size and socket-read time bounds.
+
+Remote setup reuses COUCH_BROADCAST_TUNNEL/COUCH_BROADCAST_HOSTNAME and requires
+COUCH_REMOTE_ACCESS_TEAM, COUCH_REMOTE_ACCESS_AUDIENCE and comma-separated exact
+COUCH_REMOTE_ALLOWED_EMAILS. Account, DNS and Access policy setup belongs to the
+operator. `couch --remote on|off|status` runs through the owner-only local socket
+and prints action/status only. Same-UID code is trusted, so local enable/disable
+is allowed; no IPC reset operation exists. CLI is asynchronous: starting and
+stopping describe work still in flight.
+
+The console's separate “👽 remote” control starts/stops remote mode. Capability
+text and a locally generated QR appear solely in the Presenter operator layer;
+they never enter the ordinary chrome, broadcast frame or child transcript.
+Remote enable refuses when COUCH_CAPTURE_DIR is configured: unset it and restart
+Couch, or keep capture and skip remote. The QR encoder is bounded to1024 input
+bytes and185×93 terminal cells, includes a quiet zone and explicit black/white,
+and caches by link/geometry; small screens keep the text link. The phone scan is
+still an operator acceptance check. Ctrl+Alt+R clears a settled kill latch only
+from a decoded host keypress, without enabling. Paste, release, repeat, terminal
+replies and child broker keys cannot reset. The pair-local remote-console-reset
+AST catalog pins capture/calls and rejects alias escapes.

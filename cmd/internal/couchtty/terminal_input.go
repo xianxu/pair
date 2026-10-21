@@ -74,6 +74,9 @@ func (c *Console) routeInputEvent(event terminal.InputEvent) {
 		c.routeMouseEvent(event)
 		return
 	case uv.KeyPressEvent:
+		if c.routeRemoteSessionKey(event.Event.(uv.KeyPressEvent)) {
+			return
+		}
 		// The open attention list (pair#673), then the Codes menu (pair#495),
 		// take their arrows, Enter and Escape.
 		if c.routeAttentionKey(event.Raw, event.Canonical) {
@@ -167,11 +170,15 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 		c.mu.Lock()
 		rows, cell, focusSpan, driveSpan := int(c.size.Rows), c.statusWebcast, c.statusWebFocus, c.statusWebDrive
 		pointerLink, driveLink := c.statusWebPointerLink, c.statusWebDriveLink
+		remoteSpan := c.statusRemoteSession
 		c.mu.Unlock()
 		// Left clicks toggle capabilities; right clicks only copy stable links.
 		// The focus arrow and Chrome cell keep their separate actions.
 		if hit.Y == rows && hit.Button&mouseinput.ModCtrl == 0 {
 			switch {
+			case button == 0 && remoteSpan.Contains(hit.X-1):
+				c.toggleRemoteSession()
+				return
 			case button == 0 && focusSpan.Contains(hit.X-1):
 				c.focusWebcast()
 				return

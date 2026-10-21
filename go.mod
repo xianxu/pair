@@ -9,6 +9,7 @@ require (
 	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/creack/pty v1.1.24
 	github.com/go-jose/go-jose/v4 v4.1.4
+	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/xianxu/ariadne v0.0.0-20261018104241-81c832d5e000
 	golang.org/x/image v0.46.0
 	golang.org/x/net v0.55.0

@@ -81,7 +81,7 @@ func TestRemoteStateGeneratedKillInvariant(t *testing.T) {
 		killed := false
 		resetting := false
 		for step := 0; step < 100; step++ {
-			kind := eventKind(rng.IntN(int(eventFailure) + 1))
+			kind := eventKind(rng.IntN(int(eventPoisoned) + 1))
 			attempt := s.attempt
 			if rng.IntN(4) == 0 && attempt > 0 {
 				attempt--
@@ -116,9 +116,31 @@ func TestRemoteStateGeneratedKillInvariant(t *testing.T) {
 }
 
 func TestRemoteStateDuplicateCompletionKeepsOwnedHandle(t *testing.T) {
- s:=readyState(t)
- for _,kind:=range []eventKind{eventArmed,eventOpened} {
-  next,effects:=ReduceRemote(s,remoteEvent{kind:kind,attempt:s.attempt})
-  if next!=s||len(effects)!=0 {t.Fatalf("duplicate %d changed live owner: %+v",kind,effects)}
- }
+	s := readyState(t)
+	for _, kind := range []eventKind{eventArmed, eventOpened} {
+		next, effects := ReduceRemote(s, remoteEvent{kind: kind, attempt: s.attempt})
+		if next != s || len(effects) != 0 {
+			t.Fatalf("duplicate %d changed live owner: %+v", kind, effects)
+		}
+	}
+}
+
+func TestRemoteStateIdleKillStillRequiresDurableJoin(t *testing.T) {
+	s := remoteState{phase: phaseOff, joined: true}
+	s, _ = ReduceRemote(s, remoteEvent{kind: eventKill})
+	s, effects := ReduceRemote(s, remoteEvent{kind: eventConsoleReset})
+	if s.phase != phaseKilled || s.joined || len(effects) != 0 {
+		t.Fatal("idle kill reset before its persistent write joined")
+	}
+}
+
+func TestRemoteStateFailureDisposition(t *testing.T) {
+	for _, tc := range []struct{ from, want remotePhase }{
+		{phasePreparing, phaseBlocked}, {phaseOpening, phaseKilled}, {phaseReady, phaseKilled}, {phaseStopping, phaseBlocked}, {phaseResetting, phaseBlocked},
+	} {
+		next, effects := ReduceRemote(remoteState{phase: tc.from, attempt: 2}, remoteEvent{kind: eventFailure, attempt: 2})
+		if next.phase != tc.want || len(effects) < 2 {
+			t.Fatalf("failure from=%d next=%+v effects=%v", tc.from, next, effects)
+		}
+	}
 }

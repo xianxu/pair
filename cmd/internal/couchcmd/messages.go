@@ -23,6 +23,9 @@ func runMessageCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer) int 
 }
 
 func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, call messageCall) int {
+	if couchmessage.IsRemoteOp(inv.messageOp) {
+		return runRemoteCLI(inv, rt, stdout, stderr, call)
+	}
 	if couchmessage.IsDriveOp(inv.messageOp) {
 		return runAgentDriveCLI(inv, rt, stdout, stderr, call)
 	}

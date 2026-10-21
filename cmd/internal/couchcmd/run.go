@@ -1501,6 +1501,7 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	verbLine(w, "--message-status", "       couch --message-status ID [--json]")
 	fmt.Fprintln(w, "             Full ID or unique prefix of a receipt you sent or received; ambiguous prefixes list full IDs.")
 	verbLine(w, "--notify", "       couch --notify [--title T] MESSAGE")
+	verbLine(w, "--remote", "       couch --remote on|off|status (link on the host console; reset by host keypress only)")
 	fmt.Fprintln(w, "             Only a live hub notifies (default title: Couch); other slots send to their hub.")
 	fmt.Fprintln(w, "             Slots' OSC 9/777/99 notifications are swallowed, including the hub's; BEL is unchanged.")
 	fmt.Fprintln(w, "             Title: 256 bytes; message: 4096 bytes. Uncertain write: do not retry automatically.")

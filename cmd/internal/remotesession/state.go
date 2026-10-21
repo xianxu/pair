@@ -36,6 +36,7 @@ const (
 	eventOffStored
 	eventResetStored
 	eventFailure
+	eventPoisoned // uncertain persistent authority or unconfirmed cleanup
 )
 
 type remoteEvent struct {
@@ -101,7 +102,7 @@ func ReduceRemote(s remoteState, e remoteEvent) (remoteState, []remoteEffect) {
 		if s.phase == phaseKilled {
 			break
 		}
-		s.joined = s.phase == phaseOff || s.phase == phaseResetting || s.joined
+		s.joined = false // persistent kill publication is part of the join fence
 		s.phase = phaseKilled
 		emit(effectRevoke)
 		emit(effectStoreKilled)
@@ -156,6 +157,13 @@ func ReduceRemote(s remoteState, e remoteEvent) (remoteState, []remoteEffect) {
 			s.joined = false
 			emit(effectRevoke)
 			emit(effectStoreKilled)
+			emit(effectClose)
+		}
+	case eventPoisoned:
+		if e.attempt == s.attempt {
+			s.phase = phaseBlocked
+			s.joined = false
+			emit(effectRevoke)
 			emit(effectClose)
 		}
 	}

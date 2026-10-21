@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -54,7 +55,8 @@ type NamedTunnel struct {
 // private unix socket, or, with Named nil, an anonymous quick tunnel over a
 // loopback TCP port (quick tunnels can't forward to a socket).
 type Cloudflared struct {
-	Named *NamedTunnel
+	access *AccessEnforcement
+	Named  *NamedTunnel
 	// Binary is the cloudflared to run; empty looks it up on PATH.
 	Binary string
 	// Guard is the argv that runs RunGuard (`couch __broadcast-guard`); the
@@ -72,6 +74,8 @@ type Cloudflared struct {
 // privateListener is a listener in its own 0700 directory; closing it
 // removes the directory, so an abandoned start leaves nothing behind.
 type privateListener struct {
+	protected bool
+	closeErr  error
 	net.Listener
 	dir    string
 	socket string // empty for TCP
@@ -79,6 +83,11 @@ type privateListener struct {
 }
 
 func (l *privateListener) Close() error {
+	if l.protected {
+		l.once.Do(func() { l.closeErr = errors.Join(l.Listener.Close(), os.RemoveAll(l.dir)) })
+		return l.closeErr
+	}
+
 	err := l.Listener.Close()
 	l.once.Do(func() { _ = os.RemoveAll(l.dir) })
 	return err
@@ -230,6 +239,13 @@ func (c Cloudflared) tunnelArgs(pl *privateListener) (args []string, url, ready 
 	}
 	config := filepath.Join(pl.dir, "config.yml")
 	body := fmt.Sprintf("tunnel: %s\ningress:\n  - hostname: %s\n    service: %s\n  - service: http_status:404\n", c.Named.Name, c.Named.Hostname, service)
+	if c.access != nil {
+		if !pl.protected || pl.socket == "" {
+			return nil, "", "", errors.New("broadcast: protected ingress requires Unix origin")
+		}
+		body = fmt.Sprintf("tunnel: %s\ningress:\n  - hostname: %s\n    service: %s\n    originRequest:\n      access:\n        required: true\n        teamName: %s\n        audTag:\n          - %s\n  - service: http_status:404\n", strconv.Quote(c.Named.Name), strconv.Quote(c.Named.Hostname), strconv.Quote(service), strconv.Quote(c.access.TeamName), strconv.Quote(c.access.Audience))
+	}
+
 	if err := os.WriteFile(config, []byte(body), 0o600); err != nil {
 		return nil, "", "", err
 	}

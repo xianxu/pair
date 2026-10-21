@@ -18,9 +18,10 @@ type sessionCredentials struct {
 	Expires      time.Time
 }
 type sessionRef struct {
-	key   [32]byte
-	epoch uint64
-	done  <-chan struct{}
+	key     [32]byte
+	epoch   uint64
+	done    <-chan struct{}
+	expires time.Time
 }
 type sessionEntry struct {
 	identity AccessIdentity
@@ -118,7 +119,11 @@ func (s *Sessions) Admit(cookie, csrf string, id AccessIdentity, now time.Time, 
 			return sessionRef{}, errSession
 		}
 	}
-	return sessionRef{key: key, epoch: s.epoch, done: entry.done}, nil
+	expires := entry.identity.expires
+	if id.expires.Before(expires) {
+		expires = id.expires
+	}
+	return sessionRef{key: key, epoch: s.epoch, done: entry.done, expires: expires}, nil
 }
 func (s *Sessions) Logout(cookie string) {
 	key, ok := credentialHash(cookie)
