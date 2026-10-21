@@ -7,7 +7,7 @@ created: 2026-10-21
 updated: 2026-10-21
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'ee726e6ca790898f2592232f980675e022bc6df5' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '314c0eb56dee6fe2aa7fb49ea3329ffc28ffc475' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-21T01:47:34-07:00
 claimant:
     operator: Xian Xu
@@ -19,7 +19,7 @@ claimant:
 flow: {kind: quick, provenance: inferred, spec: "fe4788a5", done: "6618e2de"}
 ---
 
-# artifactpath manifest: split the 2,000-line central inventory by area so parallel landings stop conflicting
+# Go reader audit: isolate certificates so independent changes merge cleanly
 
 ## Problem
 
@@ -74,3 +74,5 @@ no runtime, background process or new user-action state is introduced.
 ### Implementation checkpoint
 
 CLI PASS10/3.317s after layout regressions failed against the aggregate reader. Real Git branches changing adjacent reader tests merge cleanly with exact certificate bytes and final audit. Make target regression RED (target absent), now GREEN. Exact old/new reconstructed audit equivalence PASS462 paths/dispositions/digests. Named update leaves unrelated changed reader unaccepted; duplicate/schema/path/symlink/legacy refusals, unknown nested integer roundtrip and SOURCE_GUARDS fences retained. Affected runner12 PASS7.411s. Full18-test inventory with actual affected seeded violation still running; suite/review/CI/landing pending. No runtime code or guard configuration changed.
+
+- Final targeted verification: full inventory18 PASS37.177s; committed-layout actual affected seeded-violation regression PASS45.663s. Runner12 PASS7.411s. PR518 opened and retitled for corrected scope. Recorded suite lease-980290800 on dd746ce0 is queued behind machine capacity; it remains mandatory before landing. Boundary review overlaps that queue under tl-worker policy. The final Plan row retains pending suite/close/landing explicitly; no-plan-check acknowledges that external gate wait rather than waiving verification. Current main local-gates verdict on PR518 is SUCCESS; planned paths need no operator label.
