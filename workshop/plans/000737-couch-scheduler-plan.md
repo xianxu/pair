@@ -200,6 +200,16 @@ The same end-to-end timeout bounds manual and automatic admission/build/task wor
 - Cache budget: 256 MiB per supervisor. Evict unused build keys by LRU after publication; never remove a live execution's binary. Shared operational-data retention removes each expired run record together with only its owned output. Removed-task state is pruned after 30 days, retaining active/uncertain owners. Sweep only validated scheduler paths; symlink or identity ambiguity refuses that cleanup rather than following it.
 - These caps are initial design assumptions, not measurements. Exceeding a cap is visible and bounded; no silent partial catalog or unbounded history growth (ARCH-CONSTRAINTS/ARCH-FUNERAL).
 
+### Operational-data adapter (PQ-1)
+
+Existing `diagnosticlog` owns exact log generations, while `storagegc` transactions require session/capture owners; neither is a run-directory API. Add a focused `cmd/internal/operationalrun/` package with `store.go`, `record.go`, `retention.go`, `collection.go` and `store_unix.go`. `Store{Namespace}` owns publication, bounded List/Read and `SweepPage(ctx, now, cursor, apply, limit)`. Scheduler authority remains in couchschedule; result envelopes belong to operationalrun, avoiding a retention dependency on the scheduler service. Its independent operational policy is 30 days/300 completed runs per task, not the diagnostic seven-day setting or obsolete generation-count fields.
+
+Publication, history reads and collection acquire the same permanent per-task flock outside run folders, using the existing no-follow/close-on-exec pattern in `couchidentity/store_unix.go`. Only a finalized immutable bundle containing exactly record.json plus output is eligible; live/incomplete/uncertain records stay protected. Publish output and metadata in a private staging directory, sync and atomically rename it into runs before clearing completed scheduler authority. Retrying that publication checks the same immutable run identity and never repeats a task.
+
+`operationalrun/collection.go` persists a narrow deletion journal with exact source-relative name, directory/member identities and unique quarantine target before moving a bundle. Under the task lock, rename the whole run folder, sync both parents, mark detached, and dispose only its certified contents. Recovery follows the frozen identities; after detachment it never revisits the source name. Unknown members, symlinks or substituted identity block that run. This reuses durablefile publication and the prepared/detached/finalized ordering from `storagegc/transaction_model.go`, without importing session owner semantics or broadening diagnostic generation retention.
+
+Add `cmd/internal/gcruntime/operational.go`: discover existing registered Couch namespaces through `Coordinator.ReadRegistry().Stores`, as `runtime.go:crashRows` does, and call SweepPage. Extend `gcruntime.Report`, Preview and Apply with separate operational rows/bytes, before the session MigrationComplete early return. Extend `gcruntime/schedule.go:Service.Batch` with an operational phase after diagnostics (including its empty-path and last-path exits), persisting namespace/hub/task/run cursor. Use the operational task lock without nesting the Pair root lock. Preserve path-local blocker progress; cancellation/contention retains the cursor. No separate scheduler retention loop, new generic class framework, changed diagnostic policy or session-backup prerequisite.
+
 ## Supervisor, notices and status integration
 
 - `startMessageService` owns one scheduler worker and joins it in `messageService.Close`, inside the already-held supervisor lease. Enumerate explicit `HubOwnership.Hubs()` or the existing implicit `hubWorktree`; do not scan `.hub` claims as task roots. Reconcile task removal/replacement through reducer events.
@@ -221,6 +231,10 @@ Count operations, not wall-clock speed: fixtures at N=8 and 16 reject more than 
 | `ParseTaskSpec`, `ParseOperators`, `OwnerAdmission` | Duplicate keys/slugs, missing Operators, invalid owner, foreign current operator, symlink/traversal | Pure fixture table; wrong owner never emits an execution/notice effect. |
 | `Calendar.Next`, `Advance` | DST, backward clock, startup late, sleep gap, 1,000 missed slots | Explicit instants/expected next due; effect count bounded independently of elapsed slots. |
 | `Advance` | Exit 0/10/other, duplicate/stale completion, config change during build/run, overlapping manual call | Attempt/revision guards; output-10 produces exactly one notice, zero repeat executions. |
+| `TaskCatalog` | Untrusted declaration trees and replacement | Bounded no-follow folder fixtures; refusal stays local; N/2N read counts reject repeated scans. |
+| `operationalrun.Store.Publish/List/Read` | Concurrent publication/history and partial persistence | Shared task lock, bounded no-follow reads, immutable run identity; faults never expose partial bundles. |
+| `operationalrun.SweepPage` | Retention-boundary and crash/replacement uncertainty | Pure age/count classifier and certified bundle detachment/recovery; active/unknown protection and cursor progress through faults. |
+| `gcruntime.Service.Batch/Preview/Apply` | Empty diagnostics, blocked run, session migration incomplete | Registered namespaces observe operational phase/report independently of diagnostic/session policy. |
 | `StateStore` | Truncation, unknown nested fields, write/rename/sync refusal, concurrent manual completion | Reopen real folder-backed state; unknown bytes survive and no effect precedes durable reservation. |
 | `TaskBuilder` | Local dependency/embed/module/toolchain changes, dirty input during capture/build, unsupported module inputs, concurrent same key, failed build | Captured manifests and held stateful builder; compile reads only captured sources; unsupported inputs refuse; no stale-key executable or partial publication. |
 | `TaskExecutor`, `TaskAdmission` | Paused/unknown/skipped helper outcome, forged inherited bypass, timeout, parent death, lingering descendant, three mixed manual/automatic callers | No pre-admission task code; actual machine lease survives owned cleanup; controller outside killed group; machine-wide permits cap callers across supervisor namespaces at two. |
@@ -235,7 +249,7 @@ Count operations, not wall-clock speed: fixtures at N=8 and 16 reject more than 
 
 **Create:** `cmd/internal/couchschedule/{spec,calendar,model,status}.go` and colocated `_test.go` files. **Modify:** `go.mod`, `go.sum` (pin cron parser), `cmd/internal/artifactpath/manifest.go` for every new production-shaped file.
 
-- [ ] Write failing table/sequence tests from the production-function matrix, including exact two-hub task keys, the agreed Operators syntax and 0/10/other completion traces.
+- [ ] Write failing tests for the pure functions using their single strategy rows below; keep event ordering explicit.
 - [ ] Run `go test ./cmd/internal/couchschedule -run 'Test(Spec|Owner|Calendar|Advance)' -count=1`; demonstrate red before implementation.
 - [ ] Implement the typed parsers, location-injected calendar wrapper and `Advance`; no IO in the kernel. Use one occurrence reservation plus next-due update, not a missed-slot loop.
 - [ ] Run the focused tests green; add N/2N counters and stale-event mutation checks. Verify `missed=once` cannot turn a completed script into a retry.
@@ -243,29 +257,29 @@ Count operations, not wall-clock speed: fixtures at N=8 and 16 reject more than 
 
 ### Task 2: Local discovery and preserving, bounded state
 
-**Create:** `cmd/internal/couchschedule/{catalog,store,store_unix,state_json,history}.go` and tests; modify the existing diagnostic retention class/catalog integration to include operational data. **Reuse:** `cmd/internal/durablefile/write.go`, `cmd/internal/strictjson/object.go`.
+**Create:** `cmd/internal/couchschedule/{catalog,store,store_unix,state_json}.go`, `cmd/internal/operationalrun/{record,store,store_unix,retention,collection}.go`, and tests; `cmd/internal/gcruntime/operational.go`. **Modify:** `gcruntime/{runtime,schedule}.go` for the explicit operational report/phase described above. **Reuse:** `cmd/internal/durablefile/write.go`, `cmd/internal/strictjson/object.go`.
 
-- [ ] Write failing folder-backed tests for two independent hubs, malformed replacement, symlinks, absent Operators, state reopen, nested unknown preservation, failed durable reservation, and concurrent manual/automatic updates.
+- [ ] Write failing folder-backed tests for TaskCatalog, StateStore and operationalrun methods using the strategy matrix, through real bounded files and controlled publication faults.
 - [ ] Run `go test ./cmd/internal/couchschedule -run 'Test(Catalog|Store|StateJSON)' -count=1`; confirm the intended red failures.
 - [ ] Implement bounded discovery and context-aware store transactions. Keep task refusal local; state-store corruption blocks effects. Publish per-run records and 256 KiB head/tail output; register operational data with shared diagnostic retention (30 days/300 runs per task). Test preview/delete fencing and partial publication recovery.
-- [ ] Run tests green plus the 8/16-task IO counts, simulated directory-sync failure and crash/reopen sequence; ensure no real user data/store paths are used.
+- [ ] Run the focused tests green and the counted catalog-growth check; all fixtures use disposable folders.
 - [ ] Commit `#737 M1: persist scheduled occurrences and bounded history` with trailers.
 
 ### Task 3: Cached Go entrypoint and owned execution/admission
 
 **Create:** `cmd/internal/couchschedule/{build_manifest,build,execute,execute_unix,admission,runtime_fake}.go` and tests; a dedicated native fixture under `cmd/internal/couchschedule/testdata/`. **Modify:** internal command dispatch in `cmd/internal/couchcmd/{cli,run}.go` only as needed for the task-lifetime owner.
 
-- [ ] Write failing stateful tests for complete cache keys, one build per key, source-change refusal, all exit meanings, queued cancellation, bounded output, task lease contention, and helper admission that outlives a caller but not its job.
+- [ ] Write failing stateful tests for TaskBuilder, TaskExecutor and TaskAdmission using their matrix strategies.
 - [ ] Run `go test ./cmd/internal/couchschedule -run 'Test(Build|Execute|Admission|Output)' -count=1`; verify red. Pin the specified captured-source build view with fixtures for module replacements, embeds, unsupported inputs and changes after capture; no mtime-only shortcut.
 - [ ] Implement the captured manifest/build cache and parent-owned subprocess wrapper. Use argv, the verified hub cwd, reviewed operator-level environment, and positive heavy admission. Never watch Couch's PID or accept `WF_TEST_LOCK=off` as acquired.
-- [ ] Run fake tests green; add native tests in a disposable Go fixture for build cache/dependency/embed invalidation, timeout, TERM-resistant same-group child, parent EOF, controller survival outside the work group, and actual machine-slot release only after group cleanup. Verify three mixed manual/automatic callers share two permits and that Couch restart observes a surviving manual controller without cancelling or reexecuting it. Keep deliberate process-group escape outside the supported task contract and document it.
+- [ ] Run fake tests green and qualify the runtime seams against native disposable Go/process fixtures using the same matrix guards. Document deliberate process-group escape as outside the supported task contract.
 - [ ] Commit `#737 M1: own scheduled task builds and process lifetimes` with trailers.
 
 ### Task 4: Manual helper and read-only status
 
 **Create:** `cmd/internal/couchcmd/{schedule_cli,schedule_status}.go` and tests. **Modify:** `cmd/internal/couchcmd/{cli,messages,run}.go`, `cmd/internal/couchmessage/protocol.go` and protocol tests; `README.md`, `atlas/couch.md`, `atlas/index.md`, `cmd/internal/artifactpath/manifest.go`.
 
-- [ ] Write failing CLI/socket tests for the exact proposed forms, current-hub-only resolution, argv preservation, manual exit propagation, manual history without schedule advancement, list/show-output history forms, JSON/text equivalence and no status effects.
+- [ ] Write failing CLI/socket tests for the proposed command forms using the CLI/protocol/status matrix strategy.
 - [ ] Run `go test ./cmd/internal/couchcmd ./cmd/internal/couchmessage -run 'TestSchedule' -count=1`; confirm red.
 - [ ] Wire the helper to the shared builder/executor/store and status to the existing private socket. Add team/hub/TL glossary to Pair atlas; leave `tl-lead --help` changes to the Ariadne project item.
 - [ ] Run targeted tests, source inventory guard, and the required recorded affected/full selection on the pushed head. Verify a native temporary hub task's `--help`, script-run and status without driving the operator's live Couch.
@@ -277,10 +291,10 @@ Count operations, not wall-clock speed: fixtures at N=8 and 16 reject more than 
 
 **Create:** `cmd/internal/couchcmd/{schedule_service,schedule_notice}.go` and tests. **Modify:** `cmd/internal/couchcmd/message_service.go`, scheduler status composition, source inventory.
 
-- [ ] Write failing fake-clock sequences through actual service composition: explicit/implicit hubs, no hub, on-time due, offline notify-only skip and offline direct execution with dropped exit-10 notice, busy hub, 0 quiet, 10 wake, failure/timeout, sleep/restart skip/once, lost system receipt after restart, owner replacement, catalog edit/removal, shutdown cancellation/join and paused heavy admission.
+- [ ] Write failing fake-clock sequences through actual service composition for Calendar/Advance and scheduleNotice using their matrix strategies.
 - [ ] Run `go test ./cmd/internal/couchcmd -run 'TestSchedule' -count=1`; confirm red. Hold executor/receipt observations explicitly; no sleeps to choose event order.
 - [ ] Start/join one coordinator on service lifetime; feed pure transitions with catalog/time/process/receipt events. Bound workers and persist reservations before effects. Admit exact system notices through `hubBindingAt`/`holdHubEffect`/`SendSystem` and observe their canonical receipts.
-- [ ] Run the complete scheduling packages green; mutation-check no cross-hub execution, one exit-10 notice, no replay after uncertain completion, clock/sleep catch-up counts and immediate cancellation preventing the first side effect.
+- [ ] Run the complete scheduling packages green; mutation-check the matrix invariants and counted catch-up guard.
 - [ ] Commit `#737 M2: schedule each hub and deliver due outcomes` with trailers; update atlas data flow and the issue Log at this boundary.
 
 ### Task 6: Integration, operator rollout, and required day-long acceptance
@@ -325,3 +339,7 @@ Code-backed review exposed six incomplete contracts. The revised design uses exi
 ### 2026-10-20 — operator approval through ops:0
 
 Approved with three superseding decisions: (1) fall-back repeated local times run once; spring-forward missing times skip. (2) Remove waiting-hub: offline notify-only tasks skip/advance; direct tasks run anyway, dropping offline notices with explicit status/history. (3) Separate per-run records under Couch data schedule/<hub>/<task>/runs, with task/revision/source/start/end/exit/outcome/notice-delivery metadata and 256 KiB head/tail output; operational-data retention reuses diagnostic-log machinery, default 30 days/300 runs per task; add history listing and per-run output. The two execution permits are machine-wide. JSON declaration, one-minute result-notice window and uncertainty/no-replay remain approved. Begin change-code and M1. Earlier revision entries preserve superseded design history.
+
+### 2026-10-20 — plan gate PQ-1/PQ-2
+
+PQ-1: specify the operationalrun store/collector and gcruntime report/bounded-phase integration, independent policy, shared task lock, exact bundle journal and replacement-safe recovery. Existing diagnostic generation counts are not reused. PQ-2: consolidate repeated task test inventories into the function-level strategy matrix; keep verification commands and implementation steps. These refinements implement the approved retention contour without changing acceptance or adding a new fleet mechanism.

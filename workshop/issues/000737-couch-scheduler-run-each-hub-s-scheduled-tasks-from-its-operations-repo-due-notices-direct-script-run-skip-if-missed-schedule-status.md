@@ -71,6 +71,8 @@ settled the contour with the operator on 10-20; its `design.md` is the reference
 
 - Operator approved the plan through ops:0 with the three revisions below. Proceed to change-code and M1; no acceptance requirement was waived.
 
+- Plan gate round 1 held on PQ-1 retention integration and PQ-2 repeated test inventories. Verified actual APIs: diagnostic generations and session transactions cannot collect run bundles directly. Added focused operationalrun adapter plus gcruntime phase/report and compressed test strategies; rerunning the gate before code.
+
 ## Revisions
 
 ### 2026-10-20 — clarified execution and owner scope (ops:0)
