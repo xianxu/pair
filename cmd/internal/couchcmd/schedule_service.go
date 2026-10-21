@@ -103,14 +103,11 @@ func (c *scheduleCoordinator) refresh(ctx context.Context) error {
 				return ctx.Err()
 			}
 			if err == nil {
-				if record.Source != "manual" || record.DeclarationRevision != a.Revision || !record.StartedAt.Equal(a.StartedAt) {
+				if record.Source != "manual" || record.DeclarationRevision != a.Revision {
 					err = errors.New("manual result identity differs from retained authority")
-				} else if record.Completed() {
-					exit := -1
-					if record.Exit != nil {
-						exit = *record.Exit
-					}
-					state, _ = couchschedule.Advance(state, couchschedule.Event{Kind: couchschedule.ResultRecovered, At: record.EndedAt, Attempt: a.ID, Revision: a.Revision, Exit: exit, Outcome: record.Outcome, Notice: record.Notice})
+				} else if record.Completed() || record.Outcome == "unknown" {
+					summary := runSummaryForRecord(record)
+					state, _ = couchschedule.Advance(state, couchschedule.Event{Kind: couchschedule.ResultRecovered, At: now, Attempt: a.ID, Revision: a.Revision, Recovered: &summary})
 					ledger.Tasks[key] = state
 					continue
 				}
@@ -133,12 +130,8 @@ func (c *scheduleCoordinator) refresh(ctx context.Context) error {
 					continue
 				}
 			}
-			state, _ = couchschedule.Advance(state, couchschedule.Event{Kind: couchschedule.OwnerUnknown, At: now, Attempt: a.ID, Revision: a.Revision})
-			if missing && state.Last != nil && state.Last.Outcome == "unknown" {
-				record := runRecordForSummary(state)
-				if err := (operationalrun.Store{Namespace: filepath.Dir(c.store.Dir)}).Publish(ctx, record.Key, record, nil); err != nil {
-					return err
-				}
+			if state.Active.Stage != "uncertain" || state.Last == nil || state.Last.ID != a.ID || state.Last.Outcome != "unknown" {
+				state, _ = couchschedule.Advance(state, couchschedule.Event{Kind: couchschedule.OwnerUnknown, At: now, Attempt: a.ID, Revision: a.Revision})
 			}
 			ledger.Tasks[key] = state
 		}
@@ -189,6 +182,9 @@ func (c *scheduleCoordinator) refresh(ctx context.Context) error {
 		return nil
 	})
 	if err != nil {
+		return c.blocked(err)
+	}
+	if err := ensureUncertainRuns(ctx, c.store); err != nil {
 		return c.blocked(err)
 	}
 	for _, owner := range stopped {

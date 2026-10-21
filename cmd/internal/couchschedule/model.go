@@ -38,6 +38,7 @@ type Declaration struct {
 }
 
 type RunSummary struct {
+	Revision  string                     `json:"revision"`
 	ID        string                     `json:"id"`
 	Source    string                     `json:"source"`
 	DueAt     time.Time                  `json:"due_at"`
@@ -118,6 +119,7 @@ type Event struct {
 	NoticeBody    string
 	NoticeBinding json.RawMessage
 	Location      *time.Location
+	Recovered     *RunSummary
 	// Next is an optional pre-parsed calendar function owned by the caller.
 	// It must be deterministic; it avoids reparsing unchanged declarations.
 	Next  func(time.Time) time.Time
@@ -209,7 +211,7 @@ func advance(state TaskState, event Event) (TaskState, []Effect) {
 			due = time.Time{}
 		}
 		result := func(outcome, notice string) (TaskState, []Effect) {
-			state.Last = &RunSummary{ID: event.RunID, Source: source, DueAt: due, StartedAt: event.At, EndedAt: event.At, Outcome: outcome, Notice: notice}
+			state.Last = &RunSummary{Revision: state.Revision, ID: event.RunID, Source: source, DueAt: due, StartedAt: event.At, EndedAt: event.At, Outcome: outcome, Notice: notice}
 			return state, nil
 		}
 		if !state.Allowed {
@@ -222,6 +224,16 @@ func advance(state TaskState, event Event) (TaskState, []Effect) {
 			return result("skipped", "hub offline, skipped")
 		}
 		state.Active = &Attempt{ID: event.RunID, Revision: state.Revision, Source: source, Stage: "reserved", DueAt: due, StartedAt: event.At, Deadline: event.At.Add(state.Spec.Timeout)}
+		return state, nil
+	}
+	// Passive outcomes have no Active tuple, but their persisted occurrence ID
+	// still owns canonical terminal history. Pending/unknown cannot manufacture
+	// missing authority through this branch.
+	if event.Kind == ResultRecovered && state.Active == nil && state.Last != nil && event.Recovered != nil {
+		canonical := event.Recovered
+		if canonical.ID == state.Last.ID && canonical.Notice != "pending" && canonical.Outcome != "unknown" && validRecoveredSummary(*canonical) {
+			state.Last = cloneRunSummary(canonical)
+		}
 		return state, nil
 	}
 	a := state.Active
@@ -240,6 +252,41 @@ func advance(state TaskState, event Event) (TaskState, []Effect) {
 		a.ControllerPID = owner.PID
 		a.ControllerStart = owner.Start
 	case ResultRecovered:
+		if event.Recovered != nil {
+			canonical := event.Recovered
+			if canonical.ID != a.ID || !validRecoveredSummary(*canonical) {
+				break
+			}
+			state.Last = cloneRunSummary(canonical)
+			if canonical.Outcome == "unknown" || canonical.Notice == "pending" {
+				a.Revision, a.Source = canonical.Revision, canonical.Source
+				a.DueAt, a.StartedAt = canonical.DueAt, canonical.StartedAt
+				if canonical.Outcome == "unknown" {
+					a.Stage = "uncertain"
+					a.NoticeDeadline = time.Time{}
+					a.NoticeMayHaveHappened = false
+					a.ReceiptID, a.NoticeBody, a.NoticeBinding = "", "", nil
+				} else {
+					if a.Stage != "delivery" {
+						a.Stage = "notifying"
+					}
+					deadline := canonical.EndedAt.Add(time.Minute)
+					if !state.Spec.ScriptRun {
+						if a.Deadline.Before(deadline) {
+							deadline = a.Deadline
+						}
+						if !a.NoticeDeadline.IsZero() && a.NoticeDeadline.Before(deadline) {
+							deadline = a.NoticeDeadline
+						}
+					}
+					a.NoticeDeadline = deadline
+					a.NoticeMayHaveHappened = true
+				}
+			} else {
+				state.Active = nil
+			}
+			break
+		}
 		noticePhase := a.Source == "scheduled" && (a.Stage == "notifying" || a.Stage == "delivery")
 		// Pending history does not erase a previously frozen payload, admission
 		// deadline or receipt observation authority. Terminal history is truth
@@ -487,7 +534,7 @@ func futureDue(spec TaskSpec, event Event) time.Time {
 }
 
 func summary(a *Attempt, ended time.Time, exit *int, outcome, notice string) *RunSummary {
-	return &RunSummary{ID: a.ID, Source: a.Source, DueAt: a.DueAt, StartedAt: a.StartedAt, EndedAt: ended, Exit: exit, Outcome: outcome, Notice: notice}
+	return &RunSummary{Revision: a.Revision, ID: a.ID, Source: a.Source, DueAt: a.DueAt, StartedAt: a.StartedAt, EndedAt: ended, Exit: exit, Outcome: outcome, Notice: notice}
 }
 
 func cancelActive(state TaskState) (TaskState, []Effect) {
@@ -524,4 +571,46 @@ func validFrozenNotice(id, body string, binding json.RawMessage) bool {
 	}
 	_, fields, err := strictjson.SplitObject(binding, nil, nil)
 	return err == nil && len(fields) > 0
+}
+
+func cloneRunSummary(source *RunSummary) *RunSummary {
+	result := *source
+	if source.Exit != nil {
+		code := *source.Exit
+		result.Exit = &code
+	}
+	if source.Unknown != nil {
+		result.Unknown = make(map[string]json.RawMessage, len(source.Unknown))
+		for key, value := range source.Unknown {
+			result.Unknown[key] = append(json.RawMessage(nil), value...)
+		}
+	}
+	return &result
+}
+
+func validRecoveredSummary(s RunSummary) bool {
+	if s.Revision == "" || len(s.Revision) > 4096 || !utf8.ValidString(s.Revision) || strings.IndexFunc(s.Revision, unicode.IsControl) >= 0 || !ValidTaskName(s.ID) || (s.Source != "manual" && s.Source != "scheduled") || (s.Exit != nil && (*s.Exit < 0 || *s.Exit > 255)) || s.StartedAt.IsZero() || s.EndedAt.IsZero() {
+		return false
+	}
+	switch s.Outcome {
+	case "quiet", "wake", "failed", "timeout", "cancelled", "skipped", "refused", "completed", "unknown":
+	default:
+		return false
+	}
+	if len(s.Notice) > 4096 || !utf8.ValidString(s.Notice) {
+		return false
+	}
+	if s.Notice == "pending" {
+		return s.Source == "scheduled" && (s.Outcome == "completed" || s.Outcome == "wake" || s.Outcome == "failed" || s.Outcome == "timeout" || s.Outcome == "cancelled" || s.Outcome == "refused")
+	}
+	switch s.Notice {
+	case "", "manual", "none", "submitted", "expired", "uncertain":
+		return true
+	}
+	if strings.HasPrefix(s.Notice, "dropped: ") && len(s.Notice) > len("dropped: ") {
+		return true
+	}
+	// These outcomes carry an explanatory refusal/skip/owner reason, rather
+	// than a delivery state. The operational record already owns its identity.
+	return s.Outcome == "skipped" || s.Outcome == "refused" || s.Outcome == "unknown"
 }

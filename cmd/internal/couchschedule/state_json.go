@@ -38,6 +38,9 @@ func stateObject(raw []byte, target any) (map[string]json.RawMessage, error) {
 	}
 	for name := range known {
 		if _, ok := owned[name]; !ok {
+			if typ == reflect.TypeOf(RunSummary{}) && name == "revision" {
+				continue
+			}
 			if attempt && (name == "notice_body" || name == "notice_binding") {
 				continue
 			}

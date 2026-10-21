@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -184,7 +186,7 @@ func TestScheduleResultRecoveryAdoptsAlreadyFinalizedNotice(t *testing.T) {
 }
 
 func TestScheduleResultMismatchedCompletionRefusesAdoption(t *testing.T) {
-	for _, field := range []string{"source", "due_at"} {
+	for _, field := range []string{"source"} {
 		t.Run(field, func(t *testing.T) {
 			a, fake, s, notices := scheduledResultFixture(t)
 			record := scheduledResultRecord(s, a.coordinator.now(), "wake")
@@ -251,5 +253,60 @@ func TestScheduleResultSavedPendingCancelledBeforeRecovery(t *testing.T) {
 				t.Fatal("cancelled recovery replayed or retained effects")
 			}
 		})
+	}
+}
+
+func TestScheduleResultCanonicalTimesAdoptedWithoutReplay(t *testing.T) {
+	a, fake, s, notices := scheduledResultFixture(t)
+	record := scheduledResultRecord(s, a.coordinator.now().Add(3*time.Second), "quiet")
+	record.ScheduledAt = record.ScheduledAt.Add(time.Second)
+	record.StartedAt = record.StartedAt.Add(2 * time.Second)
+	saveScheduledResult(t, a, record)
+	a.inFlight[s.Key.ID()] = true
+	a.results <- scheduleJobResult{job: scheduleJob{state: s}}
+	if err := a.step(t.Context()); err != nil {
+		t.Fatal("canonical occurrence rejected", err)
+	}
+	next := readScheduledResultState(t, a, s.Key)
+	if next.Active != nil || next.Last == nil || !next.Last.DueAt.Equal(record.ScheduledAt) || !next.Last.StartedAt.Equal(record.StartedAt) || !next.Last.EndedAt.Equal(record.EndedAt) {
+		t.Fatalf("canonical facts not adopted: %+v", next)
+	}
+	if len(fake.Runs()) != 0 || notices.admissions != 0 || len(a.jobs) != 0 {
+		t.Fatal("adoption replayed effects")
+	}
+}
+
+func TestScheduleUnknownPublicationRetryPreservesDurableFacts(t *testing.T) {
+	a, _, s, _ := scheduledResultFixture(t)
+	blocked := filepath.Join(a.coordinator.store.Dir, s.Key.HubID())
+	commits := 0
+	a.coordinator.store.BeforePersist = func() error {
+		commits++
+		if commits == 1 {
+			return os.WriteFile(blocked, []byte("history temporarily unavailable"), 0600)
+		}
+		return nil
+	}
+	result := scheduleJobResult{job: scheduleJob{state: s}}
+	if err := a.reconcileExecution(t.Context(), result); err != nil {
+		t.Fatal("task history outage became a global failure", err)
+	}
+	retained := readScheduledResultState(t, a, s.Key)
+	if retained.Allowed || retained.Refusal == "" || retained.Active == nil || retained.Active.Stage != "uncertain" || retained.Last == nil || retained.Last.Outcome != "unknown" {
+		t.Fatalf("classification not durable before history repair: %+v", retained)
+	}
+	a.coordinator.store.BeforePersist = nil
+	if err := os.Remove(blocked); err != nil {
+		t.Fatal(err)
+	}
+	retry := a.coordinator.now().Add(time.Second)
+	a.coordinator.now = func() time.Time { return retry }
+	if err := a.reconcileExecution(t.Context(), result); err != nil {
+		t.Fatal(err)
+	}
+	next := readScheduledResultState(t, a, s.Key)
+	record, _, err := a.history().Read(t.Context(), scheduleRunKey(next))
+	if err != nil || !next.Last.EndedAt.Equal(retained.Last.EndedAt) || !record.EndedAt.Equal(retained.Last.EndedAt) || record.DeclarationRevision != retained.Last.Revision {
+		t.Fatalf("retry replaced sole durable unknown facts: before=%+v after=%+v record=%+v err=%v", retained.Last, next.Last, record, err)
 	}
 }

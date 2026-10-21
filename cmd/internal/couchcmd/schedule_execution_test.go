@@ -2,6 +2,7 @@ package couchcmd
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -405,8 +406,9 @@ func TestScheduleReservedCatalogueCancellationPublishesTerminalNotice(t *testing
 			if state.Active != nil || state.Last == nil || state.Last.Notice != record.Notice || !state.NextDue.Equal(changed.NextDue) {
 				t.Fatalf("history/authority diverged after catalogue change: %+v", state)
 			}
-			if _, err = runner.runReserved(t.Context(), reserved, nil); err == nil {
-				t.Fatal("cancelled reservation replay accepted")
+			repeat, err := runner.runReserved(t.Context(), reserved, nil)
+			if err != nil || repeat.Outcome != "wake" || string(repeat.Output) != "completed before cancellation joined" {
+				t.Fatalf("cancelled canonical completion not adopted: %+v %v", repeat, err)
 			}
 			if len(fake.Runs()) != 1 {
 				t.Fatal("cancelled completion replayed")
@@ -455,5 +457,190 @@ func TestScheduleReservedCompletionRecordSurvivesLedgerFailure(t *testing.T) {
 	state = ledger.Tasks[reserved.Key.ID()]
 	if state.Active == nil || state.Active.Stage != "notifying" || state.Last == nil || state.Last.Outcome != "wake" || len(fake.Runs()) != 1 {
 		t.Fatalf("saved result recovery replayed/lost execution: %+v", state)
+	}
+}
+
+func TestScheduleReservedAdoptsExistingCanonicalOccurrenceWithoutExecution(t *testing.T) {
+	for _, outcome := range []string{"quiet", "wake", "unknown"} {
+		t.Run(outcome, func(t *testing.T) {
+			runner, fake, reserved, store := reservedExecutionFixture(t)
+			exit := 0
+			if outcome == "wake" {
+				exit = 10
+			}
+			record := operationalrun.Record{Version: 1, Key: operationalrun.RunKey{Hub: reserved.Key.HubID(), Task: reserved.Key.Task, ID: reserved.Active.ID}, DeclarationRevision: reserved.Active.Revision, Source: "scheduled", ScheduledAt: reserved.Active.DueAt.Add(-30 * time.Second), StartedAt: reserved.Active.StartedAt.Add(-15 * time.Second), EndedAt: runner.now().Add(-5 * time.Second), Exit: &exit, Outcome: outcome, Notice: executionNotice("scheduled", outcome), Unknown: map[string]json.RawMessage{"build_key": json.RawMessage(`"canonical-build"`), "output_bytes": json.RawMessage(`4242`)}}
+			if outcome == "unknown" {
+				record.Exit = nil
+			}
+			history := operationalrun.Store{Namespace: runner.namespace}
+			if err := history.Publish(t.Context(), record.Key, record, []byte("canonical output")); err != nil {
+				t.Fatal(err)
+			}
+			result, err := runner.runReserved(t.Context(), reserved, nil)
+			if len(fake.Runs()) != 0 {
+				t.Fatal("existing canonical occurrence re-executed")
+			}
+			if (err != nil) != (outcome == "unknown") || result.Outcome != outcome || string(result.Output) != "canonical output" || result.OutputBytes != 4242 || result.BuildKey != "canonical-build" {
+				t.Fatalf("canonical result not returned: %+v %v", result, err)
+			}
+			if record.Exit != nil && result.Exit != *record.Exit {
+				t.Fatalf("canonical exit lost: %+v", result)
+			}
+			ledger, err := store.View(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			state := ledger.Tasks[reserved.Key.ID()]
+			if state.Last == nil || state.Last.ID != record.Key.ID || state.Last.Outcome != outcome || !state.Last.DueAt.Equal(record.ScheduledAt) || !state.Last.StartedAt.Equal(record.StartedAt) || !state.Last.EndedAt.Equal(record.EndedAt) {
+				t.Fatalf("ledger did not adopt canonical facts: %+v", state)
+			}
+			if outcome == "unknown" && (state.Active == nil || state.Active.Stage != "uncertain") {
+				t.Fatalf("canonical unknown lost authority: %+v", state)
+			}
+			repeat, repeatErr := runner.runReserved(t.Context(), reserved, nil)
+			if (repeatErr != nil) != (outcome == "unknown") || repeat.Outcome != outcome || string(repeat.Output) != "canonical output" || len(fake.Runs()) != 0 {
+				t.Fatalf("canonical repeat was not idempotent: %+v %v", repeat, repeatErr)
+			}
+			again, output, err := history.Read(t.Context(), record.Key)
+			if err != nil || !again.StartedAt.Equal(record.StartedAt) || !again.ScheduledAt.Equal(record.ScheduledAt) || !again.EndedAt.Equal(record.EndedAt) || again.Outcome != outcome || string(output) != "canonical output" {
+				t.Fatalf("canonical occurrence rewritten: %+v %q %v", again, output, err)
+			}
+		})
+	}
+}
+
+func TestScheduleReservedPrelaunchLedgerRetryAdoptsCanonicalRefusal(t *testing.T) {
+	runner, fake, reserved, store := reservedExecutionFixture(t)
+	calls := 0
+	runner.executor = taskExecutorFunc(func(context.Context, couchschedule.ExecutionRequest, func(couchschedule.OwnerIdentity) error) (couchschedule.ExecutionResult, error) {
+		calls++
+		return couchschedule.ExecutionResult{}, &couchschedule.ExecutionError{Err: errors.New("known prelaunch refusal")}
+	})
+	injected := errors.New("refusal ledger publication failed")
+	failed := false
+	runner.beforePersist = func() error {
+		if !failed {
+			failed = true
+			return injected
+		}
+		return nil
+	}
+	if _, err := runner.runReserved(t.Context(), reserved, nil); !errors.Is(err, injected) {
+		t.Fatalf("missing ledger fault: %v", err)
+	}
+	history := operationalrun.Store{Namespace: runner.namespace}
+	key := operationalrun.RunKey{Hub: reserved.Key.HubID(), Task: reserved.Key.Task, ID: reserved.Active.ID}
+	canonical, _, err := history.Read(t.Context(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runner.now = func() time.Time { return canonical.EndedAt.Add(10 * time.Second) }
+	result, err := runner.runReserved(t.Context(), reserved, nil)
+	if err != nil || result.Outcome != "refused" || calls != 1 || len(fake.Runs()) != 0 {
+		t.Fatalf("prelaunch retry re-executed: %+v calls=%d err=%v", result, calls, err)
+	}
+	ledger, err := store.View(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := ledger.Tasks[reserved.Key.ID()]
+	if state.Last == nil || state.Last.Outcome != "refused" || !state.Last.EndedAt.Equal(canonical.EndedAt) || state.Active == nil || state.Active.Stage != "notifying" {
+		t.Fatalf("refusal canonical facts not adopted: %+v", state)
+	}
+}
+
+func TestScheduleReservedPublicationAdoptsReturnedCanonicalOccurrence(t *testing.T) {
+	for _, phase := range []string{"result", "prelaunch", "prelaunch-quiet"} {
+		t.Run(phase, func(t *testing.T) {
+			runner, fake, reserved, store := reservedExecutionFixture(t)
+			outcome := "wake"
+			exit := 10
+			if phase == "prelaunch" {
+				outcome = "refused"
+				exit = -1
+			}
+			if phase == "prelaunch-quiet" {
+				outcome = "quiet"
+				exit = 0
+			}
+			canonical := operationalrun.Record{Version: 1, Key: operationalrun.RunKey{Hub: reserved.Key.HubID(), Task: reserved.Key.Task, ID: reserved.Active.ID}, DeclarationRevision: reserved.Active.Revision, Source: "scheduled", ScheduledAt: reserved.Active.DueAt.Add(-30 * time.Second), StartedAt: reserved.Active.StartedAt.Add(-15 * time.Second), EndedAt: runner.now().Add(-5 * time.Second), Outcome: outcome, Notice: executionNotice("scheduled", outcome)}
+			if exit >= 0 {
+				canonical.Exit = &exit
+			}
+			history := operationalrun.Store{Namespace: runner.namespace}
+			runner.executor = taskExecutorFunc(func(ctx context.Context, request couchschedule.ExecutionRequest, onOwner func(couchschedule.OwnerIdentity) error) (couchschedule.ExecutionResult, error) {
+				result := couchschedule.ExecutionResult{}
+				if phase == "result" {
+					var err error
+					result, err = fake.Execute(ctx, request, onOwner)
+					if err != nil {
+						return result, err
+					}
+				}
+				// Evidence arrives after the initial read but before publication. The
+				// occurrence API must return these first durable facts without rewriting.
+				if err := history.Publish(ctx, canonical.Key, canonical, []byte("earlier canonical output")); err != nil {
+					return result, err
+				}
+				if phase != "result" {
+					return result, &couchschedule.ExecutionError{Err: errors.New("known refusal")}
+				}
+				return result, nil
+			})
+			result, err := runner.runReserved(t.Context(), reserved, nil)
+			if (err != nil) != (phase == "prelaunch") || result.Outcome != outcome || result.Exit != exit || string(result.Output) != "earlier canonical output" {
+				t.Fatalf("publication ignored canonical result: %+v %v", result, err)
+			}
+			ledger, err := store.View(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			state := ledger.Tasks[reserved.Key.ID()]
+			if state.Last == nil || state.Last.Outcome != outcome || !state.Last.DueAt.Equal(canonical.ScheduledAt) || !state.Last.StartedAt.Equal(canonical.StartedAt) || !state.Last.EndedAt.Equal(canonical.EndedAt) {
+				t.Fatalf("publication ledger ignored canonical facts: %+v", state)
+			}
+			got, output, err := history.Read(t.Context(), canonical.Key)
+			if err != nil || got.Outcome != canonical.Outcome || !got.EndedAt.Equal(canonical.EndedAt) || string(output) != "earlier canonical output" {
+				t.Fatalf("canonical publication rewritten: %+v %q %v", got, output, err)
+			}
+		})
+	}
+}
+
+func TestScheduleManualPreservesPassiveOccurrenceBeforeReservation(t *testing.T) {
+	for _, revision := range []string{"retained-passive-revision", ""} {
+		t.Run("revision-"+revision, func(t *testing.T) {
+			runner, fake, root := manualRunnerFixture(t)
+			declaration, err := manualDeclaration(t.Context(), root, "report")
+			if err != nil {
+				t.Fatal(err)
+			}
+			at := runner.now().Add(-time.Hour)
+			state, _ := couchschedule.Advance(couchschedule.TaskState{}, couchschedule.Event{Kind: couchschedule.CatalogChanged, At: at, Declaration: &declaration, Location: time.UTC})
+			state.Last = &couchschedule.RunSummary{Revision: revision, ID: "passive-before-manual", Source: "scheduled", DueAt: at.Add(-time.Second), StartedAt: at, EndedAt: at, Outcome: "skipped", Notice: "hub offline, skipped"}
+			store := couchschedule.StateStore{Dir: filepath.Join(runner.namespace, "schedule")}
+			if err = store.Update(t.Context(), func(l *couchschedule.Ledger) error { l.Tasks[state.Key.ID()] = state; return nil }); err != nil {
+				t.Fatal(err)
+			}
+			_, err = runner.run(t.Context(), root, "report", nil)
+			ledger, viewErr := store.View(t.Context())
+			if viewErr != nil {
+				t.Fatal(viewErr)
+			}
+			current := ledger.Tasks[state.Key.ID()]
+			if revision == "" {
+				if err == nil || len(fake.Runs()) != 0 || current.Last == nil || current.Last.ID != state.Last.ID {
+					t.Fatalf("missing passive revision was invented or overwritten: %+v %v", current, err)
+				}
+				return
+			}
+			if err != nil || len(fake.Runs()) != 1 {
+				t.Fatalf("manual execution after passive repair: %v", err)
+			}
+			record, _, err := (operationalrun.Store{Namespace: runner.namespace}).Read(t.Context(), operationalrun.RunKey{Hub: state.Key.HubID(), Task: state.Key.Task, ID: state.Last.ID})
+			if err != nil || record.DeclarationRevision != revision || record.Outcome != "skipped" || !record.StartedAt.Equal(state.Last.StartedAt) || !record.EndedAt.Equal(state.Last.EndedAt) || !record.ScheduledAt.Equal(state.Last.DueAt) {
+				t.Fatalf("passive facts not preserved before manual reservation: %+v %v", record, err)
+			}
+		})
 	}
 }

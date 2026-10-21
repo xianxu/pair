@@ -26,8 +26,8 @@ Couch discovers each configured hub's declarations, runs due tasks or delivers
 due notices, and publishes cached status plus retained execution history.
 The manual helper and automatic runner share execution and history owners.
 [#737](../workshop/issues/000737-couch-scheduler-run-each-hub-s-scheduled-tasks-from-its-operations-repo-due-notices-direct-script-run-skip-if-missed-schedule-status.md)
-remains under development: an occurrence-commit regression currently blocks
-staging, and its required live one-day acceptance remains open.
+remains under development while recorded checks and its required live one-day
+acceptance complete.
 
 Put a Go `package main` in the hub's `scripts/scheduled/<task>/`, with a UTF-8
 JSON file named `schedule` beside it:
@@ -141,6 +141,16 @@ heavy scripts cannot occupy notification admission. The next wake is the earlier
 due time, notice observation or admission deadline; results wake it directly.
 `schedule_notice.go` uses the existing authenticated system mailbox and canonical
 receipts, with exact hub-binding checks under the ownership effect gate.
+
+Due reservation or consumption commits before its run bundle is published.
+Passive summaries retain their declaration revision, and automatic/manual
+reservations preserve their history before replacing the sole retained facts.
+`Store.PublishOccurrence` adopts existing same-ID history as canonical, including
+its original timestamps and output; the strict publication primitive stays
+immutable. A failed ledger acknowledgment therefore cannot manufacture new run
+facts or repeat execution. Unknown classification commits before its protected
+history is published. Terminal passive history proofs are bounded to current
+tasks and never become cached pending-notice authority.
 
 Execution records and output are immutable. Notice delivery alone moves from
 pending to submitted, expired, dropped with a reason, or uncertain under the run

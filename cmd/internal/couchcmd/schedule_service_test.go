@@ -257,7 +257,12 @@ func TestScheduleDamagedManualHistoryRefusesOnlyItsTask(t *testing.T) {
 			seenBad, seenGood := false, false
 			for _, row := range snapshot.Tasks {
 				if row.Hub == roots[0] {
-					seenBad = row.State == "refused" && row.Active != nil && row.Active.Stage == "uncertain" && strings.Contains(row.Reason, "manual result")
+					if damage == "started" {
+						// Same-ID history is canonical; timestamps are not identity guards.
+						seenBad = row.State == "waiting" && row.Active == nil && row.Last != nil && row.Last.StartedAt.Equal(record.StartedAt)
+					} else {
+						seenBad = row.State == "refused" && row.Active != nil && row.Active.Stage == "uncertain" && strings.Contains(row.Reason, "manual result")
+					}
 				} else if row.Hub == roots[1] {
 					seenGood = row.State == "waiting"
 				}

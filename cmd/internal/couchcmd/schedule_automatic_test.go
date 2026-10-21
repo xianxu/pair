@@ -268,35 +268,111 @@ func TestScheduleAutomaticResolvesEachHubOncePerDuePass(t *testing.T) {
 // reconcile that immutable occurrence, rather than constructing different facts.
 func TestScheduleDueHistorySurvivesFailedOccurrenceCommit(t *testing.T) {
 	for _, online := range []bool{false, true} {
-		t.Run(fmt.Sprint(online), func(t *testing.T) {
-			c, roots, now := scheduleServiceFixture(t)
-			var port scheduleNoticePort = offlineScheduleNotices{}
-			if online {
-				port = onlineScheduleNotices{}
-			}
-			a := newAutomaticScheduler(c, nil, port)
-			*now = now.Add(time.Minute)
-			injected := errors.New("occurrence ledger commit failed")
-			c.store.BeforePersist = func() error { return injected }
-			if err := a.step(t.Context()); !errors.Is(err, injected) {
-				t.Fatalf("missing occurrence fault: %v", err)
-			}
-			if len(a.jobs) != 0 {
-				t.Fatal("effect dispatched before failed occurrence commit")
-			}
-			before, err := a.history().List(t.Context(), (couchschedule.TaskKey{Hub: roots[0], Task: "report"}).HubID(), "report", 10)
-			if err != nil || len(before) != 1 {
-				t.Fatalf("failure did not leave record: %v %v", before, err)
-			}
-			c.store.BeforePersist = nil
-			*now = now.Add(time.Second)
-			if err := a.step(t.Context()); err != nil {
-				t.Fatalf("immutable due history prevents recovery: %v", err)
-			}
-			after, err := a.history().List(t.Context(), before[0].Key.Hub, "report", 10)
-			if err != nil || len(after) != 1 || !after[0].StartedAt.Equal(before[0].StartedAt) || !after[0].EndedAt.Equal(before[0].EndedAt) {
-				t.Fatalf("recovery rewrote run facts: before=%+v after=%+v err=%v", before, after, err)
-			}
-		})
+		for _, failCommit := range []int{1, 2} {
+			t.Run(fmt.Sprintf("online=%t/commit=%d", online, failCommit), func(t *testing.T) {
+				c, roots, now := scheduleServiceFixture(t)
+				var port scheduleNoticePort = offlineScheduleNotices{}
+				if online {
+					port = onlineScheduleNotices{}
+				}
+				a := newAutomaticScheduler(c, nil, port)
+				*now = now.Add(time.Minute)
+				injected := errors.New("occurrence ledger commit failed")
+				commits := 0
+				c.store.BeforePersist = func() error {
+					commits++
+					if commits == failCommit {
+						return injected
+					}
+					return nil
+				}
+				if err := a.step(t.Context()); !errors.Is(err, injected) {
+					t.Fatalf("missing commit %d fault: %v", failCommit, err)
+				}
+				if len(a.jobs) != 0 {
+					t.Fatal("effect dispatched before failed occurrence commit")
+				}
+				key := couchschedule.TaskKey{Hub: roots[0], Task: "report"}
+				before, err := a.history().List(t.Context(), key.HubID(), key.Task, 10)
+				if err != nil {
+					t.Fatal(err)
+				}
+				ledger, err := c.store.View(t.Context())
+				if err != nil {
+					t.Fatal(err)
+				}
+				retained := ledger.Tasks[key.ID()]
+				if failCommit == 1 {
+					if len(before) != 0 || retained.Active != nil || retained.Last != nil {
+						t.Fatalf("publication preceded reservation barrier: history=%+v state=%+v", before, retained)
+					}
+				} else {
+					if len(before) != 1 {
+						t.Fatalf("post-barrier fault did not retain history: %+v", before)
+					}
+					if online && (retained.Active == nil || retained.Active.Stage != "reserved") {
+						t.Fatalf("notify publication had no durable reservation: %+v", retained)
+					}
+					if !online && (retained.Last == nil || retained.Last.ID != before[0].Key.ID || retained.Last.Revision == "") {
+						t.Fatalf("passive publication had no durable facts: %+v", retained)
+					}
+				}
+				c.store.BeforePersist = nil
+				*now = now.Add(time.Second)
+				if err := a.step(t.Context()); err != nil {
+					t.Fatalf("history prevented canonical recovery: %v", err)
+				}
+				after, err := a.history().List(t.Context(), key.HubID(), key.Task, 10)
+				if err != nil || len(after) != 1 {
+					t.Fatalf("missing recovered history: %+v %v", after, err)
+				}
+				if len(before) == 1 && (!after[0].StartedAt.Equal(before[0].StartedAt) || !after[0].EndedAt.Equal(before[0].EndedAt) || after[0].DeclarationRevision != before[0].DeclarationRevision) {
+					t.Fatalf("retry rewrote canonical facts: before=%+v after=%+v", before, after)
+				}
+			})
+		}
+	}
+}
+
+func TestSchedulePassiveProofDoesNotRecreateCollectedHistory(t *testing.T) {
+	c, _, now := scheduleServiceFixture(t)
+	a := newAutomaticScheduler(c, nil, offlineScheduleNotices{})
+	*now = now.Add(time.Minute)
+	if err := a.step(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	ledger, err := c.store.View(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(a.passiveDurable) != len(ledger.Tasks) {
+		t.Fatal("missing positive passive proofs")
+	}
+	if _, _, _, err := a.history().SweepPage(t.Context(), now.Add(operationalrun.RetentionPeriod), operationalrun.Cursor{}, true, 100); err != nil {
+		t.Fatal(err)
+	}
+	for _, state := range ledger.Tasks {
+		if _, _, err := a.history().Read(t.Context(), scheduleRunKey(state)); !errors.Is(err, os.ErrNotExist) {
+			t.Fatal("history was not collected", err)
+		}
+	}
+	if err := a.step(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	for _, state := range ledger.Tasks {
+		if _, _, err := a.history().Read(t.Context(), scheduleRunKey(state)); !errors.Is(err, os.ErrNotExist) {
+			t.Fatal("wake recreated legitimately collected history", err)
+		}
+	}
+	a.passiveDurable["removed-key"] = couchschedule.RunSummary{ID: "removed"}
+	a.retryAt["removed-key"] = *now
+	if err := a.step(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := a.passiveDurable["removed-key"]; ok {
+		t.Fatal("unbounded obsolete proof")
+	}
+	if _, ok := a.retryAt["removed-key"]; ok {
+		t.Fatal("unbounded obsolete retry")
 	}
 }

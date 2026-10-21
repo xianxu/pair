@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -56,6 +57,15 @@ func runScheduleManual(ctx context.Context, a *scheduleArgs, rt Runtime, root st
 type runPublisher interface {
 	Publish(context.Context, operationalrun.RunKey, operationalrun.Record, []byte) error
 }
+type runOccurrencePublisher interface {
+	PublishOccurrence(context.Context, operationalrun.RunKey, operationalrun.Record, []byte) (operationalrun.Record, []byte, error)
+}
+type runReader interface {
+	Read(context.Context, operationalrun.RunKey) (operationalrun.Record, []byte, error)
+}
+type runNoticeFinalizer interface {
+	FinalizeNotice(context.Context, operationalrun.RunKey, string, string) error
+}
 type manualTaskRunner struct {
 	namespace, permitsDir string
 	executor              couchschedule.TaskExecutor
@@ -95,6 +105,9 @@ func (r *manualTaskRunner) run(ctx context.Context, root, task string, args []st
 			return fmt.Errorf("task already active (%s, %s); inspect schedule status/history before repair", state.Active.ID, state.Active.Stage)
 		}
 		state, _ = couchschedule.Advance(state, couchschedule.Event{Kind: couchschedule.CatalogChanged, At: now, Declaration: &declaration, Location: time.Local})
+		if err := ensurePassiveRun(ctx, r.namespace, state); err != nil {
+			return err
+		}
 		state, _ = couchschedule.Advance(state, couchschedule.Event{Kind: couchschedule.ManualRequested, At: now, RunID: id})
 		if state.Active == nil || state.Active.ID != id {
 			return errors.New("manual task reservation refused")
@@ -121,15 +134,12 @@ func (r *manualTaskRunner) executionContext(ctx context.Context, deadline time.T
 // authority transition that permits a notice or clears the attempt.
 func (r *manualTaskRunner) runReserved(ctx context.Context, reserved couchschedule.TaskState, args []string) (couchschedule.ExecutionResult, error) {
 	zero := couchschedule.ExecutionResult{Exit: -1}
-	if reserved.Active == nil || reserved.Active.Stage != "reserved" || reserved.Active.ControllerPID != 0 || reserved.Active.Revision != reserved.Revision || !couchschedule.ValidTaskName(reserved.Key.Task) {
+	if reserved.Active == nil || !couchschedule.ValidTaskName(reserved.Key.Task) {
 		return zero, errors.New("task execution requires an unowned reserved attempt")
 	}
 	attempt := *reserved.Active
 	if attempt.Source != "manual" && attempt.Source != "scheduled" {
 		return zero, errors.New("invalid task reservation source")
-	}
-	if attempt.Source == "scheduled" && !reserved.Spec.ScriptRun {
-		return zero, errors.New("notify-only reservation cannot execute a script")
 	}
 	ctx, cancel := r.executionContext(ctx, attempt.Deadline)
 	defer cancel()
@@ -152,7 +162,27 @@ func (r *manualTaskRunner) runReserved(ctx context.Context, reserved couchschedu
 		return zero, err
 	}
 	current := ledger.Tasks[reserved.Key.ID()]
-	if !sameReservedAttempt(current, reserved) {
+	history := r.historyPort()
+	runKey := operationalrun.RunKey{Hub: reserved.Key.HubID(), Task: reserved.Key.Task, ID: attempt.ID}
+	if reader, ok := history.(runReader); ok {
+		record, output, readErr := reader.Read(viewCtx, runKey)
+		if readErr == nil {
+			return r.adoptStoredOccurrence(viewCtx, store, reserved, record, output)
+		}
+		if !errors.Is(readErr, os.ErrNotExist) {
+			return zero, fmt.Errorf("existing run evidence unavailable; no replay: %w", readErr)
+		}
+		switch history.(type) {
+		case operationalrun.Store, *operationalrun.Store:
+			if _, statErr := os.Lstat(filepath.Join(r.namespace, "schedule", runKey.Hub, runKey.Task, "runs", runKey.ID)); !errors.Is(statErr, os.ErrNotExist) {
+				return zero, errors.New("existing run bundle is damaged; no replay")
+			}
+		}
+	}
+	if attempt.Source == "scheduled" && !reserved.Spec.ScriptRun {
+		return zero, errors.New("notify-only reservation cannot execute a script")
+	}
+	if !sameReservedAttempt(current, reserved) || attempt.Revision != reserved.Revision {
 		return zero, errors.New("task reservation changed before execution")
 	}
 	if expired {
@@ -239,18 +269,13 @@ func (r *manualTaskRunner) runReserved(ctx context.Context, reserved couchschedu
 	if result.Error != "" {
 		record.Unknown["error"], _ = json.Marshal(result.Error)
 	}
-	history := r.history
-	if history == nil {
-		history = operationalrun.Store{Namespace: r.namespace}
-	}
-
 	if result.Outcome == "unknown" {
-		if err := history.Publish(cleanup, record.Key, record, result.Output); err != nil {
+		canonical, output, err := publishRunOccurrence(cleanup, history, record, result.Output)
+		if err != nil {
 			_ = r.markUnknown(cleanup, store, reserved)
 			return result, fmt.Errorf("run result publication uncertain; no replay: %w", err)
 		}
-		_ = r.markUnknown(cleanup, store, reserved)
-		return result, errors.New("execution cleanup unknown; inspect retained owner and history")
+		return r.adoptStoredOccurrence(cleanup, store, reserved, canonical, output)
 	}
 	var publicationErr error
 	published := false
@@ -275,10 +300,21 @@ func (r *manualTaskRunner) runReserved(ctx context.Context, reserved couchschedu
 		}
 		// Completion and catalogue cancellation serialize here: publication uses
 		// the same transition that clears execution or grants notice authority.
-		if publicationErr = history.Publish(cleanup, record.Key, record, result.Output); publicationErr != nil {
-			return publicationErr
+		canonical, output, publishErr := publishRunOccurrence(cleanup, history, record, result.Output)
+		publicationErr = publishErr
+		if publishErr != nil {
+			return publishErr
 		}
 		published = true
+		canonical, err = finalizeCancelledOccurrence(cleanup, history, state, canonical)
+		if err != nil {
+			return err
+		}
+		next, err = recoverRunOccurrence(state, canonical, r.now())
+		if err != nil {
+			return err
+		}
+		result = executionResultForRecord(canonical, output)
 		ledger.Tasks[key.ID()] = next
 		return nil
 	})
@@ -293,6 +329,9 @@ func (r *manualTaskRunner) runReserved(ctx context.Context, reserved couchschedu
 		return result, fmt.Errorf("run completion authority uncertain; no replay: %w", err)
 	}
 
+	if result.Outcome == "unknown" {
+		return result, errors.New("execution result unknown; no replay")
+	}
 	return result, executeErr
 }
 
@@ -328,10 +367,8 @@ func (r *manualTaskRunner) finishPrelaunch(ctx context.Context, store couchsched
 	record := operationalrun.Record{Version: 1, Key: operationalrun.RunKey{Hub: state.Key.HubID(), Task: state.Key.Task, ID: state.Active.ID}, DeclarationRevision: state.Active.Revision, Source: state.Active.Source, ScheduledAt: state.Active.DueAt, StartedAt: state.Active.StartedAt, EndedAt: ended, Outcome: outcome, Notice: executionNotice(state.Active.Source, outcome)}
 	errorRaw, _ := json.Marshal(cause.Error())
 	record.Unknown = map[string]json.RawMessage{"error": errorRaw}
-	history := r.history
-	if history == nil {
-		history = operationalrun.Store{Namespace: r.namespace}
-	}
+	history := r.historyPort()
+	result := couchschedule.ExecutionResult{Exit: -1}
 	if err := store.Update(cleanup, func(ledger *couchschedule.Ledger) error {
 		current := ledger.Tasks[state.Key.ID()]
 		if !sameReservedAttempt(current, state) {
@@ -339,16 +376,30 @@ func (r *manualTaskRunner) finishPrelaunch(ctx context.Context, store couchsched
 		}
 		// Keep authorization and prelaunch completion mutually exclusive. A stale
 		// losing callback must never publish refusal over a live winner's run ID.
-		if err := history.Publish(cleanup, record.Key, record, nil); err != nil {
+		canonical, output, err := publishRunOccurrence(cleanup, history, record, nil)
+		if err != nil {
 			return fmt.Errorf("pre-execution refusal publication failed: %w", err)
 		}
-		current, _ = couchschedule.Advance(current, couchschedule.Event{Kind: couchschedule.ExecutionRefused, At: ended, Attempt: state.Active.ID, Revision: state.Active.Revision, Notice: cause.Error(), Outcome: outcome, HubOnline: true})
-		ledger.Tasks[state.Key.ID()] = current
+		next, err := recoverRunOccurrence(current, canonical, r.now())
+		if err != nil {
+			return err
+		}
+		result = executionResultForRecord(canonical, output)
+		ledger.Tasks[state.Key.ID()] = next
 		return nil
 	}); err != nil {
 		return couchschedule.ExecutionResult{Exit: -1}, err
 	}
-	return couchschedule.ExecutionResult{Exit: -1, Outcome: outcome, Error: cause.Error()}, cause
+	if result.Outcome == "unknown" {
+		return result, errors.New("execution result unknown; no replay")
+	}
+	if result.Outcome != outcome {
+		return result, nil
+	}
+	if result.Error != "" && result.Error != cause.Error() {
+		return result, errors.New(result.Error)
+	}
+	return result, cause
 }
 
 // Use the account authority rather than a selected Couch/XDG data directory:
@@ -391,4 +442,101 @@ func executionNotice(source, outcome string) string {
 		return "uncertain"
 	}
 	return "pending"
+}
+
+func (r *manualTaskRunner) historyPort() runPublisher {
+	if r.history != nil {
+		return r.history
+	}
+	return operationalrun.Store{Namespace: r.namespace}
+}
+func publishRunOccurrence(ctx context.Context, history runPublisher, record operationalrun.Record, output []byte) (operationalrun.Record, []byte, error) {
+	if publisher, ok := history.(runOccurrencePublisher); ok {
+		return publisher.PublishOccurrence(ctx, record.Key, record, output)
+	}
+	if err := history.Publish(ctx, record.Key, record, output); err != nil {
+		return operationalrun.Record{}, nil, err
+	}
+	return record, output, nil
+}
+func executionResultForRecord(record operationalrun.Record, output []byte) couchschedule.ExecutionResult {
+	result := couchschedule.ExecutionResult{Exit: -1, Outcome: record.Outcome, Output: append([]byte(nil), output...), OutputBytes: int64(len(output))}
+	if record.Exit != nil {
+		result.Exit = *record.Exit
+	}
+	var total int64
+	_ = json.Unmarshal(record.Unknown["output_bytes"], &total)
+	if total > result.OutputBytes {
+		result.OutputBytes = total
+	}
+	_ = json.Unmarshal(record.Unknown["build_key"], &result.BuildKey)
+	_ = json.Unmarshal(record.Unknown["error"], &result.Error)
+	if !record.Completed() {
+		result.Outcome = "unknown"
+	}
+	return result
+}
+func validateOccurrenceAuthority(state couchschedule.TaskState, record operationalrun.Record) error {
+	if state.Key.HubID() != record.Key.Hub || state.Key.Task != record.Key.Task {
+		return errors.New("canonical occurrence differs from retained task")
+	}
+	if active := state.Active; active != nil {
+		if active.ID == record.Key.ID && active.Source == record.Source && active.Revision == record.DeclarationRevision {
+			return nil
+		}
+	} else if last := state.Last; last != nil && last.ID == record.Key.ID && last.Source == record.Source && (last.Revision == "" || last.Revision == record.DeclarationRevision) && record.Completed() && record.Notice != "pending" {
+		return nil
+	}
+	return errors.New("canonical occurrence differs from retained authority")
+}
+func recoverRunOccurrence(state couchschedule.TaskState, record operationalrun.Record, at time.Time) (couchschedule.TaskState, error) {
+	if err := validateOccurrenceAuthority(state, record); err != nil {
+		return state, err
+	}
+	summary := runSummaryForRecord(record)
+	next, _ := couchschedule.Advance(state, couchschedule.Event{Kind: couchschedule.ResultRecovered, At: at, Attempt: record.Key.ID, Revision: record.DeclarationRevision, Recovered: &summary})
+	if next.Last == nil || next.Last.ID != record.Key.ID || next.Last.Revision != record.DeclarationRevision || !next.Last.StartedAt.Equal(summary.StartedAt) || !next.Last.EndedAt.Equal(summary.EndedAt) || !next.Last.DueAt.Equal(summary.DueAt) || next.Last.Outcome != summary.Outcome {
+		return state, errors.New("canonical occurrence recovery refused")
+	}
+	return next, nil
+}
+func finalizeCancelledOccurrence(ctx context.Context, history runPublisher, state couchschedule.TaskState, record operationalrun.Record) (operationalrun.Record, error) {
+	if err := validateOccurrenceAuthority(state, record); err != nil {
+		return record, err
+	}
+	if state.Active != nil && record.Source == "scheduled" && record.Notice == "pending" && (state.Active.Stage == "stopping" || state.Active.Revision != state.Revision) {
+		finalizer, ok := history.(runNoticeFinalizer)
+		if !ok {
+			return record, errors.New("cancelled canonical occurrence needs durable notice finalization")
+		}
+		if err := finalizer.FinalizeNotice(ctx, record.Key, record.DeclarationRevision, "dropped: task cancelled"); err != nil {
+			return record, err
+		}
+		record.Notice = "dropped: task cancelled"
+	}
+	return record, nil
+}
+func (r *manualTaskRunner) adoptStoredOccurrence(ctx context.Context, store couchschedule.StateStore, reserved couchschedule.TaskState, record operationalrun.Record, output []byte) (couchschedule.ExecutionResult, error) {
+	result := executionResultForRecord(record, output)
+	err := store.Update(ctx, func(ledger *couchschedule.Ledger) error {
+		state := ledger.Tasks[reserved.Key.ID()]
+		var err error
+		record, err = finalizeCancelledOccurrence(ctx, r.historyPort(), state, record)
+		if err != nil {
+			return err
+		}
+		next, err := recoverRunOccurrence(state, record, r.now())
+		if err != nil {
+			return err
+		}
+		ledger.Tasks[state.Key.ID()] = next
+		return nil
+	})
+	if err != nil {
+		return result, fmt.Errorf("canonical occurrence adoption failed; no replay: %w", err)
+	}
+	if result.Outcome == "unknown" {
+		return result, errors.New("execution result unknown; no replay")
+	}
+	return result, nil
 }
