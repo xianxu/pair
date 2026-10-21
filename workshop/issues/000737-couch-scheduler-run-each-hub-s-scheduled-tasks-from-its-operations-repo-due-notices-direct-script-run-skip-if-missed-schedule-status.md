@@ -137,3 +137,6 @@ Fall-back repeated local times run once. Remove waiting-hub: offline notify-only
 
 
 - 2026-10-21 04:17 UTC M1 round 3: BR-7 disposed; REWORK on Critical BR-8. A pre-rename pathname substitution is published as ledger authority despite captured-identity protection in the cleanup path, allowing retained authority to disappear with a successful Update. Accepted the finding. The previous whole-family claim missed the publication consumer. Per TL's explicit next-gap instruction, stopped production edits and appended a family-by-operation inventory and proposed proof plan; requesting whole-inventory approval and the proper continuation after three review rounds. No gate waiver/cap change and no M2 work. Current recorded check remains on the pre-correction head.
+
+
+- 2026-10-21 TL decision: explicit crash/cooperating-process/stale-leftover threat model, excluding deliberate same-user substitution in private 0700 storage. Approved only the cheap ledger publication identity check and three-part regression, with cell-local requalification. Authorized one additional M1 boundary round (cap 4 for that invocation), no waiver; any new crash-class gap returns to TL. M2 remains paused. Cancelled only this checkout's pre-correction recorded check.
