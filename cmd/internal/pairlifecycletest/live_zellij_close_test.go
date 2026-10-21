@@ -3,7 +3,9 @@ package pairlifecycletest
 import (
 	"context"
 	"errors"
+	"github.com/creack/pty"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -245,5 +247,77 @@ func TestControlledZellijCloseRetainsUnknownProcess(t *testing.T) {
 				t.Fatalf("table reads=%d, want %d", calls, want)
 			}
 		})
+	}
+}
+
+func TestControlledZellijKillClientThenCloseRetiresHandlesOnce(t *testing.T) {
+	closeZellijStub(t, "exit 0")
+	command := exec.Command("sleep", "30")
+	terminal, err := pty.Start(command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	reader := closeProcessReader{
+		command: procutil.CommandInfo{Executable: "/fixture/zellij", Args: []string{"zellij", "--server", "/fixture/owned-test"}},
+		table: func() ([]procutil.Process, error) {
+			calls++
+			if calls == 1 {
+				return []procutil.Process{{PID: 42, Identity: "birth", Name: "zellij"}}, nil
+			}
+			return nil, nil
+		},
+	}
+	cache := t.TempDir()
+	fixture := &ControlledZellij{Session: "owned-test", command: command, pty: terminal, stubDir: cache, processes: procutil.NewSource(reader)}
+	t.Cleanup(func() {
+		if err := fixture.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	if err := fixture.KillClient(); err != nil {
+		t.Fatal(err)
+	}
+	retired := fixture.command == nil && fixture.pty == nil
+	if err := fixture.Close(); err != nil {
+		t.Fatalf("KillClient then Close: %v", err)
+	}
+	if !retired {
+		t.Fatal("KillClient retained consumed handles")
+	}
+	if calls != 2 {
+		t.Fatalf("exact server capture/exit proof reads=%d", calls)
+	}
+	if _, err := os.Stat(cache); !os.IsNotExist(err) {
+		t.Fatalf("owned cache survived exact cleanup: %v", err)
+	}
+	if _, err := fixture.WriteInput([]byte("x")); err == nil || errors.Is(err, os.ErrClosed) {
+		t.Fatalf("retired input handle: %v", err)
+	}
+}
+
+func TestControlledZellijKillClientPreservesFirstCloseError(t *testing.T) {
+	command := exec.Command("sleep", "30")
+	terminal, err := pty.Start(command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixture := &ControlledZellij{command: command, pty: terminal}
+	t.Cleanup(func() {
+		if err := fixture.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	if err := terminal.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := fixture.KillClient(); !errors.Is(err, os.ErrClosed) {
+		t.Fatalf("lost first owned close error: %v", err)
+	}
+	if fixture.command != nil || fixture.pty != nil {
+		t.Fatal("cleanup error prevented handle retirement")
+	}
+	if err := fixture.Close(); err != nil {
+		t.Fatalf("retired handles closed twice: %v", err)
 	}
 }

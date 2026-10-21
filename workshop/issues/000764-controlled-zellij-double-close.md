@@ -55,3 +55,5 @@ ARCH-DRY/ORDER/FUNERAL: one helper consumes handles before closing/signalling/re
 Observed during #761 on 830f29d9ef0892b6fb8d06869a4840eed28f7ad9. Relevant source: cmd/internal/pairlifecycletest/live_zellij.go, KillClient and close; caller startup_detach_timing_live_test.go. Retained log /Volumes/TestScratch/tmp/pair-slot5/pair-761-native-reattach.Id4Vb5/native.log SHA25649fdd7e0a1e461926b7d13edfa342319d278f28531fea2c8d86e36f29bffac92. No fix is stacked into #761.
 
 - Traced the fixture and callers. KillClient closes the PTY without clearing it, and keeps the waited process command; final close repeats both operations. Native timing drops the resulting error. Startup refusal paths and several ControlledZellij callers also discard Close results; auditing the same fixture class before code. #757 remains untouched on its preserved branch.
+
+- TDD checkpoint: focused real-child/PTY regressions both fail on the original implementation: KillClient→Close returns file already closed, and a deliberately broken first PTY close is silently lost. Caller sweep and local lint work are in progress; fixture implementation has not changed yet.
