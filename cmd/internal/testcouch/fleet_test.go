@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -65,5 +66,19 @@ func TestActorCLITimeoutUsesRemainingCallerDeadline(t *testing.T) {
 	cancel()
 	if _, err := actorCLITimeout(ctx, now, time.Second); !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled caller budget accepted: %v", err)
+	}
+}
+
+func TestFleetStartupCommandSelectsExplicitPublicHubOnlyWhenRequested(t *testing.T) {
+	for _, explicit := range []bool{false, true} {
+		f := &Fleet{Roots: RootsPlan{Mutable: map[string]string{"bin": "/private/fixture/bin"}}, Workspaces: Workspaces{Primary: "/private/fixture/repo"}, Environment: []string{"PRIVATE_RUN=fixture"}, Options: Options{ExplicitHub: explicit}}
+		cmd := f.consoleCommand()
+		want := []string{"/private/fixture/bin/couch"}
+		if explicit {
+			want = append(want, "/private/fixture/repo")
+		}
+		if !reflect.DeepEqual(cmd.Args, want) || cmd.Dir != f.Workspaces.Primary || !reflect.DeepEqual(cmd.Env, f.Environment) {
+			t.Fatalf("explicit=%v args%v dir%s env%v", explicit, cmd.Args, cmd.Dir, cmd.Env)
+		}
 	}
 }
