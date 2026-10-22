@@ -5,9 +5,9 @@ deps: [pair#752]
 github_issue:
 created: 2026-10-20
 updated: 2026-10-22
-estimate_hours: 19.23
+estimate_hours: 26.63
 collaboration-mode: collaboration
-card_mirror: '7921e13209e908463cb9ad1e4874c87995031808' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '1c419198031636f23e16de2d18245e61625854a0' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-21T18:40:37-07:00
 claimant:
     operator: Xian Xu
@@ -323,6 +323,28 @@ The renderer's controlled/native tests are included in rows22/23/30; consumer in
 
 2026-10-22 live-mask re-derivation after Task10 plan-quality CLEAN: retain rows1–31 as completed baseline, append rows32–41 for distinct new work: issue-spec(.20/.08); smaller-go-module Store derivation(.06/.20); smaller-go-module Board projection(.06/.20); cross-cutting-refactor version metadata(.16/.20); greenfield-go-module pure mask/index(.30/.32); api-integration worker and both transports(.40/.40); tui-screen painters/note visibility(.20/.32); atlas-docs(.04/.08); milestone-review renewed full-close correction(0/.20); real-api-discovery native/reconnect qualification(0/.24). Values are discounted design/scaled implementation, from the same table ranges and multipliers above, not remaining-time promises. Component design covers seam/ownership choices; issue-spec covers operator rule and durable acceptance, without recosting earlier designs. Source reuse removes library discovery: existing Store, Board, SSE, private projection and painters cover all IO. Incremental design1.42×1.15 + implementation2.24 =3.873h; total whole-issue19.226h, rounded19.23h. This includes new tests/review/native work and excludes idle queue/operator waits. Earlier codec/inventory rows are one primitive each because they share one variant validator and evidence inventory; their observed work is already retained in the completed baseline, not a claim about the new slice. Calibration remains provisional.
 
+
+2026-10-22 third-delta estimate after plan-quality round7 CLEAN (TL668aa826): retain rows1–41 as completed baseline19.226h and append rows42–55. Same provisional Method A table ranges, design×0.2/impl×0.4 and15% design buffer; no fan-out overlap discount. Rows are distinct work, including the live investigations/fixes rather than hiding correction time inside the review row:
+
+| Row | Primitive / concrete new work | Discounted design | Scaled impl |
+|---|---|---|---|
+|42|issue-spec: WYSIWYG rule, submission-time image rationale and consolidated design|.20|.08|
+|43|greenfield-go-module: bounded visibility data/intersection/oracle/counting|.30|.32|
+|44|tui-screen: completed-frame visibility, invalidation and both deferred counts|.20|.32|
+|45|api-integration: private visibility bridge and scoped host cache|.40|.40|
+|46|cross-cutting-refactor: chord refresh/current-prefix freeze and real-lock races|.16|.20|
+|47|api-integration: current-view projection/replay/coverage and renderer fake|.50|.60|
+|48|greenfield-go-module: explicit current-view codec variant, preservation and consumer tests|.30|.32|
+|49|smaller-go-module: trusted weak-anchor tab reattachment correction and regressions|.06|.20|
+|50|real-api-discovery: isolated post-send input/SPA investigation to a concrete RED|0|.24|
+|51|api-integration: correction of discovered input-lifetime owner with both-adapter controls|.40|.40|
+|52|atlas-docs: current-view/screenshot/crop guidance plus emitted assertions|.04|.08|
+|53|milestone-review: fresh full close execution (substantive corrections are49/51)|0|.20|
+|54|api-integration: native current-view pixels/tab/SPA/post-send transaction fixtures|.40|.40|
+|55|real-api-discovery: exact-source native and operator re-look qualification|0|.24|
+
+Raw table choices are the accepted ranges already shown in18–31: issue-spec1.0/.2; module1.5/.8; screen1.0/.8; integration2.0/1.0 (render2.5/1.5); refactor.8/.5; smaller-module.3/.5; docs.2/.2; review0/.5; discovery0/.6. Multiply once. Incremental design2.96×1.15 +implementation4.00 =7.404h; whole issue19.226+7.404=26.630h, rounded26.63h. Existing fixtures/libraries are reused, no dependency discovery or fresh harness. Runtime tests belong to each implementation row, qualification54/55 is independent end-to-end/native evidence; idle machine queue and operator availability waits stay excluded. Broken-draw correction is provisional until its owner is reproduced; unused allowance will be visible in measured actuals rather than inventing a speculative patch.
+
 ```estimate
 model: estimate-logic-v3.1
 familiarity: 1.0
@@ -367,8 +389,22 @@ item: tui-screen design=0.2 impl=0.32
 item: atlas-docs design=0.04 impl=0.08
 item: milestone-review design=0 impl=0.2
 item: real-api-discovery design=0 impl=0.24
+item: issue-spec design=.20 impl=.08
+item: greenfield-go-module design=.30 impl=.32
+item: tui-screen design=.20 impl=.32
+item: api-integration design=.40 impl=.40
+item: cross-cutting-refactor design=.16 impl=.20
+item: api-integration design=.50 impl=.60
+item: greenfield-go-module design=.30 impl=.32
+item: smaller-go-module design=.06 impl=.20
+item: real-api-discovery design=0 impl=.24
+item: api-integration design=.40 impl=.40
+item: atlas-docs design=.04 impl=.08
+item: milestone-review design=0 impl=.20
+item: api-integration design=.40 impl=.40
+item: real-api-discovery design=0 impl=.24
 design-buffer: 0.15
-total: 19.23
+total: 26.63
 ```
 
 ## Revisions
@@ -428,3 +464,7 @@ Authority: TL8112fb61 and c78d3900 following the accepted shared-page recheck. O
 TLefac1218/d0326a9d/eaa94561 supersede oldest-compatible-first: only feedback actually visible in the current console view is selected; all other unsent notes/sketches remain N more. Shared screenshot is taken from the frozen current recorded view at submission, because a sketch takes time and can be revisited after other pages. Saved box-note crops remain box-draw-time evidence, which can intentionally capture a transient frame. Durable plan appends one consolidated third-delta design for a trusted completed-paint visibility witness feeding the existing private preview/freeze owner; no browser dispatch route or persisted registry. TL requests plan before code; no production changes started.
 
 Live evidence stays private locally. First recording has first complete sketch then two empty later begins and expiry; source clicks/text selections passed through. Second fixture likewise has a complete first shape, two saved notes (both selected by prior all-open-notes contract), and a later begin with no strokes. Sanitized fixtures will retain chronology, not page/private content. A native unsent-tab-return RED now shows accepted vectors and pending card retained but actual canvas loses ink after recorder Doc1→3 catches up and geometry forces repaint. Existing controlled completed-note/tab reachability tests pass11/11; direct masked→saved box note→next pen plus new draws after real tab activation pass, so those alone do not reproduce the other blocker. Same-context SPA/input investigation continues. Console permission slice published into unclaimed #808 Spec through supported issue publish after its prescribed resting-branch merge; #753 branch and both probes restored. Final executable suite lease-1877263215 retained until new code commits; renewed full-scope close and operator re-look will replace prior acceptance.
+
+### 2026-10-22 — current-view implementation admission
+
+TL668aa826 approved the consolidated plan; change-code completed exit0 with plan-quality round7 CLEAN. Estimate-quality INFO correctly named the newly uncosted current-view/bridge/freeze/codec and live qualifications; the Estimate section now explicitly appends42–55, derived whole-issue26.63h. Pending new-source suite/close/live acceptance remain unchanged. No claim that either live defect is fixed yet.
