@@ -424,7 +424,12 @@ func TestDarwinStartRidesOutTransientAllocationENXIO(t *testing.T) {
 				if opened <= tc.failures {
 					return nil, nil, tc.errno
 				}
-				return pty.Open()
+				// openPTY, not pty.Open: this closure's own allocation is exposed
+				// to the same race, and a real ENXIO here would be absorbed by the
+				// outer openPTYRetry — re-entering the closure, so `opened` no
+				// longer counts what the case means, and in the last-attempt case
+				// consuming the bound under test.
+				return openPTY()
 			})
 			if opened != tc.wantOpen {
 				t.Errorf("open called %d times, want %d", opened, tc.wantOpen)
@@ -622,7 +627,7 @@ func TestDarwinRunLiveClosedStdio(t *testing.T) {
 }
 
 func TestDarwinRunInteractiveResizeAndRestore(t *testing.T) {
-	master, slave, err := pty.Open()
+	master, slave, err := openPTY()
 	if err != nil {
 		t.Fatal(err)
 	}

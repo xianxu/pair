@@ -1,0 +1,111 @@
+# Boundary Review — pair#809 (whole-issue close)
+
+| field | value |
+|-------|-------|
+| issue | 809 — flake: TestRunPropagatesChildExitCode |
+| repo | pair |
+| issue file | workshop/issues/000809-flake-testrunpropagateschildexitcode.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 7b9440e8c92663f8ee189f54a1260e3043a78f07..15c56a7a55ebe7363d566a640d2e94be3471c41b |
+| command | sdlc close --issue 809 |
+| reviewer | claude (anthropic; author anthropic) |
+| isolation | fenced |
+| timestamp | 2026-10-22T14:16:38-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+I've checked the diff and the issue's spec. Now I'm checking whether every test fixture in scribecmd allocates its pty through `openPTY`, as the atlas says.
+
+The new tests pass. Next I'll temporarily swap the guard for a plain `errors.Is` check to confirm the test goes red without the sign fix.
+
+Mutating the guard turns the test red, and the checkout is restored. One last look at the other injected opener near line 365.
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The fix is correct and well evidenced. `openPTYRetry` (`cmd/internal/scribecmd/pty_darwin.go:37-49`) bounds the darwin pty allocation at 3 attempts, retries ENXIO only, and returns the original error unchanged when the bound runs out. `isTransientPTYAlloc` handles ENXIO with either sign, positive or negated. I checked the regression test by replacing the guard with `errors.Is(err, syscall.ENXIO)`: `TestDarwinStartRidesOutTransientAllocationENXIO` then fails ("open called 1 times, want 3 … errno -6"). With the code restored it passes, and `GOOS=linux go vet` is clean. The oracle fix in `runWithPTYReply` does what Spec item 3 asks for. Nothing blocks the gate. Two cheap Important items remain. First, a doc claim is false: one fixture in the same package still calls `pty.Open` directly. Second, the literal wording of `## Done when` contradicts the retry loop this change delivers.
+
+Done-when: stale — it still says "never a retry loop". The Spec's hub ruling allows a bounded production-side retry on darwin, but `## Done when` was never reworded to match. The clause as written is contradicted by the code it gates.
+
+**1. Strengths**
+- The sign normalisation (`pty_darwin.go:60-70`) is pinned by tests for both spellings, and the mutation check proves the test catches the guard bug written the obvious way.
+- The table test covers every boundary: recovery on attempt 2, recovery on the last attempt (`ptyAllocAttempts-1` failures), exhaustion (`ptyAllocAttempts` failures, original error returned), and an unrelated errno that is not retried (`pty_darwin_test.go:413-419`).
+- `TestRunPropagatesChildExitCode` checks for an abort first, as its own assertion, before checking the exit code (`scribecmd_test.go:288-293`). So "scribe aborted" can no longer be misreported as "child's code mis-propagated".
+- `TestRunFatalSitesExitOneWithDiagnostic` reuses the existing `run(..., start)` seam (ARCH-DRY). It pins log-open, pty-start and `cmd.Wait`, and it names where the other sites are pinned.
+- ARCH-DRY: one retry primitive feeds both the production path and the fixture, and `pty_other.go` stays a plain pass-through.
+
+**2. Critical findings**
+None.
+
+**3. Important findings**
+- **The claim "test fixtures allocate through `openPTY`" is false within this package** (`pty_darwin_test.go:625`). `TestDarwinRunInteractiveResizeAndRestore` still calls `pty.Open()` directly for its outer terminal, so it is exposed to the same race. The code comment at `pty_darwin.go:32-34` and the atlas paragraph (`atlas/architecture.md:1354-1356`) both state the rule as if it already holds. Instances of this class in the window:
+  - (a) `:625`: a direct fixture `pty.Open`. Fix: call `openPTY()`.
+  - (b) `:427`: the new test's injected opener calls raw `pty.Open()` inside the counted closure. A real ENXIO there is retried, but it shifts `opened` off by one. In the "recovers on the last attempt" case it uses up the bound, so the test itself can flake. Fix: call `openPTY()` there, so a real-race retry happens below the counter.
+  - (c) `:367` is already protected by the wrapper and needs no change.
+- **`## Done when` is stale.** The clause "never a retry loop" literally forbids what this diff builds. The reconciliation exists only in the Spec ruling. Reword it, for example: "root cause fixed: no test-side or blind retry and no timeout extension; a bounded darwin ENXIO-only allocation retry per the hub ruling; closing unregisters the tests."
+
+**4. Minor findings**
+- The atlas says the errno "arrives negated through the raw syscall path". The Spec says it was measured from `syscall.Open` as well. The code comment states both correctly, but the atlas wording narrows it.
+- The same exposure exists in other packages: about 30 direct `pty.Open`/`pty.Start` fixtures, for example in `ttyio`, `couchcmd`, `wrapcmd` and `hostty`. This is out of scope here because `openPTY` is unexported, but see the architectural notes.
+
+**5. Test coverage notes**
+- I confirmed the regression test fails without the fix by mutating the guard: 3 of 5 subtests go red.
+- Spec Required behavior 3 (the diagnostic survives on abort) is covered by the "pty start" subtest. Exhausting the bound returns the original errno; the test checks this with `errors.Is` on the identical value.
+- I did not re-run the concurrent churn harness, which is host-load dependent. I am relying on the Log for that, together with the deterministic tests above.
+
+**6. Architectural notes for upcoming work**
+- ARCH-DRY: pass. One retry primitive with two callers, and no duplicated guard.
+- ARCH-PURE: pass. `isTransientPTYAlloc` is pure, and `openPTYRetry` takes the allocator as an injected function. Both are tested without real failures.
+- ARCH-PURPOSE: flag (the Important finding above). The fixture sweep stopped at the instance that was observed; in-package sibling (a) remains.
+- ARCH-EVOLVE: pass, not applicable. No persisted format changed. The affected-readers JSON is a hash refresh under the same schema.
+- Every pty-heavy package in the tree is exposed to the same XNU race. A shared exported helper, for example in `ptychild` or a new `ptyalloc` package, would be the follow-up that closes the class tree-wide. That needs its own issue.
+
+**7. Plan revision recommendations**
+- Add a `## Revisions` entry recording that the fixture sweep in item 1a also covers `pty_darwin_test.go:625` (and `:427`), once fixed.
+- Reword `## Done when` to match the hub ruling, as suggested above.
+
+```findings
+findings:
+  - id: new
+    severity: Important
+    kind: defect
+    family: fixture-pty-alloc-bypasses-shared-retry
+    title: |
+      Fixtures in scribecmd still call pty.Open directly despite the doc claim that they use openPTY
+    detail: |
+      pty_darwin_test.go:625 (TestDarwinRunInteractiveResizeAndRestore) calls pty.Open() directly for its outer terminal, so it is exposed to the #809 race. pty_darwin.go:32-34 and atlas/architecture.md:1354-1356 state that fixtures allocate through openPTY. Second instance in the window: the new test's injected opener at pty_darwin_test.go:427 calls raw pty.Open inside the counted closure, so a real ENXIO shifts the opened count, and in the last-attempt case uses up the bound. Fix both to call openPTY(). Line 367 is already wrapped by openPTYRetry and needs no change.
+  - id: new
+    severity: Important
+    kind: defect
+    family: done-when-tracks-contract
+    title: |
+      Done-when still says never a retry loop, but the change ships a bounded retry
+    detail: |
+      The Spec records the hub ruling that allows a bounded, ENXIO-only, darwin-only production retry, but Done-when was not updated and its literal text contradicts the delivered openPTYRetry loop. Reword it to ban test-side or blind retries and timeout extensions, and allow the ruled bounded allocation retry.
+  - id: new
+    severity: Minor
+    kind: defect
+    family: doc-claim-narrower-than-measurement
+    title: |
+      Atlas says the negated errno comes from the raw syscall path only
+    detail: |
+      The Spec and the code comment say the negated errno was measured from syscall.Open as well as from the raw ioctl syscalls. The atlas sentence narrows this to the raw syscall path only.
+```
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"2ec51ec3-8281-479f-b400-c95a3f6eb527","repository":"github.com/xianxu/pair","issue_id":"000809","recipe":"small-diff-review","round":1,"attempt":1,"agent":"claude","root":"/Volumes/TestScratch/review-checkouts/6891b03376a948f0","reviewed_head":"15c56a7a55ebe7363d566a640d2e94be3471c41b","slot":"pair:8","requested_at":"2026-10-22T21:15:09.579029Z"},"phase":"finished","pid":3367,"started_at":"2026-10-22T21:15:09.864261Z","finished_at":"2026-10-22T21:16:36.58377Z","session_id":"22e8b16d-1209-4591-90ca-83e36c1aef15","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.708102042s
+head: "15c56a7a55ebe7363d566a640d2e94be3471c41b"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
