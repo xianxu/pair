@@ -269,7 +269,7 @@ func (c *Console) menuOverlay(f terminal.Frame, class terminal.FrameClass) termi
 	if c.pnotes.source == driveMenu {
 		title = "Remote driving"
 	}
-	c.pnotes.menu = RenderTitledMenu(title, c.menuNotesLocked(), f.Geometry.Cols, f.Geometry.Rows)
+	c.pnotes.menu = RenderTitledMenu(title, c.menuNotesLocked(), f.Geometry.Cols, f.Geometry.Rows-f.ChromeRows+1)
 	return c.pnotes.menu.Draw(f, c.pnotes.hover, c.drawStyleLocked())
 }
 

@@ -55,8 +55,9 @@ func anchorScreen() (terminal.Frame, ScreenLayout) {
 		"draft-pair-3.md  1,1  All",
 		"LIVE ⏸ 👆  pair:1  pair:3 ●  Chrome ⏸",
 	)
+	f.ChromeRows = 1
 	l := ScreenLayout{
-		Chips: []ColumnSpan{{10, 16}, {18, 26}, {28, 36}},
+		Chips: []ChipSpan{{Start: 10, End: 16}, {Start: 18, End: 26}, {Start: 28, End: 36}},
 		Slot:  "pair:3",
 	}
 	return f, l

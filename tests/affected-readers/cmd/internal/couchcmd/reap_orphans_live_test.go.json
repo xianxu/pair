@@ -1,5 +1,1 @@
-{
-  "version": 1,
-  "disposition": "local_or_literal_fixture",
-  "sha256": "6cc3b568a2a31621c5e331e1ac3ed7e66f558d9514e2ef38361b3d5322f3247f"
-}
+{"version": 1, "disposition": "non_go_full_fallback", "sha256": "2e0ba6d9a7f5a78304a2f03312c1860c699766f6d2cb3dd9423e64b58ef00011"}

@@ -283,6 +283,9 @@ func runSessionSyncCLI(a *sessionSyncArgs, rt Runtime, stdout, stderr io.Writer)
 		if err != nil {
 			return fail(err)
 		}
+		if res.Registration != nil {
+			res.Registration.Namespace = namespace.Dir()
+		}
 		if a.json {
 			if err := json.NewEncoder(stdout).Encode(sessionSyncResponse{Code: "ok", Registration: res.Registration, Changed: res.Changed}); err != nil {
 				return fail(err)
@@ -296,6 +299,9 @@ func runSessionSyncCLI(a *sessionSyncArgs, rt Runtime, stdout, stderr io.Writer)
 		res, err := s.Lookup(file)
 		if err != nil {
 			return fail(err)
+		}
+		if res != nil {
+			res.Namespace = namespace.Dir()
 		}
 		if a.json {
 			if err := json.NewEncoder(stdout).Encode(sessionSyncResponse{Code: "ok", Registration: res}); err != nil {

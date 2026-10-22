@@ -221,29 +221,51 @@ func StyledRows(text string, cols, rows int) ([]Cell, error) {
 	return cells, nil
 }
 
-// Compose preserves the child geometry with an optional single bottom row.
+// ChildGeometry validates a rectangular chrome surface and returns the remaining
+// child geometry. At least one child row is always retained.
+func ChildGeometry(host Geometry, bottom []Cell) (Geometry, error) {
+	if err := host.Validate(); err != nil {
+		return Geometry{}, err
+	}
+	if len(bottom)%host.Cols != 0 {
+		return Geometry{}, fmt.Errorf("terminal: chrome width mismatch")
+	}
+	rows := len(bottom) / host.Cols
+	if rows >= host.Rows {
+		return Geometry{}, fmt.Errorf("terminal: no child rows")
+	}
+	if rows > 0 {
+		if err := (Frame{Geometry: Geometry{host.Cols, rows}, Cells: bottom}).Validate(); err != nil {
+			return Geometry{}, err
+		}
+	}
+	return Geometry{host.Cols, host.Rows - rows}, nil
+}
+
+// Compose preserves child geometry above rectangular compositor-owned chrome.
 func Compose(child Frame, host Geometry, bottom []Cell) (Frame, error) {
 	if err := child.Validate(); err != nil {
 		return Frame{}, err
 	}
-	if err := host.Validate(); err != nil {
+	if child.ChromeRows != 0 {
+		return Frame{}, fmt.Errorf("terminal: child already has chrome")
+	}
+	childGeometry, err := ChildGeometry(host, bottom)
+	if err != nil {
 		return Frame{}, err
 	}
-	chromeRows := 0
-	if len(bottom) > 0 {
-		chromeRows = 1
-	}
-	if child.Geometry.Cols != host.Cols || child.Geometry.Rows+chromeRows != host.Rows || (len(bottom) != 0 && len(bottom) != host.Cols) {
+	if child.Geometry != childGeometry {
 		return Frame{}, fmt.Errorf("terminal: incompatible chrome geometry")
 	}
 	f := child
 	f.Geometry = host
+	f.ChromeRows = len(bottom) / host.Cols
 	f.Rows = make([]RowMetadata, host.Rows)
 	for y := 0; y < child.Geometry.Rows; y++ {
 		f.Rows[y] = child.rowMetadata(y)
 	}
-	if chromeRows == 1 {
-		f.Rows[host.Rows-1] = rowMetadata(bottom)
+	for y := 0; y < f.ChromeRows; y++ {
+		f.Rows[child.Geometry.Rows+y] = rowMetadata(bottom[y*host.Cols : (y+1)*host.Cols])
 	}
 	f.Cells = make([]Cell, len(child.Cells)+len(bottom))
 	for i, c := range child.Cells {

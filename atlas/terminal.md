@@ -43,6 +43,22 @@ inside it. Release closes a bracket that a failed write left open (#262). A
 terminal without the mode ignores it. Ingest is the mirror image: a child's own
 2026 hold withholds publication (above), so frames are atomic end to end.
 
+`Frame.ChromeRows` declares the compositor-owned bottom reservation (#779).
+Endpoint frames carry zero; `Compose` validates complete-width chrome rows and
+`ChildGeometry` subtracts that exact reservation while retaining a body row.
+Clone, history identity, render admission and taps preserve the metadata.
+`Presenter.ResizeLayout` acknowledges the child resize before admitting the new
+frame; a height-changing `UpdateChrome` must use that resize path.
+
+`Presenter.ChromeState` reports host geometry, row count, admitted revision and
+whether painting is confirmed. A stalled or partial write revokes confirmation,
+even if the layout call returned without a terminal failure. Automatic repaint
+confirms the same pending revision. Console uses hit spans only when its pending
+revision matches that confirmed snapshot; geometry-dependent mouse presses and
+chrome actions are dropped while uncertain. Presenter separately fences child
+mouse admission, while releases retain gesture cleanup and keyboard/paste retain
+their logical input path. A body repaint does not create a new chrome revision.
+
 **Per-frame parent state is re-asserted, not deltaed, and that is deliberate
 (#262 M2).** Inside the bracket, each frame hides the cursor, resets origin mode,
 margins, SGR and hyperlink, sets autowrap, and ends by placing the cursor with

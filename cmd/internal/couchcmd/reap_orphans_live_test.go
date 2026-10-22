@@ -2,6 +2,7 @@ package couchcmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,13 +13,15 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/procutil"
 )
 
 // Live conformance for the untagged-orphan sweep and its confirmed reap (#583's
 // Done-when #2): a real bare `nvim --embed` reparented to PID 1 on this host,
 // classified by the real sampler over the real process table, and ended by the
-// real reaper through real signals.
+// supervisor's fresh ownership and revocation gates through real signals.
 //
 // Run it with:
 //
@@ -255,6 +258,46 @@ func liveRowFor(rows []couchcore.OrphanNvim, pid int) (couchcore.OrphanNvim, boo
 	return couchcore.OrphanNvim{}, false
 }
 
+// This disposable test world contains only the exact owned fixture subtree.
+// Every identity and parent edge still comes from a fresh native census; host
+// processes outside the fixture cannot contaminate or become signal targets.
+// Full-host sampler qualification remains in the public-command native tests.
+type liveOrphanFixtureReader struct {
+	procutil.NativeResourceReader
+	root couchcore.ResourceProcessKey
+}
+
+func (r liveOrphanFixtureReader) Table(ctx context.Context) ([]procutil.Process, int, error) {
+	rows, calls, err := r.NativeResourceReader.Table(ctx)
+	if err != nil {
+		return nil, calls, err
+	}
+	children := map[int][]procutil.Process{}
+	var root procutil.Process
+	found := false
+	for _, row := range rows {
+		children[row.PPID] = append(children[row.PPID], row)
+		if row.PID == r.root.PID && row.Identity == r.root.Identity {
+			root, found = row, true
+		}
+	}
+	if !found {
+		return nil, calls, nil
+	}
+	owned := []procutil.Process{root}
+	seen := map[int]bool{root.PID: true}
+	for i := 0; i < len(owned); i++ {
+		for _, child := range children[owned[i].PID] {
+			if seen[child.PID] || child.Identity == "" {
+				return nil, calls, fmt.Errorf("fixture subtree has ambiguous identity or ancestry")
+			}
+			seen[child.PID] = true
+			owned = append(owned, child)
+		}
+	}
+	return owned, calls, nil
+}
+
 // The sweep names a real orphan whose cwd is inside a managed checkout, on the
 // kernel's own account of its parentage, its argv, its cwd and its age.
 func TestLiveOrphanNvimSweepNamesARealReparentedEmbed(t *testing.T) {
@@ -320,7 +363,34 @@ func TestLiveOrphanNvimReapEndsARealOrphan(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), liveOrphanWait)
 	defer cancel()
-	outcomes := reapOrphanNvim(ctx, launcher.TreeReaper(launcher.OSProcessTable{}), []couchcore.OrphanNvim{row})
+	// The real worker owns every fresh classification and the sticky loss fence.
+	// Unlike the old local tree reaper, no admitted row can bypass a subsequent
+	// ownership change or incomplete native collection at the effect boundary.
+	sampler := liveOrphanSampler(dir)
+	sampler.reader = liveOrphanFixtureReader{root: row.Key}
+	sampler.sweeps = make(chan resourceRequest)
+	worker, stopWorker := context.WithCancel(ctx)
+	joined := make(chan struct{})
+	go func() { defer close(joined); sampler.run(worker) }()
+	t.Cleanup(func() { stopWorker(); <-joined })
+	service := &messageService{provenOrphanProcesses: launcher.OSProcessTable{}}
+	service.resources.Store(sampler)
+	call := func(ctx context.Context, _ string, raw, reply any) error {
+		request := raw.(couchmessage.Request)
+		if request.LegacyTarget == nil || request.LegacyTarget.Root != row.Key {
+			t.Fatalf("attempt to signal outside the fixture's exact root: %+v", request)
+		}
+		bounded, cancel := context.WithTimeout(ctx, couchmessage.TransportTimeout)
+		defer cancel()
+		*reply.(*couchmessage.Response) = service.handleLegacyOrphanSignal(bounded, request)
+		return nil
+	}
+	reaper := launcher.TreeReaper(launcher.OSProcessTable{})
+	plan := freezeLegacyReap(ctx, reaper, []couchcore.OrphanNvim{row}, nil)
+	outcomes, left := reapFrozenLegacy(ctx, "", couchmessage.Request{}, call, reaper, plan)
+	if len(left) != 0 {
+		t.Fatalf("unexpected legacy registry outcomes: %+v", left)
+	}
 	if len(outcomes) != 1 || outcomes[0].Status != orphanReaped {
 		t.Fatalf("outcomes %+v", outcomes)
 	}

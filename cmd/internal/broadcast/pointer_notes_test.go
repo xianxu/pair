@@ -26,7 +26,7 @@ func closed(c <-chan struct{}) bool {
 func TestPointerNotesAddResolve(t *testing.T) {
 	p := onPointer(t)
 	_, v0, changed := p.Notes()
-	n, err := p.addNote(Note{Box: CellBox{1, 1, 2, 1}, Text: "a"}, 80, 24, p.generation())
+	n, err := p.addNote(Note{Box: CellBox{1, 1, 2, 1}, Text: "a"}, 80, 24, 1, p.generation())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +35,7 @@ func TestPointerNotesAddResolve(t *testing.T) {
 		t.Fatalf("add: version %d→%d, closed %v, %d notes", v0, v1, closed(changed), len(notes))
 	}
 	_, _, changed = p.Notes()
-	if _, err := p.addNote(Note{Box: CellBox{1, 1, 2, 1}, Text: "b"}, 80, 24, p.generation()); err != ErrNoteOverlap {
+	if _, err := p.addNote(Note{Box: CellBox{1, 1, 2, 1}, Text: "b"}, 80, 24, 1, p.generation()); err != ErrNoteOverlap {
 		t.Fatalf("overlap: %v", err)
 	}
 	if ok, err := p.resolveNote(NoteResolution{ID: 999}); ok || err != nil {
@@ -54,7 +54,7 @@ func TestPointerNotesAddResolve(t *testing.T) {
 
 func TestPointerNotesRefusedWhileOff(t *testing.T) {
 	p := newPointerState(nil)
-	if _, err := p.addNote(Note{Box: CellBox{0, 0, 2, 1}, Text: "a"}, 80, 24, p.generation()); err != ErrPointerOff {
+	if _, err := p.addNote(Note{Box: CellBox{0, 0, 2, 1}, Text: "a"}, 80, 24, 1, p.generation()); err != ErrPointerOff {
 		t.Fatalf("add before on: %v", err)
 	}
 	if _, err := p.resolveNote(NoteResolution{ID: 1}); err != ErrPointerOff {
@@ -72,8 +72,8 @@ func TestPointerNotesClearedOnEveryOff(t *testing.T) {
 	for name, off := range offs {
 		t.Run(name, func(t *testing.T) {
 			p := onPointer(t)
-			p.addNote(Note{Box: CellBox{0, 0, 2, 1}, Text: "a"}, 80, 24, p.generation())
-			p.addNote(Note{Box: CellBox{4, 0, 2, 1}, Text: "b"}, 80, 24, p.generation())
+			p.addNote(Note{Box: CellBox{0, 0, 2, 1}, Text: "a"}, 80, 24, 1, p.generation())
+			p.addNote(Note{Box: CellBox{4, 0, 2, 1}, Text: "b"}, 80, 24, 1, p.generation())
 			_, v, changed := p.Notes()
 			off(p)
 			notes, v2, _ := p.Notes()
@@ -89,7 +89,7 @@ func TestPointerNotesStaleWatchClearsNothing(t *testing.T) {
 	stale := p.generation()
 	p.set(false, nil)
 	p.set(true, nil)
-	p.addNote(Note{Box: CellBox{0, 0, 2, 1}, Text: "a"}, 80, 24, p.generation())
+	p.addNote(Note{Box: CellBox{0, 0, 2, 1}, Text: "a"}, 80, 24, 1, p.generation())
 	if p.offIfGeneration(stale) {
 		t.Fatal("a stale report flipped pointing")
 	}
@@ -105,7 +105,7 @@ func TestPointerNotesAddFlipInterleavings(t *testing.T) {
 		p := onPointer(t)
 		gen := p.generation()
 		p.set(false, nil)
-		if _, err := p.addNote(Note{Box: CellBox{0, 0, 2, 1}, Text: "a"}, 80, 24, gen); err != ErrPointerOff {
+		if _, err := p.addNote(Note{Box: CellBox{0, 0, 2, 1}, Text: "a"}, 80, 24, 1, gen); err != ErrPointerOff {
 			t.Fatalf("add after off: %v", err)
 		}
 	})
@@ -114,7 +114,7 @@ func TestPointerNotesAddFlipInterleavings(t *testing.T) {
 		gen := p.generation()
 		p.set(false, nil)
 		p.set(true, nil)
-		if _, err := p.addNote(Note{Box: CellBox{0, 0, 2, 1}, Text: "a"}, 80, 24, gen); err != ErrPointerOff {
+		if _, err := p.addNote(Note{Box: CellBox{0, 0, 2, 1}, Text: "a"}, 80, 24, 1, gen); err != ErrPointerOff {
 			t.Fatalf("add checked before the flips: %v", err)
 		}
 		if notes, _, _ := p.Notes(); len(notes) != 0 {
@@ -123,7 +123,7 @@ func TestPointerNotesAddFlipInterleavings(t *testing.T) {
 	})
 	t.Run("add, then flip", func(t *testing.T) {
 		p := onPointer(t)
-		if _, err := p.addNote(Note{Box: CellBox{0, 0, 2, 1}, Text: "a"}, 80, 24, p.generation()); err != nil {
+		if _, err := p.addNote(Note{Box: CellBox{0, 0, 2, 1}, Text: "a"}, 80, 24, 1, p.generation()); err != nil {
 			t.Fatal(err)
 		}
 		_, v, _ := p.Notes()
@@ -148,7 +148,7 @@ func TestPointerNotesRaceStress(t *testing.T) {
 					return
 				default:
 				}
-				if n, err := p.addNote(Note{Box: CellBox{(i % 30) * 2, w, 2, 1}, Color: w, Text: "x"}, 80, 24, p.generation()); err == nil && i%2 == 0 {
+				if n, err := p.addNote(Note{Box: CellBox{(i % 30) * 2, w, 2, 1}, Color: w, Text: "x"}, 80, 24, 1, p.generation()); err == nil && i%2 == 0 {
 					p.resolveNote(NoteResolution{ID: n.ID})
 				}
 			}

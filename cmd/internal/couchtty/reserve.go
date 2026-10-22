@@ -154,6 +154,8 @@ func slotGlyphBase(glyph rune) (styleBase, bool) {
 // contract. Stated because the two bases meet in this feature and an unstated
 // one is an off-by-one waiting for a narrow terminal.
 type ChipSpan struct {
+	// Row is zero-based within the tab bar; the one-row renderer leaves it zero.
+	Row    int
 	Thread couchcore.ThreadAddress
 	Start  int
 	End    int
@@ -223,8 +225,15 @@ func (r RenderedStatusRow) ColumnToActor(column int) (couchcore.ThreadAddress, b
 // operator's screen. Stripping also makes truncation honest, since after it
 // every remaining byte occupies the columns textwidth says it does.
 func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
+	r, _, _ := renderStatusCells(width, m, nil, false, -1)
+	return r
+}
+
+// renderStatusCells shares the control, styling and hit-span pass with both APIs.
+// prefixLimit bounds controls only; -1 preserves the normal control budget.
+func renderStatusCells(width int, m StatusModel, cells []chipCell, planned bool, prefixLimit int) (RenderedStatusRow, int, int) {
 	if width <= 0 {
-		return RenderedStatusRow{}
+		return RenderedStatusRow{}, 0, 0
 	}
 	var row strings.Builder
 	used := 0
@@ -238,6 +247,10 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		} else {
 			badge = ""
 		}
+	}
+	actorBudget := width
+	if prefixLimit >= 0 && prefixLimit < width {
+		width = prefixLimit
 	}
 	appendText := func(text, sgr string) {
 		if used >= width || text == "" {
@@ -351,12 +364,26 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		}
 		appendText(rowtext.Sanitize(m.CapabilityNotice), "")
 	}
+	prefixUsed := used
+	width = actorBudget
 	var chips []ChipSpan
 	lead := 0
 	if used > 0 {
 		lead = 2
 	}
-	for _, cell := range fitChips(m.Actors, width-used-lead) {
+	if !planned {
+		cells = fitChips(m.Actors, width-used-lead)
+	}
+	appendNotice := func() {
+		if n := rowtext.Sanitize(m.Notice); n != "" {
+			if used > 0 {
+				appendText("  · ", "")
+			}
+			appendText(n, "")
+		}
+	}
+	noticeDrawn := false
+	for _, cell := range cells {
 		gap := ""
 		if used > 0 {
 			gap = cellGap(cell)
@@ -365,6 +392,19 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 			// A count is drawn whole or not at all: `+` alone reads as nothing.
 			if used+textwidth.Width(gap+cell.label) > width {
 				break
+			}
+			if planned && m.Notice != "" {
+				// A planned overflow marker belongs at the final row's end.
+				// Let a transient notice use only the space before that marker.
+				savedWidth := width
+				width -= textwidth.Width(cell.label) + 2
+				appendNotice()
+				width = savedWidth
+				noticeDrawn = true
+				gap = ""
+				if used > 0 {
+					gap = "  "
+				}
 			}
 			appendText(gap+cell.label, "")
 			continue
@@ -424,11 +464,8 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 			chips = append(chips, ChipSpan{Thread: a.Thread, Start: start, End: used})
 		}
 	}
-	if n := rowtext.Sanitize(m.Notice); n != "" {
-		if used > 0 {
-			appendText("  · ", "")
-		}
-		appendText(n, "")
+	if !noticeDrawn {
+		appendNotice()
 	}
 	var attention ColumnSpan
 	if badge != "" {
@@ -442,7 +479,7 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		appendText(badge, sgr)
 		attention = ColumnSpan{Start: start, End: used}
 	}
-	return RenderedStatusRow{Body: row.String(), Chips: chips, Control: control, Pointer: pointer, Notes: notes, Webcast: webcastSpan, WebFocus: webFocusSpan, WebPointerLink: webPointerLinkSpan, WebDriveLink: webDriveLinkSpan, WebNotes: webNotesSpan, WebDrive: webDriveSpan, Attention: attention}
+	return RenderedStatusRow{Body: row.String(), Chips: chips, Control: control, Pointer: pointer, Notes: notes, Webcast: webcastSpan, WebFocus: webFocusSpan, WebPointerLink: webPointerLinkSpan, WebDriveLink: webDriveLinkSpan, WebNotes: webNotesSpan, WebDrive: webDriveSpan, Attention: attention}, prefixUsed, actorBudget
 }
 
 // AttentionGlyph leads the attention badge (pair#673).
