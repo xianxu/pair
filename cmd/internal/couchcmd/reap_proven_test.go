@@ -239,3 +239,59 @@ func TestProvenOrphanSignalRepeatsOwnershipVetoBeforeKill(t *testing.T) {
 		})
 	}
 }
+
+func TestProvenOrphanSignalReauthenticatesCallerAndOwnerBeforeKill(t *testing.T) {
+	for _, mutation := range []string{"recorded-incarnation", "hub-assignment"} {
+		t.Run(mutation, func(t *testing.T) {
+			r, bindings := hubMessageRig(t)
+			resources, _, table := provenEffectService(t)
+			r.s.resources.Store(resources.resources.Load())
+			r.s.provenOrphanProcesses = table
+			hubs := r.s.authority.hubs
+			// Keep the owning hub's role while making the fixture target an
+			// ordinary managed slot, so the public ownership transition can
+			// move it between the two exact effect requests.
+			definitions := hubs.snapshot().Hubs()
+			definitions[0].Slot.Number = 3
+			state, err := couchcore.NewHubOwnership(definitions)
+			if err != nil {
+				t.Fatal(err)
+			}
+			hubs.mu.Lock()
+			hubs.state = state
+			hubs.mu.Unlock()
+			caller := bindings[0]
+			request := effectRequest()
+			request.Scope, request.Tag, request.Session, request.Nonce = caller.Scope, caller.Tag, caller.Session, caller.Nonce
+			term := r.s.handleProvenOrphanSignal(context.Background(), request)
+			if term.OrphanSignal == nil || term.OrphanSignal.Status != "sent" {
+				t.Fatalf("owning hub TERM: %+v", term)
+			}
+			switch mutation {
+			case "recorded-incarnation":
+				r.world.set(caller, func(slot *worldSlot) { slot.recorded = false })
+			case "hub-assignment":
+				hubs.mu.Lock()
+				next, err := hubs.state.Apply(couchcore.HubMove{
+					Slots:  []couchcore.HubSlot{{Repository: "/repo", Number: 0}},
+					Caller: "/repo0", Target: "/repo1", Revision: hubs.state.Revision(),
+				})
+				if err == nil {
+					hubs.state = next
+				}
+				hubs.mu.Unlock()
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			request.OrphanSignal = "KILL"
+			kill := r.s.handleProvenOrphanSignal(context.Background(), request)
+			if kill.OrphanSignal == nil || kill.OrphanSignal.Status != "refused" {
+				t.Fatalf("changed %s KILL: %+v", mutation, kill)
+			}
+			if len(table.signals) != 1 || table.signals[0] != syscall.SIGTERM {
+				t.Fatalf("signals after %s: %v", mutation, table.signals)
+			}
+		})
+	}
+}

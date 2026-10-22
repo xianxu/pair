@@ -54,33 +54,35 @@ func TestOwnershipProofJoinsWhenSamplerLifetimeEnds(t *testing.T) {
 // still take exactly one table and one inventory observation per effect and
 // perform no metrics/argv/cwd probes. Existing classifier ordering stays shared.
 func TestCollectOwnershipCountsRowsAndSlotsIndependently(t *testing.T) {
-	for _, rows := range []int{8, 16} {
-		for _, slots := range []int{8, 16} {
-			t.Run(fmt.Sprintf("P%d-S%d", rows, slots), func(t *testing.T) {
-				f := &samplerReader{}
-				for i := 0; i < rows; i++ {
-					f.rows = append(f.rows, procutil.Process{PID: 100 + i, PPID: 1, Identity: fmt.Sprint(i), Name: "zellij"})
-				}
-				s := testResourceSampler(f)
-				var reads atomic.Int64
-				s.slots = func() couchcore.ResourceSlotInventory {
-					reads.Add(1)
-					inventory := couchcore.ResourceSlotInventory{Complete: true}
-					for i := 0; i < slots; i++ {
-						inventory.Slots = append(inventory.Slots, couchcore.ResourceSlot{Slot: fmt.Sprint(i), OwnershipKnown: true})
+	for _, requests := range []int{8, 16} {
+		for _, rows := range []int{8, 16} {
+			for _, slots := range []int{8, 16} {
+				t.Run(fmt.Sprintf("K%d-P%d-S%d", requests, rows, slots), func(t *testing.T) {
+					f := &samplerReader{}
+					for i := 0; i < rows; i++ {
+						f.rows = append(f.rows, procutil.Process{PID: 100 + i, PPID: 1, Identity: fmt.Sprint(i), Name: "zellij"})
 					}
-					return inventory
-				}
-				for i := 0; i < 16; i++ {
-					sample, _, _ := s.collectOwnership(context.Background())
-					if len(sample.Table) != rows || len(sample.Slots) != slots {
-						t.Fatal("ownership inputs changed")
+					s := testResourceSampler(f)
+					var reads atomic.Int64
+					s.slots = func() couchcore.ResourceSlotInventory {
+						reads.Add(1)
+						inventory := couchcore.ResourceSlotInventory{Complete: true}
+						for i := 0; i < slots; i++ {
+							inventory.Slots = append(inventory.Slots, couchcore.ResourceSlot{Slot: fmt.Sprint(i), OwnershipKnown: true})
+						}
+						return inventory
 					}
-				}
-				if f.tables != 16 || reads.Load() != 16 || len(f.usages)+len(f.commands)+len(f.cwds)+len(f.environments) != 0 {
-					t.Fatalf("tables %d slots %d extra probes", f.tables, reads.Load())
-				}
-			})
+					for i := 0; i < 2*requests; i++ {
+						sample, _, _ := s.collectOwnership(context.Background())
+						if len(sample.Table) != rows || len(sample.Slots) != slots {
+							t.Fatal("ownership inputs changed")
+						}
+					}
+					if f.tables != 2*requests || reads.Load() != int64(2*requests) || len(f.usages)+len(f.commands)+len(f.cwds)+len(f.environments) != 0 {
+						t.Fatalf("tables %d slots %d extra probes", f.tables, reads.Load())
+					}
+				})
+			}
 		}
 	}
 }

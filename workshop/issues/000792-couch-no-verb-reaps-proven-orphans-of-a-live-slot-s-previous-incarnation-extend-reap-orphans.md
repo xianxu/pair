@@ -34,7 +34,7 @@ previous incarnation: zellij 66561, pair 66575 and 66576 (`pair wrap`, `pair ter
 - `couch --reap-orphans --confirm` covers only unattributed embedded nvim;
 - from a different hub, `--reap` refuses with "slot belongs to hub …" (correct).
 
-Fix: `--reap-orphans --confirm` (run by the owning hub, or the machine steward) also ends **proven orphans of a
+Fix: `--reap-orphans --confirm` (run by the authenticated owning hub, or the unbound local operator) also ends **proven orphans of a
 previous incarnation** of a live slot, the set `--resources` already proves, each signal fenced on the process
 identity the sweep recorded, never touching the live incarnation's processes. Report what was ended.
 
@@ -42,7 +42,7 @@ identity the sweep recorded, never touching the live incarnation's processes. Re
 
 Keep the existing argv and preview/confirmation distinction. Reuse the monitor's `SelectResourceProcesses` proof; freeze the admitted exact process keys and never expand their descendants. A CLI exact-set coordinator uses the existing TERM/3 s/KILL/2 s cadence. Each short supervisor-side effect request rechecks the frozen target against current process/inventory proof, authenticates an owning hub when caller credentials are supplied, and rechecks a nonempty start identity before signalling one PID. Unknown, stale or current ownership refuses; lost replies remain uncertain and do not authorize automatic resend/escalation.
 
-Hub pin 941a9381-a841-44ca-98b0-7e10a90936b3 approves authenticated owning hubs only (workers and other hubs refused), with entirely unbound local CLI requests using the existing owner-only socket as the operator boundary. There is no new machine-steward role. The [durable plan](../plans/000792-proven-orphan-reap-plan.md) describes the protocol, state outcomes, counted scan cost, overlap handling, tests and live acceptance; the complete design awaits approval before change-code.
+Hub pin 941a9381-a841-44ca-98b0-7e10a90936b3 approves authenticated owning hubs only (workers and other hubs refused), with entirely unbound local CLI requests using the existing owner-only socket as the operator boundary. There is no new machine-steward role. The [durable plan](../plans/000792-proven-orphan-reap-plan.md) describes the protocol, state outcomes, counted scan cost, overlap handling, tests and live acceptance; the complete design and authoritative refinements were approved and admitted through change-code.
 
 ## Done when
 
@@ -57,8 +57,8 @@ Hub pin 941a9381-a841-44ca-98b0-7e10a90936b3 approves authenticated owning hubs 
 
 - [x] Approve the durable plan and enter change-code through the full-flow gate.
 - [x] Add pure exact-target proof and strict protocol shapes; verify the negative authority/identity cases first.
-- [ ] Implement the guarded exact executor and supervisor effect owner, with stateful transition and counted-cost tests.
-- [ ] Wire preview/confirmed CLI reporting, prove disposable public-command behavior, document, verify and land through SDLC.
+- [x] Implement the guarded exact executor and supervisor effect owner, with stateful transition and counted-cost tests.
+- [ ] Wire preview/confirmed CLI reporting, prove disposable public-command behavior, document and run the required recorded verification before the SDLC close review.
 
 ## Log
 
@@ -112,6 +112,14 @@ A new deterministic regression reproduced an incomplete orphan witness being exc
 
 Authenticated hub approval8c0e8477-dcd4-495d-a6b9-ea4f95285957 permits one focused Go process per personality on this final source, preserving96MiB and every existing time/frame/output limit. Keep the startup miss unclassified; do not register the safety test as flaky. Checkpoint first, then final Claude/Codex runs, required recorded suite and close. No suite or landing runner is active.
 
+### 2026-10-22 — focused native acceptance passes
+
+Both approved focused commands passed on76cc79deb00a92833f0a6ddf5ee13f7ee9a6c50c. Each reaped exactly six old identities, preserved the current agent, accepted public delivery and completed exact-generation/direct-child/IO/root cleanup. Claude completed49.684s, confirmed reap152.182ms, writes81387520bytes; Codex43.914s, confirmed157.283ms, writes81444864bytes. Both are below the unchanged100663296-byte cap. Commands used PAIR_LIVE_PROVEN_REAP=1 with go test ./cmd/internal/couchcmd -run '^TestLiveProvenOrphanReap$/claude$' (or /codex$), -count=1 -v. Logs: /Volumes/TestScratch/tmp/pair-slot2/pair-792-native-claude.GrB3z3/native.log SHA256f5767dcaad9e46458903fadb103dc75d0772d05b88a26a24ebe85360648b84df; /Volumes/TestScratch/tmp/pair-slot2/pair-792-native-codex.891kPz/native.log SHA256d63a282fb735b06c1ae47692d9a43051396447656d26523f2bc0c5b9b5939b90. Prior startup failures remain unclassified evidence, not erased by these passes.
+
+Pre-close traceability audit found missing explicit between-TERM/KILL caller/hub-change regressions and mixed-own/foreign CLI composition coverage. Add these approved-contract tests before recorded verification; no production change is required. The new caller/hub mutation race test passes1.549s; independently varying K/P/S at8/16 passes1.453s with exactly2K proof table/inventory observations. The plan's measurement clarification distinguishes deterministic operation counters from native outcome/time/write evidence.
+
+Mixed-owner real service composition now covers all four preview/confirmed and text/JSON cases with the actual classification worker, actual effect handler and real temporary legacy registry overlap. Its race selection passes1.596s; the combined reap/proof/count race selection passes1.857s. Reader audit and diff whitespace check pass. These additions change tests/documentation only; native and product sources remain unchanged from76cc79deb. Checkpoint final coverage before another pair of final-head focused native commands and the recorded check.
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. The source is marked stale by estimate-source; this is a provisional calibration, not a fitted total.
@@ -137,3 +145,5 @@ total: 4.033
 
 - 2026-10-22 — Design inspection found descendant expansion and a missing caller authority boundary. Preserve the original incident and two acceptance requirements; add the approved hub/operator contract and adversarial acceptance cases, and link the full implementation plan. No relaxation of identity or live-incarnation protection.
 - 2026-10-22 — PQ-1/2/3 refinement adds the missing detached-root evidence owner, a structurally enforced invocation transition model and production-function test strategies. The complete proof may require existing generation-cached environment reads; the earlier zero-environment-read claim is superseded. No new durable state, widened target set, role or deadline.
+
+- 2026-10-22 — Reconcile current Spec with the approved owning-hub/unbound-operator boundary (no machine-steward role) and completed design gate. The last Plan row now names pre-close acceptance; close, landing and the outcome report remain mandatory subsequent SDLC actions, recorded in the Log. No implementation scope or acceptance is relaxed.
