@@ -1,8 +1,8 @@
 ---
 id: 000738
-status: codecomplete
+status: done
 created: 2026-10-20
-updated: 2026-10-21
+updated: 2026-10-22
 estimate_hours:
 github_issue:
 started: 2026-10-20T19:58:34-07:00
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 71623e8e30520581a091fdd4536230ed43190e09
         evidence_commit: cb4c3354739b9e0c32e97a7fcc6df338601b0ae4
+        landed_commit: 3bd88d877625007aef6ca4b6bb993e362e35ddb1
 ---
 
 # Affected package graph falls back to full suite before runtime bundle preparation
