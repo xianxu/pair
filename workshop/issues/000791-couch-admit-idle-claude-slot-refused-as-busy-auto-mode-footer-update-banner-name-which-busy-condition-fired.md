@@ -41,7 +41,12 @@ which of the three busy conditions fired; the refusal should name the one that d
 
 ## Plan
 
-- [ ]
+Implementation: [durable plan](../plans/000791-couch-admission-plan.md). Await TL approval before code.
+
+- [ ] Preserve three native idle captures and isolate the actual transient refusal.
+- [ ] Explain restart refusals at admission and effect time from wrapper evidence.
+- [ ] Capture exact refused screen/condition after bounded active-delivery wait.
+- [ ] Fix a reproduced recognition defect; qualify safety, disposable acceptance and recorded checks.
 
 ## Log
 - 10-21 22:0x (ops:0): **a Codex case, possibly the same class.** parley.nvim:3 (Codex, tag 1-parley-nvim-83) idle at an
@@ -70,3 +75,12 @@ which of the three busy conditions fired; the refusal should name the one that d
 - 12:23 operator clarification (authenticated dispatch 95e4c949-c196-485c-ac04-007c139910c9): intermittent, perhaps twice daily, with delivery otherwise working while the update banner remains for hours. Detection: session-file submit gives no immediate agent-bar message, or the usually busy hub goes quiet. Banner presence alone cannot explain this. Investigate redraw/resize/queued-message/spinner/turn-end transients. Add bounded automatic capture of the refused screen and precise blocking condition after a delivery wait threshold.
 - Claimed and started planning from current main, independently of #737. start-plan refreshed its ariadne substrate; weave generated an unrelated merge-check workflow change. Preserved that generated change in the named stash `#791: preserve unrelated weave refresh workflow output`, excluded from this issue.
 - Initial trace: live-restart admission consumes only a settled boolean and conflates its causes; peer delivery has separate pre-paste conditions and does not require the turn to be inactive. Claude footer wording is outside its ruled-box composer recognizer. Therefore do not equate restart-busy with a peer-delivery turn gate, and do not declare the banner the root cause without replay evidence.
+
+- Scratch-only native replay completed: `go test -overlay /Volumes/TestScratch/pair791-replay.v_daojgb/overlay.json ./cmd/internal/wrapcmd -run '^TestInvestigation791CaptureReplay$' -count=1 -v` PASS, package 4.596s. The retained ops:0 bypass/banner screen (54,648,427 bytes / 92 resize events), echo:3 earlier 1-echo-87 auto/banner pre-exit screen (80,031 bytes / 5 resizes), and parley.nvim:3 blank-line/one-warning screen (9,662,972 bytes / 48 resizes) all yielded PeerComposerEmpty, complete=true, cursor visible=true, at (2,33), (2,34), (2,35) respectively. This is a passing control, not reproduction of a stalled moment. The unconditional wait-detail helper is meaningful only on unknown composer; its generic string printed by this scratch probe does not describe a refusal when the composer enum is Empty.
+- Durable plan: workshop/plans/000791-couch-admission-plan.md. No production code changed. Proposed one active-delivery capture at 15s, 64KiB total record through existing bounded wrap-events writer, exact refusal and cursor/frame/style evidence; narrow read-only settle-observe for restart diagnostics without changing admission policy or session dialect. Root-cause fix remains blocked on a failing captured transition, not on a guessed banner match.
+
+## Revisions
+
+### 2026-10-22 — operator/TL expanded reproduction and capture scope
+
+The original auto-footer/banner-only acceptance is insufficient: recurring stalls survive #735, delivery usually works with the banner present, and a Codex case exists. Add bypass-footer/banner and banner-free controls, the captured Codex case, explicit actual refusal at restart admission/effect time, and bounded automatic capture of the refused screen/condition after a delivery wait threshold. Preserve draft/picker/unknown-state refusal. Completion requires a failing captured transition, regression and narrow fix, diagnostics failure/cap/ordering tests, and TL-coordinated real acceptance; passing static controls alone do not establish completion. Earlier Log entries remain historical evidence rather than an all-stalls root-cause claim.
