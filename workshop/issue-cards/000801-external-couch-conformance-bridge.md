@@ -1,6 +1,6 @@
 ---
 id: 000801
-status: working
+status: codecomplete
 created: 2026-10-22
 updated: 2026-10-22
 estimate_hours: 3.75
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+actual_hours: 6.51
+tracker:
+    version: 1
+    completion:
+        token: close-503a1d9a5e37
+        repository: github.com/xianxu/pair
+        reviewed_head: 510d18f8b3893c19c177016774019b57740b2222
+        evidence_commit: bd3b72585ff673a975b203c853e3d366ba8055d9
 ---
 
 # External hold-open Couch conformance bridge
