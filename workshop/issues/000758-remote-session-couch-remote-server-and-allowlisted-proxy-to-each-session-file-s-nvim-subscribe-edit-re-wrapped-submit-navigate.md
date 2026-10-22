@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-20
 updated: 2026-10-22
-estimate_hours:
+estimate_hours: 4.136
 collaboration-mode: collaboration
-card_mirror: '78174d1dae810886cdd450ccb341e69fa15ac486' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '4d651715eb3071d5971c7e99348a29f8b91adaf8' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-22T04:59:40-07:00
 claimant:
     operator: Xian Xu
@@ -68,3 +68,30 @@ Initial unpinned change-code inferred quick from the short design despite this p
 TL79aac81f splits the initial producer milestone into the entire #758 scope, so it can land before #405. Original allowlisted document/nvim adapter and integrated security/phone qualification are preserved in unclaimed #798, deps #758, parley.nvim#405 and #759. No milestone-only landing or stacked development. #759's operator iPhone check retains dispatch priority.
 
 Final consolidated producer contract confirmed by parley.nvim:1 receipt7d43957e (fields, monotone decimal AttachID, codes/bounds/deadlines, namespace/private root ownership, nil exact retirement, notice-before-ack). Parley fences advertised attachment and listener only; established native RPC channels cannot be revoked by the plugin. Future adapter (#798) gates every operation by generation and retires its old channels; typed editor methods also reject retired tuples. Native crash-orphan directory policy is separately with TL; producer never deletes editor runtime paths.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration currently marked stale by estimate-source; use provisionally rather than invent another model.
+
+Decomposition in order: initial contract/spec coordination; pure endpoint transition model; retained-raw codec/store extension; owner admission/publication lifecycle; fixed Neovim API integration and stateful fake; existing CLI/IPC/namespace extension; cleanup/lifetime qualification; one native API conformance discovery; one whole-issue boundary review; atlas/README/inventory. No adapter/phone feature budget (#798).
+
+Initial issue/spec design0.6h was not pre-resolved at claim. Other component designs use the thorough-spec x0.2 discount: model and owner each1.0->0.2; codec/CLI0.3->0.06; cleanup0.5->0.1; docs0.1->0.02. API integration design2.0 uses the library-availability half and x0.2 spec discount ->0.2: official github.com/neovim/go-client/nvim provides typed client/ExecLua, avoiding a custom MessagePack implementation; durability/process/IPC reuse existing seams. Implementation picks within the v2 table, scaled to40% per v3.1 (for example API1.5->0.6, model0.8->0.32). Familiarity1.0: existing Go/native-lifecycle patterns, one bounded API already separated and budgeted for discovery. One review is used although the closed primitive is named milestone-review. No vendor-mode cross-repo code propagation.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.6 impl=0.08
+item: greenfield-go-module design=0.2 impl=0.32
+item: smaller-go-module design=0.06 impl=0.2
+item: greenfield-go-module design=0.2 impl=0.32
+item: api-integration design=0.2 impl=0.6
+item: smaller-go-module design=0.06 impl=0.2
+item: greenfield-go-module design=0.1 impl=0.24
+item: real-api-discovery design=0 impl=0.24
+item: milestone-review design=0 impl=0.2
+item: atlas-docs design=0.02 impl=0.08
+design-buffer: 0.15
+total: 4.136
+```
+
+Design subtotal 1.44h x1.15 plus implementation subtotal 2.48h = 4.136h. This is focused ship-time, not a deadline; suite queue time is excluded by the actuals system.

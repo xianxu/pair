@@ -41,6 +41,41 @@ rounds:
           family: function-level-test-strategy
           round: 1
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: de453692-7c89-4863-834a-a62d5c434387
+            repository: github.com/xianxu/pair
+            issue_id: "000758"
+            recipe: plan-quality
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot6/pair
+            reviewed_head: bc84e05d20c5a00acfb56d8ee03c64f739320b86
+            slot: pair:6
+            requested_at: "2026-10-22T12:13:48.695346Z"
+          phase: finished
+          pid: 31810
+          started_at: "2026-10-22T12:13:48.783227Z"
+          finished_at: "2026-10-22T12:14:17.83968Z"
+          session_id: 01a16388-246e-7f63-8a56-8030faac80db
+          outcome: returned
+      "n": 2
+      timestamp: "2026-10-22T05:14:18-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Source.ReadIdentity preserves native errors; ClassifyEndpointProcess specifies shared positive-death and uncertainty semantics without host-table scans.
+          round: 2
+        - id: PQ-2
+          disposition: addressed
+          note: Named risky functions now have mechanical adversarial strategies; native conformance and integration qualification remain separate.
+          round: 2
+      blocked: false
+content_hash: 64d521378942ea17b7411cf1cffb50d95514712033e76a90ece764cd46cdb334
 ---
 
 # Gate ledger — pair#758 (plan-quality)
@@ -57,7 +92,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **PQ-2** [Important] `function-level-test-strategy` Replace prose test-case inventories with named functions and mechanical strategies
   The Tasks section at workshop/plans/000758-editor-endpoints-plan.md:141-147 enumerates cases but does not name the functions to unit-test; even the pure transition function and codec operations remain unnamed. Compress these inventories into one strategy line per risky function, identifying adversarial input classes and mechanical guards: generated event sequences with independent authority invariants, fuzzed strict decoding and lossless unknown-field round trips, and controllable IO ordering with publication/count bounds. Retain the native-conformance and integration scope separately.
 
+## Round 2 — 2026-10-22T05:14:18-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Source.ReadIdentity preserves native errors; ClassifyEndpointProcess specifies shared positive-death and uncertainty semantics without host-table scans.
+- PQ-2 — addressed — Named risky functions now have mechanical adversarial strategies; native conformance and integration qualification remain separate.
+
 ## Open findings
 
-- **PQ-1** [Important] `preserve-process-observation-evidence` Name an error-preserving per-PID seam for positive-death cleanup
-- **PQ-2** [Important] `function-level-test-strategy` Replace prose test-case inventories with named functions and mechanical strategies
+(none — every finding has been disposed)
