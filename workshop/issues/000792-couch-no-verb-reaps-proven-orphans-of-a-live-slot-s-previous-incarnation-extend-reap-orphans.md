@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-21
 updated: 2026-10-22
-estimate_hours:
+estimate_hours: 4.033
 collaboration-mode: collaboration
-card_mirror: '7c0f09869eb75a96b9a1ac6bbc05104ee46751fe' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '8cf2318f6c80190ae2470cc546af388fc2abc050' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-22T00:59:38-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # Couch: no verb reaps proven orphans of a live slot's previous incarnation; extend --reap-orphans
@@ -74,6 +75,27 @@ Asked the hub to pin the authority boundary in receipt eda16b29-ce04-4710-a5b2-4
 Hub approved the complete plan in submitted receipt cea188f7-9b5c-4999-879d-59404fd1971a and directed change-code. Disposable public-command proof with Claude and Codex is sufficient; no operator stage is needed. The first real use after landing is ops-echo's cleanup of echo:2's still-proven 10-21 leftovers. Enter the full-flow gate before implementation; estimate remains deferred until plan-quality clears.
 
 Plan-quality round 1 raised PQ-1 complete detached ownership, PQ-2 enforced transition model, and PQ-3 named production-function test strategies. Inspection confirms DetachedSlotRoots enriches a live background suite before SelectResourceProcesses; the raw roots alone can misclassify it (resource_detached_test.go's real reparenting regression). The plan refinement therefore shares the sampler's complete ownership stage on its existing worker, includes generation-cached gated environment evidence, and refuses unknown relevant enrichment. It also makes AdvanceExactReap the only progress/effect writer with tagged invocation states and generated sequence/interpreter checks, and replaces the active test inventories with function-level strategies. No code changed; request the hub's ownership/cost clarification approval and rerun plan-quality before deriving an estimate.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. The source is marked stale by estimate-source; this is a provisional calibration, not a fitted total.
+
+The approved plan resolves the design: apply ×0.2 to design, familiarity 1.0 for existing Go/protocol/process seams, 40% of table implementation hours, and the thorough-plan 15% design buffer. In order: issue/design checkpoint (base 1.0/0.2); pure target proof (1.0/0.8); exact transition model/executor (1.5/0.8); worker proof and guarded signal integration (2.0/1.5); CLI/reporting extension (0.3/0.5); disposable public-command conformance (1.0/1.5); docs (0.2/0.2); one close review (0.1/0.5). Each pair is base design/implementation hours before those discounts. Reuse the existing native reader, classifier, messaging transport and disposable-Couch harness: no novel platform library or external API needs discovery, and no library can replace the application-specific authority proof or reducer. No cross-repo propagation.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.2 impl=0.08
+item: greenfield-go-module design=0.2 impl=0.32
+item: greenfield-go-module design=0.3 impl=0.32
+item: api-integration design=0.4 impl=0.6
+item: smaller-go-module design=0.06 impl=0.2
+item: api-integration design=0.2 impl=0.6
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.02 impl=0.2
+design-buffer: 0.15
+total: 4.033
+```
 
 ## Revisions
 
