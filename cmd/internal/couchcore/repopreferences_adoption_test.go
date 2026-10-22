@@ -15,6 +15,8 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/storagegc"
+	"golang.org/x/sys/unix"
 )
 
 func acceptedTrackedFixture(t *testing.T, remember bool) (*testEnv, trackedThreadLaunch) {
@@ -315,5 +317,116 @@ func TestRepoConfigurationStartResultOmitsEphemeralCapabilityFromJSON(t *testing
 		if strings.EqualFold(name, "configuration") {
 			t.Fatalf("ephemeral acceptance capability serialized: %s", raw)
 		}
+	}
+}
+
+// The identity query happens after preview releases store.lock, immediately
+// before publication tries to acquire writer authority.
+type publicationContentionGit struct {
+	GitRunner
+	acquire  func() error
+	entered  chan struct{}
+	deadline time.Time
+}
+
+func (g *publicationContentionGit) RunContext(ctx context.Context, _ string, _ ...string) (string, error) {
+	var ok bool
+	g.deadline, ok = ctx.Deadline()
+	if !ok {
+		return "", errors.New("publication migration has no deadline")
+	}
+	// Spend part of migration's budget before writer admission. A writer that
+	// renews its own timeout must fail the remaining-budget assertion below.
+	untilWriter, cancel := context.WithDeadline(ctx, g.deadline.Add(-time.Second))
+	defer cancel()
+	<-untilWriter.Done()
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	if err := g.acquire(); err != nil {
+		return "", err
+	}
+	close(g.entered)
+	return "/repo/.git", nil
+}
+
+func TestRepoConfigurationPublicationBoundsCompetingWriter(t *testing.T) {
+	for _, kind := range []string{"store", "coordinator"} {
+		t.Run(kind, func(t *testing.T) {
+			env, in := acceptedTrackedFixture(t, true)
+			record, handle, err := env.Couch.launchTrackedThread(in)
+			if err != nil {
+				t.Fatal(err)
+			}
+			result := StartResult{Record: record, Handle: handle}
+			if err := env.Couch.Threads.rememberRepoConfiguration("/repo/.git", LaunchProfile{Agent: "codex", Argv: []string{"--model", "prior"}}, nil); err != nil {
+				t.Fatal(err)
+			}
+			before, err := os.ReadFile(env.Couch.Threads.repoPreferencesPath())
+			if err != nil {
+				t.Fatal(err)
+			}
+			legacyRepoWrite(t, env.Couch.Threads, "/repo/.git", "/repo/one", []string{"--model", "legacy"})
+			lockPath := filepath.Join(env.Couch.Threads.root, "store.lock")
+			if kind == "coordinator" {
+				coordinator, err := storagegc.NewCoordinator(t.TempDir())
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := coordinator.WithLock(context.Background(), func(*storagegc.Locked) error { return nil }); err != nil {
+					t.Fatal(err)
+				}
+				env.Couch.Threads.coordinator = coordinator
+				lockPath = filepath.Join(coordinator.Root, ".retention", "coordinator.lock")
+			}
+			file, err := os.OpenFile(lockPath, os.O_RDWR, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer file.Close()
+			var releaseOnce sync.Once
+			release := func() { releaseOnce.Do(func() { _ = unix.Flock(int(file.Fd()), unix.LOCK_UN) }) }
+			defer release()
+			git := &publicationContentionGit{GitRunner: env.Couch.Git, entered: make(chan struct{}), acquire: func() error { return unix.Flock(int(file.Fd()), unix.LOCK_EX) }}
+			env.Couch.Git = git
+			done := make(chan struct{})
+			go func() { env.Couch.PublishAdoptedConfiguration(result); close(done) }()
+			select {
+			case <-git.entered:
+			case <-done:
+				t.Fatalf("publication failed before writer barrier: %q", result.Warning())
+			case <-time.After(5 * time.Second):
+				t.Fatal("publication never entered writer barrier")
+			}
+			// Both locks may consume only the remaining migration budget,
+			// never a fresh five-second window.
+			wait := time.Until(git.deadline) + 500*time.Millisecond
+			timer := time.NewTimer(wait)
+			defer timer.Stop()
+			select {
+			case <-done:
+			case <-timer.C:
+				release()
+				<-done
+				t.Fatal("optional publication blocked beyond its admission bound")
+			}
+			if !handle.Alive() || !strings.Contains(result.Warning(), "not remembered") {
+				t.Fatalf("contention lost adopted child or warning: alive=%v warning=%q", handle.Alive(), result.Warning())
+			}
+			if !strings.Contains(result.Warning(), context.DeadlineExceeded.Error()) {
+				t.Fatalf("coordinator admission renewed or lost deadline: %q", result.Warning())
+			}
+			after, err := os.ReadFile(env.Couch.Threads.repoPreferencesPath())
+			if err != nil || !bytes.Equal(before, after) {
+				t.Fatalf("failed publication changed canonical bytes: %v", err)
+			}
+			warning := result.Warning()
+			release()
+			env.Couch.PublishAdoptedConfiguration(result)
+			after, err = os.ReadFile(env.Couch.Threads.repoPreferencesPath())
+			if err != nil || !bytes.Equal(before, after) || result.Warning() != warning {
+				t.Fatal("completed failed acceptance retried after lock release")
+			}
+		})
 	}
 }

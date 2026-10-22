@@ -1031,9 +1031,9 @@ func wireResolver(console *couchtty.Console, c *couchcore.Couch, configuredHubs 
 					}
 					if err != nil && call.Operation.Name == "attach" {
 						if start, ok := call.TypedPayload.(couchcore.StartResult); ok {
-							// Attach runs on the console goroutine, and the abort may
-							// wait on the thread's gate: run it off that goroutine so
-							// the console keeps rendering and draining results
+							// Attach runs on a lifecycle worker (or before Run at
+							// startup). Abort may wait on the thread's gate, so keep
+							// cleanup tracked without delaying the attach reply
 							// (pair#205). The attach error is the operation's answer;
 							// a cleanup failure beyond it follows as a notice.
 							attachErr := err

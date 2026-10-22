@@ -3,10 +3,12 @@
 package couchcore
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
@@ -37,4 +39,17 @@ func unlockThreadStoreFile(file *os.File) error {
 		return nil
 	}
 	return errors.Join(unix.Flock(int(file.Fd()), unix.LOCK_UN), file.Close())
+}
+
+// waitForStoreLockContext waits between nonblocking admission attempts.
+// A cancellable wake avoids leaving a goroutine blocked in flock after return.
+func waitForStoreLockContext(ctx context.Context) error {
+	timer := time.NewTimer(10 * time.Millisecond)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/xianxu/pair/cmd/internal/osfs"
+	"golang.org/x/sys/unix"
 )
 
 // Repository arguments belong to the global Couch namespace, even when a thread
@@ -46,7 +47,7 @@ func (s *ThreadStore) readRepoPreferencesLocked() (RepoPreferences, error) {
 
 // Final adoption calls this after releasing thread/registry locks. A publication
 // error is a warning on the adopted child; it never enters launch rollback.
-func (s *ThreadStore) rememberRepoConfiguration(repoIdentity string, profile LaunchProfile, sources []LegacyRepoPreference) error {
+func (s *ThreadStore) rememberRepoConfigurationContext(ctx context.Context, repoIdentity string, profile LaunchProfile, sources []LegacyRepoPreference) error {
 	if s == nil || s.readOnly {
 		return errors.New("cannot publish repository arguments through a preview store")
 	}
@@ -54,7 +55,7 @@ func (s *ThreadStore) rememberRepoConfiguration(repoIdentity string, profile Lau
 	if err != nil {
 		return err
 	}
-	return global.withLock(func() error {
+	update := func() error {
 		doc, err := global.readRepoPreferencesLocked()
 		if err != nil {
 			return err
@@ -76,8 +77,22 @@ func (s *ThreadStore) rememberRepoConfiguration(repoIdentity string, profile Lau
 		if err != nil {
 			return fmt.Errorf("remember repository arguments %s (inspect/archive settings): %w", global.repoPreferencesPath(), err)
 		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		return global.writeStoreAtomicLocked(global.repoPreferencesPath(), raw)
-	})
+	}
+	// Each attempt releases the coordinator before waiting for a busy nested
+	// store. Brief concurrent publications serialize within the original budget.
+	for {
+		err := global.withUpdateLockContext(ctx, update)
+		if !errors.Is(err, unix.EWOULDBLOCK) && !errors.Is(err, unix.EAGAIN) {
+			return err
+		}
+		if err := waitForStoreLockContext(ctx); err != nil {
+			return err
+		}
+	}
 }
 
 // One namespace inventory may contain sources from several repositories. Group

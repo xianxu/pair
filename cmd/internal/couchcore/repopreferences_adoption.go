@@ -59,7 +59,7 @@ func (c *Couch) PublishAdoptedConfiguration(started StartResult) {
 			if err != nil {
 				return err
 			}
-			return c.Threads.rememberRepoConfiguration(accepted.repoIdentity, accepted.profile, sources)
+			return c.Threads.rememberRepoConfigurationContext(ctx, accepted.repoIdentity, accepted.profile, sources)
 		}
 		if err := publish(); err != nil {
 			accepted.mu.Lock()

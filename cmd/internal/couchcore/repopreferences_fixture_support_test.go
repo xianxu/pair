@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -104,4 +105,10 @@ func (s *ThreadStore) previewRepoPreferences() (RepoPreferences, error) {
 	doc := RepoPreferences{SchemaVersion: RepoPreferencesSchemaVersion, Repositories: map[string]RepoLaunchPreference{}}
 	err = global.withPreviewLock(func() error { var readErr error; doc, readErr = global.readRepoPreferencesLocked(); return readErr })
 	return doc, err
+}
+
+// Test fixtures accept configuration directly; production publishes only through
+// final adoption with its shared migration/publication deadline.
+func (s *ThreadStore) rememberRepoConfiguration(repoIdentity string, profile LaunchProfile, sources []LegacyRepoPreference) error {
+	return s.rememberRepoConfigurationContext(context.Background(), repoIdentity, profile, sources)
 }
