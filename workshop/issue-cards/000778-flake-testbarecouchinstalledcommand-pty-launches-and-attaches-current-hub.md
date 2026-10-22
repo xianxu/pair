@@ -1,6 +1,6 @@
 ---
 id: 000778
-status: codecomplete
+status: done
 created: 2026-10-21
 updated: 2026-10-22
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 5dc34bb27415a64474ef501fc08bf27831507d86
         evidence_commit: d55ae7709826499d01e696e6e37821e011a87941
+        landed_commit: 8296e90e5628d3fa1cf547a0bd375291c87fce3b
 ---
 
 # flake: TestBareCouchInstalledCommand/pty_launches_and_attaches_current_hub
