@@ -109,3 +109,105 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T14:23:31-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 809 — flake: TestRunPropagatesChildExitCode |
+| repo | pair |
+| issue file | workshop/issues/000809-flake-testrunpropagateschildexitcode.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 7b9440e8c92663f8ee189f54a1260e3043a78f07..b54e8064574d5962a25811704f3ad4998078a30a |
+| command | sdlc close --issue 809 |
+| reviewer | claude (anthropic; author anthropic) |
+| isolation | fenced |
+| timestamp | 2026-10-22T14:23:31-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Running the tests passed on the pinned head. Next I'm reverting the sign normalisation to check that the ENXIO regression test goes red without it.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+This change fixes the root cause of the flake. XNU's ptmx allocator races and intermittently returns ENXIO; the fix retries the allocation at most three times, on ENXIO only and on darwin only, as the hub approved. The guard handles the negated errno that was actually measured. I confirmed the regression test proves it: with the sign normalisation in `isTransientPTYAlloc` removed, `TestDarwinStartRidesOutTransientAllocationENXIO` fails in three cases (raw spelling, recovers on the last attempt, exhausts the bound). Restored, it passes.
+
+On the pinned head, `go test ./cmd/internal/scribecmd -count=1` passes (37.7s) and `GOOS=linux go vet` is clean. The two blocking findings from round 1 are resolved. In scribecmd, the only raw `pty.Open` left is the documented exception at line 367, and `## Done when` now matches the hub ruling.
+
+Round 1's BR-3 was based on a wrong reading. The Spec never measured a negated errno coming from the ioctls, and its fix copied that overclaim into the atlas. I've withdrawn BR-3 and raised the full set of affected comments as one Minor finding. It doesn't block.
+
+1. **Strengths**
+   - `pty_darwin.go:64-97`: the retry loop takes the opener as a parameter, so the test can inject failures with no real IO. `isTransientPTYAlloc` is a pure function. The bound of three attempts and the absence of backoff are both justified by the measurement table quoted in the code.
+   - `pty_darwin_test.go:134-183`: the cases cover both sign conventions, recovery on the last attempt, running out of attempts, and an unrelated errno that must not be retried. These are exactly the edge cases that matter.
+   - `scribecmd_test.go:303-308` fixes the test oracle. It checks Run's stderr is empty before comparing the exit code, so a scribe abort can no longer be reported as a wrong child exit code.
+   - `TestRunFatalSitesExitOneWithDiagnostic` reuses the existing `start` seam to pin the log-open, pty-start and `cmd.Wait` sites. Its comment points to where the other sites are pinned.
+   - `pty_other.go:12`: the non-darwin `openPTY` just calls `pty.Open`. That keeps the untagged test fixture compiling on Linux without adding a retry there.
+
+2. **Critical findings:** none.
+
+3. **Important findings:** none.
+
+4. **Minor findings**
+   - The negated errno's origin is misstated in several places. The Spec says every failure was at `open(/dev/ptmx)` and the ioctls never failed. The comments either say -6 was measured from both paths, or put it on the ioctls alone. The affected comments are listed in the findings block below.
+
+5. **Test coverage**
+   - The fix fails without its regression test, which I checked by reverting it.
+   - Every Done-when clause that has two states is tested in both: positive and negated spelling, recovery and running out of attempts, retried and not retried.
+   - The fixture sweep (BR-1) changes test code to avoid an OS race, so a deterministic regression test isn't possible. That's acceptable evidence for a fixture-only fix.
+
+6. **Architectural notes**
+   - **ARCH-DRY: pass.** All production and fixture allocations in the package go through one `openPTYRetry`.
+   - **ARCH-PURE: pass.** The classifier is pure and the opener is injected.
+   - **ARCH-PURPOSE: pass for this issue.** It fixes production and the registered test, not just the test.
+     - Outside this issue: about 25 raw `pty.Open`/`pty.Start` fixtures in other packages are exposed to the same XNU race, e.g. `couchcmd/run_test.go`, `ttyio/writer_test.go`, `wrapcmd/retention_test.go`.
+     - That fits the hub ruling (darwin `startPTY` only) and the package-private helper. Fixing those would mean a shared allocation helper and its own issue, which is a reasonable follow-up.
+   - **ARCH-EVOLVE: pass.** No persisted format changes; the affected-readers JSON keeps its schema and only the sha changes.
+
+7. **Plan revision recommendations**
+   - In the Spec or `## Revisions`: if the comments are corrected, note that the -6 measurement is from `syscall.Open` on `/dev/ptmx` only. The ioctl path is covered by the sign normalisation as a precaution, not because it was observed failing.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      pty_darwin_test.go:630 and :432 now call openPTY; :367 is the documented exception inside the outer openPTYRetry; atlas states the rule. No raw pty.Open remains in scribecmd otherwise.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Done-when now bans test-side or blind retries and names the ruled production bounded retry, citing delivery 4b2538ba; a Revisions entry records it.
+  - id: BR-3
+    disposition: withdrawn
+    note: |
+      Mistaken premise: Spec lines on the step classifier say every failure was at the ptmx open and the ioctls never failed, so "measured from both" was itself an overclaim; superseded by the new finding covering every site.
+findings:
+  - id: new
+    severity: Minor
+    kind: defect
+    family: doc-claim-narrower-than-measurement
+    title: |
+      Comments misattribute the measured negated errno to the ioctl raw-syscall path
+    detail: |
+      This is the 2nd finding in family doc-claim-narrower-than-measurement. The Spec measured -6 only at syscall.Open on /dev/ptmx, and TIOCPTYGNAME/GRANT/UNLK never failed. Instances: pty_darwin.go isTransientPTYAlloc comment "measured arriving from BOTH"; atlas/architecture.md:1351-1352 "measured from both ... and the raw ioctl syscalls"; pty_darwin_test.go rawENXIO comment, which says the ioctls are the production spelling's source; pty_darwin_test.go:128-131 "whichever of creack/pty's two syscall conventions happened to lose the race"; lessons.md "a failing raw syscall can hand back a negated errno". Rule: state where the errno came from once, in the isTransientPTYAlloc comment, matching the Spec (measured at the syscall.Open ptmx open; the ioctl path is covered as a precaution only). The other sites should point to that comment instead of restating it.
+```
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"61c316c8-c663-46a6-8f26-7379f9068e45","repository":"github.com/xianxu/pair","issue_id":"000809","recipe":"small-diff-review","round":2,"attempt":1,"agent":"claude","root":"/Volumes/TestScratch/review-checkouts/81202c01342861a5","reviewed_head":"b54e8064574d5962a25811704f3ad4998078a30a","slot":"pair:8","requested_at":"2026-10-22T21:21:37.102485Z"},"phase":"finished","pid":27182,"started_at":"2026-10-22T21:21:37.26276Z","finished_at":"2026-10-22T21:23:29.298624Z","session_id":"8eeca7db-7271-4824-9bd5-133b269d9074","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.717260417s
+head: "b54e8064574d5962a25811704f3ad4998078a30a"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
