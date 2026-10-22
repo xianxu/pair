@@ -286,6 +286,10 @@ BR-11 fix172a49519 committed the corrected embedded-skill assertions with close 
 
 Officially canceled now-obsolete lease-1843379015 after the test correction committed. Exactly one new recorded suite retained on d95641a0: lease-1877263215, parent session85971, attempta004cb796c49cec9186e9170248a64c2, checkout/Volumes/TestScratch/local-checks/sdlc-local-836182168, raw log/Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/a004cb796c49cec9186e9170248a64c2/run.log, initial FIFO15. Final recorded pass remains required; if known-flake-only use supported local-check resume. Pair:0 stays released. Await hub restage scheduling and operator disappearance re-look before landing; no783/805/808 work started.
 
+### 2026-10-22 — authorized disappearance re-look staged
+
+TL2a2dab35 authorized stage now. First sdlc stage --build refused the still-owned722 stage; reported to hub and holder without takeover. Pair:5 dd0d7af0 confirmed its owned clear and4main binaries rebuilt; retry stage --build exit0. Pair:0 HEAD639e21297df61a8581fa5a577b3aebc1581eed43 verified by Git, couch/pair/pair-launch-helper/pair-slug each report exactly that vcs.revision with vcs.modified=false. Pair:9 retains its branch. Sent exact revision plus2-minute checklist in hub receipt7ef2c178: draw labelled sketch and saved box note, add a second sketch at another scroll to expose1more pending, submit oldest-view batch, verify sent sketch+box disappear while deferred sketch stays, optional viewer DevTools Offline2seconds→No throttling/reload preserves masking. Fresh Couch restart needed for smoke. Operator acceptance remains pending; suite lease-1877263215 retained, no duplicate.
+
 ## Estimate
 
 *Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration is stale per sdlc estimate-source; this remains provisional. Unit: idle-removed ship wall-clock, including agent/subagent execution, not operator-attention time. No parallel overlap discount applied.*
