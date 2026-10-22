@@ -51,6 +51,8 @@ Recorded verification, close review and landing remain the binary-owned workflow
 
 ## Log
 
+
+- 2026-10-22: closed — Approved consolidated compatibility re-plan cleared plan-quality round4 CLEAN and change-code. Real public Build RED1.011s then GREEN1.324s; focused wrapper/strict-owner race3.971s; full testcouch25.861s/testpair6.786s PASS. Relative/non-clean placement RED0.208s/0.247s then cohort1.232s and race3.703s PASS. internal/repolint8.146s and final tracked-reader inventory PASS. Earlier strict response, legacy default and concept-map BR1/2/3 independently disposed round2; BR4 now class-wide wrapper candidate/lifetime/normalization controls, standalone isolation unchanged; no fourth hole found. Retained native Claude/EOF and Codex/TERM PASS36.648s and actual Parley driver nvim0.12.5/0.11.7 PASS are explicitly pinned to eee3547f, not relabelled as new code. Public DTO positive and causal decoder/default/wrapper controls qualify later corrections. Fresh pushed510d18f8 recorded affected check requested; review overlaps queue per tl-worker, final-code record required before merge. No extra native run or timeout bump. Hub owns project updates.; review verdict: SHIP
 2026-10-22: filed unclaimed by pair:6 per TLe632079d/5e43c052 after inspecting testcouch and #408's actual direct-store probe. parley.nvim:1 provided proposed envelope and stop interface in receipt59bd1da0. TL will dispatch to a free Pair slot; #758 fixes its own review findings first.
 
 

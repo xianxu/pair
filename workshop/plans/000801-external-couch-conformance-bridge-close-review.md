@@ -217,3 +217,97 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T15:22:30-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 801 — External hold-open Couch conformance bridge |
+| repo | pair |
+| issue file | workshop/issues/000801-external-couch-conformance-bridge.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 651e30092e7ca245e5537ba1450b7ea7eb36ddae..510d18f8b3893c19c177016774019b57740b2222 |
+| command | sdlc close --issue 801 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T15:22:30-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation satisfies the issue’s producer, isolation, readiness, and joined-cleanup contracts. BR-4 is addressed across the documented compatibility boundary, with regression tests that fail when the corrections are disabled. No new blocking findings emerged.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Exact-member decoding remains enforced in native.go; malformed-member and public-envelope regression tests pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Legacy default selection canonicalizes temporary-directory aliases; explicit standalone aliases remain rejected before effects. Both controls pass.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      The plan's Core concepts tables and BR-3 Revision identify the implemented symbols and adapter files; the declared pure entities contain no IO.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Build forwards BinaryContext's selected executable into shared placement while BuildOwned remains isolated. Real-wrapper subprocess tests cover supplied and fallback selection, repeated callers, placement cleanup, and source lifetime. Disabling forwarding with a temporary compiler overlay makes both selection modes fail. Removing legacy destination normalization separately makes all four placement controls fail.
+```
+
+1. **Strengths**
+
+   - Candidate policy stays at the compatibility wrapper; shared placement consumes the explicit selection (`cmd/internal/testcouch/binaries.go:43`, `owner_build.go:234`).
+   - Cleanup uses one budget for cancellation, joins, Close, and AssertCleaned, retaining uncertainty (`cmd/internal/testcouchbridge/run.go:137`).
+   - Tests execute the actual candidate resolver and placement script while substituting compiler/tool effects (`cmd/internal/testcouch/legacy_build_test.go:65`).
+   - README and atlas document the executable, environment replacement, bounds, pipe requirements, and recovery limits.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed all tests in `testcouchbridge`, `couch-conformance-bridge`, `testpair`, and `testcouch`; bridge/CLI race tests; socket-path tests; and `make test-affected-inventory`.
+
+   Both temporary-overlay negative controls failed for the expected behavioral reasons. The checkout remains clean. Native qualification was not rerun; retained native and consumer evidence explicitly identifies its earlier source revision.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Shared construction and candidate-placement pipelines.
+   - **ARCH-PURE — pass:** Validation and reducer logic are independent of IO.
+   - **ARCH-PURPOSE — pass:** Genuine registration and endpoint admission precede readiness; legacy candidate selection is preserved.
+   - **ARCH-MOCK — pass:** Stateful owner and injected native boundaries support causal failure tests; native conformance is retained.
+   - **ARCH-CONSTRAINTS — pass:** Explicit deadlines and output limits, including blocked-pipe coverage.
+   - **ARCH-SECURE — pass:** Private environments, physical scratch admission, and strict response decoding.
+   - **ARCH-ORDER — pass:** Production orchestration uses the reducer; stop dominance and late completions have sequence coverage.
+   - **ARCH-FUNERAL — pass:** Owners remove confirmed-clean resources and retain uncertain evidence.
+   - **ARCH-EVOLVE — pass:** No persisted-format mutation; additive response metadata remains tolerated with strict consumed fields.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"378b597a-f479-49f1-84ad-71fc9e29673e","repository":"github.com/xianxu/pair","issue_id":"000801","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/b204408c40b7cdf5","reviewed_head":"510d18f8b3893c19c177016774019b57740b2222","slot":"pair:7","requested_at":"2026-10-22T22:20:10.576193Z"},"phase":"finished","pid":82735,"started_at":"2026-10-22T22:20:10.771383Z","finished_at":"2026-10-22T22:22:29.534955Z","session_id":"01a165b3-4a6b-7f31-bfe0-d32d93209652","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.571851833s
+head: "510d18f8b3893c19c177016774019b57740b2222"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
