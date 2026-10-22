@@ -177,3 +177,86 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T10:43:19-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 797 — Live reboot refuses owned pane as ambiguous |
+| repo | pair |
+| issue file | workshop/issues/000797-live-reboot-pane-owner.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 5dd027f15ac0f24f76b2c1188043642f71822f97..716e5f77d63ecceb0121a3dd796f203722959e7b |
+| command | sdlc close --issue 797 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T10:43:19-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+The correction preserves ownership evidence until quiescence and carries the exact observed server generation into deletion. Both native personalities passed on pinned head `716e5f77`, including replacement delivery and complete cleanup. No new blocking findings remain. The earlier startup disconnect remains unexplained; this review confirms successful acceptance without claiming its root cause is resolved.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Plan lines 40 and 48 correctly separate immutable RecoveryTerminalPlan data from INTEGRATION checkConfirmed; the revision at line 137 matches the readiness-file IO in recovery_terminal_confirmed.go:278-291. This is a prose-only correction.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      On pinned head 716e5f77, the exact Codex acceptance command passed in 51.871s: confirmation succeeded, old generation 70179/1792690846.889015 disappeared, replacement 80421/1792690861.235185 accepted delivery, and cleanup confirmed all owned generations absent with child and IO joined. Claude independently passed in 58.382s. Verified all three retained transcript hashes against the tracker. The round-2 capture refusal matches the unchanged identity-comparison guard at recovery_evidence_os.go:104-125; its unchanged/changed-file regression passed. The original replacement-start disconnect remains explicitly unclassified, rather than represented as fixed.
+```
+
+1. **Strengths**
+
+   - Ownership proof precedes added wrapper signals at `recovery_slot_tree.go:103`.
+   - All three scoped deletion consumers share `quiesceOwned`, with explicit refusal for unsupported deleters.
+   - `lifecycle_os.go:21` validates the proof and reuses immutable authorized quiescence.
+   - Captured native replies preserve missing-command evidence without weakening classification.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Focused ownership, recovery, diagnostic, capture-change and park tests passed. `make test-affected-inventory` passed.
+
+   Temporary overlays demonstrated meaningful failures without the correction: the old ordering reproduced stopped-pane ownership refusal; all six scoped handoff cases failed; restoring name-based re-admission failed replacement, PID-reuse and socket-change cases. Overlays were removed; the checkout remains clean. The full repository suite was not rerun.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared helper covers indexed quiescence, named quiescence and bound quit.
+   - **ARCH-PURE — pass:** classification remains IO-free; effects use injected integration seams. Corrected concept classifications match their implementations.
+   - **ARCH-PURPOSE — pass:** both public reboot personalities completed confirmation, replacement delivery and cleanup; negative ownership cases remain refused.
+   - **ARCH-EVOLVE — pass:** no production persisted-format or field-meaning change.
+   
+   Atlas documents the new internal flow. No new command, flag, keybinding or configuration surface requires a README update.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"b75a6003-8cc1-4863-b4db-d428524b6f1a","repository":"github.com/xianxu/pair","issue_id":"000797","recipe":"small-diff-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/4c28c2ca579e7e8c","reviewed_head":"716e5f77d63ecceb0121a3dd796f203722959e7b","slot":"pair:2","requested_at":"2026-10-22T17:39:38.603261Z"},"phase":"finished","pid":24429,"started_at":"2026-10-22T17:39:38.779302Z","finished_at":"2026-10-22T17:43:17.774218Z","session_id":"01a164b2-744f-7bc1-a88b-e501d4ad5555","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.97433275s
+head: "716e5f77d63ecceb0121a3dd796f203722959e7b"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000411
