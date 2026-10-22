@@ -1,6 +1,6 @@
 ---
 id: 000722
-status: working
+status: codecomplete
 created: 2026-10-19
 updated: 2026-10-22
 estimate_hours: 18.3755
@@ -13,14 +13,14 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
-actual_hours: 17.18
+actual_hours: 33.40
 tracker:
     version: 1
     completion:
-        token: close-b6afe57496c8
+        token: close-1e4728003a6a
         repository: github.com/xianxu/pair
-        reviewed_head: 221af63022ff5fcd7247e04830d6b7c9853ec0f8
-        evidence_commit: bbdbc7891c3679f98d5bdc9806d3f402472dec39
+        reviewed_head: b2c541b239de1db1c2feace42e731b16d8cd1069
+        evidence_commit: 351bf4d2905c07d09dc44d03b0ef1646bc7b78a6
 ---
 
 # couch --drain [--fast]: a fleet-wide checkpoint-and-stop before a restart, with a drain board
