@@ -169,7 +169,11 @@ a native binding for the same launch ordinal. A capture witness alone is not
 conversation proof, and historical files are never retroactively certified.
 Terminal startup budget (#773): `startupbudget` owns the absolute deadline and
 its consumed exec representation. `launchTrackedThread` chooses it before the
-blocked helper starts; helper acknowledgement, pane birth, exact readiness and
+blocked helper starts; public borrowed-client attachment in `warm_attach.go`
+selects it once before preparation and the existing helper retry loop too.
+Both transport the same absolute value and consume its remaining time, while
+public attachment preserves its separate short listing-query window and the
+borrowed terminal's lifecycle. Helper acknowledgement, pane birth, exact readiness and
 registration consume that same window. Explicit caller deadlines are preserved;
 no-deadline calls reuse the two-minute ceiling. Runtime handoffs carry startup,
 short observation and interactive contexts separately. Native precreation and
@@ -182,7 +186,10 @@ retain their separate bounded reconciliation contract and never retry launch.
 Existing operation progress flows through context reporters into the console or
 the exact remote receipt's pure transition function. Optional immutable
 `OperationProgress` gives stage/start time; repeated observations preserve its
-age and terminal/retired request updates refuse. The CLI's existing 15-second
+age and terminal/retired request updates refuse. The console's pure menu
+transition separately retains stage-start time for both row and progress-notice
+rendering; operations without stage reports keep their operation-age display.
+The CLI's existing 15-second
 status cadence displays stage and elapsed time. Launch failure diagnostics name
 the consuming stage and its elapsed duration. This additive ephemeral receipt
 field deploys with the coordinated supervisor/CLI rebuild; it is no persisted

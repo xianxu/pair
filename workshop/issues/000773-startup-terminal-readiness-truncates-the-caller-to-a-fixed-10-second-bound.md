@@ -44,10 +44,10 @@ Approved design: select one absolute startup deadline before the blocked helper 
 
 - [x] Approve the caller-owned startup/default/transport contract and production-boundary test plan.
 - [x] Record deterministic red probes, implement shared deadline selection and propagate it through helper, launcher, readiness and registration without renewal.
-- [ ] Complete review corrections for public borrowed-client deadline transport, local stage timing and causal warm-adoption fixture controls; requalify the consumer class.
-- [x] Use the landed #744 shared disposable harness for cold native acceptance and pass required recorded verification.
+- [x] Complete review corrections for public borrowed-client deadline transport, local stage timing and causal warm-adoption fixture controls; requalify the consumer class.
+- [x] Use the landed #744 shared disposable harness for cold/warm native acceptance and complete corrected package/race verification.
 
-Remaining gates: mandatory boundary review and normal SDLC merge; no live-fleet/pair:0 operation is authorized by this check.
+Remaining gates: a passing corrected recorded suite, mandatory boundary review and normal SDLC merge; no live-fleet/pair:0 operation is authorized by this check.
 
 ## Log
 
@@ -147,3 +147,12 @@ Warm-adoption delayed-preparation controls reproduced the old200ms fixture causi
 
 
 Retention sentinel follow-up RED0.221s observed199.111ms instead of renewed200ms. Both dedicated controls now use synctest: consume virtual50ms preparation from the original200ms selection, assert identical absolute deadline and exact remaining duration, then causally expire before attachment/ownership observation. All retention controls GREEN0.928s. These are controlled fixture budgets, not production cap increases. Final full core/tty packages and race controls are running; no pass claimed until returned.
+
+
+### 2026-10-22 — round1 corrections fully qualified; new recorded check/review due
+
+Corrected full Couch core package PASS308.418s and tty PASS51.055s, including the warm-adoption cases the reviewer found. Focused race controls PASS core4.530s/tty1.580s; full repolint15.432s/artifactpath13.395s, fast reader inventory and diff checks pass. No hidden short timer, test skip, cap increase or flake classification. Public warm helper now transports the exact original deadline; virtual2s preflight plus1s delayed ack consumes the original30s budget, leaving27s with no client-context cancellation.
+
+One new native matrix on runtime head88f7326491b1daf012aebee461df8f39f1b9184f passed131.25s (whole134.961s), exit0. Existing shared TestDisposableCouchFleet covered Claude/Codex steward+3workers, native ordinary delivery, detach, supervisor restart and all4 actors returned, then exact owned cleanup and joined child/IO for each. Claude returned59.652s, Codex52.307s; load1 before23.63/after24.02. Capture workshop/evidence/000773/native-warm-88f7326491b1.log/json; log SHA25697403cefee196bdb7533a924d162a14562d0feb405f2e640bf4cb8093f48f679. Runtime matched the committed head; only atlas documentation and the in-progress evidence file were uncommitted during the invocation. No native retry, live fleet or pair:0 change.
+
+BR-1/2/3 are submitted as addressed for fresh gate verification, not self-disposed in the ledger. The old passing recorded suite predates these runtime fixes; a new recorded pass remains mandatory before landing. Queue it on this corrected pushed head, with review allowed to overlap per tl-worker. On any review code correction, cancel only a superseded queued check through SDLC and verify the final corrected head.
