@@ -2556,3 +2556,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #757 close review: test proxy Location rewrites by resolving each returned reference against a non-root front URL; comparing Location strings alone misses empty-root, query-only and network-path authority changes. Endpoint self-target checks must use the same pinned address and port as the dialer.
 - #757 close review: a function consuming io.Reader belongs to the integration shell even when its only work is decoding; classify the actual API in Core concepts and keep compiler execution behind a stateful fake plus real-tool conformance.
+
+- #779 BR-1: Before close, reconcile every Core concepts and risky-function table against the delivered symbol names and actual signatures. A renamed pure planner can leave a false plan/code contradiction even when its tests and runtime behavior are correct; append the naming revision and update all live tables together.

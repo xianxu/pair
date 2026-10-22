@@ -30,7 +30,7 @@ Includes the manual #757 archive repair, ariadne#532 class: one separately named
 
 | Name | Lives in | Status |
 |---|---|---|
-| statusPlan / planStatusRows | cmd/internal/couchtty/status_layout.go | new |
+| statusPacking / renderStatusBar / packStatusChips | cmd/internal/couchtty/status_layout.go | new |
 | RenderedStatusBar and row-aware chip spans | cmd/internal/couchtty/status_layout.go, reserve.go | new/modified |
 | RenderStatusRow and shared row drawing | cmd/internal/couchtty/reserve.go | modified |
 | Frame.ChromeRows and shared child-geometry validation | cmd/internal/terminal/frame.go, render.go, presenter.go | modified |
@@ -116,8 +116,8 @@ ARCH-DRY/PURE: one planner and one trusted geometry owner; existing styling and 
 
 | Risky function | Adversarial family | Mechanical guard |
 |---|---|---|
-| planStatusRows / RenderStatusBar / shared row drawer | constrained grouped labels and conflicting active/control/attention priorities | pure exact layout/span invariants plus seeded fuzzing; per-row width bounds and no ordinary survivor while attention is hidden |
-| planStatusRows measured candidate packing | hostile actor/byte growth and kept-heavy inputs | N/2N operation and sanitation counters reject worse than declared logarithmic visits and linear bytes |
+| renderStatusBar / packStatusChips / RenderStatusBar / shared row drawer | constrained grouped labels and conflicting active/control/attention priorities | pure exact layout/span invariants plus seeded fuzzing; per-row width bounds and no ordinary survivor while attention is hidden |
+| packStatusChips measured candidate packing | hostile actor/byte growth and kept-heavy inputs | N/2N operation and sanitation counters reject worse than declared logarithmic visits and linear bytes |
 | Compose / ChildGeometry / Frame.Validate | malformed or incompatible rectangular chrome | pure validation/composition tests preserve child minimum and one-row compatibility |
 | Presenter.ResizeLayout / ChromeState / paintPublication / mouseInput | admitted but unpainted layouts, partial writes and geometry-changing drags | controllable writer and endpoint barriers prove pending revision blocks mouse until successful retry; keyboard/paste and drag cleanup unchanged |
 | Console.paintNow / publishSelectionPublishing / showMenuPublishing / onResize / installChild | status and resize transitions across publication boundaries | existing fake host/PTY tests assert admitted child/menu geometry, pending extents and confirmation agree; native resize/scroll conformance |
@@ -145,3 +145,5 @@ Targeted commands: go test ./cmd/internal/couchtty -run 'Test.*Status|Test.*Wrap
 - 2026-10-21: Plan-quality round1 PQ-1/PQ-2 and minor PQ-3: clarified admitted versus confirmed geometry through Presenter.ChromeState, pending Console revisions and dropped geometry-dependent actions during uncertain paint; preserved keyboard/paste and existing automatic retry. Tiny one-row active wins over controls as well as count; omitted/clipped LIVE fails closed. Compressed the verification contract into named risky functions and strategies. TL ba876ba6-14f8-4bdc-80a4-6ede8d57ed6a approves this refinement. No implementation yet.
 
 - 2026-10-21 implementation clarification (ARCH-ORDER): confirmation snapshots also hold the existing publication lock through Presenter FIFO read and Console revision comparison; anchors already owning it use the no-lock Publishing helper. This realizes the approved atomic pending-map contract and fixes a measured close-click race without new state or timing policy. TL b07bf583 explicitly orders recorded suite and close while operator staging waits for pair:0; live acceptance still precedes landing.
+
+- 2026-10-21 BR-1 (core-concepts-code-traceability): corrected Core concepts and verification table names to delivered pure planner entities statusPacking, renderStatusBar and packStatusChips. These replace the provisional statusPlan/planStatusRows names; behavior and approved design are unchanged. Sweep found no other unqualified provisional planner entity references.

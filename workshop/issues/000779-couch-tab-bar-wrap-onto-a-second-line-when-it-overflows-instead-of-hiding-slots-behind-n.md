@@ -47,7 +47,7 @@ Wrap the tab bar onto a **second line** when it doesn't fit (like text wrapping)
 
 ## Plan
 
-- [ ] Deliver the approved two-row layout through shared compositor, Console and broadcast geometry, with render/interaction/native pins; see workshop/plans/000779-tab-bar-wrap-plan.md.
+- [x] Deliver the approved two-row layout through shared compositor, Console and broadcast geometry, with render/interaction/native pins; see workshop/plans/000779-tab-bar-wrap-plan.md.
 
 ## Log
 
@@ -66,6 +66,10 @@ Observed RED pins include old one-row child size23 instead of22, two-row Compose
 Verification: full couchtty package PASS52.455s; terminal package PASS43.848s and focused race1.727s; broadcast package PASS48.606s and race145.241s; browser Node100/100PASS; seeded packing fuzz74,478 executions plus counted64/128 growth pins. Native Claude/Codex-labelled real PTYs PASS0.502s and race1.799s, checking selected/background kernel sizes80x7 ->18x6 ->80x7 and physical bottom output. Inventory and exhaustive artifact-source classification PASS. Direct exploratory package runs were stopped diagnostically after identifying obsolete test oracles; these are not recorded suite evidence. Final recorded check still required.
 
 TL b07bf583 authorizes suite and close meanwhile; pair:0 stage remains held until #752 lands, then TL will choose #779's short look versus #737's day. No staging or landing before that decision and live acceptance.
+
+Recorded check: affected on pushed3e86e8f202a00e7329c21859f6234ef5f9e578eb fell back to suite because the fresh package graph lacks generated embedded runtime files before its build. Retained suite lease1753927196, attemptde0d49c262ff59ee38784bd76a5e30a2, terminal22260; queued normal FIFO position10. This is a queued check, not a pass. Boundary review may overlap under tl-worker; successful recorded evidence and operator look remain landing preconditions. PR535 includes the explicit manual #757 archive-repair note.
+
+Close round1 REWORK has one documentation-only BR-1 (core-concepts-code-traceability): provisional planner names in Core concepts/verification tables did not match statusPacking/renderStatusBar/packStatusChips. Verified delivered symbols, corrected both tables, appended the plan revision and added the prevention lesson. No runtime finding or source change; the retained recorded suite on3e86e8f2 remains valid. Re-run close; operator stage is still pending TL sequence.
 
 ## Revisions
 
