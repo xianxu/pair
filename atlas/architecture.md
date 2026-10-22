@@ -1328,9 +1328,24 @@ Two launch modes resolve this:
 
 `pair-doctor` *diagnoses* the same staleness `pair-dev` prevents: its emitter-health probe (`doctor/emitter-health.sh`, #000047) greps the *running* `pair-wrap`/`pair-slug` (resolved via the `pair-wrap-pid-<tag>` pidfile, else PATH) for its adapt signal strings and flags `[STALE]` when a binary has no logging code — turning the silent-emitter failure into a named finding.
 
-## Adjacent: `pair-scribe`
+## Adjacent: `pair scribe`
 
-`scribe` is a `script(1)` replacement that lives in the pair repo for build-system convenience but is not part of pair's runtime — it's user shell tooling, typically wired at the top of `~/.zshrc` to swap for `script -q -F`. The user's preexec/precmd hooks send `SIGUSR1`/`SIGUSR2` to pause/resume the on-disk typescript around commands whose output (e.g. TUI redraws) shouldn't be captured, enabling a clean "capture last command output" flow that pair can read back from `$_ZSH_SCRIPT_LOG`. The logic lives in `cmd/internal/scribecmd` (`scribecmd.Run`) and is reachable two ways (#96): the `pair scribe` dispatcher route (streaming seam) and the standalone `cmd/pair-scribe` thin shim, which stays installed at `~/.local/bin/pair-scribe` after `make install` so the existing `~/.zshrc` `exec` line keeps working. Because it's shell tooling, not runtime, it is deliberately **not** in the runtime bundle. Full design notes and the zshrc snippet: `cmd/pair-scribe/README.md`.
+`scribe` is user shell tooling, typically replacing `script -q -F` at the top
+of `~/.zshrc`. The single binary dispatches to `scribecmd.Run`; SIGUSR1/SIGUSR2
+pause/resume only the on-disk typescript. Usage and shell wiring:
+[docs/pair-scribe.md](../docs/pair-scribe.md).
+
+On Darwin, `scribecmd.startPTY` uses upstream PTY allocation and direct exec but
+transfers a retained slave to the output owner. The existing byte pump drains
+the master; `releaseSlave` closes the lease before the sole child wait. Child
+session-leader exit revokes the tty, ending the drain even with inherited slave
+descriptors in descendants. Initialization abort kills the owned direct child
+and closes descriptors before waiting, preserving the original error. The
+adapter is scribe-local: wrap's EOF-driven group stop and ptychild's input-ended
+publication require separate designs (#769/#770). Other platforms retain
+upstream startup behavior. Native regressions in `pty_darwin_test.go` force all
+child slave descriptors closed before the first read and assert exact bytes,
+EOF, exit status and descendant-held-slave completion.
 
 ## Design intent
 

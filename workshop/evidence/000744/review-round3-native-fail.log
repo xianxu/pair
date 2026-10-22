@@ -1,0 +1,26 @@
+=== RUN   TestDisposableCouchFleet
+    fleet_acceptance_test.go:25: native Couch tool git: /usr/bin/git (git version 2.54.0 (Apple Git-157))
+    fleet_acceptance_test.go:25: native Couch tool sdlc: /Users/xianxu/workspace/ariadne/bin/sdlc (WARNING: sdlc is not the fleet :0 binary: path=/Users/xianxu/workspace/ariadne/bin/sdlc revision=7be44ad5cd268115aff52056f06e869c353732cb modified=false; expected=/Volumes/TestScratch/review-checkouts/ariadne/bin/sdlc. Refresh aliases or relaunch.)
+    fleet_acceptance_test.go:25: native Couch tool weave: /Users/xianxu/workspace/ariadne/bin/weave (weave version dev)
+    fleet_acceptance_test.go:25: native Couch tool zellij: /opt/homebrew/Cellar/zellij/0.45.1/bin/zellij (zellij 0.45.1)
+    fleet_acceptance_test.go:25: native Couch tool nvim: /opt/homebrew/opt/nvim-0.11/bin/nvim (NVIM v0.11.7)
+    fleet_acceptance_test.go:25: native Couch candidates: source=/Volumes/TestScratch/review-checkouts/0e10ade396eb70bd head=23a5b119d111b985de0cc18bb5cedb42c1cf838c dir=/Volumes/TestScratch/couch-fleet-binaries-3725710324
+=== RUN   TestDisposableCouchFleet/claude
+    fleet_acceptance_test.go:29: native fleet isolation: root=/Volumes/TestScratch/pc-980298401 run=0a94d106eb8227b919d97f9f066249ac agent=claude workers=3
+    fleet_acceptance_test.go:68: native cohort: agent=claude steward=fixture:0 workers=fixture:1,fixture:2,fixture:3 elapsed=38.922031541s
+    fleet_acceptance_test.go:128: native delivery: receipt=1f7039d3-6bed-4b28-8da4-99671cf48f3d status=submitted recipient=fixture:1 accepted_body="shared-native-fleet-ordinary-message-claude" elapsed=40.054557708s
+    fleet_acceptance_test.go:147: native detach/restart: all four actors returned elapsed=50.116530125s
+    fleet.go:452: native fleet cleaned: root=/Volumes/TestScratch/pc-980298401 all owned generations absent; direct child and IO joined
+=== RUN   TestDisposableCouchFleet/codex
+    fleet_acceptance_test.go:29: native fleet isolation: root=/Volumes/TestScratch/pc-928065258 run=d2d36061d74e1488f775ad69c992f664 agent=codex workers=3
+    fleet_acceptance_test.go:43: worker 3 CLI: fixture CLI: exit status 1; stdout={"FailureNonce":"operation-730874d8fa66046c985836b933151494","ID":"d166ffba-09e3-4f3a-8cea-1da8985c9f8c","Op":"reboot","Target":"fixture:3","Status":"failed","Detail":"attach terminal input has ended [failure operation-730874d8fa66046c985836b933151494; diagnostics /Volumes/TestScratch/pc-928065258/store/launch-diagnostics/failures.json]","Warning":"started fresh; previous TTY capture unavailable; use branch and issue evidence; any unproved owners were left untouched under their original identities; workspace setup was not refreshed","Admitted":"2026-10-21T07:26:49.655101-07:00","Finished":"2026-10-21T07:26:56.839595-07:00"}
+         stderr=
+    fleet.go:434: native failure evidence before root removal: nonce=operation-730874d8fa66046c985836b933151494 slot=fixture:3 stage= launch="" final="attach terminal input has ended" cleanup="" stream="" output=""
+        ; read_error=<nil>
+    fleet.go:452: native fleet cleaned: root=/Volumes/TestScratch/pc-928065258 all owned generations absent; direct child and IO joined
+--- FAIL: TestDisposableCouchFleet (103.75s)
+    --- PASS: TestDisposableCouchFleet/claude (53.23s)
+    --- FAIL: TestDisposableCouchFleet/codex (43.65s)
+FAIL
+FAIL	github.com/xianxu/pair/cmd/couch	103.926s
+FAIL

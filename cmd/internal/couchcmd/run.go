@@ -16,6 +16,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/broadcast"
 	"github.com/xianxu/pair/cmd/internal/couchidentity"
 	"github.com/xianxu/pair/cmd/internal/couchsingleton"
+	"github.com/xianxu/pair/cmd/internal/sessionsync"
 	"io"
 	"os"
 	"os/exec"
@@ -378,8 +379,16 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		return runAdoptionCLI(invocation, rt, stdout, stderr)
 	}
 	if invocation.kind == cliSessionSync {
+		if a := invocation.sessionSync; a.operatorLockCommand() {
+			if err := (sessionsync.OperatorLockRequest{ID: a.id, Turn: a.turn}).ValidateTurn(); err != nil {
+				return operatorSessionSyncFailure(stdout, err)
+			}
+		}
 		prepared, lease, err := prepareRuntime(rt, false)
 		if err != nil {
+			if invocation.sessionSync.operatorLockCommand() {
+				return sessionSyncUnavailable(stdout, err)
+			}
 			fmt.Fprintln(stderr, "couch:", err)
 			return 1
 		}
@@ -1421,7 +1430,7 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "couch - supervise agent actors, one per working tree")
 	fmt.Fprintln(w)
 	verbLine(w, launchVerb, "usage: couch [path ...] [--layout2|--layout3]")
-	verbLine(w, "mock", "       couch mock serve DIR [--port N] | mock use DIR mock-N")
+	verbLine(w, "mock", "       couch mock serve DIR [--port N] [--real URL] | mock use DIR mock-N | mock check DIR")
 	verbLine(w, "--list", "       couch --list")
 	verbLine(w, "--show", "       couch --show <thread>")
 	verbLine(w, "--reconcile", "       couch --reconcile repo:N")

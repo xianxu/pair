@@ -1,0 +1,11 @@
+{
+  "head": "5c77bd2ee8ae0b6b423ed22be7e669d7e5de26a7",
+  "argv": [
+    "make",
+    "zellij-false-miss"
+  ],
+  "exit": 0,
+  "elapsed_seconds": 9.739303750000545,
+  "log_sha256": "8f1b1967c44984972f0d5b65be2240b2b66ebf68f93c2795324db75e179ee06d",
+  "script_sha256": "3050daec3f7b6243f53dadb73006a4a8da5bc4d16f9a8d4b1141cd51ef2149ae"
+}

@@ -1,0 +1,27 @@
+{
+  "argv": [
+    "/opt/homebrew/Cellar/go/1.27.1/libexec/bin/go",
+    "test",
+    "-p",
+    "4",
+    "./cmd/couch",
+    "-run",
+    "^TestDetachCandidateComparison$",
+    "-count=1",
+    "-timeout=20m",
+    "-v"
+  ],
+  "cwd": "/Volumes/TestScratch/pair-776-after.DADE7a/current",
+  "base": "/Volumes/TestScratch/pair-776-after.DADE7a",
+  "env_overrides": {
+    "GOCACHE": "/Volumes/TestScratch/pair-776-checks.QKsQe4/go-cache",
+    "GOTMPDIR": "/Volumes/TestScratch/pair-776-checks.QKsQe4",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOTOOLCHAIN": "local",
+    "GOMAXPROCS": "4",
+    "PAIR_DETACH_COMPARE_ROOT": "/Volumes/TestScratch/pair-776-after.DADE7a",
+    "PAIR_DETACH_ATTEMPT": "1"
+  },
+  "PAIR_TEST_BINARY_unset": true
+}

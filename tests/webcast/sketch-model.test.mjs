@@ -597,3 +597,15 @@ test('all semantic Unicode evidence rejects lone surrogates while unknown future
     }),
   );
 });
+
+test('explicit cancel end truncates accepted partial path and permits continuation', async () => {
+ const {createSketchState,nextSketch,sketchProjection,sketchCanonical,checkSketchRecord}=await sketchModule();
+ const s=createSketchState(),c={live:true,ended:false,doc:1,tab:'a',driver:''};let seq=0;
+ const apply=(kind,fields={})=>{const r={...begin(),k:kind,operation:`cancel-${seq}`,sequence:seq++,sketch:'s',...fields};nextSketch(s,r,c).commit();return r;};
+ apply('sketch-begin');apply('sketch-stroke-begin',{id:'p',at:{node:3,box:[0,0,10,10]},width:3});apply('sketch-points',{id:'p',chunk:0,pts:[[1,2,.5]]});
+ const end=apply('sketch-stroke-end',{id:'p',truncated:true});let view=sketchProjection(s).sketches[0];assert.equal(view.phase,'drawing');assert.equal(view.strokes[0].truncated,true);assert.deepEqual(view.visible,['p']);
+ assert.notEqual(sketchCanonical(end),sketchCanonical({...end,truncated:false}));assert.equal(sketchCanonical({...end,truncated:false}),sketchCanonical({...end,truncated:undefined}));
+ for(const truncated of [null,1,'true'])assert.throws(()=>checkSketchRecord({...end,truncated}));
+ apply('sketch-undo',{id:'p'});apply('sketch-redo',{id:'p'});apply('sketch-stroke-begin',{id:'q',at:{node:3,box:[0,0,10,10]},width:3});apply('sketch-stroke-end',{id:'q'});apply('sketch-label',{label:'partial'});
+ view=sketchProjection(s).sketches[0];assert.equal(view.strokes[0].truncated,true);assert.equal(view.phase,'complete');
+});

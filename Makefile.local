@@ -1,6 +1,11 @@
 # Repo-specific Makefile targets.
 # This file is included by Makefile — add your own targets here.
 
+# Shared native fleet qualification; ordinary suites retain the portable tests.
+.PHONY: test-couch-fleet
+test-couch-fleet:
+	PAIR_NATIVE_COUCH_FLEET=1 go test ./cmd/couch -run '^TestDisposableCouchFleet$$' -count=1 -v -timeout=12m
+
 # Share Go package compilation across worktrees without discarding caller flags
 # (for example -p=3). Set PAIR_GO_TRIMPATH= for diagnostic source paths.
 PAIR_GO_TRIMPATH ?= -trimpath
@@ -616,3 +621,8 @@ test-build-go-atomic:
 # Offline rename matrix uses the same private candidate as the full suite.
 test-pair-rename:
 	bash tests/pair-rename.sh
+
+.PHONY: zellij-false-miss
+zellij-false-miss:
+	python3 -B tests/zellij-false-miss-test.py
+	bash scripts/repro/zellij-false-miss.sh

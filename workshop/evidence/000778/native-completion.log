@@ -1,0 +1,19 @@
+Completion tail captured from make test-couch-fleet on source bf7be2e2e6b1371df6182287c83f3ddd2aa948b1.
+The initial build/tool diagnostics are in the retained terminal; this file preserves the completion tail verbatim.
+
+    fleet_acceptance_test.go:68: native cohort: agent=claude steward=fixture:0 workers=fixture:1,fixture:2,fixture:3 elapsed=26.641485083s
+    fleet_acceptance_test.go:128: native delivery: receipt=2fd1aa35-913a-4498-b961-3d893f5ada74 status=submitted recipient=fixture:1 accepted_body="shared-native-fleet-ordinary-message-claude" elapsed=27.773748958s
+    fleet_acceptance_test.go:147: native detach/restart: all four actors returned elapsed=31.483050458s
+    fleet.go:460: native fleet cleaned: root=/Volumes/TestScratch/pc-1321874439 all owned generations absent; direct child and IO joined
+=== RUN   TestDisposableCouchFleet/codex
+    fleet_acceptance_test.go:29: native fleet isolation: root=/Volumes/TestScratch/pc-3518482565 run=20892a5ef65bb95988628f72eade5868 agent=codex workers=3
+    fleet_acceptance_test.go:68: native cohort: agent=codex steward=fixture:0 workers=fixture:1,fixture:2,fixture:3 elapsed=25.145279375s
+    fleet_acceptance_test.go:128: native delivery: receipt=a15943c7-8960-4a32-92c7-f5e9f617f822 status=submitted recipient=fixture:1 accepted_body="shared-native-fleet-ordinary-message-codex" elapsed=26.2518235s
+    fleet_acceptance_test.go:147: native detach/restart: all four actors returned elapsed=29.067572833s
+    fleet.go:460: native fleet cleaned: root=/Volumes/TestScratch/pc-3518482565 all owned generations absent; direct child and IO joined
+--- PASS: TestDisposableCouchFleet (75.09s)
+    --- PASS: TestDisposableCouchFleet/claude (34.43s)
+    --- PASS: TestDisposableCouchFleet/codex (31.36s)
+PASS
+ok  	github.com/xianxu/pair/cmd/couch	75.199s
+

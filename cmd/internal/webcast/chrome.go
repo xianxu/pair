@@ -15,6 +15,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/cdp"
 	"github.com/xianxu/pair/cmd/internal/webcast/board"
+	"github.com/xianxu/pair/cmd/internal/webcast/drive"
 	"github.com/xianxu/pair/cmd/internal/webcast/notedraft"
 	"github.com/xianxu/pair/cmd/internal/webcast/recorder"
 	rec "github.com/xianxu/pair/cmd/internal/webcast/recording"
@@ -46,10 +47,14 @@ type LaunchOptions struct {
 
 // RecordOptions configure the cast's recorder.
 type RecordOptions struct {
-	NoteDrafts *notedraft.Service
-	Operator   *board.Board
-	ID         string          // the recording's id (its head)
-	Out        recorder.Output // opened at the first go-live
+	Sketches         *board.SketchService
+	SketchAuthority  func(epoch, generation uint64) (board.SketchAuthority, error)
+	DrawingAuthority func() drive.DrawingAuthority
+	SketchAsset      func(string, int, int) ([]byte, int, error)
+	NoteDrafts       *notedraft.Service
+	Operator         *board.Board
+	ID               string          // the recording's id (its head)
+	Out              recorder.Output // opened at the first go-live
 	// ShotEvery is the fidelity screenshots' period; zero is the
 	// recorder's default.
 	ShotEvery time.Duration
@@ -84,6 +89,7 @@ var ErrProfileInUse = errors.New("webcast: the cast Chrome profile is already in
 // requests from SetLive and Close, and timers are all inputs to its select,
 // so their order is the order they're handled in.
 type Chrome struct {
+	operatorSketch  *operatorSketchRuntime
 	controlRevision atomic.Uint64
 	operatorRefresh chan struct{}
 	operatorReplies chan operatorDelivery
@@ -153,12 +159,14 @@ const (
 
 // loopState is owned by run.
 type loopState struct {
-	uiGuards map[string]string
-	tracker  Tracker
-	phase    Phase
-	sessions map[string]string // session -> target
-	contexts map[string]int64  // session -> the control's world in its top frame
-	frames   map[string]bool   // out-of-process frame sessions
+	sketchScopes  map[operatorContextID]*operatorSketchScope
+	sketchLoaders map[string]string
+	uiGuards      map[string]string
+	tracker       Tracker
+	phase         Phase
+	sessions      map[string]string // session -> target
+	contexts      map[string]int64  // session -> the control's world in its top frame
+	frames        map[string]bool   // out-of-process frame sessions
 	// recTab is what the recorder was last told is cast ("" when not live)
 	// and recTitle its title.
 	recTab, recTitle string
@@ -434,6 +442,29 @@ func (c *Chrome) handle(s *loopState, ev cdp.Event) {
 	if s.tap != nil {
 		s.tap(ev)
 	}
+	if c.handleSketchBinding(s, ev) {
+		return
+	}
+	if c.operatorSketch != nil && (ev.Method == "Page.frameNavigated" || ev.Method == "Page.frameDetached") {
+		var p struct {
+			Frame   struct{ ID, LoaderID string }
+			FrameID string `json:"frameId"`
+		}
+		if json.Unmarshal(ev.Params, &p) == nil {
+			id := p.Frame.ID
+			if id == "" {
+				id = p.FrameID
+			}
+			c.operatorSketch.RetireFrame(id)
+			if id != "" && id == s.sessions[ev.SessionID] {
+				c.retireOperatorSketchScopes(s, ev.SessionID)
+				if s.sketchLoaders == nil {
+					s.sketchLoaders = map[string]string{}
+				}
+				s.sketchLoaders[ev.SessionID] = p.Frame.LoaderID
+			}
+		}
+	}
 	if c.rec != nil {
 		c.rec.Send(recorder.Event{Session: ev.SessionID, Method: ev.Method, Params: ev.Params, Seq: ev.Seq})
 	}
@@ -463,6 +494,8 @@ func (c *Chrome) handle(s *loopState, ev cdp.Event) {
 			s.frames[in.SessionID] = true
 			c.goSetupFrame(in)
 		case pageDetached:
+			c.retireOperatorSketchScopes(s, in.SessionID)
+			delete(s.sketchLoaders, in.SessionID)
 			delete(s.sessions, in.SessionID)
 			delete(s.uiGuards, in.SessionID)
 			delete(s.contexts, in.SessionID)
@@ -472,12 +505,17 @@ func (c *Chrome) handle(s *loopState, ev cdp.Event) {
 				c.rec.Send(recorder.Detached{Session: in.SessionID})
 			}
 		case contextCreated:
+			if s.contexts[in.SessionID] != in.ContextID {
+				c.retireOperatorSketchScopes(s, in.SessionID)
+			}
 			s.contexts[in.SessionID] = in.ContextID
 		case contextDestroyed:
 			if s.contexts[in.SessionID] == in.ContextID {
+				c.retireOperatorSketchScopes(s, in.SessionID)
 				delete(s.contexts, in.SessionID)
 			}
 		case contextsCleared:
+			c.retireOperatorSketchScopes(s, in.SessionID)
 			delete(s.contexts, in.SessionID)
 		case toggleRequested:
 			c.setLive(s, s.phase != PhaseLive)
@@ -540,11 +578,16 @@ var frameAutoAttach = map[string]any{
 // page's, with the recorder's observer and no control, and tells the
 // recorder. Released at the end whatever happened.
 func (c *Chrome) goSetupFrame(f frameAttached) {
-	if c.rec != nil {
-		c.rec.Send(recorder.FrameAttached{Session: f.SessionID, Parent: f.Parent, FrameID: f.TargetID})
-	}
 	c.work.Go(func() {
 		defer c.call(f.SessionID, "Runtime.runIfWaitingForDebugger", nil, nil)
+		if c.rec != nil {
+			allowed, err := c.rec.AdmitRecordingFrame(c.ctx, f.TargetID, f.SessionID, f.Parent)
+			c.rec.Send(recorder.FrameAttached{Session: f.SessionID, Parent: f.Parent, FrameID: f.TargetID})
+			if err != nil || !allowed {
+				c.call(f.SessionID, "Target.setAutoAttach", frameAutoAttach, nil)
+				return
+			}
+		}
 		for _, step := range []struct {
 			method string
 			params any
@@ -669,6 +712,7 @@ func sessionOf(s *loopState, target string) string {
 // finish runs once the pipe is gone or Chrome exited: it makes sure the
 // process is reaped, every call has returned, and says why it ended.
 func (c *Chrome) finish(s *loopState) {
+	c.retireOperatorSketchScopes(s, "")
 	c.cancel() // unblock bounded bridge/guard callbacks before joining the recorder
 	// Read before our own Close, which would mask it.
 	connErr := c.conn.Err()

@@ -46,3 +46,10 @@ Primary surfaces: query/{sketch.go,render_sketch.go,surface.go,fake.go,cli.go,ev
 ### 2026-10-20
 
 - Filed from operator-approved #750 design via ops:0. Left unclaimed for TL dispatch.
+- 10-21 16:55 (TL ops:0): scope addition, generic (from ops-echo:0's echo-control-board, operator-approved): every
+  sketch or annotation handed to an agent (export and CLI query) carries the **page URL** and the **declared stable
+  IDs** of the elements it's anchored to or under: the element's `id` and its `data-*` attributes (bounded: the anchor
+  element plus its ancestors up to the first one with a declared ID, and the elements the sketch's bounding box covers,
+  capped and listed nearest first). Pair needs no knowledge of what the attributes mean; apps opt in by marking their
+  elements (e.g. echo's room/turn/agent data attributes), so an agent gets exact handles instead of guessing from a
+  screenshot. Values are recorded as they were at sketch time (from the DOM recording), not re-read later.

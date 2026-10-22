@@ -14,12 +14,13 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
 	castassets "github.com/xianxu/pair/cmd/internal/webcast/assets"
+	"github.com/xianxu/pair/cmd/internal/webcast/board"
 	"github.com/xianxu/pair/cmd/internal/webcast/capability"
 	"github.com/xianxu/pair/cmd/internal/webcast/notedraft"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
-//go:embed web/index.html web/viewer.js web/viewer.css web/model.js web/sketch-model.js web/render.js web/css.js web/annotate.js web/annotation-policy.js web/annotation-anchor.js web/annotation-placement.js web/capture-draft.js web/annotate.css web/placeholders.js web/drive.js web/drive.css web/replay.js web/replay.css web/replayer.js web/fidelity.html web/fidelity.js
+//go:embed web/index.html web/viewer.js web/viewer.css web/model.js web/sketch-model.js web/render.js web/css.js web/annotate.js web/annotation-policy.js web/annotation-anchor.js web/annotation-placement.js web/capture-draft.js web/annotate.css web/placeholders.js web/drive.js web/drive.css web/replay.js web/replay.css web/replayer.js web/fidelity.html web/fidelity.js web/sketch-policy.js web/sketch-render.js web/sketch-delivery.js web/sketch-scene.js web/sketch.js web/sketch.css
 var webFS embed.FS
 
 // contentSecurityPolicy: the page runs only its own script, talks only to
@@ -30,6 +31,13 @@ var webFS embed.FS
 const contentSecurityPolicy = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' blob:; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"
 
 var assets = map[string]struct{ file, contentType string }{
+	"sketch-policy.js":   {"web/sketch-policy.js", "text/javascript; charset=utf-8"},
+	"sketch-render.js":   {"web/sketch-render.js", "text/javascript; charset=utf-8"},
+	"sketch-delivery.js": {"web/sketch-delivery.js", "text/javascript; charset=utf-8"},
+	"sketch-scene.js":    {"web/sketch-scene.js", "text/javascript; charset=utf-8"},
+	"sketch.js":          {"web/sketch.js", "text/javascript; charset=utf-8"},
+	"sketch.css":         {"web/sketch.css", "text/css; charset=utf-8"},
+
 	"":                {"web/index.html", "text/html; charset=utf-8"},
 	"viewer.js":       {"web/viewer.js", "text/javascript; charset=utf-8"},
 	"viewer.css":      {"web/viewer.css", "text/css; charset=utf-8"},
@@ -68,6 +76,8 @@ const endedReason = "ended"
 // With a board (WithBoard) it also takes viewers' strokes and notes by POST
 // (#470); everything else is GET only.
 type Server struct {
+	sketches      *board.SketchService
+	sketchAsset   func(string, int, int) ([]byte, int, error)
 	noteDrafts    *notedraft.Service
 	noteOwner     func(*http.Request) string
 	noteStreamsMu sync.Mutex
@@ -135,7 +145,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// The only routes that read a body are the board's (#470) and remote
 	// driving's (#467) POSTs; every
 	// other path is GET-only and never reads one.
-	if r.Method == http.MethodPost && ok && link != linkNone && (s.boardRoute(w, r, rest, link) || s.driveRoute(w, r, rest, link.drives())) {
+	if r.Method == http.MethodPost && ok && link != linkNone && (s.sketchRoute(w, r, rest, link) || s.boardRoute(w, r, rest, link) || s.driveRoute(w, r, rest, link.drives())) {
 		return
 	}
 	if r.Method != http.MethodGet {

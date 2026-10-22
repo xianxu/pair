@@ -50,19 +50,23 @@ type MemController struct {
 	life      context.Context
 	stop      context.CancelFunc
 	work      sync.WaitGroup
+
+	drawingEpoch   uint64        // browser-safe sketch turn; ordinary input is unchanged
+	drawingWitness chan struct{} // nil while a handoff/reset outcome is unsettled
 }
 
 type seat struct {
 	Seat
-	streams int
-	timer   *time.Timer
+	streams     int
+	timer       *time.Timer
+	drawingLife chan struct{}
 }
 
 // NewMemController: ctl records go to sink at clock(), the driver's input
 // to inj; a seat with no stream leaves after grace.
 func NewMemController(sink recording.Sink, inj Injector, clock func() int64, grace time.Duration) *MemController {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &MemController{life: ctx, stop: cancel, capSubs: map[chan capability.Snapshot]struct{}{}, sink: sink, inj: inj, clock: clock, grace: grace,
+	return &MemController{drawingEpoch: 1, drawingWitness: make(chan struct{}), life: ctx, stop: cancel, capSubs: map[chan capability.Snapshot]struct{}{}, sink: sink, inj: inj, clock: clock, grace: grace,
 		seats: map[string]*seat{}, keys: map[string]string{}, subs: map[chan recording.Control]struct{}{}}
 }
 
@@ -78,7 +82,7 @@ func (f *MemController) Join(name string) (Seat, error) {
 	}
 	f.next++
 	id := fmt.Sprintf("v%d", f.next)
-	s := &seat{Seat: Seat{Viewer: recording.Author{ID: id, Name: label(name, f.next)}, Key: hex.EncodeToString(key)}}
+	s := &seat{Seat: Seat{Viewer: recording.Author{ID: id, Name: label(name, f.next)}, Key: hex.EncodeToString(key)}, drawingLife: make(chan struct{})}
 	f.seats[id], f.keys[s.Key] = s, id
 	f.idleLocked(s) // it must attach a stream within grace
 	return s.Seat, nil
@@ -156,6 +160,7 @@ func (f *MemController) idleLocked(s *seat) {
 		}
 		delete(f.seats, s.Viewer.ID)
 		delete(f.keys, s.Key)
+		close(s.drawingLife)
 		if f.involvedLocked(s.Viewer.ID) && f.authority.Phase != capability.Disabling {
 			if err := f.changeLocked(recording.CtlLeave, s.Viewer); err != nil {
 				f.freezeLocked(err, s.Viewer.ID)
@@ -194,6 +199,10 @@ func (f *MemController) changeLocked(op string, who recording.Author) error {
 	}
 	r := &recording.Ctl{Op: op, Who: who, Control: next}
 	old := f.control.Driving()
+	holderChanged := next.Driving() != old || op == recording.CtlReset
+	if holderChanged {
+		f.beginDrawingTransitionLocked()
+	}
 	f.busy = make(chan struct{})
 	f.busyErr = nil
 	f.work.Add(1)
@@ -239,6 +248,9 @@ func (f *MemController) changeLocked(op string, who recording.Author) error {
 	}
 	if f.closed {
 		return ErrClosed
+	}
+	if holderChanged {
+		f.renewDrawingLocked()
 	}
 
 	return nil
@@ -342,11 +354,13 @@ func (f *MemController) Subscribe() (<-chan recording.Control, func()) {
 func (f *MemController) Close() error {
 	f.mu.Lock()
 	if !f.closed {
+		f.beginDrawingTransitionLocked()
 		f.closed = true
 		f.stop()
 		f.authority.CapabilityState, _ = capability.NextCapability(f.authority.CapabilityState, capability.Event{Kind: capability.End})
 		f.publishCapabilityLocked()
 		for _, s := range f.seats {
+			close(s.drawingLife)
 			if s.timer != nil {
 				s.timer.Stop()
 			}

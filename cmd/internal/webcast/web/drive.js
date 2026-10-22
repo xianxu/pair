@@ -361,12 +361,13 @@ export function mountDrive(doc, win, v, seat) {
   keys.spellcheck = false;
 
   let allowed = false, availability = 'off', generation, consent = false, epoch = 0;
+  let sketching = false;
   let ctl = null, view = driveView(null, seat.viewer), batch = null, composing = false, lost = false;
   const driving = (s) => s === 'driving' || s === 'paused';
   const captured = new Set();
   const releasePointers = () => { for (const id of captured) { if (layer.hasPointerCapture?.(id)) layer.releasePointerCapture(id); } captured.clear(); };
   const tracked = keyTracker();
-  const send = (a) => { if (batch) batch.push(a); };
+  const send = (a) => { if (batch && !sketching) batch.push(a); };
   const g = gestures({ toPage: (x, y) => v.toPage(x, y), nodeAt: (x, y) => v.nodeAt(x, y), emit: send });
 
   const refused = (status, text) => {
@@ -387,13 +388,13 @@ export function mountDrive(doc, win, v, seat) {
     button.onclick = () => (view.action === 'rejoin' ? win.location.reload() : control(view.action));
     button.classList.toggle('on', driving(view.state));
     note.textContent = view.note;
-    layer.classList.toggle('on', view.capture);
+    layer.classList.toggle('on', view.capture && !sketching);
     doc.body.classList.toggle('driving', driving(view.state));
-    if (driving(view.state) && !batch) {
+    if (driving(view.state) && !sketching && !batch) {
       const post = postAt(generation);
       batch = batcher({ send: (b) => post('input', b), seg: () => v.model.seg, later: (fn, ms) => win.setTimeout(fn, ms), now: () => win.performance.now(), refused });
       v.annotate?.setMode('watch'); // pointing and notes wait while driving
-    } else if (!driving(view.state) && batch) {
+    } else if ((!driving(view.state) || sketching) && batch) {
       // Control ended: forget every press and key (the cast tab lets go).
       batch.stop();
       batch = null;
@@ -477,5 +478,5 @@ export function mountDrive(doc, win, v, seat) {
   });
 
   render();
-  return { render, control, view: () => view, seat };
+  return { render, control, view: () => view, seat, setSketching(value) { sketching = value === true; render(); } };
 }

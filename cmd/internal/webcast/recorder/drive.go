@@ -137,7 +137,10 @@ func (r *Recorder) castContexts() []worldContext {
 		if !r.underTop(session) {
 			continue
 		}
-		for id := range ctxs {
+		for id, frame := range ctxs {
+			if r.excludedFrame(frame) || r.excludedSession(session) {
+				continue
+			}
 			out = append(out, worldContext{session, id})
 		}
 	}

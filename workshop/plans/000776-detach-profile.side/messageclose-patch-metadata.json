@@ -1,0 +1,10 @@
+{
+  "base_sha": "eaa758a6f0cd38837655be5334400098849410ec",
+  "sha256": "b3e8c086612bd8d114fe2f4bed1dea0dbf3b6ce152be7308dae3f8ea1299b2ee",
+  "bytes": 47410,
+  "binaries_sha256": {
+    "pair-launch-helper": "fe3cdd161a86b10ab845fbd3011395186923677293bfad96073b8d757f0ee9c2",
+    "couch": "336bcf0a193655c61c4197c1f7b1fcc2131fc684dbcbf74df218f223aa986af8",
+    "pair": "8c2676d274e811ddfba66a3d032c22265df28bf063f3104e84971fcfcb6f4208"
+  }
+}

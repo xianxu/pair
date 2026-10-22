@@ -1,0 +1,9 @@
+{
+  "agent": "claude",
+  "candidate": "current",
+  "root": "/Volumes/TestScratch/pc-3653008707",
+  "started_at": "2026-10-21T18:56:56.198242Z",
+  "startup_error": "worker 4 CLI: fixture CLI: exit status 1; stdout={\"FailureNonce\":\"operation-666cdfe642fc5aa761c9f399babb733a\",\"ID\":\"4e05c7a8-397e-4e71-9e4d-ed8ce2da1c05\",\"Op\":\"reboot\",\"Target\":\"fixture:4\",\"Status\":\"failed\",\"Detail\":\"Pair exited before registering (exit 1) [attempt start-1b94f09edc3fcabc; diagnostics /Volumes/TestScratch/pc-3653008707/store/launch-diagnostics/failures.json]; inspect with couch --show '/Volumes/TestScratch/pc-3653008707/fleet/worktree/fixture-slot4/fixture'\",\"Warning\":\"started fresh; previous TTY capture unavailable; use branch and issue evidence; any unproved owners were left untouched under their original identities; workspace setup was not refreshed\",\"Admitted\":\"2026-10-21T11:58:06.588319-07:00\",\"Finished\":\"2026-10-21T11:58:29.370249-07:00\"}\n stderr=couch: fixture:4 reboot still running after 15s\n",
+  "total": 8,
+  "trace": "/Volumes/TestScratch/detach-compare.O0eTeh/trace-current-8.jsonl"
+}

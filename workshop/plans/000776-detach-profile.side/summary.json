@@ -1,0 +1,45 @@
+{
+  "classification": "inconclusive-old-startup-incompatibility",
+  "old_sha": "856876acd65a089426e4d1f62ced00444db347e4",
+  "current_sha": "eaa758a6f0cd38837655be5334400098849410ec",
+  "harness_sha": "eaa758a6f0cd38837655be5334400098849410ec",
+  "landed_harness_merge": "247339977628c8f8a47678dd666ed86ba0f5780f",
+  "personality": "claude deterministic fixture",
+  "planned_total_slots": [
+    4,
+    8
+  ],
+  "attempted_cells": [
+    "old-4"
+  ],
+  "timed_cells": [],
+  "bisect_attempted": false,
+  "failure": "first worker Pair exited1 before registration: existing Couch thread registration does not match requested established address",
+  "cleanup": {
+    "shared_harness_report": "all owned generations absent; direct child and IO joined",
+    "root": "/Volumes/TestScratch/pc-339109010",
+    "verified_absent": true
+  },
+  "candidate_builds": "both Couch, Pair, helper sets successful; same shared fixture",
+  "instrumentation_git_patch_sha256": "24e972bf0c23bd1bce85db37c4c1d90b036d754f56a7b6ab55a48e1bccd84296",
+  "instrumentation_diff_and_helper_artifact_sha256": "448f5afaabebfd81ef2aa08317727f504282f7e104d90543fabd679c0b787058",
+  "observer": "bounded4096 in-memory rows, mutex append, single Leave-end JSONL flush+fsync; no observed timings because Leave was never entered",
+  "artifacts": [
+    "manifest.json",
+    "commands.log",
+    "build.log",
+    "build-initial-missing-assets.log",
+    "tools.json",
+    "binary-sha256.json",
+    "native-comparison.log",
+    "result-old-4.json",
+    "driver-exit.json",
+    "old-instrumentation.git.patch",
+    "current-instrumentation.git.patch",
+    "build.py",
+    "run.py",
+    "instrument.py",
+    "current/cmd/couch/detach_comparison_test.go"
+  ],
+  "recorded_at": "2026-10-21T18:52:15.581676+00:00"
+}

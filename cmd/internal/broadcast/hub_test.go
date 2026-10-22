@@ -22,21 +22,32 @@ type manualClock struct {
 }
 
 func newManualClock() *manualClock {
-	return &manualClock{grace: make(chan time.Time, 1), ticks: make(chan time.Time)}
+	return &manualClock{ticks: make(chan time.Time)}
 }
 
 func (c *manualClock) after(time.Duration) (<-chan time.Time, func() bool) {
 	c.armed++
-	ch := make(chan time.Time, 1)
+	ch := make(chan time.Time)
 	c.grace = ch
 	return ch, func() bool { c.stopped++; return true }
 }
 
-// fireGrace fires the most recently armed grace timer, if it hasn't fired.
+// fireGrace waits for both timer consumption and handler completion. A request
+// barrier alone does not order another ready select case (pair#771).
 func (c *manualClock) fireGrace(h *Hub) {
+	var ch chan time.Time
+	h.do(func() {
+		if c.grace != nil && (h.graceC == c.grace || h.pointerGraceC == c.grace) {
+			ch = c.grace
+		}
+	})
+	if ch == nil {
+		return // never armed, canceled, fired, or the hub already ended
+	}
 	select {
-	case c.grace <- time.Now():
-	default:
+	case ch <- time.Now():
+	case <-h.Done():
+		return
 	}
 	h.sync()
 }
