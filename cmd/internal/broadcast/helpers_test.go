@@ -34,6 +34,9 @@ func textFrame(t *testing.T, cols, rows int, body, chrome string) terminal.Frame
 	if err != nil {
 		t.Fatal(err)
 	}
+	if rows > 1 {
+		f.ChromeRows = 1
+	}
 	return f
 }
 

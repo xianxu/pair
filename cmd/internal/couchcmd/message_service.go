@@ -166,6 +166,7 @@ const (
 // timers in arrival order. Request goroutines read
 // only the published snapshot of connected bindings.
 type messageService struct {
+	endpoints *editorEndpointService
 	lifecycle atomic.Pointer[lifecyclePublisher]
 	resources atomic.Pointer[resourceSampler]
 	hubMoves  atomic.Pointer[hubMoveService]
@@ -268,6 +269,9 @@ type preparedAdmission struct {
 
 func (s *messageService) Close() {
 	s.cancel()
+	if s.endpoints != nil {
+		s.endpoints.Close()
+	}
 	_ = s.server.Close()
 	_ = s.sessions.Close()
 	_ = s.broker.Close()
@@ -523,6 +527,11 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 		return nil, err
 	}
 	probe.service.Store(service)
+	service.endpoints, err = startEditorEndpointService(service.lifetime, namespace)
+	if err != nil {
+		service.Close()
+		return nil, err
+	}
 	service.installAgentSwitchService(console, c, switchGuard)
 	service.installAgentDriveService(console)
 	service.installHubMoves(console, c)

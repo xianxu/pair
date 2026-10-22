@@ -149,7 +149,7 @@ func changedPlainRows(previous, next Frame) ([]int, bool) {
 	return changed, true
 }
 func sameHistoryFrame(a, b Frame) bool {
-	if a.EndpointID != b.EndpointID || a.Geometry != b.Geometry || a.Cursor != b.Cursor || a.AltScreen != b.AltScreen || len(a.Cells) != len(b.Cells) {
+	if a.EndpointID != b.EndpointID || a.Geometry != b.Geometry || a.Cursor != b.Cursor || a.AltScreen != b.AltScreen || a.ChromeRows != b.ChromeRows || len(a.Cells) != len(b.Cells) {
 		return false
 	}
 	for i := range a.Cells {

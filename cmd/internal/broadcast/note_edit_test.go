@@ -62,7 +62,7 @@ func TestParseNoteEditRejectsAmbiguousIdentity(t *testing.T) {
 
 func TestNoteBoardEditPreservesNoteAndRefusals(t *testing.T) {
 	var b NoteBoard
-	n, err := b.Add(Note{Box: CellBox{3, 1, 2, 1}, Text: "old", Owner: "one", Author: "Ana"}, 40, 4)
+	n, err := b.Add(Note{Box: CellBox{3, 1, 2, 1}, Text: "old", Owner: "one", Author: "Ana"}, 40, 4, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +116,7 @@ func TestTerminalResolutionRetentionAndEditGeneration(t *testing.T) {
 	s := &Session{pointer: p}
 	gen := p.generation()
 	for i := 0; i < MaxNoteResolutions+3; i++ {
-		n, err := p.addNote(Note{Box: CellBox{3, 1, 2, 1}, Text: "text", Owner: "one"}, 40, 4, gen)
+		n, err := p.addNote(Note{Box: CellBox{3, 1, 2, 1}, Text: "text", Owner: "one"}, 40, 4, 1, gen)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -134,7 +134,7 @@ func TestTerminalResolutionRetentionAndEditGeneration(t *testing.T) {
 	}
 	p.set(false, nil)
 	p.set(true, nil)
-	n, err := p.addNote(Note{Box: CellBox{3, 1, 2, 1}, Text: "text", Owner: "one"}, 40, 4, p.generation())
+	n, err := p.addNote(Note{Box: CellBox{3, 1, 2, 1}, Text: "text", Owner: "one"}, 40, 4, 1, p.generation())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +170,7 @@ func TestTerminalNoteEditRefusesRotationDuringBodyRead(t *testing.T) {
 		t.Fatal(err)
 	}
 	session, _ := l.Unlock(time.Now(), l.Code())
-	n, err := p.addNote(Note{Box: CellBox{3, 1, 2, 1}, Text: "original", Owner: sessionNoteOwner(session)}, 40, 4, p.generation())
+	n, err := p.addNote(Note{Box: CellBox{3, 1, 2, 1}, Text: "original", Owner: sessionNoteOwner(session)}, 40, 4, 1, p.generation())
 	if err != nil {
 		t.Fatal(err)
 	}

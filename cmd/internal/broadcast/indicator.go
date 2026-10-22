@@ -25,15 +25,15 @@ const (
 // liveBackground is the cell background LiveSGR produces.
 var liveBackground = ansi.Red
 
-// IndicatorShown reports whether f's last row begins, at column zero, with
+// IndicatorShown reports whether f's first declared chrome row begins, at column zero, with
 // LiveLabel drawn on the live background. A broadcast forwards only frames for
 // which this holds: what viewers get, the operator saw marked as live.
 func IndicatorShown(f terminal.Frame) bool {
 	cols, rows := f.Geometry.Cols, f.Geometry.Rows
-	if cols <= 0 || rows <= 0 || len(f.Cells) != cols*rows {
+	if cols <= 0 || rows <= 0 || f.ChromeRows <= 0 || f.ChromeRows >= rows || len(f.Cells) != cols*rows {
 		return false
 	}
-	row := f.Cells[(rows-1)*cols:]
+	row := f.Cells[(rows-f.ChromeRows)*cols:]
 	x := 0
 	for rest := LiveLabel; rest != ""; {
 		g, _ := ansi.FirstGraphemeCluster(rest, ansi.GraphemeWidth)
@@ -57,7 +57,7 @@ var pointerBackground = ansi.IndexedColor(214)
 // one space.
 var pointerColumn = textwidthOf(LiveLabel) + 1
 
-// PointerShown reports whether f's last row shows the active pointer marker:
+// PointerShown reports whether f's first declared chrome row shows the active pointer marker:
 // PointerLabel on the pointer background at pointerColumn, after LIVE. It is
 // the pointer's visible-capability check, as IndicatorShown is LIVE's (#412).
 func PointerShown(f terminal.Frame) bool {
@@ -65,7 +65,7 @@ func PointerShown(f terminal.Frame) bool {
 	if !IndicatorShown(f) || pointerColumn+2 > cols || len(f.Cells) != cols*rows {
 		return false
 	}
-	c := f.Cells[(rows-1)*cols+pointerColumn]
+	c := f.Cells[(rows-f.ChromeRows)*cols+pointerColumn]
 	return c.Content == PointerLabel && c.Width == 2 && c.Style.Bg == pointerBackground
 }
 
@@ -73,5 +73,5 @@ func textwidthOf(s string) int { return ansi.StringWidth(s) }
 
 // StatusGuardCols is the width of the broadcast's controls at the left of
 // Couch's status row, `LIVE ⏸ 👆`. Marks never cover these columns of the
-// last row (#412); the rest of the tab bar can be pointed at.
+// first chrome row (#412); the rest of the tab bar can be pointed at.
 var StatusGuardCols = textwidthOf(LiveLabel + " " + PointerLabel)

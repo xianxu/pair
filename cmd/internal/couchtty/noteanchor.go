@@ -18,8 +18,8 @@ const maxAnchorText = 1024
 
 // ScreenLayout is what Couch knows of its screen when a note is placed.
 type ScreenLayout struct {
-	// Chips are the tab bar's chips on the last row.
-	Chips []ColumnSpan
+	// Chips carry zero-based rows relative to the declared chrome surface.
+	Chips []ChipSpan
 	// Slot is the label of the slot in view (its chip's, without the
 	// status glyph), "" when there is none.
 	Slot string
@@ -28,7 +28,7 @@ type ScreenLayout struct {
 // AnchorFor is the anchor of a note's box on frame f: the part of Couch's
 // screen holding the box's centre, the steps down to it, and the text
 // under the box.
-//   - The last row: the tab bar (its chips), or the status line (the
+//   - The declared chrome rows: the tab bar (its chips), or the status line (the
 //     broadcast's and Chrome's controls).
 //   - Above it: the slot in view, with kind AnchorScreen. Native pane roles,
 //     files and line numbers cannot be established from the displayed frame.
@@ -39,14 +39,21 @@ func AnchorFor(box broadcast.CellBox, f terminal.Frame, l ScreenLayout) broadcas
 		return a
 	}
 	cx, cy := box.Col+box.W/2, box.Row+box.H/2
-	if cy >= rows-1 {
+	top := rows - f.ChromeRows
+	if f.ChromeRows > 0 && f.ChromeRows < rows && cy >= top && cy < rows {
+		row := cy - top
+		var rowChips []ColumnSpan
 		var tabs []string
 		for _, s := range l.Chips {
+			if s.Row != row {
+				continue
+			}
+			rowChips = append(rowChips, ColumnSpan{Start: s.Start, End: s.End})
 			if s.Start < box.Col+box.W && box.Col < s.End {
-				tabs = append(tabs, strings.TrimSpace(rowText(f, rows-1, s.Start, s.End)))
+				tabs = append(tabs, strings.TrimSpace(rowText(f, cy, s.Start, s.End)))
 			}
 		}
-		if len(tabs) > 0 && inChips(cx, l.Chips) {
+		if len(tabs) > 0 && inChips(cx, rowChips) {
 			a.Kind, a.Path = broadcast.AnchorTabBar, []string{"tab bar", "tabs: " + strings.Join(tabs, ", ")}
 			return a
 		}
