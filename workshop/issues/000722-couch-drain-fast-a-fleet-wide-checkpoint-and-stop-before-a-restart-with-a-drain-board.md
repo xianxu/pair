@@ -422,6 +422,12 @@ Retained session37048 completed exit0. Declared affected selection expanded to s
 
 Complete couchcore passed163.798s, couchcmd53.061s, couchmessage26.020s, couchtty42.446s and wrapcmd88.730s; the prior review's core10m timeout did not recur, but its original cause remains unattributed. New source-publication race regression/catalog guard, slow-target socket/fanout tests and embedded-guide fixes are included. Later branch commits change only issue Log evidence, not executable inputs. Mark the active implementation verification checkbox complete. Next: affected inventory, mandatory full re-close (BR6 source proof and BR7 doc guard disposal), then TL-owned authorized stage/watched acceptance after #753/#739. No new native matrix run, live drain, queue control or landing is authorized by this pass.
 
+### 2026-10-22 15:52 PDT — renewed SHIP; waiting for watched smoke lane
+
+Full close session19599 completed exit0: round9 SHIP/high confidence, no new Critical/Important/Minor findings, all seven prior findings disposed. Reviewer independently verified complete suite log bytes/metadata and source-to-pinned-head docs-only equivalence, focused behavior/races, catalog/oracles and inventory. BR6 addressed by exact-source proof (earlier timeout still unattributed); BR7 addressed by inspected complete command table and guard. Codecomplete is published, bound to evidence351bf4d2905c07d09dc44d03b0ef1646bc7b78a6; mirror/pushed head ff2c27ac2614a47b5f5d6d76d9be47fab6a0b6ce. Actual33.40h is SDLC-measured/adopted, never hand-entered.
+
+Hub report7d3b6ffc-2d4f-4968-9cec-56b9529605ca is canonically submitted. Ready for fresh authorized stage and operator-watched real-Claude/Codex rerun after #753 re-look and #739 shutdown check, per TL55e2cb84. Do not stage or merge until that authorization/acceptance: previous stage was cleared, failed watched result remains failure, private proof does not replace watched acceptance. No owned suite or review remains running. Exact next step: await TL GO, then sdlc stage --build and send verified printed revisions; TL drives queue/drain/lift and the operator watches. Preserve partial-delivery and missed-notice-lift checks in that rerun.
+
 ## Revisions
 
 ### 2026-10-19 — authenticated acknowledgement and shared queue ownership
