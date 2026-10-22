@@ -315,3 +315,13 @@ Added the narrow Pair-local broadcast-short-root catalog rule to prevent the mec
 
 
 Review corrections qualified: complete broadcast package PASS55.302s after the shared-root change; full repolint PASS17.332s and staged tracked-catalog/new-rule controls PASS4.737s; reader inventory --check PASS after individually re-auditing cloudflared/protected fixture readers and the new literal-AST rule test. Existing production oversized-path refusal controls remain in the passing broadcast set. Commit fixes/ledger/sidecar and queue exactly one replacement recorded check on the pushed corrected head. M2 remains unfinalized until the review disposes BR-5; no waiver or blind full-suite retry.
+
+
+### 2026-10-21 — M2 review round2, end-to-end recovery visibility
+
+Review disposed BR-5/6 addressed with both independent RED controls; raised BR-7 Important (failure-recovery-visibility): ErrTunnelBusy lost the explicit stop-existing-casts recovery, CLI discarded RemoteStatus.Detail, and console replaced configuration/cleanup detail with generic advice. Enumerated the class across configuration, synchronous admission/capture errors, startup, latch arm/kill/reset/stop publication and cleanup. Existing supervisor details are fixed secret-free strings; connector errors must remain classified, not interpolated.
+
+Canceled/joined only queued lease-2853467057 before code edits; it never started suite tests. New regressions RED: busy supervisor0.198s, CLI0.360s, console0.330s (disabled, blocked and unconfigured all lost details). Preserve busy sentinel as fixed stop-existing-casts/host-reset-after-cleanup recovery; print safe Detail in CLI and keep it in console notices, retaining fallback instructions when absent. No lifecycle or reset-authority change. Broad remote/supervisor race GREEN remotesession2.656s/couchcmd2.078s/couchtty1.925s; final focused race follows the last harmless notice-format cleanup. Update atlas/revisions and resubmit the actual unfinalized milestone review without any ledger waiver.
+
+
+Final focused recovery regressions on the exact corrected notice code PASS under race (remotesession1.173s, couchcmd1.587s, couchtty1.646s); complete repolint PASS8.399s and staged reader inventory PASS. No remaining local test runner. Queue exactly one new recorded check only after pushing this correction; the two prior queued checks were explicitly canceled/joined and are not result evidence.

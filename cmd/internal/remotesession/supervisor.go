@@ -219,7 +219,12 @@ func (s *Supervisor) open(e *remoteEpoch, attempt uint64) {
 	close(e.started)
 	if err != nil {
 		if s.epoch == e && (s.gate.state.phase == phaseOpening || s.gate.state.phase == phasePreparing) {
-			s.killLocked("remote transport failed; reset at the machine after cleanup")
+			detail := "remote transport failed; reset at the machine after cleanup"
+			if errors.Is(err, broadcast.ErrTunnelBusy) {
+				detail = "remote transport busy: stop the existing casts, then retry; reset at the machine after cleanup"
+			}
+			// Classify safe recovery text; connector errors may contain secrets.
+			s.killLocked(detail)
 		}
 	} else {
 		s.gate.state, _ = ReduceRemote(s.gate.state, remoteEvent{kind: eventOpened, attempt: attempt})

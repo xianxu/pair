@@ -88,7 +88,11 @@ func (c *Console) toggleRemoteSession() {
 	s, status := c.remoteSession, c.remoteStatus
 	c.mu.Unlock()
 	if s == nil {
-		c.setNotice("Remote unavailable: configure protected named ingress and Cloudflare Access")
+		detail := status.Detail
+		if detail == "" {
+			detail = "configure protected named ingress and Cloudflare Access"
+		}
+		c.setNotice("Remote unavailable: " + detail)
 		return
 	}
 	if status.Status == "off" {
@@ -96,9 +100,17 @@ func (c *Console) toggleRemoteSession() {
 			c.setNotice("Remote: " + err.Error())
 		}
 	} else if status.Status == "disabled" {
-		c.setNotice("Remote disabled: wait for teardown, then press Ctrl+Alt+R at this machine to reset; click again to enable")
+		detail := status.Detail
+		if detail != "" {
+			detail += "; "
+		}
+		c.setNotice("Remote disabled: " + detail + "wait for teardown, then press Ctrl+Alt+R at this machine to reset; click again to enable")
 	} else if status.Status == "blocked" {
-		c.setNotice("Remote blocked: repair its configuration or state and restart Couch")
+		detail := status.Detail
+		if detail == "" {
+			detail = "repair its configuration or state and restart Couch"
+		}
+		c.setNotice("Remote blocked: " + detail)
 	} else {
 		s.Off()
 	}

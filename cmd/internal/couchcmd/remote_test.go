@@ -67,6 +67,27 @@ func TestRemoteCLINeverRetriesLostReply(t *testing.T) {
 		t.Fatalf("%d %d %s", code, calls, &stderr)
 	}
 }
+
+func TestRemoteCLIShowsRecoveryDetails(t *testing.T) {
+	for _, detail := range []string{
+		"remote requires COUCH_REMOTE_ACCESS_TEAM and COUCH_REMOTE_ACCESS_AUDIENCE",
+		"stop the existing casts, then retry; reset at the machine after cleanup",
+		"remote disabled; cleanup unconfirmed; restart Couch after local inspection",
+	} {
+		inv, err := ParseCLI([]string{"--remote", "status"}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out, stderr bytes.Buffer
+		code := runMessageCLIWithCall(inv, messageRuntime(), &out, &stderr, func(_ context.Context, _ string, _, response any) error {
+			*response.(*couchmessage.Response) = couchmessage.Response{Code: "ok", Remote: &couchmessage.RemoteStatus{Status: "blocked", Detail: detail}}
+			return nil
+		})
+		if code != 0 || !strings.Contains(out.String(), detail) {
+			t.Fatalf("recovery hidden: code=%d stdout=%s stderr=%s", code, &out, &stderr)
+		}
+	}
+}
 func TestRemoteSettingsRequireExplicitProtection(t *testing.T) {
 	valid := map[string]string{"COUCH_REMOTE_ACCESS_TEAM": "operator", "COUCH_REMOTE_ACCESS_AUDIENCE": strings.Repeat("a", 64), "COUCH_REMOTE_ALLOWED_EMAILS": "human@example.com"}
 	named := broadcast.Cloudflared{Named: &broadcast.NamedTunnel{Name: "pair", Hostname: "remote.example.com"}, Guard: []string{"pair", "guard"}, Records: filepath.Join(t.TempDir(), "records")}

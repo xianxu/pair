@@ -89,7 +89,7 @@ Remote setup reuses COUCH_BROADCAST_TUNNEL/COUCH_BROADCAST_HOSTNAME and requires
 COUCH_REMOTE_ACCESS_TEAM, COUCH_REMOTE_ACCESS_AUDIENCE and comma-separated exact
 COUCH_REMOTE_ALLOWED_EMAILS. Account, DNS and Access policy setup belongs to the
 operator. `couch --remote on|off|status` runs through the owner-only local socket
-and prints action/status only. Same-UID code is trusted, so local enable/disable
+and prints action/status plus secret-free recovery detail. Same-UID code is trusted, so local enable/disable
 is allowed; no IPC reset operation exists. CLI is asynchronous: starting and
 stopping describe work still in flight.
 
@@ -104,3 +104,11 @@ still an operator acceptance check. Ctrl+Alt+R clears a settled kill latch only
 from a decoded host keypress, without enabling. Paste, release, repeat, terminal
 replies and child broker keys cannot reset. The pair-local remote-console-reset
 AST catalog pins capture/calls and rejects alias escapes.
+
+
+Failure projections preserve recovery across the supervisor, CLI and console.
+A busy named transport reports “stop the existing casts, then retry” alongside
+the existing host-reset-after-cleanup instruction; it never bypasses the latch.
+Configuration and uncertain-cleanup details remain visible on both operator
+surfaces. Connector errors are classified into fixed safe text rather than
+printing arbitrary stderr, links, credentials or a raw response.

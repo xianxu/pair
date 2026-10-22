@@ -117,6 +117,35 @@ func TestSupervisorCaptureRefusal(t *testing.T) {
 		t.Fatal("capture refusal armed state")
 	}
 }
+
+func TestSupervisorBusyTransportPreservesRecovery(t *testing.T) {
+	tunnel := &broadcast.FakeTunnel{Exclusive: true}
+	listener, err := tunnel.Listen()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+	held, err := tunnel.Open(t.Context(), listener)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = held.Close() })
+	s, _ := supervisorFixture(t, tunnel)
+	if err := s.On(); err != nil {
+		t.Fatal(err)
+	}
+	awaitRemote(t, s, "disabled")
+	if err := s.Join(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	status := s.Snapshot()
+	if !strings.Contains(status.Detail, "stop the existing casts, then retry") || !strings.Contains(status.Detail, "reset at the machine") {
+		t.Fatalf("busy recovery lost: %+v", status)
+	}
+	if s.ConsoleLink() != "" || s.On() == nil || tunnel.Stats().MaxOpen != 1 {
+		t.Fatal("busy recovery changed the authority fence")
+	}
+}
 func TestSupervisorLatchFailureNeverOpens(t *testing.T) {
 	f := &broadcast.FakeTunnel{}
 	s, reset := supervisorFixture(t, f)

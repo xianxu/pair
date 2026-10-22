@@ -128,3 +128,26 @@ func TestRemoteSessionControlIsDistinctAndClips(t *testing.T) {
 		t.Fatal("missing remote toggle")
 	}
 }
+
+func TestRemoteSessionNoticePreservesRecovery(t *testing.T) {
+	for _, tc := range []struct{ status, detail string }{
+		{"disabled", "stop the existing casts, then retry; reset at the machine after cleanup"},
+		{"blocked", "remote disabled; cleanup unconfirmed; restart Couch after local inspection"},
+		{"unconfigured", "remote requires COUCH_REMOTE_ACCESS_TEAM and COUCH_REMOTE_ACCESS_AUDIENCE"},
+	} {
+		t.Run(tc.status, func(t *testing.T) {
+			f := newFixtureBeforeRun(t, 24, 100, func(c *Console) {
+				if tc.status == "unconfigured" {
+					c.remoteConfigError = tc.detail
+				} else {
+					c.remoteSession = &fixtureRemoteSession{status: remotesession.RemoteStatus{Status: tc.status, Detail: tc.detail}}
+				}
+				c.refreshRemoteSession()
+			})
+			f.con.toggleRemoteSession()
+			if notice := f.notice(); !strings.Contains(notice, tc.detail) {
+				t.Fatalf("recovery hidden: %q", notice)
+			}
+		})
+	}
+}

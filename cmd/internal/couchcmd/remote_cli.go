@@ -40,7 +40,10 @@ func runRemoteCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, call 
 		fmt.Fprintf(stderr, "couch: remote action refused: %s\n", result.Error)
 		return 1
 	}
-	// Only this projection is printed: no raw response, link or passcode.
+	// Only the secret-free status projection is printed: no raw response/link.
 	fmt.Fprintf(stdout, "Remote %s: %s\n", strings.TrimPrefix(inv.messageOp, "remote-"), result.Remote.Status)
+	if result.Remote.Detail != "" {
+		fmt.Fprintln(stdout, result.Remote.Detail)
+	}
 	return 0
 }
