@@ -109,3 +109,94 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000411
+
+---
+
+## Re-review — 2026-10-21T22:51:25-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 759 — remote-session: 👽 mode in the terminal cast behind Cloudflare Access, off by default, kill switch re-enabled only at the console, tagged remote submits |
+| repo | pair |
+| issue file | workshop/issues/000759-remote-session-mode-in-the-terminal-cast-behind-cloudflare-access-off-by-default-kill-switch-re-enabled-only-at-the-console-tagged-remote-submits.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | 27dffa8d88b0ba49e30b1baeb695c1fd5c02e05d..5136229868a8fc0806d934317d8104154e763dee |
+| command | sdlc milestone-close --issue 759 --milestone M3 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T22:51:25-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The reviewed M3 code boundary satisfies the documented scope. All three prior findings are addressed with meaningful regression evidence, and no new blocking findings emerged. This verdict covers code and private qualification; live Access/iPhone acceptance, #758 editor integration, and landing remain pending as documented.
+
+```findings
+dispose:
+  - id: BR-9
+    disposition: addressed
+    note: |
+      remote_submit.go:36–48 separates sender from document ownership and preserves unmarked legacy admission. The production-service regression covers distinct sender/owner for marked and unmarked documents; restoring the owner-equality rejection made both cases fail, and restoring HEAD passed.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      ledger.go:119 reserves the next encoded row through retention before append. Repeated failure tests across recreated owners cover malformed evidence, scanner failure, retention publication, write-open and gap-expiry failures. Removing preflight caused evidence growth and regression failures; restored HEAD passed.
+  - id: BR-11
+    disposition: addressed
+    note: |
+      dispatch_completion_test.go:217 enumerates held backend-result, held result-audit and settled cuts against observer cancellation, logout and kill, asserting effect counts, replay, uncertainty, receipt preservation and cleanup/reset exclusion. Removing receipt observation made controlled result-audit cases fail; restored HEAD passed.
+```
+
+1. **Strengths**
+
+   - Local provenance follows stable registration identity while preserving cross-slot routing and unmarked compatibility.
+   - Ledger retention preflight prevents repeated growth without deleting damaged evidence.
+   - Completion tests control event ordering through rendezvous and assert independent effect and durability counts.
+   - README and atlas describe the delivered API, conservative forget restriction, transcript limits, and pending integrations.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Complete `remotesession`, `sessionsync`, `couchmessage`, `couchcmd`, and `wrapcmd` packages passed.
+   - Focused dispatch and ledger tests passed under the race detector.
+   - Affected-reader inventory and pinned-range whitespace checks passed.
+   - Independent mutation controls failed for all three prior findings; restored tests passed. The disposable copy was removed, and the reviewed checkout remained clean.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Shared provenance validation and comparison cover broker, endpoint, batch, and wrapper paths.
+   - **ARCH-PURE — pass:** Value validation and projections remain separate from synchronized IO owners.
+   - **ARCH-PURPOSE — pass:** Trusted provenance reaches delivery, receipts, ledger, owed projections, and transcript fixtures.
+   - **ARCH-MOCK — pass:** Stateful backend and endpoint fixtures exercise production seams; real-editor acceptance remains explicitly pending.
+   - **ARCH-CONSTRAINTS — pass:** Request, replay, stream, operation, and storage bounds have enforcement and representative tests.
+   - **ARCH-SECURE — pass:** Browser inputs cannot select trusted provenance; malformed recognized ledger evidence refuses visibly.
+   - **ARCH-ORDER — pass:** Controlled completion/revocation sequences verify ownership, uncertainty, replay, and join exclusion.
+   - **ARCH-FUNERAL — pass:** Failed retention stops growth; origin capacity and conservative retirement restrictions are explicit.
+   - **ARCH-EVOLVE — pass:** Unknown root and nested fields survive actual rewrite paths, with strict known-field validation.
+
+7. **Plan revision recommendations:** None required for this boundary.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"784cdea0-d0a2-4305-a738-86ce8dc9f16b","repository":"github.com/xianxu/pair","issue_id":"000759","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/914dceacecef926c","reviewed_head":"5136229868a8fc0806d934317d8104154e763dee","slot":"pair:6","requested_at":"2026-10-22T05:47:43.826413Z"},"phase":"finished","pid":62544,"started_at":"2026-10-22T05:47:43.953572Z","finished_at":"2026-10-22T05:51:24.859404Z","session_id":"01a16226-ad48-7e12-a14a-42cbe3251407","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.650979833s
+head: "5136229868a8fc0806d934317d8104154e763dee"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

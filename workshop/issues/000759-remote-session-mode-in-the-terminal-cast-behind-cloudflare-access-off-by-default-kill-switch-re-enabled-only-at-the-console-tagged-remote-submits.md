@@ -54,7 +54,7 @@ Approved durable design: [remote security plan](../plans/000759-remote-security-
 - [x] Operator approved threat model and plan with explicit toggle/header/session/transcript changes; #758 stateful-backend sequencing settled.
 - [x] M1 — Verified Access identity, pure lifecycle/session policy, durable latch, bounded audit and replay state.
 - [x] M2 — Exclusive protected exposure, console-only reset, CLI refusal and kill/late-completion conformance.
-- [ ] M3 — Trusted remote provenance through submit/accounting, typed adapter integration and private qualification, full code milestone review; operator acceptance and landing stay held afterwards.
+- [x] M3 — Trusted remote provenance through submit/accounting, typed adapter integration and private qualification, full code milestone review; operator acceptance and landing stay held afterwards.
 
 ## Log
 
@@ -62,6 +62,7 @@ Approved durable design: [remote security plan](../plans/000759-remote-security-
 
 
 ### 2026-10-21 — planning only
+- 2026-10-21: closed M3 — M3 code/private qualification: BR9 configured cross-slot submits race PASS1.780s, stable-ID rename regression RED0.104s then full sessionsync race PASS23.099s; BR10 retained evidence bounded across recreated owners at N8/16; BR11 held post-handoff completion/revocation and counted cycles, full remotesession race PASS12.536s; repolint/artifactpath PASS11.442s/10.776s and reader inventory PASS. Corrected head pushed, one recorded suite queued; its pass required before landing. No stage/live acceptance claimed: operator Access/iPhone check tomorrow, #758/#760 editor step deferred explicitly.; review verdict: SHIP
 - 2026-10-21: closed M2 — BR-8 RED actual killed-opening cleanup0.228s and existing-close ownership0.246s; GREEN three race repetitions1.315s/1.335s. Complete corrected broadcast/remotesession race194.955s/12.093s; remote console/CLI race2.237s/2.186s; catalog18.311s/artifactpath21.482s and staged reader inventory PASS. ErrProtectedCleanup independently retains failed opening teardown; same closing attempt is joined; canceled/failed opening plus listener cleanup controls keep Join error, blocked state and reset refusal. Approved TLbe526c06, no new authority/state; raw errors stay out of status. Prior BR-5/6/7 disposed. M3 and live Access/editor acceptance remain pending.; review verdict: SHIP
 - 2026-10-21: closed M1 — Round2 disposed BR-1/2/3 addressed and found no new runtime defect; BR-4 complete delivered-entity audit now maps each declaration/classification/file correctly and future M2/M3 code explicitly planned. No runtime changes since passing1811e47e: package normal/race, signed issuer, generated controlled sessions, bounded crash-stage recovery, independent lifecycle/replay/permit invariants and catalog/artifactpath evidence retained. Foundation only, no exposure or real-nvim acceptance claimed.; review verdict: SHIP
 
