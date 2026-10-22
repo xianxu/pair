@@ -1,0 +1,16 @@
+{
+  "mac_https_control": {
+    "url": "https://xians-macbook-pro.tail223684.ts.net/probe",
+    "exit": 0,
+    "http": 502,
+    "stderr": "",
+    "origin_requests": 0
+  },
+  "iphone_request_observed": false,
+  "interpretation": "Scratch Unix socket connection denied by installed sandboxed IPNExtension. Other socket locations and secure proxy identity remain unqualified.",
+  "documentation": [
+    "https://tailscale.com/docs/concepts/macos-variants",
+    "https://tailscale.com/docs/reference/tailscale-cli/serve"
+  ],
+  "cleanup": "Foreground joined exit0, exact socket absent, Serve baseline {} restored."
+}

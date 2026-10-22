@@ -1,0 +1,93 @@
+[
+  {
+    "at": 1792698286.492687,
+    "kind": "baseline",
+    "serve": {},
+    "version": "1.104.1-t7f4efe814-g4939ea2e4",
+    "hostname": "xians-macbook-pro.tail223684.ts.net"
+  },
+  {
+    "at": 1792698286.523618,
+    "kind": "request",
+    "peer": {
+      "pid": 85523,
+      "uid": 501,
+      "gid": 20,
+      "getpeereid_rc": 0,
+      "process_before": "85523 46243   501 Thu Oct 22 12:44:46 2026     /opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python\n",
+      "process_after": "85523 46243   501 Thu Oct 22 12:44:46 2026     /opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python\n"
+    },
+    "headers": {
+      "Tailscale-User-Login": [
+        "forged.invalid"
+      ],
+      "X-Forwarded-For": [
+        "100.1.1.1"
+      ],
+      "X-Forwarded-Host": [],
+      "X-Forwarded-Proto": [],
+      "Tailscale-Funnel-Request": [],
+      "Host": [
+        "localhost"
+      ]
+    },
+    "direct_control": true
+  },
+  {
+    "at": 1792698286.531178,
+    "kind": "foreground-start",
+    "pid": 85655,
+    "argv": [
+      "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
+      "serve",
+      "--https=443",
+      "unix:/Volumes/TestScratch/tmp/pair-slot6/p759-probe.laVMpb/s"
+    ]
+  },
+  {
+    "at": 1792698286.673141,
+    "kind": "ready",
+    "url": "https://xians-macbook-pro.tail223684.ts.net/probe",
+    "serve": {
+      "Foreground": {
+        "bcd6e3d6821e32ed": {
+          "TCP": {
+            "443": {
+              "HTTPS": true
+            }
+          },
+          "Web": {
+            "xians-macbook-pro.tail223684.ts.net:443": {
+              "Handlers": {
+                "/": {
+                  "Proxy": "unix:/Volumes/TestScratch/tmp/pair-slot6/p759-probe.laVMpb/s"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "socket_mode": "0o600"
+  },
+  {
+    "at": 1792698466.8520691,
+    "kind": "foreground-joined",
+    "pid": 85655,
+    "exit": 0,
+    "reader_joined": true
+  },
+  {
+    "at": 1792698467.365132,
+    "kind": "cleanup",
+    "serve": {},
+    "socket_absent": true,
+    "baseline_restored": true
+  },
+  {
+    "at": 1792698467.365459,
+    "kind": "result",
+    "detail": "FAILED: no proxied request within bounded 180s window",
+    "inherited_identity_variables": []
+  }
+]

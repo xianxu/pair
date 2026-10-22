@@ -1,0 +1,6 @@
+Available within your tailnet:
+
+https://xians-macbook-pro.tail223684.ts.net/
+|-- proxy unix:/Volumes/TestScratch/tmp/pair-slot6/p759-probe.laVMpb/s
+
+Press Ctrl+C to exit.

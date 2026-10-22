@@ -612,3 +612,39 @@ with no JSON: "failed to connect to local Tailscale service; is Tailscale
 running?" Running/login/HTTPS readiness remains unproved. No Serve mapping
 or configuration change. Added a pending pivot row to Issue Plan so the prior
 closed M1–M3 code boundaries do not imply the new transport or acceptance passed.
+
+
+### 2026-10-22 — installed Tailscale native gate: scratch socket denied
+
+TL readiness 202ff650 confirmed Mac/iPhone login, MagicDNS and HTTPS, with
+COUCH_REMOTE_ALLOWED_LOGINS corrected by b5dc44eb. Actual installed app CLI
+reports 1.104.1 (not the previously observed installer package version). Scripted
+CLI requires TAILSCALE_BE_CLI=1; without it the clean-environment control emitted
+a GUI startup error and did not produce JSON. No app settings were changed.
+
+Evidence: workshop/evidence/000759/tailscale-scratch-probe-20261022/ contains
+the probe source, events, capped Serve output, exact daemon error, entitlements
+and control result. Explicit empty-base child environment inherited no Couch or
+Pair identities. Physical0700 scratch directory and0600 Unix socket; direct
+forged-header control captured its own Python PID/UID through kernel credentials.
+One foreground Serve epoch advertised HTTPS443, no Funnel or background mode.
+The Mac HTTPS control returned502, with zero proxied origin requests. Native log
+12:47:16.303: IPNExtension[17726] dial unix to the exact scratch socket failed
+with operation not permitted. Installed process is the UID501 IPNExtension app
+plugin; signed entitlements include app-sandbox=true and Downloads read/write.
+No iPhone request reached the origin; the first notice was submitted near the
+end of its180s window, so this is not an iPhone acceptance failure. Cleanup joined
+the owned foreground child exit0, removed only its socket and confirmed original
+empty Serve configuration restored. No remote transport code or fallback.
+
+Official macOS-variants documentation says both GUI extension variants are
+sandboxed and the open-source tailscaled variant is not. Serve documentation
+limits GUI file serving but does not promise Unix proxy access. The observed
+scratch location is denied; this does not prove every possible location denied.
+Reported options and their trade-offs before choosing: bounded Downloads probe;
+operator-managed unsandboxed root tailscaled with service/update/migration burden;
+or a separately reviewed TCP authentication boundary (not approved/implemented).
+TL bb09d562 approved exactly one0700/0600 Downloads probe, armed only until the
+operator explicitly says ready, then a600s window. Even success requires operator
+review of a user-visible Downloads product socket and entitlement-update risk
+versus the root-daemon option. No product design acceptance is inferred.
