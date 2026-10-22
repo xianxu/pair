@@ -118,3 +118,62 @@ ARCH-DRY/PURE: reuse SelectResourceProcesses, existing caller/hub facts and Reap
 ## Revisions
 
 - 2026-10-22 — Hub approval cea188f7-9b5c-4999-879d-59404fd1971a accepts the full design and selects disposable public-command conformance with Claude and Codex as live acceptance. No operator/:0 stage is needed; this supersedes the proposed stage-window request in tasks 3/4. The first real post-landing use belongs to ops-echo against echo:2's still-proven leftovers, not this test invocation.
+
+### 2026-10-22 — Plan-quality refinement (authoritative delta)
+
+Reason: PQ-1 requires the complete detached-root veto, PQ-2 requires a structurally enforced transition function, and PQ-3 requires function-level test strategies. The following replaces the active proof/cost details and case inventories above; the incident, authority contract, exact signal scope, cadence and acceptance choice stay unchanged. Earlier text remains as the design history.
+
+#### Complete ownership proof: PQ-1
+
+Extract the sampler's common native ownership stage into `resourceSampler.collectOwnership(ctx)`: read the bounded table and current slot inventory, enrich it through existing `DetachedSlotRoots` with the generation-cached `inheritedThread` reader, then call `SelectResourceProcesses` with the sampler's prior provenance. Both `pass` and an effect-proof request use this stage. This is an integration shell, not a second classifier. It excludes usage/argv/cwd probes and persistence but **includes required detached-root environment evidence**; the earlier zero-environment-read claim is superseded.
+
+The existing sampler worker remains the sole owner of provenance and the thread cache. Extend its existing request channel to distinguish full sweep from `prove-reap`; the signal handler requests a typed `ProvenOrphanProof` from that worker and never reads its mutable state or substitutes a cached ResourceView for a fresh proof. The reply includes the table/selection and inventory-completeness facts for the requested exact target. If the worker is busy or cannot finish inside the existing exchange deadline, refuse without a signal. It creates no detached task or durable operation state.
+
+Preserve three outcomes of a detached-thread read: known matching thread, known absence of thread fields, and unknown/unreadable evidence. Cache them by exact generation under the existing lifecycle. For effect proof, unknown candidate or relevant-ancestor enrichment is a veto rather than a negative match; excluded infrastructure remains excluded by the existing predicate. In particular, a platform shell's withheld environment cannot justify killing it or an otherwise ambiguous subtree. Missing current inventory or incomplete table is also a veto. Fresh positive current ownership always wins over old provenance.
+
+`ProvenOrphanTargets` and `DecideProvenOrphanSignal` consume this complete proof and reuse the existing classifier result. They do not call the raw classifier over unenriched roots. Keep the worker read stage outside the hub lock; reacquire current hub authority under its read lock, apply the final target decision and nonempty identity check, then send the single native PID signal while that lock remains held. An identity/ownership change detected before that final decision refuses/skips as appropriate.
+
+Cost now names E, the gated detached candidates: each proof costs one table read plus at most E environment reads for previously unobserved generations, with cached known/unknown results reused and transient identity/cancellation failures not cached. The command bound remains 2 minutes and each exchange 2 seconds. Count K=8/16 effect requests, P=8/16 table rows and S=8/16 slots independently, plus cold/warm E=8/16 cache behavior. Require at most 2K effect requests/table reads; environment work follows unique gated generations, never a per-target unconditional subprocess. Unknown evidence may reduce eligible cleanup; it must not reduce protection.
+
+#### Authoritative invocation transitions: PQ-2
+
+Add private `ExactReapState`, tagged `ExactReapPhase`, `ExactReapRowState`, `ExactReapEvent` and `ExactReapEffect` in `launcher/exact_reap_model.go`. Export only the execution/outcome API needed by the CLI. `AdvanceExactReap(state,event)` is the sole writer of per-row progress and the sole producer of signal/wait/probe effects. Reaper.ReapExact is an interpreter: it runs those effects through injected IO and feeds their outcomes back as events; it cannot assign authoritative row state or synthesize a final success.
+
+The immutable key/provenance set is fixed by Begin. Row states are pending-term, sending-term, waiting-term, pending-kill, sending-kill, waiting-kill and done. Phase states are TERM dispatch, TERM wait, KILL dispatch, KILL wait and done. Effects are dispatched sequentially; there is no concurrent outstanding signal and no spawned lifetime. All timers/observations enter as events; no clock or IO is read by the reducer.
+
+| State/event | Next state / permitted effect |
+| --- | --- |
+| pending-term + next | sending-term; emit exactly one guarded TERM |
+| sending-term + acknowledged sent | waiting-term |
+| sending-term + refused, changed/gone or error/lost reply | done with refused, skipped or failed/uncertain; never KILL |
+| All TERM replies resolved | TERM wait; emit bounded shared wait/probe effects |
+| waiting-term + positive exact absence | done/reaped |
+| waiting-term + known same-generation survivor AND TERM deadline reached | pending-kill |
+| waiting-term + unknown probe | done/failed; never KILL |
+| pending-kill + next | sending-kill; emit exactly one newly guarded KILL |
+| sending-kill + acknowledged sent | waiting-kill |
+| sending-kill + refused, changed/gone or error/lost reply | done with explicit result; no repeat |
+| waiting-kill + positive exact absence | done/reaped |
+| waiting-kill + known survivor at KILL deadline or unknown probe | done/failed |
+| Any unfinished row + cancellation/deadline | done/failed with retained progress; emit no new signal |
+| Duplicate/out-of-order reply or foreign key | no new effects; finished state never reopens |
+
+Skipping after a changed identity never means the replacement ended. Positive absence after an acknowledged signal means reaped; uncertainty cannot produce that result. The public CLI statuses remain the existing four outcomes; these invocation-local tags are not new durable/user-actionable operation states. Hold state fields private so the executor cannot bypass `AdvanceExactReap`. Generate reproducible seeded event sequences plus exhaustive short sequences over all event categories; assert the frozen-key invariant, no post-cancel signal, at-most-once TERM/KILL, and KILL only after acknowledged TERM, deadline and positive survivor proof. Also replay the interpreter's effects against the stateful process world so pure-model coverage cannot hide a wiring bypass.
+
+#### Active production-function test strategies: PQ-3
+
+These strategies replace tasks 1–3's enumerated case inventories. Keep their file ownership, verification commands and public-command acceptance, using `exact_reap_model.go` for the pure model and `resources.go` for the shared ownership stage.
+
+| Production function | Adversarial strategy and mechanical guard |
+| --- | --- |
+| `ProvenOrphanTargets` | Start from monitor-produced mixed prior/current provenance; falsify one eligibility witness per generated row. Compare exact keys to an independent expected set, with immutable input and overlap-dedup assertions. |
+| `DecideProvenOrphanSignal` | Replay a frozen target through changing complete ownership proofs. Positive current/detached ownership dominates old provenance; absent/changed and unknown are distinct. Every allowed decision must match all original witnesses. |
+| `resourceSampler.collectOwnership` | Reuse the real detached-suite reparenting production predicate and gated stateful reader. Compare sample and effect-proof selection on the same world; blocked/incomplete/unknown evidence cannot return an actionable proof. Count cold/warm cache calls at E and 2E. |
+| `AdvanceExactReap` | Generated event sequences enforce the tagged transition table and signal invariants above; no mocks or IO. |
+| `Reaper.ReapExact` | Stateful process-world interpreter conformance, including unrelated current descendants and generation changes at effect barriers. Assert every observed signal was an emitted permitted model effect and no descendant discovery added a key. |
+| `authorizeProvenOrphan` | Mutate authenticated caller generation, hub role and current slot claims across an admitted target. Only entirely unbound operator or the current owning hub passes; partial credentials never become operator. |
+| `handleProvenOrphanSignal` | Drive the actual handler with the worker proof seam and signal world. Change ownership/authority at barriers between TERM and KILL, inject effect/result loss, and verify a vetoed effect causes zero native signals. Hold a hub move at the read-lock barrier to prove serialization. |
+| `ValidateRequest` | Mutate each allowed request field and closed signal value; strict shape rejection precedes proof/effect. Retain compatibility coverage for older supervisors and legacy calls. |
+| `runReapOrphansCLI` / rendering | Exercise real service composition with mixed new/legacy rows and typed effect outcomes. Compare exact text/JSON row identity and multiplicity, return code, coverage and uncertainty; a refused row never reaches legacy fallback. |
+
+No implementation starts until these refinements pass plan quality and the hub accepts the complete-ownership/cost clarification. Native acceptance remains the approved shared disposable-Couch public command with both Claude and Codex, never the real fleet.
