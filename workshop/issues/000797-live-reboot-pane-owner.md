@@ -38,7 +38,7 @@ Diagnose and correct the native pane-owner proof used by live reboot/recovery co
 
 ## Plan
 
-- [ ] Capture the native pane metadata and identify the lost/ambiguous ownership witness before changing the proof.
+- [x] Capture the native pane metadata and identify the lost/ambiguous ownership witness before changing the proof.
 - [ ] Implement and verify the correction through the existing shared disposable-Couch harness and public commands.
 
 ## Log
@@ -81,3 +81,5 @@ On unchanged capture candidate725e24c574b2907d79121071ddff26bbe2ddd685, separate
 Both native runners joined; no stage or runtime/check runner remains. Actual replies are retained verbatim in tests/lib/zellij_fixture_recovery_owner_cases.json and replayed through the shared fixture serializer/catalog; strict classification remains Unknown although the captured live draft alone proves its correct owner. Normal capture replay passed launcher0.352s and full fixture catalog14.987s. No missing-ready event, retry or flake registration.
 
 Further call-graph verification narrows the outer-park concern: Pair RunCleanup gates all later stages on session quiescence, and a failed ParkExpected stops before Retire. Successful normal park therefore already removes the session. Proposed correction is the small inner ordering change plus an exact-server handoff through the existing authorized-quiescence loop, closing the current check-then-re-admit generation window without new state. The durable plan lists all three scoped deletion consumers and the replacement/unknown/cancellation tests. Awaiting hub approval of this concrete production correction; no proof/ordering implementation has changed.
+
+2026-10-22: concrete correction approved by authenticated ops:0 receipt a5fddddd-f74f-4737-99de-8bf35d5658b5. Implement the approved ordering and exact-server owned-quiescence path shared by all three scoped deletion consumers. Unsupported deleters refuse, no name fallback. Outer park, signal cadence, bounds and strict classifier decisions remain unchanged; replacement/unknown causal tests and successful native reboot+delivery precede close.
