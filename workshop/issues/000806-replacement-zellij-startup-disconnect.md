@@ -1,6 +1,6 @@
 ---
 id: 000806
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-22
@@ -8,7 +8,7 @@ updated: 2026-10-22
 estimate_hours:
 severity: high
 collaboration-mode: collaboration
-card_mirror: '74ef158e26de79ec542c005e4420b3dfc9540eba' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '7abf00cea328b289098cfee8245e5b895b6c747f' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-22T15:25:37-07:00
 claimant:
     operator: Xian Xu
@@ -18,6 +18,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "36f7a046", done: "503048df"}
+actual_hours: 0.60
 ---
 
 # Replacement Zellij disconnects before first wrapper startup
