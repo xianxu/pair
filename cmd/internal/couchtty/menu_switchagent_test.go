@@ -133,7 +133,7 @@ func TestSwitchAgentParameterFocusCyclesAndCancelDropsPendingSubmit(t *testing.T
 	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
 	p := couchcore.PreparedAgentSwitch{Address: menuAddress("couch-one"), SourceAgent: "claude", Profile: couchcore.LaunchProfile{Agent: "codex", Argv: []string{}}, Fingerprint: "accepted"}
 	appendMenuFrame(&state, MenuFrame{Kind: MenuFrameSwitchAgent, Action: "switch-agent", Thread: p.Address, Agent: "codex", SwitchStage: 1, SwitchPrepared: &p, SelectedItem: "parameters"})
-	for _, want := range []string{"switch", "cancel", "parameters"} {
+	for _, want := range []string{"switch", "interrupt-switch", "cancel", "parameters"} {
 		state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
 		if state.CurrentFrame().SelectedItem != want {
 			t.Fatalf("focus %q want %q", state.CurrentFrame().SelectedItem, want)
@@ -146,6 +146,7 @@ func TestSwitchAgentParameterFocusCyclesAndCancelDropsPendingSubmit(t *testing.T
 	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
 	state, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
 	generation := effects[0].Preview.Generation
+	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
 	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
 	state, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
 	if len(effects) != 0 || state.CurrentFrame().Kind != MenuFrameRoot {
@@ -326,6 +327,53 @@ func TestSwitchAgentConfigurationProvenanceRequiresExplicitAcceptance(t *testing
 				state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: effects[0].Preview.Generation, SwitchPrepared: &p})
 				if len(effects) != 1 || effects[0].Args["argv"] != requested || effects[0].Args["fingerprint"] != "accepted" {
 					t.Fatalf("acceptance changed parameters: %+v", effects)
+				}
+			})
+		}
+	}
+}
+
+func TestSwitchAgentCooperativeActionBindsSubmittedIntent(t *testing.T) {
+	for _, agent := range []string{"claude", "codex"} {
+		for _, scenario := range []string{"accept", "ordinary", "edit", "cancel"} {
+			t.Run(agent+"/"+scenario, func(t *testing.T) {
+				state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+				p := couchcore.PreparedAgentSwitch{Address: menuAddress("couch-one"), SourceAgent: agent, Profile: couchcore.LaunchProfile{Agent: agent, Argv: []string{"--model", "a b"}}, Fingerprint: "accepted"}
+				selected := "interrupt-switch"
+				if scenario == "ordinary" {
+					selected = "switch"
+				}
+				appendMenuFrame(&state, MenuFrame{Kind: MenuFrameSwitchAgent, Action: "switch-agent", Thread: p.Address, Agent: agent, SwitchStage: 1, SwitchPrepared: &p, SelectedItem: selected, Input: "--model 'a b'"})
+				body := RenderMenuView(state, 80, 10, time.Now(), false).Body
+				if !strings.Contains(body, "Interrupt then switch") || !strings.Contains(body, "Cancel") {
+					t.Fatalf("missing cooperative action: %s", body)
+				}
+				state, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
+				if len(effects) != 1 || effects[0].Preview == nil || effects[0].Preview.SwitchArgv != `["--model","a b"]` {
+					t.Fatalf("no exact preview: %+v", effects)
+				}
+				generation := effects[0].Preview.Generation
+				if scenario == "cancel" {
+					state, _ = reduceKey(state, PanelKey{Kind: KeyEscape})
+				} else if scenario == "edit" {
+					state.Frames[len(state.Frames)-1].SelectedItem = "parameters"
+					state, _ = reduceKey(state, PanelKey{Kind: KeyRune, Rune: 'x'})
+				} else {
+					// Focus is presentation; it cannot change the submitted consent.
+					state.Frames[len(state.Frames)-1].SelectedItem = "cancel"
+				}
+				state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: generation, SwitchPrepared: &p})
+				if scenario == "cancel" || scenario == "edit" {
+					if len(effects) != 0 {
+						t.Fatal("cancelled or edited consent dispatched")
+					}
+					return
+				}
+				if len(effects) != 1 || effects[0].Operation != "switch-agent" || effects[0].Args["argv"] != `["--model","a b"]` {
+					t.Fatalf("lost exact intent: %+v", effects)
+				}
+				if got := effects[0].Args["interrupt-first"] == "true"; got != (scenario == "accept") {
+					t.Fatalf("cooperative consent=%v scenario=%s", got, scenario)
 				}
 			})
 		}

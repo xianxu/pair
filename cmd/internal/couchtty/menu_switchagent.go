@@ -3,7 +3,6 @@ package couchtty
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 	"unicode/utf8"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
@@ -78,7 +77,7 @@ func reduceSwitchAgentKey(state MenuState, key PanelKey) (MenuState, []MenuEffec
 				frame.SelectedItem = "switch"
 			case "cancel":
 				state.Frames = state.Frames[:len(state.Frames)-1]
-			case "switch":
+			case "switch", "interrupt-switch":
 				if frame.PreviewPending != 0 {
 					return state, nil
 				}
@@ -119,8 +118,10 @@ func requestSwitchAgentPreview(state MenuState, final bool) (MenuState, []MenuEf
 	frame.PreviewPending = generation
 	if final {
 		frame.SubmitGeneration = generation
+		frame.SwitchSubmitAction = frame.SelectedItem
 	} else {
 		frame.SubmitGeneration = 0
+		frame.SwitchSubmitAction = ""
 	}
 	request.Generation = generation
 	return state, []MenuEffect{{Preview: &request}}
@@ -154,6 +155,10 @@ func reduceSwitchAgentPreview(state MenuState, event MenuEvent) (MenuState, []Me
 		effect.Args["agent"] = p.Profile.Agent
 		effect.Args["argv"] = string(raw)
 		effect.Args["fingerprint"] = p.Fingerprint
+		if frame.SwitchSubmitAction == "interrupt-switch" {
+			effect.Args["interrupt-first"] = "true"
+		}
+		frame.SwitchSubmitAction = ""
 		return dispatchMenuOperation(state, effect, frame.Thread)
 	}
 	if !frame.SwitchEdited {
@@ -194,13 +199,13 @@ func renderSwitchAgentMenu(frame MenuFrame, width, height int) []string {
 			lines = append(lines, "Resolving startup parameters", "Explicit empty parameters are allowed.")
 		}
 		lines = append(lines, mark+"parameters  "+frame.Input)
-		for _, item := range []string{"switch", "cancel"} {
-			mark = "  "
-			if item == frame.SelectedItem {
-				mark = "▸ "
+		button := func(item, label string) string {
+			if frame.SelectedItem == item {
+				return "▸ " + label
 			}
-			lines = append(lines, mark+strings.ToUpper(item[:1])+item[1:])
+			return "  " + label
 		}
+		lines = append(lines, button("switch", "Switch")+" · "+button("interrupt-switch", "Interrupt then switch"), button("cancel", "Cancel"))
 		if frame.PreviewPending != 0 {
 			lines = append(lines, "resolving startup parameters…")
 		}
@@ -227,11 +232,12 @@ func invalidateSwitchEdit(state *MenuState, frame *MenuFrame) {
 		frame.Generation = generation
 		frame.PreviewPending = 0
 		frame.SubmitGeneration = 0
+		frame.SwitchSubmitAction = ""
 	}
 }
 
 func moveSwitchFocus(frame *MenuFrame, delta int) {
-	items := []string{"parameters", "switch", "cancel"}
+	items := []string{"parameters", "switch", "interrupt-switch", "cancel"}
 	index := 0
 	for i, item := range items {
 		if frame.SelectedItem == item {

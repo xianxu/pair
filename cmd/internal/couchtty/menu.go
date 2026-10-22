@@ -79,6 +79,7 @@ type MenuFrame struct {
 	RecoveryPreview      *couchcore.RecoveryPreview
 	SwitchPrepared       *couchcore.PreparedAgentSwitch
 	SwitchStage          int
+	SwitchSubmitAction   string
 	SwitchEdited         bool
 	// Rune distance from the end; zero keeps newly prefilled parameters at end.
 	SwitchCursorFromEnd int

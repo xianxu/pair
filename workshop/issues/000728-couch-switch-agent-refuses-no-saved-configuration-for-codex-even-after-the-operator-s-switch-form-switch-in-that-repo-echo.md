@@ -312,3 +312,9 @@ Claude/Codex stateful drive tests and core lifecycle-hold/dispatcher tests pass 
 The form still needs its cooperative action, and operator-only force, M3 edited resume/fallback, documentation/live acceptance and mandatory M2/M3 reviews remain outstanding. Both recorded checks survive restart: #728 M1 runner22411 and #743 repaired runner45648 remain queued; no recorded pass is claimed. Hub recovery report5f75df14-ddc5-4b88-91ee-5bfdb8ac0b2f is submitted.
 
 Final audited artifact-source regression passes3.023s; repeated reader inventory and whitespace checks pass. No certificate hashes needed repair.
+
+### 2026-10-22 — M2 cooperative form intent checkpoint
+
+The new Claude/Codex form regression first failed for the missing Interrupt then switch action. The compact parameter form now offers it beside Switch without adding a body row, retaining Cancel, provenance and parameter cursor at40x10 with both banners. Focus cycles through the distinct cooperative choice; accepted intent is captured at final-preview submission, so later focus movement cannot add or remove interruption consent. Editing invalidates the generation and consent; cancellation discards it; final dispatch carries the exact accepted argv and the cooperative bit only for that action.
+
+All SwitchAgent-selected UI tests pass0.310s; selected form/Console cases pass race2.348s; repolint18.586s. The operation-arity backstop correctly failed because the added implicit interrupt-first declaration changes switch-agent from seven to eight arguments; updated that explicit contract and reran it. Reader inventory and whitespace pass. This is a checkpoint, not M2 completion: local force capability/confirmation, M3 and live acceptance remain due.
