@@ -37,7 +37,6 @@ type terminalOSAttempt struct {
 	rt                                                                 OSRuntime
 	name, config, layout, socket, socketRoot, scope, tag, agent, nonce string
 	create                                                             bool
-	lifetimeCtx                                                        context.Context
 }
 
 func newTerminalOSAttempt(rt OSRuntime, name, config, layout string, create bool) (*terminalOSAttempt, error) {
@@ -134,9 +133,6 @@ func (c terminalOSClient) Wait() HandoffExit {
 	return HandoffExit{Code: 1, Err: err}
 }
 func (a *terminalOSAttempt) Start(ctx context.Context) (HandoffClient, error) {
-	// The coordinator cancels this attempt when its client exits. Admission
-	// starts after Start returns, so this assignment precedes every query.
-	a.lifetimeCtx = ctx
 	cmd := killOnCancel(exec.CommandContext(ctx, "zellij", terminalLaunchArgs(a.name, a.config, a.layout, a.create)...))
 	cmd.Env = append(os.Environ(), "ZELLIJ_SOCKET_DIR="+a.socketRoot)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
@@ -149,17 +145,13 @@ func (a *terminalOSAttempt) Admit(ctx context.Context) error {
 	if !a.create {
 		return ctx.Err()
 	}
-	lifetime := a.lifetimeCtx
-	if lifetime == nil {
-		lifetime = ctx
-	}
-	return admitTerminalAfterReady(ctx, lifetime, a.observeAdmission, func(queryCtx context.Context) error {
+	return admitTerminalAfterReady(ctx, ctx, a.observeAdmission, func(queryCtx context.Context) error {
 		return requireListedLiveTerminal(queryCtx, a.name, listTerminalSessions, a.rt.liveSessionServers)
 	})
 }
 
-// Readiness keeps its existing bound. Only after positive local evidence does
-// native admission receive a fresh budget under the original caller lifetime.
+// Readiness consumes the selected startup window. Only after exact local evidence
+// does native admission get its short observation budget, capped by startup.
 func admitTerminalAfterReady(readinessCtx, lifetimeCtx context.Context, ready func(context.Context) error, query func(context.Context) error) error {
 	ticker := time.NewTicker(birthPoll)
 	defer ticker.Stop()
@@ -216,21 +208,26 @@ func (a *terminalOSAttempt) observeAdmission(ctx context.Context) error {
 func (r OSRuntime) runTerminalHandoff(ctx context.Context, name, config, layout string, create bool) (int, error) {
 	queryCtx, cancel := zellijreply.AdmissionContext(ctx)
 	defer cancel()
-	return r.runTerminalHandoffContext(ctx, queryCtx, name, config, layout, create)
+	return r.runTerminalHandoffContext(ctx, nil, queryCtx, name, config, layout, create)
 }
 
-func (r OSRuntime) runTerminalHandoffContext(lifetimeCtx, queryCtx context.Context, name, config, layout string, create bool) (int, error) {
+func (r OSRuntime) runTerminalHandoffContext(lifetimeCtx, startupCtx, queryCtx context.Context, name, config, layout string, create bool) (int, error) {
 	if err := queryCtx.Err(); err != nil {
 		return 1, err
 	}
 	if err := lifetimeCtx.Err(); err != nil {
 		return 1, err
 	}
+	startupCtx, stopStartup, startupErr := terminalStartupContext(lifetimeCtx, startupCtx)
+	if startupErr != nil {
+		return 1, startupErr
+	}
+	defer stopStartup()
 	a, err := newTerminalOSAttempt(r, name, config, layout, create)
 	if err != nil {
 		return 1, err
 	}
-	return coordinateTerminalHandoff(lifetimeCtx, queryCtx, a, birthBound, create)
+	return runTerminalHandoffAttempt(lifetimeCtx, startupCtx, queryCtx, a, create)
 }
 
 const maxAgentReadyBytes int64 = 8192
@@ -279,4 +276,15 @@ func requireListedLiveTerminal(ctx context.Context, name string, query func(cont
 		return fmt.Errorf("terminal %q is not listed live", name)
 	}
 	return nil
+}
+
+// This is the production budget-selection boundary, shared by OS attempts and
+// channel-controlled admission tests. Keep query and interactive lifetimes distinct.
+func runTerminalHandoffAttempt(lifetime, selected, query context.Context, a TerminalHandoffRuntime, create bool) (int, error) {
+	startup, cancel, err := terminalStartupContext(lifetime, selected)
+	if err != nil {
+		return 1, err
+	}
+	defer cancel()
+	return coordinateTerminalHandoffContexts(lifetime, query, startup, a, create)
 }

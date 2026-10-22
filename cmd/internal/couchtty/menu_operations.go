@@ -31,14 +31,15 @@ const (
 )
 
 type MenuOperation struct {
-	Origin        MenuOperationOrigin
-	Phase         MenuOperationPhase
-	StartedAt     time.Time
-	DisplayLabel  string
-	LandingFrame  uint64
-	Detail        string
-	ResultAddress couchcore.ThreadAddress
-	Recovery      *couchcore.RecoveryConfirmationOffer
+	Origin         MenuOperationOrigin
+	Phase          MenuOperationPhase
+	StartedAt      time.Time
+	StageStartedAt time.Time
+	DisplayLabel   string
+	LandingFrame   uint64
+	Detail         string
+	ResultAddress  couchcore.ThreadAddress
+	Recovery       *couchcore.RecoveryConfirmationOffer
 }
 
 func cloneMenuOperations(jobs map[menuOperationTarget]MenuOperation) map[menuOperationTarget]MenuOperation {
@@ -308,27 +309,41 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 	}
 	return state
 }
-func updateOperationProgress(state MenuState, attempt uint64, detail string) MenuState {
+func updateOperationProgress(state MenuState, attempt uint64, detail string, now time.Time) MenuState {
 	key, job, ok := menuOperationForAttempt(state, attempt)
 	if !ok {
 		return state
 	}
 	state.Operations = cloneMenuOperations(state.Operations)
-	job.Detail = boundMenuOperationText(detail)
+	detail = boundMenuOperationText(detail)
+	if detail != job.Detail {
+		job.StageStartedAt = now
+	}
+	job.Detail = detail
 	state.Operations[key] = job
 	if state.Notice.Level == MenuNoticeProgress && state.Notice.Owner.OperationAttempt == attempt {
 		state.Notice.Text = menuOperationProgressText(state, job.Origin.Operation, job.Origin.Address) + " " + job.Detail
 	}
 	return state
 }
+
+// The renderer supplies its clock; no timer or IO belongs to this projection.
+func menuOperationElapsed(job MenuOperation, now time.Time) time.Duration {
+	started := job.StartedAt
+	if !job.StageStartedAt.IsZero() {
+		started = job.StageStartedAt
+	}
+	if started.IsZero() || !now.After(started) {
+		return 0
+	}
+	return now.Sub(started).Truncate(time.Second)
+}
+
 func menuOperationRowText(job MenuOperation, now time.Time) string {
 	detail := strings.TrimSpace(rowtext.Sanitize(job.Detail))
 	switch job.Phase {
 	case MenuOperationRunning:
-		elapsed := time.Duration(0)
-		if !job.StartedAt.IsZero() && now.After(job.StartedAt) {
-			elapsed = now.Sub(job.StartedAt).Truncate(time.Second)
-		}
+		elapsed := menuOperationElapsed(job, now)
 		text := job.Origin.Operation + "… " + elapsed.String()
 		if detail != "" {
 			text += " · " + detail

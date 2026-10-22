@@ -41,8 +41,8 @@ type ZellijOps interface {
 	// an error the caller surfaces as "pick a shorter tag".
 	ProbeSessionName(session string) error
 	ProbeSessionNameContext(context.Context, string) error
-	// Admission bounds only the pre-create query decision; readiness and
-	// post-birth query admission have their own bounds.
+	// Startup bounds birth/readiness/admission; admission is the shorter
+	// pre-create query window. Lifetime alone owns the admitted client.
 	// LaunchSessionContext runs `zellij --new-session-with-layout` as a BLOCKING
 	// fork+wait child with the tty passed through, returning the child's exit
 	// code when the pane exits. It must NOT syscall.Exec — the Go launcher has
@@ -50,7 +50,7 @@ type ZellijOps interface {
 	// Cancelling lifetime ends the client (SIGTERM, then SIGKILL) and returns
 	// only after it is reaped. Only the create path's birth watch cancels it,
 	// on proof that the session died at birth (#288).
-	LaunchSessionContext(lifetime, admission context.Context, session, configDir, layout string) (int, error)
+	LaunchSessionContext(lifetime, startup, admission context.Context, session, configDir, layout string) (int, error)
 	// ProbeLiveLayout inspects a live session's actual pane signature. It is the
 	// rollout fallback for sessions created before workbench-layout-<tag>.
 	ProbeLiveLayout(session string) (LayoutMode, error)
@@ -197,7 +197,7 @@ type LifecycleOps interface {
 	// the attach twin of LaunchSession (NOT syscall.Exec, so the loop regains
 	// control for cleanup + restart). Admission owns queries; lifetime owns
 	// the interactive client.
-	AttachSessionContext(lifetime, admission context.Context, session, configDir string) (int, error)
+	AttachSessionContext(lifetime, startup, admission context.Context, session, configDir string) (int, error)
 	// TakeQuitMarker read-clears ~/.cache/pair/quit-<session>, reporting whether
 	// it was present (Alt+x). Cleanup runs its body only when it was.
 	TakeQuitMarker(session string) bool
@@ -284,7 +284,9 @@ type Runtime interface {
 type LaunchOptions struct {
 	// Context owns the launch/client lifetime; nil selects the process lifetime.
 	// queryContext is a selected decision budget, never the interactive lifetime.
-	Context            context.Context
+	Context context.Context
+	// StartupContext bounds admission only, never the interactive client.
+	StartupContext     context.Context
 	queryContext       context.Context
 	startupTiming      *startupTiming
 	Args               LaunchArgs
