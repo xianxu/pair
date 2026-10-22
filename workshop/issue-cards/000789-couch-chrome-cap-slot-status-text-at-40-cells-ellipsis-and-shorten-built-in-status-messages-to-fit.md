@@ -1,6 +1,6 @@
 ---
 id: 000789
-status: working
+status: codecomplete
 created: 2026-10-21
 updated: 2026-10-22
 estimate_hours:
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+actual_hours: 1.81
+tracker:
+    version: 1
+    completion:
+        token: close-df6319102e9d
+        repository: github.com/xianxu/pair
+        reviewed_head: 63749b7beef096449a9701ee0f95121984ae9d06
+        evidence_commit: 05954545790fba25c12b3646a66ba85216eea130
 ---
 
 # Couch chrome: cap status text at 40 cells and preserve full copying
