@@ -110,3 +110,102 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T06:17:03-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 758 — Couch-owned editor endpoint registry and lifecycle |
+| repo | pair |
+| issue file | workshop/issues/000758-remote-session-couch-remote-server-and-allowlisted-proxy-to-each-session-file-s-nvim-subscribe-edit-re-wrapped-submit-navigate.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 1e70379fba4a3653258f5542ac1d1aecf0ca1b43..3a98841ea83eb10e2af5189bb66c8754fd0db5a7 |
+| command | sdlc close --issue 758 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T06:17:03-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The three prior findings are addressed, with executable regression evidence for both behavior fixes and controlled notification lifecycle tests. The producer implementation, native conformance, and targeted suites pass. One Important gap remains: the plan marks publication-byte qualification complete, but the N8/16 tests measure calls and record counts without measuring publication bytes.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      owner.go:433-456 fences negative retirement and response against current authority. TestOwnerLateNegativeLookupCannotRetireSuccessor covers nil, mismatch, death and document absence; all four fail with the pre-fix owner supplied through a temporary Go overlay and pass at head.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Store.publish distinguishes pre-writer refusal from attempted IO. TestOwnerEncodedCapacityRefusalKeepsAuthorityUsable fails with the pre-fix owner and passes at head, verifying no writer call and continued lookup, unregister and cleanup. Additional tests preserve uncertainty for writer-returned capacity errors.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      owner_test.go:740-877 exercises held, failed and canceled Superseded delivery through the production RPC seam, including durable publication before delivery, successor preservation and joined shutdown. The fixture tracks pending/current attachment identity. This correction adds qualification without changing production behavior.
+findings:
+  - id: new
+    severity: Important
+    kind: defect
+    family: operating-envelope-qualification
+    title: |
+      Checked publication-byte qualification has no byte accounting
+    detail: |
+      ARCH-CONSTRAINTS: workshop/plans/000758-editor-endpoints-plan.md:119,157,167 explicitly promises and marks N8/16 publication-byte qualification complete. However, owner_test.go:184-195 counts only writes, and TestOwnerBatchOnePublicationAndPlateau at line 431 checks publication calls and retained-record counts without recording encoded sizes or cumulative bytes. Instrument the injected writer and extend the N8/16 scenarios to verify snapshot-byte growth, retry/no-op zero-write behavior and bounded repeated-reopen size.
+```
+
+1. **Strengths**
+
+   - Authority mutations flow through the pure transition model; generated sequence tests use an independent selection oracle.
+   - Negative lookup responses now share the retirement lock, preventing false absence claims about successors.
+   - Retained unknown JSON fields survive actual store reopening, including numeric values outside float64 range.
+   - README, atlas, artifact classifications and reader inventories cover the new surface.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** Publication-byte qualification above. The writer seam already provides a straightforward place to collect the missing measurements.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed all tests in `editorendpoint`, `strictjson`, `procutil`, `couchcmd` and `sessionsync`; focused endpoint/CLI race tests; all three installed-nvim conformance tests without skips; and `make test-affected-inventory`. BR-1 and BR-2 regressions failed against the pre-fix owner using a temporary overlay. The checkout remains unchanged. This review did not run the repository-wide recorded suite.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared JSON helpers, existing namespace resolution and durable writer reused.
+   - **ARCH-PURE — pass:** transition and codec logic remain free of IO.
+   - **ARCH-PURPOSE — pass:** approved producer-only scope is delivered; adapter work remains explicitly assigned to #798.
+   - **ARCH-MOCK — pass:** injected stateful seams and native conformance cover external behavior.
+   - **ARCH-CONSTRAINTS — flag:** publication-byte evidence remains incomplete.
+   - **ARCH-SECURE — pass:** strict boundary decoding, private socket validation and explicit uncertainty handling.
+   - **ARCH-ORDER — pass:** generation fencing, publication-before-notification and cancellation/join sequences are exercised.
+   - **ARCH-FUNERAL — pass:** exact process collection, reusable stage cleanup and owned handle shutdown.
+   - **ARCH-EVOLVE — pass:** nested unknown-field preservation and strict known-field validation are tested.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry acknowledging the missing byte qualification; leave that portion of task 167 pending until the measurements and assertions pass.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"20ddc55f-d1cb-45cd-84ce-e3e7f9a942dd","repository":"github.com/xianxu/pair","issue_id":"000758","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/b8110d64d1141f22","reviewed_head":"3a98841ea83eb10e2af5189bb66c8754fd0db5a7","slot":"pair:6","requested_at":"2026-10-22T13:13:31.726687Z"},"phase":"finished","pid":64593,"started_at":"2026-10-22T13:13:31.903171Z","finished_at":"2026-10-22T13:17:02.880271Z","session_id":"01a163be-d1f5-7f70-b15f-dd18c9c24c50","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.076029625s
+head: "3a98841ea83eb10e2af5189bb66c8754fd0db5a7"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

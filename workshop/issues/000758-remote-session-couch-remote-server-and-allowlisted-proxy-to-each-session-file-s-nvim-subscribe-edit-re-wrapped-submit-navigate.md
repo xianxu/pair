@@ -105,6 +105,10 @@ BR-3 stateful pending/current attachment fixture controls held, failed and cance
 
 Combined endpoint/couchcmd focused race passed10.776s/1.945s; repolint13.979s, artifactpath14.322s and reader inventory pass. No recorded full-suite pass or close approval is claimed; replacement suite and full re-close follow this checkpoint.
 
+### 2026-10-22 — review round2 byte qualification gap
+
+Round2 independently verified BR-1/BR-2 regressions fail with the pre-fix owner overlay and pass at head, and disposed BR-1/BR-2/BR-3. No Critical remains. Verdict FIX-THEN-SHIP did not finalize because Important BR-4 is still open: the N8/16 tests counted writer calls and retained rows but did not measure actual publication bytes. The earlier byte-qualification claim was premature. Adding raw-payload byte accounting to the injected writer and explicit snapshot/cumulative/zero-write/plateau assertions; production mechanism unchanged. The bound remains O(M*S) total bytes for M snapshot publications over S retained pairs, not a false linear-byte claim. Canceled own queued lease1152919602 through exact local-check before admission; no suite pass claimed.
+
 ## Revisions
 
 ### 2026-10-22 — producer-only whole issue
@@ -147,3 +151,7 @@ Per TL6bf10860, #758 owns additive preserve-number structural validation/object 
 ### 2026-10-22 — review corrections preserve approved authority semantics
 
 BR-1: negative lookup completion must atomically decide exact retirement and its response against current selected authority; changed successor returns stale, not successful-null. BR-2: deterministic candidate encoding/size refusal occurs before writer invocation, returns capacity for the size bound without poison; only attempted writes create publication uncertainty. BR-3: held/failed/shutdown-interrupted notifications and pending/current editor state qualify publish-before-notice, successor preservation and joined shutdown. These implement the existing generation, bounded-admission and notification lifetime contract; no new takeover/reset authority. External built-binary daemon conformance bridge is separately #801 per TL5e43c052.
+
+### 2026-10-22 — publication-byte qualification correction
+
+BR-4 keeps byte qualification pending until actual writer payload lengths, cumulative bytes at N8/16, retry/no-op zero bytes and same-pair reopen snapshot plateau are measured and asserted. Call counts alone do not satisfy the approved operating envelope. No new journal, durable format or production IO path is added.
