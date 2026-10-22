@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: 81ced970-618b-4e15-8b6d-ee2ccf76d51d
+        repository: github.com/xianxu/pair
+        issue_id: "000758"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot6/pair
+        reviewed_head: b9dfc8a29c0ceff158fda3f7b6570798dea98d35
+        slot: pair:6
+        requested_at: "2026-10-22T12:16:23.474387Z"
+      phase: finished
+      pid: 52488
+      started_at: "2026-10-22T12:16:23.567298Z"
+      finished_at: "2026-10-22T12:16:59.724984Z"
+      session_id: 01a1638a-810e-70a2-ae02-305e486d3f94
+      outcome: returned
 gate: plan-quality
 issue: 758
 id_prefix: PQ
@@ -75,7 +95,41 @@ rounds:
           note: Named risky functions now have mechanical adversarial strategies; native conformance and integration qualification remain separate.
           round: 2
       blocked: false
-content_hash: 64d521378942ea17b7411cf1cffb50d95514712033e76a90ece764cd46cdb334
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: b18b74d8-9997-41ba-9c19-99d5e79abee6
+            repository: github.com/xianxu/pair
+            issue_id: "000758"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot6/pair
+            reviewed_head: b9dfc8a29c0ceff158fda3f7b6570798dea98d35
+            slot: pair:6
+            requested_at: "2026-10-22T12:15:44.262708Z"
+          phase: finished
+          pid: 45103
+          started_at: "2026-10-22T12:15:44.35451Z"
+          finished_at: "2026-10-22T12:16:21.301576Z"
+          session_id: 01a16389-e7e3-7b83-b2e5-be7e7000c3af
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-22T05:16:21-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: ReadIdentity preserves native errors; the pure classifier distinguishes positive death/replacement from uncertainty.
+          round: 3
+        - id: PQ-2
+          disposition: addressed
+          note: Risky functions have named adversarial strategies using fuzzing, generated invariants and controlled IO ordering.
+          round: 3
+      blocked: false
+content_hash: 46ae5791316bd4f551f7c0623bc522c5e0287daf1cd1ff9bf09da01f60ce61b6
 ---
 
 # Gate ledger — pair#758 (plan-quality)
@@ -98,6 +152,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - PQ-1 — addressed — Source.ReadIdentity preserves native errors; ClassifyEndpointProcess specifies shared positive-death and uncertainty semantics without host-table scans.
 - PQ-2 — addressed — Named risky functions now have mechanical adversarial strategies; native conformance and integration qualification remain separate.
+
+## Round 3 — 2026-10-22T05:16:21-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — ReadIdentity preserves native errors; the pure classifier distinguishes positive death/replacement from uncertainty.
+- PQ-2 — addressed — Risky functions have named adversarial strategies using fuzzing, generated invariants and controlled IO ordering.
 
 ## Open findings
 

@@ -16,7 +16,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "c1cc805b", done: "c9f29d0a"}
+flow: {kind: full, provenance: operator}
 ---
 
 # Couch-owned editor endpoint registry and lifecycle
