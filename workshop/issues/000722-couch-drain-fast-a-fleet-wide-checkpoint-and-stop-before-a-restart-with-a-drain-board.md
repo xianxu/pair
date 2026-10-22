@@ -272,6 +272,10 @@ Full run capture and manifest attached under workshop/evidence/000773/pair722-6a
 
 Authenticated submitted TL ef5588c8 directs STOP native reruns, record every result, then required current-head suite and re-close. Evidence distinctions: full both-personality native PASS on68c581ac predates the graceful wording clarification and snapshot-consumer fix; exact corrected notice-body regressions passed RED/GREEN; f39a3ae7 Claude completed full scenario while Codex failed startup; focused f39a3ae7 Codex registered and delivered notices/work/ack before the consumer race; 6aada862 Claude completed corrected-frame feature checks but failed restart registration. No fresh complete native pass on current source exists. Watched operator-present acceptance with real slots must settle remaining acceptance before merge. If the reviewer requires another complete native pass, bring that refusal to TL; do not retry or waive it independently. No suite, live drain, queue mutation, staging or merge started during this diagnosis.
 
+### 2026-10-22 — corrected-source suite retained in FIFO
+
+Required suite is queued on pushedec88486fe63198753349d1fc12e5ce7b9fed968d, behavior unchanged from6aada862 plus retained evidence/accepted verification sequencing. Session52424, lease2976977985, attempta45eb202b109f691b0d02a890fe0933d; isolated checkout /Volumes/TestScratch/local-checks/sdlc-local-2469983776. Initial position3 behind active ariadne:2 and queued ariadne:5. Preserve this runner; no duplicate, cancellation, continuation or restart while owned check is queued/running. Suite and renewed close are pending; previous SHIP is superseded by corrected notices and consumer tests. #773 restart attachment notification d5ee8343 reached pair:7 as submitted. No native runner remains and no more native matrix rerun is authorized; live/stage/merge remain held.
+
 ## Revisions
 
 ### 2026-10-19 — authenticated acknowledgement and shared queue ownership
