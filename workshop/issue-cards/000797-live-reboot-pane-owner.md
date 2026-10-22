@@ -1,6 +1,6 @@
 ---
 id: 000797
-status: working
+status: codecomplete
 created: 2026-10-22
 updated: 2026-10-22
 estimate_hours:
@@ -14,6 +14,14 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+actual_hours: 2.88
+tracker:
+    version: 1
+    completion:
+        token: close-d19892a0e029
+        repository: github.com/xianxu/pair
+        reviewed_head: 716e5f77d63ecceb0121a3dd796f203722959e7b
+        evidence_commit: 31ef133911333fb88b5ef3994da1b1c9f84e4b69
 ---
 
 # Live reboot refuses owned pane as ambiguous
