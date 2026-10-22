@@ -2658,3 +2658,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
   when a collector method changes, even when the effect remains read-only.
 
 - #791 PQ-1: Active plan concept tables must name the production transition/encoder functions as well as their data types. State one adversarial test strategy per risky function (generated event sequences for timing/once/reset invariants, fuzzed styled data for valid bounded encoding); put case inventories in executable tests.
+
+- #791 BR-1: A diagnostic byte cap must preserve evidence that actually fits. Do not divide the raw-screen allowance by worst-case escaping expansion and discard fitting screens; count actual escaped bytes incrementally under a hard construction bound. Pair cap/truncation oracles with a fitting styled-screen preservation regression.

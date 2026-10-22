@@ -96,19 +96,23 @@ func encodePeerWaitCapture(e PeerWaitEvidence, sequence uint64) []byte {
 	s := e.snapshot
 	r := peerWaitRecord{TS: e.At, Agent: e.Binding.Agent, Label: "PEER-wait", Component: "pair-wrap", Seq: sequence, Evidence: e,
 		Width: s.Width, Height: s.Height, CursorX: s.Cursor.X, CursorY: s.Cursor.Y,
-		CursorVisible: s.CursorVisible, Complete: s.Complete, AltScreen: s.AltScreen}
+		CursorVisible: s.CursorVisible, Complete: s.Complete, AltScreen: s.AltScreen, Rows: []peerWaitRow{}}
 	// All dynamic metadata is bounded before marshalling, independently of screen.
 	r.Evidence.Condition = boundedPeerWaitText(e.Condition)
 	base, _ := json.Marshal(r)
-	left := diagnosticlog.BatchMaxRecordBytes - len(base) - 128
+	left := diagnosticlog.BatchMaxRecordBytes - len(base) - 1 // JSONL newline.
 	for y := s.Height - 1; y >= 0; y-- {
-		row, complete := peerWaitScreenRow(s, y, left/6-64)
+		separator := 0
+		if len(r.Rows) > 0 {
+			separator = 1
+		}
+		row, complete := peerWaitScreenRow(s, y, left-separator)
 		if !complete {
 			r.Truncated = true
 			break
 		}
 		encoded, _ := json.Marshal(row)
-		left -= len(encoded) + 1
+		left -= len(encoded) + separator
 		if left < 0 {
 			r.Truncated = true
 			break
@@ -132,6 +136,13 @@ func boundedPeerWaitText(s string) string {
 func peerWaitScreenRow(s terminalSnapshot, y, limit int) (peerWaitRow, bool) {
 	var b strings.Builder
 	var style uv.Style
+	const reset = "\x1b[0m"
+	envelope, _ := json.Marshal(peerWaitRow{Y: y})
+	ending, _ := json.Marshal(reset)
+	used := len(envelope) + len(ending) - 2
+	if used > limit {
+		return peerWaitRow{}, false
+	}
 	for x := 0; x < s.Width; {
 		c := s.CellAt(x, y)
 		if c == nil {
@@ -145,7 +156,14 @@ func peerWaitScreenRow(s terminalSnapshot, y, limit int) (peerWaitRow, bool) {
 		if text == "" {
 			text = " "
 		}
-		if len(prefix)+len(text)+b.Len()+4 > limit {
+		// Raw bytes are a lower bound. Refuse a huge grapheme before allocating
+		// its escaped form; every temporary is bounded by the record budget.
+		if len(prefix)+len(text) > limit-used {
+			return peerWaitRow{}, false
+		}
+		encoded, _ := json.Marshal(prefix + text)
+		used += len(encoded) - 2 // JSON string quotes aren't part of the joined row.
+		if used > limit {
 			return peerWaitRow{}, false
 		}
 		b.WriteString(prefix)
@@ -153,7 +171,7 @@ func peerWaitScreenRow(s terminalSnapshot, y, limit int) (peerWaitRow, bool) {
 		style = c.Style
 		x += max(c.Width, 1)
 	}
-	b.WriteString("\x1b[0m")
+	b.WriteString(reset)
 	return peerWaitRow{Y: y, ANSI: b.String()}, true
 }
 

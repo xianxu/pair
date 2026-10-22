@@ -182,3 +182,7 @@ Addressed the risky-function naming class in the active tables and task: advance
 ### 2026-10-22 — concrete diagnostic implementation anchors
 
 The active concepts materialized as PeerWaitCaptureState/advancePeerWaitCapture and PeerWaitEvidence/encodePeerWaitCapture in peer_wait_capture.go. The existing terminalModel adds SnapshotGeneration (terminal_model.go), returning the same copied snapshot with its generation under one terminal lock; Snapshot delegates to it without changing recognition. dispatchPeer reuses this snapshot for composer decisions and defers emitPeerWaitCapture until both input/mailbox locks are released. The encoder stores bottom-first per-row ANSI style runs, preserving screen coordinates and explicit truncation under the whole64KiB limit. There is no new peer-runtime worker or endpoint. Source inventory classification is NonArtifactSources. Tests are TestPeerWaitCapture* and FuzzEncodePeerWaitCapture.
+
+### 2026-10-22 — BR-1 fitting-screen preservation
+
+The row encoder now budgets exact escaped JSON bytes incrementally rather than reserving worst-case sixfold expansion for every raw byte. It bounds raw grapheme size before escaping and includes each row envelope/separator and the complete record/newline. TestPeerWaitCaptureFittingStyledRow reproduces the prior omission of a37,009-byte styled row, then passes with the correction. Preserve the existing full-screen-when-it-fits contract; no new mechanism or recognition policy. BR-2 host tracker proof is in the issue Log and dispute ledger.

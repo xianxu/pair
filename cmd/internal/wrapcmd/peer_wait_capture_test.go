@@ -424,3 +424,30 @@ func TestPeerWaitCaptureForcedRefusal(t *testing.T) {
 		t.Fatal("diagnostics prevented normal recovery")
 	}
 }
+
+func TestPeerWaitCaptureFittingStyledRow(t *testing.T) {
+	s := terminalSnapshot{Width: 2000, Height: 1, Cells: make([]uv.Cell, 2000)}
+	for i := range s.Cells {
+		s.Cells[i] = uv.Cell{Content: "a", Width: 1}
+		if i%2 == 1 {
+			s.Cells[i].Style.Attrs = uv.AttrBold
+		}
+	}
+	e := PeerWaitEvidence{Binding: peerTestBinding(), ScreenAvailable: true, snapshot: s}
+	row, ok := peerWaitScreenRow(s, 0, diagnosticlog.BatchMaxRecordBytes)
+	if !ok {
+		t.Fatal("reference row unexpectedly over budget")
+	}
+	golden, _ := json.Marshal(row)
+	if len(golden) > 60000 {
+		t.Fatal("counterexample does not fit")
+	}
+	var r peerWaitRecord
+	raw := encodePeerWaitCapture(e, 1)
+	if err := json.Unmarshal(raw, &r); err != nil {
+		t.Fatal(err)
+	}
+	if r.Truncated || len(r.Rows) != 1 || strings.Count(r.Rows[0].ANSI, "a") != 2000 {
+		t.Fatalf("fitting %d-byte JSON row was discarded: rows=%d truncated=%v record=%d", len(golden), len(r.Rows), r.Truncated, len(raw))
+	}
+}
