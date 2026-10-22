@@ -135,3 +135,7 @@ Authenticated ops:0 approval a5fddddd-f74f-4737-99de-8bf35d5658b5 approves the c
 ### 2026-10-22 — BR-1 core-concept classification repair
 
 The initial pure-decisions row grouped RecoveryTerminalPlan data with checkConfirmed. That label was inaccurate: checkConfirmed calls readRecoveryReady, whose default is osfs.ReadRegularMetadata, and confirmedRecoveryFixture injects the reader. Split immutable plan data (PURE) from the validator (INTEGRATION) in the tables above. No implementation or IO seam changes. Swept all core-concept rows: the other pure classifier/argument parser is IO-free, while lifecycle, probe, scoped checker and disposable fleet remain integration entities. This corrects the documented classification rather than changing the approved mechanism.
+
+### 2026-10-22 — BR-2 startup discovery separated by TL disposition
+
+Authenticated ops:0 disposition5a670f4e-1ef7-49da-99ba-835f86d2814b keeps this correction scoped to ownership and quiescence order. Separate unclaimed #806 retains the reviewer Codex replacement-before-first-wrapper disconnect, the exact-head successful diagnostic, both log hashes and #773's potentially related startup evidence. The initiating trigger remains unclassified; Server-not-ready and independent global queries are hypotheses, not a causal verdict or registered flake. Re-close this item with the preserved failure and measured exact-head success; no startup mechanism, bound or parser permission changes are introduced here.
