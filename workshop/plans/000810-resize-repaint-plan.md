@@ -106,4 +106,4 @@ ARCH-DRY: reuse the stdin owner, existing tick, signalChildWinch and shared nati
 
 ## Approval status
 
-Draft for TL review. No #810 production changes, tests or native launches have run. Signal support in installed agents remains an explicit unverified prerequisite; if it fails, bring a revised design instead of silently switching to geometry bouncing.
+Approved by TL4eb28919-f71c-41c0-ab9f-8fd610dfab6b. Native capability experiment may run now, before parent landing; production changes still wait for #791. No #810 production changes or native launches have run at this checkpoint. Signal support in installed agents remains an explicit unverified prerequisite; if it fails, bring a revised design instead of silently switching to geometry bouncing.
