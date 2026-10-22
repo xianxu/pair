@@ -1,6 +1,6 @@
 ---
 id: 000774
-status: codecomplete
+status: done
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 07ad9d66cd44f736cf71d4ee04395b6958179936
         evidence_commit: 4976a5ce051286741e728ad892a667c97c29df83
+        landed_commit: 239f5ed7acb2175de662bd90e56fbeef9cf43d6c
 ---
 
 # diagnostic checkpoints survive device remounts
