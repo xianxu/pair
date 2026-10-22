@@ -3,10 +3,9 @@
 package layoutcmd
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"github.com/xianxu/pair/cmd/internal/zellijexec"
+	"github.com/xianxu/pair/cmd/internal/zellijquery"
 	"github.com/xianxu/pair/cmd/internal/zellijreply"
 	"io"
 	"os"
@@ -324,11 +323,7 @@ func execZellij(args ...string) ([]byte, error) {
 }
 
 func execZellijContext(ctx context.Context, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, "zellij", append([]string{"action"}, args...)...)
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	err := zellijexec.Run(cmd)
-	return out.Bytes(), err
+	return (zellijquery.Source{}).Output(ctx, append([]string{"action"}, args...)...)
 }
 
 func (OSRuntime) LastTerminalPaneID() (string, error) {

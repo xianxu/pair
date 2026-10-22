@@ -21,7 +21,7 @@ var m2EffectManifest = map[string]effectBoundary{
 	"layoutcmd/layoutcmd.go:FocusRightTerminalContext:RunZellijAction#1":     {token: "ctx"},
 	"layoutcmd/layoutcmd.go:SwitchRightTerminalTabContext:RunZellijAction#1": {token: "ctx"},
 	"layoutcmd/layoutcmd.go:newRightTerminalTabContext:RunZellijAction#1":    {token: "ctx"},
-	"layoutcmd/layoutcmd.go:execZellijContext:Run#1":                         {exemption: "read-only query collector, not a mutation"},
+	"layoutcmd/layoutcmd.go:execZellijContext:Output#1":                      {exemption: "read-only query collector, not a mutation"},
 	"layoutcmd/layoutcmd.go:RunZellijAction:CombinedOutput#1":                {exemption: "issued Runtime mutation implementation retains its lifetime"},
 	"layoutcmd/rightpane.go:restoreTilingContext:RunZellijAction#1":          {token: "ctx"},
 	"layoutcmd/rightpane.go:restoreTilingContext:RunZellijAction#2":          {token: "ctx"},

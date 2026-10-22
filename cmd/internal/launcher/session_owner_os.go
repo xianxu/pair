@@ -10,6 +10,7 @@ import (
 	"os"
 
 	"github.com/xianxu/pair/cmd/internal/procutil"
+	"github.com/xianxu/pair/cmd/internal/zellijquery"
 	"github.com/xianxu/pair/cmd/internal/zellijreply"
 )
 
@@ -92,7 +93,7 @@ func (p SessionOwnerProbe) probe(ctx context.Context, name, globalDataDir, scope
 	var hasQuery bool
 	read := func(ctx context.Context) ([]byte, error) {
 		lastQuery, hasQuery = ZellijQueryObservation{ExitCode: -1}, false
-		previous, _ := ctx.Value(zellijQueryObserverKey{}).(func(ZellijQueryObservation))
+		previous := zellijquery.Observer(ctx)
 		ctx = WithZellijQueryObserver(ctx, func(event ZellijQueryObservation) {
 			lastQuery, hasQuery = snapshotNativeQueryObservation(event), true
 			if previous != nil {

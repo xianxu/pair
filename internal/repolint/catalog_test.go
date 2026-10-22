@@ -301,7 +301,7 @@ func scanTrackedWithRepository(repository repositoryRead, root string, readFile 
 				}
 			}
 		}
-		fileFindings, err := golint.Check(filename, source, pairCatalog)
+		fileFindings, err := golint.Check(filename, source, pairCatalogFor(filename))
 		if err != nil {
 			return nil, nil, count, err
 		}
