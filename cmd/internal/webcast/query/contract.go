@@ -1,6 +1,7 @@
 package query
 
 import (
+	"reflect"
 	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
@@ -28,6 +29,7 @@ func ContractRecording() (recs []recording.Record, save recording.NodeID) {
 // recording. The real surface (#462) and FakeSurface both run it.
 func RunSurfaceContract(t recording.TB, newSurface func(recs []recording.Record) Surface) {
 	t.Helper()
+	RunSketchSurfaceContract(t, newSurface)
 	recs, save := ContractRecording()
 	s := newSurface(recs)
 
@@ -107,5 +109,33 @@ func RunSurfaceContract(t recording.TB, newSurface func(recs []recording.Record)
 	}
 	if ns, _ := s.Notes(1500); len(ns[0].Before) != 1 {
 		t.Errorf("a shorter window keeps only the scroll: %d actions", len(ns[0].Before))
+	}
+}
+
+// RunSketchSurfaceContract checks source facts and exact version selection through
+// the same public surface used by the CLI and submission evidence builder.
+func RunSketchSurfaceContract(t recording.TB, newSurface func([]recording.Record) Surface) {
+	t.Helper()
+	recs, node := ContractRecording()
+	begin := &recording.SketchBegin{Header: recording.Header{T: 12000}, SketchOperation: recording.SketchOperation{Operation: "begin", Digest: strings.Repeat("a", 64)}, ID: "shape", Author: recording.Author{ID: "operator", Color: "#ff0000"}, Owner: "operator", Doc: 1, Tab: "tab1", VP: recording.Viewport{W: 1280, H: 800, DPR: 1}}
+	recs = append(recs, begin, &recording.SketchStrokeBegin{Header: recording.Header{T: 12001}, SketchOperation: recording.SketchOperation{Operation: "stroke", Sequence: 1, Digest: strings.Repeat("a", 64)}, Sketch: "shape", ID: "p", At: recording.NoteAt{Node: node, Box: &recording.Box{0, 0, 100, 100}}, Width: 3}, &recording.SketchPoints{Header: recording.Header{T: 12002}, SketchOperation: recording.SketchOperation{Operation: "points", Sequence: 2, Digest: strings.Repeat("a", 64)}, Sketch: "shape", ID: "p", Pts: []recording.SketchPoint{{10, 20, .5}}}, &recording.Stop{Header: recording.Header{T: 12003}, Why: recording.StopPause})
+	surface := newSurface(recs)
+	got, err := surface.SketchesAt(12003)
+	st, reduceErr := recording.Reduce(recs, 12003)
+	if err != nil || reduceErr != nil || len(got) != 1 {
+		t.Fatalf("sketch surface: query=%v reducer=%v views=%d", err, reduceErr, len(got))
+	}
+	if !reflect.DeepEqual(got[0].History, st.Sketches.Snapshot().Sketches[0]) || got[0].Elements.Anchors[0].Node != node || got[0].Elements.Anchors[0].ID != "save" || got[0].Source.T != 12000 {
+		t.Fatalf("sketch source/history mismatch: %+v", got[0])
+	}
+	selected, err := surface.SketchesAt(12003, SketchSelection{ID: "shape", NextSequence: 2, Digest: strings.Repeat("a", 64)})
+	if err != nil || len(selected) != 1 || selected[0].History.NextSequence != 2 || selected[0].History.Strokes[0].Sealed {
+		t.Fatalf("exact sketch prefix: %v %+v", err, selected)
+	}
+	if _, err = surface.SketchesAt(12003, SketchSelection{ID: "shape", NextSequence: 2, Digest: strings.Repeat("b", 64)}); err == nil {
+		t.Fatalf("sketch surface accepted wrong selected digest")
+	}
+	if empty, err := newSurface(nil).SketchesAt(0); err != nil || len(empty) != 0 {
+		t.Fatalf("empty sketch query: %v %+v", err, empty)
 	}
 }

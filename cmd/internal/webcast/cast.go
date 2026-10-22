@@ -23,10 +23,15 @@ import (
 	"github.com/xianxu/pair/cmd/internal/webcast/notes"
 	"github.com/xianxu/pair/cmd/internal/webcast/recorder"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
+	"github.com/xianxu/pair/cmd/internal/webcast/sketchimage"
 )
 
 // CastConfig starts a Cast.
 type CastConfig struct {
+	// SketchImages injects the recorded-only renderer used for submission batches.
+	// Nil discovers Chrome when a sketch batch actually needs rendering.
+	SketchImages sketchimage.ImageRenderer
+
 	// ReadOriginPolicy snapshots operator-owned sharing rules per submission.
 	// A notice reports a private fallback without refusing the submission.
 	ReadOriginPolicy   func() (core.OriginPolicy, string)
@@ -115,9 +120,10 @@ type Cast struct {
 	// board takes viewers' strokes and notes (#470); nil when the cast
 	// isn't recorded. The recorder closes it with the recording (it is one
 	// of the recording's sinks), the cast when the browser has ended.
-	board      *board.Board
-	sketches   *board.SketchService
-	noteDrafts *notedraft.Service
+	board        *board.Board
+	sketches     *board.SketchService
+	noteDrafts   *notedraft.Service
+	sketchImages sketchimage.ImageRenderer
 	// drive is remote driving's controller (#467); nil when the browser
 	// can't be driven (not recording, or a fake). Closed when the browser
 	// has ended.
@@ -291,7 +297,7 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 	}
 	mountCtx, cancel := context.WithCancel(context.Background())
 	c := &Cast{browser: b, pub: newPublisher(Update{State: b.State()}), cancel: cancel, done: make(chan struct{}), liveSink: liveSink,
-		board: bd, sketches: sketches, noteDrafts: drafts, readOriginPolicy: cfg.ReadOriginPolicy, recDir: recDir, check: cfg.Check, logf: cfg.Logf}
+		board: bd, sketches: sketches, noteDrafts: drafts, sketchImages: cfg.SketchImages, readOriginPolicy: cfg.ReadOriginPolicy, recDir: recDir, check: cfg.Check, logf: cfg.Logf}
 	if d, ok := b.(Driven); ok && ro != nil {
 		grace := cfg.DriveGrace
 		if grace <= 0 {

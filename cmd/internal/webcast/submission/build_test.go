@@ -214,3 +214,30 @@ func TestDrawContextUsesDrawTimeRatherThanSaveTime(t *testing.T) {
 		t.Fatal("save-time action leaked into draw context", got.Before)
 	}
 }
+
+func TestNoteDeclaredIDsUseCaptureMomentAndRemainGeneric(t *testing.T) {
+	b := recording.NewBuilder("note-facts")
+	button := b.El("button", []string{"id", "original-control", "data-workflow-key", "literal-value"}, b.Txt("Save"))
+	parent := b.El("main", []string{"id", "settings"}, button)
+	b.Page(recording.SegLive, "https://source.test/", parent)
+	b.At(8).Add(&recording.Attr{ID: button.ID, Name: "id", V: recording.Str("later-control")})
+	box := recording.Box{0, 0, 100, 50}
+	b.At(10).Add(&recording.Note{ID: "note", Author: recording.Author{ID: "operator"}, Text: "Move this", At: recording.NoteAt{Node: button.ID, Box: &box}, Region: &box})
+	sub, _, err := Build(b.Recs, board.Selection{Document: 1, TabID: "tab1", Notes: []board.SelectedNote{{ID: "note"}}}, "facts", target(), "/recording", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sub.Notes[0].Elements == nil {
+		t.Fatal("ordinary annotation lacks declared element facts")
+	}
+	if sub.Notes[0].Elements.Anchors[0].ID != "later-control" {
+		t.Fatal("creation source differs")
+	}
+	capture, err := ContextAt(b.Recs, sub.Notes[0], 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if capture.Elements == nil || capture.Elements.Anchors[0].ID != "original-control" || capture.Elements.Anchors[0].Data["data-workflow-key"] != "literal-value" || len(capture.Elements.Ancestors) != 1 || capture.Elements.Ancestors[0].ID != "settings" {
+		t.Fatalf("capture source lost original generic IDs: %+v", capture.Elements)
+	}
+}

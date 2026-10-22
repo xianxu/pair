@@ -20,7 +20,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
-//go:embed web/index.html web/viewer.js web/viewer.css web/model.js web/sketch-model.js web/render.js web/css.js web/annotate.js web/annotation-policy.js web/annotation-anchor.js web/annotation-placement.js web/capture-draft.js web/annotate.css web/placeholders.js web/drive.js web/drive.css web/replay.js web/replay.css web/replayer.js web/fidelity.html web/fidelity.js web/sketch-policy.js web/sketch-render.js web/sketch-delivery.js web/sketch-scene.js web/sketch.js web/sketch.css
+//go:embed web/index.html web/viewer.js web/viewer.css web/model.js web/sketch-model.js web/render.js web/css.js web/annotate.js web/annotation-policy.js web/annotation-anchor.js web/annotation-placement.js web/capture-draft.js web/annotate.css web/placeholders.js web/drive.js web/drive.css web/replay.js web/replay.css web/replayer.js web/fidelity.html web/fidelity.js web/sketch-image.html web/sketch-image.js web/sketch-policy.js web/sketch-render.js web/sketch-delivery.js web/sketch-scene.js web/sketch.js web/sketch.css
 var webFS embed.FS
 
 // contentSecurityPolicy: the page runs only its own script, talks only to
@@ -31,6 +31,8 @@ var webFS embed.FS
 const contentSecurityPolicy = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' blob:; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"
 
 var assets = map[string]struct{ file, contentType string }{
+	"sketch-image.html":  {"web/sketch-image.html", "text/html; charset=utf-8"},
+	"sketch-image.js":    {"web/sketch-image.js", "text/javascript; charset=utf-8"},
 	"sketch-policy.js":   {"web/sketch-policy.js", "text/javascript; charset=utf-8"},
 	"sketch-render.js":   {"web/sketch-render.js", "text/javascript; charset=utf-8"},
 	"sketch-delivery.js": {"web/sketch-delivery.js", "text/javascript; charset=utf-8"},

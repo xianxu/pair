@@ -91,6 +91,8 @@ type Conn struct {
 	closed    chan struct{} // closed by Close; releases a pump blocked on a gone consumer
 	closeOnce sync.Once
 	closeErr  error
+	readDone  chan struct{}
+	pumpDone  chan struct{}
 	events    chan Event
 }
 
@@ -106,6 +108,7 @@ func New(r io.Reader, w io.WriteCloser) *Conn {
 		done:      make(chan struct{}),
 		closed:    make(chan struct{}),
 		events:    make(chan Event),
+		readDone:  make(chan struct{}), pumpDone: make(chan struct{}),
 	}
 	go c.read(r, newFrameReader(r, maxFrame))
 	go c.pump()
@@ -237,6 +240,7 @@ func (c *Conn) fail(err error) {
 // pipe open (oversized or malformed) it keeps reading and discarding bytes,
 // so the peer never blocks writing and sees its command pipe close instead.
 func (c *Conn) read(r io.Reader, fr *frameReader) {
+	defer close(c.readDone)
 	for {
 		frame, err := fr.next()
 		if err != nil {
@@ -292,6 +296,7 @@ func (c *Conn) dispatch(m Message) {
 }
 
 func (c *Conn) pump() {
+	defer close(c.pumpDone)
 	defer close(c.events)
 	for {
 		c.mu.Lock()
@@ -317,4 +322,18 @@ func (c *Conn) pump() {
 			return
 		}
 	}
+}
+
+// Wait joins both protocol goroutines. Close ends command handling but cannot
+// interrupt an arbitrary supplied Reader: its owner must close that input (or
+// arrange peer exit) before joining. Context bounds uncertain peer cleanup.
+func (c *Conn) Wait(ctx context.Context) error {
+	for _, done := range []<-chan struct{}{c.readDone, c.pumpDone} {
+		select {
+		case <-done:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return nil
 }
