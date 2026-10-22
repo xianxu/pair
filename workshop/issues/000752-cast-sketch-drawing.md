@@ -179,6 +179,10 @@ Primary surfaces: board/{sketch.go,sketch_wire.go,sketch_delivery.go,writer_sket
 - Cancelled only obsolete ecef5f7a lease-1901225109 through SDLC after the executable width correction; no status was recorded for that queued cancellation. Started a fresh recorded affected/full fallback on bccbfa399. TL confirmed the targeted saved-failure recovery gap is open ariadne#463 and the full rerun is supported. Retain the corrected-head runner.
 - Entering the next close review independently while that recorded check is pending, with the pending status explicit. Both new findings are corrected; stage, operator smoke and landing remain held.
 
+### 2026-10-21 — final recorded suite and live operator acceptance
+
+Final executable source 4f0f3228eec3ae76481f3bc120f22c216bc38f7e passed the recorded suite in 10m10s (attempt 0177f6151eb0fffb665ada109d4bbe2c, log hash e63ce55405ab); staged revision 95206a8d02110af2bd98dab1fd1d2d6c50117956 differs only in reviewed prose/evidence. Stage/build verified all four binaries at that revision with vcs.modified=false. After restarting Couch onto that build, the operator accepted the console flow: "ok, those steps work" — draw shape 1, click Note between Redo and Done during the active sketch, type and Save label to finish, then repeat for shape 2. Authenticated TL delivery 4a553a59-790a-4211-903c-828bec82e32d records this real-environment acceptance and authorizes landing. Editing a completed label remains the approved separate #783, not part of this acceptance. TL directed #771's already-boarded train254 to finish first; PR527 is now merged and its retained cleanup finished. Proceed with this accepted #752 landing under the renewed grant; hub owns the subsequent pair:0 rebuild and stage clear.
+
 ## Estimate
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.*
