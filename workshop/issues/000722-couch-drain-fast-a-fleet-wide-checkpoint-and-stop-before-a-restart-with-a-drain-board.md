@@ -52,7 +52,7 @@ TL831e9502 confirms operator approval of the re-scoped plan: exclude the issuing
 - [x] Operator approved the re-scoped Revision through TL831e9502, excluding the issuing steward; reopened through the setter in canonical pair:5 after #622 landed. Renewed change-code follows.
 - [x] Remove the obsolete completion/persistence/control machinery; implement only transient flags, ordinary notices/status and undrain with tests.
 - [x] Qualify message/lifecycle independence, restart emptiness, truthful idle observations and one compact badge through normal tests and the bounded disposable installed composition.
-- [ ] Run required verification and mandatory close review, then TL-scheduled watched live acceptance before ordinary landing.
+- [ ] Record the passing full suite on the final code. Mandatory close review, authorized staging and TL/operator-watched live acceptance remain subsequent workflow gates before ordinary landing.
 
 ## Estimate
 
@@ -226,6 +226,10 @@ Both cases prove issuing-steward exclusion, worker status with unknown idle rema
 The earlier failed30-column run is retained separately. Its generic fixture error proves unsupported nested geometry; the precise transient columns/rows were not retained, so the earlier hub shorthand<20columns is an inference rather than an exact dimension capture. The80/120 run validates the corrected consumer envelope; pure renderer coverage remains1..139. No fixture guard or deadline was raised. Old ariadne:4 NoticeStarted contradiction remains NOT REPRODUCED/NOT ROOT-CAUSED; new notice-only delivery success does not resolve a removed formal-ack counter's cause.
 
 Implementation/native checklist now complete; required fresh recorded suite, renewed close, ariadne#506 landing and TL/operator-watched live acceptance remain. Commit/push this checkpoint before queueing; do not stage or merge without those remaining gates.
+
+### 2026-10-22 — final-code recorded suite queued
+
+Published native-evidence head557da87cca104ea388821c10c1042760078251e4 to PR477; behavior is unchanged from native-qualified68c581ac. Required suite lease4130677290, attempt9b8b7c6dd0c1bf9a0e7f3921359c3fa4, is retained in session83028 on557da87c; checkout /Volumes/TestScratch/local-checks/sdlc-local-703820345. Initial position3 behind active ariadne:5 and queued ariadne work. Keep the runner; no continuation/restart/duplicate while queued or running. The ordinary affected-dispatch Python preflight passed13tests in12.955s before queueing. Full suite and close are still pending; no stage or live drain authorized.
 
 ## Revisions
 
@@ -506,3 +510,7 @@ The [durable implementation plan](../plans/000722-fleet-drain-plan.md) defines t
 - [x] Wire steward CLI, authenticated ack, dispatch gate, fast wrapper interrupt and tab/status board.
 - [ ] Verify real ariadne#481 conformance, isolated wrapper integration, races, docs and required recorded suite; stage/live board check with hub authorization.
 - [ ] Close through the mandatory SDLC review, land through the ordinary gates and report the outcome.
+
+### 2026-10-22 — implementation checklist ends at verification; live remains a pre-landing gate
+
+The prior final Plan row read: “Run required verification and mandatory close review, then TL-scheduled watched live acceptance before ordinary landing.” Its own close/live receipts cannot be checked before the close that prepares staging. Clarify the implementation checkbox to end at the recorded passing full suite, while explicitly keeping mandatory close, authorized staging, ariadne#506 landing and watched live acceptance as subsequent required gates before landing. No acceptance criterion is removed, no milestone split, and no historical SHIP/stage instruction becomes fresh authorization. The operator-approved transient product/state contract is unchanged.
