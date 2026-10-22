@@ -493,3 +493,10 @@ Obsolete suite lease-1877263215 on d95641a0 was canceled via supported local-che
 ### 2026-10-22 — required-main integration and exact-source native acceptance
 
 Close preflight refused before review because this branch lacked noon main code (fb79d27bd). Followed its exact integration instruction; merge a26e095feb233c9d7954c4894895280cd9589d18 includes main through e1636e719 and resolves only the artifactpath registration-list overlap by preserving both #753 and #773 entries. No bypass or new scope. PR537 updated to a26e095feb23. Post-integration reader inventory passes, artifactpath32.039s and repolint25.490s pass. Broad native qualification at pre-integration78e7e62e3 passed93.276s (existing rec-stress baseline qualification retained). Exact integrated-source current-view/drawing/physical-tab/SPA/handoff native checks passed19.951s. Both raw synthetic logs and SHA256 provenance are preserved in workshop/evidence/000753/native-{78e7e62e3,a26e095fe}.{log,json}; private recordings remain local. Final full close, recorded suite and operator re-look are pending.
+
+
+### 2026-10-22 — SHIP and #796 staging integration
+
+Full close round9 finalized SHIP at14:57, no new/open findings; evidence e898b47276b564dc136b222728b9a0269ef18c96 and codecomplete mirror8ad63a4d9 are pushed. TLc88e6072 released staging after #796 landed. Integrated origin/main including #796/PR547 at681df3427a8ad48e43a3e17c729cda5defaf770f, clean merge with no conflict resolutions. Collapse/TabStyle/Submission/FeedbackVisibility/SketchScene targeted checks pass couchtty0.898s/couchcmd0.573s/webcast0.452s. The stage --build attempt refused because #796's lease still belongs to pair:4; asked its holder to clear and informed the hub, without takeover. Retry stage only after confirmed release.
+
+The retained old suite lease-2201167443 reached FIFO1 but tested the pre-#796 integration. After the actual main integration, canceled it through local-check cancel (confirmed pid99351) and will queue the newly pushed integrated head once. No obsolete check or duplicate retained runner remains. Final integrated recorded pass and operator's three-fix re-look still precede landing.
