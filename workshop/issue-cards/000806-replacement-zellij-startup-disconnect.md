@@ -1,6 +1,6 @@
 ---
 id: 000806
-status: working
+status: codecomplete
 created: 2026-10-22
 updated: 2026-10-22
 estimate_hours:
@@ -14,6 +14,14 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.60
+tracker:
+    version: 1
+    completion:
+        token: close-8c7634bfc4f5
+        repository: github.com/xianxu/pair
+        reviewed_head: 23c008e9aecc51ee5ef6dcebc1fa97607d3d2f9f
+        evidence_commit: 7e23f83b2d828008a3b893fa029fb7ff8ffe8ae9
 ---
 
 # Replacement Zellij disconnects before first wrapper startup
