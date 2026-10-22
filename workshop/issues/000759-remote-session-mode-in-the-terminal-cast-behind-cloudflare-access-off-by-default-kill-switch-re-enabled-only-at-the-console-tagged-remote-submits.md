@@ -444,3 +444,135 @@ used the single shared preserve-number checker and combined both regression
 oracles. Targeted strictjson, couchtty, couchcmd remote/endpoint checks passed;
 couchmessage remote/forget/orphan checks passed independently. The first console
 check lacked generated embedded runtime assets; generation resolved setup only.
+
+
+### 2026-10-22 — operator pivot to Tailscale, approved before code
+
+Operator decision a487d0d1 supersedes the entire remote Cloudflare Access path
+and the dedicated-tunnel revision. TL f8ad8c19 approved the complete revised
+transport plan below. #803 landed as PR544 before this branch resumed. Its code
+is integrated; the shared retained-number codec remains reconciled with #758.
+Public cloudflared casts remain unchanged. No Tailscale product code or live
+Serve mapping has been created. The Homebrew tailscale-app 1.104.2 installation
+still needs readiness confirmation from the operator through the TL.
+
+Threat model and authority
+
+- Protect against an unallowed tailnet user, shared/tagged device, LAN or public
+  caller, browser script, forged HTTP identity/IP headers, stale session/link,
+  another local UID, and late completion after off/kill. Root and malicious
+  code running as the operator's UID remain trusted, as in the existing plan;
+  this does not protect against a compromised operator account or tailscaled.
+- Remote uses HTTPS Serve only, never Funnel, quick tunnels or the public cast
+  host. A nonempty COUCH_REMOTE_ALLOWED_LOGINS is the remote allowlist. Remote
+  ignores cast/Cloudflare tunnel, hostname, team, audience and email settings.
+- Use a private physical 0700 directory and 0600 Unix socket, no TCP listener
+  or loopback fallback. Bind the accepted connection to verified proxy-peer
+  evidence in server ConnContext; an HTTP header cannot create that evidence.
+  Require kernel Unix peer credentials/PID plus identity-bracketed supported
+  Tailscale daemon inspection through procutil.Source. Unavailable or mismatched
+  inspection refuses. The exact installed Mac daemon/extension identity must
+  be measured; do not infer it from an argv substring or assume UID alone proves
+  Serve. The first bounded native probe qualifies this before product code.
+- Only after that peer check accept one bounded Tailscale-User-Login and one
+  canonical IP in X-Forwarded-For. Reject duplicate, malformed, empty, control-
+  bearing or unexpected encoded values; compare the decoded login exactly with
+  the configured allowlist. Tagged/missing-login and Funnel-marked requests
+  refuse. Pin expected forwarded host/protocol and existing Origin/CSRF checks.
+  Identity is authenticated anew on every API request, including kill and
+  streams; a browser cookie never substitutes for current ingress identity.
+
+Owner and lifecycle
+
+- Keep the existing transport-independent supervisor and its on/opening/on,
+  closing, killed and cleanup-blocked states. Keep the 👽 console switch, CLI
+  on/off/status, console-only link/QR, capture refusal, four-session cap, replay
+  limits, audit-before-effects, dispatch fencing and host-key-only latch reset.
+- Preflight the installed CLI/daemon and logged-in Running state, the canonical
+  node HTTPS name and HTTPS readiness with bounded read-only CLI commands.
+  Missing install/login/HTTPS permission refuses with one concrete recovery;
+  no automatic login, policy/certificate enrollment, sudo or machine settings.
+- Run one foreground tailscale serve --https=443 unix:<owned-socket>, without
+  --bg, --yes, --service or Funnel. The foreground daemon session is the
+  lifetime ownership resource. Native admission must atomically refuse an
+  occupied port, including a racing foreground owner; preflight inventory is
+  diagnostic, not absence authority. Never overwrite another Serve config.
+- Reuse the current guarded-child lifetime/EOF collection model and bounded
+  metadata runner. Opening has the existing 30-second envelope; each metadata
+  exchange has a five-second cap and 1 MiB output cap; closing retains the
+  existing five-second join budget. No new periodic process or liveness loop.
+  Publish on/link only after the exact foreground mapping and private-origin
+  readiness are confirmed. Ordinary remote requests spawn zero children.
+- Off/kill first revoke epoch, sessions, passcode and dispatch admission, then
+  cancel/join the owned foreground attempt and close the origin. Verify its
+  exact mapping is absent; unrelated mappings may remain. Never issue serve
+  reset or a generic off that might erase another owner. Unknown teardown keeps
+  the existing blocked state and reset unavailable. A child exit, daemon loss
+  or profile switch revokes remote mode; no silent connector restart.
+- Sessions have no new idle/absolute timeout. They end on off, kill, logout or
+  current identity/epoch loss. Same valid authenticated identity can silently
+  re-handshake while mode is on. Re-enable rotates passcode/link and revokes
+  every prior session. A stream cannot survive identity/transport revocation.
+- Provenance stays Origin=remote and independently derived RemoteEdited;
+  delivered text is [remote <login> <IP>]. Use an explicitly named Login field
+  in the unlanded remote identity contract rather than treating arbitrary
+  logins as verified email. Update receipt/audit/ledger/receiver tests together
+  and tell the hub the exact JSON key. Preserve unknown fields and conservative
+  historical evidence. Native agent transcript remains the second paper trail.
+
+Visible states and recovery
+
+| Failure/state | Operator sees | One recovery | Possible loss |
+|---|---|---|---|
+| Missing CLI, logged out, HTTPS unavailable or invalid allowlist | unavailable, specific prerequisite | install/sign in/configure as named, then retry on | none; no exposure |
+| Occupied Serve endpoint | busy; existing service preserved | stop/reconfigure that service explicitly, then retry | none |
+| Socket inaccessible or proxy identity cannot be proved | unavailable; secure origin unsupported | inspect installed Mac variant, then retry | none; no weaker fallback |
+| Opening/cancel race | opening or closing, no usable old link | wait for owned attempt | no submit admitted until ready |
+| Healthy on | on; private tailnet link on console only | use phone | existing bounded operation uncertainty applies |
+| Unallowed/forged/missing identity | request denied | use an allowed personal login | no effect |
+| Off or phone logout | off or signed out | enable or re-handshake, respectively | draft saving follows existing explicit result |
+| Kill latch set | killed | host physical keypress, then re-enable | revoked sessions; retained unsent work stays local |
+| Cleanup outcome uncertain | blocked; reset unavailable | inspect/recover locally and restart | no claim of removed ingress; effects remain revoked |
+
+Implementation and qualification
+
+1. After #803 lands, record this pivot and operator approval. Coordinate one
+   bounded private native Serve probe on the actual Mac installation: socket
+   access, kernel peer identity, header replacement/IP, foreground owner conflict
+   and daemon-session cleanup. No production listener, global reset, public
+   exposure or unrelated mapping change. If secure peer proof/socket access is
+   unsupported, stop and return the evidence and simplest alternative for plan
+   review; do not quietly fall back to localhost.
+2. Replace only the remote transport/auth adapter and its configuration. Remove
+   remote Access/JWK/JWT and dedicated-tunnel code, retain ordinary cloudflared
+   paths/tests. Keep a pure login/IP authorization core separate from IO.
+3. Stateful fake daemon/CLI behind the same seam: install/login errors,
+   malformed/capped output, held opening/closing, late success, mapping conflict,
+   losing the owner, uncertain teardown, port races and unaffected other Serve
+   mappings. Count one foreground child/epoch and bounded metadata operations;
+   N/2N requests/connections have linear validation and zero per-request spawns.
+4. Negative HTTP/Unix tests: forged direct TCP and unrelated Unix peer denied;
+   unavailable peer inspection denied; duplicate login/IP headers, public/Funnel,
+   tagged identity, wrong login/host/origin/CSRF and stale cookies/links denied
+   with zero dispatch. Identity changes revoke existing sessions and streams.
+5. Re-run lifecycle/capture/four-session/kill-reset/replay/audit/provenance and
+   native-transcript regressions. Include browser logout/re-handshake, off/kill
+   while a request or stream is held, daemon exit and profile change. Full
+   packages/race, source and reader inventories, full recorded suite, mandatory
+   fresh review. No live-network test is represented by a fake result.
+6. Update README, atlas and acceptance steps. Operator installs/logs in on Mac
+   and iPhone and enables HTTPS if required. Stage through sdlc on TL go; phone
+   opens private link, allowed login edits/submits, transcript/audit show login
+   and verified IP, phone kills, only host key resets. Check an unallowed login
+   and direct-origin spoof control. Public cast still works independently.
+
+Evidence informing the proposal (installed version still must be qualified)
+
+- https://tailscale.com/docs/features/tailscale-serve — identity header handling
+  and the direct-origin spoofing caveat.
+- https://github.com/tailscale/tailscale/blob/main/cmd/tailscale/cli/serve_v2.go —
+  Unix targets and foreground ownership through a daemon session.
+- https://github.com/tailscale/tailscale/blob/main/ipn/ipnlocal/serve.go — source-IP
+  forwarding, removal of client identity headers, atomic foreground port
+  conflict checks and foreground session removal. This is upstream evidence,
+  not proof of the operator's installed Mac binary.
