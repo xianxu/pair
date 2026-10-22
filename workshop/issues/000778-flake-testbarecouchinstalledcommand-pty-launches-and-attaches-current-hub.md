@@ -52,6 +52,7 @@ Alternatives: socket-only isolation is insufficient because census is host-wide;
 ## Log
 
 ### 2026-10-21
+- 2026-10-21: closed — Deterministic independent-authority RED now GREEN through real installed and fleet constructors; exclusive high-C seed, exhaustion/no-overwrite/race and constructor lint checks pass. Existing native Claude/Codex three-worker matrix PASS75.199s with message, detach/restart and exact cleanup proof. Corrected recorded full suite PASS12m15s on f025dba4, all packages incl installed Couch and artifact inventory, no rerun/waiver. Original failed inventory attempt retained; ordinary source classification fixed. Production census, launch budgets and retries unchanged; atlas maps helper and lint. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 
 ### 2026-10-21 — recovered evidence and bounded plan
 
