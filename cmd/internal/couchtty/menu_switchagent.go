@@ -57,14 +57,14 @@ func reduceSwitchAgentKey(state MenuState, key PanelKey) (MenuState, []MenuEffec
 				moveSwitchFocus(frame, -1)
 			}
 		case KeyRune:
-			if frame.SelectedItem == "parameters" && frame.SwitchPrepared != nil && key.Rune != utf8.RuneError && utf8.ValidRune(key.Rune) && key.Rune >= 32 && key.Rune != 127 && len(frame.Input)+utf8.RuneLen(key.Rune) <= 4096 {
+			if frame.SelectedItem == "parameters" && key.Rune != utf8.RuneError && utf8.ValidRune(key.Rune) && key.Rune >= 32 && key.Rune != 127 && len(frame.Input)+utf8.RuneLen(key.Rune) <= 4096 {
 				text, cursor := switchParameterCursor(*frame)
 				frame.Input = string(text[:cursor]) + string(key.Rune) + string(text[cursor:])
 				frame.SwitchEdited = true
 				invalidateSwitchEdit(&state, frame)
 			}
 		case KeyBackspace:
-			if frame.SelectedItem == "parameters" && frame.SwitchPrepared != nil {
+			if frame.SelectedItem == "parameters" {
 				text, cursor := switchParameterCursor(*frame)
 				if cursor > 0 {
 					frame.Input = string(text[:cursor-1]) + string(text[cursor:])
