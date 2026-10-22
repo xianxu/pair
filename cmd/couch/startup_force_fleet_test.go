@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/testcouch"
 	"github.com/xianxu/pair/cmd/internal/testcouch/agentfixture"
@@ -72,8 +75,9 @@ func TestDisposableCouchSYNTHETICLimitAndBusyForcePreserveDirtyFiles(t *testing.
 				target = "codex"
 			}
 			refused, err := fleet.ActorCLI(ctx, 0, "--switch-agent", "fixture:1", "--agent", target, "--agent-args", "", "--confirm", "--json")
-			if err != nil || refused.ExitCode == 0 {
-				t.Fatalf("ordinary dirty/busy switch admitted: %+v %v", refused, err)
+			var refusal couchmessage.Response
+			if decodeErr := json.Unmarshal([]byte(refused.Stdout), &refusal); decodeErr != nil || refusal.Code != "refused" || refused.ExitCode == 0 || refused.CleanupUncertain || errors.Is(err, agentfixture.ErrCleanupUncertain) {
+				t.Fatalf("ordinary dirty/busy switch did not refuse cleanly: %+v %v decode=%v", refused, err, decodeErr)
 			}
 			afterRefusal, err := fleet.Agent(1)
 			if err != nil || afterRefusal.PID != before.PID {
