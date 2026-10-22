@@ -69,6 +69,9 @@ func allocateRoots(base string, denied []string) (RootsPlan, error) {
 			return RootsPlan{}, err
 		}
 	}
+	if _, err := testpair.SeedCouchIdentity(p.Mutable["identity"]); err != nil {
+		return RootsPlan{}, err
+	}
 	ok = true
 	return p, nil
 }

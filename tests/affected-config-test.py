@@ -52,8 +52,13 @@ def provider_sources():
                     if not path.name.endswith("_test.go"):
                         result[path.relative_to(candidate).as_posix()] = path.read_bytes()
         if all(any(name.startswith(PREFIX + p + "/") for name in result) for p in PACKAGES):
+            # This consumer requires #517, not merely the older planner. A stale
+            # sibling/module is unavailable qualification evidence, not a reason
+            # to compile against an API that predates graph_prepare.
+            if b"GraphPrepare" not in result.get(PREFIX + "affected/config.go", b""):
+                continue
             return candidate, ref, result
-    message = ("upstream affected/jsonstrict source unavailable; install ariadne#473 or set "
+    message = ("upstream ariadne#517 affected/jsonstrict source unavailable; install it or set "
                "ARIADNE_AFFECTED_SOURCE (and optional ARIADNE_AFFECTED_REF) to qualify its candidate")
     if explicit:
         raise RuntimeError(message)
@@ -68,11 +73,14 @@ import (
     "context"
     "encoding/json"
     "os"
+    "os/exec"
     "path/filepath"
     "reflect"
     "sort"
     "strings"
+    "syscall"
     "testing"
+    "time"
 
     "github.com/xianxu/ariadne/cmd/sdlc/internal/affected"
 )
@@ -134,6 +142,52 @@ func exact(t *testing.T, cfg affected.Config, g affected.Graph, paths, packages,
     }
     if len(selected.Groups) != len(groups) || (len(groups) > 0 && !reflect.DeepEqual(selected.Groups, groups)) {
         t.Fatalf("%v groups = %v, want %v", paths, selected.Groups, groups)
+    }
+}
+
+// Commands are owned by this fixture's bounded scope, including descendants.
+func graphCommand(t *testing.T, ctx context.Context, dir string, argv ...string) {
+    t.Helper()
+    cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+    cmd.Dir = dir
+    cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+    cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
+    cmd.WaitDelay = time.Second
+    out, err := cmd.CombinedOutput()
+    if cmd.Process != nil { _ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
+    if err != nil { t.Fatalf("%v: %v\n%s", argv, err, out) }
+}
+
+func TestDeclaredPreparationQualifiesCleanPairGraph(t *testing.T) {
+    cfg, _ := config(t)
+    if cfg.GraphPrepare == nil || !reflect.DeepEqual(cfg.GraphPrepare.Command, []string{"make", "runtimebundle-generate"}) || cfg.GraphPrepare.TimeoutMinutes != 2 {
+        t.Fatalf("missing bounded runtime preparation: %+v", cfg.GraphPrepare)
+    }
+    ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+    defer cancel()
+    t.Setenv("GOPROXY", "off")
+    scratch := t.TempDir()
+    clean := filepath.Join(scratch, "checkout")
+    if err := os.Mkdir(clean, 0755); err != nil { t.Fatal(err) }
+    archive := filepath.Join(scratch, "source.tar")
+    graphCommand(t, ctx, os.Getenv("PAIR_AFFECTED_ROOT"), "git", "archive", "--format=tar", "--output="+archive, "HEAD")
+    graphCommand(t, ctx, clean, "tar", "-xf", archive)
+    assets := filepath.Join(clean, "cmd/internal/runtimebundle/assets/runtime/files")
+    if _, err := os.Stat(assets); !os.IsNotExist(err) { t.Fatalf("archive borrowed generated assets: %v", err) }
+    if _, err := affected.LoadGoGraph(ctx, clean); err == nil || !strings.Contains(err.Error(), "no matching files found") {
+        t.Fatalf("cold graph must fail on missing generated embeds: %v", err)
+    }
+    graphCommand(t, ctx, clean, cfg.GraphPrepare.Command...)
+    g, err := affected.LoadGoGraph(ctx, clean)
+    if err != nil { t.Fatalf("declared generator did not establish graph: %v", err) }
+    exact(t, cfg, g, []string{"cmd/internal/slugcmd/slug.go"}, []string{
+        "github.com/xianxu/pair/cmd/internal/dispatcher",
+        "github.com/xianxu/pair/cmd/internal/slugcmd",
+        "github.com/xianxu/pair/cmd/pair-go",
+    }, []string{"build"})
+    write(t, clean, "cmd/internal/slugcmd/broken_graph.go", "package slugcmd\nimport _ \"github.com/xianxu/pair/graph_prepare_missing\"\n")
+    if _, err := affected.LoadGoGraph(ctx, clean); err == nil || !strings.Contains(err.Error(), "graph_prepare_missing") {
+        t.Fatalf("preparation concealed a genuine broken graph: %v", err)
     }
 }
 

@@ -529,6 +529,12 @@ couch --session-sync register FILE --owner SLOT [--json]
                          keep agentic status outside the document until explicitly forgotten
 couch --session-sync lookup FILE | list | forget FILE | rename OLD NEW [--json]
                          discover bindings or update metadata after a filesystem move; see atlas/couch-agentic-documents.md
+couch --session-sync operator-acquire FILE --id ID --turn TOKEN --json
+couch --session-sync operator-release FILE --id ID --turn TOKEN --json
+                         editor-only: serialize registered operator protection with writer commits; return
+                         the canonical sidecar witness and exact turn ownership. Same-token retries recover
+                         lost replies; release removes only that turn. Full acknowledgment/retry/release
+                         contract: atlas/couch-agentic-documents.md (agents still hold no lock)
 couch --recover-plan-from-sdlc   per-slot recovery report (JSON), see below
 couch --resume repo:N [--json]   from a live slot: Continue if listed live, otherwise resume an established native binding
 couch --resume-candidates repo:N [--json]
@@ -2046,6 +2052,12 @@ answer with a wrong holder or process identity fails in both modes.
 Affected branch checks use `.sdlc/affected.json` and `make test-affected` once the
 installed SDLC supports ariadne#473. SDLC reads the declaration from main and
 supplies `SDLC_AFFECTED_GO_PKGS` (exact import paths) and `SDLC_AFFECTED_GROUPS`.
+With preparation-capable SDLC (ariadne#517), `graph_prepare` runs
+`make runtimebundle-generate` in the same private head checkout before loading
+the Go graph, with a two-minute bound. This creates the missing embedded runtime
+in a fresh checkout; it never borrows generated files. Preparation failure,
+timeout or a still-broken graph keeps the full-suite fallback. Parent-context
+cancellation aborts the check without recording a passing affected or suite status.
 Before close or re-close, run `make test-affected-inventory`. It audits tracked
 Go test readers without building Go or running the seeded guard tests, and is
 also the affected runner's first step. Failures name each reader and print its
@@ -2092,8 +2104,10 @@ the actual affected command in a disposable checkout.
 declaration regressions; landing still requires SDLC's full-suite evidence.
 
 The declaration regression consumes upstream parser/planner source from a sibling
-ariadne checkout or the installed Go module. Until ariadne#473 is available there,
-it reports an explicit dependency skip. Qualify an upstream candidate without
+ariadne checkout or the installed Go module. Basic affected selection requires
+ariadne#473; this preparation qualification requires ariadne#517. Until that
+preparation-capable source is available there, it reports an explicit dependency
+skip. Qualify an upstream candidate without
 changing that checkout using `ARIADNE_AFFECTED_SOURCE=/path/to/ariadne` and optional
 `ARIADNE_AFFECTED_REF=<local-git-ref>` with `make test-affected-config`; an explicitly
 requested unavailable source fails. Changes to this declaration require the
