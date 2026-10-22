@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -23,12 +24,16 @@ func fakeNativeDriver(t *testing.T) *nativeDriver {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := os.Mkdir(filepath.Join(home, "argv"), 0700); err != nil {
+		t.Fatal(err)
+	}
 	executable := filepath.Join(home, "tart")
 	script := `#!/bin/sh
 set -eu
 test "${TART_HOME-unset}" = unset
 test "${OPENAI_API_KEY-unset}" = unset
-printf '%s\n' "$@" >> "$HOME/argv"
+invocation_record=$(mktemp "$HOME/argv/call.XXXXXX") || exit 1
+printf '%s\000' "$@" > "${invocation_record:?}"
 case "$1" in
  list)
   if test -f "$HOME/list"; then cat "$HOME/list"; elif test -f "$HOME/running"; then printf '[{"Name":"pair-conformance-run-adhoc","Running":true,"State":"running"}]'; else printf '[{"Name":"pair-conformance-run-adhoc","Running":false,"State":"stopped","Other":12}]'; fi;;
@@ -112,12 +117,26 @@ func TestNativeLifecycleOwnsChildAndSanitizesTransport(t *testing.T) {
 	if err := d.Delete(bound, vm); err != nil {
 		t.Fatal(err)
 	}
-	raw, _ := os.ReadFile(filepath.Join(d.home, "argv"))
-	if strings.Contains(string(raw), "results:") {
-		t.Fatalf("writable host results share: %s", raw)
+	calls := nativeInvocations(t, d)
+	for _, argv := range calls {
+		for _, arg := range argv {
+			if strings.Contains(arg, "results:") {
+				t.Fatalf("writable host results share: %q", calls)
+			}
+		}
 	}
-	if !strings.Contains(string(raw), "--no-graphics\n--no-audio\n--no-clipboard\n--dir\ninput:/input with space:ro\n") {
-		t.Fatalf("bad shares: %s", raw)
+	wantRun := []string{"run", "--no-graphics", "--no-audio", "--no-clipboard", "--dir", "input:/input with space:ro", vm}
+	runs := 0
+	for _, argv := range calls {
+		if argv[0] == "run" {
+			runs++
+			if !reflect.DeepEqual(argv, wantRun) {
+				t.Fatalf("bad run/share arguments: %q, want %q", argv, wantRun)
+			}
+		}
+	}
+	if runs != 1 {
+		t.Fatalf("got %d run invocations, want one: %q", runs, calls)
 	}
 }
 
@@ -152,8 +171,8 @@ func TestNativePreservesUnknownRecoveryAndRefusesUnownedStop(t *testing.T) {
 	if err := d.Stop(context.Background(), vm, nil); err == nil {
 		t.Fatal("accepted running VM without owned child")
 	}
-	raw, _ := os.ReadFile(filepath.Join(d.home, "argv"))
-	if strings.Contains(string(raw), "stop\n") {
+	calls := nativeInvocations(t, d)
+	if nativeInvocationCount(calls, "stop") != 0 {
 		t.Fatal("attempted to stop unowned VM")
 	}
 }
@@ -176,9 +195,9 @@ func TestNativeExecutionFailureIsNotRetried(t *testing.T) {
 	if err != nil || code != 7 {
 		t.Fatalf("lost guest failure: %d %v", code, err)
 	}
-	raw, _ := os.ReadFile(filepath.Join(d.home, "argv"))
-	if strings.Count(string(raw), "exec\n") != 1 {
-		t.Fatalf("retried execution: %s", raw)
+	calls := nativeInvocations(t, d)
+	if nativeInvocationCount(calls, "exec") != 1 {
+		t.Fatalf("retried execution: %q", calls)
 	}
 }
 
@@ -279,9 +298,9 @@ func TestNativeReadinessDoesNotRetryUnconfirmedTransportCleanup(t *testing.T) {
 	if !errors.Is(err, ErrUnconfirmedProcessCleanup) {
 		t.Fatalf("lost readiness uncertainty: %v", err)
 	}
-	raw, _ := os.ReadFile(filepath.Join(d.home, "argv"))
-	if strings.Count(string(raw), "exec\n") != 1 {
-		t.Fatalf("retried uncertain readiness: %s", raw)
+	calls := nativeInvocations(t, d)
+	if nativeInvocationCount(calls, "exec") != 1 {
+		t.Fatalf("retried uncertain readiness: %q", calls)
 	}
 }
 
@@ -353,9 +372,9 @@ func TestNativeSlowReadinessProbeDoesNotStartFinalCleanupBudget(t *testing.T) {
 	if started {
 		t.Fatal("short readiness probe started final Run cleanup clock")
 	}
-	raw, _ := os.ReadFile(filepath.Join(d.home, "argv"))
-	if strings.Count(string(raw), "exec\n") != 2 {
-		t.Fatalf("expected one expired probe and one successful probe: %s", raw)
+	calls := nativeInvocations(t, d)
+	if nativeInvocationCount(calls, "exec") != 2 {
+		t.Fatalf("expected one expired probe and one successful probe: %q", calls)
 	}
 }
 

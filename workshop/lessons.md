@@ -2690,3 +2690,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
   fault the entire physical-attempt budget; add transient recovery controls and
   keep semantic mismatches non-retriable. Audit structural call-site manifests
   when a collector method changes, even when the effect remains read-only.
+
+- #743 native fixture: concurrent commands must record whole invocations independently. Per-argument shell printf appends can interleave even though each argument is correct; use unique records and NUL framing, compare the exact run vector, and count command fields rather than argument text. A two-command fixture regression pins empty, whitespace, newline and literal shell-looking arguments.
