@@ -45,7 +45,7 @@ Trace the generated-runtime-bundle preparation prerequisite for affected package
 - [x] Reproduce missing embed assets in a private clean checkout and trace the graph owner.
 - [x] Wait for ariadne#517's bounded preparation seam to land.
 - [x] Declare the existing runtime generator and qualify clean graph plus broken-graph refusal against the current provider.
-- [ ] Obtain operator local-gates verification before landing.
+- [x] Obtain operator local-gates verification before landing.
 
 ## Log
 
@@ -164,3 +164,8 @@ actual-provider qualification had passed separately. Close round3 is SHIP,
 BR-1 addressed with no blocking finding. PR#513 remains held for the operator
 local-gates-verified label; the unchecked Plan item is intentional. No agent
 has applied the label or bypassed CI.
+
+
+### 2026-10-21 — operator verification received; landing resumed
+
+Hub explicitly authorized resuming PR513 after #774. Fresh GitHub PR inspection confirms OPEN with local-gates-verified already applied by the operator; no agent label change. The last Plan item is now satisfied. Existing close is SHIP and recorded suite passed11m54s as above; resuming normal sdlc merge, which owns current-main integration and required checks.
