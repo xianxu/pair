@@ -267,3 +267,22 @@ this rule. Pure synthetic positive and negative cases live in
 `fixture_identity_rule_test.go`; the ordinary catalog walk checks real sources.
 This is a syntactic guard, not execution proof: constructor renames require the
 rule to be updated. Allocation and installed-command tests prove behavior.
+
+
+## Drain service publication (#722)
+
+The Pair-local `drain-state-before-listen` rule rejects missing or late drain
+registry, reference-map and executor assignments in `couchcmd.newMessageService`.
+It follows the owned service variable and the imported Couch message listener,
+including import aliases; a write inside an uncalled closure or to another
+object does not establish readiness. These request-visible dependencies must be
+initialized before the listener is published. Constructor failures cancel and
+join the owned executor before returning.
+
+The matcher and synthetic cases live in
+`internal/repolint/drain_publication_rule_test.go`; registration is in the local
+catalog. This is a lexical guard for the named constructor, not arbitrary
+control-flow or nonnil-value proof. The private real-socket race regression in
+`couchcmd/drain_startup_probe_test.go` concurrently requests status while the
+service is constructed. Shared catalog semantics and other repositories stay
+unchanged.

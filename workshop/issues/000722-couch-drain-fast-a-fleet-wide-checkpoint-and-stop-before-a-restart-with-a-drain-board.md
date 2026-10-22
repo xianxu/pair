@@ -395,6 +395,14 @@ Corrected integrated Git HEAD40257b270a50264eb55e7fd71730a00a3480e214 pushed; sd
 
 TL report61f4325e queued with review/corrected-head/lease evidence; inspect its receipt rather than resending blindly. Earlier report ebbfeb97 also remains subject to canonical receipt confirmation, not assumed received. BR6 remains unresolved until this recorded source passes; BR7 is repaired and awaits review disposition. Next after completed suite: retain log/head/environment/duration/hash, check final Plan verification item truthfully, run affected inventory, then full re-close with all evidence. Investigate a repeating core timeout rather than change a timer or claim a blind pass. Keep pair:0's cc44f065 stage unchanged until TL authorizes replacement; no live repeat/landing before fresh gates. Do not restart/checkpoint a continuation while this owned check is queued or running.
 
+### 2026-10-22 12:45 PDT — confirmed new registry publication race; fixed before staging
+
+A cold private status probe demonstrated real RACE reports on newMessageService's late drainOps assignment and freshly constructed slotOperations mutex/map versus an already reachable status handler (source629fab876567f54f17ee12de78d878a2f539fa9b plus probe). RED exit1/Test0.21s/package0.652s; sanitized bounded stack excerpt workshop/evidence/000722/service-publication-race-red.txt SHA256292f229c6cb171f7d62771b3fc71163e7c4e29319e3b57e74b6f7e80c6626bc4. No live server, pane or actor was probed. This new async-registry defect cannot explain the pre-existing #773 incidents and is not claimed to do so.
+
+Moved all new request-visible drain dependencies before the first listener publication and joined the owned executor on both subsequent constructor-error exits. The same race probe passed count3 in1.554s, followed by the broader focused drain/skill/shared-operation race set7.990s; after using the shared short canonical socket root it passed the focused set6.660s. Added Pair's drain-state-before-listen golint catalog extension: unsafe constructor cases RED, then GREEN0.142s. It checks the owned object and imported listener, ignores uncalled closure writes and rejects missing/late dependencies; its syntactic limits are explicit. Complete repo lint15.948s and artifact classification14.201s PASS; affected inventory PASS after the new tests were tracked. No existing guard was weakened and no deadline changed.
+
+Cancelled only queued lease-758217443 through local-check cancel before changing executable input; session61908 exited on cancellation and no suite had started. The new source requires a new recorded check; no old queue place or pass is transplanted. Additional embedded-guide audit found its old vague graceful bullet and missing latest-notice wording: independent guide assertions RED before aligning to the approved queued-work rule/status contract. No formatter or ariadne#506 notice vector changed. Stage is still cc44f065, untouched; final source check/re-close/watched rerun remain mandatory.
+
 ## Revisions
 
 ### 2026-10-19 — authenticated acknowledgement and shared queue ownership
@@ -696,3 +704,7 @@ Direct submitted TL ef5588c8 supersedes the demand for another complete fresh na
 ### 2026-10-22 11:30 PDT — registered asynchronous notice operations
 
 Submitted TL5f7e03f6 retains approved fleet-wide selection but supersedes synchronous fanout: drain and lift must register parent IDs and child receipts, return when flags are applied, and expose per-slot delivered/pending/failed state through status plus operation-status. One slow target must not consume the exchange. The appended durable plan Revision specifies the state table, bounded ownership and private slow-target RED/GREEN. Watched acceptance has failed; no landing until corrected-source verification/re-close and a fresh operator-watched rerun.
+
+### 2026-10-22 12:45 PDT — readiness before publishing the service
+
+Initialize the newly registered drain operation dependencies before exposing request handlers, with owned executor cleanup on every later constructor failure. This enforces the approved publication/lifetime ordering; public CLI, notice vectors, cross-hub contour and deadlines remain unchanged. Retain the private race RED/GREEN and normal catalog guard.

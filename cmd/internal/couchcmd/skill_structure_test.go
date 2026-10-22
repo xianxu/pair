@@ -30,3 +30,17 @@ func TestSkillCommandIndexIsOneCompleteTable(t *testing.T) {
 		}
 	}
 }
+
+func TestSkillDrainKeepsQueuedWorkOutstanding(t *testing.T) {
+	_, section, ok := strings.Cut(couchSkill, "## Fleet checkpoint and stop\n")
+	if !ok {
+		t.Fatal("drain guidance missing")
+	}
+	section, _, _ = strings.Cut(section, "\n## ")
+	normalized := strings.Join(strings.Fields(section), " ")
+	for _, want := range []string{"background work that is already running to finish.", "Leave queued, not-started work queued and note it in the issue Log as outstanding.", "latest notice outcome"} {
+		if !strings.Contains(normalized, want) {
+			t.Errorf("drain skill omits approved guidance %q", want)
+		}
+	}
+}

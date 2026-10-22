@@ -417,8 +417,9 @@ The console shows one compact `drain N` badge.
 
 Follow the ordinary drain request delivered through Couch:
 
-- **Graceful:** finish the current atomic step and wait for current background
-  work to finish.
+- **Graceful:** finish the current atomic step and wait for background work that
+  is already running to finish. Leave queued, not-started work queued and note it
+  in the issue Log as outstanding.
 - **Fast:** stop now without finishing the step. Promptly stop your own background
   work via supported controls and preserve unfinished working-tree edits.
 - **Both:** write the stopping point and next step in the issue Log; commit and
@@ -428,16 +429,18 @@ Follow the ordinary drain request delivered through Couch:
   and acknowledgement loops.
 
 Ordinary messages continue delivering while flagged. Status lists flagged
-workspaces and connection, settled, picker, background-work and idle-age
-observations; unknown facts remain unknown. The operator assesses whether the
+workspaces with their latest notice outcome and correlation IDs, plus connection,
+settled, picker, background-work and idle-age observations; unknown facts remain
+unknown. The operator assesses whether the
 fleet is ready for a restart. There is no drain acknowledgement command, readiness
 state machine, message hold, SDLC queue pause or durable drain file.
 
 `couch --undrain` clears flags and sends “drain lifted; continue your current
 work” to flagged live slots, with an optional quoted `--message` note (valid
-UTF-8, no control characters, at most 1024 bytes). If no drain notice reached you, the lift requires no checkpoint or recovery
-action. Continue your current work when it arrives. The exact notice text is owned by `DrainNotice` and `UndrainNotice`
-in `couchcore/drain_notice.go`. Undrain does not invoke restart recovery or
+UTF-8, no control characters, at most 1024 bytes). If no drain notice reached you,
+the lift requires no checkpoint or recovery action. Continue your current work
+when it arrives. The exact notice text is owned by `DrainNotice` and
+`UndrainNotice` in `couchcore/drain_notice.go`. Undrain does not invoke restart recovery or
 automatically operate an SDLC queue.
 
 ## Recovering slots after a restart

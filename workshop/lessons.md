@@ -2667,3 +2667,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
   fault the entire physical-attempt budget; add transient recovery controls and
   keep semantic mismatches non-retriable. Audit structural call-site manifests
   when a collector method changes, even when the effect remains read-only.
+
+- #722 publication race: initialize request-visible registries and owned executors before opening their listener. A constructor has not finished when its first handler can run; guard that publication order in the catalog, exercise concurrent cold status under -race, and join new resources on every post-allocation failure path.

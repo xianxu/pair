@@ -690,6 +690,14 @@ func newMessageService(parent context.Context, brokerSocket, registrySocket stri
 		status, ok := slotGit(identity.WorktreeRoot)
 		return ok && !status.Detached && status.Branch == *identity.RestingBranch, ok
 	})
+	s.drainOps = slotOps
+	if s.drainOps == nil {
+		s.drainOps = newSlotOperations(nil, nil, now)
+	}
+	s.drainOps.refreshDrain = s.refreshDrainOperation
+	s.drainNotices = map[string]drainNoticeReference{}
+	s.drainExecutor = newDrainAdmissionExecutor(lifetime)
+	// All request-visible drain state and owned workers precede socket publication.
 	s.workers.Add(1)
 	go s.loop()
 	server, err := couchmessage.StartServer(lifetime, brokerSocket, func(ctx context.Context, raw []byte) ([]byte, error) {
@@ -701,6 +709,7 @@ func newMessageService(parent context.Context, brokerSocket, registrySocket stri
 	})
 	if err != nil {
 		cancel()
+		s.drainExecutor.close()
 		_ = s.broker.Close()
 		s.workers.Wait()
 		return nil, err
@@ -724,18 +733,12 @@ func newMessageService(parent context.Context, brokerSocket, registrySocket stri
 	if err != nil {
 		cancel()
 		_ = server.Close()
+		s.drainExecutor.close()
 		_ = s.broker.Close()
 		s.workers.Wait()
 		return nil, err
 	}
 	s.sessions = sessions
-	s.drainOps = slotOps
-	if s.drainOps == nil {
-		s.drainOps = newSlotOperations(nil, nil, now)
-	}
-	s.drainOps.refreshDrain = s.refreshDrainOperation
-	s.drainNotices = map[string]drainNoticeReference{}
-	s.drainExecutor = newDrainAdmissionExecutor(lifetime)
 	if s.hubTargets != nil && authority.hubs != nil {
 		var primaries []string
 		for _, hub := range authority.hubs.snapshot().Hubs() {
