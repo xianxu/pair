@@ -1,0 +1,15 @@
+{
+  "source": "f39a3ae7bbf0933ebb1a2db038b803479e7678d7",
+  "command": [
+    "make",
+    "test-drain-acceptance"
+  ],
+  "started_at": "2026-10-22T09:30:23.571419+00:00",
+  "finished_at": "2026-10-22T09:32:59.653638+00:00",
+  "seconds": 156.0814904590079,
+  "exit": 2,
+  "sha256": "0341a32830cf0dbc8bc97b46a11b56eddce1ae8deba385fd3260c4ac84b6d062",
+  "log": "native-shared-f39a3ae7-startup-failed.log",
+  "zellij_version": "zellij 0.45.1",
+  "scratch": "/Volumes/TestScratch/tmp/pair722-native-queued-gj69uw06/tmp"
+}

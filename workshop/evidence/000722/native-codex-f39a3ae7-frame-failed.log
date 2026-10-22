@@ -1,0 +1,140 @@
+=== RUN   TestDisposableCouchDrainFlags
+    drain_acceptance_test.go:42: native Couch tool git: /usr/bin/git (git version 2.54.0 (Apple Git-157))
+    drain_acceptance_test.go:42: native Couch tool sdlc: /Users/xianxu/workspace/ariadne/bin/sdlc (sdlc version path=/Users/xianxu/workspace/ariadne/bin/sdlc revision=fce345a89d417394aa6d1b7c09c758b02707066b modified=false)
+    drain_acceptance_test.go:42: native Couch tool weave: /Users/xianxu/workspace/ariadne/bin/weave (weave version dev)
+    drain_acceptance_test.go:42: native Couch tool zellij: /opt/homebrew/Cellar/zellij/0.45.1/bin/zellij (zellij 0.45.1)
+    drain_acceptance_test.go:42: native Couch tool nvim: /opt/homebrew/opt/nvim-0.11/bin/nvim (NVIM v0.11.7)
+    drain_acceptance_test.go:42: native Couch candidates: source=/Users/xianxu/workspace/worktree/pair-slot5/pair head=f39a3ae7bbf0933ebb1a2db038b803479e7678d7 dir=/Volumes/TestScratch/couch-fleet-binaries-1565051930
+=== RUN   TestDisposableCouchDrainFlags/codex
+    drain_acceptance_test.go:45: native fleet isolation: root=/Volumes/TestScratch/pc-1361857607 run=f1964a501b188fceff7e7157fe63580d agent=codex workers=2
+    drain_acceptance_test.go:120: drain native manifest: roots={Root:/Volumes/TestScratch/pc-1361857607 Mutable:map[artifacts:/Volumes/TestScratch/pc-1361857607/artifacts bin:/Volumes/TestScratch/pc-1361857607/bin cache:/Volumes/TestScratch/pc-1361857607/cache capacity:/Volumes/TestScratch/pc-1361857607/capacity claude:/Volumes/TestScratch/pc-1361857607/home/.claude codex:/Volumes/TestScratch/pc-1361857607/home/.codex config:/Volumes/TestScratch/pc-1361857607/config control:/Volumes/TestScratch/pc-1361857607/control data:/Volumes/TestScratch/pc-1361857607/data fleet:/Volumes/TestScratch/pc-1361857607/fleet home:/Volumes/TestScratch/pc-1361857607/home identity:/Volumes/TestScratch/pc-1361857607/identity queue:/Volumes/TestScratch/pc-1361857607/queue runtime:/Volumes/TestScratch/pc-1361857607/runtime sockets:/Volumes/TestScratch/pc-1361857607/sockets store:/Volumes/TestScratch/pc-1361857607/store tmp:/Volumes/TestScratch/pc-1361857607/tmp] Denied:[/Users/xianxu /Users/xianxu/.local/share/pair/couch /Users/xianxu/.local/share/pair-host /Users/xianxu/.local/share/pair /Users/xianxu/.local/share/pair/repos/23e53ad8c4dfb803 /Users/xianxu/workspace/worktree/pair-slot5/pair /private/var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/zellij-501]} run=f1964a501b188fceff7e7157fe63580d source=/Users/xianxu/workspace/worktree/pair-slot5/pair binaries=map[git:git version 2.54.0 (Apple Git-157) nvim:NVIM v0.11.7 sdlc:sdlc version path=/Users/xianxu/workspace/ariadne/bin/sdlc revision=fce345a89d417394aa6d1b7c09c758b02707066b modified=false source-head:f39a3ae7bbf0933ebb1a2db038b803479e7678d7 weave:weave version dev zellij:zellij 0.45.1] runtime_budget=90s
+    drain_acceptance_test.go:233: drain public CLI actor=0 argv=["--drain" "--status" "--json"] stdout={"Drain":{"Rows":[]},"Code":"ok","Error":"","Receipt":null,"Actors":null}
+         stderr=
+    drain_acceptance_test.go:233: drain observed flag rows (requested posture only, never readiness): []
+    drain_acceptance_test.go:236: drain public CLI actor=0 argv=["--drain" "--json"] stdout={"DrainDeliveries":[{"Workspace":"fixture:1","Receipt":{"Message":{"Origin":"system","ID":"f94a9267-5d4e-41e5-9f1f-f2b04a9c0ef7","From":{"Slot":"fixture:0","Repository":"/Volumes/TestScratch/pc-1361857607/fleet/fixture/.git","Scope":"06a018a0f5a29c5d","Tag":"9223533351531446273-fixture-1","Session":"📁9223533351531446273-1","Nonce":"91a4b174fb2bdfba0138d753cd978928","Agent":"codex","Version":"codex-cli 0.152.0","PID":46770,"Start":"1792661702.314012"},"To":{"Slot":"fixture:1","Repository":"/Volumes/TestScratch/pc-1361857607/fleet/fixture/.git","Scope":"dcd08d81f1ca1085","Tag":"9223533351531446273-fixture-2","Session":"📁9223533351531446273-2","Nonce":"start-1629395c12ee5245","Agent":"codex","Version":"codex-cli 0.152.0","PID":51345,"Start":"1792661708.353669"},"Body":"Drain: finish your current atomic step and wait for background work that is already running to finish. Leave queued, not-started work queued and note it in the issue Log as outstanding. Write where you stopped and the next step in the issue Log; commit and push the checkpoint, then end your turn and stay idle. Start no new work. While idle, keep receiving messages. For new work, reply once: 'acknowledge message received, will resume processing after drain is lifted'. Do not create courtesy acknowledgements or acknowledgement loops.","Deadline":"2026-10-22T02:36:46.454899-07:00","AcceptedAt":"2026-10-22T02:35:16.454899-07:00"},"Status":"queued","Detail":"position 1; waiting for recognized composer","RetainUntil":"2026-10-22T03:35:16.454899-07:00"}},{"Workspace":"fixture:2","Receipt":{"Message":{"Origin":"system","ID":"4fe82814-0dcf-429c-8de0-b2e93b553ca7","From":{"Slot":"fixture:0","Repository":"/Volumes/TestScratch/pc-1361857607/fleet/fixture/.git","Scope":"06a018a0f5a29c5d","Tag":"9223533351531446273-fixture-1","Session":"📁9223533351531446273-1","Nonce":"91a4b174fb2bdfba0138d753cd978928","Agent":"codex","Version":"codex-cli 0.152.0","PID":46770,"Start":"1792661702.314012"},"To":{"Slot":"fixture:2","Repository":"/Volumes/TestScratch/pc-1361857607/fleet/fixture/.git","Scope":"146a64b07bbdbd84","Tag":"9223533351531446273-fixture-3","Session":"📁9223533351531446273-3","Nonce":"start-530e444f2bc6d9f8","Agent":"codex","Version":"codex-cli 0.152.0","PID":55903,"Start":"1792661714.675919"},"Body":"Drain: finish your current atomic step and wait for background work that is already running to finish. Leave queued, not-started work queued and note it in the issue Log as outstanding. Write where you stopped and the next step in the issue Log; commit and push the checkpoint, then end your turn and stay idle. Start no new work. While idle, keep receiving messages. For new work, reply once: 'acknowledge message received, will resume processing after drain is lifted'. Do not create courtesy acknowledgements or acknowledgement loops.","Deadline":"2026-10-22T02:36:46.457646-07:00","AcceptedAt":"2026-10-22T02:35:16.457646-07:00"},"Status":"queued","Detail":"position 1; waiting for recognized composer","RetainUntil":"2026-10-22T03:35:16.457646-07:00"}}],"Drain":{"Rows":[{"Workspace":"fixture:1","Connected":true,"IdleMillis":null,"Settled":true,"Picker":false,"Background":null},{"Workspace":"fixture:2","Connected":true,"IdleMillis":null,"Settled":false,"Picker":false,"Background":null}]},"Code":"ok","Error":"","Receipt":null,"Actors":null}
+         stderr=
+    drain_acceptance_test.go:237: drain observed flag rows (requested posture only, never readiness): [{Workspace:fixture:1 Connected:true IdleMillis:<nil> Settled:0x4ec248b34a99 Picker:0x4ec248b34a9a Background:<nil>} {Workspace:fixture:2 Connected:true IdleMillis:<nil> Settled:0x4ec248b34ab9 Picker:0x4ec248b34aba Background:<nil>}]
+    drain_acceptance_test.go:238: drain submitted receipt: &{Message:{Origin:system ID:f94a9267-5d4e-41e5-9f1f-f2b04a9c0ef7 From:{Slot:fixture:0 Repository:/Volumes/TestScratch/pc-1361857607/fleet/fixture/.git Scope:06a018a0f5a29c5d Tag:9223533351531446273-fixture-1 Session:📁9223533351531446273-1 Nonce:91a4b174fb2bdfba0138d753cd978928 Agent:codex Version:codex-cli 0.152.0 PID:46770 Start:1792661702.314012} To:{Slot:fixture:1 Repository:/Volumes/TestScratch/pc-1361857607/fleet/fixture/.git Scope:dcd08d81f1ca1085 Tag:9223533351531446273-fixture-2 Session:📁9223533351531446273-2 Nonce:start-1629395c12ee5245 Agent:codex Version:codex-cli 0.152.0 PID:51345 Start:1792661708.353669} Body:Drain: finish your current atomic step and wait for background work that is already running to finish. Leave queued, not-started work queued and note it in the issue Log as outstanding. Write where you stopped and the next step in the issue Log; commit and push the checkpoint, then end your turn and stay idle. Start no new work. While idle, keep receiving messages. For new work, reply once: 'acknowledge message received, will resume processing after drain is lifted'. Do not create courtesy acknowledgements or acknowledgement loops. Deadline:2026-10-22 02:36:46.454899 -0700 PDT AcceptedAt:2026-10-22 02:35:16.454899 -0700 PDT} Status:submitted Detail: RetainUntil:2026-10-22 03:35:17.464264 -0700 PDT}
+    drain_acceptance_test.go:188: drain independently accepted: actor=1 receipt=f94a9267-5d4e-41e5-9f1f-f2b04a9c0ef7 input={PID:51443 Sequence:1 NativeID:7f6527ce-cfac-48e1-88ff-a9c6a438d206 Body:[Couch system; delivery f94a9267-5d4e-41e5-9f1f-f2b04a9c0ef7]
+        Drain: finish your current atomic step and wait for background work that is already running to finish. Leave queued, not-started work queued and note it in the issue Log as outstanding. Write where you stopped and the next step in the issue Log; commit and push the checkpoint, then end your turn and stay idle. Start no new work. While idle, keep receiving messages. For new work, reply once: 'acknowledge message received, will resume processing after drain is lifted'. Do not create courtesy acknowledgements or acknowledgement loops. At:2026-10-22 09:35:16.62639 +0000 UTC}
+    drain_acceptance_test.go:238: drain submitted receipt: &{Message:{Origin:system ID:4fe82814-0dcf-429c-8de0-b2e93b553ca7 From:{Slot:fixture:0 Repository:/Volumes/TestScratch/pc-1361857607/fleet/fixture/.git Scope:06a018a0f5a29c5d Tag:9223533351531446273-fixture-1 Session:📁9223533351531446273-1 Nonce:91a4b174fb2bdfba0138d753cd978928 Agent:codex Version:codex-cli 0.152.0 PID:46770 Start:1792661702.314012} To:{Slot:fixture:2 Repository:/Volumes/TestScratch/pc-1361857607/fleet/fixture/.git Scope:146a64b07bbdbd84 Tag:9223533351531446273-fixture-3 Session:📁9223533351531446273-3 Nonce:start-530e444f2bc6d9f8 Agent:codex Version:codex-cli 0.152.0 PID:55903 Start:1792661714.675919} Body:Drain: finish your current atomic step and wait for background work that is already running to finish. Leave queued, not-started work queued and note it in the issue Log as outstanding. Write where you stopped and the next step in the issue Log; commit and push the checkpoint, then end your turn and stay idle. Start no new work. While idle, keep receiving messages. For new work, reply once: 'acknowledge message received, will resume processing after drain is lifted'. Do not create courtesy acknowledgements or acknowledgement loops. Deadline:2026-10-22 02:36:46.457646 -0700 PDT AcceptedAt:2026-10-22 02:35:16.457646 -0700 PDT} Status:submitted Detail: RetainUntil:2026-10-22 03:35:17.460064 -0700 PDT}
+    drain_acceptance_test.go:188: drain independently accepted: actor=2 receipt=4fe82814-0dcf-429c-8de0-b2e93b553ca7 input={PID:55951 Sequence:1 NativeID:20579c8d-c0b3-4c42-b5ed-2f31e81acb00 Body:[Couch system; delivery 4fe82814-0dcf-429c-8de0-b2e93b553ca7]
+        Drain: finish your current atomic step and wait for background work that is already running to finish. Leave queued, not-started work queued and note it in the issue Log as outstanding. Write where you stopped and the next step in the issue Log; commit and push the checkpoint, then end your turn and stay idle. Start no new work. While idle, keep receiving messages. For new work, reply once: 'acknowledge message received, will resume processing after drain is lifted'. Do not create courtesy acknowledgements or acknowledgement loops. At:2026-10-22 09:35:16.624906 +0000 UTC}
+    drain_acceptance_test.go:240: drain public CLI actor=1 argv=["--drain" "--status" "--json"] stdout={"Drain":{"Rows":[{"Workspace":"fixture:1","Connected":true,"IdleMillis":null,"Settled":false,"Picker":false,"Background":null},{"Workspace":"fixture:2","Connected":true,"IdleMillis":null,"Settled":false,"Picker":false,"Background":null}]},"Code":"ok","Error":"","Receipt":null,"Actors":null}
+         stderr=
+    drain_acceptance_test.go:240: drain observed flag rows (requested posture only, never readiness): [{Workspace:fixture:1 Connected:true IdleMillis:<nil> Settled:0x4ec248b34726 Picker:0x4ec248b34727 Background:<nil>} {Workspace:fixture:2 Connected:true IdleMillis:<nil> Settled:0x4ec248b34728 Picker:0x4ec248b34729 Background:<nil>}]
+    drain_acceptance_test.go:241: drain public CLI actor=0 argv=["--send-to" "fixture:1" "--message" "ordinary-while-flagged-f1964a501b188fceff7e7157fe63580d"] stdout=eceffb01-ed1e-48d5-9ad1-36127e049f7c fixture:0 -> fixture:1 queued
+        position 2; waiting for recognized composer
+         stderr=
+    drain_acceptance_test.go:241: drain submitted receipt: &{Message:{Origin: ID:eceffb01-ed1e-48d5-9ad1-36127e049f7c From:{Slot:fixture:0 Repository:/Volumes/TestScratch/pc-1361857607/fleet/fixture/.git Scope:06a018a0f5a29c5d Tag:9223533351531446273-fixture-1 Session:📁9223533351531446273-1 Nonce:91a4b174fb2bdfba0138d753cd978928 Agent:codex Version:codex-cli 0.152.0 PID:46770 Start:1792661702.314012} To:{Slot:fixture:1 Repository:/Volumes/TestScratch/pc-1361857607/fleet/fixture/.git Scope:dcd08d81f1ca1085 Tag:9223533351531446273-fixture-2 Session:📁9223533351531446273-2 Nonce:start-1629395c12ee5245 Agent:codex Version:codex-cli 0.152.0 PID:51345 Start:1792661708.353669} Body:ordinary-while-flagged-f1964a501b188fceff7e7157fe63580d Deadline:2026-10-22 02:36:48.471348 -0700 PDT AcceptedAt:2026-10-22 02:35:17.590485 -0700 PDT} Status:submitted Detail: RetainUntil:2026-10-22 03:35:19.473993 -0700 PDT}
+    drain_acceptance_test.go:188: drain independently accepted: actor=1 receipt=eceffb01-ed1e-48d5-9ad1-36127e049f7c input={PID:51443 Sequence:3 NativeID:7f6527ce-cfac-48e1-88ff-a9c6a438d206 Body:[Couch peer from fixture:0; delivery eceffb01-ed1e-48d5-9ad1-36127e049f7c]
+        ordinary-while-flagged-f1964a501b188fceff7e7157fe63580d At:2026-10-22 09:35:18.636757 +0000 UTC}
+    drain_acceptance_test.go:242: drain public CLI actor=1 argv=["--send-to" "fixture:0" "--message" "acknowledge message received, will resume processing after drain is lifted"] stdout=1a63cae3-c653-4751-ae9d-d5f6dbaad333 fixture:1 -> fixture:0 queued
+        position 1; waiting for recognized composer
+         stderr=
+    drain_acceptance_test.go:242: drain submitted receipt: &{Message:{Origin: ID:1a63cae3-c653-4751-ae9d-d5f6dbaad333 From:{Slot:fixture:1 Repository:/Volumes/TestScratch/pc-1361857607/fleet/fixture/.git Scope:dcd08d81f1ca1085 Tag:9223533351531446273-fixture-2 Session:📁9223533351531446273-2 Nonce:start-1629395c12ee5245 Agent:codex Version:codex-cli 0.152.0 PID:51345 Start:1792661708.353669} To:{Slot:fixture:0 Repository:/Volumes/TestScratch/pc-1361857607/fleet/fixture/.git Scope:06a018a0f5a29c5d Tag:9223533351531446273-fixture-1 Session:📁9223533351531446273-1 Nonce:91a4b174fb2bdfba0138d753cd978928 Agent:codex Version:codex-cli 0.152.0 PID:46770 Start:1792661702.314012} Body:acknowledge message received, will resume processing after drain is lifted Deadline:2026-10-22 02:36:49.559074 -0700 PDT AcceptedAt:2026-10-22 02:35:19.559074 -0700 PDT} Status:submitted Detail: RetainUntil:2026-10-22 03:35:20.561254 -0700 PDT}
+    drain_acceptance_test.go:188: drain independently accepted: actor=0 receipt=1a63cae3-c653-4751-ae9d-d5f6dbaad333 input={PID:46855 Sequence:3 NativeID:ef171f8b-1ede-4779-a4ee-4b95cbe3d6af Body:[Couch peer from fixture:1; delivery 1a63cae3-c653-4751-ae9d-d5f6dbaad333]
+        acknowledge message received, will resume processing after drain is lifted At:2026-10-22 09:35:19.72294 +0000 UTC}
+    drain_acceptance_test.go:255: drain current frame width80:
+        ┌ codex ─────────────────────────────────── SCROLL:  0/215 ┐sh-3.2$             
+        │                                                          │                    
+        │›                                                         │                    
+        │                                                          │                    
+        │                                                          │                    
+        │                                                          │                    
+        │                                                          │                    
+        │                                                          │                    
+        │                                                          │                    
+        │                                                          │                    
+        │                                                          │                    
+        │                                                          │                    
+        │                                                          │                    
+        │                                                          │                    
+        │                                                          │                    
+        │                                                          │                    
+        │                                                          │                    
+        │                                                          │                    
+        └──────────────────────────────────────────────────────────┘                    
+        1                                                                               
+        ~                                                                               
+        ~                                                                               
+        ~                                                                               
+        ~                                                                               
+        ~                                                                               
+        ~                                                                               
+        ~                                                                               
+        ~                                                                               
+        ~                                                                               
+        ~                                                                               
+         Alt: <- history 0 < * [q=queue] > 0 queued ->              [terminal 1]        
+        drain 2  [fixture]  :1*  :2*  · started fresh; previous TTY capture unavailable;
+    drain_acceptance_test.go:255: drain current frame width120:
+        ┌ codex ─────────────────────────────────── SCROLL:  0/215 ┐sh-3.2$                                                     
+        │                                                          │                                                            
+        │›                                                         │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        │                                                          │                                                            
+        └──────────────────────────────────────────────────────────┘                                                            
+        1                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+        ~                                                                                                                       
+         Alt: <- history 0 < * [q=queue] > 0 queued ->              [terminal 1]                                                
+                                                                                                                                
+    drain_acceptance_test.go:261: expected one compact drain badge: "                                                                                                                        "
+    fleet.go:402: native startup evidence before teardown: pane queries share diagnostic_deadline=2026-10-22T02:35:24.357437479-07:00
+        wrapper_log truncated=false read_error=<nil>
+        STARTUP-identity {"actualPID":46770,"PAIR_SCOPE_KEY":"06a018a0f5a29c5d","PAIR_TAG":"9223533351531446273-fixture-1","PAIR_SESSION_NAME":"📁9223533351531446273-1","PAIR_LAUNCH_NONCE":"91a4b174fb2bdfba0138d753cd978928"}
+        STARTUP-identity {"actualPID":51345,"PAIR_SCOPE_KEY":"dcd08d81f1ca1085","PAIR_TAG":"9223533351531446273-fixture-2","PAIR_SESSION_NAME":"📁9223533351531446273-2","PAIR_LAUNCH_NONCE":"start-1629395c12ee5245"}
+        STARTUP-identity {"actualPID":55903,"PAIR_SCOPE_KEY":"146a64b07bbdbd84","PAIR_TAG":"9223533351531446273-fixture-3","PAIR_SESSION_NAME":"📁9223533351531446273-3","PAIR_LAUNCH_NONCE":"start-530e444f2bc6d9f8"}
+        failure identities unavailable: openat store/launch-diagnostics/failures.json: no such file or directory
+        startup_sources=3 truncated=false
+        source scope="146a64b07bbdbd84" tag="9223533351531446273-fixture-3"
+        ready_siblings=["agent-ready-9223533351531446273-fixture-3-codex.json"] truncated=false read_error=<nil>
+        expected_ready="agent-ready-9223533351531446273-fixture-3-codex.json" truncated=false read_error=<nil>
+        ready_identity tag="9223533351531446273-fixture-3" agent="codex" session="📁9223533351531446273-3" nonce="start-530e444f2bc6d9f8" pid=55951 matches_emitted=true
+        pane attribution: current observed identity; failed-attempt attribution unavailable
+        pane_dump session="📁9223533351531446273-3" pane="0" truncated=false query_error=<nil> output="\n›\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        source scope="dcd08d81f1ca1085" tag="9223533351531446273-fixture-2"
+        ready_siblings=["agent-ready-9223533351531446273-fixture-2-codex.json"] truncated=false read_error=<nil>
+        expected_ready="agent-ready-9223533351531446273-fixture-2-codex.json" truncated=false read_error=<nil>
+        ready_identity tag="9223533351531446273-fixture-2" agent="codex" session="📁9223533351531446273-2" nonce="start-1629395c12ee5245" pid=51443 matches_emitted=true
+        pane attribution: current observed identity; failed-attempt attribution unavailable
+        pane_dump session="📁9223533351531446273-2" pane="0" truncated=false query_error=<nil> output="\n›\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        source scope="06a018a0f5a29c5d" tag="9223533351531446273-fixture-1"
+        ready_siblings=["agent-ready-9223533351531446273-fixture-1-codex.json"] truncated=false read_error=<nil>
+        expected_ready="agent-ready-9223533351531446273-fixture-1-codex.json" truncated=false read_error=<nil>
+        ready_identity tag="9223533351531446273-fixture-1" agent="codex" session="📁9223533351531446273-1" nonce="91a4b174fb2bdfba0138d753cd978928" pid=46855 matches_emitted=true
+        pane attribution: current observed identity; failed-attempt attribution unavailable
+        pane_dump session="📁9223533351531446273-1" pane="0" truncated=false query_error=<nil> output="\n›\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+    fleet.go:439: native failure evidence before root removal: ; read_error=<nil>
+    fleet.go:442: native wrapper evidence after join: wrapper_log truncated=false read_error=<nil>
+        STARTUP-identity {"actualPID":46770,"PAIR_SCOPE_KEY":"06a018a0f5a29c5d","PAIR_TAG":"9223533351531446273-fixture-1","PAIR_SESSION_NAME":"📁9223533351531446273-1","PAIR_LAUNCH_NONCE":"91a4b174fb2bdfba0138d753cd978928"}
+        STARTUP-identity {"actualPID":51345,"PAIR_SCOPE_KEY":"dcd08d81f1ca1085","PAIR_TAG":"9223533351531446273-fixture-2","PAIR_SESSION_NAME":"📁9223533351531446273-2","PAIR_LAUNCH_NONCE":"start-1629395c12ee5245"}
+        STARTUP-identity {"actualPID":55903,"PAIR_SCOPE_KEY":"146a64b07bbdbd84","PAIR_TAG":"9223533351531446273-fixture-3","PAIR_SESSION_NAME":"📁9223533351531446273-3","PAIR_LAUNCH_NONCE":"start-530e444f2bc6d9f8"}
+    fleet.go:460: native fleet cleaned: root=/Volumes/TestScratch/pc-1361857607 all owned generations absent; direct child and IO joined
+--- FAIL: TestDisposableCouchDrainFlags (32.04s)
+    --- FAIL: TestDisposableCouchDrainFlags/codex (26.13s)
+FAIL
+FAIL	github.com/xianxu/pair/cmd/couch	32.226s
+FAIL
