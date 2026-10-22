@@ -5,9 +5,9 @@ deps: [pair#752]
 github_issue:
 created: 2026-10-20
 updated: 2026-10-21
-estimate_hours:
+estimate_hours: 8.4
 collaboration-mode: collaboration
-card_mirror: '91fd0dc64275e82421b4731ba4af06191eee101d' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '75006839ae1ea2b30db875516294910eb19ff9ec' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-21T18:40:37-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     workspace: pair:9
     worktree: /Users/xianxu/workspace/worktree/pair-slot9/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # cast-sketch: operator CLI queries and historical image export
@@ -68,6 +69,38 @@ Primary surfaces: query/{sketch.go,render_sketch.go,surface.go,fake.go,cli.go,ev
   capped and listed nearest first). Pair needs no knowledge of what the attributes mean; apps opt in by marking their
   elements (e.g. echo's room/turn/agent data attributes), so an agent gets exact handles instead of guessing from a
   screenshot. Values are recorded as they were at sketch time (from the DOM recording), not re-read later.
+
+## Estimate
+
+*Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration is marked stale by sdlc estimate-source; the derivation is provisional rather than a new calibration claim.*
+
+Library availability: no new dependency or novel platform is assumed. Reuse encoding/json plus the existing strict/preserving recording-codec pattern, the existing query reducer, CDP/replay session, pressure painter and durable submission store. Replay lifetime and file inventory are costed as extraction/refactor rather than greenfield services; no external shim replaces the domain-specific version/preview contracts. Familiarity is 1.0 for this session's recently worked recording/console stack.
+
+Apply the thorough-spec design discount of 0.2 to the chosen v2 table design values and the v3.1 implementation scale of 0.4 once. The rows below map in order to: scope/spec; historical sketch query; declared element facts; render plan using geometry; shared replay session lifetime; recorded image adapter/export; typed sketch evidence; preserving submission codec; one evidence-file inventory; delivered version selection; preview policy/freeze; private preview cards; private preview publication; submission status and text; query/privacy guides; single close review; native Chrome conformance. Each row is a distinct seam including its colocated tests. Design subtotal 3.44h +15% buffer; scaled implementation subtotal 4.44h; total 8.40 focused ship-hours. One final close review is included; no invented milestone boundaries or cross-repo overhead.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.2 impl=0.08
+item: greenfield-go-module design=0.3 impl=0.32
+item: greenfield-go-module design=0.2 impl=0.24
+item: smaller-go-module design=0.06 impl=0.2
+item: cross-cutting-refactor design=0.12 impl=0.2
+item: api-integration design=0.4 impl=0.6
+item: greenfield-go-module design=0.2 impl=0.24
+item: greenfield-go-module design=0.3 impl=0.32
+item: cross-cutting-refactor design=0.12 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: greenfield-go-module design=0.3 impl=0.32
+item: tui-screen design=0.4 impl=0.4
+item: api-integration design=0.4 impl=0.4
+item: lua-neovim design=0.3 impl=0.2
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.04 impl=0.2
+item: real-api-discovery design=0 impl=0.24
+design-buffer: 0.15
+total: 8.40
+```
 
 ## Revisions
 

@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: 5ff5db84-10b7-4a2b-b3b3-b38c878b1e6f
+        repository: github.com/xianxu/pair
+        issue_id: "000753"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot9/pair
+        reviewed_head: 60200b7860593e5fb8bc0ea10f9b5dba0454c455
+        slot: pair:9
+        requested_at: "2026-10-22T02:12:46.940067Z"
+      phase: finished
+      pid: 70487
+      started_at: "2026-10-22T02:12:47.034769Z"
+      finished_at: "2026-10-22T02:13:21.790609Z"
+      session_id: 01a16161-e237-7f33-bb66-192582ab999d
+      outcome: returned
 gate: plan-quality
 issue: 753
 id_prefix: PQ
@@ -41,6 +61,75 @@ rounds:
           family: function-level-test-strategy
           round: 1
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 8220237e-884a-4e3f-821c-5f6ec60d0ef0
+            repository: github.com/xianxu/pair
+            issue_id: "000753"
+            recipe: plan-quality
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot9/pair
+            reviewed_head: 60200b7860593e5fb8bc0ea10f9b5dba0454c455
+            slot: pair:9
+            requested_at: "2026-10-22T02:09:51.433788Z"
+          phase: finished
+          pid: 26404
+          started_at: "2026-10-22T02:09:51.56329Z"
+          finished_at: "2026-10-22T02:10:25.450179Z"
+          session_id: 01a1615f-3510-79f2-9cae-31cf36613788
+          outcome: returned
+      "n": 2
+      timestamp: "2026-10-21T19:10:25-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Explicit production transitions, guarded atomic freezing, owned worker lifetime, and controllable sequence tests satisfy the finding.
+          round: 2
+        - id: PQ-2
+          disposition: addressed
+          note: Named risky production functions now each have an adversarial-input and mechanical-guard strategy, with integration and quantitative checks retained.
+          round: 2
+      blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 7849a020-658f-4690-82e4-84b00697a7aa
+            repository: github.com/xianxu/pair
+            issue_id: "000753"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot9/pair
+            reviewed_head: 60200b7860593e5fb8bc0ea10f9b5dba0454c455
+            slot: pair:9
+            requested_at: "2026-10-22T02:12:03.225149Z"
+          phase: finished
+          pid: 32253
+          started_at: "2026-10-22T02:12:03.342439Z"
+          finished_at: "2026-10-22T02:12:44.457639Z"
+          session_id: 01a16161-37d2-7071-bfc4-bdb6afa7db78
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-21T19:12:44-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Explicit preview transitions, guarded freeze, publication identity and worker lifetime satisfy the state-ownership requirement.
+          round: 3
+        - id: PQ-2
+          disposition: addressed
+          note: Named production functions now carry adversarial input classes and mechanical verification strategies.
+          round: 3
+      blocked: false
+content_hash: cf23e36b147405c17f7b88b4d0904e0ae682a4788a34644c86dbb961cd475c60
 ---
 
 # Gate ledger — pair#753 (plan-quality)
@@ -57,7 +146,20 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **PQ-2** [Important] `function-level-test-strategy` Replace prose test-case inventories with named risky functions and strategies
   Execution Tasks 1–4 enumerate test cases without naming the functions that will be unit-tested, contrary to this gate's test contract. Name the historical query, element extractor, render-plan calculation, preserving codec, evidence-file enumeration, delivered-version selector, and preview transition functions; give each one compact adversarial-input and mechanical-guard strategy, replacing the case inventories while retaining integration contracts and quantitative acceptance checks.
 
+## Round 2 — 2026-10-21T19:10:25-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Explicit production transitions, guarded atomic freezing, owned worker lifetime, and controllable sequence tests satisfy the finding.
+- PQ-2 — addressed — Named risky production functions now each have an adversarial-input and mechanical-guard strategy, with integration and quantitative checks retained.
+
+## Round 3 — 2026-10-21T19:12:44-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Explicit preview transitions, guarded freeze, publication identity and worker lifetime satisfy the state-ownership requirement.
+- PQ-2 — addressed — Named production functions now carry adversarial input classes and mechanical verification strategies.
+
 ## Open findings
 
-- **PQ-1** [Important] `explicit-event-state-ownership` Specify the preview acknowledgment transition model before implementation
-- **PQ-2** [Important] `function-level-test-strategy` Replace prose test-case inventories with named risky functions and strategies
+(none — every finding has been disposed)
