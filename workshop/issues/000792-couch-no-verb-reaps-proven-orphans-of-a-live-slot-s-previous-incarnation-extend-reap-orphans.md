@@ -59,7 +59,7 @@ Hub pin 941a9381-a841-44ca-98b0-7e10a90936b3 approves authenticated owning hubs 
 - [x] Approve the durable plan and enter change-code through the full-flow gate.
 - [x] Add pure exact-target proof and strict protocol shapes; verify the negative authority/identity cases first.
 - [x] Implement the guarded exact executor and supervisor effect owner, with stateful transition and counted-cost tests.
-- [ ] Wire preview/confirmed CLI reporting, prove disposable public-command behavior, document and run the required recorded verification before the SDLC close review.
+- [x] Wire preview/confirmed CLI reporting, prove disposable public-command behavior, document and run the required recorded verification before the SDLC close review.
 
 ## Log
 
@@ -251,3 +251,9 @@ Retained lease-440357 completed on c8a9316a9bf50d75c1f9d5ee1ab58d0b9227f934 afte
 Moved both doc paragraphs onto their declarations and converted the unmatched suppression into an ordinary explanatory comment. Only comments changed; executable tokens and tests are unchanged, so the pinned native acceptance remains applicable. The existing lint rules already cover both mechanical classes. Targeted Godoc check passed0.528s and catalog check4.579s; full preflight packages passed repolint13.921s and termcmd7.314s. Reader certificate audit and whitespace check passed. I missed these cheap preflights before the first queue; the lesson now requires them together before recorded verification.
 
 Round-four close is SHIP with zero new findings and all previous findings addressed. The original merge waiter remains retained, safely gated on required verification. The final Plan checkbox stays pending the replacement recorded check; narrow post-close review is required for this comment-only correction.
+
+### 2026-10-22 — Required recorded verification passed
+
+Replacement lease-2020441815 completed successfully on e6535a0c2c671bfeb3b1065ed279c269886829b0: exit0 in10m16s, recorded sdlc-local/suite. Both prior deterministic lint failures now pass (termcmd2.452s, repolint6.895s), with all remaining packages and shell/editor checks complete. Log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/e6535a0c2c671bfeb3b1065ed279c269886829b0/suite.log; SHA256558727feaedf25ed7760ac48b3951f09d73ef6e2b080f751b3eb04f602e96865. No flake registration, blind retry or suite waiver. The immutable earlier failed record remains preserved.
+
+Final issue verification checklist is complete. The worker-authorized review/suite overlap is now resolved by the passing record before landing. Full close and narrow comment-only re-close both returned SHIP; native Claude/Codex proofs remain applicable to unchanged executable behavior. The original merge runner remains responsible for current-main integration, authoritative checks and landing.
