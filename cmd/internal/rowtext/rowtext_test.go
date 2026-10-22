@@ -61,6 +61,28 @@ func TestFitBoundsDisplayWidthNotRuneCount(t *testing.T) {
 	}
 }
 
+func TestFitKeepsWholeGraphemes(t *testing.T) {
+	for _, tc := range []struct {
+		text  string
+		width int
+		want  string
+	}{
+		{"🛋️echo", 1, ""},
+		{"🛋️echo", 2, "🛋️"},
+		{"♥️x", 1, ""},
+		{"♥️x", 2, "♥️"},
+		{"👩‍💻x", 2, "👩‍💻"},
+		{"🇺🇸x", 2, "🇺🇸"},
+		{"👍🏽x", 2, "👍🏽"},
+		{"e\u0301x", 1, "e\u0301"},
+		{"\u200d\ufe0f界x", 2, "界"},
+	} {
+		if got := rowtext.Fit(tc.text, tc.width); got != tc.want {
+			t.Errorf("Fit(%q,%d)=%q, want %q", tc.text, tc.width, got, tc.want)
+		}
+	}
+}
+
 // Order matters: sanitizing can only shorten, so fitting AFTERWARDS is what
 // actually bounds the width. Reversed, a stripped escape frees columns the
 // result never reclaims -- and worse, the caller's width bound is computed

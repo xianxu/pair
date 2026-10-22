@@ -51,3 +51,10 @@ which of the three busy conditions fired; the refusal should name the one that d
   Fixture: footer `⏵⏵ auto mode on (shift+tab to cycle)   ✔ Update installed · Restart to update`.
 
 ### 2026-10-21
+
+### 2026-10-22 — recurring hub stalls; investigation dispatch
+
+- Operator report via ops:0: hub deliveries have repeatedly stalled until an operator keystroke, then flushed in a batch, both before and after #735 landed. The hub is where the operator watches; worker slots may have the same symptom, but that is not yet observed evidence. This is not a newly introduced hub-only failure.
+- Latest observed ops:0 footer: `⏵⏵ bypass permissions on (shift+tab to cycle)       ✔ Update installed · Restart to update`. Read-only live capture at investigation start confirms an empty `❯` prompt between horizontal rules and that combined footer. Claude version in the authenticated dispatch identity: 2.1.304.
+- The update banner is confirmed for this observation and reported for echo:3; its presence on every earlier hub stall is unknown. Treat the earlier “cause pinned” entry as evidence of recovery after restart, not proof that the banner explains all stalls. Reproduce both Claude footer modes with the banner, compare banner-free controls, and investigate a possible second trigger including the Codex blank-line/warning-footer case.
+- TL dispatch and correction authenticated as submitted to this slot: 6af1c55a-9494-4f6e-8c48-b43e5a8c4c2a and c13682ef-f911-427f-93cc-cd9fe557d319. Plan goes to TL before production changes. #737 remains parked on its pushed issue branch awaiting a separate explicit stage go.

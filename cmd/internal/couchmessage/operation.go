@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/xianxu/pair/cmd/internal/agentdrive"
@@ -44,8 +45,27 @@ func (s ReceiptStatus) Terminal() bool {
 // ReceiptRetention is how long a terminal receipt stays readable.
 const ReceiptRetention = 5 * time.Minute
 
+// OperationProgress describes the current stage; repeated reports do not renew Started.
+type OperationProgress struct {
+	Stage   string
+	Started time.Time
+}
+
+func validOperationStage(stage string) bool {
+	if stage == "" || len(stage) > 256 || !utf8.ValidString(stage) {
+		return false
+	}
+	for _, ch := range stage {
+		if unicode.IsControl(ch) {
+			return false
+		}
+	}
+	return true
+}
+
 // OperationReceipt is the typed outcome of one resume or reboot request.
 type OperationReceipt struct {
+	Progress *OperationProgress `json:",omitempty"`
 	// FailureNonce correlates a terminal receipt with retained lifecycle evidence.
 	FailureNonce         string                               `json:",omitempty"`
 	IntentDigest         string                               `json:",omitempty"`
@@ -91,6 +111,7 @@ type ReceiptEventKind string
 const (
 	ReceiptAdmit       ReceiptEventKind = "admit"
 	ReceiptStart       ReceiptEventKind = "start"
+	ReceiptProgress    ReceiptEventKind = "progress"
 	ReceiptFinish      ReceiptEventKind = "finish"
 	ReceiptExpire      ReceiptEventKind = "expire"
 	ReceiptStatusQuery ReceiptEventKind = "status"
@@ -107,6 +128,7 @@ type ReceiptOutcome struct {
 
 // ReceiptEvent drives ApplyReceiptEvent.
 type ReceiptEvent struct {
+	Stage                               string
 	IntentDigest                        string
 	RecoveryConfirmation                string
 	ToHub                               string
@@ -148,6 +170,18 @@ func ApplyReceiptEvent(r OperationReceipt, e ReceiptEvent) (OperationReceipt, er
 			return refuse("start")
 		}
 		r.Status = ReceiptRunning
+		return r, nil
+	case ReceiptProgress:
+		if r.Status != ReceiptRunning {
+			return refuse("progress")
+		}
+		stage := strings.TrimSpace(e.Stage)
+		if !validOperationStage(stage) {
+			return refuse("invalid progress")
+		}
+		if r.Progress == nil || r.Progress.Stage != stage {
+			r.Progress = &OperationProgress{Stage: stage, Started: e.At}
+		}
 		return r, nil
 	case ReceiptFinish:
 		if r.Status != ReceiptQueued && r.Status != ReceiptRunning {

@@ -216,8 +216,8 @@ func (r OSRuntime) LaunchSession(ctx context.Context, session, configDir, layout
 	return r.runTerminalHandoff(ctx, session, configDir, layout, true)
 }
 
-func (r OSRuntime) LaunchSessionContext(lifetime, admission context.Context, session, configDir, layout string) (int, error) {
-	return r.runTerminalHandoffContext(lifetime, admission, session, configDir, layout, true)
+func (r OSRuntime) LaunchSessionContext(lifetime, startup, admission context.Context, session, configDir, layout string) (int, error) {
+	return r.runTerminalHandoffContext(lifetime, startup, admission, session, configDir, layout, true)
 }
 
 // clientKillGrace is how long a cancelled client gets to exit on SIGTERM
@@ -928,8 +928,8 @@ func (r OSRuntime) AttachSession(session, configDir string) (int, error) {
 	return r.runTerminalHandoff(context.Background(), session, configDir, "", false)
 }
 
-func (r OSRuntime) AttachSessionContext(lifetime, admission context.Context, session, configDir string) (int, error) {
-	return r.runTerminalHandoffContext(lifetime, admission, session, configDir, "", false)
+func (r OSRuntime) AttachSessionContext(lifetime, startup, admission context.Context, session, configDir string) (int, error) {
+	return r.runTerminalHandoffContext(lifetime, startup, admission, session, configDir, "", false)
 }
 
 // restartMarkerPath and quitMarkerPath keep compatibility cache paths behind

@@ -48,27 +48,10 @@ func Sanitize(s string) string {
 	}, stripped)
 }
 
-// Fit truncates to a display WIDTH, not a byte or rune count: an emoji in an
-// agent's description is one rune and two columns, and a row that overflows
-// wraps onto the child's area.
+// Fit truncates to display columns without splitting a grapheme. Its widths and
+// leading zero-width policy match the terminal's chrome parser.
 func Fit(s string, width int) string {
-	if width <= 0 {
-		return ""
-	}
-	if textwidth.Width(s) <= width {
-		return s
-	}
-	var b strings.Builder
-	used := 0
-	for _, r := range s {
-		w := textwidth.Width(string(r))
-		if used+w > width {
-			break
-		}
-		b.WriteRune(r)
-		used += w
-	}
-	return b.String()
+	return textwidth.Fit(s, width)
 }
 
 // SanitizeAndFit is the pair, in the order that matters: sanitizing first can

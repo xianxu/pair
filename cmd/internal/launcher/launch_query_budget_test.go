@@ -15,6 +15,7 @@ type launchBudgetRuntime struct {
 	*couchSessionRuntime
 	queries   []context.Context
 	lifetime  context.Context
+	startup   context.Context
 	admission context.Context
 }
 
@@ -25,8 +26,8 @@ func (r *launchBudgetRuntime) SessionLivenessContext(ctx context.Context) ([]Ses
 	}
 	return r.fakeRuntime.SessionLiveness()
 }
-func (r *launchBudgetRuntime) AttachSessionContext(lifetime, admission context.Context, session, config string) (int, error) {
-	r.lifetime, r.admission = lifetime, admission
+func (r *launchBudgetRuntime) AttachSessionContext(lifetime, startup, admission context.Context, session, config string) (int, error) {
+	r.lifetime, r.startup, r.admission = lifetime, startup, admission
 	if err := admission.Err(); err != nil {
 		return 1, err
 	}
@@ -151,8 +152,8 @@ func (r *createBudgetRuntime) ObserveSessionOwner(ctx context.Context, name, roo
 	r.owners = append(r.owners, ctx)
 	return r.couchSessionRuntime.ObserveSessionOwner(ctx, name, root, scope, tag)
 }
-func (r *createBudgetRuntime) LaunchSessionContext(lifetime, admission context.Context, session, config, layout string) (int, error) {
-	r.lifetime, r.admission = lifetime, admission
+func (r *createBudgetRuntime) LaunchSessionContext(lifetime, startup, admission context.Context, session, config, layout string) (int, error) {
+	r.lifetime, r.startup, r.admission = lifetime, startup, admission
 	if err := admission.Err(); err != nil {
 		return 1, err
 	}
@@ -179,5 +180,46 @@ func TestCouchCreateSharesPrecreateQueryBudget(t *testing.T) {
 	}
 	if _, ok := r.admission.Deadline(); !ok {
 		t.Fatal("precreate admission has no deadline")
+	}
+}
+
+func TestRunLaunchCarriesStartupDeadlineSeparateFromInteractiveLifetime(t *testing.T) {
+	for _, disposition := range []string{"create", "attach"} {
+		t.Run(disposition, func(t *testing.T) {
+			opts := managedSessionOptions(disposition)
+			life, stop := context.WithCancel(context.Background())
+			defer stop()
+			startup, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			opts.Context, opts.StartupContext = life, startup
+			base := &launchBudgetRuntime{couchSessionRuntime: &couchSessionRuntime{fakeRuntime: newFakeRuntime(), ownerState: SessionOwnerForeign}}
+			rt := &createBudgetRuntime{launchBudgetRuntime: base}
+			if disposition == "attach" {
+				base.sessions = []Session{{Name: opts.Args.CouchSession.Name, State: SessionDetached}}
+			}
+			var stderr bytes.Buffer
+			code, err := RunLaunch(opts, rt, &stderr)
+			if code != 0 || err != nil {
+				t.Fatalf("code=%d error=%v stderr=%s", code, err, &stderr)
+			}
+			if base.lifetime == nil || life.Err() != nil {
+				t.Fatalf("interactive lifetime missing or parent ended: %v", base.lifetime)
+			}
+			if _, bounded := base.lifetime.Deadline(); bounded {
+				t.Fatal("interactive client inherited startup deadline")
+			}
+			if base.startup == nil {
+				t.Fatal("startup context lost at Runtime boundary")
+			}
+			want, _ := startup.Deadline()
+			got, ok := base.startup.Deadline()
+			if !ok || !got.Equal(want) {
+				t.Fatalf("startup=%v want=%v", got, want)
+			}
+			query, _ := base.admission.Deadline()
+			if !query.Before(want) {
+				t.Fatal("short native-query budget lost")
+			}
+		})
 	}
 }

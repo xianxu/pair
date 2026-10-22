@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -28,7 +29,7 @@ func TestMenuOperationLongDetailKeepsRowIdentity(t *testing.T) {
 					detail := strings.Repeat("long diagnostic 界 ", 100) + "\nfull final line"
 					wantStatus := "relaunch… 7s"
 					if phase == "running" {
-						state = updateOperationProgress(state, effects[0].Attempt, detail)
+						state = updateOperationProgress(state, effects[0].Attempt, detail, state.ObservedAt)
 					} else {
 						state = reduceOperationResult(state, MenuEvent{Operation: "relaunch", Attempt: effects[0].Attempt, Address: row.Address, Error: detail, Unconfirmed: phase == "unconfirmed"})
 						wantStatus = phase + ": long"
@@ -56,5 +57,58 @@ func TestMenuOperationLongDetailKeepsRowIdentity(t *testing.T) {
 				})
 			}
 		}
+	}
+}
+
+// Progress age belongs to the current stage, not the operation's preparation.
+func TestMenuOperationStageAgeProjectsRowAndNotice(t *testing.T) {
+	at := time.Unix(100, 0)
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state.ObservedAt = at
+	state, effects := dispatchThreadOperation(state, "resume", menuAddress("couch-one"))
+	attempt := effects[0].Attempt
+	state.ObservedAt = at.Add(20 * time.Second)
+	state = updateOperationProgress(state, attempt, "waiting for agent readiness", state.ObservedAt)
+	state.ObservedAt = at.Add(23 * time.Second)
+	state = updateOperationProgress(state, attempt, "waiting for agent readiness", state.ObservedAt)
+	now := at.Add(25 * time.Second)
+	_, job, _ := menuOperationForAttempt(state, attempt)
+	if row := menuOperationRowText(job, now); !strings.Contains(row, "5s") || strings.Contains(row, "25s") {
+		t.Fatalf("stage row age = %q, want 5s readiness", row)
+	}
+	view := string(ansi.Strip([]byte(RenderMenu(state, 160, 24, now, false))))
+	if !strings.Contains(view, "waiting for agent readiness, 5s") {
+		t.Fatalf("progress notice has no current-stage age: %q", view)
+	}
+	state.ObservedAt = at.Add(30 * time.Second)
+	state = updateOperationProgress(state, attempt, "waiting for registration", state.ObservedAt)
+	_, job, _ = menuOperationForAttempt(state, attempt)
+	if row := menuOperationRowText(job, at.Add(32*time.Second)); row != "resume… 2s · waiting for registration" {
+		t.Fatalf("new stage did not reset age: %q", row)
+	}
+	before := cloneMenuState(state)
+	state = updateOperationProgress(state, attempt+1, "stale", state.ObservedAt)
+	if !reflect.DeepEqual(state, before) {
+		t.Fatal("stale attempt changed progress")
+	}
+	state = reduceOperationResult(state, MenuEvent{Operation: "resume", Attempt: attempt, Address: menuAddress("couch-one"), Success: true})
+	before = cloneMenuState(state)
+	state = updateOperationProgress(state, attempt, "late", state.ObservedAt)
+	if !reflect.DeepEqual(state, before) {
+		t.Fatal("terminal attempt changed progress")
+	}
+}
+
+func TestMenuOperationWithoutStageKeepsOperationAge(t *testing.T) {
+	at := time.Unix(100, 0)
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state.ObservedAt = at
+	state, effects := dispatchThreadOperation(state, "resume", menuAddress("couch-one"))
+	_, job, _ := menuOperationForAttempt(state, effects[0].Attempt)
+	if row := menuOperationRowText(job, at.Add(25*time.Second)); !strings.Contains(row, "25s") {
+		t.Fatalf("ordinary row = %q", row)
+	}
+	if notice := renderedMenuNotice(state, at.Add(25*time.Second)); !strings.Contains(notice, "resuming compiler") || strings.Contains(notice, "25s") {
+		t.Fatalf("ordinary notice = %q", notice)
 	}
 }
