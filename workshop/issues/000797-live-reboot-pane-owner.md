@@ -39,7 +39,7 @@ Diagnose and correct the native pane-owner proof used by live reboot/recovery co
 ## Plan
 
 - [x] Capture the native pane metadata and identify the lost/ambiguous ownership witness before changing the proof.
-- [ ] Implement and verify the correction through the existing shared disposable-Couch harness and public commands.
+- [x] Implement and verify the correction through the existing shared disposable-Couch harness and public commands.
 
 ## Log
 
@@ -87,3 +87,12 @@ Further call-graph verification narrows the outer-park concern: Pair RunCleanup 
 2026-10-22 implementation checkpoint: original retirement remains first, then named-session quiescence precedes the additional wrapper signals/waits. One shared scoped helper requires positive ownership and DeleteOwnedSessionContext at all three deletion sites; foreign observations and unsupported name-only deleters refuse. Native deletion carries the immutable exact server into the existing authorized quiescence loop. No parser permissions, normal park ordering, deadline or signal cadence changed. Diagnostic text now identifies the failing pane and missing/ambiguous command cause without copying command text.
 
 TDD: all six supported/unsupported caller regressions failed on old name-based effects, then passed with exact proof handoff. Native owned-deletion regressions failed for the missing API, then passed with replacement-before-first-census/during-loop, identity/socket changes, absence, cancellation and invalid-proof coverage. Causal recovery regression failed with stop-before-pane-proof, then passed with live proof -> owned quiescence -> stops -> one replacement. Unknown/null/empty/ambiguous/foreign/replacement/quiescence-error and original-retirement-error cause no added wrapper signals or launch. Selected ownership/recovery tests passed launcher1.918s and couchcore3.999s. Disposable success checks follow on this committed candidate, one personality per Go invocation with the unchanged96MiB write cap and time/output bounds.
+
+### 2026-10-22 — Native success acceptance on ecefebc3469bda44d3d28797bcdcb4334998c752
+
+Both separate personality invocations passed genuine public reboot -> returned confirmation -> new exact binding/generation -> public current-worker message acceptance. Old agent identity was absent, every owned generation was absent at cleanup, and direct child plus IO joined. Conservative warnings about unproved retained remnants remain visible; none were authorized by inference. No stage, crash substitution, retry, bound change or flake registration.
+
+- Claude: Go78.150s/sub58.83s, writes81833984/cap100663296. Log /Volumes/TestScratch/tmp/pair-slot2/pair-797-success-claude-12v5rq4u/native.log, SHA2566bd7fbdc78eff02f8b6cf6334a34ab5bc22a00300d6aa54beeb1c453abaa7a77. Old27992/start1792688901.713202 -> current41708/start1792688922.772506, message recovery-owner-current-worker-claude accepted by currentPID. Succeeded receipt8862f39d-be6f-43c2-ba5e-14fed7b07220.
+- Codex: Go81.866s/sub65.70s, writes81870848/cap100663296. Log /Volumes/TestScratch/tmp/pair-slot2/pair-797-success-codex-armrrb2m/native.log, SHA2569e7fa3eac2b38ecbc0a6bea7fe90d327631c6e44f05283c6a4a2cc8e0b3eb60d. Old82650/start1792688991.810959 -> current95890/start1792689015.707303, message recovery-owner-current-worker-codex accepted by currentPID. Succeeded receiptcb2aa5c5-e2a9-49f0-9f1e-0ca99da2a42b.
+
+Additional focused evidence/catalog selection passed couchcmd0.392s, testcouch0.343s, zellijtest18.355s; repository/inventory/Godoc selection passed4.574s. Four affected-reader certificates were re-audited: public native executable test remains full fallback, other changed fixtures remain literal/local only. Reader check passed. PR545 opened; local-gates guard passed with no protected paths touched. Recorded affected check selected the full suite on exact candidateecefebc3, run lease-2188589775, retained terminal88486; queued normalFIFO position9 behind existing capacity. Close review may overlap this queue under tl-worker; a recorded pass still precedes landing. Full affected-package and focused race runs remain active independently.

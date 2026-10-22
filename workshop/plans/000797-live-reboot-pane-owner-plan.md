@@ -67,14 +67,14 @@ Two viable shapes must be assessed against that capture:
 
 Preferred rule: obtain the positive proof before destroying its witness, and recheck the exact accepted generation at each effect. Choose the smallest existing mechanism that enforces that rule for both normal-park and legacy fallback. Do not broaden ClassifySessionOwner to accept unknown panes. Do not treat Zellij's joined string as structured argv where boundaries matter; do not implement a cross-repository producer change without a separate approved scope.
 
-- [ ] Present the captured cause and the exact chosen correction to the hub; append the approved design as a revision. Run change-code and its plan-quality gate only after that design is concrete and approved. No production edit precedes this boundary.
+- [x] Present the captured cause and the exact chosen correction to the hub; append the approved design as a revision. Run change-code and its plan-quality gate only after that design is concrete and approved. No production edit precedes this boundary.
 
 ## Implementation and verification after that approval
 
-- [ ] Add the failing causal regression first, including both applicable park/retirement orderings. Confirm it fails on current main, then implement the approved correction.
-- [ ] Cover same-session foreign owner, unknown/missing/ambiguous command, server replacement and PID reuse, newly arrived descendant, cancellation, expired/changed confirmation, stop applied but acknowledgment lost, independent exits and partial retirement. Assert no unauthorized signal and no launch before confirmed absence; never retry uncertain destructive input automatically.
-- [ ] Give missing actual-command evidence and parser ambiguity distinct pane-specific diagnostics without leaking raw arbitrary command text into the concise CLI error. Preserve native diagnostic evidence under the existing bounds.
-- [ ] Replay the captured native shape in the normal suite. Run public reboot plus its returned confirmation token against genuine disposable Claude and Codex workers; prove the new generation accepts public delivery, the old exact set is absent and cleanup is complete. No fixture-only crash substitutes for live reboot on this issue.
+- [x] Add the failing causal regression first, including both applicable park/retirement orderings. Confirm it fails on current main, then implement the approved correction.
+- [x] Cover same-session foreign owner, unknown/missing/ambiguous command, server replacement and PID reuse, newly arrived descendant, cancellation, expired/changed confirmation, stop applied but acknowledgment lost, independent exits and partial retirement. Assert no unauthorized signal and no launch before confirmed absence; never retry uncertain destructive input automatically.
+- [x] Give missing actual-command evidence and parser ambiguity distinct pane-specific diagnostics without leaking raw arbitrary command text into the concise CLI error. Preserve native diagnostic evidence under the existing bounds.
+- [x] Replay the captured native shape in the normal suite. Run public reboot plus its returned confirmation token against genuine disposable Claude and Codex workers; prove the new generation accepts public delivery, the old exact set is absent and cleanup is complete. No fixture-only crash substitutes for live reboot on this issue.
 - [ ] Update the recovery atlas and enumerable consumer tests. Run relevant race/ownership tests plus catalog, Godoc, artifact inventory and reader audits. Publish the final head, run the declared affected check/full fallback, close through its mandatory review and merge on SHIP. Report the PR to the hub.
 
 ## Constraints, state and trust
