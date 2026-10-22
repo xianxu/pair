@@ -77,7 +77,7 @@ total: 2.593
 
 ## Plan
 
-- [ ] Review and approve [durable plan](../plans/000796-collapse-tab-style-plan.md).
+- [x] Review and approve [durable plan](../plans/000796-collapse-tab-style-plan.md).
 - [ ] Implement and verify CLI/style policy, measured collapse packing and exact scoped count navigation.
 - [ ] Verify native geometry, safety guards, multiline compatibility and full recorded suite; stage for operator acceptance, close and land.
 
@@ -92,6 +92,19 @@ Read-only survey found existing chipKept keeps every hub and existing aggregate 
 Plan-quality round2 CLEAN: PQ-1 addressed; no open blocking findings. Estimate derived only after this pass.
 
 Plan-quality round1 REWORK/PQ-1: scenario inventories needed named production-function test strategies. Refined parser/extractor/CLI, collapse preparation/packing/drawing, scope filtering/reducer and revision-fenced opener coverage with adversarial inputs and mechanical guards. No policy change; implementation remains gated.
+
+
+### 2026-10-22 — implementation checkpoint
+
+change-code passed plan quality (PQ-1 disposed) and estimate-quality INFO, then admitted full-flow implementation. Estimate2.593 uses idle-removed ship wall-clock; INFO notes integration/stage optimism. The two TUI primitives include their unit/integration iterations; geometry primitive covers additional native caller wiring. Issue/spec design0.30 is a pre-resolved shaping allowance (raw1.50 x0.2); no implementation scale is applied twice. Operator iteration remains uncertainty rather than a passing gate.
+
+Implemented one typed launch default and both CLI forms, actual Console configuration before adoption, collapse candidates through the existing measured packer/drawer, weighted per-group counts and exact drawn spans, shared one-row birth/paint geometry, confirmed-revision count clicks, exact scoped menu filtering/reconciliation/Escape and visible scope recovery. Explicit multiline remains the compatibility policy. No new timer/process owner or persisted setting. Quiet inactive hubs fold; active and Bell/Blocked members precede anchors/counts; impossible widths preserve clipped active and attention-marked global counts when those fit. README/help/atlas updated.
+
+TDD: initial collapse tests failed because quiet members/hubs stayed visible and width1 wrapped; now collapse/priority/count-scope/conservation/N-and-2N work tests pass0.357s. CLI/runtime/help sweep passed tty0.275s/cmd3.044s. Exact scoped-menu tests observed same-name/nested-return red then passed0.430s; visible scope header test red then passed0.380s. Confirmed/stale count input test passed0.348s. Native content-change geometry test passes and forcing multiline via a test overlay fails at the old wrap boundary (110.394s); no deadlines changed. Expanded existing native wrap test to collapse/multiline x Claude/Codex, retaining selected/background kernel size and physical bottom-row checks: PASS0.658s. Artifact source classification PASS4.162s; reader inventory pending final check.
+
+Compatibility sweep: first whole couchcmd failed one additional default invocation literal; all ten launch literals now explicitly include DefaultTabStyle, nonlaunch literals stay zero. Corrected whole couchcmd PASS121.386s. Existing multiline fixture helpers and direct native wrap test now explicitly exercise that option. An earlier whole tty run compiled before these corrections and exhausted its4m diagnostic limit after the old native two-row expectation; its later shutdown/pointer failures occurred with that exhausted package budget and are not classified as flakes. Corrected known multiline activation/two-row cases PASS0.588s, capability recovery PASS0.471s and drive PASS0.429s. Fresh whole tty verification is running on the corrected snapshot, session66232; no package/full-suite pass claimed for it yet.
+
+#789 integration suite session61444/lease-3428295058 remains snapshot-isolated and queued, last observed position15. No #789 merge runner is active. Return to that branch on its result for fixed review/full-suite recovery and merge; keep #796 independent. Staging #796 awaits green checks and TL's first operator window after #753; never overwrite pair:0 without the go.
 
 ## Revisions
 

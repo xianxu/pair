@@ -1605,6 +1605,11 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/panelkeys.go",
 	"cmd/internal/couchtty/reserve.go",
 	"cmd/internal/couchtty/status_layout.go",
+	// #796 presentation style, collapse candidates and menu scope own no artifacts.
+	"cmd/internal/couchtty/tab_style.go",
+	"cmd/internal/couchtty/console_tab_style.go",
+	"cmd/internal/couchtty/status_collapse.go",
+	"cmd/internal/couchtty/console_group_menu.go",
 	"cmd/internal/couchtty/idle_shade.go",
 	"cmd/internal/couchtty/console_activity.go",
 	"cmd/internal/couchtty/console_chrome_layout.go",

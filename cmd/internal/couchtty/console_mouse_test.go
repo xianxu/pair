@@ -39,6 +39,8 @@ func newMouseFixtureWithDone(t *testing.T, setup ...func(*Console)) (*Console, *
 	host := hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80})
 	reader, writer := io.Pipe()
 	con := New(host, reader)
+	// Legacy mouse fixtures exercise the explicit multiline compatibility mode.
+	con.SetTabStyle(TabStyleMultiline)
 	t.Cleanup(func() {
 		con.Stop()
 		_ = writer.Close()

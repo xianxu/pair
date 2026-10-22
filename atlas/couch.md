@@ -12,26 +12,50 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 
 ## What exists today
 
-### Wrapped tab bar (#779)
+### Tab styles (#796, #779)
 
-`couchtty.RenderStatusBar` in `status_layout.go` plans at most two bottom rows.
+`couch --tab-style collapse` is the launch default; `--tab-style multiline`
+selects the previous one/two-row packer. `couchtty.TabStyle` and
+`DefaultTabStyle` in `tab_style.go` provide the shared parser and Console
+configuration; the choice is presentation policy, separate from `Couch.Layout`.
+The CLI applies it before child adoption and initial geometry.
+
+Collapse uses one bottom row. `status_collapse.go` prepares candidates from the
+existing presentation's hub/group identities: quiet slots and quiet inactive
+hubs fold into per-group counts; active and attention chips stay explicit when
+space permits. Counts carry actor cardinality, so later scarcity overflow never
+double-counts folded actors. The shared measured planner and drawing pass in
+`status_layout.go` and `reserve.go` retain active/attention chips first. At
+impossible widths the overflow marker includes `!` when hidden actors need
+attention (`+N !` when it fits); the bell still opens the full attention list.
+A tiny host prioritizes a clipped, clickable active span over fixed controls.
+
+A complete drawn group count opens the root switcher scoped to its exact owner
+hub and repository group, using the same presentation membership before text
+filtering. Scope remains through inventory refresh and nested action return;
+removed membership produces an empty scope rather than a broader list. Escape
+clears a text filter first, then the root scope. Opening the ordinary switcher
+clears both. Counts and actor chips publish row/column hit spans in the same
+confirmed chrome revision; clipped or absent counts have no action, and stale
+or stalled-paint geometry cannot open a different group.
+
+Explicit multiline preserves #779's measured packing across at most two rows.
 Groups stay together unless one original group exceeds a full line; a continued
-row starts with the full repository label. A wide bar preserves the existing
-one-row bytes and styles. Chrome/cast/capture controls remain at the start of
-row one, the attention badge at its right edge, and transient notices use free
-space on the final row. Beyond two rows, active chips precede hub/blocked/belled
-chips in retention priority, followed by ordinary chips; retained actors keep
-their original order. One whole final `+N` counts hidden actors, with `!` when
-attention chips are hidden. The bounded planner sanitizes/measures labels once
-and searches a stable priority prefix, O(B + A log A).
+row starts with the full repository label. Chrome/cast/capture controls remain
+at the start of row one, the attention badge at its right edge, and transient
+notices use free space on the final row. Beyond two rows, retained actors keep
+their original order after priority selection; the final overflow counts hidden
+actors and flags hidden attention. Labels are sanitized/measured once, with
+O(B + A log A) bounded planning shared by both styles.
 
-The extra row reduces pane height only while used. A tiny host retains a body
-row and falls back to one chrome row; the active chip takes precedence over
-controls and may be clipped to a positive clickable span. If `LIVE ⏸` cannot be
-shown completely in its own style, broadcast frame admission fails closed.
-`RenderedStatusBar.Chips` carry a relative row as well as columns, from the same
-clipping pass that draws them. See [terminal ownership](terminal.md) for admitted
-versus confirmed geometry and [broadcast](broadcast.md) for trusted chrome rows.
+Collapse keeps child height constant across changes in actor content, focus and
+attention, removing #810's content-driven one/two-row resize trigger. Physical
+host-size changes still resize PTYs. Multiline's extra row reduces pane height
+only while used. Both styles preserve the existing broadcast, privacy and
+annotation guards: if `LIVE ⏸` cannot be shown completely in its own style,
+broadcast frame admission fails closed. See [terminal ownership](terminal.md)
+for admitted versus confirmed geometry and [broadcast](broadcast.md) for trusted
+chrome rows.
 
 ### Slot scratch (#708)
 
