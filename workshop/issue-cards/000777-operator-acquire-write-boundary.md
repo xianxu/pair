@@ -1,6 +1,6 @@
 ---
 id: 000777
-status: codecomplete
+status: done
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours: 2.17
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 89cc3757eef3a7631de94f1d9ddb125d60a00c93
         evidence_commit: 3bf1f7d643aeda0af8184100e4f9d492e05b6bc9
+        landed_commit: d16d027bd5d85b392fceedbf3025503d296707e7
 ---
 
 # session-sync: serialize operator acquisition with the writer commit boundary
