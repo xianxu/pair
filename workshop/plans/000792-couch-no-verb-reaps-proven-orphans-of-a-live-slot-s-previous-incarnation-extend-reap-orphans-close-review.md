@@ -302,3 +302,99 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T04:10:21-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 792 — Couch: no verb reaps proven orphans of a live slot's previous incarnation; extend --reap-orphans |
+| repo | pair |
+| issue file | workshop/issues/000792-couch-no-verb-reaps-proven-orphans-of-a-live-slot-s-previous-incarnation-extend-reap-orphans.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 0b605b1ee4ec9bda5a4d569708d25e0a857efd2f..c8a9316a9bf50d75c1f9d5ee1ab58d0b9227f934 |
+| command | sdlc close --issue 792 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T04:10:21-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation satisfies the revised Spec and Plan. BR-2 is addressed across historical evidence loss and outstanding invocations: both legacy families now revalidate each signal at the supervisor. Independent mutation tests confirmed that removing either protection makes the regressions fail. No additional findings. The separately required recorded SDLC verification remains pending.
+
+```findings
+dispose:
+  - id: BR-2
+    disposition: addressed
+    note: |
+      resources.go:261–272 latches incomplete ownership evidence; reap_legacy_signal.go:49–88 checks that latch under the effect gate through identity rereads and signalling. Sequence and late-loss regressions pass. In disposable pinned-head copies, removing the latch reproduced signals to protected PIDs 11/12; removing the effect-time check reproduced late TERM/KILL signals across both legacy families. Both disposable copies were removed.
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Protection still precedes lossy projection in resources_projection.go. Projection-to-CLI regressions pass for both legacy families, including incomplete witnesses and repeated projection.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      agentfixture/resources_test.go:41–70 retains a short private socket root independent of TMPDIR, with cleanup. Its deliberately long-TMPDIR regression passes.
+```
+
+1. **Strengths**
+
+   - [The legacy effect gate](/Volumes/TestScratch/review-checkouts/0b9d11461d29653b/cmd/internal/couchcmd/reap_legacy_signal.go:49) revokes outstanding plans, including escalation, rather than relying on admission-time evidence.
+   - The exact executor uses an explicit pure transition model; uncertain acknowledgments and probes cannot produce success or automatic escalation.
+   - Stateful composition tests exercise the actual sampler, service, CLI and signal boundary with controllable ordering.
+   - README, atlas and embedded command documentation explain the changed compatibility, authority and recovery behavior.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Full tests passed for `couchcore`, `couchmessage`, `launcher`, `couchcmd` and `testcouch/...`.
+   - Focused race tests passed for ownership, startup ordering, exact execution, legacy revocation and protocol behavior.
+   - Artifact inventory guard and diff whitespace checks passed.
+   - Both independent protection-removal mutations failed the expected regressions.
+   - Verified retained Claude/Codex native acceptance logs against their hashes and inspected their assertions. Their tested production source is identical to the pinned head; native acceptance was not rerun here.
+
+6. **Architectural notes**
+
+   | Principle | Result |
+   |---|---|
+   | ARCH-DRY | Pass — shares ownership classification and executor cadence. |
+   | ARCH-PURE | Pass — decisions and transitions have direct tests without IO; effects use injected boundaries. |
+   | ARCH-PURPOSE | Pass — protects exact targets and both legacy families across evidence-loss sequences. |
+   | ARCH-MOCK | Pass — stateful doubles share production boundaries; native conformance exists. |
+   | ARCH-CONSTRAINTS | Pass — bounded censuses, requests and waits; counted growth tests cover added work. |
+   | ARCH-SECURE | Pass — caller claims require current authority, provenance and generation checks. |
+   | ARCH-ORDER | Pass — explicit transitions, controlled interleavings and synchronized revocation. |
+   | ARCH-FUNERAL | Pass — invocation state expires; fixture processes and artifacts have owned cleanup. |
+   | ARCH-EVOLVE | Pass — wire additions introduce no persisted-format change. |
+
+   The authoritative Plan revisions reconcile the concept locations and revised legacy contract with the implementation.
+
+7. **Plan revision recommendations:** None. Keep the recorded-verification checklist incomplete until its required check passes.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"044472a5-e968-48cc-8e82-952295e581cd","repository":"github.com/xianxu/pair","issue_id":"000792","recipe":"milestone-review","round":4,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/0b9d11461d29653b","reviewed_head":"c8a9316a9bf50d75c1f9d5ee1ab58d0b9227f934","slot":"pair:2","requested_at":"2026-10-22T11:03:53.822313Z"},"phase":"finished","pid":46193,"started_at":"2026-10-22T11:03:53.972037Z","finished_at":"2026-10-22T11:10:21.302608Z","session_id":"01a16348-22f2-7b62-8548-95b9bb096a14","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.905473042s
+head: "c8a9316a9bf50d75c1f9d5ee1ab58d0b9227f934"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

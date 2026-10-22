@@ -65,6 +65,7 @@ Hub pin 941a9381-a841-44ca-98b0-7e10a90936b3 approves authenticated owning hubs 
 ### 2026-10-21
 
 ### 2026-10-22 — claim and plan
+- 2026-10-22: closed — Final source c1ca44e7eddb0e5a0ba10108e284bb4f6e049321: combined targeted race couchcmd3.344s core3.209s message1.160s; reader audit and artifact classification pass; three native nvim checks pass5.896s; separate public-command Claude44.188s and Codex42.797s pass exact6/current delivery/native cleanup under96MiB cap, strict permitted legacy-only partial. Recorded affected selected full suite on pushed c8a9316a9bf50d75c1f9d5ee1ab58d0b9227f934, lease-440357 queued; final Plan row remains pending recorded pass. --no-plan-check acknowledges only TL-worker-authorized review overlap; recorded final-source pass still required before landing. BR2 revision routes all legacy effects through current supervisor proof and one sticky gate; rootless survivors refuse.; review verdict: SHIP
 
 Dispatched by ops:0 after #777 and the #768 manual archive repair landed. PR #540 is merged; both retained repair runners exited successfully and the workspace returned cleanly to its resting branch. Claimed #792 before design. start-plan's automatic dependency refresh generated an unrelated merge-check workflow change in an initially clean tree; restored only that generated diff and reran start-plan successfully, keeping protected gate configuration outside this issue.
 
