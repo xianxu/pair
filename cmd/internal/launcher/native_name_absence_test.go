@@ -37,6 +37,7 @@ func TestNativeMissingSessionListingAcceptsOnlyNameEvidence(t *testing.T) {
 		name, out, diagnostic string
 		failure               error
 		accept                bool
+		wantCalls             int // Zero means the ordinary single attempt.
 	}{
 		{name: "captured native absence", out: stdout, diagnostic: stderr, accept: true},
 		{name: "missing heading", out: stdout},
@@ -52,7 +53,7 @@ func TestNativeMissingSessionListingAcceptsOnlyNameEvidence(t *testing.T) {
 		{name: "unknown terminal escape", out: strings.Replace(stdout, "\x1b[32;1m", "\x1b[2J", 1), diagnostic: stderr},
 		{name: "invalid UTF8", out: stdout + "\xff", diagnostic: stderr},
 		{name: "duplicate identity", out: stdout + strings.SplitAfter(stdout, "\n")[0], diagnostic: stderr},
-		{name: "requested identity present", out: strings.Replace(stdout, "📁1-291", target, 1), diagnostic: stderr},
+		{name: "requested identity present", out: strings.Replace(stdout, "📁1-291", target, 1), diagnostic: stderr, wantCalls: 3},
 		{name: "collection failure", out: stdout, diagnostic: stderr, failure: errors.New("collection failed")},
 		{name: "joined cancellation", out: stdout, diagnostic: stderr, failure: errors.Join(errors.New("collection"), context.Canceled)},
 	}
@@ -76,8 +77,12 @@ func TestNativeMissingSessionListingAcceptsOnlyNameEvidence(t *testing.T) {
 			if (err == nil) != tc.accept {
 				t.Fatalf("accepted=%v want=%v error=%v", err == nil, tc.accept, err)
 			}
-			if calls != 1 {
-				t.Fatalf("probe calls=%d", calls)
+			wantCalls := tc.wantCalls
+			if wantCalls == 0 {
+				wantCalls = 1
+			}
+			if calls != wantCalls {
+				t.Fatalf("probe calls=%d want=%d", calls, wantCalls)
 			}
 		})
 	}

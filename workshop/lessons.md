@@ -2629,6 +2629,25 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #778 verification: Every new non-test Go helper must enter artifactpath's exhaustive source inventory, even when it owns no Pair session artifact. Run TestProductionArtifactReferencesAreExactlyClassified alongside reader inventory and lint before a full suite; classify the source through its ordinary inventory, never the known-violation quarantine.
 
 - #778 BR-1: after main integration or a compatibility fix, mark final verification pending in the active Plan checklist until the replacement exact-source suite completes. Keep older green receipts as history; review/suite overlap permits concurrent work, not a completed acceptance claim.
+# #803 — shared native read boundaries
+
+- A production seam migration must include live-conformance adapters that issue
+  their own native queries; otherwise a green production unit test can leave the
+  reported native failure on the old boundary. Preserve per-attempt streams and
+  reset final logical capture on each attempt.
+- Preserve an existing whole-process-group owner when introducing a shared
+  collector: a new private child group can escape the parent's EOF cleanup.
+  Make collector selection explicit and qualify descendant cleanup.
+- Bind native retry probes to the queried child's environment. An ambient
+  socket path cannot certify a query running in another namespace. Recheck
+  cancellation after observers before returning raw diagnostic authority.
+- Fuzz guards must assert their promised oracle: exact accepted argv grammar and
+  complete reply-kind validation, not just nonpanic or one mutation literal.
+
+- #803 BR-1: after migrating a shared recovery seam, run each affected package
+  completely before close; a selected regex can miss older native-capture tests
+  whose attempt counts encode the prior transport. Keep refusal assertions and
+  pin recoverable cases separately from single-attempt native authority.
 
 - #722 native acceptance: a predicate over a mutable terminal screen certifies only that captured frame. Retain its immutable screen and row through logging and coordinate calculation; never re-read after a successful check. A controlled valid-frame-then-blank-redraw source must catch the check/use split.
 - #792 BR-1: Before independently truncating evidence and legacy action lists, remove protected overlaps from the complete view. A projection must never drop a veto while retaining broader destructive authority; test the actual lossy projection through its action consumer.
@@ -2643,3 +2662,8 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #792 landing: when an existing atlas guide already has an index link, put new feature detail in that guide. Appending feature clauses to its shared index summary creates avoidable landing conflicts; keep the index as a stable navigation map.
 
 - #722 BR-7: Anchor a prose insertion by its enclosing section, then inspect the complete surrounding block. A first inline-command match can be a Markdown table cell. Keep the public command index contiguous and mechanically require complete rows and its final commands; audit each consumer when inserting shared prose.
+- #803 integrated-suite correction: enumerate transitive users of an OS adapter,
+  not only packages edited by a seam migration. Stateful refusal fixtures must
+  fault the entire physical-attempt budget; add transient recovery controls and
+  keep semantic mismatches non-retriable. Audit structural call-site manifests
+  when a collector method changes, even when the effect remains read-only.

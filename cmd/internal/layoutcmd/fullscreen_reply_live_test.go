@@ -255,6 +255,7 @@ func (r *nativeReplyRuntime) observeQuery(ctx context.Context, tab bool) ([]byte
 	captured.Kind = "query"
 	previous := r.queryLog
 	r.queryLog = func(_ string, fields ...any) {
+		captured = nativeReplyEvent{Kind: "query"}
 		captured.Args = append([]string(nil), fields[0].([]string)...)
 		captured.Stdout = string(fields[1].([]byte))
 		captured.StdoutBytes = fields[2].(int)
