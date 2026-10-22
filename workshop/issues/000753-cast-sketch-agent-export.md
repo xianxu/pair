@@ -271,6 +271,10 @@ Fix keeps confirmed mask across transport rotation/errors/resync until a validat
 
 BR-10 correction verification: all513 browser tests PASS8.173s; focused production Go checks PASS webcast0.194s/Board4.803s; focused Board race PASS79.336s. Board lifecycle regressions retain confirmed historical proof through edit/resolve/reopen and reject future/wrong equal-digest versions, while current newer feedback remains visible; counted matching remains linear. Native actual EventSource outage regression reported PASS2.813s by bounded worker (final committed-source native rerun follows). Reader inventory and git diff --check pass. Hub BR-10 outcome receiptf51a680b is submitted; #555 exact lock evidence receipt6276c8dc is submitted, no duplicate reply needed.
 
+Correction source542da06cfadec93dda02b6dab6694004624a0b88 pushed to PR537. Officially canceled obsolete lease-3861532669, then queued exactly one replacement lease-1843379015 (session28345) on542da06cf, attemptf45a018ac7371a1d32c989c54a0177e3, checkout/Volumes/TestScratch/local-checks/sdlc-local-887015592, initial FIFO12. Final source artifactpath/repolint PASS16.622s/27.578s. Native conformance running on this committed source; full close follows evidence pinning, while final recorded pass and live re-look still precede landing.
+
+Final-source native conformance PASS92.338s on542da06cf, raw log/provenance workshop/evidence/000753/native-542da06cf.log/.json, SHA2568b70bd782c696c41741f44647786dddf906a24bddefb2b04dca8a2f1f97aa88e. Actual native outage paths hold submitted ink blank on both retained viewer pages with no replacement full mask; replay still paints. All shared-page/strict-anchor/legacy/console/fidelity controls pass; existing rec-stress baseline remains1of3frames over3percent. Full close is next; suite lease-1843379015 retained.
+
 ## Estimate
 
 *Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration is stale per sdlc estimate-source; this remains provisional. Unit: idle-removed ship wall-clock, including agent/subagent execution, not operator-attention time. No parallel overlap discount applied.*
