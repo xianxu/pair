@@ -52,6 +52,13 @@ TL receipt58326574-1d4c-4767-b222-cfb4d5adddce splits the original request. Buil
 - 2026-10-22: flow upgraded quick → full — an earlier round of this close already ran the full review
 ### 2026-10-21
 
+
+### 2026-10-22 — drain checkpoint and recorded-suite failure
+
+Retained suite session55007 completed with exit1: attempt f9b3e2af722df79bce43bf1cf59e89dd on352190cbc25d79b54e6ad240f6bcfe9e64af8415, 12m13s after queue admission, log SHA256 prefix b45a2de39b81. Retained log: /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/f9b3e2af722df79bce43bf1cf59e89dd.log. Three unknown failures, all in couchcmd: TestHubStartupLaterFailureLeavesFirstUsable and TestHubStartupLaterFailureAfterWarmWorkerLeavesFirstUsable timed out waiting for a >40-cell refusal prefix; TestInitialHubBorrowedAttachmentNoticeAppearsOnFirstPaint expected the entire warning while captured paint shows the bounded borrowed-attachment warning. Whole couchtty passed40.244s in this attempt. This is not a suite pass and these failures are not registered as flakes.
+
+Drain requested an atomic checkpoint; it was lifted while inspecting these completed results. No queued work was restarted or reordered. Merge session46377/pid83174 remains retained, last position1, blocked on the missing passing local record (and the #803 fleet grant); it cannot land this failed head. Next step: reproduce the three couchcmd assertions, check their whole screen-assertion family, retain complete diagnostic recovery checks, then submit a corrected pushed head to the recorded suite and close review. #796 remains unstarted until #789 lands; #802 remains the separate unclaimed low-priority wording item.
+
 ## Revisions
 
 ### 2026-10-22 — implementation scope
