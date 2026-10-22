@@ -76,6 +76,25 @@ reviewer_runs:
       finished_at: "2026-10-22T18:14:07.992642Z"
       session_id: 01a164d1-75c0-76b2-9860-a7072090d766
       outcome: returned
+    - version: 1
+      intent:
+        id: aacd6df2-1d55-443e-9e61-526d84e1f0cb
+        repository: github.com/xianxu/pair
+        issue_id: "000753"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot9/pair
+        reviewed_head: 37e3fa7d9857944f5f2a37644e8ac253076f167b
+        slot: pair:9
+        requested_at: "2026-10-22T21:18:33.444107Z"
+      phase: finished
+      pid: 220
+      started_at: "2026-10-22T21:18:33.706331Z"
+      finished_at: "2026-10-22T21:19:07.617531Z"
+      session_id: 01a1657a-e09e-7d83-84b2-14be06e54f9b
+      outcome: returned
 gate: plan-quality
 issue: 753
 id_prefix: PQ
@@ -270,7 +289,41 @@ rounds:
       agent: codex
       reviewer: codex (openai; author openai)
       blocked: false
-content_hash: ded812de724285ea7fcde918eff376fc2689b719132dc40bc5c3297d907d9741
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 0bd4d680-828d-4516-ba3b-adf6df3f98a0
+            repository: github.com/xianxu/pair
+            issue_id: "000753"
+            recipe: plan-quality
+            round: 7
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot9/pair
+            reviewed_head: 37e3fa7d9857944f5f2a37644e8ac253076f167b
+            slot: pair:9
+            requested_at: "2026-10-22T21:18:01.628646Z"
+          phase: finished
+          pid: 80792
+          started_at: "2026-10-22T21:18:01.801515Z"
+          finished_at: "2026-10-22T21:18:27.492806Z"
+          session_id: 01a1657a-6420-7633-808f-be531aa7cac6
+          outcome: returned
+      "n": 7
+      timestamp: "2026-10-22T14:18:28-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Explicit transition ownership, publication fencing and atomic freeze remain specified in the current revision.
+          round: 7
+        - id: PQ-2
+          disposition: addressed
+          note: Named production functions retain adversarial test strategies and mechanical guards.
+          round: 7
+      blocked: false
+content_hash: 76f0fbdc80480340c34e8965a08239783c8552e120fe8d628415c684a91bb6b2
 ---
 
 # Gate ledger — pair#753 (plan-quality)
@@ -311,6 +364,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - PQ-2 — addressed — Risky production functions have named adversarial inputs and mechanical verification strategies.
 
 ## Round 6 — 2026-10-22T11:13:27-07:00 (codex) — passed
+
+## Round 7 — 2026-10-22T14:18:28-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Explicit transition ownership, publication fencing and atomic freeze remain specified in the current revision.
+- PQ-2 — addressed — Named production functions retain adversarial test strategies and mechanical guards.
 
 ## Open findings
 
