@@ -2602,3 +2602,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #775: A new executable Zellij double must use the shared reply serializer and producer-specific catalog, including malformed/non-query envelopes as explicit classified faults. Run TestEveryZellijFixtureReplyUsesProductionDecoder and the reader-inventory preflight before queuing the full suite; source registration alone cannot certify independent wire serialization.
 - #771 review: Check the branch patch for whitespace after generated prose is recorded; review transcripts can introduce blank-line spaces. Trim prose-only whitespace before publishing, while preserving byte-exact terminal recordings and upstream evidence.
+
+- #753 plan-quality: A visible acknowledgment gate needs one pure transition authority and an atomic freeze API, not merely promises about stale callbacks. Name production functions and their adversarial/mechanical test strategies; keep case enumeration in executable tests.

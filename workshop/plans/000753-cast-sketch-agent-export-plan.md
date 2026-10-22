@@ -34,6 +34,31 @@ For sketch-containing submissions, preparation freezes that displayed/acknowledg
 
 Add pure preview state/selection tests and native acceptance that the operator can see all selected shapes/count before pressing the chord, including eight oldest + N more, after navigation, and stale-preview refusal. This is the approved acceptance extension; no second send button or browser-to-agent route.
 
+### Preview transition ownership (PQ-1)
+
+`submission.NextPreview(state, event) -> (state, effects)` is the pure authority. `PreviewState` has private tagged payloads: Dormant (no host/candidate), Dirty (latest host and candidate), Publishing (one immutable host/candidate/revision/operation), Shown (that exact acknowledged projection), and Stopped. Callers cannot write its fields. Only the manager-owned wrapper applies NextPreview; CDP and board callbacks enqueue typed events, never assign readiness.
+
+| State + event | Next state | Effect / invalidation |
+|---|---|---|
+| Any except Stopped + HostChanged | Dirty or Dormant | Retire old publication identity; cancel its IO and publish on the new host only. |
+| Dirty/Publishing/Shown + CandidatesChanged | Dirty | Replace latest candidate stamp, invalidate any shown/old operation; coalesce refresh. |
+| Dirty + Refresh | Publishing | Issue one read-only projection with fresh operation identity. |
+| Publishing + exact PublishAccepted | Shown | Accept only matching host generation, candidate stamp, revision and operation. |
+| Publishing + exact PublishFailed | Dirty | Show preview unavailable; retry on explicit prepare/refresh or a later source event, no retry loop. |
+| Any + stale publication result | Unchanged | Ignore; cannot restore a retired preview. |
+| Shown + Prepare | Shown or Dirty | Try the atomic freeze below; success creates existing preparation job, mismatch invalidates and refreshes. |
+| Dormant/Dirty/Publishing + Prepare | Unchanged | Refuse sketch send with review-preview guidance; request refresh when possible. |
+| Any + Dispose | Stopped | Cancel/join the sole refresh worker and discard view state. |
+| Stopped + any other event | Stopped | No effects or revival. |
+
+The wrapper owns the current model under submissionManager.mu. Existing request flow already takes this mutex before reading board selection. Add a cheap Board candidate-generation stamp that changes only when eligible sketch metadata/clear changes; never on pointer/miscellaneous page activity. The board provides `FreezeSubmissionSelection(expectedGeneration)` under board.mu, returning an immutable selection only if the generation matches. The manager holds its mutex across policy Prepare and this short board call, so host/delivery events cannot interleave; order is manager.mu then board.mu, and board notifications never call the manager under board.mu. No filesystem, CDP, vector copy or rendering occurs under board.mu.
+
+Delivered-version facts are derived/validated outside board.mu by the existing preparation/preview owner. Manager.mu serializes its confirmed store-transition generation with the preview. The candidate stamp combines board generation and delivered-set generation. Once a durable transition changes suppression, the manager invalidates the preview in that same serialized step. There is no external writer API for this Couch-owned store; malformed or externally modified manifests encountered while deriving it refuse publication, not permission to silently resend.
+
+`submissionPreview.freeze` is the only constructor of an opaque `FrozenPreview`; sketch preparation requires it, while note-only preparation keeps its existing path. Thus a caller cannot bypass Shown or obtain a sketch selection from the ordinary unguarded Board.Selection call. After freeze, later mutations cannot change that job's immutable selected prefix.
+
+The refresh worker is one Console.GoTracked child with a lifetime-derived context and a capacity-one wakeup channel. It performs projection IO outside locks, returns results through typed events, and reads the newest candidate after a coalesced invalidation. Host replacement cancels the owned publication context; console disposal cancels and joins the worker through existing tracked lifetime. A canceled/late operation has no write authority even if its CDP reply arrives. Tests drive NextPreview with controllable order and drive the production wrapper with a blocked fake publisher/board freeze guard; no test relies on a scheduler race.
+
 ## Core concepts
 
 | PURE entity | Lives in | Status | Contract |
@@ -137,48 +162,59 @@ Delivered-version filtering derives from existing dispatched/resolved manifests 
 | ARCH-FUNERAL | Joined render session; bounded existing store; temporary profiles removed, exports explicit. |
 | ARCH-EVOLVE | Additive typed evidence, old decoder fail-closed, no changed note/crop meanings, unknown nested fields survive rewrites. |
 
+## Function-level verification strategy (PQ-2)
+
+Names below are the intended production entrypoints; colocated tests invoke the real pure functions without IO mocks.
+
+| Function | Adversarial input / mechanical guard |
+|---|---|
+| `query.SketchesAt(records, selection)` | Fuzz valid/invalid ordered histories and cutoff identities; independent prefix-reducer oracle, counted record/point visits and immutable source witnesses. |
+| `query.DeclaredElementFacts(state, anchors, region)` | Generate deep/broad DOM and arbitrary attributes/layouts; exact priority/deterministic ordering, byte/node caps and counted N/2N visits. |
+| `sketchimage.Plan(view, limits)` | Fuzz nonfinite/extreme geometry and pressure; finite bounded transform, unchanged originals and independently computed pixel containment. |
+| `submission.DecodePreserving / EncodePreserving` | Fuzz duplicate/invalid known members and nested unknown JSON; strict rejection or byte-semantic unknown round-trip across delivery rewrites. |
+| `submission.EvidenceFiles(bundle)` | Generate mixed typed references and hostile paths/aliases; one duplicate-free confined inventory used by every file consumer. |
+| `submission.UnsentSketches(candidates, delivered, limit)` | Generate exact/stale/uncertain delivery versions and target changes; stable oldest-first bound, no suppression without confirmed exact version. |
+| `submission.NextPreview(state, event)` | Model-based event sequences with reordered publication/host/candidate outcomes; no stale Shown or freeze and terminal Stopped invariant. |
+| `submissionPreview.freeze / Board.FreezeSubmissionSelection` | Controlled invalidation at the actual lock seam; immutable selected prefix or typed refusal, no observation-to-freeze gap. |
+| `submission.ValidateSketch` | Fuzz provenance, source/history, vector/image identity and budgets; reject forged captured evidence and inconsistent transforms. |
+
+Integration contracts exercise the same seams with the stateful ImageRenderer/publisher and portable real Store. Native conformance establishes recorded-only assets, pressure pixels, existing-deadline batch feasibility and actual joined Chrome/CDP/server/profile cleanup. Existing fidelity, note-crop, submission uncertainty and target-pinning contracts remain required.
+
 ## Execution plan (after approval)
 
-### Task 1 — Pure historical query and stable element facts
+### Task 1 — Historical query and declared element facts
 
-Files: add query/sketch.go, element_facts.go and colocated tests; modify query/{surface.go,fake.go,contract.go,cli.go,events.go}; tests/webcast query fixtures as appropriate.
+Files: query/{sketch.go,element_facts.go,surface.go,fake.go,contract.go,cli.go,events.go} and colocated tests. Implement SketchesAt and DeclaredElementFacts through their RED/green strategies above; share the extractor with ordinary annotation context.
 
-- [ ] Write RED fixtures with two sketches on different pages, multi-stroke pressure, Undo/Redo, label/unfinished/interrupted/clear and a later DOM/URL/attribute change. Assert source values at begin and exact history cutoff; missing prefix refuses.
-- [ ] Add literal id/data-* fixtures for anchor ancestry, covered elements, nearest-first ties, no layout, caps and control-looking values. Share extractor with ordinary annotation query/context tests.
-- [ ] Implement one recording pass and pure result validation; add counted N/2N scans and points tests, including same-source grouping.
-- [ ] Add CLI text/JSON goldens and stateful FakeSurface contract for sketches. Run `go test ./cmd/internal/webcast/query -count=1`; expect all existing and new contracts PASS. Commit.
+- [ ] Run the focused new query strategies RED, implement the pure functions and shared Surface contract, then run `go test ./cmd/internal/webcast/query -count=1` GREEN.
+- [ ] Check counted scan budgets and CLI text/JSON goldens; commit this coherent query slice.
 
-### Task 2 — Bounded historical image renderer and CLI export
+### Task 2 — Shared bounded historical image renderer and CLI export
 
-Files: add sketchimage/{contract.go,fake.go,contract_test.go}, replay_image.go, sketch_image.go, web/sketch-image.js and tests; extract lifetime from fidelity_check.go; modify query image CLI seam and couchcmd wiring.
+Files: sketchimage/{contract.go,fake.go,contract_test.go}, replay_image.go, sketch_image.go, web/sketch-image.js, query/render_sketch.go and couchcmd wiring; extraction from fidelity_check.go.
 
-- [ ] Write RED stateful renderer contract for original source plus selected pressure paths, crop/transform, bounded PNG, missing recorded assets, clipping, empty image, timeout/cancel and join/close on every failure point.
-- [ ] Extract the owned replay/Chrome session without changing fidelity behavior; render through recorded-only sandbox and shared paintSketchPaths. Enforce no external/live-tab content access.
-- [ ] Add atomic private output confinement tests: existing files/dirs, source-descendant and symlink alias, malformed path, cancellation before publication; no partially visible exports.
-- [ ] Run `go test ./cmd/internal/webcast/sketchimage ./cmd/internal/webcast/query ./cmd/internal/webcast -count=1` and targeted existing fidelity tests; run applicable Node painter/image tests. Commit.
+- [ ] Drive Plan and the stateful renderer/export contract RED; extract the joined session and implement recorded-only rendering with shared paintSketchPaths and atomic confined output.
+- [ ] Run `go test ./cmd/internal/webcast/sketchimage ./cmd/internal/webcast/query ./cmd/internal/webcast -count=1`, applicable Node painter/image tests and existing fidelity conformance GREEN; commit.
 
-### Task 3 — Typed sketch evidence and durable bundle support
+### Task 3 — Typed evidence and preserving durable publication
 
-Files: add submission/{sketch.go,codec.go} and tests; modify submission/{model.go,store.go,publication.go}, webcast/submission/{build.go,sketch.go}, cast_submission.go.
+Files: submission/{sketch.go,codec.go,model.go,store.go,publication.go}, webcast/submission/{build.go,sketch.go}, cast_submission.go and colocated tests.
 
-- [ ] Write RED sketch-only/mixed manifest tests and file-consumer sweep for all image paths, duplicate/unexpected image, cap, symlink and unknown-field round-trip. Keep existing note/CDP crop fixtures unchanged.
-- [ ] Implement typed sketches, one shared evidence-file enumeration and strict preserving codec; add old-reader refusal fixture and transition rewrites retaining nested unknown fields.
-- [ ] Freeze selected accepted-prefix identities and build all evidence from the one read; reuse ImageRenderer batch, set per-item origin privacy and conservative aggregate, retain exact immutable publication identity on errors.
-- [ ] Run `go test ./cmd/internal/submission ./cmd/internal/webcast/submission ./cmd/internal/webcast -count=1`; expect publication/supersession/uncertainty and existing notedraft tests PASS. Commit.
+- [ ] Drive codec/validation/file-inventory strategies RED; implement typed sketches and the single evidence inventory across all publication/rewrite consumers, preserving initial note/crop meanings.
+- [ ] Build immutable selected evidence from one recording read with the injected render batch; run `go test ./cmd/internal/submission ./cmd/internal/webcast/submission ./cmd/internal/webcast -count=1` and old-decoder refusal/unknown-field contracts GREEN; commit.
 
-### Task 4 — Operator selection, delivery and real acceptance
+### Task 4 — Visible preview, operator transaction and acceptance
 
-Files: board/submission.go and tests; couchtty/console_submission.go and tests; nvim/dom_submission_state.lua and tests; ReadingGuide, couchcmd/skills/couch/SKILL.md, README and atlas/webcast-submission.md (+atlas index if a new page is needed).
+Files: board/submission.go, couchtty/console_submission.go, private operator projection/preview files, nvim/dom_submission_state.lua, ReadingGuide, couchcmd/skills/couch/SKILL.md, README and atlas/webcast-submission.md.
 
-- [ ] Write RED sketch-only submission through existing manager (currently len(selected.Notes)==0 returns empty), batched counts, duplicate submission filtering and mixed note resolution without ink clearing.
-- [ ] Derive exact delivered versions from verified manifests; sequence-test prepared/delivering/dispatched/resolved, old ACK/new history, target change, navigation, restart, failed publication and cancellation. No new delivery state machine.
-- [ ] Add private preview projection from the same candidate selector, stable shape thumbnails/count and current-host revision acknowledgment. Test stale/late preview, eight-oldest ordering and no focus/capture interference.
-- [ ] Add normal-suite disposable Couch fixture and native Chrome conformance: two distinct shapes/notes, navigate, operator submission to pinned agent receives two historical images/URLs/IDs; live page changes must not leak. Exercise Claude and Codex (Qoder when credits), using fixture agent sinks rather than live fleet.
-- [ ] Measure maximum proposed batch in bounded native renderer; if it misses the existing deadline, reduce/revise the envelope with TL before implementation is accepted. Verify all Chrome/server/profile children are joined.
-- [ ] Document source/history clocks, recorded-dom/replay provenance, limits/privacy, CLI and operator chord. Audit named readers, then `make test-affected-inventory`; no bulk hash refresh.
-- [ ] Push and run required recorded affected/suite, close through SDLC's mandatory review, stage by hub authorization, operator submits real sketches to their agent, then land only after accepted smoke. No Mx tags unless actual independent review milestones are agreed.
+- [ ] Drive UnsentSketches, NextPreview and the atomic freeze strategies RED; integrate the opaque frozen-preview boundary and read-only pressure thumbnail cards/count. Existing durable delivery transitions remain the only ACK authority.
+- [ ] Exercise the production manager/store through the normal-suite disposable Couch fixture and native Chrome acceptance. The operator sees oldest-eight shape previews/count, submits two historical shapes after navigation and the pinned agent receives correct images/notes/URLs/IDs. Verify Claude and Codex; Qoder when credits. Use fixture sinks until authorized real smoke.
+- [ ] Measure maximum approved batch under the existing deadline; revise the envelope with TL if it fails rather than bump timeouts. Verify joined renderer/publisher disposal and stable input focus under updates.
+- [ ] Update guides/atlas, audit reader inputs and run `make test-affected-inventory`; push, record required affected/suite, close through SDLC, stage by hub authorization, run the real operator preview-and-submit smoke, then land on acceptance. No Mx tags unless independently closed milestones are agreed.
 
 ## Revisions
 
 2026-10-21 19:04 PDT — TL745ea763 approves one finished multi-stroke sketch as one item, oldest eight unsent first with visible N more, and exact-version dispatched/resolved suppression across targets. Adds acceptance that the operator sees count and shapes before the chord submits. Added a read-only immutable private preview sharing the candidate selector and existing projection; no new browser delivery route. Proceed to full-flow change-code plan-quality review before implementation.
 
+
+2026-10-21 19:08 PDT — PQ-1: specified the authoritative pure preview transition model, opaque frozen-preview constructor, manager→board atomic generation check and tracked/coalesced worker lifetime. PQ-2: replaced prose test inventories with named production functions and one adversarial/mechanical strategy per function; retained integration/native/quantitative checks. No product scope change.
