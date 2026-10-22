@@ -1,13 +1,13 @@
 ---
 id: 000791
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-21
 updated: 2026-10-22
 estimate_hours: 1.019
 collaboration-mode: collaboration
-card_mirror: '1bfbb6063c31abd9a740abed11bfcbc57f03912c' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '954c40b41feec225599b32da0c1795369220a20a' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-22T12:23:59-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 0.64
 ---
 
 # Couch delivery: capture delayed refusal evidence
