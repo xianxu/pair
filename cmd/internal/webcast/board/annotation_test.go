@@ -23,6 +23,44 @@ func TestAnnotationsDefaultOff(t *testing.T) {
 	}
 }
 
+func TestOperatorSketchAdmissionIndependentOfViewerAnnotation(t *testing.T) {
+	b := New(notes.Structural{}, nil).WithAnnotationCleanup(func(context.Context, uint64) error { return nil })
+	generation := b.AnnotationCapability().Generation
+	a, err := b.AdmitOperatorSketchGeneration(generation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = a.Check(); err != nil {
+		t.Fatalf("console admission with viewers off: %v", err)
+	}
+	if _, err = b.AdmitAnnotationGeneration(generation); !errors.Is(err, ErrDisabled) {
+		t.Fatalf("viewer admitted while off: %v", err)
+	}
+	if err = a.Stroke(StrokeIn{}); !errors.Is(err, ErrDisabled) {
+		t.Fatalf("sketch admission granted ordinary annotation: %v", err)
+	}
+	if err = b.SetAnnotationAllowed(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
+	if err = a.Check(); !errors.Is(err, ErrDisabled) {
+		t.Fatalf("old console generation survived toggle: %v", err)
+	}
+	if _, err = b.AdmitOperatorSketchGeneration(generation); !errors.Is(err, ErrDisabled) {
+		t.Fatalf("stale ingress generation: %v", err)
+	}
+	fresh, err := b.AdmitOperatorSketchGeneration(b.AnnotationCapability().Generation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.Close()
+	if err = fresh.Check(); !errors.Is(err, ErrClosed) {
+		t.Fatalf("closed board admitted console: %v", err)
+	}
+	if _, err = b.AdmitOperatorSketchGeneration(b.AnnotationCapability().Generation); !errors.Is(err, ErrClosed) {
+		t.Fatalf("closed ingress: %v", err)
+	}
+}
+
 func TestAnnotationAdmissionCannotSurviveOffOn(t *testing.T) {
 	r := newRig(t).page(recording.SegLive)
 	a, err := r.bd.AdmitAnnotation()

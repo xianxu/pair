@@ -9,11 +9,13 @@
 
 import { Model } from './model.js';
 import { Renderer } from './render.js';
-import { mountAnnotate, identityStore } from './annotate.js';
+import { mountAnnotate, identityStore, readPalette } from './annotate.js';
 import { mountPlaceholders } from './placeholders.js';
 import { joinSeat, mountDrive } from './drive.js';
 import { replayPath, mountReplay } from './replay.js';
 import { sessionLost } from './collab.js';
+import { mountSketch } from './sketch.js';
+import { createSketchScene } from './sketch-scene.js';
 
 // fit is the page box's scale and place in an area: the operator's
 // viewport, scaled to fit whole, centred.
@@ -59,9 +61,9 @@ export function view(model, state, ended) {
 // state) without touching the apply path.
 export function connect(deps) {
   const hooks = [], capabilityHooks = [];
-  const closed = (previous = {}) => Object.fromEntries(['annotation', 'drive'].map(k => [k, {...previous[k], allowed:false, state:'off'}]));
-  const v = { model: null, renderer: null, capabilities: closed(), onRecord: (fn) => hooks.push(fn),
-    onCapabilities(fn) { capabilityHooks.push(fn); fn(v.capabilities); } };
+  const closed = (previous = {}) => ({...Object.fromEntries(['annotation', 'drive'].map(k => [k, {...previous[k], allowed:false, state:'off'}])),drawing:{...previous.drawing,ready:false}});
+  const v = { model: null, renderer: null, capabilities: closed(), onRecord(fn) { hooks.push(fn); return () => { const i=hooks.indexOf(fn); if(i>=0)hooks.splice(i,1); }; },
+    onCapabilities(fn) { capabilityHooks.push(fn); fn(v.capabilities); return () => { const i=capabilityHooks.indexOf(fn); if(i>=0)capabilityHooks.splice(i,1); }; } };
   const publishCapabilities = (value) => { v.capabilities = value; for (const fn of capabilityHooks) fn(value); };
   const failClosed = () => publishCapabilities(closed(v.capabilities));
   const receiveCapabilities = (value) => {
@@ -74,6 +76,10 @@ export function connect(deps) {
       if (c.generation < (old.generation || 0) || (c.generation === old.generation && c.attempt < old.attempt)) { next[k] = old; continue; }
       next[k] = {...c, allowed:c.supported === true && c.permitted === true && c.allowed === true && c.state === 'on'};
     }
+    const drawing=value?.drawing, oldDrawing=v.capabilities.drawing;
+    next.drawing=drawing && Number.isSafeInteger(drawing.epoch) && drawing.epoch>=0 && typeof drawing.holder==='string' && drawing.holder.length>0
+      ? (drawing.epoch<(oldDrawing.epoch||0) ? oldDrawing : {epoch:drawing.epoch,holder:drawing.holder,ready:drawing.ready===true && next.annotation.allowed})
+      : {...oldDrawing,ready:false};
     publishCapabilities(next);
   };
   let es, state = null, ended = false, queued = false;
@@ -138,6 +144,109 @@ export function connect(deps) {
   return v;
 }
 
+// Availability is an input affordance; each POST is authenticated again.
+export function sketchAuthority(caps, seat, model) {
+  const drawing = caps?.drawing;
+  return {
+    allowed:
+      !!seat &&
+      caps?.annotation?.allowed === true &&
+      drawing?.ready === true &&
+      drawing.holder === seat.viewer,
+    live: model?.live === true,
+    ended: model?.ended === true,
+    epoch: Number.isSafeInteger(drawing?.epoch) ? drawing.epoch : 0,
+  };
+}
+
+export function createViewerSketchTransport(
+  fetchFn,
+  seat,
+  generation,
+  {
+    id = () => globalThis.crypto.randomUUID(),
+    decode = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0)),
+  } = {},
+) {
+  const routes = new Set([
+    'sketch-begin',
+    'sketch-stroke-begin',
+    'sketch-points',
+    'sketch-stroke-end',
+    'sketch-undo',
+    'sketch-redo',
+    'sketch-label',
+    'sketch-status',
+    'sketch-source',
+    'sketch-asset',
+  ]);
+  async function post(kind, body, signal) {
+    if (!routes.has(kind)) throw Error('Unknown sketch route.');
+    const result = await fetchFn(kind, {
+      method: 'POST',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      referrerPolicy: 'no-referrer',
+      signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Couch-Seat': seat?.key || '',
+        'X-Couch-Annotation-Generation': String(generation()),
+        'X-Couch-Drawing-Epoch': String(body.epoch),
+      },
+      body: JSON.stringify(body),
+    });
+    if (!result.ok) {
+      if (result.status >= 400 && result.status < 500)
+        return { outcome: 'refused', code: String(result.status) };
+      throw Error('Sketch request failed.');
+    }
+    return result.json();
+  }
+  async function chunk(kind, descriptor, offset, length, context, asset) {
+    if (context.signal?.aborted) throw Error('Source retired.');
+    const result = await post(
+      kind,
+      {
+        operation: id(),
+        sequence: 0,
+        epoch: context.epoch,
+        sketch: context.sketch,
+        source: descriptor.handle,
+        offset,
+        length,
+        ...(asset ? { asset } : {}),
+      },
+      context.signal,
+    );
+    if (
+      result.source !== descriptor.handle ||
+      result.offset !== offset ||
+      !Number.isSafeInteger(result.total) ||
+      result.total < offset ||
+      result.total > (kind === 'sketch-asset' ? 32 : 16) * 1024 * 1024 ||
+      typeof result.body !== 'string' ||
+      result.body.length > 4 * Math.ceil(32768 / 3)
+    )
+      throw Error('Invalid source chunk.');
+    const bytes = decode(result.body);
+    if (bytes.length !== Math.min(length, result.total - offset)) throw Error('Invalid source chunk length.');
+    return { bytes, total: result.total };
+  }
+  return {
+    send: (kind, body) => post(kind, body),
+    status: (body) => post('sketch-status', body),
+    async readSource(descriptor, offset, length, context) {
+      const result = await chunk('sketch-source', descriptor, offset, length, context);
+      if (result.total !== descriptor.length || result.bytes.length !== length)
+        throw Error('Invalid source chunk total.');
+      return result.bytes;
+    },
+    readAsset: (descriptor, asset, offset, length, context) =>
+      chunk('sketch-asset', descriptor, offset, length, context, asset),
+  };
+}
+
 // mount wires the viewer into the page: the bar, the scaled frame, the
 // pointer, and the viewer contract on window.couchViewer.
 export function mount(doc, win) {
@@ -146,15 +255,17 @@ export function mount(doc, win) {
   // #page is the frame with the current document; the renderer swaps it
   // with a sibling holding the previous paint (#475), so look it up.
   const frame = () => $('page');
-  let placed = { scale: 1, left: 0, top: 0 };
+  let placed = { scale: 1, left: 0, top: 0 }, sketchUI = null, heldScene = null, bypassToolGate = false;
   const scroll = () => { const w = frame().contentWindow; return w ? [w.scrollX, w.scrollY] : [0, 0]; };
 
   const layout = () => {
-    const m = v && v.model, vp = m && m.seg > 0 ? m.vp : null;
+    const m = v && v.model, vp = heldScene?.ready ? heldScene.source.vp : m && m.seg > 0 ? m.vp : null;
     box.hidden = !vp;
     if (!vp) return;
     placed = fit(stage.clientWidth, stage.clientHeight, vp);
     const f = frame();
+    heldScene?.resize();
+    sketchUI?.refresh();
     f.style.width = `${vp.w}px`;
     f.style.height = `${vp.h}px`;
     f.style.transform = `scale(${placed.scale})`;
@@ -239,16 +350,117 @@ export function mount(doc, win) {
     },
     // onRecord(fn): fn(r, model) for every record applied, from the stream
     // once it opens (registered before its first record arrives).
-    onRecord: (fn) => { started.then(() => v.onRecord(fn)); },
-    onCapabilities: (fn) => { started.then(() => v.onCapabilities?.(fn)); },
+    onRecord: (fn) => { let stopped=false,remove; started.then(()=>{if(!stopped)remove=v.onRecord(fn);}); return ()=>{stopped=true;if(typeof remove==='function')remove();}; },
+    onCapabilities: (fn) => { let stopped=false,remove; started.then(()=>{if(!stopped)remove=v.onCapabilities?.(fn);}); return ()=>{stopped=true;if(typeof remove==='function')remove();}; },
   };
-  const surface = { ...win.couchViewer, get model() { return v.model; }, get seat() { return seat; }, get annotate() { return win.couchViewer.annotate; } };
+  const surface = { ...win.couchViewer, get model() { return v.model; }, get seat() { return seat; }, get annotate() { return win.couchViewer.annotate; }, beforeAnnotationMode(mode) {
+    if(!bypassToolGate && sketchUI?.beforeAnnotationMode(mode)===false)return false;
+    if(!bypassToolGate){win.couchViewer.drive?.setSketching(mode!=='watch');doc.body.classList.toggle('sketching',mode!=='watch');}return true;
+  } };
   started.then(() => {
     win.couchViewer.placeholders = mountPlaceholders(doc, win, win.couchViewer);
     // Pointing and notes (#470), when the cast takes them; remote driving
     // (#467), when it offers a seat.
-    mountAnnotate(doc, win, surface).then((a) => { win.couchViewer.annotate = a; });
+    const annotations=mountAnnotate(doc, win, surface).then((a) => { win.couchViewer.annotate = a;return a; });
     win.couchViewer.drive = mountDrive(doc, win, surface, seat);
+    Promise.all([annotations, v.loaded])
+      .then(async () => {
+        // Historical drawing is independent of mutation availability. Replay
+        // has no palette endpoint; it still mounts the accepted-path observer.
+        let answer = null;
+        try {
+          const response = await win.fetch('palette.json', {credentials:'same-origin',cache:'no-store'});
+          if (response.ok) answer = readPalette(await response.json());
+        } catch { /* read-only observer remains available */ }
+        const palette = answer?.palette || [];
+        let caps = v.capabilities || {},
+          serial = 0;
+        const authority = () => {
+          const value = sketchAuthority(caps, seat, v.model);
+          return {...value, allowed:palette.length > 0 && value.allowed};
+        };
+        const identifier = () => {
+          const bytes = new Uint8Array(16);
+          win.crypto.getRandomValues(bytes);
+          return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('') + '-' + ++serial;
+        };
+        const transport = createViewerSketchTransport(
+          (url, init) => win.fetch(url, init),
+          seat,
+          () => caps.annotation?.generation,
+          { id: identifier, decode: (s) => Uint8Array.from(win.atob(s), (c) => c.charCodeAt(0)) },
+        );
+        const selectTool = (mode) => {
+          bypassToolGate = true;
+          try {
+            surface.annotate?.setMode(mode);
+          } finally {
+            bypassToolGate = false;
+          }
+          win.couchViewer.drive?.setSketching(mode !== 'watch');
+          doc.body.classList.toggle('sketching', mode !== 'watch');
+        };
+        heldScene = createSketchScene({
+          container: box,
+          document: doc,
+          readSource: transport.readSource,
+          async prepareAssets(records, context) {
+            const blobs = new Map();
+            try {
+              for (const asset of records) {
+                if (blobs.has(asset.hash)) continue;
+                const chunks = [];
+                let offset = 0,
+                  total = null;
+                do {
+                  const part = await transport.readAsset(context.source, asset.hash, offset, 32768, context);
+                  if (total !== null && total !== part.total) throw Error('Asset changed during transfer.');
+                  total = part.total;
+                  chunks.push(part.bytes);
+                  offset += part.bytes.length;
+                } while (offset < total);
+                if (context.signal.aborted) throw Error('Source retired.');
+                blobs.set(asset.hash, win.URL.createObjectURL(new Blob(chunks, { type: asset.mime })));
+              }
+              return {
+                url: (hash) => blobs.get(hash) || '',
+                dispose() {
+                  for (const url of blobs.values()) win.URL.revokeObjectURL(url);
+                  blobs.clear();
+                },
+              };
+            } catch (error) {
+              for (const url of blobs.values()) win.URL.revokeObjectURL(url);
+              throw error;
+            }
+          },
+        });
+        sketchUI = mountSketch(doc, win, surface, {
+          root: doc.body,
+          box,
+          toolbar: doc.querySelector('.bar'),
+          scene: heldScene,
+          palette,
+          id: identifier,
+          authority,
+          send: transport.send,
+          status: transport.status,
+          onMode: (drawing) => {
+            if (drawing) selectTool('watch');
+            win.couchViewer.drive?.setSketching(drawing);
+            doc.body.classList.toggle('sketching', drawing);
+            layout();
+          },
+          onTool: selectTool,
+        });
+        win.couchViewer.sketch = sketchUI;
+        surface.onCapabilities((next) => {
+          caps = next;
+          sketchUI.setAuthority(authority());
+        });
+        surface.onRecord(() => sketchUI.setAuthority(authority()));
+      })
+      .catch((error) => console.warn('couch sketch unavailable:', error));
   });
   return started.then(() => v);
 }

@@ -267,6 +267,15 @@ func restoreSketchState(p SketchProjection) (SketchState, error) {
 		if err := validateSketchViewHistory(v); err != nil {
 			return SketchState{}, err
 		}
+		h.shown = map[string]bool{}
+		for _, sid := range h.visible {
+			h.shown[sid] = true
+		}
+		if h.phase != "cleared" {
+			for _, stroke := range h.strokes {
+				out.addAnchor(h.begin.Doc, stroke.Begin.At.Node)
+			}
+		}
 		out.sketches[id] = h
 		out.order = append(out.order, id)
 	}
@@ -334,7 +343,7 @@ func validateSketchViewHistory(view SketchView) error {
 			case *SketchStrokeBegin, *SketchUndo, *SketchRedo, *SketchLabel:
 				needsClosed = true
 			case *SketchStrokeEnd:
-				needsClosed = event.ID == history.open
+				needsClosed = event.ID == history.open && !event.Truncated
 			}
 			if needsClosed && history.open != "" && strokes[history.open].Truncated {
 				check.pause()

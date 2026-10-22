@@ -27,10 +27,18 @@
   const suppress = (event) => {
     const next = globalThis.__couchcastSuppressionPolicy(tokens, event, Date.now());
     tokens = next.tokens;
-    if (host) { host.hidden = guarded || next.hidden; host.style.display = host.hidden ? 'none' : ''; }
+    if (host) {
+      const hidden = guarded || next.hidden, display = hidden ? 'none' : '';
+      if (host.hidden !== hidden) host.hidden = hidden;
+      if (host.style.display !== display) host.style.display = display;
+    }
     return next.confirmed;
   };
   globalThis.__couchcastUI = (op, token, until) => {
+    if (op === 'acquire-background') {
+      if (globalThis.__couchcastCaptureBusy?.()) return false;
+      op = 'acquire';
+    }
     const confirmed = suppress({ op, token, until });
     if (op === 'acquire' && until > 0) setTimeout(() => suppress({ op: 'check' }), Math.max(1, until - Date.now()));
     return confirmed;
@@ -38,11 +46,13 @@
 
   const draw = () => {
     if (!button) return;
-    banner.textContent = driver ? `${driver} is driving` : '';
-    banner.hidden = !driver;
-    button.textContent = live ? '❚❚ Pause' : '● Go live';
-    button.setAttribute('aria-pressed', live ? 'true' : 'false');
-    button.className = live ? 'cast-button live' : 'cast-button';
+    const text = driver ? `${driver} is driving` : '', label = live ? '❚❚ Pause' : '● Go live';
+    if (banner.textContent !== text) banner.textContent = text;
+    if (banner.hidden !== !driver) banner.hidden = !driver;
+    if (button.textContent !== label) button.textContent = label;
+    const pressed = live ? 'true' : 'false', cls = live ? 'cast-button live' : 'cast-button';
+    if (button.getAttribute('aria-pressed') !== pressed) button.setAttribute('aria-pressed', pressed);
+    if (button.className !== cls) button.className = cls;
   };
   globalThis.__couchcastSet = (v, who, guard = false, revision = controlRevision + 1) => { if (revision < controlRevision) return; controlRevision = revision; live = !!v; driver = typeof who === 'string' ? who : ''; guarded = !!guard; suppress({ op: 'check' }); draw(); };
 
