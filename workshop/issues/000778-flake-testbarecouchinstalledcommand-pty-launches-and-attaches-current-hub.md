@@ -1,13 +1,13 @@
 ---
 id: 000778
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '9d8f9b1d406856908db6dee43a406e6e15e5833e' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '45eaac840c9306729f1b8384a967567e7e593314' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-21T18:23:34-07:00
 claimant:
     operator: Xian Xu
@@ -18,6 +18,7 @@ claimant:
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/couch.TestBareCouchInstalledCommand]
 flow: {kind: quick, provenance: inferred, spec: "6653e200", done: "855df120"}
+actual_hours: 1.11
 ---
 
 # flake: TestBareCouchInstalledCommand/pty_launches_and_attaches_current_hub
