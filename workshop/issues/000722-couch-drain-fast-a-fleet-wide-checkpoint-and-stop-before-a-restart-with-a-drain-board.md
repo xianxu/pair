@@ -291,6 +291,10 @@ Full close session48819 completed exit0: round7 SHIP, no Critical/Important/Mino
 
 Outcome report3309e524 submitted to hub: exact537-byte #506 vector alignment, corrected-source suite PASS11m13s, all native failures attributed and retained, #773 attachment received by pair:7, no root-cause credit and no full-current-native-pass claim. STAND BY under the existing hub schedule for fresh staging/live go; no owned check/review/native runner remains. No stage, real drain/queue control or merge performed. Claim and PR477 retained; ariadne#506 landing and operator-watched live acceptance still precede landing. This post-close checkpoint is issue-log-only; no executable source changed.
 
+### 2026-10-22 — ariadne#506 landed; waiting for staging go
+
+Authenticated submitted ariadne:5 receipt345e697a reports PR390 landed. Independently verified ariadne tracker card done/archived/landing present and Git merge commit5b1a91057db2940c5dadca951d72277b65fa2bdb (PR390). This clears the rule-rollout dependency; retain deps for provenance. Direct submitted TL1ff56125 confirms the fleet tl-worker has the new DRAIN rule and the watched run can happen when the operator is present; TL will give a separate go to stage. This is readiness/scheduling, not staging or live-control authorization. No stage, drain, queue control, merge, new native run or source change performed. Candidate remains SHIP on corrected-source suite evidence, with the disclosed #773-class native failures and watched real-slot acceptance outstanding.
+
 ## Revisions
 
 ### 2026-10-19 — authenticated acknowledgement and shared queue ownership
