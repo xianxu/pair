@@ -1,0 +1,15 @@
+{
+  "check_head": "d9bc8999768f3d49bad8cb003b6e7bf51672845c",
+  "lease": "lease-4033892438",
+  "attempt": "1855919b848ce48b7b48331aa2818802",
+  "capacity_wait_seconds": 5536,
+  "duration": "10m58s",
+  "suite_exit": 2,
+  "full_log_sha256": "7d0c143675766058d28e70d5cc9cf4f513a11ee2d18d7d8e2053b545c9968d73",
+  "parent_extract_sha256": "a256bcb9140ddef21d6e03f9cbdf5ecb21f6ef6831c545269004c29c9b106897",
+  "failures": [
+    "github.com/xianxu/pair/cmd/couch.TestBareCouchInstalledCommand",
+    "github.com/xianxu/pair/cmd/internal/zellijtest.TestEveryZellijFixtureReplyUsesProductionDecoder"
+  ],
+  "known_issue": "pair#778"
+}

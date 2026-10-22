@@ -1,0 +1,10 @@
+{
+  "recorded_at": "2026-10-21T19:36:44.050353+00:00",
+  "source_sha": "7141a33f0f9017b1fb63627a49f79dc6eea686b2",
+  "observer_base_sha": "eaa758a6f0cd38837655be5334400098849410ec",
+  "observer_patch_sha256": "ec02209bf5e1e0a4f9ecf1ea453568950aea43dfea47c3d3f1c597ac674dc4e8",
+  "scope": "One explicit-private-hub4-total-slot after-capture; retain exact physical/core/shutdown/PTY brackets and cleanup. If changed cancellation path not directly observed report that limit; no inferred exercise from fast result. No8 or oldbinary; no sharedroot changes.",
+  "cache": "/Volumes/TestScratch/pair-776-checks.QKsQe4/go-cache",
+  "gotmp": "/Volumes/TestScratch/pair-776-checks.QKsQe4",
+  "cleanup": "Retain logs/JSON/evidence outside ephemeral clone first, then delete only owned clone/binaries; leave supplied shared task cache alone."
+}

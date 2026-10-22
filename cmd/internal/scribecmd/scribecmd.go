@@ -18,14 +18,10 @@
 //
 // Drop-in replacement at zshrc's `exec script -q -F $LOG /bin/zsh` line:
 //
-//	exec pair scribe -log "$LOG" -- /bin/zsh   (or the bin/pair-scribe shim)
+//	exec pair scribe -log "$LOG" -- /bin/zsh
 //
-// Packaging: the logic lives here behind Run(); it is reached two ways with
-// identical behavior — the standalone bin/pair-scribe shim (cmd/pair-scribe,
-// which keeps ~/.local/bin/pair-scribe + the user's ~/.zshrc wiring working)
-// and the `pair scribe` dispatcher route (#96, on #92's streaming seam). Both
-// pass the real os.Stdin/os.Stdout, so the io.Reader→*os.File assertion below
-// always succeeds in production.
+// Packaging: reached through the single binary's `pair scribe` route. The
+// dispatcher passes the real streams, enabling raw mode and resize propagation.
 package scribecmd
 
 import (
@@ -47,6 +43,10 @@ import (
 // returned int is the process exit code: 2 for a usage error, the wrapped
 // child's exit code on success, 1 on a fatal error.
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	return run(args, stdin, stdout, stderr, startPTY)
+}
+
+func run(args []string, stdin io.Reader, stdout, stderr io.Writer, start func(*exec.Cmd) (*startedPTY, error)) int {
 	fs := flag.NewFlagSet("scribe", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	logPath := fs.String("log", "", "typescript path (required)")
@@ -75,11 +75,23 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	cmd := exec.Command(rest[0], rest[1:]...)
 	cmd.Env = os.Environ()
 
-	ptmx, err := pty.Start(cmd)
+	started, err := start(cmd)
 	if err != nil {
 		return fatalf(stderr, "pty.Start: %v", err)
 	}
-	defer func() { _ = ptmx.Close() }()
+	ptmx := started.master
+	// Until normal draining takes ownership, every post-start return aborts and
+	// joins this exact child. In particular MakeRaw may fail after Start.
+	drained := false
+	defer func() {
+		if !drained {
+			if err := abortPTY(cmd, started); err != nil {
+				fmt.Fprintf(stderr, "scribe: abort cleanup: %v\n", err)
+			}
+		} else {
+			_ = ptmx.Close()
+		}
+	}()
 
 	// The *os.File view of stdin, needed for raw-mode + winsize propagation.
 	// In production stdin IS os.Stdin so this is non-nil and behavior matches
@@ -177,6 +189,10 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		_ = term.Restore(int(stdinFile.Fd()), oldState)
 	}
 
+	if err := started.releaseSlave(); err != nil {
+		fmt.Fprintf(stderr, "scribe: releasing slave: %v\n", err)
+	}
+	drained = true
 	werr := cmd.Wait()
 	if exitErr, ok := werr.(*exec.ExitError); ok {
 		return exitErr.ExitCode()

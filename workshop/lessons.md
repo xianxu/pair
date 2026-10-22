@@ -7,6 +7,14 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- Start a shutdown grace clock after delivering its triggering signal; allocating it earlier silently spends the grace under preemption. Pin signal/clock order and exactly-once cleanup through a deterministic clock factory. (#776)
+
+- Read the current gate evidence-reuse contract before canceling a queued check: a passing ancestor suite can serve a docs-only descendant. Cancel by exact run only when necessary; executable changes require new verification. (#776)
+
+- When profiling changes the approved mechanism, reconcile Done when with the specific regression that proves that mechanism; an old timing or parallelism requirement does not become satisfied by a different cancellation test. Preserve the approval and old clause in Revisions. (#776 BR-1)
+
+- A child TERM marker is not proof that cleanup is still in progress when the test resumes. Prove an inherited lease before cancellation and its release after the owned join; an intermediate busy assertion can reject correctly completed cleanup under race instrumentation. (#776)
+
 - #744 close: a cross-process command belongs to its caller through cancellation and terminal acknowledgment, including time spent queued. Preserve the absolute admission deadline, suppress canceled queued work, join active child effects, and retire correlated files only after completion. When tightening a shared isolation contract, enumerate existing consumers as well as new-helper tests; keep recovery snapshots atomic and surface persistence errors while preserving in-memory teardown authority.
 
 - Before an expensive native harness rerun, sweep the complete adapter: derive physical keys from negotiated terminal modes, parse all captured query replies, propagate caller deadlines, reserve shutdown capacity, and treat permanent observation refusals as terminal. Test cancellation at the descendant boundary and use observed state rather than sleeps for negative assertions. (#744)
@@ -2560,9 +2568,18 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #764 BR-1: A fixture-only change can still add a repository enforcement surface. Every new Pair-local lint rule needs its owner, rejected and accepted patterns, and syntax-analysis limits mapped in atlas/go-lint-catalog.md; include that surface in the close atlas decision.
 
+- #768 PQ-1: A PTY initialization abort must terminate its owned child explicitly; master hangup cannot stop an arbitrary HUP-ignoring command. Close master/slave before the sole wait because the child can already be blocked in kernel exit-drain. Preserve the initialization error and keep normal EOF/live-child ownership distinct.
+
+- #768 cwd oracle: A shell may print the physical spelling of a symlinked working directory. Pin a symlink in the fixture and compare filesystem identity when checking cwd behavior; retain lexical equality only when testing that a supplied command field itself was preserved.
 - #767: Prove inherited descriptor usability by operating on the descriptor, with an exact token or identity and absent/wrong-descriptor controls. On macOS a shell permission probe of /dev/fd/3 returned false while builtin read immediately recovered the correct token. Permission inspection is a separate pathname observation, not inheritance proof; an already-open descriptor also remains usable after chmod000. The Pair golint catalog rejects literal shell permission gates on /dev/fd/N.
 - #766: A PTY consumer cannot recover bytes the kernel discarded at last slave close. Native tee fixtures must own producer lifetime through an output/input acknowledgement and establish the controlling-terminal reference on Darwin; distinguish first-read EOF from a wrapper closing its master early. Audit public generic-command exposure and file that product defect separately from a fixture repair.
 
+- #774: distinguish persisted file checkpoints from observations within a single operation. Remount equivalence belongs only at the persisted boundary; after capturing/rebinding a live identity, revalidation must stay strict. Never reuse a tolerant checkpoint matcher at every call site. Keep the original mismatch cause when an older intent cannot certify recovery.
+
+- #774 BR-1: preserving a strict matcher is insufficient if the caller discards the first observation. Carry its snapshot across phases and exercise the real preview-to-effect transition; a direct matcher unit test cannot prove the caller uses the right baseline.
+
+- #774: a new production helper must appear in both applicable inventories: affected-reader certificates cover readers, while artifactpath's exhaustive source inventory covers every production file, including pure metadata helpers. Classify the concrete source; never grow the known-violation quarantine for a new file.
+- #771: A request barrier orders only that request channel, not another ready select case. Manual timer delivery must rendezvous with the receiver before a completion barrier; an enqueued buffered value is not consumption proof. Reproduce the ordering with a controlled loop and quiescence, preserving the real timer-select path in integration tests.
 - #744 BR-2: a reaped command leader and drained pipes do not prove its process group is quiescent. Check descendants on every completion path; retain explicit uncertainty and correlated evidence when incarnation-safe cleanup cannot be proved.
 
 - #744 BR-2 round3: once asynchronous work is admitted, every return must resolve the same lifetime owner. Result-content checks miss publication, read, timeout and partial-retirement failures; arm a single default-uncertain outcome until joined acknowledgment and retirement prove completion.
@@ -2570,3 +2587,18 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #744 BR-6: test provisioning observations are production consumers of slot layout. Derive host, resting branch and setup markers through SlotLayout/SetupMarkerPath, and run TestEverySlotStateSiteIsAResource with provisioning preflights; an independent hand-written expected topology still duplicates policy.
 
 - #744: Native transcript fixture producers must derive storage roots through sessioninventory.OSRuntime.NativeRoots (and WithCodexHome), just like consumers; run the native-authority shadow guard before the recorded suite. Do not exempt test helper production files from the guard.
+
+- #757: A generic HTTP front must own active uploads, writes and hijacked sockets through cancellation and join; cancelling only the upstream request does not unblock an unfinished downstream upload. Preserve this with a causally ready incomplete-upload regression. Nested Go modules need explicit root-suite and fixed-preflight ownership; root go test ./... alone omits them.
+
+- #757 close review: test proxy Location rewrites by resolving each returned reference against a non-root front URL; comparing Location strings alone misses empty-root, query-only and network-path authority changes. Endpoint self-target checks must use the same pinned address and port as the dialer.
+- #757 close review: a function consuming io.Reader belongs to the integration shell even when its only work is decoding; classify the actual API in Core concepts and keep compiler execution behind a stateful fake plus real-tool conformance.
+- #775: For an exact external diagnostic, compare the complete stderr stream, including newline boundaries. grep -Fxq proves one line exists and accepts unrelated errors around it; cover both positive signatures and extra-line negatives through the actual worker. Standalone tooling also needs a discoverable README/atlas pointer.
+
+- #775 BR-4/5: Bound and canonicalize the entire numeric string before shell arithmetic; leading zeros invoke octal and large integers can wrap. Exercise both CLI arguments through the actual main path, including no-effect refusal and exact work counts. Documentation must name the implemented observation predicate rather than imply a stronger parser or liveness proof.
+
+- #775: A new default Make recipe also creates affected-runner ownership obligations. Keep real native diagnostic experiments explicitly opt-in; verify MakeEntrypoint.test_recipe_ownership when changing the default recipe set.
+
+- #775 BR-6/7: After SHIP, a newly combined runnable entry point requires a full close rather than a fix-only review. Every added runnable command must be named in the top-level README as well as its guide and atlas owner; a prior invocation of the underlying script does not document a later Make command.
+
+- #775: A new executable Zellij double must use the shared reply serializer and producer-specific catalog, including malformed/non-query envelopes as explicit classified faults. Run TestEveryZellijFixtureReplyUsesProductionDecoder and the reader-inventory preflight before queuing the full suite; source registration alone cannot certify independent wire serialization.
+- #771 review: Check the branch patch for whitespace after generated prose is recorded; review transcripts can introduce blank-line spaces. Trim prose-only whitespace before publishing, while preserving byte-exact terminal recordings and upstream evidence.

@@ -1,0 +1,273 @@
+[
+  {
+    "name": "zfm-worker-ansi-target",
+    "source": "tests/zellij-false-miss-test.py:WorkerTest",
+    "kind": "fault",
+    "decoder": "panes",
+    "expect": "reject",
+    "payload": {
+      "stdout": "\u001b[32mTARGET\u001b[0m [Created now]\n",
+      "stderr": "Session 'TARGET' not found. The following sessions are active:\n",
+      "code": 0
+    }
+  },
+  {
+    "name": "zfm-worker-miss-prefix",
+    "source": "tests/zellij-false-miss-test.py:WorkerTest",
+    "kind": "fault",
+    "decoder": "panes",
+    "expect": "reject",
+    "payload": {
+      "stdout": "TARGET [Created now]\n",
+      "stderr": "diagnostic\nSession 'TARGET' not found. The following sessions are active:\n",
+      "code": 0
+    }
+  },
+  {
+    "name": "zfm-worker-absent-prefix",
+    "source": "tests/zellij-false-miss-test.py:WorkerTest",
+    "kind": "fault",
+    "decoder": "name",
+    "expect": "reject",
+    "payload": {
+      "stdout": "",
+      "stderr": "diagnostic\nThere is no active session!\n",
+      "code": 1
+    },
+    "requested_name": "TARGET"
+  },
+  {
+    "name": "zfm-worker-miss-suffix",
+    "source": "tests/zellij-false-miss-test.py:WorkerTest",
+    "kind": "fault",
+    "decoder": "panes",
+    "expect": "reject",
+    "payload": {
+      "stdout": "TARGET [Created now]\n",
+      "stderr": "Session 'TARGET' not found. The following sessions are active:\ndiagnostic\n",
+      "code": 0
+    }
+  },
+  {
+    "name": "zfm-worker-absent-suffix",
+    "source": "tests/zellij-false-miss-test.py:WorkerTest",
+    "kind": "fault",
+    "decoder": "name",
+    "expect": "reject",
+    "payload": {
+      "stdout": "",
+      "stderr": "There is no active session!\ndiagnostic\n",
+      "code": 1
+    },
+    "requested_name": "TARGET"
+  },
+  {
+    "name": "zfm-worker-miss-extra-newline",
+    "source": "tests/zellij-false-miss-test.py:WorkerTest",
+    "kind": "fault",
+    "decoder": "panes",
+    "expect": "reject",
+    "payload": {
+      "stdout": "TARGET [Created now]\n",
+      "stderr": "Session 'TARGET' not found. The following sessions are active:\n\n",
+      "code": 0
+    }
+  },
+  {
+    "name": "zfm-worker-absent-extra-newline",
+    "source": "tests/zellij-false-miss-test.py:WorkerTest",
+    "kind": "fault",
+    "decoder": "name",
+    "expect": "accept",
+    "payload": {
+      "stdout": "",
+      "stderr": "There is no active session!\n\n",
+      "code": 1
+    },
+    "requested_name": "TARGET",
+    "reason": "production name decoder trims trailing whitespace; standalone repro intentionally requires exact complete bytes"
+  },
+  {
+    "name": "zfm-worker-miss-missing-newline",
+    "source": "tests/zellij-false-miss-test.py:WorkerTest",
+    "kind": "fault",
+    "decoder": "panes",
+    "expect": "reject",
+    "payload": {
+      "stdout": "TARGET [Created now]\n",
+      "stderr": "Session 'TARGET' not found. The following sessions are active:",
+      "code": 0
+    }
+  },
+  {
+    "name": "zfm-worker-absent-missing-newline",
+    "source": "tests/zellij-false-miss-test.py:WorkerTest",
+    "kind": "fault",
+    "decoder": "name",
+    "expect": "accept",
+    "payload": {
+      "stdout": "",
+      "stderr": "There is no active session!",
+      "code": 1
+    },
+    "requested_name": "TARGET",
+    "reason": "production name decoder trims trailing whitespace; standalone repro intentionally requires exact complete bytes"
+  },
+  {
+    "name": "zfm-worker-other-target",
+    "source": "tests/zellij-false-miss-test.py:WorkerTest",
+    "kind": "fault",
+    "decoder": "panes",
+    "expect": "reject",
+    "payload": {
+      "stdout": "OTHER [Created now]\n",
+      "stderr": "Session 'TARGET' not found. The following sessions are active:\n",
+      "code": 0
+    }
+  },
+  {
+    "name": "zfm-worker-longer-target",
+    "source": "tests/zellij-false-miss-test.py:WorkerTest",
+    "kind": "fault",
+    "decoder": "panes",
+    "expect": "reject",
+    "payload": {
+      "stdout": "TARGET-extra [Created now]\n",
+      "stderr": "Session 'TARGET' not found. The following sessions are active:\n",
+      "code": 0
+    }
+  },
+  {
+    "name": "zfm-worker-other-diagnostic",
+    "source": "tests/zellij-false-miss-test.py:WorkerTest",
+    "kind": "fault",
+    "decoder": "panes",
+    "expect": "reject",
+    "payload": {
+      "stdout": "TARGET [Created now]\n",
+      "stderr": "Session 'OTHER' not found. The following sessions are active:\n",
+      "code": 0
+    }
+  },
+  {
+    "name": "zfm-worker-no-session",
+    "source": "tests/zellij-false-miss-test.py:WorkerTest",
+    "kind": "no-session",
+    "payload": null,
+    "expect": "accept"
+  },
+  {
+    "name": "zfm-worker-partial-stdout",
+    "source": "tests/zellij-false-miss-test.py:WorkerTest",
+    "kind": "fault",
+    "decoder": "name",
+    "expect": "reject",
+    "payload": {
+      "stdout": "unexpected output\n",
+      "stderr": "There is no active session!\n",
+      "code": 1
+    },
+    "requested_name": "TARGET"
+  },
+  {
+    "name": "zfm-worker-layout",
+    "source": "tests/zellij-false-miss-test.py:WorkerTest",
+    "kind": "fault",
+    "decoder": "panes",
+    "expect": "reject",
+    "payload": {
+      "stdout": "layout { pane; }\n",
+      "stderr": "",
+      "code": 0
+    },
+    "reason": "dump-layout has no production query decoder; retain its explicit envelope rather than treating KDL as a valid pane reply"
+  },
+  {
+    "name": "zfm-worker-layout-failure",
+    "source": "tests/zellij-false-miss-test.py:WorkerTest",
+    "kind": "fault",
+    "decoder": "panes",
+    "expect": "reject",
+    "payload": {
+      "stdout": "",
+      "stderr": "cannot connect\n",
+      "code": 1
+    },
+    "reason": "dump-layout has no production query decoder; retain its explicit envelope rather than treating KDL as a valid pane reply"
+  },
+  {
+    "name": "zfm-worker-layout-malformed",
+    "source": "tests/zellij-false-miss-test.py:WorkerTest",
+    "kind": "fault",
+    "decoder": "panes",
+    "expect": "reject",
+    "payload": {
+      "stdout": "unexpected reply\n",
+      "stderr": "",
+      "code": 0
+    },
+    "reason": "dump-layout has no production query decoder; retain its explicit envelope rather than treating KDL as a valid pane reply"
+  },
+  {
+    "name": "zfm-main-panes",
+    "source": "tests/zellij-false-miss-test.py:MainTest",
+    "kind": "panes",
+    "payload": [],
+    "expect": "accept"
+  },
+  {
+    "name": "zfm-main-clients",
+    "source": "tests/zellij-false-miss-test.py:MainTest",
+    "kind": "clients",
+    "payload": [],
+    "expect": "accept"
+  },
+  {
+    "name": "zfm-main-sessions",
+    "source": "tests/zellij-false-miss-test.py:MainTest",
+    "kind": "sessions-full",
+    "payload": [
+      "TARGET"
+    ],
+    "expect": "accept"
+  },
+  {
+    "name": "zfm-main-version",
+    "source": "tests/zellij-false-miss-test.py:MainTest",
+    "kind": "fault",
+    "decoder": "panes",
+    "expect": "reject",
+    "payload": {
+      "stdout": "zellij 0.45.1\n",
+      "stderr": "",
+      "code": 0
+    },
+    "reason": "version is lifecycle output, not a valid query reply"
+  },
+  {
+    "name": "zfm-main-mutation-success",
+    "source": "tests/zellij-false-miss-test.py:MainTest",
+    "kind": "fault",
+    "decoder": "panes",
+    "expect": "reject",
+    "payload": {
+      "stdout": "",
+      "stderr": "",
+      "code": 0
+    },
+    "reason": "successful attach and kill mutations emit no query reply"
+  },
+  {
+    "name": "zfm-main-refused-call",
+    "source": "tests/zellij-false-miss-test.py:MainTest",
+    "kind": "fault",
+    "decoder": "panes",
+    "expect": "reject",
+    "payload": {
+      "stdout": "",
+      "stderr": "",
+      "code": 99
+    },
+    "reason": "invalid-input sentinel refuses every external request"
+  }
+]

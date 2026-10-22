@@ -5,9 +5,10 @@
 ## Map
 
 - [Project mock server](mock-server.md) — standalone loopback serving of versioned clickable mocks, shared fixtures, authoritative page identity and content-driven live reload (#755).
+- [Mock-to-real development](mock-to-real.md) — any-framework development front, catalogue/report and production convention (#757).
 
 - [Architecture](architecture.md) — what the pieces are and how they fit together.
-- [Zellij reply admission](zellij-reply-safety.md) — strict native observations, bounded confirmation, lifecycle authority and the staged caller safety map (#647).
+- [Zellij reply admission](zellij-reply-safety.md) — strict native observations, bounded confirmation, lifecycle authority, the staged caller safety map (#647), and the standalone lookup-race reproduction (#775).
 - [Session identity and storage](session-identity.md) — Pair's scoped address claims, deterministic native-session forests, durable resume targets, launch-specific probation and optional parsed projections, Couch's independent ThreadStore authority, Couch C/N/M allocation and live ownership proof, the standalone `📁` naming scheme, and legacy flat-data recovery.
 - [Codex resume](codex-resume.md) — native indirect selection and exact-ID transcript-home routing.
 - [Slot continuity target](../workshop/targets/slot-continuity.md) — the operator-approved commitment: Continue, Resume from disk or Start fresh, with one action per outcome and recovery available to the person or hub.

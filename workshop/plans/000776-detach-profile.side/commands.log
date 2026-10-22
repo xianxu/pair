@@ -1,0 +1,20 @@
+['git', 'clone', '--no-hardlinks', '--no-checkout', '/Users/xianxu/workspace/worktree/pair-slot6/pair', '/Volumes/TestScratch/detach-compare.O0eTeh/old']
+Cloning into '/Volumes/TestScratch/detach-compare.O0eTeh/old'...
+done.
+
+['git', '-C', '/Volumes/TestScratch/detach-compare.O0eTeh/old', 'checkout', '--detach', '856876acd65a089426e4d1f62ced00444db347e4']
+HEAD is now at 856876acd #732: issue: new
+
+['git', 'clone', '--no-hardlinks', '--no-checkout', '/Users/xianxu/workspace/worktree/pair-slot6/pair', '/Volumes/TestScratch/detach-compare.O0eTeh/current']
+Cloning into '/Volumes/TestScratch/detach-compare.O0eTeh/current'...
+done.
+
+['git', '-C', '/Volumes/TestScratch/detach-compare.O0eTeh/current', 'checkout', '--detach', 'eaa758a6f0cd38837655be5334400098849410ec']
+HEAD is now at eaa758a6f archive completed issues to history
+
+['/opt/homebrew/Cellar/go/1.27.1/libexec/bin/go', 'test', '-p', '4', './cmd/couch', '-run', '^TestDetachCandidateComparison$', '-count=1', '-timeout=20m', '-v'] cwd=/Volumes/TestScratch/detach-compare.O0eTeh/current
+['/opt/homebrew/Cellar/go/1.27.1/libexec/bin/go', 'test', '-p', '4', './cmd/couch', '-run', '^TestDetachCandidateComparison$', '-count=1', '-timeout=20m', '-v'] cwd=/Volumes/TestScratch/detach-compare.O0eTeh/current
+['/opt/homebrew/Cellar/go/1.27.1/libexec/bin/go', 'test', '-p', '4', './cmd/couch', '-run', '^TestDetachCandidateComparison$', '-count=1', '-timeout=20m', '-v'] cwd=/Volumes/TestScratch/detach-compare.O0eTeh/current
+['/opt/homebrew/Cellar/go/1.27.1/libexec/bin/go', 'test', '-p', '4', './cmd/couch', '-run', '^TestDetachCandidateComparison$', '-count=1', '-timeout=20m', '-v'] cwd=/Volumes/TestScratch/detach-compare.O0eTeh/current
+['/opt/homebrew/Cellar/go/1.27.1/libexec/bin/go', 'test', '-p', '4', './cmd/couch', '-run', '^TestDetachCandidateComparison$', '-count=1', '-timeout=20m', '-v'] cwd=/Volumes/TestScratch/detach-compare.O0eTeh/current
+['/opt/homebrew/Cellar/go/1.27.1/libexec/bin/go', 'test', '-p', '4', './cmd/couch', '-run', '^TestDetachCandidateComparison$', '-count=1', '-timeout=20m', '-v'] cwd=/Volumes/TestScratch/detach-compare.O0eTeh/current PAIR_DETACH_ATTEMPT=1

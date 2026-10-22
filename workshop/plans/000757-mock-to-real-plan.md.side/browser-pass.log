@@ -1,0 +1,7 @@
+Git HEAD: cc545350b41e2a531dee9de2faef8e04cf1c195c
+Command: WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/mockserve -run ^TestDevelopmentFrontBrowser$ -count=1 -timeout=60s -v
+Exit: 0
+=== RUN   TestDevelopmentFrontBrowser
+--- PASS: TestDevelopmentFrontBrowser (2.27s)
+PASS
+ok  	github.com/xianxu/pair/cmd/internal/mockserve	2.479s

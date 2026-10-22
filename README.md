@@ -1248,7 +1248,10 @@ default fact file is `~/.local/share/pair/couch/supervision.jsonl` (under the ac
 Pair data directory if configured). It records completed observations, not every
 message hold: inspect `couch --message-status ID --json` for a retained delivery's
 current waiting reason. Logger health instrumentation alone does not repair a
-historically frozen stream; #736's measured cause fix follows its live observation.
+historically frozen stream. The measured startup failure was a persisted device
+number changing after remount; #774 rebinds a fully checkpointed file only when
+inode, size and nanosecond mtime still match. Unknown tails and interrupted
+transactions remain refused with their cause; no lost facts are replayed.
 
 Wrapper diagnostics batch at64KiB or every five seconds while dirty; raw capture
 and its offset sidecar flush every250ms. Orderly shutdown drains both. A process
@@ -2465,6 +2468,13 @@ log before scratch cleanup. For manual Go runs, add `-artifacts -outputdir
 The [oracle guide](tests/terminal-oracle/README.md) covers replay, headless controls
 and report limitations; a diagnostic pass does not establish a crash fix.
 
+For a standalone Zellij 0.45.1 lookup-race reproduction, run
+`bash scripts/repro/zellij-false-miss.sh 1000 4`. It uses three private sessions
+without Pair or Couch; see the [repro guide](scripts/repro/README.md) for counters
+and liveness limits. `make zellij-false-miss` explicitly runs its Python
+regressions followed by the default native diagnostic (1,000 queries/four
+workers). It is opt-in and is not part of `make test`.
+
 For disposable multi-slot Couch acceptance, run `make test-couch-fleet`. It uses
 the shared native fleet helper with real Zellij, Pair/wrappers and provisioned
 workspaces, plus deterministic Claude/Codex fixtures. It requires installed
@@ -2514,3 +2524,5 @@ Keep `mock-1/`, `mock-2/`, … alongside one shared `fixtures.json`. The highest
 Every screen fetches `/fixtures.json`. Write a state list in the project's `design.md`, including empty, error and long-list cases and links between screens. The fixture shape is the future backend response contract. The sample has three linked screens, two directions and scenario links. Each served HTML root carries `data-mock-version` and `data-mock-screen`; version URLs make the iteration explicit.
 
 Commit each feedback round to the current version and revert that commit to undo it. Make a new mock-N+1 for a new direction worth comparing. The server does not invoke git or make versions. Reload resets transient browser state; invalid input shows a repairable preview error. Selection uses two reserved, git-ignored lock/staging files, excluded from reload and caps; an interrupted writer is recovered by the next selection. Limits are 1,024 project directory entries, 32 MiB total regular-file contents and 1 MiB per HTML file; symlinks/special files are refused. Only version assets and the root fixtures are served, on 127.0.0.1. See [the server map](atlas/mock-server.md).
+
+🤖{To grow a real app screen by screen, start its own development command and run `couch mock serve mocks/ --real http://localhost:3000` in front. One `screens.json` chooses real or mock per screen; mock pages show MOCK and progress. Cross-boundary links load a full document. `couch mock check mocks/` reports unfinished screens without refusing a valid build. Production uses only your app stack: unfinished screens show **Not implemented yet** with a way back and marked links; never ship mock code, fixtures or badges. See the [Go worked sample](examples/mock-to-real/README.md) and [feature map](atlas/mock-to-real.md).}

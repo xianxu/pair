@@ -1,0 +1,69 @@
+version=zellij-0.45.1 sessions=3 queries=1000 workers=4
+
+query=80 target=zfm-30518-2 exit=0 argv=--session zfm-30518-2 action list-panes --json --command 
+stdout:
+[32;1mzfm-30518-2[m [Created [35;1m2s[m ago] 
+[32;1mzfm-30518-1[m [Created [35;1m3s[m ago] 
+[32;1mzfm-30518-0[m [Created [35;1m3s[m ago] 
+
+stderr:
+Session 'zfm-30518-2' not found. The following sessions are active:
+
+query=348 target=zfm-30518-0 exit=0 argv=--session zfm-30518-0 action list-panes --json --command 
+stdout:
+[32;1mzfm-30518-2[m [Created [35;1m8s[m ago] 
+[32;1mzfm-30518-1[m [Created [35;1m9s[m ago] 
+[32;1mzfm-30518-0[m [Created [35;1m9s[m ago] 
+
+stderr:
+Session 'zfm-30518-0' not found. The following sessions are active:
+
+query=744 target=zfm-30518-0 exit=0 argv=--session zfm-30518-0 action list-panes --json --command 
+stdout:
+[32;1mzfm-30518-2[m [Created [35;1m12s[m ago] 
+[32;1mzfm-30518-0[m [Created [35;1m13s[m ago] 
+[32;1mzfm-30518-1[m [Created [35;1m13s[m ago] 
+
+stderr:
+Session 'zfm-30518-0' not found. The following sessions are active:
+
+query=173 target=zfm-30518-1 exit=0 argv=--session zfm-30518-1 action list-panes --json --command --state 
+stdout:
+[32;1mzfm-30518-2[m [Created [35;1m4s[m ago] 
+[32;1mzfm-30518-1[m [Created [35;1m4s[m ago] 
+[32;1mzfm-30518-0[m [Created [35;1m5s[m ago] 
+
+stderr:
+Session 'zfm-30518-1' not found. The following sessions are active:
+
+query=589 target=zfm-30518-0 exit=0 argv=--session zfm-30518-0 action list-panes --json --command --state 
+stdout:
+[32;1mzfm-30518-2[m [Created [35;1m10s[m ago] 
+[32;1mzfm-30518-1[m [Created [35;1m11s[m ago] 
+[32;1mzfm-30518-0[m [Created [35;1m11s[m ago] 
+
+stderr:
+Session 'zfm-30518-0' not found. The following sessions are active:
+
+query=302 target=zfm-30518-0 exit=0 argv=--session zfm-30518-0 action list-clients 
+stdout:
+[32;1mzfm-30518-1[m [Created [35;1m7s[m ago] 
+[32;1mzfm-30518-2[m [Created [35;1m7s[m ago] 
+[32;1mzfm-30518-0[m [Created [35;1m8s[m ago] 
+
+stderr:
+Session 'zfm-30518-0' not found. The following sessions are active:
+
+query=430 target=zfm-30518-2 exit=0 argv=--session zfm-30518-2 action list-clients 
+stdout:
+[32;1mzfm-30518-2[m [Created [35;1m9s[m ago] 
+[32;1mzfm-30518-1[m [Created [35;1m9s[m ago] 
+[32;1mzfm-30518-0[m [Created [35;1m10s[m ago] 
+
+stderr:
+Session 'zfm-30518-2' not found. The following sessions are active:
+exit0_target_listed=7
+exit1_alive_confirmed=0
+exit1_liveness_unconfirmed=0
+other_nonzero=0
+cleanup=pass (private session sockets absent; root removed)

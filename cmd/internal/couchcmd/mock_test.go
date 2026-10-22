@@ -9,7 +9,7 @@ import (
 )
 
 func TestMockCLI(t *testing.T) {
-	for _, args := range [][]string{{"mock", "serve", "mocks"}, {"mock", "use", "--layout3", "mock-2"}, {"mock", "serve", "--layout2", "--port", "0"}, {"mock", "--help"}} {
+	for _, args := range [][]string{{"mock", "serve", "mocks", "--real", "http://localhost:3000"}, {"mock", "check", "mocks"}, {"mock", "serve", "mocks"}, {"mock", "use", "--layout3", "mock-2"}, {"mock", "serve", "--layout2", "--port", "0"}, {"mock", "--help"}} {
 		inv, err := ParseCLI(args, couchcore.Operations())
 		if err != nil || inv.kind != cliMock {
 			t.Fatalf("%v: %+v %v", args, inv, err)

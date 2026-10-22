@@ -1,0 +1,79 @@
+{
+  "issue": "pair#776",
+  "base_sha": "eaa758a6f0cd38837655be5334400098849410ec",
+  "scope": "Additive private-only post-Leave observers; exactly one fresh4-total-slot shared Claude fleet. This is one slow-sample attempt, never a loop or8-slot retry. Root owns any product fix after gates.",
+  "retained": "All previous retirement/coordinator/store/query/census/per-processCPU timers retained. Collector remains active through post-Leave shutdown, bounded4096 total rows; no startup row budget.",
+  "seams": [
+    {
+      "file": "cmd/internal/detachmeasure/trace.go",
+      "events": [
+        "trace.open",
+        "trace.data_write",
+        "trace.first_fsync",
+        "trace.footer_write",
+        "trace.footer_fsync",
+        "trace.close"
+      ],
+      "method": "Keep initial Leave-end flush; drain snapshot without ending active window. Preserve phase timing rows for final process-exit flush. Final flush writes its own bounded stats to separate unsynced metadata sidecar after synced primary log closes; sidecar IO overhead explicitly included in parent process-exit bracket."
+    },
+    {
+      "file": "cmd/internal/couchtty/console.go",
+      "events": [
+        "Console.Run.return",
+        "console.completion.receive",
+        "console.Stop",
+        "teardown.total",
+        "teardown.stop_shares",
+        "teardown.input_close",
+        "teardown.cancel_reattach",
+        "teardown.workers_join",
+        "teardown.abandon_pending",
+        "teardown.presenter_release",
+        "teardown.host_close_restore"
+      ],
+      "method": "Timestamp existing leave completion and split existing sequential teardown calls without changing stop or join order."
+    },
+    {
+      "file": "cmd/internal/couchcmd/run.go",
+      "events": [
+        "runConsole.console_return",
+        "runConsole.messages_close",
+        "runTyped.runtime_close",
+        "runTyped.supervisor_lease_close",
+        "runTyped.capture_close",
+        "couchcmd.Run.return"
+      ],
+      "method": "Wrap existing deferred close calls, retain original ignored return behavior and order; coarse callbacks first, drill only if already cheap."
+    },
+    {
+      "file": "cmd/couch/main.go",
+      "events": [
+        "main.run_return",
+        "main.crashreport_finish",
+        "main.before_exit"
+      ],
+      "method": "Final bounded collector flush just before existing os.Exit; no exit-status change."
+    },
+    {
+      "file": "cmd/internal/testcouch/terminal.go",
+      "events": [
+        "host.cmd_wait.return",
+        "host.pty_reader_join",
+        "host.endpoint_end_close",
+        "host.stream_close",
+        "host.done"
+      ],
+      "method": "Parent driver collector active only from physical gesture start. Record cmd.Wait return absolute time (duration covers child lifetime, not postLeave); preserve existing500ms read grace and all joins. Parent metadata goes to distinct host trace, not candidate trace."
+    },
+    {
+      "file": "cmd/couch/detach_comparison_test.go",
+      "events": [
+        "host.gesture.begin",
+        "host.gesture.end"
+      ],
+      "method": "Save exact physical bracket ns explicitly, activate parent collector at bracket start; trace flush only after clock stops. Verify actual4 ready identities before clock; close shared fleet and assert absence after."
+    }
+  ],
+  "limits": "Aggregate CPU is whole supervisor during Leave, including auxiliaries. Preserve nil ctx, lock order, fanout and shutdown semantics. No transcript output in new observers. One capture may be fast; report non-reproduction honestly.",
+  "recorded_at": "2026-10-21T19:17:22.999025+00:00"
+}

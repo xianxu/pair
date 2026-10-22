@@ -1,0 +1,9 @@
+{"event":"host.gesture.begin","time_ns":1792610840737098000}
+{"event":"host.cmd.Wait.return","time_ns":1792610843021629000}
+{"event":"host.pty.read_join","time_ns":1792610843021635000,"started_ns":1792610843021631000,"duration_ns":4375}
+{"event":"host.endpoint.EndInput","time_ns":1792610843021741000,"started_ns":1792610843021645000,"duration_ns":96125}
+{"event":"host.endpoint.Close","time_ns":1792610843021742000,"started_ns":1792610843021741000,"duration_ns":834}
+{"event":"host.stream.Close","time_ns":1792610843021766000,"started_ns":1792610843021743000,"duration_ns":22375}
+{"event":"host.terminal.done","time_ns":1792610843021766000}
+{"event":"host.gesture.end","time_ns":1792610843039321000}
+{"event":"instrumentation","final":true,"observer_ns":13667,"overflow":false,"rows":8}
