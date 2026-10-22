@@ -222,6 +222,12 @@ Both native Couch consumers now share existing suite-owned testbinary.Cache; Tes
 
 Verification: full internal/repolint passes 13.751s; both native Couch manual/owner-transport acceptance tests pass under race 35.705s; keeper/uncertain/controller/lost-result scheduler race selection passes 3.919s, operational live-owner/crash/replacement/recovery race selection passes 5.532s. A first compile found the now-unused os/exec import in the owner native test; removed it before the passing run. Audited reader certificates refreshed individually, staged inventory and diff checks pass. Commit/push then fresh recorded affected/full check follows. M3 SHIP and TL-accepted disposable automatic proof remain; whole close still waits for the suite, #752 stage release, TL stage authorization and real testscratch day.
 
+### 2026-10-21 — Recorded full suite PASS; restart recovery verified
+
+After authenticated Couch restart notice 8232f3c6-8fa5-4b55-9d85-bc844ac1ac53, verified retained runner session 14936 completed successfully rather than inferring survival from its old queue entry. Full-suite fallback lease-3984903935 on pushed 2c04becbc2bf05124ef36cd10ead9e9a657e1ab1 exited 0 in 10m34s, recorded as sdlc-local/suite on that exact head; log SHA prefix 4d42464a2203. Saved full log: `.git/sdlc/local-checks/2c04becbc2bf05124ef36cd10ead9e9a657e1ab1/suite.log`. Repaired repolint passes in the recorded run (6.588s), alongside scheduler/native/history and the remaining suite packages. No flake-only resume or needs-reconcile path occurred; ariadne#463 live proof remains inapplicable to this passing run. This Log commit is a docs-only descendant of the tested head.
+
+M3 SHIP, accepted disposable automatic Claude/Codex fixture proof and recorded full suite are now present. Still wait for TL's explicit stage authorization after #752 frees pair:0, then operator restart and TL-recorded real ops testscratch day. Whole-issue close/landing remains after the day; no stage, restart or real task mutation was performed by this slot.
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only; calibration currently marked stale/provisional by estimate-source. Already-scaled implementation hours use 40% of v2/v2.1 ranges; design uses the thorough-spec 0.2 multiplier, plus 0.5 library credit only for cron/kernel and bounded durable catalog/store. Familiarity 1.0; thorough-plan design buffer 15%. Passive day-long live observation is not focused ship time.
