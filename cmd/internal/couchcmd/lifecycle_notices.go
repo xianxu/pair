@@ -176,7 +176,7 @@ func (p *lifecyclePublisher) observe(e couchtty.LifecycleObservation) {
 			}
 		}
 		if missing > 0 {
-			p.diagnostics[""] = fmt.Sprintf("Lifecycle: %d slot metadata unverified", missing)
+			p.diagnostics[""] = fmt.Sprintf("Couch lifecycle: %d observations lacked verified slot metadata at restart drain", missing)
 		}
 		clear(p.unresolved)
 		p.advanceLocked(couchcore.LifecycleNoticeEvent{Kind: couchcore.LifecycleNoticeDrain, Reason: fmt.Sprintf("restart reattachments complete; %d failed", e.Failures)})
@@ -229,7 +229,7 @@ func (p *lifecyclePublisher) observeFactLocked(e couchtty.LifecycleObservation) 
 		}
 	}
 	if !p.roots[hub] && len(p.roots) >= 128 {
-		p.diagnostics[""] = "Lifecycle full; inspect Slots."
+		p.diagnostics[""] = "Couch lifecycle: hub projection capacity reached; inspect Slots"
 		return
 	}
 	p.roots[hub] = true
@@ -445,7 +445,7 @@ func (p *lifecyclePublisher) run(ctx context.Context) {
 						a.admitted = true
 						a.retired = true
 						p.attempts[result.token] = a
-						p.diagnostics[a.hub] = "Lifecycle uncertain; checking receipt."
+						p.diagnostics[a.hub] = "Couch lifecycle admission uncertain; polling canonical receipt without retry"
 					} else {
 						a.cancel()
 						delete(p.attempts, result.token)

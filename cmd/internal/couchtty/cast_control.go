@@ -28,7 +28,7 @@ func capabilityNotice(s webcast.Capabilities) string {
 		if reason == "" {
 			reason = s.Drive.Problem
 		}
-		return "Cast broken; Ctrl+click Chrome to end: " + reason
+		return "Cast broken; Ctrl+click Chrome to end cast: " + reason
 	}
 	for _, v := range []struct {
 		k          webcast.CapabilityKind
@@ -37,7 +37,7 @@ func capabilityNotice(s webcast.Capabilities) string {
 	}{{webcast.CapabilityAnnotation, "👆", "clear marks", s.Annotation}, {webcast.CapabilityDrive, "👽", "release control", s.Drive}} {
 		switch s.Project(v.k).Action {
 		case "retry":
-			return "Click " + v.icon + " to retry " + v.what + ": " + v.s.Problem
+			return "Click " + v.icon + " to retry; couldn't " + v.what + ": " + v.s.Problem
 		case "wait":
 			return v.icon + " turning off; wait…"
 		}

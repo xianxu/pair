@@ -82,10 +82,10 @@ func driveSpan(c recording.Control) string {
 func driveNotices(was, now recording.Control) []string {
 	var out []string
 	if d := now.Driver; d != nil && was.Driving() != d.ID {
-		out = append(out, d.Name+" drives; file transfers off.")
+		out = append(out, d.Name+" is driving the cast tab. Uploads and downloads are off until control comes back.")
 	}
 	if was.Driver != nil && now.Driver == nil {
-		out = append(out, "Cast control returned to you.")
+		out = append(out, "Control of the cast tab is back with you.")
 	}
 	for _, p := range now.Pending {
 		asked := false
@@ -93,7 +93,7 @@ func driveNotices(was, now recording.Control) []string {
 			asked = asked || q.ID == p.ID
 		}
 		if !asked {
-			out = append(out, p.Name+" asks to drive; click ✋.")
+			out = append(out, p.Name+" asks to drive the cast tab: click ✋ in the tab bar.")
 		}
 	}
 	return out
@@ -211,7 +211,7 @@ func (c *Console) startDriveOperation(cast *webcast.Cast, op string, who recordi
 	}
 	if c.drivePending != nil {
 		c.mu.Unlock()
-		c.setNotice("Driving: wait for current action.")
+		c.setNotice("Remote driving: wait for the current action.")
 		return
 	}
 	pending := &driveOperation{op: op}
@@ -282,9 +282,9 @@ func driveFailure(err error) string {
 	case errors.Is(err, drive.ErrClosed):
 		return "Remote driving: the cast has ended."
 	case errors.Is(err, drive.ErrNotLive):
-		return "Driving: go live to change control."
+		return "Remote driving: go live first; control changes once the cast is recording."
 	}
-	return "Driving failed; control unchanged: " + err.Error()
+	return "Remote driving failed, control is unchanged: " + err.Error()
 }
 
 // Shares is every link out, by kind, as `couch --broadcast-list` lists them

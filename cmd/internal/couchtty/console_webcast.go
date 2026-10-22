@@ -80,7 +80,7 @@ func (c *Console) toggleWebcast() {
 	switch state.phase {
 	case webcastOff:
 		if cfg == nil {
-			c.setNotice("Chrome casting is not configured.")
+			c.setNotice("Web casting is not configured in this Couch.")
 			return
 		}
 		c.startWebcast(*cfg)
@@ -140,7 +140,7 @@ func (c *Console) webcastStarted(attempt uint64, cast *webcast.Cast, err error, 
 	}
 	c.wcast.phase, c.wcast.cast, c.wcast.update = webcastRunning, cast, cast.Current()
 	c.mu.Unlock()
-	c.setNotice("Chrome open; click Chrome ▶ to go live.")
+	c.setNotice("Chrome is open. Press Shift+Ctrl+Alt+b or click Chrome ▶ to go live; right-click the cell for the view-only link, 👆/👽 enable annotation/driving and copy their links; right-click either to copy while off; ↗ brings Chrome to the front.")
 	c.syncOverlay(overlayWeb, true) // the notes menu draws in it
 	notes, stopNotes := cast.Notes()
 	c.GoTracked(func() {
@@ -283,33 +283,30 @@ func (c *Console) focusWebcast() {
 // (pair#506): which it is, what its viewers may do, and why a cast whose
 // view-only link answered may still have none of this kind.
 type webcastLink struct {
-	name string
-	kind string // the link's label, broadcast.LinkView/LinkPointer/LinkDrive
+	name   string
+	kind   string // the link's label, broadcast.LinkView/LinkPointer/LinkDrive
+	grants string
 	// missing says why the cast has no such link; "" means it isn't ready.
 	missing func(*webcast.Cast) string
 }
 
 var (
-	webcastViewOnlyLink = webcastLink{name: "view-only", kind: broadcast.LinkView}
-	webcastPointerLink  = webcastLink{name: "pointer", kind: broadcast.LinkPointer,
+	webcastViewOnlyLink = webcastLink{name: "view-only", kind: broadcast.LinkView,
+		grants: "its viewers watch; 👆 copies the pointer link, 👽 the drive link."}
+	webcastPointerLink = webcastLink{name: "pointer", kind: broadcast.LinkPointer,
+		grants: "its viewers watch; pointing and notes require 👆 on.",
 		missing: func(*webcast.Cast) string {
-			return "Pointer link needs recording."
+			return "This cast takes no notes (it isn't recorded), so it has no pointer link."
 		}}
 	webcastDriveLink = webcastLink{name: "drive", kind: broadcast.LinkDrive,
+		grants: "its viewers can ask to drive when 👽 is on; you grant.",
 		missing: func(cast *webcast.Cast) string {
 			if cast != nil && cast.DriveOff() != "" {
-				return "Driving off: " + cast.DriveOff() + "."
+				return "This cast can't be driven: " + cast.DriveOff() + "."
 			}
 			return ""
 		}}
 )
-
-func webcastLinkStatus(l webcastLink, copied bool) string {
-	if copied {
-		return "Chrome " + l.name + " copied; hover for code."
-	}
-	return "Chrome " + l.name + " link not ready."
-}
 
 // copyWebcastLinkOf copies one of the cast's links. The notice never
 // contains the link: a screen broadcast would draw it to viewers.
@@ -329,13 +326,13 @@ func (c *Console) copyWebcastLinkOf(l webcastLink) {
 			return
 		}
 		// Every link is locked by its own code (pair#495).
-		c.setNotice(webcastLinkStatus(l, true))
+		c.setNotice("Chrome cast " + l.name + " link copied: " + l.grants + " Its viewers need its code: hover Chrome to see it.")
 	case u.LinkErr != nil:
 		c.setNotice("Chrome cast " + l.name + " link unavailable: " + u.LinkErr.Error())
 	case missing != "":
 		c.setNotice(missing)
 	default:
-		c.setNotice(webcastLinkStatus(l, false))
+		c.setNotice("Chrome cast " + l.name + " link is not ready yet.")
 	}
 }
 
@@ -381,9 +378,9 @@ func (c *Console) endWebcastForShutdown() {
 // link, which a screen broadcast would draw to its viewers.
 func (c *Console) SetReplayShares(s *webcast.ReplayShares) {
 	s.OnReady(func(id string, st webcast.ShareStatus) {
-		msg := fmt.Sprintf("Replay %s shared until exit (%d).", id, len(s.Shared()))
+		msg := fmt.Sprintf("Replay of %s shared through the broadcast tunnel until Couch exits (%d shared).", id, len(s.Shared()))
 		if st.Local {
-			msg = fmt.Sprintf("Replay %s local-only until exit (%d).", id, len(s.Shared()))
+			msg = fmt.Sprintf("Replay of %s shared on this machine only (the tunnel is off) until Couch exits (%d shared).", id, len(s.Shared()))
 		}
 		c.GoTracked(func() { c.setNotice(msg) })
 	})

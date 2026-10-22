@@ -122,7 +122,7 @@ func (c *Console) toggleBroadcast() {
 	switch state.phase {
 	case broadcastOff:
 		if cfg == nil {
-			c.setNotice("Broadcast is not configured.")
+			c.setNotice("Broadcasting is not configured in this Couch.")
 			return
 		}
 		c.startBroadcast(*cfg)
@@ -135,7 +135,7 @@ func (c *Console) toggleBroadcast() {
 	case broadcastLive:
 		c.stopBroadcast()
 	case broadcastStopping:
-		c.setNotice("Previous broadcast still stopping.")
+		c.setNotice("The previous broadcast is still stopping.")
 	}
 }
 
@@ -228,7 +228,7 @@ func (c *Console) broadcastStarted(attempt uint64, s *broadcast.Session, err err
 	}
 	// The notice never contains the link: it would be drawn into the very
 	// frames being broadcast.
-	c.setNotice("Live; link copied. Hover LIVE for code.")
+	c.setNotice("Broadcast live — link copied. Click LIVE or press Ctrl+Alt+b to stop. Viewers need its code: hover LIVE to see it.")
 	s.Activate()
 	c.GoTracked(func() {
 		select {

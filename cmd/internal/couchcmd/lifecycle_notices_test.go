@@ -680,8 +680,8 @@ func TestLifecycleDrainReportsOnlyUntargetedFacts(t *testing.T) {
 	for {
 		select {
 		case message := <-diagnostic:
-			if strings.Contains(message, "slot metadata unverified") {
-				if !strings.Contains(message, "Lifecycle: 1 slot metadata unverified") {
+			if strings.Contains(message, "lacked verified slot metadata") {
+				if !strings.Contains(message, ": 1 observations") {
 					t.Fatalf("drain counted the ordinary fact: %s", message)
 				}
 				return

@@ -95,7 +95,7 @@ func TestGuessRotationAlertAndFlash(t *testing.T) {
 	f.startLive(t)
 	attempt := f.screenAttempt()
 	f.con.onCodeRotated(castScreen, attempt, broadcast.LinkView, castlock.Rotation{Code: "5193", Reason: castlock.ReasonGuessing, Gen: 2})
-	waitFor(t, "the alert", func() bool { return strings.Contains(f.screenText(), "LIVE view code changed (guesses).") })
+	waitFor(t, "the alert", func() bool { return strings.Contains(f.screenText(), "Too many wrong codes on the LIVE view link") })
 	waitFor(t, "the flash", func() bool { return strings.Contains(f.screenText(), "LIVE view 5193") })
 	if strings.Contains(f.lastRow(), "5193") {
 		t.Fatal("the alert names the code")
@@ -111,7 +111,7 @@ func TestGuessRotationAlertAndFlash(t *testing.T) {
 	waitFor(t, "the second immediate alert", func() bool {
 		f.con.mu.Lock()
 		defer f.con.mu.Unlock()
-		return strings.Contains(f.con.feed.Row().Body, "LIVE view code changed (guesses).")
+		return strings.Contains(f.con.feed.Row().Body, "Too many wrong codes on the LIVE view link")
 	})
 	waitFor(t, "the newest flash", func() bool { return strings.Contains(f.screenText(), "LIVE view 2222") })
 	waitFor(t, "the flash over", func() bool { return !strings.Contains(f.screenText(), "LIVE view 2222") })
@@ -142,9 +142,9 @@ func TestEveryGuessRotationNotifiesIncludingCap(t *testing.T) {
 						con.setNotice("waiting for the next rotation")
 						capped := i == 2
 						con.onCodeRotated(kind, attempt, link, castlock.Rotation{Code: code, Reason: castlock.ReasonGuessing, Gen: uint64(i + 2), Capped: capped})
-						want := fmt.Sprintf("%s %s code changed (guesses).", kind.name(), link)
+						want := fmt.Sprintf("Too many wrong codes on the %s %s link: its code changed. Hover %s to see it.", kind.name(), link, kind.name())
 						if capped {
-							want = fmt.Sprintf("%s %s code new; locked. Rotate.", kind.name(), link)
+							want = fmt.Sprintf("Too many wrong codes on the %s %s link: its code changed; the link is locked until you rotate its code.", kind.name(), link)
 						}
 						waitFor(t, fmt.Sprintf("rotation %d notice", i+1), func() bool {
 							con.mu.Lock()
@@ -176,7 +176,7 @@ func TestRapidGuessRotationsLeaveCapNotice(t *testing.T) {
 	f.con.mu.Lock()
 	notice := f.con.feed.Row().Body
 	f.con.mu.Unlock()
-	want := "LIVE view code new; locked. Rotate."
+	want := "Too many wrong codes on the LIVE view link: its code changed; the link is locked until you rotate its code."
 	if notice != want {
 		t.Fatalf("rapid rotations left notice %q, want %q", notice, want)
 	}

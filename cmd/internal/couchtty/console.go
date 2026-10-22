@@ -1594,7 +1594,7 @@ func (c *Console) onPreviousHotkey() {
 		// The thread is durable but has no live pane here -- parked, detached,
 		// or exited. Saying so beats blanking the screen or silently doing
 		// nothing.
-		c.reportPrevious("previous: thread detached")
+		c.reportPrevious("previous: that thread is no longer attached")
 		return
 	}
 	c.switchTo(target, true, arrivalPrevious)
@@ -1948,7 +1948,7 @@ func (c *Console) dispatchInputCandidate(before []byte, hit InterceptorHit, rawH
 			unchanged := !c.focus.IsPanel() && c.active == observedActor && current != nil && current.thread == address && current.child.Endpoint() == observedEndpoint && !observedEndpoint.InputEnded()
 			c.mu.Unlock()
 			if !unchanged {
-				c.setNotice("Restart refused: focus changed")
+				c.setNotice("Cannot determine restart-key focus: focus changed during observation")
 				return
 			}
 			chord, _ := workbenchshortcut.DecodeChord(rawHit)

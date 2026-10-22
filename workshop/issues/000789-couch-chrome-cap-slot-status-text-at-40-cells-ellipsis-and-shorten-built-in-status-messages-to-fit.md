@@ -7,7 +7,7 @@ created: 2026-10-21
 updated: 2026-10-22
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'a5dba37ce0ebc1e4e90f2cd6bbe6d1616c736532' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'e9633489ae516cd4d54424b3b85e98ac07e6d415' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-22T06:59:35-07:00
 claimant:
     operator: Xian Xu
@@ -19,38 +19,29 @@ claimant:
 flow: {kind: quick, provenance: inferred, spec: "5b879924", done: "e2fe8944"}
 ---
 
-# Couch chrome: cap slot status text at 40 cells (ellipsis) and shorten built-in status messages to fit
+# Couch chrome: cap status text at 40 cells and preserve full copying
 
 ## Problem
 
 ## Spec
 
-Operator, accepting pair#779 (10-21 19:1x): "one caution is we should limit the status text to be certain length,
-otherwise, a long text will wrap into 10 lines, destroy the layout? maybe limit status message to be 40 chars,
-maybe another task to clean up messages showing up there to be within that limit".
+The operator's layout requirement is a maximum of 40 display cells for chrome status text, with an ellipsis when clipped. One pure function sanitizes terminal text and applies that cap, shared by Notice and CapabilityNotice in the legacy and composed status renderers. Source feed and diagnostic text remain complete.
 
-pair#779 caps the tab bar at two rows, but a slot's status text in the chrome can still be arbitrarily long and
-crowd out every other tab. Two parts:
-1. **Display cap:** the chrome renders a slot's status text at most 40 display cells (rune-width aware), cut with
-   `…`; the full text stays available where it already is (peek, the switcher or hover). One pure function,
-   unit-tested, used by every place the chrome draws status text.
-2. **Producer clean-up:** enumerate status-text producers (wait notices, lifecycle labels and cast actions),
-   and keep every built-in template, including its finite built-in names/glyphs/variants, within 40 cells.
-   Arbitrary operator names, paths, external errors and shared full diagnostic evidence remain unmodified
-   upstream; the display cap handles their expansion. Test actual finite variants and callback outputs as
-   well as source templates, so fixed values cannot disappear as if they were unbounded diagnostics.
+The existing switcher Ctrl+Y action recovers full text in this order: held copy-retry payload; selected operation diagnostic/error; current capability diagnostic; last retained feed notice. This preserves selected failure/retry behavior while making a clipped capability diagnostic recoverable.
+
+TL receipt58326574-1d4c-4767-b222-cfb4d5adddce splits the original request. Built-in wording cleanup is now the separate low-priority #802, limited to a handful of common messages with focused tests and no total-catalog proof. #789 contains no producer rewrites or exhaustive producer-catalog enforcement.
 
 ## Done when
 
-- A 200-character status renders as 40 cells ending in `…`, with layout unchanged (test); full text still reachable.
-- No built-in template exceeds 40 cells, counting complete finite built-in variants such as cast/link names and capability glyphs/actions (source catalog plus runtime variant/callback tests). Arbitrary names, paths and error details, and the shared automatic-input-stall hub/desktop diagnostic, stay full upstream and receive the same 40-cell display cap.
-- Ctrl+Y copies the full current capability diagnostic ahead of an unrelated last feed notice; selected operation/error and held retry payload retain precedence. Full feed messages remain copyable after display clipping or expiry (tests).
+- A 200-character ASCII status renders as 40 cells ending in `…`; short/exact-boundary, wide-rune, combining and control inputs remain bounded and terminal-safe, through both renderers, with the existing layout unchanged (tests).
+- Full feed text remains available to the existing copy action after clipping/expiry; Ctrl+Y copies the complete current capability diagnostic before an unrelated feed notice, while selected operation/error and held retry payload keep precedence (tests).
+- The final diff contains the display cap, full-copy behavior, their tests and documentation. Producer wording and exhaustive catalog proof are excluded by the authorized split and tracked in #802.
 
 ## Plan
 
-- [x] Add a pure 40-cell sanitized/ellipsized chrome projection, used for both notice fields; retain the source text and use the existing Ctrl+Y copy action for full capability diagnostics too.
-- [x] Inventory notice producers, shorten built-in chrome instructions, and enforce their literal/template contribution with an AST-derived catalog; dynamic names, paths and diagnostic suffixes retain their full source text.
-- [x] Pin ASCII/CJK/combining/control inputs, shared legacy/two-row rendering, full-text copy and source-catalog negative controls; submit the required recorded check. Close and merge remain gated workflow steps, not implementation-checkbox evidence.
+- [x] Implement one pure 40-cell chrome projection and keep full source diagnostics.
+- [x] Preserve full-text copying with selected-error and retry precedence; document both README surfaces.
+- [ ] Re-run focused display/copy tests and submit the corrected recorded check; close and merge remain gated on review and check results.
 
 ## Log
 
@@ -97,3 +88,11 @@ BR-1: actual runtime producer matrices first failed on 41–50-cell capability/l
 BR-2: exact TestLifecycleDrainReportsOnlyUntargetedFacts failed on the stale wording and passed 0.344s after retaining its one-untargeted-observation invariant with the new text. No fixture deadline changed. BR-3: both affected README passages now state selected-error/capability/feed precedence and full-text recovery. BR-4: Done-when expressly covers finite built-in substitutions, dynamic diagnostic exemptions, full capability copying and selected-error/held-payload precedence. Root added selected-error and held-copy priority checks to the capability clipboard regression (PASS0.535s). Artifact/reader inventory and diff checks pass. Round2 must verify all dispositions; no SHIP or suite pass is claimed yet.
 
 Corrected recorded affected→suite submitted on pushed 797d86d9108817b9a8d5374460a96a53f96133be. Retained session63594, lease-1433186204, attempt454779b8b84a38b0d1f4264bc9cdea6b; initial normal FIFO position6. Suite is pending, not passing. Close round2 overlaps this queued check under tl-worker; code remains fixed while review/check run.
+
+### 2026-10-22 — authorized scope split (TL58326574)
+
+TL directs simplification: #789 lands the 40-cell display path plus full copying only. The layout invariant is already protected by the cap; exhaustive producer enforcement is removed from Spec, Done-when, Plan and final source diff. The original wording cleanup and its global proof attempts above are superseded. Low-priority unclaimed #802 now owns shortening a handful of common wait/lifecycle statuses, with focused tests and explicitly no total-catalog proof. This authorized change disposes BR-1 by removing its requirement and implementation rather than claiming the incomplete catalog passed.
+
+Restored producer source/wording tests, affected source-preflight registration and catalog-only certificates to the exact branch base; removed AST/variant catalog tests. Retained only ChromeStatusText, its shared renderer calls, full-copy selection, focused tests, artifact-source classification and their docs. BR-2's obsolete producer assertion change is absent in the final diff; baseline wording and its assertion are restored together. BR-3/BR-4 copy documentation and acceptance clauses remain correct. The second queued check lease-1433186204 was canceled through sdlc before execution; no result claimed. No new broad sweep or durable plan is needed after the split.
+
+Split-scope verification: focused display/status/notice/full-copy/capability selection passed 3.916s after restoring all upstream wording. Affected reader inventory and diff checks pass. The existing broken-capability screen assertion now checks its actionable prefix within the cap; the full original diagnostic is pinned through Ctrl+Y. No producer content is shortened by #789.

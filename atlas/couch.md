@@ -18,9 +18,9 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 `ChromeStatusText` projects both transient and capability notices to at most
 40 display cells, including an ellipsis when clipped, after terminal sanitization.
 The feed and diagnostic records retain full text; the switcher's Ctrl+Y copies
-the selected failure, current capability diagnostic, or last feed notice. The
-source-derived and runtime-variant status catalog tests enforce concise built-in templates; dynamic
-names and diagnostic suffixes remain unrestricted upstream.
+the selected failure, current capability diagnostic, or last feed notice.
+Status producers retain their full wording and diagnostics upstream. Common
+message wording cleanup is tracked separately in #802.
 Groups stay together unless one original group exceeds a full line; a continued
 row starts with the full repository label. A wide bar preserves the existing
 one-row bytes and styles. Chrome/cast/capture controls remain at the start of

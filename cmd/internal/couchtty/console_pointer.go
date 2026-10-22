@@ -114,7 +114,7 @@ func (c *Console) onPointerClick(right bool) {
 			if !c.copyLink(link) {
 				return
 			}
-			c.setNotice("Pointer copied; hover LIVE for code.")
+			c.setNotice("Pointer link copied. Its viewers need its code: hover LIVE to see it.")
 		} else {
 			c.setNotice("Couldn’t create pointer link: " + err.Error())
 		}
@@ -139,13 +139,13 @@ func (c *Console) onPointerClick(right bool) {
 	}
 	// The notice never contains the link: it would be drawn into the frames
 	// being broadcast.
-	c.setNotice("Pointing; copied. Hover LIVE for code.")
+	c.setNotice("Pointing on — link copied. Click 👆 to turn it off. Its viewers need its code: hover LIVE to see it.")
 }
 
 func (c *Console) copyLink(link string) bool {
 	if err := c.presenter.Copy(c.lifetime, []byte(link)); err != nil {
 		c.terminalError(err)
-		c.setNotice("Copy failed; right-click to retry.")
+		c.setNotice("Couldn’t copy link; right-click to retry.")
 		return false
 	}
 	return true
@@ -160,7 +160,7 @@ func (c *Console) copyViewLink() {
 		return
 	}
 	c.copyLink(s.Link())
-	c.setNotice("Link copied; hover LIVE for code.")
+	c.setNotice("Broadcast link copied. Its viewers need its code: hover LIVE to see it.")
 }
 
 // pointerOff ends pointing on the console's side: phase off, marks cleared

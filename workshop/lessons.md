@@ -2617,3 +2617,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #789 BR-1/BR-2: A source-derived string catalog cannot infer every fixed value passed through selectors, formatting or callbacks. Enumerate finite built-in variants and test their actual output; keep source scans as a complementary guard. When shortening a producer family, run the concrete invariant tests too: a name-based selection for LifecycleNotice missed LifecycleDrainReportsOnlyUntargetedFacts.
 - #789 BR-3/BR-4: A display-only change can alter full-text recovery precedence. Sweep every user-facing copy contract, and reconcile Done-when with documented dynamic-input exemptions and new acceptance cases when appending the design revision.
+
+- #789 scope split: keep the hard layout invariant in the shared display projection, with full diagnostic recovery. A request to improve common wording should not turn into exhaustive static dataflow proof across every diagnostic origin; define a bounded wording cleanup separately when the cap already guarantees the operator's requirement.

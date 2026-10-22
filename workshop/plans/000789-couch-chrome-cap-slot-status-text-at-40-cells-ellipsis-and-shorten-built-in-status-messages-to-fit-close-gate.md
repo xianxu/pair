@@ -100,6 +100,99 @@ rounds:
       recipe: small-diff-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 6d5d19e3-351d-43e6-bea9-9853f5a49374
+            repository: github.com/xianxu/pair
+            issue_id: "000789"
+            recipe: milestone-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/513c6232e3ed386c
+            reviewed_head: b3b63b6136cb7c7a686106d74ff100f888e5a511
+            slot: pair:4
+            requested_at: "2026-10-22T14:28:57.510982Z"
+          phase: finished
+          pid: 12857
+          started_at: "2026-10-22T14:28:57.701927Z"
+          finished_at: "2026-10-22T14:31:59.803653Z"
+          session_id: 01a16403-e095-77c0-9a1f-8b8388a729a9
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: b3b63b6136cb7c7a686106d74ff100f888e5a511
+        tracker_head: 46f3b8de749f248b238ce5d3e155c6ca15354b04
+        branch_point: 5df9efb7d0df1a627f8d929895181fcf7b40ef73
+        since: "2026-10-22T06:59:35-07:00"
+        until: "2026-10-22T07:28:22-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-22T06:59:35-07:00"
+              end: "2026-10-22T07:28:22-07:00"
+              began: "2026-10-22T06:59:35-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot4/pair
+        sources:
+            - harness: codex
+              id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 04cd1f0c7267ca0be6a8a6fe0d44dfb63627ba237c0fe3deaf18931c07c2b979
+              started: "2026-10-20T17:08:30.923Z"
+              spawned: false
+              bytes: 48025800
+              windows:
+                - start: "2026-10-22T06:59:35-07:00"
+                  end: "2026-10-22T07:28:22-07:00"
+            - harness: codex
+              id: 01a163ea-73ce-7920-a8e0-09745fc11c15
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              parent_id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              digest: 06480a5c32ae909ec2ff010fc91bd098d3b0c18426b8b5338a27ed10f3f2ce86
+              started: "2026-10-22T14:01:11.985Z"
+              spawned: true
+              bytes: 1535106
+              windows:
+                - start: "2026-10-22T14:01:11.985Z"
+                  end: "2026-10-22T07:28:22-07:00"
+        cuts:
+            - dispatched: "2026-10-22T07:17:23-07:00"
+              finalized: "2026-10-22T07:19:30-07:00"
+              finalizing: false
+      "n": 2
+      timestamp: "2026-10-22T07:32:01-07:00"
+      dispatched: "2026-10-22T07:28:54-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: 'ARCH-PURPOSE: the named sites are corrected and regression tests detect restored overlong wording, but the built-in-status-enforcement family remains incomplete. status_catalog_test.go:220-228 scans only couchtty and couchcmd, missing upstream producers. console_broadcast.go:273 combines broadcast.EndReason with fixed wording, producing 51/77/46-cell messages for three finite outcomes. console_webcast.go:221 forwards webcast/chrome.go:663''s fixed 91-cell recovery message. console_continuation.go:215/:273 forwards checkpoint/miss.go:53-60 templates containing 73/103/103 fixed cells even with slot, reason and path empty. An expanded runtime matrix against the actual broadcast and continuation producers fails on these outputs while the committed catalog passes. This is a repeat in family built-in-status-enforcement: state and enforce the rule across all notice origins, including upstream helpers and fields, rather than fixing only these instances; enumerate finite outputs and shorten their chrome wording while preserving dynamic diagnostics.'
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: lifecycle_notices_test.go:683-685 now checks the new wording while retaining the exactly-one count invariant. The focused lifecycle/supervision/renicer selection passes; restoring the old count assertion through a temporary Go overlay makes the exact regression fail.
+          round: 2
+        - id: BR-3
+          disposition: addressed
+          note: The pinned README diff updates both passages at :456 and :1732 to describe capability precedence and full-text recovery. These match console_menu.go:468-487; the clipboard regression also verifies selected-error and held-payload precedence.
+          round: 2
+        - id: BR-4
+          disposition: addressed
+          note: The pinned issue diff reconciles Done-when with finite built-in substitutions, dynamic diagnostic exemptions, capability-copy precedence and full-text recovery. These criteria agree with the revised Spec and the intended renderer/copy behavior.
+          round: 2
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#789 (boundary-review)
@@ -120,9 +213,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-4** [Important] `acceptance-contract-consistency` Done-when criteria were not reconciled with the revised contract
   workshop/issues/000789-couch-chrome-cap-slot-status-text-at-40-cells-ellipsis-and-shorten-built-in-status-messages-to-fit.md:44 requires every built-in status message to fit, whereas :49/:60 explicitly permit dynamic labels and errors to exceed the limit and enforce only fixed template contributions. The revised scope also adds capability-copy behavior without an explicit acceptance clause. Reconcile the second Done-when clause with the intended exemption and add capability-copy precedence and full-text recovery criteria. These are the acceptance gaps introduced by the scope revision.
 
+## Round 2 — 2026-10-22T07:32:01-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — not-addressed — ARCH-PURPOSE: the named sites are corrected and regression tests detect restored overlong wording, but the built-in-status-enforcement family remains incomplete. status_catalog_test.go:220-228 scans only couchtty and couchcmd, missing upstream producers. console_broadcast.go:273 combines broadcast.EndReason with fixed wording, producing 51/77/46-cell messages for three finite outcomes. console_webcast.go:221 forwards webcast/chrome.go:663's fixed 91-cell recovery message. console_continuation.go:215/:273 forwards checkpoint/miss.go:53-60 templates containing 73/103/103 fixed cells even with slot, reason and path empty. An expanded runtime matrix against the actual broadcast and continuation producers fails on these outputs while the committed catalog passes. This is a repeat in family built-in-status-enforcement: state and enforce the rule across all notice origins, including upstream helpers and fields, rather than fixing only these instances; enumerate finite outputs and shorten their chrome wording while preserving dynamic diagnostics.
+- BR-2 — addressed — lifecycle_notices_test.go:683-685 now checks the new wording while retaining the exactly-one count invariant. The focused lifecycle/supervision/renicer selection passes; restoring the old count assertion through a temporary Go overlay makes the exact regression fail.
+- BR-3 — addressed — The pinned README diff updates both passages at :456 and :1732 to describe capability precedence and full-text recovery. These match console_menu.go:468-487; the clipboard regression also verifies selected-error and held-payload precedence.
+- BR-4 — addressed — The pinned issue diff reconciles Done-when with finite built-in substitutions, dynamic diagnostic exemptions, capability-copy precedence and full-text recovery. These criteria agree with the revised Spec and the intended renderer/copy behavior.
+
 ## Open findings
 
 - **BR-1** [Critical] `built-in-status-enforcement` Catalog passes while built-in status messages still exceed 40 cells
-- **BR-2** [Important] `producer-assertion-consistency` Lifecycle wording change leaves its regression test failing
-- **BR-3** [Important] `user-surface-documentation` README omits the changed Ctrl+Y selection behavior
-- **BR-4** [Important] `acceptance-contract-consistency` Done-when criteria were not reconciled with the revised contract

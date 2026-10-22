@@ -367,7 +367,7 @@ func (c *Console) runCodesSelection() {
 		cast, running := c.wcast.cast, c.wcast.phase == webcastRunning
 		c.mu.Unlock()
 		if kind != castWeb || !running || cast == nil {
-			c.setNotice("Chrome is not casting; no annotation.")
+			c.setNotice("Chrome: annotation is unavailable; the cast is not running")
 		} else if err := cast.SetAnnotationMode(action.annotation); err != nil {
 			c.setNotice("Chrome: couldn't change annotation: " + err.Error())
 		}
@@ -394,7 +394,7 @@ func (c *Console) runCodesSelection() {
 	if len(links) > 1 {
 		what = "codes"
 	}
-	c.setNotice(castRotationNotice(kind, what))
+	c.setNotice(fmt.Sprintf("New %s %s; its viewers were disconnected. Hover %s to see it.", kind.name(), what, kind.name()))
 }
 
 // copyCastLink copies one of a cast's links, as its control's click does.
@@ -481,7 +481,11 @@ func (c *Console) onCodeRotated(kind castKind, attempt uint64, link string, r ca
 	c.codes.flash = &codeFlash{cast: kind, link: link, code: r.Code, at: at, start: now}
 	notice := ""
 	if r.Reason == castlock.ReasonGuessing {
-		notice = castGuessNotice(kind, link, r.Capped)
+		if r.Capped {
+			notice = fmt.Sprintf("Too many wrong codes on the %s %s link: its code changed; the link is locked until you rotate its code.", kind.name(), link)
+		} else {
+			notice = fmt.Sprintf("Too many wrong codes on the %s %s link: its code changed. Hover %s to see it.", kind.name(), link, kind.name())
+		}
 	}
 	c.codes.mu.Unlock()
 	// Publish before releasing the generation guard: an older callback must
@@ -609,15 +613,4 @@ func (c *Console) installCodesLayer() error {
 	return c.presenter.SetOperatorLayer(context.Background(), func(f terminal.Frame, class terminal.FrameClass) terminal.Frame {
 		return c.attentionLayer(c.codesLayer(f, class))
 	})
-}
-
-func castRotationNotice(kind castKind, what string) string {
-	return fmt.Sprintf("New %s %s; viewers off.", kind.name(), what)
-}
-
-func castGuessNotice(kind castKind, link string, capped bool) string {
-	if capped {
-		return fmt.Sprintf("%s %s code new; locked. Rotate.", kind.name(), link)
-	}
-	return fmt.Sprintf("%s %s code changed (guesses).", kind.name(), link)
 }

@@ -180,7 +180,7 @@ func (s *archiveScheduler) warnOnce(ctx context.Context, now time.Time, key arch
 		logErr = errors.Join(logErr, file.Close())
 	}
 	if logErr != nil {
-		s.notify("Backup warning not saved: " + logErr.Error())
+		s.notify("history backup warning could not be retained: " + logErr.Error())
 	}
 }
 

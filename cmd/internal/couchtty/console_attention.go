@@ -197,7 +197,7 @@ func (c *Console) jumpToAttention(item couchcore.AttentionItem) {
 	target := c.switchTargetForAddressLocked(item.Thread)
 	c.mu.Unlock()
 	if target == "" {
-		c.setNotice(item.Label + " detached; open Ctrl+Space.")
+		c.setNotice(item.Label + " is not attached; open it from the switcher (Ctrl+Space).")
 		c.repaint()
 		return
 	}

@@ -177,7 +177,7 @@ func (r *renicer) pass() {
 	for _, b := range low {
 		if !noticed[b] {
 			noticed[b] = true
-			say = append(say, fmt.Sprintf("%s nice %d; relaunch to restore priority.", b.Slot, facts[b].AgentNice))
+			say = append(say, fmt.Sprintf("%s's agent runs at nice %d (lowered at launch); relaunch the slot to restore its priority.", b.Slot, facts[b].AgentNice))
 		}
 	}
 	r.facts, r.refused, r.noticed = facts, refused, noticed
