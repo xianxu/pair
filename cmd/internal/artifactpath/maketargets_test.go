@@ -166,6 +166,28 @@ func goTestNames(t *testing.T, repoRoot string) []string {
 // of the eight main packages the day it landed -- the same recall failure one
 // level down. Derived here instead.
 func TestEveryMainPackageIsIgnoredAtTheRepoRoot(t *testing.T) {
+	// An existing source directory blocks the default go-build output. A stale
+	// executable file does not: it still needs an ignore rule against git add.
+	for _, kind := range []string{"missing", "file", "directory"} {
+		t.Run(kind, func(t *testing.T) {
+			root := t.TempDir()
+			path := filepath.Join(root, "candidate")
+			if kind == "file" {
+				if err := os.WriteFile(path, nil, 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if kind == "directory" {
+				if err := os.Mkdir(path, 0700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			blocked, err := rootBinaryBlockedByDirectory(root, "candidate")
+			if err != nil || blocked != (kind == "directory") {
+				t.Fatalf("directory collision for %s: %v %v", kind, blocked, err)
+			}
+		})
+	}
 	repoRoot := filepath.Clean(filepath.Join("..", "..", ".."))
 	ignored, err := os.ReadFile(filepath.Join(repoRoot, ".gitignore"))
 	if err != nil {
@@ -179,12 +201,32 @@ func TestEveryMainPackageIsIgnoredAtTheRepoRoot(t *testing.T) {
 	for _, directory := range mainPackageDirs(t, repoRoot) {
 		// `go build` names the binary after the package's DIRECTORY.
 		binary := "/" + filepath.Base(directory)
+		blocked, err := rootBinaryBlockedByDirectory(repoRoot, filepath.Base(directory))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if blocked {
+			continue
+		}
 		if !rules[binary] {
 			t.Errorf("main package %s builds to %q at the repo root, which .gitignore does not cover.\n"+
 				"A stray `go build` there is one `git add -A` from committing a multi-megabyte binary.",
 				directory, strings.TrimPrefix(binary, "/"))
 		}
 	}
+}
+
+// go build without -o refuses an output name that is already a directory.
+// This is not an ignore waiver for an existing file or a future output name.
+func rootBinaryBlockedByDirectory(root, name string) (bool, error) {
+	info, err := os.Stat(filepath.Join(root, name))
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return info.IsDir(), nil
 }
 
 // mainPackageDirs asks the Go toolchain which packages are `main`. The first

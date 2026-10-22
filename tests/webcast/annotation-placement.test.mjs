@@ -90,3 +90,13 @@ test('Renderer never treats a reused ID on a later document as the original anch
 test('unsupported clip paths, masks and legacy clipping hide positive-size anchors conservatively',()=>{
  const f=fixture();for(const [key,value] of [['clipPath','inset(100%)'],['maskImage','linear-gradient(transparent,transparent)'],['webkitMaskImage','url(mask.svg)'],['clip','rect(0px,0px,0px,0px)']]){f.main.style[key]=value;assert.equal(f.place(f.note),null,key);delete f.main.style[key];}
 });
+
+test('sketch source identity proves an original node without note membership',async()=>{
+ const {Renderer}=await import('../../cmd/internal/webcast/web/render.js');const f=fixture();
+ f.note.at.node=7;f.note.at.text='Save';f.anchor.childNodes[0].nodeValue='Save';delete f.note.region;
+ f.note.source={doc:1,tab:'t',t:3};
+ const renderer=Object.create(Renderer.prototype);Object.assign(renderer,{frame:{contentDocument:f.doc},model:{url:f.note.at.route,docSeg:1,tab:{id:'t'},t:4,notes:[]},dom:new Map([[7,f.anchor]]),ids:new WeakMap([[f.anchor,7]]),shadows:new Map()});
+ assert.deepEqual(renderer.placementOf(f.note),[10,20,100,50]);
+ renderer.model.docSeg=2;assert.equal(renderer.placementOf(f.note),null);
+ renderer.model.docSeg=1;renderer.model.tab.id='other';assert.equal(renderer.placementOf(f.note),null);
+});

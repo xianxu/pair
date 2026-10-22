@@ -1,0 +1,10 @@
+{
+  "source_attempt": "19d704370692e1c8cbf859c2424630d7",
+  "source_log_at_capture": "/Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/19d704370692e1c8cbf859c2424630d7/run.log",
+  "peer_receipt": "6df2ba31-ceea-4f24-9444-c2ace4504afa",
+  "head": "b8f4518f98dbff8417976f32ccd4087e9c2f4812",
+  "fixture_blob": "b1c96fde0bcd3954f5d513d99fd13e9230c699dd",
+  "our_fixture_blob": "b1c96fde0bcd3954f5d513d99fd13e9230c699dd",
+  "extract_sha256": "14a6b19a6082893785c61309e5b240496119a5aa9bba6b0d4f318eefdcc1a4a6",
+  "note": "Parent-failure extract only; peer suite automatic registered-flake rerun was still pending at capture. No final peer result claimed."
+}

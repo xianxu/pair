@@ -35,10 +35,7 @@ func TestSessionStaleLiveConformance(t *testing.T) {
 			t.Fatalf("executable %q: %v", bin, err)
 		}
 	}
-	root, err := filepath.EvalSymlinks(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	root := testpair.ShortRoot(t)
 	store, pair, identity := filepath.Join(root, "store"), filepath.Join(root, "pair"), filepath.Join(root, "identity")
 	binDir, repo := filepath.Join(root, "bin"), filepath.Join(root, "fleet", "fixture")
 	for _, dir := range []string{binDir, filepath.Join(repo, "workshop", "issues")} {

@@ -11,6 +11,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
+	"github.com/xianxu/pair/cmd/internal/testpair"
 
 	"github.com/xianxu/pair/internal/reporoot"
 )
@@ -152,10 +153,7 @@ func TestIsolatedSmokeListChild(t *testing.T) {
 // not redirect production singleton ownership or durable identity selection.
 func isolatedCouchTestEnvironment(t *testing.T) string {
 	t.Helper()
-	root, err := filepath.EvalSymlinks(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	root := testpair.ShortRoot(t)
 	for _, entry := range os.Environ() {
 		key, _, _ := strings.Cut(entry, "=")
 		if strings.HasPrefix(key, "PAIR_") || strings.HasPrefix(key, "COUCH_") || strings.HasPrefix(key, "XDG_") {

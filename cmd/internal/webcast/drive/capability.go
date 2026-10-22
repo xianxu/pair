@@ -189,6 +189,9 @@ func (f *MemController) driveTransition(ctx context.Context, kind capability.Eve
 		f.mu.Unlock()
 		return nil
 	}
+	if next.Phase == capability.Disabling {
+		f.beginDrawingTransitionLocked()
+	}
 	f.authority = capability.Snapshot{CapabilityState: next}
 	f.publishCapabilityLocked()
 	if next.Phase != capability.Disabling {
@@ -266,6 +269,9 @@ func (f *MemController) cleanup(ctx context.Context, state capability.Capability
 		event.Outcome = capability.FailureOutcome(err)
 	}
 	f.authority.CapabilityState, _ = capability.NextCapability(f.authority.CapabilityState, event)
+	if err == nil {
+		f.renewDrawingLocked()
+	}
 	if f.authority.Phase != capability.Ended {
 		f.authority.Problem = ""
 		if err != nil {
@@ -277,6 +283,7 @@ func (f *MemController) cleanup(ctx context.Context, state capability.Capability
 	close(done)
 }
 func (f *MemController) freezeLocked(err error, by string) {
+	f.freezeDrawingLocked()
 	if f.authority.Phase != capability.On {
 		return
 	}

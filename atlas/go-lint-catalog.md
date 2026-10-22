@@ -233,3 +233,33 @@ environment dataflow. The actual wrapper-child poisoned-identity regression
 checks the resulting environment. An initial fixture reached inherited retention
 and diagnostic metadata before its live-PID refusal; no live files were manually
 cleaned. The #759 Log retains the audit and approved normal-pruning disposition.
+
+## Manual-clock delivery proof (#771)
+
+The Pair-local `manual-clock-rendezvous` rule is registered in
+`internal/repolint/local_catalog_test.go`, with its matcher in
+`manual_clock_match_test.go` and scanner cases in `manual_clock_rule_test.go`.
+It rejects buffered `chan time.Time` creation in `newManualClock` and the
+`manualClock.after` method. An unbuffered send proves the hub selected the timer;
+a subsequent request barrier proves its handler finished. A buffered send plus
+an unrelated request barrier provides no ordering between the two select cases.
+
+This is a direct syntax guard for the named fixture seam: it accepts omitted
+capacity or literal zero and rejects other capacity expressions. It does not
+resolve aliases, helpers or computed channel types. Real timers elsewhere are
+outside its scope. Findings and suppression use the shared catalog behavior;
+other consumers' shared catalog is unchanged.
+
+## Fixture CLI group completion (#744)
+
+The Pair-local `fixture-cli-group-completion` rule is owned by
+`internal/repolint/fixture_cli_group_rule_test.go` and registered in pairCatalog.
+It rejects Wait calls in agentfixture.runCLI when the owner no longer invokes
+cliGroupError. A completed command leader does not prove descendant quiescence.
+The accepted owner observes every successfully started completion and retains
+explicit uncertainty when the group is live or unknown.
+
+This narrow syntax guard detects deletion of the observation, including ordinary
+error paths and misleading comments. It does not prove ordering, control flow,
+exec.Cmd aliases or indirect calls; the real completion-path regressions cover
+success, signal, cancellation and leader-first descendants with open/closed pipes.

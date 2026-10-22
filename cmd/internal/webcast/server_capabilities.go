@@ -1,6 +1,9 @@
 package webcast
 
-import "github.com/xianxu/pair/cmd/internal/webcast/capability"
+import (
+	"github.com/xianxu/pair/cmd/internal/webcast/capability"
+	"github.com/xianxu/pair/cmd/internal/webcast/drive"
+)
 
 // wireCapability publishes availability without exposing internal errors or
 // granting authority. The server still rechecks every mutation's admission.
@@ -14,8 +17,9 @@ type wireCapability struct {
 }
 
 type wireCapabilities struct {
-	Annotation wireCapability `json:"annotation"`
-	Drive      wireCapability `json:"drive"`
+	Annotation wireCapability         `json:"annotation"`
+	Drive      wireCapability         `json:"drive"`
+	Drawing    drive.DrawingAuthority `json:"drawing"`
 }
 
 func capabilityWire(snapshot capability.Snapshot, supported, permitted bool) wireCapability {
@@ -34,9 +38,14 @@ func (s *Server) viewerCapabilities(link castLink) wireCapabilities {
 	}
 	out := wireCapabilities{Annotation: capabilityWire(a, s.board != nil, link.annotates()),
 		Drive: capabilityWire(d, s.drive != nil, link.drives())}
+	if s.drive != nil {
+		out.Drawing = s.drive.ctrl.DrawingAuthority()
+		out.Drawing.Ready = out.Drawing.Ready && out.Annotation.Allowed && link.drives()
+	}
 	if (Capabilities{Annotation: a, Drive: d}).Broken() {
 		out.Annotation.Allowed, out.Drive.Allowed = false, false
 		out.Annotation.State, out.Drive.State = "broken", "broken"
+		out.Drawing.Ready = false
 	}
 	return out
 }

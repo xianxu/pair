@@ -251,3 +251,91 @@ func TestSketchSignedZeroModelAccountingAndOwnedProjection(t *testing.T) {
 		t.Fatal("authoritative zero is not normalized")
 	}
 }
+
+func TestSketchReceiptQueriesOwnedAndConstantWork(t *testing.T) {
+	s := sketchFixture(t)
+	applySketch(t, s, sketchBegin())
+	applySketch(t, s, sketchStroke(1, "p"))
+	applySketch(t, s, &SketchPoints{SketchOperation: sketchOp(2), Sketch: "sk", ID: "p", Pts: []SketchPoint{{1, 2, .5}}})
+	before := s.Sketches.work
+	for i := 0; i < 100; i++ {
+		receipt, ok := s.Sketches.Receipt("sk", "op-2")
+		if !ok || receipt.Sequence != 2 {
+			t.Fatal(receipt)
+		}
+		meta, ok := s.Sketches.Metadata("sk")
+		if !ok || meta.OpenStroke != "p" {
+			t.Fatal(meta)
+		}
+		tops, ok := s.Sketches.StackTops("sk")
+		if !ok || tops.VisibleCount != 0 {
+			t.Fatal(tops)
+		}
+		stroke, ok := s.Sketches.StrokeMetadata("sk", "p")
+		if !ok || stroke.PointCount != 1 {
+			t.Fatal(stroke)
+		}
+		stroke.At.Box[0] = 999
+		stroke.At.Path = append(stroke.At.Path, "owned")
+	}
+	if s.Sketches.work != before {
+		t.Fatal("read queries visited history")
+	}
+	meta, _ := s.Sketches.StrokeMetadata("sk", "p")
+	if meta.At.Box[0] != 0 {
+		t.Fatal("query aliases anchor")
+	}
+	change, ok := s.Sketches.Change(&SketchPoints{Sketch: "sk", ID: "p", Pts: []SketchPoint{{1, 2, .5}}}, SketchBeforeChange{})
+	if !ok || len(change.Points) != 1 {
+		t.Fatal(change)
+	}
+	change.Points[0][0] = 999
+	if s.Sketches.Snapshot().Sketches[0].Strokes[0].Pts[0][0] != 1 {
+		t.Fatal("change aliases paths")
+	}
+}
+
+func TestSketchReceiptQueriesContextChangeAndRestoredVisibility(t *testing.T) {
+	s := sketchFixture(t)
+	applySketch(t, s, sketchBegin())
+	applySketch(t, s, sketchStroke(1, "p"))
+	applySketch(t, s, &SketchPoints{SketchOperation: sketchOp(2), Sketch: "sk", ID: "p", Pts: []SketchPoint{{1, 2, .5}}})
+	before := s.Sketches.BeforeChange()
+	if _, ok := s.Sketches.Change(&Title{V: "unchanged"}, before); ok {
+		t.Fatal("unrelated DOM event produced sketch change")
+	}
+	pause := &Stop{Why: StopPause}
+	applySketch(t, s, pause)
+	change, ok := s.Sketches.Change(pause, before)
+	if !ok || change.Stroke == nil || !change.Stroke.Truncated || !change.Stroke.Visible {
+		t.Fatal("contextual partial missing")
+	}
+	caught := sketchFixture(t)
+	caught.allowSketchSnapshot = true
+	if err := caught.Apply(s.SketchSnapshot()); err != nil {
+		t.Fatal(err)
+	}
+	stroke, ok := caught.Sketches.StrokeMetadata("sk", "p")
+	if !ok || !stroke.Visible {
+		t.Fatal("snapshot lost O1 visible lookup")
+	}
+}
+
+func TestSketchReceiptQueriesLateLabelDoesNotTouchNewActiveStroke(t *testing.T) {
+	s := sketchFixture(t)
+	applySketch(t, s, sketchBegin())
+	applySketch(t, s, &SketchInterrupt{SketchOperation: sketchOp(1), Sketch: "sk", Reason: SketchInterruptExpiry})
+	b := sketchBegin()
+	b.ID = "next"
+	applySketch(t, s, b)
+	stroke := sketchStroke(1, "new-path")
+	stroke.Sketch = "next"
+	applySketch(t, s, stroke)
+	before := s.Sketches.BeforeChange()
+	label := &SketchLabel{SketchOperation: sketchOp(2), Sketch: "sk", Label: "Old intent"}
+	applySketch(t, s, label)
+	change, ok := s.Sketches.Change(label, before)
+	if !ok || change.Sketch.ID != "sk" || change.Stroke != nil {
+		t.Fatalf("late label patch collided with new drawer: %+v %v", change, ok)
+	}
+}

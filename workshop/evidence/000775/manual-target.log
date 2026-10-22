@@ -1,0 +1,31 @@
+python3 -B tests/zellij-false-miss-test.py
+...............
+----------------------------------------------------------------------
+Ran 15 tests in 3.244s
+
+OK
+bash scripts/repro/zellij-false-miss.sh
+version=zellij-0.45.1 sessions=3 queries=1000 workers=4
+
+query=988 target=zfm-47946-1 exit=0 argv=--session zfm-47946-1 action list-panes --json --command 
+stdout:
+[32;1mzfm-47946-2[m [Created [35;1m5s[m ago] 
+[32;1mzfm-47946-0[m [Created [35;1m6s[m ago] 
+[32;1mzfm-47946-1[m [Created [35;1m6s[m ago] 
+
+stderr:
+Session 'zfm-47946-1' not found. The following sessions are active:
+
+query=950 target=zfm-47946-0 exit=0 argv=--session zfm-47946-0 action list-clients 
+stdout:
+[32;1mzfm-47946-1[m [Created [35;1m5s[m ago] 
+[32;1mzfm-47946-2[m [Created [35;1m5s[m ago] 
+[32;1mzfm-47946-0[m [Created [35;1m5s[m ago] 
+
+stderr:
+Session 'zfm-47946-0' not found. The following sessions are active:
+exit0_target_listed=2
+exit1_alive_confirmed=0
+exit1_liveness_unconfirmed=0
+other_nonzero=0
+cleanup=pass (private session sockets absent; root removed)

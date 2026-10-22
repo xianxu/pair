@@ -1,0 +1,485 @@
+{
+  "physical_gesture_ms": 2352.149,
+  "leave_ms": [
+    291.812
+  ],
+  "cpu": [
+    {
+      "event": "whole_leave.process_cpu",
+      "time_ns": 1792610472062869000,
+      "user_cpu_ns": 147067000,
+      "system_cpu_ns": 270639000
+    }
+  ],
+  "configured_parallelism": [
+    {
+      "event": "configured.parallelism",
+      "time_ns": 1792610471771050000,
+      "parallelism": 6
+    }
+  ],
+  "per_slot": [
+    {
+      "slot": "fixture:0",
+      "retirement_ms": 78.398,
+      "retire.get_thread_ms": 3.528,
+      "retire.observe_owner_ms": 60.754,
+      "retire.publish_ms": 14.077,
+      "claim_ms": 0.003,
+      "read+owner_ms": 46.316,
+      "process-exit_ms": 10.227,
+      "publication_admission_ms": 0.416,
+      "store.update.read_mutate_encode_ms": 0.414,
+      "store.update.journal_ms": 9.844,
+      "retirement_owner_census_ms": 5.337,
+      "retirement_owner_queries_ms": 54.951,
+      "retirement_owner_query_count": 2,
+      "publication_coordinator_leases": [
+        {
+          "coordinator.check_retention": 0.007,
+          "coordinator.sync_root": 0.023,
+          "coordinator.check_owners": 0.004,
+          "coordinator.sync_retention": 0.027,
+          "coordinator.open_lock": 0.034,
+          "coordinator.flock_wait": 0.002,
+          "coordinator.held": 10.579,
+          "coordinator.total": 10.68,
+          "lease": 224
+        }
+      ]
+    },
+    {
+      "slot": "fixture:1",
+      "retirement_ms": 97.884,
+      "retire.get_thread_ms": 34.441,
+      "retire.observe_owner_ms": 49.617,
+      "retire.publish_ms": 13.811,
+      "claim_ms": 0.018,
+      "read+owner_ms": 66.299,
+      "process-exit_ms": 10.15,
+      "publication_admission_ms": 0.235,
+      "store.update.read_mutate_encode_ms": 0.172,
+      "store.update.journal_ms": 5.038,
+      "retirement_owner_census_ms": 6.109,
+      "retirement_owner_queries_ms": 41.372,
+      "retirement_owner_query_count": 2,
+      "publication_coordinator_leases": [
+        {
+          "coordinator.check_retention": 0.003,
+          "coordinator.sync_root": 0.015,
+          "coordinator.check_owners": 0.004,
+          "coordinator.sync_retention": 0.016,
+          "coordinator.open_lock": 0.025,
+          "coordinator.flock_wait": 0.001,
+          "coordinator.held": 5.471,
+          "coordinator.total": 5.539,
+          "lease": 237
+        }
+      ]
+    },
+    {
+      "slot": "fixture:2",
+      "retirement_ms": 92.54,
+      "retire.get_thread_ms": 18.973,
+      "retire.observe_owner_ms": 62.763,
+      "retire.publish_ms": 10.773,
+      "claim_ms": 0.005,
+      "read+owner_ms": 71.89,
+      "process-exit_ms": 10.229,
+      "publication_admission_ms": 0.481,
+      "store.update.read_mutate_encode_ms": 0.299,
+      "store.update.journal_ms": 6.824,
+      "retirement_owner_census_ms": 6.069,
+      "retirement_owner_queries_ms": 55.875,
+      "retirement_owner_query_count": 2,
+      "publication_coordinator_leases": [
+        {
+          "coordinator.check_retention": 0.007,
+          "coordinator.sync_root": 0.222,
+          "coordinator.check_owners": 0.007,
+          "coordinator.sync_retention": 0.022,
+          "coordinator.open_lock": 0.03,
+          "coordinator.flock_wait": 0.001,
+          "coordinator.held": 7.319,
+          "coordinator.total": 7.614,
+          "lease": 230
+        }
+      ]
+    },
+    {
+      "slot": "fixture:3",
+      "retirement_ms": 110.828,
+      "retire.get_thread_ms": 25.932,
+      "retire.observe_owner_ms": 56.622,
+      "retire.publish_ms": 28.259,
+      "claim_ms": 0.005,
+      "read+owner_ms": 75.649,
+      "process-exit_ms": 10.236,
+      "publication_admission_ms": 0.207,
+      "store.update.read_mutate_encode_ms": 0.177,
+      "store.update.journal_ms": 4.69,
+      "retirement_owner_census_ms": 6.731,
+      "retirement_owner_queries_ms": 49.257,
+      "retirement_owner_query_count": 2,
+      "publication_coordinator_leases": [
+        {
+          "coordinator.check_retention": 0.003,
+          "coordinator.sync_root": 0.017,
+          "coordinator.check_owners": 0.002,
+          "coordinator.sync_retention": 0.014,
+          "coordinator.open_lock": 0.022,
+          "coordinator.flock_wait": 0.001,
+          "coordinator.held": 5.034,
+          "coordinator.total": 5.097,
+          "lease": 242
+        }
+      ]
+    }
+  ],
+  "all_window_events": {
+    "console.lifecycle.queue": {
+      "count": 1,
+      "sum_ms": 0.011,
+      "max_ms": 0.011
+    },
+    "leave.lane_wait": {
+      "count": 4,
+      "sum_ms": 0.003,
+      "max_ms": 0.002
+    },
+    "thread.hold_wait": {
+      "count": 4,
+      "sum_ms": 0.009,
+      "max_ms": 0.003
+    },
+    "coordinator.check_retention": {
+      "count": 84,
+      "sum_ms": 0.461,
+      "max_ms": 0.03
+    },
+    "coordinator.sync_root": {
+      "count": 84,
+      "sum_ms": 59.636,
+      "max_ms": 14.68
+    },
+    "coordinator.check_owners": {
+      "count": 84,
+      "sum_ms": 0.686,
+      "max_ms": 0.056
+    },
+    "coordinator.sync_retention": {
+      "count": 84,
+      "sum_ms": 5.198,
+      "max_ms": 1.121
+    },
+    "coordinator.open_lock": {
+      "count": 84,
+      "sum_ms": 3.214,
+      "max_ms": 0.358
+    },
+    "coordinator.flock_wait": {
+      "count": 84,
+      "sum_ms": 99.726,
+      "max_ms": 20.633
+    },
+    "store.register_store": {
+      "count": 84,
+      "sum_ms": 12.93,
+      "max_ms": 2.178
+    },
+    "store.validate_backend": {
+      "count": 84,
+      "sum_ms": 1.935,
+      "max_ms": 0.102
+    },
+    "store.lock_wait": {
+      "count": 84,
+      "sum_ms": 3.488,
+      "max_ms": 0.333
+    },
+    "store.recover_journal": {
+      "count": 84,
+      "sum_ms": 2.313,
+      "max_ms": 0.115
+    },
+    "store.held": {
+      "count": 84,
+      "sum_ms": 45.135,
+      "max_ms": 10.268
+    },
+    "coordinator.held": {
+      "count": 84,
+      "sum_ms": 64.919,
+      "max_ms": 10.579
+    },
+    "coordinator.total": {
+      "count": 84,
+      "sum_ms": 234.547,
+      "max_ms": 29.018
+    },
+    "store.with_lock.total": {
+      "count": 84,
+      "sum_ms": 234.659,
+      "max_ms": 29.019
+    },
+    "zellij.query": {
+      "count": 24,
+      "sum_ms": 685.405,
+      "max_ms": 58.042
+    },
+    "owner.process_census": {
+      "count": 12,
+      "sum_ms": 82.715,
+      "max_ms": 9.088
+    },
+    "claim": {
+      "count": 4,
+      "sum_ms": 0.031,
+      "max_ms": 0.018
+    },
+    "read+owner": {
+      "count": 4,
+      "sum_ms": 260.153,
+      "max_ms": 75.649
+    },
+    "signal": {
+      "count": 4,
+      "sum_ms": 0.235,
+      "max_ms": 0.194
+    },
+    "console.child.Close": {
+      "count": 4,
+      "sum_ms": 0.164,
+      "max_ms": 0.069
+    },
+    "process-exit": {
+      "count": 4,
+      "sum_ms": 40.843,
+      "max_ms": 10.236
+    },
+    "retire.get_thread": {
+      "count": 4,
+      "sum_ms": 82.874,
+      "max_ms": 34.441
+    },
+    "retire.observe_owner": {
+      "count": 4,
+      "sum_ms": 229.757,
+      "max_ms": 62.763
+    },
+    "store.update.admission": {
+      "count": 4,
+      "sum_ms": 1.34,
+      "max_ms": 0.481
+    },
+    "store.update.read_mutate_encode": {
+      "count": 4,
+      "sum_ms": 1.062,
+      "max_ms": 0.414
+    },
+    "publication.file_sync": {
+      "count": 8,
+      "sum_ms": 9.097,
+      "max_ms": 2.485
+    },
+    "publication.rename": {
+      "count": 8,
+      "sum_ms": 1.315,
+      "max_ms": 0.299
+    },
+    "publication.sync_directories": {
+      "count": 8,
+      "sum_ms": 8.885,
+      "max_ms": 2.574
+    },
+    "journal.publish": {
+      "count": 4,
+      "sum_ms": 10.572,
+      "max_ms": 4.141
+    },
+    "journal.apply_target": {
+      "count": 4,
+      "sum_ms": 12.024,
+      "max_ms": 4.575
+    },
+    "journal.remove": {
+      "count": 4,
+      "sum_ms": 0.31,
+      "max_ms": 0.09
+    },
+    "journal.sync_directory": {
+      "count": 4,
+      "sum_ms": 3.184,
+      "max_ms": 0.965
+    },
+    "store.update.journal": {
+      "count": 4,
+      "sum_ms": 26.396,
+      "max_ms": 9.844
+    },
+    "retire.publish": {
+      "count": 4,
+      "sum_ms": 66.92,
+      "max_ms": 28.259
+    },
+    "retirement": {
+      "count": 4,
+      "sum_ms": 379.649,
+      "max_ms": 110.828
+    },
+    "detach.end": {
+      "count": 4,
+      "sum_ms": 681.004,
+      "max_ms": 196.733
+    },
+    "leaveOne.end": {
+      "count": 4,
+      "sum_ms": 1066.295,
+      "max_ms": 290.153
+    },
+    "leave.end": {
+      "count": 1,
+      "sum_ms": 291.812,
+      "max_ms": 291.812
+    },
+    "flush.leave.started_ns": {
+      "count": 1,
+      "sum_ms": 1792610472062.869,
+      "max_ms": 1792610472062.869
+    },
+    "flush.leave.open_ns": {
+      "count": 1,
+      "sum_ms": 0.085,
+      "max_ms": 0.085
+    },
+    "flush.leave.data_write_ns": {
+      "count": 1,
+      "sum_ms": 4.994,
+      "max_ms": 4.994
+    },
+    "flush.leave.data_sync_ns": {
+      "count": 1,
+      "sum_ms": 1.448,
+      "max_ms": 1.448
+    },
+    "flush.leave.footer_write_ns": {
+      "count": 1,
+      "sum_ms": 0.135,
+      "max_ms": 0.135
+    },
+    "flush.leave.close_ns": {
+      "count": 1,
+      "sum_ms": 0.011,
+      "max_ms": 0.011
+    },
+    "flush.leave.finished_ns": {
+      "count": 1,
+      "sum_ms": 1792610472070.154,
+      "max_ms": 1792610472070.154
+    },
+    "flush.leave.footer_sync_ns": {
+      "count": 1,
+      "sum_ms": 0.58,
+      "max_ms": 0.58
+    },
+    "flush.leave.total_ns": {
+      "count": 1,
+      "sum_ms": 7.291,
+      "max_ms": 7.291
+    },
+    "console.teardown.Stop": {
+      "count": 1,
+      "sum_ms": 0.0,
+      "max_ms": 0.0
+    },
+    "console.teardown.shares": {
+      "count": 1,
+      "sum_ms": 0.018,
+      "max_ms": 0.018
+    },
+    "console.teardown.input_close": {
+      "count": 1,
+      "sum_ms": 0.001,
+      "max_ms": 0.001
+    },
+    "console.teardown.cancel_reattach": {
+      "count": 1,
+      "sum_ms": 0.0,
+      "max_ms": 0.0
+    },
+    "console.teardown.workers_join": {
+      "count": 1,
+      "sum_ms": 1.097,
+      "max_ms": 1.097
+    },
+    "console.teardown.abandon_pending": {
+      "count": 1,
+      "sum_ms": 0.004,
+      "max_ms": 0.004
+    },
+    "console.presenter.Release": {
+      "count": 1,
+      "sum_ms": 0.087,
+      "max_ms": 0.087
+    },
+    "console.teardown.release": {
+      "count": 1,
+      "sum_ms": 0.097,
+      "max_ms": 0.097
+    },
+    "console.teardown.traces_host_restore": {
+      "count": 1,
+      "sum_ms": 0.11,
+      "max_ms": 0.11
+    },
+    "console.teardown.total": {
+      "count": 1,
+      "sum_ms": 1.331,
+      "max_ms": 1.331
+    },
+    "runConsole.messages.Close": {
+      "count": 1,
+      "sum_ms": 2001.235,
+      "max_ms": 2001.235
+    },
+    "outer.capture.Close": {
+      "count": 1,
+      "sum_ms": 0.0,
+      "max_ms": 0.0
+    },
+    "outer.lease.Close": {
+      "count": 1,
+      "sum_ms": 0.0,
+      "max_ms": 0.0
+    },
+    "outer.runtime.Close": {
+      "count": 1,
+      "sum_ms": 0.149,
+      "max_ms": 0.149
+    },
+    "main.crashreport.Finish": {
+      "count": 1,
+      "sum_ms": 0.05,
+      "max_ms": 0.05
+    }
+  },
+  "instrumentation": [
+    {
+      "event": "instrumentation",
+      "final": false,
+      "observer_ns": 498509,
+      "overflow": false,
+      "rows": 1333
+    },
+    {
+      "event": "instrumentation",
+      "final": true,
+      "observer_ns": 512964,
+      "overflow": false,
+      "rows": 29
+    }
+  ],
+  "rows": 1364,
+  "cleanup_confirmed": true,
+  "interpretation_limits": "Aggregate events overlap and include background supervisor work; per-publication coordinator lease matched only when its held interval uniquely contains the known thread update callback-admission timestamp. Writable GetThread outer time includes routing, unassigned inner coordinator spans are not guessed."
+}

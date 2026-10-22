@@ -3,6 +3,7 @@ package recorder
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"image"
 	"image/draw"
@@ -329,7 +330,10 @@ func (r *Recorder) shotWorker() {
 		// A screenshot shows the page as of its capture: its time is the
 		// call's midpoint, as #453's harness stamped the fixtures' frames.
 		t0 := r.opts.Now()
-		err := CaptureScreenshot(r.ctx, r.opts.Call, j.top, j.contextID, map[string]any{"format": "png"}, &res)
+		err := CaptureBackgroundScreenshot(r.ctx, r.opts.Call, j.top, j.contextID, map[string]any{"format": "png"}, &res)
+		if errors.Is(err, ErrBackgroundCaptureDeferred) {
+			continue
+		}
 		d.at = t0.Add(r.opts.Now().Sub(t0) / 2)
 		if err != nil {
 			d.failed = err

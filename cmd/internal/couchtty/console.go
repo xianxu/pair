@@ -522,7 +522,7 @@ func (c *Console) installObservedThreadActor(ctx context.Context, handleID strin
 		return errors.New("attach requires complete handle, actor, and terminal identities")
 	}
 	if child.Endpoint().InputEnded() {
-		return errors.New("attach terminal input has ended")
+		return captureAttachFailure("attach-preflight", child, errors.New("attach terminal input has ended"))
 	}
 	select {
 	case <-ctx.Done():
@@ -619,7 +619,7 @@ func (c *Console) installObservedThreadActor(ctx context.Context, handleID strin
 		}
 		if child.Endpoint().InputEnded() {
 			c.mu.Unlock()
-			return errors.New("attach terminal input has ended")
+			return captureAttachFailure("attach-precommit", child, errors.New("attach terminal input has ended"))
 		}
 		pending, reserved := c.pendingInstalls[handleID]
 		if !reserved || pending.child != child || pending.thread != thread {

@@ -14,10 +14,11 @@ import (
 )
 
 type Snapshot struct {
-	Version string
-	Digest  string
-	Entries int
-	Bytes   int64
+	Version   string
+	Digest    string
+	Entries   int
+	Bytes     int64
+	Catalogue *Catalogue
 }
 type scanEntry struct {
 	name      string
@@ -29,12 +30,21 @@ type scanEntry struct {
 // Scan visits each directory once and reads every regular file once. It retains
 // only bounded entry metadata; content hashes detect changes independent of mtimes.
 func (p *Project) Scan(ctx context.Context) (Snapshot, error) {
+	return p.scanProject(ctx, false)
+}
+
+func (p *Project) scanHybrid(ctx context.Context) (Snapshot, error) {
+	return p.scanProject(ctx, true)
+}
+
+func (p *Project) scanProject(ctx context.Context, hybrid bool) (Snapshot, error) {
 	var result Snapshot
 	entries := make([]scanEntry, 0)
 	versions := make([]string, 0)
 	selection := ""
 	hasSelection := false
 	hasFixtures := false
+	var catalogueBytes []byte
 	var walk func(*os.Root, string) error
 	walk = func(root *os.Root, dir string) error {
 		if e := ctx.Err(); e != nil {
@@ -113,6 +123,9 @@ func (p *Project) Scan(ctx context.Context) (Snapshot, error) {
 				if name == ".mock-current" && limit > selectionLimit {
 					limit = selectionLimit
 				}
+				if hybrid && name == "screens.json" && limit > MaxCatalogueBytes {
+					limit = MaxCatalogueBytes
+				}
 				if st.Size() > limit {
 					return fmt.Errorf("%s exceeds remaining scan limit of %d bytes", name, limit)
 				}
@@ -124,6 +137,9 @@ func (p *Project) Scan(ctx context.Context) (Snapshot, error) {
 				result.Bytes += entry.size
 				entry.digest = sha256.Sum256(data)
 				entries = append(entries, entry)
+				if hybrid && name == "screens.json" {
+					catalogueBytes = data
+				}
 				if name == "fixtures.json" {
 					if !json.Valid(data) {
 						return fmt.Errorf("fixtures.json is not valid JSON")
@@ -158,6 +174,24 @@ func (p *Project) Scan(ctx context.Context) (Snapshot, error) {
 		return Snapshot{}, e
 	}
 	result.Version = version
+	if hybrid {
+		catalogue, err := ParseCatalogue(catalogueBytes)
+		if err != nil {
+			return Snapshot{}, fmt.Errorf("screens.json: %w", err)
+		}
+		available := make(map[string]bool, len(entries))
+		for _, entry := range entries {
+			if !entry.directory {
+				available[entry.name] = true
+			}
+		}
+		for _, screen := range catalogue.Missing() {
+			if !available[version+"/"+screen.Mock] {
+				return Snapshot{}, fmt.Errorf("declared mock screen %s unavailable: %s/%s", screen.ID, version, screen.Mock)
+			}
+		}
+		result.Catalogue = catalogue
+	}
 	hasIndex := false
 	for _, entry := range entries {
 		if entry.name == version+"/index.html" && !entry.directory {

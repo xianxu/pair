@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"github.com/xianxu/pair/cmd/internal/webcast/capability"
-	"sync"
 
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
@@ -16,7 +15,9 @@ import (
 // document a navigation has since replaced is dropped. The recorder's queue
 // does the same (recorder.Emit's Doc); tests and fakes use this.
 type Writer struct {
-	mu           sync.Mutex
+	mu           writerMutex
+	closed       bool
+	failure      error
 	clearID      uint64
 	clearFailure error
 	st           *recording.State
@@ -76,7 +77,12 @@ func (w *Writer) Emit(r recording.Record, doc int) error {
 }
 
 // Close closes the sink.
-func (w *Writer) Close() error { return w.sink.Close() }
+func (w *Writer) Close() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.closed = true
+	return w.sink.Close()
+}
 
 func (w *Writer) writeLocked(r recording.Record) error {
 	duplicate, err := w.st.Sketches.Reconcile(r)
@@ -90,6 +96,9 @@ func (w *Writer) writeLocked(r recording.Record) error {
 }
 
 func (w *Writer) writeReconciledAt(r recording.Record, requestedTime int64) error {
+	if w.closed {
+		return ErrClosed
+	}
 	if r.Kind() == "sketch-snapshot" {
 		return errors.New("board: catch-up snapshot cannot be persisted")
 	}
@@ -112,6 +121,9 @@ func (w *Writer) writeReconciledAt(r recording.Record, requestedTime int64) erro
 	w.budget.Commit(delta)
 	w.lastKind = r.Kind()
 	if err := w.sink.Put(r); err != nil {
+		if w.failure == nil {
+			w.failure = err
+		}
 		// A reducer receipt proves acceptance, not successful persistence.
 		// The sink may have written none or all of the record; exact retries
 		// keep that uncertainty and never append a second physical record.

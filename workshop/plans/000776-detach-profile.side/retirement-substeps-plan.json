@@ -1,0 +1,88 @@
+{
+  "issue": "pair#776",
+  "base_sha": "eaa758a6f0cd38837655be5334400098849410ec",
+  "main_observed": "a9522724d4d84586afe222d201029d0713a89fc8",
+  "reconciliation": "Only #776 issue creation differs from pinned eaa; git diff cmd/internal/go.mod/go.sum empty. Keep pinned binary baseline. Root issue-plan0a4915ca4 is workflow-only and not a measurement candidate.",
+  "run": "Exactly one fresh shared-harness current four-total-slot Claude fixture; no eight-slot retry (#773), no old adaptation.",
+  "seams": [
+    {
+      "path": "cmd/internal/couchcore/detach.go:retireDetachedIncarnation",
+      "events": [
+        "retire.get_thread",
+        "retire.observe_owner",
+        "retire.publish",
+        "retire.attempt"
+      ],
+      "attribution": "thread address plus loop attempt; outer three intervals partition retirement; count revision-conflict loops."
+    },
+    {
+      "path": "cmd/internal/couchcore/threadstore.go:updateExistingThreadOnBackend",
+      "events": [
+        "store.update.admission",
+        "store.update.read_mutate_encode",
+        "store.update.journal"
+      ],
+      "attribution": "known thread address; before withUpdateLockContext and callback entry isolate all lock/recovery admission from actual update body. Preserve nil context semantics."
+    },
+    {
+      "path": "cmd/internal/couchcore/threadstore.go:withLock/withStoreLockChecked",
+      "events": [
+        "store.register_store",
+        "store.validate_backend",
+        "store.lock_wait",
+        "store.recover_journal",
+        "store.held"
+      ],
+      "attribution": "private store identity and coordinator lease correlation; no lock-order or lifetime change."
+    },
+    {
+      "path": "cmd/internal/storagegc/coordinator.go:Coordinator.withLock",
+      "events": [
+        "coordinator.check_retention",
+        "coordinator.sync_root",
+        "coordinator.check_owners",
+        "coordinator.sync_retention",
+        "coordinator.open_lock",
+        "coordinator.flock_wait",
+        "coordinator.held"
+      ],
+      "attribution": "separate pre-lock directory checks and both fsyncs from flock wait; per-call lease ID and private root ID. Held callback excludes unlock tail; record total for residual."
+    },
+    {
+      "path": "cmd/internal/couchcore/storejournal.go / threadstore.go:commitJournalLockedChecked",
+      "events": [
+        "journal.publish",
+        "journal.apply_target",
+        "journal.remove",
+        "journal.sync_directory"
+      ],
+      "attribution": "private store identity; correlate by active coordinator lease and per-thread publication interval; report ambiguity rather than guessing."
+    },
+    {
+      "path": "cmd/internal/launcher/session_owner_os.go:osSessionOwnerIO.SessionServers",
+      "events": [
+        "owner.process_census"
+      ],
+      "attribution": "thread context metadata and exact session ID only; SnapshotNamed plus server-process classification, no process argv/transcript output."
+    },
+    {
+      "path": "cmd/internal/couchcore/detach_measurement.go:Leave begin/end",
+      "events": [
+        "whole_leave.process_cpu"
+      ],
+      "attribution": "getrusage(RUSAGE_SELF) user/system deltas around entire Leave only, includes other supervisor goroutines; no per-thread CPU claims. Existing query and stage observers retained."
+    }
+  ],
+  "collector": "Temporary stdlib-only cmd/internal/detachmeasure collector to avoid storagegc/couchcore import cycle; bounded synchronized metadata, no IO in callbacks, no goroutine-ID tricks, no authority/branch/cancel/lock-policy change. Record timestamp/elapsed/thread-or-store/lease fields only. Flush outside timed core Leave and report flush overhead.",
+  "output": [
+    "new trace/result/native log kept separate from previous run",
+    "per-slot three-way retirement partition",
+    "coordinator pre-sync vs contention vs held totals and overlap",
+    "store callback/mutation/journal timings",
+    "process-census and native query intervals",
+    "whole-supervisor user/sys CPU",
+    "all exact cleanup proofs"
+  ],
+  "limits": "Do not equate overlapping per-slot sums with wall time. Unscoped background store activity remains separately labeled; ambiguous attribution stays unknown. Stop on setup or cleanup uncertainty.",
+  "recorded_at": "2026-10-21T19:07:08.751665+00:00"
+}

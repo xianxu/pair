@@ -78,8 +78,9 @@ type SketchPoints struct {
 type SketchStrokeEnd struct {
 	Header
 	SketchOperation
-	Sketch string `json:"sketch"`
-	ID     string `json:"id"`
+	Sketch    string `json:"sketch"`
+	ID        string `json:"id"`
+	Truncated bool   `json:"truncated,omitempty"`
 }
 type SketchUndo struct {
 	Header

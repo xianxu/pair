@@ -1,0 +1,10 @@
+{
+  "removed_owned_directories": [
+    "/Volumes/TestScratch/pair-776-after.DADE7a/current",
+    "/Volumes/TestScratch/pair-776-after.DADE7a/bin-current",
+    "/Volumes/TestScratch/pair-776-after.DADE7a/bin-shared"
+  ],
+  "evidence": "/Volumes/TestScratch/tmp/pair-slot6/pair-776-after-evidence.9iI7BD",
+  "task_cache_untouched": "/Volumes/TestScratch/pair-776-checks.QKsQe4",
+  "fleet_root_absent": true
+}

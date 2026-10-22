@@ -1,0 +1,6 @@
+['/opt/homebrew/Cellar/go/1.27.1/libexec/bin/go', 'build', '-p', '4', '-o', '/Volumes/TestScratch/detach-compare.O0eTeh/bin-current/couch', './cmd/couch']
+exit=0 elapsed=11.679
+['/opt/homebrew/Cellar/go/1.27.1/libexec/bin/go', 'build', '-p', '4', '-o', '/Volumes/TestScratch/detach-compare.O0eTeh/bin-current/pair', './cmd/pair-go']
+exit=0 elapsed=3.301
+['/opt/homebrew/Cellar/go/1.27.1/libexec/bin/go', 'build', '-p', '4', '-o', '/Volumes/TestScratch/detach-compare.O0eTeh/bin-current/pair-launch-helper', './cmd/pair-launch-helper']
+exit=0 elapsed=0.966

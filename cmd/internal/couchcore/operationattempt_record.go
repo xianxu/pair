@@ -171,6 +171,15 @@ func lifecycleFailureForAttempt(a *OperationAttempt, cause error, at time.Time) 
 		f.LaunchNonce = f.Nonce
 		f.Phase = "launch"
 	}
+	var terminal interface{ TerminalFailureEvidence() LifecycleFailure }
+	if errors.As(cause, &terminal) {
+		// Adopt only diagnostic observations. The operation owns its identity;
+		// terminal evidence must not rebind the target, nonce or cleanup scope.
+		evidence := cloneLaunchFailure(terminal.TerminalFailureEvidence())
+		f.Stage, f.Stream, f.Output = evidence.Stage, evidence.Stream, evidence.Output
+		f.LaunchError, f.HelperStarted = evidence.LaunchError, evidence.HelperStarted
+		f.BeforeExit = evidence.BeforeExit
+	}
 	f.Nonce, f.Operation, f.FailedAt = a.nonce, a.op, at
 	f.Target = target.Target
 	f.Address = completeFailureAddress(target.Address, f.Address)

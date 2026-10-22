@@ -22,6 +22,11 @@ var pairCatalog = append(append([]golint.Rule(nil), golint.Catalog...), golint.R
 	Message:  "remote reset authority belongs only to the owned host KeyPress branch; do not export, alias or invoke it from IPC, paste or another caller",
 	Match:    matchRemoteConsoleReset,
 }, golint.Rule{
+	Name:     "fixture-cli-group-completion",
+	Incident: "pair#744",
+	Message:  "observe CLI process-group quiescence through cliGroupError after Wait; leader completion alone cannot acknowledge descendants",
+	Match:    fixtureCLIUnobservedGroups,
+}, golint.Rule{
 	Name:     "wrapper-child-release",
 	Incident: "pair#715",
 	Message:  "retain wrapper child ownership and join it with Wait before returning; Process.Release permits writes after wrapper shutdown",
@@ -56,6 +61,11 @@ var pairCatalog = append(append([]golint.Rule(nil), golint.Catalog...), golint.R
 	Incident: "pair#766",
 	Message:  "use a terminal-aware producer and acknowledge its readiness before final output; direct printf can fail before producing the test marker",
 	Match:    scribePTYPrintfCalls,
+}, golint.Rule{
+	Name:     "manual-clock-rendezvous",
+	Incident: "pair#771",
+	Message:  "manualClock timer delivery must rendezvous with its receiver before a request barrier proves completion",
+	Match:    bufferedManualClockTimers,
 })
 
 // This lexical guard covers literal shell test/[ /[[ permission probes. It
