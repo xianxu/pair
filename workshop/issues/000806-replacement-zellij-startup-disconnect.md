@@ -46,7 +46,8 @@ Diagnostic coverage: [replacement startup diagnosis plan](../plans/000806-replac
 - [x] Run one bounded diagnostic per personality; preserve unknown outcomes without repeated native retries.
 - [x] Return measured uncertainty to the hub and receive approval to land diagnostics only.
 - [x] File unclaimed #820, waiting for the first retained failure.
-- [ ] Complete required recorded verification, close review and landing gates.
+
+Required recorded verification, close review and landing remain the normal publication gates.
 
 ## Log
 
@@ -112,3 +113,5 @@ Correction choice: retain the diagnostic evidence boundary, but select no produc
 Authenticated ops:0 delivery7e2c8fdd-2dc2-4419-96e1-34da5d1eb6df approved diagnostic-only completion, following the same evidence-retention disposition as #791/#810. Done when is now: “the next replacement-startup failure retains its server-log tails and the identities needed to classify it.” Original causal identification/regression/correction requirements move to an unclaimed follow-up that waits for the first retained failure. This supersedes the original Spec/Plan's requirement to select a production correction inside806; the preserved historical entries remain evidence. No new production behavior, native retries or time-budget change. Proceed through recorded verification, close and landing for the diagnostic coverage.
 
 Causal follow-up filed as unclaimed #820 (replacement-startup-causal-fix), dependency #806 plus an explicit first-retained-failure evidence prerequisite. No causal work is dispatched by filing it.
+
+PR549 opened. Required recorded suite launched on57a7a74938db41789c560a2924aa6e5faf77e74d; verification remains pending until the retained runner records its result. Close review may overlap that queued/running check under tl-worker; no landing before its pass.
