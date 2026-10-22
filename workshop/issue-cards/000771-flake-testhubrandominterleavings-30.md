@@ -1,6 +1,6 @@
 ---
 id: 000771
-status: codecomplete
+status: done
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 37825526aaaff1528b38e642f4a9b39ecaf122ee
         evidence_commit: f794e154ee5f0a2f293743dd3a1bb81846894570
+        landed_commit: cfc18fd3f2d27447307cc45a7d9e80075a43b1e6
 ---
 
 # flake: TestHubRandomInterleavings/30
