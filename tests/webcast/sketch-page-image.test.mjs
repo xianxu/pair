@@ -42,3 +42,18 @@ test('shared starting points choose deterministic nearby distinct readable badge
   for(const b of badges.slice(0,i))assert.ok(a.x>=b.x+b.w||b.x>=a.x+a.w||a.y>=b.y+b.h||b.y>=a.y+a.h);
  }
 });
+
+test('current view projects old-source ink only through exact frozen current bindings',async()=>{
+ const {prepareCurrentPageInk}=await import('../../cmd/internal/webcast/web/sketch-page-image.js');
+ const input=[shape()],original=structuredClone(input),current={projections:[{sketch_id:'s1',path_id:'p',at:{node:99,box:[20,10,100,100]},clip:[0,0,300,200]}]};
+ const currentPlan={...plan,scene:{...plan.scene,doc:3}};let request;
+ const renderer={placementOf(note,options){request={note,options};return place();}};
+ const ink=prepareCurrentPageInk(currentPlan,input,renderer,current);
+ assert.deepEqual(ink.shapes[0].paths[0].projected[0],[60,50,0]);assert.deepEqual(input,original);
+ assert.equal(request.note.at.node,99);assert.equal(request.note.source.doc,3);assert.equal(request.options.originalOnly,true);
+ for(const change of [v=>v.projections=[],v=>v.projections.push(v.projections[0]),v=>v.projections[0].path_id='extra',v=>v.projections[0].at.box[0]+=3,v=>v.projections[0].clip[2]-=3]){
+  const bad=structuredClone(current);change(bad);assert.throws(()=>prepareCurrentPageInk(currentPlan,input,renderer,bad));
+ }
+ assert.throws(()=>prepareCurrentPageInk(currentPlan,input,{placementOf:()=>null},current),/unavailable/);
+ const near={placementOf:()=>({box:[21,10,100,100],clip:[0,0,300,200]})};assert.doesNotThrow(()=>prepareCurrentPageInk(currentPlan,input,near,current));
+});

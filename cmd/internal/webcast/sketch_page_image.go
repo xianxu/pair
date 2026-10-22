@@ -44,7 +44,8 @@ func serveSketchPage(b sketchimage.PageBatch, p sketchimage.PagePlan) (*sketchIm
 		Plan     sketchimage.PagePlan       `json:"plan"`
 		Shapes   []pageImageShape           `json:"shapes"`
 		Coverage []sketchimage.PageCoverage `json:"coverage"`
-	}{p, shapes, coverage}
+		Current  *sketchimage.CurrentView   `json:"current,omitempty"`
+	}{p, shapes, coverage, b.Current}
 	return serveHistoricalImageScenes(b.Batch, []historicalImageScene{{b.Scene.RecordIndex, payload, "sketch-page-image.js"}})
 }
 func (r *sketchPageImageRenderer) RenderPage(ctx context.Context, b sketchimage.PageBatch) (out sketchimage.PageImage, err error) {

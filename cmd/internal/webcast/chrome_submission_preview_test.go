@@ -80,36 +80,16 @@ func TestSubmissionPreviewHostSubscriberCoalescesAndCloses(t *testing.T) {
 	stop()
 }
 func TestSubmissionPreviewFreezeRejectsRetiredHost(t *testing.T) {
-	cast, _, _ := castSketchSubmissionFixture(t, 1)
-	c, s := previewChromeFixture(t)
-	c.opts.Record.Operator = cast.board
-	c.opts.Record.ID = "shapes"
-	c.refreshSubmissionPreviewHost(s)
-	host, _, err := c.SubmissionPreviewHost(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	snapshot, err := cast.board.Selection()
-	if err != nil {
-		t.Fatal(err)
-	}
-	candidates := make([]core.PreviewSketchCandidate, 0, len(snapshot.Sketches))
-	for _, v := range snapshot.Sketches {
-		candidates = append(candidates, core.PreviewSketchCandidate{Item: core.PreviewItem{RecordingID: "shapes", SketchID: v.ID, Sequence: v.NextSequence, Digest: v.Digest}, Source: v.Source, Finish: v.Finish})
-	}
-	selection, err := core.SelectFeedbackPreview(candidates, nil, nil, core.PreviewStamp{Board: snapshot.SketchGeneration})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = c.FreezeSubmissionPreview(host, selection); err != nil {
+	c, s, host, selection := resolvedVisibilityChromeFixture(t)
+	if _, err := c.FreezeSubmissionPreview(host, selection); err != nil {
 		t.Fatal(err)
 	}
 	c.retireOperatorSketchScopes(s, "s")
 	c.refreshSubmissionPreviewHost(s)
-	if _, err = c.FreezeSubmissionPreview(host, selection); err == nil {
+	if _, err := c.FreezeSubmissionPreview(host, selection); err == nil {
 		t.Fatal("retired host froze board selection")
 	}
-	if _, err = c.FreezeSubmissionPreview(core.PreviewHost{}, selection); err == nil {
+	if _, err := c.FreezeSubmissionPreview(core.PreviewHost{}, selection); err == nil {
 		t.Fatal("zero host froze selection")
 	}
 }

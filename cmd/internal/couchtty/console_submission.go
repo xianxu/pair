@@ -166,7 +166,47 @@ func (m *submissionManager) request(ctx context.Context, op, id string, target c
 		if e != nil {
 			return couchmessage.SubmissionStatus{}, e
 		}
-		selected, e = m.freezeSubmissionPreview(cast, selected)
+		var fresh *core.PreviewSelection
+		if len(selected.Sketches) > 0 || len(selected.Notes) > 0 {
+			run := m.previewRun
+			if run == nil || run.cast != cast {
+				return couchmessage.SubmissionStatus{}, errSubmissionPreview
+			}
+			host, deliveryGeneration := run.host, m.deliveredGeneration
+			// Release ownership only for bounded external reads. Every state used
+			// below is checked again before the atomic Board freeze.
+			priorJob := m.job
+			m.mu.Unlock()
+			delivered, readErr := m.store.DeliveredFeedbackVersions(filepath.Base(cast.RecordingPath()))
+			var proposal core.PreviewSelection
+			if readErr == nil {
+				proposal, readErr = readVisibleSubmissionPreview(ctx, run.cast, host, selected, delivered, deliveryGeneration)
+			}
+			m.mu.Lock()
+			if readErr != nil {
+				return couchmessage.SubmissionStatus{}, errSubmissionPreview
+			}
+			current, currentErr := m.current()
+			latest, latestErr := cast.SubmissionSelection()
+			if m.ctx.Err() != nil || ctx.Err() != nil || m.previewRun != run || run.host != host || m.deliveredGeneration != deliveryGeneration || m.job != priorJob || (m.job != nil && m.job.busy) || currentErr != nil || current != cast || latestErr != nil || latest.SketchGeneration != selected.SketchGeneration {
+				return couchmessage.SubmissionStatus{}, errSubmissionPreview
+			}
+			if err := m.guard(target); err != nil {
+				return couchmessage.SubmissionStatus{}, err
+			}
+			// Another caller may have prepared this identity while IO was outside
+			// the lock, even when its background operation has already finished.
+			if existing, readErr := m.store.ReadMetadata(id); readErr == nil {
+				if existing.Target != target {
+					return couchmessage.SubmissionStatus{}, errors.New("submission belongs to another target")
+				}
+				return m.status(existing), nil
+			} else if !errors.Is(readErr, os.ErrNotExist) {
+				return couchmessage.SubmissionStatus{}, readErr
+			}
+			fresh = &proposal
+		}
+		selected, e = m.freezeSubmissionPreview(cast, selected, fresh)
 		if e != nil {
 			return couchmessage.SubmissionStatus{}, e
 		}

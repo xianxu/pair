@@ -21,6 +21,15 @@ test('live region follows connected original geometry; hidden ancestors and miss
  for(const [key,value] of [['display','none'],['visibility','hidden'],['opacity','0'],['contentVisibility','hidden']]){f.main.style[key]=value;assert.equal(f.place(f.note),null,key);delete f.main.style[key];}
  f.anchor.rect.width=0;assert.equal(f.place(f.note),null);
 });
+
+test('paint witness uses the same chosen node and geometry without a second matcher',()=>{
+ const f=fixture(),chosen=[];
+ const place=createPlacement({document:()=>f.doc,route:()=>f.note.at.route,original:()=>f.anchor,locator:node=>{chosen.push(node);return [0,-1,2];}});
+ assert.deepEqual(place(f.note,{withWitness:true}),{box:f.note.region,clip:[0,0,800,600],locator:[0,-1,2]});
+ assert.deepEqual(chosen,[f.anchor]);assert.deepEqual(place(f.note),f.note.region);
+ const unavailable=createPlacement({document:()=>f.doc,route:()=>f.note.at.route,original:()=>f.anchor,locator:()=>{throw Error('not recorded');}});
+ assert.deepEqual(unavailable(f.note,{withWitness:true}),{box:f.note.region,clip:[0,0,800,600],locator:null},'unavailable witness must preserve ordinary painting geometry');
+});
 test('SPA replacement must be unique, same route and conflict checked; hidden original never jumps',()=>{
  const f=fixture(); f.main.childNodes=[]; f.anchor.parentNode=null;
  const replacement=f.el('p',f.main,{},'Distinct article heading');replacement.rect.left=200;

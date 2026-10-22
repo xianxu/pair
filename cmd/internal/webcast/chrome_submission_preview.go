@@ -8,6 +8,7 @@ import (
 	core "github.com/xianxu/pair/cmd/internal/submission"
 	"github.com/xianxu/pair/cmd/internal/webcast/board"
 	"github.com/xianxu/pair/cmd/internal/webcast/sketchimage"
+	"reflect"
 	"slices"
 	"strconv"
 	"sync"
@@ -19,13 +20,17 @@ type previewAwaitingDelivery struct {
 }
 
 type chromeSubmissionPreview struct {
-	awaiting *previewAwaitingDelivery
-	mu       sync.Mutex
-	host     core.PreviewHost
-	scope    *operatorSketchScope
-	serial   uint64
-	closed   bool
-	subs     map[chan struct{}]struct{}
+	visibilityRevision uint64
+	visibilitySerial   uint64
+	visibility         *core.FeedbackVisibility
+	resolvedSelection  *core.PreviewSelection
+	awaiting           *previewAwaitingDelivery
+	mu                 sync.Mutex
+	host               core.PreviewHost
+	scope              *operatorSketchScope
+	serial             uint64
+	closed             bool
+	subs               map[chan struct{}]struct{}
 }
 
 // refreshSubmissionPreviewHost runs only on Chrome's event loop, before its
@@ -51,6 +56,8 @@ func (c *Chrome) refreshSubmissionPreviewHost(s *loopState) {
 		return
 	}
 	p.scope = scope
+	p.visibilityRevision = 0
+	p.invalidateVisibilityLocked()
 	p.awaiting = nil
 	p.host = core.PreviewHost{}
 	if scope != nil {
@@ -85,6 +92,8 @@ func (c *Chrome) closeSubmissionPreview() {
 		return
 	}
 	p.closed = true
+	p.visibilityRevision = 0
+	p.invalidateVisibilityLocked()
 	p.scope = nil
 	p.awaiting = nil
 	p.host = core.PreviewHost{}
@@ -159,16 +168,45 @@ func (c *Chrome) FreezeSubmissionPreview(host core.PreviewHost, selection core.P
 		return board.Selection{}, err
 	}
 	return c.withSubmissionPreviewHost(host, func() (board.Selection, error) {
-		return c.opts.Record.Operator.FreezeSubmissionSelection(selection.Stamp.Board, chosen, notes)
+		p := &c.submissionPreview
+		if p.visibility == nil || p.resolvedSelection == nil || !reflect.DeepEqual(p.visibility, selection.Visibility) || !reflect.DeepEqual(*p.resolvedSelection, selection) {
+			return board.Selection{}, board.ErrStale
+		}
+		return c.opts.Record.Operator.FreezeVisibleSubmissionSelection(selection.Stamp.Board, chosen, notes, *selection.Visibility, selection.ResolvedNodes)
 	})
 }
 
 // previewBoardWitness converts an owned acknowledged publication into the
 // Board's atomic witness. The page must be derived from exactly these versions.
 func previewBoardWitness(selection core.PreviewSelection) ([]board.SelectedSketch, []board.SelectedNote, error) {
-	checked, err := core.SelectFeedbackPreview(selection.Candidates, selection.Notes, nil, selection.Stamp)
-	if err != nil || checked.Remaining != 0 || !slices.Equal(checked.Items, selection.Items) || !samePreviewPage(checked.Page, selection.Page) {
+	if selection.Visibility == nil || core.ValidateFeedbackVisibility(*selection.Visibility) != nil || len(selection.Items) > core.MaxSubmissionSketches || len(selection.Candidates) != len(selection.Items) {
 		return nil, nil, board.ErrStale
+	}
+	if len(selection.Items) > 0 && !samePreviewPage(selection.Page, &selection.Visibility.Scene) || len(selection.Items) == 0 && selection.Page != nil {
+		return nil, nil, board.ErrStale
+	}
+	visible := map[string]core.VisibleSketch{}
+	for _, v := range selection.Visibility.Sketches {
+		visible[v.ID] = v
+	}
+	seen := map[string]bool{}
+	for i, c := range selection.Candidates {
+		v, ok := visible[c.Item.SketchID]
+		if !ok || seen[c.Item.SketchID] || c.Item != selection.Items[i] || c.Item.RecordingID != selection.Visibility.Scene.RecordingID || c.Item.Sequence != v.Sequence || c.Item.Digest != v.Digest {
+			return nil, nil, board.ErrStale
+		}
+		seen[c.Item.SketchID] = true
+	}
+	noteSet := map[core.PreviewNote]bool{}
+	for _, v := range selection.Visibility.Notes {
+		noteSet[v] = true
+	}
+	seen = map[string]bool{}
+	for _, v := range selection.Notes {
+		if !noteSet[v] || seen[v.ID] {
+			return nil, nil, board.ErrStale
+		}
+		seen[v.ID] = true
 	}
 	chosen := make([]board.SelectedSketch, 0, len(selection.Candidates))
 	for _, c := range selection.Candidates {
@@ -192,6 +230,8 @@ func (c *Chrome) retireSubmissionPreviewScope(scope *operatorSketchScope) {
 		return
 	}
 	p.scope = nil
+	p.visibilityRevision = 0
+	p.invalidateVisibilityLocked()
 	p.host = core.PreviewHost{}
 	p.awaiting = nil
 	p.notifyLocked()
@@ -212,26 +252,27 @@ type submissionPreviewStamp struct {
 	Delivered string `json:"delivered"`
 }
 type submissionPreviewValue struct {
-	Host       string                     `json:"host"`
-	Generation string                     `json:"generation"`
-	Revision   string                     `json:"revision"`
-	Operation  string                     `json:"operation"`
-	Stamp      submissionPreviewStamp     `json:"stamp"`
-	Items      []submissionPreviewItem    `json:"items"`
-	Notes      []submissionPreviewNote    `json:"notes"`
-	Page       *sketchimage.PageScene     `json:"page"`
-	Remaining  int                        `json:"remaining"`
-	Cursor     board.SketchDeliveryCursor `json:"cursor"`
-	Accepted   bool                       `json:"accepted,omitempty"`
+	Host          string                     `json:"host"`
+	Generation    string                     `json:"generation"`
+	Revision      string                     `json:"revision"`
+	Operation     string                     `json:"operation"`
+	Stamp         submissionPreviewStamp     `json:"stamp"`
+	Items         []submissionPreviewItem    `json:"items"`
+	Notes         []submissionPreviewNote    `json:"notes"`
+	Page          *sketchimage.PageScene     `json:"page"`
+	Remaining     int                        `json:"remaining"`
+	NoteRemaining int                        `json:"note_remaining"`
+	Cursor        board.SketchDeliveryCursor `json:"cursor"`
+	Accepted      bool                       `json:"accepted,omitempty"`
 }
 
 func (c *Chrome) PublishSubmissionPreview(ctx context.Context, pub core.PreviewPublication) error {
 	selection := pub.Selection()
-	if c.opts.Record == nil || c.opts.Record.Operator == nil || len(selection.Items) > core.MaxSubmissionSketches || selection.Remaining < 0 || selection.Remaining > 256 || pub.Operation() == 0 {
+	if c.opts.Record == nil || c.opts.Record.Operator == nil || len(selection.Items) > core.MaxSubmissionSketches || selection.Remaining < 0 || selection.Remaining > 256 || selection.NoteRemaining < 0 || pub.Operation() == 0 {
 		return errors.New("submission preview is unavailable")
 	}
 
-	value := submissionPreviewValue{Host: pub.Host().ID, Generation: strconv.FormatUint(pub.Host().Generation, 10), Revision: strconv.FormatUint(pub.Revision(), 10), Operation: strconv.FormatUint(pub.Operation(), 10), Stamp: submissionPreviewStamp{Board: strconv.FormatUint(selection.Stamp.Board, 10), Delivered: strconv.FormatUint(selection.Stamp.Delivered, 10)}, Items: []submissionPreviewItem{}, Notes: []submissionPreviewNote{}, Page: selection.Page, Remaining: selection.Remaining}
+	value := submissionPreviewValue{Host: pub.Host().ID, Generation: strconv.FormatUint(pub.Host().Generation, 10), Revision: strconv.FormatUint(pub.Revision(), 10), Operation: strconv.FormatUint(pub.Operation(), 10), Stamp: submissionPreviewStamp{Board: strconv.FormatUint(selection.Stamp.Board, 10), Delivered: strconv.FormatUint(selection.Stamp.Delivered, 10)}, Items: []submissionPreviewItem{}, Notes: []submissionPreviewNote{}, Page: selection.Page, Remaining: selection.Remaining, NoteRemaining: selection.NoteRemaining}
 	for _, item := range selection.Items {
 		if item.RecordingID != c.opts.Record.ID {
 			return errors.New("submission preview recording changed")
@@ -327,7 +368,7 @@ func deliverSubmissionPreview(ctx context.Context, caller SketchSceneCaller, sco
 		return err
 	}
 	ack := result.Result.Value
-	if len(result.Exception) > 0 || ack == nil || !ack.Accepted || ack.Host != value.Host || ack.Generation != value.Generation || ack.Revision != value.Revision || ack.Operation != value.Operation || ack.Stamp != value.Stamp || ack.Remaining != value.Remaining || ack.Cursor != value.Cursor || !slices.Equal(ack.Items, value.Items) || !slices.Equal(ack.Notes, value.Notes) || !samePreviewPage(ack.Page, value.Page) {
+	if len(result.Exception) > 0 || ack == nil || !ack.Accepted || ack.Host != value.Host || ack.Generation != value.Generation || ack.Revision != value.Revision || ack.Operation != value.Operation || ack.Stamp != value.Stamp || ack.Remaining != value.Remaining || ack.NoteRemaining != value.NoteRemaining || ack.Cursor != value.Cursor || !slices.Equal(ack.Items, value.Items) || !slices.Equal(ack.Notes, value.Notes) || !samePreviewPage(ack.Page, value.Page) {
 		return fmt.Errorf("submission preview was not acknowledged; review the updated preview")
 	}
 	return nil

@@ -6,13 +6,13 @@ const inside=(p,b)=>p[0]>=b[0]&&p[1]>=b[1]&&p[0]<=b[0]+b[2]&&p[1]<=b[1]+b[3];
 const overlaps=(a,b)=>a.x<b.x+b.w&&b.x<a.x+a.w&&a.y<b.y+b.h&&b.y<a.y+a.h;
 // Preflight every accepted centerline before drawing anything. Pressure fringe
 // crossing an ordinary clip boundary is declared, rather than losing a path.
-export function preparePageInk(plan,shapes,placement) {
+export function preparePageInk(plan,shapes,placement,currentView=false) {
  if(!shapes.length||shapes.length>8)throw Error('sketch page: shape count');
  let clipped=false;const badges=[];
  const result=shapes.map((s,i)=>{
   const fail=(why)=>{throw Error(`sketch page index ${s.index} ${s.id}: ${why}`);};
   if(s.index!==i+1)fail('index ordering');
-  if(s.source.doc!==plan.scene.doc||s.source.tab!==plan.scene.tab||s.source.t>plan.scene.t)fail('source generation');
+  if((!currentView&&(s.source.doc!==plan.scene.doc||s.source.tab!==plan.scene.tab))||s.source.t>plan.scene.t)fail('source generation');
   if(!s.paths.length)fail('missing paths');
   const paths=s.paths.map(p=>{
    const g=placement(p,s);if(!g)fail(`path ${p.id} unavailable or ambiguous`);
@@ -46,15 +46,33 @@ export function preparePageInk(plan,shapes,placement) {
 export function prepareHistoricalPageInk(plan,shapes,renderer){
  return preparePageInk(plan,shapes,(p,s)=>renderer.placementOf({at:p.at,source:s.source},{withClip:true,originalOnly:true}));
 }
+// Current anchors were resolved from trusted locators at the pinned prefix;
+// original source anchors and paths remain unchanged in the evidence.
+export function prepareCurrentPageInk(plan,shapes,renderer,current){
+ const projections=new Map(),expected=new Set(shapes.flatMap(s=>s.paths.map(p=>`${s.id}\0${p.id}`)));
+ if(!Array.isArray(current?.projections)||current.projections.length!==expected.size)throw Error('current page projection coverage');
+ for(const p of current.projections){const key=`${p.sketch_id}\0${p.path_id}`;if(!expected.has(key)||projections.has(key))throw Error('current page duplicate or extra projection');projections.set(key,p);}
+ const close=(a,b)=>Array.isArray(a)&&Array.isArray(b)&&a.length===4&&b.length===4&&a.every((v,i)=>Number.isFinite(v)&&Number.isFinite(b[i])&&Math.abs(v-b[i])<=2);
+ return preparePageInk(plan,shapes,(path,shape)=>{
+  const frozen=projections.get(`${shape.id}\0${path.id}`);
+  const actual=frozen&&renderer.placementOf({at:frozen.at,source:plan.scene},{withClip:true,originalOnly:true});
+  if(!actual)throw Error(`sketch page index ${shape.index} path ${path.id} unavailable in current scope`);
+  if(!close(actual.box,frozen.at.box)||!close(actual.clip,frozen.clip))throw Error(`sketch page index ${shape.index} path ${path.id} current geometry changed`);
+  const x=Math.max(actual.clip[0],frozen.clip[0]),y=Math.max(actual.clip[1],frozen.clip[1]);
+  const w=Math.min(actual.clip[0]+actual.clip[2],frozen.clip[0]+frozen.clip[2])-x,h=Math.min(actual.clip[1]+actual.clip[3],frozen.clip[1]+frozen.clip[3])-y;
+  if(w<=0||h<=0)throw Error('current clip empty');
+  return {box:frozen.at.box,clip:[x,y,w,h]};
+ },true);
+}
 async function start(){
  const responses=await Promise.all(['records','scene'].map(url=>fetch(url,{cache:'no-store'})));
  if(responses.some(r=>!r.ok))throw Error('historical page unavailable');
  const records=(await responses[0].text()).split('\n').filter(Boolean).map(JSON.parse);
- const {plan,shapes,coverage}=await responses[1].json();
+ const {plan,shapes,coverage,current}=await responses[1].json();
  const frame=document.getElementById('page');
  const replayer=new Replayer(records,hash=>`assets/${hash}`,inBrowser(frame));
  await replayer.replayAt(plan.scene.t,0);
- const ink=prepareHistoricalPageInk(plan,shapes,replayer.renderer);
+ const ink=current?prepareCurrentPageInk(plan,shapes,replayer.renderer,current):prepareHistoricalPageInk(plan,shapes,replayer.renderer);
  const drawn=currentFrame(frame);drawn.style.transform=`scale(${plan.scale})`;
  const canvas=document.getElementById('ink');canvas.width=plan.width;canvas.height=plan.height;
  const g=canvas.getContext('2d'),toClient=(x,y)=>[(x-plan.region[0])*plan.scale,(y-plan.region[1])*plan.scale];

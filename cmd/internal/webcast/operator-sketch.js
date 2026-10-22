@@ -190,7 +190,8 @@ export function createOperatorSubmissionPreview({root,receiver},doc){
       }
     }
     if(!uint(value.stamp?.board)||!uint(value.stamp?.delivered)||!Array.isArray(value.items)||value.items.length>8||!Number.isSafeInteger(value.remaining)||value.remaining<0||value.remaining>256)throw Error('Invalid submission preview selection.');
-    if(!Array.isArray(value.notes))throw Error('Invalid annotation preview selection.');
+    const noteRemaining=value.note_remaining===undefined?0:value.note_remaining;
+    if(!Array.isArray(value.notes)||!Number.isSafeInteger(noteRemaining)||noteRemaining<0)throw Error('Invalid annotation preview selection.');
     const noteIDs=new Set();
     for(const note of value.notes){
       if(typeof note?.id!=='string'||!note.id||!uint(note.revision)||noteIDs.has(note.id))throw Error('Invalid annotation preview revision.');
@@ -201,7 +202,7 @@ export function createOperatorSubmissionPreview({root,receiver},doc){
       if(typeof item?.recording_id!=='string'||!item.recording_id||typeof item.id!=='string'||!item.id||!Number.isSafeInteger(item.next_sequence)||item.next_sequence<1||typeof item.digest!=='string'||!(/^[0-9a-f]{64}$/i.test(item.digest))||seen.has(item.id))throw Error('Invalid submission preview version.');
       seen.add(item.id);
     }
-    const ack={notes:value.notes.map(note=>({id:note.id,revision:note.revision})),page:value.page===undefined?null:structuredClone(value.page),host:value.host,generation:value.generation,revision:value.revision,operation:value.operation,stamp:{board:value.stamp.board,delivered:value.stamp.delivered},items:value.items.map(item=>({recording_id:item.recording_id,id:item.id,next_sequence:item.next_sequence,digest:item.digest})),remaining:value.remaining,cursor:structuredClone(value.cursor),accepted:true};
+    const ack={notes:value.notes.map(note=>({id:note.id,revision:note.revision})),page:value.page===undefined?null:structuredClone(value.page),host:value.host,generation:value.generation,revision:value.revision,operation:value.operation,stamp:{board:value.stamp.board,delivered:value.stamp.delivered},items:value.items.map(item=>({recording_id:item.recording_id,id:item.id,next_sequence:item.next_sequence,digest:item.digest})),remaining:value.remaining,note_remaining:noteRemaining,cursor:structuredClone(value.cursor),accepted:true};
     const nextFingerprint=JSON.stringify(ack);
     if(last&&value.generation===last.generation&&(value.revision===last.revision||value.operation===last.operation)){
       if(nextFingerprint!==fingerprint)throw Error('Conflicting submission preview publication.');
@@ -223,9 +224,9 @@ export function createOperatorSubmissionPreview({root,receiver},doc){
     for(const [key,node] of cards)if(!nextCards.has(key))node.remove();
     // Do not move stable keyed nodes on an identical metadata refresh.
     if(chosen.some(({node},i)=>list.children[i]!==node))for(const {node} of chosen)list.append(node);
-    const count=`Pending feedback: ${chosen.length} sketches, ${value.notes.length} annotation${value.notes.length===1?'':'s'}${value.remaining?`, ${value.remaining} more sketches`:''}`;
+    const count=`Pending feedback: ${chosen.length} sketches, ${value.notes.length} annotation${value.notes.length===1?'':'s'}${value.remaining?`, ${value.remaining} more sketches`:''}${noteRemaining?`, ${noteRemaining} more annotations`:''}`;
     if(heading.textContent!==count)heading.textContent=count;
-    noteCount=value.notes.length;panel.hidden=chosen.length===0&&noteCount===0;cards=nextCards;last=ack;fingerprint=nextFingerprint;return copyAck();
+    noteCount=value.notes.length;panel.hidden=chosen.length===0&&noteCount===0&&value.remaining===0&&noteRemaining===0;cards=nextCards;last=ack;fingerprint=nextFingerprint;return copyAck();
   }
   return {publish,captureBusy:()=>!disposed&&!panel.hidden&&(cards.size>0||noteCount>0),dispose(){if(disposed)return;disposed=true;cards.clear();last=null;panel.remove();}};
 }

@@ -33,10 +33,23 @@ type PagePlan struct {
 	Width  int           `json:"width"`
 	Height int           `json:"height"`
 }
+
+// PathProjection binds one original accepted path to its trusted current
+// recorded anchor and effective visible clip; it never rewrites source vectors.
+type PathProjection struct {
+	SketchID string           `json:"sketch_id"`
+	PathID   string           `json:"path_id"`
+	At       recording.NoteAt `json:"at"`
+	Clip     recording.Box    `json:"clip"`
+}
+type CurrentView struct {
+	Projections []PathProjection `json:"projections"`
+}
 type PageBatch struct {
 	Batch
 	Scene    PageScene
 	Finishes []query.SketchSourceFacts
+	Current  *CurrentView
 }
 type PageCoverage struct {
 	Index        int      `json:"index"`
@@ -111,16 +124,24 @@ func ValidatePageBatch(b PageBatch) (PagePlan, error) {
 		if v.History.Begin == nil || v.History.Label == "" || len(v.History.Visible) == 0 || (v.History.Phase != "complete" && v.History.Phase != "interrupted") || f.RecordIndex != v.HistoryRecordIndex || f.T != v.HistoryT || f.Doc != v.Source.Doc || f.Tab != v.Source.Tab {
 			return PagePlan{}, fmt.Errorf("sketch page: invalid completion witness at index %d", i+1)
 		}
-		if !SamePageView(b.Scene, PageScene{RecordingID: b.Scene.RecordingID, SketchSourceFacts: f}) {
+		if b.Current == nil && !SamePageView(b.Scene, PageScene{RecordingID: b.Scene.RecordingID, SketchSourceFacts: f}) {
 			return PagePlan{}, fmt.Errorf("sketch page: incompatible finish view at index %d", i+1)
 		}
 		byIndex[f.RecordIndex] = append(byIndex[f.RecordIndex], i)
 		latest = max(latest, f.RecordIndex)
 	}
-	if latest != b.Scene.RecordIndex {
+	if b.Current == nil && latest != b.Scene.RecordIndex {
 		return PagePlan{}, fmt.Errorf("sketch page: scene is not latest selected finish")
 	}
+	if b.Current != nil && b.Scene.RecordIndex < latest {
+		return PagePlan{}, fmt.Errorf("sketch page: current scene precedes selected history")
+	}
 	seen := 0
+	sceneSeen := false
+	var through []int
+	if b.Current != nil {
+		through = []int{b.Scene.RecordIndex}
+	}
 	err = validateBatchInput(b.Batch, func(index int, state *recording.State) error {
 		if index == 0 && (state.Head == nil || state.Head.ID != b.Scene.RecordingID) {
 			return fmt.Errorf("sketch page: recording identity differs")
@@ -129,20 +150,132 @@ func ValidatePageBatch(b PageBatch) (PagePlan, error) {
 			if state.Top == nil || pageFinishFacts(index, state) != b.Finishes[i] {
 				return fmt.Errorf("sketch page: finish boundary differs at index %d", i+1)
 			}
-			if index == latest && b.Scene.SketchSourceFacts != b.Finishes[i] {
+			if b.Current == nil && index == latest && b.Scene.SketchSourceFacts != b.Finishes[i] {
 				return fmt.Errorf("sketch page: latest scene facts differ")
 			}
 			seen++
 		}
+		if b.Current != nil && index == b.Scene.RecordIndex {
+			if state.Top == nil || pageFinishFacts(index, state) != b.Scene.SketchSourceFacts {
+				return fmt.Errorf("sketch page: current scene facts differ")
+			}
+			for _, selected := range b.Sketches {
+				history := selected.History
+				metadata, ok := state.Sketches.Metadata(history.Begin.ID)
+				if !ok || metadata.NextSequence != history.NextSequence || metadata.Digest != history.Receipts[len(history.Receipts)-1].Digest || metadata.Phase != history.Phase || metadata.Label != history.Label || metadata.Reason != history.Reason {
+					return fmt.Errorf("sketch page: selected version changed before current scene")
+				}
+			}
+			for _, p := range b.Current.Projections {
+				node := state.Node(p.At.Node)
+				if node == nil || node.Y != recording.YEl || p.At.Tag != "" && p.At.Tag != node.N {
+					return fmt.Errorf("sketch page: current anchor unavailable")
+				}
+				for key, value := range p.At.Stable {
+					if node.A[key] != value {
+						return fmt.Errorf("sketch page: current anchor conflicts")
+					}
+				}
+				for depth := 0; ; depth++ {
+					if node == state.Top {
+						break
+					}
+					if depth >= 256 || node.Y == recording.YDoc {
+						return fmt.Errorf("sketch page: unsupported current frame scope")
+					}
+					if node.Parent != nil {
+						node = node.Parent
+					} else if node.Y == recording.YShadow && node.Host != nil {
+						node = node.Host
+					} else {
+						return fmt.Errorf("sketch page: detached current anchor")
+					}
+				}
+			}
+			sceneSeen = true
+		}
 		return nil
-	})
+	}, through...)
 	if err != nil {
 		return PagePlan{}, err
 	}
 	if seen != len(b.Finishes) {
 		return PagePlan{}, fmt.Errorf("sketch page: finish boundary not witnessed")
 	}
+	if b.Current != nil {
+		if !sceneSeen {
+			return PagePlan{}, fmt.Errorf("sketch page: current boundary not witnessed")
+		}
+		originals := map[string][]Path{}
+		for _, v := range b.Sketches {
+			paths, err := Plan(v.History, v.Source.VP, v.Source.Scroll, DefaultLimits())
+			if err != nil {
+				return PagePlan{}, err
+			}
+			originals[v.History.Begin.ID] = paths.Paths
+		}
+		if err := ValidateCurrentView(b.Scene, *b.Current, originals); err != nil {
+			return PagePlan{}, err
+		}
+	}
 	return plan, nil
+}
+
+// ValidateCurrentView validates complete current placement coverage and projected
+// centerlines. Browser-measured box/clip agreement is checked by the adapter.
+func ValidateCurrentView(scene PageScene, current CurrentView, originals map[string][]Path) error {
+	plan, err := PlanPage(scene)
+	if err != nil {
+		return err
+	}
+	expected := map[string]Path{}
+	for sketch, paths := range originals {
+		for _, p := range paths {
+			key := sketch + "\x00" + p.ID
+			if _, exists := expected[key]; exists {
+				return fmt.Errorf("sketch page: repeated original path")
+			}
+			expected[key] = p
+		}
+	}
+	if len(expected) == 0 || len(expected) > MaxBatchImages*recording.SketchMaxStrokes || len(current.Projections) != len(expected) {
+		return fmt.Errorf("sketch page: incomplete current projection coverage")
+	}
+	seen := map[string]bool{}
+	validBox := func(box recording.Box) bool {
+		for _, v := range box {
+			if !finite(v) || math.Abs(v) > recording.SketchMaxCoordinate {
+				return false
+			}
+		}
+		return box[2] > 0 && box[3] > 0
+	}
+	inside := func(x, y float64, b recording.Box) bool {
+		return x >= b[0] && y >= b[1] && x <= b[0]+b[2] && y <= b[1]+b[3]
+	}
+	for _, p := range current.Projections {
+		key := p.SketchID + "\x00" + p.PathID
+		path, ok := expected[key]
+		if !ok || seen[key] || p.At.Node <= 0 || uint64(p.At.Node) > recording.MaxSketchInteger || p.At.Box == nil || !validBox(*p.At.Box) || !validBox(p.Clip) || p.At.Kind != "" && p.At.Kind != recording.AnchorElement || p.At.Route != "" && p.At.Route != scene.URL {
+			return fmt.Errorf("sketch page: invalid current projection %q/%q", p.SketchID, p.PathID)
+		}
+		if !inside(p.Clip[0], p.Clip[1], plan.Region) || !inside(p.Clip[0]+p.Clip[2], p.Clip[1]+p.Clip[3], plan.Region) {
+			return fmt.Errorf("sketch page: current clip outside viewport")
+		}
+		if path.At.Box == nil || !validBox(*path.At.Box) {
+			return fmt.Errorf("sketch page: invalid original anchor")
+		}
+		from, to := *path.At.Box, *p.At.Box
+		for _, point := range path.Pts {
+			x := to[0] + (point[0]-from[0])/from[2]*to[2]
+			y := to[1] + (point[1]-from[1])/from[3]*to[3]
+			if !finite(x) || !finite(y) || !inside(x, y, p.Clip) || !inside(x, y, plan.Region) {
+				return fmt.Errorf("sketch page: projected path outside current clip")
+			}
+		}
+		seen[key] = true
+	}
+	return nil
 }
 func pageCoverage(b PageBatch) []PageCoverage {
 	out := make([]PageCoverage, len(b.Sketches))

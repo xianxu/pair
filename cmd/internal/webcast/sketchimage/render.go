@@ -54,7 +54,7 @@ func ValidateBatch(b Batch) ([]RenderPlan, error) {
 	return plans, nil
 }
 
-func validateBatchInput(b Batch, observe func(int, *recording.State) error) error {
+func validateBatchInput(b Batch, observe func(int, *recording.State) error, through ...int) error {
 	if len(b.Sketches) == 0 || len(b.Sketches) > MaxBatchImages || len(b.Records) == 0 {
 		return fmt.Errorf("sketch image: batch requires 1..%d sketches and recorded input", MaxBatchImages)
 	}
@@ -76,6 +76,12 @@ func validateBatchInput(b Batch, observe func(int, *recording.State) error) erro
 		}
 		byIndex[v.HistoryRecordIndex] = append(byIndex[v.HistoryRecordIndex], i)
 		maxIndex = max(maxIndex, v.HistoryRecordIndex)
+	}
+	for _, index := range through {
+		if index < 0 || index >= len(b.Records) {
+			return fmt.Errorf("sketch image: current boundary exceeds input")
+		}
+		maxIndex = max(maxIndex, index)
 	}
 	slices.Sort(cutoffs)
 	state := recording.NewState()

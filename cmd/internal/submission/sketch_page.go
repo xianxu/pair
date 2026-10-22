@@ -11,15 +11,16 @@ import (
 // Original ink and original begin context remain on each Sketch.
 type SketchPage struct {
 	PrivacyDecision
-	File        string                `json:"file"`
-	Provenance  string                `json:"provenance"`
-	Source      sketchimage.PageScene `json:"source"`
-	Region      recording.Box         `json:"region"`
-	Scale       float64               `json:"scale"`
-	Width       int                   `json:"width"`
-	Height      int                   `json:"height"`
-	Clipped     bool                  `json:"clipped"`
-	Limitations []string              `json:"limitations,omitempty"`
+	File        string                   `json:"file"`
+	Provenance  string                   `json:"provenance"`
+	Source      sketchimage.PageScene    `json:"source"`
+	Region      recording.Box            `json:"region"`
+	Scale       float64                  `json:"scale"`
+	Width       int                      `json:"width"`
+	Height      int                      `json:"height"`
+	Clipped     bool                     `json:"clipped"`
+	Limitations []string                 `json:"limitations,omitempty"`
+	Current     *sketchimage.CurrentView `json:"current,omitempty"`
 }
 
 func validateSketchSource(s SketchSource) error {
@@ -39,7 +40,7 @@ func ValidateSketchPage(s Submission) error {
 		}
 		return nil
 	}
-	if s.Version != 3 || s.Source.Kind != "dom" || len(s.Sketches) < 1 || len(s.Sketches) > MaxSubmissionSketches || p.Source.RecordingID != s.Source.RecordingID || p.File != "sketch-page.png" || p.Provenance != "replay-rendered" {
+	if s.Version != 3 || s.Source.Kind != "dom" || len(s.Sketches) < 1 || len(s.Sketches) > MaxSubmissionSketches || p.Source.RecordingID != s.Source.RecordingID || p.File != "sketch-page.png" || (p.Provenance != "replay-rendered" || p.Current != nil) && (p.Provenance != "replay-rendered-current-view" || p.Current == nil) {
 		return fmt.Errorf("invalid shared sketch page identity")
 	}
 	if err := validateSketchSource(SketchSource{SketchSourceFacts: p.Source.SketchSourceFacts, Provenance: "recorded-dom"}); err != nil {
@@ -72,7 +73,7 @@ func ValidateSketchPage(s Submission) error {
 			return fmt.Errorf("invalid indexed shared sketch")
 		}
 		finish := sketchimage.PageScene{RecordingID: sk.RecordingID, SketchSourceFacts: sk.Finish.SketchSourceFacts}
-		if !sketchimage.SamePageView(p.Source, finish) {
+		if p.Current == nil && !sketchimage.SamePageView(p.Source, finish) {
 			return fmt.Errorf("incompatible sketch finish view")
 		}
 		if p.Privacy == Shareable && sk.Privacy != Shareable {
@@ -82,8 +83,20 @@ func ValidateSketchPage(s Submission) error {
 			latest = i
 		}
 	}
-	if p.Source.SketchSourceFacts != s.Sketches[latest].Finish.SketchSourceFacts {
+	if p.Current == nil && p.Source.SketchSourceFacts != s.Sketches[latest].Finish.SketchSourceFacts {
 		return fmt.Errorf("page is not latest chosen finish")
+	}
+	if p.Current != nil {
+		paths := map[string][]sketchimage.Path{}
+		for _, sk := range s.Sketches {
+			if p.Source.RecordIndex < sk.HistoryRecordIndex || p.Source.T < sk.HistoryT {
+				return fmt.Errorf("current page precedes selected history")
+			}
+			paths[sk.ID] = sk.Paths
+		}
+		if err := sketchimage.ValidateCurrentView(p.Source, *p.Current, paths); err != nil {
+			return err
+		}
 	}
 	return nil
 }

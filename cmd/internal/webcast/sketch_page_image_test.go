@@ -188,3 +188,56 @@ func TestLiveSketchPageRefusesMatchingReplacementOfRecordedAnchor(t *testing.T) 
 		t.Fatalf("replacement silently moved historical ink: bytes=%d err=%v", len(out.PNG), err)
 	}
 }
+
+func currentRenderBatch(t *testing.T) sketchimage.PageBatch {
+	t.Helper()
+	b := pageImageBatch(t, 1)
+	current := recording.Node{ID: 1001, Y: recording.YEl, N: "div", A: map[string]string{"style": "position:absolute;left:120px;top:80px;width:600px;height:400px;background:white"}}
+	b.Records = append(b.Records,
+		&recording.Seg{Header: recording.Header{T: 18}, Seg: 2, Why: recording.SegTab, Tab: recording.Tab{ID: "other", URL: "https://away.test/"}, VP: b.Scene.VP},
+		&recording.Doc{Header: recording.Header{T: 19}, Doc: 900, URL: "https://away.test/", Tree: recording.Node{ID: 900, Y: recording.YDoc, C: []recording.Node{{ID: 901, Y: recording.YEl, N: "body"}}}},
+		&recording.Seg{Header: recording.Header{T: 20}, Seg: 3, Why: recording.SegTab, Tab: recording.Tab{ID: "tab1", URL: "https://source.test/"}, VP: b.Scene.VP}, &recording.Doc{Header: recording.Header{T: 21}, Doc: 1000, URL: "https://source.test/", Tree: recording.Node{ID: 1000, Y: recording.YDoc, C: []recording.Node{{ID: 1002, Y: recording.YEl, N: "html", C: []recording.Node{{ID: 1003, Y: recording.YEl, N: "head"}, {ID: 1004, Y: recording.YEl, N: "body", C: []recording.Node{current}}}}}}})
+	state := recording.NewState()
+	for _, r := range b.Records {
+		if err := state.Apply(r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	facts := query.SketchSourceFacts{T: state.T, RecordIndex: len(b.Records) - 1, Doc: state.DocSeg, Tab: state.Tab.ID, URL: state.URL, Title: state.Title, VP: state.VP}
+	if state.Top != nil {
+		facts.Scroll = state.Scrolls[state.Top.ID]
+	}
+	b.Scene = sketchimage.PageScene{RecordingID: "image", SketchSourceFacts: facts}
+	box := recording.Box{120, 80, 600, 400}
+	b.Current = &sketchimage.CurrentView{Projections: []sketchimage.PathProjection{{SketchID: b.Sketches[0].History.Begin.ID, PathID: "p", At: recording.NoteAt{Node: 1001, Tag: "div", Box: &box}, Clip: recording.Box{0, 0, 1280, 800}}}}
+	return b
+}
+func TestLiveCurrentSketchPageReplaysPinnedViewAndFrozenProjection(t *testing.T) {
+	bin := liveFidelityChrome(t)
+	b := currentRenderBatch(t)
+	before := b.Sketches[0].Source
+	b.Records = append(b.Records, &recording.Attr{Header: recording.Header{T: b.Scene.T}, ID: 1001, Name: "style", V: recording.Str("display:none")})
+	renderer := NewSketchPageImageRenderer(bin)
+	sketchimage.RunPageRendererContract(t, renderer, b)
+	out, err := renderer.RenderPage(context.Background(), b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	im, err := png.Decode(bytes.NewReader(out.PNG))
+	if err != nil {
+		t.Fatal(err)
+	}
+	red := func(x, y int) bool { r, g, b, _ := im.At(x, y).RGBA(); return r > 50000 && g < 18000 && b < 18000 }
+	if !red(260, 124) || red(160, 124) {
+		t.Fatal("current-view pressure projection missing or flattened")
+	}
+	if b.Sketches[0].Source != before || b.Scene.Doc == before.Doc {
+		t.Fatal("source was rewritten instead of projected")
+	}
+	bad := currentRenderBatch(t)
+	bad.Current.Projections[0].At.Box[0] += 3
+	out, err = renderer.RenderPage(context.Background(), bad)
+	if err == nil || len(out.PNG) != 0 || !strings.Contains(err.Error(), "current geometry changed") {
+		t.Fatalf("frozen geometry disagreement: %v", err)
+	}
+}

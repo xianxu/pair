@@ -241,3 +241,15 @@ func TestReadingGuideExplainsHistoricalSketchEvidence(t *testing.T) {
 		}
 	}
 }
+
+func TestReadingGuideExplainsCurrentConsoleSelectionAndLegacyEvidence(t *testing.T) {
+	guide := ReadingGuide("/recording")
+	for _, term := range []string{"actually visible on the current console", "at most eight sketches", "N more sketches", "N more annotations", "stale visible selection", "current recorded prefix", "replay-rendered-current-view", "current projections", "pointer", "legacy shared"} {
+		if !strings.Contains(guide, term) {
+			t.Errorf("reading guide omits current-view contract %q", term)
+		}
+	}
+	if strings.Contains(guide, "The page source is the latest selected finish boundary") {
+		t.Fatal("guide presents legacy finish-time source as current submission behavior")
+	}
+}

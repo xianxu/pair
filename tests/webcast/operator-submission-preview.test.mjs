@@ -110,3 +110,32 @@ test('note-only feedback is visible and capture-private until its exact list emp
  assert.equal(panel.hidden,true);
  assert.equal(f.preview.captureBusy(),false);
 });
+
+
+test('pending feedback preserves both deferred counts in its exact acknowledgement',()=>{
+ const f=fixture(1);
+ f.value.remaining=3;f.value.note_remaining=49;
+ const ack=f.preview.publish(f.value);
+ assert.equal(ack.note_remaining,49);
+ const heading=f.root.querySelector('.sketch-submission-count');
+ assert.match(heading.textContent,/1 sketches, 0 annotations, 3 more sketches, 49 more annotations/);
+ assert.throws(()=>f.preview.publish({...f.value,note_remaining:48}),/conflicting/i);
+ ack.note_remaining=0;
+ assert.equal(f.preview.publish(f.value).note_remaining,49,'acknowledgements are owned snapshots');
+ for(const invalid of [-1,1.5,'1',Number.MAX_SAFE_INTEGER+1]){
+   const other=fixture(0);
+   assert.throws(()=>other.preview.publish({...other.value,note_remaining:invalid}),/annotation.*selection/i);
+ }
+});
+
+test('only deferred feedback keeps its count reachable without blocking capture',()=>{
+ const f=fixture(0);
+ f.value.note_remaining=2;
+ assert.equal(f.preview.publish(f.value).note_remaining,2);
+ const panel=f.root.querySelector('.sketch-submission-preview');
+ assert.equal(panel.hidden,false);
+ assert.match(panel.querySelector('.sketch-submission-count').textContent,/2 more annotations/);
+ assert.equal(f.preview.captureBusy(),false);
+ f.preview.publish({...f.value,revision:'2',operation:'2',note_remaining:0});
+ assert.equal(panel.hidden,true);
+});

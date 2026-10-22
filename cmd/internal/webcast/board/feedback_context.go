@@ -3,6 +3,7 @@ package board
 import (
 	"github.com/xianxu/pair/cmd/internal/webcast/query"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
+	"github.com/xianxu/pair/cmd/internal/webcast/sketchimage"
 )
 
 // feedbackContexts owns only scalar witnesses, never reducer or record pointers.
@@ -64,4 +65,13 @@ func (b *Board) refreshFeedbackContextLocked(r recording.Record, duplicate bool)
 		clear(b.feedback.sketches)
 		b.submissionChangedLocked()
 	}
+}
+
+// currentFeedbackPageLocked pins the absolute ordered recording boundary. No
+// journal is copied, and the caller already owns the Board mutex.
+func (b *Board) currentFeedbackPageLocked() sketchimage.PageScene {
+	if b.st.Head == nil || b.st.Top == nil || b.feedback.records == 0 {
+		return sketchimage.PageScene{}
+	}
+	return sketchimage.PageScene{RecordingID: b.st.Head.ID, SketchSourceFacts: b.feedbackContextLocked(b.feedback.records - 1)}
 }

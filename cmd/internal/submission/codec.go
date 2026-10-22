@@ -78,6 +78,7 @@ func tupleSchema(length int, nullable bool) *manifestSchema {
 
 var submissionSchema = makeSubmissionSchema()
 var sharedSubmissionSchema = makeSharedSubmissionSchema()
+var currentSubmissionSchema = makeCurrentSubmissionSchema()
 
 func makeSubmissionSchema() *manifestSchema {
 	privacy := nullableSchema(objectSchema("origin privacy", nil))
@@ -367,7 +368,7 @@ func sameManifestIdentity(a, b []byte) bool {
 }
 func (s Submission) MarshalJSON() ([]byte, error) { return EncodePreserving(s) }
 
-// The two immutable schemas share the explicit owned-field vocabulary, but
+// The immutable legacy, finish-context and current-view schemas share the explicit owned-field vocabulary, but
 // keep distinct required/forbidden members. Selection never mutates a schema.
 func makeSharedSubmissionSchema() *manifestSchema {
 	schema := makeSubmissionSchema()
@@ -377,6 +378,26 @@ func makeSharedSubmissionSchema() *manifestSchema {
 	paths := *sk.fields["paths"]
 	paths.nullable = false
 	sk.fields["paths"] = &paths
+	schema.fields["sketch_page"].forbidden = []string{"current"}
+	return schema
+}
+func makeCurrentSubmissionSchema() *manifestSchema {
+	schema := makeSharedSubmissionSchema()
+	page := schema.fields["sketch_page"]
+	page.forbidden = nil
+	page.required = append(page.required, "current")
+	// Reuse the same anchor grammar; current context requires an explicit box.
+	originalAnchor := schema.fields["sketches"].element.fields["paths"].element.fields["at"]
+	anchor := *originalAnchor
+	anchor.fields = make(map[string]*manifestSchema, len(originalAnchor.fields))
+	for name, field := range originalAnchor.fields {
+		anchor.fields[name] = field
+	}
+	anchor.fields["box"] = tupleSchema(4, false)
+	projection := requireMembers(typedObject("sketch_id path_id", "", "", "", "", map[string]*manifestSchema{"at": &anchor, "clip": tupleSchema(4, false)}), "sketch_id path_id at clip")
+	projections := arraySchema(projection)
+	projections.nullable = false
+	page.fields["current"] = requireMembers(objectSchema("", map[string]*manifestSchema{"projections": projections}), "projections")
 	return schema
 }
 func schemaForManifest(data []byte) (*manifestSchema, error) {
@@ -385,6 +406,17 @@ func schemaForManifest(data []byte) (*manifestSchema, error) {
 		return nil, err
 	}
 	if raw, ok := root["sketch_page"]; ok && !bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		var page map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &page); err != nil {
+			return nil, err
+		}
+		var provenance string
+		if err := json.Unmarshal(page["provenance"], &provenance); err != nil {
+			return nil, err
+		}
+		if provenance == "replay-rendered-current-view" {
+			return currentSubmissionSchema, nil
+		}
 		return sharedSubmissionSchema, nil
 	}
 	return submissionSchema, nil

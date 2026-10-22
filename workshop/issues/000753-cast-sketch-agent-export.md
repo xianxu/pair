@@ -60,10 +60,13 @@ Primary surfaces: query/{sketch.go,render_sketch.go,surface.go,fake.go,cli.go,ev
 - One Pending feedback panel shows both annotation and sketch counts, and one existing transaction carries notes[] and sketches[]. Pointer state/UI/pixels never enter feedback. Actual annotation crop cards remain follow-up #805.
 - Previously staged per-sketch bundles remain readable and immutable; new shared-page variants are strictly typed/present, preserve nested unknown extensions, and fail closed in the old decoder.
 
+- 2026-10-22 current-view revision (TL668aa826, superseding the earlier oldest-compatible/latest-finish clauses): select only finished feedback actually painted in the active console view, at most eight sketches, with deferred counts for BOTH kinds. Freeze the current recorded prefix at the submission chord for the shared sketch screenshot; preserve box-draw-time note crops and original sketch sources/history. Refuse unavailable/stale visibility instead of guessing.
+- The sanitized post-submission SPA and physical tab-return regressions must preserve real drawing, Note/save, pending cards and repainted unsent ink. Final local acceptance, recorded suite and renewed operator re-look precede landing.
+
 ## Plan
 
 - [x] Claim/start-plan after dependencies land; write the slice-specific execution plan.
-- [ ] Implement and verify the approved 2026-10-22 shared viewport/feedback revision through plan-quality, revised estimate, TDD, full close, recorded checks and renewed operator acceptance; prior per-sketch functional smoke is baseline evidence only.
+- [x] Implement the approved current-view feedback revision through admitted plan/estimate, TDD and focused/native automated checks. Submit to full close and retain the final recorded check; renewed operator acceptance and landing remain explicit pending gates in the Log.
 
 ## Log
 
@@ -475,3 +478,12 @@ TL668aa826 approved the consolidated plan; change-code completed exit0 with plan
 The accepted-begin/zero-stroke blocker now has a concrete independent cause: both held-scene adapters replayed historical renderer operations against an already-final reduced DOM. An earlier attribute/text operation targeting a subsequently removed SPA node threw in Renderer.drawAttr, so scene preparation failed and the drawing layer never armed. Both adapters now reconstruct a separate render model in record order before each renderer application, retaining final descriptor/asset validation. Controlled console and viewer negative controls were RED with the old loop and GREEN with ordered replay. Sanitized native SPA replacement followed by actual pen/Note/save/pending card passed4.894s; focused scene race passed1.552s. These are working-tree qualifications; final committed-source native evidence remains required.
 
 Unsent-tab-return separately reproduced a forgotten trusted original anchor after recorder Doc1→3. Retaining its weak binding while the bounded receiver still owns the original source identity restores actual repaint without changing recorded vectors or pending history. Native forced repaint/tab return passed in the same synthetic probe. Pair:0 stage clear completed successfully for #796 and its receipt to pair:4 is submitted. Current-view witness/selection/bridge implementation remains in progress; no renewed close, suite or operator acceptance is claimed.
+
+
+### 2026-10-22 — current-view integrated implementation and pre-close checks
+
+All approved slices are integrated: one completed-paint witness from actual painters, strict private CDP read/recorded locator resolution, current visible intersection with8 cap and both deferred counts, fresh chord preparation outside manager locks and atomic current-prefix Board freeze, shared current-view codec/projections and renderer, ordered scene replay and retained original tab bindings. Deferred-only Pending feedback remains reachable without holding optional capture suppression. Consumer guides and assertions distinguish new current-view and legacy evidence; no viewer dispatch or permission change.
+
+Working-tree native Read→SelectVisible→Resolve→Publish plus real tab-return Freeze→PrepareSubmission/current shared rendering passed8.466s. Submission manager race2.766s, visibility/preview race1.417s, Board race109.931s, core/recorder focused race1.317s/1.291s passed. Broader targeted packages passed submission13.659s, sketchimage0.599s, recorder5.376s, couchtty65.338s and couchcmd103.823s; webcast19.844s found only the old nil-visibility retired-host fixture, now migrated through real Read/Resolve/Freeze and passing. All530 browser tests passed4.717s before the added32/64 path-count proof, which passed separately. Artifact inventory18.599s and repolint19.740s passed. Reader inventory named two changed tests: model_test uses literal guide/TempDir Store fixtures; sketch_page_test uses literal manifest/PNG and TempDir file lifecycle only, no checkout reads or new fallback owner. Audited and refreshed each exact reader separately; inventory passes.
+
+Obsolete suite lease-1877263215 on d95641a0 was canceled via supported local-check cancel only after ordered-scene correction commit30c79a4c2 made that source obsolete. No duplicate check is active. Final committed-source native evidence, full close review, final recorded suite and hub-scheduled operator re-look are PENDING; the prior operator 'roughly works' is not acceptance of this revision. Pair:0 remains released.

@@ -426,9 +426,140 @@ func TestSharedPageAcceptsExplicitZeroFalseAndEmptyFacts(t *testing.T) {
 
 func TestReadingGuideExplainsSharedPageIndicesAndPrivacy(t *testing.T) {
 	guide := ReadingGuide("/recording")
-	for _, want := range []string{"sketch-page.png", "sketch_page", "index", "finish", "full-page privacy"} {
+	for _, want := range []string{"sketch-page.png", "sketch_page", "index", "finish", "full-page privacy", "replay-rendered-current-view", "current projections"} {
 		if !strings.Contains(guide, want) {
 			t.Errorf("reading guide missing %q", want)
+		}
+	}
+}
+
+func currentPageWire(t *testing.T) map[string]any {
+	root := sharedPageWire(t)
+	page := root["sketch_page"].(map[string]any)
+	sk := root["sketches"].([]any)[0].(map[string]any)
+	page["provenance"] = "replay-rendered-current-view"
+	source := page["source"].(map[string]any)
+	source["doc"] = float64(3)
+	source["record_index"] = source["record_index"].(float64) + 10
+	source["t"] = source["t"].(float64) + 10
+	path := sk["paths"].([]any)[0].(map[string]any)
+	at := map[string]any{"node": float64(99), "box": path["at"].(map[string]any)["box"]}
+	page["current"] = map[string]any{"projections": []any{map[string]any{"sketch_id": sk["id"], "path_id": path["id"], "at": at, "clip": []any{0, 0, 100, 100}}}}
+	return root
+}
+func TestCurrentSharedPagePreservesOriginalEvidence(t *testing.T) {
+	root := currentPageWire(t)
+	s, err := decodePageWire(t, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Validate(s); err != nil {
+		t.Fatal(err)
+	}
+	if s.SketchPage.Current == nil || s.Sketches[0].Source.Doc == s.SketchPage.Source.Doc || s.Sketches[0].Finish.Doc == s.SketchPage.Source.Doc {
+		t.Fatal("current view overwrote historical facts")
+	}
+	for _, mutate := range []func(map[string]any){
+		func(p map[string]any) { delete(p, "current") }, func(p map[string]any) { p["current"] = nil }, func(p map[string]any) { p["provenance"] = "replay-rendered" },
+		func(p map[string]any) { p["current"].(map[string]any)["projections"] = []any{} },
+	} {
+		root := currentPageWire(t)
+		mutate(root["sketch_page"].(map[string]any))
+		s, err := decodePageWire(t, root)
+		if err == nil && Validate(s) == nil {
+			t.Fatal("mixed/missing current context accepted")
+		}
+	}
+}
+
+func TestCurrentPageStrictRequiredProjectionFields(t *testing.T) {
+	for _, group := range []string{"current", "projection", "anchor", "clip", "box"} {
+		names := map[string][]string{"current": {"projections"}, "projection": {"sketch_id", "path_id", "at", "clip"}, "anchor": {"node", "box"}, "clip": {"0", "1", "2", "3"}, "box": {"0", "1", "2", "3"}}[group]
+		for _, name := range names {
+			for _, bad := range []string{"missing", "null", "wrong"} {
+				t.Run(group+"/"+name+"/"+bad, func(t *testing.T) {
+					root := currentPageWire(t)
+					current := root["sketch_page"].(map[string]any)["current"].(map[string]any)
+					projection := current["projections"].([]any)[0].(map[string]any)
+					if group == "clip" || group == "box" {
+						index := int(name[0] - '0')
+						var tuple []any
+						if group == "clip" {
+							tuple = projection["clip"].([]any)
+						} else {
+							tuple = projection["at"].(map[string]any)["box"].([]any)
+						}
+						if bad == "missing" {
+							if group == "clip" {
+								projection["clip"] = tuple[:3]
+							} else {
+								projection["at"].(map[string]any)["box"] = tuple[:3]
+							}
+						} else if bad == "null" {
+							tuple[index] = nil
+						} else {
+							tuple[index] = "0"
+						}
+					} else {
+						obj := current
+						if group == "projection" {
+							obj = projection
+						} else if group == "anchor" {
+							obj = projection["at"].(map[string]any)
+						}
+						if bad == "missing" {
+							delete(obj, name)
+						} else if bad == "null" {
+							obj[name] = nil
+						} else {
+							obj[name] = false
+						}
+					}
+					if s, err := decodePageWire(t, root); err == nil && Validate(s) == nil {
+						t.Fatal("fabricated required projection value")
+					}
+				})
+			}
+		}
+	}
+}
+func TestCurrentPageStorePreservesProjectionExtensions(t *testing.T) {
+	root := currentPageWire(t)
+	current := root["sketch_page"].(map[string]any)["current"].(map[string]any)
+	current["future_context"] = json.Number("1e10000")
+	projection := current["projections"].([]any)[0].(map[string]any)
+	projection["future_projection"] = json.Number("90071992547409931234567890")
+	projection["at"].(map[string]any)["future_anchor"] = true
+	s, err := decodePageWire(t, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := NewStore(tempRoot(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pixels bytes.Buffer
+	png.Encode(&pixels, image.NewRGBA(image.Rect(0, 0, 100, 100)))
+	if _, err := store.Prepare(s, map[string][]byte{"sketch-page.png": pixels.Bytes()}); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, event := range []Event{Begin, Ack, Complete} {
+		if _, err := store.Transition(s.ID, s.Target, event); err != nil {
+			t.Fatal(err)
+		}
+		got, err := store.Read(s.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, err := json.Marshal(got)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, needle := range []string{"future_context", "1e10000", "90071992547409931234567890", "future_anchor"} {
+			if !bytes.Contains(raw, []byte(needle)) {
+				t.Fatalf("lost %s", needle)
+			}
 		}
 	}
 }

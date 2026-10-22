@@ -33,7 +33,7 @@ test('operator capture adapter sends distinct status envelopes and the prepared 
  const win={scrollX:0,scrollY:0,setTimeout:()=>1,clearTimeout(){},addEventListener(){},__couchcastPath:()=>[1,2]};
  const hit={getBoundingClientRect:()=>({x:10,y:20,width:30,height:40})},doc={createElement:()=>({}),elementFromPoint:()=>hit},host={style:{}},root={appendChild(){}};
  const ui={strokes:{clear(){}},setAnnotationAllowed(){}};
- mountOperator({host,root,report:m=>sent.push(m.request)},{annotate:{mountAnnotation:(d,w,v,o)=>{options=o;return ui;}},palette:[],css:''},doc,win);
+ mountOperator({host,root,report:m=>{if(m.t==='operator')sent.push(m.request);}},{annotate:{mountAnnotation:(d,w,v,o)=>{options=o;return ui;}},palette:[],css:''},doc,win);
  win.__couchcastAnnotationAllowed(true,'1');
  const body=options.prepareDraft([10,20,5,5]);assert.deepEqual(body.path,[1,2]);assert.equal(sent.length,0);
  const prepare=options.captureCall('prepare-note',{...body,request:'prepare1'},{timeoutMs:4000});assert.equal(sent[0].request,'prepare1');win.__couchcastOperatorReply({request:'prepare1',outcome:'pending',state:'pending'});assert.equal((await prepare).state,'pending');

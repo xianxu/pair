@@ -246,7 +246,10 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 	wait("held scene exit", func() bool { return string(eval(world, `!globalThis.__couchcastPrivateSceneFrame`)) == "true" })
 	// The same bridge used by the manager must expose the exact finished shape
 	// before the chord can submit. No browser-side send action is added.
+	var previewDelivered map[core.PreviewItem]struct{}
 	var previewState core.PreviewState
+	var preparedView core.PreviewSelection
+	var preparedHost core.PreviewHost
 	var previewDeliveryGeneration uint64
 	publishPreview := func(want int, empty ...bool) {
 		t.Helper()
@@ -266,16 +269,30 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 			for _, v := range selected.Sketches {
 				candidates = append(candidates, core.PreviewSketchCandidate{Item: core.PreviewItem{RecordingID: chrome.opts.Record.ID, SketchID: v.ID, Sequence: v.NextSequence, Digest: v.Digest}, Source: v.Source, Finish: v.Finish})
 			}
-			if len(empty) > 0 && empty[0] {
-				candidates = nil
-			}
 			notes := make([]core.PreviewNote, 0, len(selected.Notes))
 			for _, v := range selected.Notes {
 				notes = append(notes, core.PreviewNote{ID: v.ID, Revision: v.Revision})
 			}
-			selection, e := core.SelectFeedbackPreview(candidates, notes, nil, core.PreviewStamp{Board: selected.SketchGeneration, Delivered: previewDeliveryGeneration})
+			view, e := cast.ReadSubmissionVisibility(ctx, host)
 			if e != nil {
-				t.Fatalf("native feedback selector: %v", e)
+				return false
+			}
+			delivered := core.DeliveredFeedback{RecordingID: chrome.opts.Record.ID, Sketches: map[core.PreviewItem]struct{}{}}
+			for item := range previewDelivered {
+				delivered.Sketches[item] = struct{}{}
+			}
+			if len(empty) > 0 && empty[0] {
+				for _, candidate := range candidates {
+					delivered.Sketches[candidate.Item] = struct{}{}
+				}
+			}
+			selection, e := core.SelectVisibleFeedback(candidates, notes, delivered, core.PreviewStamp{Board: selected.SketchGeneration, Delivered: previewDeliveryGeneration}, view)
+			if e != nil {
+				t.Fatalf("native visible feedback selector: %v", e)
+			}
+			selection, e = cast.ResolveSubmissionPreview(ctx, host, selection)
+			if e != nil {
+				return false
 			}
 			previewState, _ = core.NextPreview(previewState, core.PreviewHostChanged{Host: host})
 			previewState, _ = core.NextPreview(previewState, core.PreviewCandidatesChanged{Selection: selection})
@@ -290,7 +307,12 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 					previewState, _ = core.NextPreview(previewState, core.PreviewPublishAccepted{Publication: publication.Publication})
 				}
 			}
-			return previewState.Phase() == core.PreviewShown
+			if previewState.Phase() == core.PreviewShown {
+				preparedView = selection
+				preparedHost = host
+				return true
+			}
+			return false
 		})
 	}
 	publishPreview(1)
@@ -336,7 +358,13 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 		if e = recorder.CaptureBackgroundScreenshot(ctx, chrome.conn, session, world, map[string]any{"format": "png"}, nil); !errors.Is(e, recorder.ErrBackgroundCaptureDeferred) {
 			t.Fatalf("preview label background capture: %v", e)
 		}
-		publishPreview(1)
+		host, _, e := cast.SubmissionPreviewHost(ctx)
+		if e != nil {
+			t.Fatal(e)
+		}
+		if _, e = cast.ReadSubmissionVisibility(ctx, host); e == nil {
+			t.Fatal("active label editor admitted a completed visibility witness")
+		}
 	}
 	if got := string(eval(world, `new Promise(resolve=>setTimeout(()=>{const input=__couchcastOperatorSketch.labelInput,root=input.getRootNode();resolve(root.activeElement===input&&input.selectionStart===1&&input.selectionEnd===1&&previewBlur===0&&root.querySelector('.sketch-submission-card')===previewCard&&previewCard.querySelector('canvas')===previewCanvas)},50))`)); got != "true" {
 		t.Fatalf("preview refresh/remote traffic stole editor focus or replaced cards: %s", got)
@@ -354,7 +382,7 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 	// After dispatch suppresses every exact version, no empty panel should
 	// keep optional fidelity captures deferred; recorded ink remains unchanged.
 	publishPreview(2, true)
-	if got := string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode();return root.querySelector('.sketch-submission-preview').hidden&&!__couchcastCaptureBusy()})()`)); got != "true" {
+	if got := string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode();return root.querySelectorAll('.sketch-submission-card').length===0&&!__couchcastCaptureBusy()})()`)); got != "true" {
 		t.Fatalf("empty preview still holds capture suppression: %s", got)
 	}
 	if err := recorder.CaptureBackgroundScreenshot(ctx, chrome.conn, session, world, map[string]any{"format": "png"}, &screenshot); err != nil || screenshot.Data == "" {
@@ -416,11 +444,11 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 		t.Fatal(e)
 	}
 	wait("all submitted console sketches hidden", func() bool { return pixels().Count == 0 })
-	// The preview still obtains both accepted paths from the same receiver:
-	// suppressing live paint must not delete its vector projection.
+	// Masked vectors stay in history, but are no longer eligible in the
+	// current visible pending selection.
 	publishPreview(2)
-	if got := string(eval(world, `__couchcastOperatorSketch.labelInput.getRootNode().querySelectorAll('.sketch-submission-card').length`)); got != "2" {
-		t.Fatalf("mask destroyed receiver preview paths: %s", got)
+	if got := string(eval(world, `__couchcastOperatorSketch.labelInput.getRootNode().querySelectorAll('.sketch-submission-card').length`)); got != "0" {
+		t.Fatalf("masked feedback still selected: %s", got)
 	}
 	publishPreview(2, true)
 	afterMask, e := recording.Reduce(read(), math.MaxInt64)
@@ -431,6 +459,211 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 	if e != nil || !bytes.Equal(beforeProjection, afterProjection) {
 		t.Fatalf("mask changed accepted recording projection: %v\nbefore %s\nafter %s", e, beforeProjection, afterProjection)
 	}
+
+	// Reproduce the operator's next action after submission: enter another
+	// held scene and draw through real pointer input while both old versions are
+	// still suppressed. Do not clear the mask to make drawing succeed.
+	var postSubmitDiagnostic string
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Logf("post-submit drawing diagnostic: %s; mask=%+v; receiver stats=%+v", postSubmitDiagnostic, cast.board.FeedbackMask(), cast.board.OperatorSketchDeliveryStats())
+		}
+	})
+	diagnosePostSubmit := func() {
+		postSubmitDiagnostic = string(eval(world, `(()=>{const tool=__couchcastOperatorSketch,root=tool.labelInput.getRootNode(),frame=globalThis.__couchcastPrivateSceneFrame,canvases=[...tool.layer.parentNode.querySelectorAll('canvas')];return JSON.stringify({state:tool.state(),status:root.querySelector('.sketch-status')?.textContent,visibility:document.visibilityState,focused:document.hasFocus(),host:{connected:root.host.isConnected,hidden:root.host.hidden},frame:frame?{hidden:frame.hidden,rect:frame.getBoundingClientRect().toJSON(),ready:!!frame.contentWindow}:null,hit:root.elementFromPoint(110,140)?.className,layer:{hidden:tool.layer.hidden,pointerEvents:getComputedStyle(tool.layer).pointerEvents,zIndex:getComputedStyle(tool.layer).zIndex,rect:tool.layer.getBoundingClientRect().toJSON()},canvases:canvases.map(c=>({class:c.className,hidden:c.hidden,width:c.width,height:c.height,pointerEvents:getComputedStyle(c).pointerEvents,display:getComputedStyle(c).display}))})})()`))
+	}
+
+	// Match the operator's intervening box-note flow through the real shared
+	// annotation module before returning to Sketch.
+	if e = cast.board.SetAnnotationAllowed(ctx, true); e != nil {
+		t.Fatal(e)
+	}
+	wait("annotation palette available before post-submit drawing", func() bool {
+		return string(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode(),b=[...root.querySelectorAll('.annotate-rail .mode')].find(b=>b.textContent==='💭');return !!b&&!b.disabled})()`)) == "true"
+	})
+	clickNativeRootButton := func(selector, text string) {
+		t.Helper()
+		var point [2]float64
+		if e := json.Unmarshal(eval(world, fmt.Sprintf(`(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode(),b=[...root.querySelectorAll(%q)].find(b=>b.textContent===%q),r=b?.getBoundingClientRect();if(!b||b.disabled||!r.width||!b.contains(root.elementFromPoint(r.x+r.width/2,r.y+r.height/2)))throw Error('native control unavailable');return [r.x+r.width/2,r.y+r.height/2]})()`, selector, text)), &point); e != nil {
+			t.Fatal(e)
+		}
+		for _, kind := range []string{"mousePressed", "mouseReleased"} {
+			call("Input.dispatchMouseEvent", map[string]any{"type": kind, "x": point[0], "y": point[1], "button": "left", "clickCount": 1}, nil)
+		}
+	}
+	clickNativeRootButton(".annotate-rail .mode", "💭")
+	for _, event := range []struct {
+		kind    string
+		x, y    float64
+		buttons int
+	}{{"mousePressed", 180, 180, 1}, {"mouseMoved", 210, 210, 1}, {"mouseReleased", 210, 210, 0}} {
+		button := "left"
+		if event.kind == "mouseMoved" {
+			button = "none"
+		}
+		call("Input.dispatchMouseEvent", map[string]any{"type": event.kind, "x": event.x, "y": event.y, "button": button, "buttons": event.buttons, "clickCount": 1}, nil)
+	}
+	wait("post-submit bounding-box note editor", func() bool {
+		diagnosePostSubmit()
+		return string(eval(world, `(()=>{const d=__couchcastOperatorSketch.labelInput.getRootNode().querySelector('.note-dialog');return d&&!d.hidden&&!d.classList.contains('hidden')})()`)) == "true"
+	})
+	eval(world, `(()=>{const input=__couchcastOperatorSketch.labelInput.getRootNode().querySelector('.note-input');input.value='Box note between sketch cycles';input.dispatchEvent(new Event('input',{bubbles:true}));return true})()`)
+	wait("post-submit box capture ready to Save", func() bool {
+		return string(eval(world, `(()=>{const b=[...__couchcastOperatorSketch.labelInput.getRootNode().querySelectorAll('.note-buttons button')].find(b=>b.textContent==='Save');return !!b&&!b.disabled})()`)) == "true"
+	})
+	clickNativeRootButton(".note-buttons button", "Save")
+	wait("intervening bounding-box note saved", func() bool {
+		diagnosePostSubmit()
+		for _, r := range read() {
+			if n, ok := r.(*recording.Note); ok && n.Text == "Box note between sketch cycles" {
+				return true
+			}
+		}
+		return false
+	})
+	t.Logf("intervening real box note saved; %s", postSubmitDiagnostic)
+	clickTool("Sketch")
+	wait("new post-submit held scene", func() bool {
+		diagnosePostSubmit()
+		return string(eval(world, `__couchcastOperatorSketch.state().phase`)) == `"drawing"`
+	})
+	pen("mousePressed", 110, .2, 1)
+	pen("mouseMoved", 115, .5, 1)
+	pen("mouseMoved", 120, .8, 1)
+	wait("new accepted visible ink after submission mask", func() bool {
+		diagnosePostSubmit()
+		state, e := recording.Reduce(read(), math.MaxInt64)
+		if e != nil {
+			return false
+		}
+		projection := state.Sketches.Snapshot()
+		return len(projection.Sketches) == 3 && len(projection.Sketches[2].Strokes) == 1 && len(projection.Sketches[2].Strokes[0].Pts) >= 3 && pixels().Count > 0
+	})
+	pen("mouseReleased", 120, 0, 0)
+	wait("new post-submit stroke settled", func() bool {
+		return string(eval(world, `__couchcastOperatorSketch.state().slots.every(s=>!s.inflight&&!s.queued)`)) == "true"
+	})
+	clickTool("Note")
+	wait("new post-submit Note editor", func() bool {
+		return string(eval(world, `!__couchcastOperatorSketch.labelInput.parentElement.hidden`)) == "true"
+	})
+	eval(world, `__couchcastOperatorSketch.labelInput.value='New after submitted feedback'`)
+	var saveAfterSubmit [2]float64
+	if e = json.Unmarshal(eval(world, `(()=>{const root=__couchcastOperatorSketch.labelInput.getRootNode(),button=[...root.querySelectorAll('button')].find(b=>b.textContent==='Save label'),r=button.getBoundingClientRect();if(button.disabled||!r.width||!button.contains(root.elementFromPoint(r.x+r.width/2,r.y+r.height/2)))throw Error('Save label unavailable');return [r.x+r.width/2,r.y+r.height/2]})()`), &saveAfterSubmit); e != nil {
+		t.Fatal(e)
+	}
+	for _, kind := range []string{"mousePressed", "mouseReleased"} {
+		call("Input.dispatchMouseEvent", map[string]any{"type": kind, "x": saveAfterSubmit[0], "y": saveAfterSubmit[1], "button": "left", "clickCount": 1}, nil)
+	}
+	wait("new post-submit sketch label accepted", func() bool {
+		diagnosePostSubmit()
+		state, e := recording.Reduce(read(), math.MaxInt64)
+		return e == nil && len(state.Sketches.Snapshot().Sketches) == 3 && state.Sketches.Snapshot().Sketches[2].Label == "New after submitted feedback"
+	})
+	wait("new post-submit label reply settled and scene retired", func() bool {
+		diagnosePostSubmit()
+		return string(eval(world, `__couchcastOperatorSketch.state().slots.every(s=>!s.inflight&&!s.queued)&&!globalThis.__couchcastPrivateSceneFrame`)) == "true"
+	})
+	previewDelivered = deliveredMask.Sketches
+	publishPreview(3)
+	if got := string(eval(world, `(()=>{const p=__couchcastOperatorSketch.labelInput.getRootNode().querySelector('.sketch-submission-preview');return !p.hidden&&p.querySelectorAll('.sketch-submission-card').length===1&&p.textContent.includes('New after submitted feedback')})()`)); got != "true" {
+		t.Fatalf("new post-submit sketch missing pending card: %s; %s", got, postSubmitDiagnostic)
+	}
+	if ink := pixels(); ink.Count == 0 {
+		t.Fatalf("new completed post-submit sketch invisible: %s", postSubmitDiagnostic)
+	}
+
+	// Keep the third exact version UNSENT across the real tab round trip. A
+	// pending thumbnail proves receiver vectors survived; its live ink must also
+	// return to the same physical source element after reactivation.
+	unsentStateBefore, e := recording.Reduce(read(), math.MaxInt64)
+	if e != nil {
+		t.Fatal(e)
+	}
+	unsentAnchor := unsentStateBefore.Sketches.Snapshot().Sketches[2].Strokes[0].Begin.At.Node
+	unsentSelectionBefore, e := cast.SubmissionSelection()
+	if e != nil {
+		t.Fatal(e)
+	}
+	unsentSourceDoc := unsentSelectionBefore.Sketches[2].Source.Doc
+	eval(0, `(()=>{globalThis.__testUnsentOriginalButton=document.querySelector('button');return true})()`)
+	t.Logf("before unsent tab return: sourceDoc=%d at.node=%d originalHook=%s", unsentSourceDoc, unsentAnchor, eval(world, fmt.Sprintf(`__couchcastOperatorOriginal(%d,%d,document.querySelector('button'))`, unsentSourceDoc, unsentAnchor)))
+	var unsentSourceTab string
+	unsentTabDone := make(chan struct{})
+	chrome.do(func(s *loopState) { unsentSourceTab = castTab(s); close(unsentTabDone) })
+	<-unsentTabDone
+	var unsentOtherTab struct {
+		TargetID string `json:"targetId"`
+	}
+	if e = chrome.conn.Call(ctx, "", "Target.createTarget", map[string]any{"url": page.URL + "?tab=unsent-return"}, &unsentOtherTab); e != nil {
+		t.Fatal(e)
+	}
+	if e = chrome.conn.Call(ctx, "", "Target.activateTarget", map[string]any{"targetId": unsentOtherTab.TargetID}, nil); e != nil {
+		t.Fatal(e)
+	}
+	wait("unsent sketch other tab active", func() bool {
+		done := make(chan struct{})
+		active := ""
+		chrome.do(func(s *loopState) { active = castTab(s); close(done) })
+		<-done
+		return active == unsentOtherTab.TargetID
+	})
+	if e = chrome.conn.Call(ctx, "", "Target.activateTarget", map[string]any{"targetId": unsentSourceTab}, nil); e != nil {
+		t.Fatal(e)
+	}
+	wait("unsent sketch original tab active again", func() bool {
+		done := make(chan struct{})
+		active := ""
+		chrome.do(func(s *loopState) { active = castTab(s); world = s.contexts[session]; close(done) })
+		<-done
+		return active == unsentSourceTab && world != 0
+	})
+	publishPreview(3)
+	t.Logf("after unsent tab return: boardDoc=%d sourceDoc=%d at.node=%d sameConnectedDOM=%s sourceOriginalHook=%s", cast.board.OperatorView().Doc, unsentSourceDoc, unsentAnchor, eval(0, `globalThis.__testUnsentOriginalButton===document.querySelector('button')&&globalThis.__testUnsentOriginalButton.isConnected`), eval(world, fmt.Sprintf(`__couchcastOperatorOriginal(%d,%d,document.querySelector('button'))`, unsentSourceDoc, unsentAnchor)))
+	// Reactivation can initially leave the old raster buffer intact. Exercise
+	// the normal resize handler so success requires current placement proof.
+	eval(world, `new Promise(resolve=>{window.dispatchEvent(new Event('resize'));requestAnimationFrame(()=>requestAnimationFrame(()=>resolve(true)))})`)
+	var unsentRestored inkBounds
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); {
+		diagnosePostSubmit()
+		unsentRestored = pixels()
+		if unsentRestored.Count > 0 {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		case <-time.After(25 * time.Millisecond):
+		}
+	}
+	if unsentRestored.Count == 0 {
+		t.Logf("late unsent tab-return binding: boardDoc=%d sourceDoc=%d at.node=%d sameConnectedDOM=%s sourceOriginalHook=%s", cast.board.OperatorView().Doc, unsentSourceDoc, unsentAnchor, eval(0, `globalThis.__testUnsentOriginalButton===document.querySelector('button')&&globalThis.__testUnsentOriginalButton.isConnected`), eval(world, fmt.Sprintf(`__couchcastOperatorOriginal(%d,%d,document.querySelector('button'))`, unsentSourceDoc, unsentAnchor)))
+		selected, e := cast.SubmissionSelection()
+		t.Fatalf("UNSENT tab-return ink missing: pixels=%+v, pending=%s, drawing=%s, boardDoc=%d, mask=%+v, selection=%+v err=%v, receiver=%+v", unsentRestored, eval(world, `(()=>{const p=__couchcastOperatorSketch.labelInput.getRootNode().querySelector('.sketch-submission-preview');return {hidden:p.hidden,count:p.querySelectorAll('.sketch-submission-card').length,text:p.textContent}})()`), postSubmitDiagnostic, cast.board.OperatorView().Doc, cast.board.FeedbackMask(), selected, e, cast.board.OperatorSketchDeliveryStats())
+	}
+	t.Logf("unsent third sketch live pixels survived real A-to-B-to-A: %+v", unsentRestored)
+	// Exercise the exact private visibility/recorder/Board/builder path after
+	// reattaching the old ink to the new recorded document. The screenshot
+	// freezes this current frame; original source/finish stay historical.
+	publishPreview(3)
+	frozen, e := cast.FreezeSubmissionPreview(preparedHost, preparedView)
+	if e != nil {
+		t.Fatal("freeze native current view", e)
+	}
+	bundle, files, e := cast.PrepareSubmission(ctx, "native-current-view", castSubmissionTarget(), frozen, "", nil)
+	if e != nil {
+		t.Fatal("render native current view", e)
+	}
+	if bundle.SketchPage == nil || bundle.SketchPage.Current == nil || bundle.SketchPage.Provenance != "replay-rendered-current-view" || bundle.SketchPage.Source.Doc == unsentSourceDoc || len(bundle.Sketches) != 1 || len(files[bundle.SketchPage.File]) == 0 {
+		t.Fatalf("current shared evidence missing: %+v", bundle.SketchPage)
+	}
+	if bundle.Sketches[0].Source.Doc != unsentSourceDoc {
+		t.Fatal("current projection rewrote original source")
+	}
+
+	t.Logf("mask-only post-submit real pointer/Note/save/card passed; %s", postSubmitDiagnostic)
+	previewDelivered = nil
+	publishPreview(3, true)
 	if e = cast.SetDeliveredFeedback(core.DeliveredFeedback{RecordingID: deliveredMask.RecordingID}); e != nil {
 		t.Fatal(e)
 	}
@@ -471,9 +704,95 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 		t.Fatal(err)
 	}
 	projection := state.Sketches.Snapshot()
-	if len(projection.Sketches) != 2 || projection.Sketches[0].Label != "Move this console control" || projection.Sketches[1].Label != "Preview focus draft" {
+	if len(projection.Sketches) != 3 || projection.Sketches[0].Label != "Move this console control" || projection.Sketches[1].Label != "Preview focus draft" || projection.Sketches[2].Label != "New after submitted feedback" {
 		t.Fatalf("console projection: %+v", projection)
 	}
+
+	// A same-context SPA swaps its head/body and app root, without replacing
+	// the Document or manually reattaching any private operator UI. The actual
+	// recorder/control hooks must prepare a new physical drawing surface.
+	selectedBeforeSPA, e := cast.SubmissionSelection()
+	if e != nil {
+		t.Fatal(e)
+	}
+	for _, v := range selectedBeforeSPA.Sketches {
+		addMask(v)
+	}
+	if e = cast.SetDeliveredFeedback(deliveredMask); e != nil {
+		t.Fatal(e)
+	}
+	eval(0, `(()=>{globalThis.__testSPADocument=document;history.pushState({screen:'next'},'', '/spa-next');const head=document.createElement('head');head.innerHTML='<title>SPA next screen</title><style>body{margin:0}button{position:absolute;left:80px;top:100px;width:240px;height:160px;padding:0;border:0;background:#eee}</style>';const body=document.createElement('body');body.innerHTML='<main id="spa-screen"><button>Continue</button><p>Next page content</p></main>';document.head.replaceWith(head);document.body.replaceWith(body);window.dispatchEvent(new PopStateEvent('popstate'));return document===globalThis.__testSPADocument})()`)
+	wait("SPA source mutation recorded", func() bool {
+		for _, r := range read() {
+			data, e := recording.Encode(r)
+			if e == nil && bytes.Contains(data, []byte("spa-screen")) {
+				return true
+			}
+		}
+		return false
+	})
+	if got := string(eval(0, `document===globalThis.__testSPADocument&&location.pathname==='/spa-next'&&document.querySelector('main button').textContent==='Continue'`)); got != "true" {
+		t.Fatalf("SPA changed native document/context unexpectedly: %s", got)
+	}
+	diagnosePostSubmit()
+	t.Logf("sanitized same-context head/body/root SPA before Sketch: %s", postSubmitDiagnostic)
+	eval(world, `(()=>{const original=globalThis.__couchcastSketchReply;globalThis.__testSPAReplies=[];globalThis.__couchcastSketchReply=reply=>{__testSPAReplies.push({request:reply.request,ok:reply.ok,error:reply.error,outcome:reply.value?.outcome,status:reply.value?.status});if(__testSPAReplies.length>20)__testSPAReplies.shift();return original(reply)};return true})()`)
+	clickTool("Sketch")
+	wait("SPA held scene drawing", func() bool {
+		diagnosePostSubmit()
+		phase := string(eval(world, `__couchcastOperatorSketch.state().phase`))
+		if phase == `"interrupted"` || string(eval(world, `__testSPAReplies.some(r=>r.ok===false)`)) == "true" {
+			rs := read()
+			for i, r := range rs {
+				if i >= len(rs)-12 {
+					switch v := r.(type) {
+					case *recording.SketchBegin:
+						t.Logf("SPA lastrecord[%d] %s t=%d id=%s sourceDoc=%d tab=%s", i, r.Kind(), r.Time(), v.ID, v.Doc, v.Tab)
+					case *recording.SketchInterrupt:
+						t.Logf("SPA lastrecord[%d] %s t=%d id=%s reason=%s", i, r.Kind(), r.Time(), v.Sketch, v.Reason)
+					default:
+						t.Logf("SPA lastrecord[%d] %s t=%d", i, r.Kind(), r.Time())
+					}
+				}
+			}
+			t.Fatalf("SPA scene preparation refused: transport=%s; drawing=%s; boardDoc=%d", eval(world, `__testSPAReplies`), postSubmitDiagnostic, cast.board.OperatorView().Doc)
+		}
+		return phase == `"drawing"`
+	})
+	t.Logf("SPA real pen interception before input: %s", postSubmitDiagnostic)
+	pen("mousePressed", 110, .2, 1)
+	pen("mouseMoved", 115, .5, 1)
+	pen("mouseMoved", 120, .8, 1)
+	wait("SPA new accepted visible pressure path", func() bool {
+		diagnosePostSubmit()
+		state, e := recording.Reduce(read(), math.MaxInt64)
+		if e != nil {
+			return false
+		}
+		sketches := state.Sketches.Snapshot().Sketches
+		return len(sketches) == 4 && len(sketches[3].Strokes) == 1 && len(sketches[3].Strokes[0].Pts) >= 3 && pixels().Count > 0
+	})
+	pen("mouseReleased", 120, 0, 0)
+	wait("SPA pressure path settled", func() bool {
+		return string(eval(world, `__couchcastOperatorSketch.state().slots.every(s=>!s.inflight&&!s.queued)`)) == "true"
+	})
+	clickTool("Note")
+	wait("SPA sketch Note editor", func() bool {
+		return string(eval(world, `!__couchcastOperatorSketch.labelInput.parentElement.hidden`)) == "true"
+	})
+	eval(world, `__couchcastOperatorSketch.labelInput.value='Sketch after SPA replacement'`)
+	clickNativeRootButton(".sketch-label button", "Save label")
+	wait("SPA sketch label accepted and scene exited", func() bool {
+		diagnosePostSubmit()
+		state, e := recording.Reduce(read(), math.MaxInt64)
+		return e == nil && len(state.Sketches.Snapshot().Sketches) == 4 && state.Sketches.Snapshot().Sketches[3].Label == "Sketch after SPA replacement" && string(eval(world, `__couchcastOperatorSketch.state().slots.every(s=>!s.inflight&&!s.queued)&&!globalThis.__couchcastPrivateSceneFrame`)) == "true"
+	})
+	previewDelivered = deliveredMask.Sketches
+	publishPreview(4)
+	if got := string(eval(world, `(()=>{const p=__couchcastOperatorSketch.labelInput.getRootNode().querySelector('.sketch-submission-preview');return !p.hidden&&p.querySelectorAll('.sketch-submission-card').length===1&&p.textContent.includes('Sketch after SPA replacement')})()`)); got != "true" {
+		t.Fatalf("SPA new sketch pending card missing: %s; %s", got, postSubmitDiagnostic)
+	}
+	t.Logf("same-context SPA head/body/root replacement then real pen/Note/save/pending passed")
 	for _, r := range records {
 		b, e := recording.Encode(r)
 		if e != nil {

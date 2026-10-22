@@ -15,6 +15,8 @@ type submissionPreviewCast interface {
 	FreezeSubmissionPreview(core.PreviewHost, core.PreviewSelection) (board.Selection, error)
 	SubmissionCandidateUpdates() (<-chan struct{}, func())
 	SubmissionPreviewUpdates() (<-chan struct{}, func())
+	ReadSubmissionVisibility(context.Context, core.PreviewHost) (core.FeedbackVisibility, error)
+	ResolveSubmissionPreview(context.Context, core.PreviewHost, core.PreviewSelection) (core.PreviewSelection, error)
 	SubmissionPreviewHost(context.Context) (core.PreviewHost, <-chan struct{}, error)
 	PublishSubmissionPreview(context.Context, core.PreviewPublication) error
 }
@@ -116,31 +118,35 @@ func (m *submissionManager) runSubmissionPreview(ctx context.Context, run *submi
 				}
 			}
 		}
-		if err != nil || selectionErr != nil || deliveryErr != nil || deliveredGeneration != m.deliveredGeneration {
+		// Browser paint and recorder locator resolution never run under manager.mu.
+		m.mu.Unlock()
+		var selection core.PreviewSelection
+		if err == nil && selectionErr == nil && deliveryErr == nil {
+			selection, err = readVisibleSubmissionPreview(ctx, cast, host, selected, delivered, deliveredGeneration)
+		}
+		m.mu.Lock()
+		if m.previewRun != run {
+			m.mu.Unlock()
+			return
+		}
+		latest, latestErr := cast.SubmissionSelection()
+		select {
+		case <-life:
+			err = errSubmissionPreview
+		default:
+		}
+		if err != nil || selectionErr != nil || latestErr != nil || deliveryErr != nil || deliveredGeneration != m.deliveredGeneration || latest.SketchGeneration != selected.SketchGeneration {
 			m.previewState, _ = core.NextPreview(m.previewState, core.PreviewHostChanged{})
 		} else {
 			run.host = host
 			m.previewState, _ = core.NextPreview(m.previewState, core.PreviewHostChanged{Host: host})
-			candidates := make([]core.PreviewSketchCandidate, 0, len(selected.Sketches))
-			for _, v := range selected.Sketches {
-				candidates = append(candidates, core.PreviewSketchCandidate{Item: core.PreviewItem{RecordingID: filepath.Base(cast.RecordingPath()), SketchID: v.ID, Sequence: v.NextSequence, Digest: v.Digest}, Source: v.Source, Finish: v.Finish})
-			}
-			notes := make([]core.PreviewNote, 0, len(selected.Notes))
-			for _, v := range selected.Notes {
-				notes = append(notes, core.PreviewNote{ID: v.ID, Revision: v.Revision})
-			}
-			selection, selectErr := core.SelectFeedbackPreview(candidates, notes, delivered.Sketches, core.PreviewStamp{Board: selected.SketchGeneration, Delivered: deliveredGeneration})
-			if selectErr != nil {
-				m.previewState, _ = core.NextPreview(m.previewState, core.PreviewHostChanged{})
-			} else {
-				m.previewState, _ = core.NextPreview(m.previewState, core.PreviewCandidatesChanged{Selection: selection})
-				var effects []core.PreviewEffect
-				m.previewState, effects = core.NextPreview(m.previewState, core.PreviewRefresh{})
-				for _, effect := range effects {
-					if p, ok := effect.(core.PreviewPublish); ok {
-						v := p.Publication
-						publication = &v
-					}
+			m.previewState, _ = core.NextPreview(m.previewState, core.PreviewCandidatesChanged{Selection: selection})
+			var effects []core.PreviewEffect
+			m.previewState, effects = core.NextPreview(m.previewState, core.PreviewRefresh{})
+			for _, effect := range effects {
+				if p, ok := effect.(core.PreviewPublish); ok {
+					v := p.Publication
+					publication = &v
 				}
 			}
 		}
@@ -215,7 +221,7 @@ func (m *submissionManager) runSubmissionPreview(ctx context.Context, run *submi
 }
 
 // Called with manager.mu held; Board's generation fence is the atomic boundary.
-func (m *submissionManager) freezeSubmissionPreview(cast submissionCast, selected board.Selection) (board.Selection, error) {
+func (m *submissionManager) freezeSubmissionPreview(cast submissionCast, selected board.Selection, fresh ...*core.PreviewSelection) (board.Selection, error) {
 	if len(selected.Sketches) == 0 && len(selected.Notes) == 0 {
 		return selected, nil
 	}
@@ -223,13 +229,18 @@ func (m *submissionManager) freezeSubmissionPreview(cast submissionCast, selecte
 	if run == nil || run.cast != cast {
 		return board.Selection{}, errSubmissionPreview
 	}
+	var proposal *core.PreviewSelection
+	if len(fresh) > 0 {
+		proposal = fresh[0]
+	}
 	var effects []core.PreviewEffect
-	m.previewState, effects = core.NextPreview(m.previewState, core.PreviewPrepare{Host: run.host, Stamp: core.PreviewStamp{Board: selected.SketchGeneration, Delivered: m.deliveredGeneration}})
+	m.previewState, effects = core.NextPreview(m.previewState, core.PreviewPrepare{Fresh: proposal, Host: run.host, Stamp: core.PreviewStamp{Board: selected.SketchGeneration, Delivered: m.deliveredGeneration}})
 	for _, effect := range effects {
 		if p, ok := effect.(core.PreviewFreezeProposal); ok {
 			frozen, err := run.cast.FreezeSubmissionPreview(p.Publication.Host(), p.Publication.Selection())
 			if err == nil {
 				frozen.SketchRemaining = p.Publication.Selection().Remaining
+				frozen.NoteRemaining = p.Publication.Selection().NoteRemaining
 				return frozen, nil
 			}
 			m.previewState, _ = core.NextPreview(m.previewState, core.PreviewFreezeRejected{Publication: p.Publication})
@@ -249,4 +260,32 @@ func (m *submissionManager) submissionDeliveredLocked() {
 		default:
 		}
 	}
+}
+
+// The caller supplies one captured authoritative generation. All browser/recorder
+// IO is bounded by this shared deadline and occurs without manager.mu.
+func readVisibleSubmissionPreview(ctx context.Context, cast submissionPreviewCast, host core.PreviewHost, selected board.Selection, delivered core.DeliveredFeedback, generation uint64) (core.PreviewSelection, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	view, err := cast.ReadSubmissionVisibility(ctx, host)
+	if err != nil {
+		return core.PreviewSelection{}, err
+	}
+	candidates := make([]core.PreviewSketchCandidate, 0, len(selected.Sketches))
+	for _, v := range selected.Sketches {
+		candidates = append(candidates, core.PreviewSketchCandidate{Item: core.PreviewItem{RecordingID: filepath.Base(cast.RecordingPath()), SketchID: v.ID, Sequence: v.NextSequence, Digest: v.Digest}, Source: v.Source, Finish: v.Finish})
+	}
+	notes := make([]core.PreviewNote, 0, len(selected.Notes))
+	for _, v := range selected.Notes {
+		notes = append(notes, core.PreviewNote{ID: v.ID, Revision: v.Revision})
+	}
+	selection, err := core.SelectVisibleFeedback(candidates, notes, delivered, core.PreviewStamp{Board: selected.SketchGeneration, Delivered: generation}, view)
+	if err != nil {
+		return core.PreviewSelection{}, err
+	}
+	selection, err = cast.ResolveSubmissionPreview(ctx, host, selection)
+	if err == nil {
+		err = ctx.Err()
+	}
+	return selection, err
 }

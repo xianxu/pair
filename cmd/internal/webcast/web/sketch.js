@@ -106,6 +106,7 @@ export function mountSketch(doc, win, view, options) {
       : '';
   }
   function show() {
+    view.feedbackVisibility?.invalidate();
     const s = state(),
       drawing = s.phase === 'drawing';
     layer.style.pointerEvents = drawing ? 'auto' : 'none';
@@ -713,6 +714,7 @@ export function mountSketch(doc, win, view, options) {
     dispatch({ type: 'sync', ...authority });
   }
   async function paint() {
+    const visibilityToken=view.feedbackVisibility?.token();
     const stamp = ++paintGeneration,
       sceneGeneration = generation;
     const allPaths = options.paths ? options.paths() : recordDisplay.paths();
@@ -726,13 +728,14 @@ export function mountSketch(doc, win, view, options) {
           placements.set(
             key,
             Promise.resolve()
-              .then(() => (scene.ready ? scene.placement(p) : view.placementOf(p)))
+              .then(() => (scene.ready ? scene.placement(p) : view.placementOf(p,view.feedbackVisibility?{withWitness:true}:undefined)))
               .catch(() => null),
           );
         return placements.get(key);
       }),
     );
     if (disposed || stamp !== paintGeneration || sceneGeneration !== generation) return;
+    const paintTargets=targets.map(target=>target?.box||target);
     for (const key of placements.keys()) if (!liveKeys.has(key)) placements.delete(key);
     const rect = box.getBoundingClientRect(),
       dpr = win.devicePixelRatio || 1;
@@ -800,7 +803,7 @@ export function mountSketch(doc, win, view, options) {
         start = previous?.length || 0;
       if (start < p.pts.length)
         paintSketchPaths(g, [{ ...p, pts: p.pts.slice(Math.max(0, start - 1)) }], {
-          project: () => targets[i],
+          project: () => paintTargets[i],
           toClient,
           scale,
         });
@@ -830,6 +833,8 @@ export function mountSketch(doc, win, view, options) {
       });
       localInk.globalAlpha = 1;
     }
+    if(scene.ready)view.feedbackVisibility?.unavailable(visibilityToken,'The private drawing scene is open. Finish drawing first.');
+    else view.feedbackVisibility?.sketchesPaint(visibilityToken,paths,targets,key=>options.sketchMetadata?options.sketchMetadata(key):recordDisplay?.metadata(key));
   }
   const scheduler = createSketchPaintScheduler({
     schedule: (fn) => win.requestAnimationFrame(fn),
@@ -892,6 +897,7 @@ export function mountSketch(doc, win, view, options) {
     scheduler.invalidate();
   });
   const unFeedback = view.onFeedback?.(()=>{placements.clear();forceInk=true;scheduler.invalidate();});
+  const unVisibility=view.onVisibility?.(()=>{paintGeneration++;scheduler.invalidate();});
   const unAuthority = options.onAuthority?.(setAuthority);
   dispatch({ type: 'sync', ...options.authority() });
   return {
@@ -912,6 +918,7 @@ export function mountSketch(doc, win, view, options) {
     labelInput,
     retry: () => dispatch({ type: 'retry' }),
     refresh: ({ geometry = false } = {}) => {
+      view.feedbackVisibility?.invalidate();
       if (geometry) {
         placements.clear();
         forceInk = true;
@@ -921,6 +928,7 @@ export function mountSketch(doc, win, view, options) {
     dispose() {
       disposed = true;
       unFeedback?.();
+      unVisibility?.();
       for (const [timer, reject] of requestObservers) {
         win.clearTimeout(timer);
         reject(Error('Sketch context retired.'));

@@ -1,12 +1,14 @@
 # Send cast notes and sketches to the agent (#483, #753)
 
 Press **Shift+Ctrl+Alt+Return** in the draft Neovim, in normal or insert mode,
-to send the draft text, all open notes across recorded documents, and the
-previewed completed sketches to the agent in that view. Each note carries focused recorded context, a replay
-link, draw-time box text, and its saved PNG crop when available. Overlapping notes
-retain separate captures; submission never recaptures a changed page.
-The selection is frozen when Couch admits the request; notes added afterward
-wait for the next submission.
+to send the draft text and eligible saved notes and completed sketches actually
+visible on the current console to the agent in that view. Each selected note
+carries focused recorded context, a replay link, draw-time box text, and its
+saved PNG crop when available. Overlapping notes retain separate captures;
+submission never recaptures a changed page for those crops. Off-view notes stay
+reachable as **not on this view** and wait for a later visible selection.
+The acknowledged visible selection is frozen when Couch admits the request;
+new or deferred feedback waits for the next submission.
 
 Confirmed submissions resolve their selected note revisions: acknowledgment
 transfers ownership of those notes to the agent; whatever follows (a pensive, an issue, a fix) is the agent's.
@@ -27,15 +29,16 @@ are not automatically submitted.
 The private operator Chrome UI shows **Pending feedback**, with both the sketch
 and annotation counts. Indexed pressure-ink thumbnails and attached sketch notes
 show the chosen shapes before the existing draft chord freezes the acknowledged
-selection. Choose the oldest unsent sketch's compatible page/view, then up to
-eight sketches from that group in creation order. Compatibility requires the
-same recording document, tab, URL, viewport and scroll. All other unsent shapes
-remain visibly pending as **N more sketches**. Notes retain their existing
-inclusion and saved crops; the eight limit applies only to sketches. Annotation
-crop cards in this mixed panel are the separate #805 follow-up.
+selection. Only actually painted, finished unsent sketches and placed open-note
+revisions are eligible. At most eight sketches are selected in creation order;
+other feedback remains visible as **N more sketches** and **N more annotations**.
+The eight limit applies only to sketches. Annotation crop cards in this mixed
+panel are the separate #805 follow-up.
 
-A changed note revision, sketch version or private host refuses the stale
-selection and refreshes it; draft and ink remain intact. There is no browser
+A stale visible selection, changed note revision, sketch version, mask or private
+host refuses preparation and refreshes the preview; draft and ink remain intact.
+A held drawing scene, open editor, incomplete paint or partial shape placement
+cannot establish a visible selection. There is no browser
 send button or viewer agent-dispatch route. Remaining shapes wait for the next
 explicit submission.
 
@@ -52,13 +55,17 @@ bundle envelope, with atomic refusal rather than truncation. Historical notes
 are not limited by the per-page admission count.
 
 New version-3 manifests retain two typed lists, `notes` and `sketches`, and add
-one `sketch_page` referencing **sketch-page.png**. This replay-rendered image is
-the full visible viewport at the latest chosen sketch's exact recorded finish
-boundary. It paints only chosen unsent ink, with numbered badges matching the
-preview cards and sketch `index` values. Pointer and private tool UI are absent.
-Missing/ambiguous/hidden anchors or unprojectable selected paths refuse the
-whole batch; ordinary pressure fringe clipped at an edge is declared explicitly.
-The renderer never substitutes the current live page.
+one `sketch_page` referencing **sketch-page.png** with provenance
+**replay-rendered-current-view**. At the submission chord, the current recorded
+prefix and completed console paint are pinned together. The image reconstructs
+that viewport with the selected ink and numbered badges matching preview cards
+and sketch `index` values. `sketch_page.current` retains the current projections:
+actual painted target locators, boxes and clips. Pointer and private tool UI are
+absent. Missing, ambiguous, hidden or partially unprojectable selected paths
+refuse the whole batch. Unsupported clipping refuses preparation; ordinary
+pressure fringe clipped at the viewport edge is declared explicitly. The replay
+image can still differ from live browser pixels in uncaptured visuals and
+animation phase.
 
 Each sketch retains its original URL/title and `recorded-dom` begin source,
 author/color, note, accepted sequence/digest, phase/reason, bounded literal
@@ -69,8 +76,8 @@ clipping and limitations. Reflow projection changes only painted placement.
 Missing recorded assets, uncaptured visuals and animation-phase differences
 remain explicit limitations.
 
-Legacy stored bundles containing individual `image`/`sketch-N.png` plans remain
-readable and immutable. New shared items omit `image`; older decoders requiring
+Legacy shared bundles with replay-rendered finish-time pages and individual
+`image`/`sketch-N.png` plans remain readable and immutable. New shared items omit `image`; older decoders requiring
 it refuse instead of acknowledging only part of a new submission. The new
 codec preserves unknown nested extensions through delivery rewrites while
 rejecting mixed or incomplete representations.
@@ -90,8 +97,8 @@ begin. `sketch-image --sketch ID --out DIR [--at T]` exports the image and
 transform/provenance JSON together to an explicit new private directory; it
 refuses existing output and paths inside the source recording. Exporting sends
 nothing. Both local tools use already-read recording input; single-sketch export keeps
-its original begin-page crop. Submission uses the separate full-viewport plan
-with the same replay session, pressure painter and cleanup machinery.
+its original begin-page crop. Submission uses the separate current-view full-viewport plan with the same replay
+session, pressure painter and cleanup machinery.
 
 The existing private bundle store publishes all images before delivery. Confirmed
 `dispatched`/`resolved` manifests suppress only those exact sketch versions from
@@ -159,7 +166,7 @@ Couch writes the complete bundle before sending anything:
   crop-1.png
 ```
 
-The agent receives the draft text, selected/remaining sketch counts when available,
+The agent receives the draft text, selected and deferred sketch and annotation counts when available,
 absolute manifest path, and the manifest's `how_to_read` guide. The guide names the recording path and query commands. Pair's
 authored log retains the original draft; generated evidence references belong
 to the outgoing prompt. Crops are files, not clipboard attachments. The folder

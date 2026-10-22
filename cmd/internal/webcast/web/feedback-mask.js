@@ -26,6 +26,7 @@ export function createFeedbackMask({changed=()=>{}}={}){
   current={scope:value.scope,revision:value.revision,sketches,notes};signature=nextSignature;changed();return true;
  }
  return {
+  identity:()=>current?{scope:current.scope,revision:current.revision}:null,
   install,
   // A transport can lose continuity without changing the displayed recording.
   // Rotate producer identity, retaining confirmed facts until a full replacement.

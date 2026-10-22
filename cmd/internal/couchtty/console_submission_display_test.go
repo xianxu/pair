@@ -34,6 +34,7 @@ func (f *displayPreviewCast) SetDeliveredFeedback(v core.DeliveredFeedback) erro
 	if !slices.Equal(remaining, f.selection.Notes) {
 		f.selection.Notes = remaining
 		f.selection.SketchGeneration++
+		f.setVisibleFrame()
 	}
 	f.muPreview.Unlock()
 	f.masks <- v

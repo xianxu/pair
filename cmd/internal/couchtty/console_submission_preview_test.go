@@ -5,7 +5,10 @@ import (
 	"errors"
 	"github.com/xianxu/pair/cmd/internal/webcast/query"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
+	"github.com/xianxu/pair/cmd/internal/webcast/sketchimage"
+	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -17,15 +20,18 @@ import (
 
 type submissionPreviewFake struct {
 	*submissionCastFake
-	muPreview  sync.Mutex
-	selection  board.Selection
-	host       core.PreviewHost
-	life       chan struct{}
-	updates    chan struct{}
-	candidates chan struct{}
-	published  chan core.PreviewPublication
-	gate       chan struct{}
-	freeze     func()
+	muPreview      sync.Mutex
+	selection      board.Selection
+	host           core.PreviewHost
+	life           chan struct{}
+	updates        chan struct{}
+	candidates     chan struct{}
+	published      chan core.PreviewPublication
+	gate           chan struct{}
+	freeze         func()
+	visibility     core.FeedbackVisibility
+	readVisibility func()
+	resolvePreview func()
 }
 
 func previewFakeSketch(id string) board.SelectedSketch {
@@ -33,11 +39,59 @@ func previewFakeSketch(id string) board.SelectedSketch {
 	finish := source
 	finish.T = 2
 	finish.RecordIndex = 2
-	return board.SelectedSketch{ID: id, NextSequence: 5, Digest: "a", Source: source, Finish: finish}
+	return board.SelectedSketch{ID: id, NextSequence: 5, Digest: strings.Repeat("a", 64), Source: source, Finish: finish}
 }
 
 func newSubmissionPreviewFake(f *submissionCastFake) *submissionPreviewFake {
 	return &submissionPreviewFake{submissionCastFake: f, selection: board.Selection{Document: 1, TabID: "tab", SketchGeneration: 1, Sketches: []board.SelectedSketch{previewFakeSketch("shape")}}, host: core.PreviewHost{ID: "host", Generation: 1}, life: make(chan struct{}), updates: make(chan struct{}, 1), candidates: make(chan struct{}, 1), published: make(chan core.PreviewPublication, 8)}
+}
+
+// setVisibleFrame is explicit fixture paint completion, independent of selection reads.
+func (f *submissionPreviewFake) setVisibleFrame() {
+	source := previewFakeSketch("frame").Finish
+	f.visibility = core.FeedbackVisibility{Revision: 1, MaskScope: "scope", Scene: sketchimage.PageScene{RecordingID: filepath.Base(f.RecordingPath()), SketchSourceFacts: source}}
+	for _, s := range f.selection.Sketches {
+		f.visibility.Sketches = append(f.visibility.Sketches, core.VisibleSketch{ID: s.ID, Sequence: s.NextSequence, Digest: s.Digest, Paths: []core.VisiblePath{{ID: s.ID + "-path", Locator: []int{0}, Box: recording.Box{0, 0, 100, 100}, Clip: recording.Box{0, 0, 800, 600}}}})
+	}
+	for _, n := range f.selection.Notes {
+		f.visibility.Notes = append(f.visibility.Notes, core.PreviewNote{ID: n.ID, Revision: n.Revision})
+	}
+}
+func (f *submissionPreviewFake) ReadSubmissionVisibility(ctx context.Context, host core.PreviewHost) (core.FeedbackVisibility, error) {
+	if f.readVisibility != nil {
+		f.readVisibility()
+	}
+	f.muPreview.Lock()
+	defer f.muPreview.Unlock()
+	if host != f.host {
+		return core.FeedbackVisibility{}, errors.New("retired host")
+	}
+	return core.CloneFeedbackVisibility(f.visibility), ctx.Err()
+}
+func (f *submissionPreviewFake) ResolveSubmissionPreview(ctx context.Context, host core.PreviewHost, selection core.PreviewSelection) (core.PreviewSelection, error) {
+	if f.resolvePreview != nil {
+		f.resolvePreview()
+	}
+	f.muPreview.Lock()
+	defer f.muPreview.Unlock()
+	if host != f.host {
+		return core.PreviewSelection{}, errors.New("retired host")
+	}
+	for _, s := range selection.Visibility.Sketches {
+		chosen := false
+		for _, c := range selection.Items {
+			if c.SketchID == s.ID {
+				chosen = true
+			}
+		}
+		if !chosen {
+			continue
+		}
+		for range s.Paths {
+			selection.ResolvedNodes = append(selection.ResolvedNodes, 7)
+		}
+	}
+	return selection, ctx.Err()
 }
 func (f *submissionPreviewFake) SubmissionSelection() (board.Selection, error) {
 	f.muPreview.Lock()
@@ -61,7 +115,13 @@ func (f *submissionPreviewFake) FreezeSubmissionPreview(host core.PreviewHost, s
 	for _, n := range selection.Notes {
 		notes = append(notes, board.SelectedNote{ID: n.ID, Revision: n.Revision})
 	}
-	if host != f.host || selection.Stamp.Board != f.selection.SketchGeneration || !slices.Equal(notes, f.selection.Notes) {
+	validNotes := true
+	for _, n := range notes {
+		if !slices.Contains(f.selection.Notes, n) {
+			validNotes = false
+		}
+	}
+	if host != f.host || selection.Stamp.Board != f.selection.SketchGeneration || !validNotes {
 		return board.Selection{}, errors.New("changed")
 	}
 	s := f.selection
@@ -230,6 +290,9 @@ func TestSubmissionPreviewFreezesEightOldestAndRemaining(t *testing.T) {
 }
 
 func watchSubmissionPreview(m *submissionManager, ctx context.Context, cast submissionPreviewCast) {
+	if f, ok := cast.(interface{ setVisibleFrame() }); ok {
+		f.setVisibleFrame()
+	}
 	ctx, cancel := context.WithCancel(ctx)
 	m.runSubmissionPreview(ctx, m.newSubmissionPreviewRun(cast, cancel))
 }
@@ -551,5 +614,120 @@ func TestSubmissionFeedbackPublishesExactNotesAndRejectsLaterEdit(t *testing.T) 
 	f.muPreview.Unlock()
 	if _, err := m.request(context.Background(), "prepare", "edited-note", target); err == nil {
 		t.Fatal("note edit admitted between shown preview and freeze")
+	}
+}
+
+func TestSubmissionPreviewUsesCurrentVisibleSubset(t *testing.T) {
+	m, base, _ := newSubmissionManagerTest(t)
+	f := newSubmissionPreviewFake(base)
+	f.selection.Sketches = append(f.selection.Sketches, previewFakeSketch("hidden"))
+	f.setVisibleFrame()
+	f.visibility.Sketches = f.visibility.Sketches[:1]
+	ctx, cancel := context.WithCancel(m.ctx)
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ctx, stop := context.WithCancel(ctx)
+		m.runSubmissionPreview(ctx, m.newSubmissionPreviewRun(f, stop))
+	}()
+	p := <-f.published
+	cancel()
+	<-done
+	if len(p.Selection().Items) != 1 || p.Selection().Items[0].SketchID != "shape" {
+		t.Fatalf("published unpainted feedback: %+v", p.Selection())
+	}
+}
+
+func TestSubmissionPreviewFreshWitnessOutsideLockAndGeometryFence(t *testing.T) {
+	m, base, target := newSubmissionManagerTest(t)
+	f := newSubmissionPreviewFake(base)
+	m.current = func() (submissionCast, error) { return f, nil }
+	checkUnlocked := func() {
+		if !m.mu.TryLock() {
+			t.Error("browser/recorder IO ran under manager lock")
+			return
+		}
+		m.mu.Unlock()
+	}
+	f.readVisibility = checkUnlocked
+	f.resolvePreview = checkUnlocked
+	ctx, cancel := context.WithCancel(m.ctx)
+	done := make(chan struct{})
+	go func() { defer close(done); watchSubmissionPreview(m, ctx, f) }()
+	defer func() { cancel(); <-done }()
+	<-f.published
+	waitSubmissionPreviewShown(t, m)
+	f.muPreview.Lock()
+	f.visibility.Revision++
+	f.visibility.Sketches[0].Paths[0].Box[0]++
+	f.muPreview.Unlock()
+	if _, err := m.request(context.Background(), "prepare", "moved", target); err == nil {
+		t.Fatal("changed current paint admitted after ACK")
+	}
+	base.mu.Lock()
+	defer base.mu.Unlock()
+	if base.prepared != 0 {
+		t.Fatal("changed paint started capture")
+	}
+}
+
+func TestSubmissionPreviewFreshOrdinalDoesNotInvalidateSamePaint(t *testing.T) {
+	m, base, target := newSubmissionManagerTest(t)
+	f := newSubmissionPreviewFake(base)
+	m.current = func() (submissionCast, error) { return f, nil }
+	ctx, cancel := context.WithCancel(m.ctx)
+	done := make(chan struct{})
+	go func() { defer close(done); watchSubmissionPreview(m, ctx, f) }()
+	defer func() { cancel(); <-done }()
+	<-f.published
+	waitSubmissionPreviewShown(t, m)
+	f.muPreview.Lock()
+	f.visibility.Revision++
+	f.visibility.Scene.T++
+	f.visibility.Scene.RecordIndex++
+	f.muPreview.Unlock()
+	status, err := m.request(context.Background(), "prepare", "samepaint", target)
+	if err != nil || status.State != "preparing" {
+		t.Fatalf("unchanged newer paint refused: %+v %v", status, err)
+	}
+	submissionWait(t, m, "samepaint", target, "prepared")
+}
+
+func TestSubmissionPreviewUnavailablePaintDoesNotUseSavedCandidates(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		m, base, _ := newSubmissionManagerTest(t)
+		f := newSubmissionPreviewFake(base)
+		// Saved candidates exist, but there has been no completed paint.
+		ctx, cancel := context.WithCancel(m.ctx)
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			ctx, stop := context.WithCancel(ctx)
+			m.runSubmissionPreview(ctx, m.newSubmissionPreviewRun(f, stop))
+		}()
+		synctest.Wait()
+		select {
+		case <-f.published:
+			t.Error("missing paint fell back to saved candidates")
+		default:
+		}
+		cancel()
+		synctest.Wait()
+		<-done
+	})
+}
+
+func TestSubmissionPreviewFreshReadRechecksDeliveryGeneration(t *testing.T) {
+	m, base, target := newSubmissionManagerTest(t)
+	acknowledgeSubmissionFeedback(t, m, base)
+	base.feedback.readVisibility = func() { m.mu.Lock(); m.submissionDeliveredLocked(); m.mu.Unlock() }
+	if _, err := m.request(context.Background(), "prepare", "delivery-race", target); err == nil {
+		t.Fatal("delivery changed during fresh read but prepare proceeded")
+	}
+	base.mu.Lock()
+	defer base.mu.Unlock()
+	if base.prepared != 0 {
+		t.Fatal("stale read started capture")
 	}
 }

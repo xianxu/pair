@@ -443,6 +443,9 @@ func (c *Chrome) handle(s *loopState, ev cdp.Event) {
 	if s.tap != nil {
 		s.tap(ev)
 	}
+	if c.handleFeedbackVisibilityBinding(s, ev) {
+		return
+	}
 	if c.handleSketchBinding(s, ev) {
 		return
 	}

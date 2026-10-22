@@ -1,5 +1,6 @@
 import { createFeedbackMask } from './web/feedback-mask.js';
 import { createPlacement } from './web/annotation-placement.js';
+import { createFeedbackVisibility } from './web/feedback-visibility.js';
 
 // Trusted adapter inside couchcast, never the page's JavaScript world.
 export function operatorTransport(report, win) {
@@ -80,8 +81,9 @@ export function mountOperator({ host, root, report }, { annotate, palette, css, 
   const box = doc.createElement('div'); box.className = 'operator-box'; root.appendChild(box);
   const transport = operatorTransport(report, win);
   const callbacks = new Set(),feedbackHooks=new Set();
-  const feedbackMask=createFeedbackMask({changed:()=>{for(const fn of feedbackHooks)fn();}});
-  const callback = (...args) => { for (const fn of callbacks) fn(...args); };
+  let visibility,ui;
+  const feedbackMask=createFeedbackMask({changed:()=>{visibility?.invalidate();for(const fn of feedbackHooks)fn();}});
+  const callback = (...args) => { visibility?.invalidate();for (const fn of callbacks) fn(...args); };
   let revision = -1, strokeSeq = 0;
   // Only trusted CDP object references establish original identity. Paths and
   // matching text remain replacement evidence, never an original-node map.
@@ -89,16 +91,41 @@ export function mountOperator({ host, root, report }, { annotate, palette, css, 
   const originals = new Map();
   let originalDocument = 0, visibleNodeIDs = new Set(), sketchMount = null;
   const wantsOriginal = (id) => visibleNodeIDs.has(id) || sketchMount?.receiver?.hasAnchor(originalDocument,id) === true;
+  // A tab can retain its isolated world and DOM while the recorder gives its
+  // next visit a new document number. Keep only already-proven bindings whose
+  // historical sketch anchor remains in the receiver's bounded anchor index.
+  const retainsOriginal = (id, binding) =>
+    (binding.document === originalDocument && visibleNodeIDs.has(id)) ||
+    sketchMount?.receiver?.hasAnchor(binding.document,id) === true;
   const view = {
     feedbackMask,
+    onVisibility(fn){return visibility.onInvalidate(fn);},
     onFeedback(fn){feedbackHooks.add(fn);return()=>feedbackHooks.delete(fn);},
     model: { seg: 0, docSeg: 0, notes: [] },
     onRecord(fn) { callbacks.add(fn); return () => callbacks.delete(fn); },
     toPage: (x, y) => [x + win.scrollX, y + win.scrollY],
     fromPage: (x, y) => [x - win.scrollX, y - win.scrollY],
     boxOf: () => null,
-    placementOf: createPlacement({ document: () => doc, route: () => win.location?.href || '', original: id => originals.get(id)?.deref() || null, exclude: n => n === host, onChange: () => callback({k:'layout',t:0},view.model) }),
+    placementOf: createPlacement({ document: () => doc, route: () => win.location?.href || '', original: id => {
+      const binding = originals.get(id);
+      if (!binding) return null;
+      if (!retainsOriginal(id,binding)) { originals.delete(id); return null; }
+      return binding.node.deref() || null;
+    }, locator:node=>win.__couchcastPath?.(node)||null,exclude: n => n === host, onChange: () => callback({k:'layout',t:0},view.model) }),
   };
+  visibility=createFeedbackVisibility({
+    context:()=>{
+      const context=view.model.feedback_context;
+      if(!context||!view.model.docSeg||context.doc!==view.model.docSeg||view.model.ended||context.url!==win.location?.href)throw Error('Feedback source context is not ready.');
+      return {...context,url:win.location.href,title:typeof doc.title==='string'?doc.title:context.title,
+        vp:{w:win.innerWidth,h:win.innerHeight,dpr:win.devicePixelRatio||1},scroll:[win.scrollX||0,win.scrollY||0]};
+    },
+    mask:()=>feedbackMask.identity(),
+    busy:()=>!!(ui?.captureBusy?.()||ui?.dialog?.open||sketchMount?.tool?.captureBusy?.()),
+    notify:revision=>report({t:'feedback-view',revision}),
+  });
+  view.feedbackVisibility=visibility;
+  win.__couchcastFeedbackVisibility=()=>visibility.read();
   let picked = 0;
   const post = (route, body) => {
     if (route === 'note-edit') return transport.mutate('edit-note', { seg: body.seg, id: body.id, text: body.text });
@@ -136,7 +163,7 @@ export function mountOperator({ host, root, report }, { annotate, palette, css, 
     return reply;
   };
   captureCall.context = () => transport.annotationGeneration();
-  const ui = annotate.mountAnnotation(doc, win, view, {
+  ui = annotate.mountAnnotation(doc, win, view, {
     root, box, stage: box, palette, operator: true, annotationAllowed: false, post, prepareDraft, captureCall,
     who: { id: () => 'operator', name: () => 'Operator', viewer: () => ({ id: 'operator', name: 'Operator' }) },
     colors: { get: () => picked, set: (n) => { picked = n; } },
@@ -163,8 +190,8 @@ export function mountOperator({ host, root, report }, { annotate, palette, css, 
     if (document <= 0 || document !== originalDocument || !wantsOriginal(id) || node?.nodeType !== 1 || node.ownerDocument !== doc || !node.isConnected || node === host) return false;
     const previous = originals.get(id);
     // A dead weak reference still reserves its identity until the note retires.
-    if (previous) return previous.deref() === node;
-    originals.set(id, new WeakRef(node));
+    if (previous) return previous.node.deref() === node;
+    originals.set(id, {node:new WeakRef(node),document});
     callback({ k: 'layout', t: 0 }, view.model);
     return true;
   };
@@ -174,11 +201,12 @@ export function mountOperator({ host, root, report }, { annotate, palette, css, 
     // missing/stale evidence before consuming this outer revision or its notes.
     feedbackMask.install(snapshot.feedback_mask,{rejectStale:true});
     revision = snapshot.revision;
-    if (snapshot.doc !== originalDocument) { originals.clear(); originalDocument = snapshot.doc; }
+    originalDocument = snapshot.doc;
     visibleNodeIDs = new Set(snapshot.notes.map(note => note.at?.node));
-    for (const id of originals.keys()) if (!wantsOriginal(id)) originals.delete(id);
+    for (const [id,binding] of originals) if (!retainsOriginal(id,binding)) originals.delete(id);
     transport.setScope(snapshot.doc, snapshot.ended);
-    view.model = { seg: snapshot.seg, docSeg: snapshot.doc, paused: snapshot.paused, live: !snapshot.paused && !snapshot.ended, ended: snapshot.ended, driver: snapshot.driver, notes: snapshot.notes.map((note) => ({ note, seg: snapshot.doc, state: 'open' })) };
+    view.model = { seg: snapshot.seg, docSeg: snapshot.doc, feedback_context:snapshot.feedback_context,note_revisions:snapshot.note_revisions,
+      paused: snapshot.paused, live: !snapshot.paused && !snapshot.ended, ended: snapshot.ended, driver: snapshot.driver, notes: snapshot.notes.map((note) => ({ note, seg: snapshot.doc, state: 'open' })) };
     callback({ k: 'view', t: snapshot.t }, view.model);
     for (const stroke of snapshot.strokes) {
       if (stroke.seq <= strokeSeq) continue;
@@ -186,6 +214,8 @@ export function mountOperator({ host, root, report }, { annotate, palette, css, 
       callback({ ...stroke, k: 'stroke' }, view.model);
     }
   };
-  win.addEventListener('scroll', () => callback({ k: 'scroll', t: 0 }, view.model), { passive: true });
+  for(const event of ['scroll','resize','popstate','hashchange'])win.addEventListener(event,()=>callback({k:event,t:0},view.model),{passive:true});
+  for(const event of ['pointerdown','pointerup','pointercancel'])win.addEventListener(event,()=>visibility.invalidate(),{capture:true,passive:true});
+  win.addEventListener('pagehide', () => {originals.clear();visibility.dispose();}, { once: true });
   return ui;
 }

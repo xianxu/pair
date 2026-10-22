@@ -13,6 +13,18 @@ import (
 
 // Transaction fakes expose the same preview seam as their capture wrappers.
 // Neither construction nor interface detection acknowledges any feedback.
+func (f *submissionCastFake) ReadSubmissionVisibility(ctx context.Context, host core.PreviewHost) (core.FeedbackVisibility, error) {
+	if f.feedback == nil {
+		return core.FeedbackVisibility{}, errors.New("no completed paint")
+	}
+	return f.feedback.ReadSubmissionVisibility(ctx, host)
+}
+func (f *submissionCastFake) ResolveSubmissionPreview(ctx context.Context, host core.PreviewHost, selection core.PreviewSelection) (core.PreviewSelection, error) {
+	if f.feedback == nil {
+		return core.PreviewSelection{}, errors.New("no completed paint")
+	}
+	return f.feedback.ResolveSubmissionPreview(ctx, host, selection)
+}
 func (f *submissionCastFake) FreezeSubmissionPreview(host core.PreviewHost, selection core.PreviewSelection) (board.Selection, error) {
 	if f.feedback == nil {
 		return board.Selection{}, errors.New("test feedback has not been published")
@@ -64,6 +76,7 @@ func acknowledgeSubmissionFeedback(t *testing.T, m *submissionManager, base *sub
 	}
 	f := newSubmissionPreviewFake(base)
 	f.selection = selected
+	f.setVisibleFrame()
 	base.feedback = f
 	ctx, cancel := context.WithTimeout(m.ctx, time.Second)
 	defer cancel()
@@ -82,7 +95,11 @@ func acknowledgeSubmissionFeedback(t *testing.T, m *submissionManager, base *sub
 	m.mu.Lock()
 	deliveryGeneration := m.deliveredGeneration
 	m.mu.Unlock()
-	selection, err := core.SelectFeedbackPreview(candidates, notes, nil, core.PreviewStamp{Board: selected.SketchGeneration, Delivered: deliveryGeneration})
+	selection, err := core.SelectVisibleFeedback(candidates, notes, core.DeliveredFeedback{}, core.PreviewStamp{Board: selected.SketchGeneration, Delivered: deliveryGeneration}, f.visibility)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selection, err = cast.ResolveSubmissionPreview(ctx, host, selection)
 	if err != nil {
 		t.Fatal(err)
 	}
