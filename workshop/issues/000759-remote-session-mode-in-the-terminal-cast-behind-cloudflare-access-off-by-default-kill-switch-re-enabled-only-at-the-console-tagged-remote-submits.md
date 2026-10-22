@@ -56,6 +56,8 @@ Approved durable design: [remote security plan](../plans/000759-remote-security-
 - [x] M2 — Exclusive protected exposure, console-only reset, CLI refusal and kill/late-completion conformance.
 - [x] M3 — Trusted remote provenance through submit/accounting, typed adapter integration and private qualification, full code milestone review; operator acceptance and landing stay held afterwards.
 
+- [ ] Tailscale pivot — qualify the installed-Mac private socket and proxy-peer boundary, then implement the approved transport revision and pass operator acceptance before final close.
+
 ## Log
 
 ### 2026-10-20
@@ -598,3 +600,15 @@ immediately. #803 subsequently landed with its retained runner. The independent
 worktree was removed cleanly; its committed #759 integration/plan survived. The
 aborted plan-quality call grants no new implementation acceptance. The current
 Tailscale revision supersedes that interrupted dedicated-tunnel review input.
+
+
+### 2026-10-22 — authenticated drain lift, saved-state recovery
+
+Authenticated TL lift d64292dd; checkout clean on #759, sdlc state confirms
+pair:6 ownership and working status. No check/merge/probe was paused for this
+drain. Readiness resend 28a7d09a is confirmed submitted. The installed CLI now
+appears at /opt/homebrew/bin/tailscale, but read-only status still exits 1
+with no JSON: "failed to connect to local Tailscale service; is Tailscale
+running?" Running/login/HTTPS readiness remains unproved. No Serve mapping
+or configuration change. Added a pending pivot row to Issue Plan so the prior
+closed M1–M3 code boundaries do not imply the new transport or acceptance passed.
