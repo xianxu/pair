@@ -373,3 +373,112 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T15:14:11-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 796 — Couch: --tab-style collapse (one row; fold quiet slots and inactive hubs to +N, attention always shown) alongside multiline |
+| repo | pair |
+| issue file | workshop/issues/000796-couch-tab-style-collapse-one-row-fold-quiet-slots-and-inactive-hubs-to-n-attention-always-shown-alongside-multiline.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 651e30092e7ca245e5537ba1450b7ea7eb36ddae..78bccaf9c228a780a1fd8d3dbd120254072301db |
+| command | sdlc close --issue 796 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T15:14:11-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The revised policy received full-range review, resolving BR-3’s scope concern. Default wiring, folding thresholds, scoped clicks, geometry, and documentation are supported by passing tests. One contract regression blocks SHIP: collapse hides queued/loading reattachment placeholders.
+
+```findings
+dispose:
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Completed full-range review against the reconciled Spec and Plan, including the three-member threshold, live membership, launch anchors, and physical count clicks. Removing the threshold through a temporary overlay makes its regression test fail in all four one/two-member cases.
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Exact StatusGroupID aggregation remains implemented; the primary/numbered hub and current/inactive regression matrix passes.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Inspected the corrected Core concepts tables against production declarations and the pinned diff; locations and new/modified/reused classifications agree.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: collapse-candidate-state-policy
+    title: |
+      Collapse filters out legitimate queued and loading placeholders
+    detail: |
+      cmd/internal/couchtty/console_presentation.go:83 rejects every known non-live row, including detached rows whose queued/loading placeholders were constructed at lines 63–74. Pending inventory remains detached until attachment succeeds, so default collapse silently removes these chips despite the Spec and Plan requiring explicit placeholders (ARCH-PURPOSE). Running TestTheStatusModelCarriesAPlaceholderPerPendingThread with only its fixture style changed to collapse fails with "placeholders = [], want one per pending thread"; exempting placeholders in a temporary projection overlay makes it pass alongside the parked-member exclusion test. Preserve legitimate pending placeholders while excluding non-live attached members, and run this behavioral regression under both styles.
+```
+
+1. **Strengths**
+
+   - Collapse reuses the measured packer and drawing pass, including weighted overflow counts.
+   - Count-click tests derive coordinates from physical terminal cells and exercise every character of `+4` and `+12` after an emoji alias.
+   - Native tests cover collapse/multiline geometry for Claude and Codex.
+   - README and atlas document the new option, default, counts, and scope recovery.
+
+2. **Critical findings**
+
+   The placeholder admission defect above at `cmd/internal/couchtty/console_presentation.go:83`. Add both-style coverage to the existing placeholder regression while retaining parked-member exclusion.
+
+3. **Important findings**
+
+   None.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Full package tests passed: `couchtty` (50.579s), `couchcmd` (114.246s), `textwidth`, `rowtext`, and `artifactpath`. Focused tests and diff whitespace checks also passed.
+
+   Temporary overlays reproduced the placeholder failure, verified the proposed exemption, and confirmed the threshold test fails without its guard. Overlays were removed; tracked files remain unchanged. The full repository suite was not run.
+
+6. **Architectural notes**
+
+   | Principle | Result |
+   |---|---|
+   | ARCH-DRY | Pass — shared packing, drawing, and presentation identity. |
+   | ARCH-PURE | Pass — policy and scope filtering remain pure. |
+   | ARCH-PURPOSE | **Flag** — pending-placeholder contract is not delivered. |
+   | ARCH-MOCK | Pass — existing stateful doubles and native harness reused. |
+   | ARCH-CONSTRAINTS | Pass — counted work and allocation checks pass. |
+   | ARCH-SECURE | Pass — sanitization and confirmed-revision fencing retained. |
+   | ARCH-ORDER | Pass — scope refresh, disappearance, nested return, and Escape transitions tested. |
+   | ARCH-FUNERAL | Pass — new state is frame- or Console-scoped. |
+   | ARCH-EVOLVE | Pass — no production persisted-format change. |
+
+7. **Plan revision recommendations**
+
+   None required: the plan already requires explicit pending placeholders; implementation and regression coverage need correction.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"0fa3eabc-e563-4499-9278-cdf91e65b4f7","repository":"github.com/xianxu/pair","issue_id":"000796","recipe":"milestone-review","round":5,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/bc4467ed6cec7008","reviewed_head":"78bccaf9c228a780a1fd8d3dbd120254072301db","slot":"pair:4","requested_at":"2026-10-22T22:10:52.011133Z"},"phase":"finished","pid":58247,"started_at":"2026-10-22T22:10:52.147326Z","finished_at":"2026-10-22T22:14:09.963461Z","session_id":"01a165aa-c3c4-7b92-9f48-bdc237cf4204","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.773852042s
+head: "78bccaf9c228a780a1fd8d3dbd120254072301db"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
