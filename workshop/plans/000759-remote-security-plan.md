@@ -518,3 +518,53 @@ BR-10 repeats durable-artifact-lifecycle: failed validation/retention cannot lea
 BR-11 repeats deterministic-state-sequence-coverage: enumerate accepted-effect/result/audit publication against observer departure, session logout/kill and teardown. Controlled held results and held result-audit writes must establish one effect, retained replay/receipt uncertainty and no successful cleanup/reset while owned work is held. Existing pre-admission/intent/EffectDoor tests remain necessary but do not stand in for these post-handoff states. Apply the rule across the owner, not one reported branch.
 
 BR-9 attribution sweep also covers a rename between registration capture and broker timestamp: valid new submit rows use their matching stable DocumentID in both owed and round-clear projections; only legacy rows need historical path/time matching. Independent RED caught the old-path race; replacement IDs remain excluded. BR-10 preflight reserves the encoded next row through the existing trim path before append, rather than merely checking an already oversized file.
+
+
+### 2026-10-22 — approved dedicated remote tunnel revision
+
+TL 795fb6dc and 05e409a2 approve a dedicated tunnel: remote reads only
+COUCH_REMOTE_TUNNEL and COUCH_REMOTE_HOSTNAME. The ordinary cast configuration
+is passed only to a collision guard. Equal names or canonical UUIDs refuse
+before connector spawn, including name/UUID aliases. Names resolve through
+read-only cloudflared tunnel list --output json --name NAME; UUID inputs skip IO.
+At most two sequential lookups share a five-second deadline; stdout is capped
+at 1 MiB and diagnostics are capped by the existing owned ProvisionIO runner.
+Unavailable, malformed, ambiguous or expired evidence refuses and tells the
+operator to inspect tunnel settings and retry. Access checks, connector guards,
+record ownership, capture refusal, kill/reset authority and session policy stay
+unchanged. The operator creates couch-remote and changes its DNS route; agents
+make no account/network writes. No shared-ingress owner is added.
+
+Implementation uses the existing couchcore.ProvisionIO seam (ARCH-DRY), whose
+OS runner joins cancellation and bounded collection; no new process collector.
+One optional DistinctFrom tunnel reference on Cloudflared enables the preflight
+only for protected remote transport. Pure UUID/metadata validation lives beside
+the bounded lookup adapter. Tests cover direct name/UUID collision, aliases,
+malformed/ambiguous/unavailable resolution, two-query/deadline bounds, remote
+settings independence and simultaneous cast+remote mounts on distinct tunnels.
+New temporary configs remain in the existing listener/run-record lifecycle;
+no new durable artifact family or cache is introduced (ARCH-FUNERAL).
+
+Current-main integration retained both endpoint and remote protocol additions,
+used the single shared preserve-number checker and combined both regression
+oracles. Targeted strictjson, couchtty, couchcmd remote/endpoint checks passed;
+couchmessage remote/forget/orphan checks passed independently. The first console
+check lacked generated embedded runtime assets; generation resolved setup only.
+
+#### Dedicated-tunnel revision tasks (same issue, one final close)
+
+| Pure entity | Lives in | Status |
+|---|---|---|
+| Canonical tunnel identity and exact metadata validation | cmd/internal/broadcast/tunnel_identity.go | new |
+| Remote-only connector configuration | cmd/internal/couchcmd/remote.go | modified |
+
+| Integration point | Lives in | Change |
+|---|---|---|
+| Bounded read-only identity lookup | cmd/internal/broadcast/tunnel_identity.go | reuse ProvisionIO, five-second shared budget, 1 MiB output |
+| Connector admission | cmd/internal/broadcast/cloudflared.go | collision preflight before claim/spawn |
+| Remote service setup | cmd/internal/couchcmd/remote_service.go | remote-only variables, separate cast comparison |
+
+- [ ] RED then GREEN identity validation/lookup and before-spawn refusal using a stateful fake behind ProvisionIO; assert at most two queries and shared cancellation.
+- [ ] RED then GREEN remote settings without inherited broadcast selection and concurrent distinct-tunnel cast/remote mounts; retain Access/capture and ownership refusals.
+- [ ] Update README/atlas/operator exports and source/reader inventories; targeted package and race checks; final full close reviews integration and revision before landing.
+- [ ] Stage only on TL go, report actual binary revision and exports; operator Access/iPhone acceptance remains required and unclaimed until observed.

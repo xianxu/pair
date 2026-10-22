@@ -412,3 +412,35 @@ Retain exactly one recorded suite on corrected code5136229868a8fc0806d934317d810
 Sweep c96bec4e: joined original terminal73968, which exited0. Recorded suite attempt246fb0ef459d6358aa6ffd4ddc5ffc51 on5136229868a8fc0806d934317d8104154e763dee PASSED in12m24s; GitHub sdlc-local/suite is success (posted2026-10-22T06:44:05Z). Saved log SHA-256 a458d6136bb2a5bfadc8f32ff2783dacd8cf50394b8c29761737ac0a2715ae20 verified locally. No retry or replacement run. M3 close df1c5254e remains SHIP; descendants contain only issue/review evidence. No own suite or review remains running.
 
 Next is the operator-assisted scheduled stage/Access/iPhone acceptance, not another close or merge. Request the hub's staging turn after #753/#739, preserving the approved hold until the live check. Named tunnel name/hostname remain unconfirmed from absent local config; no live/account/network change performed. #758/#760 edit integration remains explicitly deferred in the operator checklist.
+
+
+### 2026-10-22 — approved dedicated remote tunnel revision
+
+TL 795fb6dc and 05e409a2 approve a dedicated tunnel: remote reads only
+COUCH_REMOTE_TUNNEL and COUCH_REMOTE_HOSTNAME. The ordinary cast configuration
+is passed only to a collision guard. Equal names or canonical UUIDs refuse
+before connector spawn, including name/UUID aliases. Names resolve through
+read-only cloudflared tunnel list --output json --name NAME; UUID inputs skip IO.
+At most two sequential lookups share a five-second deadline; stdout is capped
+at 1 MiB and diagnostics are capped by the existing owned ProvisionIO runner.
+Unavailable, malformed, ambiguous or expired evidence refuses and tells the
+operator to inspect tunnel settings and retry. Access checks, connector guards,
+record ownership, capture refusal, kill/reset authority and session policy stay
+unchanged. The operator creates couch-remote and changes its DNS route; agents
+make no account/network writes. No shared-ingress owner is added.
+
+Implementation uses the existing couchcore.ProvisionIO seam (ARCH-DRY), whose
+OS runner joins cancellation and bounded collection; no new process collector.
+One optional DistinctFrom tunnel reference on Cloudflared enables the preflight
+only for protected remote transport. Pure UUID/metadata validation lives beside
+the bounded lookup adapter. Tests cover direct name/UUID collision, aliases,
+malformed/ambiguous/unavailable resolution, two-query/deadline bounds, remote
+settings independence and simultaneous cast+remote mounts on distinct tunnels.
+New temporary configs remain in the existing listener/run-record lifecycle;
+no new durable artifact family or cache is introduced (ARCH-FUNERAL).
+
+Current-main integration retained both endpoint and remote protocol additions,
+used the single shared preserve-number checker and combined both regression
+oracles. Targeted strictjson, couchtty, couchcmd remote/endpoint checks passed;
+couchmessage remote/forget/orphan checks passed independently. The first console
+check lacked generated embedded runtime assets; generation resolved setup only.
