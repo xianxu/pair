@@ -285,6 +285,12 @@ Current ariadne:5 graceful fixture vector was compared with the complete product
 
 Final-code suite checkbox now complete. Re-close using TLef5588c8's explicit evidence sequencing: retain old complete68c581ac native pass, corrected-source partial native proofs, all three later failures and their attribution; no fresh complete native pass is claimed or independently retried. If review demands another native pass, bring it to TL. No staging, live controls or merge performed. Watched operator-present current-build acceptance and historical ariadne:4 uncertainty remain outstanding.
 
+### 2026-10-22 — corrected-source re-close SHIP; standing by
+
+Full close session48819 completed exit0: round7 SHIP, no Critical/Important/Minor findings, five prior findings disposed. Reviewer freshly ran complete core/message/CLI/console/wrapper packages and focused races, verified log hashes, and confirmed the notice regression turns RED with the ambiguous text restored. It accepted the final TL-approved native evidence sequencing and did not require another matrix run; explicitly noted no complete current-source native pass exists and watched acceptance remains required before landing. Reviewed head221af63022ff5fcd7247e04830d6b7c9853ec0f8; Git HEAD after card mirror ba9a90c3e16d340af534b13176045d769eee8b1a, clean/pushed.
+
+Outcome report3309e524 submitted to hub: exact537-byte #506 vector alignment, corrected-source suite PASS11m13s, all native failures attributed and retained, #773 attachment received by pair:7, no root-cause credit and no full-current-native-pass claim. STAND BY under the existing hub schedule for fresh staging/live go; no owned check/review/native runner remains. No stage, real drain/queue control or merge performed. Claim and PR477 retained; ariadne#506 landing and operator-watched live acceptance still precede landing. This post-close checkpoint is issue-log-only; no executable source changed.
+
 ## Revisions
 
 ### 2026-10-19 — authenticated acknowledgement and shared queue ownership
