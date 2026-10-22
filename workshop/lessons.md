@@ -2665,3 +2665,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #796: A launch default change must make old behavior explicit in compatibility fixtures, including native subprocess tests. Sweep direct Console constructors and geometry assertions as well as shared helpers; preserve the old multiline native matrix while adding collapse. When an early known mismatch consumes the package deadline, rerun the corrected package before treating late teardown failures as independent flakes.
 
 - #796 BR-1: A presentation run is not necessarily an entity group: numbered hubs deliberately split legacy tab runs. Use role for hub policy and exact owner/group identity for aggregation; pin primary and numbered hubs under both current and inactive ownership before relying on shared display grouping.
+
+- #796 BR-2: Before close, reconcile the complete concepts table with actual file ownership and new/modified/reused status. A planned integration point can be reused unchanged while its projection changes elsewhere; document that relationship rather than forcing a source diff to satisfy a predicted path.

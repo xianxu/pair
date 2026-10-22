@@ -36,12 +36,14 @@ Alternatives considered: only set maxRows=1 (reject: keeps every hub and provide
 
 | Name | Lives in | Status |
 |---|---|---|
-| TabStyle and parsing/default | cmd/internal/couchtty/tab_style.go; CLI uses it | new |
-| StatusModel style | cmd/internal/couchtty/reserve.go | modified |
-| Group identity and count candidate | cmd/internal/couchtty/status_collapse.go | new |
-| Measured candidate packing | cmd/internal/couchtty/status_layout.go | modified |
-| Drawn group-count span | cmd/internal/couchtty/reserve.go | new |
-| Exact root menu scope | cmd/internal/couchtty/menu.go; menu_reattach.go | modified |
+| TabStyle / ParseTabStyle | cmd/internal/couchtty/tab_style.go | new |
+| StatusModel / StatusActor / RenderedStatusRow | cmd/internal/couchtty/reserve.go | modified |
+| StatusGroupID / GroupCountSpan | cmd/internal/couchtty/reserve.go | new |
+| prepareCollapsedStatusChips / statusActorWeight | cmd/internal/couchtty/status_collapse.go | new |
+| RenderedStatusBar / renderStatusBar / prepareStatusChips | cmd/internal/couchtty/status_layout.go | modified |
+| MenuFrame / reduceKey | cmd/internal/couchtty/menu.go | modified |
+| scopedRootThreads | cmd/internal/couchtty/menu_reattach.go | new |
+| visibleMenuRows / reconcileRootSelection | cmd/internal/couchtty/menu_reattach.go | modified |
 
 TabStyle has one production default (collapse); legacy low-level render tests explicitly request multiline when that is their contract. Console defaults and CLI defaults derive from the same constant. Group identity owns no inventory; it references the existing presentation's owner/group keys. Candidates own per-frame actor cardinality and attention facts; emitted cells/spans die with that frame. A menu scope is optional root-frame state, not another inventory or a second owner resolver. Future style variants extend the enum/policy; no plugin framework is needed.
 
@@ -50,9 +52,13 @@ TabStyle has one production default (collapse); legacy low-level render tests ex
 | Name | Lives in | Status | Wraps |
 |---|---|---|---|
 | Launch style plumbing | cmd/internal/couchcmd/cli.go; run.go | modified | public argv to Console configuration |
-| Console geometry projection | cmd/internal/couchtty/console_chrome_layout.go; console_presentation.go | modified | selected policy to child PTY geometry |
+| Console startup style configuration | cmd/internal/couchtty/console_tab_style.go | new | startup selection and read-only snapshot |
+| Console construction and ordinary switcher reopen | cmd/internal/couchtty/console.go | modified | default style, span storage and scope reset |
+| Console status-model projection | cmd/internal/couchtty/console_presentation.go | modified | selected style to the existing geometry planner |
 | Chrome publication and clicks | cmd/internal/couchtty/terminal.go; terminal_input.go | modified | Presenter revision and mouse input |
-| Scoped switcher opener | cmd/internal/couchtty/console.go; console_menu.go | modified | existing root-menu focus/refresh lifecycle |
+| openGroupSwitcher | cmd/internal/couchtty/console_group_menu.go | new | existing root-menu focus/refresh lifecycle |
+
+Reused unchanged: `console_chrome_layout.go` supplies birth/paint geometry through RenderStatusBar; `console_menu.go` supplies the existing show/refresh machinery. Style reaches both through the modified status-model projection, so those reused files require no diff.
 
 Use existing FakeHost, stateful FakeRunner, PresentThreads and disposable native test harnesses. No new external service, subprocess owner or persistence backend. Native geometry probes use exact event barriers and existing fixture cleanup, never timing as ordering.
 
@@ -133,3 +139,7 @@ Named the parser/extractor/CLI, collapse preparation/packer/drawing, exact scope
 ### 2026-10-22 — BR-1 numbered-hub coverage
 
 Legacy multiline display runs can split one identity after a numbered hub. Collapse aggregates by exact owner+group independently of those display runs and preserves the current hub by role, regardless of slot number. Tests enumerate primary0/numbered1/numbered4 x current/inactive; multiline grouping stays unchanged. The existing O(N) preparation and weighted-count invariants apply.
+
+### 2026-10-22 — BR-2 actual concept locations and statuses
+
+Corrected the complete concepts table against the implementation: StatusGroupID/GroupCountSpan are new in reserve.go; collapse functions are new in status_collapse.go; style configuration and openGroupSwitcher are new in console_tab_style.go and console_group_menu.go. Ordinary reopen/default/span storage modifies console.go; style projection modifies console_presentation.go. console_chrome_layout.go and console_menu.go are reused unchanged and are now prose dependencies, not falsely modified rows. Split new scope filtering from modified menu/reconciliation contracts. No source, test, policy, suite snapshot or staged binary change.

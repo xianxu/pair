@@ -137,6 +137,10 @@ Whole couchtty PASS52.969s on93b8b8b655c07853c6bc3a1f3523903863680b40; exact rol
 
 Replacement #796 recorded suite on93b8b8b655c07853c6bc3a1f3523903863680b40 is queued: session38831, lease-521073252, attempta278fb06545111abc7fe0a1a1410829a, isolated checkout /Volumes/TestScratch/local-checks/sdlc-local-1119877122; initial/latest observed FIFO position18. The canceled prior lease had not executed; #789's distinct snapshot remains queued. Source frozen for close round2 and this suite. Next: review BR-1 disposition, receive operator look, require passing final recorded suite before landing.
 
+### 2026-10-22 — close round2 BR-1 addressed; BR-2 plan mapping
+
+Reviewer accepted BR-1, independently passed focused CLI/scope/style/native/stale-input/broadcast/privacy/anchor checks, and verified the old-code mutation fails all four numbered cases. One new Critical BR-2 is documentation-only: the concepts table still named predicted files as modified although geometry/menu machinery was reused and the opener landed in a new file. Audited the entire table and recorded actual locations/new-versus-modified status, with unchanged reuse listed separately and a plan Revision. No code or tests changed; corrected stage93b8b8b6 and queued suite lease-521073252 remain valid and untouched. Re-close on this documentation correction; operator look may proceed on the same corrected stage.
+
 ## Revisions
 
 ### 2026-10-22 — operator priority and default (TL0afd9a82)

@@ -151,6 +151,163 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 89a5ce5b-7f54-4d2d-89a5-2d560619d725
+            repository: github.com/xianxu/pair
+            issue_id: "000796"
+            recipe: milestone-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/b99615f570325050
+            reviewed_head: 40d868b02b1034ac96bc85830ca7324778947e27
+            slot: pair:4
+            requested_at: "2026-10-22T21:35:32.349266Z"
+          phase: finished
+          pid: 28296
+          started_at: "2026-10-22T21:35:32.457368Z"
+          finished_at: "2026-10-22T21:37:23.60825Z"
+          session_id: 01a1658a-6b8e-78e1-9160-d441b7f434e5
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 40d868b02b1034ac96bc85830ca7324778947e27
+        tracker_head: 00c1f6f3c81f8e225883f1193a4b2557d5bef10c
+        branch_point: 651e30092e7ca245e5537ba1450b7ea7eb36ddae
+        since: "2026-10-22T13:53:50-07:00"
+        until: "2026-10-22T14:34:09-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-22T13:53:50-07:00"
+              end: "2026-10-22T14:34:09-07:00"
+              began: "2026-10-22T13:53:50-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot4/pair
+        sources:
+            - harness: codex
+              id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: c0df017e859c8de0d5de7d61f7efca6568417c9b805e5676f18cc0d29732c22a
+              started: "2026-10-20T17:08:30.923Z"
+              spawned: false
+              bytes: 54256847
+              windows:
+                - start: "2026-10-22T13:53:50-07:00"
+                  end: "2026-10-22T14:34:09-07:00"
+            - harness: codex
+              id: 01a16564-abcd-7f52-b53b-533c939acd96
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              parent_id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              digest: 36c3cabf0d4ed349af33eded13ec7d03f135f251783e2a2b7debf588a7fb38ff
+              started: "2026-10-22T20:54:18.993Z"
+              spawned: true
+              bytes: 689090
+              windows:
+                - start: "2026-10-22T20:54:18.993Z"
+                  end: "2026-10-22T14:34:09-07:00"
+            - harness: codex
+              id: 01a16569-0a73-7532-ae4c-e0c4a07548b9
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 07472520371613b39db33c36a7472448b4f22d6fd7f785e68fdb04fd78701ed1
+              started: "2026-10-22T20:59:05.589Z"
+              spawned: false
+              bytes: 625007
+              windows:
+                - start: "2026-10-22T20:59:05.589Z"
+                  end: "2026-10-22T14:34:09-07:00"
+            - harness: codex
+              id: 01a1656a-a25b-7e63-96b1-494a6046626d
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 127f9752538d0ef1cd77675240a4dfc7c6f0bda66e611c48cdcadbaf92acfc65
+              started: "2026-10-22T21:00:50.261Z"
+              spawned: false
+              bytes: 407911
+              windows:
+                - start: "2026-10-22T21:00:50.261Z"
+                  end: "2026-10-22T14:34:09-07:00"
+            - harness: codex
+              id: 01a1656b-af5d-74f1-bada-1c9814432d77
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 5d94760ad73c39be75662a48ed6d8405dd62d6f7acce4b42b3b887071cb54040
+              started: "2026-10-22T21:01:59.115Z"
+              spawned: false
+              bytes: 389898
+              windows:
+                - start: "2026-10-22T21:01:59.115Z"
+                  end: "2026-10-22T14:34:09-07:00"
+            - harness: codex
+              id: 01a1656c-302e-7010-8042-920fc7e14739
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              digest: 72ccee36d8802be5165115f716e208e66fe747a66f6fb742aeaf8b727c051c86
+              started: "2026-10-22T21:02:32.041Z"
+              spawned: false
+              bytes: 373620
+              windows:
+                - start: "2026-10-22T21:02:32.041Z"
+                  end: "2026-10-22T14:34:09-07:00"
+            - harness: codex
+              id: 01a1656d-64c8-70a1-a657-222047013c95
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              parent_id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              digest: fd9d30f0a03e19897730098094a3c0ff3e12abf910794816ca7c3307a11d79fc
+              started: "2026-10-22T21:03:50.584Z"
+              spawned: true
+              bytes: 1274106
+              windows:
+                - start: "2026-10-22T21:03:50.584Z"
+                  end: "2026-10-22T14:34:09-07:00"
+            - harness: codex
+              id: 01a1656d-eab6-7170-997a-ef8852471481
+              slot: pair:4
+              cwd: /Users/xianxu/workspace/worktree/pair-slot4/pair
+              parent_id: 01a15a49-099a-71f3-872b-0c2ad747d4bc
+              digest: 43019887ca0ae50fa09e8be66bdb0d2a07b2455df98759340b9b42996a2ff5b9
+              started: "2026-10-22T21:04:24.872Z"
+              spawned: true
+              bytes: 842375
+              windows:
+                - start: "2026-10-22T21:04:24.872Z"
+                  end: "2026-10-22T14:34:09-07:00"
+        cuts:
+            - dispatched: "2026-10-22T14:26:21-07:00"
+              finalized: "2026-10-22T14:28:29-07:00"
+              finalizing: false
+      "n": 2
+      timestamp: "2026-10-22T14:37:24-07:00"
+      dispatched: "2026-10-22T14:35:30-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Exact-identity aggregation and hub-role retention are exercised by TestCollapseHubRoleAndIdentityIndependentOfSlotNumber. The pinned head passes; substituting pre-fix status_collapse.go through a temporary Go overlay makes all four numbered-hub cases fail.
+          round: 2
+      findings:
+        - kind: defect
+          id: BR-2
+          severity: Critical
+          title: Core concepts table names incorrect implementation locations and change statuses
+          detail: workshop/plans/000796-collapse-tab-style-plan.md:53-55 lists the scoped switcher opener as modified in console.go/console_menu.go, but openGroupSwitcher is newly implemented in console_group_menu.go:6 and console_menu.go is unchanged. It also lists console_chrome_layout.go as modified although that file is reused unchanged. Correct the table to distinguish new, modified, and reused components and add a Revisions entry; the Core concepts cross-check explicitly makes these contradictions blocking.
+          family: core-concept-traceability
+          round: 2
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#796 (boundary-review)
@@ -165,6 +322,17 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-1** [Critical] `collapse-hub-role-policy` (kind: defect) Numbered hubs violate the approved collapse policy
   cmd/internal/couchtty/status_collapse.go:13-39 uses legacy chipGroups runs and preserves quiet anchors only when SlotNumber == 0. A temporary regression overlay at width 100 produced "repo:1 +1  [:2]" for a quiet current hub at slot 1 with active worker 2, folding the current hub despite ample space. Making both members quiet under an inactive hub produced "repo:1 +1  repo:2 +1", with two count spans for the same (OwnerHub, GroupKey). The plan at lines 21-23 requires preserving the current hub when space allows and folding quiet inactive hubs with their workers into one count per identity. Preserve anchors by hub role and aggregate collapse counts by exact identity without changing multiline grouping; add primary/numbered × current/inactive regression cases.
 
+## Round 2 — 2026-10-22T14:37:24-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Exact-identity aggregation and hub-role retention are exercised by TestCollapseHubRoleAndIdentityIndependentOfSlotNumber. The pinned head passes; substituting pre-fix status_collapse.go through a temporary Go overlay makes all four numbered-hub cases fail.
+
+### Raised
+
+- **BR-2** [Critical] `core-concept-traceability` (kind: defect) Core concepts table names incorrect implementation locations and change statuses
+  workshop/plans/000796-collapse-tab-style-plan.md:53-55 lists the scoped switcher opener as modified in console.go/console_menu.go, but openGroupSwitcher is newly implemented in console_group_menu.go:6 and console_menu.go is unchanged. It also lists console_chrome_layout.go as modified although that file is reused unchanged. Correct the table to distinguish new, modified, and reused components and add a Revisions entry; the Core concepts cross-check explicitly makes these contradictions blocking.
+
 ## Open findings
 
-- **BR-1** [Critical] `collapse-hub-role-policy` (kind: defect) Numbered hubs violate the approved collapse policy
+- **BR-2** [Critical] `core-concept-traceability` (kind: defect) Core concepts table names incorrect implementation locations and change statuses
