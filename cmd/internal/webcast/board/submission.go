@@ -3,6 +3,7 @@ package board
 import (
 	"context"
 	"errors"
+	"github.com/xianxu/pair/cmd/internal/webcast/query"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 	"slices"
 )
@@ -16,7 +17,12 @@ type Selection struct {
 	SketchGeneration uint64
 	SketchRemaining  int
 }
-type SelectedSketch = recording.SketchCandidate
+type SelectedSketch struct {
+	ID             string
+	NextSequence   uint64
+	Digest         string
+	Source, Finish query.SketchSourceFacts
+}
 type SelectedNote struct {
 	ID       string
 	Revision uint64
@@ -38,7 +44,16 @@ func (b *Board) selectionLocked() (Selection, error) {
 	if b.st.Top == nil {
 		return Selection{}, ErrNotLive
 	}
-	out := Selection{Document: b.st.DocSeg, TabID: b.st.Tab.ID, SketchGeneration: b.submissionGeneration, Sketches: b.st.Sketches.SubmissionCandidates()}
+	out := Selection{Document: b.st.DocSeg, TabID: b.st.Tab.ID, SketchGeneration: b.submissionGeneration}
+	for _, candidate := range b.st.Sketches.SubmissionCandidates() {
+		witness, ok := b.feedback.sketches[candidate.ID]
+		if !ok || !witness.finished {
+			// An eligible version without its exact accepted witnesses cannot be
+			// published as a partial selection.
+			return Selection{}, ErrBroken
+		}
+		out.Sketches = append(out.Sketches, SelectedSketch{ID: candidate.ID, NextSequence: candidate.NextSequence, Digest: candidate.Digest, Source: witness.source, Finish: witness.finish})
+	}
 	for _, n := range b.st.Notes {
 		if n.State == recording.NoteOpen {
 			out.Notes = append(out.Notes, SelectedNote{n.ID, n.Revision})
@@ -49,14 +64,15 @@ func (b *Board) selectionLocked() (Selection, error) {
 
 // FreezeSubmissionSelection must be called while the manager owns its preview
 // state. The lock order is manager then Board; this operation performs no IO.
-func (b *Board) FreezeSubmissionSelection(generation uint64, chosen []SelectedSketch) (Selection, error) {
+// notes must equal the entire ordered list acknowledged by that preview.
+func (b *Board) FreezeSubmissionSelection(generation uint64, chosen []SelectedSketch, notes []SelectedNote) (Selection, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	s, err := b.selectionLocked()
 	if err != nil {
 		return Selection{}, err
 	}
-	if generation != s.SketchGeneration || len(chosen) > 8 {
+	if generation != s.SketchGeneration || len(chosen) > 8 || !slices.Equal(notes, s.Notes) {
 		return Selection{}, ErrStale
 	}
 	seen := map[string]bool{}

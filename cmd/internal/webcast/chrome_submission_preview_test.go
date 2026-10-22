@@ -7,6 +7,9 @@ import (
 	"github.com/xianxu/pair/cmd/internal/testwait"
 	"github.com/xianxu/pair/cmd/internal/webcast/board"
 	"github.com/xianxu/pair/cmd/internal/webcast/notes"
+	"github.com/xianxu/pair/cmd/internal/webcast/query"
+	"github.com/xianxu/pair/cmd/internal/webcast/recording"
+	"github.com/xianxu/pair/cmd/internal/webcast/sketchimage"
 	"runtime"
 	"strings"
 	"testing"
@@ -77,7 +80,7 @@ func TestSubmissionPreviewHostSubscriberCoalescesAndCloses(t *testing.T) {
 	stop()
 }
 func TestSubmissionPreviewFreezeRejectsRetiredHost(t *testing.T) {
-	cast, _, selected := castSketchSubmissionFixture(t, 1)
+	cast, _, _ := castSketchSubmissionFixture(t, 1)
 	c, s := previewChromeFixture(t)
 	c.opts.Record.Operator = cast.board
 	c.opts.Record.ID = "shapes"
@@ -90,15 +93,23 @@ func TestSubmissionPreviewFreezeRejectsRetiredHost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = c.FreezeSubmissionPreview(host, snapshot.SketchGeneration, selected.Sketches); err != nil {
+	candidates := make([]core.PreviewSketchCandidate, 0, len(snapshot.Sketches))
+	for _, v := range snapshot.Sketches {
+		candidates = append(candidates, core.PreviewSketchCandidate{Item: core.PreviewItem{RecordingID: "shapes", SketchID: v.ID, Sequence: v.NextSequence, Digest: v.Digest}, Source: v.Source, Finish: v.Finish})
+	}
+	selection, err := core.SelectFeedbackPreview(candidates, nil, nil, core.PreviewStamp{Board: snapshot.SketchGeneration})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = c.FreezeSubmissionPreview(host, selection); err != nil {
 		t.Fatal(err)
 	}
 	c.retireOperatorSketchScopes(s, "s")
 	c.refreshSubmissionPreviewHost(s)
-	if _, err = c.FreezeSubmissionPreview(host, snapshot.SketchGeneration, selected.Sketches); err == nil {
+	if _, err = c.FreezeSubmissionPreview(host, selection); err == nil {
 		t.Fatal("retired host froze board selection")
 	}
-	if _, err = c.FreezeSubmissionPreview(core.PreviewHost{}, snapshot.SketchGeneration, selected.Sketches); err == nil {
+	if _, err = c.FreezeSubmissionPreview(core.PreviewHost{}, selection); err == nil {
 		t.Fatal("zero host froze selection")
 	}
 }
@@ -158,7 +169,7 @@ func (c *previewProjectionCaller) Call(ctx context.Context, session, method stri
 	return json.Unmarshal(data, out)
 }
 func projectionValue() submissionPreviewValue {
-	return submissionPreviewValue{Host: "host", Generation: "7", Revision: "9007199254740993", Operation: "9007199254740993", Stamp: submissionPreviewStamp{Board: "3", Delivered: "4"}, Items: []submissionPreviewItem{{RecordingID: "rec", ID: "shape", Sequence: 5, Digest: strings.Repeat("a", 64)}}, Remaining: 2, Cursor: board.SketchDeliveryCursor{Epoch: "cast", Seq: 10}, Accepted: true}
+	return submissionPreviewValue{Host: "host", Generation: "7", Revision: "9007199254740993", Operation: "9007199254740993", Stamp: submissionPreviewStamp{Board: "3", Delivered: "4"}, Items: []submissionPreviewItem{{RecordingID: "rec", ID: "shape", Sequence: 5, Digest: strings.Repeat("a", 64)}}, Notes: []submissionPreviewNote{{ID: "n", Revision: "2"}}, Page: &sketchimage.PageScene{RecordingID: "rec", SketchSourceFacts: query.SketchSourceFacts{T: 5, RecordIndex: 7, Doc: 1, Tab: "tab", URL: "https://example.test/", VP: recording.Viewport{W: 800, H: 600, DPR: 1}}}, Remaining: 2, Cursor: board.SketchDeliveryCursor{Epoch: "cast", Seq: 10}, Accepted: true}
 }
 func TestSubmissionPreviewProjectionRequiresExactAcknowledgment(t *testing.T) {
 	for _, mutate := range []func(*submissionPreviewValue){nil,
@@ -166,7 +177,7 @@ func TestSubmissionPreviewProjectionRequiresExactAcknowledgment(t *testing.T) {
 		func(v *submissionPreviewValue) { v.Revision = "9007199254740992" }, func(v *submissionPreviewValue) { v.Operation = "9007199254740992" },
 		func(v *submissionPreviewValue) { v.Stamp.Board = "2" }, func(v *submissionPreviewValue) { v.Stamp.Delivered = "3" },
 		func(v *submissionPreviewValue) { v.Items[0].Sequence++ }, func(v *submissionPreviewValue) { v.Remaining++ },
-		func(v *submissionPreviewValue) { v.Cursor.Seq-- }, func(v *submissionPreviewValue) { v.Accepted = false },
+		func(v *submissionPreviewValue) { v.Notes[0].Revision = "3" }, func(v *submissionPreviewValue) { v.Page.RecordIndex++ }, func(v *submissionPreviewValue) { v.Page = nil }, func(v *submissionPreviewValue) { v.Cursor.Seq-- }, func(v *submissionPreviewValue) { v.Accepted = false },
 	} {
 		requested, ack := projectionValue(), projectionValue()
 		if mutate != nil {

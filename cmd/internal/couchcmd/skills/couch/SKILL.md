@@ -629,8 +629,13 @@ its attempt for inspection; peek/show before another recovery request.
 
 ## Reading a broadcast-web recording
 
-A DOM submission points to `submission.json` and relative `crop-N.png` note files
-and `sketch-N.png` sketch files.
+A DOM submission points to `submission.json`, relative `crop-N.png` note files
+and one `sketch-page.png` for a shared sketch batch (legacy bundles retain
+`sketch-N.png`). Match numbered image badges to each sketch's `index`, note and
+original `paths`. The full visible viewport is fixed by the latest chosen
+`finish`; each sketch's `source` and element facts still describe its original
+begin. Read the root `sketch_page` privacy/limitations as well as each item's.
+Only selected unsent ink appears; pointer and private tool UI never enter it.
 The manifest includes recorded note context, draw-time box text/accessibility
 names, capture identity, and `source.recording_path`. Crops show the original
 page when the note box was drawn, not the page at submission. Navigation or a

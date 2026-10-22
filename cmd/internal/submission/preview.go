@@ -1,6 +1,10 @@
 package submission
 
-import "slices"
+import (
+	"github.com/xianxu/pair/cmd/internal/webcast/query"
+	"github.com/xianxu/pair/cmd/internal/webcast/sketchimage"
+	"slices"
+)
 
 // PreviewHost identifies one private console projection lifetime.
 type PreviewHost struct {
@@ -17,11 +21,28 @@ type PreviewItem struct {
 	Sequence                      uint64
 }
 
+// PreviewSketchCandidate owns scalar original and completion witnesses. Its
+// exact delivery key stays independent of page geometry and display indices.
+type PreviewSketchCandidate struct {
+	Item   PreviewItem
+	Source query.SketchSourceFacts
+	Finish query.SketchSourceFacts
+}
+
+// PreviewNote identifies the exact open note revision shown to the operator.
+type PreviewNote struct {
+	ID       string
+	Revision uint64
+}
+
 // PreviewSelection is copied on entry and when read from a publication.
 type PreviewSelection struct {
-	Stamp     PreviewStamp
-	Items     []PreviewItem
-	Remaining int
+	Stamp      PreviewStamp
+	Items      []PreviewItem
+	Candidates []PreviewSketchCandidate
+	Notes      []PreviewNote
+	Page       *sketchimage.PageScene
+	Remaining  int
 }
 
 type PreviewPhase uint8
@@ -96,6 +117,12 @@ func (p PreviewPublication) Operation() uint64           { return p.operation }
 func (p PreviewPublication) Selection() PreviewSelection { return clonePreviewSelection(p.selection) }
 func clonePreviewSelection(s PreviewSelection) PreviewSelection {
 	s.Items = append([]PreviewItem(nil), s.Items...)
+	s.Candidates = slices.Clone(s.Candidates)
+	s.Notes = slices.Clone(s.Notes)
+	if s.Page != nil {
+		page := *s.Page
+		s.Page = &page
+	}
 	return s
 }
 
@@ -275,5 +302,5 @@ func samePreviewPublication(a, b PreviewPublication) bool {
 // Comparing the bounded candidate values also detects changed contents whose
 // producer accidentally reused a generation stamp.
 func samePreviewSelection(a, b PreviewSelection) bool {
-	return a.Stamp == b.Stamp && a.Remaining == b.Remaining && slices.Equal(a.Items, b.Items)
+	return a.Stamp == b.Stamp && a.Remaining == b.Remaining && slices.Equal(a.Items, b.Items) && slices.Equal(a.Candidates, b.Candidates) && slices.Equal(a.Notes, b.Notes) && (a.Page == nil && b.Page == nil || a.Page != nil && b.Page != nil && *a.Page == *b.Page)
 }

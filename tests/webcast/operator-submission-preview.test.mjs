@@ -17,7 +17,7 @@ function fixture(n=2){
  const sketches=Array.from({length:n},(_,i)=>({begin:{id:`s${i}`,author:{id:'operator',color:'#ff0000'},doc:1,tab:'tab',vp:{w:100,h:100,dpr:1}},phase:'complete',label:`note ${i}`,strokes:[{begin:{id:'stroke',width:4,at:{node:1,box:[0,0,100,100]}},pts:[[10,10,.1],[40,40,.9]],visible:true,sealed:true,truncated:false}]}));
  const bytes=Buffer.from(JSON.stringify({bootstrap:{epoch:'cast',seq:7,display:{sketches}}}));
  receiver.receive({phase:'begin',handle:'h',epoch:'cast',total:bytes.length});receiver.receive({phase:'chunk',handle:'h',epoch:'cast',total:bytes.length,offset:0,base64:bytes.toString('base64')});
- const value={host:'scope',generation:'1',revision:'1',operation:'1',stamp:{board:'5',delivered:'2'},items:sketches.map(s=>({recording_id:'rec',id:s.begin.id,next_sequence:5,digest:'a'.repeat(64)})),remaining:0,cursor:{epoch:'cast',seq:7}};
+ const value={host:'scope',generation:'1',revision:'1',operation:'1',stamp:{board:'5',delivered:'2'},items:sketches.map(s=>({recording_id:'rec',id:s.begin.id,next_sequence:5,digest:'a'.repeat(64)})),notes:[],remaining:0,cursor:{epoch:'cast',seq:7}};
  const preview=createOperatorSubmissionPreview({root,receiver},doc);
  return {doc,root,editor,receiver,value,preview};
 }
@@ -78,4 +78,35 @@ test('visible nonempty preview defers background capture until empty or disposed
  assert.equal(f.preview.captureBusy(),false);
  assert.equal(f.root.querySelector('.sketch-submission-preview').hidden,true);
  f.preview.dispose();assert.equal(f.preview.captureBusy(),false);
+});
+
+test('pending feedback shows both counts and acknowledges exact note revisions',()=>{
+ const f=fixture();
+ f.value.notes=[{id:'old-page-note',revision:'3'}];
+ const ack=f.preview.publish(f.value);
+ const panel=f.root.querySelector('.sketch-submission-preview');
+ assert.match(panel.querySelector('.sketch-submission-count').textContent,/Pending feedback: 2 sketches, 1 annotation/);
+ assert.deepEqual(ack.notes,f.value.notes);
+ const card=panel.querySelector('.sketch-submission-card');
+ assert.equal(card.dataset.index,'1');
+ assert.match(card.querySelector('.sketch-submission-index').textContent,/1/);
+ const next={...f.value,revision:'2',operation:'2',notes:[{id:'old-page-note',revision:'4'}]};
+ assert.deepEqual(f.preview.publish(next).notes,next.notes);
+ assert.equal(panel.querySelector('.sketch-submission-card'),card);
+ assert.equal(f.doc.activeElement,f.editor);
+});
+
+test('note-only feedback is visible and capture-private until its exact list empties',()=>{
+ const f=fixture(0);
+ f.value.notes=[{id:'historical',revision:'18446744073709551615'}];
+ const ack=f.preview.publish(f.value);
+ assert.deepEqual(ack.notes,f.value.notes);
+ const panel=f.root.querySelector('.sketch-submission-preview');
+ assert.equal(panel.hidden,false);
+ assert.equal(f.preview.captureBusy(),true);
+ assert.match(panel.querySelector('.sketch-submission-count').textContent,/0 sketches, 1 annotation/);
+ assert.equal(panel.querySelectorAll('canvas').length,0);
+ f.preview.publish({...f.value,revision:'2',operation:'2',notes:[]});
+ assert.equal(panel.hidden,true);
+ assert.equal(f.preview.captureBusy(),false);
 });

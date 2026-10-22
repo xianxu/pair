@@ -202,7 +202,25 @@ func (s *sketchImageServer) close() error {
 	}
 	return errors.Join(err, serveErr, s.cache.close())
 }
+
+type historicalImageScene struct {
+	RecordIndex int
+	Payload     any
+	EntryScript string
+}
+
 func serveSketchImages(b sketchimage.Batch, plans []sketchimage.RenderPlan) (*sketchImageServer, error) {
+	scenes := make([]historicalImageScene, len(b.Sketches))
+	for i, v := range b.Sketches {
+		scenes[i] = historicalImageScene{v.Source.RecordIndex, struct {
+			Plan   sketchimage.RenderPlan `json:"plan"`
+			Source any                    `json:"source"`
+			Color  string                 `json:"color"`
+		}{plans[i], v.Source, v.History.Begin.Author.Color}, "sketch-image.js"}
+	}
+	return serveHistoricalImageScenes(b, scenes)
+}
+func serveHistoricalImageScenes(b sketchimage.Batch, scenes []historicalImageScene) (*sketchImageServer, error) {
 	token, err := broadcast.NewToken()
 	if err != nil {
 		return nil, err
@@ -222,8 +240,8 @@ func serveSketchImages(b sketchimage.Batch, plans []sketchimage.RenderPlan) (*sk
 	var encoded bytes.Buffer
 	offsets := make([]int, len(b.Records)+1)
 	maxIndex := 0
-	for _, v := range b.Sketches {
-		maxIndex = max(maxIndex, v.Source.RecordIndex)
+	for _, v := range scenes {
+		maxIndex = max(maxIndex, v.RecordIndex)
 	}
 	for i, r := range b.Records[:maxIndex+1] {
 		line, e := recording.Encode(r)
@@ -237,10 +255,10 @@ func serveSketchImages(b sketchimage.Batch, plans []sketchimage.RenderPlan) (*sk
 		encoded.WriteByte('\n')
 		offsets[i+1] = encoded.Len()
 	}
-	proxies := make([]*castassets.Proxy, len(b.Sketches))
-	for i, v := range b.Sketches {
+	proxies := make([]*castassets.Proxy, len(scenes))
+	for i, v := range scenes {
 		proxies[i] = castassets.NewProxy()
-		store := castassets.Reopen(&recording.Recording{Dir: b.RecordingDir, Records: b.Records[:v.Source.RecordIndex+1]})
+		store := castassets.Reopen(&recording.Recording{Dir: b.RecordingDir, Records: b.Records[:v.RecordIndex+1]})
 		proxies[i].Bind(imageAssetStore{Served: store, cache: cache})
 	}
 	prefix := "/" + token + "/r/image/"
@@ -259,26 +277,25 @@ func serveSketchImages(b sketchimage.Batch, plans []sketchimage.RenderPlan) (*sk
 		}
 		index, rest, ok := strings.Cut(path, "/")
 		i, e := strconv.Atoi(index)
-		if !ok || e != nil || i < 0 || i >= len(b.Sketches) {
+		if !ok || e != nil || i < 0 || i >= len(scenes) {
 			http.NotFound(w, r)
 			return
 		}
-		v := b.Sketches[i]
+		v := scenes[i]
 		switch rest {
 		case "records":
 			w.Header().Set("Content-Type", "application/x-ndjson")
-			w.Write(encoded.Bytes()[:offsets[v.Source.RecordIndex+1]])
+			w.Write(encoded.Bytes()[:offsets[v.RecordIndex+1]])
 		case "scene":
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(struct {
-				Plan   sketchimage.RenderPlan `json:"plan"`
-				Source any                    `json:"source"`
-				Color  string                 `json:"color"`
-			}{plans[i], v.Source, v.History.Begin.Author.Color})
+			json.NewEncoder(w).Encode(v.Payload)
 		default:
 			if hash, yes := strings.CutPrefix(rest, "assets/"); yes {
 				proxies[i].Serve(w, r, hash)
 				return
+			}
+			if rest == "sketch-image.js" {
+				rest = v.EntryScript
 			}
 			serveViewerFile(w, r, rest)
 		}

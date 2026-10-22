@@ -110,7 +110,7 @@ export function createPlacement({document:documentOf,route,original=()=>null,sha
     const result={truncated,candidates:truncated?[]:nodes.filter(n=>n.nodeType===1).map(n=>facts(n,texts.get(n)?.text||''))};
     if(root===doc)cache=result;return result;
   };
-  return note=>{
+  return (note,{withClip=false}={})=>{
     try {
       const at=note.at,doc=documentOf();if(!at||!doc||(at.route&&at.route!==route()))return null;
       const node=original(at.node,note);
@@ -135,7 +135,7 @@ export function createPlacement({document:documentOf,route,original=()=>null,sha
       }
       const g=geometry(chosen.node,doc);if(!g)return null;
       const box=note.region?projectRegion(note.region,at.box,g.box):g.box;
-      return box&&intersect(box,g.clip)?box:null;
+      return box&&intersect(box,g.clip)?(withClip?{box,clip:g.clip}:box):null;
     }catch{return null;}
   };
 }

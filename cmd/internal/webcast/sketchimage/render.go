@@ -40,8 +40,23 @@ type ImageRenderer interface {
 // history indices. Contextual pause/interrupt effects do not advance sketch
 // sequence, so the whole witnessed history is compared at its exact HistoryRecordIndex (timestamps can coincide).
 func ValidateBatch(b Batch) ([]RenderPlan, error) {
+	if err := validateBatchInput(b, nil); err != nil {
+		return nil, err
+	}
+	plans := make([]RenderPlan, len(b.Sketches))
+	for i, v := range b.Sketches {
+		p, err := Plan(v.History, v.Source.VP, v.Source.Scroll, DefaultLimits())
+		if err != nil {
+			return nil, err
+		}
+		plans[i] = p
+	}
+	return plans, nil
+}
+
+func validateBatchInput(b Batch, observe func(int, *recording.State) error) error {
 	if len(b.Sketches) == 0 || len(b.Sketches) > MaxBatchImages || len(b.Records) == 0 {
-		return nil, fmt.Errorf("sketch image: batch requires 1..%d sketches and recorded input", MaxBatchImages)
+		return fmt.Errorf("sketch image: batch requires 1..%d sketches and recorded input", MaxBatchImages)
 	}
 	byID := map[string]int{}
 	cutoffs := []int{}
@@ -49,11 +64,11 @@ func ValidateBatch(b Batch) ([]RenderPlan, error) {
 	maxIndex := 0
 	for i, v := range b.Sketches {
 		if v.History.Begin == nil || v.History.Begin.ID == "" || v.History.NextSequence == 0 || len(v.History.Receipts) == 0 || v.Source.RecordIndex < 0 || v.Source.RecordIndex >= len(b.Records) || v.Source.T < 0 || v.HistoryT < v.Source.T || v.HistoryRecordIndex < v.Source.RecordIndex || v.HistoryRecordIndex >= len(b.Records) {
-			return nil, fmt.Errorf("sketch image: invalid selected source/history")
+			return fmt.Errorf("sketch image: invalid selected source/history")
 		}
 		id := v.History.Begin.ID
 		if _, exists := byID[id]; exists {
-			return nil, fmt.Errorf("sketch image: duplicate selected sketch")
+			return fmt.Errorf("sketch image: duplicate selected sketch")
 		}
 		byID[id] = i
 		if _, exists := byIndex[v.HistoryRecordIndex]; !exists {
@@ -85,19 +100,24 @@ func ValidateBatch(b Batch) ([]RenderPlan, error) {
 	last := -1
 	for index, r := range b.Records {
 		if r == nil {
-			return nil, fmt.Errorf("sketch image: nil recording event")
+			return fmt.Errorf("sketch image: nil recording event")
 		}
 		if index > maxIndex {
 			break
 		}
 		for next < len(cutoffs) && cutoffs[next] < index {
 			if err := checkHistory(cutoffs[next]); err != nil {
-				return nil, err
+				return err
 			}
 			next++
 		}
 		if err := state.Apply(r); err != nil {
-			return nil, fmt.Errorf("sketch image: recording event %d: %w", index, err)
+			return fmt.Errorf("sketch image: recording event %d: %w", index, err)
+		}
+		if observe != nil {
+			if err := observe(index, state); err != nil {
+				return err
+			}
 		}
 		last = index
 		if begin, ok := r.(*recording.SketchBegin); ok && !begins[begin.ID] {
@@ -109,33 +129,25 @@ func ValidateBatch(b Batch) ([]RenderPlan, error) {
 					source.Scroll = state.Scrolls[state.Top.ID]
 				}
 				if source != v.Source {
-					return nil, fmt.Errorf("sketch image: source boundary differs for %q", begin.ID)
+					return fmt.Errorf("sketch image: source boundary differs for %q", begin.ID)
 				}
 				sourceSeen[begin.ID] = true
 			}
 		}
 	}
 	if maxIndex > last {
-		return nil, fmt.Errorf("sketch image: history boundary exceeds witnessed input")
+		return fmt.Errorf("sketch image: history boundary exceeds witnessed input")
 	}
 	for next < len(cutoffs) {
 		if err := checkHistory(cutoffs[next]); err != nil {
-			return nil, err
+			return err
 		}
 		next++
 	}
 	if len(sourceSeen) != len(b.Sketches) {
-		return nil, fmt.Errorf("sketch image: source begin missing")
+		return fmt.Errorf("sketch image: source begin missing")
 	}
-	plans := make([]RenderPlan, len(b.Sketches))
-	for i, v := range b.Sketches {
-		p, err := Plan(v.History, v.Source.VP, v.Source.Scroll, DefaultLimits())
-		if err != nil {
-			return nil, err
-		}
-		plans[i] = p
-	}
-	return plans, nil
+	return nil
 }
 
 // ValidateImages is the common output contract. Call with plans returned by

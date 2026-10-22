@@ -158,14 +158,14 @@ export function mountOperatorSketch({host,root,box,report,view,annotation,palett
 export function createOperatorSubmissionPreview({root,receiver},doc){
   const panel=doc.createElement('section'),heading=doc.createElement('div'),list=doc.createElement('div');
   panel.className='sketch-submission-preview';heading.className='sketch-submission-count';list.className='sketch-submission-cards';
-  panel.setAttribute('aria-label','Next submission');
+  panel.setAttribute('aria-label','Pending feedback');
   panel.style.cssText='position:fixed;right:12px;bottom:90px;width:224px;max-height:42vh;overflow:auto;z-index:36;pointer-events:auto;background:#202124;color:#fff;border:1px solid #777;border-radius:6px;padding:8px;font:12px sans-serif';
   panel.hidden=true;panel.append(heading,list);root.append(panel);
-  let disposed=false,last=null,fingerprint=null,cards=new Map();
+  let disposed=false,last=null,fingerprint=null,cards=new Map(),noteCount=0;
   const uint=value=>typeof value==='string'&&/^(0|[1-9][0-9]{0,19})$/.test(value)&&BigInt(value)<=18446744073709551615n;
   const copyAck=()=>structuredClone(last);
   function card(key,item,paths,note){
-    const node=doc.createElement('div'),canvas=doc.createElement('canvas'),label=doc.createElement('div');
+    const node=doc.createElement('div'),canvas=doc.createElement('canvas'),label=doc.createElement('div'),index=doc.createElement('div');
     node.className='sketch-submission-card';node.dataset.version=key;
     node.style.cssText='margin-top:6px;border-top:1px solid #555;padding-top:6px';
     canvas.width=200;canvas.height=88;canvas.setAttribute('aria-label',`Sketch ${item.id}`);
@@ -177,7 +177,7 @@ export function createOperatorSubmissionPreview({root,receiver},doc){
     const width=Math.max(1,right-left),height=Math.max(1,bottom-top),scale=Math.min(184/width,72/height);
     const offsetX=(200-width*scale)/2,offsetY=(88-height*scale)/2;
     paintSketchPaths(g,paths,{scale,toClient:(x,y)=>[offsetX+(x-left)*scale,offsetY+(y-top)*scale]});
-    node.append(canvas,label);return node;
+    index.className='sketch-submission-index';node.append(index,canvas,label);return node;
   }
   function publish(value){
     if(disposed)throw Error('Submission preview context retired.');
@@ -190,12 +190,18 @@ export function createOperatorSubmissionPreview({root,receiver},doc){
       }
     }
     if(!uint(value.stamp?.board)||!uint(value.stamp?.delivered)||!Array.isArray(value.items)||value.items.length>8||!Number.isSafeInteger(value.remaining)||value.remaining<0||value.remaining>256)throw Error('Invalid submission preview selection.');
+    if(!Array.isArray(value.notes))throw Error('Invalid annotation preview selection.');
+    const noteIDs=new Set();
+    for(const note of value.notes){
+      if(typeof note?.id!=='string'||!note.id||!uint(note.revision)||noteIDs.has(note.id))throw Error('Invalid annotation preview revision.');
+      noteIDs.add(note.id);
+    }
     const seen=new Set();
     for(const item of value.items){
       if(typeof item?.recording_id!=='string'||!item.recording_id||typeof item.id!=='string'||!item.id||!Number.isSafeInteger(item.next_sequence)||item.next_sequence<1||typeof item.digest!=='string'||!(/^[0-9a-f]{64}$/i.test(item.digest))||seen.has(item.id))throw Error('Invalid submission preview version.');
       seen.add(item.id);
     }
-    const ack={host:value.host,generation:value.generation,revision:value.revision,operation:value.operation,stamp:{board:value.stamp.board,delivered:value.stamp.delivered},items:value.items.map(item=>({recording_id:item.recording_id,id:item.id,next_sequence:item.next_sequence,digest:item.digest})),remaining:value.remaining,cursor:structuredClone(value.cursor),accepted:true};
+    const ack={notes:value.notes.map(note=>({id:note.id,revision:note.revision})),page:value.page===undefined?null:structuredClone(value.page),host:value.host,generation:value.generation,revision:value.revision,operation:value.operation,stamp:{board:value.stamp.board,delivered:value.stamp.delivered},items:value.items.map(item=>({recording_id:item.recording_id,id:item.id,next_sequence:item.next_sequence,digest:item.digest})),remaining:value.remaining,cursor:structuredClone(value.cursor),accepted:true};
     const nextFingerprint=JSON.stringify(ack);
     if(last&&value.generation===last.generation&&(value.revision===last.revision||value.operation===last.operation)){
       if(nextFingerprint!==fingerprint)throw Error('Conflicting submission preview publication.');
@@ -204,19 +210,22 @@ export function createOperatorSubmissionPreview({root,receiver},doc){
     const cursor=receiver.cursor();
     if(typeof value.cursor?.epoch!=='string'||cursor.epoch!==value.cursor.epoch||cursor.seq!==value.cursor.seq)throw Error('Sketch preview receiver has not caught up to the required cursor.');
     const paths=receiver.paths(),chosen=[];
-    for(const item of value.items){
+    for(const [position,item] of value.items.entries()){
       const meta=receiver.metadata(item.id),ink=paths.filter(path=>path.sketch===item.id);
       if(!meta||!['complete','interrupted'].includes(meta.phase)||!meta.label?.trim()||!ink.length)throw Error('Selected sketch preview is unavailable.');
       const key=JSON.stringify([item.recording_id,item.id,item.next_sequence,item.digest]);
-      chosen.push({key,node:cards.get(key)||card(key,item,ink,meta.label)});
+      const node=cards.get(key)||card(key,item,ink,meta.label),index=String(position+1),badge=node.querySelector('.sketch-submission-index');
+      if(node.dataset.index!==index)node.dataset.index=index;
+      if(badge.textContent!==`Sketch ${index}`)badge.textContent=`Sketch ${index}`;
+      chosen.push({key,node});
     }
     const nextCards=new Map(chosen.map(({key,node})=>[key,node]));
     for(const [key,node] of cards)if(!nextCards.has(key))node.remove();
     // Do not move stable keyed nodes on an identical metadata refresh.
     if(chosen.some(({node},i)=>list.children[i]!==node))for(const {node} of chosen)list.append(node);
-    const count=`Next submission: ${chosen.length} sketches${value.remaining?`, ${value.remaining} more`:''}`;
+    const count=`Pending feedback: ${chosen.length} sketches, ${value.notes.length} annotation${value.notes.length===1?'':'s'}${value.remaining?`, ${value.remaining} more sketches`:''}`;
     if(heading.textContent!==count)heading.textContent=count;
-    panel.hidden=chosen.length===0;cards=nextCards;last=ack;fingerprint=nextFingerprint;return copyAck();
+    noteCount=value.notes.length;panel.hidden=chosen.length===0&&noteCount===0;cards=nextCards;last=ack;fingerprint=nextFingerprint;return copyAck();
   }
-  return {publish,captureBusy:()=>!disposed&&!panel.hidden&&cards.size>0,dispose(){if(disposed)return;disposed=true;cards.clear();last=null;panel.remove();}};
+  return {publish,captureBusy:()=>!disposed&&!panel.hidden&&(cards.size>0||noteCount>0),dispose(){if(disposed)return;disposed=true;cards.clear();last=null;panel.remove();}};
 }

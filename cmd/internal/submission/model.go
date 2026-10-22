@@ -60,15 +60,16 @@ type Source struct {
 type Submission struct {
 	preserved *manifestDocument
 	PrivacyDecision
-	HowToRead  string   `json:"how_to_read"`
-	Version    int      `json:"version"`
-	ID         string   `json:"id"`
-	Target     Target   `json:"target"`
-	Source     Source   `json:"source"`
-	Notes      []Note   `json:"notes"`
-	Sketches   []Sketch `json:"sketches,omitempty"`
-	Delivery   Delivery `json:"delivery"`
-	Superseded bool     `json:"superseded,omitempty"`
+	HowToRead  string      `json:"how_to_read"`
+	Version    int         `json:"version"`
+	ID         string      `json:"id"`
+	Target     Target      `json:"target"`
+	Source     Source      `json:"source"`
+	Notes      []Note      `json:"notes"`
+	Sketches   []Sketch    `json:"sketches,omitempty"`
+	Delivery   Delivery    `json:"delivery"`
+	Superseded bool        `json:"superseded,omitempty"`
+	SketchPage *SketchPage `json:"sketch_page,omitempty"`
 }
 type Note struct {
 	Elements *query.DeclaredElementFacts `json:"elements,omitempty"`
@@ -128,7 +129,8 @@ type BoxText struct {
 
 // ReadingGuide is stored once and forwarded unchanged in the agent message.
 func ReadingGuide(recordingPath string) string {
-	return "submission.json contains selected notes and sketches; read every referenced crop-N.png and sketch-N.png beside it. Note crops are saved draw-time pixels, never fresh screenshots at submission. Sketch images are replay-rendered recorded source pages plus accepted pressure-aware ink; read image limitations and clipping.\n" +
+	return "submission.json contains selected notes and sketches; read every referenced crop-N.png, sketch-page.png or legacy sketch-N.png beside it. Note crops are saved draw-time pixels, never fresh screenshots at submission. Sketch images are replay-rendered recorded source pages plus accepted pressure-aware ink; read image limitations and clipping.\n" +
+		"With sketch_page, one full recorded viewport image contains only selected sketches, numbered by each sketch index; match those indices to each note and original vectors. The page source is the latest selected finish boundary, while each sketch source remains its original begin context. Apply the full-page privacy decision on sketch_page as well as each sketch decision. Legacy per-sketch images retain their original image plan.\n" +
 		"Version 3 notes retain CDP page identity, capture_id, source_document and draw-time context. Each sketch names its original URL/title with recorded-dom provenance, source.record_index (exact begin boundary), history_record_index (exact accepted history boundary), note, author, vectors and image transform. Never substitute the current page or recording-head URL.\n" +
 		"Elements preserve bounded literal id/data-* attributes for original anchors, ancestors and nearby recorded elements; values have no inferred application meaning. Historical at.node and element node values are @N recording handles, not proof that a current node is the same element. Truncation and unavailable facts remain explicit.\n" +
 		"The recording at " + recordingPath + " is queryable with couch --broadcast-web-query DIR notes|dom|events|link (replace DIR with that quoted path; start with notes). Also use sketches [--sketch ID] [--at T] [--json], and sketch-image --sketch ID --out DIR [--at T] for an explicit private local export. Sketch --at bounds accepted history; its source page remains the recorded begin moment.\n" +
@@ -357,6 +359,9 @@ func Validate(s Submission) error {
 		if s.Privacy == Shareable && sketch.Privacy != Shareable {
 			return fmt.Errorf("submission privacy is less restrictive than a sketch")
 		}
+	}
+	if err := ValidateSketchPage(s); err != nil {
+		return err
 	}
 	if _, err := EvidenceFiles(s); err != nil {
 		return err

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	core "github.com/xianxu/pair/cmd/internal/submission"
 	"github.com/xianxu/pair/cmd/internal/webcast/board"
+	"github.com/xianxu/pair/cmd/internal/webcast/sketchimage"
 	"slices"
 	"strconv"
 	"sync"
@@ -149,12 +150,40 @@ func (c *Chrome) withSubmissionPreviewHost(host core.PreviewHost, freeze func() 
 	}
 	return freeze()
 }
-func (c *Chrome) FreezeSubmissionPreview(host core.PreviewHost, g uint64, chosen []board.SelectedSketch) (board.Selection, error) {
+func (c *Chrome) FreezeSubmissionPreview(host core.PreviewHost, selection core.PreviewSelection) (board.Selection, error) {
 	if c.opts.Record == nil || c.opts.Record.Operator == nil {
 		return board.Selection{}, ErrNotRecording
 	}
-	return c.withSubmissionPreviewHost(host, func() (board.Selection, error) { return c.opts.Record.Operator.FreezeSubmissionSelection(g, chosen) })
+	chosen, notes, err := previewBoardWitness(selection)
+	if err != nil {
+		return board.Selection{}, err
+	}
+	return c.withSubmissionPreviewHost(host, func() (board.Selection, error) {
+		return c.opts.Record.Operator.FreezeSubmissionSelection(selection.Stamp.Board, chosen, notes)
+	})
 }
+
+// previewBoardWitness converts an owned acknowledged publication into the
+// Board's atomic witness. The page must be derived from exactly these versions.
+func previewBoardWitness(selection core.PreviewSelection) ([]board.SelectedSketch, []board.SelectedNote, error) {
+	checked, err := core.SelectFeedbackPreview(selection.Candidates, selection.Notes, nil, selection.Stamp)
+	if err != nil || checked.Remaining != 0 || !slices.Equal(checked.Items, selection.Items) || !samePreviewPage(checked.Page, selection.Page) {
+		return nil, nil, board.ErrStale
+	}
+	chosen := make([]board.SelectedSketch, 0, len(selection.Candidates))
+	for _, c := range selection.Candidates {
+		chosen = append(chosen, board.SelectedSketch{ID: c.Item.SketchID, NextSequence: c.Item.Sequence, Digest: c.Item.Digest, Source: c.Source, Finish: c.Finish})
+	}
+	notes := make([]board.SelectedNote, 0, len(selection.Notes))
+	for _, n := range selection.Notes {
+		notes = append(notes, board.SelectedNote{ID: n.ID, Revision: n.Revision})
+	}
+	return chosen, notes, nil
+}
+func samePreviewPage(a, b *sketchimage.PageScene) bool {
+	return a == nil && b == nil || a != nil && b != nil && *a == *b
+}
+
 func (c *Chrome) retireSubmissionPreviewScope(scope *operatorSketchScope) {
 	p := &c.submissionPreview
 	p.mu.Lock()
@@ -174,6 +203,10 @@ type submissionPreviewItem struct {
 	Sequence    uint64 `json:"next_sequence"`
 	Digest      string `json:"digest"`
 }
+type submissionPreviewNote struct {
+	ID       string `json:"id"`
+	Revision string `json:"revision"`
+}
 type submissionPreviewStamp struct {
 	Board     string `json:"board"`
 	Delivered string `json:"delivered"`
@@ -185,6 +218,8 @@ type submissionPreviewValue struct {
 	Operation  string                     `json:"operation"`
 	Stamp      submissionPreviewStamp     `json:"stamp"`
 	Items      []submissionPreviewItem    `json:"items"`
+	Notes      []submissionPreviewNote    `json:"notes"`
+	Page       *sketchimage.PageScene     `json:"page"`
 	Remaining  int                        `json:"remaining"`
 	Cursor     board.SketchDeliveryCursor `json:"cursor"`
 	Accepted   bool                       `json:"accepted,omitempty"`
@@ -195,17 +230,19 @@ func (c *Chrome) PublishSubmissionPreview(ctx context.Context, pub core.PreviewP
 	if c.opts.Record == nil || c.opts.Record.Operator == nil || len(selection.Items) > core.MaxSubmissionSketches || selection.Remaining < 0 || selection.Remaining > 256 || pub.Operation() == 0 {
 		return errors.New("submission preview is unavailable")
 	}
-	chosen := make([]board.SelectedSketch, 0, len(selection.Items))
-	value := submissionPreviewValue{Host: pub.Host().ID, Generation: strconv.FormatUint(pub.Host().Generation, 10), Revision: strconv.FormatUint(pub.Revision(), 10), Operation: strconv.FormatUint(pub.Operation(), 10), Stamp: submissionPreviewStamp{Board: strconv.FormatUint(selection.Stamp.Board, 10), Delivered: strconv.FormatUint(selection.Stamp.Delivered, 10)}, Items: []submissionPreviewItem{}, Remaining: selection.Remaining}
+
+	value := submissionPreviewValue{Host: pub.Host().ID, Generation: strconv.FormatUint(pub.Host().Generation, 10), Revision: strconv.FormatUint(pub.Revision(), 10), Operation: strconv.FormatUint(pub.Operation(), 10), Stamp: submissionPreviewStamp{Board: strconv.FormatUint(selection.Stamp.Board, 10), Delivered: strconv.FormatUint(selection.Stamp.Delivered, 10)}, Items: []submissionPreviewItem{}, Notes: []submissionPreviewNote{}, Page: selection.Page, Remaining: selection.Remaining}
 	for _, item := range selection.Items {
 		if item.RecordingID != c.opts.Record.ID {
 			return errors.New("submission preview recording changed")
 		}
-		chosen = append(chosen, board.SelectedSketch{ID: item.SketchID, NextSequence: item.Sequence, Digest: item.Digest})
 		value.Items = append(value.Items, submissionPreviewItem{RecordingID: item.RecordingID, ID: item.SketchID, Sequence: item.Sequence, Digest: item.Digest})
 	}
+	for _, n := range selection.Notes {
+		value.Notes = append(value.Notes, submissionPreviewNote{ID: n.ID, Revision: strconv.FormatUint(n.Revision, 10)})
+	}
 	current := func() error {
-		_, err := c.FreezeSubmissionPreview(pub.Host(), selection.Stamp.Board, chosen)
+		_, err := c.FreezeSubmissionPreview(pub.Host(), selection)
 		return err
 	}
 	if err := current(); err != nil {
@@ -290,7 +327,7 @@ func deliverSubmissionPreview(ctx context.Context, caller SketchSceneCaller, sco
 		return err
 	}
 	ack := result.Result.Value
-	if len(result.Exception) > 0 || ack == nil || !ack.Accepted || ack.Host != value.Host || ack.Generation != value.Generation || ack.Revision != value.Revision || ack.Operation != value.Operation || ack.Stamp != value.Stamp || ack.Remaining != value.Remaining || ack.Cursor != value.Cursor || !slices.Equal(ack.Items, value.Items) {
+	if len(result.Exception) > 0 || ack == nil || !ack.Accepted || ack.Host != value.Host || ack.Generation != value.Generation || ack.Revision != value.Revision || ack.Operation != value.Operation || ack.Stamp != value.Stamp || ack.Remaining != value.Remaining || ack.Cursor != value.Cursor || !slices.Equal(ack.Items, value.Items) || !slices.Equal(ack.Notes, value.Notes) || !samePreviewPage(ack.Page, value.Page) {
 		return fmt.Errorf("submission preview was not acknowledged; review the updated preview")
 	}
 	return nil
@@ -321,11 +358,11 @@ func (c *Cast) PublishSubmissionPreview(ctx context.Context, p core.PreviewPubli
 	}
 	return ErrNotRecording
 }
-func (c *Cast) FreezeSubmissionPreview(host core.PreviewHost, g uint64, chosen []board.SelectedSketch) (board.Selection, error) {
+func (c *Cast) FreezeSubmissionPreview(host core.PreviewHost, selection core.PreviewSelection) (board.Selection, error) {
 	if browser, ok := c.browser.(interface {
-		FreezeSubmissionPreview(core.PreviewHost, uint64, []board.SelectedSketch) (board.Selection, error)
+		FreezeSubmissionPreview(core.PreviewHost, core.PreviewSelection) (board.Selection, error)
 	}); ok {
-		return browser.FreezeSubmissionPreview(host, g, chosen)
+		return browser.FreezeSubmissionPreview(host, selection)
 	}
 	return board.Selection{}, ErrNotRecording
 }

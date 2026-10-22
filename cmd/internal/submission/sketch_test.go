@@ -18,7 +18,7 @@ func sketchFixture(t *testing.T) Sketch {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return Sketch{PrivacyDecision: (OriginPolicy{}).Decide(source.URL), ID: "shape", RecordingID: "rec", NextSequence: 5, Digest: strings.Repeat("a", 64), Author: history.Begin.Author, Note: "shape note", HistoryT: 20, HistoryRecordIndex: 3, Phase: "complete", Source: source, Elements: query.DeclaredElementFacts{Anchors: []query.ElementFact{{Node: 1, Tag: "div", ID: "old-id"}}, Bytes: 41}, Image: SketchImage{File: "sketch-0.png", Provenance: "replay-rendered", Plan: plan}}
+	return Sketch{PrivacyDecision: (OriginPolicy{}).Decide(source.URL), ID: "shape", RecordingID: "rec", NextSequence: 5, Digest: strings.Repeat("a", 64), Author: history.Begin.Author, Note: "shape note", HistoryT: 20, HistoryRecordIndex: 3, Phase: "complete", Source: source, Elements: query.DeclaredElementFacts{Anchors: []query.ElementFact{{Node: 1, Tag: "div", ID: "old-id"}}, Bytes: 41}, Image: &SketchImage{File: "sketch-0.png", Provenance: "replay-rendered", Plan: plan}}
 }
 func sketchSubmission(t *testing.T) Submission {
 	s := fixture()

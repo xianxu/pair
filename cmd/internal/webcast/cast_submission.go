@@ -374,53 +374,78 @@ func (c *Cast) appendSubmissionSketches(ctx context.Context, sub *core.Submissio
 		}
 		ordered[i] = view
 	}
-	batch := sketchimage.Batch{RecordingDir: c.RecordingPath(), Records: recs, Sketches: ordered}
-	plans, err := sketchimage.ValidateBatch(batch)
+	batch := sketchimage.PageBatch{Batch: sketchimage.Batch{RecordingDir: c.RecordingPath(), Records: recs, Sketches: ordered}, Finishes: make([]query.SketchSourceFacts, len(selected))}
+	for i, v := range selected {
+		if v.Source != ordered[i].Source {
+			return fmt.Errorf("selected sketch %q source witness changed", v.ID)
+		}
+		batch.Finishes[i] = v.Finish
+		if i == 0 || v.Finish.RecordIndex > batch.Scene.RecordIndex {
+			batch.Scene = sketchimage.PageScene{RecordingID: sub.Source.RecordingID, SketchSourceFacts: v.Finish}
+		}
+	}
+	plan, err := sketchimage.ValidatePageBatch(batch)
 	if err != nil {
 		return err
 	}
-	renderer := c.sketchImages
+	renderer := c.sketchPages
 	if renderer == nil {
 		bin, e := FindChrome(os.Getenv, execLookPath, fileExists)
 		if e != nil {
 			return e
 		}
-		renderer = NewSketchImageRenderer(bin)
+		renderer = NewSketchPageImageRenderer(bin)
 	}
 	if progress != nil {
 		progress(core.SubmissionProgress{Phase: "rendering-sketches", Total: len(ordered)})
 	}
-	images, err := renderer.Render(ctx, batch)
+	image, err := renderer.RenderPage(ctx, batch)
 	if err != nil {
 		return err
 	}
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	if err = sketchimage.ValidateImages(plans, images); err != nil {
+	if err = sketchimage.ValidatePageImage(batch, image); err != nil {
 		return err
 	}
-	for i, im := range images {
-		if len(im.PNG) > core.MaxBundleBytes-*total {
-			return fmt.Errorf("submission images exceed bundle budget")
-		}
-		*total += len(im.PNG)
-		v := ordered[i]
+	if len(image.PNG) > core.MaxBundleBytes-*total {
+		return fmt.Errorf("submission images exceed bundle budget")
+	}
+	*total += len(image.PNG)
+	pageDecision := policy.Decide(batch.Scene.URL)
+	sub.SketchPage = &core.SketchPage{PrivacyDecision: pageDecision, File: "sketch-page.png", Provenance: "replay-rendered", Source: batch.Scene, Region: plan.Region, Scale: plan.Scale, Width: plan.Width, Height: plan.Height, Clipped: image.Clipped, Limitations: append([]string(nil), image.Limitations...)}
+	if pageDecision.Privacy != core.Shareable {
+		sub.Privacy = core.Private
+	}
+	for i, v := range ordered {
 		decision := policy.Decide(v.Source.URL)
 		if decision.Privacy != core.Shareable {
 			sub.Privacy = core.Private
+			sub.SketchPage.Privacy = core.Private
 		}
-		plan := im.Plan
-		plan.Paths = append([]sketchimage.Path(nil), im.Plan.Paths...)
-		for j := range plan.Paths {
-			plan.Paths[j].At.Sel = ""
+		// Reuse the historical path validator/extractor. Its individual crop is not
+		// part of the shared representation; original vectors remain unscaled.
+		original, err := sketchimage.Plan(v.History, v.Source.VP, v.Source.Scroll, sketchimage.DefaultLimits())
+		if err != nil {
+			return err
 		}
-		item := core.Sketch{PrivacyDecision: decision, ID: v.History.Begin.ID, RecordingID: sub.Source.RecordingID, NextSequence: v.History.NextSequence, Digest: v.History.Receipts[len(v.History.Receipts)-1].Digest, Author: v.History.Begin.Author, Note: v.History.Label, HistoryT: v.HistoryT, HistoryRecordIndex: v.HistoryRecordIndex, Phase: v.History.Phase, Reason: v.History.Reason, Source: core.SketchSource{SketchSourceFacts: v.Source, Provenance: "recorded-dom"}, Elements: v.Elements, Image: core.SketchImage{File: fmt.Sprintf("sketch-%d.png", i), Provenance: "replay-rendered", Plan: plan, Limitations: append([]string(nil), im.Limitations...)}}
+		for j := range original.Paths {
+			original.Paths[j].At.Sel = ""
+		}
+		finish := core.SketchSource{SketchSourceFacts: batch.Finishes[i], Provenance: "recorded-dom"}
+		item := core.Sketch{PrivacyDecision: decision, ID: v.History.Begin.ID, RecordingID: sub.Source.RecordingID, NextSequence: v.History.NextSequence, Digest: v.History.Receipts[len(v.History.Receipts)-1].Digest, Author: v.History.Begin.Author, Note: v.History.Label, HistoryT: v.HistoryT, HistoryRecordIndex: v.HistoryRecordIndex, Phase: v.History.Phase, Reason: v.History.Reason, Source: core.SketchSource{SketchSourceFacts: v.Source, Provenance: "recorded-dom"}, Elements: v.Elements, Index: i + 1, Paths: original.Paths, Finish: &finish}
 		if err = core.ValidateSketch(item); err != nil {
 			return err
 		}
 		sub.Sketches = append(sub.Sketches, item)
-		files[item.Image.File] = append([]byte(nil), im.PNG...)
 	}
+	// A contributing private sketch makes the composite private. An origin's
+	// shareable rule cannot certify that composite, so retain the page origin
+	// while clearing that grant instead of attributing another origin's rule.
+	if sub.SketchPage.Privacy != pageDecision.Privacy {
+		sub.SketchPage.PrivacyRule = core.PolicyEvidence{}
+	}
+	files[sub.SketchPage.File] = append([]byte(nil), image.PNG...)
 	return nil
 }

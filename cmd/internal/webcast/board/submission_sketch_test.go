@@ -44,14 +44,14 @@ func TestSubmissionSketchFreezeRejectsChangedCandidates(t *testing.T) {
 	if len(first.Sketches) != 1 || first.Sketches[0].ID != "a" || first.Sketches[0].NextSequence != 5 {
 		t.Fatalf("selection %+v", first)
 	}
-	if _, err := b.FreezeSubmissionSelection(first.SketchGeneration, first.Sketches); err == nil {
+	if _, err := b.FreezeSubmissionSelection(first.SketchGeneration, first.Sketches, first.Notes); err == nil {
 		t.Fatal("stale preview froze changed candidate set")
 	}
 	current, err := b.Selection()
 	if err != nil {
 		t.Fatal(err)
 	}
-	frozen, err := b.FreezeSubmissionSelection(current.SketchGeneration, current.Sketches[:1])
+	frozen, err := b.FreezeSubmissionSelection(current.SketchGeneration, current.Sketches[:1], current.Notes)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,11 +60,11 @@ func TestSubmissionSketchFreezeRejectsChangedCandidates(t *testing.T) {
 	}
 	bad := append([]SelectedSketch(nil), current.Sketches[:1]...)
 	bad[0].Digest = strings.Repeat("b", 64)
-	if _, err = b.FreezeSubmissionSelection(current.SketchGeneration, bad); err == nil {
+	if _, err = b.FreezeSubmissionSelection(current.SketchGeneration, bad, current.Notes); err == nil {
 		t.Fatal("forged version frozen")
 	}
 	b.Put(&recording.AnnotationClear{Who: recording.Author{ID: "operator"}})
-	if _, err = b.FreezeSubmissionSelection(current.SketchGeneration, current.Sketches[:1]); err == nil {
+	if _, err = b.FreezeSubmissionSelection(current.SketchGeneration, current.Sketches[:1], current.Notes); err == nil {
 		t.Fatal("cleared preview frozen")
 	}
 }

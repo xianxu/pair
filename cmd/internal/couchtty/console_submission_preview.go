@@ -12,7 +12,7 @@ import (
 
 type submissionPreviewCast interface {
 	submissionCast
-	FreezeSubmissionPreview(core.PreviewHost, uint64, []board.SelectedSketch) (board.Selection, error)
+	FreezeSubmissionPreview(core.PreviewHost, core.PreviewSelection) (board.Selection, error)
 	SubmissionCandidateUpdates() (<-chan struct{}, func())
 	SubmissionPreviewUpdates() (<-chan struct{}, func())
 	SubmissionPreviewHost(context.Context) (core.PreviewHost, <-chan struct{}, error)
@@ -26,7 +26,7 @@ type submissionPreviewRun struct {
 	host   core.PreviewHost
 }
 
-var errSubmissionPreview = errors.New("Selection changed; review the updated sketch preview and submit again")
+var errSubmissionPreview = errors.New("Feedback changed; review Pending feedback and submit again")
 
 func (m *submissionManager) startSubmissionPreview(cast submissionCast) {
 	m.previewStart.Lock()
@@ -103,18 +103,26 @@ func (m *submissionManager) runSubmissionPreview(ctx context.Context, run *submi
 		} else {
 			run.host = host
 			m.previewState, _ = core.NextPreview(m.previewState, core.PreviewHostChanged{Host: host})
-			items := make([]core.PreviewItem, 0, len(selected.Sketches))
+			candidates := make([]core.PreviewSketchCandidate, 0, len(selected.Sketches))
 			for _, v := range selected.Sketches {
-				items = append(items, core.PreviewItem{RecordingID: filepath.Base(cast.RecordingPath()), SketchID: v.ID, Sequence: v.NextSequence, Digest: v.Digest})
+				candidates = append(candidates, core.PreviewSketchCandidate{Item: core.PreviewItem{RecordingID: filepath.Base(cast.RecordingPath()), SketchID: v.ID, Sequence: v.NextSequence, Digest: v.Digest}, Source: v.Source, Finish: v.Finish})
 			}
-			selection := core.SelectSketchPreview(items, delivered, core.PreviewStamp{Board: selected.SketchGeneration, Delivered: deliveredGeneration})
-			m.previewState, _ = core.NextPreview(m.previewState, core.PreviewCandidatesChanged{Selection: selection})
-			var effects []core.PreviewEffect
-			m.previewState, effects = core.NextPreview(m.previewState, core.PreviewRefresh{})
-			for _, effect := range effects {
-				if p, ok := effect.(core.PreviewPublish); ok {
-					v := p.Publication
-					publication = &v
+			notes := make([]core.PreviewNote, 0, len(selected.Notes))
+			for _, v := range selected.Notes {
+				notes = append(notes, core.PreviewNote{ID: v.ID, Revision: v.Revision})
+			}
+			selection, selectErr := core.SelectFeedbackPreview(candidates, notes, delivered, core.PreviewStamp{Board: selected.SketchGeneration, Delivered: deliveredGeneration})
+			if selectErr != nil {
+				m.previewState, _ = core.NextPreview(m.previewState, core.PreviewHostChanged{})
+			} else {
+				m.previewState, _ = core.NextPreview(m.previewState, core.PreviewCandidatesChanged{Selection: selection})
+				var effects []core.PreviewEffect
+				m.previewState, effects = core.NextPreview(m.previewState, core.PreviewRefresh{})
+				for _, effect := range effects {
+					if p, ok := effect.(core.PreviewPublish); ok {
+						v := p.Publication
+						publication = &v
+					}
 				}
 			}
 		}
@@ -190,7 +198,7 @@ func (m *submissionManager) runSubmissionPreview(ctx context.Context, run *submi
 
 // Called with manager.mu held; Board's generation fence is the atomic boundary.
 func (m *submissionManager) freezeSubmissionPreview(cast submissionCast, selected board.Selection) (board.Selection, error) {
-	if len(selected.Sketches) == 0 {
+	if len(selected.Sketches) == 0 && len(selected.Notes) == 0 {
 		return selected, nil
 	}
 	run := m.previewRun
@@ -201,11 +209,7 @@ func (m *submissionManager) freezeSubmissionPreview(cast submissionCast, selecte
 	m.previewState, effects = core.NextPreview(m.previewState, core.PreviewPrepare{Host: run.host, Stamp: core.PreviewStamp{Board: selected.SketchGeneration, Delivered: m.deliveredGeneration}})
 	for _, effect := range effects {
 		if p, ok := effect.(core.PreviewFreezeProposal); ok {
-			var chosen []board.SelectedSketch
-			for _, v := range p.Publication.Selection().Items {
-				chosen = append(chosen, board.SelectedSketch{ID: v.SketchID, NextSequence: v.Sequence, Digest: v.Digest})
-			}
-			frozen, err := run.cast.FreezeSubmissionPreview(p.Publication.Host(), p.Publication.Stamp().Board, chosen)
+			frozen, err := run.cast.FreezeSubmissionPreview(p.Publication.Host(), p.Publication.Selection())
 			if err == nil {
 				frozen.SketchRemaining = p.Publication.Selection().Remaining
 				return frozen, nil

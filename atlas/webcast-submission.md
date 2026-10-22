@@ -24,23 +24,44 @@ strokes. Labeled interrupted sketches retain their interruption/truncation
 facts. Unfinished, cleared and entirely undone sketches remain queryable but
 are not automatically submitted.
 
-The private operator Chrome UI previews the exact next submission: up to eight
-oldest unsent sketch versions, their pressure-ink thumbnails and attached notes,
-and the number remaining. The existing draft chord freezes that acknowledged
-preview. A changed or unavailable preview refuses visibly and refreshes it;
-the draft and ink remain intact. There is no browser send button or viewer
-agent-dispatch route. Remaining shapes wait for the next explicit submission.
+The private operator Chrome UI shows **Pending feedback**, with both the sketch
+and annotation counts. Indexed pressure-ink thumbnails and attached sketch notes
+show the chosen shapes before the existing draft chord freezes the acknowledged
+selection. Choose the oldest unsent sketch's compatible page/view, then up to
+eight sketches from that group in creation order. Compatibility requires the
+same recording document, tab, URL, viewport and scroll. All other unsent shapes
+remain visibly pending as **N more sketches**. Notes retain their existing
+inclusion and saved crops; the eight limit applies only to sketches. Annotation
+crop cards in this mixed panel are the separate #805 follow-up.
 
-Each version-3 manifest may contain a `sketches` collection beside `notes`.
-Each sketch carries original URL/title and `recorded-dom` source provenance,
-author/color, attached note, accepted sequence/digest, phase/reason, bounded
-literal element IDs and `data-*` attributes, and `image` metadata referencing
-`sketch-N.png`. The image is `replay-rendered`: the recorded page at sketch begin
-with only that version's visible pressure-aware paths, not the current tab and
-not a note's draw-time CDP crop. Original coordinates, pressure and anchors
-remain unchanged in `image.plan.paths`; its region/scale/dimensions explain the
-image transform. Missing recorded assets, uncaptured visuals, animation-phase
-differences and source-viewport clipping remain explicit limitations.
+A changed note revision, sketch version or private host refuses the stale
+selection and refreshes it; draft and ink remain intact. There is no browser
+send button or viewer agent-dispatch route. Remaining shapes wait for the next
+explicit submission.
+
+New version-3 manifests retain two typed lists, `notes` and `sketches`, and add
+one `sketch_page` referencing **sketch-page.png**. This replay-rendered image is
+the full visible viewport at the latest chosen sketch's exact recorded finish
+boundary. It paints only chosen unsent ink, with numbered badges matching the
+preview cards and sketch `index` values. Pointer and private tool UI are absent.
+Missing/ambiguous/hidden anchors or unprojectable selected paths refuse the
+whole batch; ordinary pressure fringe clipped at an edge is declared explicitly.
+The renderer never substitutes the current live page.
+
+Each sketch retains its original URL/title and `recorded-dom` begin source,
+author/color, note, accepted sequence/digest, phase/reason, bounded literal
+element IDs and `data-*` attributes. Original coordinates, pressure and anchors
+remain unchanged in `paths`; `finish` records that selected version's completion
+context. The root page contains the full-viewport region, scale, dimensions,
+clipping and limitations. Reflow projection changes only painted placement.
+Missing recorded assets, uncaptured visuals and animation-phase differences
+remain explicit limitations.
+
+Legacy stored bundles containing individual `image`/`sketch-N.png` plans remain
+readable and immutable. New shared items omit `image`; older decoders requiring
+it refuse instead of acknowledging only part of a new submission. The new
+codec preserves unknown nested extensions through delivery rewrites while
+rejecting mixed or incomplete representations.
 
 `source.record_index` fixes the ordered begin prefix and `history_record_index`
 fixes the selected later history. Both are zero-based inclusive indices, so
@@ -56,7 +77,9 @@ Query locally with `couch --broadcast-web-query DIR sketches [--sketch ID]
 begin. `sketch-image --sketch ID --out DIR [--at T]` exports the image and
 transform/provenance JSON together to an explicit new private directory; it
 refuses existing output and paths inside the source recording. Exporting sends
-nothing. Both paths use already-read recording input and the same renderer.
+nothing. Both local tools use already-read recording input; single-sketch export keeps
+its original begin-page crop. Submission uses the separate full-viewport plan
+with the same replay session, pressure painter and cleanup machinery.
 
 The existing private bundle store publishes all images before delivery. Confirmed
 `dispatched`/`resolved` manifests suppress only those exact sketch versions from
@@ -64,7 +87,9 @@ future selections across targets; no recording event, separate acknowledgment
 file or ink clear is added. Unknown delivery does not establish that the agent
 received the bundle. A later label/history version remains eligible after an
 older acknowledgment. Each note and sketch has its own original-origin privacy
-decision; replay rendering does not grant permission to publish its image.
+decision. The shared image additionally carries a conservative full-page decision
+covering its base URL and every painted sketch; a private contribution makes
+the composite private. Replay rendering grants no publication permission.
 
 ## Draw, capture and save (#538)
 

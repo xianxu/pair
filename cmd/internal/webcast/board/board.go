@@ -106,6 +106,7 @@ type Board struct {
 	sketchDelivery       sketchDeliveryJournal
 	sketchService        *SketchService
 	submissionGeneration uint64
+	feedback             feedbackContexts
 	submissionSubs       map[chan struct{}]struct{}
 }
 
@@ -143,10 +144,7 @@ func (b *Board) Put(r recording.Record) error {
 		return nil
 	}
 	b.refreshSketchDeliveryLocked(r, sketchBefore)
-	switch r.(type) {
-	case *recording.SketchLabel, *recording.AnnotationClear:
-		b.submissionChangedLocked()
-	}
+	b.refreshFeedbackContextLocked(r, sketchBefore.duplicate)
 	b.retireSketchSourceLocked()
 	if recording.SketchReceiptKey(r) != "" {
 		// Drawing has its own bounded delta wake. Rebuilding unrelated note

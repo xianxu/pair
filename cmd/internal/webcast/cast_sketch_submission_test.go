@@ -19,7 +19,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/webcast/sketchimage"
 )
 
-func castSketchSubmissionFixture(t *testing.T, n int) (*Cast, *sketchimage.FakeRenderer, board.Selection) {
+func castSketchSubmissionFixture(t *testing.T, n int) (*Cast, *sketchimage.FakePageRenderer, board.Selection) {
 	t.Helper()
 	b := recording.NewBuilder("shapes")
 	node := b.El("button", []string{"id", "original", "data-action", "save"})
@@ -61,8 +61,13 @@ func castSketchSubmissionFixture(t *testing.T, n int) (*Cast, *sketchimage.FakeR
 			t.Fatal(err)
 		}
 	}
-	fake := sketchimage.NewFakeRenderer()
-	c := &Cast{board: bd, recDir: dir, done: make(chan struct{}), sketchImages: fake}
+	snapshot, err := bd.Selection()
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected.Sketches = snapshot.Sketches
+	fake := sketchimage.NewFakePageRenderer()
+	c := &Cast{board: bd, recDir: dir, done: make(chan struct{}), sketchPages: fake}
 	return c, fake, selected
 }
 func TestCastPackagesSketchOnlyHistoricalSubmission(t *testing.T) {
@@ -71,11 +76,11 @@ func TestCastPackagesSketchOnlyHistoricalSubmission(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(sub.Sketches) != 2 || len(files) != 2 || len(sub.Notes) != 0 {
+	if len(sub.Sketches) != 2 || len(files) != 1 || len(sub.Notes) != 0 {
 		t.Fatalf("completed shapes absent from operator submission: sketches=%d files=%d notes=%d", len(sub.Sketches), len(files), len(sub.Notes))
 	}
 	for i, s := range sub.Sketches {
-		if s.ID != fmt.Sprintf("s%d", i) || s.Source.URL != "https://original.test/settings" || s.Source.Provenance != "recorded-dom" || s.Image.Provenance != "replay-rendered" || s.Note != "Move button" || s.Privacy != core.Private || s.HistoryRecordIndex < s.Source.RecordIndex {
+		if s.ID != fmt.Sprintf("s%d", i) || s.Source.URL != "https://original.test/settings" || s.Source.Provenance != "recorded-dom" || s.Image != nil || s.Index != i+1 || len(s.Paths) == 0 || sub.SketchPage == nil || sub.SketchPage.Provenance != "replay-rendered" || s.Note != "Move button" || s.Privacy != core.Private || s.HistoryRecordIndex < s.Source.RecordIndex {
 			t.Fatalf("wrong evidence: %+v", s)
 		}
 		if err := core.ValidateSketch(s); err != nil {
@@ -86,7 +91,7 @@ func TestCastPackagesSketchOnlyHistoricalSubmission(t *testing.T) {
 		t.Fatal("later same-T source mutation leaked")
 	}
 	state := fake.Snapshot()
-	if state.Opens != 1 || state.Closes != 1 || state.Requests != 2 {
+	if state.Opens != 1 || state.Closes != 1 || state.Requests != 1 {
 		t.Fatalf("rendered per image rather than batch: %+v", state)
 	}
 	sub.Delivery = core.Dispatched
@@ -99,40 +104,39 @@ func TestCastPackagesSketchOnlyHistoricalSubmission(t *testing.T) {
 // file disappears. It can also supply bounded-but-large valid PNGs to exercise
 // the Cast's shared manifest/image budget rather than its own per-image bounds.
 type submissionSketchRenderer struct {
-	fake            *sketchimage.FakeRenderer
-	batches         []sketchimage.Batch
+	fake            *sketchimage.FakePageRenderer
+	batches         []sketchimage.PageBatch
 	removeEvents    bool
 	fillImageBudget bool
 	corrupt         bool
 }
 
-func (r *submissionSketchRenderer) Render(ctx context.Context, b sketchimage.Batch) ([]sketchimage.Image, error) {
+func (r *submissionSketchRenderer) RenderPage(ctx context.Context, b sketchimage.PageBatch) (sketchimage.PageImage, error) {
 	r.batches = append(r.batches, b)
 	if r.removeEvents {
 		if err := os.Remove(filepath.Join(b.RecordingDir, recording.FileEvents)); err != nil {
-			return nil, err
+			return sketchimage.PageImage{}, err
 		}
 	}
-	images, err := r.fake.Render(ctx, b)
+	image, err := r.fake.RenderPage(ctx, b)
 	if err != nil {
-		return nil, err
+		return image, err
 	}
-	for i := range images {
-		if r.fillImageBudget {
-			data := make([]byte, sketchimage.MaxImageBytes)
-			copy(data, images[i].PNG)
-			images[i].PNG = data
-		}
+	if r.fillImageBudget {
+		data := make([]byte, sketchimage.MaxImageBytes)
+		copy(data, image.PNG)
+		image.PNG = data
 	}
 	if r.corrupt {
-		images[0].Plan.Width++
+		image.Plan.Width++
 	}
-	return images, nil
+	return image, nil
 }
+
 func TestCastSketchPreparationReadsOnceAndUsesOriginalPrivacy(t *testing.T) {
 	c, fake, selected := castSketchSubmissionFixture(t, 1)
 	renderer := &submissionSketchRenderer{fake: fake, removeEvents: true}
-	c.sketchImages = renderer
+	c.sketchPages = renderer
 	policy, err := core.ParseOriginPolicy([]byte(`{"origins":[{"origin":"https://original.test","privacy":"shareable"}]}`))
 	if err != nil {
 		t.Fatal(err)
@@ -146,7 +150,7 @@ func TestCastSketchPreparationReadsOnceAndUsesOriginalPrivacy(t *testing.T) {
 	if sub.Privacy != core.Shareable || sub.Sketches[0].PrivacyOrigin != "https://original.test" {
 		t.Fatalf("privacy substituted current page: %+v", sub.Sketches[0].PrivacyDecision)
 	}
-	if len(sub.Sketches[0].Image.Limitations) == 0 {
+	if len(sub.SketchPage.Limitations) == 0 {
 		t.Fatal("renderer provenance limitations dropped")
 	}
 }
@@ -165,7 +169,7 @@ func TestCastSketchPreparationFailureRetainsInk(t *testing.T) {
 			case "changed":
 				selected.Sketches[0].Digest = strings.Repeat("b", 64)
 			case "corrupt":
-				c.sketchImages = &submissionSketchRenderer{fake: fake, corrupt: true}
+				c.sketchPages = &submissionSketchRenderer{fake: fake, corrupt: true}
 			case "canceled":
 				next, cancel := context.WithCancel(ctx)
 				cancel()
@@ -185,16 +189,22 @@ func TestCastSketchPreparationFailureRetainsInk(t *testing.T) {
 		})
 	}
 }
-func TestCastSketchImagesAndManifestShareBundleBudget(t *testing.T) {
+func TestCastSketchPageSharesBundleBudgetWithOtherFeedback(t *testing.T) {
 	c, fake, selected := castSketchSubmissionFixture(t, 8)
-	c.sketchImages = &submissionSketchRenderer{fake: fake, fillImageBudget: true}
-	_, _, err := c.PrepareSubmission(context.Background(), "oversized", castSubmissionTarget(), selected, "", nil)
-	if err == nil || !strings.Contains(err.Error(), "64 MiB") {
-		t.Fatalf("manifest plus bounded images exceeded bundle silently: %v", err)
+	c.sketchPages = &submissionSketchRenderer{fake: fake, fillImageBudget: true}
+	rec, err := recording.ReadDir(c.RecordingPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	sub := core.Submission{Version: 3, Source: core.Source{Kind: "dom", RecordingID: "shapes"}}
+	total := core.MaxBundleBytes - sketchimage.MaxImageBytes + 1
+	err = c.appendSubmissionSketches(context.Background(), &sub, map[string][]byte{}, rec.Records, selected.Sketches, core.OriginPolicy{}, &total, nil)
+	if err == nil || !strings.Contains(err.Error(), "bundle budget") {
+		t.Fatalf("combined feedback budget accepted: %v", err)
 	}
 	state := fake.Snapshot()
-	if state.Opens != 1 || state.Requests != 8 || state.Active != 0 {
-		t.Fatalf("bad batch lifecycle: %+v", state)
+	if state.Opens != 1 || state.Requests != 1 || state.Active != 0 {
+		t.Fatalf("bad one-page lifecycle: %+v", state)
 	}
 }
 
@@ -290,20 +300,20 @@ func TestCastSketchSubmissionDurableLifecycleAcrossTargets(t *testing.T) {
 		if sketch.Source.URL != "https://original.test/settings" || sketch.Note != "Move button" {
 			t.Fatalf("live page replaced historical facts: %+v", sketch)
 		}
-		points := sketch.Image.Plan.Paths[0].Pts
+		points := sketch.Paths[0].Pts
 		if len(points) != 2 || points[0][2] != 0 || points[1][2] != 1 {
 			t.Fatalf("pressure lost during durable round trip: %+v", points)
 		}
-		path := filepath.Join(filepath.Dir(reopened.ManifestPath(sub.ID)), sketch.Image.File)
+		path := filepath.Join(filepath.Dir(reopened.ManifestPath(sub.ID)), read.SketchPage.File)
 		pngBytes, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !bytes.Equal(pngBytes, files[sketch.Image.File]) {
+		if !bytes.Equal(pngBytes, files[read.SketchPage.File]) {
 			t.Fatal("durable PNG reference differs from prepared evidence")
 		}
 		config, err := png.DecodeConfig(bytes.NewReader(pngBytes))
-		if err != nil || config.Width != sketch.Image.Plan.Width || config.Height != sketch.Image.Plan.Height {
+		if err != nil || config.Width != read.SketchPage.Width || config.Height != read.SketchPage.Height {
 			t.Fatalf("durable image transform: %v %+v", err, config)
 		}
 	}

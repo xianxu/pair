@@ -3,6 +3,9 @@ package couchtty
 import (
 	"context"
 	"errors"
+	"github.com/xianxu/pair/cmd/internal/webcast/query"
+	"github.com/xianxu/pair/cmd/internal/webcast/recording"
+	"slices"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -25,27 +28,45 @@ type submissionPreviewFake struct {
 	freeze     func()
 }
 
+func previewFakeSketch(id string) board.SelectedSketch {
+	source := query.SketchSourceFacts{T: 1, RecordIndex: 1, Doc: 1, Tab: "tab", URL: "https://example.test/", VP: recording.Viewport{W: 800, H: 600, DPR: 1}}
+	finish := source
+	finish.T = 2
+	finish.RecordIndex = 2
+	return board.SelectedSketch{ID: id, NextSequence: 5, Digest: "a", Source: source, Finish: finish}
+}
+
 func newSubmissionPreviewFake(f *submissionCastFake) *submissionPreviewFake {
-	return &submissionPreviewFake{submissionCastFake: f, selection: board.Selection{Document: 1, TabID: "tab", SketchGeneration: 1, Sketches: []board.SelectedSketch{{ID: "shape", NextSequence: 5, Digest: "a"}}}, host: core.PreviewHost{ID: "host", Generation: 1}, life: make(chan struct{}), updates: make(chan struct{}, 1), candidates: make(chan struct{}, 1), published: make(chan core.PreviewPublication, 8)}
+	return &submissionPreviewFake{submissionCastFake: f, selection: board.Selection{Document: 1, TabID: "tab", SketchGeneration: 1, Sketches: []board.SelectedSketch{previewFakeSketch("shape")}}, host: core.PreviewHost{ID: "host", Generation: 1}, life: make(chan struct{}), updates: make(chan struct{}, 1), candidates: make(chan struct{}, 1), published: make(chan core.PreviewPublication, 8)}
 }
 func (f *submissionPreviewFake) SubmissionSelection() (board.Selection, error) {
 	f.muPreview.Lock()
 	defer f.muPreview.Unlock()
 	s := f.selection
 	s.Sketches = append([]board.SelectedSketch(nil), s.Sketches...)
+	s.Notes = slices.Clone(s.Notes)
 	return s, nil
 }
-func (f *submissionPreviewFake) FreezeSubmissionPreview(host core.PreviewHost, g uint64, chosen []board.SelectedSketch) (board.Selection, error) {
+func (f *submissionPreviewFake) FreezeSubmissionPreview(host core.PreviewHost, selection core.PreviewSelection) (board.Selection, error) {
 	f.muPreview.Lock()
 	defer f.muPreview.Unlock()
 	if f.freeze != nil {
 		f.freeze()
 	}
-	if host != f.host || g != f.selection.SketchGeneration {
+	chosen := make([]board.SelectedSketch, 0, len(selection.Candidates))
+	for _, c := range selection.Candidates {
+		chosen = append(chosen, board.SelectedSketch{ID: c.Item.SketchID, NextSequence: c.Item.Sequence, Digest: c.Item.Digest, Source: c.Source, Finish: c.Finish})
+	}
+	notes := make([]board.SelectedNote, 0, len(selection.Notes))
+	for _, n := range selection.Notes {
+		notes = append(notes, board.SelectedNote{ID: n.ID, Revision: n.Revision})
+	}
+	if host != f.host || selection.Stamp.Board != f.selection.SketchGeneration || !slices.Equal(notes, f.selection.Notes) {
 		return board.Selection{}, errors.New("changed")
 	}
 	s := f.selection
 	s.Sketches = append([]board.SelectedSketch(nil), chosen...)
+	s.Notes = slices.Clone(notes)
 	return s, nil
 }
 func (f *submissionPreviewFake) SubmissionCandidateUpdates() (<-chan struct{}, func()) {
@@ -188,7 +209,7 @@ func TestSubmissionPreviewFreezesEightOldestAndRemaining(t *testing.T) {
 	f := newSubmissionPreviewFake(base)
 	f.selection.Sketches = nil
 	for i := 0; i < 10; i++ {
-		f.selection.Sketches = append(f.selection.Sketches, board.SelectedSketch{ID: string(rune('a' + i)), NextSequence: 5, Digest: "a"})
+		f.selection.Sketches = append(f.selection.Sketches, previewFakeSketch(string(rune('a'+i))))
 	}
 	m.current = func() (submissionCast, error) { return f, nil }
 	ctx, cancel := context.WithCancel(m.ctx)
@@ -464,7 +485,8 @@ func TestSubmissionPreviewLifetimeRetirementJoinsBeforeReplacement(t *testing.T)
 }
 
 func TestSubmissionRetryOfVisibleAckInvalidatesDeliveredPreview(t *testing.T) {
-	m, _, target := newSubmissionManagerTest(t)
+	m, base, target := newSubmissionManagerTest(t)
+	acknowledgeSubmissionFeedback(t, m, base)
 	m.spawn = func(fn func()) { fn() }
 	if _, err := m.request(context.Background(), "prepare", "visible-ack", target); err != nil {
 		t.Fatal(err)
@@ -490,5 +512,44 @@ func TestSubmissionRetryOfVisibleAckInvalidatesDeliveredPreview(t *testing.T) {
 	case <-wake:
 	default:
 		t.Fatal("confirmed retry retained stale delivered-version preview")
+	}
+}
+
+func TestSubmissionNoteOnlyRequiresAcknowledgedFeedback(t *testing.T) {
+	m, base, target := newSubmissionManagerTest(t)
+	f := newSubmissionPreviewFake(base)
+	f.selection.Sketches = nil
+	f.selection.Notes = []board.SelectedNote{{ID: "note", Revision: 1}}
+	m.current = func() (submissionCast, error) { return f, nil }
+	if _, err := m.request(context.Background(), "prepare", "unseen-note", target); err == nil {
+		t.Fatal("unseen note-only feedback admitted")
+	}
+	base.mu.Lock()
+	prepared := base.prepared
+	base.mu.Unlock()
+	if prepared != 0 {
+		t.Fatal("unseen note-only feedback started preparation")
+	}
+}
+
+func TestSubmissionFeedbackPublishesExactNotesAndRejectsLaterEdit(t *testing.T) {
+	m, base, target := newSubmissionManagerTest(t)
+	f := newSubmissionPreviewFake(base)
+	f.selection.Notes = []board.SelectedNote{{ID: "note", Revision: 1}}
+	m.current = func() (submissionCast, error) { return f, nil }
+	ctx, cancel := context.WithCancel(m.ctx)
+	done := make(chan struct{})
+	go func() { defer close(done); watchSubmissionPreview(m, ctx, f) }()
+	defer func() { cancel(); <-done }()
+	p := <-f.published
+	waitSubmissionPreviewShown(t, m)
+	if len(p.Selection().Notes) != 1 || p.Selection().Notes[0].Revision != 1 {
+		t.Fatal("shown selection omitted exact note revision")
+	}
+	f.muPreview.Lock()
+	f.freeze = func() { f.selection.Notes[0].Revision++ }
+	f.muPreview.Unlock()
+	if _, err := m.request(context.Background(), "prepare", "edited-note", target); err == nil {
+		t.Fatal("note edit admitted between shown preview and freeze")
 	}
 }

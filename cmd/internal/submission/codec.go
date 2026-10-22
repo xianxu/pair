@@ -21,6 +21,7 @@ type manifestWire Submission
 type manifestSchema struct {
 	fields            map[string]*manifestSchema
 	required          []string
+	forbidden         []string
 	element           *manifestSchema
 	tupleLength       int
 	scalar            byte // s:string, b:boolean, i:integer, n:number
@@ -76,6 +77,7 @@ func tupleSchema(length int, nullable bool) *manifestSchema {
 }
 
 var submissionSchema = makeSubmissionSchema()
+var sharedSubmissionSchema = makeSharedSubmissionSchema()
 
 func makeSubmissionSchema() *manifestSchema {
 	privacy := nullableSchema(objectSchema("origin privacy", nil))
@@ -93,14 +95,15 @@ func makeSubmissionSchema() *manifestSchema {
 	image := requireMembers(objectSchema("file provenance", map[string]*manifestSchema{"limitations": arraySchema(scalarSchema('s')), "plan": plan}), "file provenance plan")
 	sketchSource := typedObject("tab url title provenance", "t record_index doc", "", "", "", map[string]*manifestSchema{"vp": viewport, "scroll": tupleSchema(2, false)})
 	sketchSource = requireMembers(sketchSource, "t record_index doc tab url title vp scroll provenance")
-	sketch := typedObject("id recording_id digest note phase reason privacy privacy_origin", "history_t history_record_index", "next_sequence", "", "", map[string]*manifestSchema{"privacy_rule": requireMembers(privacy, "origin privacy"), "author": requireMembers(author, "id color"), "source": sketchSource, "elements": facts, "image": image})
+	sketch := typedObject("id recording_id digest note phase reason privacy privacy_origin", "history_t history_record_index", "next_sequence", "", "", map[string]*manifestSchema{"privacy_rule": requireMembers(privacy, "origin privacy"), "author": requireMembers(author, "id color"), "source": sketchSource, "elements": facts, "image": image, "index": scalarSchema('i'), "paths": arraySchema(path), "finish": sketchSource})
 	sketch = requireMembers(sketch, "id recording_id next_sequence digest author note history_t history_record_index phase source elements image privacy privacy_rule")
+	sketch.forbidden = []string{"index", "paths", "finish"}
 	entry := objectSchema("selector element text kind role", nil)
 	boxText := typedObject("scope unavailable", "", "", "", "truncated", map[string]*manifestSchema{"region": tupleSchema(4, false), "visible_text": arraySchema(entry), "accessible_names": arraySchema(entry), "skipped": arraySchema(scalarSchema('s'))})
 	crop := typedObject("file captured_at unavailable", "document", "", "", "clipped_to_viewport", map[string]*manifestSchema{"settlement": nullableSchema(objectSchema("status reason", nil)), "box": tupleSchema(4, false)})
 	note := typedObject("privacy privacy_origin capture_id id text element replay", "source_document t", "revision", "", "", map[string]*manifestSchema{"privacy_rule": privacy, "page": page, "author": author, "elements": nullableSchema(facts), "box_text": boxText, "at": anchor, "before": arraySchema(scalarSchema('s')), "context": typedObject("text", "node landmark", "", "", "", map[string]*manifestSchema{"box": tupleSchema(4, true)}), "crop": crop})
 	source := typedObject("kind recording_id recording_path tab_id", "document", "", "", "", map[string]*manifestSchema{"page": page})
-	return typedObject("privacy privacy_origin how_to_read id delivery", "version", "", "", "superseded", map[string]*manifestSchema{"privacy_rule": privacy, "target": objectSchema("scope tag session nonce", nil), "source": source, "notes": arraySchema(note), "sketches": arraySchema(sketch)})
+	return typedObject("privacy privacy_origin how_to_read id delivery", "version", "", "", "superseded", map[string]*manifestSchema{"privacy_rule": privacy, "target": objectSchema("scope tag session nonce", nil), "source": source, "notes": arraySchema(note), "sketches": arraySchema(sketch), "sketch_page": nullableSchema(requireMembers(typedObject("file provenance privacy privacy_origin", "width height", "", "scale", "clipped", map[string]*manifestSchema{"privacy_rule": requireMembers(privacy, "origin privacy"), "source": requireMembers(typedObject("recording_id tab url title", "t record_index doc", "", "", "", map[string]*manifestSchema{"vp": viewport, "scroll": tupleSchema(2, false)}), "recording_id t record_index doc tab url title vp scroll"), "region": tupleSchema(4, false), "limitations": arraySchema(scalarSchema('s'))}), "file provenance source region scale width height clipped privacy privacy_rule"))})
 }
 
 // DecodePreserving rejects ambiguous keys and invalid known wire shapes before
@@ -123,7 +126,11 @@ func DecodePreserving(data []byte) (Submission, error) {
 	}); err != nil {
 		return Submission{}, err
 	}
-	known, extended, err := filterManifest(data, submissionSchema)
+	schema, err := schemaForManifest(data)
+	if err != nil {
+		return Submission{}, err
+	}
+	known, extended, err := filterManifest(data, schema)
 	if err != nil {
 		return Submission{}, err
 	}
@@ -200,6 +207,11 @@ func filterManifest(raw []byte, schema *manifestSchema) ([]byte, bool, error) {
 		if err := json.Unmarshal(raw, &fields); err != nil {
 			return nil, false, err
 		}
+		for _, name := range schema.forbidden {
+			if _, present := fields[name]; present {
+				return nil, false, fmt.Errorf("forbidden manifest field %q", name)
+			}
+		}
 		for _, name := range schema.required {
 			if _, present := fields[name]; !present {
 				return nil, false, fmt.Errorf("missing required manifest field %q", name)
@@ -265,7 +277,11 @@ func EncodePreserving(s Submission) ([]byte, error) {
 	if s.preserved == nil {
 		return current, nil
 	}
-	return mergeManifest(s.preserved.raw, current, submissionSchema)
+	schema, err := schemaForManifest(current)
+	if err != nil {
+		return nil, err
+	}
+	return mergeManifest(s.preserved.raw, current, schema)
 }
 func mergeManifest(original, current []byte, schema *manifestSchema) ([]byte, error) {
 	if schema == nil {
@@ -350,3 +366,26 @@ func sameManifestIdentity(a, b []byte) bool {
 	return true
 }
 func (s Submission) MarshalJSON() ([]byte, error) { return EncodePreserving(s) }
+
+// The two immutable schemas share the explicit owned-field vocabulary, but
+// keep distinct required/forbidden members. Selection never mutates a schema.
+func makeSharedSubmissionSchema() *manifestSchema {
+	schema := makeSubmissionSchema()
+	sk := schema.fields["sketches"].element
+	sk.required = strings.Fields("id recording_id next_sequence digest author note history_t history_record_index phase source elements index paths finish privacy privacy_rule")
+	sk.forbidden = []string{"image"}
+	paths := *sk.fields["paths"]
+	paths.nullable = false
+	sk.fields["paths"] = &paths
+	return schema
+}
+func schemaForManifest(data []byte) (*manifestSchema, error) {
+	var root map[string]json.RawMessage
+	if err := json.Unmarshal(data, &root); err != nil {
+		return nil, err
+	}
+	if raw, ok := root["sketch_page"]; ok && !bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		return sharedSubmissionSchema, nil
+	}
+	return submissionSchema, nil
+}

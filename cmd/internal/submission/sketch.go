@@ -32,7 +32,10 @@ type Sketch struct {
 	Reason             string                     `json:"reason,omitempty"`
 	Source             SketchSource               `json:"source"`
 	Elements           query.DeclaredElementFacts `json:"elements"`
-	Image              SketchImage                `json:"image"`
+	Image              *SketchImage               `json:"image,omitempty"`
+	Index              int                        `json:"index,omitempty"`
+	Paths              []sketchimage.Path         `json:"paths,omitempty"`
+	Finish             *SketchSource              `json:"finish,omitempty"`
 }
 type SketchSource struct {
 	query.SketchSourceFacts
@@ -86,19 +89,33 @@ func ValidateSketch(s Sketch) error {
 	if s.Privacy == "" || s.PrivacyOrigin != OriginOf(s.Source.URL) || s.PrivacyOrigin == "" && s.Privacy != Private {
 		return fail("original source privacy")
 	}
-	if !sketchName.MatchString(s.Image.File) || s.Image.Provenance != "replay-rendered" || s.Image.Plan.Sketch != s.ID {
-		return fail("image identity or provenance")
-	}
-	if len(s.Image.Limitations) > 32 {
-		return fail("too many image limitations")
-	}
-	for _, limitation := range s.Image.Limitations {
-		if len(limitation) > 256 {
-			return fail("image limitation exceeds bound")
+	paths := s.Paths
+	if s.Image != nil {
+		if s.Index != 0 || s.Paths != nil || s.Finish != nil {
+			return fail("mixed legacy and shared representation")
+		}
+		if !sketchName.MatchString(s.Image.File) || s.Image.Provenance != "replay-rendered" || s.Image.Plan.Sketch != s.ID {
+			return fail("image identity or provenance")
+		}
+		if len(s.Image.Limitations) > 32 {
+			return fail("too many image limitations")
+		}
+		for _, limitation := range s.Image.Limitations {
+			if len(limitation) > 256 {
+				return fail("image limitation exceeds bound")
+			}
+		}
+		paths = s.Image.Plan.Paths
+	} else {
+		if s.Index < 1 || s.Index > MaxSubmissionSketches || s.Finish == nil || s.Finish.Provenance != "recorded-dom" || s.Finish.T != s.HistoryT || s.Finish.RecordIndex != s.HistoryRecordIndex || s.Finish.Doc != s.Source.Doc || s.Finish.Tab != s.Source.Tab {
+			return fail("shared completion witness")
+		}
+		if err := validateSketchSource(*s.Finish); err != nil {
+			return err
 		}
 	}
 	h := recording.SketchView{Begin: &recording.SketchBegin{ID: s.ID}, Phase: s.Phase}
-	for _, p := range s.Image.Plan.Paths {
+	for _, p := range paths {
 		if !sketchID(p.ID) || p.At.Sel != "" || p.At.Kind != "" && p.At.Kind != recording.AnchorElement {
 			return fail("original path anchor")
 		}
@@ -109,11 +126,13 @@ func ValidateSketch(s Sketch) error {
 	if err != nil {
 		return err
 	}
-	actual := s.Image.Plan
-	if actual.Region != expected.Region || actual.Scale != expected.Scale || actual.Width != expected.Width || actual.Height != expected.Height || actual.Clipped != expected.Clipped {
-		return fail("image transform differs from original ink")
+	if s.Image != nil {
+		actual := s.Image.Plan
+		if actual.Region != expected.Region || actual.Scale != expected.Scale || actual.Width != expected.Width || actual.Height != expected.Height || actual.Clipped != expected.Clipped {
+			return fail("image transform differs from original ink")
+		}
 	}
-	return validateSketchFacts(s.Elements, actual.Paths)
+	return validateSketchFacts(s.Elements, paths)
 }
 func sketchID(s string) bool {
 	if s == "" || len(s) > recording.SketchMaxIDBytes || !utf8.ValidString(s) {
@@ -182,7 +201,21 @@ func EvidenceFiles(s Submission) ([]string, error) {
 			}
 		}
 	}
+	if s.SketchPage != nil {
+		if err := add(s.SketchPage.File, s.SketchPage.File == "sketch-page.png"); err != nil {
+			return nil, err
+		}
+	}
 	for _, sketch := range s.Sketches {
+		if sketch.Image == nil {
+			if s.SketchPage == nil {
+				return nil, fmt.Errorf("shared sketch without page")
+			}
+			continue
+		}
+		if s.SketchPage != nil {
+			return nil, fmt.Errorf("legacy sketch with shared page")
+		}
 		if err := add(sketch.Image.File, sketchName.MatchString(sketch.Image.File)); err != nil {
 			return nil, err
 		}
@@ -195,8 +228,17 @@ func validateEvidencePNG(sub Submission, file string, data []byte) error {
 	if err := ValidatePNG(data); err != nil {
 		return err
 	}
+	if p := sub.SketchPage; p != nil && p.File == file {
+		config, err := png.DecodeConfig(bytes.NewReader(data))
+		if err != nil {
+			return err
+		}
+		if config.Width != p.Width || config.Height != p.Height {
+			return fmt.Errorf("page PNG dimensions differ from declared transform")
+		}
+	}
 	for _, sketch := range sub.Sketches {
-		if sketch.Image.File == file {
+		if sketch.Image != nil && sketch.Image.File == file {
 			config, err := png.DecodeConfig(bytes.NewReader(data))
 			if err != nil {
 				return err
