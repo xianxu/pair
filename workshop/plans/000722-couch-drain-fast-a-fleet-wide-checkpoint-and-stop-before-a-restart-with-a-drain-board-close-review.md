@@ -812,3 +812,109 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T15:50:35-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 722 — couch --drain [--fast]: a fleet-wide checkpoint-and-stop before a restart, with a drain board |
+| repo | pair |
+| issue file | workshop/issues/000722-couch-drain-fast-a-fleet-wide-checkpoint-and-stop-before-a-restart-with-a-drain-board.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | d6cb2ca88ae20435ebff7f48628dcd8f3ca8b1ad..b2c541b239de1db1c2feace42e731b16d8cd1069 |
+| command | sdlc close --issue 722 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T15:50:35-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation matches the approved transient-drain contract and registered asynchronous notice design. Both open findings are addressed; no new blocking defects were found. This clears the code-review boundary. The plan’s operator-watched acceptance remains required before landing.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Remains disposed. The approved replacement removes formal acknowledgements and completion authority; ordinary replies do not mutate drain state.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Remains disposed under the approved replacement: Couch no longer integrates with or controls the SDLC queue.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Remains disposed. Fast drain now sends worker guidance through ordinary authenticated messaging; Couch performs no queue cancellation.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Remains disposed. The obsolete coordinator is absent; current child outcomes pass through ApplyDrainChildren and parent lifecycle transitions through ApplyReceiptEvent.
+  - id: BR-5
+    disposition: withdrawn
+    note: |
+      Prior withdrawal retained; no new physical-write-budget finding is raised.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Verified the complete declared make test log and metadata for e3c7e6badda23964b0116310fff8cdb8c94291b1: exit 0, 715.607 seconds, managed Mac.localdomain environment, SHA256 a75339213f2f019545eb95405abb4980d455df88993bd173e27c2cd6e72cc44b matching the actual log bytes. All five named packages passed, including couchcore in 163.798 seconds. Git comparison confirms only tracker/evidence changes between that source and the pinned head. The earlier timeout did not recur; its cause remains unattributed.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Inspected the before/after repair: SKILL.md:22 now contains the complete status-command row, the command table continues through line 45, and the operation explanation starts below it at line 47. The explanation agrees with the registered-operation implementation. TestSkillCommandIndexIsOneCompleteTable passes.
+```
+
+1. **Strengths**
+
+   - Registration precedes flag publication and endpoint work, preserving parent/child correlation after a lost reply (`drain_operations.go:36`, `drain_wiring.go:98`).
+   - Four service-owned workers enforce per-target ordering, independent admission budgets, bounded capacity and joined shutdown (`drain_executor.go:31`).
+   - Status preserves unknown activity evidence and distinguishes notice delivery from checkpoint completion (`drain_board.go:29`).
+   - README, atlas and embedded skill explain the new commands, transient lifetime and operation-status semantics.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Independently passed focused drain/undrain/skill tests across couchcore, couchmessage, couchcmd and couchtty; focused race tests across couchcmd and couchmessage; acceptance-oracle/catalog tests; and `make test-affected-inventory`.
+
+   Inspected controlled tests for slow-target progress, lost replies, replay conflicts, capacity refusal before mutation, stale completions, per-target FIFO and cancellation/join. Verified the recorded full-suite evidence rather than rerunning that suite. No fresh native fleet or watched acceptance was performed.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Reuses ordinary broker delivery, receipt reservation and lifecycle reduction.
+   - **ARCH-PURE — pass:** Flag operations, board projection, notice formatting and child transitions have direct tests without IO.
+   - **ARCH-PURPOSE — pass:** Delivers the approved posture/notice/status/lift contract.
+   - **ARCH-MOCK — pass:** Production and controlled endpoint tests share the broker seam; retained native evidence has explicit limitations.
+   - **ARCH-CONSTRAINTS — pass:** Actor/operation/task caps, four workers and per-dispatch deadlines are enforced.
+   - **ARCH-SECURE — pass:** Mutations authenticate the steward; request shapes and optional text are validated.
+   - **ARCH-ORDER — pass:** Explicit reducers govern outcomes; controlled tests exercise delayed and reordered work.
+   - **ARCH-FUNERAL — pass:** Workers are cancelled and joined; bounded transient records expire or disappear with the supervisor.
+   - **ARCH-EVOLVE — pass:** This implementation introduces no persisted drain format or rewrite path.
+
+7. **Plan revision recommendations:** None required. Retain the documented pre-landing acceptance gates.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"8f214fb1-3d56-4d2b-b958-fc540ab28532","repository":"github.com/xianxu/pair","issue_id":"000722","recipe":"milestone-review","round":9,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/ff8fde5c36f248d5","reviewed_head":"b2c541b239de1db1c2feace42e731b16d8cd1069","slot":"pair:5","requested_at":"2026-10-22T22:48:26.168144Z"},"phase":"finished","pid":2534,"started_at":"2026-10-22T22:48:26.347827Z","finished_at":"2026-10-22T22:50:34.061621Z","session_id":"01a165cd-2990-7c61-91a6-2a7886ca0738","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.041949041s
+head: "b2c541b239de1db1c2feace42e731b16d8cd1069"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
