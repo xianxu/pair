@@ -52,7 +52,7 @@ TL831e9502 confirms operator approval of the re-scoped plan: exclude the issuing
 - [x] Operator approved the re-scoped Revision through TL831e9502, excluding the issuing steward; reopened through the setter in canonical pair:5 after #622 landed. Renewed change-code follows.
 - [x] Remove the obsolete completion/persistence/control machinery; implement only transient flags, ordinary notices/status and undrain with tests.
 - [x] Qualify message/lifecycle independence, restart emptiness, truthful idle observations and one compact badge through normal tests and the bounded disposable installed composition.
-- [x] Record the passing full suite on the final code. Mandatory close review, authorized staging and TL/operator-watched live acceptance remain subsequent workflow gates before ordinary landing.
+- [ ] Record the passing full suite on the final code. Mandatory close review, authorized staging and TL/operator-watched live acceptance remain subsequent workflow gates before ordinary landing.
 
 ## Estimate
 
@@ -527,3 +527,9 @@ The [durable implementation plan](../plans/000722-fleet-drain-plan.md) defines t
 ### 2026-10-22 — implementation checklist ends at verification; live remains a pre-landing gate
 
 The prior final Plan row read: “Run required verification and mandatory close review, then TL-scheduled watched live acceptance before ordinary landing.” Its own close/live receipts cannot be checked before the close that prepares staging. Clarify the implementation checkbox to end at the recorded passing full suite, while explicitly keeping mandatory close, authorized staging, ariadne#506 landing and watched live acceptance as subsequent required gates before landing. No acceptance criterion is removed, no milestone split, and no historical SHIP/stage instruction becomes fresh authorization. The operator-approved transient product/state contract is unchanged.
+
+### 2026-10-22 02:26 PDT — distinguish running background work from queued work
+
+Authenticated submitted TL e220cac5 approves this exact graceful opening, coordinated with ariadne#506: “Drain: finish your current atomic step and wait for background work that is already running to finish. Leave queued, not-started work queued and note it in the issue Log as outstanding.” It replaces the ambiguous “current background work” opening only; all remaining graceful guidance and the entire fast notice stay unchanged. Queued work is not admitted work and may remain held by the steward's external queue pause; do not wait hours for it or claim it complete. Record it in the checkpoint Log as outstanding. No queue call, flag/state change, admission policy or new mechanism is added (ARCH-PURPOSE/DRY).
+
+Update the pure notice expected-body regression, the independent shared-native expected body, README and atlas. Demonstrate the corrected expected body fails against the old notice and passes with the correction. Refresh final-source native and required suite evidence, then re-close before any staging. Earlier SHIP/native/suite evidence remains historical and does not qualify this wording change. The watched-run hold, ariadne#506 prerequisite and unresolved historical ariadne:4 discrepancy remain unchanged.
