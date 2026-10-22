@@ -1,6 +1,6 @@
 ---
 id: 000758
-status: working
+status: codecomplete
 created: 2026-10-20
 updated: 2026-10-22
 estimate_hours: 4.136
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+actual_hours: 3.65
+tracker:
+    version: 1
+    completion:
+        token: close-a23dcba93853
+        repository: github.com/xianxu/pair
+        reviewed_head: be457f2be2f39f88610d131c03955aef84989843
+        evidence_commit: 9d70ae43ed703146f8f993d8293fdc298aa99d27
 ---
 
 # Couch-owned editor endpoint registry and lifecycle
