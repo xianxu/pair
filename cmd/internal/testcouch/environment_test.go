@@ -1,6 +1,7 @@
 package testcouch
 
 import (
+	"github.com/xianxu/pair/cmd/internal/couchidentity"
 	"os"
 	"path/filepath"
 	"strings"
@@ -84,5 +85,32 @@ func TestEnvironmentDoesNotInheritLiveAuthority(t *testing.T) {
 	}
 	if values["PAIR_WRAP_LOG"] != startupLogPath(p) {
 		t.Fatalf("wrapper diagnostics are not owned: %q", values["PAIR_WRAP_LOG"])
+	}
+}
+
+func TestFactoryTerminalIdentityIsolation(t *testing.T) {
+	seen := map[string]bool{}
+	for i := 0; i < 2; i++ {
+		roots, err := allocateRoots(t.TempDir(), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := os.RemoveAll(roots.Root); err != nil {
+				t.Error(err)
+			}
+		})
+		store := couchidentity.IdentityStore{HostDir: roots.Mutable["identity"], StoreDir: roots.Mutable["store"]}
+		allocated, err := store.Allocate(t.Context(), couchidentity.AllocationRequest{Conversation: true, Terminal: true, RepositoryToken: "fixture"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if seen[allocated.SessionName] {
+			t.Errorf("independent fleet authorities share native terminal name %q", allocated.SessionName)
+		}
+		seen[allocated.SessionName] = true
+		if allocated.C>>63 != 1 || allocated.N != 1 || allocated.M != 1 {
+			t.Errorf("first fleet allocation must have private high C and N=M=1: %+v", allocated)
+		}
 	}
 }

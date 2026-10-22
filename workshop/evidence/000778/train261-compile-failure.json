@@ -1,0 +1,15 @@
+{
+  "train": 261,
+  "cars": [
+    777,
+    778
+  ],
+  "attempt": "7b86027ca92a83fe2d21d23d8c90fc4c",
+  "log": "train261-compile-failure.log",
+  "sha256": "94d3e0b1718097a7832298389d2d02f3a312c13205ffa6c1ecfef51ae47f360c",
+  "result": "failed: cmd/couch build failed",
+  "classification": "deterministic composed test-helper signature incompatibility; not a flake",
+  "diagnostic": "session_sync_operator_test.go:28:41 uses installedEnv as single value; helper returns ([]string,uint64)",
+  "baseline": "conductor reported PASS10m5s; authenticated receipt 9ef760ab-04e7-4172-9eb2-1adf3be6618e",
+  "disposition": "#778 waiter exited1 held/unverified; #777-only prefix passed12m13s and remains pending CI; no landing claimed"
+}

@@ -1,0 +1,13 @@
+{
+  "source": "ec3c671424f5376e01bdb3bb49fcfa8af739d4a2",
+  "attempt": "0afdfcfe7e70e8b1e2cd8bd438e8dc1e",
+  "lease": "lease-275330665",
+  "queue_seconds": 2792,
+  "duration": "11m57s",
+  "exit": 2,
+  "failures": [
+    "TestProductionArtifactReferencesAreExactlyClassified (1.57s)"
+  ],
+  "classification": "known-flake-rule-unavailable after DNS fetch failure; deterministic branch inventory failure remains blocking",
+  "sha256": "a662f00e110fac06295153cc8cf469dddfefb51834bbfc5c16ac79aec825decc"
+}

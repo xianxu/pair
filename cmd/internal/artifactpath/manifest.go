@@ -1594,6 +1594,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/workbenchperftest/ledger_writer.go",
 	// pair#602 compiler fixture: owns a temporary executable, no session artifacts.
 	"cmd/internal/testpair/binary.go",
+	"cmd/internal/testpair/couchidentity.go",
 	"cmd/internal/testpair/environment.go",
 	"cmd/internal/testpair/shortroot.go",
 	// pair#744 disposable qualification owner: private test files/processes,
