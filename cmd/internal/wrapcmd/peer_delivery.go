@@ -439,10 +439,9 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 	}
 	p.inputAdmission.Lock()
 	d.mu.Lock()
-	var decisionSnapshot *terminalSnapshot
-	var generation uint64
+	var decisionSnapshot *terminalDiagnosticSnapshot
 	defer func() {
-		capture := p.selectPeerWaitCaptureLocked(d, decisionSnapshot, generation)
+		capture := p.selectPeerWaitCaptureLocked(d, decisionSnapshot)
 		d.mu.Unlock()
 		p.inputAdmission.Unlock()
 		p.emitPeerWaitCapture(capture)
@@ -517,8 +516,9 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 			return
 		}
 		epoch := p.automaticRenderEpoch.Load()
-		snapshot, snapshotGeneration := p.terminal.SnapshotGeneration()
-		decisionSnapshot, generation = &snapshot, snapshotGeneration
+		observation := p.terminal.SnapshotDiagnostic()
+		decisionSnapshot = &observation
+		snapshot := observation.Snapshot
 		if d.current.Status != couchmessage.Delivering {
 			// Let just-forwarded keystrokes repaint before reading the source.
 			// This bounded settle interval cannot retain stale draft ownership.

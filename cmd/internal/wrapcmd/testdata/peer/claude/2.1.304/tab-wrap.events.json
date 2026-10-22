@@ -1,0 +1,23 @@
+[
+  {
+    "offset": 0,
+    "cols": 94,
+    "rows": 39,
+    "type": "resize",
+    "source_offset": 56954443
+  },
+  {
+    "offset": 4621,
+    "cols": 94,
+    "rows": 38,
+    "type": "resize",
+    "source_offset": 56959088
+  },
+  {
+    "offset": 9172,
+    "cols": 94,
+    "rows": 39,
+    "type": "resize",
+    "source_offset": 56963663
+  }
+]

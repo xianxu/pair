@@ -45,25 +45,26 @@ func advancePeerWaitCapture(s PeerWaitCaptureState, id string, waiting bool, now
 // PeerWaitEvidence freezes the refusal, not a later tail query. Screen cells
 // remain private to the local optional diagnostic owner, never message transport.
 type PeerWaitEvidence struct {
-	At               time.Time            `json:"at"`
-	Binding          couchmessage.Binding `json:"binding"`
-	ID               string               `json:"id"`
-	Condition        string               `json:"condition"`
-	WaitMillis       int64                `json:"wait_ms"`
-	Status           couchmessage.Status  `json:"status"`
-	Generation       uint64               `json:"terminal_generation"`
-	RenderEpoch      uint64               `json:"render_epoch"`
-	Sequence         uint64               `json:"sequence"`
-	InputBuffered    bool                 `json:"input_buffered"`
-	ForwardedInput   int                  `json:"forwarded_input"`
-	PartialInput     int                  `json:"partial_input_bytes"`
-	OutputPending    int                  `json:"output_pending"`
-	TurnActive       bool                 `json:"turn_active"`
-	Picker           bool                 `json:"picker"`
-	Image            bool                 `json:"image"`
-	AutomaticPhase   automaticInputPhase  `json:"automatic_phase"`
-	ScreenAvailable  bool                 `json:"screen_available"`
-	DecisionSnapshot bool                 `json:"decision_snapshot"`
+	At               time.Time                  `json:"at"`
+	Binding          couchmessage.Binding       `json:"binding"`
+	ID               string                     `json:"id"`
+	Condition        string                     `json:"condition"`
+	WaitMillis       int64                      `json:"wait_ms"`
+	Status           couchmessage.Status        `json:"status"`
+	Generation       uint64                     `json:"terminal_generation"`
+	LastResize       *terminalResizeObservation `json:"last_resize,omitempty"`
+	RenderEpoch      uint64                     `json:"render_epoch"`
+	Sequence         uint64                     `json:"sequence"`
+	InputBuffered    bool                       `json:"input_buffered"`
+	ForwardedInput   int                        `json:"forwarded_input"`
+	PartialInput     int                        `json:"partial_input_bytes"`
+	OutputPending    int                        `json:"output_pending"`
+	TurnActive       bool                       `json:"turn_active"`
+	Picker           bool                       `json:"picker"`
+	Image            bool                       `json:"image"`
+	AutomaticPhase   automaticInputPhase        `json:"automatic_phase"`
+	ScreenAvailable  bool                       `json:"screen_available"`
+	DecisionSnapshot bool                       `json:"decision_snapshot"`
 	snapshot         terminalSnapshot
 }
 
@@ -177,7 +178,7 @@ func peerWaitScreenRow(s terminalSnapshot, y, limit int) (peerWaitRow, bool) {
 
 // selectPeerWaitCaptureLocked runs only on the input owner, under both locks.
 // It neither serializes nor enqueues diagnostic bytes.
-func (p *proxy) selectPeerWaitCaptureLocked(d *peerDelivery, snapshot *terminalSnapshot, generation uint64) *PeerWaitEvidence {
+func (p *proxy) selectPeerWaitCaptureLocked(d *peerDelivery, decision *terminalDiagnosticSnapshot) *PeerWaitEvidence {
 	id := d.current.Message.ID
 	prePaste := d.current.Status == couchmessage.Queued || d.current.Status == couchmessage.Held
 	if !prePaste || d.released || d.exited {
@@ -194,11 +195,18 @@ func (p *proxy) selectPeerWaitCaptureLocked(d *peerDelivery, snapshot *terminalS
 		RenderEpoch: p.automaticRenderEpoch.Load(), InputBuffered: d.inputBuffered,
 		ForwardedInput: d.replies.inFlight, PartialInput: len(d.replies.input), OutputPending: d.outputPending,
 		TurnActive: p.turnActive.Load(), Picker: p.pickerActive.Load(), Image: d.image, AutomaticPhase: p.automaticInput.phase}
-	if snapshot != nil {
-		e.snapshot, e.Generation, e.ScreenAvailable, e.DecisionSnapshot = *snapshot, generation, true, true
+	var observation terminalDiagnosticSnapshot
+	if decision != nil {
+		observation = *decision
+		e.ScreenAvailable, e.DecisionSnapshot = true, true
 	} else if p.terminal != nil {
-		e.snapshot, e.Generation = p.terminal.SnapshotGeneration()
+		observation = p.terminal.SnapshotDiagnostic()
 		e.ScreenAvailable = true
+	}
+	e.snapshot, e.Generation = observation.Snapshot, observation.Generation
+	if !observation.LastResize.AttemptedAt.IsZero() {
+		resize := observation.LastResize
+		e.LastResize = &resize
 	}
 	return e
 }

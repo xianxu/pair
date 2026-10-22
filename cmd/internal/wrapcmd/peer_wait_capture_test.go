@@ -173,6 +173,7 @@ func TestPeerWaitCaptureCountedHeadsAndPolls(t *testing.T) {
 			f.proxy.wrapEventsFD = &sink
 			var input bytes.Buffer
 			for head := range heads {
+				f.resize(79+head%2, 37+head%2)
 				m := peerTestMessage(now)
 				m.ID = fmt.Sprintf("capture-%d", head)
 				d.current = couchmessage.Receipt{Message: m, Status: couchmessage.Queued}
@@ -449,5 +450,107 @@ func TestPeerWaitCaptureFittingStyledRow(t *testing.T) {
 	}
 	if r.Truncated || len(r.Rows) != 1 || strings.Count(r.Rows[0].ANSI, "a") != 2000 {
 		t.Fatalf("fitting %d-byte JSON row was discarded: rows=%d truncated=%v record=%d", len(golden), len(r.Rows), r.Truncated, len(raw))
+	}
+}
+
+func TestPeerWaitCaptureIncludesLatestResize(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		cols, rows int
+		outcome    string
+		changed    bool
+	}{
+		{"changed", 79, 37, "committed", true},
+		{"unchanged", 80, 38, "committed", false},
+		{"aborted", 79, 37, "aborted", true},
+		{"prepared", 79, 37, "prepared", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f, d := peerIntegrationFixture(t)
+			f.output("\x1b[?25l")
+			before := time.Now()
+			resize, err := f.proxy.terminal.PrepareResize(tc.cols, tc.rows)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resize.Abort()
+			switch tc.outcome {
+			case "committed":
+				if err := resize.Commit(); err != nil {
+					t.Fatal(err)
+				}
+			case "aborted":
+				resize.Abort()
+			}
+			after := time.Now()
+			now := after
+			d.now = func() time.Time { return now }
+			peerIntegrationEnqueue(t, d)
+			var input bytes.Buffer
+			var sink peerCaptureWriter
+			f.proxy.wrapEventsFD = &sink
+			f.proxy.dispatchPeer(&input)
+			now = now.Add(15 * time.Second)
+			f.proxy.dispatchPeer(&input)
+			var record struct {
+				Evidence struct {
+					LastResize *struct {
+						AttemptedAt time.Time `json:"attempted_at"`
+						CompletedAt time.Time `json:"completed_at"`
+						Cols        int       `json:"cols"`
+						Rows        int       `json:"rows"`
+						Changed     bool      `json:"changed"`
+						Outcome     string    `json:"outcome"`
+					} `json:"last_resize"`
+				} `json:"evidence"`
+			}
+			if err := json.Unmarshal(bytes.TrimSpace(sink.Bytes()), &record); err != nil {
+				t.Fatal(err)
+			}
+			r := record.Evidence.LastResize
+			if r == nil {
+				t.Fatal("forced refusal lost latest resize evidence")
+			}
+			if r.Cols != tc.cols || r.Rows != tc.rows || r.Changed != tc.changed || r.Outcome != tc.outcome || r.AttemptedAt.Before(before) || r.AttemptedAt.After(after) {
+				t.Fatalf("incorrect latest resize: %+v", r)
+			}
+			if tc.outcome == "prepared" {
+				if !r.CompletedAt.IsZero() {
+					t.Fatal("unresolved resize has completion time")
+				}
+			} else if r.CompletedAt.Before(r.AttemptedAt) || r.CompletedAt.After(after) {
+				t.Fatalf("incorrect completion time: %+v", r)
+			}
+			if input.Len() != 0 {
+				t.Fatal("diagnostic admitted input")
+			}
+		})
+	}
+}
+
+func TestPeerWaitCaptureKeepsDecisionResize(t *testing.T) {
+	f, d := peerIntegrationFixture(t)
+	f.resize(79, 37)
+	f.output("\x1b[?25l")
+	decision := f.proxy.terminal.SnapshotDiagnostic()
+	now := time.Now()
+	d.now = func() time.Time { return now }
+	peerIntegrationEnqueue(t, d)
+	f.proxy.inputAdmission.Lock()
+	d.mu.Lock()
+	defer f.proxy.inputAdmission.Unlock()
+	defer d.mu.Unlock()
+	d.current.Detail = "waiting for recognized composer: cursor is hidden"
+	if f.proxy.selectPeerWaitCaptureLocked(d, &decision) != nil {
+		t.Fatal("early capture")
+	}
+	now = now.Add(15 * time.Second)
+	// A subsequent resize must not replace metadata belonging to the decision.
+	f.resize(78, 36)
+	var sink peerCaptureWriter
+	f.proxy.wrapEventsFD = &sink
+	e := f.proxy.selectPeerWaitCaptureLocked(d, &decision)
+	if e == nil || e.LastResize == nil || *e.LastResize != decision.LastResize || e.Generation != decision.Generation || e.snapshot.Width != 79 || e.snapshot.Height != 37 {
+		t.Fatal("capture drifted from refused generation")
 	}
 }

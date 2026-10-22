@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-10-21
 updated: 2026-10-22
-estimate_hours: 1.019
+estimate_hours: 1.597
 collaboration-mode: collaboration
-card_mirror: '954c40b41feec225599b32da0c1795369220a20a' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'e314a8e0135326547e264739d52bb22ca60a386d' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-22T12:23:59-07:00
 claimant:
     operator: Xian Xu
@@ -41,7 +41,7 @@ which of the three busy conditions fired; the refusal should name the one that d
 - The complete encoded diagnostic is at most 64 KiB; any truncation is explicit. Encoding and writer IO occur outside admission/mailbox locks.
 - Tests show diagnostic failure leaves receipts/input safety unchanged, for Claude and Codex, including Claude batch preparation.
 - The capture includes the latest resize attempt/completion timing, requested geometry, changed flag and outcome, coherently copied with the refused screen generation. A visible Claude pane is exercised through one/two/one tab-bar rows.
-- Recognition changes are tracked in an unclaimed follow-up waiting for the first real failing capture or demonstrated native transition.
+- Recovery is tracked in follow-up #810; the approved resize-then-silence investigation supplies its red case, without changing recognition here.
 
 ## Plan
 
@@ -51,12 +51,13 @@ Implementation: [durable plan](../plans/000791-couch-admission-plan.md), final d
 - [x] Forced-refusal tests first, bounded capture state/encoding and dispatch integration.
 - [x] Lock/failure/cap/growth/personality tests, atlas and normal source inventory.
 - [x] Run targeted capture/preflight checks and submit the recorded affected check on the pushed implementation.
+- [x] Approved resize addition: native wrap/repaint and controlled-silence fixtures, coherent resize timing, generated/concurrent tests, targeted race/fuzz and atlas updates.
 
 The initial diagnostic implementation has a SHIP close review; recorded affected pass and landing remain pending. The approved resize addition below requires fresh implementation verification and boundary review before landing.
 
 ## Estimate
 
-Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only; calibration reported stale by estimate-source, so provisional. Derived after plan-quality CLEAN (round 2). Familiar Go/terminal/BufferedWriter seams, no novel stack/library needed. Thorough approved design applies x0.2 design discount and +15% design buffer. Two smaller Go units cover eligibility/encoding with generated/fuzz tests and production dispatch/lock/failure tests respectively. Implementation picks 0.5h primitive upper endpoint x0.4; familiarity1.0. Spec0.5x0.2, state0.3x0.2, integration0.2x0.2, atlas0.1x0.2, review0.2x0.2 design.
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only; calibration reported stale by estimate-source, so provisional. Derived after plan-quality CLEAN (round 2). Familiar Go/terminal/BufferedWriter seams, no novel stack/library needed. Thorough approved design applies x0.2 design discount and +15% design buffer. For the original scope, two smaller Go units cover eligibility/encoding with generated/fuzz tests and production dispatch/lock/failure tests respectively. Those module and review implementation items pick 0.5h primitive upper endpoint x0.4; issue-spec and atlas use 0.20h and 0.10h base selections respectively; familiarity1.0. Spec0.5x0.2, state0.3x0.2, integration0.2x0.2, atlas0.1x0.2, review0.2x0.2 design.
 
 ```estimate
 model: estimate-logic-v3.1
@@ -66,8 +67,11 @@ item: smaller-go-module design=0.06 impl=0.20
 item: smaller-go-module design=0.04 impl=0.20
 item: atlas-docs design=0.02 impl=0.04
 item: milestone-review design=0.04 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: atlas-docs design=0.02 impl=0.04
+item: milestone-review design=0.04 impl=0.20
 design-buffer: 0.15
-total: 1.019
+total: 1.597
 ```
 
 ## Log
@@ -158,3 +162,14 @@ The final Plan row now records targeted-check execution and recorded-check submi
 
 - Authenticated TL lead f0f48a53-7be6-4572-bbd6-080b43fac429: operator links a current stall to multiline tab-bar resize, always the visible slot. Add visible Claude pane replay through one/two/one bar rows and latest resize timing to capture. Approval d06e1506-63a0-4335-85b4-96087a40510b accepts one fixed-size latest-attempt/completion/geometry/changed/outcome observation under the existing terminal mutex, copied with screen generation; no policy or IO-under-lock change. Durable-plan final revision is the implementation contract. #807 is independently checkpointed/pushed and paused, not stacked.
 - This addition supersedes the previous final-head acceptance claim; initial SHIP and all old check receipts remain historical. Do not land until the resize investigation is reported and updated code has fresh verification/review. #810 may proceed from a demonstrated failing native transition rather than waiting for the diagnostic to fire; no symptom reproduction claimed yet. Existing queued check remains alive pending a measured need to replace its code head.
+
+
+### 2026-10-22 — resize addition evidence and updated verification
+
+- Updated change-code: plan-quality round4 CLEAN (PQ-1 remains addressed), estimate-quality INFO requested explicit incremental scope. Derived increment after that gate: smaller-go-module design0.06/impl0.20 for transaction observation/coherent snapshots/native fixture; atlas design0.02/impl0.04; renewed review/verification design0.04/impl0.20; same1.15 design buffer and familiarity1.0 gives0.578h increment, total1.597h via set-estimate. No actuals invented; initial0.64h predates this addition.
+- Behavioral red TestPeerWaitCaptureIncludesLatestResize failed all four outcomes with “forced refusal lost latest resize evidence”; fixed-size terminal-owned evidence and SnapshotDiagnostic made it PASS0.430s. Subsequent changed flag explicitly means actual dimensions differ; a same-size retry after abort still invalidates cursor by existing policy. SnapshotGeneration's API and every cursor/admission rule remain unchanged.
+- Native ops:0 replay (57MB,105 resizes,563 sampled post-resize frames) PASS4.902s: actual94x39→38→39 paints restored complete/visible empty composers with bypass footer/update banner; no persistent complete-idle recognition failure. Committed sanitized native control fixture removes transcript glyphs and OSC payloads, preserving geometry/control bytes and footer/banner, with source ranges/hashes. Visible-pane replay derives body heights from the real status-bar planner and exercises ordinary/batch admission.
+- Controlled resize then withheld output reproduces precise cursor-hidden refusal at0/15/30/300 simulated seconds; the retained native repaint immediately restores admission, PASS0.379s scratch reproduction. Native silence cannot be timed from retained logs: resize events lack timestamps; adjacent output markers span919s at candidate53541962 but guaranteed post-resize silence is0s. No input timing proves keystroke recovery. TL accepts this mechanism plus operator observations as enough for #810 (authenticated9a7378bb-68de-4a95-bb1c-129f827a79c1), directs claim and separate plan before code. #810 no longer waits exclusively for a live capture; no recovery effect is added to #791.
+- Obsolete exact recorded affected lease-402578803 cancelled successfully due to this approved production change. Its runner ended context-cancelled while still queued; no test failure status was produced. Replacement final-head check is pending. Native-fixture reader inventory correctly refused the new reader; audited only tracked testdata raw/events and registered non_go_full_fallback before rechecking.
+
+- New resize/capture/native replay and #735 controls PASS under race7.429s; bounded encoder fuzz PASS397 executions/6.820s. repolint27.888s and artifactpath20.956s pass; updated reader certificate check passes. During concurrent verification, generated transaction test initially overclaimed that aborting a same-size no-op must invalidate a complete screen; corrected its oracle to preserve the pre-resolution completeness, matching existing policy. Production changed-flag now separately reports actual dimension difference, including same-size retry after aborted resize. Complete wrapper package run remains pending; any earlier compiled test-oracle failure will be retained and rerun on corrected source before claiming full-package success.

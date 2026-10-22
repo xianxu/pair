@@ -157,5 +157,14 @@ Records stay in the existing per-slot wrap-events JSONL selected by
 buffered writer and retention/GC. `PAIR_WRAP_EVENTS=0` disables this diagnostic
 stream; disabled/unavailable/failed diagnostics leave delivery safety unchanged.
 Captured screens are private local evidence, with no automatic public upload.
-These tests qualify capture, not a reproduced recognition fault: recognition is
-unchanged, and #810 waits for the first real failing live capture.
+`TestPeerVisibleTabWrapNativeResize` uses the status-bar planner and sanitized
+native Claude2.1.304 bytes through one/two/one chrome rows, including ordinary
+and batch admission. `TestPeerResizeThenSilencePreservesRefusal` deliberately
+withholds output after a real resize: it pins cursor-hidden refusal through
+300 simulated seconds, one capture with resize timing, then safe admission after
+the retained native repaint. This demonstrates a mechanism; the retained native
+event log has no resize timestamps and does not prove historical causation.
+`TestTerminalResizeEvidenceGeneratedTransactions` and
+`TestTerminalDiagnosticSnapshotConcurrentResize` qualify transaction timing and
+coherent screen/resize copies. Recognition remains unchanged; #810 owns the
+approved follow-up plan for redraw and re-observation.

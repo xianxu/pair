@@ -1127,7 +1127,12 @@ no per-delivery file or extra polling worker is added.
 The record preserves the exact refusal detail and its cursor, geometry, styled
 cells and frame/synchronization evidence. Composer refusals use the snapshot
 that made the decision; an earlier non-screen guard captures a coherent screen
-at that refusal and identifies its generation. The whole encoded record is at
+at that refusal and identifies its generation. `evidence.last_resize` records
+the latest admitted resize attempt/completion times, requested columns/rows,
+whether geometry changed, and prepared/committed/aborted outcome. It is copied
+under the same terminal mutex as the screen and generation. A same-size retry
+after an abort can require fresh cursor evidence while reporting changed=false.
+Absent last_resize means this wrapper has observed no admitted resize. The whole encoded record is at
 most 64 KiB, including its envelope, with explicit screen truncation/omission
 metadata when the full screen cannot fit. Screen contents may be private: they
 remain local diagnostics and are never automatically uploaded publicly. The
@@ -1137,8 +1142,11 @@ Encoding and writer enqueue happen after admission/mailbox locks are released.
 The proxy's existing buffered diagnostic owner handles flush, close, rotation
 and [retention/GC](storage-retention.md). `PAIR_WRAP_EVENTS=0`, an unavailable
 writer or a failed capture can lose evidence, but cannot alter delivery safety,
-receipt state or recognition. Recognition remains unchanged; #810 waits for the
-first real failing capture before proposing a recognition fix.
+receipt state or recognition. Recognition remains unchanged. The controlled
+resize-then-silence replay demonstrates a hidden cursor can hold delivery until
+a repaint; #810 plans recovery through redraw and re-observation. Existing
+recordings lack precise resize timestamps, so they cannot establish historical
+post-resize silence or keystroke causation.
 
 ### Lifecycle system notices (#574)
 
