@@ -79,6 +79,10 @@ Corrected owner-to-wire outcomes: positive absence is ok/null, positive missing 
 
 Private native process-death collection qualification is being completed before the full recorded suite. No suite/review/landing pass is claimed yet.
 
+### 2026-10-22 — private native death and buffer qualification
+
+Three installed-nvim conformance tests pass with race detection (package2.689s). Two physical private buffers return their exact buffer/File tuples; invalid buffer is positive nil. The selected second editor stops through the fixture's own idempotent cancellation/join, native PID/birth evidence confirms death/replacement, and Sweep removes only its incarnation. The first live editor's retained record is unchanged, and its displaced headless candidate never resurrects. Fixture children retain explicit empty-base environment and poisoned parent identity assertions. No operator/native live session or editor-owned runtime path is touched. Reader certificate re-audited individually; inputs remain generated private fixtures and literal callback source.
+
 ## Revisions
 
 ### 2026-10-22 — producer-only whole issue

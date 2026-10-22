@@ -6,8 +6,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
@@ -19,6 +21,7 @@ type privateNativeEditor struct {
 	root, socket, file string
 	pid                int
 	rpc                NvimRPC
+	stop               func()
 }
 
 func newPrivateNativeEditor(t *testing.T, file string) *privateNativeEditor {
@@ -34,6 +37,9 @@ func newPrivateNativeEditor(t *testing.T, file string) *privateNativeEditor {
 			t.Fatal(err)
 		}
 	}
+	if err = os.WriteFile(file+".second", []byte("second fixture"), 0600); err != nil {
+		t.Fatal(err)
+	}
 	f := &privateNativeEditor{root: root, socket: filepath.Join(root, "rpc"), file: file}
 	script := filepath.Join(root, "fixture.lua")
 	// OSProvisionIO assigns cmd.Env directly, rather than overlaying inherited
@@ -41,15 +47,20 @@ func newPrivateNativeEditor(t *testing.T, file string) *privateNativeEditor {
 	lua := `assert(vim.env.COUCH_TREE == nil, 'inherited Couch authority')
 assert(vim.env.PAIR_SESSION_ID == nil, 'inherited Pair authority')
 assert(vim.env.PAIR_SLUG == nil, 'inherited Pair identity')
+vim.api.nvim_buf_set_name(1, vim.env.ENDPOINT_DOCUMENT)
+local second = vim.api.nvim_create_buf(true, false)
+assert(second == 2)
+vim.api.nvim_buf_set_name(second, vim.env.ENDPOINT_DOCUMENT .. '.second')
 package.preload['parley.remote_session'] = function()
  return {
  endpoint = function(q)
+  if not vim.api.nvim_buf_is_valid(q.Buffer) then return nil end
   if q.AttachID == 'absent' or vim.fn.filereadable(vim.env.ENDPOINT_RETIRED) == 1 then return nil end
   if q.AttachID == 'error' then error('callback failed') end
   return { Namespace=q.Namespace, DocumentID=q.DocumentID,
    EditorIncarnation=q.EditorIncarnation, AttachID=q.AttachID,
    Buffer=q.Buffer, PID=vim.fn.getpid(), Socket=vim.v.servername,
-   File=vim.env.ENDPOINT_DOCUMENT }
+   File=vim.api.nvim_buf_get_name(q.Buffer) }
  end,
  superseded = function(q)
   assert(type(q.BindingGeneration) == 'string' and #q.BindingGeneration > 0)
@@ -70,14 +81,18 @@ local ready = assert(io.open(vim.env.ENDPOINT_READY, 'w')); ready:write(vim.fn.g
 		_, e := native.Run(ctx, couchcore.ProvisionCommand{Dir: root, Program: program, Args: []string{"--headless", "-u", "NONE", "-i", "NONE", "-n", "--listen", f.socket, "-c", "lua dofile(vim.env.ENDPOINT_FIXTURE)"}})
 		done <- e
 	}()
-	t.Cleanup(func() {
-		cancel()
-		select {
-		case <-done:
-		case <-testwait.After(t):
-			t.Error("owned Neovim did not join")
-		}
-	})
+	var stopped sync.Once
+	f.stop = func() {
+		stopped.Do(func() {
+			cancel()
+			select {
+			case <-done:
+			case <-testwait.After(t):
+				t.Error("owned Neovim did not join")
+			}
+		})
+	}
+	t.Cleanup(f.stop)
 	testwait.Until(t, "private Neovim callback readiness", func() bool {
 		select {
 		case e := <-done:
@@ -110,7 +125,7 @@ func TestNvimPrivateNativeConformance(t *testing.T) {
 	poisonNativeParent(t)
 	f := newPrivateNativeEditor(t, "")
 	ctx := context.Background()
-	req := RegisterRequest{Namespace: "/private/quote' $()\n雪", DocumentID: "doc", EditorIncarnation: "inc", AttachID: "live", Buffer: 7, Socket: f.socket}
+	req := RegisterRequest{Namespace: "/private/quote' $()\n雪", DocumentID: "doc", EditorIncarnation: "inc", AttachID: "live", Buffer: 1, Socket: f.socket}
 	got, err := f.rpc.Describe(ctx, req)
 	if err != nil || got == nil || got.Namespace != req.Namespace || got.File != f.file || got.PID != f.pid {
 		t.Fatalf("live response %+v %v", got, err)
@@ -176,7 +191,7 @@ func TestEndpointOwnerTwoPrivateNativeEditors(t *testing.T) {
 	if err = os.WriteFile(filepath.Join(second.root, "retired"), []byte("retired"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if p := owner.Lookup(ctx, namespace, docA); p.Code != "absent" {
+	if p := owner.Lookup(ctx, namespace, docA); p.Code != "ok" || p.EditorEndpoint != nil {
 		t.Fatalf("live nil did not retire: %+v", p)
 	}
 	headless.AttachID = "3"
@@ -193,5 +208,59 @@ func TestEndpointOwnerTwoPrivateNativeEditors(t *testing.T) {
 	saved, e := (EndpointStore{Namespace: namespace, Path: filepath.Join(namespace, "state.json"), Stage: filepath.Join(namespace, "stage.json")}).Load()
 	if e != nil || selected(saved, docA) == nil || selected(saved, docA).PID != second.pid {
 		t.Fatalf("durable native winner: %+v %v", saved, e)
+	}
+	beforeFirst := EndpointRecord{}
+	for _, record := range saved.Records {
+		if record.Binding.EditorIncarnation == incA {
+			beforeFirst = record
+		}
+	}
+	winner := *selected(saved, docA)
+	second.stop()
+	second.stop() // Cleanup owns the same idempotent cancellation/join.
+	observed, identityErr := (procutil.Source{}).ReadIdentity(second.pid)
+	classification := ClassifyEndpointProcess(winner.ProcessIdentity, observed, identityErr)
+	if classification != EndpointProcessDead && classification != EndpointProcessReplaced {
+		t.Fatalf("joined editor still lacks positive death evidence: %s %v", classification, identityErr)
+	}
+	if err = owner.Sweep(ctx); err != nil {
+		t.Fatal(err)
+	}
+	after, e := (EndpointStore{Namespace: namespace, Path: filepath.Join(namespace, "state.json"), Stage: filepath.Join(namespace, "stage.json")}).Load()
+	if e != nil {
+		t.Fatal(e)
+	}
+	if len(after.Records) != 1 || after.Records[0].Binding.EditorIncarnation != incA || !reflect.DeepEqual(after.Records[0], beforeFirst) {
+		t.Fatalf("sweep failed exact-incarnation collection: before %+v after %+v", saved.Records, after.Records)
+	}
+	liveIdentity, liveErr := (procutil.Source{}).ReadIdentity(first.pid)
+	if ClassifyEndpointProcess(beforeFirst.Binding.ProcessIdentity, liveIdentity, liveErr) != EndpointProcessAlive {
+		t.Fatalf("first editor was not retained alive: %v", liveErr)
+	}
+	if p := owner.Lookup(ctx, namespace, docA); p.Code != "ok" || p.EditorEndpoint != nil {
+		t.Fatalf("process collection resurrected displaced fallback: %+v", p)
+	}
+
+}
+
+func TestNvimPrivateNativeBufferTuple(t *testing.T) {
+	poisonNativeParent(t)
+	f := newPrivateNativeEditor(t, "")
+	ctx := context.Background()
+	req := RegisterRequest{Namespace: f.root, DocumentID: docA, EditorIncarnation: incA, AttachID: "1", Buffer: 1, Socket: f.socket}
+	for _, buffer := range []int{1, 2} {
+		req.Buffer = buffer
+		got, err := f.rpc.Describe(ctx, req)
+		wantFile := f.file
+		if buffer == 2 {
+			wantFile += ".second"
+		}
+		if err != nil || got == nil || got.Buffer != buffer || got.File != wantFile {
+			t.Fatalf("native buffer %d: %+v %v", buffer, got, err)
+		}
+	}
+	req.Buffer = 999
+	if got, err := f.rpc.Describe(ctx, req); err != nil || got != nil {
+		t.Fatalf("invalid real buffer: %+v %v", got, err)
 	}
 }
