@@ -86,3 +86,90 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T15:57:44-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 806 — Replacement Zellij disconnects before first wrapper startup |
+| repo | pair |
+| issue file | workshop/issues/000806-replacement-zellij-startup-disconnect.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | e814b17f15f5f194119f41b209bc35f76285e1e7..867b9bf5303d7d0175d6b4831b73c3b6803783f2 |
+| command | sdlc close --issue 806 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T15:57:44-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The implementation matches the revised diagnostic-only scope, and the relevant tests pass. BR-1 is partially corrected: tests now protect selection, cancellation ordering, counts, and repeated Close, but still permit the final snapshot before native producers finish.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: not-addressed
+    note: |
+      startup_server_log_test.go:191-225 models only the admitted-call join; the console and owned native resources remain absent. Independently moving fleet.go:454-462 immediately after the idle join, ahead of console shutdown, stopAgents and reconcileProcesses, leaves both the lifecycle test and the entire testcouch package green. The remaining family diagnostic-lifecycle-regression-coverage comprises final captures for failed fleets with the option off/on and successful fleets with it on. Enforce the rule that final capture follows every native producer and IO join: hold a later producer, emit its final marker at completion, and require all three capture paths to retain it before root removal. The successful option-off case must continue retaining no snapshots.
+```
+
+1. **Strengths**
+
+   - Reuses the confined reader, including symlink, escape, and nonregular-file refusal.
+   - Independent one-shot budgets bound both phases, including failed reads.
+   - Lifecycle tests cover all four failure/option combinations and repeated Close.
+   - Both retained native logs match their recorded hashes and contain two bounded snapshots.
+
+2. **Critical findings**
+
+   None.
+
+3. **Important findings**
+
+   BR-1 remains open as detailed above. Protect the final native-producer boundary with a controlled completion marker and an ordering mutation.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - Startup-evidence tests, full `testcouch` package, targeted launcher admission/handoff tests, and diff whitespace checks passed.
+   - Removing either capture or moving the first capture after cancellation fails the lifecycle test.
+   - Moving final capture before native teardown incorrectly passes the full package.
+   - Mutation overlays were temporary; tracked files remain unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared file-access boundary reused.
+   - **ARCH-PURE — pass:** diagnostic IO remains in the integration harness.
+   - **ARCH-PURPOSE — pass:** delivers the expressly revised retention scope without claiming causation.
+   - **ARCH-EVOLVE — pass:** no persisted-format changes.
+   - Core-concept locations match the implementation. Atlas covers the new harness option; no new user-facing surface requires a README update.
+
+7. **Plan revision recommendations**
+
+   Extend `## Revisions` → “BR-1 verification refinement” to distinguish admitted-call completion from native-producer/IO completion and require a regression that rejects final capture before the latter.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"28c3c837-99d1-4f58-9dd5-4c1e2f13e317","repository":"github.com/xianxu/pair","issue_id":"000806","recipe":"small-diff-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/0956f5876b00d904","reviewed_head":"867b9bf5303d7d0175d6b4831b73c3b6803783f2","slot":"pair:2","requested_at":"2026-10-22T22:55:47.704524Z"},"phase":"finished","pid":95032,"started_at":"2026-10-22T22:55:47.797881Z","finished_at":"2026-10-22T22:57:43.963972Z","session_id":"01a165d3-e55f-7700-ae2f-aae63d5067e1","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.84084375s
+head: "867b9bf5303d7d0175d6b4831b73c3b6803783f2"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000411

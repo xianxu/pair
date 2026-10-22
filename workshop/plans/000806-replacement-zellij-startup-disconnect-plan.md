@@ -105,3 +105,7 @@ Authenticated ops:0 delivery7e2c8fdd-2dc2-4419-96e1-34da5d1eb6df supersedes “C
 ### 2026-10-22 — BR-1 verification refinement
 
 Add real Fleet.Close lifecycle coverage for failed/successful and option off/on, pre-cancellation capture, producer-join-before-final capture, root removal and repeated close. A held admitted-producer marker and per-phase removal mutations verify the call-site contract; no production behavior change. Requeue the required recorded check on this final test source; retain earlier native controls without retries.
+
+### 2026-10-22 — Distinguish admitted-call and native IO joins
+
+BR-1 round2 demonstrated that admitted-call completion alone does not pin the later native teardown boundary. Extend the lifecycle regression with a bounded private test-binary producer, controlled TERM-final-marker output, stdout EOF and sole Wait; require final captures after that done channel in every selected path. An early-final mutation must fail. This changes tests only; no further fleet-native acceptance or production mechanism.

@@ -2668,3 +2668,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
   when a collector method changes, even when the effect remains read-only.
 
 - #806 BR-1: Diagnostic reader tests do not prove lifecycle retention. Test the real cleanup caller across failure/success and option combinations, with controlled cancellation/join boundaries, root removal and repeated close; remove each capture call in a mutation check so missing wiring cannot remain green.
+
+- #806 BR-1 round2: Distinguish every teardown join in the regression: admitted requests joining does not prove native child/IO completion. Emit a final marker from the later producer and reject a mutation moving diagnostics across that specific join.

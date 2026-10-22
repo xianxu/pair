@@ -1,10 +1,14 @@
 package testcouch
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -12,6 +16,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/procutil"
 )
 
 func serverLogFixture(t *testing.T) (*Fleet, string) {
@@ -190,6 +196,7 @@ func TestStartupEvidenceServerLogCloseLifecycle(t *testing.T) {
 				f.RunID = "unit-server-log-close-" + filepath.Base(f.Roots.Root)
 				f.idle = make(chan struct{})
 				f.model = ReduceRun(OwnedRun{}, RunEvent{Kind: "ready"})
+				f.console = startupLogProducer(t, path)
 				canceled := false
 				f.cancel = func() {
 					before := strings.Join(log.logs, "\n")
@@ -221,7 +228,12 @@ func TestStartupEvidenceServerLogCloseLifecycle(t *testing.T) {
 						default:
 							t.Error("final capture preceded producer join")
 						}
-						if !strings.Contains(line, "after-join-marker") {
+						select {
+						case <-f.console.done:
+						default:
+							t.Error("final capture preceded native producer and IO join")
+						}
+						if !strings.Contains(line, "after-native-join-marker") {
 							t.Error("final producer bytes were not retained")
 						}
 					}
@@ -231,6 +243,12 @@ func TestStartupEvidenceServerLogCloseLifecycle(t *testing.T) {
 				}
 				if err := f.AssertCleaned(); err != nil {
 					t.Fatal(err)
+				}
+				f.console.mu.Lock()
+				producerErr := f.console.err
+				f.console.mu.Unlock()
+				if producerErr != nil {
+					t.Fatalf("joined producer: %v", producerErr)
 				}
 				if _, err := os.Stat(f.Roots.Root); !os.IsNotExist(err) {
 					t.Fatalf("root not removed: %v", err)
@@ -255,4 +273,69 @@ func TestStartupEvidenceServerLogCloseLifecycle(t *testing.T) {
 			})
 		}
 	}
+}
+
+// This child owns no terminal or Zellij. Its final write occurs only after
+// Fleet.Close signals the exact observed direct-child generation.
+func TestStartupEvidenceServerLogCloseProducer(t *testing.T) {
+	path := os.Getenv("PAIR_TESTCOUCH_LOG_PRODUCER")
+	if path == "" {
+		return
+	}
+	interrupts := make(chan os.Signal, 1)
+	signal.Notify(interrupts, syscall.SIGTERM)
+	defer signal.Stop(interrupts)
+	fmt.Println("producer-ready")
+	select {
+	case <-interrupts:
+		if err := os.WriteFile(path, []byte("after-native-join-marker"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(15 * time.Second):
+		t.Fatal("producer was not stopped")
+	}
+}
+
+func startupLogProducer(t *testing.T, path string) *terminalProcess {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+	t.Cleanup(cancel)
+	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestStartupEvidenceServerLogCloseProducer$", "-test.count=1")
+	cmd.Env = []string{"PAIR_TESTCOUCH_LOG_PRODUCER=" + path}
+	output, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	p := &terminalProcess{cmd: cmd, done: make(chan struct{}), generation: procutil.Identity(strconv.Itoa(cmd.Process.Pid))}
+	ready := make(chan string, 1)
+	ioDone := make(chan struct{})
+	go func() {
+		defer close(ioDone)
+		reader := bufio.NewReader(output)
+		line, _ := reader.ReadString('\n')
+		ready <- line
+		// Drain through EOF before Wait releases the pipe.
+		_, _ = io.Copy(io.Discard, reader)
+	}()
+	go func() {
+		<-ioDone
+		err := cmd.Wait()
+		p.mu.Lock()
+		p.err = err
+		p.mu.Unlock()
+		close(p.done)
+	}()
+	t.Cleanup(func() { cancel(); <-p.done })
+	select {
+	case line := <-ready:
+		if line != "producer-ready\n" || p.generation == "" {
+			t.Fatalf("producer readiness=%q generation=%q", line, p.generation)
+		}
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	return p
 }
