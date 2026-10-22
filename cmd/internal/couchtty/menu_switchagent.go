@@ -217,7 +217,12 @@ func renderSwitchAgentMenu(frame MenuFrame, width, height int) []string {
 		if frame.SelectedItem == "parameters" {
 			mark = "▸ "
 		}
-		lines = []string{"switch coding agent", fmt.Sprintf("%s → %s · fresh conversation", source, frame.Agent)}
+		title, mode, action := switchAgentFormTitle(frame), "fresh conversation", "Switch"
+		if frame.SwitchPrepared != nil && frame.SwitchPrepared.Intent == couchcore.SwitchIntentRestartPreferResume {
+			mode = "restart"
+			action = "Restart"
+		}
+		lines = []string{title, fmt.Sprintf("%s → %s · %s", source, frame.Agent, mode)}
 		if p := frame.SwitchPrepared; p != nil {
 			switch {
 			case p.Conflict:
@@ -239,7 +244,7 @@ func renderSwitchAgentMenu(frame MenuFrame, width, height int) []string {
 			}
 			return "  " + label
 		}
-		lines = append(lines, button("switch", "Switch")+" · "+button("interrupt-switch", "Interrupt then switch"), button("force-switch", "Force switch")+" · "+button("cancel", "Cancel"))
+		lines = append(lines, button("switch", action)+" · "+button("interrupt-switch", "Interrupt then switch"), button("force-switch", "Force switch")+" · "+button("cancel", "Cancel"))
 		if frame.PreviewPending != 0 {
 			lines = append(lines, "resolving startup parameters…")
 		}
@@ -346,4 +351,14 @@ func forceSwitchFileNotice(count *int) string {
 		return "Uncommitted file count is unknown; on-disk files stay as they are for the new agent."
 	}
 	return fmt.Sprintf("%d uncommitted files stay as they are for the new agent", *count)
+}
+
+func switchAgentFormTitle(frame MenuFrame) string {
+	if frame.SwitchStage == 2 {
+		return "Force switch"
+	}
+	if frame.SwitchPrepared != nil && frame.SwitchPrepared.Intent == couchcore.SwitchIntentRestartPreferResume {
+		return "Restart with new parameters"
+	}
+	return "switch coding agent"
 }

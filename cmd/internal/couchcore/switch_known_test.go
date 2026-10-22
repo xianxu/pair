@@ -12,13 +12,28 @@ import (
 	"testing"
 )
 
-func TestSwitchAgentRejectsSameAgent(t *testing.T) {
-	env := newTestEnv(t, "/repo")
-	source := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
-	args := []string{}
-	_, err := env.Couch.PrepareAgentSwitch(context.Background(), source.Address, "claude", &args)
-	if err == nil || !strings.Contains(err.Error(), "different agent") {
-		t.Fatalf("same agent admitted: %v", err)
+func TestSwitchAgentModelsSameAgentRestartWithoutSilentFreshLaunch(t *testing.T) {
+	for _, agent := range []string{"claude", "codex"} {
+		t.Run(agent, func(t *testing.T) {
+			env := newTestEnv(t, "/repo")
+			env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return true, nil }
+			source := createParkedThreadInCouch(t, env, LaunchProfile{Agent: agent, Argv: []string{}})
+			args := []string{}
+			p, err := env.Couch.PrepareAgentSwitch(context.Background(), source.Address, agent, &args)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if p.Intent != SwitchIntentRestartPreferResume {
+				t.Fatalf("same agent intent=%s", p.Intent)
+			}
+			_, err = env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{Address: source.Address, Agent: agent, Argv: args, AcceptedFingerprint: p.Fingerprint})
+			if err == nil || !strings.Contains(err.Error(), "native restart") {
+				t.Fatalf("restart silently became fresh: %v", err)
+			}
+			if len(env.Runner.Ops) != 0 {
+				t.Fatal("pending native restart launched fresh")
+			}
+		})
 	}
 }
 

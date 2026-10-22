@@ -37,7 +37,25 @@ type SwitchAgentRequest struct {
 	AcceptedFingerprint string
 }
 
+// AgentSwitchIntent distinguishes replacement from edited native restart.
+type AgentSwitchIntent string
+
+const (
+	SwitchIntentFresh               AgentSwitchIntent = "switch-fresh"
+	SwitchIntentRestartPreferResume AgentSwitchIntent = "restart-prefer-resume"
+)
+
+// ResolveAgentSwitchIntent is independent of native availability; only M3's
+// evidence decision may authorize a fresh fallback for a same-agent restart.
+func ResolveAgentSwitchIntent(source, target string) AgentSwitchIntent {
+	if source != "" && source == target {
+		return SwitchIntentRestartPreferResume
+	}
+	return SwitchIntentFresh
+}
+
 type PreparedAgentSwitch struct {
+	Intent         AgentSwitchIntent      `json:"intent"`
 	Force          *AgentSwitchForceOffer `json:"-"`
 	Configured     bool                   `json:"configured"`
 	Conflict       bool                   `json:"conflict,omitempty"`
@@ -216,9 +234,6 @@ func (c *Couch) prepareAgentSwitch(ctx context.Context, address ThreadAddress, a
 	if err != nil {
 		return PreparedAgentSwitch{}, err
 	}
-	if record.LatestLaunchProfile != nil && record.LatestLaunchProfile.Agent == agent {
-		return PreparedAgentSwitch{}, errors.New("switch-agent: select a different agent")
-	}
 
 	if err := continuationGuard(record); err != nil {
 		return PreparedAgentSwitch{}, c.withParkRecoveryAdvice(ctx, record, err)
@@ -332,7 +347,9 @@ func (c *Couch) prepareAgentSwitch(ctx context.Context, address ThreadAddress, a
 	if record.LatestLaunchProfile != nil {
 		source = record.LatestLaunchProfile.Agent
 	}
+	intent := ResolveAgentSwitchIntent(source, agent)
 	evidence := struct {
+		Intent             AgentSwitchIntent
 		Record             ThreadRecord
 		Profile            LaunchProfile
 		PreferenceRevision uint64
@@ -341,14 +358,14 @@ func (c *Couch) prepareAgentSwitch(ctx context.Context, address ThreadAddress, a
 		Conflict           bool
 		SourceState        ActionableThreadState
 		SourceReason       ThreadReason
-	}{record, resolution.Profile, own.Revision, repoIdentity, borrowed, own.Conflict, state, reason}
+	}{intent, record, resolution.Profile, own.Revision, repoIdentity, borrowed, own.Conflict, state, reason}
 	raw, err := json.Marshal(evidence)
 	if err != nil {
 		return PreparedAgentSwitch{}, err
 	}
 	digest := sha256.Sum256(raw)
 	return PreparedAgentSwitch{
-		Address: address, SourceAgent: source, WorkingPath: record.WorkingPath, SourceRevision: record.Revision,
+		Intent: intent, Address: address, SourceAgent: source, WorkingPath: record.WorkingPath, SourceRevision: record.Revision,
 		Profile: resolution.Profile, Fingerprint: hex.EncodeToString(digest[:]), record: persisted, repoIdentity: repoIdentity,
 		Configured: own.Found, Conflict: own.Conflict, Borrowed: borrowed,
 		state: state, sourceReason: reason,
@@ -404,6 +421,9 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (_ 
 	}
 	if prepared.Fingerprint != request.AcceptedFingerprint {
 		return result, ErrSwitchResolutionChanged
+	}
+	if prepared.Intent == SwitchIntentRestartPreferResume {
+		return result, errors.New("switch-agent: native restart with edited parameters is not available yet")
 	}
 	if request.Force != nil {
 		if request.InterruptFirst {

@@ -380,3 +380,17 @@ func TestSwitchAgentCooperativeActionBindsSubmittedIntent(t *testing.T) {
 		}
 	}
 }
+
+func TestSwitchAgentSameAgentIntentShowsRestart(t *testing.T) {
+	for _, agent := range []string{"claude", "codex"} {
+		t.Run(agent, func(t *testing.T) {
+			p := couchcore.PreparedAgentSwitch{Address: menuAddress("couch-one"), SourceAgent: agent, Intent: couchcore.SwitchIntentRestartPreferResume, Profile: couchcore.LaunchProfile{Agent: agent, Argv: []string{}}, Fingerprint: "restart"}
+			state := NewMenuState(menuThreads(), p.Address)
+			appendMenuFrame(&state, MenuFrame{Kind: MenuFrameSwitchAgent, Thread: p.Address, Agent: agent, SwitchStage: 1, SwitchPrepared: &p, SelectedItem: "switch"})
+			body := RenderMenuView(state, 80, 10, time.Now(), false).Body
+			if !strings.Contains(body, "Restart with new parameters") || strings.Contains(body, "fresh conversation") {
+				t.Fatalf("same-agent intent presented as fresh: %s", body)
+			}
+		})
+	}
+}

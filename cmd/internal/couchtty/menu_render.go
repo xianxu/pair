@@ -293,7 +293,7 @@ func menuBreadcrumb(state MenuState, frame MenuFrame) string {
 		return "threads"
 	}
 	if frame.Kind == MenuFrameSwitchAgent {
-		return "couch › switch coding agent"
+		return "couch › " + switchAgentFormTitle(frame)
 	}
 	if frame.Kind == MenuFrameStart {
 		return "start thread"
