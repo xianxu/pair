@@ -388,13 +388,10 @@ func TestSubmissionPreviewExpiredPublicationCannotBecomeShown(t *testing.T) {
 		go func() { defer close(done); watchSubmissionPreview(m, ctx, f) }()
 		synctest.Wait()
 		expired := controlledPreviewCall(t, f)
-		time.Sleep(5 * time.Second) // Advance the unchanged production deadline in fake time.
+		// Blocking on the owned cancellation event lets the synctest clock
+		// advance to the production deadline without guessing its duration.
+		<-expired.canceled
 		synctest.Wait()
-		select {
-		case <-expired.canceled:
-		default:
-			t.Fatal("publication did not reach its deadline")
-		}
 		close(expired.release) // The transport replies success after its deadline.
 		synctest.Wait()
 		m.mu.Lock()

@@ -2613,3 +2613,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #753 ACK recovery: a successful idempotent durability confirmation must invalidate derived delivery caches even if the disposition was already visible. A failed acknowledgment may publish bytes before confirmation; compare against observed confirmation, not only the prior enum.
 
 - #753 BR-7: strict persisted evidence has two independent dimensions: a present member's type and a required member's presence. Inventory both explicitly, then delete every required field in regression tests, including fields whose legitimate zero/false/empty values pass semantic validation. Preserve intentional legacy omissions and nullable containers separately.
+
+- #753 recorded suite: run the existing repository-wide godoc/catalog guards after extracting declarations or adding concurrency regressions. Keep a function's godoc adjacent when inserting constants; inside synctest, block on the owned deadline/cancellation event rather than a fixed virtual sleep. Existing structural guards enforce both classes; add no quarantine or duplicate rule.

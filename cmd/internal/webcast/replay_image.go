@@ -171,10 +171,10 @@ func (h *headless) openReady(ctx context.Context, url, api string) error {
 
 func (h *headless) close() { _ = h.closeJoined() }
 
-// closeJoined retains signal authority only until the unreaped leader is
-// joined. Afterwards a numeric process group is observation, never authority.
 const replayBrowserCleanupBudget = 5 * time.Second
 
+// closeJoined retains signal authority only until the unreaped leader is
+// joined. Afterwards a numeric process group is observation, never authority.
 func (h *headless) closeJoined() error {
 	ctx, cancel := context.WithTimeout(context.Background(), replayBrowserCleanupBudget)
 	defer cancel()
