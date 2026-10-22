@@ -40,7 +40,8 @@ which of the three busy conditions fired; the refusal should name the one that d
 - A forced pre-paste refusal at the active delivery head produces exactly one local wrap-events diagnostic after 15 seconds, containing its refused screen and precise blocking condition; no early or repeated capture.
 - The complete encoded diagnostic is at most 64 KiB; any truncation is explicit. Encoding and writer IO occur outside admission/mailbox locks.
 - Tests show diagnostic failure leaves receipts/input safety unchanged, for Claude and Codex, including Claude batch preparation.
-- Recognition changes are tracked in an unclaimed follow-up waiting for the first real failing capture.
+- The capture includes the latest resize attempt/completion timing, requested geometry, changed flag and outcome, coherently copied with the refused screen generation. A visible Claude pane is exercised through one/two/one tab-bar rows.
+- Recognition changes are tracked in an unclaimed follow-up waiting for the first real failing capture or demonstrated native transition.
 
 ## Plan
 
@@ -51,7 +52,7 @@ Implementation: [durable plan](../plans/000791-couch-admission-plan.md), final d
 - [x] Lock/failure/cap/growth/personality tests, atlas and normal source inventory.
 - [x] Run targeted capture/preflight checks and submit the recorded affected check on the pushed implementation.
 
-Acceptance remains pending the full package race result, recorded affected pass, SDLC close review and normal landing line; those gate-owned transitions are tracked in the Log, not claimed complete by this implementation checklist.
+The initial diagnostic implementation has a SHIP close review; recorded affected pass and landing remain pending. The approved resize addition below requires fresh implementation verification and boundary review before landing.
 
 ## Estimate
 
@@ -151,3 +152,9 @@ The final Plan row now records targeted-check execution and recorded-check submi
 - Hub notified with PR546 and SHIP/pending-check state. Rollout note: capture is in pair-wrap, so existing wrappers need the normal authorized refresh/relaunch after landing; no live slot was driven/staged/restarted here. #810 remains unclaimed awaiting first actual failed-capture evidence, and #737 remains parked/unstaged.
 
 - Authenticated TL dispatch988fcfe0-745c-418c-9482-00b3eb887790 authorizes starting independent pair#807 from main while this exact queued check remains alive. No queue priority requested/granted. Merge runner has ended with readiness refusal (CI/local check pending); CI subsequently all passed including native conformance3m55s. Required affected lease-402578803 remains queued, lastposition11. At every natural pause on #807 check retained exec session55235; once it passes, preserve #807, switch back to this issue branch and re-run sdlc merge --yes to land #791 first. This is not a continuation/restart; current agent/check remain alive.
+
+
+### 2026-10-22 13:31 — resize lead and approved diagnostic addition
+
+- Authenticated TL lead f0f48a53-7be6-4572-bbd6-080b43fac429: operator links a current stall to multiline tab-bar resize, always the visible slot. Add visible Claude pane replay through one/two/one bar rows and latest resize timing to capture. Approval d06e1506-63a0-4335-85b4-96087a40510b accepts one fixed-size latest-attempt/completion/geometry/changed/outcome observation under the existing terminal mutex, copied with screen generation; no policy or IO-under-lock change. Durable-plan final revision is the implementation contract. #807 is independently checkpointed/pushed and paused, not stacked.
+- This addition supersedes the previous final-head acceptance claim; initial SHIP and all old check receipts remain historical. Do not land until the resize investigation is reported and updated code has fresh verification/review. #810 may proceed from a demonstrated failing native transition rather than waiting for the diagnostic to fire; no symptom reproduction claimed yet. Existing queued check remains alive pending a measured need to replace its code head.

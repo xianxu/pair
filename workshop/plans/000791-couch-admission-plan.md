@@ -186,3 +186,40 @@ The active concepts materialized as PeerWaitCaptureState/advancePeerWaitCapture 
 ### 2026-10-22 — BR-1 fitting-screen preservation
 
 The row encoder now budgets exact escaped JSON bytes incrementally rather than reserving worst-case sixfold expansion for every raw byte. It bounds raw grapheme size before escaping and includes each row envelope/separator and the complete record/newline. TestPeerWaitCaptureFittingStyledRow reproduces the prior omission of a37,009-byte styled row, then passes with the correction. Preserve the existing full-screen-when-it-fits contract; no new mechanism or recognition policy. BR-2 host tracker proof is in the issue Log and dispute ledger.
+
+
+### 2026-10-22 13:31 — approved resize evidence and visible-pane transition
+
+TL approval d06e1506-63a0-4335-85b4-96087a40510b authorizes this diagnostic addition before landing. The operator observed a stall after tab-bar wrapping, always in the viewed slot. This is a lead, not a reproduced cause. The previous diagnostic-only architecture remains; recognition repair stays in #810 and can begin only after an actual failing transition is demonstrated and reported.
+
+| Name | Lives in | Status |
+|---|---|---|
+| terminalResizeObservation | cmd/internal/wrapcmd/terminal_model.go | new pure value |
+| PeerWaitEvidence | cmd/internal/wrapcmd/peer_wait_capture.go | modified; latest resize observation |
+
+| Integration point | Lives in | Status | Wraps |
+|---|---|---|---|
+| terminalModel.PrepareResize / terminalResize.resolve | cmd/internal/wrapcmd/terminal_model.go | modified | existing resize transaction and clock |
+| terminalModel.SnapshotDiagnostic | cmd/internal/wrapcmd/terminal_model.go | new | one terminal mutex for copied screen, generation and resize evidence |
+| dispatchPeer / selectPeerWaitCaptureLocked | cmd/internal/wrapcmd/peer_delivery.go; peer_wait_capture.go | modified | carry the decision's coherent diagnostic snapshot |
+
+Keep one fixed-size observation: attempt time, completion time, requested cols/rows, changed flag and outcome (prepared/committed/aborted). A valid PrepareResize records the attempt under m.mu; resolution updates completion/outcome under the same mutex. No-op resize records its event without invalidating existing screen evidence. A rejected invalid size/closed call cannot overwrite an admitted resize observation. SnapshotDiagnostic copies the observation, cells and generation under m.mu. SnapshotGeneration and Snapshot retain their existing API and recognition behavior. No new worker, file family, timer or per-event history; existing diagnostic retention owns the additive JSON evidence. Each resize is O(1) metadata work; snapshot remains O(cells) once per capture.
+
+Actions: inspect diagnostic; wait for repaint; request authorized refresh.
+
+| Internal state / failure mode | Visible state | Recovery action | Possible loss |
+|---|---|---|---|
+| No admitted resize observed | no latest resize | inspect diagnostic | earlier wrapper history unavailable |
+| Prepared, native PTY update outstanding | prepared with attempt time; incomplete screen | wait for repaint | no input admitted from incomplete screen |
+| Commit after changed geometry, cursor not repainted | committed times/geometry; precise hidden-cursor refusal | wait for repaint | queued delivery waits |
+| Abort after failed native resize | aborted with attempt/completion times | request authorized refresh | geometry uncertain; no input authority added |
+| Same-size commit | committed, changed=false; existing screen evidence retained | inspect diagnostic | no additional loss |
+| Optional diagnostic disabled/fails | existing receipt wait remains | inspect diagnostic | screen/resize evidence unavailable |
+
+Tasks (same single close boundary):
+
+- [ ] Replay visible-pane one-row/two-row/one-row geometry using the real status-bar planner and retained native Claude composer/chrome; exercise in-flight resize, repaint and duplicate SIGWINCH, ordinary and batch admission. Label modeled transitions separately from captured native resize/repaint sequences. Inspect retained native events for an actual failed transition; report any reproduction to TL immediately, before landing.
+- [ ] Write a behavioral red asserting the emitted forced-refusal record contains the most recent attempt/completion times and requested geometry/outcome, including no-op and aborted cases. Add same-generation coherence assertions under concurrent resize/feed/snapshot.
+- [ ] Implement fixed-size resize observation and coherent SnapshotDiagnostic, preserving SnapshotGeneration's API and all existing admission decisions. Carry the exact decision metadata through dispatch; early guards obtain a coherent current observation. Tests assert no IO under input/mailbox locks and whole-record <=64KiB with the extra fields.
+- [ ] Risky-function strategy: PrepareResize/resolve generated sequences cover changed/no-op/abort/retry/invalid/closed and idempotent resolution; independent invariants pin completion ordering and screen invalidation. SnapshotDiagnostic concurrent stress pins screen dimensions/generation and the matching latest transaction; encoder fuzz continues valid-JSON/explicit-truncation/full-record bounds. Count 8/16 repeated resize/capture heads to retain constant metadata and once/head diagnostic work.
+- [ ] Run targeted race and complete changed packages plus preflights; update atlas evidence fields. If production code changes, cancel only the exact obsolete queued check through local-check, push and submit the replacement recorded check. Retain previous successful verification as history, not final-head proof. Re-close through SDLC and land only after the recorded pass and report of the resize investigation.
