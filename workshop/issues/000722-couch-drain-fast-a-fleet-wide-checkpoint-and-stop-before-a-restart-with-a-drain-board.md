@@ -258,6 +258,12 @@ On clean pushedf39a3ae7bbf0933ebb1a2db038b803479e7678d7, make test-drain-accepta
 
 That one authorized focused invocation exited1 in32.943s on the exact same clean source. All three Codex actors registered, corrected notices/work/ack were submitted and independently accepted, then the consumer failed at drain_acceptance_test.go261: the preceding80/120 badge polls succeeded, but a fresh Screen read for chip coordinates saw a blank footer. The consumer checked one mutable observation and used another. Retained full native-codex-f39a3ae7-frame-failed.log/json, SHA2565012f1b53bc7288c62d5ed2adaced41c73ee4a91e7bf04cc43754f995e0557c7. Exact cleanup passed. This is a different failure, not a #773 startup recurrence or a native acceptance pass. No suite queued, timeout raised, waiver, stage or live effect.
 
+### 2026-10-22 — snapshot consumer regression RED/GREEN
+
+Extracted the prior poll-then-read pattern into the test consumer helper and exercised a controlled source that returns a valid frame once, then a blank redraw. TestDrainAcceptanceScreenKeepsValidatedSnapshot failed with frame empty, reads2, errnil, reproducing the native failure deterministically without a fleet. Corrected waitDrainAcceptanceScreen to read once per poll, retain the matching immutable string and return that exact observation. Both80/120 badge evidence and chip coordinates now derive from it; selected-worker and normal quit-confirmation success captures use the same helper instead of later reads. Fresh Screen reads remain only inside checks or explicit failure diagnostics, not post-validation success data. Existing polling cadence,90s runtime and4m outer timeout unchanged; no product changes.
+
+All TestDrainAcceptance tests PASS0.188s, including exact graceful body, changing-frame regression and renderer/status negative controls. Re-audited unchanged native repository-build inputs and regenerated the single reader certificate, make test-affected-inventory PASS; diff whitespace clean. Keep both prior native failures retained separately. Next: commit/push, refresh full Claude/Codex native matrix, then required suite and re-close; no stage/live permission or acceptance claimed.
+
 ## Revisions
 
 ### 2026-10-19 — authenticated acknowledgement and shared queue ownership

@@ -242,21 +242,23 @@ func TestDisposableCouchDrainFlags(t *testing.T) {
 			send(1, 0, drainAcceptanceAck)
 			// Native Pair splits this width between panes; keep the agent fixture
 			// above its 20-column minimum. Pure renderer tests cover widths 1–139.
+			var frame string
 			for _, cols := range []uint16{80, 120} {
 				if err := fleet.Resize(32, cols); err != nil {
 					t.Fatal(err)
 				}
-				if err := waitFleet(ctx, func() (bool, error) {
-					_, err := drainAcceptanceBadge(fleet.Screen(), int(cols))
-					return err == nil, nil
-				}); err != nil {
+				frame, err = waitDrainAcceptanceScreen(ctx, fleet.Screen, func(screen string) bool {
+					_, err := drainAcceptanceBadge(screen, int(cols))
+					return err == nil
+				})
+				if err != nil {
 					t.Fatalf("current badge at width%d: %v; screen=%s", cols, err, fleet.Screen())
 				}
-				t.Logf("drain current frame width%d:\n%s", cols, fleet.Screen())
+				t.Logf("drain current frame width%d:\n%s", cols, frame)
 			}
 			// Click the ordinary worker-1 chip in current cell coordinates. The shared
 			// renderer compresses subsequent same-repo chips to :N; no byte offsets.
-			row, err := drainAcceptanceBadge(fleet.Screen(), 120)
+			row, err := drainAcceptanceBadge(frame, 120)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -268,13 +270,14 @@ func TestDisposableCouchDrainFlags(t *testing.T) {
 			if err := fleet.Input([]byte(fmt.Sprintf("\x1b[<0;%d;32M\x1b[<0;%d;32m", col, col))); err != nil {
 				t.Fatal(err)
 			}
-			if err := waitFleet(ctx, func() (bool, error) {
-				row, err := drainAcceptanceBadge(fleet.Screen(), 120)
-				return err == nil && (strings.Contains(row, "[:1") || strings.Contains(row, "[fixture:1")), nil
-			}); err != nil {
+			frame, err = waitDrainAcceptanceScreen(ctx, fleet.Screen, func(screen string) bool {
+				row, err := drainAcceptanceBadge(screen, 120)
+				return err == nil && (strings.Contains(row, "[:1") || strings.Contains(row, "[fixture:1"))
+			})
+			if err != nil {
 				t.Fatalf("ordinary flagged worker selection: %v; screen=%s", err, fleet.Screen())
 			}
-			t.Logf("drain ordinary selected worker frame:\n%s", fleet.Screen())
+			t.Logf("drain ordinary selected worker frame:\n%s", frame)
 			result = response(0, "--undrain", "--json")
 			flags(result, 0)
 			notices(result, drainAcceptanceLift)
@@ -302,13 +305,13 @@ func TestDisposableCouchDrainFlags(t *testing.T) {
 			if err := fleet.Input([]byte("\x1b[120;3u")); err != nil {
 				t.Fatal(err)
 			}
-			if err := waitFleet(ctx, func() (bool, error) {
-				screen := fleet.Screen()
-				return strings.Contains(screen, "threads › leave couch") && strings.Contains(screen, "cancel") && strings.Contains(screen, "parking"), nil
-			}); err != nil {
+			frame, err = waitDrainAcceptanceScreen(ctx, fleet.Screen, func(screen string) bool {
+				return strings.Contains(screen, "threads › leave couch") && strings.Contains(screen, "cancel") && strings.Contains(screen, "parking")
+			})
+			if err != nil {
 				t.Fatalf("normal quit confirmation while flagged: %v; screen=%s", err, fleet.Screen())
 			}
-			t.Logf("drain normal quit confirmation (never confirmed):\n%s", fleet.Screen())
+			t.Logf("drain normal quit confirmation (never confirmed):\n%s", frame)
 			if err := fleet.Input([]byte("\x1b[27u")); err != nil {
 				t.Fatal(err)
 			}
@@ -342,6 +345,36 @@ func TestDisposableCouchDrainFlags(t *testing.T) {
 		}) {
 			break
 		}
+	}
+}
+
+// waitDrainAcceptanceScreen returns the screen that satisfied the predicate.
+func waitDrainAcceptanceScreen(ctx context.Context, read func() string, accept func(string) bool) (string, error) {
+	var matched string
+	err := waitFleet(ctx, func() (bool, error) {
+		screen := read()
+		if !accept(screen) {
+			return false, nil
+		}
+		matched = screen
+		return true, nil
+	})
+	return matched, err
+}
+
+func TestDrainAcceptanceScreenKeepsValidatedSnapshot(t *testing.T) {
+	const valid = "validated frame with badge and worker chip"
+	reads := 0
+	read := func() string {
+		reads++
+		if reads == 1 {
+			return valid
+		}
+		return ""
+	}
+	got, err := waitDrainAcceptanceScreen(t.Context(), read, func(screen string) bool { return screen == valid })
+	if err != nil || got != valid || reads != 1 {
+		t.Fatalf("validated frame replaced by redraw: frame=%q reads=%d err=%v", got, reads, err)
 	}
 }
 
