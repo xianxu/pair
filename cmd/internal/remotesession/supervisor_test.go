@@ -247,3 +247,34 @@ func TestSupervisorCleanupErrorNeverResets(t *testing.T) {
 		t.Fatal("cleanup did not attempt handle close")
 	}
 }
+
+func TestSupervisorKilledOpeningRetainsCleanupFailure(t *testing.T) {
+	failure := errors.New("connector cleanup uncertain")
+	started := make(chan struct{}, 1)
+	release := make(chan struct{})
+	tunnel := &broadcast.FakeTunnel{OpenStarted: started, OpenRelease: release, IgnoreCancel: true, CloseError: failure}
+	host, err := broadcast.NewProtectedHost(&broadcast.FakeProtectedTunnel{FakeTunnel: tunnel})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, reset, err := NewSupervisor(SupervisorConfig{Namespace: t.TempDir(), Origin: "https://remote.example.com", Host: host})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.On(); err != nil {
+		t.Fatal(err)
+	}
+	<-started
+	s.Kill()
+	close(release)
+	if err := s.Join(t.Context()); !errors.Is(err, failure) {
+		t.Errorf("lost canceled-opening cleanup failure: %v", err)
+	}
+	status := s.Snapshot()
+	if status.Status != "blocked" || status.CanReset || reset() == nil || s.On() == nil || s.ConsoleLink() != "" {
+		t.Errorf("cleanup uncertainty permitted authority: %+v", status)
+	}
+	if got := tunnel.Stats(); got.Opens != 1 || got.Closes != 0 || got.DoubleCloses != 0 {
+		t.Errorf("unexpected connector cleanup: %+v", got)
+	}
+}

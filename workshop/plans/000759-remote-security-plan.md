@@ -380,3 +380,10 @@ TL616b174f resumed M2 after #776 landed. Operator retraction4d0da020 keeps the o
 ### 2026-10-21 — M2 recovery projection correction (BR-7)
 
 Review round2 disposed socket-budget/help BR-5/6 with independent RED controls, then identified failure-recovery-visibility: busy transport recovery was collapsed internally and operator surfaces dropped safe Detail. Restore the existing explicit recovery contract across configuration, admission/startup, persistence and cleanup projections. CLI may print secret-free status detail along with action/status; it still never prints the link/passcode or arbitrary connector output. Console notices retain the same classified detail plus host-key recovery. Busy still revokes and joins under the existing latch; no new refusal, reset authority or lifecycle state. Document operations remain M3.
+
+
+### 2026-10-21 — BR-8 transport cleanup confirmation for every opening outcome
+
+Review round3 disposed BR-7 but found a Critical missing outcome: killed opening can return no mount after failed connector cleanup, and the supervisor incorrectly inferred successful teardown. TLbe526c06 approved requiring teardown evidence independently of mount presence and joining the same attempt when cancellation meets an already-closing owner. Existing blocked state and reset refusal remain the recovery; no new remote state or reset authority.
+
+Implementation retains the Host's cleanup error through the explicit broadcast.ErrProtectedCleanup classification, including subsequent calls on an uncertain Host. An epoch stores that outcome before its started acknowledgment; its cleanup join consumes it even when no Mount was returned. Ordinary busy remains separately classified. The shared unwanted-owner rule returns the existing close attempt instead of returning early. Lifecycle qualification includes canceled held-open/failed-close, failed-open/listener-close failure and held-close cancellation; tests assert Join error, blocked status, reset/on refusal and one exact owned close attempt. No raw connector error reaches operator status.

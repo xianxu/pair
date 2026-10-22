@@ -236,11 +236,75 @@ func TestProtectedCancelledOpenPreservesCleanupFailure(t *testing.T) {
 	<-started
 	cancel()
 	close(release)
-	if err := <-done; !errors.Is(err, failure) || !errors.Is(err, context.Canceled) {
+	if err := <-done; !errors.Is(err, failure) || !errors.Is(err, context.Canceled) || !errors.Is(err, ErrProtectedCleanup) {
 		t.Fatalf("lost cleanup failure: %v", err)
 	}
 	if _, err := h.MountProtected(context.Background(), tokenHandler("next")); err == nil {
 		t.Fatal("reopened after failed disposal")
+	}
+}
+
+type failedProtectedOpening struct{ listener *privateListener }
+
+func (f failedProtectedOpening) Listen() (net.Listener, error) { return f.listener, nil }
+func (failedProtectedOpening) Open(context.Context, net.Listener) (Handle, error) {
+	return nil, ErrTunnelBusy
+}
+
+func TestProtectedFailedOpeningRetainsListenerCleanupFailure(t *testing.T) {
+	l, err := listenProtected(shortDir(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	failure := errors.New("listener cleanup uncertain")
+	pl := l.(*privateListener)
+	pl.Listener = &closeErrorListener{Listener: pl.Listener, failure: failure}
+	// Exercise the Host's failed-opening IO seam, including server teardown,
+	// with a listener whose cached cleanup error survives repeated closes.
+	h := NewHost(HostConfig{Tunnel: failedProtectedOpening{pl}})
+	h.protected = true
+	if mt, err := h.MountProtected(t.Context(), tokenHandler("x")); mt != nil || !errors.Is(err, failure) || !errors.Is(err, ErrProtectedCleanup) {
+		t.Fatalf("failed opening lost cleanup: mount=%v err=%v", mt, err)
+	}
+	if _, err := h.MountProtected(t.Context(), tokenHandler("next")); !errors.Is(err, ErrProtectedCleanup) || errors.Is(err, ErrTunnelBusy) {
+		t.Fatalf("cleanup uncertainty reported as retryable busy: %v", err)
+	}
+}
+
+func TestProtectedCancellationJoinsAlreadyClosingAttempt(t *testing.T) {
+	started := make(chan struct{}, 1)
+	release := make(chan struct{})
+	f := &FakeProtectedTunnel{FakeTunnel: &FakeTunnel{CloseStarted: started, CloseBlock: release}}
+	h, _ := NewProtectedHost(f)
+	m, err := h.MountProtected(t.Context(), tokenHandler("x"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	unmounted := make(chan error, 1)
+	go func() { unmounted <- m.UnmountConfirmed() }()
+	<-started
+	// Pin the actual cancellation join's ownership decision while close is
+	// held: an already-closing owner must return that exact attempt to join.
+	h.mu.Lock()
+	want := h.attempt
+	got := h.releaseIfUnwantedLocked()
+	h.mu.Unlock()
+	if got != want || got == nil {
+		t.Errorf("lost existing close attempt: got=%p want=%p", got, want)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	result := make(chan error, 1)
+	go func() { _, err := h.mount(ctx, tokenHandler("canceled"), ""); result <- err }()
+	close(release)
+	if err := <-unmounted; err != nil {
+		t.Fatal(err)
+	}
+	if err := <-result; !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+	if f.Stats().Closes != 1 {
+		t.Fatal("close was not joined exactly once")
 	}
 }
 

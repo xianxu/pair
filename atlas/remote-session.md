@@ -112,3 +112,11 @@ the existing host-reset-after-cleanup instruction; it never bypasses the latch.
 Configuration and uncertain-cleanup details remain visible on both operator
 surfaces. Connector errors are classified into fixed safe text rather than
 printing arbitrary stderr, links, credentials or a raw response.
+
+
+Protected opening failure carries `broadcast.ErrProtectedCleanup` whenever
+transport teardown is unconfirmed, independently of whether a Mount exists.
+The supervisor retains that classified error before acknowledging opening and
+includes it in the epoch cleanup result. A missing mount never proves cleanup.
+Cancellation also joins an already-closing Host attempt; failed connector or
+listener cleanup keeps the existing blocked state and denies console reset.

@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #759 M2 BR-8: A missing success handle does not prove teardown. Preserve cleanup outcomes across canceled/failed opening independently of the mount result; cancellation must join an already-closing owner. Qualify held-open/failed-close, failed-open/listener-close failure and held-close cancellation through the actual supervisor, including Join, blocked status and reset refusal.
+
 - #759 M2 BR-7: Recovery is an end-to-end projection: enumerate configuration, admission, startup, persistence and cleanup failures, then preserve classified secret-free detail through supervisor status, CLI and console. A correct internal reason does not help when presentation drops it; test busy, invalid-config and uncertainty on each surface without exposing raw connector errors.
 
 - #759 M2 BR-5: A short allocation prefix does not bound a Unix socket path when MkdirTemp inherits a long TMPDIR. Use the shared canonical short-root owner, include the full socket suffix in the budget, qualify a long inherited parent, and prove cleanup. Pin shared fixture allocators in the local lint catalog.

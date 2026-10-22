@@ -14,6 +14,10 @@ import (
 // AccessEnforcement pins the Cloudflare Access team and exact application audience.
 type AccessEnforcement struct{ TeamName, Audience string }
 
+// ErrProtectedCleanup marks unconfirmed transport teardown independently of
+// whether opening returned a mount. It must never be treated as a clean cancel.
+var ErrProtectedCleanup = errors.New("broadcast: protected transport cleanup unconfirmed")
+
 // ProtectedTunnel is a named, Access-enforced tunnel with a private Unix origin.
 // Configuration is copied at construction and cannot be weakened by callers.
 type ProtectedTunnel struct{ cloudflared Cloudflared }
@@ -108,7 +112,12 @@ func NewProtectedHost(t Tunnel) (*Host, error) {
 // MountProtected admits exactly one owner, including while opening or closing.
 func (h *Host) MountProtected(ctx context.Context, m Mountable) (*Mount, error) {
 	h.mu.Lock()
-	if !h.protected || h.protectedBusy || h.closeErr != nil {
+	if h.closeErr != nil {
+		err := errors.Join(ErrProtectedCleanup, h.closeErr)
+		h.mu.Unlock()
+		return nil, err
+	}
+	if !h.protected || h.protectedBusy {
 		h.mu.Unlock()
 		return nil, fmt.Errorf("broadcast: protected host unavailable: %w", ErrTunnelBusy)
 	}
@@ -121,7 +130,7 @@ func (h *Host) MountProtected(ctx context.Context, m Mountable) (*Mount, error) 
 		if h.closeErr == nil {
 			h.protectedBusy = false
 		} else {
-			err = errors.Join(err, h.closeErr)
+			err = errors.Join(err, ErrProtectedCleanup, h.closeErr)
 		}
 		h.mu.Unlock()
 	}

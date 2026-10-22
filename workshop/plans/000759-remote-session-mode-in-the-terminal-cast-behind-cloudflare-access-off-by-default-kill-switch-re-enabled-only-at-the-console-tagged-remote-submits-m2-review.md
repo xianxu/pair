@@ -200,3 +200,103 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T20:27:35-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 759 — remote-session: 👽 mode in the terminal cast behind Cloudflare Access, off by default, kill switch re-enabled only at the console, tagged remote submits |
+| repo | pair |
+| issue file | workshop/issues/000759-remote-session-mode-in-the-terminal-cast-behind-cloudflare-access-off-by-default-kill-switch-re-enabled-only-at-the-console-tagged-remote-submits.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 8056e8edfd532750dc0cea82c29d6b791c2bd46f..02c31d366994bfe3b8f017e1311c7ce6ed493939 |
+| command | sdlc milestone-close --issue 759 --milestone M2 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T20:27:35-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+M2 delivers the protected security surface, console reset boundary, and documented M3 separation. BR-7 is addressed with meaningful regression tests. One blocking lifecycle defect remains: failed cleanup during a canceled opening can be reported as confirmed, allowing the kill latch to reset.
+
+```findings
+dispose:
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Busy recovery is classified in supervisor.go:222–227, CLI prints Detail at remote_cli.go:45–46, and console notices retain it at console_remote_session.go:90–113. The three corresponding regression tests pass at head and fail when their fixes are independently removed in a disposable copy.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: transport-cleanup-confirmation
+    title: |
+      Preserve teardown uncertainty when opening returns no mount
+    detail: |
+      ARCH-ORDER: supervisor.go:213–228 discards MountProtected's error once kill has changed the phase, while cleanupLocked at lines 304–323 assumes no mount means successful cleanup. Reproduced using FakeTunnel with held Open, IgnoreCancel=true and CloseError: On -> wait OpenStarted -> Kill -> release Open -> Join returns nil, CanReset=true, and reset succeeds despite failed connector cleanup; the regression failed on all three race runs. The related host.go:175–211 cancellation path also skips joining an already-closing attempt, allowing MountProtected to return before Close completes. Require confirmed transport teardown independently of whether a Mount was returned, propagate cleanup failures into the supervisor's blocked state, and cover canceled/failed opening plus already-closing cancellation.
+```
+
+1. **Strengths**
+
+   - Protected transport validates explicit Access configuration and requires a private Unix origin.
+   - Signed HTTP tests exercise authentication, session capacity, sessionless kill, and rejection of generic routes.
+   - The actual broker/wrapper/PTY regression checks that child input and output cannot reset the host latch.
+   - README and atlas describe the new controls and clearly identify pending document integration.
+
+2. **Critical findings**
+
+   - **Unconfirmed opening cleanup permits reset**, at `supervisor.go:220` and `supervisor.go:304`. Preserve the transport’s cleanup outcome even when opening returns no mount; reset must remain unavailable after uncertain teardown. See the machine-readable finding above.
+
+3. **Important findings**
+
+   None additional.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - Passed focused remote/protected tests with race detection, the complete remotesession race suite, repolint, and artifactpath tests.
+   - Independently verified BR-7’s red controls.
+   - The new canceled-opening cleanup regression failed three times under race detection.
+   - Disposable review files were removed; the reviewed checkout remains unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** reuses guarded transport and named-tunnel ownership.
+   - **ARCH-PURE — pass:** lifecycle and policy decisions remain separated from IO.
+   - **ARCH-PURPOSE — pass:** M2 scope matches the explicit M2/M3 revision.
+   - **ARCH-MOCK — pass for M2:** stateful transport and signed issuer share production seams; live qualification remains an explicit later obligation.
+   - **ARCH-CONSTRAINTS — pass:** request lanes, deadlines, session capacity, and counted lifecycle checks are bounded.
+   - **ARCH-SECURE — pass:** typed identity, protected ingress, secret-free projections, and host-key reset separation are present.
+   - **ARCH-ORDER — flag:** cleanup uncertainty is collapsed into success on opening failure/cancellation.
+   - **ARCH-FUNERAL — flag:** the same defect permits lifecycle completion before the connector’s end is confirmed.
+   - **ARCH-EVOLVE — pass:** this range introduces no incompatible persisted-format rewrite.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry requiring teardown confirmation for **every opening outcome**, including no-mount failures and cancellation after teardown has begun. Extend the lifecycle strategy with held-close and failed-close sequences that assert `Join`, blocked status, and reset refusal.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"7aa71a28-18d5-4a60-8d07-4fa81f4bb1a6","repository":"github.com/xianxu/pair","issue_id":"000759","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/41665e02cddc7aab","reviewed_head":"02c31d366994bfe3b8f017e1311c7ce6ed493939","slot":"pair:6","requested_at":"2026-10-22T03:21:42.821237Z"},"phase":"finished","pid":19842,"started_at":"2026-10-22T03:21:42.914556Z","finished_at":"2026-10-22T03:27:31.660446Z","session_id":"01a161a0-fe06-7002-8019-0e312de94603","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.818524959s
+head: "02c31d366994bfe3b8f017e1311c7ce6ed493939"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

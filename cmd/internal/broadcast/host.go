@@ -207,6 +207,8 @@ func (h *Host) releaseIfUnwantedLocked() *hostAttempt {
 		h.attempt.abandoned = true
 		h.attempt.cancel()
 		return h.attempt
+	case hostClosing:
+		return h.attempt
 	}
 	return nil
 }

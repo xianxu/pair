@@ -32,18 +32,19 @@ type RemoteStatus struct {
 }
 
 type remoteEpoch struct {
-	ctx        context.Context
-	cancel     context.CancelFunc
-	sessions   *Sessions
-	capability string
-	generation uint64
-	started    chan struct{}
-	settled    chan struct{}
-	mount      *broadcast.Mount // published before started closes
-	cleanup    bool
-	cleaned    bool
-	cleanupErr error
-	requests   sync.WaitGroup // Add only under the shared gate while ready
+	ctx            context.Context
+	cancel         context.CancelFunc
+	sessions       *Sessions
+	capability     string
+	generation     uint64
+	started        chan struct{}
+	settled        chan struct{}
+	mount          *broadcast.Mount // published before started closes
+	openCleanupErr error            // independent of whether opening returned a mount
+	cleanup        bool
+	cleaned        bool
+	cleanupErr     error
+	requests       sync.WaitGroup // Add only under the shared gate while ready
 }
 
 // Supervisor owns the reducer, persistent command order and every exposure.
@@ -215,6 +216,9 @@ func (s *Supervisor) open(e *remoteEpoch, attempt uint64) {
 		err = errors.New("remote transport origin mismatch")
 	}
 	e.mount = mt
+	if errors.Is(err, broadcast.ErrProtectedCleanup) {
+		e.openCleanupErr = err
+	}
 	s.gate.mu.Lock()
 	close(e.started)
 	if err != nil {
@@ -302,9 +306,9 @@ func (s *Supervisor) cleanupLocked(e *remoteEpoch) {
 	e.cleanup = true
 	go func() {
 		<-e.started
-		var err error
+		err := e.openCleanupErr
 		if e.mount != nil {
-			err = e.mount.UnmountConfirmed()
+			err = errors.Join(err, e.mount.UnmountConfirmed())
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
