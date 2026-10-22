@@ -78,8 +78,12 @@ total: 2.593
 ## Plan
 
 - [x] Review and approve [durable plan](../plans/000796-collapse-tab-style-plan.md).
-- [ ] Implement and verify CLI/style policy, measured collapse packing and exact scoped count navigation.
-- [ ] Verify native geometry, safety guards, multiline compatibility and full recorded suite; stage for operator acceptance, close and land.
+- [x] Implement and verify CLI/style policy, measured collapse packing and exact scoped count navigation.
+- [x] Verify native geometry, safety guards and multiline compatibility; submit recorded verification and request close review.
+
+## Acceptance
+
+Recorded suite must pass before landing. Stage for the TL-sequenced operator look after #753; operator acceptance precedes landing. Close and merge remain gated. No acceptance result is implied by the implementation checklist.
 
 ## Log
 
@@ -106,6 +110,13 @@ Compatibility sweep: first whole couchcmd failed one additional default invocati
 
 #789 integration suite session61444/lease-3428295058 remains snapshot-isolated and queued, last observed position15. No #789 merge runner is active. Return to that branch on its result for fixed review/full-suite recovery and merge; keep #796 independent. Staging #796 awaits green checks and TL's first operator window after #753; never overwrite pair:0 without the go.
 
+
+### 2026-10-22 — package green and recorded verification
+
+Corrected whole couchtty PASS64.889s; whole couchcmd PASS121.386s. The previous native test's implicit multiline assumption was replaced by an explicit collapse/multiline x Claude/Codex matrix, retaining kernel winsize, selected/background PTY geometry and physical bottom-row output. No fixture deadline changed. Collapse count display conservation additionally passes across widths1–120: drawn actors plus per-group/global folded counts equals original actor cardinality whenever a count is shown. Count/work/native selection PASS0.357s; final conservation test PASS0.398s; inventory/diff checks pass. Existing native test isn't classified as a repository reader; its attempted certificate record correctly refused, and complete inventory passes without a new certificate. Other new/current reader certificates cover only local literal argv/private PTYs, no repository reads.
+
+PR547 opened through sdlc. First recorded #796 suite on e6ccdbd36 was queued as session80684/lease-3415236468/attempt0326d146a188c676013f15328aba6dbe, initial position20. Canceled only that exact lease before execution to include the final conservation assertion on the tested snapshot; no result claimed, #789's separate lease preserved. Replacement recorded suite will run on this final test head. The whole-package evidence applies to unchanged production code; the additional assertion passed separately. Implementation is complete; recorded suite, close review, staged operator acceptance and landing remain workflow gates, not completed evidence.
+
 ## Revisions
 
 ### 2026-10-22 — operator priority and default (TL0afd9a82)
@@ -119,3 +130,7 @@ The durable plan selects the original Spec's scoped-switcher alternative rather 
 ### 2026-10-22 — TL approval (3fa9a5f6)
 
 TL approved default one-row collapse, explicit unchanged multiline packer, quiet inactive hubs folding, active/attention priority, +N ! fallback at impossible widths, and +N opening the switcher exactly scoped to owner hub and group with Escape clearing scope. Proceed to change-code; the staged operator look remains required before landing. This accepts the detailed policy proposal above.
+
+### 2026-10-22 — checklist separates implementation from acceptance
+
+The implementation and verification-submission checkboxes are complete. Recorded-suite success, close verdict, staged operator look and landing remain explicit acceptance gates outside those checkboxes, preventing circular claims that close/landing already happened before requesting close. Done-when is unchanged.

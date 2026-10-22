@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"math/bits"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -81,6 +82,39 @@ func TestCollapseCountsCarryExactDrawnScope(t *testing.T) {
 			if span.Start < 0 || span.End > width || span.End <= span.Start {
 				t.Fatalf("phantom span width%d: %+v", width, span)
 			}
+		}
+	}
+}
+
+func TestCollapseVisibleAndHiddenCountsConserveOriginalActors(t *testing.T) {
+	actors := make([]StatusActor, 12)
+	for i := range actors {
+		group := i / 6
+		actors[i] = hubActor("repo"+strconv.Itoa(group)+":"+strconv.Itoa(i%6), strconv.Itoa(group), i%6)
+		actors[i].Bell = i == 3 || i == 8
+	}
+	actors[1].Active = true
+	count := regexp.MustCompile(`\+([0-9]+)`)
+	for width := 1; width <= 120; width++ {
+		bar := RenderStatusBar(width, 2, StatusModel{TabStyle: TabStyleCollapse, Actors: actors})
+		if len(bar.GroupCounts) == 0 {
+			continue
+		} // an impossible width can omit the entire marker
+		total := len(bar.Chips)
+		for _, span := range bar.GroupCounts {
+			text := []rune(rowPlain(bar.Rows[span.Row]))[span.Start:span.End]
+			match := count.FindStringSubmatch(string(text))
+			if len(match) != 2 {
+				t.Fatalf("incomplete drawn count width%d: %q", width, text)
+			}
+			n, err := strconv.Atoi(match[1])
+			if err != nil {
+				t.Fatal(err)
+			}
+			total += n
+		}
+		if total != len(actors) {
+			t.Fatalf("width%d counted%d actors, want%d: %q", width, total, len(actors), bar.Body())
 		}
 	}
 }
