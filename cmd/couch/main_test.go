@@ -80,7 +80,8 @@ exec %q launch "$@"
 		defer cancel()
 		cmd := exec.CommandContext(ctx, couchBin)
 		cmd.Dir = launchRoot
-		cmd.Env = append(installedEnv(t, binDir),
+		env, fixtureC := installedEnv(t, binDir)
+		cmd.Env = append(env,
 			"PAIR_HOME="+root,
 			"ZELLIJ_SOCKET_DIR="+sockets,
 			"PAIR_TEST_COUCH_TERMINAL_FIXTURE=1",
@@ -181,7 +182,11 @@ exec %q launch "$@"
 				launches = append(launches, line)
 			}
 		}
-		if len(launches) != 1 || launches[0] != "pair --couch-session-v1 resume 1-alpha-1 --layout3" {
+		expectedTag, err := couchidentity.FormatPairTag(fixtureC, "alpha", 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(launches) != 1 || launches[0] != "pair --couch-session-v1 resume "+expectedTag+" --layout3" {
 			t.Fatalf("hub launches = %q", launches)
 		}
 		if !bytes.Contains(out, []byte("COUCH_INSTALLED_PAIR_MARKER")) {
@@ -197,7 +202,7 @@ exec %q launch "$@"
 		before, _ := os.ReadFile(callLog)
 		cmd := exec.Command(couchBin)
 		cmd.Dir = launchRoot
-		cmd.Env = installedEnv(t, binDir)
+		cmd.Env, _ = installedEnv(t, binDir)
 		if err := cmd.Run(); err == nil {
 			t.Fatal("bare couch with pipes succeeded")
 		}
@@ -229,11 +234,15 @@ func waitInstalled(t *testing.T, cmd *exec.Cmd, cancel context.CancelFunc, waitR
 	}
 }
 
-func installedEnv(t *testing.T, binDir string) []string {
+func installedEnv(t *testing.T, binDir string) ([]string, uint64) {
 	t.Helper()
 	root := testpair.ShortRoot(t)
 	home := filepath.Join(root, "home")
 	if err := os.MkdirAll(home, 0700); err != nil {
+		t.Fatal(err)
+	}
+	c, err := testpair.SeedCouchIdentity(filepath.Join(root, "identity"))
+	if err != nil {
 		t.Fatal(err)
 	}
 	return testpair.Environment(t, home,
@@ -243,7 +252,7 @@ func installedEnv(t *testing.T, binDir string) []string {
 		"PAIR_DATA_DIR="+filepath.Join(root, "data", "pair"),
 		"COUCH_STORE_DIR="+filepath.Join(root, "store"),
 		"COUCH_IDENTITY_DIR="+filepath.Join(root, "identity"),
-	)
+	), c
 }
 
 func writeExecutable(t *testing.T, path, body string) {
@@ -266,7 +275,8 @@ func TestInstalledEnvironmentTerminalIdentityIsolation(t *testing.T) {
 	seen := map[string]bool{}
 	for i := 0; i < 2; i++ {
 		values := map[string]string{}
-		for _, entry := range installedEnv(t, t.TempDir()) {
+		env, _ := installedEnv(t, t.TempDir())
+		for _, entry := range env {
 			key, value, _ := strings.Cut(entry, "=")
 			values[key] = value
 		}

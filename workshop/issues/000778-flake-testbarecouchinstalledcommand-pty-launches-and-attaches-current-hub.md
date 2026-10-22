@@ -45,8 +45,8 @@ Alternatives: socket-only isolation is insufficient because census is host-wide;
 
 ## Plan
 
-- [ ] Reproduce independent installed-environment name equality deterministically; retain the saved #775/#757 failure references and source trace.
-- [ ] Add one exclusive fixture-authority initializer, apply it to installedEnv and testcouch roots, derive the installed launch expectation, and enforce both constructors in Pair's lint catalog with positive/negative tests.
+- [x] Reproduce independent installed-environment name equality deterministically; retain the saved #775/#757 failure references and source trace.
+- [x] Add one exclusive fixture-authority initializer, apply it to installedEnv and testcouch roots, derive the installed launch expectation, and enforce both constructors in Pair's lint catalog with positive/negative tests.
 - [ ] Run targeted allocator/constructor/PTY/lint checks and inventory preflight, record the full suite, close, land, and retire the flake registration through close.
 
 ## Log
@@ -66,3 +66,11 @@ Expand the original root-cause Done when into deterministic allocation, preserve
 ### 2026-10-21 — deterministic root-cause RED
 
 Added regressions through the actual installedEnv and testcouch.allocateRoots constructors, then real IdentityStore.Allocate. Both fail on the intended condition: independent authorities each yield C1/N1/M1 and duplicate native name 📁1-1. Installed regression exits1 in0.207s; shared-fleet regression exits1 in0.224s. This reproduces the precondition independently of native scheduler timing. Existing admission checks remain unchanged. Helper implementation and pure lint rule are delegated as separate bounded file-owned tasks; main owns consumers and integration verification.
+
+### 2026-10-21 — constructor and executable GREEN
+
+Shared initializer and its tests now cover exclusive creation, preserved preexisting residue, permissions, directory errors, PID/sequence bounds, permanent exhaustion, 8/16 concurrent fixtures and real allocation with stable C/advancing N/M. Reviewed the pure maximum and corrected one edge: the MaxUint64 seed must refuse because the real allocator cannot enroll from it; the focused regression went RED then race GREEN. Both constructors now seed their private authority. installedEnv returns its seed C so the existing executable PTY assertion derives the exact expected Pair tag via FormatPairTag instead of hardcoding C1. The combined installed allocation/PTY parent tests PASS13.415s; fleet factory tests PASS0.247s. Pure constructor catalog cases PASS, with exact helper-import/alias resolution and shadowing negatives. No production census or timeout changed; full-package checks and inventory remain due.
+
+### 2026-10-21 — package and inventory verification
+
+Full targeted packages PASS: testpair5.666s, testcouch20.105s, repolint6.239s. Staged tracked-source inventory correctly named the two existing changed reader audits; their inputs/ownership are unchanged (main_test remains local/literal fixture; environment_test remains non-Go full fallback). Regenerated only those two per-file certificates using the printed record commands, then fast inventory PASS. No .sdlc or workflow edits. The shared harness now receives longer high-range session identities, so run its existing opt-in Claude/Codex native matrix on the committed source before the full suite and close; this qualifies the actual socket/actor paths as well as pure allocation. No duplicate harness, timeout adjustment or live-fleet operation.
