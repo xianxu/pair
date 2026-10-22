@@ -1,8 +1,8 @@
 ---
 id: 000778
-status: working
+status: codecomplete
 created: 2026-10-21
-updated: 2026-10-21
+updated: 2026-10-22
 estimate_hours:
 github_issue:
 flake_tests: [github.com/xianxu/pair/cmd/couch.TestBareCouchInstalledCommand]
@@ -14,14 +14,14 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
-actual_hours: 1.11
+actual_hours: 4.64
 tracker:
     version: 1
     completion:
-        token: close-33fad97c2b01
+        token: close-4cedc78d67c5
         repository: github.com/xianxu/pair
-        reviewed_head: d729188af8159560db1bfbf0d610fe0886eb5346
-        evidence_commit: 3df738ae2f44938620faed8069675622699276f7
+        reviewed_head: 5dc34bb27415a64474ef501fc08bf27831507d86
+        evidence_commit: d55ae7709826499d01e696e6e37821e011a87941
 ---
 
 # flake: TestBareCouchInstalledCommand/pty_launches_and_attaches_current_hub
