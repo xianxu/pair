@@ -14,6 +14,7 @@ type Selection struct {
 	Notes            []SelectedNote
 	Sketches         []SelectedSketch
 	SketchGeneration uint64
+	SketchRemaining  int
 }
 type SelectedSketch = recording.SketchCandidate
 type SelectedNote struct {

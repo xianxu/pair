@@ -81,6 +81,8 @@ type Response struct {
 // SubmissionStatus is a durable evidence submission's current outcome. Polling
 // it never repeats capture or delivery; the client retains ID through retries.
 type SubmissionStatus struct {
+	Sketches  int                      `json:"sketches,omitempty"`
+	Remaining int                      `json:"remaining,omitempty"`
 	Progress  *core.SubmissionProgress `json:"progress,omitempty"`
 	Slot      string                   `json:"slot,omitempty"`
 	HowToRead string                   `json:"how_to_read,omitempty"`

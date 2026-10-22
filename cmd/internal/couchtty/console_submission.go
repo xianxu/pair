@@ -24,14 +24,18 @@ type submissionCast interface {
 // The manager owns one bounded background operation. Files are the authority;
 // the one volatile receipt only describes work not yet published to the store.
 type submissionManager struct {
-	mu      sync.Mutex
-	store   *core.Store
-	ctx     context.Context
-	spawn   func(func())
-	guard   func(core.Target) error
-	current func() (submissionCast, error)
-	replay  func(context.Context, string) (string, error)
-	job     *submissionJob
+	mu                  sync.Mutex
+	store               *core.Store
+	ctx                 context.Context
+	spawn               func(func())
+	guard               func(core.Target) error
+	current             func() (submissionCast, error)
+	replay              func(context.Context, string) (string, error)
+	job                 *submissionJob
+	previewState        core.PreviewState
+	previewRun          *submissionPreviewRun
+	deliveredGeneration uint64
+	previewStart        sync.Mutex // serializes host-worker replacement and joined retirement
 }
 type submissionJob struct {
 	status couchmessage.SubmissionStatus
@@ -91,7 +95,11 @@ func (c *Console) submissionReplay(ctx context.Context, id string) (string, erro
 	}
 }
 func (m *submissionManager) status(s core.Submission) couchmessage.SubmissionStatus {
-	return couchmessage.SubmissionStatus{HowToRead: s.HowToRead, ID: s.ID, State: string(s.Delivery), Path: m.store.ManifestPath(s.ID), Target: s.Target}
+	out := couchmessage.SubmissionStatus{HowToRead: s.HowToRead, ID: s.ID, State: string(s.Delivery), Path: m.store.ManifestPath(s.ID), Target: s.Target, Sketches: len(s.Sketches)}
+	if m.job != nil && m.job.status.ID == s.ID {
+		out.Remaining = m.job.status.Remaining
+	}
+	return out
 }
 func (m *submissionManager) request(ctx context.Context, op, id string, target core.Target) (couchmessage.SubmissionStatus, error) {
 	if err := ctx.Err(); err != nil {
@@ -158,11 +166,17 @@ func (m *submissionManager) request(ctx context.Context, op, id string, target c
 		if e != nil {
 			return couchmessage.SubmissionStatus{}, e
 		}
-		if len(selected.Notes) == 0 {
+		selected, e = m.freezeSubmissionPreview(cast, selected)
+		if e != nil {
+			return couchmessage.SubmissionStatus{}, e
+		}
+		if len(selected.Notes) == 0 && len(selected.Sketches) == 0 {
 			m.job = job
 			return job.status, nil
 		}
 		job.status.State = "preparing"
+		job.status.Sketches = len(selected.Sketches)
+		job.status.Remaining = selected.SketchRemaining
 		job.status.Progress = &core.SubmissionProgress{Phase: "replay"}
 		job.busy = true
 		m.job = job
@@ -194,9 +208,13 @@ func (m *submissionManager) request(ctx context.Context, op, id string, target c
 		if !exists {
 			return couchmessage.SubmissionStatus{}, os.ErrNotExist
 		}
+		previousDelivery := s.Delivery
 		s, err = m.store.Transition(id, target, core.Ack)
 		if err != nil {
 			return couchmessage.SubmissionStatus{}, err
+		}
+		if previousDelivery == core.Delivering {
+			m.submissionDeliveredLocked()
 		}
 		work = m.resolutionWork(s)
 		return m.status(s), nil

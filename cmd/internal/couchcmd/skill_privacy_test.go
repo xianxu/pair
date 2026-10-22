@@ -13,10 +13,14 @@ func TestSkillBroadcastPrivacyContract(t *testing.T) {
 		name string
 		want string
 	}{
-		{"per-note scope", "Read each version-3 note's `privacy` and `privacy_rule` before selecting its evidence"},
+		{"per-item scope", "Read each version-3 note or sketch's `privacy` and `privacy_rule` before selecting its evidence"},
+		{"sketch image privacy", "and attach no crops or sketch images"},
+		{"historical sketch provenance", "Its image has `replay-rendered` provenance"},
+		{"literal IDs", "literal `id`/`data-*` attributes"},
+		{"sketch export", "sketch-image --sketch ID --out DIR [--at T]"},
 		{"legacy fallback", "(the submission-level fields on older versions)"},
-		{"explicit grant", "Only an explicit `privacy: shareable` decision makes that note's content eligible"},
-		{"aggregate is not a grant", "The version-3 top-level privacy is a conservative summary, never a grant for a private note"},
+		{"explicit grant", "Only an explicit `privacy: shareable` decision makes that item's content eligible"},
+		{"aggregate is not a grant", "The version-3 top-level privacy is a conservative summary, never a grant for a private item"},
 		{"private default", "Absent, private, or unrecognized privacy values and invalid policy files mean private"},
 		{"private evidence", "summarize without quoting `box_text` and attach no crops"},
 		{"invalid policy result", "`privacy_rule: 'invalid policy file: <reason>'`"},

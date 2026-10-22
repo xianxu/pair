@@ -27,11 +27,25 @@ local function rpc(state, op, reply, delayed)
   return { effect(state, delayed and 'defer_rpc' or 'rpc', { op = op, reply = reply }) }
 end
 
+local function whole_count(value, minimum, maximum)
+  return type(value) == 'number' and value >= minimum and value <= maximum and value == math.floor(value)
+end
+local function sketch_counts(result)
+  if type(result) ~= 'table' or not whole_count(result.sketches, 1, 8) then return nil end
+  local text = string.format('%d sketch%s selected', result.sketches, result.sketches == 1 and '' or 'es')
+  if whole_count(result.remaining, 1, 256) then text = text .. string.format(', %d more', result.remaining) end
+  return text
+end
+
 local function agent_text(pending, result)
   local prefix = pending.text .. (pending.text ~= '' and '\n\n' or '')
-  local text = prefix .. 'DOM notes: read ' .. result.path .. ' (submission.json) for the selected notes, '
-    .. 'recorded context and capture metadata. Read each referenced crop-N.png file beside the manifest '
-    .. 'for that note\'s current pixels; unavailable crops are explicitly marked.'
+  local text = prefix .. 'DOM evidence: read ' .. result.path .. ' (submission.json) for selected notes and sketches. '
+    .. 'Read referenced crop-N.png files for saved draw-time note pixels and sketch-N.png files for replay-rendered '
+    .. 'historical source pages with accepted sketch ink. Read each item’s original page URL, literal element IDs/data-* '
+    .. 'and historical recording handles. Apply each note or sketch’s privacy decision before quoting text or sharing images; '
+    .. 'unavailable evidence and replay limitations are explicit.'
+  local counts = sketch_counts(result)
+  if counts then text = text .. ' ' .. counts .. '.' end
   if type(result.how_to_read) == 'string' and result.how_to_read ~= '' then
     text = text .. '\n\n' .. result.how_to_read
   end
@@ -195,19 +209,26 @@ end
 local function literal(value)
   return tostring(value):gsub('[%z\1-\31\127]', ' '):sub(1, 500)
 end
-function M.progress_text(progress)
+function M.progress_text(progress, selection)
   local fallback = 'preparing submission…'
-  if type(progress) ~= 'table' then return fallback end
+  local counts = sketch_counts(selection)
+  local function finish(text)
+    return counts and (text .. ' (' .. counts .. ')') or text
+  end
+  if type(progress) ~= 'table' then return finish(fallback) end
   local phase = progress.phase
-  if phase == 'replay' then return 'preparing submission: opening replay…' end
-  if phase == 'context' then return 'preparing submission: reading context…' end
-  if phase == 'publishing' then return 'preparing submission: saving bundle…' end
+  if phase == 'replay' then return finish('preparing submission: opening replay…') end
+  if phase == 'context' then return finish('preparing submission: reading context…') end
+  if phase == 'publishing' then return finish('preparing submission: saving bundle…') end
+  if phase == 'rendering-sketches' and whole_count(progress.total, 1, 8) then
+    return finish(string.format('preparing submission: rendering %d sketch%s…', progress.total, progress.total == 1 and '' or 'es'))
+  end
   local i, n = progress.current, progress.total
   if type(i) ~= 'number' or type(n) ~= 'number' or i ~= math.floor(i) or n ~= math.floor(n)
-    or i < 1 or n < i or n > 1000 then return fallback end
-  if phase == 'settling' then return string.format('waiting for the page to settle, crop %d/%d', i, n) end
-  if phase == 'capturing' then return string.format('preparing submission: capturing crop %d/%d…', i, n) end
-  return fallback
+    or i < 1 or n < i or n > 1000 then return finish(fallback) end
+  if phase == 'settling' then return finish(string.format('waiting for the page to settle, crop %d/%d', i, n)) end
+  if phase == 'capturing' then return finish(string.format('preparing submission: capturing crop %d/%d…', i, n)) end
+  return finish(fallback)
 end
 function M.step(state, event)
   local next, effects = transition(state, event)
@@ -221,7 +242,7 @@ function M.step(state, event)
         if fx.kind == 'notify' then next.message = literal(fx.message) end
       end
     elseif next.phase == 'preparing' and type(event.result) == 'table' then
-      next.message = M.progress_text(event.result.progress)
+      next.message = M.progress_text(event.result.progress, event.result)
     elseif next.phase == 'sending' or next.phase == 'ordinary' then
       next.message = 'sending to ' .. literal(next.pending.slot or 'agent') .. '…'
     end

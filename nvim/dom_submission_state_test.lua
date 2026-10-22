@@ -132,3 +132,21 @@ assert(M.progress_text({phase='capturing',current=1,total=3})=='preparing submis
 for _,p in ipairs({false,12,'bad',{phase='capturing',current=-1,total=3},{phase='settling',current=0/0,total=3},{phase='evil'}}) do
  assert(M.progress_text(p)=='preparing submission…')
 end
+
+do
+ local step,state=driver();prepare(step,'Act on these','mixed')
+ step('prepared',{result={state='preparing',sketches=2,remaining=4,progress={phase='rendering-sketches',total=2}}})
+ assert(state().message:find('2 sketches',1,true) and state().message:find('4 more',1,true),'sketch preparation counts missing')
+ step('prepared',{result={state='prepared',path='/bundle/submission.json',how_to_read='canonical guide',sketches=2,remaining=4}})
+ step('current',{current=true});step('begun',{result={state='delivering'}})
+ local effects=step('current',{current=true});local text=effects[1].text
+ for _,part in ipairs({'Act on these','sketch-N.png','draw-time','replay-rendered','original','literal','privacy','2 sketches','4 more','canonical guide'})do
+  assert(text:find(part,1,true),'mixed evidence handoff missing '..part)
+ end
+ assert(not text:find('current pixels',1,true),'historical evidence called current pixels')
+end
+assert(M.progress_text({phase='rendering-sketches',total=3}):find('3 sketches',1,true),'render total fallback missing')
+for _,counts in ipairs({{sketches=0/0,remaining=4},{sketches=9,remaining=4},{sketches='2',remaining=4}}) do
+ assert(M.progress_text(nil,counts)=='preparing submission…','invalid sketch count reached UI')
+end
+assert(M.progress_text(nil,{sketches=1,remaining=0}):find('1 sketch selected',1,true),'single sketch count grammar')

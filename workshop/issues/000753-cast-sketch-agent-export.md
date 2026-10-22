@@ -70,6 +70,13 @@ Primary surfaces: query/{sketch.go,render_sketch.go,surface.go,fake.go,cli.go,ev
   elements (e.g. echo's room/turn/agent data attributes), so an agent gets exact handles instead of guessing from a
   screenshot. Values are recorded as they were at sketch time (from the DOM recording), not re-read later.
 
+### 2026-10-21 19:51 PDT — preview integration and admitted transport revision
+
+- Manager preview freezes only the acknowledged private publication, with manager→Chrome host fence→Board generation lock order. Controlled manager tests reject unseen/stale/ABA-host selections, cancel and join held publication, and select eight oldest with two remaining. Targeted manager race checks passed 1.764s. One delivery-generation cache prevents repeated durable-store scans on source/host refreshes; only waiting receiver catchup may wake the preview worker after ordinary ink updates.
+- Real renderer/native conformance passed: eight-image batch 2.025s including cleanup, cancellation 0.60s; shared browser cleanup has one absolute 5s budget plus at most 1s server shutdown, preserving the 30s preparation/36s client envelope. Existing native fidelity fixtures passed 47.350s. Cast packaging and ordinary annotation ID-context tests passed, with no recording reread during rendering and no sketch clearing on acknowledgment.
+- Controlled CDP investigation reproduced active-write cancellation blocking and a queued expired command being written after deadline. Authenticated TL delivery a7274b6d-b64e-40f0-b1db-969c0cc4f4ba approves the narrow transport scope revision below; implementation is in progress, no success claim yet. TL also reports machine-wide github.com DNS failure and explicitly holds all pushes until released. No push/PR/recorded run was attempted under that hold.
+- Reader inventory initially named codec_test.go, model_test.go and sketch_test.go. Audited their complete inputs/helpers: in-memory JSON/PNG/record fixtures and own temporary Store only, no repository source reads. Registered only those exact readers as local_or_literal_fixture; make test-affected-inventory then passed. Artifact exhaustive classification passed 1.648s after auditing new files' Couch recording/submission/private export namespaces.
+
 ## Estimate
 
 *Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration is marked stale by sdlc estimate-source; the derivation is provisional rather than a new calibration claim.*
@@ -134,3 +141,7 @@ TDD started with independent pure query, preview and render-plan slices. Render 
 - Store tests exercise real prepare→begin→ack→complete, mixed note/sketch images, symlink refusal, immutable evidence, unknown huge JSON numbers, and exact-version suppression across targets derived only from durability-confirmed dispatched/resolved manifests. Core race checks passed 14.947s; preserving-codec fuzz passed 26,145 executions. Query/renderer fake package tests passed; renderer seam race passed 1.389s.
 - Added a cheap ordered candidate metadata query and board generation fence. Pressure chunks and ordinary page updates do not wake candidate preview; label/clear changes do. Atomic freeze rejects changed generation or forged selected versions and owns its selected slice. Targeted board RED→GREEN passed 0.157s.
 - Combined targeted core/query/sketchimage/board checks passed (10.704s/8.184s/0.185s/4.941s respectively). Real renderer/export and console preview integration remain in progress; no full-suite, close or live acceptance claimed yet. ARCH-DRY: rendering, declared-fact extraction, evidence enumeration and oldest-unsent selection each have one reusable authority.
+
+### 2026-10-21 19:51 PDT — CDP cancellation scope revision (approved)
+
+Authenticated TL a7274b6d-b64e-40f0-b1db-969c0cc4f4ba approves folding the discovered transport blocker into #753: context-aware serialized write admission; owned pipe write-deadline cancellation joined before admission is released; partial writes retire the connection; no detached writer or timeout increase. Required regressions: a canceled active call unblocks, an expired queued command is never written, and cancellation callbacks cannot change a successor command's deadline. This supports the already-approved bounded preview/render lifetimes without changing routing, permissions or delivery policy.

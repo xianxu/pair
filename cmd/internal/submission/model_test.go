@@ -227,3 +227,12 @@ func TestVersion3AggregatePrivacyAcrossOrigins(t *testing.T) {
 		t.Fatal("unavailable shareable note accepted")
 	}
 }
+
+func TestReadingGuideExplainsHistoricalSketchEvidence(t *testing.T) {
+	guide := ReadingGuide("/recording")
+	for _, want := range []string{"sketch-N.png", "replay-rendered", "recorded-dom", "sketches", "sketch-image --sketch ID --out DIR", "literal", "privacy", "source.record_index", "history_record_index"} {
+		if !strings.Contains(guide, want) {
+			t.Errorf("mixed evidence guide missing %q", want)
+		}
+	}
+}

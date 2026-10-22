@@ -670,6 +670,23 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #753 historical sketch evidence uses Couch recording/submission namespaces,
+	// private caller-selected exports and in-memory projections; no Pair artifact family.
+	"cmd/internal/submission/codec.go",
+	"cmd/internal/submission/sketch.go",
+	"cmd/internal/submission/preview_selection.go",
+	"cmd/internal/couchtty/console_submission_preview.go",
+	"cmd/internal/webcast/cast_submission_candidates.go",
+	"cmd/internal/webcast/chrome_submission_preview.go",
+	"cmd/internal/webcast/query/sketch_export.go",
+	"cmd/internal/webcast/sketchimage/render.go",
+	"cmd/internal/webcast/sketchimage/fake.go",
+	"cmd/internal/webcast/sketch_image.go",
+	"cmd/internal/webcast/sketch_image_export.go",
+	"cmd/internal/webcast/sketch_image_publish_darwin.go",
+	"cmd/internal/webcast/sketch_image_publish_linux.go",
+	"cmd/internal/webcast/sketch_image_publish_other.go",
+
 	// #757 catalogue, report and HTTP front introduce no Pair artifact families.
 	"cmd/internal/mockserve/screens.go",
 	"cmd/internal/mockserve/check.go",
@@ -1123,6 +1140,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/replay.go",
 	"cmd/internal/webcast/assets/reopen.go",
 	"cmd/internal/webcast/replay.go",
+	"cmd/internal/webcast/replay_image.go",
 	// #477 replay shares: mount recordings on the broadcast Host, in memory
 	// for Couch's run; reads recordings, writes nothing.
 	"cmd/internal/webcast/shares.go",
