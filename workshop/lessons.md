@@ -2650,3 +2650,9 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #792 recorded suite: run both internal/repolint and termcmd preflight packages before queuing a full suite. New declarations can displace a prior declaration's godoc, and obsolete lint suppressions are failures themselves. Move documentation with its owner and keep suppression directives only where the catalog reports a matching finding. Existing rules cover both classes.
 
 - #792 landing: when an existing atlas guide already has an index link, put new feature detail in that guide. Appending feature clauses to its shared index summary creates avoidable landing conflicts; keep the index as a stable navigation map.
+
+- #803 integrated-suite correction: enumerate transitive users of an OS adapter,
+  not only packages edited by a seam migration. Stateful refusal fixtures must
+  fault the entire physical-attempt budget; add transient recovery controls and
+  keep semantic mismatches non-retriable. Audit structural call-site manifests
+  when a collector method changes, even when the effect remains read-only.

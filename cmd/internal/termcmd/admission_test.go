@@ -88,7 +88,7 @@ func shortcutAdmissionModel(draft int) zellijtest.Model {
 }
 
 func TestTerminalShortcutRequiresConfirmedCallerTab(t *testing.T) {
-	for _, scenario := range []string{"healthy", "stale-last-left", "wrong-kind-first", "wrong-kind-confirmation", "displaced-first", "changed-target", "missing-caller", "missing-draft", "ambiguous-draft"} {
+	for _, scenario := range []string{"healthy", "one-crossed-first", "one-crossed-confirmation", "stale-last-left", "wrong-kind-first", "wrong-kind-confirmation", "displaced-first", "changed-target", "missing-caller", "missing-draft", "ambiguous-draft"} {
 		t.Run(scenario, func(t *testing.T) {
 			f := zellijtest.New(t)
 			for _, entry := range f.Env() {
@@ -99,8 +99,12 @@ func TestTerminalShortcutRequiresConfirmedCallerTab(t *testing.T) {
 			wrong := "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n"
 			switch scenario {
 			case "wrong-kind-first":
-				f.SetFaults(zellijtest.Fault{Ordinal: 1, Reply: &wrong})
+				f.SetFaults(zellijtest.Fault{Ordinal: 1, Reply: &wrong}, zellijtest.Fault{Ordinal: 2, Reply: &wrong}, zellijtest.Fault{Ordinal: 3, Reply: &wrong})
 			case "wrong-kind-confirmation":
+				f.SetFaults(zellijtest.Fault{Ordinal: 2, Reply: &wrong}, zellijtest.Fault{Ordinal: 3, Reply: &wrong}, zellijtest.Fault{Ordinal: 4, Reply: &wrong})
+			case "one-crossed-first":
+				f.SetFaults(zellijtest.Fault{Ordinal: 1, Reply: &wrong})
+			case "one-crossed-confirmation":
 				f.SetFaults(zellijtest.Fault{Ordinal: 2, Reply: &wrong})
 			case "displaced-first":
 				body, err := json.Marshal(shortcutAdmissionModel(3).Sessions["test"].Panes)
@@ -131,19 +135,32 @@ func TestTerminalShortcutRequiresConfirmedCallerTab(t *testing.T) {
 				rt.lastLeft = "8"
 			}
 			err := handleChord(workbenchshortcut.ChordAltK, rt, strings.NewReader(""), io.Discard)
-			if scenario == "healthy" || scenario == "stale-last-left" {
+			if scenario == "healthy" || scenario == "stale-last-left" || strings.HasPrefix(scenario, "one-crossed-") {
 				if err != nil {
 					t.Fatal(err)
 				}
 				if effects := f.Effects(); len(effects) != 1 || effects[0].Target != "terminal_2" {
 					t.Fatalf("effects=%+v", effects)
 				}
-				if len(f.Queries()) != 3 {
-					t.Fatalf("queries=%+v; want two reads and one focus", f.Queries())
+				wantReads := 2
+				if strings.HasPrefix(scenario, "one-crossed-") {
+					wantReads = 3
+				}
+				if len(f.Queries()) != wantReads+1 {
+					t.Fatalf("queries=%+v; want %d reads and one focus", f.Queries(), wantReads)
 				}
 			} else {
-				if (scenario == "ambiguous-draft" || scenario == "missing-draft") && len(f.Queries()) != 1 {
-					t.Fatalf("invalid first target queried again: %+v", f.Queries())
+				wantReads := 2
+				switch scenario {
+				case "wrong-kind-first":
+					wantReads = 3
+				case "wrong-kind-confirmation":
+					wantReads = 4
+				case "missing-caller", "missing-draft", "ambiguous-draft":
+					wantReads = 1
+				}
+				if len(f.Queries()) != wantReads {
+					t.Fatalf("refusal queries=%+v; want exactly %d reads", f.Queries(), wantReads)
 				}
 				if err == nil || len(f.Effects()) != 0 || len(rt.recordedTerminal) != 0 {
 					t.Fatalf("uncertain shortcut error=%v effects=%+v records=%v", err, f.Effects(), rt.recordedTerminal)

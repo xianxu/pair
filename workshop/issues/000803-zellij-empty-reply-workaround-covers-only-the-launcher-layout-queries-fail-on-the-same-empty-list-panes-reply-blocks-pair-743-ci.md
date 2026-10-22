@@ -240,3 +240,30 @@ default readers retain joined private query groups. No new ownership mechanism.
 
 2026-10-22 — TL e9f8e0ca confirms #743's hosted CI rerun follows #803 landing,
 owned by pair:3; local installed-native conformance qualifies this issue first.
+
+
+### 2026-10-22 — integrated suite own-defect classification and correction
+
+Recorded integrated suite d9e69ff7be7f94089c57fb8f9b1751c0 on beb222d0
+failed in 11m9s. Log SHA-256:
+e6f47b7b238431b8653395f76863e2daceaa4299a392b83e539016b91d2f1246.
+This is own-change test contract drift, not flake/infrastructure evidence.
+The four failed top-level tests were draftroute's scoped draft admission,
+termcmd's caller-tab admission and broker-notified fullscreen refusal, and
+zellijreply's M2 effect inventory. One transient crossed reply is now recovered;
+negative stimuli must persist for all three physical attempts, while two valid
+semantic observations remain required. Kept negative names and effect/notice
+assertions, pinned three/four refusal reads, added single-crossed positive
+controls with exactly three reads and unchanged scoped effects. Semantic
+mismatches still refuse with their original one/two reads. Updated only the
+existing read-only inventory entry from execZellijContext:Run to :Output.
+
+Reproduced routing failures independently; full packages draftroute (3.690s),
+termcmd (6.671s), zellijreply (0.183s) now pass. Audited and refreshed the four
+changed reader certificates without changing their dispositions. Inventory and
+whitespace preflights passed. Production source unchanged.
+The failed merge automatically queued a diagnostic main baseline on 5dd027f1;
+cancelled only its exact lease-1172289527 before start because these defects
+were already reproduced and explained. Original merge joined exit1; no retry,
+flake registration, or gate bypass. Final fixed-head suite/review/landing remain
+pending; previous SHIP does not certify this post-close delta.
