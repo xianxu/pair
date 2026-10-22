@@ -482,3 +482,95 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T15:20:29-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 796 — Couch: --tab-style collapse (one row; fold quiet slots and inactive hubs to +N, attention always shown) alongside multiline |
+| repo | pair |
+| issue file | workshop/issues/000796-couch-tab-style-collapse-one-row-fold-quiet-slots-and-inactive-hubs-to-n-attention-always-shown-alongside-multiline.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 651e30092e7ca245e5537ba1450b7ea7eb36ddae..22b6e77554789861539120c0e5ca28d4c180ddc5 |
+| command | sdlc close --issue 796 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T15:20:29-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation matches the revised Spec and Plan. BR-4 is verified addressed: both styles preserve queued/loading placeholders, while collapse still excludes parked attached members. No new blocking findings. This review does not certify the separately required recorded-suite or staging gates.
+
+```findings
+dispose:
+  - id: BR-4
+    disposition: addressed
+    note: |
+      console_presentation.go:83 exempts placeholders from non-live exclusion. The regression at console_reattach_test.go:356 passes for both styles; removing the exemption through a temporary Go overlay makes collapse fail with "placeholders = [], want one per pending thread".
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Exact owner/group aggregation and CollapseAnchor preserve the hub-role policy. The primary/numbered current/inactive regression matrix passes.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The plan's Core concepts tables and BR-2 Revision identify the actual declarations, paths and change statuses; unchanged geometry and menu machinery are explicitly described as reuse.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      This review inspected the complete pinned base-to-head window against the revised Spec and Plan, including threshold, live membership, grapheme measurement and count navigation changes.
+```
+
+1. **Strengths**
+
+   - Collapse reuses the measured packer and drawing pass, keeping rendering and hit spans consistent.
+   - Counts preserve actor cardinality and exact owner/repository identity; conservation, threshold and scope regressions pass.
+   - Physical-cell click tests cover every digit after emoji aliases. Native PTY tests confirm collapse geometry and multiline compatibility.
+   - README and atlas document the default, option, count interaction and scope recovery.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Independently passed focused collapse, placeholder, scoped-menu, CLI/runtime wiring, grapheme/fitting, allocation-budget, native geometry, stale-revision, broadcast and annotation checks. BR-4’s negative control failed as expected. `git diff --check` passed; the checkout remained unchanged. The complete repository suite was not rerun.
+
+6. **Architectural notes for upcoming work**
+
+   - **ARCH-DRY — pass:** Shared packing, clipping, presentation identity and style default.
+   - **ARCH-PURE — pass:** Candidate selection, measurement and scope filtering remain directly testable without IO.
+   - **ARCH-PURPOSE — pass:** Default wiring, folding, navigation and stable geometry ship together.
+   - **ARCH-MOCK — pass:** Existing fake hosts/children and native PTY conformance tests cover the integration boundary.
+   - **ARCH-CONSTRAINTS — pass:** Counted N/2N work bounds and allocation checks pass.
+   - **ARCH-SECURE — pass:** Label sanitization, confirmed-revision fencing and broadcast fail-closed behavior remain intact.
+   - **ARCH-ORDER — pass:** Scope refresh, removal, nested return, Escape and ordinary reopen have explicit tested behavior.
+   - **ARCH-FUNERAL — pass:** New data is frame- or session-local; no durable artifact family is introduced.
+   - **ARCH-EVOLVE — pass:** No persisted-format change.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"f80d466a-3886-48f5-a6ef-4dff2e8c3f22","repository":"github.com/xianxu/pair","issue_id":"000796","recipe":"milestone-review","round":6,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/2367b06cb85946d6","reviewed_head":"22b6e77554789861539120c0e5ca28d4c180ddc5","slot":"pair:4","requested_at":"2026-10-22T22:19:02.688445Z"},"phase":"finished","pid":34232,"started_at":"2026-10-22T22:19:02.899163Z","finished_at":"2026-10-22T22:20:28.466189Z","session_id":"01a165b2-4196-7fd2-b5ab-a40b7ca7e9d1","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.657755s
+head: "22b6e77554789861539120c0e5ca28d4c180ddc5"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000409
