@@ -50,13 +50,17 @@ func openPTYRetry(open func() (*os.File, *os.File, error)) (*os.File, *os.File, 
 
 // isTransientPTYAlloc reports whether err is ENXIO from allocating a pty.
 //
-// The sign has to be normalised. creack/pty reaches /dev/ptmx through
-// syscall.Open and its three ioctls through ioctlInner's raw syscall.Syscall,
-// and a failing ptmx allocation has been measured arriving from BOTH as an
-// Errno holding the negated code — int value -6, rendering "errno -6" — while an
-// ordinary failure such as ENOENT arrives positive. errors.Is(err,
-// syscall.ENXIO) compares by value, so it matches only the positive spelling and
-// would make this guard silently never fire on the one #809 actually observed.
+// The sign has to be normalised, and this is the one place that says why. #809
+// measured the failure at syscall.Open on /dev/ptmx: every observed allocation
+// failure was there, and TIOCPTYGNAME/GRANT/UNLK and the slave open never
+// failed. It arrived as an Errno holding the negated code — int value -6,
+// rendering "errno -6" — while an ordinary failure such as ENOENT arrives
+// positive. errors.Is(err, syscall.ENXIO) compares by value, so it matches only
+// the positive spelling and would make this guard silently never fire on the one
+// failure actually observed. Normalising also covers creack/pty's three ioctls,
+// which go through ioctlInner's raw syscall.Syscall and so use the same
+// convention on darwin/arm64 (SVC $0x80 / BCC, err = R0 = -errno) — as a
+// precaution; that path was never measured failing.
 func isTransientPTYAlloc(err error) bool {
 	var errno syscall.Errno
 	if !errors.As(err, &errno) {

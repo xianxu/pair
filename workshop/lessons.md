@@ -2668,9 +2668,12 @@ and external temporary roots rather than relying on the host's TMPDIR.
   writers, and telling a diagnostic sink from an output sink needs semantics the
   catalog's Match funcs do not have, so any such rule fires on false positives.
   Recorded here instead; a real rule would need its own ariadne issue.
-- #809: on darwin/arm64 a failing raw syscall can hand back a *negated* errno —
-  XNU's ptmx allocation race renders "errno -6" for ENXIO, and
-  errors.Is(err, syscall.ENXIO) is false for it, while an ordinary failure such
+- #809: on darwin/arm64 a failing syscall can hand back a *negated* errno —
+  XNU's ptmx allocation race was measured rendering "errno -6" for ENXIO at the
+  open of /dev/ptmx, where every observed failure occurred; the ioctl path
+  shares that convention and is normalised as a precaution, not because it was
+  seen failing. errors.Is(err, syscall.ENXIO) is false for the negated value,
+  while an ordinary failure such
   as ENOENT arrives positive. A guard written the obvious way compiles, reads
   correctly, passes review, and never fires. Normalise the sign of
   syscall.Errno before comparing, and measure the actual error rather than

@@ -385,21 +385,18 @@ func TestDarwinStartClosesDescriptorsOnExecFailure(t *testing.T) {
 	}
 }
 
-// rawENXIO is ENXIO as the raw syscall path spells it. creack/pty runs its
-// TIOCPTYGNAME/GRANT/UNLK ioctls through syscall.Syscall, which on darwin/arm64
-// is SVC $0x80 / BCC and returns -errno in R0, so ENXIO arrives negated and
-// renders "errno -6" — that is the spelling #809's production diagnostic
-// carried. Built through a variable because a constant -6 does not convert to
-// uintptr.
+// rawENXIO is ENXIO in the negated spelling that isTransientPTYAlloc
+// normalises; that comment is the single source for where it was measured.
+// Built through a variable because a constant -6 does not convert to uintptr.
 func rawENXIO() syscall.Errno {
 	e := syscall.ENXIO
 	return syscall.Errno(-int(e))
 }
 
 // #809: XNU's ptmx allocator returns ENXIO intermittently under concurrent
-// churn. Both sign conventions have to ride out, because the failure reaches us
-// through whichever of creack/pty's two syscall conventions happened to lose the
-// race. An exhausted bound returns the error unchanged, which run turns into
+// churn. Both sign conventions have to ride out — see isTransientPTYAlloc for
+// which one was measured and which is covered as a precaution. An exhausted
+// bound returns the error unchanged, which run turns into
 // exit 1 with the diagnostic intact — that mapping is pinned by
 // TestRunFatalSitesExitOneWithDiagnostic's pty-start case.
 func TestDarwinStartRidesOutTransientAllocationENXIO(t *testing.T) {

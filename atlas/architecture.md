@@ -1349,10 +1349,12 @@ EOF, exit status and descendant-held-slave completion.
 
 XNU's ptmx allocator races under concurrent allocation and intermittently fails
 `open("/dev/ptmx")` with ENXIO (#809), so `openPTY` bounds it at three attempts.
-The errno arrives *negated* — measured from both the `syscall.Open` on
-`/dev/ptmx` and the raw ioctl syscalls, `int` value -6, rendering "errno -6" —
-so `isTransientPTYAlloc` normalises the sign; `errors.Is(err, syscall.ENXIO)`
-does not match it and would never fire. Every fixture that allocates a pty goes
+The errno arrives *negated* — `int` value -6, rendering "errno -6" — measured at
+the `syscall.Open` on `/dev/ptmx`, where every observed failure occurred; the
+ioctl path shares that convention and is normalised as a precaution, not because
+it was seen failing. So `isTransientPTYAlloc` normalises the sign, and
+`errors.Is(err, syscall.ENXIO)` does not match it and would never fire. Every
+fixture that allocates a pty goes
 through the same `openPTY`: a bare `pty.Open` is exposed to the same race, and
 its failure reads as a failure of `Run`. The one exception is an opener injected
 into `startPTYWithOpen`, which `openPTYRetry` already wraps — a second nested
