@@ -881,3 +881,23 @@ References checked 2026-10-22: tailscale.com/docs/reference/tsnet-server-api;
 pkg.go.dev/tailscale.com@v1.104.1/tsnet (API/enrollment/ambient credentials);
 raw.githubusercontent.com/tailscale/tailscale/v1.104.2/go.mod (candidate pin and
 Go1.27.3 requirement). API/Go requirements must be rechecked at selected pin.
+
+
+### 2026-10-22 — approved dependency ordering and security delta
+
+TL9027b5a2 approved the tsnet plan with exact candidate pin tailscale.com
+v1.104.1, using installed Go1.27.1. Pair go directive1.26.3 ->1.27.1 must be
+its own commit; record a full-suite pass on that bump alone before dependency
+addition. Compile-only measurements precede integration; no node/auth key before
+operator enrollment test. No automatic toolchain download is authorized.
+
+Pre-code release review found a security-relevant .2 delta. Official changelog
+https://tailscale.com/changelog says v1.104.2 updates Go to1.27.3 to distrust
+compromised TLS intermediates (TS-2026-013). Bulletin
+https://tailscale.com/security-bulletins#ts-2026-013 recommends1.104.2 or later.
+Inference: relevant to embedded tsnet outbound TLS/control-plane trust; this
+is not evidence of a direct WhoIs/ListenTLS authorization defect. Other listed
+.2 fixes affect Windows peer-update disconnects/DNS and macOS GUI menu timing
+and services filtering, outside the embedded feature. Reported to TL before
+dependency addition for the operator Go-upgrade decision. Independent authorized
+Go1.27.1 bump can proceed; dependency and enrollment remain gated.
