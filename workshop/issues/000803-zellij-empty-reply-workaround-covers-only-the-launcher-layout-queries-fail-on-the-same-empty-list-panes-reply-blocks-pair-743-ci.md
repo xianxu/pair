@@ -91,6 +91,7 @@ total: 1.7935
 ## Log
 
 ### 2026-10-22
+- 2026-10-22: closed — BR-1 reproduced then fixed with refusal intact and case-specific three-attempt false-miss expectation; full launcher passed 69.348s, reader inventory and diff check passed. Earlier full adapters, race, fuzz and installed-native recovery conformance passed as recorded in Log. Replacement recorded suite queued on pushed 632ed7c31; tl-worker permits review overlap, final suite pass still required before landing. --no-plan-check acknowledges only pending suite/review/landing row; --no-project leaves project updates to TL. #743 hosted CI rerun follows landing per hub.; review verdict: SHIP
 
 Claimed by pair:6 and entered start-plan. The catch-up rebuilt the sibling
 Ariadne tools and generated an unrelated merge-check workflow refresh (draining

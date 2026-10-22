@@ -163,6 +163,168 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 08e1233d-604b-4af2-9350-8f096d88a61d
+            repository: github.com/xianxu/pair
+            issue_id: "000803"
+            recipe: milestone-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/e07843e910e70bd1
+            reviewed_head: 632ed7c31efd42baa87113507590ecf5f046fee1
+            slot: pair:6
+            requested_at: "2026-10-22T17:00:18.947965Z"
+          phase: finished
+          pid: 13121
+          started_at: "2026-10-22T17:00:19.206956Z"
+          finished_at: "2026-10-22T17:03:25.893869Z"
+          session_id: 01a1648e-7342-7512-b0d3-275d042aabcd
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 632ed7c31efd42baa87113507590ecf5f046fee1
+        tracker_head: 65460d89780c27d0ea59977f8dd1a675c21d73c1
+        branch_point: 365fd86e7ed8895236ba4b0c67cf278168e54d53
+        since: "2026-10-22T09:04:04-07:00"
+        until: "2026-10-22T09:59:06-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-22T09:04:04-07:00"
+              end: "2026-10-22T09:59:06-07:00"
+              began: "2026-10-22T09:04:04-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot6/pair
+        sources:
+            - harness: codex
+              id: 01a14b2c-9890-74f3-a738-58879659bef5
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: 625a944c04564d31470812f5099838ed55cd91a8170addf2dea5245f75cb1afe
+              started: "2026-10-17T18:42:56.865Z"
+              spawned: false
+              bytes: 114331182
+              windows:
+                - start: "2026-10-22T09:04:04-07:00"
+                  end: "2026-10-22T09:59:06-07:00"
+            - harness: codex
+              id: 01a1645c-c726-7392-b217-72b77d3eac40
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: eeb9bdc63315d1f812fc6b9fb56380d709855fef3fe50c6932b6cfbbd6aaa9f2
+              started: "2026-10-22T16:06:04.586Z"
+              spawned: true
+              bytes: 627784
+              windows:
+                - start: "2026-10-22T16:06:04.586Z"
+                  end: "2026-10-22T09:59:06-07:00"
+            - harness: codex
+              id: 01a16466-8c4b-7652-b936-4e68e23a6294
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: dfd43a662ce4361cf77ca909ce9b3abfc2966fe4e98f8efe53811913d9e08ca1
+              started: "2026-10-22T16:16:45.256Z"
+              spawned: false
+              bytes: 697960
+              windows:
+                - start: "2026-10-22T16:16:45.256Z"
+                  end: "2026-10-22T09:59:06-07:00"
+            - harness: codex
+              id: 01a16468-8ab0-7b72-8e89-ec875e93a718
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: 38056f4a8b8d60bbd425fd541fcc239eba9675bba753a6764196d55de0604488
+              started: "2026-10-22T16:18:55.571Z"
+              spawned: false
+              bytes: 459572
+              windows:
+                - start: "2026-10-22T16:18:55.571Z"
+                  end: "2026-10-22T09:59:06-07:00"
+            - harness: codex
+              id: 01a16469-a692-7661-a2e3-8c4e7fc5600a
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: a44248a07632f018cc8c08fb97daf3b4f588e2a962033ceb2bdc374e0f58f5d7
+              started: "2026-10-22T16:20:08.238Z"
+              spawned: false
+              bytes: 393917
+              windows:
+                - start: "2026-10-22T16:20:08.238Z"
+                  end: "2026-10-22T09:59:06-07:00"
+            - harness: codex
+              id: 01a1646a-1192-7a62-8e00-4dc00527b849
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              digest: 6c15929756bbd58edceb35d41bd32154806d181437aee37870062bcceea8ec62
+              started: "2026-10-22T16:20:35.948Z"
+              spawned: false
+              bytes: 426042
+              windows:
+                - start: "2026-10-22T16:20:35.948Z"
+                  end: "2026-10-22T09:59:06-07:00"
+            - harness: codex
+              id: 01a1646b-9317-7971-adde-f4e62426ca32
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: 2335710459aa54d272fab778cf2bf5fa5739d96dafa418304af49967ca95fcce
+              started: "2026-10-22T16:22:14.317Z"
+              spawned: true
+              bytes: 932666
+              windows:
+                - start: "2026-10-22T16:22:14.317Z"
+                  end: "2026-10-22T09:59:06-07:00"
+            - harness: codex
+              id: 01a16474-430e-73c0-8613-48bb3cd859a5
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: aedf60919abde511350b7cf134036df8075339e03924697cbc9fdb4a5d677faf
+              started: "2026-10-22T16:31:43.698Z"
+              spawned: true
+              bytes: 494238
+              windows:
+                - start: "2026-10-22T16:31:43.698Z"
+                  end: "2026-10-22T09:59:06-07:00"
+            - harness: codex
+              id: 01a16477-d241-7263-b2b8-80d786f64d18
+              slot: pair:6
+              cwd: /Users/xianxu/workspace/worktree/pair-slot6/pair
+              parent_id: 01a14b2c-9890-74f3-a738-58879659bef5
+              digest: 748f59eeb4bd6fea4c645e33fb82f6c166bda853c5b821e8b89ed4072e005b4d
+              started: "2026-10-22T16:35:36.911Z"
+              spawned: true
+              bytes: 564895
+              windows:
+                - start: "2026-10-22T16:35:36.911Z"
+                  end: "2026-10-22T09:59:06-07:00"
+        cuts:
+            - dispatched: "2026-10-22T09:49:37-07:00"
+              finalized: "2026-10-22T09:52:51-07:00"
+              finalizing: false
+      "n": 2
+      timestamp: "2026-10-22T10:03:27-07:00"
+      dispatched: "2026-10-22T10:00:15-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: native_name_absence_test.go:56,77-85 expects three attempts only for requested_identity_present, retains refusal, and preserves single-attempt expectations elsewhere. Restoring the old assertion via a temporary Go overlay reproduces probe calls=3; the full pinned-head launcher package passes.
+          round: 2
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 632ed7c31efd42baa87113507590ecf5f046fee1
+      blocked: false
 ---
 
 # Gate ledger — pair#803 (boundary-review)
@@ -177,6 +339,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-1** [Important] `recovery-contract-test-alignment` (kind: defect) Native name-absence regression still requires one attempt after migration to shared recovery
   cmd/internal/launcher/osruntime.go:169 routes name probes through shared recovery, but cmd/internal/launcher/native_name_absence_test.go:79 still requires calls == 1 for every case. Both the full launcher package and the isolated requested_identity_present subtest fail with "probe calls=3". Give that false-miss case an explicit three-attempt expectation, preserve its refusal assertion and the one-attempt expectations for other cases, then rerun the launcher package.
 
+## Round 2 — 2026-10-22T10:03:27-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — native_name_absence_test.go:56,77-85 expects three attempts only for requested_identity_present, retains refusal, and preserves single-attempt expectations elsewhere. Restoring the old assertion via a temporary Go overlay reproduces probe calls=3; the full pinned-head launcher package passes.
+
 ## Open findings
 
-- **BR-1** [Important] `recovery-contract-test-alignment` (kind: defect) Native name-absence regression still requires one attempt after migration to shared recovery
+(none — every finding has been disposed)
