@@ -1641,6 +1641,7 @@ var NonArtifactSources = []string{
 	// Pair session-artifact filename constructors or consumers.
 	"cmd/internal/pathscope/pathscope.go",
 	"cmd/internal/testcouch/actor.go",
+	"cmd/internal/testcouch/controls.go",
 	"cmd/internal/testcouch/retained.go",
 	"cmd/internal/testcouch/agentfixture/cmd/main.go",
 	"cmd/internal/testcouch/agentfixture/conversation.go",

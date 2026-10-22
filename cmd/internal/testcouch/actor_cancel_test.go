@@ -15,7 +15,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/testcouch/agentfixture"
 )
 
-func startActorCLIFixture(t *testing.T) (*Fleet, string) {
+func startActorCLIFixture(t *testing.T, agents ...string) (*Fleet, string) {
 	t.Helper()
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
@@ -39,7 +39,11 @@ func startActorCLIFixture(t *testing.T) (*Fleet, string) {
 	worktree := filepath.Join(root, "repo")
 	t.Setenv("COUCH_TREE", worktree)
 	dir := agentfixture.ActorDirectory(filepath.Join(root, "control"), worktree)
-	config := agentfixture.Config{Root: root, ControlDir: dir, Home: filepath.Join(root, "home"), CodexHome: filepath.Join(root, "codex"), Agent: "claude", CouchBinary: "/bin/sh", RunID: "actor-cancel"}
+	agent := "claude"
+	if len(agents) > 0 {
+		agent = agents[0]
+	}
+	config := agentfixture.Config{Root: root, ControlDir: dir, Home: filepath.Join(root, "home"), CodexHome: filepath.Join(root, "codex"), Agent: agent, CouchBinary: "/bin/sh", RunID: "actor-cancel"}
 	input, writer := io.Pipe()
 	fixtureCtx, stop := context.WithCancel(t.Context())
 	finished := make(chan error, 1)
@@ -56,7 +60,7 @@ func startActorCLIFixture(t *testing.T) (*Fleet, string) {
 	if err := waitUntil(waitCtx, func() (bool, error) { _, err := os.Stat(filepath.Join(dir, "ready.json")); return err == nil, nil }); err != nil {
 		t.Fatal(err)
 	}
-	f := &Fleet{Roots: RootsPlan{Root: root, Mutable: map[string]string{"control": filepath.Join(root, "control")}}, Workspaces: Workspaces{Primary: worktree}, Options: Options{RuntimeBudget: time.Hour}, ctx: t.Context()}
+	f := &Fleet{Roots: RootsPlan{Root: root, Mutable: map[string]string{"control": filepath.Join(root, "control")}}, Workspaces: Workspaces{Primary: worktree}, Options: Options{RuntimeBudget: time.Hour}, RunID: config.RunID, ctx: t.Context()}
 	return f, dir
 }
 

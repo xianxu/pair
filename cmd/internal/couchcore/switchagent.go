@@ -42,7 +42,7 @@ type AgentSwitchIntent string
 
 const (
 	SwitchIntentFresh               AgentSwitchIntent = "switch-fresh"
-	SwitchIntentRestartPreferResume AgentSwitchIntent = "restart-prefer-resume"
+	SwitchIntentRestartPreferResume AgentSwitchIntent = "prefer-resume"
 )
 
 // ResolveAgentSwitchIntent is independent of native availability; only M3's
