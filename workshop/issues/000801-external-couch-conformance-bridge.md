@@ -1,13 +1,13 @@
 ---
 id: 000801
-status: working
+status: codecomplete
 deps: [pair#758]
 github_issue:
 created: 2026-10-22
 updated: 2026-10-22
 estimate_hours: 3.75
 collaboration-mode: collaboration
-card_mirror: '5fd338a4700fe725dea17a988673ba10ffb649bd' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'a4ddc37accdea7c0db20481c080b247cad1ec40b' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-22T07:20:32-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 6.51
 ---
 
 # External hold-open Couch conformance bridge
