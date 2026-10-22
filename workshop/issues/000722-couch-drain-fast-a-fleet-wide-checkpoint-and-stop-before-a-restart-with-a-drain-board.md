@@ -54,7 +54,7 @@ TL831e9502 confirms operator approval of the re-scoped plan: exclude the issuing
 - [x] Operator approved the re-scoped Revision through TL831e9502, excluding the issuing steward; reopened through the setter in canonical pair:5 after #622 landed. Renewed change-code follows.
 - [x] Remove the obsolete completion/persistence/control machinery; implement only transient flags, ordinary notices/status and undrain with tests.
 - [x] Qualify message/lifecycle independence, restart emptiness, truthful idle observations and one compact badge through normal tests and the bounded disposable installed composition.
-- [ ] Record the passing full suite on the final code. Mandatory close review, authorized staging and TL/operator-watched live acceptance remain subsequent workflow gates before ordinary landing.
+- [x] Record the passing full suite on the final code. Mandatory close review, authorized staging and TL/operator-watched live acceptance remain subsequent workflow gates before ordinary landing.
 
 ## Estimate
 
@@ -414,6 +414,12 @@ Reported the privately reproduced publication race/fix and current lease to TL a
 Authenticated submitted TL55e2cb84 supersedes the old keep-stage instruction: clear the pre-fix11:11 stage now, then #753 re-look, #739 shutdown check, and #722 only after suite/re-close and renewed staging authorization. Supported sdlc stage --clear completed exit0: pair:0 restored to freshly pinned main7b9440e8c92663f8ee189f54a1260e3043a78f07, all four disk binaries report that revision and modified=false, owned stage lease released. No running slot was restarted and no drain/queue action was executed. Sent exact clear receipt to pair:9 (dd0d7af0-3984-4ac8-a200-507bb4a2949a) and hub (65fc04f6-6955-4103-9986-6f0bd363e322); query their submission rather than blindly resend.
 
 Retained suite session37048/lease-2074561176 still waits for capacity, latest observed position9; do not restart or duplicate it. No suite result yet. The tested source remains e3c7e6badda23964b0116310fff8cdb8c94291b1; subsequent commits contain Log evidence only. ariadne#557 fleet notice was authenticated, but this checkout was clean, so no seeded-workflow repair applied.
+
+### 2026-10-22 15:46 PDT — final-source recorded suite PASS
+
+Retained session37048 completed exit0. Declared affected selection expanded to suite on pushed source e3c7e6badda23964b0116310fff8cdb8c94291b1, attempt d9ef653c801635ccceeb4dc03f27fd69: queue9660.140s, acquired15:33:30 PDT, PASS11m56s (715.607s), finished15:45:26. No failures, flake reruns, timeout changes or waivers. SDLC posted sdlc-local/suite on that exact source. Complete raw log and attempt metadata retained at workshop/evidence/000722/suite-e3c7e6ba-pass.{log,json}; bytes independently hash to a75339213f2f019545eb95405abb4980d455df88993bd173e27c2cd6e72cc44b. Managed pinned checkout on Mac.localdomain, ordinary declared make test; normal suite isolation and runtime environment guard passed. No private per-run cache override.
+
+Complete couchcore passed163.798s, couchcmd53.061s, couchmessage26.020s, couchtty42.446s and wrapcmd88.730s; the prior review's core10m timeout did not recur, but its original cause remains unattributed. New source-publication race regression/catalog guard, slow-target socket/fanout tests and embedded-guide fixes are included. Later branch commits change only issue Log evidence, not executable inputs. Mark the active implementation verification checkbox complete. Next: affected inventory, mandatory full re-close (BR6 source proof and BR7 doc guard disposal), then TL-owned authorized stage/watched acceptance after #753/#739. No new native matrix run, live drain, queue control or landing is authorized by this pass.
 
 ## Revisions
 

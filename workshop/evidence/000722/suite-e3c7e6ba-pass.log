@@ -1,0 +1,991 @@
+bash tests/lib/with-pair-test-binary.sh /Library/Developer/CommandLineTools/usr/bin/make test
+go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime
+python3 -B tests/test-affected-test.py
+.............
+----------------------------------------------------------------------
+Ran 13 tests in 9.751s
+
+OK
+python3 -B tests/affected-go-readers-test.py
+test_changed_source_reader_prints_executable_required_disposition (__main__.FastInventoryCLI.test_changed_source_reader_prints_executable_required_disposition) ... ok
+test_duplicate_keys_refuse_without_rewrite (__main__.FastInventoryCLI.test_duplicate_keys_refuse_without_rewrite) ... ok
+test_fast_check_names_exact_repair_and_preserves_unknown_fields (__main__.FastInventoryCLI.test_fast_check_names_exact_repair_and_preserves_unknown_fields) ... ok
+test_independent_reader_updates_merge_with_real_git (__main__.FastInventoryCLI.test_independent_reader_updates_merge_with_real_git) ... ok
+test_legacy_aggregate_and_bad_certificate_path_refuse (__main__.FastInventoryCLI.test_legacy_aggregate_and_bad_certificate_path_refuse) ... ok
+test_make_regenerates_only_an_explicitly_named_audit (__main__.FastInventoryCLI.test_make_regenerates_only_an_explicitly_named_audit) ... ok
+test_missing_certificate_and_invalid_records_refuse (__main__.FastInventoryCLI.test_missing_certificate_and_invalid_records_refuse) ... ok
+test_named_record_leaves_other_changed_reader_unaccepted (__main__.FastInventoryCLI.test_named_record_leaves_other_changed_reader_unaccepted) ... ok
+test_non_json_constants_refuse_without_rewrite (__main__.FastInventoryCLI.test_non_json_constants_refuse_without_rewrite) ... ok
+test_record_refuses_untracked_and_scanner_waivers_without_writing (__main__.FastInventoryCLI.test_record_refuses_untracked_and_scanner_waivers_without_writing) ... ok
+test_removed_reader_has_exact_removal_command (__main__.FastInventoryCLI.test_removed_reader_has_exact_removal_command) ... ok
+test_unknown_numbers_roundtrip_without_precision_or_type_changes (__main__.FastInventoryCLI.test_unknown_numbers_roundtrip_without_precision_or_type_changes) ... ok
+test_changed_and_deleted_audited_file_refuse (__main__.ReaderInventoryTest.test_changed_and_deleted_audited_file_refuse) ... ok
+test_duplicate_or_invalid_disposition_refuses (__main__.ReaderInventoryTest.test_duplicate_or_invalid_disposition_refuses) ... ok
+test_fixed_scanner_requires_every_registered_test (__main__.ReaderInventoryTest.test_fixed_scanner_requires_every_registered_test) ... ok
+test_native_helper_api_requires_repository_input_classification (__main__.ReaderInventoryTest.test_native_helper_api_requires_repository_input_classification) ... ok
+test_new_relative_and_joined_readers_refuse (__main__.ReaderInventoryTest.test_new_relative_and_joined_readers_refuse) ... ok
+test_repository_inventory_and_fixed_preflight (__main__.ReaderInventoryTest.test_repository_inventory_and_fixed_preflight) ... ok
+test_repository_source_walk_cannot_be_waived_as_local (__main__.ReaderInventoryTest.test_repository_source_walk_cannot_be_waived_as_local) ... ok
+test_seeded_cross_package_violation_stops_actual_affected_run (__main__.ReaderInventoryTest.test_seeded_cross_package_violation_stops_actual_affected_run) ... ok
+test_untracked_and_nonreader_files_are_outside_inventory (__main__.ReaderInventoryTest.test_untracked_and_nonreader_files_are_outside_inventory) ... ok
+
+----------------------------------------------------------------------
+Ran 21 tests in 68.501s
+
+OK
+python3 -B tests/affected-config-test.py
+test_check_config (__main__.AffectedConfigTest.test_check_config) ... skipped 'upstream ariadne#517 affected/jsonstrict source unavailable; install it or set ARIADNE_AFFECTED_SOURCE (and optional ARIADNE_AFFECTED_REF) to qualify its candidate'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.014s
+
+OK (skipped=1)
+python3 -B tests/build-go-atomic-test.py
+........
+----------------------------------------------------------------------
+Ran 8 tests in 2.461s
+
+OK
+python3 -m unittest discover -s scripts/supervision-labels
+................
+----------------------------------------------------------------------
+Ran 16 tests in 0.131s
+
+OK
+bash tests/host-preflight.sh
+host-preflight ok
+go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime
+bash tests/retention-test.sh
+retention real CLI/editor integration passed
+public pair gc preview leaves storage unchanged
+bash tests/nvim-pidfile-lifecycle-test.sh
+nvim-pidfile-lifecycle-test:
+  ok   draft: publishes its embed pid (73744)
+  ok   draft: the record names a live process
+  ok   draft: a clean exit removes the record
+  ok   draft: a SIGKILLed embed keeps its record
+  ok   draft: a clean exit keeps a record a later embed republished
+  ok   scrollback: publishes its embed pid (82755)
+  ok   scrollback: the record names a live process
+  ok   scrollback: a clean exit removes the record
+  ok   scrollback: a SIGKILLed embed keeps its record
+  ok   scrollback: a clean exit keeps a record a later embed republished
+  ok   changelog: publishes its embed pid (86515)
+  ok   changelog: the record names a live process
+  ok   changelog: a clean exit removes the record
+  ok   changelog: a SIGKILLed embed keeps its record
+  ok   changelog: a clean exit keeps a record a later embed republished
+  ok   review: publishes its embed pid (89244)
+  ok   review: the record names a live process
+  ok   review: the record binds the file it serves
+  ok   review: a clean exit removes the record
+  ok   review: a SIGKILLed embed keeps its record
+  ok   review: a clean exit keeps a record a later embed republished
+nvim-pidfile-lifecycle-test: all passed
+bash tests/run-headless-test.sh
+run-headless-test:
+  ok   clean exit returns 0, no noise
+  ok   modified-buffer bare-qall hang → rc=124
+  ok   hang bounded (~3s, timeout 3s)
+  ok   fails loud (TIMEOUT diagnostic names #60)
+  ok   generic non-terminating child bounded → rc=124 (~2s)
+run-headless-test: all passed
+nvim -l tests/zellij-observation_test.lua
+zellij observation tests passed
+nvim -l tests/review-restore-admission-test.lua
+review restore admission integration passed
+bash tests/nvim-route-poke-admission-test.sh
+nvim-route-poke-admission-test ok
+nvim -l nvim/dom_transport_test.lua
+dom_transport_test: passed
+nvim -l nvim/dom_admission_test.lua
+dom_admission_test ok
+nvim -l nvim/dom_admission_cli_test.lua
+dom_admission_cli_test ok
+nvim -l nvim/fs_watch_test.lua
+fs_watch: close ownership, late callbacks and start refusals passed
+nvim -l nvim/retention_test.lua
+retention: intent ordering, unchanged writes, failure protection passed
+<tScratch/tmp/sdlc-run-suite-44841-2975716595/nvim.xianxu/4UHd96/0" 
+<lc-run-suite-44841-2975716595/nvim.xianxu/4UHd96/0" 1L, 12B written
+nvim -l nvim/confirm_quit_test.lua
+confirm_quit_test: ok
+nvim -l nvim/lifecycle_command_test.lua
+lifecycle_command_test: ok
+nvim -l nvim/workbench_route_test.lua
+workbench_route_test ok
+bash tests/workbench-route-nvim-test.sh
+workbench-route-nvim-test ok
+nvim -l nvim/slug_test.lua
+nvim/slug.lua: all tests passed
+nvim -l nvim/normalization_test.lua
+all normalization.lua tests passed
+nvim -l nvim/submission_test.lua
+all submission.lua tests passed
+nvim -l nvim/draft_send_test.lua
+draft_send_test ok
+nvim -l nvim/interrupt_test.lua
+interrupt_test ok
+nvim -l nvim/bang_tag_test.lua
+bang_tag_test: all passed
+nvim -l nvim/pairlog_test.lua
+pairlog_test ok
+pairlog_test peer ok
+nvim -l nvim/scrollback_test.lua
+scrollback refresh failed: boom
+scrollback refresh skipped buffer reload: pending annotations kept
+nvim/scrollback.lua: prompt pattern tests passed
+nvim -l nvim/annotate_test.lua
+ok annotate_test
+nvim -l nvim/changelog_test.lua
+ok changelog_test
+python3 -B tests/changelog-isolation-test.py
+..
+----------------------------------------------------------------------
+Ran 2 tests in 0.104s
+
+OK
+nvim -l nvim/adapt_test.lua
+nvim/adapt.lua: emitter tests passed
+nvim -l nvim/doctor_test.lua
+all doctor.lua tests passed
+nvim -l nvim/review/record_test.lua
+record_test ok
+nvim -l nvim/review/reconstruct_test.lua
+reconstruct_test ok
+nvim -l nvim/review/resolve_fixtures_test.lua
+ok — 16 shared edit-record fixtures, 9 propose fixtures
+nvim -l nvim/review/round_watch_test.lua
+ok — round_watch and oplock
+nvim -l nvim/review/define_test.lua
+define_test ok
+nvim -l nvim/review/markers_test.lua
+markers_test ok
+nvim -l nvim/review/comment_codec_test.lua
+comment_codec_test ok
+nvim -l nvim/review/comment_thread_test.lua
+comment_thread_test ok
+nvim -l nvim/review/comment_view_test.lua
+comment_view_test ok
+nvim -l nvim/review/comment_float_test.lua
+ok comment float save/conflict/movement/duplicate/discard/teardown/size
+nvim -l nvim/review/comment_test.lua
+-- INSERT --ok comment attachment, cursor/options, idempotence, bounded projection
+nvim -l nvim/review/seam_test.lua
+seam_test ok
+nvim -l nvim/review/mode_test.lua
+mode_test ok
+nvim -l nvim/review/poke_bodies_test.lua
+poke_bodies_test ok
+nvim -l nvim/review/wrap_test.lua
+wrap_test ok
+nvim -l nvim/review/readiness_test.lua
+readiness_test ok
+nvim -l nvim/review/spinner_test.lua
+spinner_test ok
+nvim -l nvim/review/resolve_test.lua
+resolve_test ok
+nvim -l nvim/review/menu_test.lua
+menu_test ok
+nvim -l nvim/review/restore_test.lua
+restore_test ok
+nvim -l nvim/review/identity_test.lua
+review identity: native failure diagnostics and deadlines preserved
+nvim -l nvim/review/restore_client_test.lua
+restore client tests passed
+nvim -l nvim/review/restore_controller_test.lua
+restore_controller_test ok
+nvim -l nvim/review/document_bytes_test.lua
+document byte activation tests passed
+nvim -l nvim/review/recovery_test.lua
+recovery tests passed
+nvim -l nvim/review/recovery_observer_test.lua
+recovery_observer_test ok
+nvim -l nvim/review/definition_seam_test.lua
+definition seam tests passed
+nvim -l nvim/review/round_authority_test.lua
+round_authority_test ok
+nvim -l nvim/review/agent_round_rule_test.lua
+review: the agent applied a round while you have unsaved edits; your buffer was kept
+agent_round_rule_test ok
+bash tests/lifecycle-command-nvim-test.sh
+lifecycle-command-nvim-test:
+  ok   Alt+x quit
+  ok   Alt+d detach
+  ok   Alt+n restart
+  ok   Shift+Alt+N agent restart
+  ok   no direct vim.fn.system call
+  all passed
+bash scripts/build-go-atomic.sh "bin/pair" -ldflags "-X main.defaultPairHome=/Volumes/TestScratch/local-checks/sdlc-local-3699216075" ./cmd/pair-go
+python3 doctor/perf_budget_test.py
+.........
+----------------------------------------------------------------------
+Ran 9 tests in 6.389s
+
+OK
+sh doctor/perf_test.sh
+capture timing: elapsed_seconds=5 budget_seconds=6
+perf.sh shape tests passed
+bash tests/queue-send-test.sh
+queue-send-test:
+  ok   send +3 w/ draft: CCC→history, draft parked at +1, no duplicate
+  ok   send +2 w/ empty draft: BBB→history, nothing parked, no duplicate
+  ok   send from *: HELLO→history, queue untouched
+  ok   draft submit command uses semantic Alt Enter
+  ok   log append failure preserves draft and queue without history evidence
+queue-send-test: all passed
+bash tests/submission-transaction-nvim-test.sh
+  ok   submission transaction focus-agent
+  ok   submission transaction write-body
+  ok   submission transaction submit
+  ok   submission transaction focus-draft
+  ok   submission transaction commit
+submission-transaction-nvim-test: all passed
+dom_submission_state_test: passed
+pane_identity_test: passed
+dom_submission_test: passed
+dom_transport_test: passed
+dom-submission-nvim-test: passed
+bash tests/bang-tag-nvim-test.sh
+  ok   bang tag couch
+  ok   bang tag standalone
+  ok   bang tag missing
+  ok   bang tag nonzero
+  ok   bang tag slow
+  ok   bang tag retry
+  ok   bang tag describe
+  ok   bang tag describe-standalone
+  ok   bang tag describe-nonzero
+  ok   bang tag describe-missing
+bang-tag-nvim-test: all passed
+bash tests/autopair-test.sh
+autopair-test:
+  ok   paren EOL
+  ok   bracket EOL
+  ok   brace EOL
+  ok   paren pre-space
+  ok   paren pre-word
+  ok   bracket pre-word
+  ok   paren pre-close
+  ok   dquote EOL
+  ok   backtick EOL
+  ok   dquote pre-word
+  ok   apostrophe dont
+  ok   dquote jump-over
+autopair-test: all passed
+bash tests/draft-complete-mode-test.sh
+draft-complete-mode-test:
+  ok   test seam exported
+  ok   runner exported
+  ok   normal: driver is outside insert mode
+  ok   normal: runner skips without E785
+  ok   visual: driver is outside insert mode
+  ok   visual: runner skips without E785
+  ok   scheduled: driver is outside insert mode
+  ok   scheduled: runner skips without E785
+  ok   scheduled callback ran
+draft-complete-mode-test: all passed
+bash tests/pair-doctor-test.sh
+pair-doctor-test:
+  ok   test seam exported
+  ok   a capture appends exactly one row
+  ok   row uses perf.sh key pipe_hop_ms, not hop_ms
+  ok   row uses fork_exec_ms, not exec_ms
+  ok   an n/a probe is OMITTED from the row, never coerced to a number
+  ok   every probe key has a matching baseline: pipe_hop_ms
+  ok   every probe key has a matching baseline: fork_exec_ms
+  ok   text typed during the capture is never destroyed
+  ok   a failed capture preserves the note
+  ok   the timed completion chain reaches its candidate build, not just its gates
+  ok   time_editor leaves no scratch buffer behind
+  ok   a failed send preserves the note
+  ok   a successful send consumes the note
+  ok   the pid join runs and its rates reach the payload
+  ok   churn -- the spawn-storm signature -- reaches the payload
+  ok   with no UI the redraw leg renders n/a rather than ~0.0ms
+  ok   an n/a leg forces the verdict to unknown
+  ok   with a UI the redraw leg is actually timed
+  ok   the payload names a sidecar path
+  ok   the sidecar exists on disk
+  ok   the sidecar carries the operator note, not just the measurements
+  ok   the note in the sidecar is the one the operator actually wrote
+  ok   a failed rolling-log append notifies rather than failing silently
+  ok   a throwing spawn resets the in-flight guard
+pair-doctor-test: all passed
+bash tests/perf-key-conformance-test.sh
+perf-key-conformance-test:
+  ok   perf.sh emits load
+  ok   perf.sh emits cpu_idle_pct
+  ok   perf.sh emits windowserver_cpu_pct
+  ok   perf.sh emits pair_family_procs
+  ok   perf.sh emits build_procs
+  ok   perf.sh emits swapins_per_s
+  ok   perf.sh emits pipe_hop_ms
+  ok   perf.sh emits fork_exec_ms
+  ok   perf.sh emits zellij_action_ms
+  ok   perf.sh emits elapsed_seconds
+perf-key-conformance-test: all passed
+bash tests/plan-superseded-facts-test.sh
+plan-superseded-facts-test:
+plan-superseded-facts-test: all passed
+bash tests/paint-gate-consumers-test.sh
+terminal ownership: migrated compositors have no raw replay or paint gate
+bash tests/cr-newline-test.sh
+cr-newline-test:
+  ok   no popup -> newline
+  ok   no popup (sel irrelevant)
+  ok   typing: popup + selection -> accept
+  ok   typing: nothing picked -> C-e + newline
+  ok   z=: nothing picked -> clean dismiss, no newline
+  ok   z=: popup + selection -> accept
+  ok   live <CR> map routes through cr_keys (no popup)
+cr-newline-test: all passed
+bash tests/statusline-pos-test.sh
+statusline-pos-test:
+  ok   draft-review-hint shows marker in normal mode
+  ok   star shows marker in normal mode
+  ok   hist-1 shows marker in normal mode
+  ok   hist-2 shows marker in normal mode
+  ok   queue-1 shows marker in normal mode
+  ok   review-compact shows marker in normal mode
+  ok   minimized-click-first shows marker in normal mode
+statusline-pos-test: all passed
+bash tests/changelog-notify-test.sh
+changelog-notify-test:
+  ok   baseline shows cheatsheet
+  ok   baseline has no notification
+  ok   flash shows the message
+  ok   flash uses the PairNotify highlight
+  ok   flash replaces the cheatsheet
+  ok   reverts to the cheatsheet after the timer
+  ok   exact ready marker consumed
+  ok   exact marker fires the flash
+changelog-notify-test: all passed
+bash doctor/doctor_test.sh
+  ok   exits 0 despite a malformed line
+  ok   tallies the good lines, drops the bad one
+  ok   surfaces the near-miss drift finding
+  ok   emitter-health section renders
+  ok   NO-DATA path exits 0 with notice
+
+all doctor tests passed
+bash tests/adapt-schema-test.sh
+  ok   shell == Lua == canonical fixture (== Go, see TestGoldenMatchesFixture)
+  ok   60 concurrent appenders → 5 intact lines; optional contended records may skip
+
+all adapt-schema tests passed
+bash tests/dev-rebuild-test.sh
+  ok   deployed (PAIR_DEV unset) invokes no toolchain
+  ok   dev (PAIR_DEV=1) runs make build
+  ok   build failure is errexit-safe (launcher continues)
+  ok   couch-dev execs the sibling couch with PAIR_DEV=1 and every argument
+  ok   couch-dev rebuilds its own tree before launching
+  ok   couch-dev still launches couch when the build fails
+
+all dev-rebuild tests passed
+bash tests/pair-go-install-layout-test.sh
+pair-go install layout test passed
+python3 tests/without-ancestors-test.py
+.......
+----------------------------------------------------------------------
+Ran 7 tests in 2.151s
+
+OK
+bash tests/pair-embedded-runtime-test.sh
+pair embedded runtime smoke passed
+bash tests/pair-restart-quit-test.sh
+PASS pair-restart-quit
+bash tests/pair-rename.sh
+[33m::[0m T1 clean rename
+  [32mok[0m gone: /tmp/pair-rename.5OubNM/t1.smXF0d/agent-t1
+  [32mok[0m gone: /tmp/pair-rename.5OubNM/t1.smXF0d/agent-pid-t1
+  [32mok[0m gone: /tmp/pair-rename.5OubNM/t1.smXF0d/outer-tty-t1
+  [32mok[0m gone: /tmp/pair-rename.5OubNM/t1.smXF0d/draft-t1.md
+  [32mok[0m gone: /tmp/pair-rename.5OubNM/t1.smXF0d/log-t1.md
+  [32mok[0m gone: /tmp/pair-rename.5OubNM/t1.smXF0d/workbench-layout-t1
+  [32mok[0m gone: /tmp/pair-rename.5OubNM/t1.smXF0d/config-t1-claude.json
+  [32mok[0m gone: /tmp/pair-rename.5OubNM/t1.smXF0d/scrollback-t1-claude.raw
+  [32mok[0m gone: /tmp/pair-rename.5OubNM/t1.smXF0d/queue-t1
+  [32mok[0m gone: /tmp/pair-rename.5OubNM/t1.smXF0d/nvim-pid-t1-draft
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t1.smXF0d/agent-t2
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t1.smXF0d/agent-pid-t2
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t1.smXF0d/outer-tty-t2
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t1.smXF0d/draft-t2.md
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t1.smXF0d/log-t2.md
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t1.smXF0d/workbench-layout-t2
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t1.smXF0d/config-t2-claude.json
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t1.smXF0d/scrollback-t2-claude.raw
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t1.smXF0d/queue-t2
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t1.smXF0d/nvim-pid-t2-draft
+  [32mok[0m agent file content preserved
+[33m::[0m T2 substring safety (brain vs brain-2)
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t2.daNo2g/agent-brain-2
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t2.daNo2g/outer-tty-brain-2
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t2.daNo2g/draft-brain-2.md
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t2.daNo2g/config-brain-2-claude.json
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t2.daNo2g/scrollback-brain-2-claude.raw
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t2.daNo2g/queue-brain-2
+  [32mok[0m gone: /tmp/pair-rename.5OubNM/t2.daNo2g/agent-brain
+  [32mok[0m gone: /tmp/pair-rename.5OubNM/t2.daNo2g/config-brain-claude.json
+  [32mok[0m gone: /tmp/pair-rename.5OubNM/t2.daNo2g/scrollback-brain-claude.raw
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t2.daNo2g/agent-new-brain
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t2.daNo2g/config-new-brain-claude.json
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t2.daNo2g/scrollback-new-brain-claude.raw
+[33m::[0m T3 refuse when new tag is occupied
+  [32mok[0m rejected: run_rename /tmp/pair-rename.5OubNM/t3.JKGHcc src dst
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t3.JKGHcc/agent-src
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t3.JKGHcc/agent-dst
+[33m::[0m T4 refuse when old tag has no files
+  [32mok[0m rejected: run_rename /tmp/pair-rename.5OubNM/t4.oDipNs ghost newname
+[33m::[0m T5 refuse when old == new
+  [32mok[0m rejected: run_rename /tmp/pair-rename.5OubNM/t5.zZejaL t1 t1
+[33m::[0m T6 refuse invalid tag charset
+  [32mok[0m rejected: run_rename /tmp/pair-rename.5OubNM/t6.o6qrXk t1 bad name
+  [32mok[0m rejected: run_rename /tmp/pair-rename.5OubNM/t6.o6qrXk t1 bad/slash
+  [32mok[0m rejected: run_rename /tmp/pair-rename.5OubNM/t6.o6qrXk  newname
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t6.o6qrXk/agent-t1
+[33m::[0m T7 preserves exact pair-prefixed identities
+  [32mok[0m gone: /tmp/pair-rename.5OubNM/t7.CPw39R/agent-pair-t1
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t7.CPw39R/agent-pair-t2
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t7.CPw39R/agent-t1
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t7.CPw39R/agent-t2
+  [32mok[0m exact content: t1
+  [32mok[0m exact content: t2
+  [32mok[0m exact content: pair-t2
+  [32mok[0m rejected: run_rename /tmp/pair-rename.5OubNM/t7.CPw39R pair-t1 another
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t7.CPw39R/draft-t1.md
+  [32mok[0m gone: /tmp/pair-rename.5OubNM/t7.CPw39R/draft-another.md
+[33m::[0m T8 renames all agents under one tag
+  [32mok[0m gone: /tmp/pair-rename.5OubNM/t8.2fWgfq/config-multi-claude.json
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t8.2fWgfq/config-renamed-claude.json
+  [32mok[0m gone: /tmp/pair-rename.5OubNM/t8.2fWgfq/scrollback-multi-claude.raw
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t8.2fWgfq/scrollback-renamed-claude.raw
+  [32mok[0m gone: /tmp/pair-rename.5OubNM/t8.2fWgfq/config-multi-codex.json
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t8.2fWgfq/config-renamed-codex.json
+  [32mok[0m gone: /tmp/pair-rename.5OubNM/t8.2fWgfq/scrollback-multi-codex.raw
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t8.2fWgfq/scrollback-renamed-codex.raw
+  [32mok[0m gone: /tmp/pair-rename.5OubNM/t8.2fWgfq/config-multi-agy.json
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t8.2fWgfq/config-renamed-agy.json
+  [32mok[0m gone: /tmp/pair-rename.5OubNM/t8.2fWgfq/scrollback-multi-agy.raw
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t8.2fWgfq/scrollback-renamed-agy.raw
+[33m::[0m T9 --restart-check is a dry-run validate
+  [32mok[0m exists: /tmp/pair-rename.5OubNM/t9.WHYcQG/agent-src
+  [32mok[0m gone: /tmp/pair-rename.5OubNM/t9.WHYcQG/agent-dst
+  [32mok[0m rejected: run_rename /tmp/pair-rename.5OubNM/t9.WHYcQG --restart-check src dst
+
+pair rename: [32m67[0m passed, [32m0[0m failed
+bash tests/emitter-health-test.sh
+  ok   marker present ⇒ 0
+  ok   marker absent ⇒ 1
+  ok   no file ⇒ 2 (can't-tell)
+  ok   pipefail + large binary ⇒ marker still found (no SIGPIPE false-negative)
+  ok   no pidfile ⇒ resolves via PATH
+  ok   pidfile present ⇒ prefers running binary
+  ok   report flags a stale pair-wrap
+  ok   report marks a fresh pair-slug ok
+  ok   all-fresh ⇒ no STALE line
+
+all emitter-health tests passed
+bash tests/pair-session-watch-test.sh
+pair session-watch causal-round tests PASS
+sh tests/changelog-open-test.sh
+PASS changelog-open-test
+sh tests/changelog-session-key-test.sh
+PASS changelog-session-key-test
+sh tests/scrollback-open-test.sh
+PASS scrollback-open-test
+bash tests/copy-on-select-test.sh
+PASS copy-on-select in_nvim detection + right-terminal gate (#125)
+bash tests/term-pane-shortcuts-test.sh
+PASS right Alt+t stays local to pair term
+PASS right Alt+w stays local to pair term
+PASS right Alt+r stays local to pair term
+PASS right Alt+Shift+d splits terminal down as a native tiled split
+PASS Alt+Shift+Left delivers previous-tab into the right terminal
+PASS Alt+Shift+Right delivers next-tab into the right terminal
+PASS Alt+Shift+t delivers new-tab into the right terminal (#243)
+PASS Alt+Shift+Left moves no focus
+PASS right Alt+x focuses then routes quit to draft
+PASS Alt+r no longer uses a content-area prompt
+PASS right Alt+j is no-op
+PASS draft Alt+Shift+Enter enters focus on the right terminal
+PASS focus entry confirms current tab independently of effects
+PASS focus entry confirms pane context before effects
+PASS right Alt+Shift+Enter exits fullscreen and restores draft focus
+PASS right Alt+k falls back to draft
+PASS right Alt+k returns to last left pane
+PASS draft Alt+k production path focuses terminal by id
+PASS draft Alt+k production path records pane
+PASS review Alt+r does not rename tab
+PASS review Alt+Shift+d is not hijacked by terminal split
+PASS stale terminal template cannot split without ownership
+PASS stale terminal template cannot receive a delivered tab chord
+PASS stale terminal focus reports a refusal
+PASS stale terminal template cannot receive focus
+PASS Alt+Shift+Enter forwards distinct KKP sequence
+PASS Alt+Shift+d forwards distinct KKP sequence
+PASS Alt+x forwards distinct KKP sequence
+PASS all draft-routed globals forward one distinct sequence
+PASS global KDL contains no draft Lua injection
+PASS right terminal is a tiled pane (no floating layer, no filler)
+PASS draft rungs have 3-pane and 4-pane (split) swap variants incl. small
+PASS small-split is the last swap layout (cycle order preserved)
+PASS layout2 stays agent and draft only
+PASS layout2 and layout3 share agent and draft launch commands
+PASS Alt+Shift+N restarts only supervised agent
+PASS Zellij startup tips are disabled
+PASS Zellij focus does not follow the mouse across asymmetric layers
+PASS Zellij mouse support stays enabled
+PASS draft Alt+k focuses terminal by pane id
+PASS agent Alt+k no longer uses relative move-focus right
+PASS right terminal split leaves borderless to the layout, not the call site
+PASS split and recovery share the layout3 terminal command
+PASS Zellij explicitly enables Kitty keyboard protocol
+PASS Neovim confirmations do not block on inventory activity
+PASS Neovim has no native session path/stat fallback
+term-pane-shortcuts-test ok
+go test ./cmd/internal/titlepoller ./cmd/internal/procutil -count=1
+ok  	github.com/xianxu/pair/cmd/internal/titlepoller	0.660s
+ok  	github.com/xianxu/pair/cmd/internal/procutil	0.436s
+bash tests/zellij-trace-test.sh
+  ok   returns zellij exit code
+  ok   returns zellij stdout
+  ok   writes trace file
+  ok   records label
+  ok   records body length
+  ok   records body hash
+  ok   redacts prompt body
+  ok   still sends full body to zellij
+zellij-trace-test ok
+bash tests/review-docflow-test.sh
+  ok   forwards 'round --side agent'
+  ok   forwards --body
+  ok   agent subject shape
+  ok   agent round authored by agent
+  ok   records block in agent commit body
+  ok   human round authored by operator
+  ok   agent round staged the in-scope doc
+  ok   out-of-scope file NOT staged
+  ok   docflow.lua flags unavailable for a missing binary (code 127)
+  ok   review.start does not crash (touches no docflow — agent owns git)
+  ok   review.start emits no docflow notify (invariant #1)
+  skip real-docflow smoke (ariadne not found at /Volumes/TestScratch/local-checks/sdlc-local-3699216075/../ariadne/scripts/docflow.sh)
+review-docflow-test ok
+bash tests/review-apply-test.sh
+--- results ---
+ok render: 2 extmarks placed
+ok render: 2 diagnostics placed
+ok render: decorations on the right lines (1 and 2)
+ok render diagnostics preserve distinct same-line columns
+ok render marker proposal: no redundant highlight
+ok render marker proposal keeps diagnostic
+ok snapshot captures a multi-line exact extmark range
+ok snapshot captures exact single-line columns
+ok snapshot captures diagnostics
+ok apply_snapshot restores the multi-line exact range
+ok apply_snapshot restores exact single-line columns
+ok apply_snapshot restores diagnostics
+ok render embedded marker proposal: no redundant highlight
+ok render embedded marker proposal keeps diagnostic
+ok clear_at_line reports a cleared decoration
+ok clear_at_line leaves other highlights intact
+ok clear_at_line leaves other diagnostics intact
+ok clear_at_line reports false outside decorations
+apply_test ok
+review-apply-test ok
+bash tests/review-applied-round-test.sh
+--- results ---
+ok pair review apply exit 0, Code ok
+ok the pane reloaded the file pair wrote
+ok the pane did not modify the buffer for the agent round
+ok the round's explain is the diagnostic
+ok the commit body carries the round as records
+ok decorations reconstruct from the body
+ok the operator lock is taken
+ok apply under the lock exits 3 operator-lock
+ok nothing written under the lock
+ok after the send the apply lands
+ok the pane follows the next round
+ok bad batch: exit 1 edits-invalid, record listed
+ok a refused batch writes nothing
+applied_round_test ok
+review-applied-round-test ok
+bash tests/review-projection-test.sh
+--- results ---
+ok round placed decorations
+ok watcher autocmd registered
+ok undo restores the empty pre-round snapshot (decorations cleared)
+ok redo restores decorations
+ok restored decoration keeps its multi-line span (end_row)
+ok decorations ride a manual edit
+ok undo of the manual edit restores round decorations
+ok undo returns to the round-1 content
+ok round-1 decorations survive (record_empty_for idempotence guard)
+projection_test ok
+review-projection-test ok
+bash tests/review-poke-test.sh
+  ok   _cmds builds the id-based argv
+  ok   writes the please-review body to agent pane as one paste
+  ok   submits with semantic Alt+Enter to agent pane
+  ok   does not change focus
+  ok   no relative move-focus
+  ok   writes zellij action trace
+  ok   traces pane lookup
+  ok   traces body write
+  ok   records redacted body length (29 + 12 marker bytes)
+  ok   redacts review poke body
+review-poke-test ok
+bash tests/review-window-test.sh
+  ok   :PairReview exists with complete=file
+  ok   pair review open errors on a missing file
+  ok   spawns a floating pane
+  ok   launches nvim -u nvim/review.lua
+  ok   review markers do not poison markdown HTML syntax
+  ok   review.lua loaded the review core
+  ok   Alt+Return keymap wired
+  ok   Alt+a/Alt+r/Alt+q review maps wired
+  ok   Alt+x no-op map wired in review pane
+  ok   Shift+Alt+d definition map wired
+  ok   Shift+Alt+d forwarded KKP definition map wired
+  ok   Alt+o is not bound in review pane
+  ok   Alt+Shift+Return global fullscreen keymap wired
+  ok   :PairReviewShip command wired
+  ok   open-state file written
+  ok   🤖 markers rendered
+  ok   multi-line 🤖<…> renders a cross-row span
+  ok   review pane yanks to system clipboard
+  ok   review pane uses blinking cursor
+  ok   review pane indents soft-wrapped lines
+  ok   review pane smooth-scrolls soft-wrapped lines
+  ok   review pane loads a colorscheme
+  ok   review pane hides command line until : commands
+  ok   review pane sets ignorecase+smartcase
+  ok   review search is smartcase (/foo matches Foo, /Foo does not match foo)
+  ok   review statusline is compact in mode state
+  ok   review user marker highlight matches parley
+  ok   review agent marker highlight matches parley
+  ok   review quoted marker highlight matches parley
+  ok   review strike marker highlight matches parley
+  ok   diagnostic virtual lines follow cursor span
+  ok   failed poke does not leave spinner awaiting
+  ok   Alt+a accepts quoted agent replacement
+  ok   Alt+r rejects to original quoted text
+  ok   resolve_at_cursor matches a multi-line marker from any of its lines
+  ok   resolve_paragraph_to_cursor handles a multi-line marker; leaves other paragraphs
+  ok   Alt+a resolves the marker under cursor
+  ok   Alt+Shift+a accepts paragraph suggestions through cursor
+  ok   Alt+Shift+r rejects paragraph suggestions through cursor
+  ok   Alt+a clears agent styling outside markers
+  ok   Alt+q inserts a human comment marker
+  ok   Alt+q wraps visual selection as quoted marker
+  ok   Alt+q quoted marker preserves delimiter text
+  ok   Alt+Return saves the human edits (agent commits the round)
+  ok   Alt+Return clears stale agent styling
+  ok   nvim writes no git on Alt+Return
+  ok   nvim writes no git on :PairReviewShip
+  ok   human submit switches statusline to awaiting spinner
+  ok   awaiting spinner redraws at 100ms
+  ok   Alt+Return pokes human_finished with posture
+  ok   human_finished omits standing Edit marker rule
+  ok   human_finished omits standing comment-resolution rule
+  ok   :PairReviewShip pokes the agent ship request
+  ok   menu send pokes human_finished with mode and instruction
+  ok   menu send persists selected review mode
+  ok   send menu submit saves the reviewed document buffer
+  ok   review pane does not send redundant open handshake
+  ok   an applied round reloads and clears the awaiting spinner
+  ok   an empty round ends the turn without reloading
+  ok   VimLeave saves a modified buffer (unsent edit durability)
+review-window-test ok
+bash tests/review-controls-test.sh
+ok review hints, modes, float dismissal, marker wrapping and draft return
+bash tests/review-comments-test.sh
+ok painted compact comments, literal fallback, speaker colors, native Enter, thread save/discard, undo/redo repaint and pre-edit cursor admission
+bash tests/overlay-return-test.sh
+ok scrollback/changelog Escape and :qa hide overlays, emit annotations, then focus draft
+bash tests/review-toggle-test.sh
+  ok   other-session target ignored (smoke #6)
+  ok   :PairReview prepares target locally
+  ok   pure target_stale: ts-same
+  ok   pure target_stale: ts-diff
+  ok   pure target_stale: ts-nocur
+  ok   pure target_stale: ts-noid
+  ok   old unscoped target remains stale
+  ok   same-nvim unscoped target remains readable
+  ok   read_target uses established inventory session
+  ok   write_target stamps established inventory session
+  ok   current session does not guess from live Codex files
+  ok   unverified live target is stale
+  ok   unverified live target remains unstamped
+  ok   session lookup launches no ps/lsof subprocess
+  ok   pure: no target → prompt
+  ok   pure: target ready → open
+  ok   pure: target proposed → wait
+  ok   pure: alive+visible → hide
+  ok   pure: alive+hidden → show
+  ok   live+visible → hide-floating-panes
+  ok   live+hidden → show-floating-panes
+  ok   no target → :PairReview prompt (no open/show/hide)
+  ok   stale ready target cannot override non-review branch
+  ok   target proposed → wait (no open)
+  ok   never toggle-floating-panes
+  ok   Alt+c bound in config.kdl
+  ok   Alt+c forwards to focused process for draft routing
+  ok   Alt+r forwards ESC+r for review-pane reject
+  ok   Alt+r has no global tab action
+  ok   Alt+o default zellij tab-move disabled
+  ok   old pair-review-toggle pane gone
+  ok   Alt+x forwards to focused process for local routing
+  ok   Alt+x no longer injects quit command from zellij
+review-toggle-test ok
+bash tests/pair-review-target-test.sh
+  ok   uses PAIR_SESSION_ID when set
+  ok   no established binding stamps no session
+pair-review-target-test ok
+bash tests/review-readiness-cli-test.sh
+  ok   emits valid JSON with quoted branch/path fields
+  ok   prepare creates review branch for clean tracked file
+  ok   prepare marks review target ready
+  ok   prepare emits xx-fix deferred-load ack instruction
+  ok   zero-round branch has no invented identity
+  ok   verified preparation receipt enables first open
+  ok   current branch rounds resolve document and agent body
+review-readiness-cli-test ok
+bash tests/review-indicator-test.sh
+  ok   _pair_review_bar exposed
+  ok   off a review branch → 🤖0/0 (ignores other docs' shipped rounds)
+  ok   on review/<slug> → that slug's rounds only (🤖agent/human)
+review-indicator-test ok
+bash tests/review-resume-test.sh
+  ok   reconstruct-on-open placed decorations (placed=true hl=1 diag=1)
+  ok   change-highlights repainted from commit
+  ok   diagnosis repainted from commit
+  ok   resolved history repaints selected branch despite inherited identical anchors and stale shell status
+  ok   ambiguous branch refuses reconstruction without decorations
+  ok   resolution and reconstruction leave checkout unchanged
+review-resume-test ok
+python3 -B tests/review-resume-isolation-test.py
+.
+----------------------------------------------------------------------
+Ran 1 test in 7.836s
+
+OK
+bash tests/review-definition-test.sh
+--- results ---
+ok visual definition normalizes 1-based inclusive marks to selected term
+ok visual result applies
+ok visual definition inserts ref immediately after selected term
+ok shifted pending result applies
+ok pending definition follows inserted text before selection
+ok request helper returns request metadata
+ok request json records id and term
+ok request context is current document text
+ok result applies
+ok definition persisted as managed footnote
+ok definition highlight spans only term plus footnote ref
+ok definition diagnostic uses exact span and stored definition
+ok undo removes definition text
+ok undo clears definition highlights through projection
+ok undo clears definition diagnostics through projection
+ok redo restores definition text
+ok redo restores definition highlight through projection
+ok definition request context strips managed footnote footer
+ok redefinition applies
+ok redefinition updates existing footnote without duplicate ref
+ok clear_all removes definition highlights before rehydrate
+ok rehydrate_definitions redraws exact span from durable footnote
+ok continued-review context artifact strips managed definition footer
+ok changed selection refuses definition application
+ok refused definition response remains preserved
+ok old definition applies while newer response is published
+ok definition acceptance does not delete replacement payload
+definition_test ok
+review-definition-test ok
+bash tests/review-branch-restore-test.sh
+review-branch-restore-test ok
+python3 -B tests/review-observation-diagnostics-test.py
+.............
+----------------------------------------------------------------------
+Ran 13 tests in 16.413s
+
+OK
+bash tests/review-observation-test.sh
+review-observation-test ok
+python3 -B tests/review-fresh-restore-diagnostics-test.py
+..
+----------------------------------------------------------------------
+Ran 2 tests in 1.208s
+
+OK
+bash tests/review-fresh-restore-test.sh
+  ok  fresh-restores-history
+  ok  wrong-conversation-ack-refused
+  ok  missing-history-does-not-adopt-old-receipt
+  ok  ambiguous-history-does-not-open
+  ok  detached-identity-does-not-open
+review-fresh-restore-test ok
+bash tests/make-test-env-test.sh
+PASS make-test-env (335 derived knobs kept, session identity dropped)
+PASS additive Go flags, command-line overrides and nested Make
+PASS make-test-env (335 derived knobs kept, session identity dropped)
+PASS additive Go flags, command-line overrides and nested Make
+# pair#610: temporary 20m per-package budget; couchcore is ~580s idle.
+# pair#611 profiles/splits/shards it before removing this allowance.
+go test ./... -count=1 -timeout 20m
+ok  	github.com/xianxu/pair/cmd/couch	6.541s
+ok  	github.com/xianxu/pair/cmd/internal/adapt	0.161s
+ok  	github.com/xianxu/pair/cmd/internal/agentcmd	0.118s
+ok  	github.com/xianxu/pair/cmd/internal/agentdrive	0.182s
+ok  	github.com/xianxu/pair/cmd/internal/ansi	0.125s
+ok  	github.com/xianxu/pair/cmd/internal/archivecmd	0.205s
+?   	github.com/xianxu/pair/cmd/internal/archivetestenv	[no test files]
+ok  	github.com/xianxu/pair/cmd/internal/artifactpath	4.628s
+ok  	github.com/xianxu/pair/cmd/internal/broadcast	27.694s
+ok  	github.com/xianxu/pair/cmd/internal/castlock	0.255s
+ok  	github.com/xianxu/pair/cmd/internal/cdp	0.127s
+ok  	github.com/xianxu/pair/cmd/internal/changelogcmd	1.460s
+ok  	github.com/xianxu/pair/cmd/internal/checkpoint	0.258s
+ok  	github.com/xianxu/pair/cmd/internal/clipcmd	7.864s
+ok  	github.com/xianxu/pair/cmd/internal/commitoutcome	0.114s
+ok  	github.com/xianxu/pair/cmd/internal/contextcmd	0.377s
+ok  	github.com/xianxu/pair/cmd/internal/continuationcmd	0.736s
+ok  	github.com/xianxu/pair/cmd/internal/couchcmd	53.061s
+ok  	github.com/xianxu/pair/cmd/internal/couchcore	163.798s
+?   	github.com/xianxu/pair/cmd/internal/couchcoretest	[no test files]
+ok  	github.com/xianxu/pair/cmd/internal/couchidentity	0.408s
+ok  	github.com/xianxu/pair/cmd/internal/couchkeys	0.145s
+ok  	github.com/xianxu/pair/cmd/internal/couchmessage	26.020s
+ok  	github.com/xianxu/pair/cmd/internal/couchscratch	0.247s
+ok  	github.com/xianxu/pair/cmd/internal/couchsingleton	1.620s
+ok  	github.com/xianxu/pair/cmd/internal/couchtty	42.446s
+ok  	github.com/xianxu/pair/cmd/internal/crashreport	0.587s
+ok  	github.com/xianxu/pair/cmd/internal/ctxmeter	0.126s
+ok  	github.com/xianxu/pair/cmd/internal/diagnosticcmd	0.162s
+ok  	github.com/xianxu/pair/cmd/internal/diagnosticlog	6.571s
+ok  	github.com/xianxu/pair/cmd/internal/dispatcher	0.223s
+ok  	github.com/xianxu/pair/cmd/internal/draftroute	1.961s
+ok  	github.com/xianxu/pair/cmd/internal/durablefile	0.133s
+ok  	github.com/xianxu/pair/cmd/internal/editorendpoint	1.033s
+ok  	github.com/xianxu/pair/cmd/internal/entrypoint	0.122s
+ok  	github.com/xianxu/pair/cmd/internal/execalarm	8.209s
+ok  	github.com/xianxu/pair/cmd/internal/gccmd	0.627s
+ok  	github.com/xianxu/pair/cmd/internal/gcruntime	1.891s
+ok  	github.com/xianxu/pair/cmd/internal/historyarchive	48.244s
+ok  	github.com/xianxu/pair/cmd/internal/historyarchive/archivetest	0.137s
+ok  	github.com/xianxu/pair/cmd/internal/hoprttcmd	0.478s
+ok  	github.com/xianxu/pair/cmd/internal/hostty	0.234s
+ok  	github.com/xianxu/pair/cmd/internal/keyhelp	0.144s
+ok  	github.com/xianxu/pair/cmd/internal/keyscmd	0.368s
+ok  	github.com/xianxu/pair/cmd/internal/launcher	71.191s
+ok  	github.com/xianxu/pair/cmd/internal/layoutcmd	7.157s
+ok  	github.com/xianxu/pair/cmd/internal/lifetimelease	0.791s
+ok  	github.com/xianxu/pair/cmd/internal/mockserve	2.605s
+ok  	github.com/xianxu/pair/cmd/internal/mocktemplate	4.419s
+ok  	github.com/xianxu/pair/cmd/internal/model	0.617s
+ok  	github.com/xianxu/pair/cmd/internal/mouseinput	0.563s
+ok  	github.com/xianxu/pair/cmd/internal/nativeid	0.124s
+ok  	github.com/xianxu/pair/cmd/internal/nativelock	0.267s
+ok  	github.com/xianxu/pair/cmd/internal/notifycmd	0.154s
+ok  	github.com/xianxu/pair/cmd/internal/notifyosc	0.149s
+ok  	github.com/xianxu/pair/cmd/internal/notifytransport	1.154s
+ok  	github.com/xianxu/pair/cmd/internal/opener	0.536s
+ok  	github.com/xianxu/pair/cmd/internal/orientation	0.137s
+ok  	github.com/xianxu/pair/cmd/internal/osfs	0.173s
+ok  	github.com/xianxu/pair/cmd/internal/pairlifecycle	0.357s
+ok  	github.com/xianxu/pair/cmd/internal/pairlifecycletest	2.876s
+ok  	github.com/xianxu/pair/cmd/internal/pairlog	2.123s
+ok  	github.com/xianxu/pair/cmd/internal/panebirth	0.170s
+?   	github.com/xianxu/pair/cmd/internal/pathscope	[no test files]
+ok  	github.com/xianxu/pair/cmd/internal/perfbudget	0.133s
+ok  	github.com/xianxu/pair/cmd/internal/procutil	0.576s
+ok  	github.com/xianxu/pair/cmd/internal/ptychild	1.129s
+ok  	github.com/xianxu/pair/cmd/internal/readiness	0.147s
+ok  	github.com/xianxu/pair/cmd/internal/resumeform	0.145s
+ok  	github.com/xianxu/pair/cmd/internal/retentioncmd	1.413s
+ok  	github.com/xianxu/pair/cmd/internal/reviewapply	0.424s
+ok  	github.com/xianxu/pair/cmd/internal/reviewcmd	11.953s
+ok  	github.com/xianxu/pair/cmd/internal/rowtext	0.152s
+ok  	github.com/xianxu/pair/cmd/internal/runtimebundle	0.344s
+?   	github.com/xianxu/pair/cmd/internal/runtimebundle/generatecmd	[no test files]
+?   	github.com/xianxu/pair/cmd/internal/runtimebundle/manifestmodel	[no test files]
+ok  	github.com/xianxu/pair/cmd/internal/runtimebundlegen	4.925s
+ok  	github.com/xianxu/pair/cmd/internal/scribecmd	9.147s
+ok  	github.com/xianxu/pair/cmd/internal/scrollbackcmd	0.425s
+ok  	github.com/xianxu/pair/cmd/internal/sessioninventory	10.401s
+ok  	github.com/xianxu/pair/cmd/internal/sessioninventorytest	0.128s
+ok  	github.com/xianxu/pair/cmd/internal/sessionledger	0.484s
+ok  	github.com/xianxu/pair/cmd/internal/sessionsync	3.001s
+ok  	github.com/xianxu/pair/cmd/internal/sessionwatch	3.010s
+ok  	github.com/xianxu/pair/cmd/internal/slugcmd	0.530s
+ok  	github.com/xianxu/pair/cmd/internal/slugline	0.129s
+ok  	github.com/xianxu/pair/cmd/internal/storagegc	2.806s
+ok  	github.com/xianxu/pair/cmd/internal/strictjson	0.133s
+ok  	github.com/xianxu/pair/cmd/internal/submission	0.482s
+ok  	github.com/xianxu/pair/cmd/internal/tailmarkup	0.111s
+ok  	github.com/xianxu/pair/cmd/internal/termcmd	3.802s
+ok  	github.com/xianxu/pair/cmd/internal/terminal	44.364s
+ok  	github.com/xianxu/pair/cmd/internal/terminalcapture	0.510s
+ok  	github.com/xianxu/pair/cmd/internal/terminalqualify	0.216s
+ok  	github.com/xianxu/pair/cmd/internal/testcouch	20.941s
+ok  	github.com/xianxu/pair/cmd/internal/testcouch/agentfixture	11.258s
+ok  	github.com/xianxu/pair/cmd/internal/testcouch/agentfixture/cmd	0.441s
+ok  	github.com/xianxu/pair/cmd/internal/testdisk	7.769s
+ok  	github.com/xianxu/pair/cmd/internal/testgit	0.171s
+ok  	github.com/xianxu/pair/cmd/internal/testpair	6.017s
+ok  	github.com/xianxu/pair/cmd/internal/testwait	0.123s
+ok  	github.com/xianxu/pair/cmd/internal/textwidth	0.124s
+ok  	github.com/xianxu/pair/cmd/internal/threadactivity	0.302s
+ok  	github.com/xianxu/pair/cmd/internal/threadrecord	0.148s
+ok  	github.com/xianxu/pair/cmd/internal/titlepoller	0.693s
+ok  	github.com/xianxu/pair/cmd/internal/ttyio	5.739s
+ok  	github.com/xianxu/pair/cmd/internal/webcast	10.104s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/assets	2.355s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/board	4.494s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/capability	0.144s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/drive	0.382s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/fidelity	0.160s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/notedraft	4.330s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/notes	1.289s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/query	7.814s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/recorder	5.043s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/recording	1.963s
+?   	github.com/xianxu/pair/cmd/internal/webcast/recording/internal/fixturegen	[no test files]
+ok  	github.com/xianxu/pair/cmd/internal/webcast/sketch	0.164s
+ok  	github.com/xianxu/pair/cmd/internal/webcast/submission	0.162s
+ok  	github.com/xianxu/pair/cmd/internal/workbenchperftest	0.370s
+ok  	github.com/xianxu/pair/cmd/internal/workbenchshortcut	0.266s
+?   	github.com/xianxu/pair/cmd/internal/workbenchshortcut/generatecmd	[no test files]
+ok  	github.com/xianxu/pair/cmd/internal/wrapcmd	88.730s
+ok  	github.com/xianxu/pair/cmd/internal/zellijexec	14.143s
+ok  	github.com/xianxu/pair/cmd/internal/zellijpane	0.164s
+ok  	github.com/xianxu/pair/cmd/internal/zellijquery	16.540s
+ok  	github.com/xianxu/pair/cmd/internal/zellijreply	0.183s
+ok  	github.com/xianxu/pair/cmd/internal/zellijsession	0.129s
+ok  	github.com/xianxu/pair/cmd/internal/zellijtest	18.848s
+ok  	github.com/xianxu/pair/cmd/pair-go	13.624s
+?   	github.com/xianxu/pair/cmd/pair-launch-helper	[no test files]
+?   	github.com/xianxu/pair/cmd/probes/couchnestedrows	[no test files]
+?   	github.com/xianxu/pair/cmd/probes/couchstartrecovery	[no test files]
+?   	github.com/xianxu/pair/cmd/probes/reattachcost	[no test files]
+?   	github.com/xianxu/pair/cmd/probes/termctrlc	[no test files]
+ok  	github.com/xianxu/pair/cmd/probes/terminalqualify	0.135s
+?   	github.com/xianxu/pair/cmd/probes/termrows	[no test files]
+?   	github.com/xianxu/pair/cmd/probes/zellijrepaint	[no test files]
+?   	github.com/xianxu/pair/cmd/probes/zellijrepainttiming	[no test files]
+ok  	github.com/xianxu/pair/internal/repolint	15.145s
+ok  	github.com/xianxu/pair/internal/reporoot	0.155s
+ok  	github.com/xianxu/pair/internal/testbinary	0.164s
+ok  	github.com/xianxu/pair/internal/testoracle	1.231s
+ok  	github.com/xianxu/pair/probes/claudedraftsend	0.167s
+?   	github.com/xianxu/pair/probes/cursorsaveslots	[no test files]
+?   	github.com/xianxu/pair/probes/escsmoke	[no test files]
+ok  	github.com/xianxu/pair/probes/messageidle	0.139s
+?   	github.com/xianxu/pair/probes/mousemodesmoke	[no test files]
+?   	github.com/xianxu/pair/probes/termsmoke	[no test files]
+ok  	github.com/xianxu/pair/probes/zellijbirthrace	0.146s
+ok  	github.com/xianxu/pair/probes/zellijcalls	1.210s
+?   	github.com/xianxu/pair/probes/zellijpark	[no test files]
+ok  	github.com/xianxu/pair/probes/zellijprobe	0.235s
+?   	github.com/xianxu/pair/probes/zellijscrollregion	[no test files]
+ok  	github.com/xianxu/pair/probes/zellijwrapmargin	0.214s
+ok  	github.com/xianxu/pair/probes/zellijwritechars	0.165s
