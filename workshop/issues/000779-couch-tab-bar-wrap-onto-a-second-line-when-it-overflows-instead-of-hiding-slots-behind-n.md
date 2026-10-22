@@ -65,6 +65,8 @@ Initial read-only audit: one-row assumptions exist in couchtty rendering/geometr
 
 - 2026-10-21: PQ round1 found admitted-versus-painted geometry and tiny active/control priority underspecified. TL ba876ba6 approves revisioned pending/confirmed chrome input admission and active-first tiny fallback with fail-closed LIVE. Durable plan revised with controlled-writer strategy and named function guards; re-run plan-quality before estimating or coding.
 
+- Implementation checkpoint: change-code full-flow gate CLEAN; estimate review INFO is nonblocking. Qualification is included in Console/API fixtures and the two reserved operator UX rounds. Terminal rectangular composition/confirmation and pure measured packing have focused RED-to-GREEN evidence; Console two-row child reservation regression currently fails as expected (23 rows instead of22). Delegated source owners are terminal, packing and broadcast; root owns Console publication/input integration. No recorded check or merge runner is active.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration is stale, so provisional. Plan-quality round2 CLEAN preceded derivation. Covers shaping already done, all code/tests/docs, native and operator qualification, review and landing activity; queue idle excluded.
