@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
@@ -13,6 +14,41 @@ import (
 type ownershipReader struct {
 	*samplerReader
 	envErrors map[int]error
+}
+
+// Double P and S independently of detached candidates. The proof shell must
+// still take exactly one table and one inventory observation per effect and
+// perform no metrics/argv/cwd probes. Existing classifier ordering stays shared.
+func TestCollectOwnershipCountsRowsAndSlotsIndependently(t *testing.T) {
+	for _, rows := range []int{8, 16} {
+		for _, slots := range []int{8, 16} {
+			t.Run(fmt.Sprintf("P%d-S%d", rows, slots), func(t *testing.T) {
+				f := &samplerReader{}
+				for i := 0; i < rows; i++ {
+					f.rows = append(f.rows, procutil.Process{PID: 100 + i, PPID: 1, Identity: fmt.Sprint(i), Name: "zellij"})
+				}
+				s := testResourceSampler(f)
+				var reads atomic.Int64
+				s.slots = func() couchcore.ResourceSlotInventory {
+					reads.Add(1)
+					inventory := couchcore.ResourceSlotInventory{Complete: true}
+					for i := 0; i < slots; i++ {
+						inventory.Slots = append(inventory.Slots, couchcore.ResourceSlot{Slot: fmt.Sprint(i), OwnershipKnown: true})
+					}
+					return inventory
+				}
+				for i := 0; i < 16; i++ {
+					sample, _, _ := s.collectOwnership(context.Background())
+					if len(sample.Table) != rows || len(sample.Slots) != slots {
+						t.Fatal("ownership inputs changed")
+					}
+				}
+				if f.tables != 16 || reads.Load() != 16 || len(f.usages)+len(f.commands)+len(f.cwds)+len(f.environments) != 0 {
+					t.Fatalf("tables %d slots %d extra probes", f.tables, reads.Load())
+				}
+			})
+		}
+	}
 }
 
 func (r ownershipReader) Environment(ctx context.Context, p procutil.Process, keys ...string) (map[string]string, int, error) {

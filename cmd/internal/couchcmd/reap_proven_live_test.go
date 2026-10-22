@@ -11,9 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/testcouch"
+	"github.com/xianxu/pair/cmd/internal/testcouch/agentfixture"
 )
 
 func awaitProvenNative(ctx context.Context, check func() (bool, error)) error {
@@ -66,16 +67,16 @@ func TestLiveProvenOrphanReap(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			resources := func() (couchmessage.Response, error) {
+			resources := func() (couchcore.ResourceView, error) {
 				out, e := fleet.ActorCLI(ctx, 0, "--resources", "--json")
 				if e != nil {
-					return couchmessage.Response{}, e
+					return couchcore.ResourceView{}, e
 				}
-				var response couchmessage.Response
+				var response couchcore.ResourceView
 				if e = json.Unmarshal([]byte(out.Stdout), &response); e != nil {
 					return response, e
 				}
-				if out.ExitCode != 0 || response.Resources == nil {
+				if out.ExitCode != 0 || out.Truncated || out.CleanupUncertain {
 					return response, fmt.Errorf("resource read: %+v", out)
 				}
 				return response, nil
@@ -90,7 +91,7 @@ func TestLiveProvenOrphanReap(t *testing.T) {
 					return false, e
 				}
 				seen := 0
-				for _, row := range view.Resources.Processes {
+				for _, row := range view.Processes {
 					if keys[row.Key.PID] == row.Key.Identity && !row.Orphan {
 						seen++
 					}
@@ -137,7 +138,7 @@ func TestLiveProvenOrphanReap(t *testing.T) {
 					return false, e
 				}
 				seen := 0
-				for _, row := range view.Resources.Orphans {
+				for _, row := range view.Orphans {
 					if keys[row.Key.PID] == row.Key.Identity && row.Orphan && row.OrphanKnown {
 						seen++
 					}
@@ -147,8 +148,8 @@ func TestLiveProvenOrphanReap(t *testing.T) {
 				t.Fatalf("proven old identities: %v", err)
 			}
 			preview, err := fleet.ActorCLI(ctx, 0, "--reap-orphans", "--json")
-			if err != nil {
-				t.Fatal(err)
+			if !provenPreviewRefusal(preview, err) {
+				t.Fatalf("preview did not produce a joined intentional refusal: %+v %v", preview, err)
 			}
 			var previewReport orphanReapReport
 			if err = json.Unmarshal([]byte(preview.Stdout), &previewReport); err != nil {
@@ -163,8 +164,8 @@ func TestLiveProvenOrphanReap(t *testing.T) {
 				}
 			}
 			textPreview, err := fleet.ActorCLI(ctx, 0, "--reap-orphans")
-			if err != nil {
-				t.Fatal(err)
+			if !provenPreviewRefusal(textPreview, err) {
+				t.Fatalf("text preview did not produce a joined intentional refusal: %+v %v", textPreview, err)
 			}
 			for pid, identity := range keys {
 				if procutil.Identity(strconv.Itoa(pid)) != identity {
@@ -239,6 +240,24 @@ func TestLiveProvenOrphanReap(t *testing.T) {
 			}
 		}) {
 			break
+		}
+	}
+}
+
+// A nonzero CLI is expected only with the complete joined result from the
+// fixture, never on unknown transport, truncation or cleanup failure.
+func provenPreviewRefusal(result agentfixture.Result, err error) bool {
+	return err != nil && strings.HasPrefix(result.ID, "cli-") && result.ExitCode == 1 && result.Error == "exit status 1" && !result.Truncated && !result.CleanupUncertain
+}
+
+func TestProvenPreviewRefusalRequiresJoinedTypedResult(t *testing.T) {
+	good := agentfixture.Result{ID: "cli-1", ExitCode: 1, Error: "exit status 1"}
+	if !provenPreviewRefusal(good, errors.New("fixture CLI: exit status 1")) {
+		t.Fatal("rejected intentional refused preview")
+	}
+	for _, bad := range []agentfixture.Result{{ID: "cli-1", ExitCode: 1, Error: "read failed"}, {ID: "cli-1", ExitCode: 1, Error: "exit status 1", Truncated: true}, {ID: "cli-1", ExitCode: 1, Error: "exit status 1", CleanupUncertain: true}, {ExitCode: 1, Error: "exit status 1"}} {
+		if provenPreviewRefusal(bad, errors.New("failure")) {
+			t.Fatalf("accepted uncertain result: %+v", bad)
 		}
 	}
 }
