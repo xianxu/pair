@@ -106,3 +106,7 @@ Resume: confirm the hub's recovery notice, publish the corrected local head with
 ### 2026-10-21 19:58 — DNS recovery and fresh suite
 
 Authenticated TL receipt9b51cb83 reports operator DNS-cache recovery and instructs resumption. sdlc pr successfully published corrected checkpointf025dba400e49af9c6a6d6a4beda4cbc8aba5cf7 to PR536. Fresh recorded suite lease2286202273, attempt54cda992757ffb884f353a200db8f185, is retained on that head; checkout /Volumes/TestScratch/local-checks/sdlc-local-2794522815, initial position2. Old failure remains preserved and no flake resume was used. Wait for this complete result; do not duplicate/cancel or restart while it is queued/running. Close after a full pass; then enter merge promptly.
+
+### 2026-10-21 — next-item priority updated
+
+Authenticated TL receipta5d4365f directs returning immediately to owned #722 (fleet drain, PR477) after #778 lands, and reporting its recovered state. This supersedes the earlier next-item order #772/#740. Keep finishing #778 and its retained fresh suite first; do not switch branches during this check or landing.
