@@ -130,3 +130,6 @@ All policy choices above approved. Run change-code and implement; stage for oper
 ### 2026-10-22 — PQ-1 function-level test strategies
 
 Named the parser/extractor/CLI, collapse preparation/packer/drawing, exact scope filter/reducer and confirmed mouse opener functions. Each has an adversarial input class and mechanical oracle; conservation, counted work and deterministic publication barriers remain. This is a test-contract refinement, with no approved behavior delta.
+### 2026-10-22 — BR-1 numbered-hub coverage
+
+Legacy multiline display runs can split one identity after a numbered hub. Collapse aggregates by exact owner+group independently of those display runs and preserves the current hub by role, regardless of slot number. Tests enumerate primary0/numbered1/numbered4 x current/inactive; multiline grouping stays unchanged. The existing O(N) preparation and weighted-count invariants apply.

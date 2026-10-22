@@ -37,7 +37,7 @@ Design:
 - `couch --tab-style multiline|collapse` at launch (default `collapse`; `multiline` retains pair#779 behaviour); a runtime toggle
   key is a possible follow-up, not in scope.
 - **collapse:** one tab row. Within each repo group, show the active slot, every slot needing attention (amber
-  notification, red blocked), with useful :0 anchors when space allows, and fold the rest into `+N`. Quiet
+  notification, red blocked), with the current hub (primary or numbered) and useful :0 anchors when space allows, and fold the rest into `+N`. Quiet
   inactive hubs fold with their quiet workers. Proposed count interaction opens the switcher exactly scoped by
   owner hub and group; no in-row expansion. At impossible widths retain the active/attention priority and mark
   hidden attention in `+N !`; the active chip is never folded. These detailed choices await approval of the plan.
@@ -51,6 +51,7 @@ Design:
 
 - With `--tab-style collapse`, a fleet of N slots per group renders in one row: active plus attention slots shown,
   the rest as `+N` (render test), and clicking `+N` opens that exact group in the switcher (test).
+- Primary and numbered hubs obey the same role policy: current hub retained when space allows; quiet inactive hub and workers produce one count per exact owner/group, independent of legacy display-run splits.
 - `multiline` is unchanged (existing tests).
 - Staged for an operator look.
 
@@ -122,6 +123,13 @@ PR547 opened through sdlc. First recorded #796 suite on e6ccdbd36 was queued as 
 
 Final #796 recorded suite on pushedab4055c12b80f7ee9e4172f71b332d284aa19b53 is queued, session45335, lease-3791587181, attemptb1e4be1f0838dcda8c7443d6729136f7, isolated checkout /Volumes/TestScratch/local-checks/sdlc-local-788450635. First confirmed FIFO position20. The older #796 lease was canceled before execution and exited1/context canceled, with no test result. #789's distinct lease-3428295058 remains preserved; the multiple-owned-runs warning is expected because TL authorized overlapping independent snapshot suites. No source changes are pending. Close review may overlap this queued check under tl-worker; landing still requires its passing result and staged operator acceptance.
 
+
+### 2026-10-22 — close round1 BR-1 numbered-hub class
+
+Review REWORK/Critical BR-1 correctly found that legacy chipGroups deliberately splits after a numbered hub. Reusing those runs both folded a quiet current numbered hub (only slot0 was preserved) and emitted two counts for one inactive owner/group. Regression matrix primary0/numbered1/numbered4 x current/inactive reproduced all four numbered cases (targeted0.305s). Corrected the class: collapse aggregates by exact StatusGroupID in first-presentation order, with hub-role or slot0 anchors retained for the current owner; inactive quiet hubs fold with workers into one count. The existing multiline chipGroups definition is restored unchanged. Shared measured packer, drawing/spans and scope routing remain the sole mechanisms. Preparation is two linear actor passes plus group visits, with O(N) transient storage; counted N/2N bounds pass unchanged.
+
+Collapse/status/scope/native selection PASS0.490s on the fix, including all six role cases and actor conservation. Fresh whole tty run session71345 is pending. The previous #796 suite lease-3791587181 was canceled while queued before execution, retaining #789's independent lease. No suite pass claimed. Staged bccaa4617a2fa49cf6a530cfab72fc04bb581b04 had all4 binaries verified modified=false, but TL was immediately told to hold that operator look until corrected restage; review did not finalize close. Prior released main e1636e71 differs from our base only in two workshop issue files, so accepted operator code remains present.
+
 ## Revisions
 
 ### 2026-10-22 — operator priority and default (TL0afd9a82)
@@ -139,3 +147,7 @@ TL approved default one-row collapse, explicit unchanged multiline packer, quiet
 ### 2026-10-22 — checklist separates implementation from acceptance
 
 The implementation and verification-submission checkboxes are complete. Recorded-suite success, close verdict, staged operator look and landing remain explicit acceptance gates outside those checkboxes, preventing circular claims that close/landing already happened before requesting close. Done-when is unchanged.
+
+### 2026-10-22 — BR-1 clarifies role and aggregation identity
+
+Pin primary and numbered hubs under the same approved current/inactive policy; collapse aggregation uses exact owner+group rather than multiline display runs. This corrects implementation coverage, not approved behavior or scope.

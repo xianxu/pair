@@ -654,7 +654,7 @@ func keptEnd(actors []StatusActor, cells []chipCell) int {
 func chipGroups(actors []StatusActor) [][2]int {
 	var groups [][2]int
 	for i, a := range actors {
-		if i == 0 || a.Hub || actors[i-1].Hub && actors[i-1].SlotNumber > 0 || a.GroupKey == "" || a.GroupKey != actors[i-1].GroupKey || a.OwnerHub != actors[i-1].OwnerHub {
+		if i == 0 || a.Hub || actors[i-1].Hub && actors[i-1].SlotNumber > 0 || a.GroupKey == "" || a.GroupKey != actors[i-1].GroupKey {
 			groups = append(groups, [2]int{i, i})
 		}
 		groups[len(groups)-1][1] = i + 1

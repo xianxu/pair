@@ -131,6 +131,29 @@ func TestCollapseStatusInactiveHubAndWorkersFoldTogether(t *testing.T) {
 	}
 }
 
+func TestCollapseHubRoleAndIdentityIndependentOfSlotNumber(t *testing.T) {
+	for _, hubNumber := range []int{0, 1, 4} {
+		for _, inactive := range []bool{false, true} {
+			t.Run(strconv.Itoa(hubNumber)+"/inactive="+strconv.FormatBool(inactive), func(t *testing.T) {
+				hub := hubActor("repo:"+strconv.Itoa(hubNumber), "repo", hubNumber)
+				hub.Hub, hub.OwnerHub, hub.OtherHub = true, "owner", inactive
+				worker := hubActor("repo:5", "repo", 5)
+				worker.OwnerHub, worker.OtherHub, worker.Active = "owner", inactive, !inactive
+				bar := RenderStatusBar(100, 2, StatusModel{TabStyle: TabStyleCollapse, Actors: []StatusActor{hub, worker}})
+				if inactive {
+					if len(bar.Chips) != 0 || len(bar.GroupCounts) != 1 || !strings.Contains(rowPlain(bar.Rows[0]), "+2") {
+						t.Fatalf("inactive hub%d split identity: %q %+v", hubNumber, bar.Body(), bar.GroupCounts)
+					}
+				} else {
+					if len(bar.Chips) != 2 || len(bar.GroupCounts) != 0 {
+						t.Fatalf("current hub%d lost anchor: %q %+v", hubNumber, bar.Body(), bar.Chips)
+					}
+				}
+			})
+		}
+	}
+}
+
 func TestCollapseStatusAlwaysOneBoundedRowWithActiveSpan(t *testing.T) {
 	actors := []StatusActor{hubActor("active界", "a", 0), hubActor("bell", "b", 0), hubActor("blocked", "c", 0), hubActor("quiet", "d", 0)}
 	actors[0].Active, actors[1].Bell, actors[2].Blocked = true, true, true
