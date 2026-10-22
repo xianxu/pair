@@ -1,13 +1,13 @@
 ---
 id: 000779
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours: 5.814
 collaboration-mode: collaboration
-card_mirror: '51b64acb2f6e7d4ce42d6666a04472c2e965f8c3' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '92309a9ebe6179c80bde06a6e3c7c7edcfc698fa' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-21T16:42:14-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 0.91
 ---
 
 # Couch tab bar: wrap onto a second line when it overflows, instead of hiding slots behind +N
