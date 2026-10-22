@@ -17,6 +17,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "64c232d4", done: "74ab5a33"}
 ---
 
 # Live reboot refuses owned pane as ambiguous
