@@ -1,6 +1,6 @@
 ---
 id: 000792
-status: codecomplete
+status: done
 created: 2026-10-21
 updated: 2026-10-22
 estimate_hours: 4.033
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 09b3cf61c67b73f7caf0e4ca9c2f46ef073e9b2b
         evidence_commit: f1d13a67f93b20196b55085785222ddf7301d608
+        landed_commit: d370fd77a87da27102ff4c4f2feb4ca7d7639a59
 ---
 
 # Couch: no verb reaps proven orphans of a live slot's previous incarnation; extend --reap-orphans
