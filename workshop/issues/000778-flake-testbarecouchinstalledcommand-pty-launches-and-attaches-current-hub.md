@@ -48,7 +48,7 @@ Alternatives: socket-only isolation is insufficient because census is host-wide;
 
 - [x] Reproduce independent installed-environment name equality deterministically; retain the saved #775/#757 failure references and source trace.
 - [x] Add one exclusive fixture-authority initializer, apply it to installedEnv and testcouch roots, derive the installed launch expectation, and enforce both constructors in Pair's lint catalog with positive/negative tests.
-- [ ] Run targeted allocator/constructor/PTY/lint checks and inventory preflight, and record a passing full suite. The SDLC close/landing receipts then own closure and retirement of the flake registration.
+- [x] Run targeted allocator/constructor/PTY/lint checks and inventory preflight, and record a passing full suite. The SDLC close/landing receipts then own closure and retirement of the flake registration.
 
 ## Log
 
@@ -138,3 +138,9 @@ Published final code d7198a27791bfac191552e79b19ea45ed6e93f40 to PR536. Fresh re
 Renewed review independently passed affected packages, installed PTY/pipe refusal, constructor isolation, operator executables, focused seed races and reader inventory, with no code finding. It returned REWORK solely because final integrated source d7198a27 still has an inflight suite, while the Plan verification row retained its earlier checked state. Uncheck that row until lease3582875921 completes; the older f025dba4 full-suite pass remains historical evidence only. This is the completion-requires-verification family: both the active checklist and final-source acceptance clause remain outstanding. No new implementation behavior or test-head change. Record the completed matching receipt/log hash before claiming addressed and rerunning close.
 
 The close timing report adopted4.41h, including a dominant213.9m segment containing about187m of retained train waiting and periodic status polls. Filed ariadne#547 unclaimed to investigate conductor-owned wait attribution; do not hand-edit measured actuals or infer that all213.9m was pure waiting.
+
+### 2026-10-22 00:11 — BR-1 evidence complete: corrected integrated suite PASS
+
+Retained lease3582875921 completed exit0 in12m49s (receipt768.631s) on final source d7198a27791bfac191552e79b19ea45ed6e93f40, attemptfa50b4670ad83418945dc02f84c68676. Admission output reported358s wait; completed receipt records359.209s queue time. All packages/non-Go groups passed, including cmd/couch7.676s, artifactpath5.751s, testcouch22.596s, testpair6.708s and repolint10.343s; no flake rerun/waiver. Completed receipt copied to workshop/evidence/000778/integrated-suite-pass.json; raw-log SHA25638c6ab4eddde369a20be795981ec0cd8e40f1f4b74ebf1ef89e02eaa4d7e38ba independently recomputed and equals the receipt. Only process/docs artifacts changed since that tested code.
+
+BR-1 completion-requires-verification is now addressed: the active checklist is checked only after this matching final-source pass, the final-source acceptance clause has its successful receipt/hash, and prior failed/older passes remain distinct history. No behavioral source changes in this review round. Re-close now, then merge promptly on SHIP; do not chase newer main manually. #722 remains next.
