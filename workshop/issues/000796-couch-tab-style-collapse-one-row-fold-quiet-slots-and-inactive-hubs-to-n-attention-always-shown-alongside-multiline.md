@@ -182,6 +182,10 @@ Operator TL5ca1126d requires restored inactive-owner dimming and a new quick sta
 
 Full close round7 EXIT0/SHIP, no new findings, all4 prior findings disposed; evidence47d141ecbb92676f1baedb6c0395e00abc74ecab pushed. Independent reviewer passed whole tty/cmd/textwidth/rowtext/artifactpath and negative controls for numbered hubs, pending placeholders and owner styling. Staged sourcec3b09ebd717a6794f686bb72c1daea8d2b25d746 all4 binaries verified modified=false, quick dimming operator look pending (TL3805275b submitted). Corrected recorded suite session47217/lease-3756798983/attemptbfdfebd4295f897beff7354e145fb08a, snapshot /Volumes/TestScratch/local-checks/sdlc-local-2824048623, admitted after85s and running. Old22b6e775 queued run canceled before execution; no pass claimed for it. #789 isolated session61444/lease-3428295058 preserved. Next require this suite pass and dimming-look acceptance, then sdlc merge; no active merge runner yet. #819 remains after796 and789, before811/812.
 
+### 2026-10-22 — dimming operator acceptance
+
+TL3c73d959 relayed the requested dimming look: "works well". Accepted staged sourcec3b09ebd717a6794f686bb72c1daea8d2b25d746; full close round7 already SHIP. Exact-source suite session47217/lease-3756798983 remains running in its isolated snapshot (shell checks passed, Go packages in progress), no final result yet. Land through sdlc merge only after its pass; grant remains until16:13. #789's isolated queued suite/branch preserved; finish789 next, then819, then811/812. No scope added.
+
 ## Revisions
 
 ### 2026-10-22 — operator priority and default (TL0afd9a82)
