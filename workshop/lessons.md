@@ -7,6 +7,10 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #758 BR-1: generation-fence the returned observation as well as the state mutation. A delayed negative probe that cannot retire a successor also cannot confirm that successor absent; assert the response of the stale operation in controlled race tests.
+- #758 BR-2: classify deterministic candidate validation/size refusal before the durable writer boundary. An operation that never invoked a writer must not poison healthy authority as uncertain publication; test continued lookup/release/cleanup after capacity refusal.
+- #758 BR-3: a notification recorder that always succeeds cannot qualify delivery lifetime. Model pending/current attachment identity, hold and fail the real notification seam, and prove publication-before-delivery plus cancellation/join; tick qualification only after those controls pass.
+
 - A retry observing file absence does not prove an earlier unlink became durable. Before acknowledging idempotent removal, synchronize every admitted containing directory even for already-absent targets; test visible and durable state separately through failed fsync and crash recovery. (#777 plan gate)
 - Adding a public CLI verb requires updating every public command index, including README and embedded help/skill, alongside its detailed atlas contract. Audit those indexes together at the documentation boundary. (#777 BR-1)
 - Start a shutdown grace clock after delivering its triggering signal; allocating it earlier silently spends the grace under preemption. Pin signal/clock order and exactly-once cleanup through a deterministic clock factory. (#776)

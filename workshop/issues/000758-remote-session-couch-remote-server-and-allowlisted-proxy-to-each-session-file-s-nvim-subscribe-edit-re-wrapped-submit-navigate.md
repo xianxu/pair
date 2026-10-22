@@ -89,6 +89,12 @@ Actual EndpointOwner/EndpointStore -> service.handle -> private framed Unix serv
 
 Full review may overlap the replacement queued suite per tl-worker. The only unchecked issue Plan item is the final suite/review/landing workflow itself; close may use precise --no-plan-check to review completed implementation while that workflow is pending, and --no-project because TL owns the remote-session project. Neither waives recorded suite or merge validation: a final-head recorded pass and normal merge gates still precede landing. No full-suite success or producer landing is claimed here.
 
+### 2026-10-22 — review round1 and bridge split
+
+Whole-issue close round1 returned REWORK on pinned1ad3d3b8: BR-1 late negative lookup falsely returns successful absence despite a successor; BR-2 deterministic encoded-size refusal incorrectly poisons healthy authority; BR-3 notification fake cannot hold/fail/join delivery despite checked qualification. Verified against actual owner/store/tests; fixing each class with controlled RED regressions. Earlier native qualification did not cover held notification; that checklist claim is corrected to pending. Canceled only owned queued suite lease2373422974 through local-check before admission because executable fixes are required; terminal joined, no passing result claimed.
+
+TL initially requested a small external bridge, then accepted the evidence that #408 never held a daemon and testcouch is Go/testing.TB-owned. Per TL5e43c052 filed unclaimed #801 (deps #758) for the Go shared owner/driver plus thin external wrapper, confirmed readiness/environment, EOF/TERM and exact Close/AssertCleaned. parley.nvim#405 may land M1 on fakes/native unit evidence; only real-producer acceptance waits for #801. No bridge implementation enters #758. #759 operator acceptance still takes dispatch priority.
+
 ## Revisions
 
 ### 2026-10-22 — producer-only whole issue
@@ -127,3 +133,7 @@ Design subtotal 1.44h x1.15 plus implementation subtotal 2.48h = 4.136h. This is
 ### 2026-10-22 — additive codec prerequisite and transport refinement
 
 Per TL6bf10860, #758 owns additive preserve-number structural validation/object splitting/encoding for endpoint retained raw fields only. Strict APIs retain historical overflow refusal. #759 and #758 reconcile to one shared helper when the second lands. The initial Go RPC library option is superseded by the bounded installed-nvim client approved in TLe0091eff; semantic callbacks stay fixed and typed. No producer filesystem cleanup of editor-owned paths and no new adapter scope.
+
+### 2026-10-22 — review corrections preserve approved authority semantics
+
+BR-1: negative lookup completion must atomically decide exact retirement and its response against current selected authority; changed successor returns stale, not successful-null. BR-2: deterministic candidate encoding/size refusal occurs before writer invocation, returns capacity for the size bound without poison; only attempted writes create publication uncertainty. BR-3: held/failed/shutdown-interrupted notifications and pending/current editor state qualify publish-before-notice, successor preservation and joined shutdown. These implement the existing generation, bounded-admission and notification lifetime contract; no new takeover/reset authority. External built-binary daemon conformance bridge is separately #801 per TL5e43c052.
