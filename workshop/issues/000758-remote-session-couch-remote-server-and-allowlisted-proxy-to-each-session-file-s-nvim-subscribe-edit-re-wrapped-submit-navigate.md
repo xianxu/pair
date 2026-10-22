@@ -109,6 +109,12 @@ Combined endpoint/couchcmd focused race passed10.776s/1.945s; repolint13.979s, a
 
 Round2 independently verified BR-1/BR-2 regressions fail with the pre-fix owner overlay and pass at head, and disposed BR-1/BR-2/BR-3. No Critical remains. Verdict FIX-THEN-SHIP did not finalize because Important BR-4 is still open: the N8/16 tests counted writer calls and retained rows but did not measure actual publication bytes. The earlier byte-qualification claim was premature. Adding raw-payload byte accounting to the injected writer and explicit snapshot/cumulative/zero-write/plateau assertions; production mechanism unchanged. The bound remains O(M*S) total bytes for M snapshot publications over S retained pairs, not a false linear-byte claim. Canceled own queued lease1152919602 through exact local-check before admission; no suite pass claimed.
 
+### 2026-10-22 — BR-4 measured writer-byte qualification
+
+Added a mutex-protected ledger recording actual raw payload lengths at the injected writer boundary (attempted encoded payload bytes, not filesystem block/metadata writes). The N8/16 test now runs16 registration/release/reopen rounds, checks every snapshot and cumulative budget, exact publication counts, zero retry/no-op/reload bytes, one publication per batch and actual on-disk sizes after reopen. Upper growth bounds permit the declared O(M*S) snapshot rewrite cost rather than falsely requiring linear cumulative bytes; they do not reject cheaper encodings. Independent negative controls reject duplicate ledger publications and added per-attempt retained bytes.
+
+Root race run PASS3.218s: N8 initialSnapshot4605B -> final4615B, initial registration sum21216B, total648152B/144publications; N16 initial9120B -> final9137B, initialsum78591B, total2415268B/272publications. Path lengths cause small measurement variation across fixtures. Bounded +10B/+17B growth is canonical AttachID/Revision decimal width, not retained history. Retry/no-op/reload effects are exactly zero. Agent owner race passed7.031s and catalog2.280s; final root reader inventory passes. Production code is unchanged from3a98841ea. Full review ledger and recorded suite remain pending.
+
 ## Revisions
 
 ### 2026-10-22 — producer-only whole issue

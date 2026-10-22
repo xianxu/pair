@@ -151,15 +151,40 @@ func (r *ownerRPC) Superseded(ctx context.Context, b EndpointBinding) error {
 	return nil
 }
 
+// ownerPublicationLedger records the actual encoded payload handed to durable
+// IO, independently of model encoding and of the fixture's legacy write count.
+type ownerPublicationLedger struct {
+	mu    sync.Mutex
+	bytes int64
+	sizes []int
+}
+type ownerPublicationBytes struct {
+	bytes int64
+	sizes []int
+}
+
+func (l *ownerPublicationLedger) record(raw []byte) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.bytes += int64(len(raw))
+	l.sizes = append(l.sizes, len(raw))
+}
+func (l *ownerPublicationLedger) snapshot() ownerPublicationBytes {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return ownerPublicationBytes{bytes: l.bytes, sizes: append([]int(nil), l.sizes...)}
+}
+
 type ownerFixture struct {
-	o         *EndpointOwner
-	cfg       EndpointConfig
-	rpc       *ownerRPC
-	proc      *ownerProcess
-	request   RegisterRequest
-	writes    int
-	fail      bool
-	failAfter bool
+	publications ownerPublicationLedger
+	o            *EndpointOwner
+	cfg          EndpointConfig
+	rpc          *ownerRPC
+	proc         *ownerProcess
+	request      RegisterRequest
+	writes       int
+	fail         bool
+	failAfter    bool
 }
 
 func newOwnerFixture(t *testing.T) *ownerFixture {
@@ -182,6 +207,7 @@ func newOwnerFixture(t *testing.T) *ownerFixture {
 	f.request.Namespace = dir
 	f.request.Socket = socket
 	f.cfg = EndpointConfig{Store: EndpointStore{Namespace: dir, Path: filepath.Join(dir, "state.json"), Stage: filepath.Join(dir, "stage.json"), WriteFile: func(path string, raw []byte, _ string) error {
+		f.publications.record(raw)
 		f.writes++
 		if f.fail {
 			return errors.New("uncertain write")
@@ -428,41 +454,171 @@ func TestOwnerCloseJoinsHeldNativeProbe(t *testing.T) {
 		t.Fatal("Close returned before admitted operation joined")
 	}
 }
+
+// Each snapshot is O(S) in retained process/document pairs. M full-snapshot
+// publications may write O(M*S) bytes; in particular initial registrations are
+// allowed quadratic cumulative bytes. These bounds do not claim incremental IO.
+func ownerPublicationBudget(got ownerPublicationBytes, writes, maxSnapshot int) error {
+	if len(got.sizes) != writes {
+		return fmt.Errorf("publications=%d want=%d", len(got.sizes), writes)
+	}
+	var sum int64
+	for _, size := range got.sizes {
+		if size <= 0 || size > maxSnapshot || size > MaxStateBytes {
+			return fmt.Errorf("snapshot bytes=%d exceeds envelope=%d", size, maxSnapshot)
+		}
+		sum += int64(size)
+	}
+	if got.bytes != sum || got.bytes > int64(writes)*int64(maxSnapshot) {
+		return fmt.Errorf("cumulative bytes=%d sum=%d budget=%d", got.bytes, sum, int64(writes)*int64(maxSnapshot))
+	}
+	return nil
+}
+func ownerReopenPlateau(initial, current, pairs, round, publications, firstPublications int) error {
+	// Retained pairs stay fixed. Only canonical decimal AttachID and Revision
+	// widths may grow across repeated attempts; no attempt history is retained.
+	allowed := pairs*(len(strconv.Itoa(round))-1) + len(strconv.Itoa(publications)) - len(strconv.Itoa(firstPublications))
+	if current < initial || current > initial+allowed {
+		return fmt.Errorf("reopen snapshot=%d initial=%d allowed decimal growth=%d", current, initial, allowed)
+	}
+	return nil
+}
 func TestOwnerBatchOnePublicationAndPlateau(t *testing.T) {
+	const rounds = 16
+	// This deliberately generous absolute envelope covers the bounded fixture's
+	// paths and scalar fields while the N->2N ratio and plateau checks below
+	// reject superlinear snapshots and per-attempt retained growth.
+	const headerEnvelope, recordEnvelope = 1024, 2048
+	type measurement struct {
+		initialSnapshot, finalSnapshot, writes int
+		initialBytes, totalBytes               int64
+	}
+	measurements := map[int]measurement{}
 	for _, count := range []int{8, 16} {
 		t.Run(strconv.Itoa(count), func(t *testing.T) {
 			f := newOwnerFixture(t)
-			for round := 1; round <= 4; round++ {
+			var firstPlateau int
+			var observed measurement
+			for round := 1; round <= rounds; round++ {
 				entries := make([]UnregisterEntry, 0, count)
 				for i := 0; i < count; i++ {
 					r := f.request
 					r.DocumentID = fmt.Sprintf("%032x", i+100)
 					r.AttachID = strconv.Itoa(round)
-					p := f.o.Register(context.Background(), r)
-					if p.Code != "ok" {
+					before := f.publications.snapshot()
+					p := f.o.Register(t.Context(), r)
+					if p.Code != "ok" || !p.Changed || p.EditorEndpoint == nil {
 						t.Fatal(p)
 					}
+					after := f.publications.snapshot()
+					if len(after.sizes) != len(before.sizes)+1 || after.bytes <= before.bytes {
+						t.Fatalf("registration publication bytes: before=%d/%d after=%d/%d", len(before.sizes), before.bytes, len(after.sizes), after.bytes)
+					}
+					if err := ownerPublicationBudget(after, (round-1)*(count+1)+i+1, headerEnvelope+count*recordEnvelope); err != nil {
+						t.Fatal(err)
+					}
+					if round == 1 {
+						if i > 0 {
+							growth := after.sizes[i] - after.sizes[i-1]
+							if growth < 0 || growth > recordEnvelope {
+								t.Fatalf("per-pair snapshot growth=%d", growth)
+							}
+						}
+						if i == count-1 {
+							observed.initialSnapshot = after.sizes[len(after.sizes)-1]
+							observed.initialBytes = after.bytes
+						}
+					}
 					entries = append(entries, UnregisterEntry{DocumentID: r.DocumentID, AttachID: r.AttachID, BindingGeneration: p.EditorEndpoint.BindingGeneration})
-					before := f.writes
-					if again := f.o.Register(context.Background(), r); again.Changed || f.writes != before {
-						t.Fatal("retry rewrote state")
+					if again := f.o.Register(t.Context(), r); again.Code != "ok" || again.Changed {
+						t.Fatalf("exact retry: %+v", again)
+					}
+					retry := f.publications.snapshot()
+					if len(retry.sizes) != len(after.sizes) || retry.bytes != after.bytes {
+						t.Fatal("retry added publication bytes")
 					}
 				}
-				before, calls := f.writes, f.rpc.calls
+				before, calls := f.publications.snapshot(), f.rpc.calls
 				u := UnregisterRequest{Version: 1, Namespace: f.request.Namespace, EditorIncarnation: incA, PID: 42, Entries: entries}
-				p := f.o.Unregister(context.Background(), u)
-				if !p.Changed || f.writes != before+1 || f.rpc.calls != calls {
-					t.Fatal("batch did not make one pure publication")
+				p := f.o.Unregister(t.Context(), u)
+				after := f.publications.snapshot()
+				if p.Code != "ok" || !p.Changed || len(after.sizes) != len(before.sizes)+1 || after.bytes-before.bytes != int64(after.sizes[len(after.sizes)-1]) || f.rpc.calls != calls {
+					t.Fatal("batch did not make exactly one pure snapshot publication")
 				}
-				if p = f.o.Unregister(context.Background(), u); p.Changed || f.writes != before+1 {
-					t.Fatal("noop batch published")
+				if err := ownerPublicationBudget(after, round*(count+1), headerEnvelope+count*recordEnvelope); err != nil {
+					t.Fatal(err)
 				}
-				s, e := f.cfg.Store.Load()
-				if e != nil || len(s.Records) != count {
-					t.Fatalf("retention grew %d %v", len(s.Records), e)
+				currentSize := after.sizes[len(after.sizes)-1]
+				if round == 1 {
+					firstPlateau = currentSize
+				}
+				if err := ownerReopenPlateau(firstPlateau, currentSize, count, round, len(after.sizes), count+1); err != nil {
+					t.Fatal(err)
+				}
+				if p = f.o.Unregister(t.Context(), u); p.Code != "ok" || p.Changed {
+					t.Fatalf("noop batch: %+v", p)
+				}
+				noop := f.publications.snapshot()
+				if len(noop.sizes) != len(after.sizes) || noop.bytes != after.bytes {
+					t.Fatal("noop batch added publication bytes")
+				}
+				f.o.Close()
+				var err error
+				f.o, err = NewEndpointOwner(t.Context(), f.cfg)
+				if err != nil {
+					t.Fatal(err)
+				}
+				saved, err := f.cfg.Store.Load()
+				if err != nil || len(saved.Records) != count {
+					t.Fatalf("reopened retention records=%d err=%v", len(saved.Records), err)
+				}
+				info, err := os.Stat(f.cfg.Store.Path)
+				if err != nil || info.Size() != int64(currentSize) {
+					t.Fatalf("writer/disk snapshot size diverged: err=%v", err)
+				}
+				if p = f.o.Lookup(t.Context(), f.request.Namespace, entries[0].DocumentID); p.Code != "ok" || p.EditorEndpoint != nil {
+					t.Fatalf("reopened retirement lookup: %+v", p)
+				}
+				reopened := f.publications.snapshot()
+				if len(reopened.sizes) != len(after.sizes) || reopened.bytes != after.bytes {
+					t.Fatal("reopen/reload/empty lookup added publication bytes")
 				}
 			}
+			all := f.publications.snapshot()
+			observed.finalSnapshot = all.sizes[len(all.sizes)-1]
+			observed.writes = len(all.sizes)
+			observed.totalBytes = all.bytes
+			if observed.writes != rounds*(count+1) || f.writes != observed.writes {
+				t.Fatalf("publication count=%d legacy=%d", observed.writes, f.writes)
+			}
+			measurements[count] = observed
+			t.Logf("N=%d rounds=%d initialSnapshot=%d initialPublicationBytes=%d finalSnapshot=%d totalPublicationBytes=%d publications=%d", count, rounds, observed.initialSnapshot, observed.initialBytes, observed.finalSnapshot, observed.totalBytes, observed.writes)
+			// Negative controls mutate only the independent byte ledger/result:
+			// duplicated durable IO and retained per-attempt data must trip bounds.
+			duplicate := ownerPublicationBytes{bytes: all.bytes + int64(observed.finalSnapshot), sizes: append(append([]int(nil), all.sizes...), observed.finalSnapshot)}
+			if ownerPublicationBudget(duplicate, observed.writes, headerEnvelope+count*recordEnvelope) == nil {
+				t.Fatal("byte budget accepted duplicated writer accounting")
+			}
+			if ownerReopenPlateau(firstPlateau, observed.finalSnapshot+128, count, rounds, observed.writes, count+1) == nil {
+				t.Fatal("plateau accepted growing retained attempt metadata")
+			}
 		})
+	}
+	small, large := measurements[8], measurements[16]
+	if len(measurements) != 2 {
+		return
+	}
+	if large.initialSnapshot*10 > small.initialSnapshot*22 {
+		t.Fatalf("N->2N snapshot growth exceeds linear envelope: N8=%d N16=%d", small.initialSnapshot, large.initialSnapshot)
+	}
+	if large.initialBytes*10 > small.initialBytes*45 {
+		t.Fatalf("initial cumulative publication growth exceeds quadratic envelope: N8=%d N16=%d", small.initialBytes, large.initialBytes)
+	}
+	if large.totalBytes*10 > small.totalBytes*45 {
+		t.Fatalf("M*S cumulative publication envelope: N8=%d N16=%d", small.totalBytes, large.totalBytes)
+	}
+	if large.writes-rounds != 2*(small.writes-rounds) {
+		t.Fatalf("N->2N publication counts inflated: N8=%d N16=%d", small.writes, large.writes)
 	}
 }
 
