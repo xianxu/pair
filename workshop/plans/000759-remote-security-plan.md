@@ -231,14 +231,15 @@ Files: new `cmd/internal/remotesession/{state,policy,protocol,session,store,orig
 
 Files: `broadcast/cloudflared.go`, `host.go` and tests; new `couchcmd/remote.go`, `remote_cli.go`, tests; new `couchtty/console_remote_session.go` and tests; console wiring/input/status files; local lint catalog guard.
 
-- [ ] Extend FakeTunnel and implement the ProtectedTunnel.Open / Host.Mount function-strategy row test-first.
-- [ ] Wire remote-only Host to protected named transport, existing guard and lifetime lock. Ordinary cast/replay holders produce explicit busy; no shared mounts, no unauthenticated public readiness probe, no quick/loopback fallback.
-- [ ] Implement the RemoteServer.ServeHTTP function-strategy row using the real private HTTP server and stateful signed-issuer/document backends.
-- [ ] Wire 👽 click toggle/show-link and CLI on/off/status plus authenticated remote kill; no CLI/HTTP reset opcode. Every re-enable rotates link passcode and revokes old cookies/streams. Add an unexported host-key reset closure. Paste/mouse/reply/release and child-output bytes never invoke it.
-- [ ] Implement the Console.routeRemoteSessionKey row through the real broker/wrapper and owned-console fixture paths.
-- [ ] Implement the matchRemoteConsoleReset function-strategy row as pair-local catalog rule remote-console-reset, citing #759.
-- [ ] Complete the ReduceRemote, Store and Supervisor.Dispatch sequence strategies against the integrated exposure owner, then run the stated invariant/count oracles.
-- [ ] Run targeted remote/broadcast/couchtty/couchcmd/wrapcmd tests plus relevant race tests, update README/atlas/CLI help, commit and milestone-close M2.
+- [x] Extend FakeTunnel and implement the ProtectedTunnel.Open / Host.Mount function-strategy row test-first.
+- [x] Wire remote-only Host to protected named transport, existing guard and lifetime lock. Ordinary cast/replay holders produce explicit busy; no shared mounts, no unauthenticated public readiness probe, no quick/loopback fallback.
+- [x] Implement the M2 security portion of the RemoteServer.ServeHTTP function-strategy row using the real private HTTP server, protected Unix origin and stateful signed issuer; document routes/backend dispatch qualify in M3.
+- [x] Wire 👽 click toggle/show-link and CLI on/off/status plus authenticated remote kill; no CLI/HTTP reset opcode. Every re-enable rotates link passcode and revokes old cookies/streams. Add an unexported host-key reset closure. Paste/mouse/reply/release and child-output bytes never invoke it.
+- [x] Implement the Console.routeRemoteSessionKey row through the real broker/wrapper and owned-console fixture paths.
+- [x] Implement the matchRemoteConsoleReset function-strategy row as pair-local catalog rule remote-console-reset, citing #759.
+- [x] Complete the ReduceRemote and Store lifecycle/session sequence strategies against the integrated exposure owner, including counted8/16 open/close controls; Supervisor.Dispatch and audit-handoff strategies qualify in M3.
+- [x] Run targeted remote/broadcast/couchtty/couchcmd/wrapcmd tests plus relevant race tests, update README/atlas/CLI help and commit the local M2 qualification checkpoint.
+- [ ] Milestone-close M2 after the hub lifts the DNS/push hold; mandatory fresh review remains outstanding.
 
 ### M3 — Trusted submits, document integration and acceptance
 
@@ -367,3 +368,10 @@ The TL-owned remote-session project records the operator dropping ariadne#520 at
 Implemented protected transport with one opening per reservation, confirmed-only teardown, private Unix origin and existing named lease/guard. A held lifecycle fixture reproduced repeated connector openings (2–4) after a lost owner; the protected generation fence now refuses that reopening. Supervisor serializes persistent commands in acceptance order while revoking immediately under the shared admission mutex. Reset waits for transport, requests and persistence; even an idle kill requires its durable join. Unknown publication or cleanup stays blocked. Lifecycle state transitions remain in ReduceRemote, including an explicit poisoned-completion event.
 
 The initial RemoteServer exposes only signed-Access security page/status/handshake/logout and fixed session-independent kill, with bounded request lanes and socket-body deadlines. M3 document operations and broker origin are still pending. Browser same-origin GET may omit Origin; any present foreign Origin and every mutation without exact Origin refuses. The console decodes Ctrl+Alt+R only from a non-repeat host keypress and renders capability text/locally generated QR exclusively in its operator-only layer. CLI remote on/off/status has a closed reset-free IPC shape and prints only action/status. A pair-local AST guard pins reset capture/invocation and rejects alias escape/foreign callers; production inventory qualification is next. No public exposure or account/configuration change.
+
+
+### 2026-10-21 19:55 PDT — M2/M3 boundary and local qualification
+
+TL04dd04f3 approved explicitly separating the overlapping checklist obligations: M2 closes on protected exposure, lifecycle and session controls; document dispatch and audit-handoff qualification remain M3. This records the existing implementation/atlas boundary, not removal of an obligation. The original M2 rows named the complete RemoteServer strategy with a document backend and Supervisor.Dispatch sequences; those document-operation portions remain mandatory under M3's first two rows and the shared strategy table. No document/edit/submit route is claimed implemented in M2.
+
+TL616b174f resumed M2 after #776 landed. Operator retraction4d0da020 keeps the original separate console 👽 remote control; cast drawing still uses annotation permission. The implemented click/CLI toggle, link/passcode rotation, authenticated off-only kill, host-key-only reset, four-session cap and capture refusal are retained. M2 tests/docs/reader audit completed locally; mandatory milestone review remains pending. TLa9bb056d explicitly holds milestone-close and pushes until DNS returns because the verb automatically pushes. Commit locally now, with no remote transport/account/network changes.

@@ -87,7 +87,14 @@ func TestRemoteServerSignedBoundaryAndSessionResume(t *testing.T) {
 func TestRemoteServerKillOutsidePasscodeAndSessionCap(t *testing.T) {
 	issuer := newAccessIssuerFixture(t)
 	s, _ := supervisorFixture(t, &broadcast.FakeTunnel{})
-	server := newRemoteServer(s, issuer.verifier(t, time.Now))
+	verifier, err := newAccessVerifier(AccessConfig{
+		Issuer: fixtureIssuer, Audience: "app",
+		AllowedEmails: []string{"human@example.com", "second@example.com"},
+	}, accessFixtureTransport{issuer.server.URL, http.DefaultTransport}, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := newRemoteServer(s, verifier)
 	s.handler = server
 	if err := s.On(); err != nil {
 		t.Fatal(err)
@@ -109,7 +116,13 @@ func TestRemoteServerKillOutsidePasscodeAndSessionCap(t *testing.T) {
 			t.Fatal("unsafe kill admitted", w.Code)
 		}
 	}
-	if w := remoteRequest(t, server, "POST", "/remote/kill", token, "{}", map[string]string{"X-Remote-Kill": "1"}); w.Code != 204 {
+	// A separately authenticated allowed user needs neither the initiating
+	// user's cookie nor a free session slot nor the per-enable link passcode.
+	second := issuer.token(t, func(claims map[string]any) {
+		claims["sub"] = "second-user-id"
+		claims["email"] = "second@example.com"
+	}, "first")
+	if w := remoteRequest(t, server, "POST", "/remote/kill", second, "{}", map[string]string{"X-Remote-Kill": "1"}); w.Code != 204 {
 		t.Fatalf("sessionless kill failed: %d %s", w.Code, w.Body.String())
 	}
 	if s.Snapshot().Status != "disabled" || s.ConsoleLink() != "" {

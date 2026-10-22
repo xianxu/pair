@@ -1,7 +1,8 @@
 # Remote session security
 
 The #759 implementation is under development and defaults off. M2 wires the
-protected security surface; document routes and broker provenance remain M3.
+protected security surface, locally qualified with its milestone review pending;
+document routes, dispatch/audit handoff and broker provenance remain M3.
 #758 supplies the real document/nvim adapter after interface integration; private
 stateful backends qualify that seam without being exposed publicly.
 

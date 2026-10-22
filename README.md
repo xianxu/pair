@@ -1453,6 +1453,8 @@ Broadcasts reach viewers through [`cloudflared`](https://developers.cloudflare.c
 `cloudflared` runs under a guard that stops it the moment Couch exits, even
 if Couch crashes or is killed.
 
+🤖{**Session-file remote mode (#759, under development).** The separate `👽 remote` control starts or stops an Access-protected session-file connection; `couch --remote on|off|status` provides the same ordinary controls. It starts off. Each enable creates a new link and passcode; off or kill revokes all sessions. The link and a locally generated QR appear only in Couch's own console. Remote mode requires a protected named tunnel, an Access team/application and an exact email allowlist; see [remote-session setup and security](atlas/remote-session.md). It refuses while `COUCH_CAPTURE_DIR` is configured: unset it and restart Couch, or keep capture and skip remote. At most four sessions are allowed, bounded by Access JWT validity. Any authenticated allowed user can disable remote access. A kill stays latched across restart; only a non-repeat Ctrl+Alt+R keypress in Couch's own console clears it after cleanup, then a separate enable creates a fresh link. CLI, remote requests and child-pane keys cannot clear the latch. The current security surface supports status, handshake, logout and kill; document editing and submits await the document adapter and provenance integration.}
+
 **Remote pointer (#412).** While broadcasting, the status row reads
 `LIVE ⏸ 👆`. Clicking `👆` creates a separate **pointer link**, copies it to
 your clipboard, and turns pointing on (`👆` turns amber). Give that link to the
