@@ -4874,6 +4874,15 @@ confirmer, source revision, selection, native identity and terminal attribution.
 Changed ownership or generations require a new selection/confirmation. Restarting
 Couch forgets unused confirmations. Menu and CLI dispatch the same executor.
 
+The registered-wrapper fallback preserves pane ownership evidence (#797): it runs
+any original terminal retirement first, quiesces the named session while the
+additional wrapper tree is still live, then signals and joins that tree. Normal
+park keeps its existing ordering. All scoped deletion callers pass the positively
+observed exact server to `OSRuntime.DeleteOwnedSessionContext`; its quiescence
+loop can confirm absence but cannot authorize a later server generation. A
+name-only deleter or unknown/foreign ownership refuses. Failure diagnostics retain
+the bounded native pane JSON before disposable cleanup removes its store.
+
 Selected recovery intent lives in schema-4 thread/start records; schema-3 records
 are migrated in memory without startup writes. Future schema versions refuse
 mutation. Fresh archives the source through the existing store journal and always

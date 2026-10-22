@@ -67,8 +67,8 @@ func TestTwoScopeNameCollisionNeverOwnsForeignSession(t *testing.T) {
 	if err != nil || !owned.Present {
 		t.Fatalf("actual owner: %+v %v", owned, err)
 	}
-	if err := checker.Quiesce(old); err != nil {
-		t.Fatal(err)
+	if err := checker.Quiesce(old); err == nil {
+		t.Fatal("foreign session quiescence must refuse")
 	}
 	if len(deleter.deleted) != 0 {
 		t.Fatalf("foreign terminal deleted: %v", deleter.deleted)

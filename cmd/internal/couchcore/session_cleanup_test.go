@@ -172,7 +172,7 @@ func (d *deadlineSessionDeleter) DeleteSession(string) error {
 	d.legacyCalls++
 	return nil
 }
-func (d *deadlineSessionDeleter) DeleteSessionContext(ctx context.Context, _ string) error {
+func (d *deadlineSessionDeleter) DeleteOwnedSessionContext(ctx context.Context, _ launcher.SessionOwnerObservation) error {
 	d.deadline, _ = ctx.Deadline()
 	<-ctx.Done()
 	return ctx.Err()

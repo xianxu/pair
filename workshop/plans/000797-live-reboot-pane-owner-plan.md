@@ -53,10 +53,10 @@ The causal fake must couple process retirement to pane command disappearance. Re
 
 ## Investigation checkpoint before production changes
 
-- [ ] Retain a bounded disposable native capture using the shared harness. Record exact tool/version, public reboot offer, confirmation request/outcome, native pane JSON and server/wrapper generations before and at the failing retirement boundary. Retain the original failure's bounded NativeQueryEvidence before private-root cleanup. Credentials and unrelated process argv do not enter committed evidence.
-- [ ] Run one personality per Go invocation. Exercise Claude and Codex; retain setup, operation, output, write and cleanup bounds. All direct children and readers join; unknown cleanup prevents acceptance. Do not stage pair:0 or exercise the live fleet.
-- [ ] Build a deterministic replay through actual SessionOwnerProbe and recovery composition: valid owned wrapper evidence -> accepted confirmation -> park/retire -> held/exited pane missing command -> current refusal. Also distinguish pre-existing omission and ambiguous joined text.
-- [ ] Record which event first loses the witness and why confirmed native terminal attribution selected the slot-tree fallback. If the capture contradicts post-stop evidence loss, stop and revise the diagnosis rather than applying an ordering patch.
+- [x] Retain a bounded disposable native capture using the shared harness. Record exact tool/version, public reboot offer, confirmation request/outcome, native pane JSON and server/wrapper generations before and at the failing retirement boundary. Retain the original failure's bounded NativeQueryEvidence before private-root cleanup. Credentials and unrelated process argv do not enter committed evidence.
+- [x] Run one personality per Go invocation. Exercise Claude and Codex; retain setup, operation, output, write and cleanup bounds. All direct children and readers join; unknown cleanup prevents acceptance. Do not stage pair:0 or exercise the live fleet.
+- [x] Build a deterministic replay through actual SessionOwnerProbe and recovery composition: valid owned wrapper evidence -> accepted confirmation -> park/retire -> held/exited pane missing command -> current refusal. Also distinguish pre-existing omission and ambiguous joined text.
+- [x] Record which event first loses the witness and why confirmed native terminal attribution selected the slot-tree fallback. If the capture contradicts post-stop evidence loss, stop and revise the diagnosis rather than applying an ordering patch.
 
 ## Correction decision and approval boundary
 
