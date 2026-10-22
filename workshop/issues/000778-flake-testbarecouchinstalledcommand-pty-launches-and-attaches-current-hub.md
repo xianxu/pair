@@ -1,13 +1,13 @@
 ---
 id: 000778
-status: codecomplete
+status: working
 deps: []
 github_issue:
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '45eaac840c9306729f1b8384a967567e7e593314' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '825df4608714fe7adeaf35bb6645bf1f0ab64884' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-21T18:23:34-07:00
 claimant:
     operator: Xian Xu
@@ -17,7 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/couch.TestBareCouchInstalledCommand]
-flow: {kind: quick, provenance: inferred, spec: "6653e200", done: "855df120"}
+flow: {kind: quick, provenance: inferred, spec: "ba2c59cf", done: "855df120"}
 actual_hours: 1.11
 ---
 
