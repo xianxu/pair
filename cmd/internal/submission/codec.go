@@ -15,10 +15,12 @@ type manifestWire Submission
 
 // manifestSchema declares the wire shapes of owned fields. The typed Go
 // decoder still owns numeric range/semantic validation; this preflight rejects
-// null and wrong-shaped values before json.Unmarshal can invent zero values.
+// missing required members, null and wrong-shaped values before json.Unmarshal
+// can invent zero values.
 // Unknown extensions remain raw JSON, outside this schema and its authority.
 type manifestSchema struct {
 	fields            map[string]*manifestSchema
+	required          []string
 	element           *manifestSchema
 	tupleLength       int
 	scalar            byte // s:string, b:boolean, i:integer, n:number
@@ -55,6 +57,14 @@ func nullableSchema(s *manifestSchema) *manifestSchema {
 	copy.nullable = true
 	return &copy
 }
+
+// requireMembers is context-specific: new sketch evidence requires explicit
+// facts, while shared legacy note structures retain their omission defaults.
+func requireMembers(s *manifestSchema, names string) *manifestSchema {
+	copy := *s
+	copy.required = strings.Fields(names)
+	return &copy
+}
 func arraySchema(element *manifestSchema) *manifestSchema {
 	return &manifestSchema{element: element, nullable: true}
 }
@@ -72,15 +82,19 @@ func makeSubmissionSchema() *manifestSchema {
 	privacy.stringAlternative = true
 	author := objectSchema("id name color", nil)
 	page := nullableSchema(objectSchema("url title provenance", nil))
-	viewport := typedObject("", "w h", "", "dpr", "", nil)
+	viewport := requireMembers(typedObject("", "w h", "", "dpr", "", nil), "w h dpr")
 	anchor := typedObject("tag route kind sel text", "node", "", "", "", map[string]*manifestSchema{"box": tupleSchema(4, true), "classes": arraySchema(scalarSchema('s')), "path": arraySchema(scalarSchema('s')), "stable": stringMapSchema()})
-	fact := typedObject("tag id unavailable", "node parent", "", "", "truncated", map[string]*manifestSchema{"data": stringMapSchema()})
+	fact := requireMembers(typedObject("tag id unavailable", "node parent", "", "", "truncated", map[string]*manifestSchema{"data": stringMapSchema()}), "node")
 	facts := typedObject("", "inspected_nodes bytes", "", "", "truncated missing_layout", map[string]*manifestSchema{"anchors": arraySchema(fact), "ancestors": arraySchema(fact), "intersections": arraySchema(fact)})
-	path := typedObject("id", "", "", "width", "truncated", map[string]*manifestSchema{"at": anchor, "pts": arraySchema(tupleSchema(3, false))})
+	facts = requireMembers(facts, "anchors ancestors intersections truncated missing_layout inspected_nodes bytes")
+	path := requireMembers(typedObject("id", "", "", "width", "truncated", map[string]*manifestSchema{"at": requireMembers(anchor, "node box"), "pts": arraySchema(tupleSchema(3, false))}), "id at width pts truncated")
 	plan := typedObject("sketch", "width height", "", "scale", "clipped", map[string]*manifestSchema{"paths": arraySchema(path), "region": tupleSchema(4, false)})
-	image := objectSchema("file provenance", map[string]*manifestSchema{"limitations": arraySchema(scalarSchema('s')), "plan": plan})
+	plan = requireMembers(plan, "sketch region scale width height clipped paths")
+	image := requireMembers(objectSchema("file provenance", map[string]*manifestSchema{"limitations": arraySchema(scalarSchema('s')), "plan": plan}), "file provenance plan")
 	sketchSource := typedObject("tab url title provenance", "t record_index doc", "", "", "", map[string]*manifestSchema{"vp": viewport, "scroll": tupleSchema(2, false)})
-	sketch := typedObject("id recording_id digest note phase reason privacy privacy_origin", "history_t history_record_index", "next_sequence", "", "", map[string]*manifestSchema{"privacy_rule": privacy, "author": author, "source": sketchSource, "elements": facts, "image": image})
+	sketchSource = requireMembers(sketchSource, "t record_index doc tab url title vp scroll provenance")
+	sketch := typedObject("id recording_id digest note phase reason privacy privacy_origin", "history_t history_record_index", "next_sequence", "", "", map[string]*manifestSchema{"privacy_rule": requireMembers(privacy, "origin privacy"), "author": requireMembers(author, "id color"), "source": sketchSource, "elements": facts, "image": image})
+	sketch = requireMembers(sketch, "id recording_id next_sequence digest author note history_t history_record_index phase source elements image privacy privacy_rule")
 	entry := objectSchema("selector element text kind role", nil)
 	boxText := typedObject("scope unavailable", "", "", "", "truncated", map[string]*manifestSchema{"region": tupleSchema(4, false), "visible_text": arraySchema(entry), "accessible_names": arraySchema(entry), "skipped": arraySchema(scalarSchema('s'))})
 	crop := typedObject("file captured_at unavailable", "document", "", "", "clipped_to_viewport", map[string]*manifestSchema{"settlement": nullableSchema(objectSchema("status reason", nil)), "box": tupleSchema(4, false)})
@@ -89,9 +103,10 @@ func makeSubmissionSchema() *manifestSchema {
 	return typedObject("privacy privacy_origin how_to_read id delivery", "version", "", "", "superseded", map[string]*manifestSchema{"privacy_rule": privacy, "target": objectSchema("scope tag session nonce", nil), "source": source, "notes": arraySchema(note), "sketches": arraySchema(sketch)})
 }
 
-// DecodePreserving rejects duplicate keys and case aliases before decoding
-// known fields with their original Go types. Validate enforces semantic required
-// fields at each store boundary, as for earlier versions.
+// DecodePreserving rejects ambiguous keys and invalid known wire shapes before
+// typed decoding. New evidence requires explicit member presence; legacy
+// omission defaults remain supported. Validate owns semantic values and
+// dependencies at each store boundary.
 func DecodePreserving(data []byte) (Submission, error) {
 	if len(data) > MaxBundleBytes {
 		return Submission{}, fmt.Errorf("manifest exceeds 64 MiB")
@@ -184,6 +199,11 @@ func filterManifest(raw []byte, schema *manifestSchema) ([]byte, bool, error) {
 		var fields map[string]json.RawMessage
 		if err := json.Unmarshal(raw, &fields); err != nil {
 			return nil, false, err
+		}
+		for _, name := range schema.required {
+			if _, present := fields[name]; !present {
+				return nil, false, fmt.Errorf("missing required manifest field %q", name)
+			}
 		}
 		extended := false
 		for name, value := range fields {

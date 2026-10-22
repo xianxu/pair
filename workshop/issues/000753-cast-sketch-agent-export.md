@@ -55,7 +55,7 @@ Primary surfaces: query/{sketch.go,render_sketch.go,surface.go,fake.go,cli.go,ev
 ## Plan
 
 - [x] Claim/start-plan after dependencies land; write the slice-specific execution plan.
-- [ ] Implement and locally verify the Spec and Done when; submit review corrections and exact-source native evidence to full close (round2 BR-7 required-member correction, recorded-suite and operator landing gates remain explicit).
+- [x] Implement and locally verify the Spec and Done when; submit review corrections and native evidence to full close (recorded-suite and operator landing gates remain explicit).
 
 ## Log
 
@@ -129,6 +129,9 @@ Primary surfaces: query/{sketch.go,render_sketch.go,surface.go,fake.go,cli.go,ev
 
 - Full close round2 verified the counterfactual regressions and addressed BR-1–5, withdrew BR-6 after checking the exact-source native log/hash, and returned REWORK for BR-7. The wire schema checks types only for members present: omission of source.t, record_index or scroll passed DecodePreserving and Validate, fabricating zero evidence. Required-member presence is a separate dimension from null/type checking; enumerate all new evidence members and their intentional optional/legacy defaults before implementing the correction (ARCH-SECURE/ARCH-EVOLVE/ARCH-PURPOSE).
 - Officially canceled only this workspace's obsolete queued suite via `sdlc local-check cancel --run lease-614666113`; tool confirmed cancellation on e14d26de (pid70638), and retained runner exited on cancellation before admission. Executable correction needs a new pushed-head run. No close is finalized. Hub outcome report4f610287-8bd5-4352-9c5e-8f5a8d778f53 names the defect and replacement plan.
+
+- BR-7 correction completed: explicit context-specific required-member metadata is enforced before child filtering and typed decoding. The complete inventory is in plan Revisions. The original three omission probes passed DecodePreserving+Validate before correction; the pre-fix decoder accepted120/120 required-member deletions. Corrected regressions reject67 full-evidence and53 valid explicit-zero/default deletions, preserve29 optional omissions and9 legacy default omissions, and accept both null/string policy union cases. Eighteen real Store read-path probes (three source deletions across six readers) refuse with the original field path; unknown extensions remain raw.
+- Independent parent full submission race passed11.972s, focused omission/compatibility/Store tests0.220s, builder0.156s and manager0.447s; agent required-member fuzz passed6191 executions in10.233s and Cast sketch/note integration0.446s. Reader inventory passed after the new tests; no hash repair was required. This correction changes only manifest decoding and its tests, so the previously verified renderer/browser native evidence remains applicable to those unchanged seams. A new pushed-head recorded run and full close follow; operator smoke and landing remain pending.
 
 ## Estimate
 
