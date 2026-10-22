@@ -37,7 +37,7 @@ These are existing entities to inspect and reuse. No new production authority or
 | Name | Lives in | Planned role |
 | --- | --- | --- |
 | ClassifySessionOwner / splitObservedCommand | cmd/internal/launcher/session_owner.go | Preserve fail-closed classification; distinguish missing evidence from ambiguous text in diagnostics if needed |
-| RecoveryTerminalPlan / checkConfirmed | cmd/internal/launcher/recovery_terminal*.go | Existing immutable server/descendant authorization and survivor checks; candidate reuse, not a second cache |
+| RecoveryTerminalPlan | cmd/internal/launcher/recovery_terminal.go | Immutable exact server/descendant authorization data; candidate reuse, not a second cache |
 | AdvanceRecoveryExecution | cmd/internal/couchcore/recovery_plan.go | Preserve screen/intent before retirement and launch only after confirmed retirement |
 
 ### Integration points
@@ -45,6 +45,7 @@ These are existing entities to inspect and reuse. No new production authority or
 | Name | Lives in | Wraps / test seam |
 | --- | --- | --- |
 | withSlotTree | cmd/internal/couchcore/recovery_slot_tree.go | Registered wrapper, exact process signals and session quiescence |
+| recoveryTerminalDriver.checkConfirmed | cmd/internal/launcher/recovery_terminal_confirmed.go | INTEGRATION validator; injected readiness reader defaults to bounded native metadata reads |
 | executePreparedRecovery / parkPreparedRecovery | recovery_prepared.go / recovery_retirement_os.go | Confirmation, screen preservation, normal park and terminal retirement ordering |
 | SessionOwnerProbe / ScopedThreadArtifactCollisionChecker | launcher/session_owner_os.go / couchcore/artifactcollision.go | Strict native pane replies, exact server generation and current binding |
 | testcouch.Fleet | cmd/internal/testcouch | Isolated genuine agents, public CLI, identity-fenced owned cleanup |
@@ -130,3 +131,7 @@ After the concrete plan is approved, rerun change-code if design/flow requires i
 ### 2026-10-22 — Concrete production correction approved
 
 Authenticated ops:0 approval a5fddddd-f74f-4737-99de-8bf35d5658b5 approves the complete concrete revision above: original retirement first, named quiescence before added TERM/waits, unchanged outer park, exact observed server passed to quiesceAuthorizedSession through DeleteOwnedSessionContext, all three scoped deletion consumers sharing it, and explicit refusal for unsupported deleters. Required proof: replacement-between-check-and-effect and unknown-no-wrapper-signal regressions, then successful native reboot plus delivery. No other state/protocol, deadline or parser permission change is authorized.
+
+### 2026-10-22 — BR-1 core-concept classification repair
+
+The initial pure-decisions row grouped RecoveryTerminalPlan data with checkConfirmed. That label was inaccurate: checkConfirmed calls readRecoveryReady, whose default is osfs.ReadRegularMetadata, and confirmedRecoveryFixture injects the reader. Split immutable plan data (PURE) from the validator (INTEGRATION) in the tables above. No implementation or IO seam changes. Swept all core-concept rows: the other pure classifier/argument parser is IO-free, while lifecycle, probe, scoped checker and disposable fleet remain integration entities. This corrects the documented classification rather than changing the approved mechanism.
