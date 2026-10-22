@@ -238,6 +238,12 @@ Retained session83028 completed exit0. Required suite on pushed557da87cca104ea38
 
 Implementation verification checkbox now complete. Renew mandatory full close; historical persisted-drain SHIP does not apply. No stage/live action authorized, no live acceptance or landing claimed. ariadne#506 must land before the TL/operator-watched run. The old ariadne:4 notice/NoticeStarted contradiction remains NOT REPRODUCED/NOT ROOT-CAUSED, explicitly carried into close evidence rather than credited as fixed.
 
+### 2026-10-22 — renewed SHIP; waiting for watched-run go
+
+Full close session30510 completed exit0: round6 SHIP, high confidence, no Critical/Important/Minor findings, all five historical findings disposed, codecomplete published. Reviewer freshly passed complete couchcore/couchmessage/couchcmd/couchtty/wrapcmd packages and verified retained native/suite hashes. Close evidence a75ef8fb911db7e41f0fa754b909b0ed4252b539; Git HEAD after mirrored card e506105de9a83599abd396840e735a60fab3c5be. Outcome report2fd3318c submitted to hub. Review produced no new lesson beyond the retained rules; no implementation change followed the tested/native-qualified source.
+
+Authenticated submitted TLbece403b approves the watched script and says STAND BY for a fresh go. Schedule: on pair:0 after #753, #739 and #759 operator checks, before #737 day-long run only if ariadne#506 has landed; otherwise after #737's day. At go: refresh native pre-stage evidence, sdlc stage --build and report printed revisions; TL drives external owner-scoped queue pause and graceful notice, confirms issuing-steward exclusion/status/one badge, ordinary work and prose acknowledgement from flagged Claude and Codex, then undrain and continued delivery. No stage, live drain/queue operation or merge is authorized now. Claim and candidate retained; no background check remains. Old ariadne:4 counter discrepancy remains unresolved and is not credited as fixed.
+
 ## Revisions
 
 ### 2026-10-19 — authenticated acknowledgement and shared queue ownership
