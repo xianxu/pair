@@ -45,7 +45,9 @@ Approved design: select one absolute startup deadline before the blocked helper 
 - [x] Approve the caller-owned startup/default/transport contract and production-boundary test plan.
 - [x] Record deterministic red probes, implement shared deadline selection and propagate it through helper, launcher, readiness and registration without renewal.
 - [x] Qualify cancellations, uncertain outcomes, exact generation and admitted-client lifetime; update inventory and architecture map.
-- [ ] Use #744 shared disposable harness only after it lands for cold native acceptance, then recorded checks, close review and landing.
+- [x] Use the landed #744 shared disposable harness for cold native acceptance and pass required recorded verification.
+
+Remaining gates: mandatory boundary review and normal SDLC merge; no live-fleet/pair:0 operation is authorized by this check.
 
 ## Log
 
@@ -126,3 +128,8 @@ Canonical peer receipt d5ee8343 reports PR477 at ec88486fe63198753349d1fc12e5ce7
 Recorded full-suite attempt6c97fd46f24e0ceee10c4d23ac849831 on c8af3052487d6b242b6ada4e4ae7383b7b6094b6 completed11m2s, exit2; no lost runner or early stop. Log .git/sdlc/test-stats/failed/6c97fd46f24e0ceee10c4d23ac849831.log, hashd43e244cffdb. Every other package completed. Failures: TestProductionArtifactReferencesAreExactlyClassified named four new production metadata helpers missing from exhaustive inventory; TestResumeLaunchExactProfileMatrix and TestSpawnStartsPairAndRecordsTheActor expected the old exact environment without the intentional PAIR_STARTUP_DEADLINE entry. These are reproducible branch defects, not flakes.
 
 Audited all four sources: couchcore/startup_budget.go, couchcore/startup_progress.go, launcher/startup_budget.go and startupbudget/budget.go carry deadlines/progress via existing owners and construct/name no artifact files. Added exact NonArtifactSources entries; exhaustive artifact test GREEN2.516s after recorded RED. Reproduced both env tests RED5.340s, then require exactly one canonical deadline selected in the shared default interval during the convenience launch call, appending that validated exact entry while retaining ordered equality of the complete environment. Both tests plus the explicit caller/shared-budget control GREEN1.664s. No production timeout/path/authority change. Refreshed only their audited fixture-local reader certificates; fast inventory and diff checks pass. Native conformance from b98b3752 remains applicable because these changes are tests/inventory only. Corrected pushed head still requires a fresh recorded pass before close/landing.
+
+
+### 2026-10-22 — corrected recorded suite passed; close submitted
+
+Corrected head961a1f58d81c326b50b4726928f0f7fe4f55f779 passed full recorded suite attempt e33828c37ba00eb2c2c83a139f4d0dce / lease-126363276, exit0 in10m48s, log .git/sdlc/local-checks/961a1f58d81c326b50b4726928f0f7fe4f55f779/suite.log, SHA prefix737664b19b64. The runner completed normally, not lost. All previous inventory and env-oracle failures are fixed; no flake registration, status override or unchanged blind retry. Native Claude/Codex cold acceptance and exact cleanup passed as recorded above. Implementation/verification checkboxes now complete; fresh boundary review and normal merge remain required. Hub owns project and #739 staging/live rollout.
