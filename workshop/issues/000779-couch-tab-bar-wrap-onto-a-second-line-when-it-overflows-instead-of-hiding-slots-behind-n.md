@@ -52,6 +52,7 @@ Wrap the tab bar onto a **second line** when it doesn't fit (like text wrapping)
 ## Log
 
 ### 2026-10-21
+- 2026-10-21: closed — BR-1 corrected in both plan tables and recorded in Revisions/lessons; no code changes since pushed3e86e8f2. Console package PASS52.455s; terminal/broadcast, native PTYs, race stress20, Node100/100, fuzz74478 and inventory PASS. Retained recorded suite lease1753927196 queued. TL b07bf583 authorizes close while operator stage waits for pair:0; suite pass and live acceptance still precede landing.; review verdict: SHIP
 
 Claimed and start-plan completed in pair:4 after pair#757 landed (PR532). Includes the manual #757 archive repair, ariadne#532 class: commit a2d91a471ac3bb0b10984194b0990fbde8fdb71f moves two unchanged browser evidence logs from noncanonical plan.md.side into workshop/history/plans/000757-mock-to-real-plan.side. Both renames are100%; no content changes. TL receipt c1d5a9d6-7e31-44f6-a670-5823fcadadf7 explicitly approves riding with this issue and requires this note in the PR description.
 

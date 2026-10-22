@@ -92,3 +92,87 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-21T17:27:48-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 779 — Couch tab bar: wrap onto a second line when it overflows, instead of hiding slots behind +N |
+| repo | pair |
+| issue file | workshop/issues/000779-couch-tab-bar-wrap-onto-a-second-line-when-it-overflows-instead-of-hiding-slots-behind-n.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | fd596ab66cf1be1839109e6f98e5fb07a331f7a5..b1c68720d3e721e9d7684535b91af1f870354c17 |
+| command | sdlc close --issue 779 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-21T17:27:48-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The implementation matches the documented wrapping, priority and shared-geometry contracts. BR-1 is addressed by the corrected tables and revision entry. No new blocking findings were identified. Operator staging and recorded landing checks remain explicit outstanding workflow steps.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Plan lines 33 and 119–120 now name statusPacking, renderStatusBar and packStatusChips, which exist in status_layout.go at lines 40, 51 and 242. The revision at plan line 149 records the correction. The before/after diff changes documentation only; no behavioral regression test is required.
+```
+
+1. **Strengths**
+
+   - Pure packing tests cover group wrapping, oversized groups, active/attention priority, Unicode widths and overflow counts.
+   - `ChildGeometry` centralizes rectangular chrome validation; Console, compositor and broadcast consumers use declared chrome geometry.
+   - Controlled partial-write tests verify that pending geometry suppresses clicks while preserving keyboard input and supports automatic recovery.
+   - Atlas updates document the new layout and trusted metadata. The unrelated #757 evidence moves are verified identical renames.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Full couchtty and terminal packages passed.
+   - Full broadcast package passed with `TMPDIR=/tmp`. The initial run failed an unchanged named-tunnel test under the longer temporary path.
+   - Focused race tests passed, including pending confirmation and native PTY resizing.
+   - Packing fuzzing passed 74,712 executions.
+   - `git diff --check` passed; the checkout remains clean.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Shared row drawing and geometry validation.
+   - **ARCH-PURE — pass:** Packing and geometry logic remain directly testable without IO.
+   - **ARCH-PURPOSE — pass:** Wrapping propagates through panes, input, anchors, privacy and annotation guards.
+   - **ARCH-MOCK — pass:** Stateful fixtures exercise production seams; native PTYs verify resize behavior.
+   - **ARCH-CONSTRAINTS — pass:** Counted complexity tests enforce planner bounds.
+   - **ARCH-SECURE — pass:** Child pixels cannot authorize broadcast; client geometry cannot override trusted metadata.
+   - **ARCH-ORDER — pass:** Serialized publication and revision confirmation fence uncertain geometry.
+   - **ARCH-FUNERAL — pass:** No new durable runtime artifacts or workers.
+   - **ARCH-EVOLVE — pass:** Live metadata is additive; no persisted-format rewrite introduced.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"f4119f89-bb14-415d-91d2-0dca8109b830","repository":"github.com/xianxu/pair","issue_id":"000779","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/0518b965aea01a70","reviewed_head":"b1c68720d3e721e9d7684535b91af1f870354c17","slot":"pair:4","requested_at":"2026-10-22T00:25:47.640677Z"},"phase":"finished","pid":31406,"started_at":"2026-10-22T00:25:47.7407Z","finished_at":"2026-10-22T00:27:48.277632Z","session_id":"01a160ff-eef4-78d1-b510-43bfe81345db","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.825836875s
+head: "b1c68720d3e721e9d7684535b91af1f870354c17"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
