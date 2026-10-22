@@ -36,6 +36,11 @@ which of the three busy conditions fired; the refusal should name the one that d
 - [ ]
 
 ## Log
+- 10-21 22:0x (ops:0): **a Codex case, possibly the same class.** parley.nvim:3 (Codex, tag 1-parley-nvim-83) idle at an
+  empty `› Ask Codex to do anything` composer, but every delivery since the 21:33 Couch restart sits at "waiting for
+  recognized composer" (ops:0's 9d16fde1 at position 2, behind the restart notice). Its screen differs from Codex
+  slots that receive normally: a **blank line between the composer and the footer**, and the footer reads
+  `⚠ 1 warning · f2 to view` (others show `⚠ 2 warnings`). Capture that screen as a second fixture.
 
 - 10-21 ~20:40 (ops-echo:0): **cause pinned: the `✔ Update installed · Restart to update` banner** in Claude's footer
   blocks composer recognition. After the operator restarted echo:3's Claude (banner gone, auto mode still on), a

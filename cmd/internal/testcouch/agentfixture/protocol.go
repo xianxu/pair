@@ -39,9 +39,11 @@ const shutdownResultFile = "shutdown-result.json"
 type CommandKind string
 
 const (
-	Exec     CommandKind = "exec"
-	SetState CommandKind = "state"
-	Stop     CommandKind = "stop"
+	Exec      CommandKind = "exec"
+	Retain    CommandKind = "retain"
+	Resources CommandKind = "resources"
+	SetState  CommandKind = "state"
+	Stop      CommandKind = "stop"
 )
 
 type Command struct {
@@ -100,6 +102,10 @@ func ValidateCommand(c Command) error {
 		}
 		if n > 8<<10 {
 			return errors.New("command arguments exceed limit")
+		}
+	case Retain, Resources:
+		if len(c.Args) != 0 || c.State != "" {
+			return errors.New("invalid retained descendant request")
 		}
 	case SetState:
 		if len(c.Args) != 0 || (c.State != Idle && c.State != Working && c.State != Picker) {

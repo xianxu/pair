@@ -58,8 +58,10 @@ func PointerPalette() []string {
 type cell struct{ col, row int }
 
 // guarded reports whether c is one of the broadcast's controls (the first
-// StatusGuardCols columns of the last row), which marks must never cover.
-func guarded(c cell, rows int) bool { return c.row == rows-1 && c.col < StatusGuardCols }
+// StatusGuardCols columns of the first chrome row), which marks must never cover.
+func guarded(c cell, rows, chromeRows int) bool {
+	return chromeRows <= 0 || chromeRows >= rows || (c.row == rows-chromeRows && c.col < StatusGuardCols)
+}
 
 // mark is when a cell was marked, and in which palette color.
 type mark struct {
@@ -117,19 +119,19 @@ func NewMarks() *Marks { return &Marks{cells: make(map[cell]mark)} }
 // palette color c (out of range draws the default).
 // Consecutive points within the batch are joined by a line; separate batches
 // never are. Points off the grid and on the broadcast's controls (the left of
-// the last row) are dropped; the rest of the tab bar can be marked. At most cols*rows/8 cells stay marked, the oldest dropped first.
+// the first chrome row) are dropped; the rest of the tab bar can be marked. At most cols*rows/8 cells stay marked, the oldest dropped first.
 //
 // Its cost is bounded (it runs under the lock the paint path takes): a batch
 // contributes at most the cap's worth of cells, its last ones, and eviction
 // is one sort per call.
-func (m *Marks) Add(points [][2]int, cols, rows, c int, now time.Time) {
+func (m *Marks) Add(points [][2]int, cols, rows, chromeRows, c int, now time.Time) {
 	if c < 0 || c >= PointerColors {
 		c = 0
 	}
 	limit := max(1, cols*rows/8)
 	var batch []cell
 	walkStrokes(points, cols, rows, func(c cell) {
-		if c.col >= 0 && c.col < cols && c.row >= 0 && c.row < rows && !guarded(c, rows) {
+		if c.col >= 0 && c.col < cols && c.row >= 0 && c.row < rows && !guarded(c, rows, chromeRows) {
 			batch = append(batch, c)
 		}
 		// Keep only the cap's worth, the latest, as the batch grows.
@@ -280,13 +282,14 @@ func (m *Marks) Overlay(f terminal.Frame, now time.Time) terminal.Frame {
 		return f
 	}
 	cols, rows := f.Geometry.Cols, f.Geometry.Rows
+	chromeRows := f.ChromeRows
 	out := f.Clone()
 	for c, mk := range m.cells {
 		age := now.Sub(mk.at)
-		// Never the broadcast's controls on the last row, whose LIVE and
+		// Never the broadcast's controls on the first chrome row, whose LIVE and
 		// pointer indicators the fail-safes read (a resize can move a mark
 		// there).
-		if age >= MarkLife || c.col >= cols || c.row >= rows || guarded(c, rows) {
+		if age >= MarkLife || c.col >= cols || c.row >= rows || guarded(c, rows, chromeRows) {
 			continue
 		}
 		tintCell(out, c, m.tint(mk.color, age))
@@ -302,8 +305,24 @@ func tintCell(f terminal.Frame, c cell, bg color.Color) {
 	if f.Cells[i].Width == 0 && c.col > 0 && f.Cells[i-1].Width == 2 {
 		i--
 	}
+	if guardedGlyph(f, cell{i % cols, c.row}) {
+		return
+	}
 	f.Cells[i].Style.Bg = bg
 	if f.Cells[i].Width == 2 && i%cols+1 < cols {
 		f.Cells[i+1].Style.Bg = bg
 	}
+}
+
+// guardedGlyph protects the whole glyph touched by a tint or replacement,
+// including a wide character whose leading cell is inside the controls.
+func guardedGlyph(f terminal.Frame, c cell) bool {
+	cols := f.Geometry.Cols
+	i := c.row*cols + c.col
+	if f.Cells[i].Width == 0 && c.col > 0 && f.Cells[i-1].Width == 2 {
+		c.col--
+		i--
+	}
+	return guarded(c, f.Geometry.Rows, f.ChromeRows) ||
+		(f.Cells[i].Width == 2 && guarded(cell{c.col + 1, c.row}, f.Geometry.Rows, f.ChromeRows))
 }

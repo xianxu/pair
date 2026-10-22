@@ -6,6 +6,7 @@ import "github.com/xianxu/pair/cmd/internal/terminal"
 // geometry a viewer must have before writing them.
 type Message struct {
 	Cols, Rows int
+	ChromeRows int
 	Data       []byte
 }
 
@@ -24,11 +25,12 @@ func (s *Stream) Next(f terminal.Frame) (m Message, ok bool, err error) {
 	if err != nil {
 		return Message{}, false, err
 	}
+	changed := !s.started || s.last.ChromeRows != f.ChromeRows
 	s.last, s.started = f, true
-	if len(data) == 0 {
+	if len(data) == 0 && !changed {
 		return Message{}, false, nil
 	}
-	return Message{Cols: f.Geometry.Cols, Rows: f.Geometry.Rows, Data: data}, true, nil
+	return Message{Cols: f.Geometry.Cols, Rows: f.Geometry.Rows, ChromeRows: f.ChromeRows, Data: data}, true, nil
 }
 
 // Join renders the current frame in full, for a viewer starting now or one
@@ -41,5 +43,5 @@ func (s *Stream) Join() (m Message, ok bool, err error) {
 	if err != nil {
 		return Message{}, false, err
 	}
-	return Message{Cols: s.last.Geometry.Cols, Rows: s.last.Geometry.Rows, Data: data}, true, nil
+	return Message{Cols: s.last.Geometry.Cols, Rows: s.last.Geometry.Rows, ChromeRows: s.last.ChromeRows, Data: data}, true, nil
 }

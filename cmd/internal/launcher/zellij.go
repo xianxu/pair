@@ -8,9 +8,8 @@ import (
 	"os/exec"
 	"sort"
 	"strings"
-	"time"
 
-	"github.com/xianxu/pair/cmd/internal/zellijexec"
+	"github.com/xianxu/pair/cmd/internal/zellijquery"
 	"github.com/xianxu/pair/cmd/internal/zellijreply"
 )
 
@@ -22,12 +21,12 @@ import (
 // that does not answer promptly is treated as no answer, which is the
 // fail-closed direction: a row is not proved this round rather than proved
 // wrong.
-const zellijQueryTimeout = 5 * time.Second
+const zellijQueryTimeout = zellijquery.Timeout
 
 // ErrZellijNoReply distinguishes an unanswered read from an observed empty
 // inventory. Eligible idempotent reads recover at most three attempts before
 // returning this error; a later explicit call begins a new observation.
-var ErrZellijNoReply = errors.New("zellij query returned no reply")
+var ErrZellijNoReply = zellijquery.ErrNoReply
 
 var errSessionNameTooLong = errors.New("session name too long")
 
@@ -166,121 +165,24 @@ func (s ZellijSource) run(args ...string) ([]byte, error) {
 	return s.runContext(context.Background(), args...)
 }
 
-// ZellijQueryObservation retains bounded copies of a completed CLI query.
-// Stdout and Stderr each keep at most 64 KiB; byte counts describe the original
-// streams, which the production parser consumes without truncation. Err is the
-// attempt-local result, even if a later attempt succeeds; ExitCode retains the
-// subprocess status (-1 if absent).
-// CallerDeadline is zero when absent; EffectiveDeadline includes the query cap.
-type ZellijQueryObservation struct {
-	Executable                        string
-	Args                              []string
-	Started, Finished                 time.Time
-	CallerDeadline, EffectiveDeadline time.Time
-	Duration                          time.Duration
-	Stdout, Stderr                    []byte
-	StdoutBytes, StderrBytes          int
-	StdoutTruncated, StderrTruncated  bool
-	ExitCode                          int
-	Err                               error
-}
+// ZellijQueryObservation retains the shared seam's per-attempt evidence.
+type ZellijQueryObservation = zellijquery.Observation
 
-type zellijQueryObserverKey struct{}
-
-// WithZellijQueryObserver scopes optional query measurement to ctx. Callbacks
-// run synchronously after each direct subprocess completes and must not block.
-// Concurrent operations require a synchronized observer. Every subprocess attempt
-// is reported, including bounded known-bug recovery of an idempotent read.
 func WithZellijQueryObserver(ctx context.Context, observe func(ZellijQueryObservation)) context.Context {
-	return context.WithValue(ctx, zellijQueryObserverKey{}, observe)
+	return zellijquery.WithObserver(ctx, observe)
 }
 
 func (s ZellijSource) runContext(ctx context.Context, args ...string) ([]byte, error) {
-	callerDeadline, _ := ctx.Deadline()
-	ctx, cancel := context.WithTimeout(ctx, zellijQueryTimeout)
-	defer cancel()
-	var output []byte
-	var err error
-	for attempt := 0; attempt < 3; attempt++ {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		output, err = s.runQueryAttempt(ctx, callerDeadline, args...)
-		if zellijReadKind(args) == 0 || (!errors.Is(err, ErrZellijNoReply) && !errors.Is(err, errZellijCrossedReply) && !errors.Is(err, errZellijSessionLookupMiss)) {
-			return output, err
-		}
+	result, err := (zellijquery.Source{Path: s.Path, Run: s.queryRun}).ReadContext(ctx, args...)
+	// Preserve the launcher's historical refusal for an unanswered unsupported
+	// request; screen-reading consumers use the shared source directly.
+	if err == nil && result.ProcessErr == nil && zellijReadKind(args) == zellijUnknownReply && len(bytes.TrimSpace(result.Stdout)) == 0 {
+		err = ErrZellijNoReply
 	}
-	return nil, err
-}
-
-func (s ZellijSource) runQueryAttempt(ctx context.Context, callerDeadline time.Time, args ...string) (output []byte, resultErr error) {
-	path := s.Path
-	if path == "" {
-		path = "zellij"
+	if err != nil {
+		return nil, zellijquery.Error(args, err)
 	}
-	cmd := exec.CommandContext(ctx, path, args...)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if observe, _ := ctx.Value(zellijQueryObserverKey{}).(func(ZellijQueryObservation)); observe != nil {
-		effectiveDeadline, _ := ctx.Deadline()
-		started := time.Now()
-		defer func() {
-			finished := time.Now()
-			exitCode := -1
-			if cmd.ProcessState != nil {
-				exitCode = cmd.ProcessState.ExitCode()
-			}
-			const bound = 64 * 1024
-			observe(ZellijQueryObservation{
-				CallerDeadline: callerDeadline, EffectiveDeadline: effectiveDeadline,
-				Executable: cmd.Path, Args: append([]string(nil), args...), Started: started, Finished: finished,
-				Duration: finished.Sub(started), ExitCode: exitCode, Err: resultErr,
-				Stdout:      append([]byte(nil), stdout.Bytes()[:min(stdout.Len(), bound)]...),
-				Stderr:      append([]byte(nil), stderr.Bytes()[:min(stderr.Len(), bound)]...),
-				StdoutBytes: stdout.Len(), StderrBytes: stderr.Len(),
-				StdoutTruncated: stdout.Len() > bound, StderrTruncated: stderr.Len() > bound,
-			})
-		}()
-	}
-	run := s.queryRun
-	if run == nil {
-		run = zellijexec.Run
-	}
-	if err := run(cmd); err != nil {
-		if ctx.Err() != nil {
-			err = errors.Join(err, ctx.Err())
-		} else {
-			// Zellij reports a successfully observed empty inventory with exit
-			// 1 and this exact diagnostic. Other failures are not absence proof.
-			// Only the direct process exit can be normalized. A joined collector
-			// failure remains unknown even if it contains this same exit code.
-			exitErr, pureExit := err.(*exec.ExitError)
-			if pureExit && exitErr.ExitCode() == 1 && len(args) > 1 &&
-				retryableSessionLookupMiss(args, stdout.Bytes(), stderr.Bytes(), 1, true) && sessionSocketPresent(args[1]) {
-				return nil, fmt.Errorf("zellij %s: %w", strings.Join(args, " "), errZellijSessionLookupMiss)
-			}
-			if len(args) > 0 && args[0] == "list-sessions" &&
-				pureExit && exitErr.ExitCode() == 1 &&
-				stdout.Len() == 0 && strings.TrimSpace(stderr.String()) == "No active zellij sessions found." {
-				return nil, nil
-			}
-		}
-		return nil, fmt.Errorf("zellij %s: %w", strings.Join(args, " "), err)
-	}
-	if err := ctx.Err(); err != nil {
-		return nil, fmt.Errorf("zellij %s: %w", strings.Join(args, " "), err)
-	}
-	if retryableSessionLookupMiss(args, stdout.Bytes(), stderr.Bytes(), 0, false) {
-		return nil, fmt.Errorf("zellij %s: %w", strings.Join(args, " "), errZellijSessionLookupMiss)
-	}
-	if len(bytes.TrimSpace(stdout.Bytes())) == 0 {
-		return nil, fmt.Errorf("zellij %s: %w", strings.Join(args, " "), ErrZellijNoReply)
-	}
-	if stderr.Len() == 0 && crossedZellijReply(zellijReadKind(args), stdout.Bytes()) {
-		return nil, fmt.Errorf("zellij %s: %w", strings.Join(args, " "), errZellijCrossedReply)
-	}
-	return stdout.Bytes(), nil
+	return result.Stdout, nil
 }
 
 func lines(s string) []string {

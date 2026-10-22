@@ -190,7 +190,11 @@ func assertLayoutRefusalUsesIndependentBroker(t *testing.T, wrong string) {
 	}
 	defer broker.Close()
 	f.SetModel(zellijtest.Model{Sessions: map[string]zellijtest.Session{"test": {}}})
-	f.SetFaults(zellijtest.Fault{Ordinal: 1, Reply: &wrong})
+	f.SetFaults(zellijtest.Fault{Ordinal: 1, Reply: &wrong}, zellijtest.Fault{Ordinal: 2, Reply: &wrong}, zellijtest.Fault{Ordinal: 3, Reply: &wrong})
+	wantQueries := 1
+	if wrong == "" {
+		wantQueries = 3
+	}
 	w := newFullscreenWorld()
 	w.record = "preserved"
 	var diagnostic bytes.Buffer
@@ -205,7 +209,7 @@ func assertLayoutRefusalUsesIndependentBroker(t *testing.T, wrong string) {
 	case <-time.After(time.Second):
 		t.Fatal("refusal did not reach independent wrapper transport")
 	}
-	if len(f.Effects()) != 0 || w.record != "preserved" || len(f.Queries()) != 1 {
+	if len(f.Effects()) != 0 || w.record != "preserved" || len(f.Queries()) != wantQueries {
 		t.Fatalf("effects=%v record=%q queries=%v", f.Effects(), w.record, f.Queries())
 	}
 }

@@ -4,6 +4,10 @@
     "make",
     "test-affected"
   ],
+  "graph_prepare": {
+    "command": ["make", "runtimebundle-generate"],
+    "timeout_minutes": 2
+  },
   "weight": 1,
   "timeout_minutes": 30,
   "full": [

@@ -1,0 +1,16 @@
+{
+  "source": "bf7be2e2e6b1371df6182287c83f3ddd2aa948b1",
+  "command": [
+    "make",
+    "test-couch-fleet"
+  ],
+  "result": "pass",
+  "package_seconds": 75.199,
+  "claude_seconds": 34.43,
+  "codex_seconds": 31.36,
+  "workers_per_agent": 3,
+  "stewards_per_agent": 1,
+  "cleanup": "both roots cleaned; owned generations absent; children and IO joined",
+  "completion_tail_sha256": "c983b14df2c7a3ccc64e003aa97486480b7b12d67299c3d82af03c151cb6e739",
+  "capture_scope": "completion tail only; initial tool diagnostics retained in tool terminal"
+}

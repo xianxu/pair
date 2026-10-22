@@ -17,6 +17,7 @@ import (
 
 	"github.com/creack/pty"
 	"github.com/xianxu/pair/cmd/internal/procutil"
+	"github.com/xianxu/pair/cmd/internal/zellijquery"
 )
 
 // ControlledZellij is the portable live fixture shared by lifecycle
@@ -84,7 +85,7 @@ func StartControlledZellijWithOptions(ctx context.Context, session string, optio
 		}
 	}
 	for {
-		output, listErr := exec.CommandContext(ctx, "zellij", "list-sessions", "--no-formatting").CombinedOutput()
+		output, listErr := (zellijquery.Source{}).Output(ctx, "list-sessions", "--no-formatting")
 		if listErr == nil && hasLiveSessionRow(string(output), session) {
 			if options.LayoutFile != "" {
 				out, err := exec.CommandContext(ctx, "zellij", "--session", session, "action", "new-tab", "--layout", options.LayoutFile).CombinedOutput()

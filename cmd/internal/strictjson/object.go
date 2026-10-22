@@ -39,7 +39,18 @@ func KnownFields(t reflect.Type) map[string]bool {
 // the rest, which it copies verbatim. It refuses duplicate keys at any depth,
 // a null or non-object document, and a null owned member not in nullable.
 func SplitObject(raw []byte, known, nullable map[string]bool) (owned, unknown map[string]json.RawMessage, err error) {
-	if err := rejectDuplicateKeys(raw); err != nil {
+	return splitObjectMode(raw, known, nullable, false)
+}
+
+// SplitObjectPreserveNumbers retains opaque JSON number tokens without a
+// float64 range check. Known values still require the caller's typed decoder.
+// Duplicate and nullability checks have the same rules as SplitObject.
+func SplitObjectPreserveNumbers(raw []byte, known, nullable map[string]bool) (owned, unknown map[string]json.RawMessage, err error) {
+	return splitObjectMode(raw, known, nullable, true)
+}
+
+func splitObjectMode(raw []byte, known, nullable map[string]bool, preserveNumbers bool) (owned, unknown map[string]json.RawMessage, err error) {
+	if err := rejectDuplicateKeysMode(raw, preserveNumbers); err != nil {
 		return nil, nil, err
 	}
 	trimmed := bytes.TrimSpace(raw)
@@ -71,6 +82,17 @@ func SplitObject(raw []byte, known, nullable map[string]bool) (owned, unknown ma
 // owned one is dropped, so it can never shadow the owner's value. A preserved
 // value that is not one clean JSON value refuses the write.
 func EncodeObject(owned, unknown map[string]json.RawMessage, known map[string]bool) ([]byte, error) {
+	return encodeObjectMode(owned, unknown, known, false)
+}
+
+// EncodeObjectPreserveNumbers writes opaque unknown numbers verbatim, including
+// values outside float64 range. As with EncodeObject, owned values come from the
+// caller's typed encoder; unknown values are checked for syntax and duplicates.
+func EncodeObjectPreserveNumbers(owned, unknown map[string]json.RawMessage, known map[string]bool) ([]byte, error) {
+	return encodeObjectMode(owned, unknown, known, true)
+}
+
+func encodeObjectMode(owned, unknown map[string]json.RawMessage, known map[string]bool, preserveNumbers bool) ([]byte, error) {
 	merged := make(map[string]json.RawMessage, len(owned)+len(unknown))
 	for k, v := range owned {
 		merged[k] = v
@@ -79,7 +101,7 @@ func EncodeObject(owned, unknown map[string]json.RawMessage, known map[string]bo
 		if known[k] {
 			continue
 		}
-		if err := rejectDuplicateKeys(v); err != nil {
+		if err := rejectDuplicateKeysMode(v, preserveNumbers); err != nil {
 			return nil, fmt.Errorf("preserved JSON member %s: %w", k, err)
 		}
 		merged[k] = v

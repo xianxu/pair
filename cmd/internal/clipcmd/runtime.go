@@ -17,7 +17,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/osfs"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
-	"github.com/xianxu/pair/cmd/internal/zellijexec"
+	"github.com/xianxu/pair/cmd/internal/zellijquery"
 )
 
 // OSRuntime implements Runtime with real clipboard / zellij / exec / fs calls.
@@ -176,11 +176,7 @@ func (OSRuntime) ListClientsContext(ctx context.Context) ([]byte, error) {
 	return clipQuery(ctx, "list-clients")
 }
 func clipQuery(ctx context.Context, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, "zellij", append([]string{"action"}, args...)...)
-	var out strings.Builder
-	cmd.Stdout = &out
-	err := zellijexec.Run(cmd)
-	return []byte(out.String()), err
+	return (zellijquery.Source{}).Output(ctx, append([]string{"action"}, args...)...)
 }
 func (OSRuntime) NotifyRefusal(message string) error {
 	return notifytransport.Send(os.Getenv("PAIR_PAIR_WRAP_PID_PATH"), message)

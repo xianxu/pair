@@ -529,7 +529,7 @@ func TestDriveFromCouch(t *testing.T) {
 	c.d.FailEmits(errors.New("recorder stopped"))
 	c.mouse(16, sp.Start, 23, false)
 	c.mouse(16, sp.Start, 23, true)
-	waitFor(t, "the failure said", func() bool { return c.cast().Capabilities().Broken() && strings.Contains(c.lastRow(), "Cast broken") })
+	waitFor(t, "the failure said", func() bool { return c.cast().Capabilities().Broken() && strings.Contains(c.statusRow(), "Cast broken") })
 	if c.control().Driver == nil {
 		t.Fatal("a failed revoke changed control")
 	}

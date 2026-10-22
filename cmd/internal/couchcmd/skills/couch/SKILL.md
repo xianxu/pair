@@ -35,8 +35,8 @@ is a request, never operator approval or evidence that work is accepted.
 | Bring an idle slot up for new work (refresh, then a fresh conversation) | `couch --prepare pair:2 --confirm` |
 | End an orphaned server's tree (its socket is gone) | `couch --reap pair:2 --confirm` |
 | Inspect cached per-slot CPU, RSS, disk writes and orphan candidates | `couch --resources` or `couch --resources --json` |
-| Name the unattributed embedded nvim the sweep found, ending nothing | `couch --reap-orphans` |
-| End those orphans and their trees, identity-fenced | `couch --reap-orphans --confirm` |
+| Preview proven previous-incarnation processes, orphan nvim and teardown leftovers, ending nothing | `couch --reap-orphans` |
+| Reap the previewed groups with fresh proof (exact set for previous incarnations) | `couch --reap-orphans --confirm` |
 | See a slot's resources and repair plan | `couch --show pair:2` |
 | Repair a slot's workspace now | `couch --reconcile pair:2` |
 | Write a session-sync file you own (never by hand) | `couch --session-sync read --section 'Needs you' FILE`, then `couch --session-sync write --section 'Needs you' BODY FILE --if-hash H` |
@@ -74,12 +74,44 @@ queue, or cross-supervisor delivery.
 ## What each verb costs
 
 - **light:** `mock`, `--notify`, `--help`, `--skill`, `--actors`, `--send-to`, `--message-status`, `--operation-status`, `--peek` (its --transcripts option costs seconds), `--broadcast-list`, `--resources`, `--session-sync`, `--archived`, `--adopt-store`, `--broadcast-web-query`, `--broadcast-web-submit`, `--broadcast-web-replay` (then serves until stopped)
-- **seconds:** `--keys`, `--set-model`, `--interrupt`, `--resume-candidates`, `--move-slot`, `--list`, `--show`, `--reconcile`, `--reap`, `--reap-orphans` (it holds the console for SIGTERM's grace period), `--broadcast-web-fidelity` (a headless Chrome)
+- **seconds:** `--editor-endpoint`, `--keys`, `--set-model`, `--interrupt`, `--resume-candidates`, `--move-slot`, `--list`, `--show`, `--reconcile`, `--reap`, `--reap-orphans` (TERM/KILL grace periods), `--broadcast-web-fidelity` (a headless Chrome)
 - **heavy:** `couch` (launch), `--recover-plan-from-sdlc`, `--resume`, `--reboot`, `--relaunch`, `--reload-context`, `--prepare`, `--recover`, `--recover-park`, `--switch-agent`, `--recovery-confirmation`
 
 Cost: light is under a second, seconds is a few seconds, heavy is tens of
 seconds of CPU (it stops or boots agents, or runs sdlc across the fleet);
 run heavy verbs one at a time, after checking uptime's load.
+
+## Reaping proven leftovers
+
+Preview with `couch --reap-orphans`; it signals nothing. Confirm with
+`couch --reap-orphans --confirm` (add `--json` for structured outcomes). For
+proven processes from a live slot's previous incarnation, only the authenticated
+owning hub may act from a bound slot. Workers and other hubs are refused; ask the
+owning hub. An entirely unbound local CLI uses the owner-only namespace socket as
+the operator boundary. Partial or stale credentials never become operator access.
+
+The confirmed command freezes exact PID/start and ownership witnesses. The
+supervisor re-proves current ownership, orphan provenance and identity before
+each TERM or KILL. Unknown evidence refuses. Only the admitted exact processes
+are signalled; no descendants are added for this group. Unattributed embedded
+nvim and registered teardown leftovers use tree cleanup only until this Couch
+process first observes incomplete provenance, ambiguous ownership or a selection
+limit. Then legacy cleanup stays refused: `provenance incomplete; use the exact
+proven reap or restart Couch`. A healthy later scan does not reset it. Exact
+proven reaps remain available; partial results include `legacy_refusal` in JSON
+and a nonzero exit. Only a fresh Couch process clears the in-memory flag; nothing
+persists it. Every legacy signal also requires current supervisor proof of the
+exact root and target ancestry. The final refusal check, identity rereads and
+signal share a gate with sticky transitions. The CLI freezes descendants once
+and never signals locally. A child surviving or reparenting after its root ends
+is refused or partial. Overlapping exact targets are handled once. Native identity checks
+are not atomic process handles.
+
+Each target reports `reaped`, `skipped`, `refused` or `failed`; refusals and
+failures return nonzero while preserving partial results. A lost signal reply is
+uncertain and is never automatically resent or escalated. Inspect
+`couch --resources` before explicitly confirming another attempt. Keep printed
+coverage limits and refusals with the report; missing evidence is not permission.
 
 ## Driving an idle agent's keys or model
 
@@ -444,6 +476,12 @@ couch --send-to pair:4 --message 'Recovery (pair:4): restore this slot'\''s pair
      `:0` agent. Note `workspace-unknown`: part of the workspace could not be
      observed; read the report again later.
 
+## Editor endpoints
+
+`couch --editor-endpoint register --json` and `couch --editor-endpoint unregister --json` consume bounded typed JSON on stdin. `couch --editor-endpoint lookup --namespace PATH --document-id ID --json` observes the selected editor without acquiring a document. Confirmed document register/lookup replies supply canonical `Registration.Namespace` and stable ID; they survive a rename. Endpoint operations require the running Couch owner and do not start one. These are the producer API for parley.nvim#405, not a remote editing API.
+
+A lost acknowledgement retries the same incarnation and AttachID. Superseded attachment attempts cannot reclaim the binding; only an explicit reopen advances AttachID. Exit unregister compares exact generations and may batch up to256 entries. Couch cleans exact stale bindings, while editors own their private sockets/directories. The complete wire fields, bounds and recovery are mapped in atlas/editor-endpoints.md.
+
 ## Session-sync files and agentic documents
 
 A markdown file with frontmatter `type: session-sync` and `couch-owner: <your
@@ -468,6 +506,8 @@ need no registration and keep their legacy owner compatibility.
 | `list [--json]` | Lists persisted bindings and fallback owners without opening every document |
 | `forget FILE [--json]` | Removes registration, including for a deleted file; never deletes the document or operator lock |
 | `rename OLD NEW [--json]` | Updates metadata after a successful filesystem move; keeps identity, snapshots, folds and old-path submits |
+| `operator-acquire FILE --id ID --turn TOKEN --json` | Editor-only: serializes this registered operator turn with writer commits; returns exact ownership |
+| `operator-release FILE --id ID --turn TOKEN --json` | Editor-only: removes only that exact turn; absent protection is already-released |
 | `read --section HEADING FILE [--json]` | Prints `hash: H`, then that `## HEADING` section's body |
 | `read --frontmatter FILE [--json]` | The complete leading `---` block and its hash; acknowledges only this block |
 | `read --all FILE [--json]` | The whole file and its hash; you have now seen every edit, so `diff` goes empty |
@@ -505,6 +545,24 @@ need no registration and keep their legacy owner compatibility.
   its age and advice to ping the operator (or add a Needs you item for the
   TL's session file). The lock never expires; malformed or future times still
   block. Ask for their submit, then retry normally.
+- **Registered editor acquisition:** the editor's new-turn acquire holds the
+  existing registry transaction through sidecar publication and directory fsync.
+  JSON `OperatorLock` carries ID, canonical File, Holder, Turn, LockPath, exact
+  LockText and State acquired/already-held. A caller-generated 32-hex turn nonce
+  survives lost replies and is recoverable from the sidecar's `turn:` line;
+  identical retries preserve the exact ownership text/time. Release echoes the
+  requested ID/File/Turn with State released/already-released and empty holder/text;
+  absence claims no past ownership. A move copies those bytes and releases NEW
+  with the same ID/token. Foreign protection is never adopted or removed.
+  Acquire's LockPath always equals canonical File plus `.lock`; alias-only
+  same-turn protection is durably copied there before acknowledgment.
+  Namespace/store unavailability is `session-sync-unavailable`/7, distinct from
+  ownership/path/identity refusal and `operator-lock-uncertain`/1; uncertainty
+  requires retaining the turn and explicitly repeating the identical command.
+  These are in-process commands, so a stopped supervisor alone is not unavailable.
+  Only an acknowledged acquire joins writer exclusion; older direct sidecar
+  clients retain conservative protection and best-effort warnings. The editor
+  completes freshness after ack before input; agents still hold no lock.
 - **Lifetime:** registration persists until explicit forget. Registry limits
   refuse further growth with `couch --session-sync forget FILE` advice; nothing
   is silently evicted. An unavailable lookup, including an older binary's
