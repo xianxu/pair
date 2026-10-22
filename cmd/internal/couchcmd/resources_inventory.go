@@ -13,6 +13,9 @@ import (
 )
 
 type resourceInventory struct {
+	// seedDone releases sampling after the owned initial discovery attempt, even
+	// when that attempt fails. Only run closes it; later refreshes do not reset it.
+	seedDone   chan struct{}
 	mu         sync.Mutex
 	console    *couchtty.Console
 	couch      *couchcore.Couch
@@ -31,7 +34,7 @@ type resourceInventory struct {
 }
 
 func newResourceInventory(console *couchtty.Console, c *couchcore.Couch, service *messageService) *resourceInventory {
-	r := &resourceInventory{console: console, couch: c, service: service, workspace: service.authority.workspace, seen: map[string]string{}, entries: map[string]couchcore.ResourceSlot{}, sessions: map[couchcore.ThreadAddress]string{}}
+	r := &resourceInventory{seedDone: make(chan struct{}), console: console, couch: c, service: service, workspace: service.authority.workspace, seen: map[string]string{}, entries: map[string]couchcore.ResourceSlot{}, sessions: map[couchcore.ThreadAddress]string{}}
 	if source, ok := c.Artifacts.(interface {
 		ResourceRootEvidenceCache() *couchcore.ResourceRootCache
 	}); ok {
@@ -50,16 +53,7 @@ func newResourceInventory(console *couchtty.Console, c *couchcore.Couch, service
 func (r *resourceInventory) run(ctx context.Context) {
 	changes := r.console.ResourceChanges()
 	snapshot := r.console.ResourceInventory()
-	seed, cancel := context.WithTimeout(ctx, 30*time.Second)
-	seed, cancelOwner := r.couch.WithSessionOwnerPass(seed)
-	rows, err := r.couch.ActionableThreadInventoryContext(seed, snapshot.Hosted)
-	if err == nil {
-		snapshot.Rows = rows
-		snapshot.InventoryKnown = true
-	}
-	r.refresh(seed, snapshot)
-	cancelOwner()
-	cancel()
+	r.seed(ctx, snapshot)
 	for {
 		select {
 		case <-ctx.Done():
@@ -72,6 +66,39 @@ func (r *resourceInventory) run(ctx context.Context) {
 			cancel()
 		}
 	}
+}
+
+// seed owns exactly one initial discovery attempt and its completion signal.
+func (r *resourceInventory) seed(ctx context.Context, snapshot couchtty.ResourceInventorySnapshot) {
+	seed, cancel := context.WithTimeout(ctx, 30*time.Second)
+	seed, cancelOwner := r.couch.WithSessionOwnerPass(seed)
+	rows, err := r.couch.ActionableThreadInventoryContext(seed, snapshot.Hosted)
+	if err == nil {
+		snapshot.Rows = rows
+		snapshot.InventoryKnown = true
+	} else {
+		// Cached console census cannot turn a failed initial attempt into proof.
+		snapshot.InventoryKnown = false
+	}
+	r.refresh(seed, snapshot)
+	cancelOwner()
+	cancel()
+	close(r.seedDone)
+}
+
+// runSampler shares the service lifetime with the inventory worker. Waiting for
+// an attempted seed distinguishes cold startup from observed incomplete proof;
+// cancellation cannot start a sampler just because both channels are ready.
+func (r *resourceInventory) runSampler(ctx context.Context, sampler *resourceSampler) {
+	select {
+	case <-ctx.Done():
+		return
+	case <-r.seedDone:
+	}
+	if ctx.Err() != nil {
+		return
+	}
+	sampler.run(ctx)
 }
 
 func resourceInventoryKey(row couchcore.ActionableThreadSummary) string {
