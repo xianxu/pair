@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -46,6 +47,14 @@ func TestRunUsageErrors(t *testing.T) {
 // allocate a pty; skip visibly there rather than hard-fail — the test runs on a
 // normal dev machine, which is where `make test` is exercised.
 func runWithPTY(t *testing.T, args []string) (int, string) {
+	return runWithPTYReply(t, args, "")
+}
+
+type outputFunc func([]byte) (int, error)
+
+func (f outputFunc) Write(p []byte) (int, error) { return f(p) }
+
+func runWithPTYReply(t *testing.T, args []string, ready string) (int, string) {
 	t.Helper()
 	ptmx, tty, err := pty.Open()
 	if err != nil {
@@ -57,7 +66,23 @@ func runWithPTY(t *testing.T, args []string) (int, string) {
 	defer ptmx.Close()
 	defer tty.Close()
 	var stdout bytes.Buffer
-	code := Run(args, tty, &stdout, io.Discard)
+	var replyErr error
+	replied := false
+	output := outputFunc(func(p []byte) (int, error) {
+		n, err := stdout.Write(p)
+		if ready != "" && !replied && strings.Contains(stdout.String(), ready) {
+			replied = true
+			_, replyErr = io.WriteString(ptmx, "captured\n")
+		}
+		return n, err
+	})
+	code := Run(args, tty, output, io.Discard)
+	if replyErr != nil {
+		t.Fatalf("acknowledge captured output: %v", replyErr)
+	}
+	if ready != "" && !replied {
+		t.Fatal("child never reached output acknowledgement")
+	}
 	return code, stdout.String()
 }
 
@@ -74,7 +99,15 @@ func TestRunPropagatesChildExitCode(t *testing.T) {
 // The pty output is teed to both stdout (never paused) and the -log file.
 func TestRunTeesChildOutputToStdoutAndLog(t *testing.T) {
 	log := filepath.Join(t.TempDir(), "log")
-	code, stdout := runWithPTY(t, []string{"-log", log, "--", "printf", "scribe-marker"})
+	// Opening /dev/tty establishes Darwin's exit-time drain reference. Bare
+	// printf can close the last slave and discard output before Run can read it.
+	// The acknowledgement crosses both real PTYs before the child emits its tail.
+	code, stdout := runWithPTYReply(t, []string{"-log", log, "--", "/bin/sh", "-c",
+		`exec 3<>/dev/tty || exit 91
+printf scribe-ready
+IFS= read -r reply || exit 92
+[ "$reply" = captured ] || exit 93
+printf scribe-marker`}, "scribe-ready")
 	if code != 0 {
 		t.Fatalf("code = %d, want 0", code)
 	}
@@ -85,7 +118,20 @@ func TestRunTeesChildOutputToStdoutAndLog(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read log: %v", err)
 	}
+	if string(body) != stdout {
+		t.Fatalf("tee differs: stdout=%q log=%q", stdout, body)
+	}
 	if !strings.Contains(string(body), "scribe-marker") {
 		t.Fatalf("log missing child output:\n%q", string(body))
+	}
+}
+
+// Keep enough native launches to reject the observed 2/100 failure rate rather
+// than accepting a single lucky run. One scheduler exposes the launch gap.
+func TestRunTeesChildOutputToStdoutAndLogStress(t *testing.T) {
+	previous := runtime.GOMAXPROCS(1)
+	defer runtime.GOMAXPROCS(previous)
+	for i := 0; i < 1000; i++ {
+		t.Run(strconv.Itoa(i), TestRunTeesChildOutputToStdoutAndLog)
 	}
 }

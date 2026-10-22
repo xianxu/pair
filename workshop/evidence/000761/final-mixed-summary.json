@@ -1,0 +1,32 @@
+{
+  "head": "ee5caeb55b40f309cfab60cd401dfa27397cc443",
+  "test": "TestNativeFinalMixedCapture761",
+  "command": "go test -overlay '/Volumes/TestScratch/tmp/pair-slot5/pair-761-final-mixed.fSSjNJ/overlay.json' ./cmd/internal/launcher -run '^TestNativeFinalMixedCapture761$' -count=1 -v > '/Volumes/TestScratch/tmp/pair-slot5/pair-761-final-mixed.fSSjNJ/native.log' 2>&1",
+  "logical": 1000,
+  "attempts": 1010,
+  "failed_final": 0,
+  "malformed_json": 0,
+  "context_error": "<nil>",
+  "signatures": {
+    "success": 1000,
+    "lookup_exit0": 7,
+    "empty": 3
+  },
+  "logical_attempt_histogram": {
+    "1": 990,
+    "2": 10
+  },
+  "cleanup": {
+    "error": "<nil>",
+    "kind": "cleanup",
+    "root": "/Volumes/TestScratch/p761-3392705244",
+    "servers": {
+      "95442": "1792574792.980125",
+      "95700": "1792574793.299214",
+      "96083": "1792574793.679575"
+    }
+  },
+  "binary": "/opt/homebrew/Cellar/zellij/0.45.1/bin/zellij",
+  "binary_sha256": "604c684330fe097bc1363ada020d1b9b0ad17caa48d633e838869dfe9fc49e9c",
+  "native_log_sha256": "33318789ef909d6402178043b5038dc73fb9a3c7500bbc2c4a87c6b2e5adc6b7"
+}

@@ -45,3 +45,26 @@ with
 
 Then in `preexec` / `precmd`, send signals to `$_ZSH_SCRIPT_LOG_OWNER`
 around commands whose output you don't want captured.
+
+## Child output and lifetime
+
+On Darwin, scribe keeps a parent-side slave descriptor until it finishes reading
+master output. This preserves final bytes from one-shot commands that never
+open `/dev/tty`; XNU can otherwise discard unread output when the child closes
+its last slave descriptor. Scribe then releases its slave and waits once for its
+direct child, preserving the child's exit result. Other platforms use the
+upstream PTY startup behavior.
+
+The child remains the controlling-terminal session leader. Its exit drains and
+revokes that terminal, so scribe reaches EOF even if a descendant keeps a slave
+open or ignores hangup. Scribe returns its direct child's status without waiting
+for descendants. A live direct child that closes stdio is still waited for.
+
+If initialization fails after launch, scribe kills its owned direct child,
+closes the master and slave, and reaps it; the initialization error remains the
+reported failure. Forced process termination or broken output transport can
+abandon unread bytes. Logging pause/resume affects the log only; it does not
+change child or terminal ownership.
+
+This ownership correction applies to scribe. Wrap and Couch/term's `ptychild`
+have different EOF transitions and are tracked separately in #769 and #770.

@@ -130,3 +130,13 @@ test('operator edit adapter preserves uncertain edit identity and submits only e
  const retry=h.options.post('note-edit',body);assert.equal(h.sent.at(-1).op,'status');assert.equal(h.sent.at(-1).request,id);
  h.win.__couchcastOperatorReply({request:id,outcome:'accepted'});assert.equal((await retry).status,204);
 });
+
+test('operator shared sketch and annotation record subscribers coexist',()=>{
+ const h=harness();const counts=[0,0];const node=()=>({style:{},appendChild(){}});
+ mountOperator({host:node(),root:node(),report:h.report},{
+  annotate:{mountAnnotation(doc,win,view){view.onRecord(()=>counts[0]++);return {strokes:{clear(){}},setAnnotationAllowed(){},setMode(){}};}},
+  palette:[],css:'',sketch:{css:'',shellURL:'data:text/html,private',mount({view}){view.onRecord(()=>counts[1]++);return {tool:{}};}},
+ },{createElement:node},h.win);
+ h.win.__couchcastOperatorView({revision:1,doc:1,seg:1,t:1,notes:[],strokes:[]});
+ assert.deepEqual(counts,[1,1]);
+});

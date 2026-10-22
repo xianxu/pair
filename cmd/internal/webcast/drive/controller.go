@@ -28,6 +28,13 @@ type Seat struct {
 // state, and a seat whose viewer has gone (no stream for the grace period)
 // leaves on its own, handing control back. Neither waits on a viewer.
 type Controller interface {
+	// Drawing is a projection of the driving holder with a sketch-only turn
+	// witness. Metadata authentication grants no drawing authority.
+	DrawingAuthority() DrawingAuthority
+	AdmitDrawing(expectedEpoch uint64, seatKey string) (DrawingPermit, error)
+	AdmitOperatorDrawing(expectedEpoch uint64) (DrawingPermit, error)
+	AuthenticateDrawingAuthor(seatKey string) (recording.Author, error)
+	AdmitDrawingMetadata(seatKey string) (DrawingIdentity, error)
 	DriveCapability() capability.Snapshot
 	SubscribeDriveCapability() (<-chan capability.Snapshot, func())
 	SetDriveAllowed(context.Context, bool) error

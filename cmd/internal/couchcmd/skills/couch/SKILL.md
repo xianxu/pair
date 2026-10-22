@@ -73,7 +73,7 @@ queue, or cross-supervisor delivery.
 
 ## What each verb costs
 
-- **light:** `--notify`, `--automation`, `--help`, `--skill`, `--actors`, `--send-to`, `--message-status`, `--operation-status`, `--peek` (its --transcripts option costs seconds), `--broadcast-list`, `--resources`, `--session-sync`, `--archived`, `--adopt-store`, `--broadcast-web-query`, `--broadcast-web-submit`, `--broadcast-web-replay` (then serves until stopped)
+- **light:** `mock`, `--notify`, `--automation`, `--help`, `--skill`, `--actors`, `--send-to`, `--message-status`, `--operation-status`, `--peek` (its --transcripts option costs seconds), `--broadcast-list`, `--resources`, `--session-sync`, `--archived`, `--adopt-store`, `--broadcast-web-query`, `--broadcast-web-submit`, `--broadcast-web-replay` (then serves until stopped)
 - **seconds:** `--keys`, `--set-model`, `--interrupt`, `--resume-candidates`, `--move-slot`, `--list`, `--show`, `--reconcile`, `--reap`, `--reap-orphans` (it holds the console for SIGTERM's grace period), `--broadcast-web-fidelity` (a headless Chrome)
 - **heavy:** `couch` (launch), `--recover-plan-from-sdlc`, `--resume`, `--reboot`, `--relaunch`, `--reload-context`, `--prepare`, `--recover`, `--recover-park`, `--switch-agent`, `--recovery-confirmation`
 
@@ -469,6 +469,8 @@ need no registration and keep their legacy owner compatibility.
 | `list [--json]` | Lists persisted bindings and fallback owners without opening every document |
 | `forget FILE [--json]` | Removes registration, including for a deleted file; never deletes the document or operator lock |
 | `rename OLD NEW [--json]` | Updates metadata after a successful filesystem move; keeps identity, snapshots, folds and old-path submits |
+| `operator-acquire FILE --id ID --turn TOKEN --json` | Editor-only: serializes this registered operator turn with writer commits; returns exact ownership |
+| `operator-release FILE --id ID --turn TOKEN --json` | Editor-only: removes only that exact turn; absent protection is already-released |
 | `read --section HEADING FILE [--json]` | Prints `hash: H`, then that `## HEADING` section's body |
 | `read --frontmatter FILE [--json]` | The complete leading `---` block and its hash; acknowledges only this block |
 | `read --all FILE [--json]` | The whole file and its hash; you have now seen every edit, so `diff` goes empty |
@@ -506,6 +508,24 @@ need no registration and keep their legacy owner compatibility.
   its age and advice to ping the operator (or add a Needs you item for the
   TL's session file). The lock never expires; malformed or future times still
   block. Ask for their submit, then retry normally.
+- **Registered editor acquisition:** the editor's new-turn acquire holds the
+  existing registry transaction through sidecar publication and directory fsync.
+  JSON `OperatorLock` carries ID, canonical File, Holder, Turn, LockPath, exact
+  LockText and State acquired/already-held. A caller-generated 32-hex turn nonce
+  survives lost replies and is recoverable from the sidecar's `turn:` line;
+  identical retries preserve the exact ownership text/time. Release echoes the
+  requested ID/File/Turn with State released/already-released and empty holder/text;
+  absence claims no past ownership. A move copies those bytes and releases NEW
+  with the same ID/token. Foreign protection is never adopted or removed.
+  Acquire's LockPath always equals canonical File plus `.lock`; alias-only
+  same-turn protection is durably copied there before acknowledgment.
+  Namespace/store unavailability is `session-sync-unavailable`/7, distinct from
+  ownership/path/identity refusal and `operator-lock-uncertain`/1; uncertainty
+  requires retaining the turn and explicitly repeating the identical command.
+  These are in-process commands, so a stopped supervisor alone is not unavailable.
+  Only an acknowledged acquire joins writer exclusion; older direct sidecar
+  clients retain conservative protection and best-effort warnings. The editor
+  completes freshness after ack before input; agents still hold no lock.
 - **Lifetime:** registration persists until explicit forget. Registry limits
   refuse further growth with `couch --session-sync forget FILE` advice; nothing
   is silently evicted. An unavailable lookup, including an older binary's

@@ -143,9 +143,104 @@ package ownership policies belong in the local composed catalog, with the same
 incident and matcher tests plus this atlas mapping; they reuse the shared checker
 and leave the upstream catalog and sleep-debt matching unchanged.
 
+The Pair-local `terminal-registry-owner` rule (pair#731) rejects direct kill-only `LiveIDs` calls in terminal, layout, clipboard and Couch production functions. Native routing uses `LiveOwnerIDs`; explicit registry storage tests and the shared adapter retain the generic predicate seam.
+
 ## Bounded Zellij read ownership (#748)
 
 The local `zellij-read-attempt-bypass` rule rejects direct `runQueryAttempt`
 calls in package launcher outside `ZellijSource.runContext`. Callers use the
 bounded entry to share its deadline, exact read allowlist and attempt evidence.
 It checks call-site syntax, not arbitrary function-value alias dataflow.
+
+## Controlled Zellij cleanup (#764)
+
+The local `controlled-zellij-close` rule is owned by
+`internal/repolint/controlled_zellij_close_rule_test.go` and registered in
+`pairCatalog`. It rejects discarded `ControlledZellij.Close` results (blank,
+bare, deferred or goroutine calls) and checked errors that only emit diagnostics.
+Cleanup must fail the test through t/tb Error, Fatal or Fail, or propagate the
+error through return or a retained errors.Join result. Nonfatal errors preserve
+subsequent exact-server and private-root cleanup checks.
+
+The syntax guard follows the actual fixture import, direct constructors, local
+aliases, explicit types and same-file fields, including range elements. It does
+not prove arbitrary control flow, reassignments, cross-file declarations, dot
+imports, method values or function-return aliases. Unrelated closers stay outside
+its scope. Scanner regressions exercise both rejected and accepted patterns.
+
+The fixture itself shares one handle-retirement path between KillClient and
+Close: consume the PTY and client before closing/signalling/reaping, and retain
+real failures. Startup refusal joins cleanup errors; final cleanup still requires
+exact server-generation exit evidence before removing its owned cache root.
+
+
+## Inherited descriptor proof (#767)
+
+The local `fd-path-permission` rule is registered and implemented in
+`internal/repolint/local_catalog_test.go`. It flags literal shell `test`, `[` and
+`[[` permission probes (`-r`, `-w`, `-x`) of numeric `/dev/fd/N` paths. The identity
+fixture exposed a macOS false negative while its inherited descriptor remained
+readable. Check the descriptor itself (read, fstat or fcntl); a pathname's access
+permission is a separate observation. The rule is lexical and does not resolve
+dynamically assembled shell commands. Its fixture cases live in
+`internal/repolint/fd_path_permission_test.go`; finding/suppression behavior is
+shared with the catalog above. Other consumers' shared catalog is unchanged.
+
+## Scribe terminal-aware output producer (#766)
+
+The Pair-local `scribe-pty-printf` rule, owned by
+`internal/repolint/scribe_pty_printf_rule_test.go`, rejects a bare or absolute
+`printf` executable after `--` in inline string arguments to scribecmd's
+`runWithPTY` and `runWithPTYReply` test helpers. A short-lived producer can lose
+unread output at Darwin's last slave close. The tee fixture instead opens
+`/dev/tty`, exchanges a readiness/acknowledgement through the real PTYs, then
+emits its final marker. Its native stress regression checks the actual stdout
+and log bytes.
+
+This guard checks direct syntax only; argv variables, aliases, computed arguments
+and shell protocol correctness are outside its scope. Other commands and helpers
+are unaffected. Public scribe's generic-command exposure is tracked separately
+in #768; this fixture rule does not claim a production launch-policy fix.
+
+## Manual-clock delivery proof (#771)
+
+The Pair-local `manual-clock-rendezvous` rule is registered in
+`internal/repolint/local_catalog_test.go`, with its matcher in
+`manual_clock_match_test.go` and scanner cases in `manual_clock_rule_test.go`.
+It rejects buffered `chan time.Time` creation in `newManualClock` and the
+`manualClock.after` method. An unbuffered send proves the hub selected the timer;
+a subsequent request barrier proves its handler finished. A buffered send plus
+an unrelated request barrier provides no ordering between the two select cases.
+
+This is a direct syntax guard for the named fixture seam: it accepts omitted
+capacity or literal zero and rejects other capacity expressions. It does not
+resolve aliases, helpers or computed channel types. Real timers elsewhere are
+outside its scope. Findings and suppression use the shared catalog behavior;
+other consumers' shared catalog is unchanged.
+
+## Fixture CLI group completion (#744)
+
+The Pair-local `fixture-cli-group-completion` rule is owned by
+`internal/repolint/fixture_cli_group_rule_test.go` and registered in pairCatalog.
+It rejects Wait calls in agentfixture.runCLI when the owner no longer invokes
+cliGroupError. A completed command leader does not prove descendant quiescence.
+The accepted owner observes every successfully started completion and retains
+explicit uncertainty when the group is live or unknown.
+
+This narrow syntax guard detects deletion of the observation, including ordinary
+error paths and misleading comments. It does not prove ordering, control flow,
+exec.Cmd aliases or indirect calls; the real completion-path regressions cover
+success, signal, cancellation and leader-first descendants with open/closed pipes.
+
+## Fixture Couch identity authority (#778)
+
+The Pair-local `fixture-couch-identity` catalog rule is implemented and registered
+in `internal/repolint/local_catalog_test.go`. It protects the enumerated
+constructors `main.installedEnv` and `testcouch.allocateRoots`: each must call
+`testpair.SeedCouchIdentity` through the exact helper import. Aliases work;
+omitted/bodyless constructors, shadowed names, fake imports, comments, strings
+and function references do not satisfy the call. Unrelated functions are outside
+this rule. Pure synthetic positive and negative cases live in
+`fixture_identity_rule_test.go`; the ordinary catalog walk checks real sources.
+This is a syntactic guard, not execution proof: constructor renames require the
+rule to be updated. Allocation and installed-command tests prove behavior.

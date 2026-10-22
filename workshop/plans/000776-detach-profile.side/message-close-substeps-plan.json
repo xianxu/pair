@@ -1,0 +1,18 @@
+{
+  "scope": "Private additive timing only; no build or native run authorized after first shutdown capture",
+  "recorded_at": "2026-10-21T19:22:32.543342+00:00",
+  "seams": [
+    "cancel",
+    "server.Close",
+    "sessions.Close",
+    "broker.Close",
+    "workers.Wait",
+    "hubTargets.wait",
+    "facts.Close"
+  ],
+  "reason": "Measured coarse messages.Close=2001.235ms; exact internal cause remains unproved.",
+  "authorization_delta": {
+    "recorded_at": "2026-10-21T19:22:57.634804+00:00",
+    "scope": "Root authorizes exactly one bounded follow-up 4-total-slot native capture with internal Close timers and cheap worker return milestones; retain retirement/shutdown timers; no8 or retry."
+  }
+}

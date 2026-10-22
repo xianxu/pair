@@ -76,7 +76,11 @@ func TestStartupOwnerTimingLive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = fixture.Close() })
+	t.Cleanup(func() {
+		if err := fixture.Close(); err != nil {
+			t.Errorf("controlled zellij cleanup: %v", err)
+		}
+	})
 	repo := filepath.Join(t.TempDir(), "repo")
 	if out, err := exec.Command("git", "init", "-q", repo).CombinedOutput(); err != nil {
 		t.Fatalf("git init: %v %s", err, out)

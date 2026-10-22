@@ -89,7 +89,7 @@ test('onRecord sees each accepted record with the model', () => {
   const h = harness();
   const seen = [];
   h.v.onRecord((r, m) => seen.push(`${r.k}@${m.seg}`));
-  for (const r of [head, seg(1), doc(1, 1), { t: 2, k: 'ctl', who: 'v1' }]) h.rec(r);
+  for (const r of [head, seg(1), doc(1, 1), { t: 2, k: 'ctl', op: 'request', who: {id:'v1'}, pending:[{id:'v1'}] }]) h.rec(r);
   assert.deepEqual(seen, ['head@0', 'seg@1', 'doc@1', 'ctl@1']);
 });
 
@@ -199,4 +199,35 @@ test('disconnect fails closed and retired event sources cannot mutate replacemen
  old.emit('capabilities',capabilities(true,true,3));old.emit('end',{});old.emit('rec',head);
  settle(true);await Promise.resolve();
  assert.equal(h.v.capabilities.drive.allowed,false);assert.equal(replacement.closed,false);assert.equal(h.v.model.head,null);
+});
+
+test('live and reconnect viewer install the reducer sketch bootstrap before live points', async () => {
+  const {Model}=await import('../../cmd/internal/webcast/web/model.js');
+  const {catchUp}=await import('../../cmd/internal/webcast/web/replay.js');
+  const records=[head,seg(1),doc(2,1),{t:3,k:'sketch-begin',id:'sk',author:{id:'operator',color:'#ff0000'},owner:'operator',doc:1,tab:'a',vp:{w:100,h:100,dpr:1},operation:'op0',sequence:0,digest:'a'.repeat(64)}];
+  const source=new Model();for(const r of records)source.apply(r);
+  const h=harness();for(let reconnect=0;reconnect<2;reconnect++)for(const r of catchUp(records))h.rec(r);
+  assert.equal(h.retries.length,0);assert.deepEqual(h.v.model.sketchProjection(),source.sketchProjection());
+  const stroke={t:4,k:'sketch-stroke-begin',sketch:'sk',id:'p',at:{node:9,box:[0,0,10,10]},width:4,operation:'op1',sequence:1,digest:'a'.repeat(64)};
+  source.apply(stroke);h.rec(stroke);assert.deepEqual(h.v.model.sketchProjection(),source.sketchProjection());
+});
+test('drawing capabilities preserve safe epoch/holder and fail closed on disconnect', () => {
+  const h = harness();
+  h.es().emit('capabilities', {
+    ...capabilities(true, true),
+    drawing: { epoch: 7, holder: 'seat', ready: true },
+  });
+  assert.deepEqual(h.v.capabilities.drawing, { epoch: 7, holder: 'seat', ready: true });
+  h.es().emit('capabilities', {
+    ...capabilities(true, true),
+    drawing: { epoch: 6, holder: 'other', ready: true },
+  });
+  assert.equal(h.v.capabilities.drawing.holder, 'seat');
+  h.es().onerror();
+  assert.equal(h.v.capabilities.drawing.ready, false);
+  h.es().emit('capabilities', {
+    ...capabilities(true, true),
+    drawing: { epoch: 8, holder: 'seat', ready: true },
+  });
+  assert.equal(h.v.capabilities.drawing.ready, true);
 });

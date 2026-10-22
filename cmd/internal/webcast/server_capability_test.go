@@ -304,3 +304,25 @@ func TestDriveGenerationRejectsPreIngressAcrossOffOn(t *testing.T) {
 		})
 	}
 }
+
+func TestSketchAuthorityProjectionKeepsOriginEpoch(t *testing.T) {
+	c := newBoardCast(t)
+	f := newDriveFixture(t, time.Minute)
+	srv := f.srv.WithBoard(c.bd).WithPointer("point")
+	initial := srv.viewerCapabilities(linkDrive).Drawing
+	if initial.Epoch == 0 || initial.Holder != "operator" || !initial.Ready {
+		t.Fatalf("initial: %+v", initial)
+	}
+	_, key := f.hello(t, "Ana")
+	if err := f.ctrl.Request(key); err != nil {
+		t.Fatal(err)
+	}
+	if got := srv.viewerCapabilities(linkDrive).Drawing; got != initial {
+		t.Fatalf("pending changed origin: %+v", got)
+	}
+	for _, role := range []castLink{linkView, linkPointer} {
+		if srv.viewerCapabilities(role).Drawing.Ready {
+			t.Fatal("nondriving role may draw")
+		}
+	}
+}

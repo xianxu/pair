@@ -286,6 +286,23 @@ nonce, dispatched target, optional thread address, slot path, park/launch nonce,
 bounded exact process identities with executable kinds. Holders never collect argv.
 Generic failures have no inferred phase. Launch fields retain their existing
 16 KiB raw output tail, 4 KiB per error and separate pre/post-cleanup exit codes.
+Unresolved native pane queries also retain typed `zellij_*` evidence on that
+same operation: exact raw stdout/stderr prefixes (4 KiB each), original counts
+and truncation flags, nullable native exit, bounded argv/executable and version.
+Version observation uses the failed query's executable and remaining proof
+deadline. Concise notices/receipts keep raw bytes in the failure record, and
+successful operations perform no version query or failure write.
+
+Zellij0.45.1 can falsely miss a live session during its internal socket lookup.
+`launcher/zellij_read_recovery.go` recognizes two native signatures only for
+its existing idempotent read allowlist: exact missing-target stderr plus a
+validated plain/colored listing containing that live target, or exact exit1
+no-active-session output while the target socket is present. Reissues share
+the original deadline and three-attempt cap; the successful reply still passes
+strict parsing, independent owner agreement and exact-generation fencing.
+Socket presence permits another read and never grants ownership. Remove these
+compatibility signatures when the supported native release fixes lookup/IPC
+routing and the private native controls are requalified (#761, #748).
 
 `launchfailure_store.go` atomically publishes one JSON array at
 `<namespace>/launch-diagnostics/failures.json` (0600), under its private file lock.
@@ -511,7 +528,13 @@ checked before selection publication or directory creation. Escaping or unresolv
 symlinks refuse; children receive only validated physical paths.
 The resolved runtime propagates selected Pair/Couch/identity/isolation roots to
 children and feeds the same roots to listing, messaging and artifact readers.
-Existing socket addressing remains derived from the selected namespace.
+Socket endpoint hashes remain derived from the selected namespace. With explicit
+isolation, broker and wrapper sockets live in the physical `COUCH_ISOLATED_ROOT/m`
+directory; listener startup can sweep only that owned parent. Namespace or parent
+escapes and overlong socket addresses refuse before listener effects. With isolation
+unset, the existing per-UID socket addresses and startup sweep are unchanged.
+The [shared native fleet helper](couch-testing.md) owns this boundary for disposable
+multi-slot acceptance tests (#744).
 
 
 ### Durable numbered slots (#306)
@@ -1254,8 +1277,24 @@ historical. Closed absorbs late IO completions. Counters report offers, complete
 sink acknowledgments and existing drops, not power-loss durability or a drained
 queue. The fact file's default location is `~/.local/share/pair/couch/supervision.jsonl`.
 Retained `couch --message-status ID --json` receipts, rather than this fact stream,
-explain per-message waiting decisions. The historical freeze still awaits the
-coordinated restart's measured error and a cause-specific M2 repair.
+explain per-message waiting decisions. The 2026-10-21 readout exposed an open
+failure: persisted device16777232 versus observed16777229 with identical inode,
+size and nanosecond mtime. #736 closes around health instrumentation; #774 owns
+this measured repair and the hub-coordinated fresh-write acceptance.
+
+`diagnosticlog/checkpoint_identity.go` classifies persisted generations as exact,
+device-only or mismatched. Under the existing log flock, a current checkpoint
+without a pending intent is durably rebound before append admission; the old
+reservation is untouched. Preview uses the same persisted comparison read-only.
+Collection carries preview's first observed generation privately through strict
+revalidation, then may rebind retained metadata before a new deletion intent;
+current rows and all already-pending transaction recovery keep strict identity.
+A device change between observations within one operation is refused. Inode,
+size, nanosecond-time and uncertain-tail mismatches never authorize a reset,
+truncation or new append. Errors identify the mismatched component and recovery
+stage. There is no new format, retry loop, payload reread or durable artifact.
+A rebind adds one bounded existing atomic metadata publication per touched
+current/retained generation; normal append and page bounds are unchanged.
 
 The optional health field requires the rebuilt CLI with the new supervisor;
 older strict resource decoders reject it. A new CLI accepts an older server's
@@ -2433,18 +2472,28 @@ once (`Request.shapeProof`), and start admission (`Admits`), the pre-write
 recheck (`WriteAdmits`) and the turn gate (`DriveState.TurnTolerant`) all derive
 from it. The interrupt's proof is `Interruptible`: positive evidence of work,
 never the turn flag alone, because a bare submission or an open Claude panel
-also sets that flag. The proof needs three things. First, the lifecycle
-reducer's one `Working()` predicate: open, not completed, activity seen, and no
-stop grace pending. `turnWorking` mirrors that predicate off the master loop.
-Second, the agent's own composer on screen, which rules out a panel. Third, the
-agent's own "esc to interrupt" hint in the bottom viewport rows
-(`agentdrive.AdvertisesInterrupt`), which also covers a turn end the lifecycle
-missed. It also needs a complete frame, no picker, and the wrapper owning
+also sets that flag. Claude uses the lifecycle reducer's `Working()` predicate
+(open, not completed, activity seen, no stop grace), a recognized composer and
+its own bottom-viewport interrupt hint. Codex uses the current coherent native
+work status above its qualified composer: `RecognizeCodexWorking` recognizes
+`Working ` and `Waiting for ` status prefixes plus `esc to interrupt`, with
+either captured spinner bullet. Counters, truncated summaries and following
+command-detail rows do not supply authority and are ignored. The same recognizer feeds lifecycle observation and interrupt admission;
+Codex admission does not depend on cached notification flags. Interrupt observations
+carry the last operator-input value of the mailbox activity sequence, so normal
+work redraws do not revoke a queued interrupt. Observation, wrapper admission
+and the writer use the same sequence selector; typing, Esc, image input and
+submit advance it. Other drive shapes retain the all-activity sequence. Reader
+output not yet parsed blocks interrupt proof until the current frame is known. Status position
+is relative to the composer because modern Codex can leave most of the viewport
+blank below it. MCP startup, quoted status text and partial redraws do not prove
+work; partial redraws also do not publish a stop transition (#742). It also needs a complete frame, no picker, and the wrapper owning
 input. It may take a residual
 automatic-input wait, as recovery does, but never an active owner. `Admits`
 checks the interrupt first and exclusively, so an idle agent never gets
 Ctrl+C. The drive writes one internal `interrupt` key (`\x03`) and is done
-when the turn ends. It is unconfirmed at the deadline and never resent. A second
+only after a fresh complete idle composer proves the turn ended. Unknown or
+picker screens cannot confirm it. It is unconfirmed at the deadline and never resent. A second
 interrupt refuses because no turn is working. `couchmessage.IsDriveOp` names
 the three drive ops wherever the protocol, service, CLI and console dispatch
 them.
@@ -2548,7 +2597,13 @@ requests retain their exact executors. Actual cold native resume and the thin
 `Reboot`/`ResumeCandidate` facades enter `executePreparedRecovery`
 (`recovery_prepared.go`). Native resume carries no Prompt. Fresh allocates a new
 tag and uses the normal #522 Prompt to point at previous-screen, branch and issue
-evidence. The raw unreadable-primary archive escape stops and launches nothing.
+evidence. The raw unreadable-primary archive escape stops and launches nothing. Recordless numbered-slot
+Fresh uses this same recovery launch tail: its new record and creating start
+claim commit a tagged Fresh intent together, then the producer rereads the
+committed record and supplies the existing RecoveryAuthority. Pair validates the
+exact helper, nonce, address, revision, agent and cwd before advancing that
+address's reserved marker. It does not treat FreshRequired alone as authority to
+establish an address (#747).
 
 Preparation resolves the normal saved profile, preserves available screen and
 durable selection, and obtains exact, expiring stop acceptance before retirement.

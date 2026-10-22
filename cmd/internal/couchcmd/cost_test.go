@@ -9,7 +9,7 @@ import (
 )
 
 // helpVerbLine matches a usage line naming a verb: the bare launch or a flag.
-var helpVerbLine = regexp.MustCompile(`^(?:usage: |\s+)couch(?: (--[a-z-]+))?\b`)
+var helpVerbLine = regexp.MustCompile(`^(?:usage: |\s+)couch(?: (--[a-z-]+|mock))?\b`)
 
 // helpCosts reads each verb's tag back out of `couch --help`.
 func helpCosts(t *testing.T) map[string]verbCost {

@@ -678,3 +678,16 @@ Calibration caveat: this close adopted measured0.39h after excluding activity
 already adopted by interleaved #738 (which adopted9.91h). This is the binary
 provenance result, not a hand estimate; the cross-item attribution looks
 suspect and is reported to the hub for calibration, with no card override.
+
+
+### 2026-10-22 — morning live-check preparation
+
+Hub5f401991 schedules #739 for pair:0 first in the morning, before #737; no staging until explicit go. After #738 landed (PR513), merged origin/main7702a3dddbfdb5c7d8a021bb8949df98f0a6b282. Resolved additive atlas/artifact-source/help conflicts preserving both main and #739. Main retired the aggregate reader inventory; migrated #739's six affected reader certificates to the landed per-package format through its supported record tool, preserving main's aggregate deletion. Fast inventory passes with no waiver.
+
+Targeted startup/automation/original-permit/worker-cue/compatibility cohort passed across couchcmd3.511s, couchcore2.715s, couchtty0.567s, couchmessage4.327s and wrapcmd0.642s. Commit-guard cohort passed couchmessage0.122s; exhaustive production artifact inventory passed2.230s. Actual native acceptance remains owed; no stage/live claim or landing here.
+
+Three-step operator check: (1) hub coordinates a full-shutdown or unknown-state start on the selected build; a normal restart with a positively surviving hub intentionally starts automation ON and does not qualify as the OFF scenario. (2) Observe one retained startup status line and hub automation OFF; from the hub, couch --automation status confirms OFF, and no generated hub composer input arrives (worker reports/operator input remain deliverable). (3) Send the TL the first genuine operator message; unless it says keep automation off, the TL explicitly runs couch --automation on, then status confirms ON and a fresh automatic occurrence can arrive with no replay. Couch never parses that message or flips implicitly. Keep the normal-restart and per-wrapper-cue disposable qualification owed separately unless the hub changes that acceptance scope.
+
+Hub59dbba43 changes the subsequent order to #773 before #736, after this morning preparation. #773 peer captures are pending attachment on its own branch; do not mix that independent issue's changes here.
+
+Final preparation checks: automatic-system source owner and native-input worker witness cohort PASS (couchcmd0.316s, wrapcmd0.343s); fast reader inventory PASS after migration. Conflict-resolution changes and new Log have clean diff checks against incoming main. The whole historical merge diff reports existing whitespace in main's retained VT/patch evidence; those raw captures are deliberately preserved, not normalized. No staging, full-suite pass on this new integration or live acceptance claimed.

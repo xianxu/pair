@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/creack/pty"
+	"github.com/xianxu/pair/cmd/internal/couchidentity"
 	"github.com/xianxu/pair/cmd/internal/testpair"
 )
 
@@ -79,7 +80,8 @@ exec %q launch "$@"
 		defer cancel()
 		cmd := exec.CommandContext(ctx, couchBin)
 		cmd.Dir = launchRoot
-		cmd.Env = append(installedEnv(t, binDir),
+		env, fixtureC := installedEnv(t, binDir)
+		cmd.Env = append(env,
 			"PAIR_HOME="+root,
 			"ZELLIJ_SOCKET_DIR="+sockets,
 			"PAIR_TEST_COUCH_TERMINAL_FIXTURE=1",
@@ -240,7 +242,11 @@ exec %q launch "$@"
 				launches = append(launches, line)
 			}
 		}
-		if len(launches) != 1 || launches[0] != "pair --couch-session-v1 resume 1-alpha-1 --layout3" {
+		expectedTag, err := couchidentity.FormatPairTag(fixtureC, "alpha", 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(launches) != 1 || launches[0] != "pair --couch-session-v1 resume "+expectedTag+" --layout3" {
 			t.Fatalf("hub launches = %q", launches)
 		}
 		if !bytes.Contains(out, []byte("COUCH_INSTALLED_PAIR_MARKER")) {
@@ -256,7 +262,7 @@ exec %q launch "$@"
 		before, _ := os.ReadFile(callLog)
 		cmd := exec.Command(couchBin)
 		cmd.Dir = launchRoot
-		cmd.Env = installedEnv(t, binDir)
+		cmd.Env, _ = installedEnv(t, binDir)
 		if err := cmd.Run(); err == nil {
 			t.Fatal("bare couch with pipes succeeded")
 		}
@@ -288,14 +294,15 @@ func waitInstalled(t *testing.T, cmd *exec.Cmd, cancel context.CancelFunc, waitR
 	}
 }
 
-func installedEnv(t *testing.T, binDir string) []string {
+func installedEnv(t *testing.T, binDir string) ([]string, uint64) {
 	t.Helper()
-	root, err := filepath.EvalSymlinks(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	root := testpair.ShortRoot(t)
 	home := filepath.Join(root, "home")
 	if err := os.MkdirAll(home, 0700); err != nil {
+		t.Fatal(err)
+	}
+	c, err := testpair.SeedCouchIdentity(filepath.Join(root, "identity"))
+	if err != nil {
 		t.Fatal(err)
 	}
 	return testpair.Environment(t, home,
@@ -305,7 +312,7 @@ func installedEnv(t *testing.T, binDir string) []string {
 		"PAIR_DATA_DIR="+filepath.Join(root, "data", "pair"),
 		"COUCH_STORE_DIR="+filepath.Join(root, "store"),
 		"COUCH_IDENTITY_DIR="+filepath.Join(root, "identity"),
-	)
+	), c
 }
 
 func writeExecutable(t *testing.T, path, body string) {
@@ -322,4 +329,36 @@ func repoRoot(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return root
+}
+
+func TestInstalledEnvironmentTerminalIdentityIsolation(t *testing.T) {
+	seen := map[string]bool{}
+	for i := 0; i < 2; i++ {
+		values := map[string]string{}
+		env, _ := installedEnv(t, t.TempDir())
+		for _, entry := range env {
+			key, value, _ := strings.Cut(entry, "=")
+			values[key] = value
+		}
+		store := couchidentity.IdentityStore{HostDir: values["COUCH_IDENTITY_DIR"], StoreDir: values["COUCH_STORE_DIR"]}
+		request := couchidentity.AllocationRequest{Conversation: true, Terminal: true, RepositoryToken: "alpha"}
+		first, err := store.Allocate(t.Context(), request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if seen[first.SessionName] {
+			t.Errorf("independent fixture authorities share native terminal name %q", first.SessionName)
+		}
+		seen[first.SessionName] = true
+		if first.C>>63 != 1 || first.N != 1 || first.M != 1 {
+			t.Errorf("first fixture allocation must be private high-range C and N=M=1: %+v", first)
+		}
+		next, err := store.Allocate(t.Context(), request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if next.C != first.C || next.N != 2 || next.M != 2 {
+			t.Errorf("normal allocation must advance within one fixture: first=%+v next=%+v", first, next)
+		}
+	}
 }

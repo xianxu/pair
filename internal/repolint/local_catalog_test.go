@@ -2,6 +2,9 @@ package repolint
 
 import (
 	"go/ast"
+	"go/token"
+	"regexp"
+	"strconv"
 
 	"github.com/xianxu/ariadne/pkg/golint"
 )
@@ -9,6 +12,11 @@ import (
 // Copy the shared catalog before extending it: Pair rules must not alter the
 // upstream catalog used by sleepSites to identify existing sleep debt.
 var pairCatalog = append(append([]golint.Rule(nil), golint.Catalog...), golint.Rule{
+	Name:     "fixture-cli-group-completion",
+	Incident: "pair#744",
+	Message:  "observe CLI process-group quiescence through cliGroupError after Wait; leader completion alone cannot acknowledge descendants",
+	Match:    fixtureCLIUnobservedGroups,
+}, golint.Rule{
 	Name:     "wrapper-child-release",
 	Incident: "pair#715",
 	Message:  "retain wrapper child ownership and join it with Wait before returning; Process.Release permits writes after wrapper shutdown",
@@ -19,11 +27,116 @@ var pairCatalog = append(append([]golint.Rule(nil), golint.Catalog...), golint.R
 	Message:  "compose diagnostic addresses atomically with completeFailureAddress; partial target evidence must not replace an exact captured address",
 	Match:    lifecycleFailureAddressOverrides,
 }, golint.Rule{
+	Name:     "terminal-registry-owner",
+	Incident: "pair#731",
+	Message:  "use LiveOwnerIDs for native terminal ownership; kill-only LiveIDs admits a shell after exec",
+	Match:    terminalRegistryOwnerCalls,
+}, golint.Rule{
 	Name:     "zellij-read-attempt-bypass",
 	Incident: "pair#748",
 	Message:  "call ZellijSource.runContext to preserve bounded read recovery, the shared deadline and per-attempt evidence; runQueryAttempt belongs only to that entry point",
 	Match:    zellijReadAttemptBypasses,
+}, golint.Rule{
+	Name:     "controlled-zellij-close",
+	Incident: "pair#764",
+	Message:  "report or propagate ControlledZellij.Close cleanup errors; discarded cleanup can leave a controlled session alive",
+	Match:    discardedControlledZellijCloses,
+}, golint.Rule{
+	Name:     "fd-path-permission",
+	Incident: "pair#767",
+	Message:  "prove inherited descriptor usability directly (read/fstat/fcntl), not through a /dev/fd pathname permission check; macOS can report a false negative",
+	Match:    fdPathPermissionChecks,
+}, golint.Rule{
+	Name:     "scribe-pty-printf",
+	Incident: "pair#766",
+	Message:  "use a terminal-aware producer and acknowledge its readiness before final output; direct printf can fail before producing the test marker",
+	Match:    scribePTYPrintfCalls,
+}, golint.Rule{
+	Name:     "manual-clock-rendezvous",
+	Incident: "pair#771",
+	Message:  "manualClock timer delivery must rendezvous with its receiver before a request barrier proves completion",
+	Match:    bufferedManualClockTimers,
+}, golint.Rule{
+	Name:     "fixture-couch-identity",
+	Incident: "pair#778",
+	Message:  "seed fixture roots with testpair.SeedCouchIdentity so the production census recognizes their Couch identity",
+	Match:    fixtureConstructorsWithoutCouchIdentity,
 })
+
+// These enumerated fixture constructors must preserve the production identity
+// contract. This syntax guard checks a direct imported helper call, not runtime
+// execution or every possible fixture factory; constructor renames must update it.
+func fixtureConstructorsWithoutCouchIdentity(file *ast.File) []ast.Node {
+	var constructor string
+	switch file.Name.Name {
+	case "main":
+		constructor = "installedEnv"
+	case "testcouch":
+		constructor = "allocateRoots"
+	default:
+		return nil
+	}
+	imports := map[string]bool{}
+	for _, spec := range file.Imports {
+		path, err := strconv.Unquote(spec.Path.Value)
+		if err != nil || path != "github.com/xianxu/pair/cmd/internal/testpair" {
+			continue
+		}
+		name := "testpair"
+		if spec.Name != nil {
+			name = spec.Name.Name
+		}
+		imports[name] = true
+	}
+	var matches []ast.Node
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv != nil || fn.Name.Name != constructor {
+			continue
+		}
+		seeded := false
+		if fn.Body != nil {
+			ast.Inspect(fn.Body, func(node ast.Node) bool {
+				call, ok := node.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				selector, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr)
+				if !ok || selector.Sel.Name != "SeedCouchIdentity" {
+					return true
+				}
+				pkg, ok := ast.Unparen(selector.X).(*ast.Ident)
+				if ok && pkg.Obj == nil && imports[pkg.Name] {
+					seeded = true
+				}
+				return true
+			})
+		}
+		if !seeded {
+			matches = append(matches, fn)
+		}
+	}
+	return matches
+}
+
+// This lexical guard covers literal shell test/[ /[[ permission probes. It
+// intentionally does not infer dynamically assembled shell commands.
+var fdPathPermission = regexp.MustCompile(`(?:\btest|\[\[?)\s+-[rwx]\s+["']?/dev/fd/[0-9]+`)
+
+func fdPathPermissionChecks(file *ast.File) []ast.Node {
+	var matches []ast.Node
+	ast.Inspect(file, func(node ast.Node) bool {
+		literal, ok := node.(*ast.BasicLit)
+		if ok && literal.Kind == token.STRING {
+			value, err := strconv.Unquote(literal.Value)
+			if err == nil && fdPathPermission.MatchString(value) {
+				matches = append(matches, literal)
+			}
+		}
+		return true
+	})
+	return matches
+}
 
 // The bounded entry owns individual native attempts. New callers must not
 // independently recreate its attempt budget, deadline or observation policy.
