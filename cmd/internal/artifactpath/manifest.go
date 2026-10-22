@@ -1614,6 +1614,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/testcouch/agentfixture/protocol.go",
 	"cmd/internal/testcouch/agentfixture/run.go",
 	"cmd/internal/testcouch/agentfixture/retained.go",
+	"cmd/internal/testcouch/agentfixture/resources.go",
 	"cmd/internal/testcouch/binaries.go",
 	"cmd/internal/testcouch/cleanup.go",
 	"cmd/internal/testcouch/cohort.go",

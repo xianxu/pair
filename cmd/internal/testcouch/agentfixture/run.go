@@ -401,6 +401,12 @@ func Run(parent context.Context, c Config, stdin io.Reader, stdout io.Writer) (r
 						case <-ctx.Done():
 						}
 					}(command)
+				case Resources:
+					r := readResourceObservation(ctx, command.ID)
+					if e = atomicJSON(filepath.Join(c.ControlDir, "results", id+".json"), r, true); e != nil {
+						return e
+					}
+					resultCount++
 				case Retain:
 					child, stop := context.WithCancel(ctx)
 					active[id] = activeRequest{command: command, cancel: stop}

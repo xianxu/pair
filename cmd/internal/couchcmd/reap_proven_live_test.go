@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/testcouch"
 	"github.com/xianxu/pair/cmd/internal/testcouch/agentfixture"
@@ -44,7 +44,7 @@ func TestLiveProvenOrphanReap(t *testing.T) {
 	for _, kind := range []string{"claude", "codex"} {
 		if !t.Run(kind, func(t *testing.T) {
 			started := time.Now()
-			fleet := testcouch.New(t, binaries, testcouch.Options{Workers: 1, AgentKind: kind, RuntimeBudget: 120 * time.Second})
+			fleet := testcouch.New(t, binaries, testcouch.Options{ExplicitHub: true, Workers: 1, AgentKind: kind, RuntimeBudget: 120 * time.Second})
 			fleet.Environment = append(fleet.Environment, "COUCH_RESOURCE_CADENCE=1s")
 			setup, stopSetup := context.WithTimeout(t.Context(), 180*time.Second)
 			defer stopSetup()
@@ -67,20 +67,7 @@ func TestLiveProvenOrphanReap(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			resources := func() (couchcore.ResourceView, error) {
-				out, e := fleet.ActorCLI(ctx, 0, "--resources", "--json")
-				if e != nil {
-					return couchcore.ResourceView{}, e
-				}
-				var response couchcore.ResourceView
-				if e = json.Unmarshal([]byte(out.Stdout), &response); e != nil {
-					return response, e
-				}
-				if out.ExitCode != 0 || out.Truncated || out.CleanupUncertain {
-					return response, fmt.Errorf("resource read: %+v", out)
-				}
-				return response, nil
-			}
+			resources := func() (agentfixture.ResourceObservation, error) { return fleet.Resources(ctx) }
 			keys := map[int]string{}
 			for _, p := range cohort.Processes {
 				keys[p.PID] = p.Generation
@@ -118,9 +105,33 @@ func TestLiveProvenOrphanReap(t *testing.T) {
 			}); err != nil {
 				t.Fatalf("native reparent barrier: %v", err)
 			}
+			// Freeze only the monitor-proven old worker cohort before the
+			// fixture crash. Retained children and the steward cannot enter it.
+			beforeCrash, err := resources()
+			if err != nil {
+				t.Fatal(err)
+			}
+			var oldCohort []testcouch.Resource
+			for _, row := range beforeCrash.Processes {
+				if row.Slot == "fixture:1" && keys[row.Key.PID] != row.Key.Identity {
+					oldCohort = append(oldCohort, testcouch.Resource{ID: strconv.Itoa(row.Key.PID), Generation: row.Key.Identity, Kind: row.Name})
+				}
+			}
+			if err = cohort.CrashActor(ctx, 1, oldCohort); err != nil {
+				t.Fatal(err)
+			}
+			// The old terminal is genuinely dead, so normal public recovery
+			// does not need to approve stopping its already-absent live panes.
 			out, err := fleet.ActorCLI(ctx, 0, "--reboot", "fixture:1", "--confirm", "--json")
 			if err != nil || out.ExitCode != 0 {
-				t.Fatalf("new incarnation: %+v %v", out, err)
+				t.Fatalf("public reboot after exact fixture crash: %+v %v", out, err)
+			}
+			var reboot couchmessage.OperationReceipt
+			if err = json.Unmarshal([]byte(out.Stdout), &reboot); err != nil {
+				t.Fatal(err)
+			}
+			if reboot.Status != couchmessage.ReceiptSucceeded {
+				t.Fatalf("reboot not succeeded: %+v", reboot)
 			}
 			if err = awaitProvenNative(ctx, func() (bool, error) {
 				now, e := fleet.Agent(1)
@@ -131,6 +142,26 @@ func TestLiveProvenOrphanReap(t *testing.T) {
 			current, err := fleet.Agent(1)
 			if err != nil {
 				t.Fatal(err)
+			}
+			if reboot.Tag == "" {
+				t.Fatalf("successful reboot omitted new binding tag: %+v", reboot)
+			}
+			if err = fleet.WaitActors(ctx, 2); err != nil {
+				t.Fatalf("new actor registration: %v", err)
+			}
+			if err = awaitProvenNative(ctx, func() (bool, error) {
+				actors, e := fleet.Actors(ctx)
+				if e != nil {
+					return false, e
+				}
+				for _, actor := range actors.Actors {
+					if actor.Binding.Slot == "fixture:1" && actor.Binding.Tag == reboot.Tag {
+						return true, nil
+					}
+				}
+				return false, nil
+			}); err != nil {
+				t.Fatalf("new exact binding registration: %v", err)
 			}
 			if err = awaitProvenNative(ctx, func() (bool, error) {
 				view, e := resources()

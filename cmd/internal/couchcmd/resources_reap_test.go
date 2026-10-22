@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/procutil"
@@ -14,6 +15,39 @@ import (
 type ownershipReader struct {
 	*samplerReader
 	envErrors map[int]error
+}
+
+func TestOwnershipProofJoinsWhenSamplerLifetimeEnds(t *testing.T) {
+	f := &samplerReader{}
+	var calls atomic.Int64
+	entered := make(chan struct{})
+	f.tableHook = func(ctx context.Context) {
+		if calls.Add(1) == 2 {
+			close(entered)
+			<-ctx.Done()
+		}
+	}
+	s := testResourceSampler(f)
+	s.sweeps = make(chan resourceRequest)
+	s.policy.Cadence = time.Hour
+	lifetime, stop := context.WithCancel(t.Context())
+	caller, cancelCaller := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() { defer close(done); s.run(lifetime) }()
+	proofDone := make(chan struct{})
+	go func() { defer close(proofDone); _, _ = s.proveReap(caller) }()
+	t.Cleanup(func() { stop(); cancelCaller(); <-done; <-proofDone })
+	select {
+	case <-entered:
+	case <-t.Context().Done():
+		t.Fatal(t.Context().Err())
+	}
+	stop()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("sampler proof outlived its lifetime")
+	}
 }
 
 // Double P and S independently of detached candidates. The proof shell must

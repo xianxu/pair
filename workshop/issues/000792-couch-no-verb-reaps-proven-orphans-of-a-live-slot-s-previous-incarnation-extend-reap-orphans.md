@@ -94,6 +94,16 @@ Authenticated hub approval d2356d3f-461c-4576-9ceb-a71acb4179f6 approves the fix
 
 Recorded affected selection on d2f4b5e9 expanded to full suite and queued lease-2652748101. Canceled only that owned queued lease via sdlc before capacity, because native-test oracle repairs changed the source requiring a new head; the runner exited with suite-lock context canceled. No suite started or evidence was discarded. No recorded check or landing runner is active now. Requeue on the final qualified source.
 
+### 2026-10-22 — final native harness and sampler lifetime checkpoint
+
+The approved fixture-crash path now intersects only the previously monitor-observed old worker set with the shared harness's positive private ownership proof. It protects retained descendants, steward and supervisor, skips only positively gone/reused generations, and rechecks identity for every single-PID fixture signal. No recovery validator or production bounds changed. The fixture explicitly launches its hub through the public directory argv, and waits for the exact replacement broker binding, not merely agent readiness.
+
+One native run reached successful exact six-process reaping and proved the replacement agent generation survived; final delivery qualification remains pending the complete native run. A later ancillary full-resource read ended with JSON EOF; its oracle decoded before checking the typed truncation flag, so that run did not retain conclusive flag/length evidence. Source inspection and bounded payload tests establish that the production frame can exceed the fixture's32KiB generic CLI capture; this is an observation-limit mismatch, not a reason to expand generic limits. Kept every frame/output/deadline bound unchanged: a closed read-only fixture observer calls the existing resource RPC in the actor's inherited isolated namespace and returns only observed key/slot/name/orphan flags, refusing oversized output. Public reboot, preview, confirmed reap and delivery stay on the genuine hub's CLI.
+
+Source inspection then found an implementation lifetime defect: the worker request's context could outlive canceled sampler ownership. TestOwnershipProofJoinsWhenSamplerLifetimeEnds reproduced it (red: sampler proof outlived its lifetime). Collection now inherits both caller and worker cancellation without another worker; the proof, legacy, service and CLI race selection passes1.806s and ordinary selection passes0.412s. The shared observer/startup/crash race selection passes (testcouch1.255s, agentfixture1.214s); full artifactpath passes23.389s. Re-audited changed reader inputs; the new resource-proof tests read only literal/stateful fake fixtures.
+
+No recorded suite is active. Checkpoint this source, run the complete native acceptance without further source edits, then push and queue the required recorded check. Any new concrete failure is classified before another run; no deadline tuning or validator weakening.
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. The source is marked stale by estimate-source; this is a provisional calibration, not a fitted total.

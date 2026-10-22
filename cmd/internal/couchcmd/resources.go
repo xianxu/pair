@@ -143,14 +143,23 @@ func (s *resourceSampler) run(ctx context.Context) {
 				request.reply <- resourceSweep{err: request.ctx.Err()}
 				continue
 			}
-			if request.proof {
-				sample, selection, unknown := s.collectOwnership(request.ctx)
-				proof := couchcore.ProvenOrphanProof{Table: sample.Table, Selection: selection, TableKnown: sample.TableKnown, InventoryComplete: sample.InventoryComplete, UnknownDetached: unknown}
-				request.reply <- resourceSweep{proof: proof, err: request.ctx.Err()}
-			} else {
-				fresh := s.pass(request.ctx)
-				request.reply <- resourceSweep{fresh: fresh, view: s.view(), err: request.ctx.Err()}
+			// A request cannot lend the sampler a longer lifetime than its
+			// owner. Both cancellation boundaries revoke the same collection.
+			collection, cancel := context.WithCancel(request.ctx)
+			unlink := context.AfterFunc(ctx, cancel)
+			if ctx.Err() != nil {
+				cancel()
 			}
+			if request.proof {
+				sample, selection, unknown := s.collectOwnership(collection)
+				proof := couchcore.ProvenOrphanProof{Table: sample.Table, Selection: selection, TableKnown: sample.TableKnown, InventoryComplete: sample.InventoryComplete, UnknownDetached: unknown}
+				request.reply <- resourceSweep{proof: proof, err: collection.Err()}
+			} else {
+				fresh := s.pass(collection)
+				request.reply <- resourceSweep{fresh: fresh, view: s.view(), err: collection.Err()}
+			}
+			unlink()
+			cancel()
 			continue
 		case <-ticker.C:
 		}
