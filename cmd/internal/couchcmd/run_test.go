@@ -1856,7 +1856,7 @@ func TestThreadStateTextUsesSharedContinuityOutcome(t *testing.T) {
 func TestCandidateResumeRetainsQueuedHubGuard(t *testing.T) {
 	r, _, _ := slotRig(t)
 	var queuedGuard func(context.Context) error
-	r.slotOps.candidate = func(key, target, candidate string, started func(), finished func(any, error), guards ...func(context.Context) error) error {
+	r.slotOps.candidate = func(key, target, candidate string, started func(), progress couchcore.OperationProgress, finished func(any, error), guards ...func(context.Context) error) error {
 		if candidate != "candidate-token" || len(guards) != 1 {
 			t.Fatalf("candidate admission lost its token or hub guard: %q, %d", candidate, len(guards))
 		}

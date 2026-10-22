@@ -7,6 +7,12 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- #758 BR-4: write-call and record-count assertions do not prove a byte budget. Measure actual payload lengths at the writer boundary, count cumulative bytes and compare N/2N against the stated growth model; retry/no-op and repeated-reopen tests must assert byte effects, not infer them from row counts.
+
+- #758 BR-1: generation-fence the returned observation as well as the state mutation. A delayed negative probe that cannot retire a successor also cannot confirm that successor absent; assert the response of the stale operation in controlled race tests.
+- #758 BR-2: classify deterministic candidate validation/size refusal before the durable writer boundary. An operation that never invoked a writer must not poison healthy authority as uncertain publication; test continued lookup/release/cleanup after capacity refusal.
+- #758 BR-3: a notification recorder that always succeeds cannot qualify delivery lifetime. Model pending/current attachment identity, hold and fail the real notification seam, and prove publication-before-delivery plus cancellation/join; tick qualification only after those controls pass.
+
 - A retry observing file absence does not prove an earlier unlink became durable. Before acknowledging idempotent removal, synchronize every admitted containing directory even for already-absent targets; test visible and durable state separately through failed fsync and crash recovery. (#777 plan gate)
 - Adding a public CLI verb requires updating every public command index, including README and embedded help/skill, alongside its detailed atlas contract. Audit those indexes together at the documentation boundary. (#777 BR-1)
 - Start a shutdown grace clock after delivering its triggering signal; allocating it earlier silently spends the grace under preemption. Pin signal/clock order and exactly-once cleanup through a deterministic clock factory. (#776)
@@ -2576,6 +2582,8 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #767: Prove inherited descriptor usability by operating on the descriptor, with an exact token or identity and absent/wrong-descriptor controls. On macOS a shell permission probe of /dev/fd/3 returned false while builtin read immediately recovered the correct token. Permission inspection is a separate pathname observation, not inheritance proof; an already-open descriptor also remains usable after chmod000. The Pair golint catalog rejects literal shell permission gates on /dev/fd/N.
 - #766: A PTY consumer cannot recover bytes the kernel discarded at last slave close. Native tee fixtures must own producer lifetime through an output/input acknowledgement and establish the controlling-terminal reference on Darwin; distinguish first-read EOF from a wrapper closing its master early. Audit public generic-command exposure and file that product defect separately from a fixture repair.
 
+- #773: A diagnostic birth-probe grace is not an admission deadline. Select the caller-owned absolute startup deadline before helper launch, carry it across exec without renewal, and keep it separate from short native observations and the admitted interactive client lifetime. Tests must cross the production selection boundary; a custom test-only timeout cannot detect a hardcoded production cap.
+- #773: Repeated reports of the same startup stage preserve the stage start time. Progress callbacks bind the exact request incarnation and cannot mutate a terminal receipt; final budget failure retains the consuming stage, elapsed time and cause.
 - #774: distinguish persisted file checkpoints from observations within a single operation. Remount equivalence belongs only at the persisted boundary; after capturing/rebinding a live identity, revalidation must stay strict. Never reuse a tolerant checkpoint matcher at every call site. Keep the original mismatch cause when an older intent cannot certify recovery.
 
 - #774 BR-1: preserving a strict matcher is insufficient if the caller discards the first observation. Carry its snapshot across phases and exercise the real preview-to-effect transition; a direct matcher unit test cannot prove the caller uses the right baseline.
@@ -2623,3 +2631,42 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #789 BR-5: Introducing a presentation cap changes every screen-level expectation for a long notice, even when producers remain unchanged. Sweep rendered-text assertions, retain full payload checks separately, and run the whole affected UI package; a name-based Status/Notice selection misses lifecycle and security feedback tests.
 
 - #789 suite: a shared Console renderer also changes caller-package screen fixtures. Audit and run couchcmd alongside couchtty before submitting a presentation cap; preserve full error/clipboard checks separately from bounded paint. Do not force asynchronous notice ordering merely to make the latest-notice clipboard point at an earlier event.
+# #803 — shared native read boundaries
+
+- A production seam migration must include live-conformance adapters that issue
+  their own native queries; otherwise a green production unit test can leave the
+  reported native failure on the old boundary. Preserve per-attempt streams and
+  reset final logical capture on each attempt.
+- Preserve an existing whole-process-group owner when introducing a shared
+  collector: a new private child group can escape the parent's EOF cleanup.
+  Make collector selection explicit and qualify descendant cleanup.
+- Bind native retry probes to the queried child's environment. An ambient
+  socket path cannot certify a query running in another namespace. Recheck
+  cancellation after observers before returning raw diagnostic authority.
+- Fuzz guards must assert their promised oracle: exact accepted argv grammar and
+  complete reply-kind validation, not just nonpanic or one mutation literal.
+
+- #803 BR-1: after migrating a shared recovery seam, run each affected package
+  completely before close; a selected regex can miss older native-capture tests
+  whose attempt counts encode the prior transport. Keep refusal assertions and
+  pin recoverable cases separately from single-attempt native authority.
+
+- #773: when a launch adds a dynamic environment field, validate exactly one canonical value against the caller/fallback deadline, then retain exact ordered comparison of the full remaining environment. Do not drop arbitrary fields or weaken the profile/identity oracle merely to accept a timestamp. The fast reader-inventory check does not replace artifactpath's exhaustive production-source test.
+
+- #773 round1: sweep lifecycle-owned launches AND public borrowed-client attachment when changing startup authority. Likewise progress has remote and local consumers; test stage changes in both. A fixture duration used as a propagation sentinel becomes a real timing dependency if the production budget owner moves earlier; isolate that sentinel with controlled time, and keep general failure injection causal.
+- #792 BR-1: Before independently truncating evidence and legacy action lists, remove protected overlaps from the complete view. A projection must never drop a veto while retaining broader destructive authority; test the actual lossy projection through its action consumer.
+
+- #792 BR-2: Audit information loss before classification as well as transport. A later healthy sample cannot restore forgotten ownership; destructive fallback needs a process-lifetime fail-closed decision after any provenance loss, with overflow/recovery sequence tests. Distinguish an unobserved startup seed from a failed completed attempt.
+- #792 BR-3: Unix socket fixtures must choose a short private namespace independently of inherited TMPDIR and retain cleanup. Test a deliberately long TMPDIR; shared value-flow lint follow-up is ariadne#549.
+
+- #792 BR-2 round three: destructive authority returned to a caller outlives admission. Route every signal through the current proof owner and serialize revocation with the final effect; refreshing admission alone leaves a later-loss window. A root that ends cannot authorize surviving descendants from remembered ancestry.
+
+- #792 recorded suite: run both internal/repolint and termcmd preflight packages before queuing a full suite. New declarations can displace a prior declaration's godoc, and obsolete lint suppressions are failures themselves. Move documentation with its owner and keep suppression directives only where the catalog reports a matching finding. Existing rules cover both classes.
+
+- #792 landing: when an existing atlas guide already has an index link, put new feature detail in that guide. Appending feature clauses to its shared index summary creates avoidable landing conflicts; keep the index as a stable navigation map.
+
+- #803 integrated-suite correction: enumerate transitive users of an OS adapter,
+  not only packages edited by a seam migration. Stateful refusal fixtures must
+  fault the entire physical-attempt budget; add transient recovery controls and
+  keep semantic mismatches non-retriable. Audit structural call-site manifests
+  when a collector method changes, even when the effect remains read-only.

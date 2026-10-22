@@ -194,6 +194,34 @@ capture generation and producing launch ordinal/nonce. Archive metadata v2
 preserves that witness; v1 remains readable. Certification additionally needs
 a native binding for the same launch ordinal. A capture witness alone is not
 conversation proof, and historical files are never retroactively certified.
+Terminal startup budget (#773): `startupbudget` owns the absolute deadline and
+its consumed exec representation. `launchTrackedThread` chooses it before the
+blocked helper starts; public borrowed-client attachment in `warm_attach.go`
+selects it once before preparation and the existing helper retry loop too.
+Both transport the same absolute value and consume its remaining time, while
+public attachment preserves its separate short listing-query window and the
+borrowed terminal's lifecycle. Helper acknowledgement, pane birth, exact readiness and
+registration consume that same window. Explicit caller deadlines are preserved;
+no-deadline calls reuse the two-minute ceiling. Runtime handoffs carry startup,
+short observation and interactive contexts separately. Native precreation and
+postbirth queries retain their five-second observation bounds, capped by startup;
+the initial ten-second birth probe remains diagnostic. Admission joins observers
+and its failed client before releasing the terminal lease; startup expiry after
+admission cannot end the interactive client. Final exact recovery observations
+retain their separate bounded reconciliation contract and never retry launch.
+
+Existing operation progress flows through context reporters into the console or
+the exact remote receipt's pure transition function. Optional immutable
+`OperationProgress` gives stage/start time; repeated observations preserve its
+age and terminal/retired request updates refuse. The console's pure menu
+transition separately retains stage-start time for both row and progress-notice
+rendering; operations without stage reports keep their operation-age display.
+The CLI's existing 15-second
+status cadence displays stage and elapsed time. Launch failure diagnostics name
+the consuming stage and its elapsed duration. This additive ephemeral receipt
+field deploys with the coordinated supervisor/CLI rebuild; it is no persisted
+format migration and does not promise old strict clients can read new fields.
+
 Implementation: launcher/session_handoff*.go, launcher/session_lease.go,
 couchcore/startup.go, couchcore/sessionevidence.go and
 artifactpath/capture_witness.go.
@@ -368,6 +396,8 @@ operation therefore cannot erase a newer field. Nested objects stay strict, and
 there is no schema bump. Decode checks the binding's types only, so one bad or
 newer-build binding refuses a resume (`resume-transcript-invalid`) and never hides
 the thread.
+
+New retained-raw editor endpoint state (#758) uses additive `RejectDuplicateKeysPreserveNumbers`, `SplitObjectPreserveNumbers` and `EncodeObjectPreserveNumbers`. These retain valid numeric tokens outside float64 range while checking syntax, duplicate keys and owned nullability. The caller decodes its exact owned fields into typed values; opaque child members stay raw. Existing strict readers keep their historical numeric acceptance. See [editor endpoint ownership](editor-endpoints.md).
 
 **Transcript binding.** `ThreadRecord.Transcript` (`threadrecord/transcript.go`)
 stores the agent's exact conversation. It keeps the native ID plus the root name
@@ -5041,24 +5071,18 @@ fires per episode on the existing `resource_episode` seam after `OrphanSamples`
 consecutive passes, addressed by the managed checkout the sweep matched, because
 an orphan has no slot of its own to resolve a hub from.
 
-`couch --reap-orphans [--confirm] [--json]` is the destructive half and takes no
-slot: the sweep it confirms is fleet-wide. Without `--confirm` it names the rows
-from the monitor's cached report and signals nothing. With it, the supervisor
-re-classifies from a fresh pass its own worker ran — never from the cached view,
-because an operator confirmed a kill and the world is allowed to have moved in
-the minute since — and the caller ends each named tree on `launcher.TreeReaper`'s
-cadence (#399: SIGTERM, 3 s, SIGKILL, 2 s), descendants deepest first. Every
-signal is fenced on the identity the sweep recorded, so a pid that exited or was
-recycled is *skipped* with the reason printed rather than signalled on the
-strength of a number that still exists; the whole tree goes, because killing
-only the editor reparents its language servers to launchd and manufactures the
-next leak. The confirmation lives in `couchmessage.ValidateRequest`, not in the
-handler that acts on it, so a hand-written request cannot reach the
-classification at all. Outcomes are one per named row — `reaped`, `skipped` (the
-world moved; exit 0), `failed` (survived SIGKILL, or the host refused the
-snapshot; exit 1), `refused` (no `--confirm`; exit 1) — and rows the wire
-projection dropped at its detail limit are announced as `Coverage:` lines on
-stderr ahead of them.
+`couch --reap-orphans [--confirm] [--json]` previews these rows, registered
+`LeftRunning` entries and proven previous-incarnation processes (below). It
+takes no slot. Without confirmation it reads the monitor's cached report and
+signals nothing. A confirmed request obtains a fresh classification from the
+sampler worker. The unattributed nvim and registered teardown families retain
+`launcher.TreeReaper`'s tree cleanup (#399: SIGTERM, 3 s, SIGKILL, 2 s), with
+descendants deepest first and process identities checked before signalling.
+The whole nvim tree goes because killing only the editor reparents its language
+servers to launchd and manufactures the next leak. Confirmation is enforced by
+`couchmessage.ValidateRequest`; a hand-written unconfirmed request cannot reach
+the destructive classification. Wire omissions are announced as `Coverage:`
+lines on stderr, never treated as a complete census.
 
 Owners: `couchcore/resource_orphan.go` (the pure classification),
 `couchcmd/resources.go` (the gated probe and the sweep seam),
@@ -5068,6 +5092,85 @@ Owners: `couchcore/resource_orphan.go` (the pure classification),
 the composition against the real host: a real reparented embed at PID 1 inside a
 managed checkout is named, an embed with a live parent in the same checkout under
 the same age gate is not, and the confirmed reap ends it.
+
+### Proven previous-incarnation processes (#792)
+
+The same confirmed command can clean up a live slot's proven former processes
+while preserving its current incarnation. Eligibility comes from the resource
+sampler's positive orphan provenance: exact PID/start identity, original root,
+thread and verified slot workspace. Names, PID existence or a matching thread
+alone grant no authority. A bound caller must be the current authenticated hub
+that owns the target slot; workers and other hubs are refused. There is no
+special fleet-wide steward role. An entirely unbound local CLI uses the existing
+UID-private owner-only namespace socket as the operator boundary. Partial or
+stale credentials cannot fall back to that boundary.
+
+The CLI freezes the admitted set and drives TERM, the shared 3 s wait, KILL for
+proven survivors, and the shared 2 s wait. Every signal is a separate short
+supervisor request. The existing sampler worker supplies a fresh shared
+`collectOwnership` proof, including detached roots, before the effect. Unknown
+detached evidence, incomplete inventory or changed ownership refuses the effect;
+current ownership always vetoes remembered orphan provenance. Under the hub read
+lock the supervisor checks the current caller and owning hub, rechecks the
+nonempty process start identity and sends one signal to one PID. Native
+check-to-signal identity checks do not provide an atomic PID handle.
+
+This group never expands descendants, even below an eligible old root. Targets
+that overlap a registered teardown entry are handled once through the exact-set
+path; a refusal cannot fall back to tree cleanup. Overlaps are removed before
+lossy projection. Legacy nvim/teardown tree admission also has a process-lifetime
+fence: any incomplete table/inventory, selection overflow, ambiguous identity or
+unknown ownership sets one worker-owned sticky flag. Subsequent healthy scans
+cannot recover forgotten provenance and never clear it. Legacy admission then
+refuses with `provenance incomplete; use the exact proven reap or restart Couch`.
+Only a fresh process resets it. The flag is never persisted; no new registry or
+process-wide lease is introduced. Every legacy TERM/KILL is a separate
+`reap-legacy-signal` exchange with the exact root, target and closed family.
+The worker returns the same current collection's full proof and legacy
+classification, without retaining another table or signal permit. The pure
+legacy decision requires current ancestry and excludes protected ownership.
+The supervisor holds the hub read lock and the sticky gate's read lock through
+its final flag check, root/target identity rereads and one signal; the worker
+sets the flag under that gate's write lock. This revokes outstanding plans,
+including KILL escalation. The CLI freezes and deduplicates descendants once,
+then uses the exact executor and supervisor callbacks. It never signals legacy
+processes locally. A surviving child whose root ended or whose ancestry changed
+is refused or partial; remembered ancestry grants no permission.
+
+The confirmed response uses `provenance-incomplete` with exact proven rows and
+no actionable legacy rows, so older CLIs fail closed. The current CLI still
+executes independently guarded exact targets, reports `legacy_refusal` in JSON
+and returns nonzero for the unavailable legacy path. The sampler is constructed
+once by the Couch service owner. Its worker starts after the existing inventory
+seed attempt completes through one service-owned, cancellation-aware barrier;
+requests remain unavailable until then. Healthy seed permits ordinary admission;
+a failed seed sets the sticky refusal. Shared collection sets the sticky refusal using the pure
+`ResourceOwnershipComplete` decision;
+cache projection and persistence contain no copy of that authoritative flag.
+
+Text and JSON preserve one final outcome per admitted target: `reaped` follows
+positive absence after an acknowledged signal; `skipped` means its original
+generation disappeared or changed, without claiming the replacement ended;
+`refused` means confirmation, authority or current proof did not permit the
+effect; `failed` includes signal errors, uncertain replies, cancellation and
+survival past the final wait. Any refusal or failure gives a nonzero exit and
+retains partial progress. An uncertain TERM reply permits neither automatic
+resend nor KILL escalation. Inspect resources before a new explicit confirmation.
+Coverage and displayed labels retain the existing output sanitization. The
+2-minute command and 2-second exchange bounds remain unchanged.
+
+Owners: `couchcore/resource_reap.go` (exact target and pure proof decision),
+`couchcmd/resources.go` (worker-owned ownership collection),
+`couchcmd/reap_proven.go` (exact supervisor authority and guarded effect),
+`couchcore/resource_reap_legacy.go` (current legacy root/ancestry decision),
+`couchcmd/reap_legacy_signal.go` (legacy effect gate),
+`couchcmd/reap_legacy.go` (frozen forest and supervisor callbacks),
+`couchcmd/reap_orphans.go` (CLI composition), and `launcher/exact_reap*.go`
+(invocation-local transition model and effect interpreter). Public-command
+conformance uses a disposable Couch with Claude and Codex; it does not require
+staging a build on an operator slot.
+
+### Resource policy and cost
 
 | Setting | Default | Meaning |
 | --- | --- | --- |

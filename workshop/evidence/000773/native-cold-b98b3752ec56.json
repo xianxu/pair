@@ -1,0 +1,32 @@
+{
+  "head": "b98b3752ec5642e1ecffd2cd238a1c8b7d85e4df",
+  "command": [
+    "go",
+    "test",
+    "./cmd/couch",
+    "-run",
+    "^TestDisposableCouchStartupBudget$",
+    "-count=1",
+    "-v",
+    "-timeout=12m"
+  ],
+  "environment": {
+    "PAIR_NATIVE_COUCH_FLEET": "1"
+  },
+  "started_at": "2026-10-22T09:42:29.253250+00:00",
+  "finished_at": "2026-10-22T09:44:10.012770+00:00",
+  "wall_seconds": 100.75853304099292,
+  "exit_code": 0,
+  "load_before": [
+    34.11083984375,
+    34.1748046875,
+    33.41015625
+  ],
+  "load_after": [
+    33.4287109375,
+    34.21240234375,
+    33.52978515625
+  ],
+  "log": "workshop/evidence/000773/native-cold-b98b3752ec56.log",
+  "log_sha256": "040c9f6d3f1498f1100d624283fc650173672649b092bfe588825bd452ef3cba"
+}

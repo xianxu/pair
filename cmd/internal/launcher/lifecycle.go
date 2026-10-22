@@ -40,9 +40,15 @@ func AttachExistingSession(opts LaunchOptions, env Env, rt Runtime, tag, session
 }
 
 func attachWithRetention(opts LaunchOptions, env Env, rt Runtime, tag, session, agent string, retain bool) (code int, resultErr error, retained RetentionUse) {
+	startup, stopStartup, startupErr := terminalStartupContext(opts.lifetimeContext(), opts.StartupContext)
+	if startupErr != nil {
+		return 1, startupErr, nil
+	}
+	defer stopStartup()
+	opts.StartupContext = startup
 	if opts.queryContext == nil {
 		var cancel context.CancelFunc
-		opts.queryContext, cancel = zellijreply.AdmissionContext(opts.lifetimeContext())
+		opts.queryContext, cancel = zellijreply.AdmissionContext(startup)
 		defer cancel()
 	}
 
@@ -147,7 +153,7 @@ func attachWithRetention(opts LaunchOptions, env Env, rt Runtime, tag, session, 
 	if err := opts.queryContext.Err(); err != nil {
 		return 1, err, nil
 	}
-	code, resultErr = rt.AttachSessionContext(opts.lifetimeContext(), opts.queryContext, session, filepath.Join(opts.PairHome, "zellij"))
+	code, resultErr = rt.AttachSessionContext(opts.lifetimeContext(), opts.StartupContext, opts.queryContext, session, filepath.Join(opts.PairHome, "zellij"))
 	return code, resultErr, use
 }
 

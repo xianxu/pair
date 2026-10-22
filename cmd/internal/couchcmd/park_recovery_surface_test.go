@@ -33,11 +33,11 @@ func TestRecoverParkSocketRequiresAuthenticatedCallerAndRetainsReceipt(t *testin
 	if got := switchCall(t, r, req); got.Code == "accepted" || runner.count() != 0 {
 		t.Fatalf("unauthenticated caller: %+v", got)
 	}
-	r.slotOps.guardedRun = func(key, op, target string, opts couchcore.LiveRestartOptions, guard func(context.Context) error, started func(), finished func(any, error)) error {
+	r.slotOps.guardedRun = func(key, op, target string, opts couchcore.LiveRestartOptions, guard func(context.Context) error, started func(), progress couchcore.OperationProgress, finished func(any, error)) error {
 		if err := guard(context.Background()); err != nil {
 			return err
 		}
-		return runner.run(key, op, target, opts, started, finished)
+		return runner.run(key, op, target, opts, started, progress, finished)
 	}
 	caller := r.connect(0)
 	req = slotRequest(caller, "recover-park", "park-1", "pair:2")

@@ -32,3 +32,8 @@ Evidence: log kept in the pair:2 scratchpad as flake-route-poke-664.log.
 ## Log
 
 ### 2026-10-18
+
+
+### 2026-10-22 — #773 integrated suite occurrence
+
+Recorded attempt1d8fae6745226f7d80414d02eccb7c87 on6d654228d39eb7157597a2a7dab85f1a30cab026 completed exit2 in2m58s after the Lua test target reached tests/nvim-route-poke-admission-test.sh. run_headless reported TIMEOUT after30s with no nvim output. Complete failed log: /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/1d8fae6745226f7d80414d02eccb7c87.log; SHA256bb89a55b7ae5c3f2727a8bed8b76873685c9c553fb6ec4de2a9a992f0e5a0573. This is another occurrence of #685, not a new issue. The route/poke Lua, shell driver, fake-zellij and run-headless sources are unchanged by #773 compared with integrated main. One unchanged focused command bash tests/nvim-route-poke-admission-test.sh returned exit0 and nvim-route-poke-admission-test ok. Observed load1 at that repeat end34.61 (not the original failure's load). No timeout increase, test skip or production fix. The recorded classification is unattributable-failure because the shell timeout has no Go test identity; it is not eligible for exact-package flake resume.

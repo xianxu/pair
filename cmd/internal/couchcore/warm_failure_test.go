@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
@@ -271,10 +272,9 @@ func warmDetachedThread(t *testing.T) (*testEnv, ThreadAddress) {
 	env.Artifacts.SetDetachedSession(created.Address, name)
 	env.Artifacts.SetPairSession(created.Address, name, true)
 	env.Artifacts.SetNativeBinding(created.Address, "claude", sessioninventory.BindingEstablished, "native-warm-1")
-	// This value is a budget-propagation sentinel used by retention controls;
-	// failure routes spend registrationDeadline on an observation, not on time.
-	//lint:allow test-shrunk-deadline -- retention controls assert this exact requested budget; the factory below never starts a timer
-	env.Couch.resumeRegistrationTimeout = 200 * time.Millisecond
+	// General failure routes inject expiry at an observation. Budget-propagation
+	// sentinels belong only to their dedicated retention tests, since tracked
+	// adoption now shares a real startup deadline beginning before preparation.
 	env.Couch.registrationDeadline = func(parent context.Context, _ time.Duration) (context.Context, context.CancelFunc) {
 		return context.WithCancel(parent)
 	}
@@ -430,5 +430,69 @@ func TestSpawnRecoveryProbesTheProposedTerminal(t *testing.T) {
 	}
 	if reads == 0 {
 		t.Fatal("spawn recovery made no proposed-terminal ownership observation")
+	}
+}
+
+// Preparation can exceed the retention sentinel without spending a causal
+// failure budget. Each named failure must still reach its injection boundary.
+func TestTrackedWarmFailureInjectionSurvivesPreparationDelay(t *testing.T) {
+	for _, route := range warmFailureRoutes() {
+		if route.abortAfterStart {
+			continue
+		}
+		t.Run(route.name, func(t *testing.T) {
+			env, address := warmDetachedThread(t)
+			synctest.Test(t, func(t *testing.T) {
+				defer func() {
+					for _, id := range env.Runner.order {
+						if terminal := env.Runner.Child(id).terminal; terminal != nil {
+							_ = terminal.Close()
+						}
+					}
+				}()
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				route.inject(t, env, address, cancel)
+				reached := false
+				beforeAck := env.Runner.BeforeAcknowledge
+				env.Runner.BeforeAcknowledge = func(id string) error {
+					<-time.After(time.Second) // virtual preparation, beyond the old 200ms sentinel
+					if beforeAck != nil {
+						reached = true
+						return beforeAck(id)
+					}
+					return nil
+				}
+				afterAck := env.Runner.AfterAcknowledge
+				env.Runner.AfterAcknowledge = func(id string) error {
+					reached = true
+					if afterAck != nil {
+						return afterAck(id)
+					}
+					return nil
+				}
+				_, handle, err := env.Couch.resumeContextWith(ctx, address, ResumeOptions{}, true)
+				if !reached {
+					t.Fatalf("preparation consumed the fixture budget before the named failure: %v", err)
+				}
+				if err == nil {
+					t.Fatal("named failure did not fail")
+				}
+				if route.name == "3-registration-timed-out" {
+					var wait *registrationWaitError
+					if !errors.As(err, &wait) {
+						t.Fatalf("did not reach injected registration timeout: %v", err)
+					}
+				} else if errors.Is(err, context.DeadlineExceeded) {
+					t.Fatalf("real time replaced the named failure: %v", err)
+				}
+				if containsAddress(env.Artifacts.Quiesces(), address) {
+					t.Fatal("failed warm adoption quiesced its surviving session")
+				}
+				if handle != nil && handle.Alive() {
+					t.Fatal("failed adoption left its helper alive")
+				}
+			})
+		})
 	}
 }

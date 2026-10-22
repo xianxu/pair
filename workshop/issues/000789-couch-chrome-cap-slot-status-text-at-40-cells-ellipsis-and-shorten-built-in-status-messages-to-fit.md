@@ -81,6 +81,13 @@ Replacement attempt247075fa5a5ea07c61206b544f4d06d4 on8727e94da57d888272eaa1a855
 
 TL authorized starting #811 from main only if the checkout switch cannot disturb #789. The suite is finished and was snapshot-isolated, but the existing unqualified merge runner reads branch selection after admission (per sdlc merge contract), so switching this checkout could select the wrong issue. Keep #789 checked out and preserve its runner. Next step: consume admission/integration results and land #789; then claim #811 (Ctrl+Return opens the attention list like the bell; Ctrl+Backspace remains previous tab), followed by #812 and #796.
 
+
+### 2026-10-22 — admitted integration certificate conflict
+
+Retained merge session46377 survived restart and acquired admission after #773. It exited1 on integration of main651e30092e7ca245e5537ba1450b7ea7eb36ddae: only tests/affected-readers/cmd/internal/couchcmd/run_test.go.json conflicted, with both sides retaining fixed_scanner but different source hashes. The automatic merge was aborted by sdlc; reran the prescribed manual main merge. Production and test source merged without conflicts. Re-audited the merged caller test's repository-reading seam and regenerated that certificate through make affected-readers using its unchanged fixed_scanner disposition, preserving both sides' test changes. No test/source content was chosen away to resolve the certificate.
+
+Next: finish merged-head targeted checks/inventory, commit and push this integration, record its authoritative full suite, then follow the requested fixed-then-ship close with full-suite evidence and re-enter sdlc merge. The prior runner has exited; no duplicate remains. #796 (default collapse, multiline option, #810 mechanism recorded in Spec) is still next after landing; #811 and #812 follow it.
+
 ## Revisions
 
 ### 2026-10-22 — implementation scope
