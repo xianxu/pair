@@ -76,6 +76,25 @@ reviewer_runs:
       finished_at: "2026-10-20T21:17:59.635643Z"
       session_id: 01a15b2d-3691-7793-a553-5f476305867d
       outcome: returned
+    - version: 1
+      intent:
+        id: 761083cf-2c3e-42bd-b3a7-28b61d39374b
+        repository: github.com/xianxu/pair
+        issue_id: "000722"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot5/pair
+        reviewed_head: 3ad50d7fcde9af76b0f4fa364d3eed33703bd3c9
+        slot: pair:5
+        requested_at: "2026-10-22T07:28:43.27604Z"
+      phase: finished
+      pid: 40946
+      started_at: "2026-10-22T07:28:43.478895Z"
+      finished_at: "2026-10-22T07:29:19.855052Z"
+      session_id: 01a16283-23a7-7e81-aac0-f12cea11de0a
+      outcome: returned
 gate: plan-quality
 issue: 722
 id_prefix: PQ
@@ -253,7 +272,37 @@ rounds:
       reviewer: codex (openai; author openai)
       blocked: false
       protocol_error: no valid findings block
-content_hash: 6d24203eec155d5a29217b63b4b5e8e54aded039788aaae4753d67c833547a12
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 1ca4e46c-0e08-44b4-afea-32b962339117
+            repository: github.com/xianxu/pair
+            issue_id: "000722"
+            recipe: plan-quality
+            round: 7
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot5/pair
+            reviewed_head: 3ad50d7fcde9af76b0f4fa364d3eed33703bd3c9
+            slot: pair:5
+            requested_at: "2026-10-22T07:27:57.043597Z"
+          phase: finished
+          pid: 14418
+          started_at: "2026-10-22T07:27:57.224959Z"
+          finished_at: "2026-10-22T07:28:37.828798Z"
+          session_id: 01a16282-6f0b-7e80-a98d-60d542a169e4
+          outcome: returned
+      "n": 7
+      timestamp: "2026-10-22T00:28:38-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: The function-level verification strategy remains addressed; no prior finding is reopened.
+          round: 7
+      blocked: false
+content_hash: 470e67925197c0c91b786f1839c518c03edcdbbda041fa14cbaf366598ca0306
 ---
 
 # Gate ledger — pair#722 (plan-quality)
@@ -291,6 +340,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ## Round 6 — 2026-10-20T14:17:29-07:00 (codex) — passed
 
 **Protocol error:** no valid findings block — this round contributed no findings.
+
+## Round 7 — 2026-10-22T00:28:38-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — The function-level verification strategy remains addressed; no prior finding is reopened.
 
 ## Open findings
 
