@@ -275,3 +275,60 @@ func TestSlotSwitchAgentTargetsSelectedWorkspace(t *testing.T) {
 		})
 	}
 }
+
+func TestSwitchAgentConfigurationProvenanceRequiresExplicitAcceptance(t *testing.T) {
+	for _, agent := range []string{"claude", "codex"} {
+		for _, mode := range []string{"own", "borrowed", "absent", "conflict"} {
+			t.Run(agent+"/"+mode, func(t *testing.T) {
+				p := couchcore.PreparedAgentSwitch{Address: menuAddress("couch-one"), SourceAgent: "claude", Profile: couchcore.LaunchProfile{Agent: agent, Argv: []string{}}, Fingerprint: "initial"}
+				want := "No saved configuration for this repository"
+				switch mode {
+				case "own":
+					p.Configured = true
+					p.Profile.Argv = []string{"--model", "own"}
+					want = "Saved for this repository"
+				case "borrowed":
+					p.Borrowed = &couchcore.BorrowedArguments{RepoIdentity: "/donor/.git", Agent: agent, Argv: []string{"--model", "borrowed"}}
+					p.Profile.Argv = p.Borrowed.Argv
+					want = "Borrowed — not saved for this repository"
+				case "conflict":
+					p.Conflict = true
+					want = "Configuration conflict"
+				}
+				state := NewMenuState(menuThreads(), p.Address)
+				appendMenuFrame(&state, MenuFrame{Kind: MenuFrameSwitchAgent, Action: "switch-agent", Thread: p.Address, Agent: agent, SwitchStage: 1, SelectedItem: "parameters", Generation: 1, PreviewPending: 1})
+				state, effects := ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: 1, SwitchPrepared: &p})
+				body := RenderMenuView(state, 100, 20, time.Now(), false).Body
+				if len(effects) != 0 || !strings.Contains(body, want) || (mode == "borrowed" && !strings.Contains(body, "/donor/.git")) {
+					t.Fatalf("unmarked configuration or implicit acceptance: %s; effects=%+v", body, effects)
+				}
+				narrow := state
+				narrow.Notice = errorMenuNotice("ordinary failure")
+				narrow.CopyFeedback = CopyFeedback{Kind: CopyFeedbackFailed, Text: "clipboard failed"}
+				view := RenderMenuView(narrow, 40, 10, time.Now(), false)
+				if view.Cursor == nil || !strings.Contains(view.Body, "Cancel") || !strings.Contains(view.Body, "parameters") || (mode == "borrowed" && (!strings.Contains(view.Body, "Borrowed — not saved for this repository") || !strings.Contains(view.Body, "/donor/.git"))) {
+					t.Fatalf("banners hid configuration or controls: %s", view.Body)
+				}
+				canceled, effects := reduceKey(state, PanelKey{Kind: KeyEscape})
+				if len(effects) != 0 || canceled.operationForTest().Operation != "" {
+					t.Fatal("cancel accepted configuration")
+				}
+				state, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
+				if len(effects) != 0 {
+					t.Fatal("input Enter accepted configuration")
+				}
+				state, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
+				if len(effects) != 1 || effects[0].Preview == nil || effects[0].Preview.SwitchArgv == "" {
+					t.Fatalf("acceptance omitted explicit argv: %+v", effects)
+				}
+				requested := effects[0].Preview.SwitchArgv
+				p.Fingerprint = "accepted"
+				p.Borrowed = nil
+				state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: effects[0].Preview.Generation, SwitchPrepared: &p})
+				if len(effects) != 1 || effects[0].Args["argv"] != requested || effects[0].Args["fingerprint"] != "accepted" {
+					t.Fatalf("acceptance changed parameters: %+v", effects)
+				}
+			})
+		}
+	}
+}

@@ -4062,7 +4062,9 @@ The global ThreadStore document `threadstore/repo-preferences.json` is bounded t
 `repopreferences_store.go` serializes accepted updates under the namespace lock,
 regardless of which backend holds the conversation. Missing own-repo settings may
 yield a marked, deterministic same-agent suggestion from another confirmed
-repository; CLI never implicitly accepts it. Explicit acceptance saves it locally.
+repository; CLI never implicitly accepts it. The active switch form renders the
+own/borrowed/absent/conflicting state and donor repository before acceptance;
+cancellation dispatches nothing. Explicit acceptance saves it locally after adoption.
 
 `repopreferences_migration.go` reads bounded legacy Couch path-preferences and
 enrolled slot `.couch/preferences.json` files, independently verifies Git identity
@@ -4130,8 +4132,9 @@ One field survived it. `advanceSuccessfulStart` keyed the path launch
 preference by the policy record's `repo_identity`, which is just the Git common
 directory -- so `ThreadIncarnation.RepoIdentity` now carries it, resolved
 locally through couch's own `GitRunner` seam. The value is byte-identical, so
-every existing `path-preferences/` file stays readable and the operator's
-per-path agent+argv memory survives the deletion. The old `policy` object
+every existing `path-preferences/` file stayed readable after that deletion.
+The later #728 repository-argument migration retains those files as bounded
+read-only inputs; they no longer own current defaults. The old `policy` object
 remains as a decode tombstone.
 
 `Worktree`, `ActorID`, and `registry.json` remain transitional live-console

@@ -45,14 +45,9 @@ func TestSpawnPreparedRefusesDriftByFingerprint(t *testing.T) {
 		if err != nil {
 			t.Fatalf("PrepareStart: %v", err)
 		}
-		// Something else remembered a different agent at this path between
-		// preview and submit.
-		preference := PathLaunchPreference{
-			SchemaVersion: PathLaunchPreferenceSchemaVersion,
-			RepoIdentity:  "/repo/.git", PhysicalPath: "/repo", LastAgent: "claude",
-			ArgvByAgent: map[string][]string{"claude": {"--model", "opus"}}, Revision: 1,
-		}
-		if err := writePathLaunchPreferenceForTest(env.Couch.Threads, preference); err != nil {
+		// Another slot accepts new repository settings between preview and submit.
+		if err := env.Couch.Threads.rememberRepoConfiguration("/repo/.git",
+			LaunchProfile{Agent: "claude", Argv: []string{"--model", "opus"}}, nil); err != nil {
 			t.Fatal(err)
 		}
 

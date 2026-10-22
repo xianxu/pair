@@ -675,10 +675,11 @@ terminal and reports “messaging unavailable until next relaunch.”
 
 `couch --switch-agent` accepts one exact slot and a different agent. It refuses
 `self`, the caller's own slot, busy or dirty targets, and targets whose state
-cannot be verified. It uses the target agent's last successful starting-path
-settings, falling back to its explicit repository default. Missing settings
-require the operator's Switch coding agent form; agents cannot supply argv or
-edit defaults through this API. The form remains the operator's parameter editor.
+cannot be verified. It uses the target agent's saved Couch repository arguments,
+shared by that repository's slots. Missing or conflicting settings require the
+operator's Switch coding agent form; this API cannot silently borrow another
+repository's arguments. Agents cannot supply argv or edit defaults through this
+API. The form remains the operator's parameter editor.
 A switch parks the source and starts a fresh conversation. Pair delivers no
 handoff or orientation; the saved startup parameters are used unchanged.
 The hub captures any context it needs before switching and decides what to send
@@ -1324,36 +1325,43 @@ Launching Couch allocates a pty for the session and **reserves the bottom row of
 your screen** for a status line. The path argument is optional and defaults to
 `.`, so `cd <repo> && couch` is the usual form.
 
-For a new thread, the TUI's agent field resolves explicitly selected agents,
-then the last agent
-successfully used at that exact physical path, then couch's own `$PAIR_AGENT`
-(or Claude when Couch was started outside Pair). Arguments resolve
-independently: Couch reuses the selected agent's last successful arguments at
-that path, never another agent's; otherwise it uses that agent's repository
-default. Thus switching Claude → Codex → Claude restores each harness's own
-arguments.
+For a new thread, an explicit agent selection wins; otherwise Couch uses its own
+`$PAIR_AGENT` (or Claude when started outside Pair). Arguments resolve separately
+for each agent from Couch's
+repository configuration. Every slot of the same verified Git repository shares
+these settings; switching Claude → Codex → Claude restores each agent's own
+arguments. Explicitly empty arguments remain empty.
 
-For numbered slots, repository defaults come from the primary checkout. A new
-slot starts with the current Couch agent and that agent's repository defaults;
-it does not copy `:0`'s personal settings. Use **Switch agent** in a thread's
-menu to select an agent and edit its parameters (selecting the current agent
-starts a fresh context too). Successful launch saves those settings only for
-that workspace. Explicitly empty parameters remain empty. Resume uses the
-conversation's recorded profile; Start fresh retains the slot's saved per-agent
-preferences. These settings survive Couch restart and conversation replacement.
-Numbered settings live in `<environment>/.couch/preferences.json`; primary
-settings retain their existing global storage. Couch launches never update
-repository defaults. There is no separate preferred-model setting.
+Use **Switch agent** in a thread's menu to edit and accept startup parameters.
+When the repository has no saved configuration for that agent, the form may
+offer arguments marked **Borrowed — not saved for this repository**, with their
+donor repository. Accepting that offer saves it for the current repository only
+after successful launch and console attachment; cancellation saves nothing.
+Conflicting legacy settings are shown as a configuration conflict requiring
+explicit acceptance of parameters. A command-line start or switch never silently
+uses a borrowed offer.
 
-Couch sends the exact resolved vector to Pair in a tag-bound one-shot profile,
-so Pair does not reopen its tag-specific saved-config picker. It sets
-`PAIR_USE_REPO_DEFAULT=1` only when repository-default provenance won and sends
-an authoritative empty value otherwise; Pair consumes both keys at entry so
-neither reaches sidecars, Zellij, or panes.
-Only successful Pair registration updates the thread profile and path history;
-selection, cancellation, fork failure, and registration failure do not. For
-now, change a repository default by launching Pair directly in that repo with
-`pair -- <agent-arguments>` before returning to Couch.
+Couch owns one global `threadstore/repo-preferences.json` document in its
+namespace, keyed by verified repository identity and agent. Older Couch
+per-path and numbered `.couch/preferences.json` records are migration inputs,
+not current settings; their original bytes remain intact. Pair's standalone
+folder defaults are independent. Launching `pair -- <agent-arguments>` changes
+Pair's defaults, not Couch's repository settings. There is no separate
+preferred-model setting.
+
+Couch sends the accepted vector to Pair in a validated tag-bound launch profile.
+Pair skips its folder-default lookup and saved-config picker for that profile;
+standalone Pair keeps both. Resume uses the conversation's historical profile
+without replacing a later repository edit. Start fresh uses the repository's
+current per-agent settings, and automatic recovery or warm attachment does not
+learn configuration merely because it ran.
+
+Successful registration records execution history. Only explicitly accepted
+configuration is published after the final console attachment; selection,
+cancellation and failed adoption do not change repository settings. If settings
+cannot be saved after attachment, the agent stays running and Couch reports that
+the parameters were not remembered. Repair Couch storage, then explicitly accept
+the configuration again.
 
 **`Ctrl-Space`, `Ctrl-Backspace` and `Ctrl-Return` belong to couch while a
 session is hosted.** They are intercepted before the child sees them, so they

@@ -178,7 +178,22 @@ func renderSwitchAgentMenu(frame MenuFrame, width, height int) []string {
 		if frame.SelectedItem == "parameters" {
 			mark = "▸ "
 		}
-		lines = []string{"switch coding agent", fmt.Sprintf("%s → %s · same thread", source, frame.Agent), "Fresh conversation in the same workspace.", "Edit startup parameters (empty is allowed)", mark + "parameters  " + frame.Input}
+		lines = []string{"switch coding agent", fmt.Sprintf("%s → %s · fresh conversation", source, frame.Agent)}
+		if p := frame.SwitchPrepared; p != nil {
+			switch {
+			case p.Conflict:
+				lines = append(lines, "Configuration conflict", "Explicitly accept parameters to replace it.")
+			case p.Borrowed != nil:
+				lines = append(lines, "Borrowed — not saved for this repository", "From repository: "+p.Borrowed.RepoIdentity)
+			case p.Configured:
+				lines = append(lines, "Saved for this repository", "Accept edits to save them after startup.")
+			default:
+				lines = append(lines, "No saved configuration for this repository", "Explicit empty parameters are allowed.")
+			}
+		} else {
+			lines = append(lines, "Resolving startup parameters", "Explicit empty parameters are allowed.")
+		}
+		lines = append(lines, mark+"parameters  "+frame.Input)
 		for _, item := range []string{"switch", "cancel"} {
 			mark = "  "
 			if item == frame.SelectedItem {

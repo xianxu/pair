@@ -2652,6 +2652,8 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #792 landing: when an existing atlas guide already has an index link, put new feature detail in that guide. Appending feature clauses to its shared index summary creates avoidable landing conflicts; keep the index as a stable navigation map.
 
+- #728 M1 BR-1/2/3: a state migration includes its currently reachable presentation, repair documentation and old regression fixtures. If borrowing becomes active in M1, its donor/conflict labels ship in M1 even when broader form changes are deferred. Run complete affected packages before queuing the recorded suite; selected new-test patterns can miss old authority assertions.
+
 - #803 integrated-suite correction: enumerate transitive users of an OS adapter,
   not only packages edited by a seam migration. Stateful refusal fixtures must
   fault the entire physical-attempt budget; add transient recovery controls and
