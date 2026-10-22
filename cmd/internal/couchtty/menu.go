@@ -87,6 +87,7 @@ type MenuFrame struct {
 	Kind            MenuFrameKind
 	View            MenuRootView
 	Filter          string
+	GroupScope      *StatusGroupID
 	SelectedKey     couchcore.ThreadRowKey
 	RowKey          couchcore.ThreadRowKey
 	SelectedAddress couchcore.ThreadAddress
@@ -722,6 +723,12 @@ func reduceRootKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 		if frame.Filter != "" {
 			selected := frame.SelectedAddress
 			frame.Filter = ""
+			reconcileRootSelection(&state, selected)
+			return state, nil
+		}
+		if frame.GroupScope != nil {
+			selected := frame.SelectedAddress
+			frame.GroupScope = nil
 			reconcileRootSelection(&state, selected)
 			return state, nil
 		}

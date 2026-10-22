@@ -271,3 +271,43 @@ func TestRebootedSlotShowsOneTabChip(t *testing.T) {
 		t.Fatalf("tab bar actors = %+v, want one chip for the current address", model.Actors)
 	}
 }
+
+func TestCollapseLiveMembershipAndAnchorsDoNotFollowFocus(t *testing.T) {
+	ops, bench := groupedRow("/src/ops", 0, "ops"), groupedRow("/src/bench", 0, "bench")
+	rows := []couchcore.ActionableThreadSummary{ops, bench}
+	for i := 0; i < 5; i++ {
+		row := groupedRow("/src/brain", i, fmt.Sprintf("brain%d", i))
+		if i == 1 {
+			row.State = couchcore.ThreadParked
+		}
+		rows = append(rows, row)
+	}
+	con := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 200}), nil)
+	con.menu = NewMenuState(rows, ops.Address)
+	con.menu.Hub = "/src/ops"
+	con.menu.HubOwnership = multiHubFixture(t)
+	con.panes = map[string]*pane{}
+	for _, row := range rows {
+		id := string(row.Address.Tag)
+		con.order = append(con.order, id)
+		con.panes[id] = &pane{tree: couchcore.Worktree(row.StartingPath), thread: row.Address}
+	}
+	var prior []GroupCountSpan
+	for _, active := range []string{"ops", "bench"} {
+		con.active = active
+		model := con.statusModelLocked()
+		for _, actor := range model.Actors {
+			if actor.Thread == rows[3].Address {
+				t.Fatalf("parked member counted for active%s", active)
+			}
+		}
+		bar := RenderStatusBar(200, 2, model)
+		if len(bar.GroupCounts) != 1 || !strings.Contains(rowPlain(bar.Rows[0]), "brain  +3") {
+			t.Fatalf("active%s changed brain anchor/count: %q %+v", active, bar.Body(), bar.GroupCounts)
+		}
+		if prior != nil && prior[0].Group != bar.GroupCounts[0].Group {
+			t.Fatal("focus changed group identity")
+		}
+		prior = bar.GroupCounts
+	}
+}

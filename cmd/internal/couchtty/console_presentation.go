@@ -5,7 +5,7 @@ import "github.com/xianxu/pair/cmd/internal/couchcore"
 // statusModelLocked joins attached and pending members to the same projection
 // used by the switcher. Callers hold c.mu; no discovery or process IO occurs.
 func (c *Console) statusModelLocked() StatusModel {
-	model := StatusModel{Broadcast: c.broadcastCellLocked(), Pointer: c.pointerCellLocked(), Webcast: c.webcastCellLocked(), WebNotes: c.webNoteCount(), Notes: len(c.drawnNotes()), Notice: c.feed.Row().Body, Spinner: c.statusSpinner, Palette: c.menu.Palette, Capture: c.capture.Status()}
+	model := StatusModel{TabStyle: c.tabStyle, Broadcast: c.broadcastCellLocked(), Pointer: c.pointerCellLocked(), Webcast: c.webcastCellLocked(), WebNotes: c.webNoteCount(), Notes: len(c.drawnNotes()), Notice: c.feed.Row().Body, Spinner: c.statusSpinner, Palette: c.menu.Palette, Capture: c.capture.Status()}
 	if c.wcast.cast != nil {
 		caps := c.wcast.cast.Capabilities()
 		model.WebAnnotationOn = caps.Project("annotation").Enabled
@@ -78,6 +78,12 @@ func (c *Console) statusModelLocked() StatusModel {
 		if !found {
 			continue
 		}
+		// A stale attached pane or queued reattach can outlive a parked row.
+		// Keep the switcher inventory, but collapse chrome represents live members.
+		if c.tabStyle == TabStyleCollapse && !actor.Placeholder && entry.Row.State != "" && !entry.Row.Live() {
+			continue
+		}
+		actor.CollapseAnchor = entry.Path == c.menu.Hub || entry.SlotNumber == 0 && (entry.OwnerHub == "" || entry.OwnerHub == c.menu.Hub)
 		actor.Label, actor.GroupKey, actor.SlotNumber, actor.Glyph, actor.Hub = entry.Label, entry.GroupKey, entry.SlotNumber, entry.Glyph, entry.Hub
 		actor.OwnerHub = entry.OwnerHub
 		model.Actors = append(model.Actors, actor)
