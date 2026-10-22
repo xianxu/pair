@@ -1,13 +1,21 @@
 ---
 id: 000801
-status: open
+status: working
 deps: [pair#758]
 github_issue:
 created: 2026-10-22
 updated: 2026-10-22
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: 'f1b694ec75ce86cf2302a23aa0e5363d664a7eaf' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'e539e0cf7926def08f1e2519ef971072613544ae' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-22T07:20:32-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:7
+    worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
+    repository: github.com/xianxu/pair
 ---
 
 # External hold-open Couch conformance bridge
@@ -32,8 +40,25 @@ parley.nvim#405's real-producer acceptance depends on this bridge and #758. Per 
 
 ## Plan
 
-- [ ]
+Durable implementation plan: [external Couch bridge](../plans/000801-external-couch-bridge-plan.md). Full flow, one atomic close; design/consumer confirmation pending.
+
+- [ ] Confirm executable/envelope/bounds with parley.nvim:1 and obtain hub design approval.
+- [ ] Extract shared error-returning candidate/fleet owner seams; existing testing.TB wrappers retain behavior and cleanup.
+- [ ] Implement pure protocol/lifecycle and bounded cancellable IO through the same stateful fake/native seam.
+- [ ] Add the thin executable/atomic build target, genuine native bridge and Parley consumer conformance, inventories and documentation.
+- [ ] Record checks, close review and land through sdlc.
 
 ## Log
 
 2026-10-22: filed unclaimed by pair:6 per TLe632079d/5e43c052 after inspecting testcouch and #408's actual direct-store probe. parley.nvim:1 provided proposed envelope and stop interface in receipt59bd1da0. TL will dispatch to a free Pair slot; #758 fixes its own review findings first.
+
+
+## Revisions
+
+### 2026-10-22 — dispatched bridge contract and shared ownership
+
+#758 and #773 are landed; start-plan now owns a fresh main-based #801 branch. Consumer receipt b1bdc65f pins Version/Namespace/Socket/complete Environment, private couch+nvim PATH, explicit candidate/scratch selection, real service roundtrip, stderr-only diagnostics and joined EOF/TERM cleanup; receipt1fb645cd confirms its existing driver will consume this bridge rather than add a Couch launcher. Proposed executable is bin/couch-conformance-bridge with --couch ABS and --scratch-parent ABS; omit --couch to build the candidate. Proposed extra Documents array exposes exactly two actual registered private fixture IDs/paths. Proposed absolute startup300s, active lifetime600s, joined-stop15s and64KiB readiness/diagnostic caps need consumer confirmation and hub approval before code. The durable plan names the existing testing.TB coupling, shared error-returning extraction, stateful fake, late-output/stop ordering, cleanup uncertainty and real conformance. No standalone testing.TB shim, duplicate launcher or installed Pair fallback.
+
+### 2026-10-22 — planning catch-up seed recovery
+
+First start-plan catch-up regenerated .github/workflows/merge-check.yml and correctly refused a dirty resting branch (ariadne#557). Followed authenticated hub26eccf46: saved the920-byte diff to /Volumes/TestScratch/tmp/pair-slot7/pair801-ariadne557-seeded-94ukwvc8.patch, restored only that seeded file, then re-ran bare start-plan successfully. No workflow change is part of #801; local-gates verification is never self-applied.
