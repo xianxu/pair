@@ -217,3 +217,9 @@ total: 4.033
 - 2026-10-22 — Reconcile current Spec with the approved owning-hub/unbound-operator boundary (no machine-steward role) and completed design gate. The last Plan row now names pre-close acceptance; close, landing and the outcome report remain mandatory subsequent SDLC actions, recorded in the Log. No implementation scope or acceptance is relaxed.
 
 - 2026-10-22 — Hub pin08398b83 approves the BR-2 re-plan: one non-persisted, process-lifetime sticky legacy refusal after any incomplete provenance. This explicitly supersedes unchanged legacy execution in pathological incomplete/cap cases. Exact proven reaping remains available under full per-effect proof; no deadline/cap increase or persisted state.
+
+### 2026-10-22 — Close round three and approved effect-gate revision
+
+Close round three remained REWORK on BR-2: a healthy legacy admission could continue CLI-local signals after an exact proof collection set the sticky refusal. BR-1 and BR-3 remain addressed. Canceled the superseded queued lease-3110944572 before execution; its runner exited context-canceled and produced no suite evidence. No suite or merge runner remains.
+
+Hub approval 80b806ab-7c5f-4a69-a3f5-019fd92fc7f3 authorizes the appended durable re-plan: every legacy single-PID signal gets fresh supervisor root/ancestry proof and a sticky gate read lock through identity rereads and signal; flag transitions take the write lock. CLI trees become frozen exact executor inputs with server callbacks. Root death/reparenting yields conservative partial/refused outcomes. Next legacy-window finding must go to TL for retirement of legacy signalling, not another patch. Final verification remains pending.

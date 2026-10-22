@@ -339,6 +339,178 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 15dc2879-fa83-4221-8abd-c5e1be9cca5c
+            repository: github.com/xianxu/pair
+            issue_id: "000792"
+            recipe: milestone-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/9f6bb5d4834b8b2c
+            reviewed_head: aeb3e97b256c63c2f6e5abc853c625258631dc2f
+            slot: pair:2
+            requested_at: "2026-10-22T10:34:49.00592Z"
+          phase: finished
+          pid: 5207
+          started_at: "2026-10-22T10:34:49.137164Z"
+          finished_at: "2026-10-22T10:37:33.456253Z"
+          session_id: 01a1632d-833a-7f00-9c7a-fce83ee674ec
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: aeb3e97b256c63c2f6e5abc853c625258631dc2f
+        tracker_head: b87f659c8435410eb11b9dca5a982fab8864f8be
+        branch_point: 0b605b1ee4ec9bda5a4d569708d25e0a857efd2f
+        since: "2026-10-22T00:59:38-07:00"
+        until: "2026-10-22T03:34:04-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-22T00:59:38-07:00"
+              end: "2026-10-22T03:34:04-07:00"
+              began: "2026-10-22T00:59:38-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+        sources:
+            - harness: codex
+              id: 01a15a8b-89c9-7e02-a733-8b52dd00ebac
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 9fd1be0c7766d843d0c9b87fc3078a27a971e7376af5159029e6d61bfd7cefe1
+              started: "2026-10-20T18:21:51.812Z"
+              spawned: false
+              bytes: 45041449
+              windows:
+                - start: "2026-10-22T00:59:38-07:00"
+                  end: "2026-10-22T03:34:04-07:00"
+            - harness: codex
+              id: 01a162a0-6690-79e3-9b5a-619de5ccaa8b
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a15a8b-89c9-7e02-a733-8b52dd00ebac
+              digest: 0f9210202d37a08e6da07bddeff96861e8b690fc03f1ec84bcce50739a1bb079
+              started: "2026-10-22T08:00:41.809Z"
+              spawned: true
+              bytes: 829943
+              windows:
+                - start: "2026-10-22T08:00:41.809Z"
+                  end: "2026-10-22T03:34:04-07:00"
+            - harness: codex
+              id: 01a162aa-fb4e-7970-91a6-42b9a6a9962e
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 506543e9015d020fe1467994d6a43f96be26f341883044e5919b66645853e3f6
+              started: "2026-10-22T08:12:15.436Z"
+              spawned: false
+              bytes: 672111
+              windows:
+                - start: "2026-10-22T08:12:15.436Z"
+                  end: "2026-10-22T03:34:04-07:00"
+            - harness: codex
+              id: 01a162b2-0701-72e3-afe2-d6bf7832e7c0
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 8c9d4f06007864e64d2cd1ed9b62bec64b0f274f1a24363b8aefe776caaf7251
+              started: "2026-10-22T08:19:57.343Z"
+              spawned: false
+              bytes: 472250
+              windows:
+                - start: "2026-10-22T08:19:57.343Z"
+                  end: "2026-10-22T03:34:04-07:00"
+            - harness: codex
+              id: 01a162b7-7095-7f20-9646-101dd7e10f0b
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 2949391f4fd89b32dfc4645845c66181542120724d93c8c95a1e3d51c7124274
+              started: "2026-10-22T08:25:51.993Z"
+              spawned: false
+              bytes: 457013
+              windows:
+                - start: "2026-10-22T08:25:51.993Z"
+                  end: "2026-10-22T03:34:04-07:00"
+            - harness: codex
+              id: 01a162b8-2620-7f21-8b19-af572c33611a
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: f0f0d3fa15536c04b0d579eb9cbac47145cb6b43eafea4d07d96016236ab9c55
+              started: "2026-10-22T08:26:38.369Z"
+              spawned: false
+              bytes: 394000
+              windows:
+                - start: "2026-10-22T08:26:38.369Z"
+                  end: "2026-10-22T03:34:04-07:00"
+            - harness: codex
+              id: 01a162b9-18b9-77a0-b3c1-6f8f773de441
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a15a8b-89c9-7e02-a733-8b52dd00ebac
+              digest: cc39620bec1952925dd61a79a6529862c51b30ddd8525a398c3db99bbf4fcb25
+              started: "2026-10-22T08:27:40.154Z"
+              spawned: true
+              bytes: 4569276
+              windows:
+                - start: "2026-10-22T08:27:40.154Z"
+                  end: "2026-10-22T03:34:04-07:00"
+            - harness: codex
+              id: 01a162ba-f349-76d0-be3b-8d82d59eeaf5
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a15a8b-89c9-7e02-a733-8b52dd00ebac
+              digest: 19469680a5d5ab0d0af2b6af53595f09e336a61eaa7af6246e4c589274b38019
+              started: "2026-10-22T08:29:41.717Z"
+              spawned: true
+              bytes: 1776551
+              windows:
+                - start: "2026-10-22T08:29:41.717Z"
+                  end: "2026-10-22T03:34:04-07:00"
+            - harness: codex
+              id: 01a162bb-5658-7632-b1b2-6414b758cf4e
+              slot: pair:2
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a15a8b-89c9-7e02-a733-8b52dd00ebac
+              digest: b44bc246e0662e6414847c9753c674c061604baa2a872545d5b8dee8e6ee1f40
+              started: "2026-10-22T08:30:07.029Z"
+              spawned: true
+              bytes: 1673995
+              windows:
+                - start: "2026-10-22T08:30:07.029Z"
+                  end: "2026-10-22T03:34:04-07:00"
+        cuts:
+            - dispatched: "2026-10-22T02:36:52-07:00"
+              finalized: "2026-10-22T02:40:16-07:00"
+              finalizing: false
+            - dispatched: "2026-10-22T02:48:03-07:00"
+              finalized: "2026-10-22T02:54:12-07:00"
+              finalizing: false
+      "n": 3
+      timestamp: "2026-10-22T03:37:34-07:00"
+      dispatched: "2026-10-22T03:34:46-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Pre-projection overlap exclusion remains present for both legacy families; the projection regressions pass. No reopening.
+          round: 3
+        - id: BR-2
+          disposition: not-addressed
+          note: 'cmd/internal/couchcmd/reap_orphans.go:101 snapshots legacyRefused before executing exact effects at line 126, then uses that stale value to authorize both legacy families at lines 130–131. A disposable pinned-head regression admitted a healthy classification, injected census failure before the exact signal request, and confirmed the real sampler latched legacy refusal. The exact target was refused, but legacy nvim PID 51 and registered PID 52 both received TERM and were reported reaped. ARCH-PURPOSE/ARCH-ORDER/ARCH-SECURE: the rule must cover outstanding invocations, not only classifications requested after evidence loss. Keep this existing family open; enforce revocation at the legacy effect boundary and sweep loss during exact dispatch, waits, and legacy execution across both families.'
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: agentfixture/resources_test.go:41–70 creates and cleans a short private socket root independently of inherited TMPDIR. The regression passes with its deliberately long TMPDIR; replacing the short-root call with t.TempDir in a disposable checkout makes the same test fail with “isolated message socket exceeds 103 bytes”.
+          round: 3
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#792 (boundary-review)
@@ -366,7 +538,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Important] `fixtures-must-enforce-platform-bounds` (kind: defect) New RPC fixture exceeds the Unix socket path limit with long TMPDIR
   agentfixture/resources_test.go:42 creates its isolated root beneath inherited TMPDIR. In this review environment, TestResourceObservationUsesExistingPrivateRPCAndCallerCancellation fails at line 59 with “isolated message socket exceeds 103 bytes”; the same test passes with TMPDIR=/tmp. ARCH-CONSTRAINTS: use a short private fixture root, following couchmessage/transport_test.go:23, retain cleanup, and verify under a long TMPDIR.
 
+## Round 3 — 2026-10-22T03:37:34-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Pre-projection overlap exclusion remains present for both legacy families; the projection regressions pass. No reopening.
+- BR-2 — not-addressed — cmd/internal/couchcmd/reap_orphans.go:101 snapshots legacyRefused before executing exact effects at line 126, then uses that stale value to authorize both legacy families at lines 130–131. A disposable pinned-head regression admitted a healthy classification, injected census failure before the exact signal request, and confirmed the real sampler latched legacy refusal. The exact target was refused, but legacy nvim PID 51 and registered PID 52 both received TERM and were reported reaped. ARCH-PURPOSE/ARCH-ORDER/ARCH-SECURE: the rule must cover outstanding invocations, not only classifications requested after evidence loss. Keep this existing family open; enforce revocation at the legacy effect boundary and sweep loss during exact dispatch, waits, and legacy execution across both families.
+- BR-3 — addressed — agentfixture/resources_test.go:41–70 creates and cleans a short private socket root independently of inherited TMPDIR. The regression passes with its deliberately long TMPDIR; replacing the short-root call with t.TempDir in a disposable checkout makes the same test fail with “isolated message socket exceeds 103 bytes”.
+
 ## Open findings
 
 - **BR-2** [Critical] `incomplete-evidence-must-not-widen-authority` (kind: defect) Selection truncation discards orphan protection before legacy admission
-- **BR-3** [Important] `fixtures-must-enforce-platform-bounds` (kind: defect) New RPC fixture exceeds the Unix socket path limit with long TMPDIR

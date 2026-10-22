@@ -201,3 +201,104 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T03:37:34-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 792 — Couch: no verb reaps proven orphans of a live slot's previous incarnation; extend --reap-orphans |
+| repo | pair |
+| issue file | workshop/issues/000792-couch-no-verb-reaps-proven-orphans-of-a-live-slot-s-previous-incarnation-extend-reap-orphans.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 0b605b1ee4ec9bda5a4d569708d25e0a857efd2f..aeb3e97b256c63c2f6e5abc853c625258631dc2f |
+| command | sdlc close --issue 792 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T03:37:34-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The exact-set executor, fresh ownership checks, and conservative provenance tracking are well separated and substantially tested. BR-3 is verified fixed. BR-2 remains blocking: a confirmed invocation can continue legacy signalling after its own exact-effect proof sets the supervisor’s lifetime refusal flag.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Pre-projection overlap exclusion remains present for both legacy families; the projection regressions pass. No reopening.
+  - id: BR-2
+    disposition: not-addressed
+    note: |
+      cmd/internal/couchcmd/reap_orphans.go:101 snapshots legacyRefused before executing exact effects at line 126, then uses that stale value to authorize both legacy families at lines 130–131. A disposable pinned-head regression admitted a healthy classification, injected census failure before the exact signal request, and confirmed the real sampler latched legacy refusal. The exact target was refused, but legacy nvim PID 51 and registered PID 52 both received TERM and were reported reaped. ARCH-PURPOSE/ARCH-ORDER/ARCH-SECURE: the rule must cover outstanding invocations, not only classifications requested after evidence loss. Keep this existing family open; enforce revocation at the legacy effect boundary and sweep loss during exact dispatch, waits, and legacy execution across both families.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      agentfixture/resources_test.go:41–70 creates and cleans a short private socket root independently of inherited TMPDIR. The regression passes with its deliberately long TMPDIR; replacing the short-root call with t.TempDir in a disposable checkout makes the same test fail with “isolated message socket exceeds 103 bytes”.
+```
+
+1. **Strengths**
+
+   - Exact reaping never discovers descendants; supervisor effects recheck authority, provenance, and process identity.
+   - The pure transition reducer preserves uncertainty and prevents automatic escalation after unacknowledged TERM.
+   - Overflow/recovery sequence tests exercise the real sampler, service, CLI, and both legacy families.
+   - README and atlas updates document the new scope, authority rules, refusal, and recovery behavior.
+
+2. **Critical findings**
+
+   - **BR-2 remains open**, at `cmd/internal/couchcmd/reap_orphans.go:101–131`. A historical classification response remains actionable after the supervisor observes provenance loss. Fix the revocation rule across outstanding operations; merely refreshing the flag once would leave another observation-to-effect race.
+
+3. **Important findings**
+
+   - None additional. BR-3 is addressed with demonstrated red/green evidence.
+
+4. **Minor findings**
+
+   - None.
+
+5. **Test coverage notes**
+
+   - Targeted core, CLI, protocol, executor, ownership, and fixture tests passed.
+   - Relevant CLI/executor race tests passed.
+   - Complete `couchmessage` and `agentfixture` package tests passed.
+   - Disabling the sticky update made existing overflow/recovery regressions fail, confirming meaningful coverage.
+   - The added disposable late-loss regression failed on pinned head, demonstrating the remaining BR-2 gap.
+   - Disposable checkout removed; reviewed checkout unchanged. Native acceptance was not rerun.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared classifier and completeness decision.
+   - **ARCH-PURE — pass:** proof decisions and invocation transitions are directly tested without IO.
+   - **ARCH-PURPOSE — flag:** BR-2 leaves the incomplete-evidence rule unenforced for outstanding invocations.
+   - **ARCH-MOCK — pass:** stateful process worlds share production seams.
+   - **ARCH-CONSTRAINTS — pass:** bounded observations, counted collection tests, and short socket fixtures.
+   - **ARCH-SECURE — flag:** stale admission remains destructive authority after evidence loss.
+   - **ARCH-ORDER — flag:** supervisor refusal transitions do not revoke already-returned legacy plans.
+   - **ARCH-FUNERAL — pass:** invocation state is transient; fixture artifacts have cleanup.
+   - **ARCH-EVOLVE — pass:** additive protocol surface; no new persisted format.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry specifying how lifetime refusal revokes outstanding legacy operations, where that rule is enforced beside effects, and sequence tests covering evidence loss during exact dispatch, waits, and execution of either legacy family.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"15dc2879-fa83-4221-8abd-c5e1be9cca5c","repository":"github.com/xianxu/pair","issue_id":"000792","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/9f6bb5d4834b8b2c","reviewed_head":"aeb3e97b256c63c2f6e5abc853c625258631dc2f","slot":"pair:2","requested_at":"2026-10-22T10:34:49.00592Z"},"phase":"finished","pid":5207,"started_at":"2026-10-22T10:34:49.137164Z","finished_at":"2026-10-22T10:37:33.456253Z","session_id":"01a1632d-833a-7f00-9c7a-fce83ee674ec","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.419437459s
+head: "aeb3e97b256c63c2f6e5abc853c625258631dc2f"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
