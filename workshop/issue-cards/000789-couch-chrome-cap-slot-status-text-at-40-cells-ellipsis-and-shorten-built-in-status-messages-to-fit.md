@@ -15,6 +15,6 @@ claimant:
     repository: github.com/xianxu/pair
 ---
 
-# Couch chrome: cap slot status text at 40 cells (ellipsis) and shorten built-in status messages to fit
+# Couch chrome: cap status text at 40 cells and preserve full copying
 
 ## Problem
