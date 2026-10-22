@@ -117,6 +117,11 @@ Corrected whole couchtty PASS64.889s; whole couchcmd PASS121.386s. The previous 
 
 PR547 opened through sdlc. First recorded #796 suite on e6ccdbd36 was queued as session80684/lease-3415236468/attempt0326d146a188c676013f15328aba6dbe, initial position20. Canceled only that exact lease before execution to include the final conservation assertion on the tested snapshot; no result claimed, #789's separate lease preserved. Replacement recorded suite will run on this final test head. The whole-package evidence applies to unchanged production code; the additional assertion passed separately. Implementation is complete; recorded suite, close review, staged operator acceptance and landing remain workflow gates, not completed evidence.
 
+
+### 2026-10-22 — final recorded suite submitted
+
+Final #796 recorded suite on pushedab4055c12b80f7ee9e4172f71b332d284aa19b53 is queued, session45335, lease-3791587181, attemptb1e4be1f0838dcda8c7443d6729136f7, isolated checkout /Volumes/TestScratch/local-checks/sdlc-local-788450635. First confirmed FIFO position20. The older #796 lease was canceled before execution and exited1/context canceled, with no test result. #789's distinct lease-3428295058 remains preserved; the multiple-owned-runs warning is expected because TL authorized overlapping independent snapshot suites. No source changes are pending. Close review may overlap this queued check under tl-worker; landing still requires its passing result and staged operator acceptance.
+
 ## Revisions
 
 ### 2026-10-22 — operator priority and default (TL0afd9a82)
