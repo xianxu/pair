@@ -14,7 +14,7 @@ collaboration-mode: discussion
 
 ## Scope and alternatives
 
-M1 is the producer prerequisite explicitly dispatched by TL35c71a59. M2 supplies the registered-document backend after parley.nvim#405 and pair#759 land; M3 qualifies the integrated real editor and remote flow. Those later slices require their own detailed execution refinement and approval before implementation. M1 must not claim the phone editor works.
+#758 is now the independently landable producer prerequisite, per TL79aac81f. Adapter and security integration moved to unclaimed #798, depending on #758, parley.nvim#405 and #759. This issue has one whole-issue close and no milestone-close; it does not claim the phone editor works.
 
 Recommended: Couch's single owner retains endpoint authority and retired-attempt evidence, publishing acknowledgements only after persistence. Alternatives rejected: a registry file independently rewritten by nvim duplicates ownership and permits stale retry takeover; discovery by periodic socket/process scanning cannot identify explicit desktop intent and adds polling. Neither solves lost acknowledgements after supersession.
 
@@ -44,9 +44,9 @@ Namespace + DocumentID is one logical document. It has at most one current bindi
 
 Concrete names are the intended declarations, not claims of delivered implementation. Owner/store/RPC are INTEGRATION even when invoked from pure decisions. Reuse durablefile, namespace resolution, the existing singleton lease and shared process observations; do not create a second daemon or per-buffer poller.
 
-## M1 wire contract (consumer agreement before code)
+## Producer wire contract (consumer agreement before code)
 
-Parley coordination: dea1b235, bcc436ae, fc5fd55f, 8b7dcc76 and 66ccd77d. Consumer accepted the following pins; the final consolidated text is sent for confirmation before change-code.
+Parley coordination: dea1b235, bcc436ae, fc5fd55f, 8b7dcc76 and 66ccd77d. Final consolidated contract confirmed by parley.nvim:1 receipt7d43957e, with the established-channel ownership clarification below. No consumer incompatibilities remain; Parley separately takes crash-orphan runtime-directory cleanup policy to the hub.
 
 ### CLI
 
@@ -89,7 +89,7 @@ Use only nvim_exec_lua with constant code, parameters passed in the API argument
 - `return require("parley.remote_session").endpoint(...)`, args=[query]. Query contains Namespace, DocumentID, EditorIncarnation, AttachID, Buffer. Return exact tuple plus PID, Socket, File only for that pending/current live attachment; otherwise nil. Couch brackets with native identity reads and validates the private socket and canonical registered path. This proves initial endpoint identity even across PID/socket reuse; the producer supplies ProcessIdentity in ack.
 - `return require("parley.remote_session").superseded(...)`, args=[notice]. Notice contains exact Namespace, DocumentID, EditorIncarnation, AttachID, BindingGeneration. Send only to the displaced endpoint after replacement publication, outside authority locks. Failure never rolls back current authority or grants an old binding a retry. No periodic Parley watcher.
 
-Parley validates all five notice identifiers, ignores stale/malformed notices, fences the matching attachment and existing proxy channels, stops only its owned listener and notifies once. Notice-before-register-ack is retained as unconfirmed and compared against eventual ack before showing active. Notification is advisory: subsequent Couch adapter operations must check current binding generation and the editor's typed methods must reject retired attachments even on established RPC channels. A canceled/missing notice cannot grant old authority. M2 must linearize its final nonblocking enqueue against replacement; M1 does not expose remote dispatch.
+Parley validates all five notice identifiers, ignores stale/malformed notices, retires the matching advertised attachment, stops only its owned listener and notifies once. It cannot revoke built-in Neovim RPC methods on already-open channels. The future Couch adapter must gate every operation by binding generation and retire its old channels; any future typed editor methods must reject retired tuples. Notice-before-register-ack is retained as unconfirmed and compared against eventual ack before showing active. Notification is advisory: subsequent Couch adapter operations must check current binding generation and the editor's typed methods must reject retired attachments even on established RPC channels. A canceled/missing notice cannot grant old authority. #798 must linearize its final nonblocking enqueue against replacement; #758 does not expose remote dispatch.
 
 A live PID with endpoint(query)=nil positively retires only that exact attachment (buffer wiped, detached, moved or superseded). A timeout/transport error does not prove absence. Probe completions carry the complete original binding generation and owner revision; late nil/death/notice outcomes never remove a successor.
 
@@ -135,9 +135,7 @@ Actions: explicit open/reopen; retry identical uncertain operation; close editor
 - ARCH-FUNERAL: retained high-water evidence ends only on confirmed process incarnation death; fixed writer caps, bounded stages and joined handles; socket/runtime removal stays with its owning editor.
 - ARCH-EVOLVE: persisted root/nested unknown fields survive all rewrites; malformed authority refuses rather than becoming an empty registry.
 
-## Tasks and review boundaries
-
-### M1 — producer contract and endpoint registry
+## Tasks — single whole-issue producer boundary
 
 - [ ] Pin consolidated CLI/ack/callback contract with parley.nvim:1, record receipt and get hub plan approval. No implementation before change-code.
 - [ ] Add pure model tests first: desktop/headless order; exact retry, conflict, lower/equal superseded retry; explicit higher reopen; old unregister after new attach; path rename retains ID; generation/AttachID overflow and capacities. Run RED, implement minimal transitions, run GREEN and commit.
@@ -147,19 +145,21 @@ Actions: explicit open/reopen; retry identical uncertain operation; close editor
 - [ ] Add actual private IPC/CLI tests: one-time outside-pane document lookup and Namespace, register+lost-ack retry, root mismatch, full EditorEndpoint ack, 256-item compare-unregister, offline/unknown refusals, one namespace cannot touch another. Existing outside-pane submit unchanged. Run RED/GREEN.
 - [ ] Add N8/16 counters and repeated explicit reopen plateau tests, positive-dead versus unavailable cleanup, exact generation fencing and crash/restart cases. Run focused race suites for editorendpoint/couchcmd/sessionsync.
 - [ ] Qualify fixed RPC calls against installed nvim in explicit empty-base private roots: two editor processes, several buffers, desktop supersession, old detach, live-PID buffer wipe, held notification, process death and cleanup. Shared disposable Couch harness only; no operator sessions, live socket roots or #759 stage changes.
-- [ ] Update atlas/README, artifactpath source/family classifications and affected-reader certificates individually; run repolint, artifactpath and make test-affected-inventory. Commit checkpoint, push, record required suite and close M1 through milestone-close.
-- [ ] Report M1 contract/commit to parley.nvim:1 and hub so #405 can build against the landed producer. M1 has its own reviewed boundary; arrange normal landing of producer before dependent consumer code if the issue needs splitting (ask hub; do not stack on #759).
+- [ ] Update atlas/README, artifactpath source/family classifications and affected-reader certificates individually; run repolint, artifactpath and make test-affected-inventory. Commit checkpoint, push, record required suite and close #758 through the normal whole-issue close.
+- [ ] On SHIP, enter normal merge; report the landed producer contract/commit to parley.nvim:1 and hub. #405 and #798 consume the landed producer; never stack on #759.
 
-### M2 — document adapter (held)
+## Deferred scope
 
-After producer/consumer and #759 interfaces land, refine/approve a detailed slice for eligible-document read/subscribe, revision-safe paragraph edits, save+trusted submit, navigation resolution and headless fallback lifecycle through the existing DocumentBackend. No generic nvim RPC route. Preserve Permit kill gate plus current endpoint generation at final effect enqueue; stale channels cannot bypass them. Close its own milestone review.
-
-### M3 — integrated real editor acceptance (held)
-
-Qualify actual desktop/headless handover, phone edits/reflow/submit/native transcript and eligible navigation with #759/#760. Operator arranges live Access/iPhone check. Close whole issue only when this implemented scope works; M1 alone is a producer prerequisite, not remote-session completion.
+#798 preserves the document backend, headless-editor provisioning and integrated real editor/phone acceptance. It depends on #758, parley.nvim#405 and #759 and requires its own detailed plan before code. #760 owns phone UI. No milestone-only partial landing or unlanded branch dependency.
 
 ## Revisions
 
 ### 2026-10-22 — producer first, consumer contract before code
 
 TL35c71a59 dispatches M1 producer because no endpoint API exists. #759 remains on its separately pushed branch, code SHIP with passing suite, held for operator acceptance. New #758 branch is based on main, not on #759. Consumer coordination adds monotone attachment attempts, batch exit, an exact fixed endpoint query and callback fencing, so lost acknowledgements, restart and live-PID buffer retirement have explicit evidence. No implementation yet.
+
+### 2026-10-22 — approved whole-issue split and final consumer confirmation
+
+TL79aac81f approves producer-only scope and whole-issue landing. Filed unclaimed #798 with dependencies #758, parley.nvim#405 and #759 for the original adapter/security-integration purpose. Removed the former M1/M2/M3 review rows; #758 closes once as an atomic producer. The original milestone decomposition above was a planning proposal, never implemented. #759 operator acceptance takes priority when called.
+
+Parley final contract confirmation7d43957e accepts the fields, monotone uint64 decimal-string AttachID, bounds/codes/deadlines, namespace/private-root ownership, live-PID nil retirement and notice-before-ack handling. Corrected the shared boundary: Parley retires advertised state and listener, but cannot revoke native built-in RPC on established connections. Generation-gated operations and channel retirement belong to the future Couch adapter (#798), with typed editor methods also rejecting retired tuples. No arbitrary-RPC revocation claim. Native SIGKILL leaves runtime directories/sockets; Parley is reviewing that cleanup separately with the TL. Couch never deletes those external paths.
