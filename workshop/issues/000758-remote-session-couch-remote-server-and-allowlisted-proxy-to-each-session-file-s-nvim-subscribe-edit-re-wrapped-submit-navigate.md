@@ -83,6 +83,12 @@ Private native process-death collection qualification is being completed before 
 
 Three installed-nvim conformance tests pass with race detection (package2.689s). Two physical private buffers return their exact buffer/File tuples; invalid buffer is positive nil. The selected second editor stops through the fixture's own idempotent cancellation/join, native PID/birth evidence confirms death/replacement, and Sweep removes only its incarnation. The first live editor's retained record is unchanged, and its displaced headless candidate never resurrects. Fixture children retain explicit empty-base environment and poisoned parent identity assertions. No operator/native live session or editor-owned runtime path is touched. Reader certificate re-audited individually; inputs remain generated private fixtures and literal callback source.
 
+### 2026-10-22 — final composition qualification and review overlap
+
+Actual EndpointOwner/EndpointStore -> service.handle -> private framed Unix server/Call -> CLI now exercises register, exact no-write retry, lookup, second document, batch unregister, successful-null lookup, and publication failures before/after commit. Stateful fake tracks native reads/callbacks/publications/entropy; persisted revisions/current authority are read back. Normal0.420s and race1.564s pass. Added the shared-helper map to atlas/couch.md. The initial suite lease2607563130 on d7b4258c was canceled only through its exact owned local-check run before admission because this executable regression test changed the head; terminal joined, no suite result claimed.
+
+Full review may overlap the replacement queued suite per tl-worker. The only unchecked issue Plan item is the final suite/review/landing workflow itself; close may use precise --no-plan-check to review completed implementation while that workflow is pending, and --no-project because TL owns the remote-session project. Neither waives recorded suite or merge validation: a final-head recorded pass and normal merge gates still precede landing. No full-suite success or producer landing is claimed here.
+
 ## Revisions
 
 ### 2026-10-22 — producer-only whole issue

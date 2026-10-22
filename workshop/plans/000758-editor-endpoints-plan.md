@@ -160,12 +160,12 @@ Nvim-native conformance and integration cases remain the separate final task bel
 
 ## Tasks — single whole-issue producer boundary
 
-- [ ] Pin consolidated CLI/ack/callback contract with parley.nvim:1, record receipt and get hub plan approval. No implementation before change-code.
-- [ ] Implement the named pure model/codec/classifier functions from the strategy table, with RED/GREEN at each function and independent authority/opaque-field oracles; commit each coherent unit.
-- [ ] Add error-preserving Source.ReadIdentity through the existing injected native reader; preserve existing public helpers and test exact positive-death versus unknown evidence without a host-table scan.
-- [ ] Implement the named portable store, owner, EditorRPC and CLI/service functions behind the stateful seams after their controlled-order tests fail. No IO under pure transition/authority locks; started operations are owned, canceled and joined.
-- [ ] Exercise N8/16 operations/publication bytes and fixed-state repeated reopening; then run focused race suites for editorendpoint, procutil, couchcmd and sessionsync. Preserve discovered failure evidence and fix the whole class.
-- [ ] Qualify fixed RPC calls against installed nvim in explicit empty-base private roots: two editor processes, several buffers, desktop supersession, old detach, live-PID buffer wipe, held notification, process death and cleanup. Shared disposable Couch harness only; no operator sessions, live socket roots or #759 stage changes.
+- [x] Pin consolidated CLI/ack/callback contract with parley.nvim:1, record receipt and get hub plan approval. No implementation before change-code.
+- [x] Implement the named pure model/codec/classifier functions from the strategy table, with RED/GREEN at each function and independent authority/opaque-field oracles; commit each coherent unit.
+- [x] Add error-preserving Source.ReadIdentity through the existing injected native reader; preserve existing public helpers and test exact positive-death versus unknown evidence without a host-table scan.
+- [x] Implement the named portable store, owner, EditorRPC and CLI/service functions behind the stateful seams after their controlled-order tests fail. No IO under pure transition/authority locks; started operations are owned, canceled and joined.
+- [x] Exercise N8/16 operations/publication bytes and fixed-state repeated reopening; then run focused race suites for editorendpoint, procutil, couchcmd and sessionsync. Preserve discovered failure evidence and fix the whole class.
+- [x] Qualify fixed RPC calls against installed nvim in explicit empty-base private roots: two editor processes, several buffers, desktop supersession, old detach, live-PID buffer wipe, held notification, process death and cleanup. Shared disposable Couch harness only; no operator sessions, live socket roots or #759 stage changes.
 - [ ] Update atlas/README, artifactpath source/family classifications and affected-reader certificates individually; run repolint, artifactpath and make test-affected-inventory. Commit checkpoint, push, record required suite and close #758 through the normal whole-issue close.
 - [ ] On SHIP, enter normal merge; report the landed producer contract/commit to parley.nvim:1 and hub. #405 and #798 consume the landed producer; never stack on #759.
 
