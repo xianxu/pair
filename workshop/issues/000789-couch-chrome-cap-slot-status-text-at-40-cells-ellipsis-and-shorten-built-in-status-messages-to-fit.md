@@ -41,7 +41,7 @@ TL receipt58326574-1d4c-4767-b222-cfb4d5adddce splits the original request. Buil
 
 - [x] Implement one pure 40-cell chrome projection and keep full source diagnostics.
 - [x] Preserve full-text copying with selected-error and retry precedence; document both README surfaces.
-- [ ] Re-run focused display/copy tests and submit the corrected recorded check; close and merge remain gated on review and check results.
+- [x] Re-run focused display/copy tests and submit the corrected recorded check; close and merge remain gated on review and check results.
 
 ## Log
 
@@ -104,3 +104,5 @@ Final-scope suite submitted on pushed 2ab91b2179ebafb427398c5fde81ff1d2789397a: 
 Review accepted the authorized scope split, withdrew the producer-catalog requirement, and confirmed cap/full-copy regressions fail without their implementation. Only BR-5 remains: existing screen assertions sometimes require complete notices longer than 40 cells. Sweep screen-level notice assertions, check bounded displayed text independently, and verify full diagnostics via retained data/copy; preserve security-generation/stream and borrowed-attachment invariants. Known sites are guessing-rotation feedback and borrowed-attachment feedback. Whole couchtty package verification is now required before resubmitting, not only a name-based focused selection. The suite lease-4050460370 was canceled through sdlc before execution; no test outcome claimed. No production behavior or fixture deadlines change for this test correction.
 
 BR-5 evidence: unchanged guessing-rotation screen test failed in6.02s and exact-returned-handle resume test failed in0.01s. Both now assert independently written40-cell ellipsis text, retain complete feed/menu payload assertions, and exercise actual full-copy recovery through the shared fake-pbcopy fixture. Rotation flash/secrecy/old-generation and exact-handle/claim/projection invariants remain intact. Targeted correction passed1.042s; whole couchtty package passed41.445s with count1/3m diagnostic test limit and no#788 occurrence. No fixture deadline or producer changed. Reader audit: only chrome_status_copy_test.go reads its own temp clipboard fixture; its local/literal certificate refreshed. The other two changed tests perform no repository reads and need no new certificate. Final affected inventory and diff checks pass.
+
+BR-5 corrected recorded suite submitted on pushed352190cbc25d79b54e6ad240f6bcfe9e64af8415: retained session55007, lease-823433472, attemptf9b3e2af722df79bce43bf1cf59e89dd; initial normal FIFO position6. Suite is pending, not a pass. All implementation/verification-submission plan items are complete; close and merge still require their gates.
