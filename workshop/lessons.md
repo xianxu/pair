@@ -2656,6 +2656,11 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #792 landing: when an existing atlas guide already has an index link, put new feature detail in that guide. Appending feature clauses to its shared index summary creates avoidable landing conflicts; keep the index as a stable navigation map.
 
+- #797 BR-1: Separate immutable authorization data from its validator in core-concept tables. Trace every validator's injected readers before calling it PURE; a readiness-file reader remains IO even when the surrounding comparison uses a captured process snapshot.
+
+- #797: A private Pair DataDir does not isolate compatibility quit markers: TriggerQuit/TriggerBoundQuit writes through HOME/.cache/pair. In-process quit-trigger tests must isolate HOME as well as thread storage, including refusal cases that may acquire effects after future changes.
+
+- #797 BR-3: A post-close repair that adds a new executable lint policy expands the deliverable, even when production is unchanged. Use a full close review for that addition; narrow fix-review only covers repairs within its prior scope.
 - #803 integrated-suite correction: enumerate transitive users of an OS adapter,
   not only packages edited by a seam migration. Stateful refusal fixtures must
   fault the entire physical-attempt budget; add transient recovery controls and

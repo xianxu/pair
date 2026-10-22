@@ -67,8 +67,8 @@ func TestTwoScopeNameCollisionNeverOwnsForeignSession(t *testing.T) {
 	if err != nil || !owned.Present {
 		t.Fatalf("actual owner: %+v %v", owned, err)
 	}
-	if err := checker.Quiesce(old); err != nil {
-		t.Fatal(err)
+	if err := checker.Quiesce(old); err == nil {
+		t.Fatal("foreign session quiescence must refuse")
 	}
 	if len(deleter.deleted) != 0 {
 		t.Fatalf("foreign terminal deleted: %v", deleter.deleted)
@@ -196,6 +196,7 @@ func TestNamedPairSessionRefusesAnOrphanWithItsDiagnostic(t *testing.T) {
 // a redelivered trigger after the first one's quiescence used to read as a
 // wrong owner. Nothing is written or deleted.
 func TestTriggerBoundQuitNamesAnAbsentSession(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	root := t.TempDir()
 	checker := NewScopedThreadArtifactCollisionChecker(root)
 	binding := PairSessionBinding{Name: "pair-gone", Owner: &launcher.SessionOwnerObservation{State: launcher.SessionOwnerAbsent, Name: "pair-gone"}}
