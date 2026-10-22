@@ -59,7 +59,7 @@ Hub pin 941a9381-a841-44ca-98b0-7e10a90936b3 approves authenticated owning hubs 
 - [x] Approve the durable plan and enter change-code through the full-flow gate.
 - [x] Add pure exact-target proof and strict protocol shapes; verify the negative authority/identity cases first.
 - [x] Implement the guarded exact executor and supervisor effect owner, with stateful transition and counted-cost tests.
-- [ ] Wire preview/confirmed CLI reporting, prove disposable public-command behavior, document and run the required recorded verification before the SDLC close review.
+- [x] Wire preview/confirmed CLI reporting, prove disposable public-command behavior, document and run the required recorded verification before the SDLC close review.
 
 ## Log
 
@@ -267,3 +267,7 @@ The earlier e6535a0c recorded pass remains historical proof of that source. Fina
 The index resolution initially retained both feature clauses. The final index entry now matches landed main exactly: Couch was already linked, so #792 needs no per-feature clause on that shared line. Its detailed behavior and ownership map remain in atlas/couch.md. This removes our unnecessary index delta and lets later main additions merge without another index-only conflict; all guide links are preserved.
 
 Integrated-source preflights passed: internal/repolint13.422s, termcmd5.562s, artifactpath15.595s, reader inventory and whitespace audits. The PR has no .sdlc/.github delta against integrated main; those incoming policy changes are already on main. Reap handlers, executor, protocol and resource-collection source paths are unchanged from the recorded e6535a0c source; prior native acceptance remains applicable, while a fresh complete recorded check is still required for the combined code. This checkpoint precedes that long check.
+
+### 2026-10-22 — Integrated recorded verification passed
+
+Retained lease-1170667131 completed exit0 in10m42s on pushed integrated source5bf644a97583c63168a0059701a8c4c3cac967b9, recorded as sdlc-local/suite. All packages and shell/editor checks completed, including couchcmd51.149s, couchcore167.812s, couchmessage26.001s, launcher72.054s, termcmd2.357s and repolint6.369s. Log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/5bf644a97583c63168a0059701a8c4c3cac967b9/suite.log; SHA256743004136e89fec9e80bc0772db0243ef415631235e02c6ad90abafa8f4c6f08. No failure, flake rerun or waiver. The final verification checkbox is complete again; earlier native Claude/Codex acceptance applies to unchanged reap executable behavior. Narrow fixed-then-ship review of the atlas-only integration resolution is next, followed promptly by a fresh merge runner because the original runner exited on that conflict. TL granted two-hour priority; report landing immediately so it can be revoked.
