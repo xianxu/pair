@@ -723,7 +723,9 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 
 	var agentDefault AgentDefault
 	var defaultFound bool
-	if !opts.Args.ResumeRequired && !opts.Args.FreshRequired && opts.ContinueCheckpoint.Version == 0 {
+	// A validated Couch profile already resolved its arguments. Pair's defaults
+	// and saved-config picker remain authorities only for standalone launches.
+	if !opts.Args.AgentArgsFromCouch && !opts.Args.ResumeRequired && !opts.Args.FreshRequired && opts.ContinueCheckpoint.Version == 0 {
 		agentDefault, defaultFound = rt.ReadAgentDefault(agent)
 	}
 	argDecision := DecideLaunchArgs(LaunchArgInputs{
@@ -740,7 +742,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	// Tag-restart config picker (#000016): a saved config for this (tag, agent)
 	// offers to reuse its args / resume its session, unless an explicit resume
 	// token on argv already made the choice.
-	if !opts.SkipConfigPicker && !opts.Args.ResumeRequired && !opts.Args.FreshRequired && opts.ContinueCheckpoint.Version == 0 {
+	if !opts.Args.AgentArgsFromCouch && !opts.SkipConfigPicker && !opts.Args.ResumeRequired && !opts.Args.FreshRequired && opts.ContinueCheckpoint.Version == 0 {
 		callerSelection, parseErr := ParseNativeResumeSelector(agent, agentArgs)
 		if parseErr != nil {
 			fmt.Fprintf(stderr, "pair: native resume selector: %v\n", parseErr)

@@ -14,6 +14,8 @@ pair is a thin, standalone, per-folder launcher of a coding agent; Couch is the 
 
 Couch resolves repository-wide startup arguments and passes the accepted argv explicitly to Pair. Pair's standalone folder configuration remains independent. A shared Pair/Couch preference store, or a Pair fallback into Couch's preferences, would reverse this ownership boundary. Couch's repository identity joins its slots; it does not change Pair's folder identity. Cross-repository borrowed arguments are a Couch suggestion that requires acceptance, not an implicit Pair default. This layering is the operator's governing direction for #728; its implementation plan is [Couch startup preferences](../workshop/plans/000728-shared-agent-startup-preferences-plan.md#2026-10-21-0004--governing-couch-only-repository-preference-design).
 
+Pair honors a validated Couch launch profile without consulting its folder defaults or offering its per-tag saved-config picker. Those files retain execution history and cannot override Couch's accepted arguments. Standalone Pair keeps both its own defaults and picker.
+
 ### Verified park/resume authority
 
 `pairlifecycle` owns versioned quit requests/completions and the one ordered

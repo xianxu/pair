@@ -367,49 +367,6 @@ func (r recordStamp) current() bool {
 	return err == nil && os.SameFile(info, r.info) && info.Size() == r.info.Size() && info.ModTime().Equal(r.info.ModTime())
 }
 
-func (s *ThreadStore) GetPathLaunchPreference(repoIdentity, physicalPath string) (PathLaunchPreference, bool, error) {
-	return s.getPathLaunchPreference(repoIdentity, physicalPath, "")
-}
-
-// getPathLaunchPreference accepts checkout scope already proved by an operation's
-// catalog, so a read-only preview can inspect legacy enrollment before backfill.
-func (s *ThreadStore) getPathLaunchPreference(repoIdentity, physicalPath, scope string) (PathLaunchPreference, bool, error) {
-	if repoIdentity == "" {
-		return PathLaunchPreference{}, false, errors.New("path launch preference has no repository identity")
-	}
-	if !filepath.IsAbs(physicalPath) {
-		return PathLaunchPreference{}, false, errors.New("path launch preference path must be absolute")
-	}
-	backend, routeErr := s.storeForPath(physicalPath, scope, repoIdentity)
-	if routeErr != nil {
-		return PathLaunchPreference{}, false, routeErr
-	}
-	if backend != s {
-		return backend.getPathLaunchPreference(repoIdentity, physicalPath, scope)
-	}
-	var result PathLaunchPreference
-	var found bool
-	err := s.withLock(func() error {
-		raw, exists, err := s.readOptionalPayload(s.pathLaunchPreferencePath(repoIdentity, physicalPath))
-		if err != nil || !exists {
-			return err
-		}
-		if err := strictThreadStoreJSON(raw, &result); err != nil {
-			return err
-		}
-		if err := validatePathLaunchPreference(result); err != nil {
-			return err
-		}
-		if result.RepoIdentity != repoIdentity || result.PhysicalPath != physicalPath {
-			return errors.New("path launch preference path/address mismatch")
-		}
-		result = clonePathLaunchPreference(result)
-		found = true
-		return nil
-	})
-	return result, found, err
-}
-
 func (s *ThreadStore) updateExistingThread(address ThreadAddress, expectedRevision uint64, mutate func(*ThreadRecord) error) (ThreadRecord, error) {
 	return s.updateExistingThreadContext(nil, address, expectedRevision, mutate)
 }

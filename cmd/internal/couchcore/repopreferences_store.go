@@ -44,18 +44,6 @@ func (s *ThreadStore) readRepoPreferencesLocked() (RepoPreferences, error) {
 	return doc, nil
 }
 
-// A preview cannot initialize a root/lock, enroll retention, or replay journals.
-func (s *ThreadStore) previewRepoPreferences() (RepoPreferences, error) {
-	global, err := s.repoPreferencesBackend()
-	if err != nil {
-		return RepoPreferences{}, err
-	}
-	global.readOnly = true
-	doc := RepoPreferences{SchemaVersion: RepoPreferencesSchemaVersion, Repositories: map[string]RepoLaunchPreference{}}
-	err = global.withPreviewLock(func() error { var readErr error; doc, readErr = global.readRepoPreferencesLocked(); return readErr })
-	return doc, err
-}
-
 // Final adoption calls this after releasing thread/registry locks. A publication
 // error is a warning on the adopted child; it never enters launch rollback.
 func (s *ThreadStore) rememberRepoConfiguration(repoIdentity string, profile LaunchProfile, sources []LegacyRepoPreference) error {

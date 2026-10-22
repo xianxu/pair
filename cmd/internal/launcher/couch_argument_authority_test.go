@@ -52,7 +52,7 @@ func TestStandaloneLaunchKeepsPerSlotPickerAndPairDefaults(t *testing.T) {
 		t.Run(agent, func(t *testing.T) {
 			rt := newFakeRuntime()
 			configPath := CanonicalConfigPath("/data", "work", agent)
-			saved := `{"agent":"` + agent + `","args":["--model","saved"],"session_id":"OLD"}`
+			saved := `{"agent":"` + agent + `","args":["--model","saved"],"session_id":""}`
 			rt.files[configPath] = saved
 			defaultPath := AgentDefaultPath("/data", agent)
 			defaults, err := BuildAgentDefault(agent, []string{"--model", "standalone-default"})
