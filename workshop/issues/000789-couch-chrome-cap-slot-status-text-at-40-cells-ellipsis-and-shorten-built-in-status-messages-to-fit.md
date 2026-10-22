@@ -16,6 +16,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "5b879924", done: "e2fe8944"}
 ---
 
 # Couch chrome: cap slot status text at 40 cells (ellipsis) and shorten built-in status messages to fit
