@@ -76,3 +76,7 @@ Collapse becomes the default launch style; multiline remains available. Add #810
 ### 2026-10-22 — detailed policy proposal, awaiting TL approval
 
 The durable plan selects the original Spec's scoped-switcher alternative rather than in-row expansion, and makes owner+group scoping exact rather than fuzzy label matching. It proposes folding quiet inactive hubs themselves and preserving attention-first scarcity with +N !; these refine the earlier all-:0-visible wording and acknowledge physical width limits. Policy state/recovery, work bounds, multiline compatibility and native geometry tests are specified in the plan. No code until approval.
+
+### 2026-10-22 — TL approval (3fa9a5f6)
+
+TL approved default one-row collapse, explicit unchanged multiline packer, quiet inactive hubs folding, active/attention priority, +N ! fallback at impossible widths, and +N opening the switcher exactly scoped to owner hub and group with Escape clearing scope. Proceed to change-code; the staged operator look remains required before landing. This accepts the detailed policy proposal above.

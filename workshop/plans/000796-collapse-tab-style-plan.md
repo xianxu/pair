@@ -120,3 +120,9 @@ Files: console_chrome_layout.go; console_tabbar_test.go/console_tabbar_mouse_tes
 ## Approval and outstanding dependencies
 
 No code before TL approves the policy decisions and this plan. #789's full-copy/display cap is on a separate unlanded branch when this plan is authored; do not copy it here or build on it. After it lands, normal main integration brings it in and validates both styles together. Keep #812's removal of trailing status text out of this scope; notices remain where the shared renderer currently puts them until that issue changes it.
+
+## Revisions
+
+### 2026-10-22 — approved by TL3fa9a5f6
+
+All policy choices above approved. Run change-code and implement; stage for operator acceptance before landing.
