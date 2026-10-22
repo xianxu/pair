@@ -1,6 +1,6 @@
 module github.com/xianxu/pair
 
-go 1.26.3
+go 1.27.3
 
 require (
 	github.com/charmbracelet/ultraviolet v0.0.0-20260303162955-0b88c25f3fff
