@@ -1,0 +1,17 @@
+{
+  "source": "6aada8623f438c3fc6d400faa4e6863d1678cfe0",
+  "command": [
+    "make",
+    "test-drain-acceptance"
+  ],
+  "started_at": "2026-10-22T09:40:28.479689+00:00",
+  "finished_at": "2026-10-22T09:42:15.683665+00:00",
+  "seconds": 107.20305220797309,
+  "exit": 2,
+  "sha256": "e06556d9e51a859c49f34f5902a20c03486800d2a4aedcb0e92fed98c8a0355d",
+  "log": "pair722-6aada862-restart-registration-failed.log",
+  "zellij_version": "zellij 0.45.1",
+  "scratch": "/Volumes/TestScratch/tmp/pair722-native-frame-xv138vwh/tmp",
+  "related_issue": "pair#773",
+  "attribution": "steward registration deadline after RestartSupervisor; related startup class, root cause unclassified"
+}
