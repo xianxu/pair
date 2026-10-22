@@ -1,3 +1,4 @@
+import { createFeedbackMask } from './web/feedback-mask.js';
 import { createPlacement } from './web/annotation-placement.js';
 
 // Trusted adapter inside couchcast, never the page's JavaScript world.
@@ -78,7 +79,8 @@ export function mountOperator({ host, root, report }, { annotate, palette, css, 
   root.appendChild(style);
   const box = doc.createElement('div'); box.className = 'operator-box'; root.appendChild(box);
   const transport = operatorTransport(report, win);
-  const callbacks = new Set();
+  const callbacks = new Set(),feedbackHooks=new Set();
+  const feedbackMask=createFeedbackMask({changed:()=>{for(const fn of feedbackHooks)fn();}});
   const callback = (...args) => { for (const fn of callbacks) fn(...args); };
   let revision = -1, strokeSeq = 0;
   // Only trusted CDP object references establish original identity. Paths and
@@ -88,6 +90,8 @@ export function mountOperator({ host, root, report }, { annotate, palette, css, 
   let originalDocument = 0, visibleNodeIDs = new Set(), sketchMount = null;
   const wantsOriginal = (id) => visibleNodeIDs.has(id) || sketchMount?.receiver?.hasAnchor(originalDocument,id) === true;
   const view = {
+    feedbackMask,
+    onFeedback(fn){feedbackHooks.add(fn);return()=>feedbackHooks.delete(fn);},
     model: { seg: 0, docSeg: 0, notes: [] },
     onRecord(fn) { callbacks.add(fn); return () => callbacks.delete(fn); },
     toPage: (x, y) => [x + win.scrollX, y + win.scrollY],
@@ -167,6 +171,7 @@ export function mountOperator({ host, root, report }, { annotate, palette, css, 
   win.__couchcastOperatorView = (snapshot) => {
     if (snapshot.revision < revision) return;
     revision = snapshot.revision;
+    if(snapshot.feedback_mask)feedbackMask.install(snapshot.feedback_mask);else feedbackMask.retire();
     if (snapshot.doc !== originalDocument) { originals.clear(); originalDocument = snapshot.doc; }
     visibleNodeIDs = new Set(snapshot.notes.map(note => note.at?.node));
     for (const id of originals.keys()) if (!wantsOriginal(id)) originals.delete(id);

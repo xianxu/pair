@@ -39,6 +39,18 @@ selection and refreshes it; draft and ink remain intact. There is no browser
 send button or viewer agent-dispatch route. Remaining shapes wait for the next
 explicit submission.
 
+Confirmed dispatched/resolved manifests also derive a **live display mask**:
+exact sketch sequence/digest and note revision disappear from console and viewer
+painting, while unsent or newer versions remain. The existing preview worker
+loads this projection even without a private console host; full masks travel in
+the console OperatorView and the viewer's live `feedback` stream, including
+reconnect. This changes no recorded vectors or history, and historical replay
+does not consume the mask. Existing conditional note resolution stays separate.
+The projection dies with the cast and is rederived from confirmed Store evidence;
+there is no acknowledgment sidecar. Its full wire image uses the existing 64 MiB
+bundle envelope, with atomic refusal rather than truncation. Historical notes
+are not limited by the per-page admission count.
+
 New version-3 manifests retain two typed lists, `notes` and `sketches`, and add
 one `sketch_page` referencing **sketch-page.png**. This replay-rendered image is
 the full visible viewport at the latest chosen sketch's exact recorded finish

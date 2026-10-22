@@ -1,6 +1,7 @@
 package webcast
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -382,6 +383,69 @@ func TestOperatorSketchLiveDrawing(t *testing.T) {
 		original = pixels()
 		return original.Count > 0 && original.MinX >= 96 && original.MinX <= 104 && original.MaxX >= 126 && original.MaxX <= 134 && original.MinY >= 136 && original.MinY <= 144
 	})
+
+	// Delivered feedback changes only the live painter. The second, shorter
+	// shape overlaps the first, so both the selective and complete masks need
+	// real pixel checks rather than just inspecting mask metadata.
+	beforeMask, e := recording.Reduce(read(), math.MaxInt64)
+	if e != nil {
+		t.Fatal(e)
+	}
+	beforeProjection, e := json.Marshal(beforeMask.Sketches.Snapshot())
+	if e != nil {
+		t.Fatal(e)
+	}
+	selectedForMask, e := cast.SubmissionSelection()
+	if e != nil || len(selectedForMask.Sketches) != 2 {
+		t.Fatalf("mask selection: %+v %v", selectedForMask, e)
+	}
+	deliveredMask := core.DeliveredFeedback{RecordingID: filepath.Base(cast.RecordingPath()), Sketches: map[core.PreviewItem]struct{}{}, Notes: map[core.PreviewNote]struct{}{}}
+	addMask := func(v board.SelectedSketch) {
+		deliveredMask.Sketches[core.PreviewItem{RecordingID: deliveredMask.RecordingID, SketchID: v.ID, Sequence: v.NextSequence, Digest: v.Digest}] = struct{}{}
+	}
+	addMask(selectedForMask.Sketches[0])
+	if e = cast.SetDeliveredFeedback(deliveredMask); e != nil {
+		t.Fatal(e)
+	}
+	wait("submitted first sketch hidden, unsent second still painted", func() bool {
+		ink := pixels()
+		return ink.Count > 0 && ink.Count < original.Count && ink.MinX > original.MinX && ink.MaxX < original.MaxX
+	})
+	addMask(selectedForMask.Sketches[1])
+	if e = cast.SetDeliveredFeedback(deliveredMask); e != nil {
+		t.Fatal(e)
+	}
+	wait("all submitted console sketches hidden", func() bool { return pixels().Count == 0 })
+	// The preview still obtains both accepted paths from the same receiver:
+	// suppressing live paint must not delete its vector projection.
+	publishPreview(2)
+	if got := string(eval(world, `__couchcastOperatorSketch.labelInput.getRootNode().querySelectorAll('.sketch-submission-card').length`)); got != "2" {
+		t.Fatalf("mask destroyed receiver preview paths: %s", got)
+	}
+	publishPreview(2, true)
+	afterMask, e := recording.Reduce(read(), math.MaxInt64)
+	if e != nil {
+		t.Fatal(e)
+	}
+	afterProjection, e := json.Marshal(afterMask.Sketches.Snapshot())
+	if e != nil || !bytes.Equal(beforeProjection, afterProjection) {
+		t.Fatalf("mask changed accepted recording projection: %v\nbefore %s\nafter %s", e, beforeProjection, afterProjection)
+	}
+	if e = cast.SetDeliveredFeedback(core.DeliveredFeedback{RecordingID: deliveredMask.RecordingID}); e != nil {
+		t.Fatal(e)
+	}
+	var restored inkBounds
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Logf("mask restore original=%+v restored=%+v", original, restored)
+		}
+	})
+	wait("restored console display projection", func() bool {
+		restored = pixels()
+		return restored.Count > 0 && math.Abs(float64(restored.MinX-original.MinX)) <= 2 && math.Abs(float64(restored.MaxX-original.MaxX)) <= 2 && math.Abs(float64(restored.MinY-original.MinY)) <= 2 && math.Abs(float64(restored.MaxY-original.MaxY)) <= 2
+	})
+	t.Logf("mask restore original=%+v restored=%+v (outer geometry tolerance 2px)", original, restored)
+	original = restored
 	eval(0, `(()=>{const button=document.querySelector('button');button.style.left='280px';button.style.top='180px';return true})()`)
 	var moved inkBounds
 	wait("completed ink follows exact moved Save", func() bool {

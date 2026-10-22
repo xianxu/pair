@@ -136,8 +136,8 @@ export function liveNotes(model) {
 }
 
 // Open notes remain reachable even when their document or anchor is absent.
-export function openNotes(model) {
-  return (model?.notes || []).filter(n => n.state === 'open').map(n => n.note);
+export function openNotes(model, feedbackMask) {
+  return (model?.notes || []).filter(n => n.state === 'open' && (!feedbackMask || feedbackMask.noteVisible(n.note.id,n.revision??0))).map(n => n.note);
 }
 
 export function noteList(doc, container, open) {
@@ -638,7 +638,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
   const pinned = pinLayer(doc, pins, openNote);
   const listed = noteList(doc, noteRows, openNote);
   function drawPins() {
-    const notes = openNotes(v.model);
+    const notes = openNotes(v.model,operator?undefined:v.feedbackMask);
     const placements = new Map(notes.map(n => [n.id, v.placementOf?.(n) || null]));
     const placementOf = n => placements.get(n.id);
     pinned.draw(notes, (id) => v.boxOf(id), place, { placementOf });
@@ -686,6 +686,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
     sync();
     schedule();
   });
+  v.onFeedback?.(schedule);
   win.addEventListener('resize', schedule);
   v.onPlacementChange?.(schedule);
   // Menu mode changes deliberately leave focus on the page. Its keyboard

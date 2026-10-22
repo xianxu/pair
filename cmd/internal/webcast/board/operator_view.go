@@ -23,6 +23,7 @@ const OperatorStrokeFadeMS int64 = 1500
 const MaxOperatorStrokes = 128
 
 type OperatorView struct {
+	FeedbackMask         LiveFeedbackMask     `json:"feedback_mask"`
 	SketchCursor         SketchDeliveryCursor `json:"sketch_cursor"`
 	SketchAnchorRevision uint64               `json:"sketch_anchor_revision"`
 	Revision             uint64               `json:"revision"`
@@ -98,6 +99,7 @@ func cloneNote(n *recording.Note) *recording.Note {
 func (b *Board) operatorViewLocked() OperatorView {
 	v := OperatorView{Revision: b.operatorRevision, Seg: b.st.Seg, Doc: b.st.DocSeg, T: b.st.T, Paused: b.st.Paused(), Ended: b.closed || b.st.Ended || b.broken != nil, Notes: []*recording.Note{}, Strokes: []OperatorStroke{}}
 	v.SketchCursor = b.sketchDeliveryCursorLocked()
+	v.FeedbackMask = cloneFeedbackMask(b.feedbackDisplay.mask)
 	v.SketchAnchorRevision = b.st.Sketches.AnchorRevision()
 	if b.st.Control.Driver != nil {
 		v.Driver = b.st.Control.Driver.Name
@@ -106,7 +108,7 @@ func (b *Board) operatorViewLocked() OperatorView {
 		}
 	}
 	for _, n := range b.st.Notes {
-		if n.State == recording.NoteOpen {
+		if n.State == recording.NoteOpen && !b.noteFeedbackHiddenLocked(n.ID, n.Revision) {
 			v.Notes = append(v.Notes, cloneNote(n.Note))
 		}
 	}

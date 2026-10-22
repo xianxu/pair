@@ -715,7 +715,8 @@ export function mountSketch(doc, win, view, options) {
   async function paint() {
     const stamp = ++paintGeneration,
       sceneGeneration = generation;
-    const paths = options.paths ? options.paths() : recordDisplay.paths();
+    const allPaths = options.paths ? options.paths() : recordDisplay.paths();
+    const paths = view.feedbackMask ? allPaths.filter(p=>view.feedbackMask.sketchVisible(p.sketch, options.sketchMetadata ? options.sketchMetadata(p.sketch) : recordDisplay?.metadata(p.sketch))) : allPaths;
     const liveKeys = new Set();
     const targets = await Promise.all(
       paths.map((p) => {
@@ -890,6 +891,7 @@ export function mountSketch(doc, win, view, options) {
     }
     scheduler.invalidate();
   });
+  const unFeedback = view.onFeedback?.(()=>{placements.clear();forceInk=true;scheduler.invalidate();});
   const unAuthority = options.onAuthority?.(setAuthority);
   dispatch({ type: 'sync', ...options.authority() });
   return {
@@ -918,6 +920,7 @@ export function mountSketch(doc, win, view, options) {
     },
     dispose() {
       disposed = true;
+      unFeedback?.();
       for (const [timer, reject] of requestObservers) {
         win.clearTimeout(timer);
         reject(Error('Sketch context retired.'));

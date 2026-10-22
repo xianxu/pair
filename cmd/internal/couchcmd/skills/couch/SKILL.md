@@ -720,8 +720,10 @@ selected ink refuses the whole batch. The Pending feedback panel shows both
 annotation and sketch counts; pointer gestures never enter the submission.
 A changed or unavailable preview refuses preparation and asks the operator to
 review it again. Confirmed dispatched/resolved manifests acknowledge only their
-exact sketch versions, across targets. This does not clear ink; newer versions
-and remaining shapes wait for another explicit operator submission. Prepared,
+exact sketch versions, across targets. Those exact sketch versions and note
+revisions disappear from live console/viewer painting after confirmation; unsent
+or newer feedback stays. Original ink and notes remain in recording history and
+replay. Remaining shapes wait for another explicit operator submission. Prepared,
 delivering and superseded bundles are not proof of delivery.
 
 ### Filing an issue from notes and sketches

@@ -7,6 +7,7 @@
 // driving) is taken by its overlay, never by the recorded page. Title and
 // URL come from whatever app is cast, so they are only ever set as text.
 
+import { createFeedbackMask } from './feedback-mask.js';
 import { Model } from './model.js';
 import { Renderer } from './render.js';
 import { mountAnnotate, identityStore, readPalette } from './annotate.js';
@@ -60,9 +61,10 @@ export function view(model, state, ended) {
 // onRecord(fn) for a later component to watch records (#467's control
 // state) without touching the apply path.
 export function connect(deps) {
-  const hooks = [], capabilityHooks = [];
+  const hooks = [], capabilityHooks = [], feedbackHooks=[];
+  const feedbackMask=createFeedbackMask({changed:()=>{for(const fn of feedbackHooks)fn();}});
   const closed = (previous = {}) => ({...Object.fromEntries(['annotation', 'drive'].map(k => [k, {...previous[k], allowed:false, state:'off'}])),drawing:{...previous.drawing,ready:false}});
-  const v = { model: null, renderer: null, capabilities: closed(), onRecord(fn) { hooks.push(fn); return () => { const i=hooks.indexOf(fn); if(i>=0)hooks.splice(i,1); }; },
+  const v = { feedbackMask, onFeedback(fn){feedbackHooks.push(fn);return()=>{const i=feedbackHooks.indexOf(fn);if(i>=0)feedbackHooks.splice(i,1);};}, model: null, renderer: null, capabilities: closed(), onRecord(fn) { hooks.push(fn); return () => { const i=hooks.indexOf(fn); if(i>=0)hooks.splice(i,1); }; },
     onCapabilities(fn) { capabilityHooks.push(fn); fn(v.capabilities); return () => { const i=capabilityHooks.indexOf(fn); if(i>=0)capabilityHooks.splice(i,1); }; } };
   const publishCapabilities = (value) => { v.capabilities = value; for (const fn of capabilityHooks) fn(value); };
   const failClosed = () => publishCapabilities(closed(v.capabilities));
@@ -102,6 +104,7 @@ export function connect(deps) {
     es.close();
     es = null;
     failClosed();
+    feedbackMask.retire();
     fresh();
     deps.show({ ...view(null, state, false), status: 'Reconnecting…' });
     deps.retry(open);
@@ -109,6 +112,8 @@ export function connect(deps) {
   function open() {
     const source = es = deps.open();
     const current = () => es === source;
+    let feedbackToken=feedbackMask.beginStream();
+    source.addEventListener('feedback',e=>{if(!current())return;try{feedbackMask.receive(JSON.parse(e.data),feedbackToken);}catch(error){console.warn('couch feedback mask refused:',error);}});
     source.addEventListener('capabilities', (e) => {
       if (!current() || ended) return;
       try { receiveCapabilities(JSON.parse(e.data)); } catch { failClosed(); }
@@ -130,6 +135,7 @@ export function connect(deps) {
     source.onerror = () => {
       if (!current()) return;
       failClosed();
+      feedbackToken=feedbackMask.beginStream();
       if (source.readyState !== 2) { show(); return; } // EventSource reconnects by itself
       if (ended) return;
       const disconnected = () => deps.show({ ...view(null, null, true), status: 'Disconnected' });
@@ -351,9 +357,10 @@ export function mount(doc, win) {
     // onRecord(fn): fn(r, model) for every record applied, from the stream
     // once it opens (registered before its first record arrives).
     onRecord: (fn) => { let stopped=false,remove; started.then(()=>{if(!stopped)remove=v.onRecord(fn);}); return ()=>{stopped=true;if(typeof remove==='function')remove();}; },
+    onFeedback: (fn) => {let stopped=false,remove;started.then(()=>{if(!stopped)remove=v.onFeedback?.(fn);});return()=>{stopped=true;remove?.();};},
     onCapabilities: (fn) => { let stopped=false,remove; started.then(()=>{if(!stopped)remove=v.onCapabilities?.(fn);}); return ()=>{stopped=true;if(typeof remove==='function')remove();}; },
   };
-  const surface = { ...win.couchViewer, get model() { return v.model; }, get seat() { return seat; }, get annotate() { return win.couchViewer.annotate; }, beforeAnnotationMode(mode) {
+  const surface = { ...win.couchViewer, get feedbackMask(){return v?.feedbackMask;}, get model() { return v.model; }, get seat() { return seat; }, get annotate() { return win.couchViewer.annotate; }, beforeAnnotationMode(mode) {
     if(!bypassToolGate && sketchUI?.beforeAnnotationMode(mode)===false)return false;
     if(!bypassToolGate){win.couchViewer.drive?.setSketching(mode!=='watch');doc.body.classList.toggle('sketching',mode!=='watch');}return true;
   } };

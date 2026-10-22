@@ -18,6 +18,11 @@ type submissionPreviewCast interface {
 	SubmissionPreviewHost(context.Context) (core.PreviewHost, <-chan struct{}, error)
 	PublishSubmissionPreview(context.Context, core.PreviewPublication) error
 }
+type submissionFeedbackCast interface {
+	// This only updates a derived live projection, under the manager→Board
+	// lock order. It performs no Store or browser IO.
+	SetDeliveredFeedback(core.DeliveredFeedback) error
+}
 type submissionPreviewRun struct {
 	cast   submissionPreviewCast
 	wake   chan struct{}
@@ -73,7 +78,7 @@ func (m *submissionManager) runSubmissionPreview(ctx context.Context, run *submi
 		m.mu.Unlock()
 		close(run.done)
 	}()
-	var delivered map[core.PreviewItem]struct{}
+	var delivered core.DeliveredFeedback
 	var cachedDeliveryGeneration uint64
 	deliveredLoaded := false
 	for {
@@ -85,9 +90,10 @@ func (m *submissionManager) runSubmissionPreview(ctx context.Context, run *submi
 		m.mu.Lock()
 		deliveredGeneration := m.deliveredGeneration
 		m.mu.Unlock()
-		if err == nil && selectionErr == nil && (!deliveredLoaded || cachedDeliveryGeneration != deliveredGeneration) {
-			delivered, err = m.store.DeliveredSketchVersions(filepath.Base(cast.RecordingPath()))
-			if err == nil {
+		var deliveryErr error
+		if selectionErr == nil && (!deliveredLoaded || cachedDeliveryGeneration != deliveredGeneration) {
+			delivered, deliveryErr = m.store.DeliveredFeedbackVersions(filepath.Base(cast.RecordingPath()))
+			if deliveryErr == nil {
 				deliveredLoaded = true
 				cachedDeliveryGeneration = deliveredGeneration
 			}
@@ -98,7 +104,19 @@ func (m *submissionManager) runSubmissionPreview(ctx context.Context, run *submi
 			m.mu.Unlock()
 			return
 		}
-		if err != nil || selectionErr != nil || deliveredGeneration != m.deliveredGeneration {
+		// Live display does not depend on a private console host. The same
+		// worker/confirmation cache serves viewers while that host is absent.
+		if selectionErr == nil && deliveryErr == nil && deliveredLoaded && cachedDeliveryGeneration == m.deliveredGeneration {
+			if display, ok := cast.(submissionFeedbackCast); ok {
+				selectionErr = display.SetDeliveredFeedback(delivered)
+				if selectionErr == nil {
+					// Installing a confirmed note mask can change selection and its
+					// generation. Never publish the pre-install witness.
+					selected, selectionErr = cast.SubmissionSelection()
+				}
+			}
+		}
+		if err != nil || selectionErr != nil || deliveryErr != nil || deliveredGeneration != m.deliveredGeneration {
 			m.previewState, _ = core.NextPreview(m.previewState, core.PreviewHostChanged{})
 		} else {
 			run.host = host
@@ -111,7 +129,7 @@ func (m *submissionManager) runSubmissionPreview(ctx context.Context, run *submi
 			for _, v := range selected.Notes {
 				notes = append(notes, core.PreviewNote{ID: v.ID, Revision: v.Revision})
 			}
-			selection, selectErr := core.SelectFeedbackPreview(candidates, notes, delivered, core.PreviewStamp{Board: selected.SketchGeneration, Delivered: deliveredGeneration})
+			selection, selectErr := core.SelectFeedbackPreview(candidates, notes, delivered.Sketches, core.PreviewStamp{Board: selected.SketchGeneration, Delivered: deliveredGeneration})
 			if selectErr != nil {
 				m.previewState, _ = core.NextPreview(m.previewState, core.PreviewHostChanged{})
 			} else {

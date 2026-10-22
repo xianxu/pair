@@ -531,53 +531,14 @@ func (s *Store) writeManifest(r *os.Root, sub Submission) error {
 	return nil
 }
 
-// DeliveredSketchVersions derives suppression from the existing durable
-// manifests, across targets. No additional acknowledgment registry is created.
-// Uncertain/prepared deliveries never suppress a candidate; any unreadable
-// bundle refuses the whole derivation rather than permitting a silent resend.
+// DeliveredSketchVersions preserves the original sketch-only API without a
+// second scan or a second acknowledgment authority.
 func (s *Store) DeliveredSketchVersions(recordingID string) (map[PreviewItem]struct{}, error) {
-	if recordingID == "" {
-		return nil, fmt.Errorf("recording identity required")
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	root, err := s.open()
+	feedback, err := s.DeliveredFeedbackVersions(recordingID)
 	if err != nil {
 		return nil, err
 	}
-	defer root.Close()
-	entries, err := submissionEntries(root)
-	if err != nil {
-		return nil, err
-	}
-	out := map[PreviewItem]struct{}{}
-	for _, entry := range entries {
-		if !identifier.MatchString(entry.Name()) {
-			continue
-		}
-		if entry.Type()&os.ModeSymlink != 0 {
-			return nil, fmt.Errorf("symlink in submission store")
-		}
-		if !entry.IsDir() {
-			continue
-		} // Metadata and staging residue are not bundles.
-		sub, err := readMetadata(root, entry.Name(), true)
-		if err != nil {
-			return nil, err
-		}
-		if sub.Source.RecordingID != recordingID || sub.Delivery != Dispatched && sub.Delivery != Resolved || len(sub.Sketches) == 0 {
-			continue
-		}
-		// A disposition renamed just before an interrupted fsync is visible but not
-		// yet confirmed. Repeating directory confirmation makes it safe to suppress.
-		if err = s.confirmPublication(root, sub.ID); err != nil {
-			return nil, err
-		}
-		for _, sketch := range sub.Sketches {
-			out[PreviewItem{RecordingID: sketch.RecordingID, SketchID: sketch.ID, Sequence: sketch.NextSequence, Digest: sketch.Digest}] = struct{}{}
-		}
-	}
-	return out, nil
+	return feedback.Sketches, nil
 }
 
 func submissionEntries(root *os.Root) ([]os.DirEntry, error) {

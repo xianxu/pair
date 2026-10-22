@@ -230,6 +230,11 @@ func TestVersion3AggregatePrivacyAcrossOrigins(t *testing.T) {
 
 func TestReadingGuideExplainsHistoricalSketchEvidence(t *testing.T) {
 	guide := ReadingGuide("/recording")
+	for _, term := range []string{"live display", "confirmed", "recording history", "unsent"} {
+		if !strings.Contains(guide, term) {
+			t.Errorf("reading guide omits post-submit contract %q", term)
+		}
+	}
 	for _, want := range []string{"sketch-N.png", "replay-rendered", "recorded-dom", "sketches", "sketch-image --sketch ID --out DIR", "literal", "privacy", "source.record_index", "history_record_index"} {
 		if !strings.Contains(guide, want) {
 			t.Errorf("mixed evidence guide missing %q", want)

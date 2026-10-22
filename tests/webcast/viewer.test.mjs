@@ -231,3 +231,17 @@ test('drawing capabilities preserve safe epoch/holder and fail closed on disconn
   });
   assert.equal(h.v.capabilities.drawing.ready, true);
 });
+
+test('live feedback stream atomically filters exact versions and fences reconnects without touching records',()=>{
+ const h=harness(),old=h.es(),digest='a'.repeat(64);let redraws=0;
+ h.v.onFeedback(()=>redraws++);
+ const feedback=(revision='1',scope='cast')=>({scope,revision,sketches:[{id:'s',next_sequence:'5',digest}],notes:[{id:'n',revision:'0'}]});
+ old.emit('feedback',feedback());assert.equal(h.v.feedbackMask.sketchVisible('s',{next_sequence:5,digest}),false);
+ assert.equal(h.v.feedbackMask.noteVisible('n',0),false);assert.equal(redraws,1);assert.deepEqual(h.drawn,[]);
+ old.emit('feedback',feedback());assert.equal(redraws,1);
+ h.rec({k:'not-accepted',t:0});h.retries[0]();const next=h.es();
+ assert.equal(h.v.feedbackMask.noteVisible('n',0),true);
+ old.emit('feedback',feedback('99'));assert.equal(h.v.feedbackMask.noteVisible('n',0),true);
+ next.emit('feedback',feedback('0','new'));assert.equal(h.v.feedbackMask.noteVisible('n',0),false);
+ old.emit('end',{});assert.equal(h.v.feedbackMask.noteVisible('n',0),false);
+});

@@ -124,6 +124,31 @@ func TestSketchLiveTwoViewers(t *testing.T) {
 		}
 	}
 	compare("watch viewer", b.eval(t, `__sketchProjection`))
+
+	// The same Board display mask travels over real SSE to both viewers. It
+	// changes neither their reducer projections nor the accepted recording.
+	selectedForMask, err := f.bd.Selection()
+	if err != nil || len(selectedForMask.Sketches) != 1 {
+		t.Fatalf("finished mask selection: %+v %v", selectedForMask, err)
+	}
+	if err = f.bd.SetDeliveredFeedback(selectedForMask.Sketches, nil); err != nil {
+		t.Fatal(err)
+	}
+	canvasPaint := `(()=>{const c=document.querySelector('.sketch-observer'),pixels=c.getContext('2d').getImageData(0,0,c.width,c.height).data;for(let i=3;i<pixels.length;i+=4)if(pixels[i])return 'painted';return 'blank';})()`
+	for i, p := range []*chromePage{a, b} {
+		waitEval(t, p, fmt.Sprintf("submitted ink hidden on viewer %d", i), canvasPaint, "blank")
+	}
+	compare("masked driving viewer", a.eval(t, `__sketchProjection`))
+	compare("masked watching viewer", b.eval(t, `__sketchProjection`))
+	afterMask, err := recording.Reduce(f.mem.Records(), math.MaxInt64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	afterProjection, err := json.Marshal(afterMask.Sketches.Snapshot())
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare("recording after live mask", afterProjection)
 	// A view-only link also observes historical paths but cannot start one.
 	b.call(t, b.session, "Page.navigate", map[string]any{"url": srv.URL + "/view/"}, nil)
 	waitEval(t, b, "view-only sketch observer", `String(!!window.couchViewer?.sketch)`, "true")
@@ -140,7 +165,8 @@ func TestSketchLiveTwoViewers(t *testing.T) {
 	if count != 1 {
 		t.Fatalf("view-only watcher changed sketch count: %d", count)
 	}
-	waitEval(t, b, "historical path painted on view-only link", `(()=>{const c=document.querySelector('.sketch-observer'),pixels=c.getContext('2d').getImageData(0,0,c.width,c.height).data;for(let i=3;i<pixels.length;i+=4)if(pixels[i])return 'painted';return 'blank';})()`, "painted")
+	waitEval(t, b, "submitted historical path hidden after view-only reconnect", `(()=>{const c=document.querySelector('.sketch-observer'),pixels=c.getContext('2d').getImageData(0,0,c.width,c.height).data;for(let i=3;i<pixels.length;i+=4)if(pixels[i])return 'painted';return 'blank';})()`, "blank")
+	// The reconnect mask is live display state, so replay below must still paint.
 	// Persist exactly the accepted wire, then let the real replay viewer reduce
 	// and display it in a fresh page. No source browser or live Board participates.
 	root := t.TempDir()

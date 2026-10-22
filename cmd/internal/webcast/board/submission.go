@@ -55,7 +55,7 @@ func (b *Board) selectionLocked() (Selection, error) {
 		out.Sketches = append(out.Sketches, SelectedSketch{ID: candidate.ID, NextSequence: candidate.NextSequence, Digest: candidate.Digest, Source: witness.source, Finish: witness.finish})
 	}
 	for _, n := range b.st.Notes {
-		if n.State == recording.NoteOpen {
+		if n.State == recording.NoteOpen && !b.noteFeedbackHiddenLocked(n.ID, n.Revision) {
 			out.Notes = append(out.Notes, SelectedNote{n.ID, n.Revision})
 		}
 	}

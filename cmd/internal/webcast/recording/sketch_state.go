@@ -446,6 +446,7 @@ func normalizeSketchPoint(p SketchPoint) SketchPoint {
 // SketchMetadata and SketchStrokeMetadata are owned small query values. They
 // never contain historical points, receipt collections or mutable core maps.
 type SketchMetadata struct {
+	Digest       string   `json:"digest"`
 	ID           string   `json:"id"`
 	Author       Author   `json:"author"`
 	Owner        string   `json:"owner"`
@@ -521,7 +522,11 @@ func (s *SketchState) Metadata(id string) (SketchMetadata, bool) {
 		return SketchMetadata{}, false
 	}
 	b := h.begin
-	return SketchMetadata{ID: id, Author: b.Author, Owner: b.Owner, Doc: b.Doc, Tab: b.Tab, VP: b.VP, T: b.T, Phase: h.phase, Reason: h.reason, Label: h.label, NextSequence: h.next, OpenStroke: h.open}, true
+	digest := ""
+	if len(h.receiptOrder) > 0 {
+		digest = h.receipts[h.receiptOrder[len(h.receiptOrder)-1]].Digest
+	}
+	return SketchMetadata{Digest: digest, ID: id, Author: b.Author, Owner: b.Owner, Doc: b.Doc, Tab: b.Tab, VP: b.VP, T: b.T, Phase: h.phase, Reason: h.reason, Label: h.label, NextSequence: h.next, OpenStroke: h.open}, true
 }
 func (s *SketchState) StackTops(id string) (SketchStackTops, bool) {
 	h := s.sketches[id]

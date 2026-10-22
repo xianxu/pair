@@ -107,13 +107,14 @@ type Board struct {
 	sketchService        *SketchService
 	submissionGeneration uint64
 	feedback             feedbackContexts
+	feedbackDisplay      feedbackDisplay
 	submissionSubs       map[chan struct{}]struct{}
 }
 
 // New makes a board that anchors notes with model and writes through emit.
 func New(model notes.Model, emit Emit) *Board {
 	return &Board{model: model, emit: emit, palette: broadcast.PointerPalette(), newID: randomID,
-		st: recording.NewState(), pending: map[string]pending{}, subs: map[chan []LiveNote]struct{}{}, annotationSubs: map[chan capability.Snapshot]struct{}{}}
+		st: recording.NewState(), pending: map[string]pending{}, subs: map[chan []LiveNote]struct{}{}, annotationSubs: map[chan capability.Snapshot]struct{}{}, feedbackDisplay: feedbackDisplay{mask: LiveFeedbackMask{Scope: randomID()}}}
 }
 
 func randomID() string {
@@ -145,6 +146,7 @@ func (b *Board) Put(r recording.Record) error {
 	}
 	b.refreshSketchDeliveryLocked(r, sketchBefore)
 	b.refreshFeedbackContextLocked(r, sketchBefore.duplicate)
+	b.pruneFeedbackMaskLocked(r)
 	b.retireSketchSourceLocked()
 	if recording.SketchReceiptKey(r) != "" {
 		// Drawing has its own bounded delta wake. Rebuilding unrelated note
@@ -183,6 +185,10 @@ func (b *Board) Close() error {
 			close(ch)
 		}
 		b.submissionSubs = nil
+		for ch := range b.feedbackDisplay.subs {
+			close(ch)
+		}
+		b.feedbackDisplay.subs = nil
 		b.retireSketchSourceLocked()
 		b.closeSketchDeliveryLocked()
 		b.annotation, _ = capability.NextCapability(b.annotation, capability.Event{Kind: capability.End})
