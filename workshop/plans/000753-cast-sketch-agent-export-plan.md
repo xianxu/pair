@@ -186,31 +186,32 @@ Integration contracts exercise the same seams with the stateful ImageRenderer/pu
 
 Files: query/{sketch.go,element_facts.go,surface.go,fake.go,contract.go,cli.go,events.go} and colocated tests. Implement SketchesAt and DeclaredElementFacts through their RED/green strategies above; share the extractor with ordinary annotation context.
 
-- [ ] Run the focused new query strategies RED, implement the pure functions and shared Surface contract, then run `go test ./cmd/internal/webcast/query -count=1` GREEN.
-- [ ] Check counted scan budgets and CLI text/JSON goldens; commit this coherent query slice.
+- [x] Run the focused new query strategies RED, implement the pure functions and shared Surface contract, then run `go test ./cmd/internal/webcast/query -count=1` GREEN.
+- [x] Check counted scan budgets and CLI text/JSON goldens; commit this coherent query slice.
 
 ### Task 2 — Shared bounded historical image renderer and CLI export
 
 Files: sketchimage/{contract.go,fake.go,contract_test.go}, replay_image.go, sketch_image.go, web/sketch-image.js, query/render_sketch.go and couchcmd wiring; extraction from fidelity_check.go.
 
-- [ ] Drive Plan and the stateful renderer/export contract RED; extract the joined session and implement recorded-only rendering with shared paintSketchPaths and atomic confined output.
-- [ ] Run `go test ./cmd/internal/webcast/sketchimage ./cmd/internal/webcast/query ./cmd/internal/webcast -count=1`, applicable Node painter/image tests and existing fidelity conformance GREEN; commit.
+- [x] Drive Plan and the stateful renderer/export contract RED; extract the joined session and implement recorded-only rendering with shared paintSketchPaths and atomic confined output.
+- [x] Run `go test ./cmd/internal/webcast/sketchimage ./cmd/internal/webcast/query ./cmd/internal/webcast -count=1`, applicable Node painter/image tests and existing fidelity conformance GREEN; commit.
 
 ### Task 3 — Typed evidence and preserving durable publication
 
 Files: submission/{sketch.go,codec.go,model.go,store.go,publication.go}, webcast/submission/{build.go,sketch.go}, cast_submission.go and colocated tests.
 
-- [ ] Drive codec/validation/file-inventory strategies RED; implement typed sketches and the single evidence inventory across all publication/rewrite consumers, preserving initial note/crop meanings.
-- [ ] Build immutable selected evidence from one recording read with the injected render batch; run `go test ./cmd/internal/submission ./cmd/internal/webcast/submission ./cmd/internal/webcast -count=1` and old-decoder refusal/unknown-field contracts GREEN; commit.
+- [x] Drive codec/validation/file-inventory strategies RED; implement typed sketches and the single evidence inventory across all publication/rewrite consumers, preserving initial note/crop meanings.
+- [x] Build immutable selected evidence from one recording read with the injected render batch; run `go test ./cmd/internal/submission ./cmd/internal/webcast/submission ./cmd/internal/webcast -count=1` and old-decoder refusal/unknown-field contracts GREEN; commit.
 
 ### Task 4 — Visible preview, operator transaction and acceptance
 
 Files: board/submission.go, couchtty/console_submission.go, private operator projection/preview files, nvim/dom_submission_state.lua, ReadingGuide, couchcmd/skills/couch/SKILL.md, README and atlas/webcast-submission.md.
 
-- [ ] Drive UnsentSketches, NextPreview and the atomic freeze strategies RED; integrate the opaque frozen-preview boundary and read-only pressure thumbnail cards/count. Existing durable delivery transitions remain the only ACK authority.
+- [x] Drive UnsentSketches, NextPreview and the atomic freeze strategies RED; integrate the opaque frozen-preview boundary and read-only pressure thumbnail cards/count. Existing durable delivery transitions remain the only ACK authority.
 - [ ] Exercise the production manager/store through the normal-suite disposable Couch fixture and native Chrome acceptance. The operator sees oldest-eight shape previews/count, submits two historical shapes after navigation and the pinned agent receives correct images/notes/URLs/IDs. Verify Claude and Codex; Qoder when credits. Use fixture sinks until authorized real smoke.
-- [ ] Measure maximum approved batch under the existing deadline; revise the envelope with TL if it fails rather than bump timeouts. Verify joined renderer/publisher disposal and stable input focus under updates.
+- [x] Measure maximum approved batch under the existing deadline; revise the envelope with TL if it fails rather than bump timeouts. Verify joined renderer/publisher disposal and stable input focus under updates.
 - [ ] Update guides/atlas, audit reader inputs and run `make test-affected-inventory`; push, record required affected/suite, close through SDLC, stage by hub authorization, run the real operator preview-and-submit smoke, then land on acceptance. No Mx tags unless independently closed milestones are agreed.
+
 
 ## Revisions
 

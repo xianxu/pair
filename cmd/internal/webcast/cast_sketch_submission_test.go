@@ -1,11 +1,14 @@
 package webcast
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"image/png"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -192,5 +195,149 @@ func TestCastSketchImagesAndManifestShareBundleBudget(t *testing.T) {
 	state := fake.Snapshot()
 	if state.Opens != 1 || state.Requests != 8 || state.Active != 0 {
 		t.Fatalf("bad batch lifecycle: %+v", state)
+	}
+}
+
+// Exercise the actual Cast evidence builder and durable store together. The
+// current page has already navigated; a second target's merely prepared bundle
+// must not suppress that shape, while ACKed versions suppress across targets.
+func TestCastSketchSubmissionDurableLifecycleAcrossTargets(t *testing.T) {
+	ctx := context.Background()
+	c, _, _ := castSketchSubmissionFixture(t, 3)
+	before, err := c.SubmissionSelection()
+	if err != nil {
+		t.Fatal(err)
+	}
+	inkBefore, err := c.board.OperatorSketchSince(board.SketchDeliveryCursor{})
+	if err != nil || inkBefore.Bootstrap == nil {
+		t.Fatalf("initial ink: %v", err)
+	}
+	selected := before
+	selected.Sketches = before.Sketches[:2]
+	target := castSubmissionTarget()
+	sub, files, err := c.PrepareSubmission(ctx, "delivered-shapes", target, selected, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := filepath.Join(t.TempDir(), "submissions")
+	store, err := core.NewStore(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.Prepare(sub, files); err != nil {
+		t.Fatal(err)
+	}
+	otherTarget := target
+	otherTarget.Scope = "other-scope"
+	otherTarget.Tag = "other-tag"
+	otherTarget.Session = "other-session"
+	otherTarget.Nonce = "other-nonce"
+	pendingSelection := before
+	pendingSelection.Sketches = before.Sketches[2:]
+	pending, pendingFiles, err := c.PrepareSubmission(ctx, "other-target-prepared", otherTarget, pendingSelection, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.Prepare(pending, pendingFiles); err != nil {
+		t.Fatal(err)
+	}
+	delivered, err := store.DeliveredSketchVersions(sub.Source.RecordingID)
+	if err != nil || len(delivered) != 0 {
+		t.Fatalf("Prepared suppressed sendable ink: %v %+v", err, delivered)
+	}
+	begun, err := store.Transition(sub.ID, target, core.Begin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if begun.Delivery == core.Dispatched || begun.Delivery == core.Resolved {
+		t.Fatal("Begin falsely acknowledged delivery")
+	}
+	delivered, err = store.DeliveredSketchVersions(sub.Source.RecordingID)
+	if err != nil || len(delivered) != 0 {
+		t.Fatalf("Begin suppressed unacknowledged ink: %v %+v", err, delivered)
+	}
+	acknowledged, err := store.Transition(sub.ID, target, core.Ack)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if acknowledged.Delivery != core.Dispatched {
+		t.Fatalf("ACK disposition: %s", acknowledged.Delivery)
+	}
+	if err = c.ResolveSubmission(ctx, acknowledged); err != nil {
+		t.Fatal(err)
+	}
+	completed, err := store.Transition(sub.ID, target, core.Complete)
+	if err != nil || completed.Delivery != core.Resolved {
+		t.Fatalf("Complete: %v %s", err, completed.Delivery)
+	}
+	// Reopening observes only durable manifests/files, not the original DTO or
+	// in-memory delivery transaction.
+	reopened, err := core.NewStore(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	read, err := reopened.Read(sub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if read.Delivery != core.Resolved || read.Target != target || !reflect.DeepEqual(read.Sketches, sub.Sketches) {
+		t.Fatalf("durable evidence/delivery changed: %+v", read)
+	}
+	if len(read.Sketches) != 2 || read.Sketches[0].Elements.Anchors[0].ID != "original" {
+		t.Fatal("original declared element identity was replaced after navigation")
+	}
+	for _, sketch := range read.Sketches {
+		if sketch.Source.URL != "https://original.test/settings" || sketch.Note != "Move button" {
+			t.Fatalf("live page replaced historical facts: %+v", sketch)
+		}
+		points := sketch.Image.Plan.Paths[0].Pts
+		if len(points) != 2 || points[0][2] != 0 || points[1][2] != 1 {
+			t.Fatalf("pressure lost during durable round trip: %+v", points)
+		}
+		path := filepath.Join(filepath.Dir(reopened.ManifestPath(sub.ID)), sketch.Image.File)
+		pngBytes, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(pngBytes, files[sketch.Image.File]) {
+			t.Fatal("durable PNG reference differs from prepared evidence")
+		}
+		config, err := png.DecodeConfig(bytes.NewReader(pngBytes))
+		if err != nil || config.Width != sketch.Image.Plan.Width || config.Height != sketch.Image.Plan.Height {
+			t.Fatalf("durable image transform: %v %+v", err, config)
+		}
+	}
+	delivered, err = reopened.DeliveredSketchVersions(sub.Source.RecordingID)
+	if err != nil || len(delivered) != 2 {
+		t.Fatalf("reopened global delivery index: %v %+v", err, delivered)
+	}
+	for _, sketch := range read.Sketches {
+		key := core.PreviewItem{RecordingID: sketch.RecordingID, SketchID: sketch.ID, Sequence: sketch.NextSequence, Digest: sketch.Digest}
+		if _, ok := delivered[key]; !ok {
+			t.Fatalf("exact dispatched version missing: %+v", key)
+		}
+	}
+	pendingRead, err := reopened.Read(pending.ID)
+	if err != nil || pendingRead.Target != otherTarget || pendingRead.Delivery != core.Prepared {
+		t.Fatalf("other target prepared state: %v %+v", err, pendingRead)
+	}
+	after, err := c.SubmissionSelection()
+	if err != nil {
+		t.Fatal(err)
+	}
+	inkAfter, err := c.board.OperatorSketchSince(board.SketchDeliveryCursor{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(before, after) || inkAfter.Bootstrap == nil || !reflect.DeepEqual(inkBefore.Bootstrap.Display, inkAfter.Bootstrap.Display) {
+		t.Fatal("dispatch/resolve changed original ink or accepted versions")
+	}
+	candidates := make([]core.PreviewItem, 0, len(after.Sketches))
+	for _, sketch := range after.Sketches {
+		candidates = append(candidates, core.PreviewItem{RecordingID: sub.Source.RecordingID, SketchID: sketch.ID, Sequence: sketch.NextSequence, Digest: sketch.Digest})
+	}
+	preview := core.SelectSketchPreview(candidates, delivered, core.PreviewStamp{})
+	if len(preview.Items) != 1 || preview.Items[0].SketchID != pendingRead.Sketches[0].ID || preview.Remaining != 0 {
+		t.Fatalf("target-independent policy resent delivered versions or hid merely Prepared evidence: %+v", preview)
 	}
 }
