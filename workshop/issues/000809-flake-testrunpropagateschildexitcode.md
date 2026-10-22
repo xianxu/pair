@@ -7,7 +7,7 @@ created: 2026-10-22
 updated: 2026-10-22
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '2de47a81a54ae2c31914a0b8536b89148a2bdecd' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'ddd8a202ad09d3ce8a05ac56e99384da50b5440c' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-22T12:41:48-07:00
 claimant:
     operator: Xian Xu
@@ -18,7 +18,7 @@ claimant:
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/scribecmd.TestRunPropagatesChildExitCode]
 flow: {kind: quick, provenance: inferred, spec: "4cca90d6", done: "a0bbe98b"}
-actual_hours: 1.63
+actual_hours: 1.75
 ---
 
 # flake: TestRunPropagatesChildExitCode
