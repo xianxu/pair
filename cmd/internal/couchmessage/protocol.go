@@ -20,9 +20,12 @@ import (
 // Request has closed per-operation shapes. Wrapper lifecycle operations use a
 // full binding and must pass the supervisor adapter's live identity check.
 type Request struct {
-	Drive                                            *agentdrive.Request `json:",omitempty"`
-	ToHub                                            string              `json:",omitempty"`
-	Persist                                          bool                `json:",omitempty"`
+	LegacyTarget                                     *couchcore.LegacyOrphanTarget `json:",omitempty"`
+	OrphanTarget                                     *couchcore.ProvenOrphanTarget `json:",omitempty"`
+	OrphanSignal                                     string                        `json:",omitempty"`
+	Drive                                            *agentdrive.Request           `json:",omitempty"`
+	ToHub                                            string                        `json:",omitempty"`
+	Persist                                          bool                          `json:",omitempty"`
 	Op, Scope, Tag, Session, Nonce, ID, Target, Body string
 	Title                                            string `json:",omitempty"` // notify only
 	// Agent narrows a send or selects the switch destination harness.
@@ -54,7 +57,9 @@ type ForgetResult struct{ Changed bool }
 type Response struct {
 	Forget *ForgetResult `json:",omitempty"`
 	// Remote contains status only. Capability links never cross the child IPC.
-	Remote *RemoteStatus `json:",omitempty"`
+	Remote       *RemoteStatus             `json:",omitempty"`
+	LegacySignal *LegacyOrphanSignalResult `json:",omitempty"`
+	OrphanSignal *ProvenOrphanSignalResult `json:",omitempty"`
 	// RetryAfterMillis is a transient admission hint, only for CodeWarming.
 	RetryAfterMillis int                     `json:",omitempty"`
 	Resources        *couchcore.ResourceView `json:",omitempty"`
@@ -92,6 +97,22 @@ type RemoteStatus struct {
 
 func IsRemoteOp(op string) bool {
 	return op == "remote-on" || op == "remote-off" || op == "remote-status"
+}
+
+// ProvenOrphanSignalResult reports one exact guarded signal attempt. A sent
+// result records delivery, not process exit; an uncertain attempt is not retried.
+type ProvenOrphanSignalResult struct {
+	Target couchcore.ProvenOrphanTarget
+	Status string
+	Detail string
+}
+
+// LegacyOrphanSignalResult reports one guarded legacy member effect, never
+// authority to repeat it or to discover more descendants.
+type LegacyOrphanSignalResult struct {
+	Target couchcore.LegacyOrphanTarget
+	Status string
+	Detail string
 }
 
 // SubmissionStatus is a durable evidence submission's current outcome. Polling
@@ -170,6 +191,15 @@ func validMessageID(id string) bool {
 }
 
 func ValidateRequest(r Request) error {
+	if r.Op != "reap-orphan-signal" && r.OrphanTarget != nil {
+		return errors.New("proven orphan target applies only to reap-orphan-signal")
+	}
+	if r.Op != "reap-legacy-signal" && r.LegacyTarget != nil {
+		return errors.New("legacy orphan target applies only to reap-legacy-signal")
+	}
+	if r.Op != "reap-orphan-signal" && r.Op != "reap-legacy-signal" && r.OrphanSignal != "" {
+		return errors.New("orphan signal applies only to guarded orphan signal operations")
+	}
 	if r.Op == "session-forget" {
 		if r != (Request{Op: r.Op, Target: r.Target}) || !filepath.IsAbs(r.Target) || filepath.Clean(r.Target) != r.Target || len(r.Target) > MaxBindingBytes || !utf8.ValidString(r.Target) || strings.IndexFunc(r.Target, unicode.IsControl) >= 0 {
 			return errors.New("session-forget requires only one canonical absolute document path")
@@ -311,18 +341,41 @@ func ValidateRequest(r Request) error {
 		}
 		return nil
 	}
-	if r.Op == "reap-orphans" {
-		// The resource query's destructive half (#583): the same owner-only
-		// socket, no conversation identity, and exactly one field more. The
-		// confirmation is required HERE rather than in the handler that acts on
-		// it, because a caller's `--confirm` is presentation -- this is the
-		// authority, and a hand-written request without it must not reach a
-		// classification that ends processes.
+	if r.Op == "reap-orphans" || r.Op == "reap-orphan-signal" || r.Op == "reap-legacy-signal" {
+		// Entirely unbound calls use the owner-only operator socket. Any caller
+		// credentials must be complete; authentication and ownership are then
+		// mandatory at the effect boundary, never downgraded to operator access.
 		if !r.Confirmed {
-			return errors.New("reap-orphans ends processes and requires --confirm")
+			return errors.New(r.Op + " ends processes and requires --confirm")
 		}
-		if r != (Request{Op: "reap-orphans", Confirmed: true}) {
-			return errors.New("reap-orphans takes only --confirm")
+		bound := r.Scope != "" || r.Tag != "" || r.Session != "" || r.Nonce != ""
+		if bound && (r.Scope == "" || r.Tag == "" || r.Session == "" || r.Nonce == "") {
+			return errors.New(r.Op + " requires complete optional caller identity")
+		}
+		shape := Request{Op: r.Op, Confirmed: true, Scope: r.Scope, Tag: r.Tag, Session: r.Session, Nonce: r.Nonce}
+		if r.Op == "reap-orphan-signal" {
+			if r.OrphanTarget == nil {
+				return errors.New("reap-orphan-signal requires an exact target")
+			}
+			if err := r.OrphanTarget.Validate(); err != nil {
+				return fmt.Errorf("reap-orphan-signal target: %w", err)
+			}
+			shape.OrphanTarget, shape.OrphanSignal = r.OrphanTarget, r.OrphanSignal
+		}
+		if r.Op == "reap-legacy-signal" {
+			if r.LegacyTarget == nil {
+				return errors.New("reap-legacy-signal requires an exact target and root")
+			}
+			if err := r.LegacyTarget.Validate(); err != nil {
+				return fmt.Errorf("reap-legacy-signal target: %w", err)
+			}
+			shape.LegacyTarget, shape.OrphanSignal = r.LegacyTarget, r.OrphanSignal
+		}
+		if r.Op != "reap-orphans" && r.OrphanSignal != "TERM" && r.OrphanSignal != "KILL" {
+			return errors.New(r.Op + " requires TERM or KILL")
+		}
+		if r != shape {
+			return errors.New(r.Op + " takes only confirmation, optional caller identity and its exact signal witness")
 		}
 		return nil
 	}

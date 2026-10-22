@@ -264,7 +264,6 @@ error paths and misleading comments. It does not prove ordering, control flow,
 exec.Cmd aliases or indirect calls; the real completion-path regressions cover
 success, signal, cancellation and leader-first descendants with open/closed pipes.
 
-
 ## Broadcast socket fixture roots (#759 BR-5)
 
 The Pair-local `broadcast-short-root` rule is owned by
@@ -278,3 +277,16 @@ a deliberately long temp parent and verifies listener/root cleanup.
 This guard pins one fixture seam syntactically; it does not analyze aliases,
 indirect helper calls, arbitrary allocations or Go control flow. The runtime
 regression proves the path budget; production oversized-path refusal is unchanged.
+
+## Fixture Couch identity authority (#778)
+
+The Pair-local `fixture-couch-identity` catalog rule is implemented and registered
+in `internal/repolint/local_catalog_test.go`. It protects the enumerated
+constructors `main.installedEnv` and `testcouch.allocateRoots`: each must call
+`testpair.SeedCouchIdentity` through the exact helper import. Aliases work;
+omitted/bodyless constructors, shadowed names, fake imports, comments, strings
+and function references do not satisfy the call. Unrelated functions are outside
+this rule. Pure synthetic positive and negative cases live in
+`fixture_identity_rule_test.go`; the ordinary catalog walk checks real sources.
+This is a syntactic guard, not execution proof: constructor renames require the
+rule to be updated. Allocation and installed-command tests prove behavior.

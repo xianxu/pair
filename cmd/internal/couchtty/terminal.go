@@ -88,18 +88,26 @@ func (c *Console) terminalError(err error) {
 	}
 }
 
-func (c *Console) chrome() (RenderedStatusRow, []terminal.Cell, error) {
+func (c *Console) chrome() (RenderedStatusBar, []terminal.Cell, error) {
 	c.mu.Lock()
-	cols, model := int(c.size.Cols), c.statusModelLocked()
+	size, model := c.size, c.statusModelLocked()
 	c.mu.Unlock()
-	row := RenderStatusRow(cols, model)
-	cells, err := terminal.StyledRows(row.Body, cols, 1)
-	return row, cells, err
+	return renderChrome(size, model)
 }
 
-func (c *Console) commitChrome(row RenderedStatusRow) {
+func (c *Console) commitChrome(bar RenderedStatusBar) {
+	state, err := c.presenter.ChromeState(c.lifetime)
+	if err != nil {
+		c.terminalError(err)
+		return
+	}
+	var row RenderedStatusRow
+	if len(bar.Rows) > 0 {
+		row = bar.Rows[0]
+	}
 	c.mu.Lock()
-	c.statusChips = row.Chips
+	c.statusRows, c.statusRevision = bar.Height(), state.Revision
+	c.statusChips = bar.Chips
 	c.statusControl = row.Control
 	c.statusRemoteSession = row.RemoteSession
 	c.statusPointer, c.statusNotes = row.Pointer, row.Notes
@@ -118,8 +126,8 @@ func (c *Console) commitChrome(row RenderedStatusRow) {
 	}
 }
 
-// publishSelectionPublishing presents pane's endpoint with a status row that
-// already marks it active. The caller holds publishMu.
+// publishSelectionPublishing admits child geometry and its matching hit map.
+// The caller holds publishMu.
 func (c *Console) publishSelectionPublishing(ctx context.Context, pane *pane) error {
 	c.mu.Lock()
 	size, model := c.size, c.statusModelLocked()
@@ -127,10 +135,15 @@ func (c *Console) publishSelectionPublishing(ctx context.Context, pane *pane) er
 	for i := range model.Actors {
 		model.Actors[i].Active = model.Actors[i].Thread == pane.thread
 	}
-	row := RenderStatusRow(int(size.Cols), model)
-	cells, err := terminal.StyledRows(row.Body, int(size.Cols), 1)
+	bar, cells, err := renderChrome(size, model)
 	if err != nil {
 		return err
+	}
+	desired := chromeChildSize(size, bar.Height())
+	if pane.child.Size() != desired && !pane.child.Endpoint().InputEnded() {
+		if err = pane.child.Resize(desired); err != nil {
+			return err
+		}
 	}
 	c.traceCaptureTransition("select-start", pane.child.Endpoint().ID(), nil)
 	err = c.presenter.Select(ctx, pane.child.Endpoint(), terminal.Geometry{Cols: int(size.Cols), Rows: int(size.Rows)}, cells)
@@ -139,8 +152,8 @@ func (c *Console) publishSelectionPublishing(ctx context.Context, pane *pane) er
 		c.traceTerminal("select", err)
 		return err
 	}
-	c.commitChrome(row)
-	return nil
+	c.commitChrome(bar)
+	return c.resizeBackgroundChildren(desired, pane.child)
 }
 
 func (c *Console) selectActor(id string, force bool, how arrival) (bool, error) {

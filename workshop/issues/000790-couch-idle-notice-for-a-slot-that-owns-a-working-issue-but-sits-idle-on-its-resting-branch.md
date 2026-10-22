@@ -34,5 +34,16 @@ persisted state; the same mute file applies.
 - [ ]
 
 ## Log
+- 10-21 22:1x (ops:0): why the mutes existed: after unmuting, notices fired within minutes for pair:2, pair:4 and
+  pair:9, each idle **while its retained runner waits in the machine queue** (a normal wait), so the notice is
+  noise there. Scope addition: suppress the notice while the slot owns a live queued or running sdlc operation (machine
+  queue lease or landing waiter, already readable), and fire for an owner that's idle with **no** live operation.
+  That gives a signal worth not muting.
+
+- 10-21 22:0x (ops:0): **correction to the Spec's premise.** pair:6 was also listed in Couch's
+  `wait-notice-off` mute file (with most worker slots: ariadne:1/4/5, pair:1/2/3/5/6/7, parley.nvim:1/2/3), so the
+  idle notice was suppressed regardless of branch. The TL cleared the worker mutes (kept :0 slots, ops:1, echo:2).
+  The resting-branch gap may still be real; verify whether the notice fires for an owner idle on its resting branch
+  with no mute before building. Also worth considering: mutes that expire (a TTL) instead of a permanent list.
 
 ### 2026-10-21

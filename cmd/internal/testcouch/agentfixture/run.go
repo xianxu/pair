@@ -366,6 +366,9 @@ func Run(parent context.Context, c Config, stdin io.Reader, stdout io.Writer) (r
 					e = errors.New("fixture actor incarnation mismatch")
 				}
 
+				if e == nil && command.Kind == Retain && len(active) >= MaxConcurrentCLI {
+					continue
+				}
 				if e == nil && command.Kind == Exec {
 					var canceled bool
 					canceled, e = commandCanceled(c.ControlDir, command)
@@ -393,6 +396,24 @@ func Run(parent context.Context, c Config, stdin io.Reader, stdout io.Writer) (r
 					go func(command Command) {
 						defer workers.Done()
 						r := runCLI(child, c.CouchBinary, command)
+						select {
+						case finished <- r:
+						case <-ctx.Done():
+						}
+					}(command)
+				case Resources:
+					r := readResourceObservation(ctx, command.ID)
+					if e = atomicJSON(filepath.Join(c.ControlDir, "results", id+".json"), r, true); e != nil {
+						return e
+					}
+					resultCount++
+				case Retain:
+					child, stop := context.WithCancel(ctx)
+					active[id] = activeRequest{command: command, cancel: stop}
+					workers.Add(1)
+					go func(command Command) {
+						defer workers.Done()
+						r := runRetained(child, c, command)
 						select {
 						case finished <- r:
 						case <-ctx.Done():

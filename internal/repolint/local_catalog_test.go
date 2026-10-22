@@ -71,7 +71,68 @@ var pairCatalog = append(append([]golint.Rule(nil), golint.Catalog...), golint.R
 	Incident: "pair#771",
 	Message:  "manualClock timer delivery must rendezvous with its receiver before a request barrier proves completion",
 	Match:    bufferedManualClockTimers,
+}, golint.Rule{
+	Name:     "fixture-couch-identity",
+	Incident: "pair#778",
+	Message:  "seed fixture roots with testpair.SeedCouchIdentity so the production census recognizes their Couch identity",
+	Match:    fixtureConstructorsWithoutCouchIdentity,
 })
+
+// These enumerated fixture constructors must preserve the production identity
+// contract. This syntax guard checks a direct imported helper call, not runtime
+// execution or every possible fixture factory; constructor renames must update it.
+func fixtureConstructorsWithoutCouchIdentity(file *ast.File) []ast.Node {
+	var constructor string
+	switch file.Name.Name {
+	case "main":
+		constructor = "installedEnv"
+	case "testcouch":
+		constructor = "allocateRoots"
+	default:
+		return nil
+	}
+	imports := map[string]bool{}
+	for _, spec := range file.Imports {
+		path, err := strconv.Unquote(spec.Path.Value)
+		if err != nil || path != "github.com/xianxu/pair/cmd/internal/testpair" {
+			continue
+		}
+		name := "testpair"
+		if spec.Name != nil {
+			name = spec.Name.Name
+		}
+		imports[name] = true
+	}
+	var matches []ast.Node
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv != nil || fn.Name.Name != constructor {
+			continue
+		}
+		seeded := false
+		if fn.Body != nil {
+			ast.Inspect(fn.Body, func(node ast.Node) bool {
+				call, ok := node.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				selector, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr)
+				if !ok || selector.Sel.Name != "SeedCouchIdentity" {
+					return true
+				}
+				pkg, ok := ast.Unparen(selector.X).(*ast.Ident)
+				if ok && pkg.Obj == nil && imports[pkg.Name] {
+					seeded = true
+				}
+				return true
+			})
+		}
+		if !seeded {
+			matches = append(matches, fn)
+		}
+	}
+	return matches
+}
 
 // This lexical guard covers literal shell test/[ /[[ permission probes. It
 // intentionally does not infer dynamically assembled shell commands.

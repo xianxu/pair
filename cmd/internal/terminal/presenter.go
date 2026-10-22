@@ -81,6 +81,9 @@ type Presenter struct {
 	// is unknown and nothing is painted until a probe gets through (#430).
 	stalled bool
 	stalls  uint64
+
+	chromeRevision          uint64
+	confirmedChromeRevision uint64
 }
 
 func NewPresenter(w ttyio.Writer, policy ParentMousePolicy) *Presenter {
@@ -89,6 +92,36 @@ func NewPresenter(w ttyio.Writer, policy ParentMousePolicy) *Presenter {
 	go p.run()
 	return p
 }
+
+// ChromeState is the admitted chrome layout and whether its current revision
+// has completed a physical publication. A stalled parent revokes confirmation.
+type ChromeState struct {
+	Host      Geometry
+	Rows      int
+	Revision  uint64
+	Confirmed bool
+}
+
+// ChromeState reads publication state on the presenter's FIFO.
+func (p *Presenter) ChromeState(ctx context.Context) (ChromeState, error) {
+	var state ChromeState
+	err := p.call(ctx, func(context.Context) error {
+		rows := p.panel.ChromeRows
+		if p.selected != nil && p.host.Cols > 0 {
+			rows = len(p.bottom) / p.host.Cols
+		}
+		state = ChromeState{Host: p.host, Rows: rows, Revision: p.chromeRevision, Confirmed: p.chromeConfirmed()}
+		return nil
+	})
+	return state, err
+}
+
+func (p *Presenter) chromeConfirmed() bool {
+	return p.chromeRevision > 0 && p.chromeRevision == p.confirmedChromeRevision && !p.stalled && p.previous.Geometry == p.host && p.View().State == Ready
+}
+
+func (p *Presenter) admitChrome() { p.chromeRevision++; p.confirmedChromeRevision = 0 }
+
 func (p *Presenter) View() View { p.mu.Lock(); defer p.mu.Unlock(); return p.view }
 func (p *Presenter) transition(e ViewEvent) (ViewEffects, error) {
 	p.mu.Lock()
@@ -271,6 +304,7 @@ func (p *Presenter) stall(err error) bool {
 		p.stalls++
 	}
 	p.stalled = true
+	p.confirmedChromeRevision = 0
 	p.modesKnown = false
 	p.previous = Frame{}
 	p.history = HistoryState{AltScreen: p.altOwned}
@@ -514,6 +548,7 @@ func (p *Presenter) paintPublication(ctx context.Context, f Frame, history *Hist
 		p.confirmedModes = desired
 		p.modesKnown = true
 		p.previous = f.Clone()
+		p.confirmedChromeRevision = p.chromeRevision
 		if history != nil {
 			p.history = nextHistory
 		}
@@ -562,6 +597,7 @@ func (p *Presenter) Select(ctx context.Context, e *Endpoint, host Geometry, bott
 		p.panel = Frame{}
 		p.host = host
 		p.bottom = bottom
+		p.admitChrome()
 		return p.paintEndpoint(ctx, e, true)
 	})
 }
@@ -607,6 +643,7 @@ func (p *Presenter) Panel(ctx context.Context, f Frame, class FrameClass) error 
 		p.panel = f
 		p.host = f.Geometry
 		p.bottom = nil
+		p.admitChrome()
 		return p.paint(ctx, f, true)
 	})
 }
@@ -663,7 +700,7 @@ func (p *Presenter) mouseInput(event uv.Event, m uv.Mouse) error {
 				return nil
 			}
 			kind := ParentPressMouse
-			if inside && modes.Tracking != 0 {
+			if inside && p.chromeConfirmed() && modes.Tracking != 0 {
 				kind = PressMouse
 			}
 			if _, err := p.transition(ViewEvent{Kind: kind, Button: int(m.Button)}); err != nil {
@@ -684,7 +721,7 @@ func (p *Presenter) mouseInput(event uv.Event, m uv.Mouse) error {
 		case uv.MouseReleaseEvent:
 			return nil
 		case uv.MouseWheelEvent:
-			if !inside {
+			if !inside || !p.chromeConfirmed() {
 				return nil
 			}
 		default:
@@ -704,7 +741,7 @@ func (p *Presenter) mouseInput(event uv.Event, m uv.Mouse) error {
 			}
 			m.Button = uv.MouseButton(v.Button)
 		case uv.MouseWheelEvent:
-			if !inside {
+			if !inside || !p.chromeConfirmed() {
 				return nil
 			}
 		default:
@@ -755,10 +792,11 @@ func (p *Presenter) Resize(ctx context.Context, host Geometry, apply func(Geomet
 	return p.call(ctx, func(ctx context.Context) error {
 		var bottom []Cell
 		if len(p.bottom) > 0 {
-			if host.Rows <= 1 {
+			reserved := len(p.bottom) / p.host.Cols
+			if host.Rows <= reserved {
 				return errors.New("terminal: no child rows")
 			}
-			bottom = make([]Cell, host.Cols)
+			bottom = make([]Cell, host.Cols*reserved)
 		}
 		return p.resizeLayout(ctx, host, bottom, apply)
 	})
@@ -773,27 +811,8 @@ func (p *Presenter) ResizeLayout(ctx context.Context, host Geometry, bottom []Ce
 	return p.call(ctx, func(ctx context.Context) error { return p.resizeLayout(ctx, host, owned, apply) })
 }
 func validateLayout(host Geometry, bottom []Cell) error {
-	if err := host.Validate(); err != nil {
-		return err
-	}
-	reserved := 0
-	if len(bottom) > 0 {
-		reserved = 1
-		if len(bottom) != host.Cols {
-			return errors.New("terminal: chrome width mismatch")
-		}
-	}
-	if host.Rows <= reserved {
-		return errors.New("terminal: no child rows")
-	}
-	return validateChrome(bottom)
-}
-
-func validateChrome(cells []Cell) error {
-	if len(cells) == 0 {
-		return nil
-	}
-	return (Frame{Geometry: Geometry{Cols: len(cells), Rows: 1}, Cells: cells}).Validate()
+	_, err := ChildGeometry(host, bottom)
+	return err
 }
 
 func (p *Presenter) resizeLayout(ctx context.Context, host Geometry, bottom []Cell, apply func(Geometry) error) error {
@@ -803,10 +822,7 @@ func (p *Presenter) resizeLayout(ctx context.Context, host Geometry, bottom []Ce
 	if err := validateLayout(host, bottom); err != nil {
 		return err
 	}
-	reserved := 0
-	if len(bottom) > 0 {
-		reserved = 1
-	}
+	reserved := len(bottom) / host.Cols
 	if err := p.cancelDrag(ctx); err != nil {
 		return p.fail(err)
 	}
@@ -815,6 +831,7 @@ func (p *Presenter) resizeLayout(ctx context.Context, host Geometry, bottom []Ce
 	}
 	p.host = host
 	p.bottom = bottom
+	p.admitChrome()
 	return p.paintEndpoint(ctx, p.selected, true)
 }
 func (p *Presenter) EmitEffects(ctx context.Context, effects []Effect, policy EffectPolicy) ([]Effect, error) {
@@ -941,12 +958,9 @@ func (p *Presenter) Flush(ctx context.Context) error {
 	})
 }
 
-// UpdateChrome publishes a new reserved row without changing selection or drag
+// UpdateChrome publishes a rectangular reserved surface without changing selection or drag
 // ownership. Validation precedes retained-state mutation.
 func (p *Presenter) UpdateChrome(ctx context.Context, cells []Cell) error {
-	if err := validateChrome(cells); err != nil {
-		return err
-	}
 	owned := cloneCells(cells)
 	return p.call(ctx, func(ctx context.Context) error {
 		if p.selected == nil {
@@ -963,6 +977,7 @@ func (p *Presenter) UpdateChrome(ctx context.Context, cells []Cell) error {
 		_ = frame
 		previousBottom := p.bottom
 		p.bottom = owned
+		p.admitChrome()
 		if err := p.paintEndpoint(ctx, p.selected, false); err != nil {
 			p.bottom = previousBottom
 			return err
@@ -977,7 +992,7 @@ func (p *Presenter) Failed() <-chan struct{} { return p.failed }
 func (p *Presenter) Failure() error          { p.mu.Lock(); defer p.mu.Unlock(); return p.failureErr }
 func (p *Presenter) childRows() int {
 	if len(p.bottom) > 0 {
-		return p.host.Rows - 1
+		return p.host.Rows - len(p.bottom)/p.host.Cols
 	}
 	return p.host.Rows
 }

@@ -34,6 +34,9 @@ const (
 	// ExitStale: the section changed since the agent read it. (4 was
 	// unread-edits, retired by pair#439; not reused.)
 	ExitStale = 6
+	// ExitUnavailable is namespace/store access unavailability for operator
+	// commands, distinct from ownership, authority and document-path refusals.
+	ExitUnavailable = 7
 )
 
 func refuse(format string, args ...any) error {
@@ -667,8 +670,9 @@ func (s *Sync) write(f *file, req WriteRequest) (Result, error) {
 			res.Warning = "the round could not be saved; parley shows no highlight for this write"
 		}
 	}
-	// The guard and the write can't be one step against parley, which takes
-	// no flock; say so when the operator took their turn in between.
+	// Registered operator-acquire shares this writer's registry transaction.
+	// Legacy/direct sidecar clients do not; retain their best-effort warning
+	// when protection appears after the guard but before this write completes.
 	lockPaths := f.lockPaths
 	if len(lockPaths) == 0 {
 		lockPaths = []string{f.paths.Lock}

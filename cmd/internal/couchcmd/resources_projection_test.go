@@ -30,7 +30,7 @@ func TestResourceProjectionTransportCapacity(t *testing.T) {
 		v.Unattributed = append(v.Unattributed, p)
 		rss := uint64(i)
 		v.OrphanNvim = append(v.OrphanNvim, couchcore.OrphanNvim{
-			Key: p.Key, Age: time.Duration(i) * time.Hour,
+			Key: couchcore.ResourceProcessKey{PID: couchcore.ResourceMaxProcesses + i + 1}, Age: time.Duration(i) * time.Hour,
 			Cwd: "/" + strings.Repeat("<", 128), Root: "/" + strings.Repeat("<", 128),
 			RSSBytes: &rss, Reason: "unattributed embedded nvim",
 		})

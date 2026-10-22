@@ -334,9 +334,10 @@ type wireNotes struct {
 }
 
 type wireFrame struct {
-	Cols int    `json:"cols"`
-	Rows int    `json:"rows"`
-	B    string `json:"b"`
+	ChromeRows int    `json:"chrome_rows"`
+	Cols       int    `json:"cols"`
+	Rows       int    `json:"rows"`
+	B          string `json:"b"`
 }
 
 type wireEnd struct {
@@ -399,7 +400,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, pointer bool) {
 				stream.Event("end", wireEnd{Reason: EndReason(s.opts.Hub.Err())})
 				return
 			}
-			if !stream.Event("frame", wireFrame{Cols: m.Cols, Rows: m.Rows, B: base64.StdEncoding.EncodeToString(m.Data)}) {
+			if !stream.Event("frame", wireFrame{Cols: m.Cols, Rows: m.Rows, ChromeRows: m.ChromeRows, B: base64.StdEncoding.EncodeToString(m.Data)}) {
 				return
 			}
 		case <-capsChanged:

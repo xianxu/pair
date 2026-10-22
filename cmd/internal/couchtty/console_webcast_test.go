@@ -101,7 +101,7 @@ func (r *webcastRig) wphase() webcastPhase {
 // or ("", 0). The cell is drawn before any notice, and notices can quote
 // its labels, so the earliest label on the row is the cell.
 func (r *webcastRig) drawnCell() (string, int) {
-	row := []rune(r.lastRow())
+	row := []rune(r.statusRow())
 	for i := range row {
 		for _, l := range []string{WebcastIdleLabel, WebcastLiveLabel} {
 			if strings.HasPrefix(string(row[i:]), l) {
@@ -135,7 +135,7 @@ func (r *webcastRig) clickCell(t *testing.T, button int) {
 	if x == 0 {
 		t.Fatal("no Chrome cell to click")
 	}
-	_, _ = fmt.Fprintf(r.stdin, "\x1b[<%d;%d;24M\x1b[<%d;%d;24m", button, x+1, button, x+1)
+	_, _ = fmt.Fprintf(r.stdin, "\x1b[<%d;%d;%dM\x1b[<%d;%d;%dm", button, x+1, r.statusRowIndex(), button, x+1, r.statusRowIndex())
 }
 
 const webcastIdleLabelForTest = WebcastIdleLabel

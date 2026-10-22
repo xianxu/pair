@@ -15,6 +15,14 @@ representative evidence, not an exhaustive index.
 
 - #759 M1: classify actual owner types by their effects, including entropy and mutex-owned revocation; identify real pure predicates instead of naming a pure type the code never implements. Verify each delivered concept against its actual declaration and file, splitting rows by location. Generated lifecycle coverage needs an independent ownership oracle and held admission boundaries; a goroutine wave alone proves no ordering.
 
+- #758 BR-4: write-call and record-count assertions do not prove a byte budget. Measure actual payload lengths at the writer boundary, count cumulative bytes and compare N/2N against the stated growth model; retry/no-op and repeated-reopen tests must assert byte effects, not infer them from row counts.
+
+- #758 BR-1: generation-fence the returned observation as well as the state mutation. A delayed negative probe that cannot retire a successor also cannot confirm that successor absent; assert the response of the stale operation in controlled race tests.
+- #758 BR-2: classify deterministic candidate validation/size refusal before the durable writer boundary. An operation that never invoked a writer must not poison healthy authority as uncertain publication; test continued lookup/release/cleanup after capacity refusal.
+- #758 BR-3: a notification recorder that always succeeds cannot qualify delivery lifetime. Model pending/current attachment identity, hold and fail the real notification seam, and prove publication-before-delivery plus cancellation/join; tick qualification only after those controls pass.
+
+- A retry observing file absence does not prove an earlier unlink became durable. Before acknowledging idempotent removal, synchronize every admitted containing directory even for already-absent targets; test visible and durable state separately through failed fsync and crash recovery. (#777 plan gate)
+- Adding a public CLI verb requires updating every public command index, including README and embedded help/skill, alongside its detailed atlas contract. Audit those indexes together at the documentation boundary. (#777 BR-1)
 - Start a shutdown grace clock after delivering its triggering signal; allocating it earlier silently spends the grace under preemption. Pin signal/clock order and exactly-once cleanup through a deterministic clock factory. (#776)
 
 - Read the current gate evidence-reuse contract before canceling a queued check: a passing ancestor suite can serve a docs-only descendant. Cancel by exact run only when necessary; executable changes require new verification. (#776)
@@ -2597,10 +2605,13 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #744: Native transcript fixture producers must derive storage roots through sessioninventory.OSRuntime.NativeRoots (and WithCodexHome), just like consumers; run the native-authority shadow guard before the recorded suite. Do not exempt test helper production files from the guard.
 
+- #777: New production Go files need the exhaustive artifact-source classification even when they contain no Pair artifact paths. Run the artifactpath package before queuing the recorded suite; add non-artifact sources to NonArtifactSources rather than the legacy violation quarantine.
 - #757: A generic HTTP front must own active uploads, writes and hijacked sockets through cancellation and join; cancelling only the upstream request does not unblock an unfinished downstream upload. Preserve this with a causally ready incomplete-upload regression. Nested Go modules need explicit root-suite and fixed-preflight ownership; root go test ./... alone omits them.
 
 - #757 close review: test proxy Location rewrites by resolving each returned reference against a non-root front URL; comparing Location strings alone misses empty-root, query-only and network-path authority changes. Endpoint self-target checks must use the same pinned address and port as the dialer.
 - #757 close review: a function consuming io.Reader belongs to the integration shell even when its only work is decoding; classify the actual API in Core concepts and keep compiler execution behind a stateful fake plus real-tool conformance.
+
+- #779 BR-1: Before close, reconcile every Core concepts and risky-function table against the delivered symbol names and actual signatures. A renamed pure planner can leave a false plan/code contradiction even when its tests and runtime behavior are correct; append the naming revision and update all live tables together.
 - #775: For an exact external diagnostic, compare the complete stderr stream, including newline boundaries. grep -Fxq proves one line exists and accepts unrelated errors around it; cover both positive signatures and extra-line negatives through the actual worker. Standalone tooling also needs a discoverable README/atlas pointer.
 
 - #775 BR-4/5: Bound and canonicalize the entire numeric string before shell arithmetic; leading zeros invoke octal and large integers can wrap. Exercise both CLI arguments through the actual main path, including no-effect refusal and exact work counts. Documentation must name the implemented observation predicate rather than imply a stronger parser or liveness proof.
@@ -2615,3 +2626,20 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #759 BR-9: submit caller, effective document owner and chosen message recipient are different roles. Preserve existing cross-slot routing when adding provenance; derive taint from stable document ID, not sender/owner equality. Exercise the actual configured service with distinct sender/owner for marked and unmarked files, so a namespace-free fixture cannot bypass admission. Unmarked legacy submits must not acquire extra content-read authorization gates.
 - #759 BR-10: a retention failure must bound subsequent durable writes across owner recreation. Preflight an already-over-budget artifact before append; preserving corrupt evidence plus returning an error does not stop growth if the next call writes first again. Test N/2N refused writes against byte-identical retained files using fresh owners.
 - #759 BR-11: asynchronous ownership tests must hold after effect acceptance and at result publication, then interleave observer departure, session revocation and teardown. Pre-admission cancellation is not qualification of post-handoff uncertainty, replay or reset/join exclusion; use owned rendezvous and independent effect/receipt/audit oracles.
+- #779 staging: a long-lived SHIP branch may predate accepted live features. Compare its ancestry with current main before restarting the operator’s supervisor; an approved stage slot does not establish baseline freshness. Integrate accepted main changes, run targeted integration checks, and keep the full suite owned by the landing turn.
+- #778: Separate private socket roots still collide when independent fixture identity authorities reset to the same native name and admission uses a host-wide census. Seed fixture authorities through one shared initializer, preserve the real allocator and refusal, and prove distinct names through actual constructors. Temp basenames alone are not cross-parent uniqueness. Validate fixture seed extrema against the allocator's next step, including its exhausted-counter refusal.
+
+- #778 verification: Every new non-test Go helper must enter artifactpath's exhaustive source inventory, even when it owns no Pair session artifact. Run TestProductionArtifactReferencesAreExactlyClassified alongside reader inventory and lint before a full suite; classify the source through its ordinary inventory, never the known-violation quarantine.
+
+- #778 BR-1: after main integration or a compatibility fix, mark final verification pending in the active Plan checklist until the replacement exact-source suite completes. Keep older green receipts as history; review/suite overlap permits concurrent work, not a completed acceptance claim.
+
+- #792 BR-1: Before independently truncating evidence and legacy action lists, remove protected overlaps from the complete view. A projection must never drop a veto while retaining broader destructive authority; test the actual lossy projection through its action consumer.
+
+- #792 BR-2: Audit information loss before classification as well as transport. A later healthy sample cannot restore forgotten ownership; destructive fallback needs a process-lifetime fail-closed decision after any provenance loss, with overflow/recovery sequence tests. Distinguish an unobserved startup seed from a failed completed attempt.
+- #792 BR-3: Unix socket fixtures must choose a short private namespace independently of inherited TMPDIR and retain cleanup. Test a deliberately long TMPDIR; shared value-flow lint follow-up is ariadne#549.
+
+- #792 BR-2 round three: destructive authority returned to a caller outlives admission. Route every signal through the current proof owner and serialize revocation with the final effect; refreshing admission alone leaves a later-loss window. A root that ends cannot authorize surviving descendants from remembered ancestry.
+
+- #792 recorded suite: run both internal/repolint and termcmd preflight packages before queuing a full suite. New declarations can displace a prior declaration's godoc, and obsolete lint suppressions are failures themselves. Move documentation with its owner and keep suppression directives only where the catalog reports a matching finding. Existing rules cover both classes.
+
+- #792 landing: when an existing atlas guide already has an index link, put new feature detail in that guide. Appending feature clauses to its shared index summary creates avoidable landing conflicts; keep the index as a stable navigation map.

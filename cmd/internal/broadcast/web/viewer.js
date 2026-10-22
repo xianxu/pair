@@ -9,6 +9,13 @@ import { HEX_COLOR, pointerColor, colorStore, railAt, renderSwatches, noteDialog
 
 export { pointerColor, colorStore, RAIL_INSET, railAt, renderSwatches } from './collab.js';
 
+// Missing metadata comes from an older sender. An explicitly invalid value
+// disables collaboration hit-testing until a valid frame arrives.
+export function frameChromeRows(frame) {
+  const n = Object.hasOwn(frame, 'chrome_rows') ? frame.chrome_rows : 1;
+  return Number.isInteger(n) && n > 0 && n < frame.rows ? n : 0;
+}
+
 export const MIN_FONT = 4;
 export const MAX_FONT = 64;
 
@@ -284,6 +291,7 @@ async function start() {
   const swatches = document.getElementById('swatches');
   const modes = document.getElementById('modes');
   let notes = { guard: 0, notes: [] };
+  let chromeRows = 1;
   let pointer = null;
   let owner = '';
   sessionNoteOwner(fetch).then((value) => { owner = value; });
@@ -305,7 +313,7 @@ async function start() {
     },
   });
   pointer = pointerMode(term, stage, {
-    notes: () => notes,
+    notes: () => ({ ...notes, chrome_rows: chromeRows }),
     owner: () => owner,
     dialog,
     dragBox: screenBox(stage, term),
@@ -337,6 +345,7 @@ async function start() {
     sessionLost: () => sessionLost(fetch),
     relock: () => location.reload(),
     render: (m) => {
+      chromeRows = frameChromeRows(m);
       const resized = term.cols !== m.cols || term.rows !== m.rows;
       if (resized) {
         term.resize(m.cols, m.rows);
@@ -548,7 +557,7 @@ export function pointerMode(term, stage, deps = {}) {
   stage.addEventListener('pointerup', () => {
     const box = drag?.kind === 'box' ? boxOf(drag) : null;
     end();
-    if (box && boxHasPin(box, term.cols, term.rows, notes().guard)) {
+    if (box && boxHasPin(box, term.cols, term.rows, notes().guard, notes().chrome_rows)) {
       dialog.draft({ cols: term.cols, rows: term.rows, box });
     }
   });

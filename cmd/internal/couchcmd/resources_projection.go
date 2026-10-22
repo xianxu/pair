@@ -14,6 +14,22 @@ import (
 // detail sections so a large process list cannot crowd out orphan evidence.
 // The actual JSON encoder accounts for escaping, not just source string bytes.
 func projectResourceView(v couchcore.ResourceView) couchcore.ResourceView {
+	// Exclude legacy overlaps while the complete orphan evidence still exists.
+	// Independently truncating these sections first could discard a veto while
+	// retaining the same PID as an expanding-tree candidate (#792 BR-1).
+	protected := resourceOrphanPIDs(v.Orphans)
+	var nvims []couchcore.OrphanNvim
+	for _, row := range v.OrphanNvim {
+		if !protected[row.Key.PID] {
+			nvims = append(nvims, row)
+		}
+	}
+	var left []couchcore.LeftRunningOrphan
+	for _, row := range v.LeftRunning {
+		if !protected[row.Process.PID] {
+			left = append(left, row)
+		}
+	}
 	out := v
 	if v.SupervisionLog != nil {
 		health := *v.SupervisionLog
@@ -67,9 +83,9 @@ func projectResourceView(v couchcore.ResourceView) couchcore.ResourceView {
 	note("orphans", omitted)
 	out.Unattributed, omitted = resourceDetailPrefix(v.Unattributed, budget)
 	note("unattributed processes", omitted)
-	out.OrphanNvim, omitted = resourceDetailPrefix(v.OrphanNvim, budget)
+	out.OrphanNvim, omitted = resourceDetailPrefix(nvims, budget)
 	note("orphan nvim", omitted)
-	out.LeftRunning, omitted = resourceDetailPrefix(v.LeftRunning, budget)
+	out.LeftRunning, omitted = resourceDetailPrefix(left, budget)
 	note("left-running processes", omitted)
 	out.Episodes, omitted = resourceDetailPrefix(v.Episodes, budget)
 	note("episodes", omitted)
@@ -85,6 +101,14 @@ func projectResourceView(v couchcore.ResourceView) couchcore.ResourceView {
 	}
 	out.Errors = append(out.Errors, notices...)
 	return out
+}
+
+func resourceOrphanPIDs(rows []couchcore.ResourceProcessView) map[int]bool {
+	protected := make(map[int]bool, len(rows))
+	for _, row := range rows {
+		protected[row.Key.PID] = true
+	}
+	return protected
 }
 
 func resourceDetailPrefix[T any](rows []T, budget int) ([]T, int) {

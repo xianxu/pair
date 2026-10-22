@@ -150,9 +150,9 @@ func TestWebCapabilityRecoveryIsVisibleAndClickRetries(t *testing.T) {
 			if broken {
 				want = "Ctrl+click Chrome to end cast"
 			}
-			waitFor(t, "recovery visible", func() bool { return strings.Contains(r.lastRow(), want) })
+			waitFor(t, "recovery visible", func() bool { return strings.Contains(r.statusRow(), want) })
 			r.con.setNotice("Unrelated notice")
-			if !strings.Contains(r.lastRow(), want) {
+			if !strings.Contains(r.statusRow(), want) {
 				t.Fatal("transient notice hid recovery")
 			}
 			r.con.onWebCapabilityClick(webcast.CapabilityAnnotation, true)
@@ -164,10 +164,7 @@ func TestWebCapabilityRecoveryIsVisibleAndClickRetries(t *testing.T) {
 				if b.calls.Load() != 1 {
 					t.Fatal("broken retried")
 				}
-				r.con.mu.Lock()
-				x := r.con.statusWebcast.Start + 1
-				r.con.mu.Unlock()
-				_, _ = fmt.Fprintf(r.stdin, "\x1b[<16;%d;24M\x1b[<16;%d;24m", x, x)
+				r.clickCell(t, 16)
 				waitFor(t, "broken cast ended by advertised action", func() bool {
 					select {
 					case <-cast.Done():
