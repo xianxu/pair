@@ -1,6 +1,6 @@
 ---
 id: 000773
-status: codecomplete
+status: done
 created: 2026-10-21
 updated: 2026-10-22
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: be30575e0c8d797c4babc08a478f00cdaebbf089
         evidence_commit: 94fcc08b4acb865d518692fd7e9222ccd02e881b
+        landed_commit: 4fc8025cd3cbd5b8e2dc6fb3d48992ac21a4dcf6
 ---
 
 # startup: terminal readiness truncates the caller to a fixed 10-second bound
