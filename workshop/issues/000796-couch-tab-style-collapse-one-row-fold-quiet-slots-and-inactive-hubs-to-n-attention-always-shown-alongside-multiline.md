@@ -210,3 +210,7 @@ Counts continue to mean hidden live members, not total inventory. Parked/non-liv
 ### 2026-10-22 — BR-3 full-boundary validation
 
 Reconcile main contract prose with the approved stage refinements recorded above: threshold at three, live-only membership, launch-hub anchors independent of focus, hidden-live count semantics and whole-chip clicks. Run full sdlc close rather than the fix-only recipe because these are operator-directed policy changes after the earlier SHIP. No source delta or test rerun is needed for this documentation reconciliation.
+
+### 2026-10-22 — inactive-owner styling regression (TL5ca1126d)
+
+Restore visible inactive-owner styling in collapse, including synthetic counts, and retain it in multiline. The count branch accidentally bypassed OtherHub styling; this was not an intentional ownership-policy change. Quiet inactive-owner labels/counts/glyphs use a 50% blend toward the known terminal background, retaining stronger existing idle fade. Preserve attention/theme-red/placeholder cue precedence with existing dim fallback; unknown palette uses existing SGR2 dim, NO_COLOR disables owner fading. Current-owner chips/counts remain unmodified. Reuse the existing blend/quantize logic through one shared helper; pin actual rendered cell styles and hit-map stability in both styles, dark/light/fallback/no-color/attention cases. Cancel only obsolete queued796 lease before it executes, then record corrected-source suite and restage for quick look; #789 stays untouched. This supersedes the accepted stage's styling only; #819 remains separate.

@@ -165,3 +165,7 @@ Validation of stage refinement: prepareCollapsedStatusChips is pinned by TestCol
 ### 2026-10-22 — BR-3 full-close contract reconciliation
 
 Main decision paragraphs now reflect the already recorded operator refinements. Request a full close review for the changed policy, as fix-only review requires. Stage/source/suite snapshot remain435148c0; this delta is documentation only.
+
+### 2026-10-22 — inactive-owner styling regression (TL5ca1126d)
+
+Restore visible inactive-owner styling in collapse, including synthetic counts, and retain it in multiline. The count branch accidentally bypassed OtherHub styling; this was not an intentional ownership-policy change. Quiet inactive-owner labels/counts/glyphs use a 50% blend toward the known terminal background, retaining stronger existing idle fade. Preserve attention/theme-red/placeholder cue precedence with existing dim fallback; unknown palette uses existing SGR2 dim, NO_COLOR disables owner fading. Current-owner chips/counts remain unmodified. Reuse the existing blend/quantize logic through one shared helper; pin actual rendered cell styles and hit-map stability in both styles, dark/light/fallback/no-color/attention cases. Cancel only obsolete queued796 lease before it executes, then record corrected-source suite and restage for quick look; #789 stays untouched. This supersedes the accepted stage's styling only; #819 remains separate.
