@@ -19,6 +19,25 @@ reviewer_runs:
       finished_at: "2026-10-22T20:59:10.695827Z"
       session_id: 01a16568-7edc-7160-91b0-b95037a753c1
       outcome: returned
+    - version: 1
+      intent:
+        id: fe472c1f-39fa-49aa-9a77-a5a9b7c78187
+        repository: github.com/xianxu/pair
+        issue_id: "000801"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot7/pair
+        reviewed_head: 16929da030caeb16cde189af988979b127a57a0e
+        slot: pair:7
+        requested_at: "2026-10-22T22:11:22.015197Z"
+      phase: finished
+      pid: 71175
+      started_at: "2026-10-22T22:11:22.1822Z"
+      finished_at: "2026-10-22T22:11:49.292261Z"
+      session_id: 01a165ab-3958-7d73-bbce-c2dae693f55e
+      outcome: returned
 gate: plan-quality
 issue: 801
 id_prefix: PQ
@@ -129,7 +148,32 @@ rounds:
           note: The canonical table names risky functions with adversarial strategies and mechanical guards.
           round: 3
       blocked: false
-content_hash: 5b0e3d54c54d7b260ddaf756fce2678f1f5d2f880098e4ed4b1b46ce545389b7
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 268f4439-8926-49ee-a963-b6fb28ec356d
+            repository: github.com/xianxu/pair
+            issue_id: "000801"
+            recipe: plan-quality
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot7/pair
+            reviewed_head: 16929da030caeb16cde189af988979b127a57a0e
+            slot: pair:7
+            requested_at: "2026-10-22T22:10:49.314843Z"
+          phase: finished
+          pid: 56642
+          started_at: "2026-10-22T22:10:49.456075Z"
+          finished_at: "2026-10-22T22:11:18.655189Z"
+          session_id: 01a165aa-b9a5-7d91-9ea1-d1553299472f
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-22T15:11:18-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      blocked: false
+content_hash: 4307867bd1cd9d74ecb9a2c16cd6acb25d91537dc30c1bf8846a8c09572c6164
 ---
 
 # Gate ledger — pair#801 (plan-quality)
@@ -159,6 +203,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - PQ-1 — addressed — Shared placement, checkout provenance, offline preparation and the deliberate cache boundary are explicit.
 - PQ-2 — addressed — The canonical table names risky functions with adversarial strategies and mechanical guards.
+
+## Round 4 — 2026-10-22T15:11:18-07:00 (codex) — passed
 
 ## Open findings
 
