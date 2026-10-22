@@ -538,3 +538,62 @@ TL134c9b95 approves retaining each exact validated screen/row through native evi
 ### 2026-10-22 02:44 PDT — TL acceptance sequencing after shared-native failures
 
 Direct submitted TL ef5588c8 supersedes the demand for another complete fresh native pass before re-close: stop matrix reruns after the shared startup/registration failures. Retain and attribute all failures to the related #773 startup class or the independently regressed/fixed consumer snapshot race; do not claim their roots resolved. Use the retained full Claude/Codex pass on68c581ac, exact corrected-body RED/GREEN, current reached native feature proofs and fresh current-head recorded suite for renewed review. No current-source complete native pass is claimed. The watched operator-present run with real slots remains required before landing and must qualify the actual current notices, message flow, badge/status and undrain. Bring any reviewer demand for a fresh native pass back to TL; no manual waiver or blind retry. No product, timeout, topology or queue contract changes. Existing live hold and ariadne#506 prerequisite remain.
+
+
+### 2026-10-22 11:30 PDT — registered notice operations after watched partial-delivery failure
+
+**Authority and diagnosis.** Submitted TL6d103a22 records the watched failure on staged cc44f065. Correction5fbe7baa establishes partial delivery (ariadne:4 yes; tools:1 and parley.nvim:3 no), not zero delivery. Both drain and lift timed out after changing flags. Submitted lift f3eb9819 confirms the run ended, zero flags and hand-delivered recovery. TL5f7e03f6 keeps the approved fleet-wide contour (all connected hubs/workers except issuing steward) and directs registered asynchronous operations with per-target results and a private slow-target regression before a new watched run. Stage stays unchanged; no landing.
+
+Root cause: drain uses the default two-second transport on client and server, whereas the handler budgets five seconds and serially calls SendSystem, each of which may consume two seconds. Server discards the response when its context expires. Start iterates slot-sorted connected bindings; lift iterates a map. Thus early slow targets consume the shared exchange and later targets are not admitted. The handler ignores the parent request ID and exposes random child IDs only in its reply. The supplied parent IDs return unknown because they were never registered. Latest-refusal projections cannot reconstruct their exact child mapping; preserve that evidence gap. A 29-target real-socket regression with the first target held reproduced deadline exceeded after2.000721125s, zero healthy reserves/deliveries and nil operation. Earlier instant endpoint/direct-handler fanout tests missed the transport boundary.
+
+**Simplest rejected alternative:** extending the command timeout still couples every later target to earlier admissions and loses receipt mapping on a lost reply. Reuse the registered-operation receipt lifecycle and ordinary broker delivery instead (ARCH-DRY/ORDER/CONSTRAINTS).
+
+#### Core concepts for this revision
+
+| Pure entity | Lives in | Status |
+|---|---|---|
+| DrainOperation / target admission and delivery projection | cmd/internal/couchmessage/drain_operation.go | new |
+| OperationReceipt / ReceiptEvent | cmd/internal/couchmessage/operation.go | modified: typed drain payload, existing lifecycle and retention |
+| DrainRow / ProjectDrainBoard | cmd/internal/couchcore/drain_board.go | modified: per-slot latest notice outcome and correlation |
+
+One parent owns at most MaxActors targets, each assigned one child ID before publication. Its typed immutable intent includes action, fast/message and selected cohort; ID reuse with a different intent refuses, while the same ID returns its held state without reflagging or re-notifying. Child state is awaiting admission -> admitted with ordinary receipt, or definite admission failure. Ordinary receipt projection is delivered only for Submitted, pending for queued/in-flight, and failed for terminal nondelivery. Indeterminate/missing evidence is failed with an explicit unconfirmed reason and no auto-retry; it never asserts that no bytes arrived. Parent remains running while any target is pending, then succeeds only if every child is delivered, otherwise fails with retained partial results. Zero targets succeeds immediately. No result means checkpoint confirmation.
+
+| Integration | Lives in | Status | Wraps |
+|---|---|---|---|
+| registered drain admission | cmd/internal/couchcmd/drain_wiring.go, slot_operations.go | modified | caller/first-hub authority, operation reservation and flag publication |
+| bounded notice admission executor | cmd/internal/couchcmd/drain_operations.go | new | Broker.SendSystem, service lifetime and per-target deadlines |
+| local child receipt snapshot | cmd/internal/couchmessage/broker.go | modified | already-held receipt/refusal state only, no wrapper probes |
+| public status/rendering | cmd/internal/couchcmd/messages.go, message_service.go; couchmessage/drain_protocol.go | modified | --operation-status and --drain --status |
+
+**Admission ordering.** Authenticate the same steward. Under the drain publication lock, reserve capacity and register parent plus all child IDs before changing flags; refusal before this boundary changes nothing. Apply flags/clear, record latest per-slot operation reference, publish one badge, enqueue bounded internal admission tasks, return accepted immediately. No Observe/Reserve/SendSystem call occurs before returning the operation acknowledgment. If the socket reply is lost, the existing caller-scoped operation-status path finds the registered parent. Do not increase the transport timeout. Extract/reuse the slotOperations reservation/duplicate/expiry kernel without requiring a console lifecycle target or queueKey lookup. Keep its existing64-receipt cap, five-minute terminal retention and caller-scoped authorization. A status lookup authenticates normally; it does not grant a worker mutation rights.
+
+**Executor envelope and ownership.** Four service-owned workers globally, not four per operation, with at most64*MaxActors queued child tasks and one admission per target at a time. Choose the oldest eligible task while a slow target's lane is occupied; preserve FIFO admission order for each target across drain/lift/re-notify. Each admitted task gets its own existing AdmissionTimeout2s from dispatch, independent of the completed command exchange, linked to service lifetime. Existing broker workers own delivered/queued messages after admission; do not duplicate their delivery loop or wait for agent completion. Service Close cancels and joins every admission worker before broker shutdown. A local receipt snapshot projects progress without scanning wrappers or recovering unknown IDs. Sweep/refresh held drain records during admission/status, using ordinary child terminal/deadline observations, so finished operations expire without an unbounded history. Current per-slot notice summaries retain only the latest operation reference; stale completions cannot replace them. Flag-cap and operation-cap refusals precede effects. Maximum work is one target admission and O(1) status lookup per child per snapshot, not N expensive inventory scans.
+
+**Interleavings.** Start then lift clears flags immediately even while old admissions run. The target lane admits its older notice before its continuation, preserving existing ordinary FIFO; an already-committed notice cannot be withdrawn. Repeating start is an explicit new operation; replaying the same ID is not. Disconnect/replacement uses the broker's current binding checks and records actual recipient/refusal, not checkpoint proof. Late child outcomes update only their own operation; latest status references fence old results. Caller disconnect or service stop cancels unadmitted work, preserving explicit partial/unknown results. Restart intentionally loses flags and operation records; unknown after restart is uncertainty, never authority to resend. No persistence, parsed ack, queue control, message hold, lifecycle block or extra tab badge.
+
+#### User-visible state and recovery
+
+Actions: inspect operation/status/peek; explicitly message/re-notify after inspection; undrain; separately resume the external queue.
+
+| Internal state / failure | Visible state | Recovery action | Possible loss |
+|---|---|---|---|
+| operation admitted; flags set or cleared; child admission/delivery outstanding | operation running; per-slot pending plus child ID | inspect operation | agents may not yet know posture |
+| every child Submitted | operation succeeded; per-slot delivered | inspect slots/checkpoints | delivery is not durability or acknowledgement |
+| one or more terminal refusals/nondelivery/unconfirmed outcomes | operation failed/partial; per-slot failed with exact reason and retained child receipt | inspect, then explicit message/re-notify | notice may be missed; uncertain input may have arrived |
+| reply lost after registration | operation recoverable by printed parent ID | inspect operation | initial CLI snapshot absent |
+| capacity or authorization refusal before registration | refused; flags unchanged | inspect status before a later new request | no new effect |
+| undrain while old operation pending | flags cleared; continuation pending/failed/delivered independently | inspect lift operation | queued messages may arrive later; ordinary FIFO preserved |
+| stop/restart | no flags; prior operation unknown | inspect real slots before explicit re-notification | transient correlation intentionally lost |
+
+Status remains read-only for anyone. Flagged rows include latest notice state/ID; after lift zero flags remains truthful while --operation-status retains lift results. Unknown/indeterminate outcomes retain a reason, not a fabricated delivered result. Console stays one compact badge; no per-chip errors.
+
+#### Implementation and verification steps (single renewed close boundary)
+
+- [ ] Retain the real-socket29-target RED test in drain_operation_test.go. Extend it with controlled slow-target entry/release and independent healthy-target progress, start and lift, and parent status recovery after a deliberately lost reply. The first test currently fails on exchange loss, before production changes.
+- [ ] Add pure operation reducer tests for duplicate/conflicting IDs, child admission refusal, queued/submitted/indeterminate outcomes, out-of-order old completion, terminal immutability and expiry. Add detached-copy and encoded frame-bound tests for64 operations/MaxActors children; never silently truncate target results.
+- [ ] Implement shared registered-receipt reservation plus typed drain payload, bounded executor and latest-notice projection. Channel-controlled tests must prove global max4 concurrent admissions, per-target FIFO across start/lift, later healthy targets progressing while one blocks, separate2s deadlines, and cancellation/join on Close. Count admissions and snapshot work at8/16/29 targets. Retain normal peer delivery and system-origin authentication tests.
+- [ ] Update CLI output, JSON strict closed-shape tests, public help/embedded skill, README and atlas with immediate accepted parent ID, query command and delivered/pending/failed meanings. Test all output branches and mixed unrelated wire fields. Add new source files to artifactpath inventory and audit each affected-reader input before any per-file regeneration.
+- [ ] Run targeted tests in couchcore/couchmessage/couchcmd/couchtty plus affected inventory, artifact classification and lint. Run focused race tests on executor, receipt and flag owners. The normal suite contains the slow-target/socket regression; no real fleet mutation is part of it.
+- [ ] Push exact-source evidence, record the declared affected/full-suite result, run make test-affected-inventory before mandatory full re-close. Report SHIP and request authorized restage. Leave existing pair:0 stage untouched until TL authorizes replacement. Fresh operator-watched graceful drain/ordinary-work/ack/undrain on real Claude and Codex is required before landing; TL owns queue controls and recovery. No native rerun or timeout change is inferred from historical approval.
+
+This is a new public operation-status result and async ownership mechanism, so submit this state table and bounded executor design to TL before production code, then renew change-code's plan-quality gate. The command names, cross-hub contour, exact notice bodies and external queue ownership remain unchanged.

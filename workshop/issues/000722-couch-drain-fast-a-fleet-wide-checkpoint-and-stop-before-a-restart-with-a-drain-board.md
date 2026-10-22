@@ -1,13 +1,13 @@
 ---
 id: 000722
-status: codecomplete
+status: working
 deps: [ariadne#506]
 github_issue:
 created: 2026-10-19
 updated: 2026-10-22
 estimate_hours: 14.947
 collaboration-mode: collaboration
-card_mirror: '7a1ef0ecda261d6c9a6d6857950f43e3fa130c08' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'fb1477b223e6b844a1a41ce35f9b858da8217c07' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-19T23:16:03-07:00
 claimant:
     operator: Xian Xu
@@ -316,6 +316,14 @@ Stage session16167 completed exit0. Pair:0 in /Users/xianxu/workspace/pair stage
 
 Pair:5 keeps its issue branch; fresh post-build peeks confirmed both proposed workers still have finished turns/empty composers and no background-job footer. Staged outcome and exact revision lines reached TL as submittedc81810e1. Keep #722's stage lease for operator activation and the TL-driven watched check; this build result does not prove a running supervisor has loaded it. No drain/undrain, queue, restart or recovery control sent by this slot; live acceptance and renewed final-code recorded/review gates still pending before merge. No current native full-pass or #773 root-cause claim. Next: receive the TL/operator's live result, retain exact evidence, and follow its disposition; do not independently drive or clear the stage before the watched run.
 
+### 2026-10-22 11:30 PDT — watched acceptance failed; partial fanout reproduced
+
+Authenticated TL6d103a22/5fbe7baa records watched failure on staged cc44f065: drain e1e143f6-d8ea-4633-9848-e234e7fa4899 set29 flags but timed out; ariadne:4 received a notice while tools:1 and parley.nvim:3 did ordinary work without one. Lift35205e9e-6f62-4909-8823-a6ea083e376e cleared flags but also timed out. TLf3eb9819 confirms lifted and hand-notified recovery. Both parent IDs read unknown: current code does not register them or retain their child-ID mapping. Current latest-refusal list shows admission timeouts but cannot correlate exact live child receipts, so the precise first exhausting target remains unproven.
+
+Root cause verified in code: default2s client/server transport wraps sequential SendSystem admissions despite handler's nominal5s context. Server drops a response after cancellation. Private real-socket TestDrainOperationSlowFirstTargetDoesNotLoseExchange (29 targets, first Observe held) RED: elapsed2.000721125s, context deadline exceeded, nil operation, zero healthy reserves/deliveries. Existing instant/direct-handler tests bypassed this boundary. No product fix or live repeat yet.
+
+TL5f7e03f6 directs keep fleet-wide cross-hub contour, register operations/child receipts, immediate flag acknowledgment and independent per-target admission/status, then private proof and a fresh watched run. Reopened through setter to working. New appended plan Revision records state/recovery table, shared receipt lifecycle, bounded4-worker executor and ordering/cancellation proof, pending TL approval and renewed change-code. Stage remains retained unchanged on pair:0; do not land. Earlier suite/SHIP is superseded by this acceptance failure. Prior restart-resend report330a37f5 and diagnosis e392864e are both submitted. Previous terminal capture requested at recovery is unavailable (previous session descriptor absent); issue/plan/Git evidence remains the recovery record.
+
 ## Revisions
 
 ### 2026-10-19 — authenticated acknowledgement and shared queue ownership
@@ -613,3 +621,7 @@ Authenticated TL134c9b95 approves the consumer-only correction: poll, validate, 
 ### 2026-10-22 02:44 PDT — TL acceptance sequencing after shared-native failures
 
 Direct submitted TL ef5588c8 supersedes the demand for another complete fresh native pass before re-close: stop matrix reruns after the shared startup/registration failures. Retain and attribute all failures to the related #773 startup class or the independently regressed/fixed consumer snapshot race; do not claim their roots resolved. Use the retained full Claude/Codex pass on68c581ac, exact corrected-body RED/GREEN, current reached native feature proofs and fresh current-head recorded suite for renewed review. No current-source complete native pass is claimed. The watched operator-present run with real slots remains required before landing and must qualify the actual current notices, message flow, badge/status and undrain. Bring any reviewer demand for a fresh native pass back to TL; no manual waiver or blind retry. No product, timeout, topology or queue contract changes. Existing live hold and ariadne#506 prerequisite remain.
+
+### 2026-10-22 11:30 PDT — registered asynchronous notice operations
+
+Submitted TL5f7e03f6 retains approved fleet-wide selection but supersedes synchronous fanout: drain and lift must register parent IDs and child receipts, return when flags are applied, and expose per-slot delivered/pending/failed state through status plus operation-status. One slow target must not consume the exchange. The appended durable plan Revision specifies the state table, bounded ownership and private slow-target RED/GREEN. Watched acceptance has failed; no landing until corrected-source verification/re-close and a fresh operator-watched rerun.
