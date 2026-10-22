@@ -57,6 +57,8 @@ type ResolvedBinding struct {
 
 // pair:m5-concept pure
 var ResolvedBindings = append([]ResolvedBinding{
+	{Name: "editor-endpoint-state", Family: "editor-endpoint", Resolver: "EditorEndpoints", Member: "State"},
+	{Name: "editor-endpoint-stage", Family: "editor-endpoint", Resolver: "EditorEndpoints", Member: "Stage"},
 	{Name: "cache-session-lock", Family: "session-lock", Resolver: "ResolvePairCache", Member: "TerminalLease"},
 	{Name: "matched-changelog-family", Family: "changelog", Resolver: "MatchArtifact"},
 	{Name: "parsed-parked-capture", Family: "parked", Resolver: "ParseParkedCapture"},
@@ -183,6 +185,7 @@ type SourceClassification struct {
 // family requires adding its constructor and classifying every source consumer.
 // pair:m5-concept pure
 var Families = []Family{
+	{Name: "editor-endpoint", Token: "editor-endpoints"},
 	{Name: "session-lock", Token: "session-locks"},
 	{Name: "fullscreen-return", Token: "fullscreen-return-"},
 	{Name: "fullscreen-lock", Token: "fullscreen-lock-"},
@@ -238,6 +241,9 @@ var Families = []Family{
 // shell, Lua, and KDL sources.
 // pair:m5-concept pure
 var SourceClassifications = []SourceClassification{
+	{Path: "cmd/internal/artifactpath/editor_endpoint.go", Kind: Constructor, Families: []string{"editor-endpoint"}},
+	{Path: "cmd/internal/couchcmd/editor_endpoint_service.go", Kind: ResolvedConsumer, Families: []string{"editor-endpoint"}, BindingNames: []string{"editor-endpoint-state", "editor-endpoint-stage"}},
+	{Path: "cmd/internal/editorendpoint/store.go", Kind: ResolvedConsumer},
 	// #649 title adapters resolve scoped roots and storage ownership through
 	// artifactpath; neither constructs a tracked artifact filename family.
 	{Path: "cmd/internal/couchcmd/titles.go", Kind: ResolvedConsumer},
@@ -678,6 +684,16 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/drain_notice.go",
 	"cmd/internal/couchmessage/drain_protocol.go",
 	"cmd/internal/couchtty/console_drain.go",
+	// #758 endpoint model and native editor transport name no Pair artifact paths.
+	"cmd/internal/editorendpoint/model.go",
+	"cmd/internal/editorendpoint/state.go",
+	"cmd/internal/editorendpoint/codec.go",
+	"cmd/internal/editorendpoint/owner.go",
+	"cmd/internal/editorendpoint/process.go",
+	"cmd/internal/editorendpoint/socket.go",
+	"cmd/internal/editorendpoint/nvim.go",
+	"cmd/internal/couchcmd/editor_endpoint.go",
+	"cmd/internal/couchcmd/editor_endpoint_transport.go",
 	// #757 catalogue, report and HTTP front introduce no Pair artifact families.
 	"cmd/internal/mockserve/screens.go",
 	"cmd/internal/mockserve/check.go",
@@ -833,6 +849,11 @@ var NonArtifactSources = []string{
 	// #583's orphan sweep reads the same evidence: the roots it matches are
 	// worktrees and the argv it reads is inspected, never constructed.
 	"cmd/internal/couchcmd/reap_orphans.go",
+	"cmd/internal/couchcmd/reap_proven.go",
+	"cmd/internal/couchcmd/reap_legacy.go",
+	"cmd/internal/couchcmd/reap_legacy_signal.go",
+	"cmd/internal/couchcore/resource_reap_legacy.go",
+	"cmd/internal/couchcore/resource_reap.go",
 	"cmd/internal/couchcore/resource_orphan.go",
 	"cmd/internal/procutil/identity_age.go",
 
@@ -1352,6 +1373,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/launcher/session_owner_pass.go",
 	"cmd/internal/couchcore/session_owner_pass.go",
 	"cmd/internal/launcher/session_reap.go",
+	"cmd/internal/launcher/exact_reap.go",
+	"cmd/internal/launcher/exact_reap_model.go",
 	// #583: the embedded-nvim reap decision is pure — it reads a row of process
 	// evidence and a target's expected argv, and names no artifact path.
 	"cmd/internal/launcher/nvim_reap.go",
@@ -1583,8 +1606,10 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/operation_queue.go",
 	"cmd/internal/couchtty/panelkeys.go",
 	"cmd/internal/couchtty/reserve.go",
+	"cmd/internal/couchtty/status_layout.go",
 	"cmd/internal/couchtty/idle_shade.go",
 	"cmd/internal/couchtty/console_activity.go",
+	"cmd/internal/couchtty/console_chrome_layout.go",
 	"cmd/internal/couchtty/console_blocked.go",
 	"cmd/internal/couchtty/console_palette.go",
 	"cmd/internal/couchtty/switchrule.go",
@@ -1610,12 +1635,15 @@ var NonArtifactSources = []string{
 	// Pair session-artifact filename constructors or consumers.
 	"cmd/internal/pathscope/pathscope.go",
 	"cmd/internal/testcouch/actor.go",
+	"cmd/internal/testcouch/retained.go",
 	"cmd/internal/testcouch/agentfixture/cmd/main.go",
 	"cmd/internal/testcouch/agentfixture/conversation.go",
 	"cmd/internal/testcouch/agentfixture/model.go",
 	"cmd/internal/testcouch/agentfixture/paint.go",
 	"cmd/internal/testcouch/agentfixture/protocol.go",
 	"cmd/internal/testcouch/agentfixture/run.go",
+	"cmd/internal/testcouch/agentfixture/retained.go",
+	"cmd/internal/testcouch/agentfixture/resources.go",
 	"cmd/internal/testcouch/binaries.go",
 	"cmd/internal/testcouch/cleanup.go",
 	"cmd/internal/testcouch/cohort.go",
@@ -2001,6 +2029,7 @@ type GCClassification struct {
 // GCClassifications must cover every artifact family explicitly.
 // pair:m5-concept pure
 var GCClassifications = map[string]GCClassification{
+	"editor-endpoint":           {SessionRetention, GCProtected, "Couch EndpointOwner: exact process-incarnation collection; reusable stage after validated reopen"},
 	"session-lock":              {SessionRetention, GCProtected, "PairCachePaths.TerminalLease; stable coordination inode, never unlinked"},
 	"agent-default":             {SessionRetention, GCShared, "ScopePaths.AgentDefault"},
 	"native-lock":               {SessionRetention, GCProtected, "Permanent conversation flock inodes; never unlink online; operator-approved quiescent reclamation only"},

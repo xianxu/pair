@@ -52,7 +52,7 @@ TL831e9502 confirms operator approval of the re-scoped plan: exclude the issuing
 - [x] Operator approved the re-scoped Revision through TL831e9502, excluding the issuing steward; reopened through the setter in canonical pair:5 after #622 landed. Renewed change-code follows.
 - [x] Remove the obsolete completion/persistence/control machinery; implement only transient flags, ordinary notices/status and undrain with tests.
 - [x] Qualify message/lifecycle independence, restart emptiness, truthful idle observations and one compact badge through normal tests and the bounded disposable installed composition.
-- [x] Record the passing full suite on the final code. Mandatory close review, authorized staging and TL/operator-watched live acceptance remain subsequent workflow gates before ordinary landing.
+- [ ] Record the passing full suite on the final code. Mandatory close review, authorized staging and TL/operator-watched live acceptance remain subsequent workflow gates before ordinary landing.
 
 ## Estimate
 
@@ -294,6 +294,14 @@ Outcome report3309e524 submitted to hub: exact537-byte #506 vector alignment, co
 ### 2026-10-22 — ariadne#506 landed; waiting for staging go
 
 Authenticated submitted ariadne:5 receipt345e697a reports PR390 landed. Independently verified ariadne tracker card done/archived/landing present and Git merge commit5b1a91057db2940c5dadca951d72277b65fa2bdb (PR390). This clears the rule-rollout dependency; retain deps for provenance. Direct submitted TL1ff56125 confirms the fleet tl-worker has the new DRAIN rule and the watched run can happen when the operator is present; TL will give a separate go to stage. This is readiness/scheduling, not staging or live-control authorization. No stage, drain, queue control, merge, new native run or source change performed. Candidate remains SHIP on corrected-source suite evidence, with the disclosed #773-class native failures and watched real-slot acceptance outstanding.
+
+### 2026-10-22 — TL-directed current-main integration before watched run
+
+Authenticated submitted TL b8dde491 directs preparation only: merge current origin/main, targeted checks and push; pair:0 is occupied by #753's recheck, and a separate explicit staging go will follow. Starting clean head8c09b371b88ffd3aca29b226bd6409716ccc130c, fetched mainfea66e36b0d25b3e37f2dc70a084226a8ed1697a and integrated it in place. Six additive conflicts: retain both atlas sections; both artifact-source inventories; drain mutex/flags plus editor-endpoint and proven-orphan service fields; drain light verbs plus editor-endpoint/reap timing help; both protocol payload/result fields and both closed-shape guards; drain prefix before the new wrapped-tab prefix budget snapshot. Preserve the newer two-row planner and row-relative hit spans. No new drain behavior or topology.
+
+Targeted drain checks PASS across core0.298s, couchcmd0.608s, couchmessage2.231s, couchtty0.314s, wrapcmd0.356s, cmd/couch0.186s. Integration checks for wrapped bars/chrome, orphan protocol/reap and editor endpoints PASS couchtty0.977s, couchmessage0.165s, couchcmd0.937s. Added meaningful integration coverage: one drain badge across two rows with all four actors and valid row-relative chip clicks at widths18..24; undrain removes it. Added closed-shape negatives for legacy/proven-orphan targets and signal mixed into drain. The wrapped-bar regression turned RED when the merged drain prefix was temporarily removed, and GREEN0.335s after exact restoration; no temporary edit remains. make test-affected-inventory PASS, artifactpath15.148s/repolint14.883s PASS, resolved-file whitespace clean. No reader hash refresh or protected config edit needed.
+
+Reset final-code full-suite checkbox to pending: earlier suite and SHIP receipts remain historical and do not qualify this newer main integration. This is targeted preparation for watched staging only; future applicable recorded gates/re-close and watched acceptance remain required before landing. No new native matrix run, stage, real drain/queue control or merge landing performed. The shared #773 startup/re-registration evidence remains unclassified. Commit/push the integration, report its Git revision, then wait for the hub's explicit sdlc stage --build go after #753 releases pair:0.
 
 ## Revisions
 

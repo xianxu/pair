@@ -94,3 +94,30 @@ func TestDrainStatusCompactCountBoundsAndSelection(t *testing.T) {
 		}
 	}
 }
+
+func TestDrainStatusWrappedBarKeepsOneBadgeAndRowSelection(t *testing.T) {
+	m := StatusModel{Actors: []StatusActor{
+		hubActor("alpha", "a", 0), hubActor("alpha:1", "a", 1),
+		hubActor("beta", "b", 0), hubActor("beta:1", "b", 1),
+	}}
+	applyDrainStatus(&m, couchcore.DrainBoard{Rows: make([]couchcore.DrainRow, 4)})
+	for width := 18; width <= 24; width++ {
+		bar := RenderStatusBar(width, 2, m)
+		plain := string(ansi.Strip([]byte(bar.Body())))
+		if bar.Height() != 2 || strings.Count(plain, "drain 4") != 1 || len(bar.Chips) != 4 {
+			t.Fatalf("width%d lost badge, wrapping or actors: %q %+v", width, plain, bar.Chips)
+		}
+		for _, chip := range bar.Chips {
+			if chip.Row < 0 || chip.Row >= len(bar.Rows) || chip.Start < 0 || chip.End > width || chip.End <= chip.Start {
+				t.Fatalf("width%d invalid chip span: %+v", width, chip)
+			}
+			if got, ok := bar.Rows[chip.Row].ColumnToActor(chip.Start); !ok || got != chip.Thread {
+				t.Fatalf("width%d row%d click lost actor %+v", width, chip.Row, chip.Thread)
+			}
+		}
+	}
+	applyDrainStatus(&m, couchcore.DrainBoard{})
+	if got := RenderStatusBar(18, 2, m).Body(); strings.Contains(got, "drain") {
+		t.Fatalf("undrain retained wrapped badge: %q", got)
+	}
+}

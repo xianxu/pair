@@ -2,6 +2,7 @@ package couchmessage
 
 import (
 	"encoding/json"
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/strictjson"
 	"reflect"
 	"strings"
@@ -21,6 +22,9 @@ func TestDrainRequestClosedShape(t *testing.T) {
 		{Op: "drain", Drain: &DrainRequest{Action: "status", Fast: true}},
 		{Op: "drain", Drain: &DrainRequest{Action: "ack"}},
 		{Op: "actors", Drain: &DrainRequest{Action: "status"}},
+		{Op: "drain", Drain: &DrainRequest{Action: "status"}, LegacyTarget: &couchcore.LegacyOrphanTarget{}},
+		{Op: "drain", Drain: &DrainRequest{Action: "status"}, OrphanTarget: &couchcore.ProvenOrphanTarget{}},
+		{Op: "drain", Drain: &DrainRequest{Action: "status"}, OrphanSignal: "TERM"},
 	} {
 		if ValidateRequest(bad) == nil {
 			t.Fatalf("accepted %+v", bad)

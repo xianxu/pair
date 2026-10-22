@@ -891,15 +891,36 @@ once per supervisor run through normal messaging; pending retries reuse the
 same effect ID. Episodes live in memory, so restarting Couch re-arms them and
 can repeat an advisory alert. History is best-effort and never gates alerts.
 Unattributed candidates are report-only, and the monitor never kills anything.
-The one destructive verb is the operator's: `couch --reap-orphans` names the
-orphaned embedded nvim the sweep found, and the processes a teardown left
-running (pair#695: an agent's descendant that had left its terminal, such as a
-background build or merge, which teardown never kills; `--resources` lists them
-under "Left running by teardown"), and ends nothing.
-`couch --reap-orphans --confirm` re-classifies from a fresh sample and then ends
-each named tree, the left-running ones included, every signal fenced on the identity the sweep recorded — a pid
-that has exited or been recycled is skipped with the reason printed, never
-signalled on the strength of a number that still exists.
+`couch --reap-orphans` previews three groups and signals nothing: proven
+processes from a slot's previous incarnation, unattributed embedded nvim, and
+processes a teardown left running (background runners that left the agent's
+terminal; `--resources` lists these under "Left running by teardown").
+`couch --reap-orphans --confirm` obtains a fresh classification. For the proven
+previous-incarnation group, it freezes the exact PID/start identities and their
+ownership witnesses. Before each TERM or KILL, the supervisor re-proves current
+ownership, orphan provenance and process identity. It signals only those exact
+processes, without discovering descendants. The nvim and teardown groups use
+tree cleanup only while provenance has stayed complete throughout this Couch
+process. After an incomplete census, ownership ambiguity or selection limit,
+legacy cleanup refuses: `provenance incomplete; use the exact proven reap or
+restart Couch`. A later healthy scan does not clear that refusal. Guarded exact
+reaps remain available; JSON reports `legacy_refusal` and returns nonzero when
+legacy cleanup is refused. Only a fresh Couch process resets this in-memory flag;
+nothing is persisted. Every legacy TERM/KILL also returns to the supervisor:
+current proof must still identify the exact root and target ancestry, and the
+sticky refusal check, native identity rereads and signal share one gate. The CLI
+freezes descendants once and never signals locally. Children that survive or
+reparent after their root ends are refused or reported partial.
+
+A bound caller may reap proven previous-incarnation processes only as their
+slot's authenticated owning hub. Workers and other hubs are refused. An entirely
+unbound local CLI uses the owner-only namespace socket as the operator boundary;
+partial or stale caller credentials never become operator access. Each target
+reports `reaped`, `skipped`, `refused` or `failed`; refusals and failures make the
+command nonzero and preserve partial results. After a lost signal reply, inspect
+`couch --resources` before explicitly confirming a new attempt: Couch does not
+automatically resend or escalate an uncertain signal. Identity checks narrow the
+native check-to-signal race; they are not atomic process handles.
 See [resource monitoring](atlas/couch.md#resource-monitoring-587) for policy
 settings, ownership evidence, platform support and coverage limits. Aggregate
 history rolls over after 24 hours and is bounded independently of debug logs.
@@ -2080,6 +2101,12 @@ answer with a wrong holder or process identity fails in both modes.
 Affected branch checks use `.sdlc/affected.json` and `make test-affected` once the
 installed SDLC supports ariadne#473. SDLC reads the declaration from main and
 supplies `SDLC_AFFECTED_GO_PKGS` (exact import paths) and `SDLC_AFFECTED_GROUPS`.
+With preparation-capable SDLC (ariadne#517), `graph_prepare` runs
+`make runtimebundle-generate` in the same private head checkout before loading
+the Go graph, with a two-minute bound. This creates the missing embedded runtime
+in a fresh checkout; it never borrows generated files. Preparation failure,
+timeout or a still-broken graph keeps the full-suite fallback. Parent-context
+cancellation aborts the check without recording a passing affected or suite status.
 Before close or re-close, run `make test-affected-inventory`. It audits tracked
 Go test readers without building Go or running the seeded guard tests, and is
 also the affected runner's first step. Failures name each reader and print its
@@ -2126,8 +2153,10 @@ the actual affected command in a disposable checkout.
 declaration regressions; landing still requires SDLC's full-suite evidence.
 
 The declaration regression consumes upstream parser/planner source from a sibling
-ariadne checkout or the installed Go module. Until ariadne#473 is available there,
-it reports an explicit dependency skip. Qualify an upstream candidate without
+ariadne checkout or the installed Go module. Basic affected selection requires
+ariadne#473; this preparation qualification requires ariadne#517. Until that
+preparation-capable source is available there, it reports an explicit dependency
+skip. Qualify an upstream candidate without
 changing that checkout using `ARIADNE_AFFECTED_SOURCE=/path/to/ariadne` and optional
 `ARIADNE_AFFECTED_REF=<local-git-ref>` with `make test-affected-config`; an explicitly
 requested unavailable source fails. Changes to this declaration require the
@@ -2200,6 +2229,10 @@ Session name [claude]: <Enter to accept, or type a custom name>
 Custom names like `bugfix`, `blogging`, or `research` are allowed (chars: `A-Z a-z 0-9 - _`). 
 
 From a non-agent Pair pane, detach with `Alt+d`. For Couch-managed work, use the switcher’s Detach action. To re-attach: run `pair` again and pick from the list. To fully quit (no resurrect entry): `Alt+x`.
+
+## Editor endpoints
+
+🤖{Couch's editor producer API uses `couch --editor-endpoint register --json` and `couch --editor-endpoint unregister --json` with typed JSON on stdin, and `couch --editor-endpoint lookup --namespace PATH --document-id ID --json` for discovery. Confirmed document register/lookup replies include `Registration.Namespace` and the stable document ID. Exact retries preserve the binding generation; superseded attempts require an explicit reopen. The running Couch owns authority and stale-record cleanup; the editor owns its private socket. This producer supports parley.nvim#405; remote document editing and security integration remain in pair#798. See [editor endpoints](atlas/editor-endpoints.md) for the wire contract, bounds and recovery.}
 
 ## History backup
 

@@ -61,6 +61,21 @@ func (f *consoleFixture) lastRow() string {
 	return rows[len(rows)-1]
 }
 
+// statusRow is the first chrome row containing cast/attention controls.
+func (f *consoleFixture) statusRowIndex() int {
+	f.con.mu.Lock()
+	defer f.con.mu.Unlock()
+	return int(f.con.size.Rows) - f.con.statusRows + 1
+}
+func (f *consoleFixture) statusRow() string {
+	rows := strings.Split(f.screenText(), "\n")
+	at := f.statusRowIndex() - 1
+	if at < 0 || at >= len(rows) {
+		return ""
+	}
+	return rows[at]
+}
+
 func (f *consoleFixture) startLive(t *testing.T) *broadcast.Session {
 	t.Helper()
 	_, _ = f.stdin.Write([]byte(ctrlAltB))
@@ -71,7 +86,7 @@ func (f *consoleFixture) startLive(t *testing.T) *broadcast.Session {
 
 // click sends a press and release at 1-based column x on the status row.
 func (f *consoleFixture) clickStatus(x int) {
-	_, _ = fmt.Fprintf(f.stdin, "\x1b[<0;%d;24M\x1b[<0;%d;24m", x, x)
+	_, _ = fmt.Fprintf(f.stdin, "\x1b[<0;%d;%dM\x1b[<0;%d;%dm", x, f.statusRowIndex(), x, f.statusRowIndex())
 }
 
 // remoteViewer reads a broadcast's SSE stream into an emulator, as the

@@ -107,7 +107,7 @@ func attentionRows(items []couchcore.AttentionItem) []attentionRow {
 func (c *Console) attentionScreen() (cols, rows int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return int(c.size.Cols), int(c.size.Rows) + 1
+	return int(c.size.Cols), int(c.size.Rows) - c.statusRows + 2
 }
 
 // layoutAttentionLocked lays the open panel out again over a cols×rows
@@ -270,6 +270,9 @@ func (c *Console) routeAttentionKey(raw, canonical []byte) bool {
 // jumps to it, on the close mark closes, and a click elsewhere closes the
 // panel and goes on. Motion over it moves the selection.
 func (c *Console) routeAttentionPanel(raw []byte) bool {
+	if !c.chromeConfirmed() {
+		return false
+	}
 	hit, _, _, ok := mouseinput.ParsePrefix(raw)
 	if !ok {
 		return false
@@ -289,7 +292,7 @@ func (c *Console) routeAttentionPanel(raw []byte) bool {
 		// A click on 🔔N toggles: it closed the panel, so it must not go on
 		// to the badge's handler and open it again.
 		c.mu.Lock()
-		onBadge := hit.Y == int(c.size.Rows) && c.statusAttention.Contains(x)
+		onBadge := hit.Y == int(c.size.Rows)-c.statusRows+1 && c.statusAttention.Contains(x)
 		c.mu.Unlock()
 		return onBadge && mouseinput.BaseButton(hit.Button) == 0
 	}
@@ -326,6 +329,7 @@ func (c *Console) attentionLayer(f terminal.Frame) terminal.Frame {
 	if !c.attn.open {
 		return f
 	}
+	c.layoutAttentionLocked(f.Geometry.Cols, f.Geometry.Rows-f.ChromeRows+2)
 	return c.attn.box.Draw(f, c.attn.sel+1, style)
 }
 

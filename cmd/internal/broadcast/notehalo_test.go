@@ -29,7 +29,7 @@ func TestPaletteTint(t *testing.T) {
 func TestNoteGlowGeometry(t *testing.T) {
 	// Half way through a flash both rings show, so the full shape is visible.
 	const half = 0.5
-	g := noteGlow(Note{Col: 10, Row: 5}, 80, 24, half)
+	g := noteGlow(Note{Col: 10, Row: 5}, 80, 24, 1, half)
 	if _, in := g[cell{10, 5}]; in {
 		t.Fatal("the chip is not part of the glow")
 	}
@@ -51,7 +51,7 @@ func TestNoteGlowGeometry(t *testing.T) {
 		}
 	}
 	// At rest only the inner ring shows, in one light shade.
-	rest := noteGlow(Note{Col: 10, Row: 5}, 80, 24, 0)
+	rest := noteGlow(Note{Col: 10, Row: 5}, 80, 24, 1, 0)
 	for c, tv := range rest {
 		if _, inShape := g[c]; !inShape || tv != noteGlowNear {
 			t.Errorf("%v at %v at rest; want %v", c, tv, noteGlowNear)
@@ -63,7 +63,7 @@ func TestNoteGlowGeometry(t *testing.T) {
 		}
 	}
 	// Flashing: every glow cell at the full color.
-	for c, tv := range noteGlow(Note{Col: 10, Row: 5}, 80, 24, 1) {
+	for c, tv := range noteGlow(Note{Col: 10, Row: 5}, 80, 24, 1, 1) {
 		if tv != 0 {
 			t.Fatalf("%v at %v during a flash", c, tv)
 		}
@@ -71,9 +71,9 @@ func TestNoteGlowGeometry(t *testing.T) {
 }
 
 func TestNoteGlowStaysOffTheControlsAndTheGrid(t *testing.T) {
-	g := noteGlow(Note{Col: StatusGuardCols - 1, Row: 21}, 30, 24, 1) // a flash: the whole glow
+	g := noteGlow(Note{Col: StatusGuardCols - 1, Row: 21}, 30, 24, 1, 1) // a flash: the whole glow
 	for c := range g {
-		if guarded(c, 24) || c.col < 0 || c.row >= 24 {
+		if guarded(c, 24, 1) || c.col < 0 || c.row >= 24 {
 			t.Fatalf("glow on %v", c)
 		}
 	}
@@ -219,7 +219,7 @@ func TestDrawNotesOrderIndependentWithGlow(t *testing.T) {
 		f := textFrame(t, 24, 8, "字字ab字\n\n字a字a字a字a\n\n\nxx字字", "")
 		var board NoteBoard
 		for k := 0; k < 5; k++ {
-			board.Add(Note{Box: CellBox{rng.Intn(23), rng.Intn(7), 2 + rng.Intn(8), 1 + rng.Intn(4)}, Color: rng.Intn(PointerColors), Text: "x", At: t0.Add(-time.Duration(rng.Intn(20000)) * time.Millisecond)}, 24, 8)
+			board.Add(Note{Box: CellBox{rng.Intn(23), rng.Intn(7), 2 + rng.Intn(8), 1 + rng.Intn(4)}, Color: rng.Intn(PointerColors), Text: "x", At: t0.Add(-time.Duration(rng.Intn(20000)) * time.Millisecond)}, 24, 8, 1)
 		}
 		notes := board.List()
 		style := NoteStyle{BG: color.RGBA{0, 0, 0, 0xff}, Blend: true, Now: t0}
