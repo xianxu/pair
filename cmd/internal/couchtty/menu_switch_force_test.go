@@ -86,3 +86,63 @@ func TestForceSwitchNoticeCountsKeptFiles(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func forceSwitchConfirmationState() MenuState {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	p := &couchcore.PreparedAgentSwitch{Address: menuAddress("couch-one"), SourceAgent: "claude", Profile: couchcore.LaunchProfile{Agent: "codex"}, Force: &couchcore.AgentSwitchForceOffer{}}
+	appendMenuFrame(&state, MenuFrame{Kind: MenuFrameSwitchAgent, Thread: p.Address, Agent: "codex", SwitchStage: 2, SwitchPrepared: p, SelectedItem: "cancel"})
+	return state
+}
+
+func TestForceSwitchCancellationPreservesInputAndSnapshot(t *testing.T) {
+	for _, route := range []struct {
+		name string
+		key  PanelKey
+	}{{"escape", PanelKey{Kind: KeyEscape}}, {"cancel", PanelKey{Kind: KeyEnter}}} {
+		t.Run(route.name, func(t *testing.T) {
+			state := forceSwitchConfirmationState()
+			snapshot := cloneMenuState(state)
+			prepared := state.CurrentFrame().SwitchPrepared
+			offer := prepared.Force
+			before := RenderMenuView(snapshot, 100, 20, time.Time{}, false).Body
+			next, effects := reduceKey(state, route.key)
+			if len(effects) != 0 || next.CurrentFrame().SwitchStage != 1 || next.CurrentFrame().SwitchPrepared.Force != nil {
+				t.Fatalf("cancellation did not discard the next state's offer: %+v, %+v", next.CurrentFrame(), effects)
+			}
+			if state.CurrentFrame().SwitchStage != 2 || prepared.Force != offer || snapshot.CurrentFrame().SwitchPrepared.Force != offer {
+				t.Fatal("cancellation mutated the input or retained snapshot's force offer")
+			}
+			if next.CurrentFrame().SwitchPrepared == prepared {
+				t.Fatal("cancellation retained the shared preview pointer")
+			}
+			if after := RenderMenuView(snapshot, 100, 20, time.Time{}, false).Body; after != before {
+				t.Fatal("cancellation changed the retained snapshot's rendering")
+			}
+		})
+	}
+}
+
+func TestForceSwitchCancellationConcurrentSnapshotRender(t *testing.T) {
+	for _, route := range []struct {
+		name string
+		key  PanelKey
+	}{{"escape", PanelKey{Kind: KeyEscape}}, {"cancel", PanelKey{Kind: KeyEnter}}} {
+		t.Run(route.name, func(t *testing.T) {
+			state := forceSwitchConfirmationState()
+			snapshot := cloneMenuState(state)
+			start, done := make(chan struct{}), make(chan struct{})
+			go func() {
+				defer close(done)
+				<-start
+				for range 100 {
+					RenderMenuView(snapshot, 100, 20, time.Time{}, false)
+				}
+			}()
+			close(start)
+			for range 100 {
+				reduceKey(state, route.key)
+			}
+			<-done
+		})
+	}
+}

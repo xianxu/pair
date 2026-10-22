@@ -441,8 +441,8 @@ func TestSwitchAgentPrefillAllowsEditingRememberedResumeParameters(t *testing.T)
 
 type switchGuardFunc func(context.Context, ThreadAddress, string) error
 
-func (f switchGuardFunc) ConfirmAgentSwitch(ctx context.Context, a ThreadAddress, source string, _ SwitchSourceEvidence) error {
-	return f(ctx, a, source)
+func (f switchGuardFunc) ConfirmAgentSwitch(ctx context.Context, a ThreadAddress, source string, _ SwitchSourceEvidence) (string, error) {
+	return source, f(ctx, a, source)
 }
 
 func seedSwitchRepoArguments(t *testing.T, c *Couch, path string, profile LaunchProfile) string {

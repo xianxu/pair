@@ -15,15 +15,16 @@ import (
 var ErrSwitchResolutionChanged = errors.New("switch-agent: thread or path preferences changed; review the parameters again")
 
 // AgentSwitchGuard revalidates the coordinator's exact source binding and
-// settled state at execution and immediately before the first mutation.
+// settled state at execution and immediately before the first mutation. It
+// returns the verified connection token, retained across later operation phases.
 type AgentSwitchGuard interface {
-	ConfirmAgentSwitch(context.Context, ThreadAddress, string, SwitchSourceEvidence) error
+	ConfirmAgentSwitch(context.Context, ThreadAddress, string, SwitchSourceEvidence) (string, error)
 }
 
 // AgentSwitchInterruptGuard performs the one cooperative input phase while
 // SwitchAgent owns the lifecycle hold. ConfirmAgentSwitch still proves idle.
 type AgentSwitchInterruptGuard interface {
-	InterruptBeforeAgentSwitch(context.Context, ThreadAddress, string, SwitchSourceEvidence) error
+	InterruptBeforeAgentSwitch(context.Context, ThreadAddress, string, SwitchSourceEvidence) (string, error)
 }
 
 type SwitchAgentRequest struct {
@@ -406,9 +407,11 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (_ 
 		if source.Fingerprint != request.AcceptedFingerprint {
 			return result, ErrSwitchResolutionChanged
 		}
-		if err := c.SwitchGuard.ConfirmAgentSwitch(ctx, request.Address, request.Source, source.SourceEvidence()); err != nil {
+		pinned, err := c.SwitchGuard.ConfirmAgentSwitch(ctx, request.Address, request.Source, source.SourceEvidence())
+		if err != nil {
 			return result, err
 		}
+		request.Source = pinned
 	}
 	ctx, release, err := c.hold(ctx, request.Address, "switch-agent")
 	if err != nil {
@@ -440,9 +443,11 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (_ 
 		if !ok {
 			return result, errors.New("switch-agent: cooperative interrupt unavailable")
 		}
-		if err := cooperative.InterruptBeforeAgentSwitch(ctx, request.Address, request.Source, prepared.SourceEvidence()); err != nil {
+		pinned, err := cooperative.InterruptBeforeAgentSwitch(ctx, request.Address, request.Source, prepared.SourceEvidence())
+		if err != nil {
 			return result, err
 		}
+		request.Source = pinned
 		// Interruption is not permanent admission: reclassify the exact accepted
 		// generation before the final idle/Git guard and normal park transaction.
 		prepared, err = prepare()
@@ -493,7 +498,7 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (_ 
 			return result, err
 		}
 	} else if c.SwitchGuard != nil || request.Source != "" {
-		if err := c.SwitchGuard.ConfirmAgentSwitch(ctx, request.Address, request.Source, prepared.SourceEvidence()); err != nil {
+		if _, err := c.SwitchGuard.ConfirmAgentSwitch(ctx, request.Address, request.Source, prepared.SourceEvidence()); err != nil {
 			return result, err
 		}
 	}

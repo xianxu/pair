@@ -2878,8 +2878,13 @@ Accepted parameters publish only after final console adoption through the M1 own
 
 `--interrupt-first` reuses the authenticated drive owner while `SwitchAgent` holds
 its lifecycle lock: one total thirty-second phase, at most one interrupt, followed
-by fresh idle proof and the ordinary park guard. Unknown working proof sends
-nothing. Normal and cooperative paths retain dirty-tree refusal.
+by fresh idle proof and the ordinary park guard. The first ordinary or
+cooperative live proof returns its verified wrapper connection token to the
+operation owner; later guards require that same token, including local forms
+whose initial source token is empty. Reconnection between phases refuses.
+Unknown working proof sends nothing. Normal and cooperative paths retain
+dirty-tree refusal. Force-confirmation cancellation copies the prepared preview
+before dropping its offer, preserving retained render snapshots.
 
 The form's **Force switch** requests a local proof offer, then one explicit risk
 confirmation defaulting to Cancel. `AgentSwitchForceOffer`/`AgentSwitchForceConsent`

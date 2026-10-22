@@ -3,6 +3,8 @@ package couchcore
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -11,8 +13,8 @@ type cooperativeSwitchTestGuard struct {
 	interrupt func(context.Context, ThreadAddress, string, SwitchSourceEvidence) error
 }
 
-func (g cooperativeSwitchTestGuard) InterruptBeforeAgentSwitch(ctx context.Context, address ThreadAddress, source string, evidence SwitchSourceEvidence) error {
-	return g.interrupt(ctx, address, source, evidence)
+func (g cooperativeSwitchTestGuard) InterruptBeforeAgentSwitch(ctx context.Context, address ThreadAddress, source string, evidence SwitchSourceEvidence) (string, error) {
+	return source, g.interrupt(ctx, address, source, evidence)
 }
 
 func TestSwitchAgentCooperativePhaseRunsOnceUnderLifecycleHold(t *testing.T) {
@@ -90,5 +92,63 @@ func TestSwitchAgentCooperativePhaseRunsOnceUnderLifecycleHold(t *testing.T) {
 				t.Fatal("refused cooperative operation changed its source")
 			}
 		})
+	}
+}
+
+// reconnectSwitchGuard models a wrapper reconnect after the first live proof,
+// without changing the durable thread. A supplied token must keep naming the
+// original wrapper through the final guard.
+type reconnectSwitchGuard struct {
+	current string
+	checks  int
+}
+
+func (g *reconnectSwitchGuard) ConfirmAgentSwitch(_ context.Context, _ ThreadAddress, source string, _ SwitchSourceEvidence) (string, error) {
+	pinned := g.current
+	g.checks++
+	if source != "" && source != g.current {
+		return "", errors.New("wrapper reconnected")
+	}
+	if g.checks == 1 {
+		g.current = "replacement-wrapper"
+	}
+	return pinned, nil
+}
+
+func (g *reconnectSwitchGuard) InterruptBeforeAgentSwitch(_ context.Context, _ ThreadAddress, source string, _ SwitchSourceEvidence) (string, error) {
+	pinned := g.current
+	g.current = "replacement-wrapper"
+	return pinned, nil
+}
+
+func TestSwitchAgentPinsLiveSourceAcrossFinalGuard(t *testing.T) {
+	for _, cooperative := range []bool{false, true} {
+		for _, remote := range []bool{false, true} {
+			t.Run(fmt.Sprintf("cooperative=%t/remote=%t", cooperative, remote), func(t *testing.T) {
+				env, source := switchEnvWithLiveThread(t)
+				argv := []string{}
+				prepared, err := env.Couch.PrepareAgentSwitch(context.Background(), source.Address, "codex", &argv)
+				if err != nil {
+					t.Fatal(err)
+				}
+				guard := &reconnectSwitchGuard{current: "original-wrapper"}
+				env.Couch.SwitchGuard = guard
+				token := ""
+				if remote {
+					token = "original-wrapper"
+				}
+				result, err := env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{Address: source.Address, Agent: "codex", Argv: argv, AcceptedFingerprint: prepared.Fingerprint, Source: token, InterruptFirst: cooperative})
+				if err == nil || !strings.Contains(err.Error(), "wrapper reconnected") || result.Outcome != SwitchRefused {
+					t.Fatalf("reconnect reached park/start: %+v, %v", result, err)
+				}
+				after, err := env.Couch.Threads.GetThread(source.Address)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if after.Revision != source.Revision || after.Park != nil || len(env.Runner.Ops) != 0 || env.Proc.Exists(42) != Live {
+					t.Fatal("reconnected source caused effects")
+				}
+			})
+		}
 	}
 }

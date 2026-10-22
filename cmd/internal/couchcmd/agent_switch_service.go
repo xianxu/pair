@@ -29,9 +29,21 @@ type switchServiceGuard struct {
 }
 
 // ConfirmAgentSwitch is shared by the human form and queued remote operations.
-// An empty token selects the form's current source, never bypasses its checks.
-func (g *switchServiceGuard) ConfirmAgentSwitch(ctx context.Context, address couchcore.ThreadAddress, source string, evidence couchcore.SwitchSourceEvidence) error {
-	return g.confirmAgentSwitchAdmission(ctx, address, source, evidence, false)
+// An empty token selects the form's current source. The returned token pins
+// that exact connection for every later guard in the same operation.
+func (g *switchServiceGuard) ConfirmAgentSwitch(ctx context.Context, address couchcore.ThreadAddress, source string, evidence couchcore.SwitchSourceEvidence) (string, error) {
+	if evidence.Vacant() {
+		return source, g.confirmAgentSwitchAdmission(ctx, address, source, evidence, false)
+	}
+	s := g.service.Load()
+	if s == nil {
+		return "", errors.New("switch-agent: supervisor unavailable")
+	}
+	live, err := inspectSwitchLiveSource(ctx, s, address, source, true)
+	if err != nil {
+		return "", err
+	}
+	return switchSourceToken(live), nil
 }
 
 // Cooperative admission waives only the idle check, never source/Git proof.

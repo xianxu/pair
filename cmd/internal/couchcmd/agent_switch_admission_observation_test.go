@@ -24,6 +24,15 @@ type switchAdmissionObservationRig struct {
 	workspace atomic.Int32
 	record    atomic.Int32
 	git       atomic.Int32
+	branch    atomic.Pointer[switchAdmissionBranch]
+}
+
+type switchAdmissionBranch struct {
+	probe func(context.Context, string) (couchcore.SlotGitStatus, error)
+}
+
+func (r *switchAdmissionObservationRig) setBranch(probe func(context.Context, string) (couchcore.SlotGitStatus, error)) {
+	r.branch.Store(&switchAdmissionBranch{probe: probe})
 }
 
 func TestSwitchAdmissionObservationAllowsNestedWorkingDirectory(t *testing.T) {
@@ -60,7 +69,7 @@ func TestSwitchAdmissionObservationAllowsNestedWorkingDirectory(t *testing.T) {
 			r.cold.parked = next
 			if kind == "symlink-during-git" || kind == "missing-during-git" {
 				outside := t.TempDir()
-				r.service.s.authority.branch = func(context.Context, string) (couchcore.SlotGitStatus, error) {
+				r.setBranch(func(context.Context, string) (couchcore.SlotGitStatus, error) {
 					if err := os.Remove(next.WorkingPath); err != nil {
 						return couchcore.SlotGitStatus{}, err
 					}
@@ -68,7 +77,7 @@ func TestSwitchAdmissionObservationAllowsNestedWorkingDirectory(t *testing.T) {
 						return couchcore.SlotGitStatus{}, os.Symlink(outside, next.WorkingPath)
 					}
 					return couchcore.SlotGitStatus{}, nil
-				}
+				})
 			}
 			response := switchCall(t, r.service, r.request(t, "codex"))
 			if kind == "nested" {
@@ -88,33 +97,51 @@ func TestSwitchAdmissionObservationAllowsNestedWorkingDirectory(t *testing.T) {
 func newSwitchAdmissionObservationRig(t *testing.T) *switchAdmissionObservationRig {
 	t.Helper()
 	cold := newColdResumeRig(t)
-	rig, queue, hub, _, _ := leanSwitchRig(t)
-	r := &switchAdmissionObservationRig{cold: cold, service: rig, queue: queue, hub: hub, hubs: guardHubState(t)}
+	w := newMessageWorld()
+	w.hub = "/repo0"
+	rig := &serviceRig{t: t, world: w, slotGit: map[string]couchcore.SlotGitStatus{}}
+	r := &switchAdmissionObservationRig{cold: cold, service: rig, queue: &leanSwitchQueue{}, hubs: guardHubState(t)}
+	rig.slotOps = newSlotOperations(nil, func(context.Context) ([]couchcore.RepositoryName, error) {
+		return []couchcore.RepositoryName{{Key: cold.parked.StartingPath, Dir: "repo"}}, nil
+	}, time.Now)
+	workspace := cold.c.Slots.(couchcore.SlotWorkspaceResolver).ResolveWorkspace
+	rig.decorateAuthority = func(a messageAuthority) messageAuthority {
+		hubWorkspace, hubBranch := a.workspace, a.branch
+		a.workspace = func(ctx context.Context, path string) (couchcore.WorkspaceIdentity, error) {
+			if path == w.hub {
+				return hubWorkspace(ctx, path)
+			}
+			r.workspace.Add(1)
+			return workspace(ctx, path)
+		}
+		a.record = func(ctx context.Context, address couchcore.ThreadAddress) (couchcore.ThreadRecord, error) {
+			r.record.Add(1)
+			return cold.c.Threads.PreviewThreadContext(ctx, address)
+		}
+		a.branch = func(ctx context.Context, path string) (couchcore.SlotGitStatus, error) {
+			if path == w.hub {
+				return hubBranch(ctx, path)
+			}
+			r.git.Add(1)
+			if branch := r.branch.Load(); branch != nil {
+				return branch.probe(ctx, path)
+			}
+			return couchcore.SlotGitStatus{}, nil
+		}
+		a.hubs = r.hubs
+		return a
+	}
+	rig.init()
+	// Cold/retained admission needs a live caller, but no connected source worker.
+	r.hub = rig.connect(0)
 	rig.s.installAgentSwitchService(cold.console, cold.c, &switchServiceGuard{})
 	switches := rig.s.switches.Load()
-	switches.enqueue = queue.enqueue
+	switches.enqueue = r.queue.enqueue
 	resolve := switches.resolveTarget
 	switches.resolveTarget = func(ctx context.Context, target string) (couchcore.ThreadAddress, couchcore.WorkspaceIdentity, error) {
 		r.resolved.Add(1)
 		return resolve(ctx, target)
 	}
-	rig.slotOps.names = func(context.Context) ([]couchcore.RepositoryName, error) {
-		return []couchcore.RepositoryName{{Key: cold.parked.StartingPath, Dir: "repo"}}, nil
-	}
-	workspace := cold.c.Slots.(couchcore.SlotWorkspaceResolver).ResolveWorkspace
-	rig.s.authority.workspace = func(ctx context.Context, path string) (couchcore.WorkspaceIdentity, error) {
-		r.workspace.Add(1)
-		return workspace(ctx, path)
-	}
-	rig.s.authority.record = func(ctx context.Context, address couchcore.ThreadAddress) (couchcore.ThreadRecord, error) {
-		r.record.Add(1)
-		return cold.c.Threads.PreviewThreadContext(ctx, address)
-	}
-	rig.s.authority.branch = func(context.Context, string) (couchcore.SlotGitStatus, error) {
-		r.git.Add(1)
-		return couchcore.SlotGitStatus{}, nil
-	}
-	rig.s.authority.hubs = r.hubs
 	return r
 }
 
@@ -200,8 +227,7 @@ func TestSwitchAdmissionObservationPreservesFreshRefusals(t *testing.T) {
 				}
 				return address, identity, err
 			}
-			r.service.s.authority.branch = func(context.Context, string) (couchcore.SlotGitStatus, error) {
-				r.git.Add(1)
+			r.setBranch(func(context.Context, string) (couchcore.SlotGitStatus, error) {
 				switch fault {
 				case "selection-during-git":
 					replacement := r.cold.parked
@@ -226,7 +252,7 @@ func TestSwitchAdmissionObservationPreservesFreshRefusals(t *testing.T) {
 					return couchcore.SlotGitStatus{}, context.Canceled
 				}
 				return couchcore.SlotGitStatus{}, nil
-			}
+			})
 			response := switchCall(t, r.service, r.request(t, "codex"))
 			if response.Code == "accepted" || r.queue.count() != 0 {
 				t.Fatalf("changed admission %s queued: %+v jobs=%d", fault, response, r.queue.count())

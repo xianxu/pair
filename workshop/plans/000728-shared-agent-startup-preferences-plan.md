@@ -449,3 +449,10 @@ Core recheck regression was red for the missing method; expanded core race passe
 ### 2026-10-22 — Preserve nested working paths in the approved observation
 
 The verified workspace root contains, rather than equals, a saved working directory. Reuse the observation with fresh physical containment/directory checks on both sides of Git inspection; keep selection, caller/hub and record rechecks plus full queued/effect resolution. Five path cases pin valid nesting and unsafe drift without another workspace probe. This corrects the approved contract; it adds no state, timeout or retry. Per authenticated ops:0 f8be970b, commit first, then one clean native run; a repeated initial Codex startup-family failure is recorded on #820 and covered by M3 live acceptance without further native retries.
+
+
+### 2026-10-22 — M2 review BR-5/BR-6: retain authority and immutable previews
+
+Review identified operation-wide source-token loss: local ordinary confirmation and cooperative interrupt select a current wrapper but return only an error, leaving the final guard an empty token. Return the existing verified token from both guard phases and retain it in the existing SwitchAgentRequest for the final guard; remote supplied tokens remain checked and force keeps its existing consent-bound token. Vacancy retains empty-token semantics and full record/workspace checks. No new authority owner or state store. Controlled local/remote ordinary/cooperative reconnect between phase completion and final confirmation must refuse with zero park/start effects (ARCH-ORDER/SECURE).
+
+Cancellation currently edits Force through a shallow-copied PreparedAgentSwitch pointer. Copy that preview value before replacing the field, preserving the existing one-shot offer object where appropriate. Both Escape and Cancel must preserve input/snapshot bytes under concurrent rendering (ARCH-PURE/ORDER). These are corrections within the approved operation/preview contracts; M3 remains behind the M2 review.

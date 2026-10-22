@@ -54,9 +54,12 @@ func TestSwitchGuardRefusesChangedDirtyUnknownAndBusy(t *testing.T) {
 					return couchcore.SlotGitStatus{}, nil
 				}
 			}
-			err := guard.ConfirmAgentSwitch(context.Background(), couchcore.ThreadAddress{RepoScope: b.Scope, Tag: couchcore.ThreadTag(b.Tag)}, token, couchcore.SwitchSourceEvidence{})
+			pinned, err := guard.ConfirmAgentSwitch(context.Background(), couchcore.ThreadAddress{RepoScope: b.Scope, Tag: couchcore.ThreadTag(b.Tag)}, token, couchcore.SwitchSourceEvidence{})
 			if (err == nil) != (fault == "none" || fault == "form") {
 				t.Fatalf("guard %s: %v", fault, err)
+			}
+			if err == nil && pinned != switchSourceToken(live) {
+				t.Fatalf("lost verified source token: %q", pinned)
 			}
 			if fault == "busy" && world.counts()[2] != 0 {
 				t.Fatal("busy source caused git probe")

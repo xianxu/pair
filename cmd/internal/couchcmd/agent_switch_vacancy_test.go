@@ -75,7 +75,7 @@ func TestSwitchGuardAdmitsCoreProvedVacancyWithoutWrapper(t *testing.T) {
 			}
 			guard := &switchServiceGuard{}
 			guard.service.Store(service)
-			err = guard.ConfirmAgentSwitch(ctx, prepared.Address, token, evidence)
+			_, err = guard.ConfirmAgentSwitch(ctx, prepared.Address, token, evidence)
 			if (err == nil) != (fault == "none") {
 				t.Fatalf("vacant %s: %v", fault, err)
 			}

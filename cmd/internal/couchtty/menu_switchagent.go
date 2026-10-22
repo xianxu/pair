@@ -18,9 +18,7 @@ func openSwitchAgent(state MenuState, address couchcore.ThreadAddress) (MenuStat
 func reduceSwitchAgentKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 	frame := &state.Frames[len(state.Frames)-1]
 	if key.Kind == KeyEscape && frame.SwitchStage == 2 {
-		frame.SwitchStage = 1
-		frame.SelectedItem = "force-switch"
-		frame.SwitchPrepared.Force = nil
+		cancelSwitchForceConfirmation(frame)
 		return state, nil
 	}
 	if key.Kind == KeyEscape {
@@ -103,9 +101,7 @@ func reduceSwitchAgentKey(state MenuState, key PanelKey) (MenuState, []MenuEffec
 			}
 		case KeyEnter:
 			if frame.SelectedItem == "cancel" {
-				frame.SwitchStage = 1
-				frame.SelectedItem = "force-switch"
-				frame.SwitchPrepared.Force = nil
+				cancelSwitchForceConfirmation(frame)
 				return state, nil
 			}
 			if frame.SelectedItem == "confirm-force" && frame.SwitchPrepared != nil && frame.SwitchPrepared.Force != nil {
@@ -117,6 +113,16 @@ func reduceSwitchAgentKey(state MenuState, key PanelKey) (MenuState, []MenuEffec
 	}
 
 	return state, nil
+}
+
+func cancelSwitchForceConfirmation(frame *MenuFrame) {
+	frame.SwitchStage = 1
+	frame.SelectedItem = "force-switch"
+	// Prepared previews are shared with retained render snapshots. Replace the
+	// value without changing their offer or copying its one-shot authority.
+	prepared := *frame.SwitchPrepared
+	prepared.Force = nil
+	frame.SwitchPrepared = &prepared
 }
 
 func switchParameterCursor(frame MenuFrame) ([]rune, int) {

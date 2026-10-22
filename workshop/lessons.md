@@ -2667,3 +2667,9 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #728 M2 retained-target review: selection must preserve a backend error even beside a readable partial record; do not rely on a projected row to retain it. Typed source authority derives from the private admitted record, never mutable public preview mirrors, and serialization must strip the authority.
 
 - #728 M2: inspect every concurrent preflight result before committing or claiming green; a joined test pass cannot stand in for an unread reader-inventory result. Register each new production helper in the exhaustive artifact inventory before checkpointing. The shipped skill's command examples are executable inputs: use concrete parsed commands there, leaving bracketed synopses to CLI help. Existing inventory and skill-command tests own these backstops.
+
+- #728 M2 BR-5: a phase that selects current authority must return its exact token to the operation owner. An empty local-form token is only an initial selection request; retain the verified connection through every later guard. Test reconnect after phase return as well as during observation, for ordinary/cooperative and local/remote paths. This is an operation invariant, pinned by stateful guard regressions rather than a syntactic lint.
+
+- #728 M2 BR-6: shallow frame copies share prepared preview pointers with render snapshots. Copy the preview value before replacing a field; never mutate nested shared reducer input. Exercise both cancellation routes concurrently with snapshot rendering under the race detector.
+
+- #728 admission fixture: install messageAuthority callbacks before starting the socket service. Even an unrelated field write can race a value-receiver read of the whole authority during EffectConnect. Inject mutable fault state through synchronized fakes; omit unused wrapper connections. The race suite owns the cross-field concurrency invariant.

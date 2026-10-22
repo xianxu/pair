@@ -685,6 +685,247 @@ rounds:
       isolation: fenced
       reviewed: e7de5ca161079b427e7fe4726d3782ac03d35b95
       blocked: false
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 0d7930a8-d074-46f8-a5fb-44c448735f85
+            repository: github.com/xianxu/pair
+            issue_id: "000728"
+            recipe: milestone-review
+            round: 1
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/49cb243041941ffe
+            reviewed_head: 165ab40890ba9c506ecc26b3f93d41018a5db8f4
+            slot: pair:3
+            requested_at: "2026-10-22T23:17:27.172147Z"
+          phase: finished
+          pid: 64008
+          started_at: "2026-10-22T23:17:27.273012Z"
+          finished_at: "2026-10-22T23:22:26.688002Z"
+          session_id: 01a165e7-b97b-7580-b74a-b55cd19b1a94
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 165ab40890ba9c506ecc26b3f93d41018a5db8f4
+        tracker_head: 04475a196ee13c8108b09ac2b770fc7fafb8b684
+        branch_point: 4a7ab2ca1a4c0b0d4aa34e8cada1d8c2917427bc
+        since: "2026-10-20T23:31:35-07:00"
+        until: "2026-10-22T16:15:53-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-20T23:31:35-07:00"
+              end: "2026-10-22T16:15:53-07:00"
+              began: "2026-10-20T23:31:35-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot3/pair
+        sources:
+            - harness: codex
+              id: 01a15d17-8eb2-79b2-82d4-848985b4d8a3
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: d450dc513b7acfdf5eba26e9524045df7b2a2851450e9d20f99abe9eb9fc44a9
+              started: "2026-10-21T06:13:07.817Z"
+              spawned: false
+              bytes: 16235780
+              windows:
+                - start: "2026-10-20T23:31:35-07:00"
+                  end: "2026-10-22T16:15:53-07:00"
+            - harness: codex
+              id: 01a15d29-153f-7452-97d3-7d2c1d094ad7
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a15d17-8eb2-79b2-82d4-848985b4d8a3
+              digest: 799759a2ccd0bfe075a8730a654affc1c9c2887404b6a43c0a34678a426dbf24
+              started: "2026-10-21T06:32:16.07Z"
+              spawned: true
+              bytes: 1797356
+              windows:
+                - start: "2026-10-21T06:32:16.07Z"
+                  end: "2026-10-22T16:15:53-07:00"
+            - harness: codex
+              id: 01a16004-9432-7d31-86ac-fb5d8d41b0e6
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: 3ed3f4c440b6d17dc27a131501a1b76450ab5cf1aa28323df1940524ae17f4f3
+              started: "2026-10-21T19:51:15.615Z"
+              spawned: false
+              bytes: 23446800
+              windows:
+                - start: "2026-10-21T19:51:15.615Z"
+                  end: "2026-10-22T16:15:53-07:00"
+            - harness: codex
+              id: 01a1654e-ca09-7bc1-9b4f-462d9ffb80be
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a16004-9432-7d31-86ac-fb5d8d41b0e6
+              digest: b2402ca7fb910ba96be44f2518ed663ed7af11913d0822316c91af59e7414c4f
+              started: "2026-10-22T20:30:24.984Z"
+              spawned: true
+              bytes: 6642176
+              windows:
+                - start: "2026-10-22T20:30:24.984Z"
+                  end: "2026-10-22T16:15:53-07:00"
+        protected:
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-20T23:31:35-07:00"
+              end: "2026-10-21T07:00:58.259899Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-20T23:31:35-07:00"
+              end: "2026-10-21T06:31:47.587Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T06:32:10.287Z"
+              end: "2026-10-21T06:37:10.662Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T06:32:18.563Z"
+              end: "2026-10-21T07:00:58.259899Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T06:40:45.831Z"
+              end: "2026-10-21T06:41:59.932Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T06:45:37.509Z"
+              end: "2026-10-21T06:49:22.955Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T09:44:41.27Z"
+              end: "2026-10-21T02:59:39-07:00"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T02:59:39-07:00"
+              end: "2026-10-21T03:13:35-07:00"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T03:17:33-07:00"
+              end: "2026-10-21T03:18:54-07:00"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T03:18:54-07:00"
+              end: "2026-10-21T10:28:52.200322Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T15:44:53.21Z"
+              end: "2026-10-21T16:43:59.107Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T15:57:07.598Z"
+              end: "2026-10-21T16:16:35.787Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T15:57:40.597Z"
+              end: "2026-10-21T15:59:23.781Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T16:02:11.33Z"
+              end: "2026-10-21T16:02:45.641Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T16:05:48.585Z"
+              end: "2026-10-21T16:06:19.403Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T16:06:25.195Z"
+              end: "2026-10-21T16:07:05.27Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T17:30:49.095Z"
+              end: "2026-10-21T19:51:08.104Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T17:35:21.95Z"
+              end: "2026-10-21T17:53:57.829Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T17:35:53.432Z"
+              end: "2026-10-21T18:01:27.06Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T17:36:36.55Z"
+              end: "2026-10-21T17:48:56.775Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T19:51:16.84Z"
+              end: "2026-10-21T20:03:08.016343Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T20:03:08.376521Z"
+              end: "2026-10-21T20:16:56.720381Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T23:30:07.401Z"
+              end: "2026-10-21T16:30:28-07:00"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T16:34:05-07:00"
+              end: "2026-10-21T23:50:36.112Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T23:53:15.351Z"
+              end: "2026-10-22T00:08:26.944Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-22T01:58:45.649Z"
+              end: "2026-10-22T02:14:00.132Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-22T02:56:58.521Z"
+              end: "2026-10-22T03:12:27.833Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-22T04:33:50.839Z"
+              end: "2026-10-22T04:35:16.088562Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-22T09:59:10.637Z"
+              end: "2026-10-22T09:59:26.878Z"
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 79.82053333333333
+        cuts:
+            - boundary: M1
+              dispatched: "2026-10-22T13:03:45-07:00"
+              finalized: "2026-10-22T13:10:03-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-22T13:18:35-07:00"
+              finalized: "2026-10-22T13:28:07-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-22T13:47:17-07:00"
+              finalized: "2026-10-22T13:58:52-07:00"
+              finalizing: true
+      "n": 4
+      timestamp: "2026-10-22T16:22:28-07:00"
+      dispatched: "2026-10-22T16:17:25-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      findings:
+        - id: BR-5
+          severity: Critical
+          title: Preserve the local interrupt phase's source token through the final park guard
+          detail: cmd/internal/couchcmd/switch_interrupt.go:49 pins the current wrapper token only in a local variable, while InterruptBeforeAgentSwitch returns only error. Its caller at cmd/internal/couchcore/switchagent.go:443 therefore retains the form's empty request.Source. If the wrapper reconnects after the interrupt phase returns but before the final guard, an unchanged thread record produces the same fingerprint, and inspectSwitchLiveSourceWithOptions accepts the new connection because source is empty. This violates the plan's exact-generation/reconnect refusal contract (ARCH-ORDER, ARCH-SECURE). Carry pinned source evidence across the whole operation and require it at the final guard; sweep ordinary, cooperative and force local/remote paths. Add a controlled reconnect between phase completion and final confirmation and assert zero park/start effects.
+          family: switch-source-generation-fencing
+          round: 4
+        - id: BR-6
+          severity: Important
+          title: Copy the prepared preview before clearing its force offer
+          detail: cmd/internal/couchtty/menu_switchagent.go:23 and :108 assign through frame.SwitchPrepared.Force, but cloneMenuState at cmd/internal/couchtty/menu.go:1968 copies frames without copying SwitchPrepared. Reducing Escape or Cancel therefore changes the input MenuState and existing snapshots. showMenuPublishing renders such a snapshot after releasing c.mu, so cancellation can also race its Force read at menu_switchagent.go:255 (ARCH-PURE, ARCH-ORDER). Copy the PreparedAgentSwitch value before replacing its Force field, retaining the same one-shot offer object where needed. Test both cancellation routes for input immutability and concurrent snapshot rendering.
+          family: immutable-reducer-state
+          round: 4
+      boundary: M2
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#728 (boundary-review)
@@ -722,6 +963,16 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - BR-4 — addressed — repopreferences_adoption.go:56–62 shares one deadline across migration and publication; repopreferences_store.go:87–94 bounds writer admission. The competing-store/coordinator regressions and console input/render/remote-completion regression pass. Restoring blocking writer admission in a disposable checkout makes both contention cases fail at the deadline assertion. The temporary checkout was removed.
 
+## Round 4 — 2026-10-22T16:22:28-07:00 (codex) — BLOCKED
+
+### Raised
+
+- **BR-5** [Critical] `switch-source-generation-fencing` Preserve the local interrupt phase's source token through the final park guard
+  cmd/internal/couchcmd/switch_interrupt.go:49 pins the current wrapper token only in a local variable, while InterruptBeforeAgentSwitch returns only error. Its caller at cmd/internal/couchcore/switchagent.go:443 therefore retains the form's empty request.Source. If the wrapper reconnects after the interrupt phase returns but before the final guard, an unchanged thread record produces the same fingerprint, and inspectSwitchLiveSourceWithOptions accepts the new connection because source is empty. This violates the plan's exact-generation/reconnect refusal contract (ARCH-ORDER, ARCH-SECURE). Carry pinned source evidence across the whole operation and require it at the final guard; sweep ordinary, cooperative and force local/remote paths. Add a controlled reconnect between phase completion and final confirmation and assert zero park/start effects.
+- **BR-6** [Important] `immutable-reducer-state` Copy the prepared preview before clearing its force offer
+  cmd/internal/couchtty/menu_switchagent.go:23 and :108 assign through frame.SwitchPrepared.Force, but cloneMenuState at cmd/internal/couchtty/menu.go:1968 copies frames without copying SwitchPrepared. Reducing Escape or Cancel therefore changes the input MenuState and existing snapshots. showMenuPublishing renders such a snapshot after releasing c.mu, so cancellation can also race its Force read at menu_switchagent.go:255 (ARCH-PURE, ARCH-ORDER). Copy the PreparedAgentSwitch value before replacing its Force field, retaining the same one-shot offer object where needed. Test both cancellation routes for input immutability and concurrent snapshot rendering.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-5** [Critical] `switch-source-generation-fencing` Preserve the local interrupt phase's source token through the final park guard
+- **BR-6** [Important] `immutable-reducer-state` Copy the prepared preview before clearing its force offer

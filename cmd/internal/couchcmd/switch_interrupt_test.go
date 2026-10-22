@@ -67,8 +67,10 @@ func (e *switchInterruptEndpoint) StartDrive(ctx context.Context, id string, sta
 func TestInterruptBeforeAgentSwitchUsesOneDriveAndFreshIdleProof(t *testing.T) {
 	for _, sourceAgent := range []string{"claude", "codex"} {
 		t.Run(sourceAgent, func(t *testing.T) {
-			for _, scenario := range []string{"working", "already-idle", "unknown-becomes-idle", "unknown-cancel", "dirty-before", "dirty-after-observation", "source-change", "record-change", "lost-reply", "unconfirmed", "confirmed-without-idle"} {
+			for _, scenario := range []string{"working-local", "already-idle-local", "working", "already-idle", "unknown-becomes-idle", "unknown-cancel", "dirty-before", "dirty-after-observation", "source-change", "record-change", "lost-reply", "unconfirmed", "confirmed-without-idle"} {
 				t.Run(scenario, func(t *testing.T) {
+					local := strings.HasSuffix(scenario, "-local")
+					scenario := strings.TrimSuffix(scenario, "-local")
 					rt := newRT(t, "/repo")
 					c, err := rt.NewCouch()
 					if err != nil {
@@ -172,10 +174,18 @@ func TestInterruptBeforeAgentSwitchUsesOneDriveAndFreshIdleProof(t *testing.T) {
 					}
 					guard := &switchServiceGuard{}
 					guard.service.Store(service)
-					err = guard.InterruptBeforeAgentSwitch(ctx, prepared.Address, switchSourceToken(couchmessage.SlotLiveness{Binding: binding, Session: 1}), prepared.SourceEvidence())
+					expected := switchSourceToken(couchmessage.SlotLiveness{Binding: binding, Session: 1})
+					token := expected
+					if local {
+						token = ""
+					}
+					pinned, err := guard.InterruptBeforeAgentSwitch(ctx, prepared.Address, token, prepared.SourceEvidence())
 					success := scenario == "working" || scenario == "already-idle" || scenario == "unknown-becomes-idle"
 					if (err == nil) != success {
 						t.Fatalf("%s: %v", scenario, err)
+					}
+					if success && pinned != expected {
+						t.Fatalf("lost verified source token: %q", pinned)
 					}
 					starts, _ := endpoint.counts()
 					wantStarts := 0
