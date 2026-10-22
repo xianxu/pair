@@ -162,7 +162,7 @@ func (s *messageService) handleAgentDrive(ctx context.Context, r couchmessage.Re
 	}
 	deadline := time.Now().Add(30 * time.Second)
 	payload := agentDrivePayload{endpoint: endpoint, id: r.ID, start: couchmessage.DriveStart{Request: *r.Drive, Deadline: deadline, Instance: observation.Instance, Sequence: observation.Sequence}, callerCurrent: callerCurrent}
-	return s.slotOps.admit(ctx, caller, r, func(key string, started func(), finished func(any, error)) error {
+	return s.slotOps.admit(ctx, caller, r, func(key string, started func(), _ couchcore.OperationProgress, finished func(any, error)) error {
 		return service.enqueue(key, r.Op, deadline, func(ctx context.Context) (couchcore.OperationCall, error) {
 			if err := guard(ctx); err != nil {
 				return couchcore.OperationCall{}, err

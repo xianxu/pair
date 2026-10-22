@@ -37,6 +37,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/crashreport"
 	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
+	"github.com/xianxu/pair/cmd/internal/editorendpoint"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/keyhelp"
 	"github.com/xianxu/pair/cmd/internal/launcher"
@@ -377,6 +378,15 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 	}
 	if invocation.kind == cliAdopt {
 		return runAdoptionCLI(invocation, rt, stdout, stderr)
+	}
+	if invocation.kind == cliEditorEndpoint {
+		prepared, lease, err := prepareRuntime(rt, false)
+		if err != nil {
+			_ = json.NewEncoder(stdout).Encode(editorendpoint.EndpointReply{Version: 1, Code: "unavailable", Error: "Couch namespace unavailable; start Couch and retry"})
+			return 3
+		}
+		defer lease.Close()
+		return runEditorEndpointCLI(invocation, prepared, stdin, stdout, stderr, couchmessage.Call)
 	}
 	if invocation.kind == cliSessionSync {
 		if a := invocation.sessionSync; a.operatorLockCommand() {
@@ -1519,6 +1529,11 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	verbLine(w, "--session-sync", "       couch --session-sync round FILE --json")
 	fmt.Fprintln(w, "             The last agent round's spans, and whether a submit has cleared it.")
 	fmt.Fprintln(w, "             Registration lasts until forget; rename moves metadata only. See couch --skill.")
+	verbLine(w, "--editor-endpoint", "       couch --editor-endpoint register --json")
+	verbLine(w, "--editor-endpoint", "       couch --editor-endpoint unregister --json")
+	fmt.Fprintln(w, "             Bounded editor attachment JSON on stdin; unregister compares a batch of exact generations.")
+	verbLine(w, "--editor-endpoint", "       couch --editor-endpoint lookup --namespace PATH --document-id ID --json")
+	fmt.Fprintln(w, "             Private live-editor endpoint metadata; no document acquisition or remote editing.")
 	verbLine(w, "--adopt-store", "       couch --adopt-store <absolute-path> [--pair-data <path>] [--identity-dir <path>]")
 	fmt.Fprintln(w, "             [--legacy-store <path>]... [--exclude-store <path>]... [--apply <digest>]")
 	fmt.Fprintln(w, "             Preview legacy stores as JSON; apply the current digest to select in place.")

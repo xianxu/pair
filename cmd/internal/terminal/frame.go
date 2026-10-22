@@ -32,6 +32,8 @@ type Frame struct {
 	Rows                      []RowMetadata
 	Cursor                    Cursor
 	AltScreen                 bool
+	// ChromeRows is compositor-owned bottom reservation; endpoint frames carry zero.
+	ChromeRows int
 }
 
 func (f Frame) Clone() Frame {
@@ -86,6 +88,9 @@ func validLink(c Cell) bool {
 func (f Frame) Validate() error {
 	if err := f.Geometry.Validate(); err != nil {
 		return err
+	}
+	if f.ChromeRows < 0 || f.ChromeRows >= f.Geometry.Rows {
+		return fmt.Errorf("terminal: invalid chrome reservation")
 	}
 	if len(f.Cells) != f.Geometry.Cols*f.Geometry.Rows {
 		return fmt.Errorf("terminal: frame cell count does not match geometry")

@@ -48,14 +48,14 @@ func TestRecoveryConfirmationHubTokenReplayUsesReceipt(t *testing.T) {
 	r.s.authority.hub = "/repo0"
 	calls := 0
 	r.slotOps.reference = func(context.Context, string) (string, error) { calls++; return "pair:2", nil }
-	r.slotOps.recovery = func(key, actor string, req couchmessage.Request, guard func(context.Context) error, started func(), finished func(any, error)) error {
+	r.slotOps.recovery = func(key, actor string, req couchmessage.Request, guard func(context.Context) error, started func(), progress couchcore.OperationProgress, finished func(any, error)) error {
 		if actor != recoveryActor(caller) || req.Target != "pair:2" || guard == nil {
 			t.Fatalf("lost authenticated authority %s %+v", actor, req)
 		}
 		if err := guard(context.Background()); err != nil {
 			return err
 		}
-		return runner.run(key, req.Op, req.Target, couchcore.LiveRestartOptions{}, started, finished)
+		return runner.run(key, req.Op, req.Target, couchcore.LiveRestartOptions{}, started, progress, finished)
 	}
 	req := slotRequest(caller, "recovery-confirmation", "confirm-id", "")
 	req.RecoveryConfirmation = "token"
@@ -103,9 +103,9 @@ func TestRecoveryConfirmationHubOwnershipAndGenerationRechecked(t *testing.T) {
 	})
 	r.slotOps.reference = func(context.Context, string) (string, error) { return "pair:2", nil }
 	var queuedGuard func(context.Context) error
-	r.slotOps.recovery = func(key, actor string, req couchmessage.Request, guard func(context.Context) error, started func(), finished func(any, error)) error {
+	r.slotOps.recovery = func(key, actor string, req couchmessage.Request, guard func(context.Context) error, started func(), progress couchcore.OperationProgress, finished func(any, error)) error {
 		queuedGuard = guard
-		return runner.run(key, req.Op, req.Target, couchcore.LiveRestartOptions{}, started, finished)
+		return runner.run(key, req.Op, req.Target, couchcore.LiveRestartOptions{}, started, progress, finished)
 	}
 	req := slotRequest(caller, "recovery-confirmation", "guarded-confirmation", "")
 	req.RecoveryConfirmation = "token"

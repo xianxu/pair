@@ -165,7 +165,9 @@ type Console struct {
 	// which a refresh or a notice could have changed in between.
 	menuExtents []ActorExtent
 	// statusChips is the same for the reserved row.
-	statusChips []ChipSpan
+	statusChips    []ChipSpan
+	statusRows     int
+	statusRevision uint64
 	// statusControl is the broadcast cell's span on the last drawn row.
 	statusControl ColumnSpan
 	// broadcastCfg is nil when broadcasting is not configured; bcast is the
@@ -412,13 +414,13 @@ func (c *Console) Ops() func(couchcore.OperationCall) (any, error) {
 func (c *Console) SetErrorWriter(w io.Writer) { c.stderr = w }
 
 // ChildSize is what a new child should be sized to: the host, minus the
-// reserved row. Handed to PtyRunner so the FIRST frame is already right --
+// rendered chrome. Handed to PtyRunner so the FIRST frame is already right --
 // spawning at the host height and reflowing is a whole redraw for a full-screen
 // agent harness.
 func (c *Console) ChildSize() ptychild.Size {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return ptychild.Size{Rows: bottomReservation(c.size.Rows).ChildRows(), Cols: c.size.Cols}
+	return c.childSizeLocked()
 }
 
 // Deliver is the sink handed to the runner: it hands a child's output to the
@@ -566,7 +568,7 @@ func (c *Console) installObservedThreadActor(ctx context.Context, handleID strin
 	}
 	c.pendingInstalls[handleID] = pendingInstall{thread: thread, child: child}
 	c.workers.Add(1)
-	desired := ptychild.Size{Rows: bottomReservation(c.size.Rows).ChildRows(), Cols: c.size.Cols}
+	desired := c.childSizeLocked()
 	c.mu.Unlock()
 	registered, committed := false, false
 	defer func() {
@@ -620,7 +622,7 @@ func (c *Console) installObservedThreadActor(ctx context.Context, handleID strin
 			c.mu.Unlock()
 			return errors.New("terminal installation reservation changed")
 		}
-		current := ptychild.Size{Rows: bottomReservation(c.size.Rows).ChildRows(), Cols: c.size.Cols}
+		current := c.childSizeLocked()
 		if desired != current {
 			desired = current
 			c.mu.Unlock()
@@ -1315,17 +1317,6 @@ func (c *Console) disposeChild(child *ptychild.Child) error {
 	return err
 }
 
-// bottomReservation is couch's row: always the host's bottom one.
-//
-// A plain function of rows, NOT a method that reads c.size under the lock. Most
-// callers here already hold c.mu, so a locking accessor deadlocks -- which it
-// did, in ChildSize and applyLayout, on the first version of this lift. Taking
-// rows as an argument makes every call site obviously safe and leaves reading
-// c.size where the locking discipline already is.
-func bottomReservation(rows uint16) hostty.Reservation {
-	return hostty.Reservation{Rows: rows, Edge: hostty.EdgeBottom}
-}
-
 func (c *Console) activeChild() *ptychild.Child {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -1335,12 +1326,12 @@ func (c *Console) activeChild() *ptychild.Child {
 	return nil
 }
 
-// applyLayout sizes every child to fit above the reserved row. The row itself
+// applyLayout sizes every child to fit above the rendered chrome. Chrome itself
 // is drawn by the paint, so there is one gated path to the screen rather than
 // two.
 func (c *Console) applyLayout() {
 	c.mu.Lock()
-	size := ptychild.Size{Rows: bottomReservation(c.size.Rows).ChildRows(), Cols: c.size.Cols}
+	size := c.childSizeLocked()
 	children := make([]*ptychild.Child, 0, len(c.panes))
 	for _, p := range c.panes {
 		children = append(children, p.child)
@@ -1383,28 +1374,7 @@ func (c *Console) paintNow() {
 		c.showMenuPublishing()
 		return
 	}
-	row, cells, err := c.chrome()
-	c.beforePublish("chrome")
-	if err == nil {
-		err = c.presenter.UpdateChrome(c.lifetime, cells)
-	}
-	if terminal.IsRoutingAnswer(err) {
-		c.traceDropped("chrome", err)
-		// The presenter holds no endpoint to paint chrome onto while c.focus
-		// names an actor. showMenu and selection flip c.focus with the
-		// presentation under publishMu (pair#484), so they no longer show this;
-		// Attach still can: it sets FocusActor before Run's first selection
-		// presents the endpoint. The selection that follows is the
-		// authoritative paint, so skipping this one loses nothing -- and
-		// escalating it would be the pair#265 exit reached with no input
-		// involved at all.
-		return
-	}
-	if err != nil {
-		c.terminalError(err)
-		return
-	}
-	c.commitChrome(row)
+	c.paintActorPublishing("chrome")
 }
 
 // beforePublish runs the test hook, if any; the caller holds publishMu.
@@ -1509,59 +1479,16 @@ func (c *Console) onResize() {
 		c.terminalError(err)
 		return
 	}
-	// The new size and the presenter's geometry change together under
-	// publishMu, so no paint snapshots one without the other (pair#484).
 	c.publishMu.Lock()
+	defer c.publishMu.Unlock()
 	c.mu.Lock()
 	c.size = size
 	panel := c.focus.IsPanel()
-	selected := c.panes[c.active]
-	children := make([]*ptychild.Child, 0, len(c.panes))
-	for _, p := range c.panes {
-		children = append(children, p.child)
-	}
 	c.mu.Unlock()
-	// presenterResized records whether the presenter's apply callback actually
-	// ran. The loop below skips the focused child ONLY because that callback
-	// normally resizes it; when the presenter refuses, the callback never ran
-	// and skipping would leave the one pane the operator is looking at at its
-	// old size (pair#265 BR-13).
-	presenterResized := false
-	if !panel && selected != nil {
-		c.beforePublish("resize")
-		err = c.presenter.Resize(c.lifetime, terminal.Geometry{Cols: int(size.Cols), Rows: int(size.Rows)}, func(g terminal.Geometry) error {
-			return selected.child.ResizePTY(ptychild.Size{Cols: uint16(g.Cols), Rows: uint16(g.Rows)})
-		})
-	}
-	c.publishMu.Unlock()
-	if !panel && selected != nil {
-		switch {
-		case err == nil:
-			presenterResized = true
-		case !terminal.IsRoutingAnswer(err):
-			c.terminalError(err)
-			return
-		default:
-			// A pane exists but the presenter holds no endpoint for it. Resizing
-			// the window must not exit couch over that; the child still gets its
-			// new size from the loop below, which no longer skips it.
-			c.traceDropped("resize", err)
-		}
-	}
-	childSize := c.ChildSize()
-	for _, child := range children {
-		if (presenterResized && child == selected.child) || child.Endpoint().InputEnded() {
-			continue
-		}
-		if err := child.Resize(childSize); err != nil {
-			c.terminalError(err)
-			return
-		}
-	}
 	if panel {
-		c.showMenu()
+		c.showMenuPublishing()
 	} else {
-		c.paintNow()
+		c.paintActorPublishing("resize")
 	}
 }
 
@@ -1926,7 +1853,7 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 		operationContext = context.WithValue(operationContext, menuOperationContextKey{}, menuOperationContext{origin: origin})
 		operationContext = couchcore.WithOperationProgress(operationContext, func(detail string) {
 			c.mu.Lock()
-			c.menu = updateOperationProgress(c.menu, origin.Attempt, detail)
+			c.menu = updateOperationProgress(c.menu, origin.Attempt, detail, time.Now())
 			c.mu.Unlock()
 			c.repaint()
 		})

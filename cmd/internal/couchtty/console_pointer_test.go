@@ -175,7 +175,7 @@ func TestPointerLateBatchAfterOffDropped(t *testing.T) {
 	f.clickPointer(t, 0)
 	waitFor(t, "pointing off", func() bool { return f.pointerPhase() == pointerOff })
 	_ = f.con.runTerminalCommand(f.con.lifetime, func() error {
-		f.con.applyPoints(broadcast.PointBatch{Cols: 80, Rows: 24, Points: [][2]int{{5, 3}}})
+		f.con.applyPoints(broadcast.PointBatch{Cols: 80, Rows: 24, ChromeRows: 1, Points: [][2]int{{5, 3}}})
 		return nil
 	})
 	f.con.pmarks.mu.Lock()
@@ -317,4 +317,33 @@ func TestPointerRightClickMintsWhileOff(t *testing.T) {
 	}
 	f.clickPointer(t, 0)
 	waitFor(t, "enable copied stable link", func() bool { return f.pointerPhase() == pointerOn && copies(f, s.PointerLink()) == 2 })
+}
+
+func TestPointerBatchRequiresCurrentConfirmedChrome(t *testing.T) {
+	f, _, _ := pointerOnFixture(t, nil)
+	for _, batch := range []broadcast.PointBatch{
+		{Cols: 80, Rows: 24, ChromeRows: 2, Points: [][2]int{{5, 3}}},
+		{Cols: 79, Rows: 24, ChromeRows: 1, Points: [][2]int{{5, 3}}},
+	} {
+		if err := f.con.runTerminalCommand(f.con.lifetime, func() error { f.con.applyPoints(batch); return nil }); err != nil {
+			t.Fatal(err)
+		}
+		f.con.pmarks.mu.Lock()
+		live := f.con.pmarks.marks != nil && f.con.pmarks.marks.Live(time.Now())
+		f.con.pmarks.mu.Unlock()
+		if live {
+			t.Fatalf("stale batch drew a mark: %+v", batch)
+		}
+	}
+	if err := f.con.runTerminalCommand(f.con.lifetime, func() error {
+		f.con.applyPoints(broadcast.PointBatch{Cols: 80, Rows: 24, ChromeRows: 1, Points: [][2]int{{5, 3}}})
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	f.con.pmarks.mu.Lock()
+	defer f.con.pmarks.mu.Unlock()
+	if f.con.pmarks.marks == nil || !f.con.pmarks.marks.Live(time.Now()) {
+		t.Fatal("current confirmed batch did not draw")
+	}
 }

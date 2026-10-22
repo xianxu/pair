@@ -21,6 +21,7 @@ import (
 )
 
 type Options struct {
+	ExplicitHub   bool
 	Workers       int
 	AgentKind     string
 	RuntimeBudget time.Duration
@@ -217,9 +218,7 @@ func (f *Fleet) Start(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	cmd := exec.Command(filepath.Join(f.Roots.Mutable["bin"], "couch"))
-	cmd.Dir = f.Workspaces.Primary
-	cmd.Env = append([]string(nil), f.Environment...)
+	cmd := f.consoleCommand()
 	p, err := startTerminal(cmd)
 	if err != nil {
 		return err
@@ -459,4 +458,17 @@ func (f *Fleet) Close(ctx context.Context) (result error) {
 	f.mu.Unlock()
 	f.t.Logf("native fleet cleaned: root=%s all owned generations absent; direct child and IO joined", f.Roots.Root)
 	return nil
+}
+
+// consoleCommand preserves bare startup by default; explicit qualification uses
+// the same public directory argument as an authenticated configured hub.
+func (f *Fleet) consoleCommand() *exec.Cmd {
+	args := []string{}
+	if f.Options.ExplicitHub {
+		args = append(args, f.Workspaces.Primary)
+	}
+	cmd := exec.Command(filepath.Join(f.Roots.Mutable["bin"], "couch"), args...)
+	cmd.Dir = f.Workspaces.Primary
+	cmd.Env = append([]string(nil), f.Environment...)
+	return cmd
 }

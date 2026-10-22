@@ -248,14 +248,14 @@ func (c *Console) showMenuPublishing() {
 	c.mu.Lock()
 	state, size := cloneMenuState(c.menu), c.size
 	c.mu.Unlock()
-	height := max(1, int(size.Rows)-1)
-	view := RenderMenuView(state, int(size.Cols), height, c.now(), true)
-	cells, err := terminal.StyledRows(view.Body, int(size.Cols), height)
+	bar, bottom, err := c.chrome()
 	if err != nil {
 		c.terminalError(err)
 		return
 	}
-	row, bottom, err := c.chrome()
+	height := max(1, int(size.Rows)-bar.Height())
+	view := RenderMenuView(state, int(size.Cols), height, c.now(), true)
+	cells, err := terminal.StyledRows(view.Body, int(size.Cols), height)
 	if err != nil {
 		c.terminalError(err)
 		return
@@ -267,6 +267,7 @@ func (c *Console) showMenuPublishing() {
 	}
 	frame, err := terminal.PanelFrame(terminal.Geometry{Cols: int(size.Cols), Rows: int(size.Rows)}, cells, cursor)
 	if err == nil {
+		frame.ChromeRows = bar.Height()
 		c.beforePublish("panel")
 		c.traceCaptureTransition("panel-start", "", nil)
 		// Private: the switcher lists the whole fleet; a broadcast shows a
@@ -282,7 +283,8 @@ func (c *Console) showMenuPublishing() {
 	c.menuExtents = view.Extents
 	c.focus = FocusPanel()
 	c.mu.Unlock()
-	c.commitChrome(row)
+	c.commitChrome(bar)
+	c.terminalError(c.resizeBackgroundChildren(chromeChildSize(size, bar.Height()), nil))
 }
 
 // dispatchMenuEffects is the thin stateful shell around the pure menu. Preview

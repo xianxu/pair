@@ -309,3 +309,8 @@ Resource pending policy retains its original hub alongside its existing epoch,
 both json-excluded volatile fields; changing hub while pending retires the old
 occurrence. No persisted format or new UI state. Already-admitted receipts
 remain canonical after off; the guard governs only new mailbox mutations.
+
+
+### 2026-10-22 — operator-approved maintenance during the acceptance shutdown
+
+Per hub b6bfeab3, pair:0 remains with #753 until the explicit #739 stage go. The coordinated full-shutdown checklist now includes the operator deleting the old AgentScratch volume and running brew upgrade go (1.27.1→1.27.3) while Couch is fully down, before starting Couch again. After restart, the hub dispatches one rebuild per slot. Those are operator machine changes, not worker commands. Then verify retained startup status plus automation OFF, followed by the first genuine operator message and the TL's explicit automation ON unless told to keep it off. No implicit flip, no replay, and no change to positively surviving normal-restart ON semantics.

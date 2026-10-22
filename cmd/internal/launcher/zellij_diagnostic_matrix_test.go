@@ -151,7 +151,11 @@ func TestZellijDiagnosticAuthorityMatrix(t *testing.T) {
 							t.Fatalf("name accepted=%v refused=%v error=%v; want %v,%v", accepted, refused, gotErr, wantAccept, wantRefuse)
 						}
 						if !wantAccept && !wantRefuse {
-							if queryError() == nil || accepts("x") || accepts("pair-much-longer-name") || calls != 1 {
+							wantCalls := 1
+							if fault == "none" && (tc.name == "empty-success" || tc.name == "strict-inventory") {
+								wantCalls = 3 // The shared read exhausts recovery before teaching no bound.
+							}
+							if queryError() == nil || accepts("x") || accepts("pair-much-longer-name") || calls != wantCalls {
 								t.Fatalf("unknown query taught a bound or continued: error=%v calls=%d", queryError(), calls)
 							}
 						} else if queryError() != nil {

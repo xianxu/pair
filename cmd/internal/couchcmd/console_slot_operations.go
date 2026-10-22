@@ -17,13 +17,14 @@ import (
 // from the thread store.
 func consoleSlotOperations(console *couchtty.Console, c *couchcore.Couch, probe *liveRestartProbe) *slotOperations {
 	lifecycleQueue := newLifecycleRemoteQueue(console, c)
-	run := func(key, op, target string, opts couchcore.LiveRestartOptions, guard func(context.Context) error, started func(), finished func(any, error)) error {
+	run := func(key, op, target string, opts couchcore.LiveRestartOptions, guard func(context.Context) error, started func(), progress couchcore.OperationProgress, finished func(any, error)) error {
 		// The admission note and readiness wait are written on the queue
 		// goroutine by prepare and read by finished after the job; the queue
 		// orders the two.
 		var note string
 		var await func(context.Context) error
 		return lifecycleQueue.EnqueueForReference(key, op, target, func(ctx context.Context) (couchcore.OperationCall, error) {
+			ctx = couchcore.WithOperationProgress(ctx, progress)
 			if guard != nil {
 				if err := guard(ctx); err != nil {
 					return couchcore.OperationCall{}, err
@@ -40,8 +41,8 @@ func consoleSlotOperations(console *couchtty.Console, c *couchcore.Couch, probe 
 			return call, err
 		}, started, withAdmissionNote(&note, finished), &await)
 	}
-	ops := newSlotOperations(func(key, op, target string, opts couchcore.LiveRestartOptions, started func(), finished func(any, error)) error {
-		return run(key, op, target, opts, nil, started, finished)
+	ops := newSlotOperations(func(key, op, target string, opts couchcore.LiveRestartOptions, started func(), progress couchcore.OperationProgress, finished func(any, error)) error {
+		return run(key, op, target, opts, nil, started, progress, finished)
 	}, func(ctx context.Context) ([]couchcore.RepositoryName, error) {
 		if c.Threads == nil {
 			return nil, errors.New("no thread store")
@@ -74,8 +75,9 @@ func consoleSlotOperations(console *couchtty.Console, c *couchcore.Couch, probe 
 			}
 			return validateParkRecoveryTarget(bound, current)
 		}
-		return func(key, op, _ string, _ couchcore.LiveRestartOptions, started func(), finished func(any, error)) error {
+		return func(key, op, _ string, _ couchcore.LiveRestartOptions, started func(), progress couchcore.OperationProgress, finished func(any, error)) error {
 			return lifecycleQueue.EnqueueForReference(key, op, target, func(ctx context.Context) (couchcore.OperationCall, error) {
+				ctx = couchcore.WithOperationProgress(ctx, progress)
 				if err := check(ctx); err != nil {
 					return couchcore.OperationCall{}, err
 				}
@@ -87,8 +89,9 @@ func consoleSlotOperations(console *couchtty.Console, c *couchcore.Couch, probe 
 		}, nil
 	}
 	ops.reference = c.RecoveryConfirmationReference
-	ops.recovery = func(key, actor string, request couchmessage.Request, guard func(context.Context) error, started func(), finished func(any, error)) error {
+	ops.recovery = func(key, actor string, request couchmessage.Request, guard func(context.Context) error, started func(), progress couchcore.OperationProgress, finished func(any, error)) error {
 		return lifecycleQueue.EnqueueForReference(key, request.Op, request.Target, func(ctx context.Context) (couchcore.OperationCall, error) {
+			ctx = couchcore.WithOperationProgress(ctx, progress)
 			ctx = couchcore.WithRecoveryConfirmer(ctx, actor)
 			if guard != nil {
 				if err := guard(ctx); err != nil {
@@ -141,8 +144,9 @@ func consoleSlotOperations(console *couchtty.Console, c *couchcore.Couch, probe 
 		}
 		return c.ResumeCandidates(ctx, resolved)
 	}
-	ops.candidate = func(key, target, candidate string, started func(), finished func(any, error), guards ...func(context.Context) error) error {
+	ops.candidate = func(key, target, candidate string, started func(), progress couchcore.OperationProgress, finished func(any, error), guards ...func(context.Context) error) error {
 		return lifecycleQueue.EnqueueForReference(key, "resume", target, func(ctx context.Context) (couchcore.OperationCall, error) {
+			ctx = couchcore.WithOperationProgress(ctx, progress)
 			var guard func(context.Context) error
 			if len(guards) > 0 {
 				guard = guards[0]

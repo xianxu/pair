@@ -210,8 +210,10 @@ func (r OSReadyReader) readReadyFile(ctx context.Context, address ThreadAddress,
 func (r OSReadyReader) readReady(ctx context.Context, address ThreadAddress, agent, attempt string) (*readiness.ReadyRecord, error) {
 	ready, err := r.readReadyFile(ctx, address, agent, attempt)
 	if err != nil || ready == nil {
+		reportProgress(ctx, "waiting for agent readiness")
 		return ready, err
 	}
+	reportProgress(ctx, "verifying terminal registration")
 	session, err := r.sessionBinding(ctx, address)
 	if err != nil {
 		return nil, err

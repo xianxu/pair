@@ -106,9 +106,9 @@ func TestHubSlotMutationGuardsEveryOperationAndQueuedMove(t *testing.T) {
 			h := r.s.authority.hubs
 			h.state, _ = h.state.Apply(couchcore.HubMove{Slots: []couchcore.HubSlot{{Repository: "/repo", Number: 2}}, Caller: "/repo1", Target: "/repo0", Revision: h.state.Revision()})
 			var check func(context.Context) error
-			r.slotOps.guardedRun = func(key, op, target string, opts couchcore.LiveRestartOptions, guard func(context.Context) error, started func(), finished func(any, error)) error {
+			r.slotOps.guardedRun = func(key, op, target string, opts couchcore.LiveRestartOptions, guard func(context.Context) error, started func(), progress couchcore.OperationProgress, finished func(any, error)) error {
 				check = guard
-				return runner.run(key, op, target, opts, started, finished)
+				return runner.run(key, op, target, opts, started, progress, finished)
 			}
 			got = switchCall(t, r, req)
 			if got.Code != "accepted" || check == nil {

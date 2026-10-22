@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/panebirth"
+	"github.com/xianxu/pair/cmd/internal/startupbudget"
 )
 
 // RecoveryLaunchUnconfirmed preserves an attempt that may already own a native
@@ -58,10 +59,18 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	caller := ctx
+	ctx, startupDeadline, stopStartup, startupErr := c.trackedStartupBudget(ctx, in.Resume || in.Fresh)
+	if startupErr != nil {
+		return ActorRecord{}, nil, errors.Join(startupErr, c.rollbackTrackedStart(in.Thread, in.Nonce))
+	}
+	defer stopStartup()
+	ctx, describeStartupFailure := trackStartupProgress(ctx)
+	reportProgress(ctx, "preparing startup")
 	steps := newLaunchSteps(ctx, in.Begun)
 	stage := "prepare"
 	fail := func(h Handle, cause error, cleanup func() error) error {
-		return c.captureLaunchFailure(in, stage, h, cause, cleanup)
+		return c.captureLaunchFailure(in, stage, h, describeStartupFailure(cause), cleanup)
 	}
 	rollback := func(thread ThreadRecord, cause error) error {
 		return fail(nil, cause, func() error { return c.rollbackTrackedStart(thread, in.Nonce) })
@@ -173,7 +182,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		return ActorRecord{}, nil, rollback(thread, err)
 	}
 	argv = append([]string{argv[0], launcher.CouchSessionFlag}, argv[1:]...)
-	env = append(env, launcher.CouchSessionIntentEnv+"="+string(intent))
+	env = append(env, launcher.CouchSessionIntentEnv+"="+string(intent), startupbudget.DeadlineEnv+"="+startupbudget.Encode(startupDeadline))
 	steps.mark("prepare")
 	stage = "spawn"
 	launchDir := in.Args.WorkingDir()
@@ -182,7 +191,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		// Keep recorded paths intact; use a neutral existing helper directory.
 		launchDir = string(filepath.Separator)
 	}
-	h, err := c.Runner.StartBlocked(ctx, launchDir, argv, env, 10*time.Second)
+	h, err := c.Runner.StartBlocked(ctx, launchDir, argv, env, time.Until(startupDeadline))
 	steps.mark("spawn")
 	if err != nil {
 		return ActorRecord{}, nil, rollback(thread, fmt.Errorf("spawn %s: %w", in.Args.Worktree, err))
@@ -218,6 +227,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	}
 	steps.mark("record+baseline")
 	stage = "acknowledge"
+	reportProgress(ctx, "waiting for helper acknowledgement")
 	ackErr := h.Acknowledge()
 	if ackErr != nil {
 		ackErr = fmt.Errorf("acknowledge blocked helper %+v: %w", thread.Address, ackErr)
@@ -233,7 +243,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		recoveryObserved = true
 		// A cancelled caller ends its wait, not the native launch. This independent
 		// read-only look is bounded and addresses only the already-started attempt.
-		final, cancel := context.WithTimeout(context.WithoutCancel(ctx), exitedFinalLook)
+		final, cancel := context.WithTimeout(context.WithoutCancel(caller), exitedFinalLook)
 		defer cancel()
 		return c.reobserveRecoveryRegistration(final, thread, in, birth)
 	}
@@ -241,7 +251,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		if !recoveryObserved {
 			cause = errors.Join(cause, reobserve())
 		}
-		final, cancel := context.WithTimeout(context.WithoutCancel(ctx), recoveryObservationTimeout)
+		final, cancel := context.WithTimeout(context.WithoutCancel(caller), recoveryObservationTimeout)
 		released, dispositionErr := c.finalizeFailedRecoveryLaunch(final, thread, in.Nonce, h)
 		cancel()
 		if released {
@@ -250,22 +260,18 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		cause = errors.Join(cause, dispositionErr)
 		return &RecoveryLaunchUnconfirmed{Address: thread.Address, Nonce: in.Nonce, Cause: fail(h, cause, nil)}
 	}
-	registrationTimeout := pairRegistrationTimeout
-	if (in.Resume || in.Fresh) && c.resumeRegistrationTimeout > 0 {
-		registrationTimeout = c.resumeRegistrationTimeout
-	}
+	registrationTimeout := time.Until(startupDeadline)
 	steps.mark("ack")
+	registrationContext, stopExitWatch := whileHelperAlive(ctx, h)
 	deadline := c.registrationDeadline
 	if deadline == nil {
 		deadline = context.WithTimeout
 	}
-	// The exit watch sits under the deadline, so the deadline's own
-	// cancellation reaches the wait loops directly.
-	registrationContext, stopExitWatch := whileHelperAlive(ctx, h)
 	registrationContext, cancelRegistration := deadline(registrationContext, registrationTimeout)
 	await := func(ctx context.Context) error {
 		switch {
 		case in.Fresh:
+			reportProgress(ctx, "waiting for agent readiness")
 			if err := c.awaitFreshRegistration(ctx, thread.Address, in.Args.Stack, in.Nonce); err != nil {
 				return err
 			}
@@ -273,6 +279,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		case in.Resume:
 			return c.awaitResumeRegistration(ctx, thread.Address, birth)
 		}
+		reportProgress(ctx, "waiting for Pair registration")
 		return c.awaitThreadRegistration(ctx, thread.Address)
 	}
 	stage = "registration"
@@ -281,6 +288,9 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		err = await(registrationContext)
 	}
 	cancelRegistration()
+	if err == nil && !in.Recovery {
+		err = ctx.Err()
+	}
 	exited := stopExitWatch()
 	if in.Recovery {
 		if err != nil || exited {
@@ -292,7 +302,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		}
 	} else if exited {
 		// Ordinary launch retains its existing post-exit final look.
-		final, cancelFinal := context.WithTimeout(ctx, exitedFinalLook)
+		final, cancelFinal := context.WithTimeout(caller, exitedFinalLook)
 		if await(final) == nil {
 			err, exited = nil, false
 		}
@@ -504,6 +514,7 @@ func (c *Couch) awaitResumeRegistration(ctx context.Context, address ThreadAddre
 	wait := &registrationWaitError{phase: "ownership poll", last: "none"}
 	start := time.Now()
 	if birth != nil {
+		reportProgress(ctx, "waiting for pane birth")
 		err := c.awaitPaneBirth(ctx, address, *birth)
 		wait.birth = time.Since(start)
 		if err != nil {
@@ -511,6 +522,7 @@ func (c *Couch) awaitResumeRegistration(ctx context.Context, address ThreadAddre
 			return wait
 		}
 	}
+	reportProgress(ctx, "verifying terminal registration")
 	polling := time.Now()
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()

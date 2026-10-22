@@ -78,7 +78,7 @@ func TestTerminalToggleRefusalReturnsFailureAndNotifiesBroker(t *testing.T) {
 	defer broker.Close()
 	f.SetModel(shortcutAdmissionModel(2))
 	wrong := "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n"
-	f.SetFaults(zellijtest.Fault{Ordinal: 1, Reply: &wrong})
+	f.SetFaults(zellijtest.Fault{Ordinal: 1, Reply: &wrong}, zellijtest.Fault{Ordinal: 2, Reply: &wrong}, zellijtest.Fault{Ordinal: 3, Reply: &wrong})
 	var stderr bytes.Buffer
 	if code := Run([]string{"--test-shortcut", "Alt+Shift+Enter"}, strings.NewReader(""), io.Discard, &stderr); code != 1 {
 		t.Fatalf("uncertain toggle code=%d stderr=%q", code, &stderr)
@@ -91,7 +91,7 @@ func TestTerminalToggleRefusalReturnsFailureAndNotifiesBroker(t *testing.T) {
 	case <-testwait.After(t):
 		t.Fatal("terminal refusal never reached broker")
 	}
-	if !strings.Contains(stderr.String(), "refused") || len(f.Effects()) != 0 || len(f.Queries()) != 1 {
+	if !strings.Contains(stderr.String(), "refused") || len(f.Effects()) != 0 || len(f.Queries()) != 3 {
 		t.Fatalf("diagnostic=%q effects=%+v queries=%+v", &stderr, f.Effects(), f.Queries())
 	}
 }

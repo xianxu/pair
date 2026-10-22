@@ -19,7 +19,10 @@ import (
 // single-document commands resolve the effective Owner from current content.
 type Registration struct {
 	ID, File, Owner, RegisteredOwner string
-	RegisteredAt                     time.Time
+	// Namespace is a CLI projection of the selected physical Couch store;
+	// it is not another persisted source of registry authority.
+	Namespace    string
+	RegisteredAt time.Time
 }
 
 // DocumentInfo is a fresh registered document's routing and operator-lock facts.
