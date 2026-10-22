@@ -106,3 +106,111 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T13:28:06-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 728 — couch --switch-agent refuses 'no saved configuration for codex' even after the operator's switch-form switch in that repo (echo) |
+| repo | pair |
+| issue file | workshop/issues/000728-couch-switch-agent-refuses-no-saved-configuration-for-codex-even-after-the-operator-s-switch-form-switch-in-that-repo-echo.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 4a7ab2ca1a4c0b0d4aa34e8cada1d8c2917427bc..32ababba112e3519b0009afb904b3df84acaf724 |
+| command | sdlc milestone-close --issue 728 --milestone M1 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T13:28:06-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+All three prior findings are addressed, with negative controls confirming the provenance and fixture corrections. M1’s repository authority, migration, and adoption flow are substantially delivered. One new issue blocks SHIP: optional preference publication can indefinitely block the console’s input and rendering path.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      menu_switchagent.go:184-199 renders own, borrowed/donor, absent and conflict states. The reducer/render/cancel/acceptance regression passes at head; removing the rendering correction through a temporary overlay makes all eight agent/state cases fail.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      README.md:676-682 and 1328-1364 now describe Couch repository arguments, legacy migration inputs, independent Pair defaults and post-attachment publication/repair. These passages match repopreferences_store.go:28, run.go:1025-1030 and launcher's trusted-profile guards.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Both tests now use canonical repository preferences and pass in isolation. Restoring their original fixtures through a temporary overlay reproduces both reported failures. The complete couchcore rerun failed an unchanged live PTY teardown test, which passed on isolated rerun.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: optional-console-work-bounds
+    title: |
+      Optional preference publication can block console input and rendering indefinitely
+    detail: |
+      couchcmd/run.go:1029 synchronously calls PublishAdoptedConfiguration on the console dispatcher. repopreferences_adoption.go:62 then enters repopreferences_store.go:57's blocking withLock without passing the migration deadline; this ultimately uses blocking flock. A controlled competing-writer check remained blocked after 5.303 seconds and completed only when the lock was released, with no warning. ARCH-CONSTRAINTS: keep optional publication off the console event path, bound coordinator/store lock acquisition, and report timeout through the existing started-but-not-remembered warning without stopping the adopted child. Add a controlled contention regression.
+```
+
+1. **Strengths**
+
+   - Repository arguments use the global Couch namespace regardless of slot routing; Pair’s standalone authority remains separate.
+   - The codec preserves nested unknown fields and original legacy bytes while enforcing known types, duplicate rejection, and size bounds.
+   - Publication follows successful console attachment, carries explicit acceptance intent, and shares one completion across result copies.
+   - Provenance coverage exercises both agents across own, borrowed, absent, and conflicting configurations.
+
+2. **Critical findings**
+
+   The blocking publication path above needs bounded lock acquisition and execution outside the console event loop. Preserve warning delivery before operation/receipt completion; avoid introducing an unowned background task.
+
+3. **Important findings**
+
+   None additional.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - Passed: complete couchtty, couchcmd, threadrecord, and launcher packages.
+   - Complete couchcore failed `TestTeardownProvesARealPtyTree` on a lease-holder probe deadline. Its isolated rerun passed; the full package run was therefore not green.
+   - Passed: both BR-3 tests, affected-reader inventory, production artifact classification, and diff whitespace check.
+   - Temporary overlays reproduced BR-1 without its fix, both original BR-3 failures, and publication exceeding its migration deadline. Repository files remained unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** centralized preference policy and store; existing lifecycle reused.
+   - **ARCH-PURE — pass:** model/codec tests exercise deterministic logic without IO.
+   - **ARCH-PURPOSE — pass:** enumerated Couch consumers use repository arguments; active provenance is rendered.
+   - **ARCH-MOCK — pass:** stateful launcher/process/session seams and private filesystem/Git fixtures cover the changed flow.
+   - **ARCH-CONSTRAINTS — flag:** optional publication has an unbounded lock wait on the console path.
+   - **ARCH-SECURE — pass:** migration verifies identity/containment; argv stays structured; fixtures use private state.
+   - **ARCH-ORDER — pass:** claims carry acceptance intent; publication follows adoption and executes once.
+   - **ARCH-FUNERAL — pass:** bounded replacement document and existing namespace retention; no new outbox.
+   - **ARCH-EVOLVE — pass:** additive fields and nested unknown-member preservation are covered.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry defining publication’s total latency budget, execution owner, contention/timeout behavior, and controlled coordinator/store-lock tests. State explicitly that optional persistence cannot block console input or rendering.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"642e58ec-c8de-4d74-8fa4-8c319eb6dfe6","repository":"github.com/xianxu/pair","issue_id":"000728","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/ad3a4abaf30575fb","reviewed_head":"32ababba112e3519b0009afb904b3df84acaf724","slot":"pair:3","requested_at":"2026-10-22T20:18:37.80375Z"},"phase":"finished","pid":91108,"started_at":"2026-10-22T20:18:37.915697Z","finished_at":"2026-10-22T20:28:05.507033Z","session_id":"01a16544-02de-72e0-8b78-e0bf30018dc7","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.899645166s
+head: "32ababba112e3519b0009afb904b3df84acaf724"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
