@@ -52,7 +52,7 @@ TL831e9502 confirms operator approval of the re-scoped plan: exclude the issuing
 - [x] Operator approved the re-scoped Revision through TL831e9502, excluding the issuing steward; reopened through the setter in canonical pair:5 after #622 landed. Renewed change-code follows.
 - [x] Remove the obsolete completion/persistence/control machinery; implement only transient flags, ordinary notices/status and undrain with tests.
 - [x] Qualify message/lifecycle independence, restart emptiness, truthful idle observations and one compact badge through normal tests and the bounded disposable installed composition.
-- [ ] Record the passing full suite on the final code. Mandatory close review, authorized staging and TL/operator-watched live acceptance remain subsequent workflow gates before ordinary landing.
+- [x] Record the passing full suite on the final code. Mandatory close review, authorized staging and TL/operator-watched live acceptance remain subsequent workflow gates before ordinary landing.
 
 ## Estimate
 
@@ -275,6 +275,14 @@ Authenticated submitted TL ef5588c8 directs STOP native reruns, record every res
 ### 2026-10-22 — corrected-source suite retained in FIFO
 
 Required suite is queued on pushedec88486fe63198753349d1fc12e5ce7b9fed968d, behavior unchanged from6aada862 plus retained evidence/accepted verification sequencing. Session52424, lease2976977985, attempta45eb202b109f691b0d02a890fe0933d; isolated checkout /Volumes/TestScratch/local-checks/sdlc-local-2469983776. Initial position3 behind active ariadne:2 and queued ariadne:5. Preserve this runner; no duplicate, cancellation, continuation or restart while owned check is queued/running. Suite and renewed close are pending; previous SHIP is superseded by corrected notices and consumer tests. #773 restart attachment notification d5ee8343 reached pair:7 as submitted. No native runner remains and no more native matrix rerun is authorized; live/stage/merge remain held.
+
+### 2026-10-22 — corrected-source full suite PASS; renewed close due
+
+Retained session52424 completed exit0. Required suite on pushedec88486fe63198753349d1fc12e5ce7b9fed968d passed672.852s (11m13s), after993.556s queue wait; attempta45eb202b109f691b0d02a890fe0933d/lease2976977985. Full log and original completed attempt retained as workshop/evidence/000722/suite-ec88486f-pass.log/json; recomputed SHA25612c8f44901b69799ae07afaf510f5d14decfbb0e875a91f1fdb7e3c7d8ad3b55 matches. No test failures, flake reruns or waivers. All Go packages passed, including cmd/couch7.316s, couchcmd52.495s, couchcore170.078s, couchmessage25.093s, couchtty39.614s, testcouch20.995s, wrapcmd68.195s and repolint7.007s. Shell/editor/Python groups passed with existing upstream-source affected-config and missing-peer real-docflow smoke skips. Only issue-log metadata changed after the tested head.
+
+Current ariadne:5 graceful fixture vector was compared with the complete production notice byte for byte:537 UTF-8 bytes, SHA256612bc49844512b2c992db2b3e973b117244c659a37411d2b2d06febf36d5fe92; peer comparison report06d83c76 submitted. This verifies current text alignment, not #506 landing. Its landing remains a live-run prerequisite.
+
+Final-code suite checkbox now complete. Re-close using TLef5588c8's explicit evidence sequencing: retain old complete68c581ac native pass, corrected-source partial native proofs, all three later failures and their attribution; no fresh complete native pass is claimed or independently retried. If review demands another native pass, bring it to TL. No staging, live controls or merge performed. Watched operator-present current-build acceptance and historical ariadne:4 uncertainty remain outstanding.
 
 ## Revisions
 
