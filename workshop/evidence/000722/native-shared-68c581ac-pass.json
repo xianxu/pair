@@ -1,0 +1,15 @@
+{
+  "source": "68c581ac8d55bc71ec56f3b60bd2237d72bdc21f",
+  "command": [
+    "make",
+    "test-drain-acceptance"
+  ],
+  "started_at": "2026-10-22T07:53:44.092032+00:00",
+  "finished_at": "2026-10-22T07:55:51.946753+00:00",
+  "seconds": 127.85399066600075,
+  "exit": 0,
+  "sha256": "021376a6cc8edda5076f874a99f62c5b2e0597a869120b368193c65922e9d3b8",
+  "log": "native-shared-68c581ac-pass.log",
+  "zellij_version": "zellij 0.45.1",
+  "scratch": "/Volumes/TestScratch/tmp/pair722-native-vp8axqru/tmp"
+}

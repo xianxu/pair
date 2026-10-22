@@ -51,7 +51,7 @@ TL831e9502 confirms operator approval of the re-scoped plan: exclude the issuing
 
 - [x] Operator approved the re-scoped Revision through TL831e9502, excluding the issuing steward; reopened through the setter in canonical pair:5 after #622 landed. Renewed change-code follows.
 - [x] Remove the obsolete completion/persistence/control machinery; implement only transient flags, ordinary notices/status and undrain with tests.
-- [ ] Qualify message/lifecycle independence, restart emptiness, truthful idle observations and one compact badge through normal tests and the bounded disposable installed composition.
+- [x] Qualify message/lifecycle independence, restart emptiness, truthful idle observations and one compact badge through normal tests and the bounded disposable installed composition.
 - [ ] Run required verification and mandatory close review, then TL-scheduled watched live acceptance before ordinary landing.
 
 ## Estimate
@@ -216,6 +216,16 @@ Complete make test-drain-acceptance run on clean pushed638032c6183d82aa72145d228
 The pre-cleanup pane capture explains the next undrain timeout: all3agent panes contain fixture resize outside supported dimensions. Shared agentfixture/run.go:217 rejects cols<20 (or rows<10), and the consumer resized the outer native Pair to30columns while Pair splits that geometry between panes. The exact transient child dimensions were not retained; the pane error proves the supported envelope was violated, rather than identifying which minimum was crossed. All fixture agents exited, so the next mailbox command could not execute and the90s caller deadline expired with typed cancellation uncertainty. The shared Close then proved all owned generations absent and joined child/IO before deleting the root; no live fleet effect. This is invalid consumer geometry, not a drain delivery-hold finding or a timeout-budget defect.
 
 Use80and120columns for native integration, within the existing fixture envelope; keep pure ConsoleDrainStatus tests across widths1..139, including narrow30. No fixture guard, product contract, public protocol or90s runtime change. Existing end-to-end later fast/lift/worker-delivery actions verify the agents survive resize. The original failed run remains the RED evidence for the invalid geometry; no new test that merely asserts the chosen constant is added. Refresh only the changed native-consumer certificate, run its cheap oracle/compile checks, commit/push, then rerun on the corrected clean source.
+
+### 2026-10-22 — native shared-fleet acceptance PASS, both personalities
+
+make test-drain-acceptance on clean pushed68c581ac8d55bc71ec56f3b60bd2237d72bdc21f passed exit0: Go package126.419s, whole invocation127.854s. Zellij0.45.1, genuine Claude2.1.237 and Codex0.152.0 fixture schemas/captures, real Couch/Pair/wrappers and provisioned steward+2workers each. Runtime after setup was46.677s Claude and52.340s Codex, below the unchanged90s bound; full subtests including setup/cleanup55.75s and61.74s. Full raw log/manifest are native-shared-68c581ac-pass.log/json, SHA256021376a6cc8edda5076f874a99f62c5b2e0597a869120b368193c65922e9d3b8. Manifests now use their transported log basename; source/exit/time/hash values are preserved.
+
+Both cases prove issuing-steward exclusion, worker status with unknown idle remaining unavailable, graceful/fast notice receipts plus exact independently accepted envelopes, ordinary flagged work and exact worker ack text, generic/custom lift, one current80/120-column badge and real chip selection, normal quit confirmation/cancel while flagged, public detach and same-root restart with zero flags, and post-restart ordinary delivery. Opaque legacy drain.json is unchanged and no new drain file exists. Claude rootpc-2160992725/rune80e06aae77682ffb4f394b713916114 and Codex rootpc-3096060203/rund4d83cd29bfb15974452d8f72bd67316 both report all owned generations absent and direct child/IO joined.
+
+The earlier failed30-column run is retained separately. Its generic fixture error proves unsupported nested geometry; the precise transient columns/rows were not retained, so the earlier hub shorthand<20columns is an inference rather than an exact dimension capture. The80/120 run validates the corrected consumer envelope; pure renderer coverage remains1..139. No fixture guard or deadline was raised. Old ariadne:4 NoticeStarted contradiction remains NOT REPRODUCED/NOT ROOT-CAUSED; new notice-only delivery success does not resolve a removed formal-ack counter's cause.
+
+Implementation/native checklist now complete; required fresh recorded suite, renewed close, ariadne#506 landing and TL/operator-watched live acceptance remain. Commit/push this checkpoint before queueing; do not stage or merge without those remaining gates.
 
 ## Revisions
 
