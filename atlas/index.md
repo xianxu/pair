@@ -6,9 +6,10 @@
 
 - [VM runner](vm.md) — machine-wide train/ad-hoc positions, private tracked snapshots, bounded execution/cleanup and retained startup uncertainty (#743).
 - [Project mock server](mock-server.md) — standalone loopback serving of versioned clickable mocks, shared fixtures, authoritative page identity and content-driven live reload (#755).
+- [Mock-to-real development](mock-to-real.md) — any-framework development front, catalogue/report and production convention (#757).
 
 - [Architecture](architecture.md) — what the pieces are and how they fit together.
-- [Zellij reply admission](zellij-reply-safety.md) — strict native observations, bounded confirmation, lifecycle authority and the staged caller safety map (#647).
+- [Zellij reply admission](zellij-reply-safety.md) — strict native observations, bounded confirmation, lifecycle authority, the staged caller safety map (#647), and the standalone lookup-race reproduction (#775).
 - [Session identity and storage](session-identity.md) — Pair's scoped address claims, deterministic native-session forests, durable resume targets, launch-specific probation and optional parsed projections, Couch's independent ThreadStore authority, Couch C/N/M allocation and live ownership proof, the standalone `📁` naming scheme, and legacy flat-data recovery.
 - [Codex resume](codex-resume.md) — native indirect selection and exact-ID transcript-home routing.
 - [Slot continuity target](../workshop/targets/slot-continuity.md) — the operator-approved commitment: Continue, Resume from disk or Start fresh, with one action per outcome and recovery available to the person or hub.
@@ -197,7 +198,7 @@
 
 - [Terminal ownership](terminal.md) — Shared endpoint, presenter, profile, transport and qualification boundaries.
 - [Couch broadcast](broadcast.md) — view-only streaming of the composed Couch screen: Presenter tap, LIVE-gated hub, switcher privacy (#395); the code lock on every cast link, the Host gate, the operator-only codes UI and the threat model (#495).
-- [Couch broadcast-web](webcast.md) — the cast Chrome (#454): CDP over the debugging pipe, the `Browser` seam and its fake, active-tab inference, the isolated-world in-page control and operator annotation (#494), shared viewer widgets, document-bound Board requests and capture/input suppression; the recorder (#458) on the CDP side of the seam; the asset store and proxy (#459); the fidelity check (#478): each recording's frames vs the viewer's replay, a report per recording, `couch --broadcast-web-fidelity` and at the end of a cast.
+- [Couch broadcast-web](webcast.md) — the cast Chrome (#454): CDP over the debugging pipe, the `Browser` seam and its fake, active-tab inference, the isolated-world in-page control and operator annotation (#494), shared viewer widgets, document-bound Board requests and capture/input suppression; persistent pressure sketches (#752), held source scenes behind an opaque origin, acknowledged recovery and indexed rendering; the recorder (#458) on the CDP side of the seam; the asset store and proxy (#459); the fidelity check (#478): each recording's frames vs the viewer's replay, a report per recording, `couch --broadcast-web-fidelity` and at the end of a cast.
 - [Send cast notes to the agent](webcast-submission.md) — the draft chord, recorded context and current PNGs, portable evidence bundles, and delivery/acknowledgment recovery (#483).
 - [Broadcast-web recording format](webcast-format.md) — the recording (#457): one record stream live and on disk, stable node ids, the reference reducer and validator, the seams, fakes and fixtures each wave-1 component builds against, and the notes model (#461): anchors (with their `kind`/`path`), focused context, and crops that are the note's box plus a margin (#488). Agent queries (#462): `couch --broadcast-web-query`; replay with a scrubber (#471): `couch --broadcast-web-replay`, shared through a running Couch's tunnel for remote viewers (#477), in [webcast.md](webcast.md#replay-471). Remote driving (#466): `ctl` control records, `by` attribution, and `drive`'s input wire, confinement, `Injector` and `Controller` seams.
 

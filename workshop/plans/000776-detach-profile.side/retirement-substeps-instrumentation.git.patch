@@ -1,0 +1,653 @@
+diff --git a/cmd/internal/couchcore/detach.go b/cmd/internal/couchcore/detach.go
+index 88ab8703d..ecbf5536f 100644
+--- a/cmd/internal/couchcore/detach.go
++++ b/cmd/internal/couchcore/detach.go
+@@ -4,6 +4,7 @@ import (
+ 	"context"
+ 	"errors"
+ 	"fmt"
++	dm "github.com/xianxu/pair/cmd/internal/detachmeasure"
+ 	"time"
+ 
+ 	"github.com/xianxu/pair/cmd/internal/checkpoint"
+@@ -47,6 +48,8 @@ func (c *Couch) Detach(ctx context.Context, address ThreadAddress) (ThreadRecord
+ 	if ctx == nil {
+ 		ctx = context.Background()
+ 	}
++	ctx, measurementFinish := detachMeasureBegin(ctx, "detach", address)
++	defer measurementFinish()
+ 	// Detach needs no retained timing strings on its ordinary path. The
+ 	// context-only lifecycle measurement shares launch's optional observer.
+ 	var steps *launchSteps
+@@ -182,18 +185,24 @@ func (c *Couch) retireDetachedIncarnation(
+ 			return ThreadRecord{}, fmt.Errorf(
+ 				"retire detached incarnation for %+v: gave up after %d revision conflicts", address, maxRetireAttempts)
+ 		}
++		measurementRead := dm.Timer("retire.get_thread", fmt.Sprintf("%s/%s", address.RepoScope, address.Tag), uint64(attempt))
+ 		current, err := c.Threads.GetThread(address)
++		measurementRead()
+ 		if err != nil {
+ 			return ThreadRecord{}, fmt.Errorf("retire detached incarnation for %+v: %w", address, err)
+ 		}
++		measurementOwner := dm.Timer("retire.observe_owner", fmt.Sprintf("%s/%s", address.RepoScope, address.Tag), uint64(attempt))
+ 		after, err := observeRecordSession(ctx, sessions, current)
++		measurementOwner()
+ 		if err != nil {
+ 			return ThreadRecord{}, fmt.Errorf("observe Pair session before retiring its incarnation: %w", err)
+ 		}
+ 		if !after.Present {
+ 			return ThreadRecord{}, fmt.Errorf("thread %+v has no live Pair session to retire onto", address)
+ 		}
++		measurementPublish := dm.Timer("retire.publish", fmt.Sprintf("%s/%s", address.RepoScope, address.Tag), uint64(attempt))
+ 		detached, err := c.Threads.RetireIncarnation(address, current.Revision, identity, detachedAt)
++		measurementPublish()
+ 		var conflict *ThreadRevisionError
+ 		if errors.As(err, &conflict) {
+ 			continue
+diff --git a/cmd/internal/couchcore/park.go b/cmd/internal/couchcore/park.go
+index bdabfe554..5d2ed6cb7 100644
+--- a/cmd/internal/couchcore/park.go
++++ b/cmd/internal/couchcore/park.go
+@@ -186,6 +186,8 @@ func (c *Couch) Leave(ctx context.Context, disposition LeaveDisposition) (LeaveR
+ 	if ctx == nil {
+ 		ctx = context.Background()
+ 	}
++	ctx, measurementFinish := detachMeasureBegin(ctx, "leave", ThreadAddress{})
++	defer measurementFinish()
+ 	result := LeaveResult{Disposition: disposition}
+ 	switch disposition {
+ 	case LeaveDetach, LeavePark:
+@@ -235,6 +237,7 @@ dispatch:
+ 			errs[i] = notStarted(err)
+ 			break dispatch
+ 		}
++		measurementLaneWait := time.Now()
+ 		select {
+ 		case <-ctx.Done():
+ 			errs[i] = notStarted(ctx.Err())
+@@ -246,6 +249,7 @@ dispatch:
+ 			errs[i] = notStarted(err)
+ 			break dispatch
+ 		}
++		detachMeasureRecord("leave.lane_wait", fmt.Sprintf("%s/%s", record.Address.RepoScope, record.Address.Tag), time.Since(measurementLaneWait))
+ 		wg.Add(1)
+ 		go func(i int, address ThreadAddress) {
+ 			defer wg.Done()
+@@ -360,6 +364,8 @@ const (
+ // addresses; deciding from a row read before the wait would skip a thread a
+ // reattach made live meanwhile, and leave that client running past quit.
+ func (c *Couch) leaveOne(ctx context.Context, address ThreadAddress, disposition LeaveDisposition) (leaveOutcome, error) {
++	ctx, measurementFinish := detachMeasureBegin(ctx, "leaveOne", address)
++	defer measurementFinish()
+ 	if disposition == LeaveDetach && c.hasLocalWarmClient(address) {
+ 		observed, err := c.Threads.PreviewThreadContext(ctx, address)
+ 		if err != nil && !errors.Is(err, ErrThreadNotFound) {
+diff --git a/cmd/internal/couchcore/storejournal.go b/cmd/internal/couchcore/storejournal.go
+index 7a0175379..9ea34a9b1 100644
+--- a/cmd/internal/couchcore/storejournal.go
++++ b/cmd/internal/couchcore/storejournal.go
+@@ -7,6 +7,7 @@ import (
+ 	"encoding/json"
+ 	"errors"
+ 	"fmt"
++	dm "github.com/xianxu/pair/cmd/internal/detachmeasure"
+ 	"os"
+ 	"path/filepath"
+ 
+@@ -219,8 +220,11 @@ func (s *ThreadStore) writeStoreAtomicLockedCheckedContext(ctx context.Context,
+ 	if err := checkStoreContext(check); err != nil {
+ 		return err
+ 	}
+-	if err := file.Sync(); err != nil {
+-		return err
++	measurementFileSync := dm.Timer("publication.file_sync", measurementStoreKey(s), 0)
++	syncErr := file.Sync()
++	measurementFileSync()
++	if syncErr != nil {
++		return syncErr
+ 	}
+ 	if err := file.Close(); err != nil {
+ 		return err
+@@ -233,9 +237,14 @@ func (s *ThreadStore) writeStoreAtomicLockedCheckedContext(ctx context.Context,
+ 	if err := checkStoreContext(check); err != nil {
+ 		return err
+ 	}
+-	if err := os.Rename(stage, path); err != nil {
+-		return err
++	measurementRename := dm.Timer("publication.rename", measurementStoreKey(s), 0)
++	renameErr := os.Rename(stage, path)
++	measurementRename()
++	if renameErr != nil {
++		return renameErr
+ 	}
++	measurementSyncDirs := dm.Timer("publication.sync_directories", measurementStoreKey(s), 0)
++	defer measurementSyncDirs()
+ 	targetDir := filepath.Dir(path)
+ 	if targetDir == s.root {
+ 		return syncDirectory(s.root)
+diff --git a/cmd/internal/couchcore/threadgate.go b/cmd/internal/couchcore/threadgate.go
+index 889e732e8..6b52702c6 100644
+--- a/cmd/internal/couchcore/threadgate.go
++++ b/cmd/internal/couchcore/threadgate.go
+@@ -6,6 +6,7 @@ import (
+ 	"fmt"
+ 	"runtime"
+ 	"sync"
++	"time"
+ )
+ 
+ // LifecycleParallelism bounds how many threads couch drives through a
+@@ -168,5 +169,11 @@ func (c *Couch) hold(ctx context.Context, address ThreadAddress, op string) (con
+ // drains (Leave, AbortStarted), which must not skip a
+ // thread because some other operation reached it first.
+ func (c *Couch) holdWait(ctx context.Context, address ThreadAddress, op string) (context.Context, func(), error) {
++	if op == "leave" {
++		begun := time.Now()
++		defer func() {
++			DetachMeasurement("thread.hold_wait", fmt.Sprintf("%s/%s", address.RepoScope, address.Tag), time.Since(begun))
++		}()
++	}
+ 	return c.gate().acquire(ctx, address, op, true)
+ }
+diff --git a/cmd/internal/couchcore/threadstore.go b/cmd/internal/couchcore/threadstore.go
+index f592596a9..cd0a41dc5 100644
+--- a/cmd/internal/couchcore/threadstore.go
++++ b/cmd/internal/couchcore/threadstore.go
+@@ -8,6 +8,7 @@ import (
+ 	"errors"
+ 	"fmt"
+ 	"github.com/xianxu/pair/cmd/internal/checkpoint"
++	dm "github.com/xianxu/pair/cmd/internal/detachmeasure"
+ 	"io/fs"
+ 	"os"
+ 	"path/filepath"
+@@ -158,12 +159,17 @@ func (s *ThreadStore) pathLaunchPreferencePath(repoIdentity, physicalPath string
+ }
+ 
+ func (s *ThreadStore) withLock(fn func() error) (err error) {
++	measurementTotal := dm.Timer("store.with_lock.total", measurementStoreKey(s), 0)
++	defer measurementTotal()
+ 	if s != nil && s.readOnly {
+ 		return s.withPreviewLock(fn)
+ 	}
+ 	if s != nil && s.coordinator != nil {
+ 		return s.coordinator.WithLock(context.Background(), func(l *storagegc.Locked) error {
+-			if err := l.RegisterStore(s.namespace.Dir()); err != nil {
++			measurementRegister := dm.Timer("store.register_store", measurementStoreKey(s), 0)
++			err := l.RegisterStore(s.namespace.Dir())
++			measurementRegister()
++			if err != nil {
+ 				return err
+ 			}
+ 			return s.withStoreLock(fn)
+@@ -180,11 +186,13 @@ func (s *ThreadStore) withStoreLock(fn func() error) error {
+ // must never remain held while waiting for an independently busy Couch store.
+ // Ordinary writers pass nil and retain their blocking lock semantics.
+ func (s *ThreadStore) withStoreLockChecked(fn func() error, check func() error) (err error) {
++	measurementValidate := dm.Timer("store.validate_backend", measurementStoreKey(s), 0)
+ 	if s != nil {
+ 		if err := s.validateBackendPath(); err != nil {
+ 			return err
+ 		}
+ 	}
++	measurementValidate()
+ 	if s == nil || s.namespace.Dir() == "" {
+ 		return errors.New("thread store has no namespace")
+ 	}
+@@ -193,18 +201,25 @@ func (s *ThreadStore) withStoreLockChecked(fn func() error, check func() error)
+ 			return err
+ 		}
+ 	}
++	measurementAcquire := dm.Timer("store.lock_wait", measurementStoreKey(s), 0)
+ 	lock, err := acquireThreadStoreLockMode(s.root, check != nil)
++	measurementAcquire()
+ 	if err != nil {
+ 		return err
+ 	}
+ 	defer func() { err = errors.Join(err, lock.Close()) }()
++	measurementHeld := dm.Timer("store.held", measurementStoreKey(s), 0)
++	defer measurementHeld()
+ 	if check != nil {
+ 		if err := check(); err != nil {
+ 			return err
+ 		}
+ 	}
+-	if err := s.recoverStoreJournalLockedChecked(check); err != nil {
+-		return err
++	measurementRecover := dm.Timer("store.recover_journal", measurementStoreKey(s), 0)
++	recoverErr := s.recoverStoreJournalLockedChecked(check)
++	measurementRecover()
++	if recoverErr != nil {
++		return recoverErr
+ 	}
+ 	if check != nil {
+ 		if err := check(); err != nil {
+@@ -446,7 +461,13 @@ func (s *ThreadStore) updateExistingThreadContext(ctx context.Context, address T
+ 
+ func (s *ThreadStore) updateExistingThreadOnBackend(ctx context.Context, address ThreadAddress, expectedRevision uint64, mutate func(*ThreadRecord) error) (ThreadRecord, error) {
+ 	var result ThreadRecord
++	measurementThread := fmt.Sprintf("%s/%s", address.RepoScope, address.Tag)
++	dm.Add(dm.Row{Event: "store.mapping", Thread: measurementThread, Key: measurementStoreKey(s)})
++	measurementAdmission := dm.Timer("store.update.admission", measurementThread, 0)
+ 	err := s.withUpdateLockContext(ctx, func() error {
++		measurementAdmission()
++		measurementMutate := dm.Timer("store.update.read_mutate_encode", measurementThread, 0)
++
+ 		readCtx := ctx
+ 		if readCtx == nil {
+ 			readCtx = context.Background()
+@@ -494,8 +515,12 @@ func (s *ThreadStore) updateExistingThreadOnBackend(ctx context.Context, address
+ 		if ctx != nil {
+ 			check = ctx.Err
+ 		}
+-		if err := s.commitJournalLockedChecked(journal, check); err != nil {
+-			return err
++		measurementMutate()
++		measurementJournal := dm.Timer("store.update.journal", measurementThread, 0)
++		commitErr := s.commitJournalLockedChecked(journal, check)
++		measurementJournal()
++		if commitErr != nil {
++			return commitErr
+ 		}
+ 		result = cloneThreadRecord(next)
+ 		return nil
+@@ -1336,8 +1361,11 @@ func (s *ThreadStore) commitJournalLockedChecked(journal storeJournal, check fun
+ 	if err != nil {
+ 		return err
+ 	}
+-	if err := s.writeStoreAtomicLockedChecked(s.journalPath(), append(raw, '\n'), check); err != nil {
+-		return err
++	measurementPublish := dm.Timer("journal.publish", measurementStoreKey(s), 0)
++	publishErr := s.writeStoreAtomicLockedChecked(s.journalPath(), append(raw, '\n'), check)
++	measurementPublish()
++	if publishErr != nil {
++		return publishErr
+ 	}
+ 	if s.hooks.AfterJournal != nil {
+ 		if err := s.hooks.AfterJournal(); err != nil {
+@@ -1345,8 +1373,11 @@ func (s *ThreadStore) commitJournalLockedChecked(journal storeJournal, check fun
+ 		}
+ 	}
+ 	for i, entry := range journal.Entries {
+-		if err := s.applyJournalEntryChecked(entry, check); err != nil {
+-			return err
++		measurementTarget := dm.Timer("journal.apply_target", measurementStoreKey(s), uint64(i))
++		applyErr := s.applyJournalEntryChecked(entry, check)
++		measurementTarget()
++		if applyErr != nil {
++			return applyErr
+ 		}
+ 		if s.hooks.AfterTarget != nil {
+ 			if err := s.hooks.AfterTarget(i); err != nil {
+@@ -1357,10 +1388,16 @@ func (s *ThreadStore) commitJournalLockedChecked(journal storeJournal, check fun
+ 	if err := checkStoreContext(check); err != nil {
+ 		return err
+ 	}
+-	if err := os.Remove(s.journalPath()); err != nil {
+-		return err
++	measurementRemove := dm.Timer("journal.remove", measurementStoreKey(s), 0)
++	removeErr := os.Remove(s.journalPath())
++	measurementRemove()
++	if removeErr != nil {
++		return removeErr
+ 	}
+-	return syncDirectory(s.root)
++	measurementSync := dm.Timer("journal.sync_directory", measurementStoreKey(s), 0)
++	syncErr := syncDirectory(s.root)
++	measurementSync()
++	return syncErr
+ }
+ 
+ // archivePath is where a retired record goes: the same layout under a
+diff --git a/cmd/internal/couchtty/operation_queue.go b/cmd/internal/couchtty/operation_queue.go
+index 1417b38ee..b260f50f3 100644
+--- a/cmd/internal/couchtty/operation_queue.go
++++ b/cmd/internal/couchtty/operation_queue.go
+@@ -5,6 +5,7 @@ import (
+ 	"errors"
+ 	"sync"
+ 	"sync/atomic"
++	"time"
+ 
+ 	"github.com/xianxu/pair/cmd/internal/couchcore"
+ )
+@@ -14,11 +15,12 @@ var errNavigationNeedsLifecycle = errors.New("hosted navigation needs lifecycle"
+ var ErrOperationQueueOverloaded = errors.New("operation queue is full")
+ 
+ type operationRequest struct {
+-	attempt *couchcore.OperationAttempt
+-	key     string
+-	name    string
+-	origin  MenuOperationOrigin
+-	run     func() (any, error)
++	measurementQueued time.Time
++	attempt           *couchcore.OperationAttempt
++	key               string
++	name              string
++	origin            MenuOperationOrigin
++	run               func() (any, error)
+ 	// navigation is present only for a currently hosted selection; run remains
+ 	// its lifecycle fallback when the hosted endpoint proof disappears.
+ 	navigation func() (any, error)
+@@ -78,6 +80,9 @@ func newOperationQueue(capacity int) *operationQueue {
+ 
+ // Enqueue returns accepted=false,nil for an already pending exact request.
+ func (q *operationQueue) Enqueue(request operationRequest) (accepted bool, err error) {
++	if request.name == "leave" {
++		request.measurementQueued = time.Now()
++	}
+ 	q.mu.Lock()
+ 	defer q.mu.Unlock()
+ 	if q.pending[request.key] {
+@@ -113,6 +118,9 @@ func (q *operationQueue) Run(stop <-chan struct{}) {
+ 	for {
+ 		select {
+ 		case request := <-q.requests:
++			if request.name == "leave" {
++				couchcore.DetachMeasurement("console.lifecycle.queue", request.key, time.Since(request.measurementQueued))
++			}
+ 			value, err := request.run()
+ 			completed := request.complete(value, err)
+ 			if q.prepare != nil {
+diff --git a/cmd/internal/launcher/session_owner_os.go b/cmd/internal/launcher/session_owner_os.go
+index 99a4a904f..d7bd3eda1 100644
+--- a/cmd/internal/launcher/session_owner_os.go
++++ b/cmd/internal/launcher/session_owner_os.go
+@@ -4,6 +4,7 @@ import (
+ 	"bytes"
+ 	"context"
+ 	"encoding/json"
++	dm "github.com/xianxu/pair/cmd/internal/detachmeasure"
+ 
+ 	"errors"
+ 	"fmt"
+@@ -182,6 +183,8 @@ func (p SessionOwnerProbe) Revalidate(ctx context.Context, observation SessionOw
+ type osSessionOwnerIO struct{ processes procutil.Source }
+ 
+ func (o osSessionOwnerIO) SessionServers(ctx context.Context, name string) ([]SessionServerIdentity, error) {
++	measurementCensus := dm.Timer("owner.process_census", dm.Thread(ctx)+"|"+name, 0)
++	defer measurementCensus()
+ 	return newOSSessionQuiescenceOps(o.processes).SessionServers(ctx, name)
+ }
+ func (osSessionOwnerIO) SessionPresent(ctx context.Context, name string) (bool, error) {
+diff --git a/cmd/internal/storagegc/coordinator.go b/cmd/internal/storagegc/coordinator.go
+index df0d3b037..2d00c78b0 100644
+--- a/cmd/internal/storagegc/coordinator.go
++++ b/cmd/internal/storagegc/coordinator.go
+@@ -7,6 +7,7 @@ import (
+ 	"encoding/hex"
+ 	"errors"
+ 	"fmt"
++	dm "github.com/xianxu/pair/cmd/internal/detachmeasure"
+ 	"os"
+ 	"path/filepath"
+ 	"time"
+@@ -135,27 +136,46 @@ func (c *Coordinator) TryWithLock(ctx context.Context, fn func(*Locked) error) e
+ }
+ 
+ func (c *Coordinator) withLock(ctx context.Context, nonblocking bool, fn func(*Locked) error) (err error) {
++	measurementID := dm.NextID()
++	measurementRoot := dm.Key(c.Root)
++	measurementTotal := dm.Timer("coordinator.total", measurementRoot, measurementID)
++	defer measurementTotal()
+ 	if err = ctx.Err(); err != nil {
+ 		return err
+ 	}
+ 	dir := filepath.Join(c.Root, ".retention")
+-	if err = checkDirectory(dir, true); err != nil {
++	measurementStep := dm.Timer("coordinator.check_retention", measurementRoot, measurementID)
++	err = checkDirectory(dir, true)
++	measurementStep()
++	if err != nil {
+ 		return err
+ 	}
+-	if err = c.syncDirectory(c.Root); err != nil {
++	measurementStep = dm.Timer("coordinator.sync_root", measurementRoot, measurementID)
++	err = c.syncDirectory(c.Root)
++	measurementStep()
++	if err != nil {
+ 		return err
+ 	}
+-	if err = checkDirectory(filepath.Join(dir, "owners"), true); err != nil {
++	measurementStep = dm.Timer("coordinator.check_owners", measurementRoot, measurementID)
++	err = checkDirectory(filepath.Join(dir, "owners"), true)
++	measurementStep()
++	if err != nil {
+ 		return err
+ 	}
+-	if err = c.syncDirectory(dir); err != nil {
++	measurementStep = dm.Timer("coordinator.sync_retention", measurementRoot, measurementID)
++	err = c.syncDirectory(dir)
++	measurementStep()
++	if err != nil {
+ 		return err
+ 	}
++	measurementStep = dm.Timer("coordinator.open_lock", measurementRoot, measurementID)
+ 	fd, err := unix.Open(filepath.Join(dir, "coordinator.lock"), unix.O_CREAT|unix.O_RDWR|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0600)
++	measurementStep()
+ 	if err != nil {
+ 		return err
+ 	}
+ 	defer unix.Close(fd)
++	measurementWait := dm.Timer("coordinator.flock_wait", measurementRoot, measurementID)
+ 	for {
+ 		err = unix.Flock(fd, unix.LOCK_EX|unix.LOCK_NB)
+ 		if err == nil {
+@@ -173,9 +193,12 @@ func (c *Coordinator) withLock(ctx context.Context, nonblocking bool, fn func(*L
+ 		case <-time.After(5 * time.Millisecond):
+ 		}
+ 	}
++	measurementWait()
+ 	defer func() { err = errors.Join(err, unix.Flock(fd, unix.LOCK_UN)) }()
+ 	lock := &Locked{coordinator: c, active: true, ctx: ctx}
+ 	defer func() { lock.active = false }()
++	measurementHeld := dm.Timer("coordinator.held", measurementRoot, measurementID)
++	defer measurementHeld()
+ 	return fn(lock)
+ }
+ 
+diff --git a/cmd/internal/couchcore/detach_measurement.go b/cmd/internal/couchcore/detach_measurement.go
+new file mode 100644
+index 000000000..eaead159f
+--- /dev/null
++++ b/cmd/internal/couchcore/detach_measurement.go
+@@ -0,0 +1,60 @@
++package couchcore
++
++// Disposable measurement only; never committed or installed.
++import (
++	"context"
++	"fmt"
++	dm "github.com/xianxu/pair/cmd/internal/detachmeasure"
++	"github.com/xianxu/pair/cmd/internal/launcher"
++	"time"
++)
++
++func detachMeasureRecord(event, thread string, elapsed time.Duration) {
++	dm.Record(event, thread, elapsed)
++}
++func detachMeasureBegin(ctx context.Context, operation string, address ThreadAddress) (context.Context, func()) {
++	if !dm.Enabled() {
++		return ctx, func() {}
++	}
++	thread := fmt.Sprintf("%s/%s", address.RepoScope, address.Tag)
++	ctx = dm.WithThread(ctx, thread)
++	if operation == "leave" {
++		dm.Start()
++		dm.Add(dm.Row{Event: "configured.parallelism", Parallelism: LifecycleParallelism})
++	}
++	begun := time.Now()
++	dm.Record(operation+".begin", thread, 0)
++	ctx = launcher.WithZellijQueryObserver(ctx, func(q launcher.ZellijQueryObservation) {
++		args := make([]string, 0, min(len(q.Args), 12))
++		for _, arg := range q.Args {
++			if len(args) == 12 {
++				break
++			}
++			if len(arg) > 256 {
++				arg = arg[:256]
++			}
++			args = append(args, arg)
++		}
++		dm.Add(dm.Row{Event: "zellij.query", Thread: thread, TimeNS: q.Finished.UnixNano(), StartedNS: q.Started.UnixNano(), DurationNS: q.Duration.Nanoseconds(), Args: args, Failed: q.Err != nil})
++	})
++	if operation == "detach" {
++		ctx = WithLaunchTimingObserver(ctx, func(step string, elapsed time.Duration) { dm.Record(step, thread, elapsed) })
++	}
++	return ctx, func() {
++		dm.Record(operation+".end", thread, time.Since(begun))
++		if operation == "leave" {
++			dm.CPU()
++			dm.Flush()
++		}
++	}
++}
++func DetachMeasurement(event, thread string, elapsed time.Duration) {
++	dm.Record(event, thread, elapsed)
++}
++
++func measurementStoreKey(s *ThreadStore) string {
++	if s == nil {
++		return "nil"
++	}
++	return dm.Key(s.root)
++}
+diff --git a/cmd/internal/detachmeasure/trace.go b/cmd/internal/detachmeasure/trace.go
+new file mode 100644
+index 000000000..76a42154f
+--- /dev/null
++++ b/cmd/internal/detachmeasure/trace.go
+@@ -0,0 +1,133 @@
++// Package detachmeasure exists only in this disposable measurement clone.
++package detachmeasure
++
++import (
++	"context"
++	"crypto/sha256"
++	"encoding/json"
++	"fmt"
++	"os"
++	"sync"
++	"sync/atomic"
++	"syscall"
++	"time"
++)
++
++type Row struct {
++	Event        string   `json:"event"`
++	Thread       string   `json:"thread,omitempty"`
++	Key          string   `json:"key,omitempty"`
++	ID           uint64   `json:"id,omitempty"`
++	TimeNS       int64    `json:"time_ns"`
++	StartedNS    int64    `json:"started_ns,omitempty"`
++	DurationNS   int64    `json:"duration_ns,omitempty"`
++	Args         []string `json:"args,omitempty"`
++	Failed       bool     `json:"failed,omitempty"`
++	Parallelism  int      `json:"parallelism,omitempty"`
++	UserCPU_NS   int64    `json:"user_cpu_ns,omitempty"`
++	SystemCPU_NS int64    `json:"system_cpu_ns,omitempty"`
++}
++
++var state struct {
++	sync.Mutex
++	active   bool
++	rows     []Row
++	overhead int64
++	overflow bool
++	cpu      syscall.Rusage
++}
++var ids atomic.Uint64
++
++func Enabled() bool          { return os.Getenv("PAIR_DETACH_MEASURE_LOG") != "" }
++func NextID() uint64         { return ids.Add(1) }
++func Key(path string) string { return fmt.Sprintf("%x", sha256.Sum256([]byte(path)))[:16] }
++
++type threadKey struct{}
++
++func WithThread(ctx context.Context, thread string) context.Context {
++	return context.WithValue(ctx, threadKey{}, thread)
++}
++func Thread(ctx context.Context) string { value, _ := ctx.Value(threadKey{}).(string); return value }
++func Start() {
++	if !Enabled() {
++		return
++	}
++	state.Lock()
++	defer state.Unlock()
++	state.active = true
++	_ = syscall.Getrusage(syscall.RUSAGE_SELF, &state.cpu)
++}
++func Add(row Row) {
++	if !Enabled() {
++		return
++	}
++	begun := time.Now()
++	if row.TimeNS == 0 {
++		row.TimeNS = begun.UnixNano()
++	}
++	state.Lock()
++	defer state.Unlock()
++	if !state.active && row.Event != "console.lifecycle.queue" {
++		return
++	}
++	if len(state.rows) < 4096 {
++		state.rows = append(state.rows, row)
++	} else {
++		state.overflow = true
++	}
++	state.overhead += time.Since(begun).Nanoseconds()
++}
++func Record(event, key string, elapsed time.Duration) {
++	Add(Row{Event: event, Thread: key, DurationNS: int64(elapsed)})
++}
++func Timer(event, key string, id uint64) func() {
++	if !Enabled() {
++		return func() {}
++	}
++	begun := time.Now()
++	return func() {
++		end := time.Now()
++		Add(Row{Event: event, Thread: key, ID: id, StartedNS: begun.UnixNano(), TimeNS: end.UnixNano(), DurationNS: end.Sub(begun).Nanoseconds()})
++	}
++}
++func CPU() {
++	var end syscall.Rusage
++	err := syscall.Getrusage(syscall.RUSAGE_SELF, &end)
++	state.Lock()
++	begin := state.cpu
++	state.Unlock()
++	delta := func(a, b syscall.Timeval) int64 { return (a.Sec-b.Sec)*1e9 + int64(a.Usec-b.Usec)*1000 }
++	Add(Row{Event: "whole_leave.process_cpu", UserCPU_NS: delta(end.Utime, begin.Utime), SystemCPU_NS: delta(end.Stime, begin.Stime), Failed: err != nil})
++}
++func Flush() {
++	begun := time.Now()
++	state.Lock()
++	state.active = false
++	rows := append([]Row(nil), state.rows...)
++	overhead, overflow := state.overhead, state.overflow
++	state.Unlock()
++	f, err := os.OpenFile(os.Getenv("PAIR_DETACH_MEASURE_LOG"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
++	if err != nil {
++		fmt.Fprintln(os.Stderr, "measurement log:", err)
++		return
++	}
++	encoder := json.NewEncoder(f)
++	for _, row := range rows {
++		if err = encoder.Encode(row); err != nil {
++			break
++		}
++	}
++	if err == nil {
++		err = f.Sync()
++	}
++	if err == nil {
++		err = encoder.Encode(map[string]any{"event": "instrumentation", "observer_ns": overhead, "first_flush_ns": time.Since(begun).Nanoseconds(), "overflow": overflow})
++	}
++	if err == nil {
++		err = f.Sync()
++	}
++	closeErr := f.Close()
++	if err != nil || closeErr != nil {
++		fmt.Fprintln(os.Stderr, "measurement log:", err, closeErr)
++	}
++}

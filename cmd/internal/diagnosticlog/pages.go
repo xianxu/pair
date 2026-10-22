@@ -312,7 +312,7 @@ func previewPageLocked(path string, o Options, cursor string, limit int, cleanup
 		if e != nil {
 			return e
 		}
-		if e = matches(st, g); e != nil {
+		if e = matchesPersisted(st, g); e != nil {
 			return e
 		}
 		rowReason := reason
@@ -337,7 +337,7 @@ func previewPageLocked(path string, o Options, cursor string, limit int, cleanup
 		if why == "" && !eligible {
 			why = RetentionReason(o.RetentionPeriod)
 		}
-		out = append(out, Segment{Path: p, Bytes: st.Size(), LastWrite: g.LastWrite, Eligible: eligible, Reason: why, Unverified: g.UnverifiedTail != nil, Oversized: oversized})
+		out = append(out, Segment{observed: observedGeneration(st), Path: p, Bytes: st.Size(), LastWrite: g.LastWrite, Eligible: eligible, Reason: why, Unverified: g.UnverifiedTail != nil, Oversized: oversized})
 		return nil
 	}
 	if cursor == "" && s.Current.Identity != (identity{}) {

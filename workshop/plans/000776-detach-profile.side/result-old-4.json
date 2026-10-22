@@ -1,0 +1,9 @@
+{
+  "agent": "claude",
+  "candidate": "old",
+  "root": "/Volumes/TestScratch/pc-339109010",
+  "started_at": "2026-10-21T18:51:07.467632Z",
+  "startup_error": "worker 1 CLI: fixture CLI: exit status 1; stdout={\"FailureNonce\":\"operation-9ceeedb1207defbc12d1730bd2d0fa15\",\"ID\":\"385b57c2-3fc6-434d-b9e3-b19d3fbb925c\",\"Op\":\"reboot\",\"Target\":\"fixture:1\",\"Status\":\"failed\",\"Code\":\"unconfirmed\",\"Detail\":\"Launch unconfirmed; Pair exited before registering (exit 1) [attempt start-e3c516199e125150; diagnostics /Volumes/TestScratch/pc-339109010/store/launch-diagnostics/failures.json]; inspect with couch --show '/Volumes/TestScratch/pc-339109010/fleet/worktree/fixture-slot1/fixture'\",\"Warning\":\"started fresh; previous TTY capture unavailable; use branch and issue evidence; any unproved owners were left untouched under their original identities; workspace setup was not refreshed\",\"Admitted\":\"2026-10-21T11:51:17.239075-07:00\",\"Finished\":\"2026-10-21T11:51:24.740317-07:00\"}\n stderr=",
+  "total": 4,
+  "trace": "/Volumes/TestScratch/detach-compare.O0eTeh/trace-old-4.jsonl"
+}

@@ -91,7 +91,7 @@ func TestSketchTerminalReserveCoversMaximumEncodedSequence(t *testing.T) {
 		reserve int
 	}{
 		{&SketchLabel{Header: Header{T: 9007199254740991}, SketchOperation: op, Sketch: id, Label: strings.Repeat("<", 1024)}, SketchLabelReserve},
-		{&SketchStrokeEnd{Header: Header{T: 9007199254740991}, SketchOperation: op, Sketch: id, ID: id}, SketchEndReserve},
+		{&SketchStrokeEnd{Header: Header{T: 9007199254740991}, SketchOperation: op, Sketch: id, ID: id, Truncated: true}, SketchEndReserve},
 		{&SketchInterrupt{Header: Header{T: 9007199254740991}, SketchOperation: op, Sketch: id, Reason: "navigation"}, SketchInterruptReserve},
 	} {
 		line, err := Encode(tc.r)

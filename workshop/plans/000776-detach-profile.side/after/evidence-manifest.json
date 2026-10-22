@@ -1,0 +1,74 @@
+{
+  "result-hubstack-1-current-4.json": {
+    "bytes": 5563,
+    "sha256": "bc004b83f73ee9921e7bb8457bfec880771f12b821fff581fe01b96055d00d19"
+  },
+  "observer.patch": {
+    "bytes": 49528,
+    "sha256": "ec02209bf5e1e0a4f9ecf1ea453568950aea43dfea47c3d3f1c597ac674dc4e8"
+  },
+  "build-after-metadata.json": {
+    "bytes": 574,
+    "sha256": "009bb60abab97712f129d6a805dc2236e9973b9c37f08676fc042e99e9bc4c97"
+  },
+  "build-after.log": {
+    "bytes": 971,
+    "sha256": "25a371405e6a24d233d46d2035399e6383ee2bbc063499882a9dcb54d6758579"
+  },
+  "tools.json": {
+    "bytes": 306,
+    "sha256": "59b3ae0d46f2f56b3f7b65a6e321499b5b83c9e94787a5ff734f3fa68c642c5c"
+  },
+  "build_after.py": {
+    "bytes": 1644,
+    "sha256": "9fceccc4dcef987900423f8c3118770c9692ab093b23298947e709dea0f1b01f"
+  },
+  "driver-after-exit.json": {
+    "bytes": 65,
+    "sha256": "96e032b5e1531125765cd39f0209965cda05c6ab09acf06bf1dc189ecee01d3c"
+  },
+  "command-after.json": {
+    "bytes": 736,
+    "sha256": "b91e2894ba2d9b0b1cdb644991e74c8cbde3d1fbf358aa357ea58a6400129213"
+  },
+  "trace-hubstack-1-current-4.jsonl.final-flush.json": {
+    "bytes": 246,
+    "sha256": "26975348f31015a3ed2f1145370a57c0fc8f8ccee7b990c4e80b1bcfc145ff4e"
+  },
+  "analyze_after.py": {
+    "bytes": 3398,
+    "sha256": "90f3a1a9f6f7526479a9a243a83993270ff5381ac26c207916474a876804c03a"
+  },
+  "trace-hubstack-1-current-4.jsonl": {
+    "bytes": 205035,
+    "sha256": "43204f389ea152155930270acd3d372f66f0b3bc32e23d19ba26a37358cefe57"
+  },
+  "qualification-plan.json": {
+    "bytes": 833,
+    "sha256": "32de22e32e4e9a69ce8d524b13ee4988f46add09e94afba1f453bc686f3e7596"
+  },
+  "run_after.py": {
+    "bytes": 1260,
+    "sha256": "cd42f751cbab942ed86fb2165cbf10039ad48725ff09098b65c884b749c2e21b"
+  },
+  "qualification-after-summary.json": {
+    "bytes": 2084,
+    "sha256": "bc5969283479cd9ed1214eefc2a5ef287b6fab771ccb40a76295ae99e46c5b3d"
+  },
+  "native-after-1.log": {
+    "bytes": 1232,
+    "sha256": "58a7cb90ee608ea8410584f033f42017557f3c6610ae3f6f31f256693db1e001"
+  },
+  "trace-hubstack-1-host.jsonl": {
+    "bytes": 790,
+    "sha256": "f33414ef4b638c5515f9ca133f9f6ece975264302b636214cdc5fee7fa2215a4"
+  },
+  "trace-hubstack-1-host.jsonl.final-flush.json": {
+    "bytes": 244,
+    "sha256": "b2dfce59031aa691c2dd30c5171d44c21755766376abdd35dfd68f102fa25ceb"
+  },
+  "qualification-after-analysis.json": {
+    "bytes": 15583,
+    "sha256": "cf52d44149555c73fd0c58c2b3022cffe85fb849a136036021c38509b414f4ce"
+  }
+}

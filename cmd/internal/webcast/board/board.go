@@ -103,6 +103,8 @@ type Board struct {
 	operatorSeq       uint64
 	operatorStrokes   []OperatorStroke
 	operatorDoc       int
+	sketchDelivery    sketchDeliveryJournal
+	sketchService     *SketchService
 }
 
 // New makes a board that anchors notes with model and writes through emit.
@@ -126,6 +128,7 @@ func (b *Board) Put(r recording.Record) error {
 		b.mu.Unlock()
 		return nil
 	}
+	sketchBefore := b.sketchBeforeChangeLocked(r)
 	if err := b.st.Apply(r); err != nil {
 		// The writer applied r to its own reducer first, so this can't
 		// happen short of a bug: the board stops taking requests and says
@@ -135,6 +138,14 @@ func (b *Board) Put(r recording.Record) error {
 		if b.Logf != nil {
 			b.Logf("web cast notes stopped: %v", err)
 		}
+		return nil
+	}
+	b.refreshSketchDeliveryLocked(r, sketchBefore)
+	b.retireSketchSourceLocked()
+	if recording.SketchReceiptKey(r) != "" {
+		// Drawing has its own bounded delta wake. Rebuilding unrelated note
+		// projections here would make every pressure chunk scan old notes.
+		b.mu.Unlock()
 		return nil
 	}
 	// The board needs no strokes (nothing checks against them), so it
@@ -164,6 +175,8 @@ func (b *Board) Close() error {
 	defer b.mu.Unlock()
 	if !b.closed {
 		b.closed = true
+		b.retireSketchSourceLocked()
+		b.closeSketchDeliveryLocked()
 		b.annotation, _ = capability.NextCapability(b.annotation, capability.Event{Kind: capability.End})
 		b.publishAnnotationLocked()
 		for ch := range b.annotationSubs {

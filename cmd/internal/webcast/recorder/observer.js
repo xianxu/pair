@@ -27,6 +27,16 @@
 // expires after HOLD_MAX: what comes after is sent as usual, unattributed.
 // It can never stay held.
 (() => {
+  // The opaque private scene and its inherited frames must never install a
+  // recording observer. This reserved URL exists before document scripts run,
+  // unlike a DOM marker. Cross-origin ordinary parents end the ancestry walk.
+  try {
+    for (let frame = window, depth = 0; depth < 128; depth++) {
+      if (frame.location.href.startsWith('data:text/html;couch-sketch=1,')) return;
+      if (frame.parent === frame) break;
+      frame = frame.parent;
+    }
+  } catch (_) { /* ordinary cross-origin ancestor */ }
   if (globalThis.__couchcastRecInstalled) return;
   globalThis.__couchcastRecInstalled = true;
 

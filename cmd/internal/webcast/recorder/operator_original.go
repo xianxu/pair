@@ -8,7 +8,7 @@ import (
 )
 
 // OperatorOriginals returns debugger identities only for current-document open
-// notes in this exact isolated context. Paths and page attributes are never
+// notes and sketch source anchors in this exact isolated context. Paths and page attributes are never
 // identity. Pause does not revoke a connected node's identity.
 func (r *Recorder) OperatorOriginals(ctx context.Context, session string, executionContext int64, document int, nodes []rec.NodeID) (map[rec.NodeID]int, error) {
 	type result struct {
@@ -30,6 +30,13 @@ func (r *Recorder) OperatorOriginals(ctx context.Context, session string, execut
 		for _, n := range r.m.st.Notes {
 			if n.State == rec.NoteOpen && n.Seg >= document && wanted[n.At.Node] && r.m.st.Node(n.At.Node) != nil {
 				allowed[n.At.Node] = true
+			}
+		}
+		// Query only this bounded requested batch. The recording's source-doc
+		// anchor index avoids scanning sketch paths or copying historical geometry.
+		for id := range wanted {
+			if r.m.st.Sketches.HasAnchor(document, id) && r.m.st.Node(id) != nil {
+				allowed[id] = true
 			}
 		}
 		refs := map[rec.NodeID]int{}

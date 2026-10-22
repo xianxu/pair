@@ -60,6 +60,14 @@ export function liveSizeRule(id, kind, box, layoutKnown, attrs) {
 // isUncaptured: an element kind whose content the recording can't hold.
 export const isUncaptured = (localName) => UNCAPTURED.has(localName);
 
+// Sketch paths carry their immutable recording source rather than note identity.
+// Original IDs are useful only within that same document generation and tab.
+export function hasSketchSource(annotation, model) {
+  const source = annotation.source;
+  return !!source && model.docSeg > 0 && source.doc === model.docSeg &&
+    source.tab === model.tab?.id && Number.isSafeInteger(source.t) && source.t >= 0 && source.t <= model.t;
+}
+
 // URL-bearing attributes, by element (null: any element).
 const URL_ATTRS = {
   src: ['img', 'source', 'video', 'audio', 'input', 'embed', 'track', 'image'],
@@ -738,7 +746,9 @@ export class Renderer {
   placementOf(note) {
     if (!this.placeAnnotation) this.placeAnnotation = createPlacement({
       document: () => this.topDoc, route: () => this.model.url,
-      original: (id, note) => this.model.docSeg > 0 && this.model.notes?.some(entry => entry.note.id === note.id && entry.seg >= this.model.docSeg) ? this.dom.get(id) : null, shadow: n => this.shadows.get(this.ids.get(n)) || n.shadowRoot,
+      original: (id, note) => hasSketchSource(note, this.model) ||
+        this.model.docSeg > 0 && this.model.notes?.some(entry => entry.note.id === note.id && entry.seg >= this.model.docSeg)
+        ? this.dom.get(id) : null, shadow: n => this.shadows.get(this.ids.get(n)) || n.shadowRoot,
       onChange: () => this.placementChanged?.(),
     });
     return this.placeAnnotation(note);

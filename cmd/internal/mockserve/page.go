@@ -39,19 +39,38 @@ func ScreenFromPath(name string) (string, error) {
 
 // TransformPage normalizes HTML and installs authoritative metadata before scripts.
 func TransformPage(input []byte, boot Bootstrap) ([]byte, error) {
+	return transformPage(input, boot, "")
+}
+
+// TransformDevelopmentPage owns chrome only on mock documents, never real HTML.
+func TransformDevelopmentPage(input []byte, boot Bootstrap, real, total int) ([]byte, error) {
+	return transformPage(input, boot, fmt.Sprintf("MOCK · %d of %d screens real", real, total))
+}
+
+func transformPage(input []byte, boot Bootstrap, chrome string) ([]byte, error) {
+	return transformPageWithWork(input, boot, chrome, nil)
+}
+
+func transformPageWithWork(input []byte, boot Bootstrap, chrome string, visit func()) ([]byte, error) {
 	root, err := html.Parse(bytes.NewReader(input))
 	if err != nil {
 		return nil, err
 	}
-	var htmlRoot, head *html.Node
+	var htmlRoot, head, body *html.Node
 	var clean func(*html.Node)
 	clean = func(n *html.Node) {
+		if visit != nil {
+			visit()
+		}
 		if n.Type == html.ElementNode {
 			if n.Data == "html" {
 				htmlRoot = n
 			}
 			if n.Data == "head" {
 				head = n
+			}
+			if n.Data == "body" {
+				body = n
 			}
 			attrs := n.Attr[:0]
 			for _, a := range n.Attr {
@@ -65,7 +84,7 @@ func TransformPage(input []byte, boot Bootstrap) ([]byte, error) {
 			next := c.NextSibling
 			owned := false
 			for _, a := range c.Attr {
-				if a.Key == "id" && a.Val == "couch-mock-bootstrap" || c.Data == "script" && a.Key == "src" && a.Val == "/__couch_mock/reload.js" {
+				if a.Key == "id" && (a.Val == "couch-mock-bootstrap" || chrome != "" && a.Val == "couch-mock-progress") || c.Data == "script" && a.Key == "src" && a.Val == "/__couch_mock/reload.js" {
 					owned = true
 				}
 			}
@@ -92,6 +111,11 @@ func TransformPage(input []byte, boot Bootstrap) ([]byte, error) {
 	first := head.FirstChild
 	head.InsertBefore(bootstrap, first)
 	head.InsertBefore(reload, first)
+	if chrome != "" && body != nil {
+		badge := &html.Node{Type: html.ElementNode, Data: "aside", DataAtom: atom.Aside, Attr: []html.Attribute{{Key: "id", Val: "couch-mock-progress"}, {Key: "role", Val: "status"}, {Key: "style", Val: "position:fixed;right:12px;bottom:12px;z-index:2147483647;padding:8px 12px;background:#111;color:#fff;border:2px solid #fbbf24;font:14px sans-serif"}}}
+		badge.AppendChild(&html.Node{Type: html.TextNode, Data: chrome})
+		body.InsertBefore(badge, body.FirstChild)
+	}
 	var out bytes.Buffer
 	if err := html.Render(&out, root); err != nil {
 		return nil, err

@@ -1,0 +1,212 @@
+{
+  "base_sha": "eaa758a6f0cd38837655be5334400098849410ec",
+  "profile_results": [
+    {
+      "total": 4,
+      "physical_gesture_ms": 3152.545,
+      "leave_ms": [
+        3014.998
+      ],
+      "configured_parallelism": [
+        6
+      ],
+      "console_lifecycle_queue_ms": [
+        0.01
+      ],
+      "stages": {
+        "claim": {
+          "count": 4,
+          "sum_ms": 0.063,
+          "max_ms": 0.033,
+          "median_ms": 0.012
+        },
+        "read+owner": {
+          "count": 4,
+          "sum_ms": 1873.001,
+          "max_ms": 793.033,
+          "median_ms": 451.324
+        },
+        "signal": {
+          "count": 4,
+          "sum_ms": 0.068,
+          "max_ms": 0.019,
+          "median_ms": 0.018
+        },
+        "process-exit": {
+          "count": 4,
+          "sum_ms": 171.749,
+          "max_ms": 75.982,
+          "median_ms": 42.818
+        },
+        "retirement": {
+          "count": 4,
+          "sum_ms": 4920.536,
+          "max_ms": 1489.178,
+          "median_ms": 1372.738
+        },
+        "thread.hold_wait": {
+          "count": 4,
+          "sum_ms": 0.013,
+          "max_ms": 0.004,
+          "median_ms": 0.003
+        },
+        "leave.lane_wait": {
+          "count": 4,
+          "sum_ms": 0.005,
+          "max_ms": 0.004,
+          "median_ms": 0.0
+        }
+      },
+      "per_thread": {
+        "35887dc62ae470c4/1-fixture-1": {
+          "leave.lane_wait_ms": 0.004,
+          "thread.hold_wait_ms": 0.003,
+          "claim_ms": 0.013,
+          "read+owner_ms": 295.12,
+          "signal_ms": 0.016,
+          "process-exit_ms": 58.421,
+          "retirement_ms": 685.882,
+          "detach_ms": 1039.465,
+          "leaveOne_ms": 1632.767,
+          "slot": "fixture:0"
+        },
+        "8136ec610628ed3d/1-fixture-2": {
+          "leave.lane_wait_ms": 0.0,
+          "thread.hold_wait_ms": 0.004,
+          "claim_ms": 0.006,
+          "read+owner_ms": 793.033,
+          "signal_ms": 0.013,
+          "process-exit_ms": 10.13,
+          "retirement_ms": 1400.165,
+          "detach_ms": 2203.355,
+          "leaveOne_ms": 3011.973,
+          "slot": "fixture:1"
+        },
+        "c394326f221d8ac6/1-fixture-3": {
+          "leave.lane_wait_ms": 0.0,
+          "thread.hold_wait_ms": 0.003,
+          "claim_ms": 0.033,
+          "read+owner_ms": 607.529,
+          "signal_ms": 0.019,
+          "process-exit_ms": 75.982,
+          "retirement_ms": 1345.31,
+          "detach_ms": 2028.897,
+          "leaveOne_ms": 2843.691,
+          "slot": "fixture:2"
+        },
+        "456692ca0a4cf993/1-fixture-4": {
+          "leave.lane_wait_ms": 0.0,
+          "thread.hold_wait_ms": 0.003,
+          "claim_ms": 0.012,
+          "read+owner_ms": 177.318,
+          "signal_ms": 0.019,
+          "process-exit_ms": 27.216,
+          "retirement_ms": 1489.178,
+          "detach_ms": 1693.75,
+          "leaveOne_ms": 2436.286,
+          "slot": "fixture:3"
+        }
+      },
+      "queries": {
+        "list-panes": {
+          "count": 24,
+          "sum_ms": 1521.739,
+          "max_ms": 117.356,
+          "failures": 0
+        }
+      },
+      "peak_concurrency": {
+        "detach": 4,
+        "leaveOne": 4,
+        "zellij.query": 4
+      },
+      "stage_overlap": {
+        "claim": {
+          "peak": 1,
+          "union_ms": 0.063,
+          "sum_ms": 0.063
+        },
+        "read+owner": {
+          "peak": 4,
+          "union_ms": 1008.243,
+          "sum_ms": 1873.001
+        },
+        "signal": {
+          "peak": 1,
+          "union_ms": 0.068,
+          "sum_ms": 0.068
+        },
+        "process-exit": {
+          "peak": 2,
+          "union_ms": 144.533,
+          "sum_ms": 171.749
+        },
+        "retirement": {
+          "peak": 4,
+          "union_ms": 2065.331,
+          "sum_ms": 4920.536
+        }
+      },
+      "instrumentation": [
+        {
+          "event": "instrumentation",
+          "flush_ns": 11023333,
+          "observer_ns": 144416,
+          "overflow": false
+        }
+      ],
+      "cleanup_confirmed": true
+    }
+  ],
+  "retirement_decomposition": [
+    {
+      "slot": "fixture:0",
+      "retirement_ms": 685.882416,
+      "native_query_count": 2,
+      "native_query_ms": 117.502583,
+      "unattributed_ms": 568.379833
+    },
+    {
+      "slot": "fixture:1",
+      "retirement_ms": 1400.16525,
+      "native_query_count": 2,
+      "native_query_ms": 82.724041,
+      "unattributed_ms": 1317.441209
+    },
+    {
+      "slot": "fixture:2",
+      "retirement_ms": 1345.309917,
+      "native_query_count": 2,
+      "native_query_ms": 203.700875,
+      "unattributed_ms": 1141.609042
+    },
+    {
+      "slot": "fixture:3",
+      "retirement_ms": 1489.178292,
+      "native_query_count": 2,
+      "native_query_ms": 129.116459,
+      "unattributed_ms": 1360.061833
+    }
+  ],
+  "retirement_inference": "Proven dominant outer stage. Remaining time contains GetThread + owner process census/generation checks + RetireIncarnation/update store coordination/journal; those inner parts were not individually measured. Tiny lifecycle/thread waits do not bound shared storage coordinator/store waits.",
+  "history": "Core Detach/Leave/threadstore/coordinator/register-store path and procutil/session-quiescence implementations unchanged856..eaa. Successful query path changed in761 to retain query evidence;748 added bounded retry recovery. Observed24 queries match6 per slot, no failed/recovery attempts observed. No regression or culprit established without old baseline or inner-step measurements.",
+  "eight_slot": {
+    "agent": "claude",
+    "candidate": "current",
+    "root": "/Volumes/TestScratch/pc-3653008707",
+    "started_at": "2026-10-21T18:56:56.198242Z",
+    "startup_error": "worker 4 CLI: fixture CLI: exit status 1; stdout={\"FailureNonce\":\"operation-666cdfe642fc5aa761c9f399babb733a\",\"ID\":\"4e05c7a8-397e-4e71-9e4d-ed8ce2da1c05\",\"Op\":\"reboot\",\"Target\":\"fixture:4\",\"Status\":\"failed\",\"Detail\":\"Pair exited before registering (exit 1) [attempt start-1b94f09edc3fcabc; diagnostics /Volumes/TestScratch/pc-3653008707/store/launch-diagnostics/failures.json]; inspect with couch --show '/Volumes/TestScratch/pc-3653008707/fleet/worktree/fixture-slot4/fixture'\",\"Warning\":\"started fresh; previous TTY capture unavailable; use branch and issue evidence; any unproved owners were left untouched under their original identities; workspace setup was not refreshed\",\"Admitted\":\"2026-10-21T11:58:06.588319-07:00\",\"Finished\":\"2026-10-21T11:58:29.370249-07:00\"}\n stderr=couch: fixture:4 reboot still running after 15s\n",
+    "total": 8,
+    "trace": "/Volumes/TestScratch/detach-compare.O0eTeh/trace-current-8.jsonl"
+  },
+  "eight_startup_interpretation": "Missing expected readiness record and context deadline exceeded; no retained exact native false-miss signature. Cannot attribute to775. RuntimeBudget is CLI fallback only, not fixture lifespan; agent fixture uses signal context without deadline.",
+  "fixture_lifetime_deadline": null,
+  "first_eight_agent_exact_start": "not retained; fleet started_at is before provisioning/start and supplies a conservative lower bound",
+  "cleanup_confirmed": {
+    "pc-2897557353": true,
+    "pc-3653008707": true
+  },
+  "overhead": "recorded synchronized append total0.144416ms; first JSONL flush+sync11.023333ms; final footer sync/close not separately timed and included in gesture-coreLeave residual137.547ms",
+  "no_more_native_attempts": true,
+  "recorded_at": "2026-10-21T19:02:07.381426+00:00"
+}

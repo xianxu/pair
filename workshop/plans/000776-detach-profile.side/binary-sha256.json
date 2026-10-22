@@ -1,0 +1,9 @@
+{
+  "bin-old/pair-launch-helper": "6ca191e55a9c600f5e28c160ff2985ed9bc0632a7f384f261bc118ab881e7da5",
+  "bin-old/couch": "da416cca55b9b664d564e46e6eddb672ac3ef6859a08e0f78a54c649eced7094",
+  "bin-old/pair": "e29fc78fad3de75c6ec9ae77a23c7c712a46adb597bce1d4eade3013e5bf9004",
+  "bin-current/pair-launch-helper": "be946a63458c16f7efc1515c097a25c491757a7b7fab6bf6b6826fffe14ec8c3",
+  "bin-current/couch": "df0b89f1b2cc4b661d7190f781d38132ce4e0682ecb1b1984297d8340e8d8468",
+  "bin-current/pair": "3d10403a0c7791f9ccae02510e8ef274b62363d191dc87c46fc07a31a776c892",
+  "bin-shared/fixture-agent": "d67a79b46153358c9be8be29d1a4ff4c7635921067376ab25abb7f7b8df17c0d"
+}

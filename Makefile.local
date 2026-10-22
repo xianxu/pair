@@ -636,3 +636,8 @@ test-vm-conformance:
 	python3 -B tests/conformance-command-test.py
 	python3 -B tests/conformance-paths-test.py
 	python3 -B tests/native-terminal-ci-test.py
+
+.PHONY: zellij-false-miss
+zellij-false-miss:
+	python3 -B tests/zellij-false-miss-test.py
+	bash scripts/repro/zellij-false-miss.sh

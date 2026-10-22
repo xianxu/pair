@@ -51,6 +51,11 @@ var pairCatalog = append(append([]golint.Rule(nil), golint.Catalog...), golint.R
 	Incident: "pair#766",
 	Message:  "use a terminal-aware producer and acknowledge its readiness before final output; direct printf can fail before producing the test marker",
 	Match:    scribePTYPrintfCalls,
+}, golint.Rule{
+	Name:     "manual-clock-rendezvous",
+	Incident: "pair#771",
+	Message:  "manualClock timer delivery must rendezvous with its receiver before a request barrier proves completion",
+	Match:    bufferedManualClockTimers,
 })
 
 // This lexical guard covers literal shell test/[ /[[ permission probes. It
