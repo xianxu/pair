@@ -532,6 +532,7 @@ func switchAgentArguments(accepted bool) []ArgSpec {
 	if accepted {
 		args = append(args,
 			ArgSpec{Name: "fingerprint", Summary: "accepted preview fingerprint", Required: true, Implicit: true},
+			ArgSpec{Name: "interrupt-first", Summary: "explicit cooperative interruption consent; fresh idle still required", Implicit: true},
 			ArgSpec{Name: "known-config", Summary: "use existing saved target configuration", Implicit: true},
 			ArgSpec{Name: "source", Summary: "authenticated source incarnation token", Implicit: true},
 		)

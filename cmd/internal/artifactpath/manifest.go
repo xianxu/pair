@@ -1551,6 +1551,11 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/slot_operations.go",
 	// #517 authenticated switch admission and receipt CLI use owners, not artifact paths.
 	"cmd/internal/couchcmd/agent_switch_service.go",
+	// #728 switch intent codecs and adapters delegate all artifact access to owners.
+	"cmd/internal/couchcmd/switch_interrupt.go",
+	"cmd/internal/couchcore/argumentarray.go",
+	"cmd/internal/couchcore/switch_target.go",
+	"cmd/internal/couchmessage/switch_arguments.go",
 	"cmd/internal/couchcmd/switch_agent_cli.go",
 	"cmd/internal/couchcore/store.go",
 	"cmd/internal/couchcore/storejournal.go",

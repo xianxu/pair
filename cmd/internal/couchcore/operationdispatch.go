@@ -337,6 +337,9 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 			if call.Operation.Name == "prepare-switch-agent" {
 				return c.PrepareAgentSwitch(ctx, address, a["agent"], argv)
 			}
+			if value := a["interrupt-first"]; value != "" && value != "true" && value != "false" {
+				return nil, fmt.Errorf("interrupt-first must be true or false")
+			}
 			known := a["known-config"] == "true"
 			if argv == nil && !known {
 				return nil, fmt.Errorf("accepted startup parameters are required")
@@ -345,7 +348,7 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 			if argv != nil {
 				args = *argv
 			}
-			return c.SwitchAgent(ctx, SwitchAgentRequest{Address: address, Agent: a["agent"], KnownConfig: known, Argv: args, AcceptedFingerprint: a["fingerprint"], Source: a["source"]})
+			return c.SwitchAgent(ctx, SwitchAgentRequest{InterruptFirst: a["interrupt-first"] == "true", Address: address, Agent: a["agent"], KnownConfig: known, Argv: args, AcceptedFingerprint: a["fingerprint"], Source: a["source"]})
 		case "recovery-confirmation":
 			return c.ConfirmRecovery(ctx, a["token"])
 		case "reboot":

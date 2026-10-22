@@ -20,7 +20,14 @@ type AgentSwitchGuard interface {
 	ConfirmAgentSwitch(context.Context, ThreadAddress, string, SwitchSourceEvidence) error
 }
 
+// AgentSwitchInterruptGuard performs the one cooperative input phase while
+// SwitchAgent owns the lifecycle hold. ConfirmAgentSwitch still proves idle.
+type AgentSwitchInterruptGuard interface {
+	InterruptBeforeAgentSwitch(context.Context, ThreadAddress, string, SwitchSourceEvidence) error
+}
+
 type SwitchAgentRequest struct {
+	InterruptFirst      bool
 	KnownConfig         bool
 	Source              string
 	Address             ThreadAddress
@@ -362,7 +369,10 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (_ 
 		}
 		return c.PrepareAgentSwitch(ctx, request.Address, request.Agent, &request.Argv)
 	}
-	if c.SwitchGuard != nil || request.Source != "" {
+	if request.InterruptFirst && c.SwitchGuard == nil {
+		return result, errors.New("switch-agent: cooperative interrupt guard unavailable")
+	}
+	if !request.InterruptFirst && (c.SwitchGuard != nil || request.Source != "") {
 		if c.SwitchGuard == nil {
 			return result, errors.New("switch-agent: source guard unavailable")
 		}
@@ -388,6 +398,24 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (_ 
 	}
 	if prepared.Fingerprint != request.AcceptedFingerprint {
 		return result, ErrSwitchResolutionChanged
+	}
+	if request.InterruptFirst && !prepared.SourceEvidence().Vacant() {
+		cooperative, ok := c.SwitchGuard.(AgentSwitchInterruptGuard)
+		if !ok {
+			return result, errors.New("switch-agent: cooperative interrupt unavailable")
+		}
+		if err := cooperative.InterruptBeforeAgentSwitch(ctx, request.Address, request.Source, prepared.SourceEvidence()); err != nil {
+			return result, err
+		}
+		// Interruption is not permanent admission: reclassify the exact accepted
+		// generation before the final idle/Git guard and normal park transaction.
+		prepared, err = prepare()
+		if err != nil {
+			return result, err
+		}
+		if prepared.Fingerprint != request.AcceptedFingerprint {
+			return result, ErrSwitchResolutionChanged
+		}
 	}
 	owner, err := c.Proc.Current()
 	if err != nil {

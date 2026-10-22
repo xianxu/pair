@@ -28,6 +28,12 @@ type switchServiceGuard struct {
 // ConfirmAgentSwitch is shared by the human form and queued remote operations.
 // An empty token selects the form's current source, never bypasses its checks.
 func (g *switchServiceGuard) ConfirmAgentSwitch(ctx context.Context, address couchcore.ThreadAddress, source string, evidence couchcore.SwitchSourceEvidence) error {
+	return g.confirmAgentSwitchAdmission(ctx, address, source, evidence, false)
+}
+
+// Cooperative admission waives only the idle check, never source/Git proof.
+// Input remains on the owned lifecycle phase, not a request worker.
+func (g *switchServiceGuard) confirmAgentSwitchAdmission(ctx context.Context, address couchcore.ThreadAddress, source string, evidence couchcore.SwitchSourceEvidence, interruptFirst bool) error {
 	s := g.service.Load()
 	if s == nil {
 		return errors.New("switch-agent: supervisor unavailable")
@@ -35,32 +41,37 @@ func (g *switchServiceGuard) ConfirmAgentSwitch(ctx context.Context, address cou
 	if evidence.Vacant() {
 		return g.confirmVacantAgentSwitch(ctx, s, address, source, evidence)
 	}
+	_, err := inspectSwitchLiveSource(ctx, s, address, source, !interruptFirst)
+	return err
+}
+
+func inspectSwitchLiveSource(ctx context.Context, s *messageService, address couchcore.ThreadAddress, source string, requireIdle bool) (couchmessage.SlotLiveness, error) {
 	live, ok := s.LivenessForThread(address.RepoScope, string(address.Tag))
 	if !ok || !s.isConnected(live.Binding) || source != "" && source != switchSourceToken(live) {
-		return errors.New("switch-agent: source changed or disconnected; retry switch")
+		return couchmessage.SlotLiveness{}, errors.New("switch-agent: source changed or disconnected; retry switch")
 	}
-	if live.Settled == nil || !*live.Settled {
-		return errors.New("switch-agent: source must be known idle; retry after its turn finishes")
+	if requireIdle && (live.Settled == nil || !*live.Settled) {
+		return couchmessage.SlotLiveness{}, errors.New("switch-agent: source must be known idle; retry after its turn finishes")
 	}
 	if _, err := s.authority.current(ctx, live.Binding); err != nil {
-		return err
+		return couchmessage.SlotLiveness{}, err
 	}
 	identity, err := s.connectedWorkspace(ctx, live.Binding)
 	if err != nil {
-		return err
+		return couchmessage.SlotLiveness{}, err
 	}
 	git, err := s.authority.branch(ctx, identity.WorktreeRoot)
 	if err != nil {
-		return fmt.Errorf("switch-agent: Git state unknown: %w", err)
+		return couchmessage.SlotLiveness{}, fmt.Errorf("switch-agent: Git state unknown: %w", err)
 	}
 	if git.Dirty {
-		return errors.New("switch-agent: source is dirty; ask it to commit first")
+		return couchmessage.SlotLiveness{}, errors.New("switch-agent: source is dirty; ask it to commit first")
 	}
 	latest, ok := s.LivenessForThread(address.RepoScope, string(address.Tag))
-	if !ok || switchSourceToken(latest) != switchSourceToken(live) || latest.Settled == nil || !*latest.Settled || !s.isConnected(latest.Binding) {
-		return errors.New("switch-agent: source changed while checking; retry switch")
+	if !ok || switchSourceToken(latest) != switchSourceToken(live) || requireIdle && (latest.Settled == nil || !*latest.Settled) || !s.isConnected(latest.Binding) {
+		return couchmessage.SlotLiveness{}, errors.New("switch-agent: source changed while checking; retry switch")
 	}
-	return ctx.Err()
+	return latest, ctx.Err()
 }
 
 // The core's exact vacancy classification replaces only the live-wrapper gate.
@@ -212,7 +223,7 @@ func (s *messageService) handleAgentSwitch(ctx context.Context, r couchmessage.R
 	if err != nil {
 		return refuse(err)
 	}
-	if err = service.guard.ConfirmAgentSwitch(ctx, address, token, prepared.SourceEvidence()); err != nil {
+	if err = service.guard.confirmAgentSwitchAdmission(ctx, address, token, prepared.SourceEvidence(), r.InterruptFirst); err != nil {
 		return refuse(err)
 	}
 	guard := func(ctx context.Context) error {
@@ -224,7 +235,7 @@ func (s *messageService) handleAgentSwitch(ctx context.Context, r couchmessage.R
 		if err := authorize(ctx); err != nil {
 			return err
 		}
-		return service.guard.ConfirmAgentSwitch(ctx, address, token, prepared.SourceEvidence())
+		return service.guard.confirmAgentSwitchAdmission(ctx, address, token, prepared.SourceEvidence(), r.InterruptFirst)
 	}
 	return s.slotOps.admit(ctx, caller, r, func(key string, started func(), finished func(any, error)) error {
 		return service.enqueue(key, func(ctx context.Context) (couchcore.OperationCall, error) {
@@ -232,6 +243,9 @@ func (s *messageService) handleAgentSwitch(ctx context.Context, r couchmessage.R
 				"repo-scope": address.RepoScope, "tag": string(address.Tag), "agent": r.Agent,
 				"fingerprint": prepared.Fingerprint, "source": token,
 			}}
+			if r.InterruptFirst {
+				call.Args["interrupt-first"] = "true"
+			}
 			if explicit != nil {
 				raw, _ := json.Marshal(*explicit)
 				call.Args["argv"] = string(raw)
