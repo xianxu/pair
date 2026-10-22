@@ -586,3 +586,104 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T03:20:43-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 722 — couch --drain [--fast]: a fleet-wide checkpoint-and-stop before a restart, with a drain board |
+| repo | pair |
+| issue file | workshop/issues/000722-couch-drain-fast-a-fleet-wide-checkpoint-and-stop-before-a-restart-with-a-drain-board.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 0b605b1ee4ec9bda5a4d569708d25e0a857efd2f..221af63022ff5fcd7247e04830d6b7c9853ec0f8 |
+| command | sdlc close --issue 722 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T03:20:43-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation matches the approved transient-flags Spec and superseding Plan revisions. No blocking defects found. README and atlas document the new commands and their limits. The explicitly retained operator-present acceptance gate remains required before landing; no complete current-source native pass is claimed.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The approved redesign removes parsed acknowledgements and readiness authority. Ordinary replies cannot change drain flags; message-independence regressions pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The superseding Plan removes automatic queue integration. Current drain wiring uses ordinary Broker.SendSystem delivery and makes no SDLC calls.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Fast drain now supplies worker guidance only. The formatter, README and atlas agree that Couch performs no automatic queue cancellation or interruption.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      The former coordinator is absent. Production flag updates use AddDrainFlags and ClearDrainFlags under drainMu; service and race regressions pass.
+  - id: BR-5
+    disposition: withdrawn
+    note: |
+      Withdrawal remains supported: fresh uncached runs of all five affected internal packages passed without changing physical-write budgets.
+```
+
+1. **Strengths**
+
+   - Steward authentication, issuer exclusion and cohort bounds precede publication and delivery (`cmd/internal/couchcmd/drain_wiring.go:59`).
+   - Undrain clears flags before notice attempts, preserving the contract when delivery fails (`cmd/internal/couchcmd/drain_wiring.go:81`).
+   - Status preserves unknown observations and requires positive quiescence evidence before displaying idle age (`cmd/internal/couchcore/drain_board.go:28`).
+   - Native acceptance checks submitted receipts against independently captured worker input (`cmd/couch/drain_acceptance_test.go:148`).
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Fresh uncached tests passed for `couchcore`, `couchmessage`, `couchcmd`, `couchtty` and `wrapcmd`.
+   - Focused drain tests, including CLI and acceptance-oracle tests, passed across six packages.
+   - Focused race checks passed for service, broker snapshots and console publication.
+   - `make test-affected-inventory` and patch whitespace checks passed.
+   - In a disposable copy, the graceful-notice regression passed with current wording and failed after restoring the ambiguous wording.
+   - Retained suite/native log hashes matched their manifests. The recorded suite covers unchanged executable source. Native reruns were not performed, consistent with the final approved verification sequence.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** reuses ordinary system delivery, receipts and cached activity.
+   - **ARCH-PURE — pass:** flag operations, notices and board projection remain deterministic; IO stays in service wiring.
+   - **ARCH-PURPOSE — pass:** delivers steward-requested posture without introducing machine readiness authority.
+   - **ARCH-MOCK — pass:** retains existing injected messaging seams and shared disposable native harness; adds no queue dependency.
+   - **ARCH-CONSTRAINTS — pass:** actor limits, total admission deadline and 8/16-member operation-count tests bound the new work.
+   - **ARCH-SECURE — pass:** closed request validation, verified steward identity and quoted, validated continuation notes protect the boundary.
+   - **ARCH-ORDER — pass:** serialized flag updates precede delivery; delivery outcomes never implicitly alter posture.
+   - **ARCH-FUNERAL — pass:** flags die with the service; no new runtime persistence or background coordinator is introduced.
+   - **ARCH-EVOLVE — pass:** no persisted format changes; legacy drain bytes remain untouched.
+
+7. **Plan revision recommendations:** None. The later revisions explicitly supersede the historical coordinator design and identify the remaining watched-acceptance requirement.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"a7b903bb-6fac-4a31-ace6-412aba4e4568","repository":"github.com/xianxu/pair","issue_id":"000722","recipe":"milestone-review","round":7,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/1462a9a8be46b80c","reviewed_head":"221af63022ff5fcd7247e04830d6b7c9853ec0f8","slot":"pair:5","requested_at":"2026-10-22T10:14:47.633248Z"},"phase":"finished","pid":23135,"started_at":"2026-10-22T10:14:47.735277Z","finished_at":"2026-10-22T10:20:43.039609Z","session_id":"01a1631b-2dd8-77e3-bc8e-bec09253fae4","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.955565958s
+head: "221af63022ff5fcd7247e04830d6b7c9853ec0f8"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
