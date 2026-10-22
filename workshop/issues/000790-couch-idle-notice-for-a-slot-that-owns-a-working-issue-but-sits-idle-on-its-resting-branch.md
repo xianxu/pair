@@ -35,4 +35,10 @@ persisted state; the same mute file applies.
 
 ## Log
 
+- 10-21 22:0x (ops:0): **correction to the Spec's premise.** pair:6 was also listed in Couch's
+  `wait-notice-off` mute file (with most worker slots: ariadne:1/4/5, pair:1/2/3/5/6/7, parley.nvim:1/2/3), so the
+  idle notice was suppressed regardless of branch. The TL cleared the worker mutes (kept :0 slots, ops:1, echo:2).
+  The resting-branch gap may still be real; verify whether the notice fires for an owner idle on its resting branch
+  with no mute before building. Also worth considering: mutes that expire (a TTL) instead of a permanent list.
+
 ### 2026-10-21
