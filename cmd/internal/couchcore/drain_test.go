@@ -99,7 +99,7 @@ func TestDrainNoticesAndUndrainValidation(t *testing.T) {
 			t.Fatal("fast missing " + phrase)
 		}
 	}
-	if got, err := UndrainNotice(""); err != nil || got != "drain lifted; continue your current work" {
+	if got, err := UndrainNotice(""); err != nil || got != "drain lifted; continue your current work\nIf you received no drain notice, no checkpoint or recovery action is required." {
 		t.Fatal(got, err)
 	}
 	if got, err := UndrainNotice("next task"); err != nil || !strings.HasSuffix(got, "\nNote: \"next task\"") {

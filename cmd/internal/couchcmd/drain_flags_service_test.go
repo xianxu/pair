@@ -13,11 +13,13 @@ import (
 	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
+var drainTestRequestSequence atomic.Uint64
+
 func flagRequest(b couchmessage.Binding, action string) couchmessage.Request {
 	r := callerRequest(b, "drain")
 	r.Drain = &couchmessage.DrainRequest{Action: action}
 	if action != "status" {
-		r.ID = "00000000-0000-4000-8000-000000000001"
+		r.ID = fmt.Sprintf("%032x", drainTestRequestSequence.Add(1))
 	}
 	return r
 }
@@ -31,19 +33,22 @@ func TestDrainFlagsExcludeStewardAndKeepOrdinaryDelivery(t *testing.T) {
 		}
 	}
 	got := r.s.handle(ctx, flagRequest(r.callers[0], "start"))
-	if got.Code != "ok" || got.Drain == nil || len(got.Drain.Rows) != len(r.callers) || len(got.DrainDeliveries) != len(r.callers) {
+	if got.Code != "accepted" || got.Operation == nil || got.Operation.Drain == nil || len(got.Operation.Drain.Children) != len(r.callers) {
 		t.Fatalf("drain: %+v", got)
 	}
-	for _, row := range got.Drain.Rows {
+	for _, row := range r.s.handle(ctx, flagRequest(r.callers[0], "status")).Drain.Rows {
 		if row.Workspace == r.callers[0].Slot {
 			t.Fatal("issuing steward flagged")
 		}
 	}
-	for _, delivery := range got.DrainDeliveries {
-		if delivery.Error != "" || delivery.Receipt == nil || delivery.Receipt.Message.Origin != couchmessage.OriginSystem {
-			t.Fatalf("not ordinary authenticated system delivery: %+v", delivery)
-		}
+	children := got.Operation.Drain.Children
+	for _, child := range children {
+		testwait.Until(t, "ordinary authenticated system notice admitted", func() bool {
+			receipt, err := r.s.broker.Status(r.callers[0], child.ID)
+			return err == nil && receipt.Message.Origin == couchmessage.OriginSystem
+		})
 	}
+
 	msg := callerRequest(r.callers[0], "send")
 	msg.ID, msg.Target, msg.Body = "00000000-0000-4000-8000-000000000002", r.worker.Slot, "ordinary work remains deliverable"
 	if got := r.s.handle(ctx, msg); got.Code != "accepted" {
@@ -53,8 +58,8 @@ func TestDrainFlagsExcludeStewardAndKeepOrdinaryDelivery(t *testing.T) {
 		receipt, err := r.s.broker.Status(r.callers[0], msg.ID)
 		return err == nil && receipt.Status == couchmessage.Submitted
 	})
-	for _, delivery := range got.DrainDeliveries {
-		id := delivery.Receipt.Message.ID
+	for _, child := range children {
+		id := child.ID
 		testwait.Until(t, "drain notice submitted", func() bool {
 			receipt, err := r.s.broker.Status(r.callers[0], id)
 			return err == nil && receipt.Status == couchmessage.Submitted
@@ -71,11 +76,11 @@ func TestDrainFlagsExcludeStewardAndKeepOrdinaryDelivery(t *testing.T) {
 	}
 	r.disconnect(r.worker)
 	got = r.s.handle(ctx, flagRequest(r.callers[0], "undrain"))
-	if got.Code != "ok" || len(got.Drain.Rows) != 0 || len(got.DrainDeliveries) != len(r.callers) {
+	if got.Code != "accepted" || got.Operation == nil || len(got.Operation.Drain.Children) != len(r.callers) {
 		t.Fatalf("lift failed to clear before refused delivery: %+v", got)
 	}
 	got = r.s.handle(ctx, flagRequest(r.callers[0], "undrain"))
-	if len(got.DrainDeliveries) != 0 {
+	if got.Operation == nil || len(got.Operation.Drain.Children) != 0 {
 		t.Fatal("empty lift sent unsolicited continuation")
 	}
 }
@@ -144,19 +149,17 @@ func TestDrainFlagFanoutCountsAt8And16(t *testing.T) {
 			}
 			before := r.world.counts()
 			got := r.s.handle(context.Background(), flagRequest(steward, "start"))
-			if got.Code != "ok" || len(got.DrainDeliveries) != n || len(got.Drain.Rows) != n {
+			if got.Code != "accepted" || got.Operation == nil || len(got.Operation.Drain.Children) != n {
 				t.Fatalf("fanout: %+v", got)
 			}
-			for _, d := range got.DrainDeliveries {
-				if d.Receipt == nil {
-					t.Fatalf("missing receipt: %+v", d)
-				}
-				id := d.Receipt.Message.ID
+			for _, child := range got.Operation.Drain.Children {
+				id := child.ID
 				testwait.Until(t, "counted notice submitted", func() bool {
-					r, e := r.s.broker.Status(steward, id)
-					return e == nil && r.Status == couchmessage.Submitted
+					receipt, err := r.s.broker.Status(steward, id)
+					return err == nil && receipt.Status == couchmessage.Submitted
 				})
 			}
+
 			if reserves.Load() != int32(n) || deliveries.Load() != int32(n) {
 				t.Fatalf("N=%d reserve=%d deliver=%d", n, reserves.Load(), deliveries.Load())
 			}

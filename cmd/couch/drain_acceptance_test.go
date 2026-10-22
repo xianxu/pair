@@ -23,7 +23,7 @@ import (
 
 const drainAcceptanceGraceful = "Drain: finish your current atomic step and wait for background work that is already running to finish. Leave queued, not-started work queued and note it in the issue Log as outstanding." + drainAcceptanceGuidance
 const drainAcceptanceAck = "acknowledge message received, will resume processing after drain is lifted"
-const drainAcceptanceLift = "drain lifted; continue your current work"
+const drainAcceptanceLift = "drain lifted; continue your current work\nIf you received no drain notice, no checkpoint or recovery action is required."
 const drainAcceptanceGuidance = " Write where you stopped and the next step in the issue Log; commit and push the checkpoint, then end your turn and stay idle. Start no new work. While idle, keep receiving messages. For new work, reply once: 'acknowledge message received, will resume processing after drain is lifted'. Do not create courtesy acknowledgements or acknowledgement loops."
 
 func TestDrainAcceptanceGracefulBody(t *testing.T) {
@@ -197,12 +197,29 @@ func TestDisposableCouchDrainFlags(t *testing.T) {
 			}
 			notices := func(result couchmessage.Response, body string) {
 				t.Helper()
-				if len(result.DrainDeliveries) != 2 {
+				if result.Operation == nil || result.Operation.Drain == nil {
+					t.Fatalf("notice operation missing: %+v", result)
+				}
+				id := result.Operation.ID
+				err := waitFleet(ctx, func() (bool, error) {
+					result = response(0, "--operation-status", id, "--json")
+					if result.Operation == nil || result.Operation.Drain == nil {
+						return false, fmt.Errorf("notice operation disappeared: %+v", result)
+					}
+					if result.Operation.Status == couchmessage.ReceiptFailed {
+						return false, fmt.Errorf("notice operation failed: %+v", result.Operation)
+					}
+					return result.Operation.Status == couchmessage.ReceiptSucceeded, nil
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(result.Operation.Drain.Children) != 2 {
 					t.Fatalf("two worker notices required: %+v", result)
 				}
 				recipients := map[string]bool{}
-				for _, delivery := range result.DrainDeliveries {
-					if delivery.Error != "" || delivery.Receipt == nil || delivery.Receipt.Message.ID == "" {
+				for _, delivery := range result.Operation.Drain.Children {
+					if delivery.Phase != couchmessage.DrainChildDelivered || delivery.ID == "" {
 						t.Fatalf("notice admission: %+v", delivery)
 					}
 					n := 0
@@ -218,7 +235,7 @@ func TestDisposableCouchDrainFlags(t *testing.T) {
 						t.Fatalf("duplicate notice recipient: %+v", result)
 					}
 					recipients[delivery.Workspace] = true
-					accepted(n, delivery.Receipt.Message.ID, body)
+					accepted(n, delivery.ID, body)
 				}
 			}
 			send := func(from, to int, body string) {
@@ -234,7 +251,7 @@ func TestDisposableCouchDrainFlags(t *testing.T) {
 			graceful := drainAcceptanceGraceful
 			fast := "Drain (fast): stop now; do not finish the current step. Promptly stop your own background work via supported controls; preserve unfinished working-tree edits in your checkpoint." + drainAcceptanceGuidance
 			result := response(0, "--drain", "--json")
-			flags(result, 2)
+			flags(response(0, "--drain", "--status", "--json"), 2)
 			notices(result, graceful)
 			// Read-only status also works from a flagged, genuinely registered worker.
 			flags(response(1, "--drain", "--status", "--json"), 2)
@@ -279,18 +296,18 @@ func TestDisposableCouchDrainFlags(t *testing.T) {
 			}
 			t.Logf("drain ordinary selected worker frame:\n%s", frame)
 			result = response(0, "--undrain", "--json")
-			flags(result, 0)
+			flags(response(0, "--drain", "--status", "--json"), 0)
 			notices(result, drainAcceptanceLift)
 			result = response(0, "--drain", "--fast", "--json")
-			flags(result, 2)
+			flags(response(0, "--drain", "--status", "--json"), 2)
 			notices(result, fast)
 			send(0, 2, "ordinary-while-fast-flagged-"+fleet.RunID)
 			send(2, 0, drainAcceptanceAck)
 			result = response(0, "--undrain", "--message", "custom-continuation-marker", "--json")
-			flags(result, 0)
+			flags(response(0, "--drain", "--status", "--json"), 0)
 			notices(result, drainAcceptanceLift+"\nNote: "+strconv.Quote("custom-continuation-marker"))
 			result = response(0, "--drain", "--json")
-			flags(result, 2)
+			flags(response(0, "--drain", "--status", "--json"), 2)
 			notices(result, graceful)
 			// Use disambiguated CSI-u physical keys. Ctrl+Space first changes focus
 			// to Couch's switcher; Alt+x then requests its normal leave confirmation.

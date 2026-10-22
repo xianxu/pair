@@ -604,11 +604,24 @@ receiving messages; for new work they reply once, “acknowledge message receive
 will resume processing after drain is lifted”, avoiding courtesy acknowledgement
 loops. Ordinary messages continue delivering throughout.
 
-`couch --drain --status` lists flagged slots with connection, settled, picker,
+Drain and lift return an accepted operation ID as soon as flags are applied;
+notice delivery continues independently. Inspect `couch --operation-status ID`
+for every target's child receipt ID and delivered, pending or failed outcome.
+Delivered means the notice was submitted, not that a checkpoint was completed.
+A failed outcome keeps its reason, including explicit uncertainty; inspect the
+recipient before any intentional re-notification. A slow slot does not block
+admission to the others. Lost replies are inspected by the original operation
+ID rather than automatically retried. Operation records are caller-scoped,
+in memory, capped at 64 and retained for five minutes after completion.
+
+`couch --drain --status` lists flagged slots with their latest notice outcome
+and correlation IDs, plus connection, settled, picker,
 background-work and idle-age observations; unknown facts stay unknown. These
 observations help the operator assess activity. Drain does not certify restart
 readiness or pause SDLC queues. `couch --undrain` clears flags and sends “drain
-lifted; continue your current work”, with an optional quoted `--message` note.
+lifted; continue your current work”, explaining that a worker which received no
+drain notice needs no checkpoint or recovery action, with an optional quoted
+`--message` note.
 See [the drain contract](atlas/couch.md#fleet-checkpoint-and-stop-722).
 
 `couch --keys` and `couch --set-model` require a verified owning hub and one

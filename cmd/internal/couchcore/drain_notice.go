@@ -26,7 +26,7 @@ func UndrainNotice(message string) (string, error) {
 			return "", errors.New("undrain message contains terminal controls")
 		}
 	}
-	text := "drain lifted; continue your current work"
+	text := "drain lifted; continue your current work\nIf you received no drain notice, no checkpoint or recovery action is required."
 	if message != "" {
 		text += "\nNote: " + strconv.Quote(message)
 	}

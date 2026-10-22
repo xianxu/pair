@@ -108,7 +108,11 @@ func runSwitchAgentCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, 
 			return fail(err)
 		}
 	} else if result.Operation != nil {
-		fmt.Fprintf(stdout, "%s %s: %s\n", result.Operation.ID, result.Operation.Op, result.Operation.Status)
+		if result.Operation.Drain != nil {
+			printDrainOperation(stdout, *result.Operation)
+		} else {
+			fmt.Fprintf(stdout, "%s %s: %s\n", result.Operation.ID, result.Operation.Op, result.Operation.Status)
+		}
 		if result.Operation.Detail != "" {
 			fmt.Fprintln(stdout, result.Operation.Detail)
 		}

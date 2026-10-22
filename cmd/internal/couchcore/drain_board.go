@@ -14,10 +14,11 @@ type DrainObservation struct {
 }
 
 type DrainRow struct {
-	Workspace                   string
-	Connected                   bool
-	IdleMillis                  *int64
-	Settled, Picker, Background *bool
+	Notice, NoticeID, OperationID, NoticeDetail string
+	Workspace                                   string
+	Connected                                   bool
+	IdleMillis                                  *int64
+	Settled, Picker, Background                 *bool
 }
 
 type DrainBoard struct{ Rows []DrainRow }

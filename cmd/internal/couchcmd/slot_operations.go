@@ -42,8 +42,9 @@ type slotOperations struct {
 	names         func(context.Context) ([]couchcore.RepositoryName, error)
 	now           func() time.Time
 
-	mu       sync.Mutex
-	receipts map[receiptKey]couchmessage.OperationReceipt
+	mu           sync.Mutex
+	receipts     map[receiptKey]couchmessage.OperationReceipt
+	refreshDrain func(couchmessage.OperationReceipt) couchmessage.OperationReceipt
 }
 
 // receiptKey scopes a receipt to the slot that admitted it: another caller
@@ -73,7 +74,7 @@ func (s *slotOperations) switchStatus(id string, filters ...func(couchmessage.Op
 			}
 		}
 		if allowed {
-			return couchmessage.Response{Code: "ok", Operation: &receipt}, true
+			return couchmessage.Response{Code: "ok", Operation: detachedOperation(receipt)}, true
 		}
 	}
 	return couchmessage.Response{}, false
@@ -97,7 +98,7 @@ func (s *slotOperations) handle(ctx context.Context, caller couchmessage.Binding
 		if receipt.Status == couchmessage.ReceiptNone {
 			receipt = couchmessage.OperationReceipt{ID: r.ID, Status: couchmessage.ReceiptUnknown}
 		}
-		return couchmessage.Response{Code: "ok", Operation: &receipt}
+		return couchmessage.Response{Code: "ok", Operation: detachedOperation(receipt)}
 	}
 	if err := slotOperationConfirmation(r); err != nil {
 		return couchmessage.Response{Code: "confirmation-required", Error: err.Error()}
@@ -205,19 +206,13 @@ func (s *slotOperations) admit(ctx context.Context, caller couchmessage.Binding,
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.sweepLocked()
-	existing, held = s.receipts[key]
-	receipt, err := couchmessage.ApplyReceiptEvent(existing, event)
-	switch {
-	case err != nil || held:
-		return receiptAdmissionResponse(receipt, err)
-	case len(s.receipts) >= maxSlotOperationReceipts:
-		return couchmessage.Response{Code: "overloaded", Error: "too many slot operations held; read the report and retry later"}
-	}
 	if ctx.Err() != nil {
 		return admissionRefusal("enqueue", ctx.Err())
 	}
-	s.receipts[key] = receipt
+	receipt, created, err := s.reserveLocked(caller, event)
+	if err != nil || !created {
+		return receiptAdmissionResponse(receipt, err)
+	}
 	// Enqueue never blocks, so holding the lock is safe; a job that starts at
 	// once waits in started until this admission returns.
 	err = run(queueKey, func() { s.apply(key, couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptStart, ID: r.ID}) },
@@ -236,18 +231,21 @@ func (s *slotOperations) admit(ctx context.Context, caller couchmessage.Binding,
 		}
 		return couchmessage.Response{Code: code, Error: err.Error()}
 	}
-	return couchmessage.Response{Code: "accepted", Operation: &receipt}
+	return couchmessage.Response{Code: "accepted", Operation: detachedOperation(receipt)}
 }
 
 func receiptAdmissionResponse(receipt couchmessage.OperationReceipt, err error) couchmessage.Response {
 	if err != nil {
 		code := "invalid-request"
+		if errors.Is(err, errOperationCapacity) {
+			code = "overloaded"
+		}
 		if errors.Is(err, couchmessage.ErrReceiptIDConflict) {
 			code = "id-conflict"
 		}
 		return couchmessage.Response{Code: code, Error: err.Error()}
 	}
-	return couchmessage.Response{Code: "accepted", Operation: &receipt}
+	return couchmessage.Response{Code: "accepted", Operation: detachedOperation(receipt)}
 }
 
 // apply moves one held receipt; an event the table refuses (a late or
@@ -268,6 +266,10 @@ func (s *slotOperations) apply(key receiptKey, e couchmessage.ReceiptEvent) {
 func (s *slotOperations) sweepLocked() {
 	now := s.now()
 	for key, receipt := range s.receipts {
+		if receipt.Drain != nil && s.refreshDrain != nil {
+			receipt = s.refreshDrain(receipt)
+			s.receipts[key] = receipt
+		}
 		if next, err := couchmessage.ApplyReceiptEvent(receipt, couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptExpire, At: now}); err == nil && next.Status == couchmessage.ReceiptNone {
 			delete(s.receipts, key)
 		}
@@ -476,4 +478,34 @@ func (n notedResult) Warning() string {
 func recoveryActor(caller couchmessage.Binding) string {
 	b, _ := json.Marshal(caller)
 	return "hub:" + string(b)
+}
+
+// errOperationCapacity refuses registration before any operation effect.
+var errOperationCapacity = errors.New("too many slot operations held; read the report and retry later")
+
+// reserveLocked shares the no-IO receipt reservation used by console and drain
+// operations. The caller holds mu; no external queue or callback runs here.
+func (s *slotOperations) reserveLocked(caller couchmessage.Binding, event couchmessage.ReceiptEvent) (couchmessage.OperationReceipt, bool, error) {
+	s.sweepLocked()
+	key := receiptKey{caller.Scope, caller.Tag, event.ID}
+	old, held := s.receipts[key]
+	receipt, err := couchmessage.ApplyReceiptEvent(old, event)
+	if err != nil || held {
+		return receipt, false, err
+	}
+	if len(s.receipts) >= maxSlotOperationReceipts {
+		return couchmessage.OperationReceipt{}, false, errOperationCapacity
+	}
+	s.receipts[key] = receipt
+	return receipt, true, nil
+}
+
+// detachedOperation keeps response snapshots independent of later child updates.
+func detachedOperation(receipt couchmessage.OperationReceipt) *couchmessage.OperationReceipt {
+	if receipt.Drain != nil {
+		value := *receipt.Drain
+		value.Children = append([]couchmessage.DrainChild(nil), value.Children...)
+		receipt.Drain = &value
+	}
+	return &receipt
 }

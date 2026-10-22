@@ -5,9 +5,9 @@ deps: [ariadne#506]
 github_issue:
 created: 2026-10-19
 updated: 2026-10-22
-estimate_hours: 14.947
+estimate_hours: 18.3755
 collaboration-mode: collaboration
-card_mirror: 'fb1477b223e6b844a1a41ce35f9b858da8217c07' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '5cc2c0564ab8f73e5cbfe2dfb56f8bddb6123e50' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-19T23:16:03-07:00
 claimant:
     operator: Xian Xu
@@ -30,6 +30,8 @@ and nobody can read off whether it's safe. Operator item 15 (10-19), discussion:
 ops `teams/devinfra/tl-status-xian-xu.side/2026-10-19-15-fleet-drain.md`.
 
 ## Spec
+
+Current registered-operation addition (TL5f7e03f6/d8fba425): start/lift register a caller-scoped parent and every child ID before publishing flags, acknowledge immediately, and admit targets independently through four owned workers with separate2s budgets and per-target FIFO. Operation status retains each child result; flagged-slot status adds delivered/pending/failed with explicit uncertainty. No timeout extension. Lift explicitly needs no checkpoint/recovery action when no drain notice arrived. The exact latest plan Revision governs; watched acceptance must be rerun before landing.
 
 `couch --drain [--fast]` marks slots with an in-memory requested-posture flag, sends an authenticated system notice and keeps delivering ordinary messages. Agents own checkpointing and reply to new work with ordinary acknowledgement text; Couch neither requires nor parses those replies. `--drain --status` lists flagged slots with idle/quiet observations from existing in-memory Couch state. One compact global badge, no per-chip drain label.
 
@@ -59,6 +61,49 @@ TL831e9502 confirms operator approval of the re-scoped plan: exclude the issuing
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. Calibration is stale per estimate-source, so this is provisional focused ship-time, not a calendar promise or a prediction of the #481 wait.
 
 Decomposition follows the approved plan: initial spec/coordination uses issue-spec design1.0×0.5 and impl0.3×0.4. The pure drain model and supervisor coordinator are two greenfield Go single concerns (design1.0/1.5×0.2, impl0.8×0.4 each). Queue adapter, broker control authority and wrapper interrupt are three API integrations (design1.5/2.0/1.5×0.2, impl1.2/1.5/1.2×0.4). Portable store extends the existing namespace/atomic-write patterns (design0.3×0.2, impl0.5×0.4). Board UI extends current console rendering (design1.0×0.2, impl0.8×0.4). Docs use design0.15×0.2, impl0.2×0.4; one close review uses design0.2×0.2, impl0.5×0.4; real queue/endpoint conformance uses one discovery budget impl0.6×0.4. Existing Go JSON/context/atomic storage and Couch broker/registry/console seams avoid a novel stack; no library replaces this project-specific generation/ownership protocol. Familiarity1.0, thorough-plan design buffer15%, no parallel execution discount. Design2.33×1.15 + impl3.36 =6.0395h.
+
+### 2026-10-22 — active forecast after registered-operation approval
+
+Plan-quality round9 is CLEAN. Address its nonblocking estimate-quality INFO explicitly rather than claiming the historical14.947h covered a new executor. Same Method A/v3.1 and stale calibration: pure receipt model design1.0×0.2/impl0.8×0.4; bounded admission module design1.5×0.2/impl1.5×0.4; shared registry/auth/flag integration design0.75×0.2/impl1.5×0.4; status/CLI/consumer integration design0.5×0.2/impl1.0×0.4; fresh transport/recorded/watched execution impl1.0×0.4; renewed review design0.2×0.2/impl0.5×0.4. Existing broker, operation reducer and ordinary receipt transport avoid a new stack. Incremental design0.79×1.15+impl2.52=3.4285h. First machine block below adds these to the historical forecast, giving18.3755h cumulative forecast. Historical allowances are provenance, including superseded work, not measured spending or a remaining-work promise; no actual hours are typed. External queue/operator waits are excluded. This separately covers renewed proof/review rather than double-crediting earlier green evidence.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.5 impl=0.12
+item: greenfield-go-module design=0.2 impl=0.32
+item: api-integration design=0.3 impl=0.48
+item: smaller-go-module design=0.06 impl=0.2
+item: api-integration design=0.4 impl=0.6
+item: api-integration design=0.3 impl=0.48
+item: greenfield-go-module design=0.3 impl=0.32
+item: tui-screen design=0.2 impl=0.32
+item: atlas-docs design=0.03 impl=0.08
+item: milestone-review design=0.04 impl=0.2
+item: real-api-discovery design=0 impl=0.24
+item: api-integration design=0.3 impl=0.6
+item: greenfield-go-module design=0.3 impl=0.32
+item: smaller-go-module design=0.06 impl=0.2
+item: api-integration design=0.2 impl=0.4
+item: api-integration design=0.2 impl=0.6
+item: real-api-discovery design=0 impl=0.24
+item: issue-spec design=0.25 impl=0.12
+item: api-integration design=0.2 impl=0.8
+item: smaller-go-module design=0.06 impl=0.2
+item: api-integration design=0.2 impl=0.6
+item: tui-screen design=0.1 impl=0.32
+item: api-integration design=0.3 impl=1.2
+item: atlas-docs design=0.04 impl=0.12
+item: milestone-review design=0.04 impl=0.2
+item: real-api-discovery design=0 impl=0.4
+item: greenfield-go-module design=0.2 impl=0.32
+item: greenfield-go-module design=0.3 impl=0.6
+item: api-integration design=0.15 impl=0.6
+item: api-integration design=0.1 impl=0.4
+item: real-api-discovery design=0 impl=0.4
+item: milestone-review design=0.04 impl=0.2
+design-buffer: 0.15
+total: 18.3755
+```
 
 ### Active cumulative estimate revision — 2026-10-20
 
@@ -325,6 +370,14 @@ Root cause verified in code: default2s client/server transport wraps sequential 
 TL5f7e03f6 directs keep fleet-wide cross-hub contour, register operations/child receipts, immediate flag acknowledgment and independent per-target admission/status, then private proof and a fresh watched run. Reopened through setter to working. New appended plan Revision records state/recovery table, shared receipt lifecycle, bounded4-worker executor and ordering/cancellation proof, pending TL approval and renewed change-code. Stage remains retained unchanged on pair:0; do not land. Earlier suite/SHIP is superseded by this acceptance failure. Prior restart-resend report330a37f5 and diagnosis e392864e are both submitted. Previous terminal capture requested at recovery is unavailable (previous session descriptor absent); issue/plan/Git evidence remains the recovery record.
 
 Submitted TLd8fba425 approved the appended registered-operation design and directed change-code; add the failed-drain/successful-lift case and explicit harmless-lift wording. Plan report d23c3630 submitted. Production code remains unchanged pending the plan-quality gate.
+
+### 2026-10-22 — asynchronous notice fix, private proof complete; final checks pending
+
+Change-code round9 CLEAN, estimate-quality INFO (incremental forecast now explicit), accepted design commit592ca93f5e56c88bc43a24be02a7f9e3224cc3dc. Implemented parent/child operation registration on the existing caller-scoped receipt map and reducer; the command returns after flag publication, with four service-owned admission workers and independent2s target budgets. Per-target lanes preserve start/lift order; service Close joins admissions before broker shutdown. Pure child batch reduction is O(children+events), detached and atomic; status reads local snapshots without wrapper probes. Child summaries retain IDs and explicit uncertainty, with JSON-encoded diagnostic bounds. No command timeout change, persisted state or cross-hub scope change.
+
+Private real-socket29-target RED before fix:2.000721125s deadline, nil operation and0 healthy admissions. GREEN after fix:925.666µs acknowledgment; all28 healthy targets delivered while the first remained blocked. Added real socket write-and-disconnect lost-reply recovery, failed-drain/successful-harmless-lift, ID replay after lift without reflagging, conflicting-ID refusal, caller-scoped status, cap refusal before effects, latest-notice fencing across delayed start/lift/new-start and exact notice order. Lift wording expected-body RED against the previous source, then GREEN; invalid unbounded operation ID RED then existing shared validation applied. Executor target tests and race count3 passed11.692s; combined current drain/shared-receipt races passed7.085s(couchcmd)/1.389s(couchmessage). Five-package targeted drain checks passed; artifactpath17.104s and repolint14.486s passed, then fresh checks18.791s/20.636s passed. make test-affected-inventory passed after auditing the changed native consumer's existing private store/pane/agent IO and recording only its full-fallback certificate. One initial preflight command named the nonexistent cmd/internal/repolint path; corrected to internal/repolint, no verification credit for the setup failure.
+
+The native consumer now follows operation IDs then independent child body receipts, but the native matrix was not rerun under TL's standing disposition. Pure/endpoint/real-socket tests qualify this fix; final recorded check, full close review and fresh watched acceptance remain pending. Stage cc44f065 on pair:0 is untouched; no live drain, queue, restart, restage or landing. Next: push the final fix, record affected (which policy may expand to suite), mandatory re-close after inventory, then report to TL for authorized restage and the watched rerun.
 
 ## Revisions
 

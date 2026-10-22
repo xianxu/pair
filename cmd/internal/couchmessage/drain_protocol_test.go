@@ -158,3 +158,12 @@ func drainFuzzUUID(s string) bool {
 	}
 	return true
 }
+
+func TestDrainMutationUsesBoundedOperationID(t *testing.T) {
+	for _, id := range []string{strings.Repeat("x", 129), "has space", "\x1b", string([]byte{0xff})} {
+		r := Request{Op: "drain", ID: id, Scope: "s", Tag: "t", Session: "session", Nonce: "nonce", Drain: &DrainRequest{Action: "start"}}
+		if err := ValidateRequest(r); err == nil {
+			t.Fatalf("invalid operation ID accepted: %q", id)
+		}
+	}
+}

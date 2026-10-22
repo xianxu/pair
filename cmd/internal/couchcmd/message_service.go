@@ -169,6 +169,9 @@ const (
 type messageService struct {
 	drainMu               sync.Mutex
 	drainFlags            couchcore.DrainFlags
+	drainNotices          map[string]drainNoticeReference
+	drainOps              *slotOperations
+	drainExecutor         *drainAdmissionExecutor
 	endpoints             *editorEndpointService
 	lifecycle             atomic.Pointer[lifecyclePublisher]
 	resources             atomic.Pointer[resourceSampler]
@@ -278,6 +281,9 @@ func (s *messageService) Close() {
 	}
 	_ = s.server.Close()
 	_ = s.sessions.Close()
+	if s.drainExecutor != nil {
+		s.drainExecutor.close()
+	}
 	_ = s.broker.Close()
 	s.workers.Wait()
 	if s.hubTargets != nil {
@@ -723,6 +729,13 @@ func newMessageService(parent context.Context, brokerSocket, registrySocket stri
 		return nil, err
 	}
 	s.sessions = sessions
+	s.drainOps = slotOps
+	if s.drainOps == nil {
+		s.drainOps = newSlotOperations(nil, nil, now)
+	}
+	s.drainOps.refreshDrain = s.refreshDrainOperation
+	s.drainNotices = map[string]drainNoticeReference{}
+	s.drainExecutor = newDrainAdmissionExecutor(lifetime)
 	if s.hubTargets != nil && authority.hubs != nil {
 		var primaries []string
 		for _, hub := range authority.hubs.snapshot().Hubs() {
@@ -1299,7 +1312,7 @@ func (s *messageService) handleSlotOperation(ctx context.Context, request couchm
 	if err := couchmessage.ValidateRequest(request); err != nil {
 		return couchmessage.Response{Code: "invalid-request", Error: err.Error()}
 	}
-	if s.slotOps == nil {
+	if s.slotOps == nil && (request.Op != "operation-status" || s.drainOps == nil) {
 		return couchmessage.Response{Code: "unsupported", Error: "this Couch runs no slot operations"}
 	}
 	caller, err := s.liveCaller(ctx, request)
@@ -1331,6 +1344,9 @@ func (s *messageService) handleSlotOperation(ctx context.Context, request couchm
 		}
 	}
 	if request.Op == "operation-status" {
+		if s.slotOps == nil {
+			return s.drainOps.handle(ctx, caller, request)
+		}
 		if authenticated, err := s.switchCaller(ctx, request); err == nil {
 			if identity, err := s.connectedWorkspace(ctx, authenticated); err == nil && s.authority.isHub(identity) {
 				if response, ok := s.slotOps.switchStatus(request.ID, s.hubReceiptFilter(ctx, identity)); ok {

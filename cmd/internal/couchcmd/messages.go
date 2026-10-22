@@ -108,7 +108,7 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 	if err := call(ctx, socket, r, &result); err != nil {
 		if r.Op == "drain" && inv.drain.Action != "status" {
 			id := r.ID
-			fmt.Fprintf(stderr, "couch: drain %s outcome uncertain: %s; inspect couch --drain --status; do not retry automatically\n", id, notifyosc.Sanitize([]byte(err.Error())))
+			fmt.Fprintf(stderr, "couch: drain %s outcome uncertain: %s; inspect couch --operation-status %s and couch --drain --status; do not retry automatically\n", id, notifyosc.Sanitize([]byte(err.Error())), id)
 		} else if r.Op == "send" {
 			printUncertainMessage(stderr, r.ID, err.Error())
 		} else {
@@ -140,6 +140,8 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 		fmt.Fprintf(stderr, "couch: %s: %s\n", result.Code, result.Error)
 	} else if result.Code == "not-dispatched" {
 		fmt.Fprintf(stdout, "not-dispatched: %s\n", result.Error)
+	} else if r.Op == "drain" && result.Operation != nil && result.Operation.Drain != nil {
+		printDrainOperation(stdout, *result.Operation)
 	} else if r.Op == "drain" && result.Drain != nil {
 		fmt.Fprintf(stdout, "drain flags: %d slots (requested posture; not checkpoint confirmation)\n", len(result.Drain.Rows))
 		for _, row := range result.Drain.Rows {
@@ -157,6 +159,9 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 				idle = "observed idle " + (time.Duration(*row.IdleMillis) * time.Millisecond).String()
 			}
 			fmt.Fprintf(stdout, "%s: %s\n", notifyosc.Sanitize([]byte(row.Workspace)), idle)
+			if row.Notice != "" {
+				fmt.Fprintf(stdout, "  notice %s (operation %s; child %s): %s\n", row.Notice, row.OperationID, row.NoticeID, notifyosc.Sanitize([]byte(row.NoticeDetail)))
+			}
 		}
 		for _, d := range result.DrainDeliveries {
 			if d.Error != "" {

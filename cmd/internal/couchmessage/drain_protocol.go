@@ -32,7 +32,7 @@ func ValidateDrainRequest(r Request) error {
 			return errors.New("drain identity exceeds limit")
 		}
 	}
-	if d.Action != "status" && (r.Scope == "" || r.Tag == "" || r.Session == "" || r.Nonce == "" || r.ID == "") {
+	if d.Action != "status" && (r.Scope == "" || r.Tag == "" || r.Session == "" || r.Nonce == "" || !validMessageID(r.ID)) {
 		return errors.New("drain mutation requires live caller identity and request ID")
 	}
 	switch d.Action {

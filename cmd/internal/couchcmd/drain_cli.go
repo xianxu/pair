@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/notifyosc"
+	"io"
 )
 
 func parseDrainCLI(args []string) (cliInvocation, error) {
@@ -51,4 +53,17 @@ func parseDrainCLI(args []string) (cliInvocation, error) {
 		}
 	}
 	return inv, nil
+}
+
+// printDrainOperation reports delivery separately from requested posture.
+func printDrainOperation(w io.Writer, receipt couchmessage.OperationReceipt) {
+	fmt.Fprintf(w, "drain %s %s: %s (notice delivery; not checkpoint confirmation)\n", receipt.ID, receipt.Drain.Action, receipt.Status)
+	for _, child := range receipt.Drain.Children {
+		fmt.Fprintf(w, "%s: notice %s; child %s", notifyosc.Sanitize([]byte(child.Workspace)), couchmessage.DrainNoticeState(child), child.ID)
+		if child.Detail != "" {
+			fmt.Fprintf(w, "; %s", notifyosc.Sanitize([]byte(child.Detail)))
+		}
+		fmt.Fprintln(w)
+	}
+	fmt.Fprintf(w, "inspect couch --operation-status %s; do not automatically resend\n", receipt.ID)
 }

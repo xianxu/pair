@@ -42,8 +42,19 @@ work they reply once, “acknowledge message received, will resume processing af
 drain is lifted”, without courtesy acknowledgement loops. These are ordinary
 messages through the existing delivery path, rather than wrapper input controls.
 
+Drain and lift return an accepted operation ID as soon as flags are applied;
+notice delivery continues independently. Inspect `couch --operation-status ID`
+for every target's child receipt ID and delivered, pending or failed outcome.
+Delivered means the notice was submitted, not that a checkpoint was completed.
+A failed outcome keeps its reason, including explicit uncertainty; inspect the
+recipient before any intentional re-notification. A slow slot does not block
+admission to the others. Lost replies are inspected by the original operation
+ID rather than automatically retried. Operation records are caller-scoped,
+in memory, capped at 64 and retained for five minutes after completion.
+
 `couch --drain --status` returns a detached snapshot of flagged workspaces and
-current observations: connection, settled state, picker, background work and idle
+latest notice outcome/correlation and current observations: connection, settled
+state, picker, background work and idle
 milliseconds. Unknown facts remain unknown. Idle age requires a connected slot,
 known settled state, no picker or background work, and a known nonfuture output
 clock. Status is observational; the operator decides whether a restart is safe.
@@ -51,12 +62,20 @@ The console renders one compact `drain N` badge and preserves actor selection an
 picker cues.
 
 `couch --undrain` clears the flags and sends the ordinary message “drain lifted;
-continue your current work” to flagged live slots. An optional `--message` is
+continue your current work” to the formerly flagged slots, even if a drain notice
+failed. It explicitly says no checkpoint or recovery action is required when no
+drain notice was received. An optional `--message` is
 quoted data, valid UTF-8 with no control characters and at most 1024 bytes.
 Repeated undrain after flags are cleared sends nothing. Undrain continues the
 worker's current work rather than invoking recovery or restart automation.
 
-The service owns the synchronized flags and ordinary notice admission;
+The service owns synchronized flags and registered notice operations. Four
+service-owned admission workers use separate two-second target budgets and
+preserve each target's FIFO across drain and lift. Service shutdown cancels and
+joins those admissions; the existing broker owns admitted message delivery.
+The existing operation registry owns parent retention and child summaries;
+local broker snapshots project status without querying wrappers.
+
 `AddDrainFlags`, `ClearDrainFlags` and `ProjectDrainBoard` are pure helpers in
 `couchcore`. There is no drain acknowledgement command, readiness state machine,
 queue pause, durable drain file or automatic queue operation.

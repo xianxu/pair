@@ -19,7 +19,17 @@ is a request, never operator approval or evidence that work is accepted.
 | Send a message containing code or shell syntax (backticks, `$(`, `<(`) | write it to a file with your editor tool, then `couch --send-to pair:1 --message-file PATH` |
 | Inspect a receipt | `couch --message-status ID --json` |
 | Steward TL: checkpoint and stop the other live slots | `couch --drain` (optional `--fast`, `--json`) |
-| Inspect flagged slots and activity (anyone) | `couch --drain --status` (optional `--json`) |
+| Inspect flagged slots and activity (anyone) | Drain and lift return an accepted operation ID as soon as flags are applied;
+notice delivery continues independently. Inspect `couch --operation-status ID`
+for every target's child receipt ID and delivered, pending or failed outcome.
+Delivered means the notice was submitted, not that a checkpoint was completed.
+A failed outcome keeps its reason, including explicit uncertainty; inspect the
+recipient before any intentional re-notification. A slow slot does not block
+admission to the others. Lost replies are inspected by the original operation
+ID rather than automatically retried. Operation records are caller-scoped,
+in memory, capped at 64 and retained for five minutes after completion.
+
+`couch --drain --status` (optional `--json`) |
 | Steward TL: lift drain and continue current work | `couch --undrain` (optional `--message TEXT`, `--json`) |
 | Owning hub: drive named keys in another idle slot | `couch --keys pair:7 clear-line text:/model submit wait:200 down enter` |
 | Owning hub: close a slash-command panel it opened (/usage, /status) | `couch --keys pair:7 esc` |
@@ -425,8 +435,8 @@ state machine, message hold, SDLC queue pause or durable drain file.
 
 `couch --undrain` clears flags and sends “drain lifted; continue your current
 work” to flagged live slots, with an optional quoted `--message` note (valid
-UTF-8, no control characters, at most 1024 bytes). Continue your current work when
-it arrives. The exact notice text is owned by `DrainNotice` and `UndrainNotice`
+UTF-8, no control characters, at most 1024 bytes). If no drain notice reached you, the lift requires no checkpoint or recovery
+action. Continue your current work when it arrives. The exact notice text is owned by `DrainNotice` and `UndrainNotice`
 in `couchcore/drain_notice.go`. Undrain does not invoke restart recovery or
 automatically operate an SDLC queue.
 

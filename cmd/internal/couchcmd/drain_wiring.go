@@ -43,7 +43,14 @@ func (s *messageService) drainBoardLocked() couchcore.DrainBoard {
 	if s.authority.now != nil {
 		now = s.authority.now()
 	}
-	return couchcore.ProjectDrainBoard(s.drainFlags, observations, now)
+	board := couchcore.ProjectDrainBoard(s.drainFlags, observations, now)
+	notices := s.drainNoticeSnapshotLocked()
+	for i := range board.Rows {
+		row := &board.Rows[i]
+		notice := notices[row.Workspace]
+		row.Notice, row.NoticeID, row.OperationID, row.NoticeDetail = notice.state, notice.id, notice.operation, notice.detail
+	}
+	return board
 }
 
 func (s *messageService) handleDrain(ctx context.Context, r couchmessage.Request) couchmessage.Response {
@@ -66,49 +73,43 @@ func (s *messageService) handleDrain(ctx context.Context, r couchmessage.Request
 	body := couchcore.DrainNotice(r.Drain.Fast)
 	var targets []string
 	s.drainMu.Lock()
+	defer s.drainMu.Unlock()
+	if replay, held := s.drainReplayLocked(caller, r); held {
+		return replay
+	}
+	next := s.drainFlags
 	if r.Drain.Action == "start" {
 		for _, b := range s.broker.Connected() {
 			if b.Slot != caller.Slot {
 				targets = append(targets, b.Slot)
 			}
 		}
-		next := couchcore.AddDrainFlags(s.drainFlags, targets, caller.Slot)
+		next = couchcore.AddDrainFlags(s.drainFlags, targets, caller.Slot)
 		if len(next) > couchmessage.MaxActors {
-			s.drainMu.Unlock()
 			return couchmessage.Response{Code: "refused", Error: "drain flag limit reached; inspect status and undrain before selecting another cohort"}
 		}
-		s.drainFlags = next
 	} else {
 		for slot := range s.drainFlags {
 			targets = append(targets, slot)
 		}
-		s.drainFlags = couchcore.ClearDrainFlags(s.drainFlags, nil)
-		// Validation already checked the note before any flag changes.
+		next = couchcore.ClearDrainFlags(s.drainFlags, nil)
 		body, _ = couchcore.UndrainNotice(r.Drain.Message)
+	}
+	response, created := s.registerDrainLocked(ctx, caller, r, targets, body)
+	if !created {
+		return response
+	}
+	s.drainFlags = next
+	// Keep only current flagged-slot references; lift receipts live in their
+	// registered parent rather than accumulating a second delivery history.
+	for slot := range s.drainNotices {
+		if !s.drainFlags[slot] {
+			delete(s.drainNotices, slot)
+		}
 	}
 	board := s.drainBoardLocked()
 	if s.authority.drainPublish != nil {
 		s.authority.drainPublish(board)
 	}
-	s.drainMu.Unlock()
-	// Admission is bounded as one command; each target gets ordinary receipts.
-	admission, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	result := couchmessage.Response{Code: "ok", Drain: &board}
-	for _, target := range targets {
-		delivery := couchmessage.DrainDelivery{Workspace: target}
-		id, err := newRequestID()
-		if err == nil {
-			receipt, sendErr := s.broker.SendSystem(admission, caller, id, couchmessage.Route{Target: target}, body)
-			err = sendErr
-			if receipt.Message.ID != "" {
-				delivery.Receipt = &receipt
-			}
-		}
-		if err != nil {
-			delivery.Error = err.Error()
-		}
-		result.DrainDeliveries = append(result.DrainDeliveries, delivery)
-	}
-	return result
+	return response
 }

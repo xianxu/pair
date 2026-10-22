@@ -59,3 +59,28 @@ func TestDrainStatusNamesActiveAndDisconnected(t *testing.T) {
 		t.Fatalf("activity collapsed into unknown: code=%d out=%q err=%q", code, out.String(), stderr.String())
 	}
 }
+
+func TestDrainCLIReportsRegisteredOperationAndDeliveryStates(t *testing.T) {
+	inv, err := ParseCLI([]string{"--drain"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out, errout bytes.Buffer
+	code := runMessageCLIWithCall(inv, messageRuntime(), &out, &errout, func(_ context.Context, _ string, request, response any) error {
+		id := request.(couchmessage.Request).ID
+		*response.(*couchmessage.Response) = couchmessage.Response{Code: "accepted", Operation: &couchmessage.OperationReceipt{ID: id, Op: "drain", Status: couchmessage.ReceiptRunning, Drain: &couchmessage.DrainOperation{Action: "start", Children: []couchmessage.DrainChild{
+			{Workspace: "pair:1", ID: "child1", Phase: couchmessage.DrainChildDelivered},
+			{Workspace: "pair:2", ID: "child2", Phase: couchmessage.DrainChildAdmitted},
+			{Workspace: "pair:3", ID: "child3", Phase: couchmessage.DrainChildFailed, Detail: "notice delivery unconfirmed"},
+		}}}}
+		return nil
+	})
+	if code != 0 {
+		t.Fatal(code, errout.String())
+	}
+	for _, want := range []string{"--operation-status", "pair:1: notice delivered", "pair:2: notice pending", "pair:3: notice failed", "unconfirmed", "not checkpoint confirmation"} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatalf("missing %q: %s", want, out.String())
+		}
+	}
+}

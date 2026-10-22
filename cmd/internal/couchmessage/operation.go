@@ -46,6 +46,7 @@ const ReceiptRetention = 5 * time.Minute
 
 // OperationReceipt is the typed outcome of one resume or reboot request.
 type OperationReceipt struct {
+	Drain *DrainOperation `json:",omitempty"`
 	// FailureNonce correlates a terminal receipt with retained lifecycle evidence.
 	FailureNonce         string                               `json:",omitempty"`
 	IntentDigest         string                               `json:",omitempty"`
@@ -107,6 +108,7 @@ type ReceiptOutcome struct {
 
 // ReceiptEvent drives ApplyReceiptEvent.
 type ReceiptEvent struct {
+	Drain                               *DrainOperation
 	IntentDigest                        string
 	RecoveryConfirmation                string
 	ToHub                               string
@@ -137,7 +139,7 @@ func ApplyReceiptEvent(r OperationReceipt, e ReceiptEvent) (OperationReceipt, er
 		return r, nil
 	case ReceiptAdmit:
 		if r.Status == ReceiptNone {
-			return OperationReceipt{CandidateKey: e.CandidateKey, RecoveryConfirmation: e.RecoveryConfirmation, IntentDigest: e.IntentDigest, ID: e.ID, Op: e.Op, Target: e.Target, Agent: e.Agent, ToHub: e.ToHub, Persist: e.Persist, Status: ReceiptQueued, Admitted: e.At}, nil
+			return OperationReceipt{Drain: cloneDrainPayload(e.Drain), CandidateKey: e.CandidateKey, RecoveryConfirmation: e.RecoveryConfirmation, IntentDigest: e.IntentDigest, ID: e.ID, Op: e.Op, Target: e.Target, Agent: e.Agent, ToHub: e.ToHub, Persist: e.Persist, Status: ReceiptQueued, Admitted: e.At}, nil
 		}
 		if e.RecoveryConfirmation != r.RecoveryConfirmation || e.CandidateKey != r.CandidateKey || e.IntentDigest != r.IntentDigest || e.Op != r.Op || e.Target != r.Target || e.Agent != r.Agent || e.ToHub != r.ToHub || e.Persist != r.Persist {
 			return r, ErrReceiptIDConflict
@@ -221,4 +223,14 @@ func boundedDriveResult(source *agentdrive.Result) *agentdrive.Result {
 		}
 	}
 	return &result
+}
+
+// cloneDrainPayload detaches the registered cohort from admission and readers.
+func cloneDrainPayload(op *DrainOperation) *DrainOperation {
+	if op == nil {
+		return nil
+	}
+	next := *op
+	next.Children = append([]DrainChild(nil), op.Children...)
+	return &next
 }
