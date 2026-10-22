@@ -21,9 +21,16 @@ import (
 	"github.com/xianxu/pair/cmd/internal/textwidth"
 )
 
+const drainAcceptanceGraceful = "Drain: finish your current atomic step and wait for background work that is already running to finish. Leave queued, not-started work queued and note it in the issue Log as outstanding." + drainAcceptanceGuidance
 const drainAcceptanceAck = "acknowledge message received, will resume processing after drain is lifted"
 const drainAcceptanceLift = "drain lifted; continue your current work"
 const drainAcceptanceGuidance = " Write where you stopped and the next step in the issue Log; commit and push the checkpoint, then end your turn and stay idle. Start no new work. While idle, keep receiving messages. For new work, reply once: 'acknowledge message received, will resume processing after drain is lifted'. Do not create courtesy acknowledgements or acknowledgement loops."
+
+func TestDrainAcceptanceGracefulBody(t *testing.T) {
+	if got := couchcore.DrainNotice(false); got != drainAcceptanceGraceful {
+		t.Fatalf("production notice differs from independent native expected body:\ngot:  %s\nwant: %s", got, drainAcceptanceGraceful)
+	}
+}
 
 // TestDisposableCouchDrainFlags qualifies drain policy through the landed native
 // fleet owner. Its actors, native topology, inherited CLI environment and exact
@@ -224,7 +231,7 @@ func TestDisposableCouchDrainFlags(t *testing.T) {
 				accepted(to, fields[0], body)
 			}
 			flags(response(0, "--drain", "--status", "--json"), 0)
-			graceful := "Drain: finish your current atomic step and wait for current background work to finish." + drainAcceptanceGuidance
+			graceful := drainAcceptanceGraceful
 			fast := "Drain (fast): stop now; do not finish the current step. Promptly stop your own background work via supported controls; preserve unfinished working-tree edits in your checkpoint." + drainAcceptanceGuidance
 			result := response(0, "--drain", "--json")
 			flags(result, 2)

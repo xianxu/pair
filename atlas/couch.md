@@ -32,8 +32,9 @@ does not hold messages, launches or SDLC work. Ordinary messages keep delivering
 
 `couchcore/drain_notice.go` owns the exact `DrainNotice` and `UndrainNotice` text.
 Graceful requests ask workers to finish the current atomic step and wait for
-current background work to finish. Fast requests ask workers to stop now without
-finishing the step, promptly stop their own background work via supported
+background work that is already running to finish. Queued, not-started work stays
+queued and is noted in the issue Log as outstanding. Fast requests ask workers to
+stop now without finishing the step, promptly stop their own background work via supported
 controls, and preserve unfinished working-tree edits. Both ask workers to record
 the stopping point and next step in the issue Log, commit and push the checkpoint,
 end the turn and stay idle. While idle, workers keep receiving messages; for new

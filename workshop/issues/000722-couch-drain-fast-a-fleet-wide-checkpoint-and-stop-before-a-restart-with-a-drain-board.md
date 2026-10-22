@@ -244,6 +244,14 @@ Full close session30510 completed exit0: round6 SHIP, high confidence, no Critic
 
 Authenticated submitted TLbece403b approves the watched script and says STAND BY for a fresh go. Schedule: on pair:0 after #753, #739 and #759 operator checks, before #737 day-long run only if ariadne#506 has landed; otherwise after #737's day. At go: refresh native pre-stage evidence, sdlc stage --build and report printed revisions; TL drives external owner-scoped queue pause and graceful notice, confirms issuing-steward exclusion/status/one badge, ordinary work and prose acknowledgement from flagged Claude and Codex, then undrain and continued delivery. No stage, live drain/queue operation or merge is authorized now. Claim and candidate retained; no background check remains. Old ariadne:4 counter discrepancy remains unresolved and is not credited as fixed.
 
+### 2026-10-22 — graceful queued-work clarification RED/GREEN
+
+Submitted peer500c1056 relayed #506's running-versus-queued clarification; direct submitted TL e220cac5 approved the exact source wording. Final vector sent to ariadne:5 as2d574326, submitted, for byte-for-byte rule alignment. Renewed change-code completed: plan-quality CLEAN round8, estimate-quality INFO (historical forecast allowances may overlap; renewed qualification/review allowance uncertain). Keep historical forecasts distinct from measured actuals; no hours invented or unexecuted allowance claimed as spent.
+
+Before production edits, independent full expected bodies failed in both TestGracefulDrainNoticeLeavesQueuedWorkOutstanding and TestDrainAcceptanceGracefulBody: old output said current background work and omitted leaving queued work outstanding (go test core/cmd/couch exit1). Changed only the production graceful opening; fast and shared checkpoint/ack prose unchanged. Both exact-body regressions and existing notice/acceptance-oracle tests then PASS core0.289s/cmd0.193s. Broader drain tests PASS core0.294s, couchcmd0.646s, couchmessage0.256s, couchtty0.325s, wrapcmd0.443s. README/atlas now distinguish admitted running work and outstanding queued work. Native expected body remains an independent literal, now also exercised in the ordinary suite. Re-audited the unchanged testcouch repository-build inputs and regenerated only the changed reader certificate with non_go_full_fallback; make test-affected-inventory PASS.
+
+Fresh native and recorded suite evidence on committed corrected source, then re-close, remain pending. Earlier SHIP and passes stay historical. No stage, live control or merge performed; watched live remains held for TL go and ariadne#506 landing.
+
 ## Revisions
 
 ### 2026-10-19 — authenticated acknowledgement and shared queue ownership

@@ -72,6 +72,13 @@ func TestDrainBoardUnknownClockAndIsolation(t *testing.T) {
 	}
 }
 
+func TestGracefulDrainNoticeLeavesQueuedWorkOutstanding(t *testing.T) {
+	want := "Drain: finish your current atomic step and wait for background work that is already running to finish. Leave queued, not-started work queued and note it in the issue Log as outstanding. Write where you stopped and the next step in the issue Log; commit and push the checkpoint, then end your turn and stay idle. Start no new work. While idle, keep receiving messages. For new work, reply once: 'acknowledge message received, will resume processing after drain is lifted'. Do not create courtesy acknowledgements or acknowledgement loops."
+	if got := DrainNotice(false); got != want {
+		t.Fatalf("graceful notice must distinguish running work from outstanding queued work:\ngot:  %s\nwant: %s", got, want)
+	}
+}
+
 func TestDrainNoticesAndUndrainValidation(t *testing.T) {
 	for _, fast := range []bool{false, true} {
 		notice := DrainNotice(fast)
@@ -84,7 +91,7 @@ func TestDrainNoticesAndUndrainValidation(t *testing.T) {
 			t.Fatal("retained ack command")
 		}
 	}
-	if !strings.Contains(DrainNotice(false), "wait for current background work") {
+	if !strings.Contains(DrainNotice(false), "wait for background work that is already running") {
 		t.Fatal("graceful background guidance missing")
 	}
 	for _, phrase := range []string{"stop your own background work", "supported controls", "unfinished"} {

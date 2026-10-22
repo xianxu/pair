@@ -595,8 +595,9 @@ excludes the issuing steward. Flags live in Couch's memory and disappear when
 Couch restarts. The console shows one compact `drain N` badge.
 
 Graceful drain asks workers to finish their current atomic step and wait for
-current background work to finish. Fast drain asks them to stop now and promptly
-stop their own background work through supported controls, preserving unfinished
+background work that is already running to finish. Queued, not-started work stays
+queued and is noted in the issue Log as outstanding. Fast drain asks them to stop
+now and promptly stop their own background work through supported controls, preserving unfinished
 edits. Both ask workers to write the stopping point and next step in the issue
 Log, commit and push the checkpoint, end the turn and stay idle. Workers keep
 receiving messages; for new work they reply once, “acknowledge message received,

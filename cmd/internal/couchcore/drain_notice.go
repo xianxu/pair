@@ -9,7 +9,7 @@ import (
 
 // DrainNotice is ordinary guidance to the worker, not a control protocol.
 func DrainNotice(fast bool) string {
-	text := "Drain: finish your current atomic step and wait for current background work to finish."
+	text := "Drain: finish your current atomic step and wait for background work that is already running to finish. Leave queued, not-started work queued and note it in the issue Log as outstanding."
 	if fast {
 		text = "Drain (fast): stop now; do not finish the current step. Promptly stop your own background work via supported controls; preserve unfinished working-tree edits in your checkpoint."
 	}
