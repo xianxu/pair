@@ -23,15 +23,17 @@ const OperatorStrokeFadeMS int64 = 1500
 const MaxOperatorStrokes = 128
 
 type OperatorView struct {
-	Revision uint64            `json:"revision"`
-	Seg      int               `json:"seg"`
-	Doc      int               `json:"doc"`
-	T        int64             `json:"t"`
-	Paused   bool              `json:"paused"`
-	Ended    bool              `json:"ended"`
-	Driver   string            `json:"driver"`
-	Notes    []*recording.Note `json:"notes"`
-	Strokes  []OperatorStroke  `json:"strokes"`
+	SketchCursor         SketchDeliveryCursor `json:"sketch_cursor"`
+	SketchAnchorRevision uint64               `json:"sketch_anchor_revision"`
+	Revision             uint64               `json:"revision"`
+	Seg                  int                  `json:"seg"`
+	Doc                  int                  `json:"doc"`
+	T                    int64                `json:"t"`
+	Paused               bool                 `json:"paused"`
+	Ended                bool                 `json:"ended"`
+	Driver               string               `json:"driver"`
+	Notes                []*recording.Note    `json:"notes"`
+	Strokes              []OperatorStroke     `json:"strokes"`
 }
 
 func (b *Board) pruneOperatorLocked(now time.Time) {
@@ -95,6 +97,8 @@ func cloneNote(n *recording.Note) *recording.Note {
 }
 func (b *Board) operatorViewLocked() OperatorView {
 	v := OperatorView{Revision: b.operatorRevision, Seg: b.st.Seg, Doc: b.st.DocSeg, T: b.st.T, Paused: b.st.Paused(), Ended: b.closed || b.st.Ended || b.broken != nil, Notes: []*recording.Note{}, Strokes: []OperatorStroke{}}
+	v.SketchCursor = b.sketchDeliveryCursorLocked()
+	v.SketchAnchorRevision = b.st.Sketches.AnchorRevision()
 	if b.st.Control.Driver != nil {
 		v.Driver = b.st.Control.Driver.Name
 		if v.Driver == "" {
@@ -143,4 +147,17 @@ func (b *Board) SubscribeOperator() (<-chan OperatorView, func()) {
 			close(ch)
 		}
 	}
+}
+
+// Sketch anchor identity is metadata, independent of visibility and pressure
+// points. The worker requests the owned list only when this revision changes.
+func (b *Board) SketchAnchorRevision() uint64 {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.st.Sketches.AnchorRevision()
+}
+func (b *Board) SketchAnchorNodes(document int) []recording.NodeID {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.st.Sketches.AnchorNodes(document)
 }

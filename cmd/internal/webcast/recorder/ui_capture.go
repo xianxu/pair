@@ -12,6 +12,10 @@ import (
 var uiToken atomic.Uint64
 var errUISuppression = errors.New("Couch UI suppression was not confirmed for this document")
 
+// ErrBackgroundCaptureDeferred means optional pixels were not captured because
+// UI suppression was unavailable or an operator sketch/editor was open.
+var ErrBackgroundCaptureDeferred = errors.New("background capture deferred for operator UI")
+
 func uiCall(ctx context.Context, call Caller, session string, contextID int64, op, token string, until int64) bool {
 	if contextID == 0 {
 		return false
@@ -33,6 +37,16 @@ func uiCall(ctx context.Context, call Caller, session string, contextID int64, o
 // world, navigation, expired suppression or capture failure yields no usable
 // pixels. Restore addresses the exact old context, never a replacement document.
 func CaptureScreenshot(ctx context.Context, call Caller, session string, contextID int64, params, result any) error {
+	return captureScreenshot(ctx, call, session, contextID, params, result, false)
+}
+
+// CaptureBackgroundScreenshot preserves an open operator UI without hiding it.
+// Admitted captures retain the same fail-closed pixel privacy as explicit ones.
+func CaptureBackgroundScreenshot(ctx context.Context, call Caller, session string, contextID int64, params, result any) error {
+	return captureScreenshot(ctx, call, session, contextID, params, result, true)
+}
+
+func captureScreenshot(ctx context.Context, call Caller, session string, contextID int64, params, result any, background bool) error {
 	token := fmt.Sprintf("capture-%d", uiToken.Add(1))
 	until := time.Now().Add(2 * callTimeout).UnixMilli()
 	defer func() {
@@ -42,7 +56,14 @@ func CaptureScreenshot(ctx context.Context, call Caller, session string, context
 	}()
 	callctx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
-	if !uiCall(callctx, call, session, contextID, "acquire", token, until) {
+	op := "acquire"
+	if background {
+		op = "acquire-background"
+	}
+	if !uiCall(callctx, call, session, contextID, op, token, until) {
+		if background {
+			return ErrBackgroundCaptureDeferred
+		}
 		return errUISuppression
 	}
 	if _, err := call.CallSeq(callctx, session, "Page.captureScreenshot", params, result); err != nil {

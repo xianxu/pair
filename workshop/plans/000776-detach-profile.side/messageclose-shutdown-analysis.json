@@ -1,0 +1,471 @@
+{
+  "base_sha": "eaa758a6f0cd38837655be5334400098849410ec",
+  "gesture_ns": 402312708,
+  "gesture_started_ns": 1792610627394997000,
+  "gesture_ended_ns": 1792610627797313000,
+  "cleanup_confirmed": true,
+  "fleet_root": "/Volumes/TestScratch/pc-86827902",
+  "fleet_root_exists": false,
+  "events": [
+    {
+      "event": "console.lifecycle.queue",
+      "thread": "menu\u00001\u0000leave",
+      "time_ns": 1792610627422861000,
+      "duration_ns": 8500,
+      "offset_from_gesture_start_ms": 27.864,
+      "duration_ms": 0.0085
+    },
+    {
+      "event": "leave.begin",
+      "thread": "/",
+      "time_ns": 1792610627422884000,
+      "offset_from_gesture_start_ms": 27.887
+    },
+    {
+      "event": "console.child.Close",
+      "time_ns": 1792610627557699000,
+      "started_ns": 1792610627557669000,
+      "duration_ns": 29416,
+      "offset_from_gesture_start_ms": 162.702,
+      "duration_ms": 0.029416
+    },
+    {
+      "event": "console.child.Close",
+      "time_ns": 1792610627580968000,
+      "started_ns": 1792610627580623000,
+      "duration_ns": 345375,
+      "offset_from_gesture_start_ms": 185.971,
+      "duration_ms": 0.345375
+    },
+    {
+      "event": "console.child.Close",
+      "time_ns": 1792610627591733000,
+      "started_ns": 1792610627591706000,
+      "duration_ns": 26792,
+      "offset_from_gesture_start_ms": 196.736,
+      "duration_ms": 0.026792
+    },
+    {
+      "event": "console.child.Close",
+      "time_ns": 1792610627613295000,
+      "started_ns": 1792610627613249000,
+      "duration_ns": 45750,
+      "offset_from_gesture_start_ms": 218.298,
+      "duration_ms": 0.04575
+    },
+    {
+      "event": "leave.end",
+      "thread": "/",
+      "time_ns": 1792610627748470000,
+      "duration_ns": 325584375,
+      "offset_from_gesture_start_ms": 353.473,
+      "duration_ms": 325.584375
+    },
+    {
+      "event": "whole_leave.process_cpu",
+      "time_ns": 1792610627748474000,
+      "user_cpu_ns": 178524000,
+      "system_cpu_ns": 334513000,
+      "offset_from_gesture_start_ms": 353.477
+    },
+    {
+      "event": "instrumentation",
+      "final": false,
+      "observer_ns": 569158,
+      "overflow": false,
+      "rows": 1333
+    },
+    {
+      "event": "flush.leave.footer_sync_ns",
+      "time_ns": 1792610627756458000,
+      "duration_ns": 895459,
+      "offset_from_gesture_start_ms": 361.461,
+      "duration_ms": 0.895459
+    },
+    {
+      "event": "flush.leave.finished_ns",
+      "time_ns": 1792610627756464000,
+      "duration_ns": 1792610627756450000,
+      "offset_from_gesture_start_ms": 361.467,
+      "NOTE": "duration_ns carries an absolute timestamp metadata value here; do not aggregate as duration"
+    },
+    {
+      "event": "flush.leave.total_ns",
+      "time_ns": 1792610627756464000,
+      "duration_ns": 7981917,
+      "offset_from_gesture_start_ms": 361.467,
+      "duration_ms": 7.981917
+    },
+    {
+      "event": "flush.leave.data_write_ns",
+      "time_ns": 1792610627756464000,
+      "duration_ns": 5158667,
+      "offset_from_gesture_start_ms": 361.467,
+      "duration_ms": 5.158667
+    },
+    {
+      "event": "flush.leave.close_ns",
+      "time_ns": 1792610627756464000,
+      "duration_ns": 9417,
+      "offset_from_gesture_start_ms": 361.467,
+      "duration_ms": 0.009417
+    },
+    {
+      "event": "flush.leave.started_ns",
+      "time_ns": 1792610627756468000,
+      "duration_ns": 1792610627748474000,
+      "offset_from_gesture_start_ms": 361.471,
+      "NOTE": "duration_ns carries an absolute timestamp metadata value here; do not aggregate as duration"
+    },
+    {
+      "event": "flush.leave.open_ns",
+      "time_ns": 1792610627756468000,
+      "duration_ns": 83250,
+      "offset_from_gesture_start_ms": 361.471,
+      "duration_ms": 0.08325
+    },
+    {
+      "event": "flush.leave.data_sync_ns",
+      "time_ns": 1792610627756468000,
+      "duration_ns": 1457583,
+      "offset_from_gesture_start_ms": 361.471,
+      "duration_ms": 1.457583
+    },
+    {
+      "event": "flush.leave.footer_write_ns",
+      "time_ns": 1792610627756468000,
+      "duration_ns": 301000,
+      "offset_from_gesture_start_ms": 361.471,
+      "duration_ms": 0.301
+    },
+    {
+      "event": "console.leave.completion_received",
+      "time_ns": 1792610627756539000,
+      "offset_from_gesture_start_ms": 361.542
+    },
+    {
+      "event": "console.teardown.Stop",
+      "time_ns": 1792610627756557000,
+      "started_ns": 1792610627756557000,
+      "duration_ns": 83,
+      "offset_from_gesture_start_ms": 361.56,
+      "duration_ms": 8.3e-05
+    },
+    {
+      "event": "console.teardown.shares",
+      "time_ns": 1792610627756576000,
+      "started_ns": 1792610627756558000,
+      "duration_ns": 18542,
+      "offset_from_gesture_start_ms": 361.579,
+      "duration_ms": 0.018542
+    },
+    {
+      "event": "console.teardown.input_close",
+      "time_ns": 1792610627756577000,
+      "started_ns": 1792610627756576000,
+      "duration_ns": 459,
+      "offset_from_gesture_start_ms": 361.58,
+      "duration_ms": 0.000459
+    },
+    {
+      "event": "console.teardown.cancel_reattach",
+      "time_ns": 1792610627756577000,
+      "started_ns": 1792610627756577000,
+      "duration_ns": 208,
+      "offset_from_gesture_start_ms": 361.58,
+      "duration_ms": 0.000208
+    },
+    {
+      "event": "console.teardown.workers_join",
+      "time_ns": 1792610627777474000,
+      "started_ns": 1792610627756578000,
+      "duration_ns": 20895875,
+      "offset_from_gesture_start_ms": 382.477,
+      "duration_ms": 20.895875
+    },
+    {
+      "event": "console.teardown.abandon_pending",
+      "time_ns": 1792610627777484000,
+      "started_ns": 1792610627777478000,
+      "duration_ns": 5292,
+      "offset_from_gesture_start_ms": 382.487,
+      "duration_ms": 0.005292
+    },
+    {
+      "event": "console.presenter.Release",
+      "time_ns": 1792610627777527000,
+      "started_ns": 1792610627777484000,
+      "duration_ns": 43000,
+      "offset_from_gesture_start_ms": 382.53,
+      "duration_ms": 0.043
+    },
+    {
+      "event": "console.teardown.release",
+      "time_ns": 1792610627777536000,
+      "started_ns": 1792610627777484000,
+      "duration_ns": 51833,
+      "offset_from_gesture_start_ms": 382.539,
+      "duration_ms": 0.051833
+    },
+    {
+      "event": "console.teardown.traces_host_restore",
+      "time_ns": 1792610627777898000,
+      "started_ns": 1792610627777536000,
+      "duration_ns": 361333,
+      "offset_from_gesture_start_ms": 382.901,
+      "duration_ms": 0.361333
+    },
+    {
+      "event": "console.teardown.total",
+      "time_ns": 1792610627777900000,
+      "started_ns": 1792610627756557000,
+      "duration_ns": 21342791,
+      "offset_from_gesture_start_ms": 382.903,
+      "duration_ms": 21.342791
+    },
+    {
+      "event": "console.Run.return",
+      "time_ns": 1792610627777900000,
+      "offset_from_gesture_start_ms": 382.903
+    },
+    {
+      "event": "runConsole.Console.Run.return",
+      "time_ns": 1792610627777901000,
+      "offset_from_gesture_start_ms": 382.904
+    },
+    {
+      "event": "messages.worker.renicer.return",
+      "time_ns": 1792610627777933000,
+      "offset_from_gesture_start_ms": 382.936
+    },
+    {
+      "event": "messages.Close.cancel",
+      "time_ns": 1792610627777940000,
+      "started_ns": 1792610627777905000,
+      "duration_ns": 34667,
+      "offset_from_gesture_start_ms": 382.943,
+      "duration_ms": 0.034667
+    },
+    {
+      "event": "messages.worker.stale.return",
+      "time_ns": 1792610627777944000,
+      "offset_from_gesture_start_ms": 382.947
+    },
+    {
+      "event": "messages.worker.listings.return",
+      "time_ns": 1792610627777948000,
+      "offset_from_gesture_start_ms": 382.951
+    },
+    {
+      "event": "messages.worker.resource_sampler.return",
+      "time_ns": 1792610627777948000,
+      "offset_from_gesture_start_ms": 382.951
+    },
+    {
+      "event": "messages.worker.archive.return",
+      "time_ns": 1792610627777951000,
+      "offset_from_gesture_start_ms": 382.954
+    },
+    {
+      "event": "messages.worker.service_loop_or_admission.return",
+      "time_ns": 1792610627777951000,
+      "offset_from_gesture_start_ms": 382.954
+    },
+    {
+      "event": "messages.worker.scratch_maintenance.return",
+      "time_ns": 1792610627777952000,
+      "offset_from_gesture_start_ms": 382.955
+    },
+    {
+      "event": "messages.worker.lifecycle_publisher.return",
+      "time_ns": 1792610627777967000,
+      "offset_from_gesture_start_ms": 382.97
+    },
+    {
+      "event": "messages.worker.wait_watcher.return",
+      "time_ns": 1792610627777970000,
+      "offset_from_gesture_start_ms": 382.973
+    },
+    {
+      "event": "messages.Close.server",
+      "time_ns": 1792610627778256000,
+      "started_ns": 1792610627777940000,
+      "duration_ns": 315791,
+      "offset_from_gesture_start_ms": 383.259,
+      "duration_ms": 0.315791
+    },
+    {
+      "event": "messages.Close.sessions",
+      "time_ns": 1792610627778278000,
+      "started_ns": 1792610627778259000,
+      "duration_ns": 18625,
+      "offset_from_gesture_start_ms": 383.281,
+      "duration_ms": 0.018625
+    },
+    {
+      "event": "messages.Close.broker",
+      "time_ns": 1792610627778586000,
+      "started_ns": 1792610627778278000,
+      "duration_ns": 307791,
+      "offset_from_gesture_start_ms": 383.589,
+      "duration_ms": 0.307791
+    },
+    {
+      "event": "messages.worker.resource_inventory.return",
+      "time_ns": 1792610627778883000,
+      "offset_from_gesture_start_ms": 383.886
+    },
+    {
+      "event": "messages.Close.workers",
+      "time_ns": 1792610627778892000,
+      "started_ns": 1792610627778587000,
+      "duration_ns": 305209,
+      "offset_from_gesture_start_ms": 383.895,
+      "duration_ms": 0.305209
+    },
+    {
+      "event": "messages.Close.facts",
+      "time_ns": 1792610627778983000,
+      "started_ns": 1792610627778893000,
+      "duration_ns": 90459,
+      "offset_from_gesture_start_ms": 383.986,
+      "duration_ms": 0.090459
+    },
+    {
+      "event": "runConsole.messages.Close",
+      "time_ns": 1792610627778984000,
+      "started_ns": 1792610627777905000,
+      "duration_ns": 1079250,
+      "offset_from_gesture_start_ms": 383.987,
+      "duration_ms": 1.07925
+    },
+    {
+      "event": "outer.capture.Close",
+      "time_ns": 1792610627778985000,
+      "started_ns": 1792610627778985000,
+      "duration_ns": 250,
+      "offset_from_gesture_start_ms": 383.988,
+      "duration_ms": 0.00025
+    },
+    {
+      "event": "outer.lease.Close",
+      "time_ns": 1792610627778985000,
+      "started_ns": 1792610627778985000,
+      "duration_ns": 209,
+      "offset_from_gesture_start_ms": 383.988,
+      "duration_ms": 0.000209
+    },
+    {
+      "event": "outer.runtime.Close",
+      "time_ns": 1792610627779151000,
+      "started_ns": 1792610627778986000,
+      "duration_ns": 165208,
+      "offset_from_gesture_start_ms": 384.154,
+      "duration_ms": 0.165208
+    },
+    {
+      "event": "main.Run.return",
+      "time_ns": 1792610627779152000,
+      "offset_from_gesture_start_ms": 384.155
+    },
+    {
+      "event": "main.crashreport.Finish",
+      "time_ns": 1792610627779203000,
+      "started_ns": 1792610627779153000,
+      "duration_ns": 50292,
+      "offset_from_gesture_start_ms": 384.206,
+      "duration_ms": 0.050292
+    },
+    {
+      "event": "main.before_exit",
+      "time_ns": 1792610627779203000,
+      "offset_from_gesture_start_ms": 384.206
+    },
+    {
+      "event": "instrumentation",
+      "final": true,
+      "observer_ns": 591325,
+      "overflow": false,
+      "rows": 45
+    },
+    {
+      "event": "host.gesture.begin",
+      "time_ns": 1792610627394997000,
+      "offset_from_gesture_start_ms": 0.0
+    },
+    {
+      "event": "host.cmd.Wait.return",
+      "time_ns": 1792610627784825000,
+      "offset_from_gesture_start_ms": 389.828
+    },
+    {
+      "event": "host.pty.read_join",
+      "time_ns": 1792610627784841000,
+      "started_ns": 1792610627784827000,
+      "duration_ns": 13583,
+      "offset_from_gesture_start_ms": 389.844,
+      "duration_ms": 0.013583
+    },
+    {
+      "event": "host.endpoint.EndInput",
+      "time_ns": 1792610627785207000,
+      "started_ns": 1792610627784887000,
+      "duration_ns": 320500,
+      "offset_from_gesture_start_ms": 390.21,
+      "duration_ms": 0.3205
+    },
+    {
+      "event": "host.endpoint.Close",
+      "time_ns": 1792610627785210000,
+      "started_ns": 1792610627785208000,
+      "duration_ns": 1875,
+      "offset_from_gesture_start_ms": 390.213,
+      "duration_ms": 0.001875
+    },
+    {
+      "event": "host.stream.Close",
+      "time_ns": 1792610627785236000,
+      "started_ns": 1792610627785211000,
+      "duration_ns": 25000,
+      "offset_from_gesture_start_ms": 390.239,
+      "duration_ms": 0.025
+    },
+    {
+      "event": "host.terminal.done",
+      "time_ns": 1792610627785238000,
+      "offset_from_gesture_start_ms": 390.241
+    },
+    {
+      "event": "host.gesture.end",
+      "time_ns": 1792610627797313000,
+      "offset_from_gesture_start_ms": 402.316
+    },
+    {
+      "event": "instrumentation",
+      "final": true,
+      "observer_ns": 52209,
+      "overflow": false,
+      "rows": 8
+    }
+  ],
+  "final_flush": {
+    "close_ns": 29583,
+    "data_sync_ns": 1851250,
+    "data_write_ns": 248916,
+    "failed": false,
+    "final": true,
+    "finished_ns": 1792610627782504000,
+    "footer_sync_ns": 1112167,
+    "footer_write_ns": 25750,
+    "open_ns": 24250,
+    "started_ns": 1792610627779203000,
+    "total_ns": 3313625
+  },
+  "limits": [
+    "Metadata observers and added synchronized flushes add overhead; do not subtract a guessed constant.",
+    "SELF CPU spans Leave only and includes auxiliary goroutines, not per-thread CPU.",
+    "Final flush statistics sidecar is unsynced and its write lies between before_exit and cmd.Wait return.",
+    "Exact wall timestamps and monotonic gesture duration can differ by microseconds; preserve both.",
+    "Aggregate coordinator/query durations overlap; only match per-slot by explicit thread and contained outer phase, not broad coreStart overlap."
+  ]
+}

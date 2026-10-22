@@ -11,6 +11,8 @@ import (
 )
 
 type Segment struct {
+	// Private first observation; never persisted or exposed in the JSON view.
+	observed   generation
 	Path       string    `json:"path"`
 	Bytes      int64     `json:"bytes"`
 	LastWrite  time.Time `json:"last_write"`
@@ -154,6 +156,34 @@ func collectManagedPage(path string, options Options, cursor string, limit int) 
 					return e
 				}
 			}
+			st, err := regular(r.Path)
+			if err != nil {
+				return err
+			}
+			// Preview already observed this generation in this locked operation.
+			// Persisted equivalence cannot replace that live baseline.
+			if err := matches(st, r.observed); err != nil {
+				return err
+			}
+			if r.Path == p {
+				// Current was validated by recovery in this invocation.
+				if err := matches(st, g); err != nil {
+					return err
+				}
+			} else {
+				// Rebind retained metadata before a NEW deletion intent only.
+				// Already-pending transactions keep strict recovery checks.
+				match, err := compareCheckpoint(observedGeneration(st), g)
+				if err != nil {
+					return err
+				}
+				if match == checkpointDeviceOnly {
+					g.Identity = fileIdentity(st)
+					if e = writeJSON(directory(p), r.Path+".json", g, true, options); e != nil {
+						return e
+					}
+				}
+			}
 			if options.ReaderProof != nil {
 				if e = options.proveGeneration(p, g, s.Writers); e != nil {
 					return e
@@ -223,7 +253,7 @@ func recoverDeletion(path string, s *diskState, o Options) error {
 		}
 	}
 	if st, e := regular(p); e == nil {
-		if e = matches(st, g); e != nil {
+		if e = matchesRecovery(st, g, "deletion"); e != nil {
 			return e
 		}
 		if err := o.checkContext(); err != nil {

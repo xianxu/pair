@@ -102,3 +102,84 @@ func TestOperatorOriginalCacheBoundsRetriesAndDocumentLifetime(t *testing.T) {
 		t.Fatal("old document identity retained")
 	}
 }
+
+func TestOperatorOriginalCacheRetainsSketchAnchorsWithoutNotes(t *testing.T) {
+	cache := &operatorOriginals{sketchDocument: 1, sketchNodes: []recording.NodeID{77}}
+	view := board.OperatorView{Doc: 1, Revision: 1}
+	ids, _ := cache.next(view)
+	if len(ids) != 1 || ids[0] != 77 {
+		t.Fatalf("sketch IDs: %v", ids)
+	}
+	cache.nodes[77] = operatorOriginalAttempt{bound: true}
+	if ids, _ = cache.next(view); len(ids) != 0 {
+		t.Fatal("unchanged original rebound")
+	}
+	cache.sketchNodes = nil
+	cache.next(view)
+	if len(cache.nodes) != 0 {
+		t.Fatal("cleared sketch retained original")
+	}
+}
+
+func TestOperatorOriginalSketchRevisionRebindsAfterCoalescedClear(t *testing.T) {
+	cache := &operatorOriginals{}
+	view := board.OperatorView{Doc: 1, Revision: 1, Notes: []*recording.Note{{At: recording.NoteAt{Node: 88}}}}
+	cache.acceptSketchAnchors(1, 1, []recording.NodeID{77})
+	cache.next(view)
+	cache.nodes[77] = operatorOriginalAttempt{bound: true, revision: 1, tries: 1}
+	cache.nodes[88] = operatorOriginalAttempt{bound: true, revision: 1, tries: 1}
+	// The browser has consumed clear and pruned77, while a new sketch's same
+	// anchor is awaiting delivery. Go still has the prior bound77 cache.
+	cache.sketchPending = true
+	if ids, _ := cache.next(view); len(ids) != 0 {
+		t.Fatalf("delivery gap spent binding attempts: %v", ids)
+	}
+	cache.acceptSketchAnchors(1, 3, []recording.NodeID{77})
+	ids, _ := cache.next(view)
+	if len(ids) != 1 || ids[0] != 77 {
+		t.Fatalf("cleared browser proof was not rebound: %v", ids)
+	}
+	if !cache.nodes[88].bound {
+		t.Fatal("unrelated note proof reset")
+	}
+	cache.nodes[77] = operatorOriginalAttempt{bound: true, tries: 1}
+	cache.acceptSketchAnchors(1, 3, []recording.NodeID{77})
+	if ids, _ := cache.next(view); len(ids) != 0 {
+		t.Fatalf("unchanged revision rebound: %v", ids)
+	}
+}
+
+func TestOperatorOriginalSketchPendingDoesNotSpendRetriesAndResetsOldNewAnchors(t *testing.T) {
+	cache := &operatorOriginals{}
+	view := board.OperatorView{Doc: 1, Revision: 1, Notes: []*recording.Note{{At: recording.NoteAt{Node: 88}}}}
+	cache.acceptSketchAnchors(1, 1, []recording.NodeID{77, 88})
+	cache.next(view)
+	cache.nodes[77] = operatorOriginalAttempt{revision: 1, tries: 2}
+	cache.sketchPending = true
+	ids, _ := cache.next(view)
+	if len(ids) != 1 || ids[0] != 88 {
+		t.Fatalf("pending anchors attempted, or note blocked: %v", ids)
+	}
+	if cache.nodes[77].tries != 2 {
+		t.Fatal("pending sketch spent retry")
+	}
+	cache.nodes[88] = operatorOriginalAttempt{bound: true}
+	cache.nodes[99] = operatorOriginalAttempt{bound: true}
+	cache.acceptSketchAnchors(1, 2, []recording.NodeID{99})
+	ids, _ = cache.next(view)
+	if len(ids) != 2 {
+		t.Fatalf("old/new attempts not invalidated: %v", ids)
+	}
+	for _, id := range ids {
+		if id != 88 && id != 99 {
+			t.Fatalf("retired anchor remained: %v", ids)
+		}
+	}
+	cache.acceptSketchAnchors(2, 2, []recording.NodeID{101})
+	view.Doc = 2
+	view.Notes = nil
+	ids, _ = cache.next(view)
+	if len(ids) != 1 || ids[0] != 101 {
+		t.Fatalf("document replacement reused old anchor: %v", ids)
+	}
+}

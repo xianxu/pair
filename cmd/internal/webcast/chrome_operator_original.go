@@ -17,8 +17,12 @@ type operatorOriginalAttempt struct {
 	tries    int
 }
 type operatorOriginals struct {
-	document int
-	nodes    map[recording.NodeID]operatorOriginalAttempt
+	document       int
+	nodes          map[recording.NodeID]operatorOriginalAttempt
+	sketchDocument int
+	sketchRevision uint64
+	sketchNodes    []recording.NodeID
+	sketchPending  bool
 }
 
 // deliverOperatorOriginals runs on the existing serialized delivery worker.
@@ -100,9 +104,18 @@ func (p *operatorOriginals) next(view board.OperatorView) ([]recording.NodeID, b
 		p.nodes = map[recording.NodeID]operatorOriginalAttempt{}
 	}
 	wanted := map[recording.NodeID]bool{}
+	deferred := map[recording.NodeID]bool{}
 	for _, note := range view.Notes {
 		if note.At.Node > 0 {
 			wanted[note.At.Node] = true
+		}
+	}
+	if p.sketchDocument == view.Doc {
+		for _, id := range p.sketchNodes {
+			if p.sketchPending && !wanted[id] {
+				deferred[id] = true
+			}
+			wanted[id] = true
 		}
 	}
 	for node := range p.nodes {
@@ -113,6 +126,9 @@ func (p *operatorOriginals) next(view board.OperatorView) ([]recording.NodeID, b
 	ids := make([]recording.NodeID, 0, operatorOriginalBatch)
 	more := false
 	for node := range wanted {
+		if deferred[node] {
+			continue
+		}
 		attempt := p.nodes[node]
 		if attempt.bound || attempt.revision == view.Revision && attempt.tries >= 3 {
 			continue
@@ -124,4 +140,24 @@ func (p *operatorOriginals) next(view board.OperatorView) ([]recording.NodeID, b
 		ids = append(ids, node)
 	}
 	return ids, more
+}
+
+// acceptSketchAnchors runs only after the parent has acknowledged this
+// anchor projection. Even identical IDs can have crossed a clear/prune while
+// delivery was pending, so their old debugger ACKs no longer prove retention.
+// Work is bounded by old/new anchor IDs, never stroke point history.
+func (p *operatorOriginals) acceptSketchAnchors(document int, revision uint64, nodes []recording.NodeID) {
+	p.sketchPending = false
+	if p.sketchDocument == document && p.sketchRevision == revision {
+		return
+	}
+	for _, id := range p.sketchNodes {
+		delete(p.nodes, id)
+	}
+	for _, id := range nodes {
+		delete(p.nodes, id)
+	}
+	p.sketchDocument = document
+	p.sketchRevision = revision
+	p.sketchNodes = nodes
 }

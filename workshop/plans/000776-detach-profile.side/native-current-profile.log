@@ -1,0 +1,66 @@
+=== RUN   TestDetachCandidateComparison
+=== RUN   TestDetachCandidateComparison/current-4
+    detach_comparison_test.go:38: native fleet isolation: root=/Volumes/TestScratch/pc-2897557353 run=25415fc99a0b3443c78047256337f0db agent=claude workers=3
+    detach_comparison_test.go:49: PREPARE candidate=current total=4 root=/Volumes/TestScratch/pc-2897557353
+    detach_comparison_test.go:58: START candidate=current total=4
+    detach_comparison_test.go:68: READY candidate=current slot=1/3
+    detach_comparison_test.go:68: READY candidate=current slot=2/3
+    detach_comparison_test.go:68: READY candidate=current slot=3/3
+    detach_comparison_test.go:93: COHORT READY candidate=current total=4; clock begins
+    detach_comparison_test.go:101: DETACH candidate=current total=4 physical_gesture=3.152545375s error=<nil>
+    fleet.go:460: native fleet cleaned: root=/Volumes/TestScratch/pc-2897557353 all owned generations absent; direct child and IO joined
+    detach_comparison_test.go:126: CLEANED candidate=current total=4 exact generations absent, direct IO joined
+=== RUN   TestDetachCandidateComparison/current-8
+    detach_comparison_test.go:38: native fleet isolation: root=/Volumes/TestScratch/pc-3653008707 run=3b1c7620f7a9608ecd8194f5762a3478 agent=claude workers=7
+    detach_comparison_test.go:49: PREPARE candidate=current total=8 root=/Volumes/TestScratch/pc-3653008707
+    detach_comparison_test.go:58: START candidate=current total=8
+    detach_comparison_test.go:68: READY candidate=current slot=1/7
+    detach_comparison_test.go:68: READY candidate=current slot=2/7
+    detach_comparison_test.go:68: READY candidate=current slot=3/7
+    detach_comparison_test.go:66: worker 4 CLI: fixture CLI: exit status 1; stdout={"FailureNonce":"operation-666cdfe642fc5aa761c9f399babb733a","ID":"4e05c7a8-397e-4e71-9e4d-ed8ce2da1c05","Op":"reboot","Target":"fixture:4","Status":"failed","Detail":"Pair exited before registering (exit 1) [attempt start-1b94f09edc3fcabc; diagnostics /Volumes/TestScratch/pc-3653008707/store/launch-diagnostics/failures.json]; inspect with couch --show '/Volumes/TestScratch/pc-3653008707/fleet/worktree/fixture-slot4/fixture'","Warning":"started fresh; previous TTY capture unavailable; use branch and issue evidence; any unproved owners were left untouched under their original identities; workspace setup was not refreshed","Admitted":"2026-10-21T11:58:06.588319-07:00","Finished":"2026-10-21T11:58:29.370249-07:00"}
+         stderr=couch: fixture:4 reboot still running after 15s
+        
+    fleet.go:402: native startup evidence before teardown: pane queries share diagnostic_deadline=2026-10-21T11:58:33.595856125-07:00
+        wrapper_log truncated=false read_error=<nil>
+        STARTUP-identity {"actualPID":48748,"PAIR_SCOPE_KEY":"eded9dbed4a86ba3","PAIR_TAG":"1-fixture-1","PAIR_SESSION_NAME":"📁1-1","PAIR_LAUNCH_NONCE":"f2cc6c229d1d5889b69ebb1dbb5c834f"}
+        STARTUP-identity {"actualPID":57544,"PAIR_SCOPE_KEY":"856c2a6598fc1642","PAIR_TAG":"1-fixture-2","PAIR_SESSION_NAME":"📁1-2","PAIR_LAUNCH_NONCE":"start-7d69f06d37074c39"}
+        STARTUP-identity {"actualPID":65346,"PAIR_SCOPE_KEY":"31e15035325a029f","PAIR_TAG":"1-fixture-3","PAIR_SESSION_NAME":"📁1-3","PAIR_LAUNCH_NONCE":"start-6c8540ec1d087fbb"}
+        STARTUP-identity {"actualPID":72522,"PAIR_SCOPE_KEY":"e3ce898e9b162dfe","PAIR_TAG":"1-fixture-4","PAIR_SESSION_NAME":"📁1-4","PAIR_LAUNCH_NONCE":"start-7e14aba01245af7b"}
+        startup_sources=4 truncated=false
+        source scope="26d0c84542d73073" tag="1-fixture-5"
+        ready_siblings=[] truncated=false read_error=<nil>
+        expected_ready="agent-ready-1-fixture-5-claude.json" truncated=false read_error=openat data/pair/repos/26d0c84542d73073/agent-ready-1-fixture-5-claude.json: no such file or directory
+        ready identity unavailable
+        pane dump unavailable: exact emitted launch identity unavailable
+        source scope="e3ce898e9b162dfe" tag="1-fixture-4"
+        ready_siblings=["agent-ready-1-fixture-4-claude.json"] truncated=false read_error=<nil>
+        expected_ready="agent-ready-1-fixture-4-claude.json" truncated=false read_error=<nil>
+        ready_identity tag="1-fixture-4" agent="claude" session="📁1-4" nonce="start-7e14aba01245af7b" pid=72721 matches_emitted=true
+        pane attribution: current observed identity; failed-attempt attribution unavailable
+        pane_dump session="📁1-4" pane="0" truncated=false query_error=<nil> output="\n─────────────────────────────────────────────────────────\n❯\n─────────────────────────────────────────────────────────\n⏵⏵ bypass permissions on (shift+tab to cycle)\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        source scope="31e15035325a029f" tag="1-fixture-3"
+        ready_siblings=["agent-ready-1-fixture-3-claude.json"] truncated=false read_error=<nil>
+        expected_ready="agent-ready-1-fixture-3-claude.json" truncated=false read_error=<nil>
+        ready_identity tag="1-fixture-3" agent="claude" session="📁1-3" nonce="start-6c8540ec1d087fbb" pid=65856 matches_emitted=true
+        pane attribution: current observed identity; failed-attempt attribution unavailable
+        pane_dump session="📁1-3" pane="0" truncated=false query_error=<nil> output="\n─────────────────────────────────────────────────────────\n❯\n─────────────────────────────────────────────────────────\n⏵⏵ bypass permissions on (shift+tab to cycle)\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        source scope="856c2a6598fc1642" tag="1-fixture-2"
+        ready_siblings=["agent-ready-1-fixture-2-claude.json"] truncated=false read_error=<nil>
+        expected_ready="agent-ready-1-fixture-2-claude.json" truncated=false read_error=<nil>
+        ready_identity tag="1-fixture-2" agent="claude" session="📁1-2" nonce="start-7d69f06d37074c39" pid=58044 matches_emitted=true
+        pane attribution: current observed identity; failed-attempt attribution unavailable
+        pane_dump session="📁1-2" pane="0" truncated=false query_error=<nil> output="\n─────────────────────────────────────────────────────────\n❯\n─────────────────────────────────────────────────────────\n⏵⏵ bypass permissions on (shift+tab to cycle)\n\n\n\n\n\n\n\n\n\n\n\n\n"
+    fleet.go:439: native failure evidence before root removal: nonce=operation-666cdfe642fc5aa761c9f399babb733a slot=fixture:4 stage=registration before_exit=1 after_exit=1 launch="context canceled\nrecovery attempt registration is not confirmed" final="Pair exited before registering (exit 1) [attempt start-1b94f09edc3fcabc; diagnostics /Volumes/TestScratch/pc-3653008707/store/launch-diagnostics/failures.json]; inspect with couch --show '/Volumes/TestScratch/pc-3653008707/fleet/worktree/fixture-slot4/fixture'\ncontext canceled\nrecovery attempt registration is not confirmed [remote job: queued 0s, prepare 2.145s, operation 20.631s]" cleanup="" stream="pty stdout/stderr" output="\x1b]0;📁1-5\apair: failed to launch zellij session '📁1-5': terminal admission unverified: lstat /Volumes/TestScratch/pc-3653008707/data/pair/repos/26d0c84542d73073/agent-ready-1-fixture-5-claude.json: no such file or directory\r\ncontext deadline exceeded\r\n"
+        ; read_error=<nil>
+    fleet.go:442: native wrapper evidence after join: wrapper_log truncated=false read_error=<nil>
+        STARTUP-identity {"actualPID":48748,"PAIR_SCOPE_KEY":"eded9dbed4a86ba3","PAIR_TAG":"1-fixture-1","PAIR_SESSION_NAME":"📁1-1","PAIR_LAUNCH_NONCE":"f2cc6c229d1d5889b69ebb1dbb5c834f"}
+        STARTUP-identity {"actualPID":57544,"PAIR_SCOPE_KEY":"856c2a6598fc1642","PAIR_TAG":"1-fixture-2","PAIR_SESSION_NAME":"📁1-2","PAIR_LAUNCH_NONCE":"start-7d69f06d37074c39"}
+        STARTUP-identity {"actualPID":65346,"PAIR_SCOPE_KEY":"31e15035325a029f","PAIR_TAG":"1-fixture-3","PAIR_SESSION_NAME":"📁1-3","PAIR_LAUNCH_NONCE":"start-6c8540ec1d087fbb"}
+        STARTUP-identity {"actualPID":72522,"PAIR_SCOPE_KEY":"e3ce898e9b162dfe","PAIR_TAG":"1-fixture-4","PAIR_SESSION_NAME":"📁1-4","PAIR_LAUNCH_NONCE":"start-7e14aba01245af7b"}
+    fleet.go:460: native fleet cleaned: root=/Volumes/TestScratch/pc-3653008707 all owned generations absent; direct child and IO joined
+--- FAIL: TestDetachCandidateComparison (165.28s)
+    --- PASS: TestDetachCandidateComparison/current-4 (66.19s)
+    --- FAIL: TestDetachCandidateComparison/current-8 (99.09s)
+FAIL
+FAIL	github.com/xianxu/pair/cmd/couch	165.459s
+FAIL

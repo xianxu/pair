@@ -27,3 +27,6 @@ body.paused .box iframe { filter: grayscale(.6) opacity(.85); }
 .uncaptured { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 2; }
 .uncaptured-mark { position: absolute; box-sizing: border-box; outline: 1px dashed rgba(255, 255, 255, 0.55); outline-offset: -1px; }
 .uncaptured-mark span { position: absolute; left: 4px; top: 4px; padding: 1px 6px; border-radius: 4px; font: 11px/1.4 system-ui, sans-serif; color: #fff; background: rgba(0, 0, 0, 0.65); white-space: nowrap; }
+
+/* Drawing tools remain reachable on narrow touch screens. */
+.bar { flex-wrap:wrap; }

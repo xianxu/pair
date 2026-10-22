@@ -1,0 +1,157 @@
+{
+  "agent": "claude",
+  "candidate": "current",
+  "cleanup_confirmed": true,
+  "gesture_ns": 3152545375,
+  "measured_at": "2026-10-21T18:56:51.111211Z",
+  "ready_actors": [
+    {
+      "Binding": {
+        "Slot": "fixture:0",
+        "Repository": "/Volumes/TestScratch/pc-2897557353/fleet/fixture/.git",
+        "Scope": "35887dc62ae470c4",
+        "Tag": "1-fixture-1",
+        "Session": "📁1-1",
+        "Nonce": "c367da7ef56d752d3106ace0dbeb74ca",
+        "Agent": "claude",
+        "Version": "2.1.237 (Claude Code)",
+        "PID": 96421,
+        "Start": "1792608964.981356"
+      },
+      "Resting": true,
+      "Known": true,
+      "LastActivity": "2026-10-21T11:56:45.937209-07:00",
+      "Pending": false,
+      "Remaining": 64,
+      "Capacity": 64,
+      "Supported": true,
+      "Nice": {
+        "Confirmed": true,
+        "AgentNice": 10,
+        "Lowered": 0,
+        "AtLevel": 1
+      }
+    },
+    {
+      "Binding": {
+        "Slot": "fixture:1",
+        "Repository": "/Volumes/TestScratch/pc-2897557353/fleet/fixture/.git",
+        "Scope": "8136ec610628ed3d",
+        "Tag": "1-fixture-2",
+        "Session": "📁1-2",
+        "Nonce": "start-a868715fe4561dec",
+        "Agent": "claude",
+        "Version": "2.1.237 (Claude Code)",
+        "PID": 5759,
+        "Start": "1792608976.152145"
+      },
+      "Resting": true,
+      "Known": true,
+      "LastActivity": "2026-10-21T11:56:19.863178-07:00",
+      "Pending": false,
+      "Remaining": 7,
+      "Capacity": 8,
+      "Supported": true,
+      "Nice": {
+        "Confirmed": true,
+        "AgentNice": 10,
+        "Lowered": 0,
+        "AtLevel": 0
+      }
+    },
+    {
+      "Binding": {
+        "Slot": "fixture:2",
+        "Repository": "/Volumes/TestScratch/pc-2897557353/fleet/fixture/.git",
+        "Scope": "c394326f221d8ac6",
+        "Tag": "1-fixture-3",
+        "Session": "📁1-3",
+        "Nonce": "start-b1c07a38b8c4bc37",
+        "Agent": "claude",
+        "Version": "2.1.237 (Claude Code)",
+        "PID": 14587,
+        "Start": "1792608988.713747"
+      },
+      "Resting": true,
+      "Known": true,
+      "LastActivity": "2026-10-21T11:56:34.886869-07:00",
+      "Pending": false,
+      "Remaining": 7,
+      "Capacity": 8,
+      "Supported": true,
+      "Nice": {
+        "Confirmed": true,
+        "AgentNice": 10,
+        "Lowered": 0,
+        "AtLevel": 0
+      }
+    },
+    {
+      "Binding": {
+        "Slot": "fixture:3",
+        "Repository": "/Volumes/TestScratch/pc-2897557353/fleet/fixture/.git",
+        "Scope": "456692ca0a4cf993",
+        "Tag": "1-fixture-4",
+        "Session": "📁1-4",
+        "Nonce": "start-0f74a8265103ab66",
+        "Agent": "claude",
+        "Version": "2.1.237 (Claude Code)",
+        "PID": 22904,
+        "Start": "1792609002.868421"
+      },
+      "Resting": true,
+      "Known": true,
+      "LastActivity": "2026-10-21T11:56:45.504581-07:00",
+      "Pending": false,
+      "Remaining": 8,
+      "Capacity": 8,
+      "Supported": true
+    }
+  ],
+  "ready_agents": [
+    {
+      "run_id": "25415fc99a0b3443c78047256337f0db",
+      "agent": "claude",
+      "version": "2.1.237 (Claude Code)",
+      "pid": 97083,
+      "generation": "1792608965.771618",
+      "native_id": "d4ed7a6e-37a7-46cd-a25d-f8c42f9f1448",
+      "transcript": "/Volumes/TestScratch/pc-2897557353/home/.claude/projects/-Volumes-TestScratch-pc-2897557353-fleet-fixture/d4ed7a6e-37a7-46cd-a25d-f8c42f9f1448.jsonl",
+      "cwd": "/Volumes/TestScratch/pc-2897557353/fleet/fixture"
+    },
+    {
+      "run_id": "25415fc99a0b3443c78047256337f0db",
+      "agent": "claude",
+      "version": "2.1.237 (Claude Code)",
+      "pid": 6153,
+      "generation": "1792608976.809821",
+      "native_id": "8bbb45da-ea8b-4dda-967b-fd599e4ecf83",
+      "transcript": "/Volumes/TestScratch/pc-2897557353/home/.claude/projects/-Volumes-TestScratch-pc-2897557353-fleet-worktree-fixture-slot1-fixture/8bbb45da-ea8b-4dda-967b-fd599e4ecf83.jsonl",
+      "cwd": "/Volumes/TestScratch/pc-2897557353/fleet/worktree/fixture-slot1/fixture"
+    },
+    {
+      "run_id": "25415fc99a0b3443c78047256337f0db",
+      "agent": "claude",
+      "version": "2.1.237 (Claude Code)",
+      "pid": 15001,
+      "generation": "1792608989.506245",
+      "native_id": "064ef932-55e3-4985-9c79-ca20228de81b",
+      "transcript": "/Volumes/TestScratch/pc-2897557353/home/.claude/projects/-Volumes-TestScratch-pc-2897557353-fleet-worktree-fixture-slot2-fixture/064ef932-55e3-4985-9c79-ca20228de81b.jsonl",
+      "cwd": "/Volumes/TestScratch/pc-2897557353/fleet/worktree/fixture-slot2/fixture"
+    },
+    {
+      "run_id": "25415fc99a0b3443c78047256337f0db",
+      "agent": "claude",
+      "version": "2.1.237 (Claude Code)",
+      "pid": 23575,
+      "generation": "1792609003.893472",
+      "native_id": "f20a55e5-2431-4886-be62-9cab7c10df2b",
+      "transcript": "/Volumes/TestScratch/pc-2897557353/home/.claude/projects/-Volumes-TestScratch-pc-2897557353-fleet-worktree-fixture-slot3-fixture/f20a55e5-2431-4886-be62-9cab7c10df2b.jsonl",
+      "cwd": "/Volumes/TestScratch/pc-2897557353/fleet/worktree/fixture-slot3/fixture"
+    }
+  ],
+  "root": "/Volumes/TestScratch/pc-2897557353",
+  "started_at": "2026-10-21T18:55:50.060487Z",
+  "total": 4,
+  "trace": "/Volumes/TestScratch/detach-compare.O0eTeh/trace-current-4.jsonl"
+}

@@ -1,0 +1,58 @@
+{
+  "source_sha": "7141a33f0f9017b1fb63627a49f79dc6eea686b2",
+  "observer_hash": "ec02209bf5e1e0a4f9ecf1ea453568950aea43dfea47c3d3f1c597ac674dc4e8",
+  "before": {
+    "source_sha": "eaa758a6f0cd38837655be5334400098849410ec",
+    "gesture_ms": 2302.208333,
+    "messages_close_ms": 2001.295709,
+    "worker_join_ms": 2001.05025
+  },
+  "after": {
+    "gesture_ms": 1030.295916,
+    "leave_ms": 882.045,
+    "messages_close_ms": 12.332917,
+    "worker_join_ms": 11.833708,
+    "console_teardown_ms": 39.207208,
+    "configured_hub_proven": true,
+    "observed_peak": 4
+  },
+  "qualification": "pass; exact4 actor/fixture identities ready; genuine physical gesture; all fixtures survived detach; exact owned generations and direct IO joined on cleanup",
+  "limits": [
+    "Single sample; variable core retirement work376\u2013461ms, not a broad speedup claim.",
+    "The retained observers do not directly count OSProvisionIO cancellation callbacks or ESRCH exits. A fast shutdown alone cannot prove the changed grace cancellation path was exercised; report qualification and this limit separately.",
+    "SELF CPU covers all supervisor goroutines during Leave only.",
+    "Trace flush14.801ms at Leave and19.898ms final is instrumentation overhead included in gesture."
+  ],
+  "cpu": [
+    {
+      "event": "whole_leave.process_cpu",
+      "time_ns": 1792611521826074000,
+      "user_cpu_ns": 213368000,
+      "system_cpu_ns": 377827000
+    }
+  ],
+  "instrumentation": [
+    {
+      "event": "instrumentation",
+      "final": false,
+      "observer_ns": 51105171,
+      "overflow": false,
+      "rows": 1334
+    },
+    {
+      "event": "instrumentation",
+      "final": true,
+      "observer_ns": 51121799,
+      "overflow": false,
+      "rows": 47
+    }
+  ],
+  "fix_file_blob": "8f8a31e7155736679e475c0adf16f92a25e94e47",
+  "fix_file_unchanged_by_observers": true,
+  "fleet_root": "/Volumes/TestScratch/pc-1816718727",
+  "fleet_root_absent": true,
+  "cleanup_confirmed": true,
+  "attempts": 1,
+  "no_further_capture_planned": true,
+  "recorded_at": "2026-10-21T19:39:27.446998+00:00"
+}

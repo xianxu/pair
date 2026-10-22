@@ -225,7 +225,7 @@ These additive version-1 kinds live in `events.jsonl`. Every kind carries `opera
 | `sketch-begin` | `id`, `author`, `owner`, `doc`, `tab`, `vp` | Freeze the source document segment, viewport, author/owner and `author.color`; one drawing sketch cast-wide. |
 | `sketch-stroke-begin` | `sketch`, `id`, `at`, `width` | Begin one stroke with its recorded anchor and positive base width; discard the redo branch. |
 | `sketch-points` | `sketch`, `id`, `chunk`, `pts` | Append the next chunk of original page-coordinate `[x,y,pressure]` triples. |
-| `sketch-stroke-end` | `sketch`, `id` | Seal a stroke; only a nonempty stroke enters the visible stack. |
+| `sketch-stroke-end` | `sketch`, `id`, optional `truncated` | Seal a stroke; only a nonempty stroke enters the visible stack. Pointer cancellation records `truncated: true` and permits another stroke. |
 | `sketch-undo` | `sketch`, `id` | Move the named visible stack top to redo, with no open stroke. |
 | `sketch-redo` | `sketch`, `id` | Restore the named redo stack top, with no open stroke. |
 | `sketch-label` | `sketch`, `label` | Supply the required, nonblank label once; complete drawing or label interrupted work. |
@@ -236,6 +236,8 @@ pointer `stroke`'s `[x,y,dt]` meaning. `sketch/geometry.go` and browser `annotat
 positive anchor boxes while retaining pressure; width is `base * (.25 + .75 * pressure)`, scaled with the viewer.
 Sketch/stroke/operation/tab/author identities are bounded to 128 UTF-8 bytes, labels to 1024 bytes. The owner is
 `operator` or an existing public session digest. Coordinates are finite and at most `1e7` in magnitude.
+The live tool records base width 3 CSS px, as specified by the approved design. An absent or false stroke-end `truncated` has the same semantic identity;
+true preserves cancellation evidence through exact retries, snapshots and replay.
 
 `SketchCanonical` defines known request fields excluding writer time, kind and digest. `SketchDigest` hashes those
 bytes; receipts also retain the concrete kind and actual semantic request. An exact retry is a no-op even with a
