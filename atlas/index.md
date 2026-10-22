@@ -23,7 +23,7 @@
 - [Supervision fact health](couch.md#supervision-fact-log-543) — request-time memory-only logger state, bounded backend errors, dropped/acknowledged counts and the coordinated CLI/supervisor upgrade (#736 M1).
 - [Agent scratch volume](agent-scratch-volume.md) — Go build cache and agent/test temp roots on an APFS volume fseventsd doesn't journal (#496): setup, verify, lifecycle, teardown.
 - [Review workbench](review-workbench.md) — embedded nvim document-review pane (#66): agent proposes edit records, nvim applies them undo-ably + journals rounds via docflow.
-- [Agentic document caller contract](couch-agentic-documents.md) — durable registration, read-only discovery, rename and forget for submitted markdown files; shared with Parley.
+- [Agentic document caller contract](couch-agentic-documents.md) — registration, discovery, rename/forget and serialized operator acquire/release; shared with Parley.
 
 ## See also
 
