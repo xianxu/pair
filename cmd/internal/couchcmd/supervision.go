@@ -160,7 +160,7 @@ func (c *supervisionCoordinator) reconcile() {
 					detail += ": " + receipt.Detail
 				}
 			}
-			c.notice(fmt.Sprintf("startup resend prompt to %s unconfirmed: %s; hub should request fresh status", v.prompt, detail))
+			c.notice(fmt.Sprintf("Resend %s unconfirmed: %s; get fresh status", v.prompt, detail))
 		}
 	}
 }
@@ -259,7 +259,7 @@ func (c *supervisionCoordinator) tick(ctx context.Context, now time.Time, muted 
 			}
 		}
 		if fx.kind == supervisionEscalate {
-			c.notice(fmt.Sprintf("slot %s: %d min with no later hub message or operator submission observed; inspect with couch --peek %s", fx.binding.Slot, int(fx.age/time.Minute), fx.binding.Slot))
+			c.notice(fmt.Sprintf("No hub/user input %dm: couch --peek %s", int(fx.age/time.Minute), fx.binding.Slot))
 			continue
 		}
 		hub, available := c.service.hubBindingFor(fx.binding)
@@ -269,7 +269,7 @@ func (c *supervisionCoordinator) tick(ctx context.Context, now time.Time, muted 
 		from, to, body := hub, fx.binding, startupResendPrompt
 		if fx.kind == supervisionNudge {
 			from, to = fx.binding, hub
-			body = fmt.Sprintf("slot %s: %d min with no later hub message or operator submission observed; inspect with couch --peek %s", fx.binding.Slot, int(fx.age/time.Minute), fx.binding.Slot)
+			body = fmt.Sprintf("No hub/user input %dm: couch --peek %s", int(fx.age/time.Minute), fx.binding.Slot)
 		}
 		id, err := newRequestID()
 		if err == nil {
@@ -277,7 +277,7 @@ func (c *supervisionCoordinator) tick(ctx context.Context, now time.Time, muted 
 		}
 		if err != nil {
 			if fx.kind == supervisionPrompt {
-				c.notice(fmt.Sprintf("startup resend prompt to %s unavailable: %v; hub should request fresh status", to.Slot, err))
+				c.notice(fmt.Sprintf("Resend %s unavailable: %v; get fresh status", to.Slot, err))
 			}
 			continue
 		}

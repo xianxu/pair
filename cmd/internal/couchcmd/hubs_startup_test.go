@@ -228,7 +228,7 @@ func testHubStartupLaterFailure(t *testing.T, warmFirst bool) {
 		t.Fatalf("second launch did not report its injected refusal: %v", call.err)
 	}
 	waitWarmAcceptance(t, "visible hub refusal and retry action", func() bool {
-		return strings.Contains(r.host.Written(), "hub failed; open it in the switcher to retry:")
+		return strings.Contains(r.host.Written(), "Hub failed; retry Ctrl+Space:")
 	})
 	r.assertFirstUsable(t)
 	waitWarmAcceptance(t, "warm worker starts despite failed hub", func() bool { r.mu.Lock(); defer r.mu.Unlock(); return len(r.children) == 2 })

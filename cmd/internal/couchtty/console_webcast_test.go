@@ -155,7 +155,7 @@ func TestWebcastKeyOpensThenTogglesLive(t *testing.T) {
 	r.waitCell(t, WebcastIdleLabel)
 	// Ctrl+Alt+b is still the screen broadcast's, not this.
 	_, _ = r.stdin.Write([]byte(ctrlAltB))
-	waitFor(t, "screen broadcast notice", func() bool { return strings.Contains(r.notice(), "Broadcasting is not configured") })
+	waitFor(t, "screen broadcast notice", func() bool { return strings.Contains(r.notice(), "Broadcast is not configured") })
 	if f.State().Phase != webcast.PhaseIdle || r.launches() != 1 {
 		t.Fatalf("Ctrl+Alt+b reached the cast: %+v launches %d", f.State(), r.launches())
 	}
@@ -318,8 +318,8 @@ func TestReplayShareReadyIsANotice(t *testing.T) {
 		tunnel broadcast.Tunnel
 		want   string
 	}{
-		{&broadcast.FakeTunnel{}, "Replay of rec-1 shared through the broadcast tunnel until Couch exits (1 shared)."},
-		{broadcast.LocalOnly{}, "Replay of rec-1 shared on this machine only (the tunnel is off) until Couch exits (1 shared)."},
+		{&broadcast.FakeTunnel{}, "Replay rec-1 shared until exit (1)."},
+		{broadcast.LocalOnly{}, "Replay rec-1 local-only until exit (1)."},
 	} {
 		root := t.TempDir()
 		if err := os.Mkdir(filepath.Join(root, "rec-1"), 0o755); err != nil {

@@ -45,8 +45,8 @@ crowd out every other tab. Two parts:
 
 ## Plan
 
-- [ ] Add a pure 40-cell sanitized/ellipsized chrome projection, used for both notice fields; retain the source text and use the existing Ctrl+Y copy action for full capability diagnostics too.
-- [ ] Inventory notice producers, shorten built-in chrome instructions, and enforce their literal/template contribution with an AST-derived catalog; dynamic names, paths and diagnostic suffixes retain their full source text.
+- [x] Add a pure 40-cell sanitized/ellipsized chrome projection, used for both notice fields; retain the source text and use the existing Ctrl+Y copy action for full capability diagnostics too.
+- [x] Inventory notice producers, shorten built-in chrome instructions, and enforce their literal/template contribution with an AST-derived catalog; dynamic names, paths and diagnostic suffixes retain their full source text.
 - [ ] Pin ASCII/CJK/combining/control inputs, shared legacy/two-row rendering, full-text copy and source-catalog negative controls; run recorded checks, close and land.
 
 ## Log
@@ -66,3 +66,11 @@ ARCH-DRY/ARCH-PURE: reuse rowtext.Sanitize/Fit and textwidth.Width behind one pu
 Producer inventory: Console.setNotice and ExitNotice; cast capabilityNotice and driveNotices; broadcast/pointer/webcast/cast-code instructions; action/lifecycle refusals. Couchcmd also forwards lifecycle/supervision/stale-session/archive/renice/crash diagnostics as arbitrary full-text Notice values. Menus and detailed diagnostic records remain unrestricted. A source-derived test covers direct setNotice/Notice.Body templates plus named helper producers, with negative controls; runtime substitutions use the display cap. This is presentation policy, not a lint ban on diagnostic length.
 
 Catch-up generated a separate merge-check.yml change (SIGPIPE-safe metadata grep); preserved in stash 'pair789: preserve catch-up generated merge workflow separately', excluded from this issue.
+
+### 2026-10-22 — implementation and targeted evidence
+
+The shared projection and Ctrl+Y capability copy path are implemented. ASCII 200-cell, exact-boundary, CJK, combining, control-sequence, legacy/composed renderer, layout, retained feed, and clipboard tests first exposed the missing cap/copy behavior and now pass. N/2N scan-accounting bounds admit at most three linear text passes. Artifact source classification passed (2.675s); affected reader inventory passed. Catalog negative controls detected 25 old long templates (up to 235 cells); the final source catalog covers direct/local/formatted/helper/range/map notice production in couchtty and couchcmd. It measures fixed template contribution; dynamic names/errors retain their full values and receive the display cap. Shared automatic-input-stall hub/desktop diagnostic evidence is explicitly retained whole upstream, not treated as a concise status template.
+
+Fresh producer/catalog selection passed 9.629s; upstream producer tests passed 11.012s, and root independently verified supervision/renice/lifecycle/archive selection in 15.930s. An earlier concurrent selection compiled old wording assertions and timed out waiting for that removed text; assertions were updated, with no production or fixture deadline changes. A further test pins supervision's precise hub/user-input boundary and actionable peek instruction instead of ambiguous 'quiet'.
+
+Final root status/notice/capability-copy/catalog/linear-work selection passed 3.006s after the final wording changes; source-classification and final affected inventory passed.

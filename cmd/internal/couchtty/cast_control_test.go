@@ -148,7 +148,7 @@ func TestWebCapabilityRecoveryIsVisibleAndClickRetries(t *testing.T) {
 			close(b.release)
 			want := "Click 👆 to retry"
 			if broken {
-				want = "Ctrl+click Chrome to end cast"
+				want = "Ctrl+click Chrome to end"
 			}
 			waitFor(t, "recovery visible", func() bool { return strings.Contains(r.statusRow(), want) })
 			r.con.setNotice("Unrelated notice")

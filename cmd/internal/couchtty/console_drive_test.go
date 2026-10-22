@@ -56,10 +56,10 @@ func TestDriveSpanRowsAndNotices(t *testing.T) {
 		})
 	}
 	notices := driveNotices(recording.Control{Pending: []recording.Author{bo}}, recording.Control{Driver: &bo, Pending: []recording.Author{cy}})
-	if len(notices) != 2 || !strings.Contains(notices[0], "Bo is driving the cast tab. Uploads and downloads are off") || !strings.Contains(notices[1], "Cy asks") {
+	if len(notices) != 2 || !strings.Contains(notices[0], "Bo drives; file transfers off.") || !strings.Contains(notices[1], "Cy asks") {
 		t.Errorf("grant and a new asker: %q", notices)
 	}
-	if n := driveNotices(recording.Control{Driver: &bo}, recording.Control{}); len(n) != 1 || !strings.Contains(n[0], "back with you") {
+	if n := driveNotices(recording.Control{Driver: &bo}, recording.Control{}); len(n) != 1 || !strings.Contains(n[0], "returned to you") {
 		t.Errorf("control back: %q", n)
 	}
 	if n := driveNotices(recording.Control{Driver: &bo, Pending: []recording.Author{cy}}, recording.Control{Driver: &bo, Pending: []recording.Author{cy}}); len(n) != 0 {
@@ -361,7 +361,7 @@ func TestDriveDisableCompletionOrdering(t *testing.T) {
 		}); err != nil {
 			t.Fatal(err)
 		}
-		if got := c.notice(); got != "Control of the cast tab is back with you." {
+		if got := c.notice(); got != "Cast control returned to you." {
 			t.Fatalf("late reset did not replace completion notice: %q", got)
 		}
 		c.reenableDrive(t)
@@ -451,7 +451,7 @@ func TestDriveFromCouch(t *testing.T) {
 	// A left click on Ana's row grants.
 	c.clickRow(t, span, "Ana asks", 0)
 	waitFor(t, "Ana drives", func() bool { return c.control().Driving() == v1 })
-	waitFor(t, "the grant's notice", func() bool { return strings.Contains(c.notice(), "Uploads and downloads are off") })
+	waitFor(t, "the grant's notice", func() bool { return strings.Contains(c.notice(), "file transfers off") })
 	waitFor(t, "Chrome told", func() bool { return c.d.Driving() == "Ana" })
 	waitFor(t, "driver chip named", func() bool { return strings.Contains(c.lastRow(), "👽 Ana") })
 
@@ -554,8 +554,8 @@ func TestDriveFailure(t *testing.T) {
 		{drive.ErrNoSeat, "Remote driving: that changed meanwhile."},
 		{fmt.Errorf("x: %w", drive.ErrControlOp), "Remote driving: that changed meanwhile."},
 		{drive.ErrClosed, "Remote driving: the cast has ended."},
-		{drive.ErrNotLive, "Remote driving: go live first; control changes once the cast is recording."},
-		{errors.New("disk full"), "Remote driving failed, control is unchanged: disk full"},
+		{drive.ErrNotLive, "Driving: go live to change control."},
+		{errors.New("disk full"), "Driving failed; control unchanged: disk full"},
 	} {
 		if got := driveFailure(tc.err); got != tc.want {
 			t.Errorf("%v: %q, want %q", tc.err, got, tc.want)
@@ -667,7 +667,7 @@ func TestDriveActionsDoNotBlockTerminal(t *testing.T) {
 			r.con.mu.Lock()
 			same := pending != nil && r.con.drivePending == pending
 			r.con.mu.Unlock()
-			if !same || !strings.Contains(r.notice(), "wait for the current action") {
+			if !same || !strings.Contains(r.notice(), "wait for current action") {
 				t.Fatal("repeat click replaced the operation slot")
 			}
 

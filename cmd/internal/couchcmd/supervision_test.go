@@ -67,6 +67,11 @@ func TestSupervisionIntegrationCompletionAfterMain(t *testing.T) {
 	if len(notices) != 1 || !strings.Contains(notices[0], "pair:2") {
 		t.Fatalf("want one operator escalation naming worker: %v", notices)
 	}
+	for _, text := range []string{got[1].Body, notices[0]} {
+		if !strings.Contains(text, "hub/user input") || !strings.Contains(text, "couch --peek pair:2") {
+			t.Fatalf("supervision must name its observed input boundary and recovery: %q", text)
+		}
+	}
 }
 
 func TestSupervisionIntegrationEarlierWaitCoalescesNudge(t *testing.T) {

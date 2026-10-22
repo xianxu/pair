@@ -362,7 +362,7 @@ func renderStatusCells(width int, m StatusModel, cells []chipCell, planned bool,
 		if used > 0 {
 			appendText(" ", "")
 		}
-		appendText(rowtext.Sanitize(m.CapabilityNotice), "")
+		appendText(ChromeStatusText(m.CapabilityNotice), "")
 	}
 	prefixUsed := used
 	width = actorBudget
@@ -375,7 +375,7 @@ func renderStatusCells(width int, m StatusModel, cells []chipCell, planned bool,
 		cells = fitChips(m.Actors, width-used-lead)
 	}
 	appendNotice := func() {
-		if n := rowtext.Sanitize(m.Notice); n != "" {
+		if n := ChromeStatusText(m.Notice); n != "" {
 			if used > 0 {
 				appendText("  · ", "")
 			}

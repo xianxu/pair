@@ -200,7 +200,7 @@ func TestRenicerNoticesALowAgentOnceAndForgetsGoneSlots(t *testing.T) {
 		func(s string) { notices = append(notices, s) })
 	r.pass()
 	r.pass()
-	if len(notices) != 1 || !strings.Contains(notices[0], "pair:3") || !strings.Contains(notices[0], "relaunch the slot to restore its priority") {
+	if len(notices) != 1 || !strings.Contains(notices[0], "pair:3") || !strings.Contains(notices[0], "relaunch to restore priority") {
 		t.Fatalf("notices %q", notices)
 	}
 	if m.nice(300) != 10 || m.renices[300] != 0 {

@@ -28,7 +28,7 @@ func capabilityNotice(s webcast.Capabilities) string {
 		if reason == "" {
 			reason = s.Drive.Problem
 		}
-		return "Cast broken; Ctrl+click Chrome to end cast: " + reason
+		return "Cast broken; Ctrl+click Chrome to end: " + reason
 	}
 	for _, v := range []struct {
 		k          webcast.CapabilityKind
