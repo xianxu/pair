@@ -52,6 +52,8 @@ Alternatives: socket-only isolation is insufficient because census is host-wide;
 
 ## Log
 
+
+- 2026-10-22: closed — BR-1 addressed: corrected integrated final-code suite PASS12m49s, exit0, on d7198a27791bfac191552e79b19ea45ed6e93f40; completed attemptfa50b4670ad83418945dc02f84c68676 copied to integrated-suite-pass.json and raw SHA25638c6ab4eddde369a20be795981ec0cd8e40f1f4b74ebf1ef89e02eaa4d7e38ba independently matches. Checklist marked complete only after this pass. All packages/non-Go groups passed; no flake rerun/waiver. Operator executable targeted PASS10.027s and installed identity/PTY PASS14.762s after exact compiler RED and minimal caller adaptation. Native Claude/Codex PASS75.199s qualifies unchanged identity/fleet behavior. Original inventory and train composition failures retained separately. No production admission/timeouts/gates changed. Active-time train-wait discrepancy filed ariadne#547; measured hours not hand-edited. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 ### 2026-10-21
 - 2026-10-21: closed — Deterministic independent-authority RED now GREEN through real installed and fleet constructors; exclusive high-C seed, exhaustion/no-overwrite/race and constructor lint checks pass. Existing native Claude/Codex three-worker matrix PASS75.199s with message, detach/restart and exact cleanup proof. Corrected recorded full suite PASS12m15s on f025dba4, all packages incl installed Couch and artifact inventory, no rerun/waiver. Original failed inventory attempt retained; ordinary source classification fixed. Production census, launch budgets and retries unchanged; atlas maps helper and lint. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 

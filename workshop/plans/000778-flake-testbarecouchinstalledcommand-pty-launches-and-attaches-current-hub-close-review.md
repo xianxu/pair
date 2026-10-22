@@ -150,3 +150,79 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T00:15:28-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 778 — flake: TestBareCouchInstalledCommand/pty_launches_and_attaches_current_hub |
+| repo | pair |
+| issue file | workshop/issues/000778-flake-testbarecouchinstalledcommand-pty-launches-and-attaches-current-hub.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 654e4cf0ca31c8f7aed298d3e0b5a6737b821206..5dc34bb27415a64474ef501fc08bf27831507d86 |
+| command | sdlc close --issue 778 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T00:15:28-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The implementation fixes fixture identity collisions through both constructors while preserving production launch admission. BR-1 is addressed: the completed host receipt and matching raw log verify the integrated source, and subsequent changes contain no executable code. No blocking findings remain.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Host attempt fa50b4670ad83418945dc02f84c68676 matches the committed integrated-suite-pass.json: source d7198a27791bfac191552e79b19ea45ed6e93f40 passed with exit 0 in 768.631 seconds. Independently hashing its host suite.log produced 38c6ab4eddde369a20be795981ec0cd8e40f1f4b74ebf1ef89e02eaa4d7e38ba, matching the receipt. The tested source differs from this head only in process/docs artifacts; the checked verification row and final-source acceptance clause are now supported.
+```
+
+Done-when: current — it covers both constructors, real allocation, derived PTY expectations, validation, concurrency, lint enforcement, and recorded verification.
+
+1. **Strengths**
+
+   - Both constructors reuse the exclusive initializer, covering the identified collision family (`cmd/couch/main_test.go:244`, `cmd/internal/testcouch/environment.go:72`).
+   - Tests exercise real allocation, stable C with advancing N/M, existing-authority refusal, exhaustion, and concurrent initialization.
+   - Atlas documents the helper’s scope, PID-reuse limitation, and syntax guard accurately.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes:** Independently passed focused seed/constructor/lint tests, seed race tests, installed PTY and pipe-refusal tests, operator executable tests, full repolint and artifactpath packages, and affected-reader inventory. Verified the recorded full-suite receipt against its host raw log. Retained native evidence covers unchanged helper and constructor code.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY: pass** — both consumers share one initializer.
+   - **ARCH-PURE: pass** — seed calculation and AST matching remain separate from filesystem setup.
+   - **ARCH-PURPOSE: pass** — both identified authority constructors are covered; admission and readiness budgets remain unchanged.
+   - **ARCH-EVOLVE: pass** — no production format or rewrite behavior changes; initialization exclusively creates fresh private state.
+
+   Atlas updates cover the internal surface. No new user-facing command, flag, or configuration requires a README update.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"df78efbf-71a4-44f9-9c20-0853ac4e7a37","repository":"github.com/xianxu/pair","issue_id":"000778","recipe":"small-diff-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/1a43b9f461623702","reviewed_head":"5dc34bb27415a64474ef501fc08bf27831507d86","slot":"pair:5","requested_at":"2026-10-22T07:13:21.395777Z"},"phase":"finished","pid":9998,"started_at":"2026-10-22T07:13:21.703339Z","finished_at":"2026-10-22T07:15:26.879427Z","session_id":"01a16275-1420-75c3-be40-09ec2b56c9be","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 4.151386416s
+head: "5dc34bb27415a64474ef501fc08bf27831507d86"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
