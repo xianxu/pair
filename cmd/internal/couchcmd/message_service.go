@@ -166,17 +166,18 @@ const (
 // timers in arrival order. Request goroutines read
 // only the published snapshot of connected bindings.
 type messageService struct {
-	lifecycle atomic.Pointer[lifecyclePublisher]
-	resources atomic.Pointer[resourceSampler]
-	hubMoves  atomic.Pointer[hubMoveService]
-	facts     atomic.Pointer[supervisionFactLog]
-	server    *couchmessage.Server
-	sessions  *couchmessage.SessionServer
-	broker    *couchmessage.Broker
-	cancel    context.CancelFunc
-	lifetime  context.Context
-	workers   sync.WaitGroup
-	authority messageAuthority
+	lifecycle             atomic.Pointer[lifecyclePublisher]
+	resources             atomic.Pointer[resourceSampler]
+	provenOrphanProcesses launcher.ProcessTable
+	hubMoves              atomic.Pointer[hubMoveService]
+	facts                 atomic.Pointer[supervisionFactLog]
+	server                *couchmessage.Server
+	sessions              *couchmessage.SessionServer
+	broker                *couchmessage.Broker
+	cancel                context.CancelFunc
+	lifetime              context.Context
+	workers               sync.WaitGroup
+	authority             messageAuthority
 	// hubTargets is admission's warm source for target slots (pair#726); nil
 	// without hub ownership.
 	hubTargets *hubTargetMemo
@@ -573,7 +574,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	inventory := newResourceInventory(console, c, service)
 	persistence := newResourceHistoryPersistence(namespace)
 	alerts := newResourceAlertDispatcher(service)
-	sampler := &resourceSampler{reader: procutil.NativeResourceReader{}, slots: inventory.snapshot, policy: resourcePolicy, alerts: alerts.dispatch, persist: persistence.persist, history: persistence.historySummary, sweeps: make(chan chan resourceSweep), leftRunning: couchcore.NewLeftRunningRegistry(c.Namespace)}
+	sampler := &resourceSampler{reader: procutil.NativeResourceReader{}, slots: inventory.snapshot, policy: resourcePolicy, alerts: alerts.dispatch, persist: persistence.persist, history: persistence.historySummary, sweeps: make(chan resourceRequest), leftRunning: couchcore.NewLeftRunningRegistry(c.Namespace)}
 	hostedIngest := console.HostedIngestSnapshot
 	service.hostedIngest.Store(&hostedIngest)
 	service.resources.Store(sampler)
@@ -952,6 +953,8 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 			return couchmessage.Response{Code: "ok", Resources: &view}
 		}
 		return couchmessage.Response{Code: "unsupported", Error: "resource sampler unavailable"}
+	case request.Op == "reap-orphan-signal":
+		return s.handleProvenOrphanSignal(ctx, request)
 	case request.Op == orphanReapOp:
 		// The reap's plan is a classification of its own, never the report the
 		// last cadence left behind: an operator confirmed a kill, and the world
@@ -961,6 +964,11 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 		if err := couchmessage.ValidateRequest(request); err != nil {
 			return couchmessage.Response{Code: "invalid-request", Error: err.Error()}
 		}
+		if _, origin, err := s.provenOrphanCaller(ctx, request); err != nil {
+			return couchmessage.Response{Code: "refused", Error: err.Error()}
+		} else if request.Scope != "" && !s.authority.hubs.snapshot().IsHub(origin.WorktreeRoot) {
+			return couchmessage.Response{Code: "refused", Error: "only an authenticated owning hub may reap proven orphans; ask that hub"}
+		}
 		sampler := s.resources.Load()
 		if sampler == nil {
 			return couchmessage.Response{Code: "unsupported", Error: "resource sampler unavailable"}
@@ -969,6 +977,7 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 		if err != nil {
 			return couchmessage.Response{Code: "unavailable", Error: "resource sweep: " + err.Error()}
 		}
+		view = projectResourceView(view)
 		return couchmessage.Response{Code: "ok", Resources: &view}
 	case request.Op == "refusals":
 		// A memory read for `couch --list` (pair#618); no caller, like resources.

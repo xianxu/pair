@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"reflect"
+	"syscall"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
@@ -52,10 +54,17 @@ type orphanReapOutcome struct {
 
 // orphanReapReport is the verb's whole answer, confirmed or not: which pass
 // classified the rows, and one outcome each.
+type provenOrphanReapOutcome struct {
+	Target couchcore.ProvenOrphanTarget `json:"target"`
+	Status string                       `json:"status"`
+	Detail string                       `json:"detail,omitempty"`
+}
+
 type orphanReapReport struct {
-	Confirmed bool                `json:"confirmed"`
-	SampledAt time.Time           `json:"sampled_at"`
-	Outcomes  []orphanReapOutcome `json:"outcomes"`
+	Proven    []provenOrphanReapOutcome `json:"proven_orphans"`
+	Confirmed bool                      `json:"confirmed"`
+	SampledAt time.Time                 `json:"sampled_at"`
+	Outcomes  []orphanReapOutcome       `json:"outcomes"`
 	// LeftRunning is the same verb over the orphan registry (pair#695): the
 	// processes teardown named and left, each ended by its exact identity.
 	LeftRunning []leftRunningReapOutcome `json:"left_running"`
@@ -79,7 +88,9 @@ func runReapOrphansCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, 
 		return refuseOrphanReap(inv, ctx, socket, stdout, stderr, call)
 	}
 	var result couchmessage.Response
-	if err := call(ctx, socket, couchmessage.Request{Op: orphanReapOp, Confirmed: true}, &result); err != nil {
+	request := callerIdentity(rt, orphanReapOp)
+	request.Confirmed = true
+	if err := call(ctx, socket, request, &result); err != nil {
 		fmt.Fprintf(stderr, "couch: orphan reap unavailable (%v); inspect the running Couch\n", err)
 		return 1
 	}
@@ -93,7 +104,28 @@ func runReapOrphansCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, 
 	for _, e := range result.Resources.Errors {
 		fmt.Fprintln(stderr, "Coverage:", rowtext.Sanitize(e))
 	}
-	report := orphanReapReport{Confirmed: true, SampledAt: result.Resources.SampledAt, Outcomes: reapOrphanNvim(ctx, reaper, result.Resources.OrphanNvim), LeftRunning: reapLeftRunning(ctx, reaper, result.Resources.LeftRunning)}
+	targets := couchcore.ProvenOrphanTargets(*result.Resources)
+	keys := map[couchcore.ResourceProcessKey]bool{}
+	for _, t := range targets {
+		keys[t.Key] = true
+	}
+	var nvims []couchcore.OrphanNvim
+	for _, row := range result.Resources.OrphanNvim {
+		if !keys[row.Key] {
+			nvims = append(nvims, row)
+		}
+	}
+	var left []couchcore.LeftRunningOrphan
+	for _, row := range result.Resources.LeftRunning {
+		if !keys[couchcore.ResourceProcessKey{PID: row.Process.PID, Identity: row.Process.Identity}] {
+			left = append(left, row)
+		}
+	}
+	report := orphanReapReport{Confirmed: true, SampledAt: result.Resources.SampledAt}
+	report.Proven = reapProvenOrphans(ctx, socket, request, call, reaper, targets)
+	report.Outcomes = reapOrphanNvim(ctx, reaper, nvims)
+	report.LeftRunning = reapLeftRunning(ctx, reaper, left)
+
 	return finishOrphanReap(inv, stdout, stderr, report)
 }
 
@@ -119,7 +151,11 @@ func refuseOrphanReap(inv cliInvocation, ctx context.Context, socket string, std
 	for _, entry := range result.Resources.LeftRunning {
 		left = append(left, leftRunningReapOutcome{Entry: entry, Status: orphanRefused, Detail: "--confirm not given"})
 	}
-	return finishOrphanReap(inv, stdout, stderr, orphanReapReport{SampledAt: result.Resources.SampledAt, Outcomes: outcomes, LeftRunning: left})
+	var proven []provenOrphanReapOutcome
+	for _, target := range couchcore.ProvenOrphanTargets(*result.Resources) {
+		proven = append(proven, provenOrphanReapOutcome{Target: target, Status: orphanRefused, Detail: "--confirm not given"})
+	}
+	return finishOrphanReap(inv, stdout, stderr, orphanReapReport{SampledAt: result.Resources.SampledAt, Outcomes: outcomes, LeftRunning: left, Proven: proven})
 }
 
 // finishOrphanReap prints one report and decides the exit code: a row that
@@ -133,6 +169,11 @@ func finishOrphanReap(inv cliInvocation, stdout, stderr io.Writer, report orphan
 		}
 	} else {
 		renderOrphanReap(stdout, report)
+	}
+	for _, o := range report.Proven {
+		if o.Status == orphanFailed || o.Status == orphanRefused {
+			return 1
+		}
 	}
 	for _, o := range report.Outcomes {
 		if o.Status == orphanFailed || o.Status == orphanRefused {
@@ -148,6 +189,9 @@ func finishOrphanReap(inv cliInvocation, stdout, stderr io.Writer, report orphan
 }
 
 func renderOrphanReap(out io.Writer, report orphanReapReport) {
+	for _, o := range report.Proven {
+		fmt.Fprintf(out, "%s proven-orphan %s pid=%d identity=%s root=%d/%s: %s\n", o.Status, rowtext.Sanitize(o.Target.Slot), o.Target.Key.PID, rowtext.Sanitize(o.Target.Key.Identity), o.Target.Root.PID, rowtext.Sanitize(o.Target.Root.Identity), rowtext.Sanitize(o.Detail))
+	}
 	if !report.Confirmed {
 		rows := make([]couchcore.OrphanNvim, 0, len(report.Outcomes))
 		for _, o := range report.Outcomes {
@@ -169,6 +213,9 @@ func renderOrphanReap(out io.Writer, report orphanReapReport) {
 		fmt.Fprintf(out, "%s left-running %s%s\n", o.Status, leftRunningRow(o.Entry), detail)
 	}
 	if len(report.Outcomes) == 0 {
+		if len(report.Proven) > 0 || len(report.LeftRunning) > 0 {
+			return
+		}
 		fmt.Fprintln(out, "No unattributed embedded nvim: nothing to reap.")
 		return
 	}
@@ -229,4 +276,49 @@ func reapExact(ctx context.Context, reaper launcher.Reaper, pid int, identity, l
 	default:
 		return orphanFailed, err.Error()
 	}
+}
+
+// reapProvenOrphans interprets only acknowledged supervisor effects. An older
+// supervisor, mismatched echo or lost reply never enables local signal fallback.
+func reapProvenOrphans(ctx context.Context, socket string, caller couchmessage.Request, call messageCall, reaper launcher.Reaper, targets []couchcore.ProvenOrphanTarget) []provenOrphanReapOutcome {
+	steps := make([]launcher.ReapStep, 0, len(targets))
+	byKey := map[couchcore.ResourceProcessKey]couchcore.ProvenOrphanTarget{}
+	for _, t := range targets {
+		steps = append(steps, launcher.ReapStep{PID: t.Key.PID, Identity: t.Key.Identity})
+		byKey[t.Key] = t
+	}
+	signal := func(ctx context.Context, step launcher.ReapStep, sig syscall.Signal) error {
+		target := byKey[couchcore.ResourceProcessKey{PID: step.PID, Identity: step.Identity}]
+		req := couchmessage.Request{Op: "reap-orphan-signal", Confirmed: true, Scope: caller.Scope, Tag: caller.Tag, Session: caller.Session, Nonce: caller.Nonce, OrphanTarget: &target, OrphanSignal: "TERM"}
+		if sig == syscall.SIGKILL {
+			req.OrphanSignal = "KILL"
+		}
+		var result couchmessage.Response
+		if err := call(ctx, socket, req, &result); err != nil {
+			return fmt.Errorf("signal result uncertain; inspect resources before retry: %w", err)
+		}
+		if result.Code != "ok" || result.OrphanSignal == nil {
+			return fmt.Errorf("signal unsupported or unavailable (%s): %s; inspect resources", result.Code, result.Error)
+		}
+		reply := result.OrphanSignal
+		if !reflect.DeepEqual(reply.Target, target) {
+			return errors.New("signal result witness differs; inspect resources before retry")
+		}
+		switch reply.Status {
+		case "sent":
+			return nil
+		case "skipped":
+			return fmt.Errorf("%w: %s", launcher.ErrServerChanged, reply.Detail)
+		case "refused":
+			return fmt.Errorf("%w: %s", launcher.ErrExactReapRefused, reply.Detail)
+		default:
+			return fmt.Errorf("signal result uncertain: %s; inspect resources before retry", reply.Detail)
+		}
+	}
+	results := reaper.ReapExact(ctx, steps, signal)
+	out := make([]provenOrphanReapOutcome, 0, len(results))
+	for _, r := range results {
+		out = append(out, provenOrphanReapOutcome{Target: byKey[couchcore.ResourceProcessKey{PID: r.Step.PID, Identity: r.Step.Identity}], Status: r.Status, Detail: r.Detail})
+	}
+	return out
 }

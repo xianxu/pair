@@ -23,7 +23,8 @@ type resourceReader interface {
 	SelfCPU(context.Context) (uint64, int, error)
 }
 
-// resourceSampler has one worker owner. Request handlers read only cached.
+// resourceSampler has one worker owner. Handlers read cached reports or request
+// fresh ownership evidence from that worker; they never read mutable state.
 // persist must honor ctx; its storage/alert work is included in the final cost.
 type resourceSampler struct {
 	history func() (time.Time, int)
@@ -38,7 +39,7 @@ type resourceSampler struct {
 	// sweeps carries a confirmed reap's request for a classification of its own
 	// (#583). Only run reads it, so the plan a kill is decided from is built by
 	// the one owner of state and provenance rather than by a copy of them.
-	sweeps chan chan resourceSweep
+	sweeps chan resourceRequest
 	// threads caches each launchd child's inherited thread by process
 	// generation (pair#606): an environment never changes after exec, so each
 	// process costs one read in its lifetime. Only run touches it.
@@ -52,7 +53,15 @@ type resourceSampler struct {
 // pass ran to completion. A pass cut short leaves the cache holding an older
 // view, and `fresh` is what stops that older view from being handed over as a
 // classification to kill from.
+type resourceRequest struct {
+	ctx   context.Context
+	proof bool
+	reply chan resourceSweep
+}
+
 type resourceSweep struct {
+	proof couchcore.ProvenOrphanProof
+	err   error
 	view  couchcore.ResourceView
 	fresh bool
 }
@@ -60,11 +69,12 @@ type resourceSweep struct {
 type inheritedThread struct {
 	thread couchcore.ThreadAddress
 	ok     bool
+	known  bool
 }
 
 // inheritedThread answers DetachedSlotRoots from each process's environment,
 // reading a generation once and forgetting generations that left the table.
-func (s *resourceSampler) inheritedThread(ctx context.Context, r resourceReader, table []procutil.Process, sample *couchcore.ResourceSample) func(procutil.Process) (couchcore.ThreadAddress, bool) {
+func (s *resourceSampler) inheritedThread(ctx context.Context, r resourceReader, table []procutil.Process, sample *couchcore.ResourceSample, unknown map[couchcore.ResourceProcessKey]bool) func(procutil.Process) (couchcore.ThreadAddress, bool) {
 	live := make(map[couchcore.ResourceProcessKey]bool, len(table))
 	for _, p := range table {
 		live[couchcore.ResourceProcessKey{PID: p.PID, Identity: p.Identity}] = true
@@ -80,21 +90,30 @@ func (s *resourceSampler) inheritedThread(ctx context.Context, r resourceReader,
 	return func(p procutil.Process) (couchcore.ThreadAddress, bool) {
 		k := couchcore.ResourceProcessKey{PID: p.PID, Identity: p.Identity}
 		if c, ok := s.threads[k]; ok {
+			if !c.known {
+				unknown[k] = true
+			}
 			return c.thread, c.ok
 		}
-		env, calls, err := r.Environment(ctx, p, "COUCH_THREAD_SCOPE", "COUCH_THREAD_TAG")
+		env, calls, err := r.Environment(ctx, p, "COUCH_THREAD_SCOPE", "COUCH_THREAD_TAG", "PATH")
 		sample.Cost.EnvironmentCalls += calls
 		sample.Cost.NativeCalls += calls
 		var unstable *procutil.IdentityUnavailableError
 		if ctx.Err() != nil || errors.As(err, &unstable) {
 			// Cancellation and a generation changing mid-read are transient:
 			// ask again next pass.
+			unknown[k] = true
 			return couchcore.ThreadAddress{}, false
 		}
-		// Another user's process, or one that exited, answers no thread for
-		// its lifetime; neither is worth an error line every sample.
+		// Keep withheld/unreadable evidence distinct from a known absence. PATH
+		// is only an observability witness and is never retained. An empty
+		// environment (Darwin platform binaries) cannot disprove ownership.
 		c := inheritedThread{thread: couchcore.ThreadAddress{RepoScope: env["COUCH_THREAD_SCOPE"], Tag: couchcore.ThreadTag(env["COUCH_THREAD_TAG"])}}
-		c.ok = err == nil && c.thread.RepoScope != "" && c.thread.Tag != ""
+		c.known = err == nil && len(env) > 0 && ((c.thread.RepoScope == "") == (c.thread.Tag == ""))
+		c.ok = c.known && c.thread.RepoScope != "" && c.thread.Tag != ""
+		if !c.known {
+			unknown[k] = true
+		}
 		s.threads[k] = c
 		return c.thread, c.ok
 	}
@@ -119,11 +138,19 @@ func (s *resourceSampler) run(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case reply := <-s.sweeps:
-			// The pass this reply carries is the loop's own next one, so a sweep
-			// does not cost an extra sample of the host.
-			fresh := s.pass(ctx)
-			reply <- resourceSweep{fresh: fresh, view: s.view()}
+		case request := <-s.sweeps:
+			if request.ctx.Err() != nil {
+				request.reply <- resourceSweep{err: request.ctx.Err()}
+				continue
+			}
+			if request.proof {
+				sample, selection, unknown := s.collectOwnership(request.ctx)
+				proof := couchcore.ProvenOrphanProof{Table: sample.Table, Selection: selection, TableKnown: sample.TableKnown, InventoryComplete: sample.InventoryComplete, UnknownDetached: unknown}
+				request.reply <- resourceSweep{proof: proof, err: request.ctx.Err()}
+			} else {
+				fresh := s.pass(request.ctx)
+				request.reply <- resourceSweep{fresh: fresh, view: s.view(), err: request.ctx.Err()}
+			}
 			continue
 		case <-ticker.C:
 		}
@@ -135,27 +162,95 @@ func (s *resourceSampler) run(ctx context.Context) {
 }
 
 // sweep asks the worker for a classification of its own and returns the view it
-// produced. The wait is bounded by ctx; the pass itself runs on the sampler's
-// lifetime, so a caller that hangs up cannot leave the worker mid-read and then
-// be answered from the cache it never refreshed (#583).
+// produced. Both admission and collection are bounded by ctx. A cut-short
+// pass never answers from the cache it did not refresh (#583).
 func (s *resourceSampler) sweep(ctx context.Context) (couchcore.ResourceView, error) {
 	if s == nil || s.sweeps == nil {
 		return couchcore.ResourceView{}, errors.New("resource sampler has no worker")
 	}
 	reply := make(chan resourceSweep, 1)
 	select {
-	case s.sweeps <- reply:
+	case s.sweeps <- resourceRequest{ctx: ctx, reply: reply}:
 	case <-ctx.Done():
 		return couchcore.ResourceView{}, ctx.Err()
 	}
 	select {
 	case swept := <-reply:
+		if swept.err != nil {
+			return couchcore.ResourceView{}, swept.err
+		}
 		if !swept.fresh {
 			return couchcore.ResourceView{}, errors.New("the sampler stopped before it could classify")
 		}
 		return swept.view, nil
 	case <-ctx.Done():
 		return couchcore.ResourceView{}, ctx.Err()
+	}
+}
+
+// collectOwnership is shared by metrics passes and destructive proof requests.
+// Only the sampler worker calls it: provenance and environment-cache ownership
+// stay serial. Withheld/empty environments are unknown, not a negative match.
+func (s *resourceSampler) collectOwnership(ctx context.Context) (couchcore.ResourceSample, couchcore.ResourceSelection, []couchcore.ResourceProcessKey) {
+	sample := couchcore.ResourceSample{}
+	unknown := map[couchcore.ResourceProcessKey]bool{}
+	r := s.reader
+	if r == nil {
+		r = procutil.NativeResourceReader{}
+	}
+	if s.slots != nil {
+		inventory := s.slots()
+		sample.Slots = inventory.Slots
+		sample.InventoryComplete = inventory.Complete && inventory.Omitted == 0
+		sample.InventoryOmitted = inventory.Omitted
+		if !sample.InventoryComplete {
+			sample.Errors = append(sample.Errors, "slot inventory incomplete")
+		}
+		if inventory.Omitted > 0 {
+			sample.Errors = append(sample.Errors, fmt.Sprintf("slot inventory omitted %d rows at capacity", inventory.Omitted))
+		}
+	}
+	table, n, err := r.Table(ctx)
+	sample.Cost.TableCalls += n
+	sample.Cost.NativeCalls += n
+	if ctx.Err() != nil {
+		return sample, couchcore.ResourceSelection{}, nil
+	}
+	sample.TableKnown = err == nil
+	if err != nil {
+		sample.Errors = append(sample.Errors, "process table: "+err.Error())
+	}
+	if len(table) > couchcore.ResourceMaxTableRows {
+		table = table[:couchcore.ResourceMaxTableRows]
+		sample.TableKnown = false
+		sample.Errors = append(sample.Errors, "process table limit exceeded")
+	}
+	sample.Table = table
+	sample.Slots = couchcore.DetachedSlotRoots(table, sample.Slots, s.inheritedThread(ctx, r, table, &sample, unknown))
+	selection := couchcore.SelectResourceProcesses(table, sample.Slots, s.state.Provenance, sample.TableKnown, sample.InventoryComplete)
+	unknownKeys := make([]couchcore.ResourceProcessKey, 0, len(unknown))
+	for k := range unknown {
+		unknownKeys = append(unknownKeys, k)
+	}
+	return sample, selection, unknownKeys
+}
+
+// proveReap asks the existing worker for fresh complete ownership evidence.
+func (s *resourceSampler) proveReap(ctx context.Context) (couchcore.ProvenOrphanProof, error) {
+	if s == nil || s.sweeps == nil {
+		return couchcore.ProvenOrphanProof{}, errors.New("resource sampler has no worker")
+	}
+	reply := make(chan resourceSweep, 1)
+	select {
+	case s.sweeps <- resourceRequest{ctx: ctx, proof: true, reply: reply}:
+	case <-ctx.Done():
+		return couchcore.ProvenOrphanProof{}, ctx.Err()
+	}
+	select {
+	case r := <-reply:
+		return r.proof, r.err
+	case <-ctx.Done():
+		return couchcore.ProvenOrphanProof{}, ctx.Err()
 	}
 }
 
@@ -184,36 +279,15 @@ func (s *resourceSampler) pass(ctx context.Context) bool {
 	if cpuErr != nil {
 		sample.Errors = append(sample.Errors, "sampler CPU start: "+cpuErr.Error())
 	}
-	if s.slots != nil {
-		inventory := s.slots()
-		sample.Slots = inventory.Slots
-		sample.InventoryComplete = inventory.Complete && inventory.Omitted == 0
-		sample.InventoryOmitted = inventory.Omitted
-		if !sample.InventoryComplete {
-			sample.Errors = append(sample.Errors, "slot inventory incomplete")
-		}
-		if inventory.Omitted > 0 {
-			sample.Errors = append(sample.Errors, fmt.Sprintf("slot inventory omitted %d rows at capacity", inventory.Omitted))
-		}
-	}
-	table, n, err := r.Table(ctx)
-	sample.Cost.TableCalls = n
-	sample.Cost.NativeCalls += n
+	ownership, selection, _ := s.collectOwnership(ctx)
 	if ctx.Err() != nil {
 		return false
 	}
-	sample.TableKnown = err == nil
-	if err != nil {
-		sample.Errors = append(sample.Errors, "process table: "+err.Error())
-	}
-	if len(table) > couchcore.ResourceMaxTableRows {
-		table = table[:couchcore.ResourceMaxTableRows]
-		sample.TableKnown = false
-		sample.Errors = append(sample.Errors, "process table limit exceeded")
-	}
-	sample.Table = table
-	sample.Slots = couchcore.DetachedSlotRoots(table, sample.Slots, s.inheritedThread(ctx, r, table, &sample))
-	selection := couchcore.SelectResourceProcesses(table, sample.Slots, s.state.Provenance, sample.TableKnown, sample.InventoryComplete)
+	ownership.At, ownership.Commands, ownership.OrphanProbes = sample.At, sample.Commands, sample.OrphanProbes
+	ownership.Cost.NativeCalls += sample.Cost.NativeCalls
+	ownership.Errors = append(sample.Errors, ownership.Errors...)
+	sample = ownership
+	table := sample.Table
 	rows := make(map[couchcore.ResourceProcessKey]procutil.Process, len(table))
 	pidCounts := map[int]int{}
 	for _, p := range table {

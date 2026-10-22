@@ -40,6 +40,7 @@ type CommandKind string
 
 const (
 	Exec     CommandKind = "exec"
+	Retain   CommandKind = "retain"
 	SetState CommandKind = "state"
 	Stop     CommandKind = "stop"
 )
@@ -100,6 +101,10 @@ func ValidateCommand(c Command) error {
 		}
 		if n > 8<<10 {
 			return errors.New("command arguments exceed limit")
+		}
+	case Retain:
+		if len(c.Args) != 0 || c.State != "" {
+			return errors.New("invalid retained descendant request")
 		}
 	case SetState:
 		if len(c.Args) != 0 || (c.State != Idle && c.State != Working && c.State != Picker) {

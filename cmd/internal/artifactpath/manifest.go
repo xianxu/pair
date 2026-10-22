@@ -825,6 +825,8 @@ var NonArtifactSources = []string{
 	// #583's orphan sweep reads the same evidence: the roots it matches are
 	// worktrees and the argv it reads is inspected, never constructed.
 	"cmd/internal/couchcmd/reap_orphans.go",
+	"cmd/internal/couchcmd/reap_proven.go",
+	"cmd/internal/couchcore/resource_reap.go",
 	"cmd/internal/couchcore/resource_orphan.go",
 	"cmd/internal/procutil/identity_age.go",
 
@@ -1344,6 +1346,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/launcher/session_owner_pass.go",
 	"cmd/internal/couchcore/session_owner_pass.go",
 	"cmd/internal/launcher/session_reap.go",
+	"cmd/internal/launcher/exact_reap.go",
+	"cmd/internal/launcher/exact_reap_model.go",
 	// #583: the embedded-nvim reap decision is pure — it reads a row of process
 	// evidence and a target's expected argv, and names no artifact path.
 	"cmd/internal/launcher/nvim_reap.go",
@@ -1602,12 +1606,14 @@ var NonArtifactSources = []string{
 	// Pair session-artifact filename constructors or consumers.
 	"cmd/internal/pathscope/pathscope.go",
 	"cmd/internal/testcouch/actor.go",
+	"cmd/internal/testcouch/retained.go",
 	"cmd/internal/testcouch/agentfixture/cmd/main.go",
 	"cmd/internal/testcouch/agentfixture/conversation.go",
 	"cmd/internal/testcouch/agentfixture/model.go",
 	"cmd/internal/testcouch/agentfixture/paint.go",
 	"cmd/internal/testcouch/agentfixture/protocol.go",
 	"cmd/internal/testcouch/agentfixture/run.go",
+	"cmd/internal/testcouch/agentfixture/retained.go",
 	"cmd/internal/testcouch/binaries.go",
 	"cmd/internal/testcouch/cleanup.go",
 	"cmd/internal/testcouch/cohort.go",

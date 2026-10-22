@@ -17,6 +17,9 @@ import (
 
 func main() { os.Exit(run()) }
 func run() int {
+	if handled, status := agentfixture.RetainedHelper(os.Args[1:]); handled {
+		return status
+	}
 	agent := filepath.Base(os.Args[0])
 	if len(os.Args) == 2 && os.Args[1] == "--version" {
 		version := agentfixture.Version(agent)

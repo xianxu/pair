@@ -55,8 +55,8 @@ Hub pin 941a9381-a841-44ca-98b0-7e10a90936b3 approves authenticated owning hubs 
 
 ## Plan
 
-- [ ] Approve the durable plan and enter change-code through the full-flow gate.
-- [ ] Add pure exact-target proof and strict protocol shapes; verify the negative authority/identity cases first.
+- [x] Approve the durable plan and enter change-code through the full-flow gate.
+- [x] Add pure exact-target proof and strict protocol shapes; verify the negative authority/identity cases first.
 - [ ] Implement the guarded exact executor and supervisor effect owner, with stateful transition and counted-cost tests.
 - [ ] Wire preview/confirmed CLI reporting, prove disposable public-command behavior, document, verify and land through SDLC.
 
@@ -75,6 +75,14 @@ Asked the hub to pin the authority boundary in receipt eda16b29-ce04-4710-a5b2-4
 Hub approved the complete plan in submitted receipt cea188f7-9b5c-4999-879d-59404fd1971a and directed change-code. Disposable public-command proof with Claude and Codex is sufficient; no operator stage is needed. The first real use after landing is ops-echo's cleanup of echo:2's still-proven 10-21 leftovers. Enter the full-flow gate before implementation; estimate remains deferred until plan-quality clears.
 
 Plan-quality round 1 raised PQ-1 complete detached ownership, PQ-2 enforced transition model, and PQ-3 named production-function test strategies. Inspection confirms DetachedSlotRoots enriches a live background suite before SelectResourceProcesses; the raw roots alone can misclassify it (resource_detached_test.go's real reparenting regression). The plan refinement therefore shares the sampler's complete ownership stage on its existing worker, includes generation-cached gated environment evidence, and refuses unknown relevant enrichment. It also makes AdvanceExactReap the only progress/effect writer with tagged invocation states and generated sequence/interpreter checks, and replaces the active test inventories with function-level strategies. No code changed; request the hub's ownership/cost clarification approval and rerun plan-quality before deriving an estimate.
+
+### 2026-10-22 — implementation checkpoint
+
+Authenticated refinement approval 044b0f32-5645-4870-80af-61eb967f7369 accepts the shared worker proof, detached unknown veto, unchanged bounds and pure invocation transitions. Plan quality cleared PQ-1/2/3 in round 2; the estimate retry ran round 3 CLEAN again. Derived 4.033 hours from the prescribed stale v3.1 calibration; estimate quality returned INFO, not a blocking finding. Its integration bucket includes the shared collection/channel/cache/authority tests; the conformance and close buckets also absorb inventory checks, recorded verification, landing and review repairs. The tight reducer allowance is a calibration risk to compare with measured actuals, not a reason to omit verification.
+
+The full-flow change-code gate admitted implementation. Test-first work now adds positive exact provenance selection, strict optional caller and closed TERM/KILL protocol shapes, the pure AdvanceExactReap model and stateful interpreter, worker-owned collectOwnership, per-effect hub/identity guards, and CLI exact-group reporting without local signal fallback. Known-empty environment evidence uses a requested PATH observability witness without retaining its value; empty/withheld, partial or failed reads remain unknown for effects, including cached unknown generations. All process signals in the new group remain supervisor-owned and exact.
+
+Verification so far: targeted core/protocol/launcher/service/CLI and legacy reap selections pass. Launcher generated/exhaustive model tests and stateful executor race tests pass. The combined new service/CLI proof selection passes under race detection, including current or unknown detached ownership before KILL after acknowledged TERM. The full artifact inventory first refused the two new shared retained-fixture helpers, as expected; they are being registered, without a quarantine. The reader audit is pending final source registration. Shared disposable-Couch native acceptance is running; no recorded suite or landing runner has started, and no :0 stage was made.
 
 ## Estimate
 

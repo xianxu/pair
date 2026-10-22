@@ -393,7 +393,7 @@ func TestReapOrphansCLIReportsARefusedSweep(t *testing.T) {
 func TestReapOrphansSupervisorClassifiesFresh(t *testing.T) {
 	f := &samplerReader{rows: []procutil.Process{{PID: 10, Identity: "owned"}}}
 	s := testResourceSampler(f)
-	s.sweeps = make(chan chan resourceSweep)
+	s.sweeps = make(chan resourceRequest)
 	s.policy.Cadence = time.Hour // the answer must not arrive on the cadence
 	sampler := &messageService{}
 	sampler.resources.Store(s)
@@ -446,7 +446,7 @@ func TestResourceSweepWithoutAWorkerFails(t *testing.T) {
 	if _, err := s.sweep(context.Background()); err == nil {
 		t.Fatal("a sweep with no worker succeeded")
 	}
-	s.sweeps = make(chan chan resourceSweep)
+	s.sweeps = make(chan resourceRequest)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
 	if _, err := s.sweep(ctx); err == nil {
