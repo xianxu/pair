@@ -538,3 +538,98 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T10:33:27-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 753 — cast-sketch: operator CLI queries and historical image export |
+| repo | pair |
+| issue file | workshop/issues/000753-cast-sketch-agent-export.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 39be359a3c55bcce5fd485548cd01e9d318d8b5e..892b1fc78543154c558fdcf561e5a3b6eff8b040 |
+| command | sdlc close --issue 753 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T10:33:27-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+The pinned implementation satisfies the reviewed shared-viewport contract. Both open findings are addressed with regressions that independently fail without their fixes. No new blocking findings emerged. README and atlas updates cover the new surface; renewed operator acceptance remains explicitly pending in Task9.
+
+```findings
+dispose:
+  - id: BR-8
+    disposition: addressed
+    note: |
+      sketch-page-image.js:46-57 routes production rendering through originalOnly placement. The actual Renderer adapter regression passes and fails on disconnected replacement when that option is removed in a disposable copy; live replacement placement remains covered.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      dom_submission_state.lua:43-47 and couch SKILL.md:667-678 distinguish sketch-page.png/shared paths from legacy sketch-N.png/image.plan.paths. The emitted-prompt regression passes and fails with the prior prompt restored.
+```
+
+1. **Strengths**
+
+   - Historical rendering now requires original recorded-anchor identity through the production adapter.
+   - Exact source/finish witnesses and atomic preview freezing protect the displayed selection.
+   - `EvidenceFiles` centralizes shared and legacy image references across Store consumers.
+   - Strict codec tests cover required fields, invalid types, variant compatibility, and nested extension preservation.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed during review:
+
+   - Six focused Go packages: submission, query, sketchimage, board, submission builder, and CDP.
+   - Webcast and couchtty submission/preview/feedback tests.
+   - Targeted race tests for submission, CDP, and couchtty.
+   - All 497 browser tests.
+   - Neovim submission transaction and adapter checks.
+   - `git diff --check`.
+
+   Both negative regression probes failed as expected; disposable copies were removed. Native conformance was assessed from the retained log, whose SHA-256 matches its evidence record. Its executable source is unchanged at the pinned head; native Chrome was not rerun here.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Shared evidence inventory, pressure painter, replay lifetime, and compatibility policy.
+   - **ARCH-PURE — pass:** Selection, geometry, validation, and preview transitions remain separate from IO.
+   - **ARCH-PURPOSE — pass:** Operator handoff, shared image, original evidence, and local export are implemented.
+   - **ARCH-MOCK — pass:** Injected renderer/publisher seams have controlled fakes and portable Store fixtures.
+   - **ARCH-CONSTRAINTS — pass:** Batch, pixels, bytes, input, and deadline limits have explicit refusal paths.
+   - **ARCH-SECURE — pass:** Strict evidence decoding, confined publication, privacy validation, and historical identity checks.
+   - **ARCH-ORDER — pass:** Tagged preview transitions and exact publication/freeze identities have cancellation and stale-event tests.
+   - **ARCH-FUNERAL — pass:** Render resources have joined cleanup; durable evidence uses the existing bounded Store lifecycle.
+   - **ARCH-EVOLVE — pass:** Shared and legacy variants remain distinct; nested unknown extensions survive Store rewrites.
+
+   The inspected Core concepts entries align with implemented entities and boundaries.
+
+7. **Plan revision recommendations:** None. Keep Task9’s remaining operator acceptance and recorded-check requirements open until their evidence is complete.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"9e6cc63f-f024-4e09-a7f6-1a87fdd9bcee","repository":"github.com/xianxu/pair","issue_id":"000753","recipe":"milestone-review","round":6,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/49de3740666da5f2","reviewed_head":"892b1fc78543154c558fdcf561e5a3b6eff8b040","slot":"pair:9","requested_at":"2026-10-22T17:31:05.989662Z"},"phase":"finished","pid":87455,"started_at":"2026-10-22T17:31:06.139592Z","finished_at":"2026-10-22T17:33:26.633318Z","session_id":"01a164aa-a1d5-7940-b5ab-9c43b707df85","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.265617458s
+head: "892b1fc78543154c558fdcf561e5a3b6eff8b040"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
