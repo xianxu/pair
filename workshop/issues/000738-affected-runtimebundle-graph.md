@@ -169,3 +169,10 @@ has applied the label or bypassed CI.
 ### 2026-10-21 — operator verification received; landing resumed
 
 Hub explicitly authorized resuming PR513 after #774. Fresh GitHub PR inspection confirms OPEN with local-gates-verified already applied by the operator; no agent label change. The last Plan item is now satisfied. Existing close is SHIP and recorded suite passed11m54s as above; resuming normal sdlc merge, which owns current-main integration and required checks.
+
+
+### 2026-10-22 — integration flake evidence and supported recovery
+
+Integrated head d97b0b24f9327b853a0391da8e94c9de75121e04 failed recorded suite attempt d6f342c66af6368129df356ee2f9d326 in12m16s only on testcouch.TestCommandWrappersJoinCanceledDescendants/provision (owned descendant still running; full log .git/sdlc/test-stats/failed/d6f342c66af6368129df356ee2f9d326.log, hash11df436e3409). Automatic main baseline6f1c0c85 passed11m52s, diagnostic only, hashd97752fe63c0. One exact-head targeted repeat passed0.297s; filed unclaimed #794 without weakening the assertion or changing source.
+
+Hub7918937a authorized one full recorded same-head evidence run. Attempt b9e96bbfdc4dd35f4bef6e1476815599 passed exit0 in10m29s, log .git/sdlc/local-checks/d97b0b24f9327b853a0391da8e94c9de75121e04/suite.log, SHA256 c02d90357d2e5de1a223bda9b14fe26985f53469994b58bf1361a9e7cc6e27a0. The binary first withheld success for the unexplained prior failure, as designed. sdlc flake register --issue794 then accepted these exact failed/passed attempt IDs for the top-level test; supported local-check republish on that saved passing attempt returned success. No manual status, blind retry or source modification. Re-enter normal merge, which owns new-main integration and its checks. If only registered #794 fails there, use the supported resume contract. #739 preparation follows this landing before #736/#773 per latest hub direction; no pair:0 staging without explicit go.
