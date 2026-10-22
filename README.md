@@ -871,8 +871,14 @@ terminal; `--resources` lists these under "Left running by teardown").
 previous-incarnation group, it freezes the exact PID/start identities and their
 ownership witnesses. Before each TERM or KILL, the supervisor re-proves current
 ownership, orphan provenance and process identity. It signals only those exact
-processes, without discovering descendants; the nvim and teardown groups retain
-their existing tree cleanup.
+processes, without discovering descendants. The nvim and teardown groups use
+tree cleanup only while provenance has stayed complete throughout this Couch
+process. After an incomplete census, ownership ambiguity or selection limit,
+legacy cleanup refuses: `provenance incomplete; use the exact proven reap or
+restart Couch`. A later healthy scan does not clear that refusal. Guarded exact
+reaps remain available; JSON reports `legacy_refusal` and returns nonzero when
+legacy cleanup is refused. Only a fresh Couch process resets this in-memory flag;
+nothing is persisted.
 
 A bound caller may reap proven previous-incarnation processes only as their
 slot's authenticated owning hub. Workers and other hubs are refused. An entirely

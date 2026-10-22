@@ -22,6 +22,9 @@ import (
 // projected report would be guessing about a kill (#583).
 const orphanReapOp = "reap-orphans"
 
+const orphanProvenanceIncomplete = "provenance-incomplete"
+const orphanLegacyRefusal = "provenance incomplete; use the exact proven reap or restart Couch"
+
 // orphanReapBudget bounds the whole verb: one fresh classification, then #399's
 // escalation for each row it named. A row is self-bounded by that cadence (five
 // seconds), so this is a backstop against a classification that named thousands
@@ -61,10 +64,11 @@ type provenOrphanReapOutcome struct {
 }
 
 type orphanReapReport struct {
-	Proven    []provenOrphanReapOutcome `json:"proven_orphans"`
-	Confirmed bool                      `json:"confirmed"`
-	SampledAt time.Time                 `json:"sampled_at"`
-	Outcomes  []orphanReapOutcome       `json:"outcomes"`
+	LegacyRefusal string                    `json:"legacy_refusal,omitempty"`
+	Proven        []provenOrphanReapOutcome `json:"proven_orphans"`
+	Confirmed     bool                      `json:"confirmed"`
+	SampledAt     time.Time                 `json:"sampled_at"`
+	Outcomes      []orphanReapOutcome       `json:"outcomes"`
 	// LeftRunning is the same verb over the orphan registry (pair#695): the
 	// processes teardown named and left, each ended by its exact identity.
 	LeftRunning []leftRunningReapOutcome `json:"left_running"`
@@ -94,7 +98,8 @@ func runReapOrphansCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, 
 		fmt.Fprintf(stderr, "couch: orphan reap unavailable (%v); inspect the running Couch\n", err)
 		return 1
 	}
-	if result.Code != "ok" || result.Resources == nil {
+	legacyRefused := result.Code == orphanProvenanceIncomplete
+	if result.Code != "ok" && !legacyRefused || result.Resources == nil {
 		fmt.Fprintf(stderr, "couch: %s: %s\n", result.Code, rowtext.Sanitize(result.Error))
 		return 1
 	}
@@ -119,8 +124,12 @@ func runReapOrphansCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, 
 	}
 	report := orphanReapReport{Confirmed: true, SampledAt: result.Resources.SampledAt}
 	report.Proven = append(refused, reapProvenOrphans(ctx, socket, request, call, reaper, targets)...)
-	report.Outcomes = reapOrphanNvim(ctx, reaper, nvims)
-	report.LeftRunning = reapLeftRunning(ctx, reaper, left)
+	if legacyRefused {
+		report.LegacyRefusal = orphanLegacyRefusal
+	} else {
+		report.Outcomes = reapOrphanNvim(ctx, reaper, nvims)
+		report.LeftRunning = reapLeftRunning(ctx, reaper, left)
+	}
 
 	return finishOrphanReap(inv, stdout, stderr, report)
 }
@@ -172,6 +181,9 @@ func finishOrphanReap(inv cliInvocation, stdout, stderr io.Writer, report orphan
 	} else {
 		renderOrphanReap(stdout, report)
 	}
+	if report.LegacyRefusal != "" {
+		return 1
+	}
 	for _, o := range report.Proven {
 		if o.Status == orphanFailed || o.Status == orphanRefused {
 			return 1
@@ -191,6 +203,9 @@ func finishOrphanReap(inv cliInvocation, stdout, stderr io.Writer, report orphan
 }
 
 func renderOrphanReap(out io.Writer, report orphanReapReport) {
+	if report.LegacyRefusal != "" {
+		fmt.Fprintln(out, "refused legacy-tree:", report.LegacyRefusal)
+	}
 	for _, o := range report.Proven {
 		fmt.Fprintf(out, "%s proven-orphan %s pid=%d identity=%s root=%d/%s: %s\n", o.Status, rowtext.Sanitize(o.Target.Slot), o.Target.Key.PID, rowtext.Sanitize(o.Target.Key.Identity), o.Target.Root.PID, rowtext.Sanitize(o.Target.Root.Identity), rowtext.Sanitize(o.Detail))
 	}
@@ -215,7 +230,7 @@ func renderOrphanReap(out io.Writer, report orphanReapReport) {
 		fmt.Fprintf(out, "%s left-running %s%s\n", o.Status, leftRunningRow(o.Entry), detail)
 	}
 	if len(report.Outcomes) == 0 {
-		if len(report.Proven) > 0 || len(report.LeftRunning) > 0 {
+		if len(report.Proven) > 0 || len(report.LeftRunning) > 0 || report.LegacyRefusal != "" {
 			return
 		}
 		fmt.Fprintln(out, "No unattributed embedded nvim: nothing to reap.")

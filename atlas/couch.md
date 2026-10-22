@@ -5060,9 +5060,25 @@ check-to-signal identity checks do not provide an atomic PID handle.
 
 This group never expands descendants, even below an eligible old root. Targets
 that overlap a registered teardown entry are handled once through the exact-set
-path; a refusal cannot fall back to tree cleanup. Unrelated nvim and registered
-teardown groups keep their existing tree behavior. No persistent reap state,
-process-wide lease or new ownership registry is introduced.
+path; a refusal cannot fall back to tree cleanup. Overlaps are removed before
+lossy projection. Legacy nvim/teardown tree admission also has a process-lifetime
+fence: any incomplete table/inventory, selection overflow, ambiguous identity or
+unknown ownership sets one worker-owned sticky flag. Subsequent healthy scans
+cannot recover forgotten provenance and never clear it. Legacy admission then
+refuses with `provenance incomplete; use the exact proven reap or restart Couch`.
+Only a fresh process resets it. The flag is never persisted; no new registry or
+process-wide lease is introduced.
+
+The confirmed response uses `provenance-incomplete` with exact proven rows and
+no actionable legacy rows, so older CLIs fail closed. The current CLI still
+executes independently guarded exact targets, reports `legacy_refusal` in JSON
+and returns nonzero for the unavailable legacy path. The sampler is constructed
+once by the Couch service owner. Its worker starts after the existing inventory
+seed attempt completes through one service-owned, cancellation-aware barrier;
+requests remain unavailable until then. Healthy seed permits ordinary admission;
+a failed seed sets the sticky refusal. Shared collection sets the sticky refusal using the pure
+`ResourceOwnershipComplete` decision;
+cache projection and persistence contain no copy of that authoritative flag.
 
 Text and JSON preserve one final outcome per admitted target: `reaped` follows
 positive absence after an acknowledged signal; `skipped` means its original

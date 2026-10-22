@@ -295,3 +295,29 @@ func TestProvenOrphanSignalReauthenticatesCallerAndOwnerBeforeKill(t *testing.T)
 		})
 	}
 }
+
+func TestProvenOrphanProofLossDisablesLaterLegacyAdmission(t *testing.T) {
+	rig, _ := hubMessageRig(t)
+	resources, reader, table := provenEffectService(t)
+	rig.s.resources.Store(resources.resources.Load())
+	rig.s.provenOrphanProcesses = table
+	reader.mu.Lock()
+	reader.tableErr = errors.New("proof-only incomplete census")
+	reader.mu.Unlock()
+	refused := rig.s.handleProvenOrphanSignal(t.Context(), effectRequest())
+	if refused.OrphanSignal == nil || refused.OrphanSignal.Status != "refused" || len(table.signals) != 0 {
+		t.Fatalf("incomplete proof: %+v signals%v", refused, table.signals)
+	}
+	reader.mu.Lock()
+	reader.tableErr = nil
+	reader.mu.Unlock()
+	plan := rig.s.handle(t.Context(), couchmessage.Request{Op: orphanReapOp, Confirmed: true})
+	if plan.Code != orphanProvenanceIncomplete || plan.Error != orphanLegacyRefusal || plan.Resources == nil ||
+		len(plan.Resources.OrphanNvim) != 0 || len(plan.Resources.LeftRunning) != 0 {
+		t.Fatalf("later healthy classification forgot proof loss: %+v", plan)
+	}
+	exact := rig.s.handleProvenOrphanSignal(t.Context(), effectRequest())
+	if exact.OrphanSignal == nil || exact.OrphanSignal.Status != "sent" || len(table.signals) != 1 {
+		t.Fatalf("sticky legacy refusal disabled healthy exact proof: %+v signals%v", exact, table.signals)
+	}
+}

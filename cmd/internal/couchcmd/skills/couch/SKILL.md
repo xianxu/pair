@@ -94,9 +94,14 @@ The confirmed command freezes exact PID/start and ownership witnesses. The
 supervisor re-proves current ownership, orphan provenance and identity before
 each TERM or KILL. Unknown evidence refuses. Only the admitted exact processes
 are signalled; no descendants are added for this group. Unattributed embedded
-nvim and registered teardown leftovers retain their existing tree cleanup, with
-overlapping exact targets handled once. Native identity checks are not atomic
-process handles.
+nvim and registered teardown leftovers use tree cleanup only until this Couch
+process first observes incomplete provenance, ambiguous ownership or a selection
+limit. Then legacy cleanup stays refused: `provenance incomplete; use the exact
+proven reap or restart Couch`. A healthy later scan does not reset it. Exact
+proven reaps remain available; partial results include `legacy_refusal` in JSON
+and a nonzero exit. Only a fresh Couch process clears the in-memory flag; nothing
+persists it. Overlapping exact targets are handled once. Native identity checks
+are not atomic process handles.
 
 Each target reports `reaped`, `skipped`, `refused` or `failed`; refusals and
 failures return nonzero while preserving partial results. A lost signal reply is

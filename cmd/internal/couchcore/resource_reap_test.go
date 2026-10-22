@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -98,5 +99,108 @@ func TestProvenOrphanSignalDecision(t *testing.T) {
 				t.Fatalf("%s: %s", status, detail)
 			}
 		})
+	}
+}
+
+func TestResourceOwnershipCompleteRejectsUncertaintyAndLimits(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		mutate func(*ResourceSample, *ResourceSelection, *[]ResourceProcessKey)
+	}{
+		{"unknown table", func(s *ResourceSample, _ *ResourceSelection, _ *[]ResourceProcessKey) { s.TableKnown = false }},
+		{"incomplete inventory", func(s *ResourceSample, _ *ResourceSelection, _ *[]ResourceProcessKey) { s.InventoryComplete = false }},
+		{"omitted inventory", func(s *ResourceSample, _ *ResourceSelection, _ *[]ResourceProcessKey) { s.InventoryOmitted = 1 }},
+		{"invalid omission", func(s *ResourceSample, _ *ResourceSelection, _ *[]ResourceProcessKey) { s.InventoryOmitted = -1 }},
+		{"table capacity", func(s *ResourceSample, _ *ResourceSelection, _ *[]ResourceProcessKey) {
+			s.Table = make([]procutil.Process, ResourceMaxTableRows+1)
+		}},
+		{"slot capacity", func(s *ResourceSample, _ *ResourceSelection, _ *[]ResourceProcessKey) {
+			s.Slots = make([]ResourceSlot, ResourceMaxSlots+1)
+		}},
+		{"selection capacity", func(_ *ResourceSample, s *ResourceSelection, _ *[]ResourceProcessKey) {
+			s.Processes = make([]ResourceProvenance, ResourceMaxProcesses+1)
+		}},
+		{"selection error", func(_ *ResourceSample, s *ResourceSelection, _ *[]ResourceProcessKey) {
+			s.Errors = []string{"conflicting process ownership"}
+		}},
+		{"unknown detached", func(_ *ResourceSample, _ *ResourceSelection, u *[]ResourceProcessKey) {
+			*u = []ResourceProcessKey{{PID: 99, Identity: "unrelated"}}
+		}},
+		{"duplicate PID", func(s *ResourceSample, _ *ResourceSelection, _ *[]ResourceProcessKey) {
+			s.Table = append(s.Table, s.Table[0])
+		}},
+		{"zero PID", func(s *ResourceSample, _ *ResourceSelection, _ *[]ResourceProcessKey) { s.Table[0].PID = 0 }},
+		{"negative PID", func(s *ResourceSample, _ *ResourceSelection, _ *[]ResourceProcessKey) { s.Table[0].PID = -1 }},
+		{"unknown live identity", func(s *ResourceSample, _ *ResourceSelection, _ *[]ResourceProcessKey) { s.Table[0].Identity = "" }},
+		{"empty slot label", func(s *ResourceSample, _ *ResourceSelection, _ *[]ResourceProcessKey) { s.Slots[0].Slot = "" }},
+		{"duplicate slot label", func(s *ResourceSample, _ *ResourceSelection, _ *[]ResourceProcessKey) {
+			s.Slots = append(s.Slots, s.Slots[0])
+		}},
+		{"zero root PID", func(s *ResourceSample, _ *ResourceSelection, _ *[]ResourceProcessKey) {
+			s.Slots[0].Roots = []ResourceRoot{{Key: ResourceProcessKey{Identity: "known"}}}
+		}},
+		{"negative root PID", func(s *ResourceSample, _ *ResourceSelection, _ *[]ResourceProcessKey) {
+			s.Slots[0].Roots = []ResourceRoot{{Key: ResourceProcessKey{PID: -1, Identity: "known"}}}
+		}},
+		{"missing root identity", func(s *ResourceSample, _ *ResourceSelection, _ *[]ResourceProcessKey) {
+			s.Slots[0].Roots = []ResourceRoot{{Key: ResourceProcessKey{PID: 1}}}
+		}},
+
+		{"unknown slot ownership", func(s *ResourceSample, _ *ResourceSelection, _ *[]ResourceProcessKey) {
+			s.Slots[0].OwnershipKnown = false
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			sample := ResourceSample{TableKnown: true, InventoryComplete: true, Table: []procutil.Process{{PID: 1, Identity: "live"}}, Slots: []ResourceSlot{{Slot: "repo:0", OwnershipKnown: true}}}
+			selection := ResourceSelection{}
+			var unknown []ResourceProcessKey
+			tc.mutate(&sample, &selection, &unknown)
+			if ResourceOwnershipComplete(sample, selection, unknown) {
+				t.Fatal("uncertain ownership was declared complete")
+			}
+		})
+	}
+}
+
+func TestResourceOwnershipCompleteAcceptsPositiveZombieDeathAndEmptyWorld(t *testing.T) {
+	for _, rows := range [][]procutil.Process{nil, {{PID: 1, Zombie: true}}, {{PID: 1, Identity: "old", Zombie: true}, {PID: 2, Identity: "live"}}} {
+		sample := ResourceSample{TableKnown: true, InventoryComplete: true, Table: rows}
+		if !ResourceOwnershipComplete(sample, ResourceSelection{}, nil) {
+			t.Fatalf("authoritative world refused: %+v", rows)
+		}
+	}
+}
+
+func TestResourceOwnershipCompleteIndependentProcessAndSlotGrowth(t *testing.T) {
+	for _, processes := range []int{8, 16} {
+		for _, slots := range []int{8, 16} {
+			sample := ResourceSample{TableKnown: true, InventoryComplete: true}
+			for i := 0; i < processes; i++ {
+				sample.Table = append(sample.Table, procutil.Process{PID: i + 1, Identity: "known"})
+			}
+			for i := 0; i < slots; i++ {
+				sample.Slots = append(sample.Slots, ResourceSlot{Slot: fmt.Sprintf("repo:%d", i), OwnershipKnown: true})
+			}
+			before, _ := json.Marshal(sample)
+			if !ResourceOwnershipComplete(sample, ResourceSelection{}, nil) {
+				t.Fatalf("complete P=%d S=%d refused", processes, slots)
+			}
+			after, _ := json.Marshal(sample)
+			if !reflect.DeepEqual(before, after) {
+				t.Fatal("mutated ownership inputs")
+			}
+		}
+	}
+}
+
+func TestResourceOwnershipCompleteRetainsGenericMonitorCompatibility(t *testing.T) {
+	sample := ResourceSample{TableKnown: true, InventoryComplete: true, Table: []procutil.Process{{PID: 1, Identity: "live"}}, Slots: []ResourceSlot{{Slot: "repo:0", OwnershipKnown: true}}, Errors: []string{"sampler CPU start: unavailable"}}
+	if !ResourceOwnershipComplete(sample, ResourceSelection{}, nil) {
+		t.Fatal("known absent root or unrelated metric error revoked completeness")
+	}
+	root := ResourceRoot{Key: ResourceProcessKey{PID: 1, Identity: "live"}}
+	sample.Slots[0].Roots = []ResourceRoot{root, root}
+	if !ResourceOwnershipComplete(sample, ResourceSelection{}, nil) {
+		t.Fatal("redundant identical root witness was treated as ownership loss")
 	}
 }

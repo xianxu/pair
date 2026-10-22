@@ -152,6 +152,16 @@ The first sticky implementation passes seven real uncertainty/recovery scenarios
 
 Integration inspection found the initial inventory defaults unknown while its seed races the sampler. Asked the hub before changing startup ordering: authenticated dc2b6d09 approves one owned seed-completion barrier, no new waits/deadlines. Unobserved cold startup is distinct from a failed/incomplete seed; the sampler starts after the seed attempt completes. The corresponding plan revision and healthy/failed/canceled startup tests are in progress. Filed unclaimed ariadne#549 for the shared socket-fixture lint class, because Pair imports the peer catalog; its dependency/landing disposition is with the hub.
 
+### 2026-10-22 — sticky refusal and seed ordering implemented
+
+The approved omission-class fix is now implemented: ResourceOwnershipComplete is pure, and the shared collection worker sets one process-lifetime boolean on any incomplete/ambiguous ownership observation, including proof-only requests. No later healthy sample clears it. The sweep reply carries that refusal to legacy admission; a provenance-incomplete response contains exact rows and zero actionable legacy rows, so older CLIs fail closed. The new CLI can finish healthy guarded exact rows while reporting legacy_refusal/nonzero, and never executes either legacy family after that refusal. No state or refusal flag enters ResourceState, ResourceView, cache or persistence.
+
+Seven actual service/CLI sequence regressions cover overflow, repeated overflow then healthy, conflicts, incomplete census/inventory and unknown detached evidence; independent legacy nvim and registry rows stay untouched. Exact-after-sticky remains usable; a fresh complete service permits both normal legacy families. A proof-only incomplete observation also fences later legacy admission without disabling later healthy exact proof.
+
+The startup barrier releases sampling only after the existing inventory seed attempt completes, remains owned by the two existing service workers and cancels with their lifetime. Failed seed cannot inherit the console's cached known flag. Healthy, failed, delayed and canceled seed tests pass. Final combined reap/proof/ownership/sampler/inventory race selection passes couchcmd3.218s and core1.718s; focused inventory race passes1.621s. BR-3 long-TMPDIR race passes1.229s with short private root/cleanup. Full artifact guard passes6.632s, reader audit and whitespace check pass. The shared mechanical lint follow-up is unclaimed ariadne#549, reported to the hub with submitted receipt e5d1505f-b0b7-4db0-8202-0e4c40a19a8e.
+
+Checkpoint this source, qualify both focused native personalities with all bounds unchanged, then push/record the final check and full close. No recorded check or landing runner is active.
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. The source is marked stale by estimate-source; this is a provisional calibration, not a fitted total.

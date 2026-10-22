@@ -121,3 +121,35 @@ func DecideProvenOrphanSignal(target ProvenOrphanTarget, proof ProvenOrphanProof
 	}
 	return "sent", ""
 }
+
+// ResourceOwnershipComplete decides whether this collection could have lost an
+// ownership witness before legacy tree admission. The sampler keeps any prior
+// loss sticky; this value only describes the supplied collection. Zombie death
+// is positive evidence even when its former generation can no longer be read.
+func ResourceOwnershipComplete(sample ResourceSample, selection ResourceSelection, unknown []ResourceProcessKey) bool {
+	if !sample.TableKnown || !sample.InventoryComplete || sample.InventoryOmitted != 0 ||
+		len(sample.Table) > ResourceMaxTableRows || len(sample.Slots) > ResourceMaxSlots ||
+		len(selection.Processes) > ResourceMaxProcesses || len(selection.Errors) != 0 || len(unknown) != 0 {
+		return false
+	}
+	seen := make(map[int]bool, len(sample.Table))
+	for _, row := range sample.Table {
+		if row.PID <= 0 || seen[row.PID] || !row.Zombie && row.Identity == "" {
+			return false
+		}
+		seen[row.PID] = true
+	}
+	slots := make(map[string]bool, len(sample.Slots))
+	for _, slot := range sample.Slots {
+		if !slot.OwnershipKnown || slot.Slot == "" || slots[slot.Slot] {
+			return false
+		}
+		slots[slot.Slot] = true
+		for _, root := range slot.Roots {
+			if root.Key.PID <= 0 || root.Key.Identity == "" {
+				return false
+			}
+		}
+	}
+	return true
+}

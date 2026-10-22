@@ -47,6 +47,10 @@ type resourceSampler struct {
 	// leftRunning is the orphan registry teardown writes (pair#695); each
 	// pass prunes it against its table and reports the rest.
 	leftRunning *couchcore.LeftRunningRegistry
+	// Constructed once for this Couch service lifetime; only run owns this
+	// sticky flag. No later healthy scan can recover forgotten provenance.
+	// Nothing persists it, and a fresh process is the only reset (#792).
+	provenanceIncomplete bool
 }
 
 // resourceSweep is a reap's answer: the view one pass produced, and whether that
@@ -60,10 +64,11 @@ type resourceRequest struct {
 }
 
 type resourceSweep struct {
-	proof couchcore.ProvenOrphanProof
-	err   error
-	view  couchcore.ResourceView
-	fresh bool
+	proof         couchcore.ProvenOrphanProof
+	err           error
+	view          couchcore.ResourceView
+	fresh         bool
+	legacyRefused bool
 }
 
 type inheritedThread struct {
@@ -156,7 +161,7 @@ func (s *resourceSampler) run(ctx context.Context) {
 				request.reply <- resourceSweep{proof: proof, err: collection.Err()}
 			} else {
 				fresh := s.pass(collection)
-				request.reply <- resourceSweep{fresh: fresh, view: s.view(), err: collection.Err()}
+				request.reply <- resourceSweep{fresh: fresh, view: s.view(), legacyRefused: s.provenanceIncomplete, err: collection.Err()}
 			}
 			unlink()
 			cancel()
@@ -173,27 +178,27 @@ func (s *resourceSampler) run(ctx context.Context) {
 // sweep asks the worker for a classification of its own and returns the view it
 // produced. Both admission and collection are bounded by ctx. A cut-short
 // pass never answers from the cache it did not refresh (#583).
-func (s *resourceSampler) sweep(ctx context.Context) (couchcore.ResourceView, error) {
+func (s *resourceSampler) sweep(ctx context.Context) (resourceSweep, error) {
 	if s == nil || s.sweeps == nil {
-		return couchcore.ResourceView{}, errors.New("resource sampler has no worker")
+		return resourceSweep{}, errors.New("resource sampler has no worker")
 	}
 	reply := make(chan resourceSweep, 1)
 	select {
 	case s.sweeps <- resourceRequest{ctx: ctx, reply: reply}:
 	case <-ctx.Done():
-		return couchcore.ResourceView{}, ctx.Err()
+		return resourceSweep{}, ctx.Err()
 	}
 	select {
 	case swept := <-reply:
 		if swept.err != nil {
-			return couchcore.ResourceView{}, swept.err
+			return resourceSweep{}, swept.err
 		}
 		if !swept.fresh {
-			return couchcore.ResourceView{}, errors.New("the sampler stopped before it could classify")
+			return resourceSweep{}, errors.New("the sampler stopped before it could classify")
 		}
-		return swept.view, nil
+		return swept, nil
 	case <-ctx.Done():
-		return couchcore.ResourceView{}, ctx.Err()
+		return resourceSweep{}, ctx.Err()
 	}
 }
 
@@ -223,6 +228,7 @@ func (s *resourceSampler) collectOwnership(ctx context.Context) (couchcore.Resou
 	sample.Cost.TableCalls += n
 	sample.Cost.NativeCalls += n
 	if ctx.Err() != nil {
+		s.provenanceIncomplete = true
 		return sample, couchcore.ResourceSelection{}, nil
 	}
 	sample.TableKnown = err == nil
@@ -240,6 +246,9 @@ func (s *resourceSampler) collectOwnership(ctx context.Context) (couchcore.Resou
 	unknownKeys := make([]couchcore.ResourceProcessKey, 0, len(unknown))
 	for k := range unknown {
 		unknownKeys = append(unknownKeys, k)
+	}
+	if !couchcore.ResourceOwnershipComplete(sample, selection, unknownKeys) {
+		s.provenanceIncomplete = true
 	}
 	return sample, selection, unknownKeys
 }

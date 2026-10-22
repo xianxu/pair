@@ -2613,3 +2613,6 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #778 BR-1: after main integration or a compatibility fix, mark final verification pending in the active Plan checklist until the replacement exact-source suite completes. Keep older green receipts as history; review/suite overlap permits concurrent work, not a completed acceptance claim.
 
 - #792 BR-1: Before independently truncating evidence and legacy action lists, remove protected overlaps from the complete view. A projection must never drop a veto while retaining broader destructive authority; test the actual lossy projection through its action consumer.
+
+- #792 BR-2: Audit information loss before classification as well as transport. A later healthy sample cannot restore forgotten ownership; destructive fallback needs a process-lifetime fail-closed decision after any provenance loss, with overflow/recovery sequence tests. Distinguish an unobserved startup seed from a failed completed attempt.
+- #792 BR-3: Unix socket fixtures must choose a short private namespace independently of inherited TMPDIR and retain cleanup. Test a deliberately long TMPDIR; shared value-flow lint follow-up is ariadne#549.

@@ -38,19 +38,39 @@ func TestResourceObservationRetainsExactFactsWithinExistingCap(t *testing.T) {
 	}
 }
 
+func resourceObservationSocketRoot(t *testing.T) string {
+	t.Helper()
+	//lint:allow tmp-literal — private RPC socket fixtures need a short root even with a long inherited TMPDIR; prefer TestScratch when mounted
+	parent := "/tmp"
+	if info, err := os.Stat("/Volumes/TestScratch"); err == nil && info.IsDir() {
+		parent = "/Volumes/TestScratch"
+	}
+	root, err := os.MkdirTemp(parent, "ro-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.RemoveAll(root); err != nil {
+			t.Errorf("remove private resource socket fixture: %v", err)
+		}
+	})
+	physical, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return physical
+}
+
 func TestResourceObservationUsesExistingPrivateRPCAndCallerCancellation(t *testing.T) {
-	root, err := os.MkdirTemp("", "ro-")
-	if err != nil {
+	longTemp := filepath.Join(t.TempDir(), strings.Repeat("long", 30))
+	if err := os.MkdirAll(longTemp, 0700); err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(root)
-	root, err = filepath.EvalSymlinks(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	t.Setenv("TMPDIR", longTemp)
+	root := resourceObservationSocketRoot(t)
 	t.Setenv("COUCH_ISOLATED_ROOT", root)
 	store := filepath.Join(root, "store")
-	if err = os.Mkdir(store, 0700); err != nil {
+	if err := os.Mkdir(store, 0700); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("COUCH_STORE_DIR", store)

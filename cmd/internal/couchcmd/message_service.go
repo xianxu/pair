@@ -580,7 +580,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	service.resources.Store(sampler)
 	service.workers.Add(2)
 	go func() { defer service.workers.Done(); inventory.run(service.lifetime) }()
-	go func() { defer service.workers.Done(); sampler.run(service.lifetime) }()
+	go func() { defer service.workers.Done(); inventory.runSampler(service.lifetime, sampler) }()
 	// History backup (#592): a daily continuous archive pass when configured.
 	archive := newArchiveScheduler(artifacts.PairLifecycleDataDir(), func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) })
 	archive.warn = func(ctx context.Context, body string) (string, error) {
@@ -973,9 +973,17 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 		if sampler == nil {
 			return couchmessage.Response{Code: "unsupported", Error: "resource sampler unavailable"}
 		}
-		view, err := sampler.sweep(ctx)
+		plan, err := sampler.sweep(ctx)
 		if err != nil {
 			return couchmessage.Response{Code: "unavailable", Error: "resource sweep: " + err.Error()}
+		}
+		view := plan.view
+		if plan.legacyRefused {
+			// Non-ok also stops an older CLI from interpreting legacy rows as
+			// actionable. New CLIs may still use independently guarded exact rows.
+			view.OrphanNvim, view.LeftRunning = nil, nil
+			view = projectResourceView(view)
+			return couchmessage.Response{Code: orphanProvenanceIncomplete, Error: orphanLegacyRefusal, Resources: &view}
 		}
 		view = projectResourceView(view)
 		return couchmessage.Response{Code: "ok", Resources: &view}
