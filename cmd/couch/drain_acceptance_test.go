@@ -4,621 +4,421 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
-	"github.com/charmbracelet/x/vt"
-	"github.com/creack/pty"
+	"github.com/rivo/uniseg"
+
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
-	"github.com/xianxu/pair/cmd/internal/procutil"
-	"github.com/xianxu/pair/cmd/internal/testpair"
-	"strconv"
+	"github.com/xianxu/pair/cmd/internal/testcouch"
+	"github.com/xianxu/pair/cmd/internal/textwidth"
 )
 
-// TestDisposableCouchDrainFlags uses actual Pair launches, real pair-wrap and
-// public CLI subprocesses run by admitted fixture agents. Two disposable peer
-// checkouts are explicit secondary hubs; this covers other-hub flagging,
-// rather than claiming coverage of non-hub worker ownership.
+const drainAcceptanceAck = "acknowledge message received, will resume processing after drain is lifted"
+const drainAcceptanceLift = "drain lifted; continue your current work"
+const drainAcceptanceGuidance = " Write where you stopped and the next step in the issue Log; commit and push the checkpoint, then end your turn and stay idle. Start no new work. While idle, keep receiving messages. For new work, reply once: 'acknowledge message received, will resume processing after drain is lifted'. Do not create courtesy acknowledgements or acknowledgement loops."
+
+// TestDisposableCouchDrainFlags qualifies drain policy through the landed native
+// fleet owner. Its actors, native topology, inherited CLI environment and exact
+// generation-qualified teardown belong to testcouch, not this scenario.
 func TestDisposableCouchDrainFlags(t *testing.T) {
 	if os.Getenv("PAIR_DRAIN_ACCEPTANCE") != "1" {
-		t.Skip("opt in with PAIR_DRAIN_ACCEPTANCE=1")
+		t.Skip("opt in with PAIR_DRAIN_ACCEPTANCE=1 or make test-drain-acceptance")
 	}
-	couch, fixture := installedExecutables(t)
-	bin := t.TempDir()
-	pair := testpair.At(t, filepath.Join(bin, "pair-go"))
-	for name, source := range map[string]string{"couch": couch, "zellij": fixture, "claude": fixture} {
-		destination := filepath.Join(bin, name)
-		if name == "zellij" {
-			// Native process filtering uses the kernel image name; a symlink to
-			// terminal-fixture keeps that name and cannot prove a zellij server.
-			raw, err := os.ReadFile(source)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(destination, raw, 0700); err != nil {
-				t.Fatal(err)
-			}
-			info, err := os.Lstat(destination)
-			if err != nil || info.Mode()&os.ModeSymlink != 0 {
-				t.Fatalf("zellij fixture must be a real executable file: %v", err)
-			}
-		} else if err := os.Symlink(source, destination); err != nil {
-			t.Fatal(err)
-		}
-	}
-	writeExecutable(t, filepath.Join(bin, "pair"), fmt.Sprintf("#!/bin/sh\nexec %q launch \"$@\"\n", pair))
-	writeExecutable(t, filepath.Join(bin, "pair-wrap"), fmt.Sprintf("#!/bin/sh\nexec %q wrap \"$@\"\n", pair))
-	fleet, err := filepath.EvalSymlinks(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	primary := filepath.Join(fleet, "alpha")
-	runGit := func(args ...string) {
-		t.Helper()
-		cmd := exec.Command("git", args...)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v %s", args, err, out)
-		}
-	}
-	runGit("init", "-b", "main", primary)
-	runGit("-C", primary, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--allow-empty", "-m", "fixture")
-	paths := []string{primary}
-	for _, name := range []string{"beta", "gamma"} {
-		path := filepath.Join(fleet, name)
-		runGit("init", "-b", "main", path)
-		runGit("-C", path, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--allow-empty", "-m", "fixture")
-		paths = append(paths, path)
-	}
-	for _, path := range paths {
-		headCmd := exec.Command("git", "-C", path, "rev-parse", "HEAD")
-		headRaw, err := headCmd.Output()
-		if err != nil {
-			t.Fatal(err)
-		}
-		name := filepath.Base(path)
-		identity := map[string]any{"schema_version": 2, "repo": name, "repo_identity": filepath.Join(path, ".git"), "primary_root": path, "fleet_root": fleet, "environment_root": fleet, "worktree_root": path, "kind": "primary", "address": name + ":0", "slot": 0, "branch": "main", "head": strings.TrimSpace(string(headRaw)), "resting_branch": "main"}
-		raw, err := json.Marshal(identity)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(path, ".fixture-workspace.json"), raw, 0600); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	// Only workspace identity is stubbed, using metadata for real Git checkouts.
-	// The test never substitutes registration credentials or accepted bindings.
-	writeExecutable(t, filepath.Join(bin, "sdlc"), "#!/bin/sh\nif [ \"$#\" = 2 ] && [ \"$1\" = workspace ] && [ \"$2\" = --json ]; then exec cat .fixture-workspace.json; fi\nexit 90\n")
-	envBase := installedEnv(t, bin)
-	var isolated string
-	for _, entry := range envBase {
-		if strings.HasPrefix(entry, "COUCH_ISOLATED_ROOT=") {
-			isolated = strings.TrimPrefix(entry, "COUCH_ISOLATED_ROOT=")
-		}
-	}
-	controls := filepath.Join(isolated, "acceptance")
-	if err := os.MkdirAll(controls, 0700); err != nil {
-		t.Fatal(err)
-	}
-	// Preserve complete private fixture evidence after owned children join.
-	t.Cleanup(func() {
-		parent := os.Getenv("PAIR_DRAIN_ACCEPTANCE_ARTIFACT_DIR")
-		if parent != "" && !filepath.IsAbs(parent) {
-			t.Error("artifact directory must be absolute")
-			return
-		}
-		archive, err := os.MkdirTemp(parent, "pair-drain-artifacts-")
-		if err != nil {
-			t.Errorf("archive directory: %v", err)
-			return
-		}
-		if err := os.CopyFS(archive, os.DirFS(controls)); err != nil {
-			t.Errorf("archive evidence: %v", err)
-		}
-		t.Logf("retained disposable acceptance artifacts: %s", archive)
-	})
-	release := filepath.Join(controls, "release")
-	t.Cleanup(func() { _ = os.WriteFile(release, []byte("release"), 0600) })
-	// Socket paths must fit Darwin's AF_UNIX bound even when TMPDIR is long.
-	//lint:allow tmp-literal — private short socket root, removed by owned cleanup
-	sockets, err := os.MkdirTemp("/tmp", "couch-drain-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(sockets) })
-	env := append(envBase, "PAIR_HOME="+repoRoot(t), "ZELLIJ_SOCKET_DIR="+sockets, "PAIR_TEST_COUCH_TERMINAL_FIXTURE=1", "PAIR_TEST_COUCH_LAUNCH_NATIVE_SIDECAR=1", "PAIR_TEST_COUCH_REAL_WRAPPER=1", "PAIR_TEST_COUCH_ACCEPTANCE_DIR="+controls, "PAIR_TEST_ZELLIJ_RELEASE="+release, "TERM=xterm-256color")
-	var store string
-	for _, entry := range envBase {
-		if strings.HasPrefix(entry, "COUCH_STORE_DIR=") {
-			store = strings.TrimPrefix(entry, "COUCH_STORE_DIR=")
-		}
-	}
-	if err := os.MkdirAll(store, 0700); err != nil {
-		t.Fatal(err)
-	}
-	legacyPath := filepath.Join(store, "drain.json")
-	legacy := []byte("legacy opaque operator evidence: do not read or rewrite\n")
-	if err := os.WriteFile(legacyPath, legacy, 0600); err != nil {
-		t.Fatal(err)
-	}
-	verifyDisk := func() {
-		t.Helper()
-		raw, err := os.ReadFile(legacyPath)
-		if err != nil || !bytes.Equal(raw, legacy) {
-			t.Fatalf("legacy drain bytes changed: %v %q", err, raw)
-		}
-		err = filepath.WalkDir(store, func(path string, entry os.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			if !entry.IsDir() && strings.Contains(strings.ToLower(entry.Name()), "drain") && path != legacyPath {
-				return fmt.Errorf("new drain persistence: %s", path)
-			}
-			return nil
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
-	defer cancel()
-	started := time.Now()
-	t.Logf("isolated installed acceptance: controls=%s socket_root=%s primary=%s; runtime budget=90s (build setup excluded); secondary peer checkouts beta:0/gamma:0 are explicit hubs", controls, sockets, primary)
-	type console struct {
-		cmd      *exec.Cmd
-		terminal *os.File
-		done     chan struct{}
-		readDone chan struct{}
-		err      error
-		output   *drainAcceptanceOutput
-	}
-	start := func() *console {
-		cmd := exec.CommandContext(ctx, couch, paths...)
-		cmd.Dir = primary
-		cmd.Env = env
-		terminal, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: 30, Cols: 120})
-		if err != nil {
-			t.Fatal(err)
-		}
-		c := &console{cmd: cmd, terminal: terminal, done: make(chan struct{}), readDone: make(chan struct{}), output: newDrainAcceptanceOutput()}
-		capture, err := os.Create(filepath.Join(controls, fmt.Sprintf("console-%d.raw", cmd.Process.Pid)))
-		if err != nil {
-			t.Fatal(err)
-		}
-		go func() {
-			defer close(c.readDone)
-			defer capture.Close()
-			_, _ = io.Copy(io.MultiWriter(c.output, capture), terminal)
-		}()
-		go func() { c.err = cmd.Wait(); close(c.done) }()
-		t.Cleanup(func() {
-			_ = os.WriteFile(release, []byte("release"), 0600)
-			if cmd.Process != nil {
-				_ = cmd.Process.Kill()
-			}
-			_ = terminal.Close()
-			select {
-			case <-c.done:
-			case <-time.After(5 * time.Second):
-				t.Error("Couch was not joined")
-			}
-			select {
-			case <-c.readDone:
-			case <-time.After(5 * time.Second):
-				t.Error("Couch PTY reader was not joined")
-			}
-			c.output.Close()
-			if err := os.WriteFile(filepath.Join(controls, fmt.Sprintf("console-%d.raw", cmd.Process.Pid)), []byte(c.output.String()), 0600); err != nil {
-				t.Errorf("console evidence: %v", err)
-			}
-			deadline := time.Now().Add(5 * time.Second)
-			for {
-				entries, _ := os.ReadDir(controls)
-				pending := false
-				for _, entry := range entries {
-					if !entry.IsDir() {
-						continue
-					}
-					for _, name := range []string{"ready.server", "owned-wrapper.json", "owned-agent.json"} {
-						raw, err := os.ReadFile(filepath.Join(controls, entry.Name(), name))
-						if os.IsNotExist(err) {
-							continue
-						}
-						if err != nil {
-							t.Error(err)
-							continue
-						}
-						var child struct {
-							PID      int
-							Identity string
-						}
-						if err := json.Unmarshal(raw, &child); err != nil {
-							t.Error(err)
-							continue
-						}
-						pid := strconv.Itoa(child.PID)
-						if child.PID > 0 && child.Identity != "" && procutil.Alive(pid) && procutil.Identity(pid) == child.Identity {
-							pending = true
-						}
-					}
+	binaries := testcouch.Build(t)
+	for _, personality := range []string{"claude", "codex"} {
+		if !t.Run(personality, func(t *testing.T) {
+			fleet := testcouch.New(t, binaries, testcouch.Options{Workers: 2, AgentKind: personality, RuntimeBudget: 90 * time.Second})
+			// Register after New so this assertion runs after the scenario's cleanup,
+			// while New's own fallback cleanup remains available on every failure.
+			t.Cleanup(func() {
+				cleanup, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+				defer cancel()
+				if err := fleet.Close(cleanup); err != nil {
+					t.Errorf("owned fleet cleanup: %v", err)
+					return
 				}
-				if !pending {
-					break
+				if err := fleet.AssertCleaned(); err != nil {
+					t.Error(err)
 				}
-				if time.Now().After(deadline) {
-					t.Error("terminal fixture servers were not joined")
-					break
-				}
-				time.Sleep(10 * time.Millisecond)
-			}
-		})
-		return c
-	}
-	c := start()
-	wait := func(what string, check func() bool) {
-		t.Helper()
-		ticker := time.NewTicker(100 * time.Millisecond)
-		defer ticker.Stop()
-		for {
-			if check() {
-				return
-			}
-			select {
-			case <-ctx.Done():
-				t.Fatalf("%s: %v; console=%s", what, ctx.Err(), c.output.String())
-			case <-c.done:
-				t.Fatalf("%s: Couch exited: %v; console=%s", what, c.err, c.output.String())
-			case <-ticker.C:
-			}
-		}
-	}
-	agents := map[string]string{}
-	wait("three genuine agent environments", func() bool {
-		entries, _ := os.ReadDir(controls)
-		for _, entry := range entries {
-			if !entry.IsDir() {
-				continue
-			}
-			dir := filepath.Join(controls, entry.Name())
-			raw, e := os.ReadFile(filepath.Join(dir, "environment.json"))
-			if e != nil {
-				continue
-			}
-			var values []string
-			if json.Unmarshal(raw, &values) != nil {
-				continue
-			}
-			raw, _ = os.ReadFile(filepath.Join(dir, "cwd"))
-			for _, path := range paths {
-				if string(raw) == path {
-					agents[path] = dir
-				}
-			}
-		}
-		return len(agents) == 3
-	})
-	// Require native process observations for the real fixture servers. This
-	// pins the kernel-name boundary that a symlinked test executable violates.
-	rows, err := (procutil.Source{}).SnapshotNamed(ctx, "zellij")
-	if err != nil {
-		t.Fatal(err)
-	}
-	observed := map[int]procutil.Observation{}
-	for _, row := range rows {
-		observed[row.PID] = row
-	}
-	for _, dir := range agents {
-		raw, err := os.ReadFile(filepath.Join(dir, "ready.server"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		var server struct {
-			PID      int
-			Identity string
-		}
-		if err := json.Unmarshal(raw, &server); err != nil {
-			t.Fatal(err)
-		}
-		row, ok := observed[server.PID]
-		if !ok || row.Identity != server.Identity || row.Name != "zellij" || row.Err != nil {
-			t.Fatalf("fixture server lacks native zellij identity: %+v found=%t", row, ok)
-		}
-		evidence, _ := json.Marshal(row)
-		if err := os.WriteFile(filepath.Join(dir, "native-server-observation.json"), evidence, 0600); err != nil {
-			t.Fatal(err)
-		}
-		t.Logf("native fixture server: PID=%d P_comm=%q argv=%q identity=%s", row.PID, row.Name, row.Args, row.Identity)
-	}
-	callNumber := 0
-	lastCLIOutput := ""
-	allowUnavailable := true
-	callFrom := func(agentPath string, args ...string) couchmessage.Response {
-		t.Helper()
-		dir := agents[agentPath]
-		resultPath := filepath.Join(dir, "result.json")
-		_ = os.Remove(resultPath)
-		raw, _ := json.Marshal(args)
-		if err := os.WriteFile(filepath.Join(dir, "command.json.tmp"), raw, 0600); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.Rename(filepath.Join(dir, "command.json.tmp"), filepath.Join(dir, "command.json")); err != nil {
-			t.Fatal(err)
-		}
-		var result struct{ Output, Error string }
-		wait("public CLI "+strings.Join(args, " "), func() bool { raw, e := os.ReadFile(resultPath); return e == nil && json.Unmarshal(raw, &result) == nil })
-		lastCLIOutput = result.Output
-		callNumber++
-		t.Logf("public CLI %d %v: error=%q output=%s", callNumber, args, result.Error, result.Output)
-		evidence, _ := json.Marshal(struct {
-			Args          []string
-			Output, Error string
-		}{args, result.Output, result.Error})
-		if err := os.WriteFile(filepath.Join(controls, fmt.Sprintf("cli-%03d.json", callNumber)), evidence, 0600); err != nil {
-			t.Fatal(err)
-		}
-		if result.Error != "" && allowUnavailable {
-			var response couchmessage.Response
-			if json.Unmarshal([]byte(result.Output), &response) == nil && response.Code == "unavailable" {
-				return response
-			}
-		}
-		if result.Error != "" {
-			t.Fatalf("public CLI %v: %s %s", args, result.Error, result.Output)
-		}
-		var response couchmessage.Response
-		if strings.Contains(strings.Join(args, " "), "--json") {
-			if err := json.Unmarshal([]byte(result.Output), &response); err != nil {
-				t.Fatalf("CLI JSON %v: %v %s", args, err, result.Output)
-			}
-		}
-		return response
-	}
-	call := func(args ...string) couchmessage.Response { return callFrom(primary, args...) }
-	wait("registered actors", func() bool { return len(call("--actors", "--json").Actors) == 3 })
-	allowUnavailable = false
-	checkFlags := func(response couchmessage.Response, count int) {
-		t.Helper()
-		if response.Drain == nil || len(response.Drain.Rows) != count {
-			t.Fatalf("flags = %+v, want %d", response.Drain, count)
-		}
-		for _, row := range response.Drain.Rows {
-			if row.Workspace == "alpha:0" {
-				t.Fatal("issuing steward was flagged")
-			}
-		}
-	}
-	submitted := func(response couchmessage.Response) {
-		t.Helper()
-		if len(response.DrainDeliveries) != 2 {
-			t.Fatalf("notice deliveries=%d, want two", len(response.DrainDeliveries))
-		}
-		seen := map[string]bool{}
-		for _, delivery := range response.DrainDeliveries {
-			seen[delivery.Workspace] = true
-		}
-		if !seen["beta:0"] || !seen["gamma:0"] {
-			t.Fatalf("unexpected notice recipients: %+v", response.DrainDeliveries)
-		}
-		for _, delivery := range response.DrainDeliveries {
-			if delivery.Error != "" || delivery.Receipt == nil {
-				t.Fatalf("notice admission %+v", delivery)
-			}
-			id := delivery.Receipt.Message.ID
-			wait("submitted ordinary notice", func() bool {
-				r := call("--message-status", id, "--json")
-				if r.Receipt != nil && r.Receipt.Status.Terminal() && r.Receipt.Status != couchmessage.Submitted {
-					t.Fatalf("notice failed: %+v", r.Receipt)
-				}
-				return r.Receipt != nil && r.Receipt.Status == couchmessage.Submitted
 			})
-		}
-	}
-	waitSent := func(body string) {
-		t.Helper()
-		fields := strings.Fields(lastCLIOutput)
-		if len(fields) == 0 {
-			t.Fatal("public send has no receipt ID")
-		}
-		id := fields[0]
-		wait("ordinary send submitted", func() bool {
-			r := call("--message-status", id, "--json")
-			if r.Receipt == nil {
-				return false
+			setup, cancelSetup := context.WithTimeout(t.Context(), 180*time.Second)
+			err := fleet.Prepare(setup)
+			cancelSetup()
+			if err != nil {
+				t.Fatal(err)
 			}
-			if r.Receipt.Status.Terminal() && r.Receipt.Status != couchmessage.Submitted {
-				t.Fatalf("send failed: %+v", r.Receipt)
+			legacyPath := filepath.Join(fleet.Roots.Mutable["store"], "drain.json")
+			legacy := []byte("opaque legacy operator evidence; never interpret or rewrite\n")
+			if err := os.WriteFile(legacyPath, legacy, 0600); err != nil {
+				t.Fatal(err)
 			}
-			if r.Receipt.Status != couchmessage.Submitted {
-				return false
+			verifyDisk := func() {
+				t.Helper()
+				raw, err := os.ReadFile(legacyPath)
+				if err != nil || !bytes.Equal(raw, legacy) {
+					t.Fatalf("legacy drain bytes changed: %v %q", err, raw)
+				}
+				err = filepath.WalkDir(fleet.Roots.Mutable["store"], func(path string, entry os.DirEntry, err error) error {
+					if err != nil {
+						return err
+					}
+					if !entry.IsDir() && strings.Contains(strings.ToLower(entry.Name()), "drain") && path != legacyPath {
+						return fmt.Errorf("new drain persistence: %s", path)
+					}
+					return nil
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
 			}
-			if r.Receipt.Message.Body != body {
-				t.Fatalf("receipt body=%q", r.Receipt.Message.Body)
+			started := time.Now()
+			ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
+			defer cancel()
+			if err := fleet.Start(ctx); err != nil {
+				t.Fatal(err)
 			}
-			return true
-		})
-	}
-	response := call("--drain", "--json")
-	checkFlags(response, 2)
-	submitted(response)
-	// Check current rendered cells after each PTY resize, never stale output.
-	for _, cols := range []uint16{80, 30, 120} {
-		before := c.output.Resize(int(cols), 30)
-		if err := pty.Setsize(c.terminal, &pty.Winsize{Rows: 30, Cols: cols}); err != nil {
-			t.Fatal(err)
+			for n := 1; n <= 2; n++ {
+				if err := fleet.StartWorker(ctx, n); err != nil {
+					t.Fatal(err)
+				}
+			}
+			actors, err := fleet.Actors(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(actors.Actors) != 3 {
+				t.Fatalf("genuine cohort: %+v", actors)
+			}
+			seen := map[string]bool{}
+			for _, actor := range actors.Actors {
+				seen[actor.Binding.Slot] = true
+			}
+			for n := 0; n <= 2; n++ {
+				if !seen[fmt.Sprintf("fixture:%d", n)] {
+					t.Fatalf("missing genuine actor%d: %+v", n, actors)
+				}
+				ready, err := fleet.Agent(n)
+				if err != nil || ready.Agent != personality {
+					t.Fatalf("actor%d personality: %+v %v", n, ready, err)
+				}
+			}
+			t.Logf("drain native manifest: roots=%+v run=%s source=%s binaries=%+v runtime_budget=90s", fleet.Roots, fleet.RunID, binaries.Source, binaries.Evidence)
+			call := func(actor int, args ...string) string {
+				t.Helper()
+				result, err := fleet.ActorCLI(ctx, actor, args...)
+				if err != nil || result.ExitCode != 0 {
+					t.Fatalf("actor%d CLI%v: %+v %v; screen=%s", actor, args, result, err, fleet.Screen())
+				}
+				t.Logf("drain public CLI actor=%d argv=%q stdout=%s stderr=%s", actor, args, result.Stdout, result.Stderr)
+				return result.Stdout
+			}
+			response := func(actor int, args ...string) couchmessage.Response {
+				t.Helper()
+				raw := call(actor, args...)
+				var result couchmessage.Response
+				if err := json.Unmarshal([]byte(raw), &result); err != nil {
+					t.Fatalf("public response: %v %s", err, raw)
+				}
+				if result.Error != "" {
+					t.Fatalf("public refusal: %+v", result)
+				}
+				return result
+			}
+			flags := func(result couchmessage.Response, count int) {
+				t.Helper()
+				if err := drainAcceptanceFlags(result, count); err != nil {
+					t.Fatal(err)
+				}
+				t.Logf("drain observed flag rows (requested posture only, never readiness): %+v", result.Drain.Rows)
+			}
+			accepted := func(actor int, id, body string) {
+				t.Helper()
+				var last couchmessage.Response
+				err := waitFleet(ctx, func() (bool, error) {
+					result, e := fleet.ActorCLI(ctx, 0, "--message-status", id, "--json")
+					if e != nil {
+						return false, e
+					}
+					if result.ExitCode != 0 {
+						return false, fmt.Errorf("receipt status exit%d: %s %s", result.ExitCode, result.Stdout, result.Stderr)
+					}
+					if e := json.Unmarshal([]byte(result.Stdout), &last); e != nil {
+						return false, e
+					}
+					if last.Error != "" || last.Receipt == nil {
+						return false, fmt.Errorf("receipt missing/refused: %+v", last)
+					}
+					if last.Receipt.Message.Body != body {
+						return false, fmt.Errorf("receipt body=%q want=%q", last.Receipt.Message.Body, body)
+					}
+					if last.Receipt.Status.Terminal() && last.Receipt.Status != couchmessage.Submitted {
+						return false, fmt.Errorf("delivery terminal refusal: %+v", last.Receipt)
+					}
+					return last.Receipt.Status == couchmessage.Submitted, nil
+				})
+				if err != nil {
+					t.Fatalf("receipt%s: %v", id, err)
+				}
+				t.Logf("drain submitted receipt: %+v", last.Receipt)
+				err = waitFleet(ctx, func() (bool, error) {
+					inputs, err := fleet.Accepted(actor)
+					if errors.Is(err, os.ErrNotExist) {
+						return false, nil
+					}
+					if err != nil {
+						return false, err
+					}
+					for _, input := range inputs {
+						if strings.Contains(input.Body, "delivery "+id+"]\n"+body) {
+							t.Logf("drain independently accepted: actor=%d receipt=%s input=%+v", actor, id, input)
+							return true, nil
+						}
+					}
+					return false, nil
+				})
+				if err != nil {
+					t.Fatalf("accepted body actor%d receipt%s: %v", actor, id, err)
+				}
+			}
+			notices := func(result couchmessage.Response, body string) {
+				t.Helper()
+				if len(result.DrainDeliveries) != 2 {
+					t.Fatalf("two worker notices required: %+v", result)
+				}
+				recipients := map[string]bool{}
+				for _, delivery := range result.DrainDeliveries {
+					if delivery.Error != "" || delivery.Receipt == nil || delivery.Receipt.Message.ID == "" {
+						t.Fatalf("notice admission: %+v", delivery)
+					}
+					n := 0
+					switch delivery.Workspace {
+					case "fixture:1":
+						n = 1
+					case "fixture:2":
+						n = 2
+					default:
+						t.Fatalf("unexpected recipient: %+v", delivery)
+					}
+					if recipients[delivery.Workspace] {
+						t.Fatalf("duplicate notice recipient: %+v", result)
+					}
+					recipients[delivery.Workspace] = true
+					accepted(n, delivery.Receipt.Message.ID, body)
+				}
+			}
+			send := func(from, to int, body string) {
+				t.Helper()
+				raw := call(from, "--send-to", fmt.Sprintf("fixture:%d", to), "--message", body)
+				fields := strings.Fields(raw)
+				if len(fields) == 0 {
+					t.Fatalf("send has no public receipt: %q", raw)
+				}
+				accepted(to, fields[0], body)
+			}
+			flags(response(0, "--drain", "--status", "--json"), 0)
+			graceful := "Drain: finish your current atomic step and wait for current background work to finish." + drainAcceptanceGuidance
+			fast := "Drain (fast): stop now; do not finish the current step. Promptly stop your own background work via supported controls; preserve unfinished working-tree edits in your checkpoint." + drainAcceptanceGuidance
+			result := response(0, "--drain", "--json")
+			flags(result, 2)
+			notices(result, graceful)
+			// Read-only status also works from a flagged, genuinely registered worker.
+			flags(response(1, "--drain", "--status", "--json"), 2)
+			send(0, 1, "ordinary-while-flagged-"+fleet.RunID)
+			send(1, 0, drainAcceptanceAck)
+			for _, cols := range []uint16{30, 120} {
+				if err := fleet.Resize(32, cols); err != nil {
+					t.Fatal(err)
+				}
+				if err := waitFleet(ctx, func() (bool, error) {
+					_, err := drainAcceptanceBadge(fleet.Screen(), int(cols))
+					return err == nil, nil
+				}); err != nil {
+					t.Fatalf("current badge at width%d: %v; screen=%s", cols, err, fleet.Screen())
+				}
+				t.Logf("drain current frame width%d:\n%s", cols, fleet.Screen())
+			}
+			// Click the ordinary worker-1 chip in current cell coordinates. The shared
+			// renderer compresses subsequent same-repo chips to :N; no byte offsets.
+			row, err := drainAcceptanceBadge(fleet.Screen(), 120)
+			if err != nil {
+				t.Fatal(err)
+			}
+			at := strings.Index(row, ":1")
+			if at < 0 {
+				t.Fatalf("worker1 chip absent from current row: %q", row)
+			}
+			col := uniseg.GraphemeClusterCount(row[:at]) + 1
+			if err := fleet.Input([]byte(fmt.Sprintf("\x1b[<0;%d;32M\x1b[<0;%d;32m", col, col))); err != nil {
+				t.Fatal(err)
+			}
+			if err := waitFleet(ctx, func() (bool, error) {
+				row, err := drainAcceptanceBadge(fleet.Screen(), 120)
+				return err == nil && (strings.Contains(row, "[:1") || strings.Contains(row, "[fixture:1")), nil
+			}); err != nil {
+				t.Fatalf("ordinary flagged worker selection: %v; screen=%s", err, fleet.Screen())
+			}
+			t.Logf("drain ordinary selected worker frame:\n%s", fleet.Screen())
+			result = response(0, "--undrain", "--json")
+			flags(result, 0)
+			notices(result, drainAcceptanceLift)
+			result = response(0, "--drain", "--fast", "--json")
+			flags(result, 2)
+			notices(result, fast)
+			send(0, 2, "ordinary-while-fast-flagged-"+fleet.RunID)
+			send(2, 0, drainAcceptanceAck)
+			result = response(0, "--undrain", "--message", "custom-continuation-marker", "--json")
+			flags(result, 0)
+			notices(result, drainAcceptanceLift+"\nNote: "+strconv.Quote("custom-continuation-marker"))
+			result = response(0, "--drain", "--json")
+			flags(result, 2)
+			notices(result, graceful)
+			// Use disambiguated CSI-u physical keys. Ctrl+Space first changes focus
+			// to Couch's switcher; Alt+x then requests its normal leave confirmation.
+			if err := fleet.Input([]byte("\x1b[32;5u")); err != nil {
+				t.Fatal(err)
+			}
+			if err := waitFleet(ctx, func() (bool, error) {
+				return strings.Contains(fleet.Screen(), "Ctrl+Y copy last notice / selected error"), nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if err := fleet.Input([]byte("\x1b[120;3u")); err != nil {
+				t.Fatal(err)
+			}
+			if err := waitFleet(ctx, func() (bool, error) {
+				screen := fleet.Screen()
+				return strings.Contains(screen, "threads › leave couch") && strings.Contains(screen, "cancel") && strings.Contains(screen, "parking"), nil
+			}); err != nil {
+				t.Fatalf("normal quit confirmation while flagged: %v; screen=%s", err, fleet.Screen())
+			}
+			t.Logf("drain normal quit confirmation (never confirmed):\n%s", fleet.Screen())
+			if err := fleet.Input([]byte("\x1b[27u")); err != nil {
+				t.Fatal(err)
+			}
+			if err := waitFleet(ctx, func() (bool, error) { return !strings.Contains(fleet.Screen(), "threads › leave couch"), nil }); err != nil {
+				t.Fatal(err)
+			}
+			flags(response(0, "--drain", "--status", "--json"), 2)
+			verifyDisk()
+			// Close the switcher before the shared Detach helper opens it itself.
+			if err := fleet.Input([]byte("\x1b[27u")); err != nil {
+				t.Fatal(err)
+			}
+			if err := waitFleet(ctx, func() (bool, error) {
+				return !strings.Contains(fleet.Screen(), "Ctrl+Y copy last notice / selected error"), nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if err := fleet.Detach(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if err := fleet.RestartSupervisor(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if err := fleet.WaitActors(ctx, 3); err != nil {
+				t.Fatal(err)
+			}
+			flags(response(0, "--drain", "--status", "--json"), 0)
+			send(0, 2, "ordinary-after-restart-"+fleet.RunID)
+			verifyDisk()
+			t.Logf("drain native completion: agent=%s run=%s elapsed=%s legacy_bytes_unchanged=true no_new_drain_file=true restart_flags=0", personality, fleet.RunID, time.Since(started))
+		}) {
+			break
 		}
-		wait(fmt.Sprintf("current drain badge at width%d", cols), func() bool {
-			row, frames := c.output.Status()
-			return frames > before && strings.Count(row, "drain") == 1 && strings.Contains(row, "drain 2")
-		})
-		frame := c.output.Screen()
-		if err := os.WriteFile(filepath.Join(controls, fmt.Sprintf("flagged-%d.txt", cols)), []byte(frame), 0600); err != nil {
-			t.Fatal(err)
-		}
-		row, _ := c.output.Status()
-		if strings.ContainsAny(row, "{}") || strings.Contains(row, "beta (drain") || strings.Contains(row, "gamma (drain") {
-			t.Fatalf("per-actor drain suffix: %q", row)
-		}
 	}
-	// Click the ordinary beta chip and observe actual selected-view chrome.
-	row, _ := c.output.Status()
-	col := strings.Index(row, "beta") + 1
-	if col == 0 {
-		t.Fatalf("beta chip missing: %q", row)
-	}
-	if _, err := c.terminal.Write([]byte(fmt.Sprintf("\x1b[<0;%d;30M\x1b[<0;%d;30m", col, col))); err != nil {
-		t.Fatal(err)
-	}
-	wait("ordinary beta chip selects while flagged", func() bool {
-		row, _ := c.output.Status()
-		return strings.Contains(row, "[beta]") && strings.Count(row, "drain") == 1
-	})
-	if err := os.WriteFile(filepath.Join(controls, "flagged-selected-beta.txt"), []byte(c.output.Screen()), 0600); err != nil {
-		t.Fatal(err)
-	}
-	// Normal peer delivery remains usable while flags are set.
-	call("--send-to", "beta:0", "--message", "ordinary-while-flagged")
-	waitSent("ordinary-while-flagged")
-	wait("ordinary message reaches real wrapper", func() bool {
-		raw, _ := os.ReadFile(filepath.Join(agents[paths[1]], "received"))
-		return bytes.Contains(raw, []byte("ordinary-while-flagged"))
-	})
-	callFrom(paths[1], "--send-to", "alpha:0", "--message", "acknowledge message received, will resume processing after drain is lifted")
-	waitSent("acknowledge message received, will resume processing after drain is lifted")
-	wait("worker reply reaches steward through real wrapper", func() bool {
-		raw, _ := os.ReadFile(filepath.Join(agents[primary], "received"))
-		return bytes.Contains(raw, []byte("acknowledge message received, will resume processing after drain is lifted"))
-	})
-	response = call("--undrain", "--json")
-	for _, d := range response.DrainDeliveries {
-		if d.Receipt == nil || d.Receipt.Message.Body != "drain lifted; continue your current work" {
-			t.Fatalf("generic continuation: %+v", d)
-		}
-	}
-	checkFlags(response, 0)
-	submitted(response)
-	response = call("--drain", "--fast", "--json")
-	checkFlags(response, 2)
-	submitted(response)
-	response = call("--undrain", "--message", "custom-continuation-marker", "--json")
-	for _, d := range response.DrainDeliveries {
-		if d.Receipt == nil || d.Receipt.Message.Body != "drain lifted; continue your current work\nNote: \"custom-continuation-marker\"" {
-			t.Fatalf("custom continuation: %+v", d)
-		}
-	}
-	checkFlags(response, 0)
-	submitted(response)
-	response = call("--drain", "--json")
-	checkFlags(response, 2)
-	submitted(response)
-	// Quit/park retains its normal confirmation while flagged. Cancel it;
-	// completing park-all belongs to the separate park conformance test.
-	if _, err := c.terminal.Write([]byte("\x00")); err != nil {
-		t.Fatal(err)
-	}
-	wait("switcher before quit confirmation", func() bool { return strings.Contains(c.output.Screen(), "threads") })
-	if _, err := c.terminal.Write([]byte("\x1b[120;3u")); err != nil {
-		t.Fatal(err)
-	}
-	wait("normal park-all confirmation while flagged", func() bool { return strings.Contains(c.output.Screen(), "leave couch") })
-	if _, err := c.terminal.Write([]byte("\x1b")); err != nil {
-		t.Fatal(err)
-	}
-	checkFlags(call("--drain", "--status", "--json"), 2)
-	// Public whole-Couch detach is Ctrl-Space then Alt+d. It must complete even
-	// with flags present, independently of the informational drain posture.
-	wait("switcher render", func() bool { return strings.Contains(c.output.Screen(), "threads") })
-	if _, err := c.terminal.Write([]byte("\x1b[100;3u")); err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case <-c.done:
-		if c.err != nil {
-			t.Fatalf("public detach: %v; console=%s", c.err, c.output.String())
-		}
-	case <-ctx.Done():
-		t.Fatalf("detach waited on drain flags: %v", ctx.Err())
-	}
-	_ = c.terminal.Close()
-	c = start()
-	allowUnavailable = true
-	wait("restarted messaging reconnects", func() bool { return len(call("--actors", "--json").Actors) == 3 })
-	allowUnavailable = false
-	checkFlags(call("--drain", "--status", "--json"), 0)
-	call("--send-to", "gamma:0", "--message", "ordinary-after-restart")
-	waitSent("ordinary-after-restart")
-	wait("post-restart real wrapper delivery", func() bool {
-		raw, _ := os.ReadFile(filepath.Join(agents[paths[2]], "received"))
-		return bytes.Contains(raw, []byte("ordinary-after-restart"))
-	})
-	verifyDisk()
-	t.Logf("installed drain flags, generic/custom continuation, ordinary delivery, public detach and restart completed in %s", time.Since(started))
 }
 
-type drainAcceptanceOutput struct {
-	mu sync.Mutex
-	bytes.Buffer
-	em          *vt.Emulator
-	repliesDone chan struct{}
-	frames      uint64
-	carry       []byte
-}
-
-func newDrainAcceptanceOutput() *drainAcceptanceOutput {
-	o := &drainAcceptanceOutput{em: vt.NewEmulator(120, 30), repliesDone: make(chan struct{})}
-	go func() { defer close(o.repliesDone); _, _ = io.Copy(io.Discard, o.em) }()
-	return o
-}
-func (o *drainAcceptanceOutput) Write(p []byte) (int, error) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	_, _ = o.Buffer.Write(p)
-	marker := []byte("\x1b[?2026l")
-	combined := append(append([]byte(nil), o.carry...), p...)
-	o.frames += uint64(bytes.Count(combined, marker))
-	from := max(0, len(combined)-len(marker)+1)
-	o.carry = append(o.carry[:0], combined[from:]...)
-	return o.em.Write(p)
-}
-func (o *drainAcceptanceOutput) String() string {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return o.Buffer.String()
-}
-func (o *drainAcceptanceOutput) Resize(cols, rows int) uint64 {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.em.Resize(cols, rows)
-	return o.frames
-}
-func (o *drainAcceptanceOutput) Status() (string, uint64) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return o.rowLocked(o.em.Height() - 1), o.frames
-}
-func (o *drainAcceptanceOutput) rowLocked(y int) string {
-	var b strings.Builder
-	for x := 0; x < o.em.Width(); x++ {
-		if c := o.em.CellAt(x, y); c != nil {
-			b.WriteString(c.Content)
+func drainAcceptanceFlags(result couchmessage.Response, count int) error {
+	if result.Drain == nil || len(result.Drain.Rows) != count {
+		return fmt.Errorf("flag rows=%+v, want%d", result.Drain, count)
+	}
+	seen := map[string]bool{}
+	for _, row := range result.Drain.Rows {
+		if row.Workspace != "fixture:1" && row.Workspace != "fixture:2" {
+			return fmt.Errorf("unexpected flag recipient: %+v", row)
+		}
+		if seen[row.Workspace] {
+			return fmt.Errorf("duplicate flag row: %+v", row)
+		}
+		seen[row.Workspace] = true
+		// Unknown observations cannot acquire an idle duration from the flag alone.
+		if row.IdleMillis != nil && (!row.Connected || row.Settled == nil || !*row.Settled || row.Picker == nil || *row.Picker || row.Background == nil || *row.Background || *row.IdleMillis < 0) {
+			return fmt.Errorf("unsupported idle claim: %+v", row)
 		}
 	}
-	return strings.TrimRight(b.String(), " ")
+	return nil
 }
-func (o *drainAcceptanceOutput) Screen() string {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	var b strings.Builder
-	for y := 0; y < o.em.Height(); y++ {
-		b.WriteString(o.rowLocked(y))
-		b.WriteByte('\n')
+
+func drainAcceptanceBadge(screen string, cols int) (string, error) {
+	lines := strings.Split(strings.TrimSuffix(screen, "\n"), "\n")
+	if len(lines) != 32 {
+		return "", fmt.Errorf("current screen rows=%d, want32", len(lines))
 	}
-	return b.String()
+	row := lines[len(lines)-1]
+	// Fleet.Screen serializes one grapheme per cell, including a literal
+	// space for each wide-head continuation. Count those serialized cells,
+	// rather than re-measuring wide heads and double-counting continuations.
+	if cells := uniseg.GraphemeClusterCount(row); cells != cols {
+		return row, fmt.Errorf("current screen cells=%d want%d", cells, cols)
+	}
+	if strings.Count(row, "drain") != 1 || !strings.Contains(row, "drain 2") || strings.ContainsAny(row, "{}") {
+		return row, fmt.Errorf("expected one compact drain badge: %q", row)
+	}
+	return row, nil
 }
-func (o *drainAcceptanceOutput) Close() { _ = o.em.Close(); <-o.repliesDone }
+
+// Negative controls keep scenario oracles fail-closed without running a fleet.
+func TestDrainAcceptanceOracles(t *testing.T) {
+	screen := func(row string, width int) string {
+		return strings.Repeat(strings.Repeat(" ", width)+"\n", 31) + row + strings.Repeat(" ", width-textwidth.Width(row)) + "\n"
+	}
+	good := screen("drain 2  fixture:0 :1 [:2]", 120)
+	// Each prefix projects ten cells, including any explicit continuation.
+	for _, prefix := range []string{"drain 2 🔔 ", "drain 2 e\u0301 ", "drain 2 👩‍💻 "} {
+		wide := strings.Repeat(strings.Repeat(" ", 120)+"\n", 31) + prefix + strings.Repeat(" ", 110) + "\n"
+		if _, err := drainAcceptanceBadge(wide, 120); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := drainAcceptanceBadge(good, 120); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []struct {
+		screen string
+		width  int
+	}{
+		{good, 30},
+		{screen("drain 2 drain 2", 120), 120},
+		{screen("drain 2 fixture:1{draining}", 120), 120},
+		{screen("fixture:0 :1 :2", 120), 120},
+		{"drain 2\n", 120},
+	} {
+		if _, err := drainAcceptanceBadge(bad.screen, bad.width); err == nil {
+			t.Fatalf("accepted invalid current badge: %q width%d", bad.screen, bad.width)
+		}
+	}
+	unknown := couchmessage.Response{Drain: &couchcore.DrainBoard{Rows: []couchcore.DrainRow{{Workspace: "fixture:1", Connected: true}, {Workspace: "fixture:2", Connected: true}}}}
+	if err := drainAcceptanceFlags(unknown, 2); err != nil {
+		t.Fatal(err)
+	}
+	for _, rows := range [][]couchcore.DrainRow{
+		{{Workspace: "fixture:0"}, {Workspace: "fixture:1"}},
+		{{Workspace: "fixture:1"}, {Workspace: "fixture:1"}},
+		{{Workspace: "fixture:1", IdleMillis: new(int64)}, {Workspace: "fixture:2"}},
+	} {
+		if err := drainAcceptanceFlags(couchmessage.Response{Drain: &couchcore.DrainBoard{Rows: rows}}, 2); err == nil {
+			t.Fatalf("accepted invalid flag projection: %+v", rows)
+		}
+	}
+	if err := drainAcceptanceFlags(couchmessage.Response{}, 0); err == nil {
+		t.Fatal("missing status accepted as empty flags")
+	}
+}

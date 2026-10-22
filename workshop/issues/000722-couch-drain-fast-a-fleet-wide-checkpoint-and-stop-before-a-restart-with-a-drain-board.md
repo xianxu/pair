@@ -1,7 +1,7 @@
 ---
 id: 000722
 status: working
-deps: []
+deps: [ariadne#506]
 github_issue:
 created: 2026-10-19
 updated: 2026-10-20
@@ -50,7 +50,7 @@ TL831e9502 confirms operator approval of the re-scoped plan: exclude the issuing
 ## Plan
 
 - [x] Operator approved the re-scoped Revision through TL831e9502, excluding the issuing steward; reopened through the setter in canonical pair:5 after #622 landed. Renewed change-code follows.
-- [ ] Remove the obsolete completion/persistence/control machinery; implement only transient flags, ordinary notices/status and undrain with tests.
+- [x] Remove the obsolete completion/persistence/control machinery; implement only transient flags, ordinary notices/status and undrain with tests.
 - [ ] Qualify message/lifecycle independence, restart emptiness, truthful idle observations and one compact badge through normal tests and the bounded disposable installed composition.
 - [ ] Run required verification and mandatory close review, then TL-scheduled watched live acceptance before ordinary landing.
 
@@ -188,6 +188,26 @@ TL28cecc2b confirms installed acceptance scope: normal quit confirmation while f
 Claimed by pair:5 under canonical TL dispatch c1f508a1. Read the operator's fleet-drain discussion and ariadne#481's existing Spec. start-plan delivered ARCH principles and created the independent issue branch from main. Its weave refresh regenerated the two CI workflows; reverted only those generated files per the standing #699 instruction, then start-plan succeeded. No implementation code, real pause, interrupt, restart or live drain was performed.
 
 Read-only code exploration confirmed HubOwnership.Main as steward authority, exact liveCaller/Registry session evidence, Broker.SendSystem, console event publication and existing stateful fake patterns. Park/continuation execution does not provide an agent-authored checkpoint and is not reused as the drain's stop mechanism. Drafted the durable plan with all nine ARCH lenses; no estimate is derived before plan-quality.
+
+### 2026-10-22 — resumed after #778; shared-harness qualification remains
+
+#778 landed as PR536, carddone/archive verified and merge exited0. Canonical sdlc claim resumed the held #722 branch/claim; PR477 is OPEN at parked7880cc6c2. TL next-item receipt a5d4365f supersedes #772/#740. Sent resumed-state report9b71b2cc to hub: transient product implementation exists, but private daemon/PTY acceptance failed and never qualified. Fresh native acceptance/suite/close and watched live remain outstanding; old ariadne:4 discrepancy remains unproved.
+
+Integrated landed main in fdf65982d, including #744/#761/#778. Resolved four additive conflicts preserving both drain and new mock command/help/source inventory. Broad merge diff whitespace check named incoming raw terminal captures and an archived diagnostic patch; preserve their exact bytes. Check limited to all four conflict resolutions against incoming main passes. No test pass is claimed yet; the obsolete private acceptance caller also predates installedEnv's new signature and will be replaced, not grown. Appended the shared-consumer execution checklist to the durable plan; same approved product/state contract. Renew change-code before resumed implementation.
+
+### 2026-10-22 — resumed implementation and component qualification
+
+Renewed full change-code admitted implementation: plan-quality CLEAN, estimate-quality INFO. Its advisory correctly names native qualification as remaining forecast uncertainty;14.947h remains the prior cumulative forecast, not measured spending, and discarded/unexecuted acceptance allowances are not claimed as incurred. Shared-harness implementation belongs to #744, not this issue. The native consumer uses the existing qualification allowance; renewed main integration/hook/certificate work is the resumed regression task, with uncertainty retained rather than retroactively rewriting historical forecasts.
+
+Replaced the entire private drain acceptance prototype with landed testcouch: genuine steward plus2numbered workers, both Claude/Codex, per-personality90s runtime, independent submitted receipt/accepted-body oracles, current cell geometry/selection, quit/cancel, detach/restart and legacy-byte checks. New pure oracle negatives and wide/combined-cell controls pass with the default native test skipped (0.187s); no native acceptance claimed yet. Read-only hook audit proves REAL_WRAPPER/ACCEPTANCE_DIR are used only by the obsolete test. Restored terminal_registration_fixture_test.go exactly to landed main, preserving all existing narrow fixture modes and their case catalogue. All original TestRegistration tests PASS1.451s.
+
+Focused drain product tests PASS; broadened drain/lifecycle races PASS in core1.474s, cmd1.853s, message2.297s, tty1.518s and wrap1.742s. Full repolint13.926s/artifactpath11.975s PASS. Native consumer reader audit uses non_go_full_fallback because testcouch.Build consumes repository build inputs; recorded the one new per-file certificate via the exact scanner command, then inventory PASS. No protected gate config changed. The native snapshot serializes continuation cells explicitly, so scenario geometry and click columns count serialized grapheme cells rather than double-counting wide glyphs; pure controls cover this before native run.
+
+Coordination: ariadne#506 remains OPEN/unclaimed and already owns the new worker/steward rules. Current tl-worker still prints removed formal ack CLI; reported this to the hub for rollout before watched live acceptance, without editing peer code. Native disposable qualification can proceed independently. Old ariadne:4 discrepancy is still unproved.
+
+### 2026-10-22 — live-rule dependency confirmed
+
+Authenticated TLde357e2c assigns ariadne#506 to ariadne:5 after #541 and explicitly requires it landed before watched live acceptance. Added the details-level cross-repo dependency (deps is not a tracker card field); no card mirror edited. ariadne:5 requested exact canonical notice text via a6427ee4. Supply source-pinned graceful/fast/undrain text and worker/steward response semantics; #739 remains its own startup/automation contract, never an inferred recovery permission from empty drain flags.
 
 ## Revisions
 
@@ -468,9 +488,3 @@ The [durable implementation plan](../plans/000722-fleet-drain-plan.md) defines t
 - [x] Wire steward CLI, authenticated ack, dispatch gate, fast wrapper interrupt and tab/status board.
 - [ ] Verify real ariadne#481 conformance, isolated wrapper integration, races, docs and required recorded suite; stage/live board check with hub authorization.
 - [ ] Close through the mandatory SDLC review, land through the ordinary gates and report the outcome.
-
-### 2026-10-22 — resumed after #778; shared-harness qualification remains
-
-#778 landed as PR536, carddone/archive verified and merge exited0. Canonical sdlc claim resumed the held #722 branch/claim; PR477 is OPEN at parked7880cc6c2. TL next-item receipt a5d4365f supersedes #772/#740. Sent resumed-state report9b71b2cc to hub: transient product implementation exists, but private daemon/PTY acceptance failed and never qualified. Fresh native acceptance/suite/close and watched live remain outstanding; old ariadne:4 discrepancy remains unproved.
-
-Integrated landed main in fdf65982d, including #744/#761/#778. Resolved four additive conflicts preserving both drain and new mock command/help/source inventory. Broad merge diff whitespace check named incoming raw terminal captures and an archived diagnostic patch; preserve their exact bytes. Check limited to all four conflict resolutions against incoming main passes. No test pass is claimed yet; the obsolete private acceptance caller also predates installedEnv's new signature and will be replaced, not grown. Appended the shared-consumer execution checklist to the durable plan; same approved product/state contract. Renew change-code before resumed implementation.
