@@ -25,6 +25,8 @@ type Options struct {
 	Workers       int
 	AgentKind     string
 	RuntimeBudget time.Duration
+	// RetainStartupServerLog also preserves successful diagnostic controls.
+	RetainStartupServerLog bool
 }
 
 func validateOptions(o Options) error {
@@ -43,24 +45,26 @@ func validateOptions(o Options) error {
 // Fleet is the single lifetime owner. Public commands enter its creation gate;
 // Close revokes that gate before reconciling actual native process generations.
 type Fleet struct {
-	Roots          RootsPlan
-	Options        Options
-	Workspaces     Workspaces
-	Binaries       Binaries
-	Environment    []string
-	RunID          string
-	t              testing.TB
-	mu             sync.Mutex
-	closeMu        sync.Mutex
-	closing        bool
-	starting       bool
-	active         int
-	idle           chan struct{}
-	ctx            context.Context
-	cancel         context.CancelFunc
-	model          OwnedRun
-	publicationErr error
-	console        *terminalProcess
+	Roots           RootsPlan
+	Options         Options
+	Workspaces      Workspaces
+	Binaries        Binaries
+	Environment     []string
+	RunID           string
+	t               testing.TB
+	mu              sync.Mutex
+	closeMu         sync.Mutex
+	closing         bool
+	starting        bool
+	active          int
+	idle            chan struct{}
+	ctx             context.Context
+	cancel          context.CancelFunc
+	model           OwnedRun
+	publicationErr  error
+	console         *terminalProcess
+	serverLogBefore sync.Once
+	serverLogAfter  sync.Once
 }
 
 func New(t testing.TB, b Binaries, o Options) *Fleet {
@@ -388,6 +392,9 @@ func (f *Fleet) Close(ctx context.Context) (result error) {
 	f.closing = true
 	idle := f.idle
 	f.mu.Unlock()
+	if f.t.Failed() || f.Options.RetainStartupServerLog {
+		f.t.Logf("native server evidence before teardown: %s", f.captureStartupServerLogOnce(&f.serverLogBefore))
+	}
 	f.cancel()
 	f.record(RunEvent{Kind: "closing"})
 	select {
@@ -433,13 +440,7 @@ func (f *Fleet) Close(ctx context.Context) (result error) {
 	if err := f.reconcileProcesses(ctx); err != nil {
 		return err
 	}
-	if f.t.Failed() {
-		evidence, err := nativeFailureEvidence(f.Roots.Mutable["store"])
-		f.t.Logf("native failure evidence before root removal: %s; read_error=%v", evidence, err)
-		// The buffered wrapper writers are now joined. Capture their final
-		// startup records without attempting another native query after teardown.
-		f.t.Logf("native wrapper evidence after join: %s", f.captureStartupLog())
-	}
+
 	f.mu.Lock()
 	p := f.console
 	f.mu.Unlock()
@@ -449,6 +450,15 @@ func (f *Fleet) Close(ctx context.Context) (result error) {
 		case <-ctx.Done():
 			return ctx.Err()
 		}
+	}
+	if f.t.Failed() {
+		evidence, err := nativeFailureEvidence(f.Roots.Mutable["store"])
+		f.t.Logf("native failure evidence before root removal: %s; read_error=%v", evidence, err)
+		// The buffered wrapper writers are now joined. Capture their final
+		// startup records without attempting another native query after teardown.
+		f.t.Logf("native wrapper evidence after join: %s", f.captureStartupLog())
+	} else if f.Options.RetainStartupServerLog {
+		f.t.Logf("native server evidence after join: %s", f.captureStartupServerLogOnce(&f.serverLogAfter))
 	}
 	if err := os.RemoveAll(f.Roots.Root); err != nil {
 		return err

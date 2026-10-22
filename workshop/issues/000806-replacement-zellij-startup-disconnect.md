@@ -38,7 +38,7 @@ Retain and diagnose the new-session-before-first-wrapper disconnect through the 
 
 ## Plan
 
-Diagnostic proposal: [replacement startup diagnosis plan](../plans/000806-replacement-startup-diagnosis-plan.md). Diagnostic phase approved by ops:0; production correction still requires the follow-up approval described in the plan.
+Diagnostic proposal: [replacement startup diagnosis plan](../plans/000806-replacement-zellij-startup-disconnect-plan.md). Diagnostic phase approved by ops:0; production correction still requires the follow-up approval described in the plan.
 
 - [ ] Retain bounded private server evidence before cleanup and qualify its reader boundaries.
 - [ ] Run one bounded diagnostic per personality and, only with a captured failure, one causal contrast; preserve unknown outcomes.
@@ -77,3 +77,12 @@ The existing bare birth-race probe and upstream v0.45.1 RemoveClient optional-da
 Current main includes #773/#803/#797, so the earlier hypothesis must be tested against the current shared boundaries. Preserve original Spec and Done when; add a bounded diagnostic phase and an explicit return to the hub before any production correction. No new runtime state, protocol or time budget is approved or inferred.
 
 2026-10-22 diagnostic authorization: authenticated ops:0 delivery595ae402-f90b-498f-a7ca-b254b66ebac5 approved at most2x8192-byte private server-log snapshots before teardown and after joined producers; one current-bound96MiB native run each for Claude/Codex; at most one causal contrast after a retained failure; return with correction choice before any production change. Proceeding through change-code for this diagnostic scope only.
+
+
+### 2026-10-22 — Diagnostic capture ready for the approved native samples
+
+Implemented only shared testcouch diagnostics, with no production launch/admission change. Canonicalized the durable plan filename to the issue slug. Retains one escaped 8192-byte private Zellij tail before cancellation/teardown and one after process/console/IO joins; same-descriptor size/offset, errors and truncation accompany each. Two sync.Once budgets include failed reads and repeated cleanup. The native recovery test opts into these same captures for successful controls, default off for other successful fleets. Private root confinement, final no-follow, nonblocking regular-file checks remain shared with the existing reader.
+
+TDD: initial server-retention tests failed because diagnostics omitted the server log, then passed. Repeated-cleanup tests at16/32 calls failed with17/33 snapshots and late-file reads, then passed with exactly one snapshot per phase. Tests cover8192/16384-byte tails, escaped terminal controls, independent phases, missing files, final symlinks, escaping parent symlinks, FIFOs and directories. Focused TestStartupEvidence PASS1.251s; targeted launcher handoff/admission PASS1.239s; internal/repolint PASS9.826s and termcmd PASS4.550s. Native reader inputs remain private fixture/runtime files with existing non_go_full_fallback ownership; refreshed that reader's certificate after the option change. No new repository-input reader was detected in the new unit fixture.
+
+Next: push this diagnostic candidate, then exactly one native invocation each for Claude and Codex under unchanged180s preparation/120s operation/15s cleanup and96MiB package write cap. Preserve complete logs and hashes; no native run has started yet. Return correction choice or explicit uncertainty to the hub before any production change. At most one causal contrast is authorized after a retained failure.
