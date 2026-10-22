@@ -47,7 +47,7 @@ Alternatives: socket-only isolation is insufficient because census is host-wide;
 
 - [x] Reproduce independent installed-environment name equality deterministically; retain the saved #775/#757 failure references and source trace.
 - [x] Add one exclusive fixture-authority initializer, apply it to installedEnv and testcouch roots, derive the installed launch expectation, and enforce both constructors in Pair's lint catalog with positive/negative tests.
-- [ ] Run targeted allocator/constructor/PTY/lint checks and inventory preflight, and record a passing full suite. The SDLC close/landing receipts then own closure and retirement of the flake registration.
+- [x] Run targeted allocator/constructor/PTY/lint checks and inventory preflight, and record a passing full suite. The SDLC close/landing receipts then own closure and retirement of the flake registration.
 
 ## Log
 
@@ -110,3 +110,7 @@ Authenticated TL receipt9b51cb83 reports operator DNS-cache recovery and instruc
 ### 2026-10-21 — next-item priority updated
 
 Authenticated TL receipta5d4365f directs returning immediately to owned #722 (fleet drain, PR477) after #778 lands, and reporting its recovered state. This supersedes the earlier next-item order #772/#740. Keep finishing #778 and its retained fresh suite first; do not switch branches during this check or landing.
+
+### 2026-10-21 — corrected final-code full suite PASS
+
+Fresh lease2286202273 acquired after1200s, then full suite PASS12m15s, exit0 on f025dba400e49af9c6a6d6a4beda4cbc8aba5cf7, recorded sdlc-local/suite. Raw log SHA256a103d6cf241422be1216b2ed9b1b4808b9b4eedf4bd43fbb51c144925a69c9b0. All packages/non-Go checks passed, including cmd/couch7.064s and artifactpath5.017s. No flake rerun or waiver; original failed attempt remains retained. Only issue notes changed since tested source. Together with native Claude/Codex PASS75.199s and targeted race/allocator/lint checks, the implementation verification checklist is complete. Run close now, then merge promptly on SHIP; merge owns current-main integration. Next item is #722 per the latest hub instruction.
