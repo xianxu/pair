@@ -52,8 +52,9 @@ type peerDelivery struct {
 	released                bool // broker cancellation, never operator input
 	// What held this half of the delivery, and for how long (pair#438):
 	// each dispatch charges the time since waitAt to the standing Detail.
-	waits  map[string]time.Duration
-	waitAt time.Time
+	waits       map[string]time.Duration
+	waitAt      time.Time
+	waitCapture PeerWaitCaptureState
 	// A draft-pane paste held while a delivery is in flight (pair#428).
 	holding   bool
 	holdUntil time.Time
@@ -437,9 +438,15 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 		return
 	}
 	p.inputAdmission.Lock()
-	defer p.inputAdmission.Unlock()
 	d.mu.Lock()
-	defer d.mu.Unlock()
+	var decisionSnapshot *terminalSnapshot
+	var generation uint64
+	defer func() {
+		capture := p.selectPeerWaitCaptureLocked(d, decisionSnapshot, generation)
+		d.mu.Unlock()
+		p.inputAdmission.Unlock()
+		p.emitPeerWaitCapture(capture)
+	}()
 	if d.current.Message.ID == "" {
 		return
 	}
@@ -510,7 +517,8 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 			return
 		}
 		epoch := p.automaticRenderEpoch.Load()
-		snapshot := p.terminal.Snapshot()
+		snapshot, snapshotGeneration := p.terminal.SnapshotGeneration()
+		decisionSnapshot, generation = &snapshot, snapshotGeneration
 		if d.current.Status != couchmessage.Delivering {
 			// Let just-forwarded keystrokes repaint before reading the source.
 			// This bounded settle interval cannot retain stale draft ownership.

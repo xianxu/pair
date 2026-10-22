@@ -139,3 +139,23 @@ distinct names independently of temporary-directory parents. The seed record is
 removed by the existing root owner. It is not a permanent identity scheme across
 PID reuse: crashed native residue still meets the unchanged fail-closed census.
 No production launch budget, retry or ownership rule changes.
+
+## Delayed peer refusal evidence (#791)
+
+`wrapcmd`'s `TestPeerWaitCapture*` tests force the existing pre-paste refusal
+through `dispatchPeer` with controlled time and the stateful peer/terminal
+fixtures. They pin no capture before 15 seconds, one `PEER-wait` record per active
+delivery head at the threshold, exact refusal/cursor/style/frame evidence,
+recovery without altered admission, and both input/mailbox locks released before
+writer invocation. Repeated polls, a failed sink or disabled diagnostics cannot
+change the safe delivery decision. `FuzzEncodePeerWaitCapture` checks arbitrary
+styled cells for valid JSON, explicit screen truncation and the complete-record
+64 KiB cap.
+
+Records stay in the existing per-slot wrap-events JSONL selected by
+`artifactpath.Paths.WrapEvents()`, under the proxy's existing `diagnosticlog`
+buffered writer and retention/GC. `PAIR_WRAP_EVENTS=0` disables this diagnostic
+stream; disabled/unavailable/failed diagnostics leave delivery safety unchanged.
+Captured screens are private local evidence, with no automatic public upload.
+These tests qualify capture, not a reproduced recognition fault: recognition is
+unchanged, and #810 waits for the first real failing live capture.

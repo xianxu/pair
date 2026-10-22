@@ -7,7 +7,7 @@ created: 2026-10-21
 updated: 2026-10-22
 estimate_hours: 1.019
 collaboration-mode: collaboration
-card_mirror: 'a32141e5d50c388b3855dff0ae6af58914a12eb6' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '1bfbb6063c31abd9a740abed11bfcbc57f03912c' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-22T12:23:59-07:00
 claimant:
     operator: Xian Xu
@@ -19,7 +19,7 @@ claimant:
 flow: {kind: full, provenance: operator}
 ---
 
-# Couch admit: idle Claude slot refused as busy (auto-mode footer / update banner?); name which busy condition fired
+# Couch delivery: capture delayed refusal evidence
 
 ## Problem
 
@@ -112,3 +112,11 @@ TL authenticated approval 4333f27a-2f1d-4e8a-b9dd-039d84a610c0 explicitly makes 
 Supersedes original auto-mode/banner idle-admission Done-when and the earlier expanded root-cause acceptance: #791 now ships diagnostics only per TL. Current Done-when and Plan above reflect this approval; original contracts and rationale remain in Git/history and the durable plan's preceding sections. No recognition/safety-policy change or claim that the historical fault is fixed.
 
 - Filed recognition follow-up #810 (unclaimed, waiting for first real failing capture). Plan-quality round 1 requested named risky functions and strategy-based test contract (PQ-1); final revision now names advancePeerWaitCapture and encodePeerWaitCapture with generated-sequence and fuzz oracles. No production changes before gate acceptance.
+
+### 2026-10-22 — diagnostic implementation and targeted evidence
+
+- change-code accepted full flow, plan-quality CLEAN after PQ-1 and estimate-quality INFO. The estimate is provisional; issue-spec includes already completed claim-to-approval work, and module/review allowances include active verification/repair time, not just typing. Full native checks may exceed that allowance; actual remains measured, not back-fitted.
+- TDD behavioral red: TestPeerWaitCaptureForcedRefusal reported “missing capture at threshold: unexpected end of JSON input”; implementation green then passed in 0.341s. Capture selection is under the existing dispatch owner, and emission is deferred until inputAdmission and mailbox mutexes are released. No recognition or restart policy changes.
+- Added advancePeerWaitCapture/PeerWaitCaptureState, encodePeerWaitCapture/PeerWaitEvidence, and terminalModel.SnapshotGeneration to retain copied cells and their exact generation. Diagnostic JSONL is bounded as a whole, including escaping/envelope/newline; bottom-first ANSI rows retain styles, and explicit truncation marks incomplete screens. Existing wrap-events BufferedWriter owns storage and lifecycle.
+- Forced capture/threshold/repeated-poll/recovery, early guards, generated state sequences, styled-screen replay, caps, Claude/Codex/Qoder and Claude batch preparation, disabled/failing writer and actual managed-file/lock tests pass under race (2.821s). Baseline #735/peer-wait controls pass (0.393s); repolint 17.016s and artifactpath 19.072s pass; affected-reader inventory check passes. Full wrapcmd/diagnosticlog race checks and bounded encoder fuzz are running; not yet claimed passed.
+- Follow-up #810 remains unclaimed and waits for the first real failing capture. #791 was retitled through the card setter to “Couch delivery: capture delayed refusal evidence”. #737 remains parked and unstaged.

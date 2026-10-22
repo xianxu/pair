@@ -298,13 +298,19 @@ func (m *terminalModel) FrameComplete() bool {
 }
 
 func (m *terminalModel) Snapshot() terminalSnapshot {
+	snapshot, _ := m.SnapshotGeneration()
+	return snapshot
+}
+
+// SnapshotGeneration pairs copied cells with the generation that produced them.
+func (m *terminalModel) SnapshotGeneration() (terminalSnapshot, uint64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	if m.closed {
-		return cloneTerminalSnapshot(m.final)
+		return cloneTerminalSnapshot(m.final), m.generation
 	}
-	return m.snapshotLocked()
+	return m.snapshotLocked(), m.generation
 }
 
 func (m *terminalModel) snapshotLocked() terminalSnapshot {

@@ -1114,6 +1114,32 @@ table (`couchcmd/cost.go`, pair#490, from timings in that issue's Log).
 which panics on an untagged verb; the skill's "What each verb costs" section
 lists the same tiers, and `cost_test.go` keeps both equal to the table.
 
+#### Delayed peer refusal capture (#791)
+
+The wrapper records one `PEER-wait` diagnostic when the active delivery head has
+remained refused before paste for 15 seconds, checked by its existing queued
+poll. Later refusal polls or reason changes do not repeat the capture; paste,
+terminal receipt, release or head replacement ends that diagnostic lifetime.
+Queued followers have no separate refused-screen observation. The record uses
+the existing per-slot wrap-events JSONL from `artifactpath.Paths.WrapEvents()`;
+no per-delivery file or extra polling worker is added.
+
+The record preserves the exact refusal detail and its cursor, geometry, styled
+cells and frame/synchronization evidence. Composer refusals use the snapshot
+that made the decision; an earlier non-screen guard captures a coherent screen
+at that refusal and identifies its generation. The whole encoded record is at
+most 64 KiB, including its envelope, with explicit screen truncation/omission
+metadata when the full screen cannot fit. Screen contents may be private: they
+remain local diagnostics and are never automatically uploaded publicly. The
+capture adds no message body or argv beyond the observed screen.
+
+Encoding and writer enqueue happen after admission/mailbox locks are released.
+The proxy's existing buffered diagnostic owner handles flush, close, rotation
+and [retention/GC](storage-retention.md). `PAIR_WRAP_EVENTS=0`, an unavailable
+writer or a failed capture can lose evidence, but cannot alter delivery safety,
+receipt state or recognition. Recognition remains unchanged; #810 waits for the
+first real failing capture before proposing a recognition fix.
+
 ### Lifecycle system notices (#574)
 
 `couchtty/console_lifecycle.go` observes final successful operation results after
