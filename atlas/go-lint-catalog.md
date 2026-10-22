@@ -145,12 +145,35 @@ and leave the upstream catalog and sleep-debt matching unchanged.
 
 The Pair-local `terminal-registry-owner` rule (pair#731) rejects direct kill-only `LiveIDs` calls in terminal, layout, clipboard and Couch production functions. Native routing uses `LiveOwnerIDs`; explicit registry storage tests and the shared adapter retain the generic predicate seam.
 
-## Bounded Zellij read ownership (#748)
+## Bounded Zellij read ownership (#748, #803)
 
-The local `zellij-read-attempt-bypass` rule rejects direct `runQueryAttempt`
-calls in package launcher outside `ZellijSource.runContext`. Callers use the
-bounded entry to share its deadline, exact read allowlist and attempt evidence.
-It checks call-site syntax, not arbitrary function-value alias dataflow.
+The local `zellij-read-attempt-bypass` rule rejects `readAttempt` calls and
+method references in package zellijquery outside `Source.ReadContext`.
+Production decision reads use `zellijquery.Source.ReadContext` or `Output`
+to share the five-second deadline, at most three attempts, exact replay
+allowlist and per-attempt evidence. `zellijexec.Run` remains a single-attempt
+collector; `zellijquery.InheritedGroup` is the injected collector for the title
+CLI that already owns its complete process group.
+
+The local `zellij-query-boundary` rule rejects imported `zellijexec.Run`
+references (including assignments and parenthesized calls) outside
+`Source.readAttempt` in `cmd/internal/zellijquery/query.go`. Its two raw
+diagnostic exceptions are `launcher.queryZellijVersion` in
+`cmd/internal/launcher/zellij_query_evidence.go` and
+`testcouch.(*Fleet).dumpStartupPane` in
+`cmd/internal/testcouch/startup_evidence.go`. Other functions in those files
+remain checked. Scanner filename context excludes `_test.go`, `cmd/probes/`,
+`probes/` and `cmd/repro/`; ordinary fixture packages remain checked.
+
+The same rule rejects direct imported `exec.Command`/`CommandContext` calls
+with literal executable `"zellij"` and visible `list-sessions` or `action`
+read verbs (`list-clients`, `list-panes`, `current-tab-info`, `query-tab-names`,
+`dump-layout`, `dump-screen`), optionally preceded by `--session` and a
+session expression. Mutations and `--version` remain permitted. Both import
+aliases and dot imports are recognized; parser-resolved local shadows are
+excluded. These are syntax guards: they do not infer dynamic executable names,
+assembled argv, command factory aliases, arbitrary global-option orderings,
+cross-file shadows, or function-value dataflow. Lua reads are deferred to #804.
 
 ## Controlled Zellij cleanup (#764)
 
@@ -201,6 +224,22 @@ This guard checks direct syntax only; argv variables, aliases, computed argument
 and shell protocol correctness are outside its scope. Other commands and helpers
 are unaffected. Public scribe's generic-command exposure is tracked separately
 in #768; this fixture rule does not claim a production launch-policy fix.
+
+## Startup admission budget (#773)
+
+The Pair-local `startup-admission-budget` rule in
+`internal/repolint/local_catalog_test.go` protects launcher's probe-only
+`birthBound` from reuse as a terminal admission deadline. It rejects that direct
+identifier in the budget argument of `coordinateTerminalHandoff`,
+`CoordinateTerminalHandoff` and `context.WithTimeout` (including parentheses
+and explicit aliases of the standard context import). Birth watches, watched
+launches, diagnostics, other packages and unrelated bounds remain allowed.
+
+`TestStartupAdmissionBudgetRule` qualifies this through the ordinary composed
+repository scanner. This is a narrow syntax guard: it does not resolve shadowed
+symbols, local bound aliases, computed/conversion expressions, function values
+or arbitrary dataflow. Runtime startup-deadline propagation is independently
+qualified at the production boundaries; the rule does not replace those tests.
 
 ## Manual-clock delivery proof (#771)
 

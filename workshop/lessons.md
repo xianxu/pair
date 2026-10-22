@@ -2582,6 +2582,8 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #767: Prove inherited descriptor usability by operating on the descriptor, with an exact token or identity and absent/wrong-descriptor controls. On macOS a shell permission probe of /dev/fd/3 returned false while builtin read immediately recovered the correct token. Permission inspection is a separate pathname observation, not inheritance proof; an already-open descriptor also remains usable after chmod000. The Pair golint catalog rejects literal shell permission gates on /dev/fd/N.
 - #766: A PTY consumer cannot recover bytes the kernel discarded at last slave close. Native tee fixtures must own producer lifetime through an output/input acknowledgement and establish the controlling-terminal reference on Darwin; distinguish first-read EOF from a wrapper closing its master early. Audit public generic-command exposure and file that product defect separately from a fixture repair.
 
+- #773: A diagnostic birth-probe grace is not an admission deadline. Select the caller-owned absolute startup deadline before helper launch, carry it across exec without renewal, and keep it separate from short native observations and the admitted interactive client lifetime. Tests must cross the production selection boundary; a custom test-only timeout cannot detect a hardcoded production cap.
+- #773: Repeated reports of the same startup stage preserve the stage start time. Progress callbacks bind the exact request incarnation and cannot mutate a terminal receipt; final budget failure retains the consuming stage, elapsed time and cause.
 - #774: distinguish persisted file checkpoints from observations within a single operation. Remount equivalence belongs only at the persisted boundary; after capturing/rebinding a live identity, revalidation must stay strict. Never reuse a tolerant checkpoint matcher at every call site. Keep the original mismatch cause when an older intent cannot certify recovery.
 
 - #774 BR-1: preserving a strict matcher is insufficient if the caller discards the first observation. Carry its snapshot across phases and exercise the real preview-to-effect transition; a direct matcher unit test cannot prove the caller uses the right baseline.
@@ -2620,7 +2622,29 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #778 verification: Every new non-test Go helper must enter artifactpath's exhaustive source inventory, even when it owns no Pair session artifact. Run TestProductionArtifactReferencesAreExactlyClassified alongside reader inventory and lint before a full suite; classify the source through its ordinary inventory, never the known-violation quarantine.
 
 - #778 BR-1: after main integration or a compatibility fix, mark final verification pending in the active Plan checklist until the replacement exact-source suite completes. Keep older green receipts as history; review/suite overlap permits concurrent work, not a completed acceptance claim.
+# #803 — shared native read boundaries
 
+- A production seam migration must include live-conformance adapters that issue
+  their own native queries; otherwise a green production unit test can leave the
+  reported native failure on the old boundary. Preserve per-attempt streams and
+  reset final logical capture on each attempt.
+- Preserve an existing whole-process-group owner when introducing a shared
+  collector: a new private child group can escape the parent's EOF cleanup.
+  Make collector selection explicit and qualify descendant cleanup.
+- Bind native retry probes to the queried child's environment. An ambient
+  socket path cannot certify a query running in another namespace. Recheck
+  cancellation after observers before returning raw diagnostic authority.
+- Fuzz guards must assert their promised oracle: exact accepted argv grammar and
+  complete reply-kind validation, not just nonpanic or one mutation literal.
+
+- #803 BR-1: after migrating a shared recovery seam, run each affected package
+  completely before close; a selected regex can miss older native-capture tests
+  whose attempt counts encode the prior transport. Keep refusal assertions and
+  pin recoverable cases separately from single-attempt native authority.
+
+- #773: when a launch adds a dynamic environment field, validate exactly one canonical value against the caller/fallback deadline, then retain exact ordered comparison of the full remaining environment. Do not drop arbitrary fields or weaken the profile/identity oracle merely to accept a timestamp. The fast reader-inventory check does not replace artifactpath's exhaustive production-source test.
+
+- #773 round1: sweep lifecycle-owned launches AND public borrowed-client attachment when changing startup authority. Likewise progress has remote and local consumers; test stage changes in both. A fixture duration used as a propagation sentinel becomes a real timing dependency if the production budget owner moves earlier; isolate that sentinel with controlled time, and keep general failure injection causal.
 - #792 BR-1: Before independently truncating evidence and legacy action lists, remove protected overlaps from the complete view. A projection must never drop a veto while retaining broader destructive authority; test the actual lossy projection through its action consumer.
 
 - #792 BR-2: Audit information loss before classification as well as transport. A later healthy sample cannot restore forgotten ownership; destructive fallback needs a process-lifetime fail-closed decision after any provenance loss, with overflow/recovery sequence tests. Distinguish an unobserved startup seed from a failed completed attempt.
@@ -2637,3 +2661,8 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #797: A private Pair DataDir does not isolate compatibility quit markers: TriggerQuit/TriggerBoundQuit writes through HOME/.cache/pair. In-process quit-trigger tests must isolate HOME as well as thread storage, including refusal cases that may acquire effects after future changes.
 
 - #797 BR-3: A post-close repair that adds a new executable lint policy expands the deliverable, even when production is unchanged. Use a full close review for that addition; narrow fix-review only covers repairs within its prior scope.
+- #803 integrated-suite correction: enumerate transitive users of an OS adapter,
+  not only packages edited by a seam migration. Stateful refusal fixtures must
+  fault the entire physical-attempt budget; add transient recovery controls and
+  keep semantic mismatches non-retriable. Audit structural call-site manifests
+  when a collector method changes, even when the effect remains read-only.

@@ -676,6 +676,12 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #773 carries deadlines and progress through existing launch owners;
+	// these helpers neither name nor construct Pair artifact files.
+	"cmd/internal/couchcore/startup_budget.go",
+	"cmd/internal/couchcore/startup_progress.go",
+	"cmd/internal/launcher/startup_budget.go",
+	"cmd/internal/startupbudget/budget.go",
 	// #758 endpoint model and native editor transport name no Pair artifact paths.
 	"cmd/internal/editorendpoint/model.go",
 	"cmd/internal/editorendpoint/state.go",
@@ -1852,6 +1858,12 @@ var NonArtifactSources = []string{
 	// #647 reply contracts and synchronous query ownership name no Pair artifacts;
 	// the stateful fake's model and logs live only in its private test root.
 	"cmd/internal/zellijexec/run.go",
+	// #803 native query transport, strict reply and socket namespace policy;
+	// none owns or constructs a Pair artifact.
+	"cmd/internal/zellijquery/query.go",
+	"cmd/internal/zellijquery/recovery.go",
+	"cmd/internal/zellijquery/session_reply.go",
+	"cmd/internal/zellijquery/socket.go",
 	"cmd/internal/zellijpane/zellijpane.go",
 	"cmd/internal/zellijreply/clients.go",
 	"cmd/internal/zellijreply/effect.go",

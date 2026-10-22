@@ -27,7 +27,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
-	"github.com/xianxu/pair/cmd/internal/zellijexec"
+	"github.com/xianxu/pair/cmd/internal/zellijquery"
 	"github.com/xianxu/pair/cmd/internal/zellijreply"
 )
 
@@ -102,7 +102,7 @@ const zjTimeout = 5 * time.Second
 func zj(args ...string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), zjTimeout)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, "zellij", args...).Output()
+	out, err := (zellijquery.Source{}).Output(ctx, args...)
 	if err != nil {
 		return ""
 	}
@@ -166,14 +166,9 @@ func (r OSRuntime) ProbeSessionNameContext(ctx context.Context, session string) 
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	cmd := exec.CommandContext(ctx, "zellij", "--session", session, "action", "list-clients")
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	run := r.nameQueryRun
-	if run == nil {
-		run = zellijexec.Run
-	}
-	err := run(cmd)
+	result, readErr := (zellijquery.Source{Run: r.nameQueryRun}).ReadContext(ctx, "--session", session, "action", "list-clients")
+	stdout, stderr := bytes.NewBuffer(result.Stdout), bytes.NewBuffer(result.Stderr)
+	err := result.ProcessErr
 	if ctx.Err() != nil {
 		return fmt.Errorf("could not ask zellij about session name %q: %w", session, errors.Join(err, ctx.Err()))
 	}
@@ -192,6 +187,9 @@ func (r OSRuntime) ProbeSessionNameContext(ctx context.Context, session string) 
 			}
 		}
 		return fmt.Errorf("could not ask zellij about session name %q: %w", session, err)
+	}
+	if readErr != nil {
+		return fmt.Errorf("could not ask zellij about session name %q: %w", session, readErr)
 	}
 	// Empty success after an early unblock is unanswered. Neither failed IO
 	// nor unrelated stderr may teach the assignment's monotone length bounds.
@@ -218,8 +216,8 @@ func (r OSRuntime) LaunchSession(ctx context.Context, session, configDir, layout
 	return r.runTerminalHandoff(ctx, session, configDir, layout, true)
 }
 
-func (r OSRuntime) LaunchSessionContext(lifetime, admission context.Context, session, configDir, layout string) (int, error) {
-	return r.runTerminalHandoffContext(lifetime, admission, session, configDir, layout, true)
+func (r OSRuntime) LaunchSessionContext(lifetime, startup, admission context.Context, session, configDir, layout string) (int, error) {
+	return r.runTerminalHandoffContext(lifetime, startup, admission, session, configDir, layout, true)
 }
 
 // clientKillGrace is how long a cancelled client gets to exit on SIGTERM
@@ -930,8 +928,8 @@ func (r OSRuntime) AttachSession(session, configDir string) (int, error) {
 	return r.runTerminalHandoff(context.Background(), session, configDir, "", false)
 }
 
-func (r OSRuntime) AttachSessionContext(lifetime, admission context.Context, session, configDir string) (int, error) {
-	return r.runTerminalHandoffContext(lifetime, admission, session, configDir, "", false)
+func (r OSRuntime) AttachSessionContext(lifetime, startup, admission context.Context, session, configDir string) (int, error) {
+	return r.runTerminalHandoffContext(lifetime, startup, admission, session, configDir, "", false)
 }
 
 // restartMarkerPath and quitMarkerPath keep compatibility cache paths behind

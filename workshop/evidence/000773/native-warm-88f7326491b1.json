@@ -1,0 +1,32 @@
+{
+  "head": "88f7326491b1daf012aebee461df8f39f1b9184f",
+  "command": [
+    "go",
+    "test",
+    "./cmd/couch",
+    "-run",
+    "^TestDisposableCouchFleet$",
+    "-count=1",
+    "-v",
+    "-timeout=12m"
+  ],
+  "environment": {
+    "PAIR_NATIVE_COUCH_FLEET": "1"
+  },
+  "started_at": "2026-10-22T14:09:08.371101+00:00",
+  "finished_at": "2026-10-22T14:11:23.333093+00:00",
+  "wall_seconds": 134.96094537497265,
+  "exit_code": 0,
+  "load_before": [
+    23.62548828125,
+    25.46533203125,
+    23.390625
+  ],
+  "load_after": [
+    24.02197265625,
+    25.0029296875,
+    23.4951171875
+  ],
+  "log": "workshop/evidence/000773/native-warm-88f7326491b1.log",
+  "log_sha256": "97403cefee196bdb7533a924d162a14562d0feb405f2e640bf4cb8093f48f679"
+}

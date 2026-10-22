@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/xianxu/pair/cmd/internal/zellijquery"
 	"github.com/xianxu/pair/cmd/internal/zellijsession"
 	"os"
 	"os/exec"
@@ -92,7 +93,8 @@ func (r OSRuntime) WriteFile(path, data string) error {
 // (resurrectable) row is gone: `--short` lists those too, which kept pollers
 // ticking for days after their session ended (pair#420).
 func (r OSRuntime) SessionAlive(session string) bool {
-	out, err := exec.Command("zellij", "list-sessions", "--no-formatting").Output()
+	// The title CLI owns and kills the entire inherited process group on lease EOF.
+	out, err := (zellijquery.Source{Run: zellijquery.InheritedGroup}).Output(context.Background(), "list-sessions", "--no-formatting")
 	if err != nil {
 		return false
 	}

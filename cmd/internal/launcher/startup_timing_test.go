@@ -85,7 +85,7 @@ func TestStartupTimingDeltasPartitionElapsedAndExcludeClientLifetime(t *testing.
 	}
 }
 
-func (r *startupTimingAttachRuntime) AttachSessionContext(lifetime, admission context.Context, session, config string) (int, error) {
+func (r *startupTimingAttachRuntime) AttachSessionContext(lifetime, startup, admission context.Context, session, config string) (int, error) {
 	if err := admission.Err(); err != nil {
 		return 1, err
 	}

@@ -399,14 +399,14 @@ func TestRetentionPostHandoffMarkerFailureReleasesLifetime(t *testing.T) {
 	}
 }
 
-func (r *retainedRuntime) AttachSessionContext(lifetime, admission context.Context, session, config string) (int, error) {
+func (r *retainedRuntime) AttachSessionContext(lifetime, startup, admission context.Context, session, config string) (int, error) {
 	if err := admission.Err(); err != nil {
 		return 1, err
 	}
 	return r.AttachSession(session, config)
 }
 
-func (r *retainedRuntime) LaunchSessionContext(lifetime, admission context.Context, session, config, layout string) (int, error) {
+func (r *retainedRuntime) LaunchSessionContext(lifetime, startup, admission context.Context, session, config, layout string) (int, error) {
 	if err := admission.Err(); err != nil {
 		return 1, err
 	}

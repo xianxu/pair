@@ -701,3 +701,42 @@ func TestMessageCLISendWaitsForTheBrokersVerdict(t *testing.T) {
 		t.Fatalf("last line %q", last)
 	}
 }
+
+func TestSlotOperationCLIReportsCurrentStage(t *testing.T) {
+	running := receiptResponse("ok", couchmessage.ReceiptRunning)
+	// Decode the additive wire fields, so the old reader exposes its missing behavior.
+	if err := json.Unmarshal([]byte(`{"Progress":{"Stage":"waiting for agent readiness","Started":"1970-01-01T01:23:20Z"}}`), running.Operation); err != nil {
+		t.Fatal(err)
+	}
+	polls := int(17 * time.Second / slotOperationPollInterval)
+	statuses := make([]couchmessage.Response, polls)
+	for i := range statuses {
+		statuses[i] = running
+	}
+	statuses = append(statuses, receiptResponse("ok", couchmessage.ReceiptSucceeded))
+	run := runSlotScript(t, cliInvocation{kind: cliMessage, messageOp: "resume", ref: "pair:1"}, messageRuntime(), admitThen(statuses...))
+	if run.code != 0 || !strings.Contains(run.stderr, "waiting for agent readiness, 15s") {
+		t.Fatalf("exit=%d progress=%q", run.code, run.stderr)
+	}
+}
+
+func TestSlotOperationCLIProgressUsesCurrentStageStart(t *testing.T) {
+	polls := int(33 * time.Second / slotOperationPollInterval)
+	statuses := make([]couchmessage.Response, polls)
+	for i := range statuses {
+		statuses[i] = receiptResponse("ok", couchmessage.ReceiptRunning, func(r *couchmessage.OperationReceipt) {
+			if time.Duration(i)*slotOperationPollInterval < 20*time.Second {
+				r.Progress = &couchmessage.OperationProgress{Stage: "waiting for agent readiness", Started: time.Unix(5000, 0)}
+			} else {
+				r.Progress = &couchmessage.OperationProgress{Stage: "verifying terminal registration", Started: time.Unix(5020, 0)}
+			}
+		})
+	}
+	statuses = append(statuses, receiptResponse("ok", couchmessage.ReceiptSucceeded))
+	run := runSlotScript(t, cliInvocation{kind: cliMessage, messageOp: "resume", ref: "pair:1"}, messageRuntime(), admitThen(statuses...))
+	for _, want := range []string{"waiting for agent readiness, 15s", "verifying terminal registration, 10s"} {
+		if !strings.Contains(run.stderr, want) {
+			t.Fatalf("progress %q lacks %q", run.stderr, want)
+		}
+	}
+}

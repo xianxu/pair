@@ -28,10 +28,11 @@ type fakeSlotJob struct {
 	key, op, target string
 	opts            couchcore.LiveRestartOptions
 	started         func()
+	progress        couchcore.OperationProgress
 	finished        func(any, error)
 }
 
-func (f *fakeSlotRunner) run(key, op, target string, opts couchcore.LiveRestartOptions, started func(), finished func(any, error)) error {
+func (f *fakeSlotRunner) run(key, op, target string, opts couchcore.LiveRestartOptions, started func(), progress couchcore.OperationProgress, finished func(any, error)) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.err != nil {
@@ -50,7 +51,7 @@ func (f *fakeSlotRunner) run(key, op, target string, opts couchcore.LiveRestartO
 		f.mu.Unlock()
 		finished(value, err)
 	}
-	f.jobs = append(f.jobs, fakeSlotJob{key, op, target, opts, started, done})
+	f.jobs = append(f.jobs, fakeSlotJob{key, op, target, opts, started, progress, done})
 	return nil
 }
 
@@ -452,5 +453,67 @@ func TestSlotOperationRelaunchCarriesOverrides(t *testing.T) {
 	unconfirmed := slotRequest(b, "relaunch", "id2", "pair:1")
 	if resp := r.s.handle(context.Background(), unconfirmed); resp.Code != "confirmation-required" {
 		t.Fatalf("unconfirmed relaunch: %+v", resp)
+	}
+}
+
+func TestSlotOperationProgressStaysWithItsReceipt(t *testing.T) {
+	r, runner, clock := slotRig(t)
+	b := r.connect(0)
+	if got := r.s.handle(context.Background(), slotRequest(b, "resume", "old", "pair:1")); got.Code != "accepted" {
+		t.Fatal(got)
+	}
+	old := runner.job(0)
+	old.started()
+	old.progress("waiting for agent readiness")
+	got := r.s.handle(context.Background(), statusRequest(b, "old"))
+	if got.Operation.Progress == nil || got.Operation.Progress.Stage != "waiting for agent readiness" {
+		t.Fatalf("progress lost: %+v", got.Operation)
+	}
+	began := got.Operation.Progress.Started
+	clock.Add(25 * time.Second)
+	old.progress("waiting for agent readiness")
+	got = r.s.handle(context.Background(), statusRequest(b, "old"))
+	if !got.Operation.Progress.Started.Equal(began) {
+		t.Fatal("repeated report reset elapsed")
+	}
+	old.finished(nil, errors.New("startup failed"))
+	old.progress("late failure")
+	if got := r.s.handle(context.Background(), slotRequest(b, "resume", "new", "pair:1")); got.Code != "accepted" {
+		t.Fatal(got)
+	}
+	newer := runner.job(1)
+	newer.started()
+	newer.progress("preparing terminal")
+	old.progress("late old operation")
+	got = r.s.handle(context.Background(), statusRequest(b, "new"))
+	if got.Operation.Progress == nil || got.Operation.Progress.Stage != "preparing terminal" {
+		t.Fatalf("old operation contaminated new receipt: %+v", got.Operation)
+	}
+	oldResult := r.s.handle(context.Background(), statusRequest(b, "old"))
+	if oldResult.Operation.Progress.Stage != "waiting for agent readiness" {
+		t.Fatalf("terminal progress mutated: %+v", oldResult.Operation)
+	}
+}
+
+func TestSlotOperationProgressRejectsAnExpiredRequestIncarnation(t *testing.T) {
+	r, runner, clock := slotRig(t)
+	b := r.connect(0)
+	if got := r.s.handle(context.Background(), slotRequest(b, "resume", "reused-id", "pair:1")); got.Code != "accepted" {
+		t.Fatal(got)
+	}
+	old := runner.job(0)
+	old.started()
+	old.finished(nil, errors.New("old failure"))
+	clock.Add(couchmessage.ReceiptRetention + time.Second)
+	if got := r.s.handle(context.Background(), slotRequest(b, "resume", "reused-id", "pair:1")); got.Code != "accepted" {
+		t.Fatal(got)
+	}
+	fresh := runner.job(1)
+	fresh.started()
+	fresh.progress("preparing terminal")
+	old.progress("late expired operation")
+	got := r.s.handle(context.Background(), statusRequest(b, "reused-id"))
+	if got.Operation.Progress == nil || got.Operation.Progress.Stage != "preparing terminal" {
+		t.Fatalf("expired incarnation changed progress: %+v", got.Operation)
 	}
 }
