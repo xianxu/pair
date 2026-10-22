@@ -66,6 +66,7 @@ type NativeOwner struct {
 	cancel                             context.CancelFunc
 	prepared, started, closed, cleaned bool
 	closeErr                           error
+	fleetCleaned                       bool
 }
 
 // NewNativeOwner performs no filesystem or process effects. Prepare selects the
@@ -128,6 +129,9 @@ func (o *NativeOwner) Prepare(ctx context.Context) (err error) {
 	if o.candidate == nil {
 		return errors.New("candidate build returned no owner")
 	}
+	if err = ctx.Err(); err != nil {
+		return err
+	}
 	o.reporter.Logf("native candidate owner: source=%s root=%s", o.candidate.Binaries.Source, o.candidate.Binaries.Dir)
 	// Admission consumes ctx, while the admitted supervisor belongs to this
 	// adapter until Close; startup cancellation cannot kill a ready fleet.
@@ -137,12 +141,15 @@ func (o *NativeOwner) Prepare(ctx context.Context) (err error) {
 	if kind == "" {
 		kind = "claude"
 	}
-	o.fleet, err = o.dependencies.newFleet(lifetime, o.candidate.Binaries, testcouch.Options{Workers: 1, AgentKind: kind, RuntimeBudget: LifetimeBudget}, testcouch.OwnerConfig{ScratchParent: o.options.ScratchParent, Reporter: o.reporter})
+	o.fleet, err = o.dependencies.newFleet(lifetime, o.candidate.Binaries, testcouch.Options{Workers: 1, AgentKind: kind, RuntimeBudget: LifetimeBudget}, testcouch.OwnerConfig{ScratchParent: o.options.ScratchParent, Reporter: o.reporter, AdmissionContext: ctx})
 	if err != nil {
 		return err
 	}
 	if o.fleet == nil {
 		return errors.New("native fleet returned no owner")
+	}
+	if err = ctx.Err(); err != nil {
+		return err
 	}
 	if err = o.fleet.Prepare(ctx); err != nil {
 		return err
@@ -156,6 +163,9 @@ func (o *NativeOwner) Start(ctx context.Context) (err error) {
 		return errors.New("native owner is not prepared for start")
 	}
 	if err = o.fleet.Start(ctx); err != nil {
+		if screen, ok := o.fleet.(interface{ Screen() string }); ok {
+			o.reporter.Logf("native fleet startup failed: %v; screen=%q", err, screen.Screen())
+		}
 		return err
 	}
 	o.started = true
@@ -281,6 +291,7 @@ func (o *NativeOwner) Close(ctx context.Context) error {
 			o.closeErr = err
 			return err
 		}
+		o.fleetCleaned = true
 	}
 	if o.cancel != nil {
 		o.cancel()
@@ -307,7 +318,7 @@ func (o *NativeOwner) RetainedRoot() string {
 	if o.cleaned {
 		return ""
 	}
-	if o.fleet != nil {
+	if o.fleet != nil && !o.fleetCleaned {
 		return o.fleet.Facts().root
 	}
 	if o.candidate != nil {

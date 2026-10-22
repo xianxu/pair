@@ -2661,3 +2661,7 @@ and external temporary roots rather than relying on the host's TMPDIR.
   fault the entire physical-attempt budget; add transient recovery controls and
   keep semantic mismatches non-retriable. Audit structural call-site manifests
   when a collector method changes, even when the effect remains read-only.
+
+- #801 ad-hoc lifetime audit: detaching an admitted resource's lifetime must not detach its constructor from cancellation. Carry startup admission separately, check it after subordinate builders, and gate each installation effect; successful construction must still survive the startup context ending.
+- #801 ad-hoc lifetime audit: after nested cleanup succeeds, recovery evidence must name the resource still owned. A deleted outer root must never hide a surviving candidate directory when the cleanup budget expires.
+- #801 integration: normalize a shared environment's explicit last-wins overrides at its source boundary before serializing it as a map; pin helper selection to the verified source rather than the external consumer's working directory.

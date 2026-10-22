@@ -1,6 +1,7 @@
 package testcouchbridge
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -19,13 +20,26 @@ type fixtureNativeFleet struct {
 	facts                     nativeFacts
 	prepared, started, closed bool
 	closeErr                  error
+	startErr                  error
+	afterClose                func()
+	screenCalls               int
 	lifetime                  context.Context
 }
 
 func (f *fixtureNativeFleet) Prepare(context.Context) error { f.prepared = true; return nil }
-func (f *fixtureNativeFleet) Start(context.Context) error   { f.started = true; return nil }
+func (f *fixtureNativeFleet) Start(context.Context) error   { f.started = true; return f.startErr }
 func (f *fixtureNativeFleet) Done() <-chan struct{}         { return nil }
-func (f *fixtureNativeFleet) Close(context.Context) error   { f.closed = true; return f.closeErr }
+func (f *fixtureNativeFleet) Close(context.Context) error {
+	f.closed = true
+	if f.afterClose != nil {
+		f.afterClose()
+	}
+	return f.closeErr
+}
+func (f *fixtureNativeFleet) Screen() string {
+	f.screenCalls++
+	return "steward remains on native admission form"
+}
 func (f *fixtureNativeFleet) AssertCleaned() error {
 	if !f.closed || f.closeErr != nil {
 		return errors.New("not joined")
@@ -250,6 +264,116 @@ func TestNativeOwnerToleratesAdditiveReplyFields(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := owner.Close(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestNativeOwnerCanceledAfterBuildNeverConstructsFleet(t *testing.T) {
+	owner, f, _ := nativeFixture(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	build := owner.dependencies.build
+	owner.dependencies.build = func(ctx context.Context, cfg testcouch.BuildConfig) (*testcouch.CandidateOwner, error) {
+		candidate, err := build(ctx, cfg)
+		cancel()
+		return candidate, err
+	}
+	constructed := false
+	construct := owner.dependencies.newFleet
+	owner.dependencies.newFleet = func(ctx context.Context, b testcouch.Binaries, o testcouch.Options, c testcouch.OwnerConfig) (nativeFleet, error) {
+		constructed = true
+		return construct(ctx, b, o, c)
+	}
+	if err := owner.Prepare(ctx); !errors.Is(err, context.Canceled) || constructed || f.prepared {
+		t.Fatalf("late preparation after cancellation: err=%v constructed=%v prepared=%v", err, constructed, f.prepared)
+	}
+	if err := owner.Close(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestNativeOwnerRetainsCandidateWhenDeadlineExpiresAfterFleetCleanup(t *testing.T) {
+	owner, f, _ := nativeFixture(t)
+	if err := owner.Prepare(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	cleanup, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	f.afterClose = func() {
+		if err := os.RemoveAll(f.facts.root); err != nil {
+			t.Error(err)
+		}
+		cancel()
+	}
+	if err := owner.Close(cleanup); !errors.Is(err, context.Canceled) {
+		t.Fatalf("candidate failure not preserved: %v", err)
+	}
+	candidate := owner.candidate.Binaries.Dir
+	if _, err := os.Stat(candidate); err != nil {
+		t.Fatal(err)
+	}
+	if retained := owner.RetainedRoot(); retained != candidate {
+		t.Fatalf("retained %s; candidate %s remains, fleet removed", retained, candidate)
+	}
+}
+
+func TestNativeOwnerFailedStartLogsCachedScreenWithoutQueries(t *testing.T) {
+	owner, f, calls := nativeFixture(t)
+	var output bytes.Buffer
+	owner.reporter.diagnostics = NewDiagnostics(&output)
+	if err := owner.Prepare(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	f.startErr = errors.New("agent-ready missing")
+	if err := owner.Start(t.Context()); !errors.Is(err, f.startErr) {
+		t.Fatalf("native failure lost: %v", err)
+	}
+	if f.screenCalls != 1 || *calls != 0 || !strings.Contains(output.String(), "steward remains on native admission form") {
+		t.Fatalf("missing cached failure screen: screenCalls=%d commands=%d output=%s", f.screenCalls, *calls, output.String())
+	}
+	if err := owner.Close(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestNativeOwnerConstructorCancellationPreventsLateInstallation(t *testing.T) {
+	owner, f, _ := nativeFixture(t)
+	startup, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	entered, release := make(chan struct{}), make(chan struct{})
+	installed := false
+	owner.dependencies.newFleet = func(lifetime context.Context, _ testcouch.Binaries, _ testcouch.Options, cfg testcouch.OwnerConfig) (nativeFleet, error) {
+		f.lifetime = lifetime
+		admission := cfg.AdmissionContext
+		if admission == nil {
+			admission = lifetime
+		}
+		close(entered)
+		<-release
+		if err := admission.Err(); err != nil {
+			return f, err
+		}
+		installed = true
+		return f, nil
+	}
+	result := make(chan error, 1)
+	go func() { result <- owner.Prepare(startup) }()
+	select {
+	case <-entered:
+	case <-time.After(3 * time.Second):
+		t.Fatal("constructor did not enter")
+	}
+	cancel()
+	close(release)
+	select {
+	case err := <-result:
+		if !errors.Is(err, context.Canceled) || installed || f.prepared {
+			t.Fatalf("late install after startup cancellation: err=%v installed=%v prepared=%v", err, installed, f.prepared)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("constructor cancellation did not join")
+	}
+	if err := owner.Close(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 }

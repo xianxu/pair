@@ -247,3 +247,56 @@ func TestOwnedConstructorAllowsOnlyExplicitSocketFallback(t *testing.T) {
 	}
 	closeOwned(t, f)
 }
+
+func TestOwnedCanceledAdmissionKeepsPartialCleanupOwner(t *testing.T) {
+	parent := ownerParent(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	gate := constructionContextGate{Context: ctx, check: func() {
+		entries, err := os.ReadDir(parent)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(entries) > 0 {
+			cancel()
+		}
+	}}
+	f, err := NewOwned(t.Context(), Binaries{}, Options{Workers: 1}, OwnerConfig{ScratchParent: parent, AdmissionContext: gate})
+	if !errors.Is(err, context.Canceled) {
+		if f != nil {
+			closeOwned(t, f)
+		}
+		t.Fatalf("admission cancellation ignored: %v", err)
+	}
+	if f == nil {
+		t.Fatal("canceled constructor hid allocated roots")
+	}
+	for _, dir := range []string{f.Roots.Mutable["bin"], f.Roots.Mutable["config"]} {
+		entries, err := os.ReadDir(dir)
+		if err != nil || len(entries) != 0 {
+			t.Fatalf("installation continued in %s: %v %v", dir, entries, err)
+		}
+	}
+	closeOwned(t, f)
+}
+
+func TestOwnedSuccessfulAdmissionDoesNotShortenLifetime(t *testing.T) {
+	b, _, _ := runtimeFilesFixture(t)
+	b.Source = runtimeSourceForTest(t)
+	startup, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	f, err := NewOwned(t.Context(), b, Options{Workers: 1}, OwnerConfig{ScratchParent: ownerShortScratch(t), AdmissionContext: startup})
+	if err != nil {
+		if f != nil {
+			closeOwned(t, f)
+		}
+		t.Fatal(err)
+	}
+	defer closeOwned(t, f)
+	cancel()
+	_, done, err := f.begin(context.Background())
+	if err != nil {
+		t.Fatalf("startup cancellation killed admitted lifetime: %v", err)
+	}
+	done()
+}

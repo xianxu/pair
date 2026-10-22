@@ -178,3 +178,8 @@ The following replaces the illustrative prose test inventories in Tasks1–2 as 
 | Main | Subprocess argv/env/signal tests using the shared runner seam; exit0 requires requested stop plus Close and AssertCleaned, and stdout contains only the supported readiness protocol. |
 
 Tasks retain their red→minimal implementation→green→commit ordering and same file boundaries, plus the explicit testpair extraction above. Native acceptance remains the real #405 driver and both selected nvim versions, independently invoked. No behavioral code has been written.
+
+
+### 2026-10-22 — constructor admission and remaining-root evidence
+
+The ad-hoc lifetime audit exposed two implementation gaps in the approved stop contract. Keep the existing separate admitted lifetime, but carry startup admission independently through OwnerConfig.AdmissionContext (nil defaults to the lifetime context). Check admission after candidate preparation and between constructor/installation effects; cancellation returns any partial owner for the same joined cleanup. This adds no executor, persistent state or visible recovery state. After fleet teardown is confirmed, recovery evidence selects a still-owned candidate directory rather than the removed fleet root. Add gated-constructor, post-build cancellation and cleanup-budget-exhaustion controls before another native run. Start failures also print the existing cached console frame through the bounded diagnostic sink, with no extra native query. Hub97f22b2d authorizes one subsequent bounded native run; no timeout extension or repeated startup probes.

@@ -21,6 +21,8 @@ type Reporter interface {
 }
 
 type OwnerConfig struct {
+	// AdmissionContext bounds construction only; nil uses the fleet lifetime.
+	AdmissionContext     context.Context
 	ScratchParent        string
 	Reporter             Reporter
 	Denied               []string
@@ -87,10 +89,29 @@ func NewOwned(ctx context.Context, b Binaries, o Options, cfg OwnerConfig) (*Fle
 	if ctx == nil {
 		return nil, fmt.Errorf("fleet lifetime context required")
 	}
-	if err := ctx.Err(); err != nil {
+	admission := cfg.AdmissionContext
+	if admission == nil {
+		admission = ctx
+	}
+	check := func() error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		return admission.Err()
+	}
+	if err := check(); err != nil {
 		return nil, err
 	}
+	// Both cancellation sources bound construction. Completing admission revokes
+	// this temporary context, not the independently owned fleet lifetime.
+	construction, cancelConstruction := context.WithCancel(admission)
+	stopLifetime := context.AfterFunc(ctx, cancelConstruction)
+	defer stopLifetime()
+	defer cancelConstruction()
 	if err := validateOptions(o); err != nil {
+		return nil, err
+	}
+	if err := check(); err != nil {
 		return nil, err
 	}
 	if err := validateScratchParent(cfg.ScratchParent); err != nil {
@@ -103,10 +124,16 @@ func NewOwned(ctx context.Context, b Binaries, o Options, cfg OwnerConfig) (*Fle
 		o.RuntimeBudget = 120 * time.Second
 	}
 	var nonce [16]byte
+	if err := check(); err != nil {
+		return nil, err
+	}
 	if _, err := rand.Read(nonce[:]); err != nil {
 		return nil, err
 	}
 	denied := ownerDenied(cfg.Denied)
+	if err := check(); err != nil {
+		return nil, err
+	}
 	p, err := allocateRoots(cfg.ScratchParent, denied)
 	if err != nil {
 		return nil, err
@@ -118,6 +145,9 @@ func NewOwned(ctx context.Context, b Binaries, o Options, cfg OwnerConfig) (*Fle
 	}
 	f := &Fleet{Roots: p, Options: o, Binaries: b, RunID: hex.EncodeToString(nonce[:]), t: reporter, ctx: lifetime, cancel: cancel, idle: make(chan struct{})}
 	close(f.idle)
+	if err := check(); err != nil {
+		return f, err
+	}
 	if !socketPlacementFits(p) {
 		if !cfg.AllowScratchFallback {
 			return f, fmt.Errorf("scratch parent exceeds native wrapper socket path limit")
@@ -128,8 +158,15 @@ func NewOwned(ctx context.Context, b Binaries, o Options, cfg OwnerConfig) (*Fle
 		}
 		// No process has been started. Remove only this unpublished fresh lease
 		// before selecting the legacy short socket directory.
+		if err := check(); err != nil {
+			return f, err
+		}
 		if err := os.RemoveAll(p.Root); err != nil {
 			return f, fmt.Errorf("remove unstarted long socket root: %w", err)
+		}
+		if err := check(); err != nil {
+			cancel()
+			return nil, err
 		}
 		p, err = allocateRoots(short, denied)
 		if err != nil {
@@ -138,29 +175,41 @@ func NewOwned(ctx context.Context, b Binaries, o Options, cfg OwnerConfig) (*Fle
 			return nil, err
 		}
 		f.Roots = p
+		if err := check(); err != nil {
+			return f, err
+		}
 		if !socketPlacementFits(p) {
 			return f, fmt.Errorf("fallback exceeds native wrapper socket path limit")
 		}
 	}
-	if err := ctx.Err(); err != nil {
+	if err := check(); err != nil {
 		return f, err
 	}
-	if err := installRuntime(b, p); err != nil {
+	if err := installRuntimeContext(construction, b, p); err != nil {
+		return f, err
+	}
+	if err := check(); err != nil {
 		return f, err
 	}
 	if err := os.WriteFile(filepath.Join(p.Root, agentfixture.OwnershipFile), []byte(f.RunID), 0600); err != nil {
+		return f, err
+	}
+	if err := check(); err != nil {
 		return f, err
 	}
 	f.Environment, err = runtimeEnvironment(p, p.Mutable["bin"], o.AgentKind, f.RunID, b.Source, filepath.Join(p.Mutable["bin"], "couch"))
 	if err != nil {
 		return f, err
 	}
+	if err := check(); err != nil {
+		return f, err
+	}
 	f.record(RunEvent{Kind: "ready"})
-	if err := errors.Join(ctx.Err(), f.ownershipError()); err != nil {
+	if err := errors.Join(check(), f.ownershipError()); err != nil {
 		return f, err
 	}
 	reporter.Logf("native fleet isolation: root=%s run=%s agent=%s workers=%d", p.Root, f.RunID, o.AgentKind, o.Workers)
-	return f, nil
+	return f, check()
 }
 
 // Done exposes the current owned supervisor's completion without polling or
