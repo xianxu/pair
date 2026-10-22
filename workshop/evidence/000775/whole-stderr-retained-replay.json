@@ -1,0 +1,42 @@
+{
+  "original_log_sha256": "a3a178d1c8660b2ce94a2e2e067d5de1b5700ee9795950f1172e0e432b49d9a9",
+  "corrected_script_sha256": "66e68a9a89e04a9a675cb3c00fc67dd4672fda3dccd9f37daa4849c2e5c97eef",
+  "strictly_eligible_retained_misses": 7,
+  "samples": [
+    {
+      "header": "80 target=zfm-30518-2 exit=0 argv=--session zfm-30518-2 action list-panes --json --command ",
+      "complete_stderr_match": true,
+      "target_listed": true
+    },
+    {
+      "header": "348 target=zfm-30518-0 exit=0 argv=--session zfm-30518-0 action list-panes --json --command ",
+      "complete_stderr_match": true,
+      "target_listed": true
+    },
+    {
+      "header": "744 target=zfm-30518-0 exit=0 argv=--session zfm-30518-0 action list-panes --json --command ",
+      "complete_stderr_match": true,
+      "target_listed": true
+    },
+    {
+      "header": "173 target=zfm-30518-1 exit=0 argv=--session zfm-30518-1 action list-panes --json --command --state ",
+      "complete_stderr_match": true,
+      "target_listed": true
+    },
+    {
+      "header": "589 target=zfm-30518-0 exit=0 argv=--session zfm-30518-0 action list-panes --json --command --state ",
+      "complete_stderr_match": true,
+      "target_listed": true
+    },
+    {
+      "header": "302 target=zfm-30518-0 exit=0 argv=--session zfm-30518-0 action list-clients ",
+      "complete_stderr_match": true,
+      "target_listed": true
+    },
+    {
+      "header": "430 target=zfm-30518-2 exit=0 argv=--session zfm-30518-2 action list-clients ",
+      "complete_stderr_match": true,
+      "target_listed": true
+    }
+  ]
+}

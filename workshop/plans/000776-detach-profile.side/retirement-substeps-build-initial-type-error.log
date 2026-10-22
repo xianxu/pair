@@ -1,0 +1,4 @@
+['/opt/homebrew/Cellar/go/1.27.1/libexec/bin/go', 'build', '-p', '4', '-o', '/Volumes/TestScratch/detach-compare.O0eTeh/bin-current/couch', './cmd/couch']
+# github.com/xianxu/pair/cmd/internal/detachmeasure
+cmd/internal/detachmeasure/trace.go:99:53: invalid operation: (a.Sec - b.Sec) * 1e9 + (a.Usec - b.Usec) * 1000 (mismatched types int64 and int32)
+exit=1 elapsed=1.250

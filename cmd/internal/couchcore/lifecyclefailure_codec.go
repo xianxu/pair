@@ -29,7 +29,7 @@ func decodeLifecycleFailureHistory(raw []byte) (LifecycleFailureHistory, error) 
 	var h LifecycleFailureHistory
 	for _, entry := range entries {
 		known := strictjson.KnownFields(reflect.TypeOf(lifecycleFailureWire{}))
-		owned, unknown, err := strictjson.SplitObject(entry, known, map[string]bool{"before_exit": true, "after_exit": true})
+		owned, unknown, err := strictjson.SplitObject(entry, known, map[string]bool{"before_exit": true, "after_exit": true, "zellij_exit": true})
 		if err != nil {
 			return nil, err
 		}

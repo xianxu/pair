@@ -1,0 +1,10 @@
+{
+  "source_sha": "7141a33f0f9017b1fb63627a49f79dc6eea686b2",
+  "observer_patch_sha256": "ec02209bf5e1e0a4f9ecf1ea453568950aea43dfea47c3d3f1c597ac674dc4e8",
+  "binary_sha256": {
+    "bin-current/pair-launch-helper": "d1aef1cfab4ae90a2a1b417f3994488ba12bb849975cacea4c72be4644389c2a",
+    "bin-current/couch": "375d942e7bad755311c64a4fd697dce7eb716ccf53f874c2d9bfffd23e9aab01",
+    "bin-current/pair": "50cf13325884ebd5a47c1f34bf975d7fca87c260eb18ffbd20615a768e3b6811",
+    "bin-shared/fixture-agent": "52e46051ede98ee259fee6fd19e83d9868aa253bd7255a6343e38310f97943b1"
+  }
+}

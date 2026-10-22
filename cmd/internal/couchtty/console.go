@@ -515,7 +515,7 @@ func (c *Console) installObservedThreadActor(ctx context.Context, handleID strin
 		return errors.New("attach requires complete handle, actor, and terminal identities")
 	}
 	if child.Endpoint().InputEnded() {
-		return errors.New("attach terminal input has ended")
+		return captureAttachFailure("attach-preflight", child, errors.New("attach terminal input has ended"))
 	}
 	select {
 	case <-ctx.Done():
@@ -612,7 +612,7 @@ func (c *Console) installObservedThreadActor(ctx context.Context, handleID strin
 		}
 		if child.Endpoint().InputEnded() {
 			c.mu.Unlock()
-			return errors.New("attach terminal input has ended")
+			return captureAttachFailure("attach-precommit", child, errors.New("attach terminal input has ended"))
 		}
 		pending, reserved := c.pendingInstalls[handleID]
 		if !reserved || pending.child != child || pending.thread != thread {
@@ -2414,10 +2414,15 @@ func (c *Console) setNotice(text string) {
 // message, it is damage. Whatever is queued by then is shown by the first paint.
 func (c *Console) publishNotice(n Notice) {
 	c.mu.Lock()
-	c.feed.Push(n)
-	started := c.started
+	started := c.publishNoticeLocked(n)
 	c.mu.Unlock()
 	if started {
 		c.repaint()
 	}
+}
+
+// publishNoticeLocked publishes while the caller holds c.mu; repaint after unlocking.
+func (c *Console) publishNoticeLocked(n Notice) bool {
+	c.feed.Push(n)
+	return c.started
 }

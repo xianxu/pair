@@ -30,6 +30,8 @@ func FuzzSketchCodec(f *testing.F) {
 		}
 	}
 	for _, line := range []string{
+		strings.Replace(sketchWireSamples()[3], `"id":"s"`, `"id":"s","truncated":true`, 1),
+		strings.Replace(sketchWireSamples()[3], `"id":"s"`, `"id":"s","truncated":null`, 1),
 		strings.Replace(sketchWireSamples()[0], `"id":"sk"`, `"id":"\ud800"`, 1),
 		strings.Replace(sketchWireSamples()[0], `"id":"sk"`, `"id":"\udfff"`, 1),
 		strings.Replace(sketchWireSamples()[0], `"id":"sk"`, `"id":"\ud83d\ude00"`, 1),

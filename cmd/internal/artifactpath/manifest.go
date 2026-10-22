@@ -68,6 +68,7 @@ var ResolvedBindings = append([]ResolvedBinding{
 	{Name: "direct-ledger-history-tag", Family: "ledger", Resolver: "TagFromHistorySidecar"},
 	{Name: "direct-log-history", Family: "log", Resolver: "IsLogHistorySidecar"},
 	{Name: "direct-log-history-tag", Family: "log", Resolver: "TagFromHistorySidecar"},
+	{Name: "direct-ready-census", Family: "agent-ready", Resolver: "IsAgentReadyCandidate"},
 	{Name: "direct-config-recognition", Family: "config", Resolver: "IsConfigSidecar"},
 	{Name: "direct-config-sidecar", Family: "config", Resolver: "TagAgentFromConfigSidecar"},
 	{Name: "direct-thread-claim-recognition", Family: "thread-claim", Resolver: "TagFromThreadClaim"},
@@ -368,6 +369,7 @@ var SourceClassifications = []SourceClassification{
 		}},
 	{Path: "cmd/internal/launcher/layoutflow.go", Kind: ResolvedConsumer,
 		Families: []string{"draft", "layout"}, BindingNames: []string{"direct-draft-command", "scoped-layout"}},
+	{Path: "cmd/internal/testcouch/startup_evidence.go", Kind: ResolvedConsumer, Families: []string{"agent-ready"}, BindingNames: []string{"composite-switch-ready", "direct-ready-census"}},
 	{Path: "cmd/internal/launcher/readiness.go", Kind: ResolvedConsumer, Families: []string{"agent-ready"}, BindingNames: []string{"scoped-agent-ready-path"}},
 	{Path: "cmd/internal/launcher/session_owner.go", Kind: ResolvedConsumer, Families: []string{"draft"}, BindingNames: []string{"scoped-draft"}},
 	{Path: "cmd/internal/launcher/rename.go", Kind: ResolvedConsumer,
@@ -668,6 +670,12 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #757 catalogue, report and HTTP front introduce no Pair artifact families.
+	"cmd/internal/mockserve/screens.go",
+	"cmd/internal/mockserve/check.go",
+	"cmd/internal/mockserve/front.go",
+	"cmd/internal/mockserve/front_origin.go",
+	"cmd/internal/mockserve/front_route.go",
 	"cmd/internal/mockserve/cli.go",
 	"cmd/internal/mockserve/page.go",
 	"cmd/internal/mockserve/project.go",
@@ -888,6 +896,7 @@ var NonArtifactSources = []string{
 	// Pair artifact filename families; the remaining files model/render evidence.
 	"cmd/internal/couchcmd/launchfailure.go",
 	"cmd/internal/couchcore/launchfailure.go",
+	"cmd/internal/couchcore/nativequery_failure.go",
 	"cmd/internal/couchcore/launchfailure_capture.go",
 	"cmd/internal/couchcore/launchfailure_show.go",
 	"cmd/internal/couchcore/launchfailure_store.go",
@@ -904,6 +913,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/operationattempt_record.go",
 	"cmd/internal/couchcmd/lifecyclefailure_queue.go",
 	"cmd/internal/couchtty/console_lifecycle_failure.go",
+	"cmd/internal/couchtty/attach_failure.go",
 	"cmd/internal/couchcore/launchoutput.go",
 	"cmd/internal/couchcmd/capture.go",
 	"cmd/internal/couchtty/capture.go",
@@ -1009,6 +1019,31 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/codes_menu.go",
 	"cmd/internal/webcast/browser.go",
 	"cmd/internal/webcast/cast.go",
+	// #752 sketch wire/admission, ordered receipts, drawing witnesses and
+	// delivery journals live in memory or the existing recording stream.
+	"cmd/internal/strictjson/unicode.go",
+	"cmd/internal/webcast/board/sketch.go",
+	"cmd/internal/webcast/board/sketch_delivery.go",
+	"cmd/internal/webcast/board/sketch_wire.go",
+	"cmd/internal/webcast/board/writer_sketch.go",
+	"cmd/internal/webcast/drive/drawing.go",
+	"cmd/internal/webcast/recorder/sketch.go",
+	"cmd/internal/webcast/recording/sketch_anchors.go",
+	"cmd/internal/webcast/recording/sketch_source.go",
+	// #752 console/private-scene adapters use CDP scopes and opaque blobs;
+	// the scene script reads embedded viewer modules, not runtime artifacts.
+	"cmd/internal/webcast/chrome_operator_sketch.go",
+	"cmd/internal/webcast/chrome_operator_sketch_binding.go",
+	"cmd/internal/webcast/chrome_operator_sketch_wiring.go",
+	"cmd/internal/webcast/chrome_sketch_exclusion.go",
+	"cmd/internal/webcast/chrome_sketch_scene.go",
+	"cmd/internal/webcast/recorder/exclusion.go",
+	"cmd/internal/webcast/server_sketch.go",
+	"cmd/internal/webcast/sketch_scene_script.go",
+	// #752 bounded asset reads use recording.AssetName under the caller's
+	// recording directory: the existing #457/#459 recording-owned assets,
+	// removed with that recording, introduce no Pair artifact family.
+	"cmd/internal/webcast/cast_sketch.go",
 	// #523: capability admission, ordered stream operations and projections;
 	// cast lifetime state only, no new artifact paths.
 	"cmd/internal/webcast/board/annotation.go",
@@ -1281,10 +1316,13 @@ var NonArtifactSources = []string{
 	"cmd/internal/diagnosticlog/append.go",
 	"cmd/internal/diagnosticlog/append_reservation.go",
 	"cmd/internal/diagnosticlog/batch_model.go",
+	// #774: compares supplied metadata; owns no artifact pathname.
+	"cmd/internal/diagnosticlog/checkpoint_identity.go",
 	"cmd/internal/diagnosticlog/buffered.go",
 	"cmd/internal/diagnosticlog/policy.go",
 	"cmd/internal/wrapcmd/capture_buffer.go",
 	"cmd/internal/wrapcmd/diagnostic_writers.go",
+	"cmd/internal/wrapcmd/startup_diagnostics.go",
 	"cmd/internal/diagnosticlog/creation.go",
 	"cmd/internal/diagnosticlog/collect.go",
 	"cmd/internal/diagnosticlog/environment.go",
@@ -1555,6 +1593,29 @@ var NonArtifactSources = []string{
 	// pair#602 compiler fixture: owns a temporary executable, no session artifacts.
 	"cmd/internal/testpair/binary.go",
 	"cmd/internal/testpair/environment.go",
+	"cmd/internal/testpair/shortroot.go",
+	// pair#744 disposable qualification owner: private test files/processes,
+	// read-only candidate/tool inputs and native fixture transcripts; no tagged
+	// Pair session-artifact filename constructors or consumers.
+	"cmd/internal/pathscope/pathscope.go",
+	"cmd/internal/testcouch/actor.go",
+	"cmd/internal/testcouch/agentfixture/cmd/main.go",
+	"cmd/internal/testcouch/agentfixture/conversation.go",
+	"cmd/internal/testcouch/agentfixture/model.go",
+	"cmd/internal/testcouch/agentfixture/paint.go",
+	"cmd/internal/testcouch/agentfixture/protocol.go",
+	"cmd/internal/testcouch/agentfixture/run.go",
+	"cmd/internal/testcouch/binaries.go",
+	"cmd/internal/testcouch/cleanup.go",
+	"cmd/internal/testcouch/cohort.go",
+	"cmd/internal/testcouch/environment.go",
+	"cmd/internal/testcouch/fleet.go",
+	"cmd/internal/testcouch/ownership.go",
+	"cmd/internal/testcouch/process.go",
+	"cmd/internal/testcouch/provision.go",
+	"cmd/internal/testcouch/roots.go",
+	"cmd/internal/testcouch/runtime_files.go",
+	"cmd/internal/testcouch/terminal.go",
 	// pair#479 test wait helper: bounds a wait by the test deadline; names no file.
 	"cmd/internal/testwait/testwait.go",
 	// Test failure diagnostics inspect host load, not session artifacts.
@@ -1611,6 +1672,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/launcher/thread_claim.go",
 	"cmd/internal/launcher/zellij.go",
 	"cmd/internal/launcher/zellij_read_recovery.go",
+	"cmd/internal/launcher/zellij_query_evidence.go",
 	"cmd/internal/launcher/zellij_listing_poller.go",
 	"cmd/internal/launcher/zellijparse.go",
 	"cmd/internal/layoutcmd/layoutcmd.go",
@@ -1653,6 +1715,9 @@ var NonArtifactSources = []string{
 	"cmd/internal/runtimebundle/plan.go",
 	"cmd/internal/runtimebundle/store.go",
 	"cmd/internal/runtimebundlegen/generate.go",
+	"cmd/internal/scribecmd/pty.go",
+	"cmd/internal/scribecmd/pty_darwin.go",
+	"cmd/internal/scribecmd/pty_other.go",
 	"cmd/internal/scribecmd/scribecmd.go",
 	"cmd/internal/sessioninventory/conformance.go",
 	"cmd/internal/sessioninventory/activity.go",

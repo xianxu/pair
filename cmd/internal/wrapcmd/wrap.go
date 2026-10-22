@@ -2775,6 +2775,7 @@ func writeAtomic(path string, data []byte) error {
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	lease, retentionErr := storagegc.AcquireSelectedProcess(context.Background(), os.Getenv, "wrapper")
 	if retentionErr != nil {
+		logEarlyStartupFailure(stderr, retentionErr)
 		fmt.Fprintf(stderr, "pair-wrap: protect storage: %v\n", retentionErr)
 		return 1
 	}
@@ -2806,7 +2807,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return code
 }
 
-func run(args []string, stdin io.Reader, stdout, stderr io.Writer) (int, error) {
+func run(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int, startupErr error) {
 	// Hash this executable first, before anything is spawned (#421): the hash
 	// is read by path, so the earlier it runs the smaller the window in which a
 	// rebuild could replace the file under a still-running old image. ~10ms.
@@ -2831,7 +2832,15 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) (int, error) 
 		lifecycleEvents: make(chan TurnObservation, 32),
 	}
 
-	defer func() { _ = p.closeDebug() }()
+	phase := "arguments"
+	startupComplete := false
+	p.startupIdentity(stderr)
+	defer func() {
+		if startupErr != nil && !startupComplete {
+			p.startupError(stderr, phase, startupErr)
+		}
+		p.closeStartupDiagnostics(stderr)
+	}()
 
 	// Argv: strip our own flags before resolving the command. argparse
 	// would be heavier than needed; this matches the Python loop shape.
@@ -2927,6 +2936,7 @@ argsDone:
 		}
 	}
 
+	phase = "notification-broker"
 	// Signal delivery must be installed before the broker publishes the shared
 	// capture/restart PID binding. Queue signals until the child is initialized.
 	sigCh := make(chan os.Signal, 4)
@@ -2952,6 +2962,7 @@ argsDone:
 		}()
 	}
 
+	phase = "native-pty"
 	// Spawn child in a fresh PTY.
 	cmd := exec.Command(argv[0], launcher.PromptArgs(argv[0], argv[1:], launchPrompt)...)
 	cmd.Env = childEnv
@@ -2975,6 +2986,7 @@ argsDone:
 	}
 	p.cmd = cmd
 	p.ptmx = ptmx
+	phase = "child-terminal"
 	childIO, err := ttyio.NewFile(ptmx, ptmx, false)
 	if err != nil {
 		_ = ptmx.Close()
@@ -2987,6 +2999,7 @@ argsDone:
 		_ = childIO.Close()
 		_ = ptmx.Close()
 	}()
+	phase = "harness-terminal"
 	if err := p.configureHarnessTTY(os.Getenv("PAIR_WRAP_REMAP_RETURN") != "0", 80, 24); err != nil {
 		_ = childIO.Close()
 		_ = ptmx.Close()
@@ -3125,6 +3138,7 @@ argsDone:
 		}
 	}()
 
+	startupComplete = true
 	// Main loop. One goroutine per direction; everything else is in
 	// the master-reader goroutine (the only place per-chunk processing
 	// happens, mirroring the Python's serial loop).

@@ -231,19 +231,20 @@ func TestZellijEmptyReplyOwnerProbeGrantsNoAuthority(t *testing.T) {
 	valid := zellijtest.Case(t, "launcher-frames-owned-panes").Stdout
 	for _, empty := range []string{"", " \t\n"} {
 		t.Run(fmt.Sprintf("%q", empty), func(t *testing.T) {
-			fake := newEmptyReplyFake(t, earlyUnblockFrame(t, panes, empty), earlyUnblockFrame(t, panes, empty), earlyUnblockFrame(t, panes, empty), emptyReplyFrame{Args: panes, Events: []string{"Log", "UnblockInput"}, Stdout: valid}, emptyReplyFrame{Args: panes, Stdout: valid})
+			fake := newEmptyReplyFake(t, earlyUnblockFrame(t, panes, empty), earlyUnblockFrame(t, panes, empty), earlyUnblockFrame(t, panes, empty), emptyReplyFrame{Args: []string{"--version"}, Stdout: "zellij 0.45.1\n"}, emptyReplyFrame{Args: panes, Events: []string{"Log", "UnblockInput"}, Stdout: valid}, emptyReplyFrame{Args: panes, Stdout: valid})
 			io := &emptyReplyOwnerIO{source: fake.source, hasServer: true, server: SessionServerIdentity{PID: 37, Identity: "generation", Session: name, Socket: "/fake/socket"}}
 			probe := SessionOwnerProbe{IO: io}
 			got, err := probe.Probe(context.Background(), name, "/tmp/data", "0123456789abcdef", "1-repo-1")
 			assertEmptyReply(t, err)
-			if got.State != SessionOwnerUnknown || fake.calls(t) != 3 {
+			// Exactly three pane reads, followed by one failure-only version read.
+			if got.State != SessionOwnerUnknown || fake.calls(t) != 4 {
 				t.Fatalf("uncertain ownership = %+v; calls %d", got, fake.calls(t))
 			}
 			if err := probe.Revalidate(context.Background(), got); err == nil {
 				t.Fatal("uncertain ownership revalidated")
 			}
 			got, err = probe.Probe(context.Background(), name, "/tmp/data", "0123456789abcdef", "1-repo-1")
-			if err != nil || got.State != SessionOwnerOwned || fake.calls(t) != 5 {
+			if err != nil || got.State != SessionOwnerOwned || fake.calls(t) != 6 {
 				t.Fatalf("fresh ownership = %+v %v", got, err)
 			}
 		})
@@ -266,6 +267,9 @@ func TestZellijEmptyReplyOwnerProbeGrantsNoAuthority(t *testing.T) {
 				want = "session server changed during observation"
 			}
 			frames := []emptyReplyFrame{{Args: panes, Stdout: raw}}
+			if !change {
+				frames = append(frames, emptyReplyFrame{Args: []string{"--version"}, Stdout: "zellij 0.45.1\n"})
+			}
 			if change {
 				// The generation bracket surrounds both valid confirmation reads.
 				frames = append(frames, emptyReplyFrame{Args: panes, Stdout: raw})
@@ -291,7 +295,7 @@ func TestZellijEmptyReplyOwnerPassAllowsFreshCLIObservation(t *testing.T) {
 	const name = "pair-a"
 	args := []string{"--session", name, "action", "list-panes", "--json", "--command"}
 	valid := zellijtest.Case(t, "launcher-frames-owned-panes").Stdout
-	fake := newEmptyReplyFake(t, earlyUnblockFrame(t, args, ""), earlyUnblockFrame(t, args, ""), earlyUnblockFrame(t, args, ""), emptyReplyFrame{Args: args, Events: []string{"Log", "UnblockInput"}, Stdout: valid}, emptyReplyFrame{Args: args, Stdout: valid})
+	fake := newEmptyReplyFake(t, earlyUnblockFrame(t, args, ""), earlyUnblockFrame(t, args, ""), earlyUnblockFrame(t, args, ""), emptyReplyFrame{Args: []string{"--version"}, Stdout: "zellij 0.45.1\n"}, emptyReplyFrame{Args: args, Events: []string{"Log", "UnblockInput"}, Stdout: valid}, emptyReplyFrame{Args: args, Stdout: valid})
 	world := &emptyReplyOwnerIO{source: fake.source, hasServer: true, server: SessionServerIdentity{PID: 7, Identity: "same", Session: name, Socket: "/fake/socket"}}
 	captures := 0
 	source := ownerPassSourceFunc(func(context.Context) (map[string]ServerState, error) {
@@ -301,11 +305,12 @@ func TestZellijEmptyReplyOwnerPassAllowsFreshCLIObservation(t *testing.T) {
 	pass := NewSessionOwnerPass(t.Context(), source, SessionOwnerProbe{IO: world})
 	got, err := pass.Probe(t.Context(), name, "/tmp/data", "0123456789abcdef", "1-repo-1")
 	assertEmptyReply(t, err)
-	if got.State != SessionOwnerUnknown || fake.calls(t) != 3 {
+	// Exactly three pane reads, followed by one failure-only version read.
+	if got.State != SessionOwnerUnknown || fake.calls(t) != 4 {
 		t.Fatal("pass authorized empty CLI reply")
 	}
 	got, err = pass.Probe(t.Context(), name, "/tmp/data", "0123456789abcdef", "1-repo-1")
-	if err != nil || got.State != SessionOwnerOwned || fake.calls(t) != 5 || captures != 1 {
+	if err != nil || got.State != SessionOwnerOwned || fake.calls(t) != 6 || captures != 1 {
 		t.Fatalf("fresh pane observation=%+v,%v; captures=%d", got, err, captures)
 	}
 }

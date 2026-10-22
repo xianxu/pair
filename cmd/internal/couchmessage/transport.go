@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/pathscope"
 	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
 
@@ -36,9 +37,43 @@ func SocketPath(namespace, endpoint string) (string, error) {
 	if !filepath.IsAbs(namespace) || namespace != filepath.Clean(namespace) || endpoint == "" {
 		return "", errors.New("message socket requires a canonical absolute namespace and endpoint")
 	}
+	isolated := os.Getenv("COUCH_ISOLATED_ROOT")
+	if isolated != "" {
+		root, err := isolatedMessageRoot(isolated)
+		if err != nil {
+			return "", err
+		}
+		physical, err := pathscope.CanonicalFuture(namespace)
+		if err != nil || !pathscope.Within(root, physical) {
+			return "", fmt.Errorf("message namespace must remain inside COUCH_ISOLATED_ROOT: %q", namespace)
+		}
+		parent, err := pathscope.Directory(root, filepath.Join(root, "m"), "message socket directory")
+		if err != nil {
+			return "", err
+		}
+		return selectMessageSocket(namespace, endpoint, parent, true)
+	}
+	//lint:allow tmp-literal — preserve the historical UID-private address independently of TMPDIR
+	return selectMessageSocket(namespace, endpoint, filepath.Join("/tmp", fmt.Sprintf("pair-message-%d", os.Getuid())), false)
+}
+
+// selectMessageSocket is the pure address selector. Canonical namespace bytes
+// remain the hash input in both modes; only explicit isolation changes the parent.
+func selectMessageSocket(namespace, endpoint, parent string, isolated bool) (string, error) {
 	digest := sha256.Sum256([]byte(namespace + "\x00" + endpoint))
-	//lint:allow tmp-literal — independent wrapper and broker processes must derive the same bounded UID-private socket address regardless of their TMPDIR
-	return filepath.Join("/tmp", fmt.Sprintf("pair-message-%d", os.Getuid()), fmt.Sprintf("%x.sock", digest[:20])), nil
+	socket := filepath.Join(parent, fmt.Sprintf("%x.sock", digest[:20]))
+	if isolated && len(socket) > 103 {
+		return "", errors.New("isolated message socket exceeds 103 bytes; choose a shorter COUCH_ISOLATED_ROOT")
+	}
+	return socket, nil
+}
+
+func isolatedMessageRoot(selected string) (string, error) {
+	root, err := pathscope.CanonicalFuture(selected)
+	if err != nil {
+		return "", err
+	}
+	return pathscope.Directory(root, root, "message isolation root")
 }
 
 // Server owns its listener, accepted connections, and handler goroutines.
@@ -83,6 +118,23 @@ func StartServer(ctx context.Context, socket string, handler func(context.Contex
 func transportListen(socket string) (*net.UnixListener, os.FileInfo, error) {
 	if !filepath.IsAbs(socket) || socket != filepath.Clean(socket) || len(socket) > 103 {
 		return nil, nil, errors.New("message socket must be a clean absolute path of at most 103 bytes")
+	}
+	if selected := os.Getenv("COUCH_ISOLATED_ROOT"); selected != "" {
+		root, err := isolatedMessageRoot(selected)
+		if err != nil {
+			return nil, nil, err
+		}
+		parent, err := pathscope.Directory(root, filepath.Dir(socket), "message socket directory")
+		if err != nil {
+			return nil, nil, err
+		}
+		expected, err := pathscope.Directory(root, filepath.Join(root, "m"), "message socket directory")
+		if err != nil {
+			return nil, nil, err
+		}
+		if parent != expected {
+			return nil, nil, errors.New("isolated message listener must use the owned message directory")
+		}
 	}
 	if err := transportPrivateDirectory(filepath.Dir(socket)); err != nil {
 		return nil, nil, err
