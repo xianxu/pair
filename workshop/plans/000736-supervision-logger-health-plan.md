@@ -6,7 +6,7 @@ collaboration-mode: discussion
 
 > **For agentic workers:** Follow AGENTS.md §3. The SDLC binary owns review boundaries; use the executing-plans skill for the stateful owner work.
 
-**Goal:** Make a frozen supervision stream diagnosable, then repair the measured cause.
+**Goal:** Make a frozen supervision stream diagnosable and hand the measured cause to #774 for repair.
 
 **Architecture:** The existing supervisionFactLog worker owns all sink IO and its
 outcomes. A pure lifecycle and bounded health value project those outcomes through
@@ -78,7 +78,7 @@ health field. Reading a snapshot while sink IO blocks must still return.
 
 - ARCH-DRY: one health owner; resources samples it directly, not a second file watcher.
 - ARCH-PURE: lifecycle transition tests are pure; the existing worker records IO outcomes.
-- ARCH-PURPOSE: M1 is instrumentation only; M2 still owes the observed cause and live writes.
+- ARCH-PURPOSE: M1 is instrumentation only; #774 owns the observed-cause repair and live writes, after this issue exposes the actual failure.
 - ARCH-MOCK: the existing factSink holds/rejects writes deterministically; real socket/CLI test exercises publication.
 - ARCH-CONSTRAINTS: O(1) bounded updates per offer/write and health read; max256 queued rows remains. Error capture capped512 bytes. Count16/32 independent events and repeated reads to prove no extra sink attempts or scans.
 - ARCH-SECURE: no payload enters health; terminal controls removed before JSON/text projection. Test distinctive prompt text through normal fact generation and assert absence in health.
@@ -107,24 +107,21 @@ health field. Reading a snapshot while sink IO blocks must still return.
 7. Wait for the hub's coordinated restart and exact resources observation. No
    staging or mutation of running Couch. M1 changes no retry/admission policy.
 
-## M2 — observed cause repair
+## Cause repair transferred to #774
 
-This boundary deliberately waits for live evidence. It is not permission to
-invent a root cause. Record the hub's actual health state/error and fresh file
-metadata, then append a cause-specific Revision and get hub approval before code.
-Create a private reproducible failing fixture at that storage/lifecycle boundary,
-fix only the proven cause, and retain no-retry/optional-admission invariants.
-Run targeted and recorded verification, close/review, land on a fresh branch
-from main (the M1 PR branch cannot be reused), and have the hub verify new facts
-reach live storage. Whole-issue close must retain both milestones' evidence;
-M1 alone does not satisfy the issue's live-cause Done when.
+The health-only scope is complete with M1's landing and the real resources
+readout on2026-10-21. The original planned M2 is superseded by the hub-approved
+one-branch split: #774 owns the measured transient-device identity repair,
+regressions, review, landing and fresh-live-fact verification. No source changes
+or retry behavior are added by this closure. Its cause-specific plan goes to
+the hub before code. Earlier M2 obligations remain recorded in Revisions history.
 
 ## Acceptance ownership
 
 Hub approval: instrumentation first, no stage; planned coordinated restart after
 #742 and pair:0 rebuild. The hub reads resources and supplies actual failure.
 The worker owns deterministic tests and review/landing. The operator/hub owns
-the running supervisor and any restart. No historical-cause claim before M2.
+the running supervisor and any restart. The measured cause is recorded in #774; no repair claim is made by #736.
 
 ## Revisions
 
@@ -153,3 +150,13 @@ PQ-2 replaces the case inventories with these named-function strategies:
 | projectResourceView | Oversized detail collections retain bounded health, respect frame budget and leave the cached sample untouched. |
 | renderResources | Typed absent/transient/failure values render one truthful state and action with no terminal controls or payload content. |
 | couchmessage.Call | The actual strict decoder pins new-client/old-server absence and old-reader/new-field refusal; no false compatibility claim. |
+
+### 2026-10-21 — split cause repair after landed M1
+
+The newer one-branch gate refuses continuing the already-landed M1 branch. Hub
+approved closing this issue around M1 health and its actual morning readout,
+with the former M2 work filed independently as #774, no dependencies. #736 no
+longer promises a cause fix or fresh writes. #774 preserves the measured
+st_dev-only mismatch and owns that acceptance. The original plan was: observe
+the real error, append a cause-specific revision, repair it and verify live
+writes; those uncompleted steps moved intact to the new issue.

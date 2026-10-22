@@ -1,13 +1,13 @@
 ---
 id: 000736
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-20
-updated: 2026-10-20
+updated: 2026-10-21
 estimate_hours: 1.7225
 collaboration-mode: collaboration
-card_mirror: '783dc86f9b48ee4c63c8736929dfe737fe6161c3' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'bc2e5e25afcd8e96b2738eeb2b1df1511e82c73a' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-20T20:02:41-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 2.53
 ---
 
 # Couch supervision logger health and frozen fact stream
@@ -29,18 +30,19 @@ The logger discards its Open error and becomes permanently unavailable for that 
 
 ## Spec
 
-Expose logger health and a bounded last error through an existing Couch status surface first. Observe the actual live refusal, then fix that cause. Do not add speculative retries. Keep diagnostics optional, bounded, and off the interactive admission path. Per-message holds remain visible in retained receipts; document the logging and receipt locations accurately.
+Expose logger health and a bounded last error through an existing Couch status surface first. Observe the actual live refusal and hand the measured repair to #774, as approved after the one-branch gate refused continuing this landed issue. Do not add speculative retries. Keep diagnostics optional, bounded, and off the interactive admission path. Per-message holds remain visible in retained receipts; document the logging and receipt locations accurately.
 
 ## Done when
 
 - Existing status reports distinguish a working, unavailable, and failed-write supervision logger, with a useful bounded error and no message/prompt secrets.
 - Tests cover startup Open failure, subsequent write failure/recovery, and closed state without changing admission outcomes.
-- The live failure is observed and recorded, its root cause is corrected, and new supervision facts are verified to reach storage.
+- The live failure is observed and recorded through the landed health surface; its measured cause and approved recovery direction are preserved in the independent #774. Repair and fresh-live-write verification belong to that issue.
 
 ## Plan
 
 - [x] M1 — Expose memory-only logger health in resources; test, review and land instrumentation without staging.
-- [ ] M2 — Observe the actual refusal after the hub's coordinated restart; approve a cause-specific revision, reproduce it, fix it and verify fresh live facts.
+
+The former M2 repair boundary is superseded by #774 per the 2026-10-21 Revision; no uncompleted implementation milestone remains in this health-only issue.
 
 Durable plan: [implementation plan](../plans/000736-supervision-logger-health-plan.md).
 
@@ -74,6 +76,8 @@ total: 1.7225
 
 ## Log
 
+
+- 2026-10-21: closed — Health-only closure per hub scope revision: M1 landed in PR502; 2026-10-21 live resources exposed unavailable open, offered77/written0/dropped77, exact reservation error and timestamp. Measured device-only mismatch is preserved in #774, which now owns repair and fresh-write acceptance; no historical-fix claim. Docs-only branch. Retained own recorded M1 suite 5090197a passed730.851s and landed-M1 suite d123e71b passed661.660s; original targeted race/protocol/fuzz evidence and SHIP remain. Hub owns project.; review verdict: SHIP
 ### 2026-10-20
 - 2026-10-20: closed M1 — M1 instrumentation only: semantic reds for invisible failure, missing resource field, clone alias and canceled-worker health; targeted supervision/resources race tests pass3.358s, resource/protocol tests pass, bounded2-worker error fuzz2062 executions passes, fast reader inventory and diff checks pass. README/atlas map memory-only health, legacy strict-reader refusal, rebuilt CLI requirement and retained receipt reasons. Recorded affected attempt5090197a is queued on pushed61cc29d9 (known #738 full fallback), review overlaps per tl-worker; pass still required before landing. No stage; hub owns project and coordinated restart; live refusal/cause repair remains M2, no historical-fix claim.; review verdict: SHIP
 
@@ -136,3 +140,17 @@ new supervisor, fulfilled by the coordinated rebuild/restart; no negotiation or
 relaxed decoder is added. New-client/old-server absence remains truthful unknown.
 PQ-2's named-function strategies replace prose case inventories. No code exists
 yet; both findings are returned to the plan gate for disposition.
+
+### 2026-10-21 — health accepted live and cause handed off
+
+The operator restarted Couch at08:44:33 on main53a9d42e with M1. Hub's actual resources readout: supervision log unavailable, offered77/written0/dropped77, last write never, last error open08:44:34.8 diagnostic reservation identity or size changed. This is the M1 acceptance: the previously silent startup failure is now visible with counters, cause and operation/time. No logging-repair claim.
+
+Read-only stable bracketed metadata showed payload device16777229 versus checkpoint16777232, with identical inode728006625, size26061670 and mtime_ns1792450564739652454. The reservation was an older committed append (before26055958 plus5712=current26061670), not missing payload. #774 carries this measurement, the source trace, approved device-only recovery direction, adversarial tests and live-write acceptance. No live logger files/processes were changed.
+
+Retained recorded evidence: own M1 suite attempt5090197a974c2c52291cabd5828204b8 on61cc29d9 passed730.851s, log hash317f0f10249a0a3c739c657804df4323c796b476441b17945f8a862d0cf5cca4. Landed M1 merge4a078392 has recorded suite attemptd123e71bcc85f045d6cd44a44eee8334 passed661.660s, log hash17c1eb7e57cabf6a5015b0ddc9ae1341e6d720144ed905b3ea92bc33ab3263ae. Only issue/plan scope handoff prose changes here; source remains main's tested code.
+
+### 2026-10-21 — closure scope revision approved by hub
+
+Newer start-plan refuses continuing an issue whose M1 branch already landed in PR502, explicitly directing a fresh closure branch and a separate cause issue. Hub approved following that gate: close #736 around landed and live-verified M1 health instrumentation, with no claim the logger is repaired; #774 (no dependencies, code prerequisite already main) owns the former M2 fix and live fresh-fact proof. This replaces the earlier two-landings-on-one-issue plan, rather than bypassing the one-branch guard. The original M2 acceptance is preserved above as superseded history. Hub owns project updates and the live rebuild/restart.
+
+2026-10-21 09:05 PDT — Hub explicitly deferred this docs-only closure landing behind urgent #774. PR526 remains open and SHIP. Cancelled queued local check lease-3865002467 through sdlc (never acquired capacity; no test result), then interrupted this slot's waiting sdlc merge with Ctrl-C/SIGINT as the merge contract specifies; both runners exited. Preserve branch; after #774 lands, re-enter this closure's recorded check and merge. No waiver or passing-suite claim. #773 remains held.
