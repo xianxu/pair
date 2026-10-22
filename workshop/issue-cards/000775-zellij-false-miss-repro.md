@@ -1,6 +1,6 @@
 ---
 id: 000775
-status: codecomplete
+status: done
 created: 2026-10-21
 updated: 2026-10-21
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: dd995d96feffc62e3984bebaaeae9b8278ec887c
         evidence_commit: c7ff6724c6d559821bdef91879b47c4eab627c30
+        landed_commit: cfc18fd3f2d27447307cc45a7d9e80075a43b1e6
 ---
 
 # Standalone Zellij false-miss reproduction
