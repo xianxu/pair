@@ -27,6 +27,7 @@ type AgentSwitchInterruptGuard interface {
 }
 
 type SwitchAgentRequest struct {
+	Force               *AgentSwitchForceConsent `json:"-"`
 	InterruptFirst      bool
 	KnownConfig         bool
 	Source              string
@@ -37,15 +38,16 @@ type SwitchAgentRequest struct {
 }
 
 type PreparedAgentSwitch struct {
-	Configured     bool               `json:"configured"`
-	Conflict       bool               `json:"conflict,omitempty"`
-	Borrowed       *BorrowedArguments `json:"borrowed,omitempty"`
-	SourceRevision uint64             `json:"source_revision"`
-	Address        ThreadAddress      `json:"address"`
-	SourceAgent    string             `json:"source_agent"`
-	WorkingPath    string             `json:"working_path"`
-	Profile        LaunchProfile      `json:"profile"`
-	Fingerprint    string             `json:"fingerprint"`
+	Force          *AgentSwitchForceOffer `json:"-"`
+	Configured     bool                   `json:"configured"`
+	Conflict       bool                   `json:"conflict,omitempty"`
+	Borrowed       *BorrowedArguments     `json:"borrowed,omitempty"`
+	SourceRevision uint64                 `json:"source_revision"`
+	Address        ThreadAddress          `json:"address"`
+	SourceAgent    string                 `json:"source_agent"`
+	WorkingPath    string                 `json:"working_path"`
+	Profile        LaunchProfile          `json:"profile"`
+	Fingerprint    string                 `json:"fingerprint"`
 	record         ThreadRecord
 	repoIdentity   string
 	// state is the classification this preparation was ADMITTED on, carried to
@@ -62,22 +64,26 @@ type PreparedAgentSwitch struct {
 // SwitchSourceEvidence carries only core's admitted classification. Its private
 // fields prevent serialized operation arguments from inventing vacancy proof.
 type SwitchSourceEvidence struct {
-	state       ActionableThreadState
-	reason      ThreadReason
-	address     ThreadAddress
-	revision    uint64
-	workingPath string
+	state        ActionableThreadState
+	reason       ThreadReason
+	address      ThreadAddress
+	revision     uint64
+	workingPath  string
+	repoIdentity string
 }
 
 // SourceEvidence exposes the source mode already admitted by this preparation.
 func (p PreparedAgentSwitch) SourceEvidence() SwitchSourceEvidence {
-	return SwitchSourceEvidence{state: p.state, reason: p.sourceReason, address: p.record.Address, revision: p.record.Revision, workingPath: p.record.WorkingPath}
+	return SwitchSourceEvidence{state: p.state, reason: p.sourceReason, address: p.record.Address, revision: p.record.Revision, workingPath: p.record.WorkingPath, repoIdentity: p.repoIdentity}
 }
 
 // Vacant is true only for an admitted non-live classification, never disconnect.
 func (e SwitchSourceEvidence) Vacant() bool {
 	return e.state != ThreadLive && SwitchableState(e.state, e.reason)
 }
+
+// RepositoryIdentity names the canonical identity admitted by preparation.
+func (e SwitchSourceEvidence) RepositoryIdentity() string { return e.repoIdentity }
 
 // WorkingPath names the saved path whose current workspace must be verified.
 func (e SwitchSourceEvidence) WorkingPath() string { return e.workingPath }
@@ -372,7 +378,7 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (_ 
 	if request.InterruptFirst && c.SwitchGuard == nil {
 		return result, errors.New("switch-agent: cooperative interrupt guard unavailable")
 	}
-	if !request.InterruptFirst && (c.SwitchGuard != nil || request.Source != "") {
+	if request.Force == nil && !request.InterruptFirst && (c.SwitchGuard != nil || request.Source != "") {
 		if c.SwitchGuard == nil {
 			return result, errors.New("switch-agent: source guard unavailable")
 		}
@@ -398,6 +404,16 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (_ 
 	}
 	if prepared.Fingerprint != request.AcceptedFingerprint {
 		return result, ErrSwitchResolutionChanged
+	}
+	if request.Force != nil {
+		if request.InterruptFirst {
+			return result, errors.New("switch-agent: force cannot include cooperative interrupt")
+		}
+		source, err := c.consumeAgentSwitchForce(request.Force, prepared)
+		if err != nil {
+			return result, err
+		}
+		request.Source = source
 	}
 	if request.InterruptFirst && !prepared.SourceEvidence().Vacant() {
 		cooperative, ok := c.SwitchGuard.(AgentSwitchInterruptGuard)
@@ -448,7 +464,15 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (_ 
 	if err != nil {
 		return result, err
 	}
-	if c.SwitchGuard != nil || request.Source != "" {
+	if request.Force != nil {
+		guard, ok := c.SwitchGuard.(AgentSwitchForceGuard)
+		if !ok {
+			return result, errors.New("switch-agent: local force guard unavailable")
+		}
+		if err := guard.ConfirmForcedAgentSwitch(ctx, request.Address, request.Source, prepared.SourceEvidence()); err != nil {
+			return result, err
+		}
+	} else if c.SwitchGuard != nil || request.Source != "" {
 		if err := c.SwitchGuard.ConfirmAgentSwitch(ctx, request.Address, request.Source, prepared.SourceEvidence()); err != nil {
 			return result, err
 		}

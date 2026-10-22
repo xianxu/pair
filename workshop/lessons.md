@@ -2665,3 +2665,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #728 M2: optional argv is an intent, including its absence. Use one comparable presence-aware literal-array carrier, bind presence/content/consent in both early receipt replay and queued admission, and share strict element decoding across wire and internal dispatch; JSON null elements must not become empty strings.
 
 - #728 M2 retained-target review: selection must preserve a backend error even beside a readable partial record; do not rely on a projected row to retain it. Typed source authority derives from the private admitted record, never mutable public preview mirrors, and serialization must strip the authority.
+
+- #728 M2: inspect every concurrent preflight result before committing or claiming green; a joined test pass cannot stand in for an unread reader-inventory result. Register each new production helper in the exhaustive artifact inventory before checkpointing. The shipped skill's command examples are executable inputs: use concrete parsed commands there, leaving bracketed synopses to CLI help. Existing inventory and skill-command tests own these backstops.

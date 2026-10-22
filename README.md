@@ -545,7 +545,7 @@ couch --reboot repo:N --confirm [--json]
                          request Start fresh on the current binary; attributed running processes require an exact stop-set offer
 couch --recovery-confirmation TOKEN [--json]
                          approve that offer from the authenticated owning hub; no repeated target or TUI is needed
-couch --switch-agent repo:N --agent NAME --confirm [--json]
+couch --switch-agent repo:N --agent NAME [--agent-args PARAMETERS] [--interrupt-first] --confirm [--json]
                          from the hub: switch another idle, clean slot using saved target-agent settings
 couch --keys repo:N STEP... [--json]
                          owning hub: drive named keys in an idle, empty agent composer and return its styled tail
@@ -673,17 +673,31 @@ session remains Continue; claim age never authorizes killing its supervisor.
 An older live wrapper with a broken message endpoint remains usable through its
 terminal and reports “messaging unavailable until next relaunch.”
 
-`couch --switch-agent` accepts one exact slot and a different agent. It refuses
-`self`, the caller's own slot, busy or dirty targets, and targets whose state
-cannot be verified. It uses the target agent's saved Couch repository arguments,
-shared by that repository's slots. Missing or conflicting settings require the
-operator's Switch coding agent form; this API cannot silently borrow another
-repository's arguments. Agents cannot supply argv or edit defaults through this
-API. The form remains the operator's parameter editor.
-A switch parks the source and starts a fresh conversation. Pair delivers no
-handoff or orientation; the saved startup parameters are used unchanged.
-The hub captures any context it needs before switching and decides what to send
-later. Compaction and continuation remain separate operations.
+`couch --switch-agent` accepts one exact other slot and a supported agent.
+It refuses `self`, the caller's own slot and unverified source ownership.
+Without `--agent-args`, it uses that agent's saved Couch repository arguments;
+missing or conflicting settings require explicit arguments or the operator's
+Switch coding agent form. It never silently borrows another repository's flags.
+`--agent-args PARAMETERS` accepts literal parameter text with quotes and empty
+arguments, using the same parser as the form. An explicitly empty value selects
+no parameters. Native resume selectors are refused. Accepted arguments become
+that repository's saved choice only after successful console adoption.
+
+Ordinary switching requires a clean worktree and a source proved idle or vacant
+by Couch's lifecycle evidence. `--interrupt-first --confirm` permits one existing
+authenticated interrupt when a working turn is proved, then requires fresh idle
+within one thirty-second phase. Unknown working state sends no input; uncertain
+interruption, changed ownership or timeout refuses replacement. It never retries
+an interrupt automatically. Operator **Force switch** is available only in the
+console form, with one warning about unsaved turn progress. It keeps on-disk
+uncommitted files, displays their count (or unknown), and starts the target only
+after the existing park owner confirms exact-source cleanup. CLI and hub requests
+cannot force a switch.
+
+A different-agent switch parks the source and starts a fresh conversation at the
+same thread and working path. Pair delivers no handoff or orientation. The hub
+captures any context it needs before switching and decides what to send later.
+Compaction and continuation remain separate operations.
 
 An accepted receipt means the operation was queued; inspect it with
 `couch --operation-status ID`. On failure, use the existing park/recover/resume
@@ -1800,13 +1814,18 @@ all live threads and returns to the shell; `Alt+x` parks them after confirmation
 Those two chords are not intercepted while a Pair pane is displayed. They
 reach the agent or invoke the draft/right pane's existing Pair actions. Use the
 switcher for Couch's durable retirement.
-In a live thread's actions, **switch coding agent** opens the coding
+In an eligible live or proven-vacant thread's actions, **switch coding agent** opens the coding
 agent switch form. Choose an agent, then edit its prefilled startup parameters (an
 empty value is allowed). This second screen names the source and target and
-contains **Switch** and **Cancel**. Tab or Up/Down move between the
+contains **Switch**, **Interrupt then switch**, **Force switch** and **Cancel**.
+Tab or Up/Down move between the
 parameter field and buttons; Left/Right move the text cursor while editing.
 Enter on **Switch** submits the change after checking that the source is idle
-and clean. Choose a different agent; switching keeps the thread and working
+and clean. **Interrupt then switch** uses the bounded cooperative path above.
+**Force switch** opens one confirmation: “Force switch? The current turn's
+unsaved progress may be lost.” It preserves on-disk edits and reports the file
+count; Cancel sends no input and starts nothing. Choose a different agent;
+switching keeps the thread and working
 path and launches a fresh conversation with an empty composer. The switcher
 stays open. Capture any needed native transcript coordinates before switching;
 the previous tty recording remains available through `couch --peek repo:N

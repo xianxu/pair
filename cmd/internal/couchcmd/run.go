@@ -1442,7 +1442,7 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	verbLine(w, "--recover-plan-from-sdlc", "       couch --recover-plan-from-sdlc")
 	fmt.Fprintln(w, "             Recovery report: one JSON row per slot joining sdlc's claims and")
 	fmt.Fprintln(w, "             slot verdicts with Couch's threads, with a suggested next step.")
-	verbLine(w, "--switch-agent", "       couch --switch-agent repo:N --agent NAME --confirm [--json]")
+	verbLine(w, "--switch-agent", "       couch --switch-agent repo:N --agent NAME [--agent-args PARAMETERS] [--interrupt-first] --confirm [--json]")
 	verbLine(w, "--keys", "       couch --keys repo:N STEP... [--json]")
 	fmt.Fprintf(w, "             Hub only. STEP: %s\n", agentdrive.StepSyntax())
 	fmt.Fprintln(w, "             Steps, rules and the slash-command panel round trip: couch --keys --help.")

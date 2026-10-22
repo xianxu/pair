@@ -24,6 +24,7 @@ func TestSwitchAgentCLIForms(t *testing.T) {
 		"self --agent codex --confirm", "pair --agent codex --confirm", "pair:2 --agent bogus --confirm",
 		"pair:2 --agent codex", "pair:2 --agent codex --confirm --confirm", "pair:2 --agent codex --confirm --layout2",
 		"pair:2 --agent codex --confirm --request parent", "pair:2 --agent codex --confirm --handoff-file brief",
+		"pair:2 --agent codex --confirm --force", "pair:2 --agent claude --confirm --force-switch",
 		"pair:2 --agent codex --confirm --argv []", "pair:2 --agent codex --agent claude --confirm",
 	} {
 		if _, err := ParseCLI(append([]string{"--switch-agent"}, strings.Fields(tail)...), nil); err == nil {

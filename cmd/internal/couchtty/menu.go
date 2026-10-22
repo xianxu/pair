@@ -348,6 +348,8 @@ type MenuEvent struct {
 
 // MenuEffect is an operation request for the thin Console shell.
 type MenuEffect struct {
+	// TypedPayload carries owner-local consent; it must never cross JSON.
+	TypedPayload  any `json:"-"`
 	RowKey        couchcore.ThreadRowKey
 	CancelPreview uint64
 	Operation     string

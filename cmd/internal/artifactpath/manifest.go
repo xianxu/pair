@@ -1553,6 +1553,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/agent_switch_service.go",
 	// #728 switch intent codecs and adapters delegate all artifact access to owners.
 	"cmd/internal/couchcmd/switch_interrupt.go",
+	"cmd/internal/couchcore/switch_force.go",
+	"cmd/internal/couchcmd/switch_force.go",
 	"cmd/internal/couchcore/argumentarray.go",
 	"cmd/internal/couchcore/switch_target.go",
 	"cmd/internal/couchmessage/switch_arguments.go",

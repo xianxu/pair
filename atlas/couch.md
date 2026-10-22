@@ -2854,25 +2854,40 @@ capability returns the typed cross-actor routing refusal and never falls back
 to a second process. No caller produces that refusal today: cross-actor routing
 was punted with `pair#147`.
 
-Switch agent (`pair#184`, `pair#517`) has a human form and a hub-only remote API:
-`couch --switch-agent repo:N --agent NAME --confirm [--json]`. The API accepts one
-exact other slot and a different supported agent; `self`, family/range targets
-and the caller's own slot refuse. The current authenticated wrapper must be
-connected, known idle and on a clean worktree. Unknown state refuses too.
-`couchcmd/agent_switch_service.go` checks those facts at admission and again when
-the queued operation executes; the core guard rechecks immediately before park.
-The operation uses the existing slot queue and receipts, inspected through
-`couch --operation-status ID [--json]`.
+Switch agent (`pair#184`, `pair#517`, `pair#728`) has a human form and a hub-only
+remote API: `couch --switch-agent repo:N --agent NAME [--agent-args PARAMETERS]
+[--interrupt-first] --confirm [--json]`. It selects one exact other slot; `self`,
+family/range targets and the caller's own slot refuse. A connected source needs
+current authenticated ownership, idle proof and clean Git. A retained parked
+source is selected passively by `ResolveAgentSwitchTarget`, then admitted through
+`PrepareAgentSwitch`'s existing classifier. Disconnect alone never proves vacancy.
+Private `SwitchSourceEvidence` carries the admitted mode, revision, working path
+and canonical repository identity; serialized previews cannot mint that evidence.
+The service checks admission again at queued execution and immediately before park.
 
-`PrepareKnownAgentSwitch` resolves the target agent's last successful argv for
-the starting path, then an explicit repository default if no saved target-agent
-argv exists. An explicitly configured empty argv is valid. Missing configuration
-refuses before park and directs the operator to configure the agent. The remote
-API accepts no argv, brief or defaults edits. The operator's Switch coding agent
-form still selects the agent and edits parameters; its accepted
-`prepare-switch-agent` fingerprint is revalidated before execution. Successful
-registration changes the path's default agent and its argv while preserving
-other agents' saved parameters.
+Presence-aware `couchmessage.SwitchArguments` preserves absent versus explicit
+empty argv. `PrepareKnownAgentSwitch` resolves Couch's canonical repository choice;
+explicit argv uses `PrepareAgentSwitch`. Strict array decoding and the shared
+literal/fresh-selector validators reject malformed input. Both early replay and
+queued receipt admission bind presence, exact arguments and interrupt intent.
+Accepted parameters publish only after final console adoption through the M1 owner.
+
+`--interrupt-first` reuses the authenticated drive owner while `SwitchAgent` holds
+its lifecycle lock: one total thirty-second phase, at most one interrupt, followed
+by fresh idle proof and the ordinary park guard. Unknown working proof sends
+nothing. Normal and cooperative paths retain dirty-tree refusal.
+
+The form's **Force switch** requests a local proof offer, then one explicit risk
+confirmation defaulting to Cancel. `AgentSwitchForceOffer`/`AgentSwitchForceConsent`
+in `couchcore/switch_force.go` bind owner, exact accepted fingerprint and wrapper
+token with one-shot consumption. `MenuEffect.TypedPayload` forwards it through the
+existing console lifecycle queue and `OperationCall.TypedPayload`; operation args,
+CLI and message requests contain no force permission. `couchcmd/switch_force.go`
+waives only idle and cleanliness/status-display policy, rechecking record,
+process, wrapper and canonical workspace/repository identity. `SlotGitStatus`'s
+optional changed-file count comes from the same porcelain observation; malformed
+or directory-summary counts remain unknown. Force preserves worktree files and
+still uses the existing `ParkExpected` completion-plus-helper-death boundary.
 
 The switch parks the exact outgoing incarnation and starts a fresh conversation
 at the same thread address and working path. Its composer is empty: the switch

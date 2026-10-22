@@ -133,7 +133,7 @@ func TestSwitchAgentParameterFocusCyclesAndCancelDropsPendingSubmit(t *testing.T
 	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
 	p := couchcore.PreparedAgentSwitch{Address: menuAddress("couch-one"), SourceAgent: "claude", Profile: couchcore.LaunchProfile{Agent: "codex", Argv: []string{}}, Fingerprint: "accepted"}
 	appendMenuFrame(&state, MenuFrame{Kind: MenuFrameSwitchAgent, Action: "switch-agent", Thread: p.Address, Agent: "codex", SwitchStage: 1, SwitchPrepared: &p, SelectedItem: "parameters"})
-	for _, want := range []string{"switch", "interrupt-switch", "cancel", "parameters"} {
+	for _, want := range []string{"switch", "interrupt-switch", "force-switch", "cancel", "parameters"} {
 		state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
 		if state.CurrentFrame().SelectedItem != want {
 			t.Fatalf("focus %q want %q", state.CurrentFrame().SelectedItem, want)
@@ -146,6 +146,7 @@ func TestSwitchAgentParameterFocusCyclesAndCancelDropsPendingSubmit(t *testing.T
 	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
 	state, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
 	generation := effects[0].Preview.Generation
+	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
 	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
 	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
 	state, effects = reduceKey(state, PanelKey{Kind: KeyEnter})

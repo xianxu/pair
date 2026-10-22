@@ -113,6 +113,33 @@ uncertain and is never automatically resent or escalated. Inspect
 `couch --resources` before explicitly confirming another attempt. Keep printed
 coverage limits and refusals with the report; missing evidence is not permission.
 
+## Switching a slot's coding agent
+
+`couch --switch-agent pair:2 --agent codex --confirm`
+selects one exact other slot. Add `--json` for structured output.
+For explicit parameters and cooperative interruption, use
+`couch --switch-agent pair:2 --agent codex --agent-args '--model example' --interrupt-first --confirm`.
+Without explicit arguments, Couch uses that agent's
+saved repository arguments; missing/conflicting values refuse rather than borrowing
+silently. `--agent-args` accepts the form's literal parameter text, including an
+explicit empty value. It performs no shell expansion; quote the outer CLI value
+for your shell. Native resume selectors are rejected. Successful final adoption
+remembers explicitly accepted parameters in Couch's repository store.
+
+Normal switching requires a clean worktree and proved idle or core-proved vacancy.
+With explicit `--interrupt-first` consent, Couch uses the authenticated interrupt
+owner at most once, then waits for fresh idle within one thirty-second phase.
+Unknown working proof sends no input. Unconfirmed interruption, source change or
+timeout refuses replacement; inspect the source and receipt before a new action.
+An accepted receipt means queued; inspect `couch --operation-status ID --json`.
+
+**Force switch** belongs only to the operator's console form. Its single
+confirmation warns that the current turn's unsaved progress may be lost and
+reports how many uncommitted files stay on disk, or that the count is unknown.
+The existing park owner must confirm exact-source cleanup before target startup.
+No CLI/hub flag or serialized request can carry force permission. Do not emulate
+it with raw keys, process signals or configuration edits.
+
 ## Driving an idle agent's keys or model
 
 Only a verified owning hub may use `--keys` or `--set-model`, targeting one

@@ -113,3 +113,24 @@ func TestSwitchArgumentsRejectMalformedWireValues(t *testing.T) {
 		}
 	}
 }
+
+func TestSwitchRequestCannotCarryForceAuthority(t *testing.T) {
+	for _, agent := range []string{"claude", "codex"} {
+		r := leanSwitchRequest()
+		r.Agent = agent
+		raw, err := json.Marshal(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, field := range []string{"Force", "ForceConsent", "TypedPayload"} {
+			wire := append(append([]byte{}, raw[:len(raw)-1]...), []byte(",\""+field+"\":true}")...)
+			if !json.Valid(wire) {
+				t.Fatalf("invalid test envelope: %s", wire)
+			}
+			var decoded Request
+			if err := strictjson.Decode(wire, &decoded); err == nil {
+				t.Fatalf("remote %s authority accepted for %s", field, agent)
+			}
+		}
+	}
+}

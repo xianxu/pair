@@ -1856,7 +1856,7 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 			c.mu.Unlock()
 			c.repaint()
 		})
-		return fn(couchcore.OperationCall{Name: effect.Operation, Args: requestArgs, Implicit: true, Context: operationContext})
+		return fn(couchcore.OperationCall{Name: effect.Operation, Args: requestArgs, TypedPayload: effect.TypedPayload, Implicit: true, Context: operationContext})
 	}}
 	if effect.Operation == "switch" {
 		c.mu.Lock()

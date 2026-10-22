@@ -17,6 +17,12 @@ func openSwitchAgent(state MenuState, address couchcore.ThreadAddress) (MenuStat
 
 func reduceSwitchAgentKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 	frame := &state.Frames[len(state.Frames)-1]
+	if key.Kind == KeyEscape && frame.SwitchStage == 2 {
+		frame.SwitchStage = 1
+		frame.SelectedItem = "force-switch"
+		frame.SwitchPrepared.Force = nil
+		return state, nil
+	}
 	if key.Kind == KeyEscape {
 		state.Frames = state.Frames[:len(state.Frames)-1]
 		return state, nil
@@ -77,7 +83,7 @@ func reduceSwitchAgentKey(state MenuState, key PanelKey) (MenuState, []MenuEffec
 				frame.SelectedItem = "switch"
 			case "cancel":
 				state.Frames = state.Frames[:len(state.Frames)-1]
-			case "switch", "interrupt-switch":
+			case "switch", "interrupt-switch", "force-switch":
 				if frame.PreviewPending != 0 {
 					return state, nil
 				}
@@ -85,6 +91,27 @@ func reduceSwitchAgentKey(state MenuState, key PanelKey) (MenuState, []MenuEffec
 					return requestSwitchAgentPreview(state, false)
 				}
 				return requestSwitchAgentPreview(state, true)
+			}
+		}
+	case 2:
+		switch key.Kind {
+		case KeyLeft, KeyRight, KeyTab, KeyUp, KeyDown:
+			if frame.SelectedItem == "cancel" {
+				frame.SelectedItem = "confirm-force"
+			} else {
+				frame.SelectedItem = "cancel"
+			}
+		case KeyEnter:
+			if frame.SelectedItem == "cancel" {
+				frame.SwitchStage = 1
+				frame.SelectedItem = "force-switch"
+				frame.SwitchPrepared.Force = nil
+				return state, nil
+			}
+			if frame.SelectedItem == "confirm-force" && frame.SwitchPrepared != nil && frame.SwitchPrepared.Force != nil {
+				effect := acceptedSwitchEffect(*frame.SwitchPrepared)
+				effect.TypedPayload = frame.SwitchPrepared.Force.Confirm()
+				return dispatchMenuOperation(state, effect, frame.Thread)
 			}
 		}
 	}
@@ -108,6 +135,7 @@ func requestSwitchAgentPreview(state MenuState, final bool) (MenuState, []MenuEf
 		}
 		raw, _ := json.Marshal(argv)
 		request.SwitchArgv = string(raw)
+		request.SwitchForce = frame.SelectedItem == "force-switch"
 	}
 	generation, ok := nextPreviewGeneration(&state)
 	if !ok {
@@ -150,11 +178,17 @@ func reduceSwitchAgentPreview(state MenuState, event MenuEvent) (MenuState, []Me
 			state.Notice = errorMenuNotice("Source changed; review the updated switch details and select Switch again.")
 			return state, nil
 		}
-		effect := threadEffect("switch-agent", frame.Thread)
-		raw, _ := json.Marshal(p.Profile.Argv)
-		effect.Args["agent"] = p.Profile.Agent
-		effect.Args["argv"] = string(raw)
-		effect.Args["fingerprint"] = p.Fingerprint
+		if frame.SwitchSubmitAction == "force-switch" {
+			frame.SwitchSubmitAction = ""
+			if p.Force == nil {
+				state.Notice = errorMenuNotice("Force source proof unavailable; review again.")
+				return state, nil
+			}
+			frame.SwitchStage = 2
+			frame.SelectedItem = "cancel"
+			return state, nil
+		}
+		effect := acceptedSwitchEffect(*p)
 		if frame.SwitchSubmitAction == "interrupt-switch" {
 			effect.Args["interrupt-first"] = "true"
 		}
@@ -205,11 +239,22 @@ func renderSwitchAgentMenu(frame MenuFrame, width, height int) []string {
 			}
 			return "  " + label
 		}
-		lines = append(lines, button("switch", "Switch")+" · "+button("interrupt-switch", "Interrupt then switch"), button("cancel", "Cancel"))
+		lines = append(lines, button("switch", "Switch")+" · "+button("interrupt-switch", "Interrupt then switch"), button("force-switch", "Force switch")+" · "+button("cancel", "Cancel"))
 		if frame.PreviewPending != 0 {
 			lines = append(lines, "resolving startup parameters…")
 		}
 		lines = append(lines, "←→: text cursor · Tab/↑↓: focus · Enter: select · Escape: cancel")
+	case 2:
+		lines = []string{"force switch coding agent"}
+		lines = append(lines, wrapNote("Force switch? The current turn's unsaved progress may be lost.", width)...)
+		lines = append(lines, wrapNote(forceSwitchFileNotice(frame.SwitchPrepared.Force.ChangedFiles()), width)...)
+		confirm, cancel := "  Force switch", "  Cancel"
+		if frame.SelectedItem == "confirm-force" {
+			confirm = "▸ Force switch"
+		} else {
+			cancel = "▸ Cancel"
+		}
+		lines = append(lines, confirm+" · "+cancel, "←→/Tab: focus · Enter: select · Escape: cancel")
 	}
 
 	for i, line := range lines {
@@ -237,7 +282,7 @@ func invalidateSwitchEdit(state *MenuState, frame *MenuFrame) {
 }
 
 func moveSwitchFocus(frame *MenuFrame, delta int) {
-	items := []string{"parameters", "switch", "interrupt-switch", "cancel"}
+	items := []string{"parameters", "switch", "interrupt-switch", "force-switch", "cancel"}
 	index := 0
 	for i, item := range items {
 		if frame.SelectedItem == item {
@@ -285,4 +330,20 @@ func menuAddSlotPath(thread couchcore.ActionableThreadSummary) string {
 // the alias names the repository, and :0 is the row that stands for it.
 func menuAliasOffered(thread couchcore.ActionableThreadSummary) bool {
 	return thread.Live() && thread.Target.Kind != couchcore.ThreadTargetSlot && menuRepositoryRoot(thread) != ""
+}
+
+func acceptedSwitchEffect(p couchcore.PreparedAgentSwitch) MenuEffect {
+	effect := threadEffect("switch-agent", p.Address)
+	raw, _ := json.Marshal(p.Profile.Argv)
+	effect.Args["agent"] = p.Profile.Agent
+	effect.Args["argv"] = string(raw)
+	effect.Args["fingerprint"] = p.Fingerprint
+	return effect
+}
+
+func forceSwitchFileNotice(count *int) string {
+	if count == nil {
+		return "Uncommitted file count is unknown; on-disk files stay as they are for the new agent."
+	}
+	return fmt.Sprintf("%d uncommitted files stay as they are for the new agent", *count)
 }

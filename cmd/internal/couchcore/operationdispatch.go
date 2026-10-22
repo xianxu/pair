@@ -335,6 +335,9 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				argv = &parameters
 			}
 			if call.Operation.Name == "prepare-switch-agent" {
+				if _, local := call.TypedPayload.(LocalForceSwitchPreview); local {
+					return c.PrepareForcedAgentSwitch(ctx, address, a["agent"], argv)
+				}
 				return c.PrepareAgentSwitch(ctx, address, a["agent"], argv)
 			}
 			if value := a["interrupt-first"]; value != "" && value != "true" && value != "false" {
@@ -348,7 +351,8 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 			if argv != nil {
 				args = *argv
 			}
-			return c.SwitchAgent(ctx, SwitchAgentRequest{InterruptFirst: a["interrupt-first"] == "true", Address: address, Agent: a["agent"], KnownConfig: known, Argv: args, AcceptedFingerprint: a["fingerprint"], Source: a["source"]})
+			force, _ := call.TypedPayload.(*AgentSwitchForceConsent)
+			return c.SwitchAgent(ctx, SwitchAgentRequest{Force: force, InterruptFirst: a["interrupt-first"] == "true", Address: address, Agent: a["agent"], KnownConfig: known, Argv: args, AcceptedFingerprint: a["fingerprint"], Source: a["source"]})
 		case "recovery-confirmation":
 			return c.ConfirmRecovery(ctx, a["token"])
 		case "reboot":

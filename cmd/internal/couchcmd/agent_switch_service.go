@@ -46,42 +46,86 @@ func (g *switchServiceGuard) confirmAgentSwitchAdmission(ctx context.Context, ad
 }
 
 func inspectSwitchLiveSource(ctx context.Context, s *messageService, address couchcore.ThreadAddress, source string, requireIdle bool) (couchmessage.SlotLiveness, error) {
+	live, _, err := inspectSwitchLiveSourceWithOptions(ctx, s, address, source, switchSourceOptions{requireIdle: requireIdle})
+	return live, err
+}
+
+type switchSourceOptions struct {
+	requireIdle   bool
+	allowUnclean  bool
+	forceEvidence *couchcore.SwitchSourceEvidence
+}
+
+func inspectSwitchLiveSourceWithOptions(ctx context.Context, s *messageService, address couchcore.ThreadAddress, source string, options switchSourceOptions) (couchmessage.SlotLiveness, couchcore.SlotGitStatus, error) {
+	fail := func(err error) (couchmessage.SlotLiveness, couchcore.SlotGitStatus, error) {
+		return couchmessage.SlotLiveness{}, couchcore.SlotGitStatus{}, err
+	}
 	live, ok := s.LivenessForThread(address.RepoScope, string(address.Tag))
 	if !ok || !s.isConnected(live.Binding) || source != "" && source != switchSourceToken(live) {
-		return couchmessage.SlotLiveness{}, errors.New("switch-agent: source changed or disconnected; retry switch")
+		return fail(errors.New("switch-agent: source changed or disconnected; retry switch"))
 	}
-	if requireIdle && (live.Settled == nil || !*live.Settled) {
-		return couchmessage.SlotLiveness{}, errors.New("switch-agent: source must be known idle; retry after its turn finishes")
+	if options.requireIdle && (live.Settled == nil || !*live.Settled) {
+		return fail(errors.New("switch-agent: source must be known idle; retry after its turn finishes"))
 	}
 	if _, err := s.authority.current(ctx, live.Binding); err != nil {
-		return couchmessage.SlotLiveness{}, err
+		return fail(err)
 	}
 	identity, err := s.connectedWorkspace(ctx, live.Binding)
 	if err != nil {
-		return couchmessage.SlotLiveness{}, err
+		return fail(err)
 	}
-	git, err := s.authority.branch(ctx, identity.WorktreeRoot)
+	if options.forceEvidence != nil {
+		if err := verifyForcedSwitchLiveSource(ctx, s, live, address, *options.forceEvidence, identity); err != nil {
+			return fail(err)
+		}
+	}
+	git, err := inspectSwitchGit(ctx, s, identity.WorktreeRoot, options.allowUnclean)
 	if err != nil {
-		return couchmessage.SlotLiveness{}, fmt.Errorf("switch-agent: Git state unknown: %w", err)
-	}
-	if git.Dirty {
-		return couchmessage.SlotLiveness{}, errors.New("switch-agent: source is dirty; ask it to commit first")
+		return fail(err)
 	}
 	latest, ok := s.LivenessForThread(address.RepoScope, string(address.Tag))
-	if !ok || switchSourceToken(latest) != switchSourceToken(live) || requireIdle && (latest.Settled == nil || !*latest.Settled) || !s.isConnected(latest.Binding) {
-		return couchmessage.SlotLiveness{}, errors.New("switch-agent: source changed while checking; retry switch")
+	if !ok || switchSourceToken(latest) != switchSourceToken(live) || options.requireIdle && (latest.Settled == nil || !*latest.Settled) || !s.isConnected(latest.Binding) {
+		return fail(errors.New("switch-agent: source changed while checking; retry switch"))
 	}
-	return latest, ctx.Err()
+	if options.forceEvidence != nil {
+		if err := verifyForcedSwitchLiveSource(ctx, s, latest, address, *options.forceEvidence, identity); err != nil {
+			return fail(err)
+		}
+	}
+	return latest, git, ctx.Err()
+}
+
+func inspectSwitchGit(ctx context.Context, s *messageService, path string, allowUnclean bool) (couchcore.SlotGitStatus, error) {
+	git, err := s.authority.branch(ctx, path)
+	if ctx.Err() != nil {
+		return couchcore.SlotGitStatus{}, ctx.Err()
+	}
+	if err != nil {
+		if allowUnclean {
+			return couchcore.SlotGitStatus{}, nil
+		}
+		return couchcore.SlotGitStatus{}, fmt.Errorf("switch-agent: Git state unknown: %w", err)
+	}
+	if git.Dirty && !allowUnclean {
+		return couchcore.SlotGitStatus{}, errors.New("switch-agent: source is dirty; ask it to commit first")
+	}
+	return git, nil
 }
 
 // The core's exact vacancy classification replaces only the live-wrapper gate.
 // Workspace/Git proof and retained selection must still survive both checks.
 func (g *switchServiceGuard) confirmVacantAgentSwitch(ctx context.Context, s *messageService, address couchcore.ThreadAddress, source string, evidence couchcore.SwitchSourceEvidence) error {
+	_, err := inspectVacantSwitchSource(ctx, s, address, source, evidence, false)
+	return err
+}
+
+func inspectVacantSwitchSource(ctx context.Context, s *messageService, address couchcore.ThreadAddress, source string, evidence couchcore.SwitchSourceEvidence, force bool) (couchcore.SlotGitStatus, error) {
+	fail := func(err error) (couchcore.SlotGitStatus, error) { return couchcore.SlotGitStatus{}, err }
 	if source != "" {
-		return errors.New("switch-agent: live source changed; review the parked source again")
+		return fail(errors.New("switch-agent: live source changed; review the parked source again"))
 	}
 	if s.authority.record == nil || s.authority.workspace == nil || s.authority.branch == nil {
-		return errors.New("switch-agent: vacant source verification unavailable")
+		return fail(errors.New("switch-agent: vacant source verification unavailable"))
 	}
 	current := func() error {
 		if live, ok := s.LivenessForThread(address.RepoScope, string(address.Tag)); ok && s.isConnected(live.Binding) {
@@ -97,20 +141,27 @@ func (g *switchServiceGuard) confirmVacantAgentSwitch(ctx context.Context, s *me
 		return ctx.Err()
 	}
 	if err := current(); err != nil {
-		return err
+		return fail(err)
 	}
 	identity, err := s.authority.workspace(ctx, evidence.WorkingPath())
 	if err != nil {
-		return err
+		return fail(err)
 	}
-	git, err := s.authority.branch(ctx, identity.WorktreeRoot)
+	if force {
+		if err := verifyForcedSwitchWorkspace(ctx, s, evidence, identity); err != nil {
+			return fail(err)
+		}
+	}
+	git, err := inspectSwitchGit(ctx, s, identity.WorktreeRoot, force)
 	if err != nil {
-		return fmt.Errorf("switch-agent: Git state unknown: %w", err)
+		return fail(err)
 	}
-	if git.Dirty {
-		return errors.New("switch-agent: source is dirty; ask it to commit first")
+	if force {
+		if err := verifyForcedSwitchWorkspace(ctx, s, evidence, identity); err != nil {
+			return fail(err)
+		}
 	}
-	return current()
+	return git, current()
 }
 
 type agentSwitchService struct {

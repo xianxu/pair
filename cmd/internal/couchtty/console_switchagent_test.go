@@ -1,6 +1,7 @@
 package couchtty
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -135,4 +136,38 @@ func TestConsoleSwitchAgentEditsParametersWithoutSuccessfulPreview(t *testing.T)
 			})
 		}
 	}
+}
+
+func TestConsoleForceSwitchPreservesLocalPayload(t *testing.T) {
+	f := newFixture(t, 24, 100)
+	address := menuAddress("couch-one")
+	called := make(chan couchcore.OperationCall, 1)
+	f.con.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
+		called <- call
+		return couchcore.SwitchAgentResult{}, nil
+	})
+	f.con.mu.Lock()
+	f.con.menu = NewMenuState(menuThreads(), address)
+	f.con.menuReady = true
+	setTestMenuOperation(&f.con.menu, MenuOperationOrigin{Operation: "switch-agent", Attempt: 1, Address: address})
+	f.con.mu.Unlock()
+	consent := (&couchcore.AgentSwitchForceOffer{}).Confirm()
+	effect := MenuEffect{Operation: "switch-agent", Attempt: 1, Args: map[string]string{"agent": "codex", "argv": "[]", "fingerprint": "accepted"}, TypedPayload: consent}
+	raw, err := json.Marshal(effect)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "TypedPayload") || strings.Contains(string(raw), "offer") {
+		t.Fatal("local consent escaped serialization")
+	}
+	f.con.runMenuOperation(effect)
+	select {
+	case call := <-called:
+		if call.TypedPayload != consent {
+			t.Fatal("normal lifecycle queue lost local consent")
+		}
+	case <-testwait.After(t):
+		t.Fatal("no force dispatch")
+	}
+	waitFor(t, "force operation completion", func() bool { return f.con.menuSnapshot().operationForTest().Operation == "" })
 }
