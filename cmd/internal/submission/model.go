@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/webcast/notes"
+	"github.com/xianxu/pair/cmd/internal/webcast/query"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
@@ -57,6 +58,7 @@ type Source struct {
 	Document      int           `json:"document"`
 }
 type Submission struct {
+	preserved *manifestDocument
 	PrivacyDecision
 	HowToRead  string   `json:"how_to_read"`
 	Version    int      `json:"version"`
@@ -64,10 +66,12 @@ type Submission struct {
 	Target     Target   `json:"target"`
 	Source     Source   `json:"source"`
 	Notes      []Note   `json:"notes"`
+	Sketches   []Sketch `json:"sketches,omitempty"`
 	Delivery   Delivery `json:"delivery"`
 	Superseded bool     `json:"superseded,omitempty"`
 }
 type Note struct {
+	Elements *query.DeclaredElementFacts `json:"elements,omitempty"`
 	PrivacyDecision
 	CaptureID      string           `json:"capture_id,omitempty"`
 	Page           *PageIdentity    `json:"page,omitempty"`
@@ -266,7 +270,7 @@ func Validate(s Submission) error {
 	if !validDelivery(s.Delivery) {
 		return fmt.Errorf("invalid delivery state")
 	}
-	ids, files := map[string]bool{}, map[string]bool{}
+	ids := map[string]bool{}
 	available := false
 	for _, n := range s.Notes {
 		if n.ID == "" || ids[n.ID] {
@@ -299,6 +303,25 @@ func Validate(s Submission) error {
 				return fmt.Errorf("crop lacks matching captured page")
 			}
 		}
+		if n.Elements != nil {
+			if s.Version != 3 {
+				return fmt.Errorf("declared note facts require version 3")
+			}
+			if err := validateSketchFacts(*n.Elements, nil); err != nil {
+				return err
+			}
+			if n.At.Node > 0 {
+				found := false
+				for _, fact := range n.Elements.Anchors {
+					if fact.Node == n.At.Node {
+						found = true
+					}
+				}
+				if !found {
+					return fmt.Errorf("original note anchor missing declared facts")
+				}
+			}
+		}
 		if err := ValidateBoxText(n.BoxText); err != nil {
 			return err
 		}
@@ -307,10 +330,6 @@ func Validate(s Submission) error {
 		}
 		if n.Crop.File != "" {
 			available = true
-			if files[n.Crop.File] {
-				return fmt.Errorf("duplicate crop file")
-			}
-			files[n.Crop.File] = true
 		}
 		for _, b := range []*recording.Box{n.At.Box, n.Context.Box} {
 			if b != nil {
@@ -324,6 +343,25 @@ func Validate(s Submission) error {
 				}
 			}
 		}
+	}
+	if len(s.Sketches) > 0 && (s.Version != 3 || s.Source.Kind != "dom") || len(s.Sketches) > MaxSubmissionSketches {
+		return fmt.Errorf("sketch evidence requires bounded version 3 DOM submission")
+	}
+	sketchIDs := map[string]bool{}
+	for _, sketch := range s.Sketches {
+		if sketch.RecordingID != s.Source.RecordingID || sketchIDs[sketch.ID] {
+			return fmt.Errorf("sketch recording differs or identity repeated")
+		}
+		sketchIDs[sketch.ID] = true
+		if err := ValidateSketch(sketch); err != nil {
+			return err
+		}
+		if s.Privacy == Shareable && sketch.Privacy != Shareable {
+			return fmt.Errorf("submission privacy is less restrictive than a sketch")
+		}
+	}
+	if _, err := EvidenceFiles(s); err != nil {
+		return err
 	}
 	if s.Source.Page != nil && !available {
 		return fmt.Errorf("unavailable batch claims a captured page")

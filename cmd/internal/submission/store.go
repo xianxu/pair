@@ -216,13 +216,9 @@ func readMetadata(r *os.Root, id string, skipResolvedCrops bool) (Submission, er
 	if err != nil {
 		return out, err
 	}
-	dec := json.NewDecoder(bytes.NewReader(b))
-	dec.DisallowUnknownFields()
-	if err = dec.Decode(&out); err != nil {
+	out, err = DecodePreserving(b)
+	if err != nil {
 		return out, err
-	}
-	if dec.Decode(new(any)) != io.EOF {
-		return out, fmt.Errorf("trailing manifest data")
 	}
 	if out.ID != id {
 		return out, fmt.Errorf("manifest identity mismatch")
@@ -234,11 +230,12 @@ func readMetadata(r *os.Root, id string, skipResolvedCrops bool) (Submission, er
 		return out, nil
 	}
 	total := int64(len(b))
-	for _, n := range out.Notes {
-		if n.Crop.File == "" {
-			continue
-		}
-		info, err := bundleFileInfo(r, filepath.Join(id, n.Crop.File))
+	files, err := EvidenceFiles(out)
+	if err != nil {
+		return out, err
+	}
+	for _, file := range files {
+		info, err := bundleFileInfo(r, filepath.Join(id, file))
 		if err != nil {
 			return out, err
 		}
@@ -265,11 +262,12 @@ func readSubmission(r *os.Root, id string) (Submission, error) {
 	if total > MaxBundleBytes {
 		return out, fmt.Errorf("bundle exceeds 64 MiB")
 	}
-	for _, n := range out.Notes {
-		if n.Crop.File == "" {
-			continue
-		}
-		data, err := readBytes(r, filepath.Join(id, n.Crop.File), MaxPNGBytes)
+	files, err := EvidenceFiles(out)
+	if err != nil {
+		return out, err
+	}
+	for _, file := range files {
+		data, err := readBytes(r, filepath.Join(id, file), MaxPNGBytes)
 		if err != nil {
 			return out, err
 		}
@@ -277,7 +275,7 @@ func readSubmission(r *os.Root, id string) (Submission, error) {
 			return out, fmt.Errorf("bundle exceeds 64 MiB")
 		}
 		total += int64(len(data))
-		if err = ValidatePNG(data); err != nil {
+		if err = validateEvidencePNG(out, file, data); err != nil {
 			return out, err
 		}
 	}
@@ -316,17 +314,9 @@ func (s *Store) Pending(target Target) ([]Submission, error) {
 	return s.pending(r, target, false)
 }
 func (s *Store) pending(r *os.Root, target Target, includeSuperseded bool) ([]Submission, error) {
-	f, err := r.Open(".")
+	entries, err := submissionEntries(r)
 	if err != nil {
 		return nil, err
-	}
-	defer f.Close()
-	entries, err := f.ReadDir(10001)
-	if err != nil && err != io.EOF {
-		return nil, err
-	}
-	if len(entries) > 10000 {
-		return nil, fmt.Errorf("too many submission entries")
 	}
 	var result []Submission
 	for _, entry := range entries {
@@ -365,10 +355,12 @@ func (s *Store) Prepare(sub Submission, crops map[string][]byte) (string, error)
 	}
 	total := int64(len(data))
 	expected := map[string]bool{}
-	for _, n := range sub.Notes {
-		if n.Crop.File != "" {
-			expected[n.Crop.File] = true
-		}
+	files, err := EvidenceFiles(sub)
+	if err != nil {
+		return "", err
+	}
+	for _, file := range files {
+		expected[file] = true
 	}
 	if len(expected) != len(crops) {
 		return "", fmt.Errorf("crop files do not match manifest")
@@ -377,7 +369,7 @@ func (s *Store) Prepare(sub Submission, crops map[string][]byte) (string, error)
 		if !expected[name] {
 			return "", fmt.Errorf("unexpected crop file")
 		}
-		if err = ValidatePNG(b); err != nil {
+		if err = validateEvidencePNG(sub, name, b); err != nil {
 			return "", err
 		}
 		total += int64(len(b))
@@ -537,4 +529,69 @@ func (s *Store) writeManifest(r *os.Root, sub Submission) error {
 		return err
 	}
 	return nil
+}
+
+// DeliveredSketchVersions derives suppression from the existing durable
+// manifests, across targets. No additional acknowledgment registry is created.
+// Uncertain/prepared deliveries never suppress a candidate; any unreadable
+// bundle refuses the whole derivation rather than permitting a silent resend.
+func (s *Store) DeliveredSketchVersions(recordingID string) (map[PreviewItem]struct{}, error) {
+	if recordingID == "" {
+		return nil, fmt.Errorf("recording identity required")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	root, err := s.open()
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+	entries, err := submissionEntries(root)
+	if err != nil {
+		return nil, err
+	}
+	out := map[PreviewItem]struct{}{}
+	for _, entry := range entries {
+		if !identifier.MatchString(entry.Name()) {
+			continue
+		}
+		if entry.Type()&os.ModeSymlink != 0 {
+			return nil, fmt.Errorf("symlink in submission store")
+		}
+		if !entry.IsDir() {
+			continue
+		} // Metadata and staging residue are not bundles.
+		sub, err := readMetadata(root, entry.Name(), true)
+		if err != nil {
+			return nil, err
+		}
+		if sub.Source.RecordingID != recordingID || sub.Delivery != Dispatched && sub.Delivery != Resolved || len(sub.Sketches) == 0 {
+			continue
+		}
+		// A disposition renamed just before an interrupted fsync is visible but not
+		// yet confirmed. Repeating directory confirmation makes it safe to suppress.
+		if err = s.confirmPublication(root, sub.ID); err != nil {
+			return nil, err
+		}
+		for _, sketch := range sub.Sketches {
+			out[PreviewItem{RecordingID: sketch.RecordingID, SketchID: sketch.ID, Sequence: sketch.NextSequence, Digest: sketch.Digest}] = struct{}{}
+		}
+	}
+	return out, nil
+}
+
+func submissionEntries(root *os.Root) ([]os.DirEntry, error) {
+	f, err := root.Open(".")
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	entries, err := f.ReadDir(10001)
+	if err != nil && err != io.EOF {
+		return nil, err
+	}
+	if len(entries) > 10000 {
+		return nil, fmt.Errorf("too many submission entries")
+	}
+	return entries, nil
 }

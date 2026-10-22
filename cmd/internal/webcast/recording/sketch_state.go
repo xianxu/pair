@@ -465,6 +465,28 @@ type SketchStackTops struct {
 	VisibleCount int    `json:"visible_count"`
 	RedoCount    int    `json:"redo_count"`
 }
+
+// SketchCandidate is small, owned metadata for a labeled visible sketch. It
+// never copies pressure points or receipts; order is recording creation order.
+type SketchCandidate struct {
+	ID           string
+	NextSequence uint64
+	Digest       string
+}
+
+func (s *SketchState) SubmissionCandidates() []SketchCandidate {
+	var out []SketchCandidate
+	for _, id := range s.order {
+		h := s.sketches[id]
+		if h.label == "" || len(h.visible) == 0 || (h.phase != "complete" && h.phase != "interrupted") || len(h.receiptOrder) == 0 {
+			continue
+		}
+		last := h.receipts[h.receiptOrder[len(h.receiptOrder)-1]]
+		out = append(out, SketchCandidate{ID: id, NextSequence: h.next, Digest: last.Digest})
+	}
+	return out
+}
+
 type SketchStrokeMetadata struct {
 	ID         string  `json:"id"`
 	At         NoteAt  `json:"at"`
