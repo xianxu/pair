@@ -136,6 +136,12 @@ BR-1 red evidence: all four projected CLI cases (LeftRunning/OrphanNvim, complet
 
 Projection-to-CLI regressions, repeated projection, conservative incomplete/changed-identity overlap, unrelated legacy retention and source immutability all pass in the combined race selection2.364s. Reader audit and diff check pass. Re-run final focused native acceptance and the required recorded suite on this corrected source, then full close (round1 REWORK was not a finalized close).
 
+### 2026-10-22 — BR-1 corrected-source live acceptance
+
+Both focused native commands pass on48c6d6584e6744c6303f1efdfd13558140fcefd3 after the production projection fix. Claude49.967s, confirmed152.024ms, writes81539072bytes; Codex38.157s, confirmed77.554ms, writes81453056bytes. Both reap exactly six prior identities, preserve the current worker and accept public delivery, then prove every owned generation absent with joined direct child/IO and removed private root. The96MiB cap and all time/frame/output bounds remain unchanged. Logs: /Volumes/TestScratch/tmp/pair-slot2/pair-792-native-br1-claude.oIM6DB/native.log SHA256b1b44eba3ae5f89a8904dd82038f4b72a5f75b6501a9c0dd3a48f8a7d3ac6553; /Volumes/TestScratch/tmp/pair-slot2/pair-792-native-br1-codex.aKr40D/native.log SHA25644aba4b77a53c38da64d15702a9cff7a15ecdf2e3fcebf1d33551e7170d8d1c8. Broader sampler/projection/reap selection also passes0.573s.
+
+Checkpoint this evidence, queue the corrected-source affected check (full selection expected), and rerun full close because round1 was REWORK. The required recorded pass remains pending and the final Plan checkbox stays unchecked until it completes. No continuation/restart while the owned check is queued or running.
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. The source is marked stale by estimate-source; this is a provisional calibration, not a fitted total.
