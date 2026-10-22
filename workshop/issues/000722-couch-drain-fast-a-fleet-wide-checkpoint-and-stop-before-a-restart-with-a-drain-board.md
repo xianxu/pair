@@ -409,6 +409,12 @@ Git-confirmed source e3c7e6badda23964b0116310fff8cdb8c94291b1 is pushed and PR47
 
 Reported the privately reproduced publication race/fix and current lease to TL as receipt96edacd6-e5aa-4c5d-b5f7-d2b08c3320c8, queued at publication; confirm submission rather than resend blindly. Final-source recorded pass, renewed close and watched acceptance remain pending; keep the runner and cc44f065 stage untouched.
 
+### 2026-10-22 13:34 PDT — old live stage released for ordered smoke lane
+
+Authenticated submitted TL55e2cb84 supersedes the old keep-stage instruction: clear the pre-fix11:11 stage now, then #753 re-look, #739 shutdown check, and #722 only after suite/re-close and renewed staging authorization. Supported sdlc stage --clear completed exit0: pair:0 restored to freshly pinned main7b9440e8c92663f8ee189f54a1260e3043a78f07, all four disk binaries report that revision and modified=false, owned stage lease released. No running slot was restarted and no drain/queue action was executed. Sent exact clear receipt to pair:9 (dd0d7af0-3984-4ac8-a200-507bb4a2949a) and hub (65fc04f6-6955-4103-9986-6f0bd363e322); query their submission rather than blindly resend.
+
+Retained suite session37048/lease-2074561176 still waits for capacity, latest observed position9; do not restart or duplicate it. No suite result yet. The tested source remains e3c7e6badda23964b0116310fff8cdb8c94291b1; subsequent commits contain Log evidence only. ariadne#557 fleet notice was authenticated, but this checkout was clean, so no seeded-workflow repair applied.
+
 ## Revisions
 
 ### 2026-10-19 — authenticated acknowledgement and shared queue ownership
