@@ -209,3 +209,90 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T06:28:02-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 758 — Couch-owned editor endpoint registry and lifecycle |
+| repo | pair |
+| issue file | workshop/issues/000758-remote-session-couch-remote-server-and-allowlisted-proxy-to-each-session-file-s-nvim-subscribe-edit-re-wrapped-submit-navigate.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 1e70379fba4a3653258f5542ac1d1aecf0ca1b43..be457f2be2f39f88610d131c03955aef84989843 |
+| command | sdlc close --issue 758 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T06:28:02-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range delivers the documented producer scope. BR-4’s missing byte qualification is now measured and asserted through the actual injected writer. Targeted tests, race checks, native Neovim conformance, and repository checks passed. No new blocking findings.
+
+```findings
+dispose:
+  - id: BR-4
+    disposition: addressed
+    note: |
+      owner_test.go:155-179,210,459-623 records actual encoded writer payload lengths and verifies N8/16 snapshot/cumulative bounds, zero retry/no-op/reload writes, single batch publication, and repeated-reopen size plateau. The race run passed; negative controls reject duplicate publications and retained attempt growth. This correction adds qualification without changing production behavior.
+```
+
+1. **Strengths**
+
+   - Authority changes use the pure transition model; publication precedes acknowledgement and replacement notification.
+   - Controlled ordering tests exercise late negative observations, held/failed notifications, and joined shutdown.
+   - Retained JSON preserves nested unknown fields and numeric tokens while keeping known fields strict.
+   - README, atlas, artifact classifications, and reader inventories cover the new surface.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed:
+   
+   - `editorendpoint`, `couchcmd`, `strictjson`, `procutil`, and `sessionsync` package tests.
+   - Focused owner race tests, including byte qualification and previous correction regressions.
+   - All three private installed-Neovim conformance tests.
+   - Artifactpath, repolint, affected-reader inventory, and diff whitespace checks.
+
+   Measured N8/16 cumulative writer payloads were 691,008/2,563,116 bytes across 144/272 publications. These checks do not substitute for the separately required recorded full suite.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Shared namespace, transport, durability, and JSON helpers are reused.
+   - **ARCH-PURE — pass:** Model and codec tests run without IO; adapters own external effects.
+   - **ARCH-PURPOSE — pass:** Delivers the approved producer-only scope and real CLI/private IPC composition.
+   - **ARCH-MOCK — pass:** Stateful editor/process/storage seams share production boundaries; native conformance passed.
+   - **ARCH-CONSTRAINTS — pass:** Capacity, admission, output, and snapshot-byte bounds have executable coverage.
+   - **ARCH-SECURE — pass:** Typed boundary validation, private socket checks, and safe RPC diagnostics are present.
+   - **ARCH-ORDER — pass:** Generation fencing, publication uncertainty, delayed completion, and cancellation are tested.
+   - **ARCH-FUNERAL — pass:** Exact process-death collection, reusable stage cleanup, and owned shutdown define lifetimes.
+   - **ARCH-EVOLVE — pass:** Nested unknown members survive rewrites; malformed authority refuses visibly.
+
+7. **Plan revision recommendations:** None required.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"cb392adb-75e3-43d1-8b56-8e39a47c6e1b","repository":"github.com/xianxu/pair","issue_id":"000758","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/e88d998153dfca81","reviewed_head":"be457f2be2f39f88610d131c03955aef84989843","slot":"pair:6","requested_at":"2026-10-22T13:25:47.497224Z"},"phase":"finished","pid":46658,"started_at":"2026-10-22T13:25:47.63079Z","finished_at":"2026-10-22T13:28:01.35204Z","session_id":"01a163ca-0b6f-72b1-8956-fe0bd7f66262","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.695606292s
+head: "be457f2be2f39f88610d131c03955aef84989843"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

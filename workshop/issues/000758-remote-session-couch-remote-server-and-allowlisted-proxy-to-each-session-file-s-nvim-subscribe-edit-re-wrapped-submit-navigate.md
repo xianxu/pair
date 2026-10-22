@@ -47,6 +47,7 @@ This issue is the producer only, independently landable before parley.nvim#405. 
 
 ## Log
 ### 2026-10-22 — claimed and planned producer prerequisite
+- 2026-10-22: closed — BR1/2/3 independently disposed by round2 with failing pre-fix overlays. BR4 now measures actual writer payloads atN8/16 over16 reopen rounds:648152B/144pubs and2415268B/272pubs, zero retry/no-op/reload bytes, bounded decimal-width plateau; race passed3.218s and catalog/reader inventory pass. Pushedbe457f2be2f3 recorded suite queued, required before landing. Review overlap per tl-worker; no-plan-check only final suite/review/landing workflow pending; project TL-owned.; review verdict: SHIP
 Card checked unowned, claimed by pair:6. #759 pushed branch preserved; switched to resting main-slot6 before start-plan. Catch-up twice generated the same unrelated merge-check.yml toolchain grep fix; each exact workflow-only diff was retained in a named stash, not mixed into #758. Third start-plan succeeded from current main; no stacked branch. Current code remains untouched.
 
 Read remote-session project/design and existing sessionsync namespace/registry/process seams. Consumer receipts fc5fd55f, 8b7dcc76 and 66ccd77d pin constant endpoint/superseded RPC callbacks, namespace projection, monotone AttachID, bounded batch exit, no polling/auto-takeover and established-channel fencing. Draft durable plan awaits final consolidated contract confirmation and hub approval. No change-code, estimate, native run or implementation yet.
