@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"reflect"
 	"testing"
 	"time"
@@ -35,6 +36,21 @@ func TestDisposableStartupArguments(t *testing.T) {
 			cancelSetup()
 			if err != nil {
 				t.Fatal(err)
+			}
+			// Real weave setup creates these policy files after provisioning's
+			// initial commit. Record only those generated inputs in this private
+			// fixture before agents start; normal switching still requires clean Git.
+			for _, args := range [][]string{
+				{"add", "--", ".gitignore", ".gitattributes"},
+				{"-c", "user.name=Couch Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false", "commit", "-m", "fixture generated setup baseline"},
+				{"status", "--porcelain=v1", "--untracked-files=all"},
+			} {
+				command := exec.CommandContext(t.Context(), binaries.Git, args...)
+				command.Dir, command.Env = fleet.Workspaces.Workers[1], fleet.Environment
+				output, err := command.CombinedOutput()
+				if err != nil || (args[0] == "status" && len(output) != 0) {
+					t.Fatalf("private setup baseline %q: %s %v", args, output, err)
+				}
 			}
 			ctx, cancel := context.WithTimeout(t.Context(), 240*time.Second)
 			defer cancel()
