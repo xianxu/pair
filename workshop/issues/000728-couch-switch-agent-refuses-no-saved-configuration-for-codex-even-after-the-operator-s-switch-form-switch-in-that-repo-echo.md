@@ -473,3 +473,10 @@ The retained M1 recorded suite finally joined PASS11m39s, exact e7de5ca161079b42
 
 
 Fixture correction completed before re-review: authority callbacks/hub state install through existing decorateAuthority before service start; cold admission no longer connects an unused source wrapper. Branch faults use an atomic callback fake, preserving actual caller authorization and all counted/refusal/nested cases. Independent fixture race repeated three times PASS4.433s. Final broader switch/guard/admission/force/queued race PASS core2.793s, cmd10.941s, tty1.439s; final repolint6.711s, affected inventory and whitespace PASS. No production synchronization or new owner was added for a fixture-only race. Commit these corrections with the REWORK evidence, push, then rerun M2 milestone-close as the gate directs.
+
+
+### 2026-10-22 — M2 SHIP; M3 exact native evidence starts
+
+Second mandatory M2 review SHIP/high confidence, zero new findings, BR-5/BR-6 both disposed; boundary5c9d7f8d5782f84cd701727870099acc5aa0cc46 committed/pushed by SDLC. Reviewer independently removed each fix and reproduced the unsafe local switch and cancellation races, then restored. Its focused checks passed; its optional full-package race run was stopped, so no reviewer full-suite green is claimed.
+
+M3 starts within the already approved exact-native restart design. Read-only trace identified bindTranscriptWith's ENOENT return discards the selected ID/path; the existing binder may legitimately refresh storedA to ledgerB for ordinary resume. Add an observational TranscriptBind field retaining a clone of the validated selected binding before StatFile, including stat failures, while leaving established Resolution and Store unset on failure. This lets the upcoming edited-restart adapter distinguish Missing(A) from Changed(B), even B-missing, without parsing text or changing ordinary resume. A bounded test-first worker owns only binder+colocated tests. Native acceptance is not retried. #743 suite remains running; return at the next atomic checkpoint when its result arrives.
