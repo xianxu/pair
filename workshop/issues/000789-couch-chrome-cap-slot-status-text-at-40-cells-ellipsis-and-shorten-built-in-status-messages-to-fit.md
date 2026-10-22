@@ -41,7 +41,7 @@ TL receipt58326574-1d4c-4767-b222-cfb4d5adddce splits the original request. Buil
 
 - [x] Implement one pure 40-cell chrome projection and keep full source diagnostics.
 - [x] Preserve full-text copying with selected-error and retry precedence; document both README surfaces.
-- [ ] Re-run focused display/copy tests and submit the corrected recorded check; close and merge remain gated on review and check results.
+- [x] Re-run focused display/copy tests and submit the corrected recorded check; close and merge remain gated on review and check results.
 
 ## Log
 
@@ -96,3 +96,5 @@ TL directs simplification: #789 lands the 40-cell display path plus full copying
 Restored producer source/wording tests, affected source-preflight registration and catalog-only certificates to the exact branch base; removed AST/variant catalog tests. Retained only ChromeStatusText, its shared renderer calls, full-copy selection, focused tests, artifact-source classification and their docs. BR-2's obsolete producer assertion change is absent in the final diff; baseline wording and its assertion are restored together. BR-3/BR-4 copy documentation and acceptance clauses remain correct. The second queued check lease-1433186204 was canceled through sdlc before execution; no result claimed. No new broad sweep or durable plan is needed after the split.
 
 Split-scope verification: focused display/status/notice/full-copy/capability selection passed 3.916s after restoring all upstream wording. Affected reader inventory and diff checks pass. The existing broken-capability screen assertion now checks its actionable prefix within the cap; the full original diagnostic is pinned through Ctrl+Y. No producer content is shortened by #789.
+
+Final-scope suite submitted on pushed 2ab91b2179ebafb427398c5fde81ff1d2789397a: retained session40889, lease-4050460370, attempted4231a2c8ecb6c217b97ffe37913c11, initial normal FIFO position5. Suite is pending; not evidence of a pass. Close round3 reviews the TL-authorized cap/copy-only contract while the suite waits. #802 creation is verified on origin and unclaimed.
