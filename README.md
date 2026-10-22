@@ -529,6 +529,12 @@ couch --session-sync register FILE --owner SLOT [--json]
                          keep agentic status outside the document until explicitly forgotten
 couch --session-sync lookup FILE | list | forget FILE | rename OLD NEW [--json]
                          discover bindings or update metadata after a filesystem move; see atlas/couch-agentic-documents.md
+couch --session-sync operator-acquire FILE --id ID --turn TOKEN --json
+couch --session-sync operator-release FILE --id ID --turn TOKEN --json
+                         editor-only: serialize registered operator protection with writer commits; return
+                         the canonical sidecar witness and exact turn ownership. Same-token retries recover
+                         lost replies; release removes only that turn. Full acknowledgment/retry/release
+                         contract: atlas/couch-agentic-documents.md (agents still hold no lock)
 couch --recover-plan-from-sdlc   per-slot recovery report (JSON), see below
 couch --resume repo:N [--json]   from a live slot: Continue if listed live, otherwise resume an established native binding
 couch --resume-candidates repo:N [--json]

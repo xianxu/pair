@@ -23,7 +23,7 @@
 - [Supervision fact health](couch.md#supervision-fact-log-543) — request-time memory-only logger state, bounded backend errors, dropped/acknowledged counts and the coordinated CLI/supervisor upgrade (#736 M1).
 - [Agent scratch volume](agent-scratch-volume.md) — Go build cache and agent/test temp roots on an APFS volume fseventsd doesn't journal (#496): setup, verify, lifecycle, teardown.
 - [Review workbench](review-workbench.md) — embedded nvim document-review pane (#66): agent proposes edit records, nvim applies them undo-ably + journals rounds via docflow.
-- [Agentic document caller contract](couch-agentic-documents.md) — durable registration, read-only discovery, rename and forget for submitted markdown files; shared with Parley.
+- [Agentic document caller contract](couch-agentic-documents.md) — registration, discovery, rename/forget and serialized operator acquire/release; shared with Parley.
 
 ## See also
 
@@ -206,4 +206,4 @@
 - [Broadcast-web recording format](webcast-format.md) — the recording (#457): one record stream live and on disk, stable node ids, the reference reducer and validator, the seams, fakes and fixtures each wave-1 component builds against, and the notes model (#461): anchors (with their `kind`/`path`), focused context, and crops that are the note's box plus a margin (#488). Agent queries (#462): `couch --broadcast-web-query`; replay with a scrubber (#471): `couch --broadcast-web-replay`, shared through a running Couch's tunnel for remote viewers (#477), in [webcast.md](webcast.md#replay-471). Remote driving (#466): `ctl` control records, `by` attribution, and `drive`'s input wire, confinement, `Injector` and `Controller` seams.
 
 - [Opt-in Couch live capture](couch-live-capture.md) — opt-in display-boundary recording and replay evidence for #379.
-- [Disposable native Couch fleets](couch-testing.md) — shared testcouch root ownership, real provisioning/actors, fixture personalities and exact teardown (#744).
+- [Disposable native Couch fleets](couch-testing.md) — shared testcouch root ownership, real provisioning/actors, fixture personalities, isolated identity authorities and exact teardown (#744, #778).

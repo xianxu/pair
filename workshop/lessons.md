@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A retry observing file absence does not prove an earlier unlink became durable. Before acknowledging idempotent removal, synchronize every admitted containing directory even for already-absent targets; test visible and durable state separately through failed fsync and crash recovery. (#777 plan gate)
+- Adding a public CLI verb requires updating every public command index, including README and embedded help/skill, alongside its detailed atlas contract. Audit those indexes together at the documentation boundary. (#777 BR-1)
 - Start a shutdown grace clock after delivering its triggering signal; allocating it earlier silently spends the grace under preemption. Pin signal/clock order and exactly-once cleanup through a deterministic clock factory. (#776)
 
 - Read the current gate evidence-reuse contract before canceling a queued check: a passing ancestor suite can serve a docs-only descendant. Cancel by exact run only when necessary; executable changes require new verification. (#776)
@@ -2588,6 +2590,7 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #744: Native transcript fixture producers must derive storage roots through sessioninventory.OSRuntime.NativeRoots (and WithCodexHome), just like consumers; run the native-authority shadow guard before the recorded suite. Do not exempt test helper production files from the guard.
 
+- #777: New production Go files need the exhaustive artifact-source classification even when they contain no Pair artifact paths. Run the artifactpath package before queuing the recorded suite; add non-artifact sources to NonArtifactSources rather than the legacy violation quarantine.
 - #757: A generic HTTP front must own active uploads, writes and hijacked sockets through cancellation and join; cancelling only the upstream request does not unblock an unfinished downstream upload. Preserve this with a causally ready incomplete-upload regression. Nested Go modules need explicit root-suite and fixed-preflight ownership; root go test ./... alone omits them.
 
 - #757 close review: test proxy Location rewrites by resolving each returned reference against a non-root front URL; comparing Location strings alone misses empty-root, query-only and network-path authority changes. Endpoint self-target checks must use the same pinned address and port as the dialer.
@@ -2602,3 +2605,9 @@ and external temporary roots rather than relying on the host's TMPDIR.
 
 - #775: A new executable Zellij double must use the shared reply serializer and producer-specific catalog, including malformed/non-query envelopes as explicit classified faults. Run TestEveryZellijFixtureReplyUsesProductionDecoder and the reader-inventory preflight before queuing the full suite; source registration alone cannot certify independent wire serialization.
 - #771 review: Check the branch patch for whitespace after generated prose is recorded; review transcripts can introduce blank-line spaces. Trim prose-only whitespace before publishing, while preserving byte-exact terminal recordings and upstream evidence.
+
+- #778: Separate private socket roots still collide when independent fixture identity authorities reset to the same native name and admission uses a host-wide census. Seed fixture authorities through one shared initializer, preserve the real allocator and refusal, and prove distinct names through actual constructors. Temp basenames alone are not cross-parent uniqueness. Validate fixture seed extrema against the allocator's next step, including its exhausted-counter refusal.
+
+- #778 verification: Every new non-test Go helper must enter artifactpath's exhaustive source inventory, even when it owns no Pair session artifact. Run TestProductionArtifactReferencesAreExactlyClassified alongside reader inventory and lint before a full suite; classify the source through its ordinary inventory, never the known-violation quarantine.
+
+- #778 BR-1: after main integration or a compatibility fix, mark final verification pending in the active Plan checklist until the replacement exact-source suite completes. Keep older green receipts as history; review/suite overlap permits concurrent work, not a completed acceptance claim.
