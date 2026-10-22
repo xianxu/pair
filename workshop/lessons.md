@@ -2665,3 +2665,7 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #801 ad-hoc lifetime audit: detaching an admitted resource's lifetime must not detach its constructor from cancellation. Carry startup admission separately, check it after subordinate builders, and gate each installation effect; successful construction must still survive the startup context ending.
 - #801 ad-hoc lifetime audit: after nested cleanup succeeds, recovery evidence must name the resource still owned. A deleted outer root must never hide a surviving candidate directory when the cleanup budget expires.
 - #801 integration: normalize a shared environment's explicit last-wins overrides at its source boundary before serializing it as a map; pin helper selection to the verified source rather than the external consumer's working directory.
+
+- #801 BR-1: duplicate-key checks alone do not make encoding/json authority decoding strict: project exact required names, reject case-fold aliases and null scalar fields, then decode only the owned subset; preserve additive metadata without interpreting its numbers.
+- #801 BR-2: a strict extracted API must not accidentally tighten legacy wrapper defaults. Share default canonicalization across wrappers and test a real temp alias with the preferred scratch volume absent; explicit caller paths retain strict admission.
+- #801 BR-3: reconcile plan concept tables against actual exported symbols/files before close, including concrete native and IO adapters; illustrative names are not an implementation map.

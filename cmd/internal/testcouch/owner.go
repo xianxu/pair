@@ -35,8 +35,15 @@ func (quietReporter) Logf(string, ...any) {}
 func (quietReporter) Failed() bool        { return false }
 
 func legacyScratchParent() string {
-	base := os.TempDir()
-	if info, err := os.Stat("/Volumes/TestScratch"); err == nil && info.IsDir() {
+	info, err := os.Stat("/Volumes/TestScratch")
+	return legacyScratchParentFrom(os.TempDir(), err == nil && info.IsDir())
+}
+
+// legacyScratchParentFrom selects wrapper defaults from supplied facts. Native
+// callers' explicit paths still enter the strict physical-path admission gate.
+func legacyScratchParentFrom(temp string, scratchPresent bool) string {
+	base := temp
+	if scratchPresent {
 		base = "/Volumes/TestScratch"
 	}
 	// Existing test wrappers permit the platform's conventional /tmp alias;

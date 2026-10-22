@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -184,6 +185,34 @@ func (o *NativeOwner) command(ctx context.Context, program string, args []string
 	return o.dependencies.run(bounded, program, args, dir, env)
 }
 
+// decodeResponseMembers projects only this reader's exact owned names. The
+// public producer may add metadata, but aliases cannot shadow authority and
+// missing/null owned values cannot acquire Go zero-value meaning.
+func decodeResponseMembers(raw []byte, target any, nullable map[string]bool) error {
+	known := strictjson.KnownFields(reflect.TypeOf(target).Elem())
+	owned, unknown, err := strictjson.SplitObjectPreserveNumbers(raw, known, nullable)
+	if err != nil {
+		return err
+	}
+	for alias := range unknown {
+		for name := range known {
+			if strings.EqualFold(alias, name) {
+				return fmt.Errorf("noncanonical response member %q (expected %s)", alias, name)
+			}
+		}
+	}
+	for name := range known {
+		if _, present := owned[name]; !present {
+			return fmt.Errorf("missing response member %s", name)
+		}
+	}
+	projected, err := strictjson.EncodeObjectPreserveNumbers(owned, nil, known)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(projected, target)
+}
+
 func (o *NativeOwner) Readiness(ctx context.Context) (r Readiness, err error) {
 	defer func() { o.failed(err) }()
 	if o.closed || !o.started {
@@ -234,18 +263,18 @@ func (o *NativeOwner) Readiness(ctx context.Context) (r Readiness, err error) {
 		}
 		var registration struct {
 			Code, Error  string
-			Registration *struct{ ID, Namespace, File, Owner string }
+			Registration json.RawMessage
 		}
-		if err = strictjson.RejectDuplicateKeysPreserveNumbers(raw); err != nil {
+		if err = decodeResponseMembers(raw, &registration, nil); err != nil {
 			return r, err
 		}
-		if err = json.Unmarshal(raw, &registration); err != nil {
-			return r, err
-		}
-		if registration.Code != "ok" || registration.Error != "" || registration.Registration == nil {
+		if registration.Code != "ok" || registration.Error != "" {
 			return r, errors.New("bridge document registration not confirmed")
 		}
-		doc := registration.Registration
+		var doc struct{ ID, Namespace, File, Owner string }
+		if err = decodeResponseMembers(registration.Registration, &doc, nil); err != nil {
+			return r, err
+		}
 		if !documentID(doc.ID) || doc.Namespace != facts.namespace || doc.File != path || doc.Owner != "fixture:0" {
 			return r, errors.New("bridge registration identity mismatch")
 		}
@@ -264,10 +293,7 @@ func (o *NativeOwner) Readiness(ctx context.Context) (r Readiness, err error) {
 			Code, Error    string
 			EditorEndpoint json.RawMessage
 		}
-		if e = strictjson.RejectDuplicateKeysPreserveNumbers(raw); e != nil {
-			return r, e
-		}
-		if e = json.Unmarshal(raw, &reply); e != nil {
+		if e = decodeResponseMembers(raw, &reply, map[string]bool{"EditorEndpoint": true}); e != nil {
 			return r, e
 		}
 		if reply.Version != 1 || reply.Code != "ok" || reply.Error != "" || string(reply.EditorEndpoint) != "null" {

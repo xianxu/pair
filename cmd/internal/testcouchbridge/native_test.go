@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/editorendpoint"
 	"github.com/xianxu/pair/cmd/internal/testcouch"
 	"github.com/xianxu/pair/cmd/internal/testpair"
 )
@@ -161,6 +162,8 @@ func TestNativeOwnerRefusesUnconfirmedServiceReadiness(t *testing.T) {
 	}{
 		{"foreign-registration", true, `{"Code":"ok","Error":"","Registration":{"ID":"0123456789abcdef0123456789abcdef","Namespace":"/foreign","File":"/foreign","Owner":"fixture:0"}}`},
 		{"duplicate-code", false, `{"Version":1,"Code":"unavailable","Code":"ok","Error":"","EditorEndpoint":null}`},
+		{"casefold-code-shadow", false, `{"Version":1,"Code":"unavailable","code":"ok","Error":"","EditorEndpoint":null}`},
+		{"null-error", false, `{"Version":1,"Code":"ok","Error":null,"EditorEndpoint":null}`},
 		{"unavailable-service", false, `{"Version":1,"Code":"unavailable","Error":"down","EditorEndpoint":null}`},
 		{"missing-endpoint-confirmation", false, `{"Version":1,"Code":"ok","Error":""}`},
 		{"unexpected-live-endpoint", false, `{"Version":1,"Code":"ok","Error":"","EditorEndpoint":{}}`},
@@ -374,6 +377,134 @@ func TestNativeOwnerConstructorCancellationPreventsLateInstallation(t *testing.T
 		t.Fatal("constructor cancellation did not join")
 	}
 	if err := owner.Close(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestNativeOwnerResponseMembersRequireExactNamesAndTypes(t *testing.T) {
+	boundaries := []struct {
+		name                 string
+		registration, nested bool
+		fields               []string
+	}{
+		{"registration", true, false, []string{"Code", "Error", "Registration"}},
+		{"document", true, true, []string{"ID", "Namespace", "File", "Owner"}},
+		{"endpoint", false, false, []string{"Version", "Code", "Error", "EditorEndpoint"}},
+	}
+	for _, boundary := range boundaries {
+		for _, field := range boundary.fields {
+			for _, mutation := range []string{"alias-only", "canonical-and-alias", "null", "missing", "wrong-type"} {
+				if boundary.name == "endpoint" && field == "EditorEndpoint" && mutation == "null" {
+					continue
+				}
+				t.Run(boundary.name+"/"+field+"/"+mutation, func(t *testing.T) {
+					owner, _, _ := nativeFixture(t)
+					run := owner.dependencies.run
+					owner.dependencies.run = func(ctx context.Context, program string, args []string, dir string, env []string) ([]byte, error) {
+						raw, err := run(ctx, program, args, dir, env)
+						if err != nil {
+							return nil, err
+						}
+						if (args[0] == "--session-sync") != boundary.registration {
+							return raw, nil
+						}
+						var envelope map[string]json.RawMessage
+						if err := json.Unmarshal(raw, &envelope); err != nil {
+							t.Fatal(err)
+						}
+						target := envelope
+						if boundary.nested {
+							target = nil
+							if err := json.Unmarshal(envelope["Registration"], &target); err != nil {
+								t.Fatal(err)
+							}
+						}
+						switch mutation {
+						case "alias-only":
+							target[strings.ToLower(field)] = target[field]
+							delete(target, field)
+						case "canonical-and-alias":
+							target[strings.ToLower(field)] = target[field]
+						case "null":
+							target[field] = json.RawMessage("null")
+						case "missing":
+							delete(target, field)
+						case "wrong-type":
+							value := `7`
+							if field == "Version" {
+								value = `"1"`
+							}
+							if field == "Registration" {
+								value = `[]`
+							}
+							if field == "EditorEndpoint" {
+								value = `{}`
+							}
+							target[field] = json.RawMessage(value)
+						}
+						if boundary.nested {
+							encoded, err := json.Marshal(target)
+							if err != nil {
+								t.Fatal(err)
+							}
+							envelope["Registration"] = encoded
+						}
+						return json.Marshal(envelope)
+					}
+					if err := owner.Prepare(t.Context()); err != nil {
+						t.Fatal(err)
+					}
+					if err := owner.Start(t.Context()); err != nil {
+						t.Fatal(err)
+					}
+					if _, err := owner.Readiness(t.Context()); err == nil {
+						t.Fatal("ambiguous or incomplete authority accepted")
+					}
+					if err := owner.Close(t.Context()); err != nil {
+						t.Fatal(err)
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestNativeOwnerActualPublicEndpointEnvelopeToleratesOpaqueMetadata(t *testing.T) {
+	owner, _, _ := nativeFixture(t)
+	run := owner.dependencies.run
+	owner.dependencies.run = func(ctx context.Context, program string, args []string, dir string, env []string) ([]byte, error) {
+		raw, err := run(ctx, program, args, dir, env)
+		if err != nil {
+			return raw, err
+		}
+		if args[0] == "--editor-endpoint" {
+			raw, err = json.Marshal(editorendpoint.EndpointReply{Version: 1, Code: "ok"})
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			var envelope map[string]json.RawMessage
+			if err = json.Unmarshal(raw, &envelope); err != nil {
+				return nil, err
+			}
+			envelope["Registration"] = json.RawMessage(strings.TrimSuffix(string(envelope["Registration"]), "}") + `,"Future":{"ID":null,"Counter":1e10000}}`)
+			raw, err = json.Marshal(envelope)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return []byte(strings.TrimSuffix(string(raw), "}") + `,"Future":{"Counter":1e10000,"Code":null}}`), nil
+	}
+	if err := owner.Prepare(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if err := owner.Start(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := owner.Readiness(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if err := owner.Close(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 }

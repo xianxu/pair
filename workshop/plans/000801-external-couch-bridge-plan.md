@@ -24,13 +24,13 @@ Recommended: an error-returning shared testcouch entry point and a standalone bi
 
 | Name | Lives in | Status |
 |------|----------|--------|
-| BridgeOptions | cmd/internal/testcouchbridge/options.go | new |
-| Readiness | cmd/internal/testcouchbridge/readiness.go | new |
-| BridgeState / BridgeEvent / ReduceBridge | cmd/internal/testcouchbridge/model.go | new |
+| Options | cmd/internal/testcouchbridge/options.go | new |
+| Readiness / Document | cmd/internal/testcouchbridge/readiness.go | new |
+| Phase / EventKind / Effect / State / Event / Reduce | cmd/internal/testcouchbridge/model.go | new |
 
-- BridgeOptions validates argv, explicit absolute candidate/scratch paths and fixed resource limits before effects. One invocation owns one fleet. The supplied Couch overrides only the Couch candidate; companion Pair/helper and fixture binaries come from this checkout's shared candidate builder, never an installed Pair. Candidate compatibility is exercised by startup, not guessed from a version string.
+- Options validates argv, explicit absolute candidate/scratch paths and fixed resource limits before effects. One invocation owns one fleet. The supplied Couch overrides only the Couch candidate; companion Pair/helper and fixture binaries come from this checkout's shared candidate builder, never an installed Pair. Candidate compatibility is exercised by startup, not guessed from a version string.
 - Readiness contains Version, Namespace, Socket, Environment and a proposed Documents array of two `{ID,File}` entries. The array gives Parley registered private fixtures without discovering live documents. Namespace/socket/document paths are physical absolute paths, document IDs come from the actual registry. Environment replaces the entire client environment, never overlays ambient HOME/COUCH variables. These values are invocation-local data, not a durable authority file.
-- ReduceBridge is the only writer of bridge phase. It owns whether a readiness publication may begin and whether a stop is already committed; Fleet's existing lifetime gate remains the resource authority for all process effects. No second ownership registry.
+- Reduce is the only writer of bridge phase. It owns whether a readiness publication may begin and whether a stop is already committed; Fleet's existing lifetime gate remains the resource authority for all process effects. No second ownership registry.
 
 ### Integration points
 
@@ -38,8 +38,11 @@ Recommended: an error-returning shared testcouch entry point and a standalone bi
 |------|----------|--------|-------|
 | Candidate owner/build API | cmd/internal/testcouch/binaries.go and new owner_build.go | modified | existing candidate builds and owned binary cleanup |
 | Fleet construction/reporting | cmd/internal/testcouch/fleet.go and new owner.go | modified | existing roots, runtime installation, process owner and cleanup |
-| BridgeRunner | cmd/internal/testcouchbridge/run.go | new | shared owner plus input, signal, clock and bounded output adapters |
-| BridgeIO | cmd/internal/testcouchbridge/io.go | new | complete isolated argv/environment, public Couch CLI and owned pipes |
+| RunBridge / Owner | cmd/internal/testcouchbridge/run.go | new | shared owner plus input, signal, clock and bounded output adapters |
+| BridgeIO | cmd/internal/testcouchbridge/run.go | new | cancellable publication/control interface |
+| NativeOwner | cmd/internal/testcouchbridge/native.go | new | shared fleet/candidate owner and public Couch CLI |
+| PipeIO | cmd/internal/testcouchbridge/pipes_unix.go | new | exclusive cancellable stdin/stdout pipes |
+| Diagnostics / DiagnosticPipe | cmd/internal/testcouchbridge/diagnostics.go and diagnostic_pipe_unix.go | new | bounded diagnostic sink and nonblocking stderr adapter |
 | Main | cmd/couch-conformance-bridge/main.go | new | argument/signal wiring and exit status only |
 
 Existing Build(t)/New(t) remain source-compatible convenience wrappers. They use error-returning implementations and register the same cleanup. Replace Fleet's dependency on TB for diagnostics with explicit reporting; the test wrapper supplies Logf/Failed and the command supplies a bounded stderr sink/failure signal. Constructor failures return any partially created owner needed for cleanup; they never hide live resources behind a nil result. Preserve the existing exact-generation census, creation revocation, retained descendant handling, and joined direct-child/IO cleanup. Build artifacts are a subordinate resource of the invocation: remove them only after fleet cleanup succeeds; retain them with the evidence if cleanup is uncertain.
@@ -118,7 +121,7 @@ Files: modify testcouch/binaries.go, fleet.go, cleanup.go; add owner.go/owner_bu
 
 ### Task2 — pure protocol/lifecycle plus bounded IO runner
 
-Files: create testcouchbridge/options.go, readiness.go, model.go, run.go, io.go and colocated tests/stateful fake.
+Files: create testcouchbridge/options.go, readiness.go, model.go, run.go, native.go, pipes_unix.go and colocated tests/stateful fake (actual adapter split reconciled in the close BR-3 Revision).
 
 - [x] Write red table/sequence tests for the states, invalid paths, duplicate environment keys, no ambient overlay, malformed/oversized endpoint responses, output cap, early/repeated stop, failed/late readiness, deadline, producer death, failed cleanup and unread stdout.
 - [x] Run `go test ./cmd/internal/testcouchbridge -count=1`; demonstrate missing protocol/transition behavior first.
@@ -193,3 +196,10 @@ Consumer7c555269 created an additional private cb-* directory under the selected
 ### 2026-10-22 — consumer qualification and gate-owned completion
 
 Consumer738380b8 qualifies the actual existing Parley driver on native nvim0.12.5 and0.11.7, both joined EOF cleanup, using the same supported bridge. Evidence is retained in the issue. Implementation checkboxes are complete. The original final checkbox combined future recorded verification, close and landing with implementation; retain it as a gate-owned workflow instruction instead of falsely ticking a landing before it occurs. Required checks/review/SHIP/merge are unchanged. Current recorded suite lease-869401233 is queued on48162a9b; binary-owned review may overlap it per tl-worker, while landing still requires the exact-code recorded pass. No runtime change after eee3547f.
+
+
+### 2026-10-22 — close BR-3: reconcile implemented concept map
+
+The core-concept tables now name actual exported symbols and source files, replacing the illustrative BridgeOptions/BridgeState/BridgeEvent/ReduceBridge/BridgeRunner prefixes with Options/State/Event/Reduce/RunBridge. BridgeIO lives in run.go, not the unimplemented io.go; NativeOwner, PipeIO and Diagnostics/DiagnosticPipe explicitly map the native service, owned pipes and bounded diagnostic adapters. This is a factual traceability correction, with no behavior, ownership or scope change.
+
+The earlier PQ-2 strategy labels map to implemented symbols as follows: BuildEnvironment → testcouch.buildEnvironment; ResolveBuildInputs → tool/cache selection in testcouch/build_environment.go and owner_build.go, plus source selection in testcouchbridge/options.go; ReduceBridge → Reduce; RegisterBridgeDocuments/CheckEndpoint → NativeOwner.Readiness; owned pipe Read/Write → PipeIO.WaitStop/Publish. These labels described test responsibilities, not additional exported APIs.

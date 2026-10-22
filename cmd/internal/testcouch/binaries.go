@@ -3,6 +3,7 @@ package testcouch
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -32,11 +33,9 @@ func Build(t testing.TB) Binaries {
 	if err != nil {
 		t.Fatal(err)
 	}
-	scratch := os.TempDir()
-	if info, e := os.Stat("/Volumes/TestScratch"); e == nil && info.IsDir() {
-		scratch = "/Volumes/TestScratch"
-	}
-	owner, err := BuildOwned(t.Context(), BuildConfig{Source: source, ScratchParent: scratch, Log: testBuildLog{t: t}})
+	info, scratchErr := os.Stat("/Volumes/TestScratch")
+	cfg := defaultBuildConfig(source, testBuildLog{t: t}, os.TempDir(), scratchErr == nil && info.IsDir())
+	owner, err := BuildOwned(t.Context(), cfg)
 	if owner != nil {
 		t.Cleanup(func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -124,4 +123,8 @@ func buildCommand(ctx context.Context, dir, tool string, args ...string) (string
 	var output buildOutput
 	_, err := (couchcore.OSProvisionIO{}).Run(ctx, couchcore.ProvisionCommand{Dir: dir, Program: tool, Args: append([]string(nil), args...), Progress: &output, StreamOutput: true})
 	return output.String(), err
+}
+
+func defaultBuildConfig(source string, log io.Writer, temp string, scratchPresent bool) BuildConfig {
+	return BuildConfig{Source: source, ScratchParent: legacyScratchParentFrom(temp, scratchPresent), Log: log}
 }
