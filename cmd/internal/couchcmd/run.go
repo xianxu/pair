@@ -1528,6 +1528,7 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "             Only a live hub notifies (default title: Couch); other slots send to their hub.")
 	fmt.Fprintln(w, "             Slots' OSC 9/777/99 notifications are swallowed, including the hub's; BEL is unchanged.")
 	fmt.Fprintln(w, "             Title: 256 bytes; message: 4096 bytes. Uncertain write: do not retry automatically.")
+	verbLine(w, "--remote", "       couch --remote on|off|status (link on the host console; reset by host keypress only)")
 	verbLine(w, query.Flag, "       couch "+query.Flag+" DIR dom|events|notes|link ...")
 	fmt.Fprintln(w, "             Read-only: ask a broadcast-web recording for the page at t, what happened")
 	fmt.Fprintln(w, "             in a window, and every note with its element and the actions before it;")

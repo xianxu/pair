@@ -1,0 +1,6 @@
+Available within your tailnet:
+
+https://xians-macbook-pro.tail223684.ts.net/
+|-- proxy unix:/Users/xianxu/Downloads/.pair759-probe-8x7a1rre/s
+
+Press Ctrl+C to exit.

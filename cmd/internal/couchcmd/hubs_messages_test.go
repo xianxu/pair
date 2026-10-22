@@ -3,6 +3,7 @@ package couchcmd
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -39,7 +40,7 @@ func hubMessageRigWithWorkerEndpoint(t *testing.T, endpoint couchmessage.Deliver
 	clock.Store(time.Now().UnixNano())
 	authority.now = func() time.Time { return time.Unix(0, clock.Load()) }
 	var err error
-	r.s, err = newMessageService(context.Background(), r.brokerSock, r.regSock, authority, r.panes, func(string) (couchcore.SlotGitStatus, bool) { return couchcore.SlotGitStatus{}, false }, nil)
+	r.s, err = newMessageService(context.Background(), r.brokerSock, r.regSock, filepath.Dir(r.brokerSock), authority, r.panes, func(string) (couchcore.SlotGitStatus, bool) { return couchcore.SlotGitStatus{}, false }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

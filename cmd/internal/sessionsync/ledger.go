@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/durablefile"
 )
 
@@ -25,17 +26,28 @@ type Entry struct {
 	At   time.Time
 	// AddressedAt is broker admission time, used only to attribute renamed
 	// paths. At remains the delivery horizon, display and retention authority.
-	AddressedAt time.Time `json:",omitempty"`
-	Head        string
-	Uncertain   bool `json:",omitempty"`
+	AddressedAt       time.Time `json:",omitempty"`
+	Head              string
+	Uncertain         bool                      `json:",omitempty"`
+	Origin            couchmessage.Origin       `json:",omitempty"`
+	RemoteEdited      bool                      `json:",omitempty"`
+	RemoteSource      couchmessage.RemoteSource `json:",omitempty"`
+	DocumentID        string                    `json:",omitempty"`
+	rawFields         map[string]json.RawMessage
+	rawSource         map[string]json.RawMessage
+	provenancePresent bool
 }
 
-// The ledger's bound (ARCH-FUNERAL): a slot's file is trimmed when it grows
-// past trimBytes, keeping at most keepRows rows younger than keepFor. One
+// The ledger's bound (ARCH-FUNERAL): trim before an append would cross
+// trimBytes, keeping at most keepRows rows younger than keepFor. One
 // file per slot address, so the store holds at most trimBytes plus one row
 // per slot. A row trimmed while still unfolded stops being owed; at 14 days
 // it is a dead thread, not a pending one. The size check is one stat per
-// append; only a trim reads the file.
+// preflight and one after append; only a trim reads the file. Failed retention
+// must stop growth: before adding a row that would cross trimBytes, trim first.
+// A failed post-append operation can leave at most one codec-bounded row of
+// overshoot; the next owner's preflight refuses before another append. Damaged
+// evidence is retained for inspection, never truncated to make progress.
 const (
 	trimBytes = 256 << 10
 	keepRows  = 512
@@ -95,13 +107,16 @@ func (l *Ledger) Append(slot string, e Entry) error {
 		return err
 	}
 	e.Head = Head(e.Head)
-	line, err := json.Marshal(e)
+	line, err := encodeLedgerEntry(e)
 	if err != nil {
 		return err
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if err := os.MkdirAll(l.Dir, 0o700); err != nil {
+		return err
+	}
+	if err := l.trim(p, len(line)+1); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 	f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
@@ -118,15 +133,17 @@ func (l *Ledger) Append(slot string, e Entry) error {
 	if err := l.expireGap(slot); err != nil {
 		return err
 	}
-	return l.trim(p)
+	return l.trim(p, 0)
 }
 
 // trim rewrites a file past trimBytes, atomically, so a concurrent reader
 // sees the old file or the new one. Append opens the file per call, so the
-// next append lands in the new inode.
-func (l *Ledger) trim(p string) error {
+// next append lands in the new inode. Reserve includes the next encoded row
+// during preflight; zero is the post-append size check. Both use the same read,
+// validation and atomic publication path, so a failure cannot admit more data.
+func (l *Ledger) trim(p string, reserve int) error {
 	info, err := os.Stat(p)
-	if err != nil || info.Size() <= trimBytes {
+	if err != nil || info.Size()+int64(reserve) <= trimBytes {
 		return err
 	}
 	rows, err := readRows(p)
@@ -145,7 +162,7 @@ func (l *Ledger) trim(p string) error {
 	var lines [][]byte
 	size := 0
 	for i := len(kept) - 1; i >= 0 && len(lines) < keepRows; i-- {
-		line, err := json.Marshal(kept[i])
+		line, err := encodeLedgerEntry(kept[i])
 		if err != nil {
 			return err
 		}
@@ -179,8 +196,8 @@ func (l *Ledger) Read(slot string) ([]Entry, error) {
 	return readRows(p)
 }
 
-// readRows skips a line that does not decode: the writer appends whole lines,
-// so only a torn tail can fail, and it is the newest row's write in flight.
+// readRows tolerates legacy torn tails. A recognized provenance row that fails
+// validation refuses the read; it can never silently become clean local evidence.
 func readRows(p string) ([]Entry, error) {
 	f, err := os.Open(p)
 	if errors.Is(err, os.ErrNotExist) {
@@ -195,7 +212,13 @@ func readRows(p string) ([]Entry, error) {
 	sc.Buffer(make([]byte, 64*1024), 1024*1024)
 	for sc.Scan() {
 		var e Entry
-		if json.Unmarshal(sc.Bytes(), &e) == nil && e.ID != "" {
+		if err := e.UnmarshalJSON(sc.Bytes()); err != nil {
+			if hasLedgerProvenance(sc.Bytes()) {
+				return nil, fmt.Errorf("invalid delivery provenance: %w", err)
+			}
+			continue
+		}
+		if e.ID != "" {
 			rows = append(rows, e)
 		}
 	}

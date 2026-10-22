@@ -49,7 +49,8 @@ func (r *deliveryRecorder) record(m couchmessage.Message, receipt couchmessage.R
 	}
 	e := sessionsync.Entry{ID: m.ID, From: m.From.Slot, At: r.now(), Head: m.Body,
 		AddressedAt: m.AcceptedAt,
-		Uncertain:   err != nil || receipt.Status != couchmessage.Submitted}
+		Origin:      m.Origin, RemoteEdited: m.RemoteEdited, RemoteSource: m.RemoteSource, DocumentID: m.DocumentID,
+		Uncertain: err != nil || receipt.Status != couchmessage.Submitted}
 	if aerr := r.ledger.Append(m.To.Slot, e); aerr != nil {
 		// Delivery succeeded; the record did not. Record the gap for that
 		// slot's readers instead of failing the message.

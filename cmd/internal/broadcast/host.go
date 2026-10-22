@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -44,7 +45,13 @@ type Mountable interface {
 // for the close, then opens again. An open nobody waits for any more is
 // cancelled, or closed as soon as it completes.
 type Host struct {
-	cfg HostConfig
+	cfg                 HostConfig
+	protected           bool
+	protectedBusy       bool
+	protectedGeneration uint64
+	closeErr            error
+	servedDone          <-chan struct{}
+	listener            net.Listener
 
 	mu      sync.Mutex
 	state   hostState
@@ -89,23 +96,52 @@ func NewHost(cfg HostConfig) *Host {
 // m's link answers at probePath (relative to the public base). Cancelling
 // ctx abandons the mount.
 func (h *Host) Mount(ctx context.Context, m Mountable, probePath string) (*Mount, error) {
+	if h.protected {
+		return nil, errors.New("broadcast: use MountProtected on a protected host")
+	}
+	if _, ok := h.cfg.Tunnel.(protectedTransport); ok {
+		return nil, errors.New("broadcast: protected tunnel requires a protected host")
+	}
+	return h.mount(ctx, m, probePath)
+}
+
+func (h *Host) mount(ctx context.Context, m Mountable, probePath string) (*Mount, error) {
 	if h.cfg.Tunnel == nil {
 		return nil, errors.New("broadcast: no tunnel configured")
 	}
 	h.mu.Lock()
 	for {
+		if h.protected && h.closeErr != nil {
+			err := h.closeErr
+			h.mu.Unlock()
+			return nil, err
+		}
+		if err := ctx.Err(); err != nil {
+			h.mu.Unlock()
+			h.abandonWait(false)
+			return nil, err
+		}
 		switch h.state {
 		case hostOpen:
 			mt := &Mount{host: h, m: m, base: h.handle.URL(), mode: h.mode, exited: make(chan struct{})}
 			h.mounts[mt] = struct{}{}
 			exited := h.handle.Exited()
 			h.mu.Unlock()
+			if h.protected {
+				return mt, nil
+			}
 			if err := probe(ctx, mt.base+"/"+probePath, h.cfg.ProbeTimeout, h.cfg.Resolve, exited); err != nil {
 				mt.Unmount()
 				return nil, err
 			}
 			return mt, nil
 		case hostClosed:
+			// A protected reservation gets one opening. If its connector died before
+			// the caller resumed, never reopen the same owner behind its back.
+			if h.protected && h.gen != h.protectedGeneration {
+				h.mu.Unlock()
+				return nil, ErrTunnelExited
+			}
 			h.beginOpenLocked()
 		}
 		// Join an open in progress; wait out a close, or an abandoned open,
@@ -171,6 +207,8 @@ func (h *Host) releaseIfUnwantedLocked() *hostAttempt {
 		h.attempt.abandoned = true
 		h.attempt.cancel()
 		return h.attempt
+	case hostClosing:
+		return h.attempt
 	}
 	return nil
 }
@@ -184,17 +222,23 @@ func (h *Host) beginOpenLocked() {
 
 func (h *Host) open(ctx context.Context, a *hostAttempt) {
 	defer a.cancel()
-	srv, handle, served, err := h.start(ctx)
+	srv, handle, listener, served, servedDone, err := h.start(ctx)
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	defer close(a.done)
 	if err != nil {
+		if h.protected && listener != nil {
+			h.closeErr = listener.Close()
+			err = errors.Join(err, h.closeErr)
+		}
 		a.err = err
 		h.state, h.attempt = hostClosed, nil
 		return
 	}
 	h.gen++
 	h.state, h.attempt, h.srv, h.handle = hostOpen, nil, srv, handle
+	h.servedDone = servedDone
+	h.listener = listener
 	h.mode = ModeTunnel
 	if _, local := h.cfg.Tunnel.(LocalOnly); local {
 		h.mode = ModeLocalOnly
@@ -208,10 +252,10 @@ func (h *Host) open(ctx context.Context, a *hostAttempt) {
 // again if it fails. A tunnel that finishes opening after ctx was cancelled
 // is a success here: open finds nobody wants it and closes it, one rule for
 // every way interest can lapse while opening.
-func (h *Host) start(ctx context.Context) (*http.Server, Handle, <-chan error, error) {
+func (h *Host) start(ctx context.Context) (*http.Server, Handle, net.Listener, <-chan error, <-chan struct{}, error) {
 	l, err := h.cfg.Tunnel.Listen()
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("broadcast: listen: %w", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("broadcast: listen: %w", err)
 	}
 	srv := &http.Server{
 		Handler: h,
@@ -224,13 +268,15 @@ func (h *Host) start(ctx context.Context) (*http.Server, Handle, <-chan error, e
 		MaxHeaderBytes:    8 << 10,
 	}
 	served := make(chan error, 1)
-	go func() { served <- srv.Serve(l) }()
+	servedDone := make(chan struct{})
+	go func() { defer close(servedDone); served <- srv.Serve(l) }()
 	handle, err := h.cfg.Tunnel.Open(ctx, l)
 	if err != nil {
 		srv.Close()
-		return nil, nil, nil, err
+		<-servedDone
+		return nil, nil, l, nil, nil, err
 	}
-	return srv, handle, served, nil
+	return srv, handle, l, served, servedDone, nil
 }
 
 // watch closes the Host when its tunnel or server dies on its own, telling
@@ -261,16 +307,30 @@ func (h *Host) watch(gen uint64, served <-chan error, handle Handle) {
 // beginCloseLocked tears down the open server and tunnel in the background.
 func (h *Host) beginCloseLocked() *hostAttempt {
 	a := &hostAttempt{done: make(chan struct{})}
-	srv, handle := h.srv, h.handle
+	srv, handle, listener, servedDone := h.srv, h.handle, h.listener, h.servedDone
 	h.state, h.attempt, h.srv, h.handle = hostClosing, a, nil, nil
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), shutdownBudget)
 		defer cancel()
+		var cleanupErr error
 		if err := srv.Shutdown(ctx); err != nil {
-			srv.Close()
+			if h.protected {
+				cleanupErr = err
+			}
+			if closeErr := srv.Close(); closeErr != nil {
+				cleanupErr = errors.Join(err, closeErr)
+			}
 		}
-		handle.Close()
+		<-servedDone
+		if h.protected {
+			cleanupErr = errors.Join(cleanupErr, listener.Close())
+		}
+		cleanupErr = errors.Join(cleanupErr, handle.Close())
 		h.mu.Lock()
+		a.err = cleanupErr
+		if h.protected {
+			h.closeErr = cleanupErr
+		}
 		h.state, h.attempt = hostClosed, nil
 		h.mu.Unlock()
 		close(a.done)
@@ -323,9 +383,11 @@ type Mount struct {
 	m          Mountable
 	base, mode string
 
-	once   sync.Once
-	err    error
-	exited chan struct{}
+	once        sync.Once
+	err         error
+	exited      chan struct{}
+	unmountOnce sync.Once
+	unmountErr  error
 }
 
 // Base is the Host's public base URL, without a trailing slash.
@@ -358,6 +420,10 @@ func (mt *Mount) lose(reason error) {
 // Unmount stops serving the handler. The last Unmount closes the Host and
 // returns once its tunnel and server are closed. Idempotent.
 func (mt *Mount) Unmount() {
+	if mt.host.protected {
+		_ = mt.UnmountConfirmed()
+		return
+	}
 	h := mt.host
 	h.mu.Lock()
 	if _, ok := h.mounts[mt]; !ok {
@@ -370,6 +436,37 @@ func (mt *Mount) Unmount() {
 	if closing != nil {
 		<-closing.done
 	}
+}
+
+// UnmountConfirmed joins teardown and reports uncertainty for protected hosts.
+// A failed protected teardown permanently blocks this Host from reopening.
+func (mt *Mount) UnmountConfirmed() error {
+	if !mt.host.protected {
+		mt.Unmount()
+		return nil
+	}
+	mt.unmountOnce.Do(func() {
+		h := mt.host
+		h.mu.Lock()
+		delete(h.mounts, mt)
+		closing := h.releaseIfUnwantedLocked()
+		if closing == nil && h.state == hostClosing {
+			closing = h.attempt
+		}
+		h.mu.Unlock()
+		if closing != nil {
+			<-closing.done
+		}
+		h.mu.Lock()
+		if h.protected {
+			mt.unmountErr = h.closeErr
+			if mt.unmountErr == nil {
+				h.protectedBusy = false
+			}
+		}
+		h.mu.Unlock()
+	})
+	return mt.unmountErr
 }
 
 // OwnsToken reports whether segment is token, in constant time: every cast

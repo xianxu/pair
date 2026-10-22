@@ -1,0 +1,94 @@
+[
+  {
+    "at": 1792698953.531646,
+    "kind": "baseline",
+    "serve": {},
+    "version": "1.104.1-t7f4efe814-g4939ea2e4",
+    "hostname": "xians-macbook-pro.tail223684.ts.net"
+  },
+  {
+    "at": 1792698953.59714,
+    "kind": "request",
+    "peer": {
+      "pid": 52862,
+      "uid": 501,
+      "gid": 20,
+      "getpeereid_rc": 0,
+      "process_before": "52862 46243   501 Thu Oct 22 12:55:52 2026     /opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python\n",
+      "process_after": "52862 46243   501 Thu Oct 22 12:55:52 2026     /opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python\n"
+    },
+    "headers": {
+      "Tailscale-User-Login": [
+        "forged.invalid"
+      ],
+      "X-Forwarded-For": [
+        "100.1.1.1"
+      ],
+      "X-Forwarded-Host": [],
+      "X-Forwarded-Proto": [],
+      "Tailscale-Funnel-Request": [],
+      "Host": [
+        "localhost"
+      ]
+    },
+    "direct_control": true
+  },
+  {
+    "at": 1792698953.607063,
+    "kind": "foreground-start",
+    "pid": 53407,
+    "argv": [
+      "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
+      "serve",
+      "--https=443",
+      "unix:/Users/xianxu/Downloads/.pair759-probe-8x7a1rre/s"
+    ]
+  },
+  {
+    "at": 1792698953.86131,
+    "kind": "ready",
+    "url": "https://xians-macbook-pro.tail223684.ts.net/probe",
+    "serve": {
+      "Foreground": {
+        "206ce0c7e06d64dc": {
+          "TCP": {
+            "443": {
+              "HTTPS": true
+            }
+          },
+          "Web": {
+            "xians-macbook-pro.tail223684.ts.net:443": {
+              "Handlers": {
+                "/": {
+                  "Proxy": "unix:/Users/xianxu/Downloads/.pair759-probe-8x7a1rre/s"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "socket_mode": "0o600"
+  },
+  {
+    "at": 1792699084.121545,
+    "kind": "foreground-joined",
+    "pid": 53407,
+    "exit": 0,
+    "reader_joined": true
+  },
+  {
+    "at": 1792699084.334805,
+    "kind": "cleanup",
+    "serve": {},
+    "socket_absent": true,
+    "directory_absent": true,
+    "baseline_restored": true
+  },
+  {
+    "at": 1792699084.335246,
+    "kind": "result",
+    "detail": "not-run",
+    "inherited_identity_variables": []
+  }
+]

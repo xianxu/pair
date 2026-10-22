@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 	"unicode"
@@ -51,7 +52,12 @@ type Request struct {
 // Only this response may authorize an automatic retry of the same intent.
 const CodeWarming = "warming"
 
+type ForgetResult struct{ Changed bool }
+
 type Response struct {
+	Forget *ForgetResult `json:",omitempty"`
+	// Remote contains status only. Capability links never cross the child IPC.
+	Remote       *RemoteStatus             `json:",omitempty"`
 	LegacySignal *LegacyOrphanSignalResult `json:",omitempty"`
 	OrphanSignal *ProvenOrphanSignalResult `json:",omitempty"`
 	// RetryAfterMillis is a transient admission hint, only for CodeWarming.
@@ -81,6 +87,16 @@ type Response struct {
 	// Replays answers broadcast-status too: the recordings shared for
 	// replay through the tunnel (pair#477), by id, never their links.
 	Replays []string `json:",omitempty"`
+}
+
+type RemoteStatus struct {
+	Status   string
+	Detail   string `json:",omitempty"`
+	CanReset bool   `json:",omitempty"`
+}
+
+func IsRemoteOp(op string) bool {
+	return op == "remote-on" || op == "remote-off" || op == "remote-status"
 }
 
 // ProvenOrphanSignalResult reports one exact guarded signal attempt. A sent
@@ -183,6 +199,22 @@ func ValidateRequest(r Request) error {
 	}
 	if r.Op != "reap-orphan-signal" && r.Op != "reap-legacy-signal" && r.OrphanSignal != "" {
 		return errors.New("orphan signal applies only to guarded orphan signal operations")
+	}
+	if r.Op == "session-forget" {
+		if r != (Request{Op: r.Op, Target: r.Target}) || !filepath.IsAbs(r.Target) || filepath.Clean(r.Target) != r.Target || len(r.Target) > MaxBindingBytes || !utf8.ValidString(r.Target) || strings.IndexFunc(r.Target, unicode.IsControl) >= 0 {
+			return errors.New("session-forget requires only one canonical absolute document path")
+		}
+		return nil
+	}
+
+	if IsRemoteOp(r.Op) {
+		// Like ordinary console clicks, these local owner-only socket actions
+		// need no agent identity. Same-UID code is explicitly trusted; neither
+		// this protocol nor its closed action set can express console reset.
+		if r != (Request{Op: r.Op}) {
+			return errors.New("remote control takes only on, off or status")
+		}
+		return nil
 	}
 	if r.Drive != nil && !IsDriveOp(r.Op) {
 		return errors.New("drive intent applies only to keys, set-model and interrupt")

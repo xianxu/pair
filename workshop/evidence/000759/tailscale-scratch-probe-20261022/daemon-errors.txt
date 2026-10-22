@@ -1,0 +1,4 @@
+Timestamp               Ty Process[PID:TID]
+2026-10-22 12:44:46.606 Df IPNExtension[17726:e1742ac] serve: creating a new proxy handler for unix:/Volumes/TestScratch/tmp/pair-slot6/p759-probe.laVMpb/s
+2026-10-22 12:47:16.303 Df IPNExtension[17726:e12e0fc] http: proxy error: dial unix /Volumes/TestScratch/tmp/pair-slot6/p759-probe.laVMpb/s: connect: operation not permitted
+2026-10-22 12:47:46.846 Df IPNExtension[17726:e1742b1] serve: closing idle connections to unix:/Volumes/TestScratch/tmp/pair-slot6/p759-probe.laVMpb/s

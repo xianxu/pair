@@ -78,7 +78,7 @@ func refusalReason(err error) string {
 // The target is canonicalized against the connected slots and enrolled
 // families, as admission resolves it, so an alias-spelled send is listed
 // under the slot's own name; one that doesn't resolve keeps its spelling.
-func (b *Broker) refuseLocked(from Binding, id string, route Route, body string, err error, families map[string]string, origin Origin) error {
+func (b *Broker) refuseLocked(from Binding, id string, route Route, body string, err error, families map[string]string, p messageProvenance) error {
 	info := refusalInfo(err)
 	reason := info.Reason
 	now := b.now()
@@ -90,7 +90,7 @@ func (b *Broker) refuseLocked(from Binding, id string, route Route, body string,
 	if canonical, ok, cerr := canonicalTarget(route.Target, candidates, families); cerr == nil && ok {
 		target = canonical
 	}
-	b.refusals[id] = refusal{class: info.Class, receipt: Receipt{Message: Message{Origin: origin, ID: id, From: from, To: Binding{Slot: target}, Body: body}, Status: Refused, Detail: reason, RetainUntil: now.Add(RefusalRetention)}, target: target, at: now}
+	b.refusals[id] = refusal{class: info.Class, receipt: Receipt{Message: Message{Origin: p.origin, RemoteSource: p.source, RemoteEdited: p.edited, DocumentID: p.documentID, ID: id, From: from, To: Binding{Slot: target}, Body: body}, Status: Refused, Detail: reason, RetainUntil: now.Add(RefusalRetention)}, target: target, at: now}
 	for len(b.refusals) > MaxRefusals {
 		var oldest string
 		for k, r := range b.refusals {

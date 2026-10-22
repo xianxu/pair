@@ -19,6 +19,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/remotesession"
 	"github.com/xianxu/pair/cmd/internal/terminal"
 	"github.com/xianxu/pair/cmd/internal/terminalcapture"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
@@ -89,10 +90,16 @@ type Console struct {
 	publishHook func(site string)
 	// codes is what the operator-only layer shows of cast link codes
 	// (pair#495); its mutex is a leaf.
-	codes            castCodes
-	terminalCommands chan terminalCommand
-	terminalFailure  error
-	drivePending     *driveOperation // guarded by mu; survives forgetDrive/cast replacement
+	codes               castCodes
+	remoteSession       remoteSessionControl
+	remoteConsoleReset  func() error
+	remoteConfigError   string
+	remoteStatus        remotesession.RemoteStatus
+	remoteView          remoteConsoleView
+	statusRemoteSession ColumnSpan
+	terminalCommands    chan terminalCommand
+	terminalFailure     error
+	drivePending        *driveOperation // guarded by mu; survives forgetDrive/cast replacement
 	// exitFailure is teardown's one classification of why the terminal failed
 	// (shutdown cancellations filtered out), read by TerminalFailure.
 	exitFailure     error
@@ -1146,6 +1153,7 @@ func (c *Console) teardown(restore func() error) error {
 	// rather than left running (#395).
 	c.endBroadcastForShutdown()
 	c.endWebcastForShutdown()
+	c.endRemoteSessionForShutdown()
 	if c.replays != nil {
 		c.replays.Close()
 	}

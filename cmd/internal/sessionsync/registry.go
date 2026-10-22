@@ -410,6 +410,22 @@ func (s *Sync) Lookup(path string) (*Registration, error) {
 	})
 }
 
+// RegistrationForPath reads only registry metadata, including when the file
+// has disappeared. It does not inspect content or assert the effective owner.
+func (s *Sync) RegistrationForPath(path string) (*Registration, error) {
+	return withRegistry(s, func(t *registryTxn) (*Registration, error) {
+		file, err := canonicalDocument(path)
+		if err != nil {
+			return nil, err
+		}
+		d := t.find(file)
+		if d == nil {
+			return nil, nil
+		}
+		return view(*d, "", false), nil
+	})
+}
+
 func (s *Sync) List() ([]Registration, error) {
 	return withRegistry(s, func(t *registryTxn) ([]Registration, error) {
 		out := make([]Registration, 0, len(t.state.Documents))
@@ -495,12 +511,29 @@ func (s *Sync) Rename(oldPath, newPath string) (RegistryResult, error) {
 }
 
 func (s *Sync) Forget(path string) (RegistryResult, error) {
+	return s.forget(path, "")
+}
+
+// ForgetExact removes only the registration the caller fenced. Path reuse or
+// a concurrent rename/register must never turn an old forget into authority to
+// remove a different document. Confirmed absence is an idempotent retry.
+func (s *Sync) ForgetExact(path, expectedID string) (RegistryResult, error) {
+	if expectedID == "" {
+		return RegistryResult{}, registryRefusal("registration-changed", "forget requires an exact registration ID")
+	}
+	return s.forget(path, expectedID)
+}
+
+func (s *Sync) forget(path, expectedID string) (RegistryResult, error) {
 	return withRegistry(s, func(t *registryTxn) (RegistryResult, error) {
 		documentPath, err := canonicalDocument(path)
 		if err != nil {
 			return RegistryResult{}, err
 		}
 		d := t.find(documentPath)
+		if d != nil && expectedID != "" && d.ID != expectedID {
+			return RegistryResult{}, registryRefusal("registration-changed", "registration changed; retry forget against the current registration")
+		}
 		if d != nil {
 			raw, err := readRegular(documentPath, documentMaxBytes)
 			if err != nil && !errors.Is(err, os.ErrNotExist) {

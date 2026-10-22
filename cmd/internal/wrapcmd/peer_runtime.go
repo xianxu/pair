@@ -84,6 +84,8 @@ func (d *peerDelivery) handleEndpoint(_ context.Context, raw []byte) ([]byte, er
 	}
 	var err error
 	switch request.Op {
+	case "remote-provenance":
+		response.RemoteProvenance = "remote-provenance-v1"
 	case "drive-observe":
 		o := d.agentDriveObservation()
 		response.DriveObservation = &o

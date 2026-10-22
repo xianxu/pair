@@ -1,0 +1,9 @@
+Timestamp               Ty Process[PID:TID]
+2026-10-22 12:55:53.661 Df IPNExtension[17726:e1742b1] serve: creating a new proxy handler for unix:/Users/xianxu/Downloads/.pair759-probe-8x7a1rre/s
+2026-10-22 12:56:49.731 Df IPNExtension[17726:e1742b2] http: proxy error: dial unix /Users/xianxu/Downloads/.pair759-probe-8x7a1rre/s: connect: operation not permitted
+2026-10-22 12:56:57.228 Df IPNExtension[17726:e1742b1] http: proxy error: dial unix /Users/xianxu/Downloads/.pair759-probe-8x7a1rre/s: connect: operation not permitted
+2026-10-22 12:56:58.176 Df IPNExtension[17726:e14a0ab] http: proxy error: dial unix /Users/xianxu/Downloads/.pair759-probe-8x7a1rre/s: connect: operation not permitted
+2026-10-22 12:57:25.361 Df IPNExtension[17726:e14a0ab] http: proxy error: dial unix /Users/xianxu/Downloads/.pair759-probe-8x7a1rre/s: connect: operation not permitted
+2026-10-22 12:57:28.488 Df IPNExtension[17726:e1742b2] http: proxy error: dial unix /Users/xianxu/Downloads/.pair759-probe-8x7a1rre/s: connect: operation not permitted
+2026-10-22 12:57:29.638 Df IPNExtension[17726:e58b7fe] http: proxy error: dial unix /Users/xianxu/Downloads/.pair759-probe-8x7a1rre/s: connect: operation not permitted
+2026-10-22 12:58:04.117 Df IPNExtension[17726:e1742b2] serve: closing idle connections to unix:/Users/xianxu/Downloads/.pair759-probe-8x7a1rre/s

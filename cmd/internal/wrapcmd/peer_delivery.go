@@ -390,6 +390,9 @@ func (d *peerDelivery) enqueueLocked(m couchmessage.Message) error {
 	if m.To != d.binding || m.ID != d.reservation || !d.now().Before(d.reservationUntil) || !d.now().Before(m.Deadline) {
 		return errors.New("peer reservation expired or identity changed")
 	}
+	if err := m.ValidateProvenance(); err != nil {
+		return err
+	}
 	if err := couchmessage.ValidateBody(m.Body); err != nil {
 		return err
 	}

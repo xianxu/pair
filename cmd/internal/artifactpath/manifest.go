@@ -57,6 +57,11 @@ type ResolvedBinding struct {
 
 // pair:m5-concept pure
 var ResolvedBindings = append([]ResolvedBinding{
+	{Name: "remote-publication-stage", Family: "remote-security", Resolver: "RemotePublicationStage"},
+	{Name: "couch-remote-latch", Family: "remote-security", Resolver: "ResolveCouchRemote", Member: "Latch"},
+	{Name: "couch-remote-origins", Family: "remote-security", Resolver: "ResolveCouchRemote", Member: "Origins"},
+	{Name: "couch-remote-audit", Family: "remote-security", Resolver: "ResolveCouchRemote", Member: "Audit"},
+	{Name: "couch-remote-previous-audit", Family: "remote-security", Resolver: "ResolveCouchRemote", Member: "PreviousAudit"},
 	{Name: "editor-endpoint-state", Family: "editor-endpoint", Resolver: "EditorEndpoints", Member: "State"},
 	{Name: "editor-endpoint-stage", Family: "editor-endpoint", Resolver: "EditorEndpoints", Member: "Stage"},
 	{Name: "cache-session-lock", Family: "session-lock", Resolver: "ResolvePairCache", Member: "TerminalLease"},
@@ -185,6 +190,7 @@ type SourceClassification struct {
 // family requires adding its constructor and classifying every source consumer.
 // pair:m5-concept pure
 var Families = []Family{
+	{Name: "remote-security", Token: "remote-security"},
 	{Name: "editor-endpoint", Token: "editor-endpoints"},
 	{Name: "session-lock", Token: "session-locks"},
 	{Name: "fullscreen-return", Token: "fullscreen-return-"},
@@ -241,6 +247,10 @@ var Families = []Family{
 // shell, Lua, and KDL sources.
 // pair:m5-concept pure
 var SourceClassifications = []SourceClassification{
+	{Path: "cmd/internal/remotesession/publication.go", Kind: ResolvedConsumer, Families: []string{"remote-security"}, BindingNames: []string{"remote-publication-stage"}},
+	{Path: "cmd/internal/remotesession/supervisor.go", Kind: ResolvedConsumer, Families: []string{"remote-security"}, BindingNames: []string{"couch-remote-latch", "couch-remote-origins", "couch-remote-audit", "couch-remote-previous-audit"}},
+	{Path: "cmd/internal/couchcmd/remote_service.go", Kind: ResolvedConsumer, Families: []string{"remote-security"}, BindingNames: []string{"couch-remote-origins"}},
+	{Path: "cmd/internal/artifactpath/remote.go", Kind: Constructor, Families: []string{"remote-security"}},
 	{Path: "cmd/internal/artifactpath/editor_endpoint.go", Kind: Constructor, Families: []string{"editor-endpoint"}},
 	{Path: "cmd/internal/couchcmd/editor_endpoint_service.go", Kind: ResolvedConsumer, Families: []string{"editor-endpoint"}, BindingNames: []string{"editor-endpoint-state", "editor-endpoint-stage"}},
 	{Path: "cmd/internal/editorendpoint/store.go", Kind: ResolvedConsumer},
@@ -676,6 +686,36 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	"cmd/internal/couchcmd/remote_forget.go",
+	"cmd/internal/couchcmd/remote_submit.go",
+	"cmd/internal/couchmessage/provenance.go",
+	"cmd/internal/remotesession/dispatch.go",
+	"cmd/internal/remotesession/server_documents.go",
+	"cmd/internal/sessionsync/ledger_codec.go",
+	"cmd/internal/remotesession/server.go",
+	"cmd/internal/couchcmd/remote.go",
+	"cmd/internal/couchcmd/remote_cli.go",
+	"cmd/internal/couchtty/console_remote_session.go",
+	"cmd/internal/couchtty/remote_qr.go",
+	"cmd/internal/broadcast/protected.go",
+	"cmd/internal/remotesession/documents.go",
+	"cmd/internal/remotesession/protocol.go",
+	"cmd/internal/remotesession/store.go",
+	"cmd/internal/remotesession/origin_store.go",
+	"cmd/internal/remotesession/audit.go",
+	"cmd/internal/remotesession/audit_codec.go",
+
+	// #759 policy/codecs consume owner-resolved paths and introduce no path authority.
+	"cmd/internal/remotesession/access.go",
+	"cmd/internal/remotesession/access_keys.go",
+	"cmd/internal/remotesession/codec.go",
+	"cmd/internal/remotesession/origin_codec.go",
+	"cmd/internal/remotesession/policy.go",
+	"cmd/internal/remotesession/replay.go",
+	"cmd/internal/remotesession/session.go",
+	"cmd/internal/remotesession/state.go",
+	"cmd/internal/remotesession/store_codec.go",
+
 	// #758 endpoint model and native editor transport name no Pair artifact paths.
 	"cmd/internal/editorendpoint/model.go",
 	"cmd/internal/editorendpoint/state.go",
@@ -2027,6 +2067,7 @@ type GCClassification struct {
 // GCClassifications must cover every artifact family explicitly.
 // pair:m5-concept pure
 var GCClassifications = map[string]GCClassification{
+	"remote-security":           {SessionRetention, GCProtected, "RemoteStatePaths; latch/origin authority is never session-collected; audit retention belongs to its writer"},
 	"editor-endpoint":           {SessionRetention, GCProtected, "Couch EndpointOwner: exact process-incarnation collection; reusable stage after validated reopen"},
 	"session-lock":              {SessionRetention, GCProtected, "PairCachePaths.TerminalLease; stable coordination inode, never unlinked"},
 	"agent-default":             {SessionRetention, GCShared, "ScopePaths.AgentDefault"},

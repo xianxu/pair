@@ -97,6 +97,7 @@ func runSS(t *testing.T, rt testRT, args ...string) (int, string, string) {
 
 func TestSessionSyncRegistryCLIContract(t *testing.T) {
 	rt, _ := sessionSyncRT(t)
+	serveForgetOwner(t, rt.namespace.Dir())
 	file := filepath.Join(t.TempDir(), "ordinary note.md")
 	if err := os.WriteFile(file, []byte("## Work\n\nplain\n"), 0600); err != nil {
 		t.Fatal(err)

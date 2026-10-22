@@ -109,6 +109,7 @@ func (c *Console) commitChrome(bar RenderedStatusBar) {
 	c.statusRows, c.statusRevision = bar.Height(), state.Revision
 	c.statusChips = bar.Chips
 	c.statusControl = row.Control
+	c.statusRemoteSession = row.RemoteSession
 	c.statusPointer, c.statusNotes = row.Pointer, row.Notes
 	c.statusWebcast, c.statusWebFocus, c.statusWebNotes, c.statusWebDrive = row.Webcast, row.WebFocus, row.WebNotes, row.WebDrive
 	c.statusWebPointerLink, c.statusWebDriveLink = row.WebPointerLink, row.WebDriveLink

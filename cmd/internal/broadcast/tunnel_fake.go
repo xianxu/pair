@@ -10,6 +10,12 @@ import (
 // FakeTunnel is a stateful Tunnel for tests across packages. It serves on
 // loopback TCP like LocalOnly and records what was asked of it.
 type FakeTunnel struct {
+	// CloseError makes teardown uncertain without reporting a successful close.
+	CloseError error
+	// OpenStarted/OpenRelease allow a test to hold a connector handshake.
+	OpenStarted  chan struct{}
+	OpenRelease  <-chan struct{}
+	CloseStarted chan struct{}
 	// OpenDelay makes Open take this long.
 	OpenDelay time.Duration
 	// IgnoreCancel makes a delayed Open complete even after its context is
@@ -48,6 +54,23 @@ func (f *FakeTunnel) Listen() (net.Listener, error) {
 }
 
 func (f *FakeTunnel) Open(ctx context.Context, l net.Listener) (Handle, error) {
+	if f.OpenStarted != nil {
+		select {
+		case f.OpenStarted <- struct{}{}:
+		default:
+		}
+	}
+	if f.OpenRelease != nil {
+		if f.IgnoreCancel {
+			<-f.OpenRelease
+		} else {
+			select {
+			case <-f.OpenRelease:
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+	}
 	if f.OpenDelay > 0 {
 		t := time.NewTimer(f.OpenDelay)
 		defer t.Stop()
@@ -114,11 +137,20 @@ type fakeHandle struct {
 }
 
 func (h *fakeHandle) Close() error {
+	if h.f.CloseStarted != nil {
+		select {
+		case h.f.CloseStarted <- struct{}{}:
+		default:
+		}
+	}
 	if h.f.CloseBlock != nil {
 		<-h.f.CloseBlock
 	}
 	h.f.mu.Lock()
 	defer h.f.mu.Unlock()
+	if h.f.CloseError != nil {
+		return h.f.CloseError
+	}
 	if h.closed {
 		h.f.stats.DoubleCloses++
 		return nil

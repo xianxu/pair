@@ -225,6 +225,38 @@ and shell protocol correctness are outside its scope. Other commands and helpers
 are unaffected. Public scribe's generic-command exposure is tracked separately
 in #768; this fixture rule does not claim a production launch-policy fix.
 
+## Remote console reset ownership (#759)
+
+The Pair-local `remote-console-reset` rule is owned by
+`internal/repolint/remote_console_reset_rule_test.go` and registered in the
+composed catalog. It pins reset capture to the composition root and private
+Console setter, and invocation to the Console's typed host-KeyPress handler.
+Foreign selectors, pasted-key routing, returned/asynchronous reset aliases and
+imported constructor use outside the composition root fail. Test exemptions
+require a real `Test…(t *testing.T)` declaration with the testing import; a
+Test-like helper name alone does not waive the rule. Seeded foreign calls run
+through the actual repository scanner.
+
+This is syntax ownership, not an adversarial Go sandbox or whole-program proof.
+It follows direct method/field use and a local reset alias. The runtime decoder
+and broker/wrapper tests defend input provenance; same-UID arbitrary code remains
+outside the remote boundary.
+
+## Additive fixture environments (#759)
+
+The Pair-local `additive-pty-environment` rule is owned by
+`internal/repolint/additive_pty_environment_rule_test.go`. `ptychild.Start`
+overlays Options.Env onto the process environment. A function using both that
+launcher and `testpair.Environment` must first call `testpair.ApplyEnvironment`
+directly, before launch. Missing, late and conditional clearing fail. The matcher
+uses the actual import names; unrelated launchers are outside its scope.
+
+The rule detects this direct API composition, not arbitrary cross-function
+environment dataflow. The actual wrapper-child poisoned-identity regression
+checks the resulting environment. An initial fixture reached inherited retention
+and diagnostic metadata before its live-PID refusal; no live files were manually
+cleaned. The #759 Log retains the audit and approved normal-pruning disposition.
+
 ## Manual-clock delivery proof (#771)
 
 The Pair-local `manual-clock-rendezvous` rule is registered in
@@ -254,6 +286,20 @@ This narrow syntax guard detects deletion of the observation, including ordinary
 error paths and misleading comments. It does not prove ordering, control flow,
 exec.Cmd aliases or indirect calls; the real completion-path regressions cover
 success, signal, cancellation and leader-first descendants with open/closed pipes.
+
+## Broadcast socket fixture roots (#759 BR-5)
+
+The Pair-local `broadcast-short-root` rule is owned by
+`internal/repolint/broadcast_short_root_test.go` and registered in pairCatalog.
+It requires the shared broadcast `shortDir` allocator to return the imported
+`testpair.ShortRoot` directly. That owner chooses a canonical, private short
+root with cleanup and a budget for the complete Unix socket pathname, even
+when inherited TMPDIR is long. The protected-listener regression exercises
+a deliberately long temp parent and verifies listener/root cleanup.
+
+This guard pins one fixture seam syntactically; it does not analyze aliases,
+indirect helper calls, arbitrary allocations or Go control flow. The runtime
+regression proves the path budget; production oversized-path refusal is unchanged.
 
 ## Fixture Couch identity authority (#778)
 

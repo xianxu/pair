@@ -611,6 +611,6 @@ func codeTip(text string, at, cols, rows int) NotesMenu {
 // operator-only layer.
 func (c *Console) installCodesLayer() error {
 	return c.presenter.SetOperatorLayer(context.Background(), func(f terminal.Frame, class terminal.FrameClass) terminal.Frame {
-		return c.attentionLayer(c.codesLayer(f, class))
+		return c.attentionLayer(c.codesLayer(c.remoteSessionLayer(f), class))
 	})
 }

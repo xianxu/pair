@@ -73,7 +73,7 @@ queue, or cross-supervisor delivery.
 
 ## What each verb costs
 
-- **light:** `mock`, `--notify`, `--help`, `--skill`, `--actors`, `--send-to`, `--message-status`, `--operation-status`, `--peek` (its --transcripts option costs seconds), `--broadcast-list`, `--resources`, `--session-sync`, `--archived`, `--adopt-store`, `--broadcast-web-query`, `--broadcast-web-submit`, `--broadcast-web-replay` (then serves until stopped)
+- **light:** `mock`, `--notify`, `--remote`, `--help`, `--skill`, `--actors`, `--send-to`, `--message-status`, `--operation-status`, `--peek` (its --transcripts option costs seconds), `--broadcast-list`, `--resources`, `--session-sync`, `--archived`, `--adopt-store`, `--broadcast-web-query`, `--broadcast-web-submit`, `--broadcast-web-replay` (then serves until stopped)
 - **seconds:** `--editor-endpoint`, `--keys`, `--set-model`, `--interrupt`, `--resume-candidates`, `--move-slot`, `--list`, `--show`, `--reconcile`, `--reap`, `--reap-orphans` (TERM/KILL grace periods), `--broadcast-web-fidelity` (a headless Chrome)
 - **heavy:** `couch` (launch), `--recover-plan-from-sdlc`, `--resume`, `--reboot`, `--relaunch`, `--reload-context`, `--prepare`, `--recover`, `--recover-park`, `--switch-agent`, `--recovery-confirmation`
 
@@ -175,6 +175,27 @@ reply. Use the printed `couch --operation-status ID` and `couch --peek repo:N`
 before sending anything else; receipt polling is read-only. An accepted receipt
 means queued, and raw success does not prove an arbitrary command achieved its
 goal. Model/effort/scope success requires explicit confirmation.
+
+## Remote session mode
+
+`couch --remote on`, `couch --remote off` and `couch --remote status` control the
+separate protected remote-session mode through Couch's local owner-only socket.
+It defaults off. Enable only when
+the operator has authorized exposure and configured the named tunnel, Cloudflare
+Access team/application and allowed identities. There is no anonymous or local
+fallback. Same-UID code is trusted; local on/off is equivalent to the console
+toggle. Starting/stopping status is asynchronous, not confirmed desktop delivery.
+
+The CLI prints action/status only. The capability link and locally generated QR
+appear only on Couch's own console, never in a Pair child transcript or peer
+message. When COUCH_CAPTURE_DIR is configured, remote enable refuses: unset it
+and restart Couch, or keep capture and skip remote.
+
+Remote kill is persistent and distinct from ordinary off. No CLI/HTTP reset
+opcode exists. Only a non-repeat Ctrl+Alt+R keypress in Couch's own host UI may
+clear a kill after confirmed cleanup; it does not enable remote mode. Agent keys
+(including couch --keys), paste, mouse and terminal replies cannot clear it.
+Unknown storage or cleanup evidence stays blocked for local inspection.
 
 ## Desktop notifications
 

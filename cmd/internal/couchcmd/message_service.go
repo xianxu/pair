@@ -23,6 +23,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/lifetimelease"
 	"github.com/xianxu/pair/cmd/internal/procutil"
+	"github.com/xianxu/pair/cmd/internal/remotesession"
 	"github.com/xianxu/pair/cmd/internal/strictjson"
 	core "github.com/xianxu/pair/cmd/internal/submission"
 	"golang.org/x/sys/unix"
@@ -166,6 +167,10 @@ const (
 // timers in arrival order. Request goroutines read
 // only the published snapshot of connected bindings.
 type messageService struct {
+	origins               *remotesession.OriginStore
+	originErr             error
+	originNamespace       string
+	originAdmission       sync.Mutex
 	endpoints             *editorEndpointService
 	lifecycle             atomic.Pointer[lifecyclePublisher]
 	resources             atomic.Pointer[resourceSampler]
@@ -209,6 +214,7 @@ type messageService struct {
 	switches      atomic.Pointer[agentSwitchService]
 	drives        atomic.Pointer[agentDriveService]
 	desktopNotify atomic.Pointer[func(context.Context, string, string) error]
+	remote        atomic.Pointer[remoteControl]
 	// attention reports facts to the Console's attention list (pair#673).
 	attention atomic.Pointer[func(couchcore.AttentionFact)]
 	// Retained across disconnects; only a verified replacement supersedes a slot.
@@ -522,7 +528,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	c.ProcessTable = procutil.Table
 	c.LeaseHolders = lifetimelease.Holders
 	facts := openSupervisionFacts(artifacts.PairLifecycleDataDir(), namespace)
-	service, err := newMessageService(context.Background(), brokerSocket, registrySocket, authority, panes, console.MessageSlotGit, consoleSlotOperations(console, c, probe), facts)
+	service, err := newMessageService(context.Background(), brokerSocket, registrySocket, namespace, authority, panes, console.MessageSlotGit, consoleSlotOperations(console, c, probe), facts)
 	if err != nil {
 		facts.Close()
 		return nil, err
@@ -537,6 +543,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 	service.installAgentDriveService(console)
 	service.installHubMoves(console, c)
 	service.SetDesktopNotify(console.NotifyDesktop)
+	service.configureRemoteSession(console, namespace, os.Getenv)
 	console.SetMessageBroker(service.broker)
 	console.SetCopyObserver(facts.clipboardCopy)
 	console.SetCopyKeyObserver(facts.clipboardKey)
@@ -607,7 +614,7 @@ func (s *messageService) showHub(view interface{ SetHub(root string) }) {
 	view.SetHub(s.authority.hub)
 }
 
-func newMessageService(parent context.Context, brokerSocket, registrySocket string, authority messageAuthority, panes *couchmessage.PaneMailbox, slotGit func(string) (couchcore.SlotGitStatus, bool), slotOps *slotOperations, factLogs ...*supervisionFactLog) (*messageService, error) {
+func newMessageService(parent context.Context, brokerSocket, registrySocket, namespace string, authority messageAuthority, panes *couchmessage.PaneMailbox, slotGit func(string) (couchcore.SlotGitStatus, bool), slotOps *slotOperations, factLogs ...*supervisionFactLog) (*messageService, error) {
 	if authority.batchMaxChars == 0 {
 		authority.batchMaxChars = couchmessage.DefaultPeerBatchMaxChars
 	}
@@ -631,6 +638,7 @@ func newMessageService(parent context.Context, brokerSocket, registrySocket stri
 		after: func(d time.Duration, f func()) { time.AfterFunc(d, f) }, slotOps: slotOps,
 		workspaces: map[couchmessage.Binding]couchcore.WorkspaceIdentity{},
 		prepared:   map[preparedKey]preparedAdmission{}}
+	s.initializeOriginsLocked(namespace) // before publishing either broker socket
 	if len(factLogs) > 0 {
 		s.facts.Store(factLogs[0])
 	}
@@ -1008,6 +1016,8 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 		return s.handleResumeCandidates(ctx, request)
 	case request.Op == "move-slot":
 		return s.handleHubMove(ctx, request)
+	case request.Op == "session-forget":
+		return s.handleSessionForget(request)
 	case request.Op == "session-write":
 		return s.handleSessionWrite(ctx, request)
 	case request.Op == "automatic-input-stall":
@@ -1016,6 +1026,8 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 		return s.handleNativeExit(ctx, request)
 	case request.Op == "notify":
 		return s.handleNotify(ctx, request)
+	case couchmessage.IsRemoteOp(request.Op):
+		return s.handleRemote(request)
 	case request.Op == "switch-agent":
 		return s.handleAgentSwitch(ctx, request)
 	case couchmessage.IsSubmissionOp(request.Op):
@@ -1066,6 +1078,11 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 		if request.Op == "send" && strings.Contains(request.Target, ":") {
 			if err := s.postContext(ctx, couchmessage.RegistryEvent{Kind: couchmessage.SendTargeted, Slot: request.Target}, false); err != nil {
 				return couchmessage.Response{Code: "refused", Error: "not admitted: targeted registry post: " + err.Error()}
+			}
+		}
+		if request.Op == "send" {
+			if response, handled := s.admitLocalSubmit(ctx, binding, request); handled {
+				return response
 			}
 		}
 	}
@@ -1373,6 +1390,16 @@ func (e messageEndpoint) check(ctx context.Context) error {
 	}
 	_, err := e.service.authority.current(ctx, e.binding)
 	return err
+}
+func (e messageEndpoint) SupportsRemoteProvenance(ctx context.Context) error {
+	if err := e.check(ctx); err != nil {
+		return err
+	}
+	support, ok := e.endpoint.(interface{ SupportsRemoteProvenance(context.Context) error })
+	if !ok {
+		return errors.New("receiver cannot preserve remote provenance; relaunch receiver")
+	}
+	return support.SupportsRemoteProvenance(ctx)
 }
 func (e messageEndpoint) Observe(ctx context.Context) (couchmessage.Observation, error) {
 	if err := e.check(ctx); err != nil {

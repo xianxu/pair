@@ -229,7 +229,7 @@ func (r *serviceRig) start() {
 	if r.decorateAuthority != nil {
 		authority = r.decorateAuthority(authority)
 	}
-	r.s, err = newMessageService(context.Background(), r.brokerSock, r.regSock, authority, r.panes, func(root string) (couchcore.SlotGitStatus, bool) {
+	r.s, err = newMessageService(context.Background(), r.brokerSock, r.regSock, filepath.Dir(r.brokerSock), authority, r.panes, func(root string) (couchcore.SlotGitStatus, bool) {
 		r.mu.Lock()
 		defer r.mu.Unlock()
 		v, ok := r.slotGit[root]
