@@ -2666,3 +2666,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
   fault the entire physical-attempt budget; add transient recovery controls and
   keep semantic mismatches non-retriable. Audit structural call-site manifests
   when a collector method changes, even when the effect remains read-only.
+
+- #806 BR-1: Diagnostic reader tests do not prove lifecycle retention. Test the real cleanup caller across failure/success and option combinations, with controlled cancellation/join boundaries, root removal and repeated close; remove each capture call in a mutation check so missing wiring cannot remain green.

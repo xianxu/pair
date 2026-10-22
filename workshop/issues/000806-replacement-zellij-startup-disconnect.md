@@ -115,3 +115,10 @@ Authenticated ops:0 delivery7e2c8fdd-2dc2-4419-96e1-34da5d1eb6df approved diagno
 Causal follow-up filed as unclaimed #820 (replacement-startup-causal-fix), dependency #806 plus an explicit first-retained-failure evidence prerequisite. No causal work is dispatched by filing it.
 
 PR549 opened. Required recorded suite launched on57a7a74938db41789c560a2924aa6e5faf77e74d; verification remains pending until the retained runner records its result. Close review may overlap that queued/running check under tl-worker; no landing before its pass.
+
+
+### 2026-10-22 — BR-1 lifecycle regression coverage
+
+First close review returned FIX-THEN-SHIP with Important BR-1: helper-level reader/count tests did not prove Fleet.Close selects and orders the captures. Addressed the complete caller family with failed/successful fleets and option off/on. An embedded test reporter selects failure without failing the parent; cancellation changes the retained marker, and a controlled context Done boundary completes the held admitted producer only when Close enters its join. The real Close must retain the pre-cancel and final joined markers before root removal; success with option off retains no server bytes. Sixteen repeated Close calls retain no more evidence. No new production seam, state or native launch was added.
+
+Lifecycle test PASS1.740s. Mutation overlays removing either pre- or post-capture each fail expected snapshot/marker oracles (1.549s/1.523s); files retained under /Volumes/TestScratch/tmp/pair-slot2/pair806-lifecycle-mutations.KaKuTk. The old recorded suite lease-4188641676 was still queued; canceled it through sdlc local-check cancel because new regression code requires a final-head check. Cancellation joined normally and supplies no test evidence. New final-head verification remains pending; no native retry will run.

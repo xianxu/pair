@@ -101,3 +101,7 @@ On diagnostic headc90b43e6e99f29a8cd6dbf2546262752745d6972, both Claude and Code
 ### 2026-10-22 — Hub-approved diagnostic-only deliverable
 
 Authenticated ops:0 delivery7e2c8fdd-2dc2-4419-96e1-34da5d1eb6df supersedes “Completion beyond this phase”:806 closes on retaining the next replacement-startup failure's bounded server tails and available exact identities. Causal reproduction and production correction move to a separate unclaimed issue waiting for the first retained failure. The two native controls and unit/reader checks qualify diagnostic retention, not historical causation. Conditional causal-contrast and further query-observer tasks above are deferred to that follow-up; no additional native run is authorized or required for this scope. Required recorded checks, boundary review and landing remain.
+
+### 2026-10-22 — BR-1 verification refinement
+
+Add real Fleet.Close lifecycle coverage for failed/successful and option off/on, pre-cancellation capture, producer-join-before-final capture, root removal and repeated close. A held admitted-producer marker and per-phase removal mutations verify the call-site contract; no production behavior change. Requeue the required recorded check on this final test source; retain earlier native controls without retries.
