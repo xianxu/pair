@@ -1,0 +1,22 @@
+{
+  "source_revision": "999603d90e545a3b9d6acde51de81ed89e1b090f",
+  "command": [
+    "env",
+    "WEBCAST_LIVE_CHROME=1",
+    "go",
+    "test",
+    "./cmd/internal/webcast",
+    "-run",
+    "TestLiveSketchPage|TestLiveSketchImage|TestOperatorSketchLiveDrawing|TestSketchLiveTwoViewers|TestLiveFidelity",
+    "-count=1",
+    "-v"
+  ],
+  "outcome": "pass",
+  "duration_seconds": 87.698,
+  "log_sha256": "6b96a52ba89eb3a3862fcdd5342971069f2a5314a74989c239838f27fbc0a149",
+  "qualification": "Native macOS headless Chrome: console selective/full live masking with preserved vectors/history/preview sources; both viewers hide, reconnect stays hidden, replay retains ink; annotation-off sketching/private preview/focus; shared pressure/indices/strict-anchor refusal; legacy export/cancellation; fidelity. Revised real-operator disappearance recheck remains separate.",
+  "limitations": [
+    "Existing rec-stress fidelity baseline has1of3frames above3percent; qualified fixture test passes.",
+    "Live note pins/list/dialog filtering is covered by controlled browser fixtures and Board/SSE/manager integration; the renewed operator recheck includes an annotation."
+  ]
+}

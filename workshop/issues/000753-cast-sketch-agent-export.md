@@ -255,6 +255,13 @@ All508 browser tests passed6.868s; focused manager race2.938s; core full race22.
 
 Native console/viewer mask conformance passed7.473s on working-tree source: selective/full actual-pixel hiding, unchanged recorded projection and preview vectors, reconnect suppression, replay keeps historical ink. The new console restoration control originally demanded exact raster Count and failed despite equal outer geometry; observed original82/restored88 pixels with identical99,138–131,141 bounds. Restored the existing≤2px geometry oracle while keeping vector/projection equality exact; no timeout change. Final native evidence will be rerun and pinned to the committed source after the initial-mask-before-catch-up fix. Recorded pass, full close and revised live re-look remain pending; pair:0 is released for722.
 
+
+### 2026-10-22 — committed live-mask source conformance and retained suite
+
+Executable source999603d90e545a3b9d6acde51de81ed89e1b090f pushed to PR537. Final native command includes console, both viewers/reconnect/replay, shared page, legacy image and fidelity tests: PASS87.698s. Raw log/provenance committed at workshop/evidence/000753/native-999603d90.log/.json, SHA2566b96a52ba89eb3a3862fcdd5342971069f2a5314a74989c239838f27fbc0a149. Six full affected race packages pass: core20.175s, Board100.580s, recording27.507s, sketchimage8.426s, builder1.202s, webcast41.721s; focused manager race2.938s. Final real Neovim transaction and all state/adapter/transport checks pass. All508 browser tests passed6.868s. The existing rec-stress baseline remains qualified; no timeout bump.
+
+Old integrated-source suite lease-1347790431 on c95f2421 was officially canceled only after the new executable committed. One replacement is retained: lease-3861532669 on999603d90, parent session31138, attemptd7bda4e6466a4c54078f8e4309caf633, checkout/Volumes/TestScratch/local-checks/sdlc-local-1181257682, raw log/Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/d7bda4e6466a4c54078f8e4309caf633/run.log; initial FIFO9. No duplicate runner or result rewrite. Next: full close on the revised contract (after reader inventory), final recorded pass and hub-authorized restage/re-look. Original accepted full-page smoke remains valid for image contents; live disappearance is still awaiting operator acceptance.
+
 ## Estimate
 
 *Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration is stale per sdlc estimate-source; this remains provisional. Unit: idle-removed ship wall-clock, including agent/subagent execution, not operator-attention time. No parallel overlap discount applied.*
