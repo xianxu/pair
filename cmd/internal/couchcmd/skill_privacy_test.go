@@ -15,7 +15,11 @@ func TestSkillBroadcastPrivacyContract(t *testing.T) {
 	}{
 		{"per-item scope", "Read each version-3 note or sketch's `privacy` and `privacy_rule` before selecting its evidence"},
 		{"sketch image privacy", "and attach no crops or sketch images"},
-		{"historical sketch provenance", "Its image has `replay-rendered` provenance"},
+		{"shared sketch provenance", "`sketch-page.png` through `sketch_page`: a replay-rendered full viewport"},
+		{"shared sketch indices", "numbered badges matching each sketch's `index`"},
+		{"original sketch paths", "Original coordinates and pressure remain in each sketch's `paths`"},
+		{"legacy sketch images", "Legacy bundles retain per-sketch `sketch-N.png` images and `image.plan.paths`"},
+		{"shared page privacy", "Apply the shared page's privacy decision as well as each item's before sharing it"},
 		{"literal IDs", "literal `id`/`data-*` attributes"},
 		{"sketch export", "sketch-image --sketch ID --out DIR [--at T]"},
 		{"legacy fallback", "(the submission-level fields on older versions)"},

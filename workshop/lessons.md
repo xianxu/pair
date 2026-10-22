@@ -2650,3 +2650,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #792 landing: when an existing atlas guide already has an index link, put new feature detail in that guide. Appending feature clauses to its shared index summary creates avoidable landing conflicts; keep the index as a stable navigation map.
 
 - #753 BR-10: Transport uncertainty must not erase confirmed display knowledge while its model stays visible. Test the outage interval, not only eventual reconnect; preserve the revision fence and install a validated replacement atomically. Sweep inactive/omitted/stale full-view producers and hold historical catch-up prefixes below known confirmed evidence, while keeping newer current feedback visible.
+
+- #753 BR-11: A handoff-format change sweeps assertions as well as emitted guides: shared sketch_page provenance/index/paths/privacy and explicitly legacy per-sketch paths must agree in both ReadingGuide and the embedded skill tests. Run couchcmd plus submission guide tests before queuing final verification.

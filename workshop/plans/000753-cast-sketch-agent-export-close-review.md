@@ -764,3 +764,136 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T12:04:12-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 753 — cast-sketch: operator CLI queries and historical image export |
+| repo | pair |
+| issue file | workshop/issues/000753-cast-sketch-agent-export.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | fea66e36b0d25b3e37f2dc70a084226a8ed1697a..9bf8a80b2835e3dbdd2a2324556892db86d12279 |
+| command | sdlc close --issue 753 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T12:04:12-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+BR-10 is addressed with a regression that demonstrably fails when the old behavior is restored. Shared-image submission, compatibility, privacy, and display-continuity checks passed. One stale test assertion still fails and needs correction before boundary admission.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Cancellation settles the exact publication; canceled-refresh and expired-publication regressions cover the production manager.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Mandatory-anchor reservation precedes optional context; anchor-budget and mandatory-handle tests pass.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Region-only notes retain region facts without inventing node-zero anchors; builder regression passes.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Strict schema preflight rejects null numeric evidence; codec and Store regressions pass.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Current concept inventories distinguish pure selection/validation from Store, Board, renderer, and publication integration boundaries.
+  - id: BR-6
+    disposition: withdrawn
+    note: |
+      Withdrawal retained. Native log SHA-256 matches its evidence record; the evidence revision and reviewed head differ only in evidence files and the issue log.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Required sketch members are explicit in both schema variants; exhaustive omission and Store-read regressions pass.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      Historical page rendering requests originalOnly placement; replacement-anchor refusal has browser and native regressions.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Shipped guide lines 665–705 and ReadingGuide describe root sketch_page/index/paths evidence and qualify per-sketch images as legacy, matching the implemented variants.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      Production-connect regression passes repeated errors, stale revisions, and recovery. Restoring beginStream's old clear() call in a disposable pinned checkout makes it fail at viewer.test.mjs:258; checkout removed afterward.
+findings:
+  - id: new
+    severity: Important
+    kind: defect
+    family: handoff-contract-alignment
+    title: |
+      Shipped-skill test still requires wording removed by the shared-image correction
+    detail: |
+      cmd/internal/couchcmd/skill_privacy_test.go:18 requires “Its image has `replay-rendered` provenance”; the current guide correctly explains shared sketch_page and legacy images instead. TestSkillBroadcastPrivacyContract/historical_sketch_provenance consequently fails at line 44. This is the 2nd finding in family handoff-contract-alignment (ARCH-PURPOSE). State the rule that every handoff contract assertion follows the current shared/legacy representations, then sweep ReadingGuide and shipped-skill assertions together; the inspected assertions contain this stale sentence. Align the test with that contract and rerun couchcmd plus required final checks.
+```
+
+1. **Strengths**
+
+   - BR-10’s regression exercises production `connect`, including the outage interval; the negative control confirms its sensitivity.
+   - Preview publication uses explicit transitions and exact acknowledgment identities.
+   - One evidence-file inventory serves publication and Store reads; nested unknown fields survive rewrites.
+   - README, atlas, and agent guidance cover shared images, privacy, and retained history.
+
+2. **Critical findings**
+
+   None.
+
+3. **Important findings**
+
+   The stale assertion at [skill_privacy_test.go:18](/Volumes/TestScratch/review-checkouts/71b3d85778b94835/cmd/internal/couchcmd/skill_privacy_test.go:18) fails an ordinary package test. Correct the assertion against the current guide and rerun validation.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Passed submission, query, sketchimage, CDP, Board, webcast, couchtty, and focused submission-builder tests; CDP/submission/Board race tests; 41 focused Node tests; Neovim transaction/state/transport checks; and diff whitespace checks. The focused couchcmd run failed only the assertion above. Native evidence was inspected and hash-verified, not rerun.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared painter, replay lifetime, delivery authority, and file inventory.
+   - **ARCH-PURE — pass:** deterministic selection, geometry, decoding, and transition logic have direct tests.
+   - **ARCH-PURPOSE — flag:** one handoff test consumer remains inconsistent with the approved representation.
+   - **ARCH-MOCK — pass:** production renderer seams have stateful fakes and retained native conformance.
+   - **ARCH-CONSTRAINTS — pass:** explicit batch, byte, geometry, deadline, and cleanup bounds.
+   - **ARCH-SECURE — pass:** strict evidence decoding, confined private exports, original-anchor enforcement.
+   - **ARCH-ORDER — pass:** controlled cancellation, stale-publication, reconnect, and recovery tests.
+   - **ARCH-FUNERAL — pass:** scoped browser resources and existing bounded Store lifecycle.
+   - **ARCH-EVOLVE — pass:** legacy compatibility, strict variants, and nested extension preservation.
+
+7. **Plan revision recommendations**
+
+   No design revision needed. Complete the existing final-validation items after correcting the test.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"3f745b41-b1d1-4f5e-b972-1be1b8ec6c5d","repository":"github.com/xianxu/pair","issue_id":"000753","recipe":"milestone-review","round":8,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/71b3d85778b94835","reviewed_head":"9bf8a80b2835e3dbdd2a2324556892db86d12279","slot":"pair:9","requested_at":"2026-10-22T19:00:19.521129Z"},"phase":"finished","pid":32580,"started_at":"2026-10-22T19:00:19.916285Z","finished_at":"2026-10-22T19:04:11.463791Z","session_id":"01a164fc-5400-7f11-9897-00e68325cffa","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 5.381050959s
+head: "9bf8a80b2835e3dbdd2a2324556892db86d12279"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
