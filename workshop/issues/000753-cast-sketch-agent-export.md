@@ -5,9 +5,9 @@ deps: [pair#752]
 github_issue:
 created: 2026-10-20
 updated: 2026-10-22
-estimate_hours: 8.4
+estimate_hours: 15.35
 collaboration-mode: collaboration
-card_mirror: '7bfb8a2ba36aefe4e71970c65238c56d2660d2bc' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '61d21496777a5c3d1661448a765c5b3638dff364' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-21T18:40:37-07:00
 claimant:
     operator: Xian Xu
@@ -182,11 +182,34 @@ Primary surfaces: query/{sketch.go,render_sketch.go,surface.go,fake.go,cli.go,ev
 
 ## Estimate
 
-*Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration is marked stale by sdlc estimate-source; the derivation is provisional rather than a new calibration claim.*
+*Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only. Calibration is stale per sdlc estimate-source; this remains provisional. Unit: idle-removed ship wall-clock, including agent/subagent execution, not operator-attention time. No parallel overlap discount applied.*
 
-Library availability: no new dependency or novel platform is assumed. Reuse encoding/json plus the existing strict/preserving recording-codec pattern, the existing query reducer, CDP/replay session, pressure painter and durable submission store. Replay lifetime and file inventory are costed as extraction/refactor rather than greenfield services; no external shim replaces the domain-specific version/preview contracts. Familiarity is 1.0 for this session's recently worked recording/console stack.
+2026-10-22 scope re-derivation after plan-quality CLEAN: preserve the original17 baseline primitives (8.396h rounded8.40) as completed baseline scope, then append14 explicitly distinct approved-scope/requalification primitives. This is a whole-issue estimate including design already performed, not remaining-time guidance. The earlier baseline is preserved in Git and the 2026-10-21 design checkpoint; this replaces the one machine-readable total rather than accumulating competing blocks.
 
-Apply the thorough-spec design discount of 0.2 to the chosen v2 table design values and the v3.1 implementation scale of 0.4 once. The rows below map in order to: scope/spec; historical sketch query; declared element facts; render plan using geometry; shared replay session lifetime; recorded image adapter/export; typed sketch evidence; preserving submission codec; one evidence-file inventory; delivered version selection; preview policy/freeze; private preview cards; private preview publication; submission status and text; query/privacy guides; single close review; native Chrome conformance. Each row is a distinct seam including its colocated tests. Design subtotal 3.44h +15% buffer; scaled implementation subtotal 4.44h; total 8.40 focused ship-hours. One final close review is included; no invented milestone boundaries or cross-repo overhead.
+Library availability: existing standard-library JSON, query reducer, replay/Chrome session, pressure painter and portable submission Store remain the implementation. No new library short-circuits exact source/version witnesses, conditional preserving schema or the projection contract; no novel dependency is assumed. Familiarity1.0 reflects the same recording/console stack. Design choices were resolved in the approved plan: apply table design ×0.2, implementation ×0.4 once, then +15% design buffer. Design allowances include the scope-shaping already performed. No cross-repo propagation overhead.
+
+Rows1–17 retain the baseline mapping: spec; historical query; element facts; legacy geometry plan; replay lifetime extraction; legacy render/export adapter; sketch evidence; preserving codec; central file inventory; delivered selector; preview policy/freeze; private cards; preview publication; Lua/status text; docs; initial close; initial Chrome discovery. Each includes its colocated tests.
+
+Rows18–31 cost the approved changes in order:
+
+| Row | Primitive / concrete work | Raw table design → discounted | Raw impl → scaled |
+|---|---|---|---|
+|18|issue-spec: operator revision and durable execution contract|1.0→0.20|0.2→0.08|
+|19|smaller-go-module: ordered scalar source/finish witness cache|0.3→0.06|0.5→0.20|
+|20|smaller-go-module: compatible-view batching/count/oracle|0.3→0.06|0.5→0.20|
+|21|cross-cutting-refactor: exact note/page freeze through Board/host/manager|0.8→0.16|0.5→0.20|
+|22|greenfield-go-module: pure PagePlan/validation and stateful page fake|1.5→0.30|0.8→0.32|
+|23|api-integration: exact-prefix page replay, projection preflight and badge raster|2.5→0.50|1.5→0.60|
+|24|greenfield-go-module: exclusive page/legacy codec and strict field sweep|1.5→0.30|0.8→0.32|
+|25|cross-cutting-refactor: shared PNG inventory through all Store consumers|0.8→0.16|0.5→0.20|
+|26|api-integration: prepare/build/privacy wiring and disposable Claude/Codex consumers|2.0→0.40|1.0→0.40|
+|27|tui-screen: Pending feedback counts/index cues/focus and operator recheck iteration|1.0→0.20|0.8→0.32|
+|28|atlas-docs: revised shared-frame guide/schema/CLI distinction|0.2→0.04|0.2→0.08|
+|29|milestone-review: renewed full close review/correction window, no new milestone|0→0|0.5→0.20|
+|30|real-api-discovery: renewed native Chrome one/two/eight-shape qualification|0→0|0.6→0.24|
+|31|api-integration: previously admitted CDP write-cancel/join prerequisite|2.0→0.40|1.0→0.40|
+
+The renderer's controlled/native tests are included in rows22/23/30; consumer integration in26; panel and renewed real operator flow in27. No uncosted second test program is hidden in the API-discovery row. Task9's queued suite/operator availability waits are excluded as idle; executing tests/review and qualification are included. Incremental design2.78h +15% and implementation3.76h add6.957h. Whole-issue design6.22h +15% plus implementation8.20h =15.353h, rounded15.35h.
 
 ```estimate
 model: estimate-logic-v3.1
@@ -208,8 +231,22 @@ item: lua-neovim design=0.3 impl=0.2
 item: atlas-docs design=0.04 impl=0.08
 item: milestone-review design=0.04 impl=0.2
 item: real-api-discovery design=0 impl=0.24
+item: issue-spec design=0.2 impl=0.08
+item: smaller-go-module design=0.06 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: cross-cutting-refactor design=0.16 impl=0.2
+item: greenfield-go-module design=0.3 impl=0.32
+item: api-integration design=0.5 impl=0.6
+item: greenfield-go-module design=0.3 impl=0.32
+item: cross-cutting-refactor design=0.16 impl=0.2
+item: api-integration design=0.4 impl=0.4
+item: tui-screen design=0.2 impl=0.32
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0 impl=0.2
+item: real-api-discovery design=0 impl=0.24
+item: api-integration design=0.4 impl=0.4
 design-buffer: 0.15
-total: 8.40
+total: 15.35
 ```
 
 ## Revisions
