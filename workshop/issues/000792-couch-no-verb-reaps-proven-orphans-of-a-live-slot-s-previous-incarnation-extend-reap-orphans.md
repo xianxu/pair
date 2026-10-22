@@ -120,6 +120,12 @@ Pre-close traceability audit found missing explicit between-TERM/KILL caller/hub
 
 Mixed-owner real service composition now covers all four preview/confirmed and text/JSON cases with the actual classification worker, actual effect handler and real temporary legacy registry overlap. Its race selection passes1.596s; the combined reap/proof/count race selection passes1.857s. Reader audit and diff whitespace check pass. These additions change tests/documentation only; native and product sources remain unchanged from76cc79deb. Checkpoint final coverage before another pair of final-head focused native commands and the recorded check.
 
+### 2026-10-22 — final source qualified; recorded suite next
+
+Both focused native commands passed again on final coverage commit7181ed56f2a4940c5b50f24242702559944ee22d, with no source edits during qualification. Claude39.471s, confirmed126.425ms, writes81539072bytes; Codex33.934s, confirmed103.023ms, writes81543168bytes. Each proved six exact old outcomes, preservation and public delivery to the current worker, and complete owned-generation/direct-child/IO/private-root cleanup. All bounds remain unchanged. Final Claude log /Volumes/TestScratch/tmp/pair-slot2/pair-792-native-final-claude.NzmOKl/native.log SHA256f75bbf3d98dd20931127901c23bd277173c52a394b0bf491dd95dc7ad4d36b3f; final Codex log /Volumes/TestScratch/tmp/pair-slot2/pair-792-native-final-codex.Ovv7Wq/native.log SHA256b048e75b7811d33f61327aab369efd4262ec3040076f615f5507f666bb5b94b3.
+
+Native acceptance, negative authority/identity cases, composed CLI reporting, operation counters, documentation, artifact inventory and reader audit are complete. The last issue Plan row remains unchecked solely because required recorded verification has not yet passed; queue it after this durable evidence checkpoint. Any permitted close-review overlap must preserve that pending status and cannot authorize landing before the exact-source recorded pass.
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. The source is marked stale by estimate-source; this is a provisional calibration, not a fitted total.
