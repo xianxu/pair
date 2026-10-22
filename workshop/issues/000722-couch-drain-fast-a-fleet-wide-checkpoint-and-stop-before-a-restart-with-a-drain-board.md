@@ -1,13 +1,13 @@
 ---
 id: 000722
-status: working
+status: codecomplete
 deps: [ariadne#506]
 github_issue:
 created: 2026-10-19
 updated: 2026-10-22
 estimate_hours: 18.3755
 collaboration-mode: collaboration
-card_mirror: '5cc2c0564ab8f73e5cbfe2dfb56f8bddb6123e50' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '8d2998714981f4d62b50d0be3bb0673c82c1be2d' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-19T23:16:03-07:00
 claimant:
     operator: Xian Xu
@@ -17,7 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
-actual_hours: 17.18
+actual_hours: 33.40
 ---
 
 # couch --drain [--fast]: a fleet-wide checkpoint-and-stop before a restart, with a drain board
