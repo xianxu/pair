@@ -1,13 +1,13 @@
 ---
 id: 000809
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-22
 updated: 2026-10-22
 estimate_hours:
 collaboration-mode: collaboration
-card_mirror: '0ac1eb55d9c3c2662ac0bbd3404c99115133282f' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '2de47a81a54ae2c31914a0b8536b89148a2bdecd' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-22T12:41:48-07:00
 claimant:
     operator: Xian Xu
@@ -18,6 +18,7 @@ claimant:
     repository: github.com/xianxu/pair
 flake_tests: [github.com/xianxu/pair/cmd/internal/scribecmd.TestRunPropagatesChildExitCode]
 flow: {kind: quick, provenance: inferred, spec: "4cca90d6", done: "a0bbe98b"}
+actual_hours: 1.63
 ---
 
 # flake: TestRunPropagatesChildExitCode
