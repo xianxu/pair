@@ -1,6 +1,6 @@
 ---
 id: 000796
-status: working
+status: codecomplete
 created: 2026-10-22
 updated: 2026-10-22
 estimate_hours: 2.593
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+actual_hours: 1.16
+tracker:
+    version: 1
+    completion:
+        token: close-dd84e506818f
+        repository: github.com/xianxu/pair
+        reviewed_head: 1c75450c44a2e7e423dbc04a64352a15f943d9b3
+        evidence_commit: 844928d2ba0b145122c018026098fb1de0c920fb
 ---
 
 # Couch: --tab-style collapse (one row; fold quiet slots and inactive hubs to +N, attention always shown) alongside multiline
