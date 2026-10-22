@@ -1,13 +1,13 @@
 ---
 id: 000792
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-21
 updated: 2026-10-22
 estimate_hours: 4.033
 collaboration-mode: collaboration
-card_mirror: '8cf2318f6c80190ae2470cc546af388fc2abc050' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '0542e49d81928cdf67dbdfe2535bb59a8df33fca' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-22T00:59:38-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 8.49
 ---
 
 # Couch: no verb reaps proven orphans of a live slot's previous incarnation; extend --reap-orphans
