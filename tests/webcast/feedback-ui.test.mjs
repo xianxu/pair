@@ -20,6 +20,9 @@ test('live note mask redraws pins, list and open dialog without modifying note s
  assert.equal(list.children.length,0);assert.equal(root.querySelector('.pins').children.length,0);assert.equal(ui.dialog.open,false);
  assert.equal(entry.state,'open');assert.equal(entry.note,note);
  entry.revision=1;for(const fn of hooks)fn();flush();assert.equal(list.children.length,1,'newer note revision reappears');
+ v.feedbackMask.install({scope:'cast',revision:'2',sketches:[],notes:[{id:'n',revision:'2'}]});
+ for(const revision of [0,1,2]){entry.revision=revision;for(const fn of hooks)fn();flush();assert.equal(list.children.length,0,'old reconnect prefix must not flash a known submitted note');}
+ entry.revision=3;for(const fn of hooks)fn();flush();assert.equal(list.children.length,1,'current newer note remains visible');
 });
 test('operator snapshot installs exact sketch mask but trusts filtered note projection',()=>{
  const node=()=>({style:{},appendChild(){}}),win={addEventListener(){},setTimeout:()=>1,clearTimeout(){}};let view,changes=0;
@@ -28,4 +31,30 @@ test('operator snapshot installs exact sketch mask but trusts filtered note proj
  win.__couchcastOperatorView({revision:1,doc:1,seg:1,t:1,notes:[{id:'n',text:'newer server-approved note'}],strokes:[],feedback_mask:mask});
  assert.equal(view.feedbackMask.sketchVisible('s',{next_sequence:5,digest:'a'.repeat(64)}),false);assert.equal(changes,1);
  assert.equal(view.model.notes.length,1,'console cannot apply fabricated note revision0');
+});
+
+test('operator keeps its whole confirmed projection when a mask is missing or invalid',()=>{
+ const node=()=>({style:{},appendChild(){}}),win={addEventListener(){},setTimeout:()=>1,clearTimeout(){}};let view,changes=0;
+ mountOperator({host:node(),root:node(),report(){}},{annotate:{mountAnnotation(_d,_w,v){view=v;v.onFeedback(()=>changes++);return {strokes:{clear(){}},setAnnotationAllowed(){},setMode(){}};}},palette:[],css:''},{createElement:node},win);
+ const mask={scope:'cast',revision:'1',sketches:[{id:'s',next_sequence:'5',digest:'a'.repeat(64)}],notes:[]};
+ const initial={revision:1,doc:1,seg:1,t:1,notes:[],strokes:[],feedback_mask:mask};win.__couchcastOperatorView(initial);
+ const model=view.model;
+ for(const feedback_mask of [undefined,null,{scope:'',revision:'0',sketches:null,notes:null}]){
+  assert.throws(()=>win.__couchcastOperatorView({...initial,revision:2,notes:[{id:'old',text:'unproven revision'}],feedback_mask}));
+  assert.equal(view.model,model);assert.equal(changes,1);assert.equal(view.feedbackMask.sketchVisible('s',{next_sequence:5,digest:'a'.repeat(64)}),false);
+ }
+ win.__couchcastOperatorView({...initial,revision:2,feedback_mask:{...mask,revision:'2',sketches:[]}});
+ assert.notEqual(view.model,model,'refused view must not consume the revision of a valid retry');
+ assert.equal(view.feedbackMask.sketchVisible('s',{next_sequence:5,digest:'a'.repeat(64)}),true);
+});
+
+test('operator rejects a stale mask together with its unproven note projection',()=>{
+ const node=()=>({style:{},appendChild(){}}),win={addEventListener(){},setTimeout:()=>1,clearTimeout(){}};let view;
+ mountOperator({host:node(),root:node(),report(){}},{annotate:{mountAnnotation(_d,_w,v){view=v;return {strokes:{clear(){}},setAnnotationAllowed(){},setMode(){}};}},palette:[],css:''},{createElement:node},win);
+ const mask={scope:'cast',revision:'10',sketches:[],notes:[{id:'n',revision:'2'}]},frame={revision:1,doc:1,seg:1,t:1,notes:[],strokes:[],feedback_mask:mask};
+ win.__couchcastOperatorView(frame);const model=view.model;
+ assert.throws(()=>win.__couchcastOperatorView({...frame,revision:2,notes:[{id:'n',text:'old submitted note'}],feedback_mask:{...mask,revision:'9',notes:[]}}));
+ assert.equal(view.model,model);
+ win.__couchcastOperatorView({...frame,revision:2,notes:[{id:'n',text:'server-approved newer revision'}]});
+ assert.equal(view.model.notes[0].note.text,'server-approved newer revision');
 });

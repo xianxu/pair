@@ -11,7 +11,7 @@ test('exact versions hide only confirmed matching display facts, with atomic val
  assert.equal(mask.sketchVisible('s',{next_sequence:'5',digest}),false);
  for(const meta of [undefined,{}, {next_sequence:6,digest},{next_sequence:5,digest:'b'.repeat(64)}])assert.equal(mask.sketchVisible('s',meta),true);
  assert.equal(mask.noteVisible('n','18446744073709551615'),false);
- assert.equal(mask.noteVisible('n',0),true);assert.equal(mask.noteVisible('n',undefined),true);
+ assert.equal(mask.noteVisible('n',0),false,'an older catch-up prefix is not current live state');assert.equal(mask.noteVisible('n',undefined),true);
  for(const change of [v=>v.sketches.push(v.sketches[0]),v=>v.revision='01',v=>v.revision='18446744073709551616',v=>v.sketches[0].next_sequence='9007199254740992',v=>v.notes[0].revision=null,v=>v.sketches[0].digest='bad',v=>v.notes=Array(49).fill(v.notes[0])]){
   const value=dto('2');change(value);assert.throws(()=>mask.install(value));assert.equal(mask.sketchVisible('s',{next_sequence:5,digest}),false);
  }
@@ -21,7 +21,7 @@ test('duplicates, stale revisions, conflicting duplicates and stream replacement
  const mask=createFeedbackMask();const first=mask.beginStream();mask.receive(dto('9'),first);
  assert.equal(mask.receive(dto('8'),first),false);assert.equal(mask.receive(dto('9'),first),false);
  assert.throws(()=>mask.receive({...dto('9'),sketches:[]},first));
- const second=mask.beginStream();assert.equal(mask.sketchVisible('s',{next_sequence:5,digest}),true);
+ const second=mask.beginStream();assert.equal(mask.sketchVisible('s',{next_sequence:5,digest}),false);
  assert.equal(mask.receive(dto('10','old'),first),false);
  mask.receive(dto('0','new'),second);assert.equal(mask.sketchVisible('s',{next_sequence:5,digest}),false);
  mask.retire();assert.equal(mask.receive(dto('1','new'),second),false);assert.equal(mask.noteVisible('n','18446744073709551615'),true);
@@ -44,4 +44,27 @@ test('shared byte envelope admits boundary UTF8 and atomically refuses oversized
  assert.throws(()=>mask.install(value),/byte budget/);
  assert.equal(mask.sketchVisible('s',{next_sequence:5,digest}),false);
  assert.equal(mask.install(dto('2')),false,'over-budget input must leave prior revision intact');
+});
+
+test('a replacement stream preserves confirmed knowledge until a validated full scope arrives',()=>{
+ let changes=0;const mask=createFeedbackMask({changed:()=>changes++});
+ const first=mask.beginStream();mask.receive(dto('9'),first);
+ const next=mask.beginStream();assert.equal(changes,1);
+ assert.equal(mask.receive({...dto('8'),notes:[],sketches:[]},next),false);
+ assert.equal(mask.noteVisible('n','18446744073709551615'),false);
+ assert.equal(mask.receive(dto('20','other'),first),false,'retired producer cannot replace scope');
+ const fresh=mask.beginStream();assert.throws(()=>mask.receive({...dto('0','new'),notes:null},fresh));
+ assert.equal(changes,1);assert.equal(mask.noteVisible('n','18446744073709551615'),false);
+ assert.equal(mask.receive({...dto('0','new'),notes:[],sketches:[]},fresh),true);
+ assert.equal(mask.noteVisible('n','18446744073709551615'),true);assert.equal(changes,2);
+ assert.equal(mask.receive(dto('99','cast'),fresh),false,'a stream cannot switch its validated scope');
+});
+
+test('known confirmed versions hold older live catch-up prefixes without hiding newer versions',()=>{
+ const mask=createFeedbackMask();mask.install({...dto(),notes:[{id:'n',revision:'2'}]});
+ assert.equal(mask.noteVisible('n',0),false);assert.equal(mask.noteVisible('n',1),false);
+ assert.equal(mask.noteVisible('n',2),false);assert.equal(mask.noteVisible('n',3),true);
+ assert.equal(mask.sketchVisible('s',{next_sequence:4,digest:'b'.repeat(64)}),false);
+ assert.equal(mask.sketchVisible('s',{next_sequence:6,digest:'b'.repeat(64)}),true);
+ assert.equal(mask.sketchVisible('s',{next_sequence:5,digest:'b'.repeat(64)}),true,'equal-sequence digest mismatch is a different version');
 });

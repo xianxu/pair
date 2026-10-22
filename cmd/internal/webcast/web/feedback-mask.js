@@ -8,7 +8,7 @@ const need=(ok,why)=>{if(!ok)throw Error(`feedback mask: ${why}`);};
 export function createFeedbackMask({changed=()=>{}}={}){
  let current=null,signature='',stream=null;
  const clear=()=>{const had=!!current;current=null;signature='';if(had)changed();};
- function install(value){
+ function install(value,{rejectStale=false}={}){
   need(value&&id(value.scope)&&uint(value.revision,U64),'scope or revision');
   need(Array.isArray(value.sketches)&&value.sketches.length<=256&&Array.isArray(value.notes),'item bounds');
   need(new TextEncoder().encode(JSON.stringify(value)).length<=FEEDBACK_MASK_BYTES,'serialized byte budget');
@@ -20,17 +20,24 @@ export function createFeedbackMask({changed=()=>{}}={}){
   for(const item of value.notes){need(item&&id(item.id)&&!notes.has(item.id)&&uint(item.revision,U64),'note version');notes.set(item.id,item.revision);}
   const nextSignature=JSON.stringify([value.scope,value.revision,[...sketches].sort(([a],[b])=>a<b?-1:a>b?1:0),[...notes].sort(([a],[b])=>a<b?-1:a>b?1:0)]);
   if(current?.scope===value.scope){
-   if(BigInt(value.revision)<BigInt(current.revision))return false;
+   if(BigInt(value.revision)<BigInt(current.revision)){need(!rejectStale,'stale revision');return false;}
    if(value.revision===current.revision){need(signature===nextSignature,'conflicting revision');return false;}
   }
   current={scope:value.scope,revision:value.revision,sketches,notes};signature=nextSignature;changed();return true;
  }
  return {
   install,
-  beginStream(){stream={};clear();return stream;},
-  receive(value,token){if(!stream||token!==stream||current&&current.scope!==value?.scope)return false;return install(value);},
+  // A transport can lose continuity without changing the displayed recording.
+  // Rotate producer identity, retaining confirmed facts until a full replacement.
+  beginStream(){stream={scope:null};return stream;},
+  receive(value,token){if(!stream||token!==stream||stream.scope&&stream.scope!==value?.scope)return false;const changed=install(value);stream.scope=value.scope;return changed;},
   retire(){stream=null;clear();},
-  sketchVisible(key,metadata){const sent=current?.sketches.get(key);return !(sent&&metadata&&sent.next_sequence===decimal(metadata.next_sequence)&&sent.digest===metadata.digest);},
-  noteVisible(key,revision){const sent=current?.notes.get(key);return sent===undefined||sent!==decimal(revision);},
+  sketchVisible(key,metadata){
+   const sent=current?.sketches.get(key),sequence=decimal(metadata?.next_sequence);
+   if(!sent||!uint(sequence,SAFE))return true;
+   // A catch-up prefix older than known confirmed evidence is not live state.
+   return BigInt(sequence)>BigInt(sent.next_sequence)||(sequence===sent.next_sequence&&sent.digest!==metadata.digest);
+  },
+  noteVisible(key,revision){const sent=current?.notes.get(key),value=decimal(revision);return sent===undefined||!uint(value,U64)||BigInt(value)>BigInt(sent);},
  };
 }

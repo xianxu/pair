@@ -213,7 +213,7 @@ func TestFeedbackDisplayNewerVersionsRemainVisibleAndUpdatesCoalesce(t *testing.
 		t.Fatal(err)
 	}
 	mask := <-updates
-	if len(mask.Sketches) != 0 || len(mask.Notes) != 1 || mask.Notes[0].ID != s.Notes[1].ID || mask.Revision != b.FeedbackMask().Revision {
+	if len(mask.Sketches) != 0 || len(mask.Notes) != 2 || mask.Notes[0].ID != s.Notes[0].ID || mask.Notes[1].ID != s.Notes[1].ID || mask.Revision != b.FeedbackMask().Revision {
 		t.Fatalf("stale versions retained/coalescing lost latest %+v", mask)
 	}
 	encoded, err := json.Marshal(mask)
@@ -238,7 +238,7 @@ func TestFeedbackDisplayNewerVersionsRemainVisibleAndUpdatesCoalesce(t *testing.
 	}
 }
 
-func TestFeedbackDisplayMatcherVisitsInputsAndCandidatesOnce(t *testing.T) {
+func TestFeedbackDisplayMatcherVisitsInputsAndCandidatesLinearly(t *testing.T) {
 	for _, n := range []int{32, 64} {
 		var current, delivered []SelectedSketch
 		var notes []SelectedNote
@@ -249,7 +249,7 @@ func TestFeedbackDisplayMatcherVisitsInputsAndCandidatesOnce(t *testing.T) {
 			notes = append(notes, SelectedNote{ID: fmt.Sprint(i)})
 		}
 		mask, visits := matchDeliveredFeedback(current, notes, delivered, notes)
-		if len(mask.Sketches) != n || len(mask.Notes) != n || visits != 4*n {
+		if len(mask.Sketches) != n || len(mask.Notes) != n || visits != 6*n {
 			t.Fatalf("n=%d visits=%d sketch=%d notes=%d", n, visits, len(mask.Sketches), len(mask.Notes))
 		}
 	}
@@ -262,6 +262,70 @@ func TestFeedbackDisplayMatcherKeepsExactMatchAmongOlderDeliveredVersions(t *tes
 	mask, _ := matchDeliveredFeedback([]SelectedSketch{current}, []SelectedNote{note}, []SelectedSketch{current, older}, []SelectedNote{note, {ID: "note", Revision: 1}})
 	if len(mask.Sketches) != 1 || mask.Sketches[0].NextSequence != 10 || len(mask.Notes) != 1 || mask.Notes[0].Revision != 2 {
 		t.Fatalf("older delivery displaced exact current identity: %+v", mask)
+	}
+}
+
+func TestFeedbackDisplayConfirmedNoteFloorSurvivesEditResolveReopen(t *testing.T) {
+	b := feedbackDisplayFixture(t)
+	s, _ := b.Selection()
+	confirmed := []SelectedNote{s.Notes[0]}
+	if err := b.SetDeliveredFeedback(nil, confirmed); err != nil {
+		t.Fatal(err)
+	}
+	for i, r := range []recording.Record{
+		&recording.NoteEdit{ID: confirmed[0].ID, Text: "new unsent text"},
+		&recording.NoteState{ID: confirmed[0].ID, State: recording.NoteResolved},
+		&recording.NoteState{ID: confirmed[0].ID, State: recording.NoteOpen},
+	} {
+		r.SetTime(b.st.T)
+		b.Put(r)
+		if mask := b.FeedbackMask(); len(mask.Notes) != 1 || mask.Notes[0].Revision != 0 || mask.Revision != 1 {
+			t.Fatalf("transition %d pruned the confirmed floor before Store refresh: %+v", i, mask)
+		}
+		if err := b.SetDeliveredFeedback(nil, confirmed); err != nil {
+			t.Fatal(err)
+		}
+		mask := b.FeedbackMask()
+		if len(mask.Notes) != 1 || mask.Notes[0].Revision != 0 {
+			t.Fatalf("transition %d discarded known submitted prefix: %+v", i, mask)
+		}
+	}
+	current, _ := b.Selection()
+	if len(current.Notes) != 2 || current.Notes[0].Revision != 3 || len(b.OperatorView().Notes) != 2 {
+		t.Fatalf("newer reopened note hidden: %+v", current)
+	}
+	if err := b.SetDeliveredFeedback(nil, []SelectedNote{{ID: confirmed[0].ID, Revision: 1}, confirmed[0], {ID: confirmed[0].ID, Revision: 4}}); err != nil {
+		t.Fatal(err)
+	}
+	if mask := b.FeedbackMask(); len(mask.Notes) != 1 || mask.Notes[0].Revision != 1 {
+		t.Fatalf("highest applicable Store watermark not retained: %+v", mask)
+	}
+	if current, _ := b.Selection(); len(current.Notes) != 2 {
+		t.Fatal("older confirmed floor hid newer open revision")
+	}
+	clearEvent := &recording.AnnotationClear{Who: recording.Author{ID: recording.OperatorID}}
+	clearEvent.SetTime(b.st.T)
+	b.Put(clearEvent)
+	if mask := b.FeedbackMask(); len(mask.Notes) != 0 || len(mask.Sketches) != 0 {
+		t.Fatalf("clear retained disappeared IDs: %+v", mask)
+	}
+}
+
+func TestFeedbackDisplaySketchFloorRequiresDigestAtEqualSequence(t *testing.T) {
+	current := SelectedSketch{ID: "shape", NextSequence: 10, Digest: "current"}
+	delivered := []SelectedSketch{{ID: "shape", NextSequence: 4, Digest: "old"}, {ID: "shape", NextSequence: 10, Digest: "wrong"}, {ID: "shape", NextSequence: 7, Digest: "confirmed"}, {ID: "shape", NextSequence: 11, Digest: "future"}}
+	mask, _ := matchDeliveredFeedback([]SelectedSketch{current}, nil, delivered, nil)
+	if len(mask.Sketches) != 1 || mask.Sketches[0].NextSequence != 7 || mask.Sketches[0].Digest != "confirmed" {
+		t.Fatalf("wrong confirmed floor: %+v", mask)
+	}
+	delivered = append(delivered, current)
+	mask, _ = matchDeliveredFeedback([]SelectedSketch{current}, nil, delivered, nil)
+	if len(mask.Sketches) != 1 || mask.Sketches[0].NextSequence != 10 || mask.Sketches[0].Digest != "current" {
+		t.Fatalf("exact confirmed version did not advance floor: %+v", mask)
+	}
+	mask, _ = matchDeliveredFeedback([]SelectedSketch{current}, nil, delivered[1:2], nil)
+	if len(mask.Sketches) != 0 {
+		t.Fatal("wrong equal digest became a confirmed watermark")
 	}
 }
 

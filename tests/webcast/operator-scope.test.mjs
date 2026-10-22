@@ -71,7 +71,7 @@ function mounted() {
     } }, palette: [], css: '',
   }, { createElement: node }, h.win);
   h.win.__couchcastAnnotationAllowed(true, '1');
-  const snapshot = (revision, doc, extra = {}) => h.win.__couchcastOperatorView({
+  const snapshot = (revision, doc, extra = {}) => h.win.__couchcastOperatorView({feedback_mask:{scope:"cast",revision:"0",sketches:[],notes:[]},
     revision, doc, seg: revision, t: revision, notes: [], strokes: [], ...extra,
   });
   return { ...h, options, snapshot, onView(fn) { receive = fn; } };
@@ -137,6 +137,6 @@ test('operator shared sketch and annotation record subscribers coexist',()=>{
   annotate:{mountAnnotation(doc,win,view){view.onRecord(()=>counts[0]++);return {strokes:{clear(){}},setAnnotationAllowed(){},setMode(){}};}},
   palette:[],css:'',sketch:{css:'',shellURL:'data:text/html,private',mount({view}){view.onRecord(()=>counts[1]++);return {tool:{}};}},
  },{createElement:node},h.win);
- h.win.__couchcastOperatorView({revision:1,doc:1,seg:1,t:1,notes:[],strokes:[]});
+ h.win.__couchcastOperatorView({feedback_mask:{scope:"cast",revision:"0",sketches:[],notes:[]},revision:1,doc:1,seg:1,t:1,notes:[],strokes:[]});
  assert.deepEqual(counts,[1,1]);
 });

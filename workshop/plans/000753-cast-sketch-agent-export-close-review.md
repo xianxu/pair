@@ -633,3 +633,134 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T11:38:39-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 753 — cast-sketch: operator CLI queries and historical image export |
+| repo | pair |
+| issue file | workshop/issues/000753-cast-sketch-agent-export.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | fea66e36b0d25b3e37f2dc70a084226a8ed1697a..4fc20f722c297c8e1e0c1731f0ca6d443ffdf568 |
+| command | sdlc close --issue 753 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T11:38:39-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The implementation has strong historical-evidence validation, shared rendering seams, and durable delivery tests. One reproduced correctness bug blocks shipment: a transient viewer connection error removes confirmed display suppression while retaining the displayed recording, causing submitted feedback to reappear.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Canceled publications settle through PreviewPublishFailed before refresh; controlled cancellation, late-success and terminal-join regressions pass in couchtty.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Selected-output budgeting reserves mandatory anchor facts; unselected-declaration and all-mandatory-handle regressions pass in query.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Nonpositive absent anchors are excluded; region-only Build and capture-context regressions pass in webcast/submission.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Schema preflight rejects null numeric tuple members; null-pressure, known-scalar and Store read-path regressions pass.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      The revised Core concepts inventory names preview_selection.go, sketch_export.go and the filesystem-backed DeliveredSketchVersions integration; those entities and boundaries exist.
+  - id: BR-6
+    disposition: withdrawn
+    note: |
+      Retain the prior withdrawal; this review does not reopen the disposed native-environment finding or claim a fresh native run.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Explicit required-member metadata is consumed by filterManifest; required-member deletion and Store missing-source regressions pass.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      prepareHistoricalPageInk requests originalOnly placement; actual Renderer adapter tests reject disconnected/replaced originals and pass connected-original controls.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Lua handoff now describes sketch-page.png, sketch.index and paths alongside legacy image.plan.paths; the real Neovim transaction script passes.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: confirmed-display-continuity
+    title: |
+      Transient viewer disconnects repaint already-submitted feedback
+    detail: |
+      cmd/internal/webcast/web/viewer.js:138 calls feedbackMask.beginStream on every EventSource error, including automatic reconnect with readyState 0. beginStream clears the confirmed mask and invokes redraw callbacks, while this path retains the old model and page. A direct production-connect probe changed both exact noteVisible and sketchVisible from false to true and increased redraws from 1 to 2 immediately after the error. Submitted ink/pins therefore reappear throughout a connection outage, contradicting the plan's same-stream reconnect-retains-mask contract (ARCH-ORDER, ARCH-PURPOSE). Preserve the confirmed mask across transient reconnects, retaining revision fencing; replace it atomically when the reconnect's authoritative scope/full snapshot arrives. Add a production-connect regression covering the outage interval, repeated errors, stale revisions and recovery.
+```
+
+1. **Strengths**
+
+   - Historical page rendering preflights every chosen path through the strict original-anchor adapter before painting.
+   - The preserving codec enforces required members and known types while retaining nested extensions through Store rewrites.
+   - Preview publication uses explicit pure transitions, exact acknowledgment identities, and controlled cancellation tests.
+   - README and atlas changes cover the new CLI, shared-page bundle, preview, privacy, and live-mask surfaces.
+
+2. **Critical findings**
+
+   - **Confirmed display continuity:** [viewer.js:138](/Volumes/TestScratch/review-checkouts/b7209862b3272fbd/cmd/internal/webcast/web/viewer.js:138), calling [feedback-mask.js:30](/Volumes/TestScratch/review-checkouts/b7209862b3272fbd/cmd/internal/webcast/web/feedback-mask.js:30). Preserve confirmed suppression until authoritative replacement evidence arrives.
+
+3. **Important findings**
+
+   None.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Passed eight Go packages: submission, query, sketchimage, board, cdp, webcast, couchtty, and webcast/submission. Also passed 53 selected browser tests, the Neovim submission transaction script, and range whitespace checks.
+
+   Existing reconnect tests cover stream replacement and eventual mask installation, but omit visibility during a transient automatic reconnect. The independent probe exposes that gap. No source files were changed.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared evidence inventory, viewport compatibility, replay lifetime, and pressure painter.
+   - **ARCH-PURE — pass:** deterministic selection, validation, and preview transitions have direct tests; IO remains behind integration seams.
+   - **ARCH-PURPOSE — flag:** confirmed feedback reappears during reconnect.
+   - **ARCH-MOCK — pass:** renderer seams have stateful fakes; Store tests use portable temporary storage.
+   - **ARCH-CONSTRAINTS — pass:** explicit image, byte, batch, and deadline bounds have representative tests.
+   - **ARCH-SECURE — pass:** strict evidence decoding, recorded-source validation, and confined export publication.
+   - **ARCH-ORDER — flag:** transport uncertainty incorrectly discards confirmed display knowledge.
+   - **ARCH-FUNERAL — pass:** projections share cast lifetime; renderer cleanup and temporary-artifact ownership are explicit.
+   - **ARCH-EVOLVE — pass:** legacy/shared variants remain distinct, with nested-extension preservation and compatibility tests.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry defining transient reconnect as retaining the last confirmed mask until an authoritative full replacement arrives. Name the outage-interval regression and preserve stale-revision rejection across reconnect.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"f6f33495-d562-4ed6-97cd-cb1ca7ab6811","repository":"github.com/xianxu/pair","issue_id":"000753","recipe":"milestone-review","round":7,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/b7209862b3272fbd","reviewed_head":"4fc20f722c297c8e1e0c1731f0ca6d443ffdf568","slot":"pair:9","requested_at":"2026-10-22T18:35:33.2005Z"},"phase":"finished","pid":63408,"started_at":"2026-10-22T18:35:33.406808Z","finished_at":"2026-10-22T18:38:38.055582Z","session_id":"01a164e5-a5b3-7843-9582-7a0c4ea59218","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 4.043897666s
+head: "4fc20f722c297c8e1e0c1731f0ca6d443ffdf568"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

@@ -104,7 +104,6 @@ export function connect(deps) {
     es.close();
     es = null;
     failClosed();
-    feedbackMask.retire();
     fresh();
     deps.show({ ...view(null, state, false), status: 'Reconnecting…' });
     deps.retry(open);

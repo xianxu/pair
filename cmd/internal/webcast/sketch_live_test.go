@@ -27,6 +27,10 @@ func TestSketchLiveTwoViewers(t *testing.T) {
 		if i == 1 {
 			link = "pointer"
 		}
+		// Preserve the real native EventSource so outage conformance invokes the
+		// production onerror path without replacing the page, model or server.
+		p.call(t, p.session, "Page.enable", nil, nil)
+		p.call(t, p.session, "Page.addScriptToEvaluateOnNewDocument", map[string]any{"source": `(()=>{const NativeEventSource=window.EventSource;window.EventSource=class extends NativeEventSource{constructor(...args){super(...args);window.__testFeedbackSource=this;window.__testFeedbackFullMasks=0;this.addEventListener('feedback',()=>window.__testFeedbackFullMasks++);}};})()`}, nil)
 		p.call(t, p.session, "Page.navigate", map[string]any{"url": srv.URL + "/" + link + "/"}, nil)
 		waitEval(t, p, "shared sketch mount", `String(!!window.couchViewer?.sketch)`, "true")
 		p.eval(t, `(async()=>{await couchViewer.ready();globalThis.__sketchSeen={};globalThis.__sketchProjection=null;couchViewer.onRecord((r,m)=>{if(r.k.startsWith('sketch-')){if(r.operation){const key=r.k+':'+r.operation;__sketchSeen[key]=(__sketchSeen[key]||0)+1;}globalThis.__sketchProjection=m.sketchProjection();}});return '';})()`)
@@ -166,6 +170,27 @@ func TestSketchLiveTwoViewers(t *testing.T) {
 		t.Fatalf("view-only watcher changed sketch count: %d", count)
 	}
 	waitEval(t, b, "submitted historical path hidden after view-only reconnect", `(()=>{const c=document.querySelector('.sketch-observer'),pixels=c.getContext('2d').getImageData(0,0,c.width,c.height).data;for(let i=3;i<pixels.length;i+=4)if(pixels[i])return 'painted';return 'blank';})()`, "blank")
+
+	// An EventSource outage retains this page and reducer. Rotate stream
+	// ownership twice through its actual error handler; before any new full mask
+	// arrives, the confirmed ink must stay absent on both native canvases.
+	for i, p := range []*chromePage{a, b} {
+		got := p.evalString(t, `(async()=>{const source=window.__testFeedbackSource,modelPage=document.documentElement,fullMasks=window.__testFeedbackFullMasks;if(!source||source.readyState!==EventSource.OPEN||typeof source.onerror!=='function'||fullMasks<1)throw Error('native feedback source unavailable '+JSON.stringify({source:!!source,state:source?.readyState,open:EventSource.OPEN,error:typeof source?.onerror,fullMasks}));source.dispatchEvent(new Event('error'));source.dispatchEvent(new Event('error'));await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));return String(window.__testFeedbackSource===source&&document.documentElement===modelPage&&window.__testFeedbackFullMasks===fullMasks);})()`)
+		if got != "true" {
+			t.Fatalf("viewer %d replaced page/stream or received a new full mask during outage check: %s", i, got)
+		}
+		waitEval(t, p, fmt.Sprintf("submitted ink stays hidden during viewer %d outage", i), canvasPaint, "blank")
+	}
+	compare("retained driving viewer projection during outage", a.eval(t, `__sketchProjection`))
+	afterOutage, err := recording.Reduce(f.mem.Records(), math.MaxInt64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	afterOutageProjection, err := json.Marshal(afterOutage.Sketches.Snapshot())
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare("recording after retained-page outage", afterOutageProjection)
 	// The reconnect mask is live display state, so replay below must still paint.
 	// Persist exactly the accepted wire, then let the real replay viewer reduce
 	// and display it in a fresh page. No source browser or live Board participates.

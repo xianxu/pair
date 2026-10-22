@@ -240,8 +240,28 @@ test('live feedback stream atomically filters exact versions and fences reconnec
  assert.equal(h.v.feedbackMask.noteVisible('n',0),false);assert.equal(redraws,1);assert.deepEqual(h.drawn,[]);
  old.emit('feedback',feedback());assert.equal(redraws,1);
  h.rec({k:'not-accepted',t:0});h.retries[0]();const next=h.es();
- assert.equal(h.v.feedbackMask.noteVisible('n',0),true);
- old.emit('feedback',feedback('99'));assert.equal(h.v.feedbackMask.noteVisible('n',0),true);
+ assert.equal(h.v.feedbackMask.noteVisible('n',0),false);
+ old.emit('feedback',feedback('99'));assert.equal(h.v.feedbackMask.noteVisible('n',0),false);
  next.emit('feedback',feedback('0','new'));assert.equal(h.v.feedbackMask.noteVisible('n',0),false);
  old.emit('end',{});assert.equal(h.v.feedbackMask.noteVisible('n',0),false);
+});
+
+
+test('confirmed feedback stays hidden throughout repeated automatic reconnect errors',()=>{
+ const h=harness(),source=h.es(),digest='a'.repeat(64);let redraws=0;
+ h.v.onFeedback(()=>redraws++);const model=h.v.model;
+ const mask={scope:'cast',revision:'9',sketches:[{id:'s',next_sequence:'5',digest}],notes:[{id:'n',revision:'0'}]};
+ source.emit('feedback',mask);
+ for(const readyState of [0,0,2,0]){
+  source.readyState=readyState;source.onerror();
+  assert.equal(h.v.model,model,'connection uncertainty retains the displayed model');
+  assert.equal(h.v.feedbackMask.noteVisible('n',0),false,'note must not repaint during outage');
+  assert.equal(h.v.feedbackMask.sketchVisible('s',{next_sequence:5,digest}),false,'ink must not repaint during outage');
+  assert.equal(redraws,1,'connection error cannot clear confirmed display knowledge');
+ }
+ source.emit('feedback',{...mask,revision:'8',notes:[],sketches:[]});
+ assert.equal(h.v.feedbackMask.noteVisible('n',0),false,'outage must not reset same-scope revision fence');
+ source.emit('feedback',{...mask,revision:'10',notes:[],sketches:[]});
+ assert.equal(h.v.feedbackMask.noteVisible('n',0),true,'validated full replacement remains authoritative');
+ assert.equal(redraws,2);
 });

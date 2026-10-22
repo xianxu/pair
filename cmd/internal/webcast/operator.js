@@ -170,8 +170,10 @@ export function mountOperator({ host, root, report }, { annotate, palette, css, 
   };
   win.__couchcastOperatorView = (snapshot) => {
     if (snapshot.revision < revision) return;
+    // The mask and server-filtered notes are one coherent projection. Refuse
+    // missing/stale evidence before consuming this outer revision or its notes.
+    feedbackMask.install(snapshot.feedback_mask,{rejectStale:true});
     revision = snapshot.revision;
-    if(snapshot.feedback_mask)feedbackMask.install(snapshot.feedback_mask);else feedbackMask.retire();
     if (snapshot.doc !== originalDocument) { originals.clear(); originalDocument = snapshot.doc; }
     visibleNodeIDs = new Set(snapshot.notes.map(note => note.at?.node));
     for (const id of originals.keys()) if (!wantsOriginal(id)) originals.delete(id);

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"math"
 	"slices"
-	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
@@ -56,32 +55,57 @@ func cloneFeedbackMask(m LiveFeedbackMask) LiveFeedbackMask {
 	return m
 }
 
-// matchDeliveredFeedback intersects exact versions in authoritative creation
-// order. Count every input/current visit; no points or receipts are inspected.
+// matchDeliveredFeedback retains the highest Store-confirmed prefix at or below
+// each retained identity. Equal sketch sequences require the current digest;
+// older watermarks protect catch-up frames without hiding newer current ink.
+// Two current passes and one delivered pass keep work O(C+D), with owned scalars.
 func matchDeliveredFeedback(current []SelectedSketch, notes []SelectedNote, delivered []SelectedSketch, deliveredNotes []SelectedNote) (LiveFeedbackMask, int) {
 	visits := 0
-	sketchSet := make(map[FeedbackSketchVersion]struct{}, len(delivered))
-	for _, s := range delivered {
+	currentSketches := make(map[string]SelectedSketch, len(current))
+	for _, v := range current {
 		visits++
-		sketchSet[FeedbackSketchVersion{ID: s.ID, NextSequence: s.NextSequence, Digest: s.Digest}] = struct{}{}
+		currentSketches[v.ID] = v
 	}
-	noteSet := make(map[SelectedNote]struct{}, len(deliveredNotes))
-	for _, n := range deliveredNotes {
+	currentNotes := make(map[string]uint64, len(notes))
+	for _, v := range notes {
 		visits++
-		noteSet[n] = struct{}{}
+		currentNotes[v.ID] = v.Revision
 	}
-	out := LiveFeedbackMask{Sketches: []FeedbackSketchVersion{}, Notes: []FeedbackNoteVersion{}}
-	for _, s := range current {
+	sketches := make(map[string]FeedbackSketchVersion)
+	for _, v := range delivered {
 		visits++
-		v := FeedbackSketchVersion{ID: s.ID, NextSequence: s.NextSequence, Digest: s.Digest}
-		if _, ok := sketchSet[v]; ok {
-			out.Sketches = append(out.Sketches, v)
+		latest, ok := currentSketches[v.ID]
+		if !ok || v.NextSequence == 0 || v.NextSequence > latest.NextSequence || (v.NextSequence == latest.NextSequence && v.Digest != latest.Digest) {
+			continue
+		}
+		best, found := sketches[v.ID]
+		if !found || v.NextSequence > best.NextSequence || (v.NextSequence == best.NextSequence && v.Digest < best.Digest) {
+			sketches[v.ID] = FeedbackSketchVersion{ID: v.ID, NextSequence: v.NextSequence, Digest: v.Digest}
 		}
 	}
-	for _, n := range notes {
+	noteVersions := make(map[string]uint64)
+	for _, v := range deliveredNotes {
 		visits++
-		if _, ok := noteSet[n]; ok {
-			out.Notes = append(out.Notes, FeedbackNoteVersion{ID: n.ID, Revision: n.Revision})
+		latest, ok := currentNotes[v.ID]
+		if !ok || v.Revision > latest {
+			continue
+		}
+		best, found := noteVersions[v.ID]
+		if !found || v.Revision > best {
+			noteVersions[v.ID] = v.Revision
+		}
+	}
+	out := LiveFeedbackMask{Sketches: []FeedbackSketchVersion{}, Notes: []FeedbackNoteVersion{}}
+	for _, v := range current {
+		visits++
+		if best, ok := sketches[v.ID]; ok {
+			out.Sketches = append(out.Sketches, best)
+		}
+	}
+	for _, v := range notes {
+		visits++
+		if best, ok := noteVersions[v.ID]; ok {
+			out.Notes = append(out.Notes, FeedbackNoteVersion{ID: v.ID, Revision: best})
 		}
 	}
 	return out, visits
@@ -94,9 +118,7 @@ func (b *Board) currentFeedbackVersionsLocked() ([]SelectedSketch, []SelectedNot
 	}
 	var notes []SelectedNote
 	for _, n := range b.st.Notes {
-		if n.State == recording.NoteOpen {
-			notes = append(notes, SelectedNote{ID: n.ID, Revision: n.Revision})
-		}
+		notes = append(notes, SelectedNote{ID: n.ID, Revision: n.Revision})
 	}
 	return sketches, notes
 }
@@ -160,41 +182,13 @@ func (b *Board) noteFeedbackHiddenLocked(id string, revision uint64) bool {
 	return ok && v == revision
 }
 
-// Most ordered records take no mask work. A changed masked identity is pruned
-// once; subsequent pressure chunks take only the constant-size map lookup.
+// Retained IDs keep their confirmed prefix across edits, resolution and newer
+// sketch versions. AnnotationClear is the reducer operation that removes them;
+// normal pressure/DOM/note events do no mask matching or historical copying.
 func (b *Board) pruneFeedbackMaskLocked(r recording.Record) {
-	d := &b.feedbackDisplay
-	prune := false
-	if key := recording.SketchReceiptKey(r); key != "" {
-		id, _, _ := strings.Cut(key, "\x00")
-		if old, ok := d.sketches[id]; ok {
-			v, found := b.st.Sketches.Metadata(id)
-			prune = !found || v.NextSequence != old.NextSequence || v.Digest != old.Digest
-		}
-	} else {
-		switch v := r.(type) {
-		case *recording.NoteEdit:
-			_, prune = d.notes[v.ID]
-		case *recording.NoteState:
-			_, prune = d.notes[v.ID]
-		case *recording.AnnotationClear:
-			prune = len(d.mask.Sketches) > 0 || len(d.mask.Notes) > 0
-		}
+	if _, ok := r.(*recording.AnnotationClear); ok {
+		b.installFeedbackMaskLocked(LiveFeedbackMask{Sketches: []FeedbackSketchVersion{}, Notes: []FeedbackNoteVersion{}})
 	}
-	if !prune {
-		return
-	}
-	var sketches []SelectedSketch
-	for _, v := range d.mask.Sketches {
-		sketches = append(sketches, SelectedSketch{ID: v.ID, NextSequence: v.NextSequence, Digest: v.Digest})
-	}
-	var notes []SelectedNote
-	for _, v := range d.mask.Notes {
-		notes = append(notes, SelectedNote{ID: v.ID, Revision: v.Revision})
-	}
-	current, currentNotes := b.currentFeedbackVersionsLocked()
-	mask, _ := matchDeliveredFeedback(current, currentNotes, sketches, notes)
-	b.installFeedbackMaskLocked(mask)
 }
 
 func (b *Board) FeedbackMask() LiveFeedbackMask {
