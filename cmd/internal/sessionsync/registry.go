@@ -73,7 +73,8 @@ type registryStore struct {
 	Publish func(string, []byte) error
 	SyncDir func(string) error
 	// TryLock is the nonblocking advisory-lock IO boundary.
-	TryLock func(int) error
+	TryLock       func(int) error
+	OperatorLocks operatorLockFiles
 }
 
 type registryTxn struct {
@@ -155,11 +156,11 @@ func withRegistry[T any](s *Sync, fn func(*registryTxn) (T, error)) (T, error) {
 	var zero T
 	store := s.registryStore()
 	if err := durablefile.EnsureDirectory(store.Dir); err != nil {
-		return zero, err
+		return zero, registryAccessFailure(err)
 	}
 	lock, err := os.OpenFile(filepath.Join(store.Dir, "registry.flock"), os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
-		return zero, err
+		return zero, registryAccessFailure(err)
 	}
 	defer lock.Close()
 	deadline := time.Now().Add(2 * time.Second)
@@ -173,7 +174,7 @@ func withRegistry[T any](s *Sync, fn func(*registryTxn) (T, error)) (T, error) {
 			break
 		}
 		if !errors.Is(err, syscall.EWOULDBLOCK) && !errors.Is(err, syscall.EAGAIN) {
-			return zero, err
+			return zero, registryAccessFailure(err)
 		}
 		if !time.Now().Before(deadline) {
 			return zero, registryRefusal("registry-busy", "agentic registry is busy; retry this command after the current operation finishes")
@@ -186,7 +187,7 @@ func withRegistry[T any](s *Sync, fn func(*registryTxn) (T, error)) (T, error) {
 		state, err = decodeRegistry(raw)
 	}
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return zero, err
+		return zero, registryAccessFailure(err)
 	}
 	return fn(&registryTxn{store: store, state: state})
 }
