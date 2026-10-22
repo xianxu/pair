@@ -538,3 +538,71 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-22T09:19:03-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 792 — Couch: no verb reaps proven orphans of a live slot's previous incarnation; extend --reap-orphans |
+| repo | pair |
+| issue file | workshop/issues/000792-couch-no-verb-reaps-proven-orphans-of-a-live-slot-s-previous-incarnation-extend-reap-orphans.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 0e4395b5246213c721c29c02423acd02ed764552..09b3cf61c67b73f7caf0e4ca9c2f46ef073e9b2b |
+| command | sdlc close --issue 792 |
+| reviewer | codex (openai; author openai) |
+| isolation | fenced |
+| timestamp | 2026-10-22T09:19:03-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff correctly resolves both merge conflicts, preserving the editor endpoint service and orphan-reap process seam, plus both command-guide updates. Spec and Done when are unchanged; appended Revisions record integration and verification without expanding scope. No open prior findings require disposition.
+
+```findings
+{}
+```
+
+1. **Strengths**
+   - `cmd/internal/couchcmd/message_service.go:169` retains both fields with reachable consumers: endpoint startup/shutdown and supervisor reap handlers.
+   - `cmd/internal/couchcmd/skills/couch/SKILL.md:77` preserves `--editor-endpoint` and accurately describes TERM/KILL grace periods.
+   - Tracker additions preserve previous evidence and record the integration history.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes:** Focused editor endpoint, service lifecycle, proven-orphan, legacy-signal and projection/selection tests passed. `make test-affected-inventory` and range whitespace checks passed. Historical full-suite results were not independently rerun.
+
+6. **Architectural notes**
+   - **ARCH-DRY: Pass** — no duplicated behavior introduced.
+   - **ARCH-PURE: Pass** — existing injected process-table seam remains intact.
+   - **ARCH-PURPOSE: Pass** — both conflict resolutions preserve both sides’ intent.
+   - **ARCH-EVOLVE: Pass** — no persisted-format interpretation or reader/writer changes.
+   
+   No new surface in this interdiff requires atlas or README updates.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"711166fa-9536-43a0-886c-e8ab0c991bc9","repository":"github.com/xianxu/pair","issue_id":"000792","recipe":"fix-review","round":7,"attempt":1,"agent":"codex","root":"/Volumes/TestScratch/review-checkouts/c1cc88c405c66cb9","reviewed_head":"09b3cf61c67b73f7caf0e4ca9c2f46ef073e9b2b","slot":"pair:2","requested_at":"2026-10-22T16:18:03.640531Z"},"phase":"finished","pid":45280,"started_at":"2026-10-22T16:18:03.819108Z","finished_at":"2026-10-22T16:19:00.924614Z","session_id":"01a16467-c37e-7610-bd3c-1892bb8e5882","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 6.743818958s
+head: "09b3cf61c67b73f7caf0e4ca9c2f46ef073e9b2b"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
