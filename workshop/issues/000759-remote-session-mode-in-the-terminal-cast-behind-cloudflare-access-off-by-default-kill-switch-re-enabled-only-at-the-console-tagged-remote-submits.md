@@ -696,3 +696,188 @@ documents daemon packaging/privilege trade-offs. Recommendation is an engineerin
 judgment, not live tsnet evidence. Existing transport-independent controls stay.
 No fallback is authorized by this comparison. The tested GUI Unix path remains
 blocked; any alternative needs an explicit revised plan before product code.
+
+
+### 2026-10-22 — tsnet revision proposed after operator choice A
+
+Operator choice relayed by TL2e7f4b13 supersedes the Serve transport revision.
+The failed native socket probes remain evidence, not an implementation route.
+This is the plan sent for approval; no tsnet dependency, node or auth key exists.
+Public cloudflared cast behavior is unchanged. All remote Cloudflare verification
+and Serve/socket/proxy authentication paths are removed from the remote feature.
+
+Core concepts (ARCH-PURE, ARCH-DRY, ARCH-SECURE)
+
+| Entity | Location | Change |
+| --- | --- | --- |
+| TailnetPrincipal (canonical login, node/user IDs, accepted peer IP, epoch) | cmd/internal/remotesession/tailnet_identity.go | new pure identity validation; replaces AccessIdentity semantics |
+| Exact login policy | cmd/internal/remotesession/policy.go | modified; COUCH_REMOTE_ALLOWED_LOGINS only, nonempty explicit entries, no suffix/domain/case-fold match |
+| Remote epoch/reducer | cmd/internal/remotesession/state.go and supervisor.go | modified for enrollment/health events; retains existing kill/reset and cleanup authority |
+| Remote receipt/audit identity | cmd/internal/remotesession/protocol.go, audit_codec.go, session.go | additive Login; immutable old Email data remains historical, never reinterpreted as newly verified Login |
+
+| Integration | Location | Change / external boundary |
+| --- | --- | --- |
+| TailnetNode owner + stateful fake | cmd/internal/remotesession/tailnet.go, tailnet_fake_test.go | new narrow adapter over pinned tsnet Start/Up, LocalClient status/WhoIs/watch, ListenTLS, Close |
+| Accepted connection authentication | cmd/internal/remotesession/server.go, tailnet_identity.go | modified; trusted ConnContext inserted only by owned tsnet listener |
+| Namespace state and console publication | cmd/internal/couchcmd/remote.go, remote_service.go; cmd/internal/artifactpath/remote.go | replaces cast tunnel settings with owned node state/config and console-only enrollment/link |
+| Host UI and docs | cmd/internal/couchtty remote controls; README.md; atlas existing remote page | preserve controls, show enrollment/assigned name and recovery |
+
+1. Dependency gate, before integrating the adapter (ARCH-CONSTRAINTS)
+
+- Candidate exact pin is tailscale.com v1.104.2, go.sum verified; no latest/main
+  dependency. Source go.mod declares Go1.27.3; Pair currently declares Go1.26.3.
+  This is a material compatibility decision, not permission to upgrade Pair's
+  toolchain. Report it to TL with the dependency review before accepting the pin;
+  if a toolchain change is required, stop for a decision rather than silently
+  selecting an obsolete version or editing go directives. v1.104.1 also requires
+  Go1.27.1 and is not an assumed compatible escape hatch.
+- After plan approval, inspect/download the pinned source in isolated scratch
+  without starting a node, changing product go.mod, or running enrollment. Record
+  module provenance/checksum, licenses, govulncheck results, actual compiled
+  Darwin/arm64 package/module closure (not all monorepo go.mod entries), changed
+  shared dependency versions, CGo/toolchain and supported-platform effects.
+- Same compiler, architecture, tags and release flags for matched baseline and
+  proposed linked Couch binary. Record byte sizes, delta, cold/warm build times
+  and retained module/package lists. Use a compile-only measurement fixture;
+  importing/building tsnet is never consent to call Start/Listen/Dial/LocalClient.
+- Measure baseline idle Couch and candidate remote-OFF RSS; once the operator
+  authorizes enrollment, measure remote-ON idle for60s and four-session edit/stream
+  load, peak and steady RSS, CPU, goroutines and node-state bytes. Include disabled
+  startup and off cleanup. Same workload/host controls, raw timestamped samples;
+  no guessed footprint or subtraction presented without a comparable baseline.
+- Report actual costs and any toolchain conflict for acceptance before final
+  integration/landing. No claim of zero overhead; zero tsnet node instances and
+  zero enrollment/network work while remote is off is an enforced lifecycle rule.
+
+2. Connection identity and authority (ARCH-SECURE)
+
+- Only tsnet.Server.ListenTLS on tailnet TCP443 can feed remote HTTP. Never
+  ListenFunnel, Serve, host TCP/loopback listener, exposed LocalAPI/Loopback helper,
+  generic reverse proxy, automatic route advertisement or exit-node selection.
+  Existing public cast transport is separate. RunWebClient=false; no extra
+  tailnet management listener. No forwarded header establishes login, host or IP.
+- At accept, bind the actual net.Conn.RemoteAddr to unexported ConnContext with
+  owner/epoch. HTTP RemoteAddr/header rewrites cannot replace this evidence.
+  Use this node's LocalClient.WhoIs with that captured address only. Require
+  canonical tailnet peer IP and complete untagged human user/node identity;
+  refuse missing login, tags/service identities, malformed address or lookup
+  failure. Exact login membership, e.g. xianxu@gmail.com, comes from explicit
+  COUCH_REMOTE_ALLOWED_LOGINS. No email-domain or suffix inference.
+- Revalidate WhoIs and current node/epoch health on each request, immediately
+  before protected handoff, and before each stream delivery; bind sessions to
+  verified user/node/login/IP plus epoch. Keep Origin/Host/CSRF/replay/passcode
+  checks, four-session cap and capability checking. HTTP/2 connections retain
+  the same captured peer; any identity change ends their sessions and streams.
+- One owned event watch observes node/netmap changes; membership/expiry/auth
+  loss revokes admissions and streams immediately on observation. Re-run WhoIs
+  for affected active sessions; no persistent identity cache can override newer
+  evidence. Watch loss or uncertain health fails closed and requires explicit
+  local recovery. An expiry deadline timer is not an idle-session timer.
+- Revocation is bounded by Tailscale's control-plane propagation and what this
+  node observes; do not claim instantaneous global revocation during partitions.
+  No positive WhoIs from a stale map is advertised as fresh control-plane proof.
+  Native acceptance must measure removal/revocation behavior; if the pinned API
+  cannot establish the planned expiry/health policy, stop and report the gap.
+- Delivered header remains [remote <login> <IP>]; receipt Origin=remote and
+  RemoteEdited stay. Login is explicit end-to-end, including broker, ledger,
+  audit and native transcript. Console submits remain untagged. Native transcript
+  is the paper trail; bounded correlation recorder is not complete delivery proof.
+
+3. Enrollment, state and operator recovery (ARCH-FUNERAL, ARCH-EVOLVE)
+
+- One stable node per leased Couch namespace, one tsnet instance per active
+  epoch. Reuse explicit namespace-owned state under the existing remote state
+  root, in a new physical0700 tailnet directory; reject symlinks, foreign owner
+  or unsafe existing permissions instead of traversing or broad chmod repair.
+  Key/state files0600. Namespace lease plus exclusive directory ownership keeps
+  two Couch owners from using the same keys. No implicit user config fallback.
+- State is tsnet-owned opaque storage, never decoded/re-written by our codecs;
+  audit its actual writer permissions/atomicity at the pin. New Pair metadata
+  uses the shared retained-raw strict codec, preserving unknown nested fields.
+  No secrets in audit/transcript/CLI/status/test fixtures. Enrollment login URL
+  is console-only; capture-configured refusal still applies before starting.
+- Explicit initial enrollment is a local console action with the operator
+  present. Show tsnet's login URL on the console; operator opens it, signs into
+  their intended tailnet and approves the new Couch device (including admin
+  approval if required). No automatic auth-key/OAuth creation, copied desktop
+  credentials or account/policy changes. No node Start before this authorized
+  enrollment test. Reject inherited TS_AUTHKEY/TS_AUTH_KEY, OAuth/federation,
+  TSNET_FORCE_LOGIN and control-server override inputs rather than consuming
+  ambient credentials or mutating process-global environment.
+- Use the backend-confirmed assigned FQDN and own node/tailnet identity after
+  enrollment; never assume requested couch is available. Verify HTTPS readiness
+  and publish the actual https://FQDN link/QR only on Couch's console once ready.
+  Record enrolled identity and refuse unexpected tailnet/node replacement until
+  a fresh explicit local enrollment decision. Default-off never auto-enrolls.
+- Initial local enrollment may wait up to10min with visible status and cancel;
+  no remote route/dispatch is live meanwhile. Ordinary enrolled enable retains
+  the30s opening budget. WhoIs/status operations cap at2s and active request
+  concurrency is bounded by the existing server; overflow refuses. Cancellation
+  revokes the epoch before joining the node, with existing5s cleanup budget.
+- Off/kill revoke link/passcode/sessions/dispatch FIRST, close HTTP connections,
+  cancel the same opening attempt, join watch and tsnet.Close. Late readiness
+  cannot publish. Unproved cleanup stays blocked, host reset unavailable. Off
+  preserves enrolled keys for explicit re-enable without creating a new device.
+  Re-enable rotates capability/passcode; never rotates node identity silently.
+- Node key expiry, needs-login, device removal, missing policy access, certificate
+  failure, or observed caller revocation denies requests and stops dispatch.
+  Recovery names the action: reconnect/check tailnet policy, or local re-login
+  and operator approval. No automatic new node or disabled key expiry. Policy
+  outages are not repaired by deleting state. Same account reauthentication
+  never restores killed latch authority; reset remains physical-host-key only.
+- Durable node state has one identity rather than per-epoch/per-session growth;
+  inventory/cap upstream caches and logs during dependency review. Keep it across
+  off/restarts, remove only through explicit operator retirement after device
+  removal and proven Close, never automatically reset/delete to repair errors.
+  Enrollment cancelled after possible registration may leave a device: preserve
+  state and report exact identity/unknown outcome for operator inspection.
+
+4. Reducer and uncertainty table (ARCH-STATE)
+
+| State/event | Outcome and owned effects |
+| --- | --- |
+| off + local enrollment approved | opening/enrolling; one owner, console URL; no remote admission |
+| opening + enrolled and HTTPS/identity ready | on; publish actual origin under current epoch only |
+| opening + timeout/cancel/error | revoke then closing; join same attempt, retain possibly enrolled state |
+| on + off or authenticated kill | revoke before close; kill persists existing latch |
+| opening/on + expiry, identity loss or watch uncertainty | revoke; close; recovery status identifies login/policy/health cause |
+| closing + late open completion | never publish; join exact resource and preserve its cleanup outcome |
+| closing + confirmed completion | off or killed; persistent node identity retained |
+| closing + uncertain completion | existing cleanup-blocked; reset unavailable; no second owner |
+| killed + remote/CLI reset or re-handshake | refuse; only actual host key can clear after cleanup proven |
+
+5. Implementation and qualification sequence (tests first, no extra milestones)
+
+- After TL plan approval, run change-code plan-quality on this revision. Finish
+  dependency/compatibility report first; seek the explicit toolchain decision
+  if needed. No node or auth key until operator enrollment window.
+- Red/green pure login/principal and reducer tests; then stateful TailnetNode
+  fake behind the production seam. Model enrollment pending/approved/rejected,
+  actual hostname collision, held startup/close, late readiness, expiry, device
+  removal, watch loss, WhoIs errors/change/tagged identities and state contention.
+  Count N/2N requests and stream events: bounded linear identity operations,
+  zero spawned CLI children; one node/watch per epoch and zero while off.
+- Add root/header spoof tests proving WhoIs input is captured connection address,
+  never HTTP headers. Missing context, forged login/IP/RemoteAddr, unallowed login,
+  wrong origin, stale cookie/capability and expired/revoked identity yield zero
+  document effects. Deterministic off/kill during held WhoIs/dispatch and both
+  existing failed-cleanup opening/closing regressions retain the same authority.
+- Replace Cloudflare-only remote transport/verifier and tests, reconcile shared
+  host coupling narrowly, retain public cast tests. Sweep Login/provenance across
+  server, sessions, broker, IPC receipt, audit, ledger and transcript. Preserve
+  old audit unknown fields and historical Email bytes. Forget split remains.
+- Operator-approved enrollment test: isolated explicit0700 state, no auth key;
+  operator sees console URL and approves one identified device. Confirm actual
+  HTTPS name, phone WhoIs login/IP, disallowed identity and header-forgery cases,
+  off/re-enable identity reuse and link rotation, kill from phone, host reset,
+  expiry/revocation response, joined cleanup and unchanged desktop app/public cast.
+  Native test node is retired only with operator authorization; no silent delete.
+- Measure full footprint above, update README/atlas/operator acceptance, targeted
+  packages/race plus recorded suite, then required fresh-context boundary review.
+  Stage only on TL go. Operator iPhone edit/submit checks native transcript and
+  audit provenance before landing; fakes never replace live acceptance.
+
+References checked 2026-10-22: tailscale.com/docs/reference/tsnet-server-api;
+pkg.go.dev/tailscale.com@v1.104.1/tsnet (API/enrollment/ambient credentials);
+raw.githubusercontent.com/tailscale/tailscale/v1.104.2/go.mod (candidate pin and
+Go1.27.3 requirement). API/Go requirements must be rechecked at selected pin.
