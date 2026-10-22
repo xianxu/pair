@@ -926,6 +926,269 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 3edf6480-43b0-4c97-8800-d0d9f8545b2a
+            repository: github.com/xianxu/pair
+            issue_id: "000728"
+            recipe: milestone-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Volumes/TestScratch/review-checkouts/92632de98c05926e
+            reviewed_head: 052e2ff49d5dbb4db398a8f00610379394a8b2d6
+            slot: pair:3
+            requested_at: "2026-10-22T23:28:40.631091Z"
+          phase: finished
+          pid: 12133
+          started_at: "2026-10-22T23:28:40.727385Z"
+          finished_at: "2026-10-22T23:33:21.289164Z"
+          session_id: 01a165f2-0029-7441-9545-ed3cc8a470db
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-queue-v1
+        repository: github.com/xianxu/pair
+        code_head: 052e2ff49d5dbb4db398a8f00610379394a8b2d6
+        tracker_head: 2e5078a826b8b2250ae046a3369393db7e0f704d
+        branch_point: 4a7ab2ca1a4c0b0d4aa34e8cada1d8c2917427bc
+        since: "2026-10-20T23:31:35-07:00"
+        until: "2026-10-22T16:27:46-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-20T23:31:35-07:00"
+              end: "2026-10-22T16:27:46-07:00"
+              began: "2026-10-20T23:31:35-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot3/pair
+        sources:
+            - harness: codex
+              id: 01a15d17-8eb2-79b2-82d4-848985b4d8a3
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: d450dc513b7acfdf5eba26e9524045df7b2a2851450e9d20f99abe9eb9fc44a9
+              started: "2026-10-21T06:13:07.817Z"
+              spawned: false
+              bytes: 16235780
+              windows:
+                - start: "2026-10-20T23:31:35-07:00"
+                  end: "2026-10-22T16:27:46-07:00"
+            - harness: codex
+              id: 01a15d29-153f-7452-97d3-7d2c1d094ad7
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a15d17-8eb2-79b2-82d4-848985b4d8a3
+              digest: 799759a2ccd0bfe075a8730a654affc1c9c2887404b6a43c0a34678a426dbf24
+              started: "2026-10-21T06:32:16.07Z"
+              spawned: true
+              bytes: 1797356
+              windows:
+                - start: "2026-10-21T06:32:16.07Z"
+                  end: "2026-10-22T16:27:46-07:00"
+            - harness: codex
+              id: 01a16004-9432-7d31-86ac-fb5d8d41b0e6
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              digest: 22f65544c5ba76142f7c4a6106ff9b3aedaa3f6aa4b64e45dc444c63e7152f2a
+              started: "2026-10-21T19:51:15.615Z"
+              spawned: false
+              bytes: 24459328
+              windows:
+                - start: "2026-10-21T19:51:15.615Z"
+                  end: "2026-10-22T16:27:46-07:00"
+            - harness: codex
+              id: 01a1654e-ca09-7bc1-9b4f-462d9ffb80be
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a16004-9432-7d31-86ac-fb5d8d41b0e6
+              digest: b2402ca7fb910ba96be44f2518ed663ed7af11913d0822316c91af59e7414c4f
+              started: "2026-10-22T20:30:24.984Z"
+              spawned: true
+              bytes: 6642176
+              windows:
+                - start: "2026-10-22T20:30:24.984Z"
+                  end: "2026-10-22T16:27:46-07:00"
+            - harness: codex
+              id: 01a165ec-bc82-7f53-a756-f1b85f5140d7
+              slot: pair:3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot3/pair
+              parent_id: 01a16004-9432-7d31-86ac-fb5d8d41b0e6
+              digest: 9193a465a2dd0eb34b692dd7c6fc6cd80edfca660402ddaa777bf2da514149c2
+              started: "2026-10-22T23:22:56.094Z"
+              spawned: true
+              bytes: 719616
+              windows:
+                - start: "2026-10-22T23:22:56.094Z"
+                  end: "2026-10-22T16:27:46-07:00"
+        queue_waits:
+            - attempt_id: d21fcedfda5b439e8007eef7615195fc
+              slot: pair:3
+              record_digest: a4f27f0124de149527f21bf57279c7755a778bf7484740693f934df8be8a58d8
+              start: "2026-10-22T20:46:00.409747Z"
+              end: "2026-10-22T23:14:19.613041Z"
+              queue_seconds: 8899.203294
+              raw_seconds: 8899.203294
+              exact: true
+        protected:
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-20T23:31:35-07:00"
+              end: "2026-10-21T07:00:58.259899Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-20T23:31:35-07:00"
+              end: "2026-10-21T06:31:47.587Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T06:32:10.287Z"
+              end: "2026-10-21T06:37:10.662Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T06:32:18.563Z"
+              end: "2026-10-21T07:00:58.259899Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T06:40:45.831Z"
+              end: "2026-10-21T06:41:59.932Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T06:45:37.509Z"
+              end: "2026-10-21T06:49:22.955Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T09:44:41.27Z"
+              end: "2026-10-21T02:59:39-07:00"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T02:59:39-07:00"
+              end: "2026-10-21T03:13:35-07:00"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T03:17:33-07:00"
+              end: "2026-10-21T03:18:54-07:00"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T03:18:54-07:00"
+              end: "2026-10-21T10:28:52.200322Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T15:44:53.21Z"
+              end: "2026-10-21T16:43:59.107Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T15:57:07.598Z"
+              end: "2026-10-21T16:16:35.787Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T15:57:40.597Z"
+              end: "2026-10-21T15:59:23.781Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T16:02:11.33Z"
+              end: "2026-10-21T16:02:45.641Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T16:05:48.585Z"
+              end: "2026-10-21T16:06:19.403Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T16:06:25.195Z"
+              end: "2026-10-21T16:07:05.27Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T17:30:49.095Z"
+              end: "2026-10-21T19:51:08.104Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T17:35:21.95Z"
+              end: "2026-10-21T17:53:57.829Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T17:35:53.432Z"
+              end: "2026-10-21T18:01:27.06Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T17:36:36.55Z"
+              end: "2026-10-21T17:48:56.775Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T19:51:16.84Z"
+              end: "2026-10-21T20:03:08.016343Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T20:03:08.376521Z"
+              end: "2026-10-21T20:16:56.720381Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T23:30:07.401Z"
+              end: "2026-10-21T16:30:28-07:00"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T16:34:05-07:00"
+              end: "2026-10-21T23:50:36.112Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-21T23:53:15.351Z"
+              end: "2026-10-22T00:08:26.944Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-22T01:58:45.649Z"
+              end: "2026-10-22T02:14:00.132Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-22T02:56:58.521Z"
+              end: "2026-10-22T03:12:27.833Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-22T04:33:50.839Z"
+              end: "2026-10-22T04:35:16.088562Z"
+            - issue: "743"
+              slot: pair:3
+              start: "2026-10-22T09:59:10.637Z"
+              end: "2026-10-22T09:59:26.878Z"
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 79.82053333333333
+        cuts:
+            - boundary: M1
+              dispatched: "2026-10-22T13:03:45-07:00"
+              finalized: "2026-10-22T13:10:03-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-22T13:18:35-07:00"
+              finalized: "2026-10-22T13:28:07-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-22T13:47:17-07:00"
+              finalized: "2026-10-22T13:58:52-07:00"
+              finalizing: true
+            - boundary: M2
+              dispatched: "2026-10-22T16:17:25-07:00"
+              finalized: "2026-10-22T16:22:28-07:00"
+              finalizing: false
+      "n": 5
+      timestamp: "2026-10-22T16:33:22-07:00"
+      dispatched: "2026-10-22T16:28:38-07:00"
+      agent: codex
+      reviewer: codex (openai; author openai)
+      dispose:
+        - id: BR-5
+          disposition: addressed
+          note: switchagent.go:414 and :450 retain the verified token through final confirmation. TestSwitchAgentPinsLiveSourceAcrossFinalGuard covers local/remote ordinary/cooperative reconnects with zero effects. Removing token retention caused both local paths to park/start. Force retains its consent-bound token and has replacement/refusal coverage.
+          round: 5
+        - id: BR-6
+          disposition: addressed
+          note: menu_switchagent.go:118 copies PreparedAgentSwitch before clearing Force. Both cancellation routes preserve input and render snapshots. Reintroducing shared mutation failed both immutability tests and produced rendering data races.
+          round: 5
+      boundary: M2
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 052e2ff49d5dbb4db398a8f00610379394a8b2d6
+      blocked: false
 ---
 
 # Gate ledger — pair#728 (boundary-review)
@@ -972,7 +1235,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-6** [Important] `immutable-reducer-state` Copy the prepared preview before clearing its force offer
   cmd/internal/couchtty/menu_switchagent.go:23 and :108 assign through frame.SwitchPrepared.Force, but cloneMenuState at cmd/internal/couchtty/menu.go:1968 copies frames without copying SwitchPrepared. Reducing Escape or Cancel therefore changes the input MenuState and existing snapshots. showMenuPublishing renders such a snapshot after releasing c.mu, so cancellation can also race its Force read at menu_switchagent.go:255 (ARCH-PURE, ARCH-ORDER). Copy the PreparedAgentSwitch value before replacing its Force field, retaining the same one-shot offer object where needed. Test both cancellation routes for input immutability and concurrent snapshot rendering.
 
+## Round 5 — 2026-10-22T16:33:22-07:00 (codex) — passed
+
+### Disposed
+
+- BR-5 — addressed — switchagent.go:414 and :450 retain the verified token through final confirmation. TestSwitchAgentPinsLiveSourceAcrossFinalGuard covers local/remote ordinary/cooperative reconnects with zero effects. Removing token retention caused both local paths to park/start. Force retains its consent-bound token and has replacement/refusal coverage.
+- BR-6 — addressed — menu_switchagent.go:118 copies PreparedAgentSwitch before clearing Force. Both cancellation routes preserve input and render snapshots. Reintroducing shared mutation failed both immutability tests and produced rendering data races.
+
 ## Open findings
 
-- **BR-5** [Critical] `switch-source-generation-fencing` Preserve the local interrupt phase's source token through the final park guard
-- **BR-6** [Important] `immutable-reducer-state` Copy the prepared preview before clearing its force offer
+(none — every finding has been disposed)

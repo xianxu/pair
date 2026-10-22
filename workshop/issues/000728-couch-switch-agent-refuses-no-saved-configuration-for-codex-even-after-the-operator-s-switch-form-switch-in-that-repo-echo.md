@@ -46,7 +46,7 @@ agent's last successful launch configuration in that repo. The refusal names exa
 The latest governing Revisions and [durable plan](../plans/000728-shared-agent-startup-preferences-plan.md#2026-10-21-0004--governing-couch-only-repository-preference-design) supersede the historical shared-store proposal. The operator approved the governing Couch-only plan and edited-resume/fresh-fallback revision on 2026-10-21 08:54; entering change-code before implementation.
 
 - [x] M1 — Couch-owned repository arguments, bounded migration and explicitly accepted borrowed suggestions; Pair stays independent.
-- [ ] M2 — Editable field/provenance, explicit CLI arguments and guarded live/proven-vacant switching, with typed restart intent.
+- [x] M2 — Editable field/provenance, explicit CLI arguments and guarded live/proven-vacant switching, with typed restart intent.
 - [ ] M3 — Edited same-native-conversation restart, visible missing-conversation fresh fallback and real acceptance.
 
 ## Estimate
@@ -89,6 +89,8 @@ total: 14.58
 ## Log
 
 
+
+- 2026-10-22: closed M2 — BR5: live guards return verified source token retained across ordinary/cooperative phases; controlled local/remote reconnect regression red then green with zero park/start and unchanged source. BR6: cancellation copies preview; both Escape/Cancel immutability and concurrent render races red then green. Corrected admission fixture installs authority before startup and uses synchronized fault state. Final broader race core2.793s/cmd10.941s/tty1.439s; fixture race count3 PASS4.433s; repolint6.711s and affected inventory PASS. Prior clean native Claude full argv+parked and both force cases pass; Codex third attach false-miss accepted environmental by authenticated hub54a9ef63 and filed#821, raw cb0b2cf75c161c0ba3afa92f2ff8a197d136fe19e03865dd57a15fbebd4b1418, no retry. M1 recorded suite PASS11m39s on e7de5ca1; final-head recorded and M3 operator acceptance remain required before landing.; review verdict: SHIP
 - 2026-10-22: closed M1 — BR-4 shares original5s migration/writer context; controlled real store/coordinator contention spends migration budget then refuses with warning, unchanged bytes, live child and no later retry. Sixteen concurrent writers preserved; actual wired publication leaves input/render responsive and remote completion pending. Full couchcore483.600s/couchcmd153.782s/couchtty79.923s/repolint25.054s PASS; targeted core race14.201s and console race PASS; artifact/dead-symbol/inventory PASS. Recorded affected started on pushede7de5ca161079b427e7fe4726d3782ac03d35b95; final-head recorded pass still required before landing. Unchanged PTY teardown flake registered separately as#814 from verified round2 same-head fail/pass.; review verdict: SHIP
 ### 2026-10-20
 
